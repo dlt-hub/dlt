@@ -1,4 +1,6 @@
 import re
+import inspect
+
 from typing import Any, List, Optional, Tuple
 
 from dlt.common import logger
@@ -14,16 +16,35 @@ from dlt.common.schema.utils import (
 from typing import Any, cast, Tuple, Dict, Type
 
 from dlt.destinations.exceptions import DatabaseTransientException
-from dlt.extract import DltResource, resource as make_resource
+from dlt.extract import DltResource, resource as make_resource, DltSource
 
 RE_DATA_TYPE = re.compile(r"([A-Z]+)\((\d+)(?:,\s?(\d+))?\)")
 
 
-def ensure_resource(data: Any) -> DltResource:
-    """Wraps `data` in a DltResource if it's not a DltResource already."""
+def get_resource_for_adapter(data: Any) -> DltResource:
+    """
+    Helper function for adapters. Wraps `data` in a DltResource if it's not a DltResource already.
+    Alternatively if `data` is a DltSource, throws an error if there are multiple resource in the source
+    or returns the single resource if available.
+    """
     if isinstance(data, DltResource):
         return data
-    resource_name = None if hasattr(data, "__name__") else "content"
+    # prevent accidentally wrapping sources with adapters
+    if isinstance(data, DltSource):
+        if len(data.selected_resources.keys()) == 1:
+            return list(data.selected_resources.values())[0]
+        else:
+            raise ValueError(
+                "You are trying to use an adapter on a DltSource with multiple resources. You can"
+                " only use adapters on pure data, direclty on a DltResouce or a DltSource"
+                " containing a single DltResource."
+            )
+
+    resource_name = None
+    if not hasattr(data, "__name__"):
+        logger.info("Setting default resource name to `content` for adapted resource.")
+        resource_name = "content"
+
     return cast(DltResource, make_resource(data, name=resource_name))
 
 
@@ -77,17 +98,32 @@ def verify_sql_job_client_schema(schema: Schema, warnings: bool = True) -> List[
                         f"""Allowed values: {', '.join(['"' + s + '"' for s in MERGE_STRATEGIES])}.""",
                     )
                 )
-            if (
-                table.get("x-merge-strategy") == "delete-insert"
-                and not has_column_with_prop(table, "primary_key")
-                and not has_column_with_prop(table, "merge_key")
-            ):
-                log(
-                    f"Table {table_name} has `write_disposition` set to `merge`"
-                    " and `merge_strategy` set to `delete-insert`, but no primary or"
-                    " merge keys defined."
-                    " dlt will fall back to `append` for this table."
-                )
+            if table.get("x-merge-strategy") == "delete-insert":
+                if not has_column_with_prop(table, "primary_key") and not has_column_with_prop(
+                    table, "merge_key"
+                ):
+                    log(
+                        f"Table {table_name} has `write_disposition` set to `merge`"
+                        " and `merge_strategy` set to `delete-insert`, but no primary or"
+                        " merge keys defined."
+                        " dlt will fall back to `append` for this table."
+                    )
+            elif table.get("x-merge-strategy") == "upsert":
+                if not has_column_with_prop(table, "primary_key"):
+                    exception_log.append(
+                        SchemaCorruptedException(
+                            schema.name,
+                            f"No primary key defined for table `{table['name']}`."
+                            " `primary_key` needs to be set when using the `upsert`"
+                            " merge strategy.",
+                        )
+                    )
+                if has_column_with_prop(table, "merge_key"):
+                    log(
+                        f"Found `merge_key` for table `{table['name']}` with"
+                        " `upsert` merge strategy. Merge key is not supported"
+                        " for this strategy and will be ignored."
+                    )
         if has_column_with_prop(table, "hard_delete"):
             if len(get_columns_names_with_prop(table, "hard_delete")) > 1:
                 exception_log.append(

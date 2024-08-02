@@ -1,37 +1,25 @@
 from contextlib import contextmanager
-from typing import Any, ClassVar, Iterator, Optional, Type, Tuple
+from typing import ClassVar, Iterator
 
-from dlt.common.typing import StrAny
+from dlt.common.typing import DictStrAny
 
-from .provider import ConfigProvider, get_key_name
+from .provider import get_key_name
+from .toml import BaseDocProvider
 
 
-class DictionaryProvider(ConfigProvider):
+class DictionaryProvider(BaseDocProvider):
     NAME: ClassVar[str] = "Dictionary Provider"
 
     def __init__(self) -> None:
-        self._values: StrAny = {}
+        super().__init__({})
+
+    @staticmethod
+    def get_key_name(key: str, *sections: str) -> str:
+        return get_key_name(key, "__", *sections)
 
     @property
     def name(self) -> str:
         return self.NAME
-
-    def get_value(
-        self, key: str, hint: Type[Any], pipeline_name: str, *sections: str
-    ) -> Tuple[Optional[Any], str]:
-        full_path = sections + (key,)
-        if pipeline_name:
-            full_path = (pipeline_name,) + full_path
-        full_key = get_key_name(key, "__", pipeline_name, *sections)
-        node = self._values
-        try:
-            for k in full_path:
-                if not isinstance(node, dict):
-                    raise KeyError(k)
-                node = node[k]
-            return node, full_key
-        except KeyError:
-            return None, full_key
 
     @property
     def supports_secrets(self) -> bool:
@@ -42,8 +30,8 @@ class DictionaryProvider(ConfigProvider):
         return True
 
     @contextmanager
-    def values(self, v: StrAny) -> Iterator[None]:
-        p_values = self._values
-        self._values = v
+    def values(self, v: DictStrAny) -> Iterator[None]:
+        p_values = self._config_doc
+        self._config_doc = v
         yield
-        self._values = p_values
+        self._config_doc = p_values

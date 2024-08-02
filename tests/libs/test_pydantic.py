@@ -29,8 +29,8 @@ from dlt.common.libs.pydantic import (
     DltConfig,
     pydantic_to_table_schema_columns,
     apply_schema_contract_to_model,
-    validate_item,
-    validate_items,
+    validate_and_filter_item,
+    validate_and_filter_items,
     create_list_model,
 )
 from pydantic import UUID4, BaseModel, Json, AnyHttpUrl, ConfigDict, ValidationError
@@ -432,7 +432,7 @@ def test_item_list_validation() -> None:
     discard_model = apply_schema_contract_to_model(ItemModel, "discard_row", "discard_row")
     discard_list_model = create_list_model(discard_model)
     # violate data type
-    items = validate_items(
+    items = validate_and_filter_items(
         "items",
         discard_list_model,
         [{"b": True}, {"b": 2, "opt": "not int", "extra": 1.2}, {"b": 3}, {"b": False}],
@@ -445,7 +445,7 @@ def test_item_list_validation() -> None:
     assert items[0].b is True
     assert items[1].b is False
     # violate extra field
-    items = validate_items(
+    items = validate_and_filter_items(
         "items",
         discard_list_model,
         [{"b": True}, {"b": 2}, {"b": 3}, {"b": False, "a": False}],
@@ -460,7 +460,7 @@ def test_item_list_validation() -> None:
     freeze_list_model = create_list_model(freeze_model)
     # violate data type
     with pytest.raises(DataValidationError) as val_ex:
-        validate_items(
+        validate_and_filter_items(
             "items",
             freeze_list_model,
             [{"b": True}, {"b": 2}, {"b": 3}, {"b": False}],
@@ -476,7 +476,7 @@ def test_item_list_validation() -> None:
     assert val_ex.value.data_item == {"b": 2}
     # extra type
     with pytest.raises(DataValidationError) as val_ex:
-        validate_items(
+        validate_and_filter_items(
             "items",
             freeze_list_model,
             [{"b": True}, {"a": 2, "b": False}, {"b": 3}, {"b": False}],
@@ -495,7 +495,7 @@ def test_item_list_validation() -> None:
     discard_value_model = apply_schema_contract_to_model(ItemModel, "discard_value", "freeze")
     discard_list_model = create_list_model(discard_value_model)
     # violate extra field
-    items = validate_items(
+    items = validate_and_filter_items(
         "items",
         discard_list_model,
         [{"b": True}, {"b": False, "a": False}],
@@ -513,7 +513,7 @@ def test_item_list_validation() -> None:
     evolve_model = apply_schema_contract_to_model(ItemModel, "evolve", "evolve")
     evolve_list_model = create_list_model(evolve_model)
     # for data types a lenient model will be created that accepts any type
-    items = validate_items(
+    items = validate_and_filter_items(
         "items",
         evolve_list_model,
         [{"b": True}, {"b": 2}, {"b": 3}, {"b": False}],
@@ -524,7 +524,7 @@ def test_item_list_validation() -> None:
     assert items[0].b is True
     assert items[1].b == 2
     # extra fields allowed
-    items = validate_items(
+    items = validate_and_filter_items(
         "items",
         evolve_list_model,
         [{"b": True}, {"b": 2}, {"b": 3}, {"b": False, "a": False}],
@@ -539,7 +539,7 @@ def test_item_list_validation() -> None:
     mixed_model = apply_schema_contract_to_model(ItemModel, "discard_row", "evolve")
     mixed_list_model = create_list_model(mixed_model)
     # for data types a lenient model will be created that accepts any type
-    items = validate_items(
+    items = validate_and_filter_items(
         "items",
         mixed_list_model,
         [{"b": True}, {"b": 2}, {"b": 3}, {"b": False}],
@@ -550,7 +550,7 @@ def test_item_list_validation() -> None:
     assert items[0].b is True
     assert items[1].b == 2
     # extra fields forbidden - full rows discarded
-    items = validate_items(
+    items = validate_and_filter_items(
         "items",
         mixed_list_model,
         [{"b": True}, {"b": 2}, {"b": 3}, {"b": False, "a": False}],
@@ -568,10 +568,13 @@ def test_item_validation() -> None:
     # non validating items removed from the list (both extra and declared)
     discard_model = apply_schema_contract_to_model(ItemModel, "discard_row", "discard_row")
     # violate data type
-    assert validate_item("items", discard_model, {"b": 2}, "discard_row", "discard_row") is None
+    assert (
+        validate_and_filter_item("items", discard_model, {"b": 2}, "discard_row", "discard_row")
+        is None
+    )
     # violate extra field
     assert (
-        validate_item(
+        validate_and_filter_item(
             "items", discard_model, {"b": False, "a": False}, "discard_row", "discard_row"
         )
         is None
@@ -581,7 +584,7 @@ def test_item_validation() -> None:
     freeze_model = apply_schema_contract_to_model(ItemModel, "freeze", "freeze")
     # violate data type
     with pytest.raises(DataValidationError) as val_ex:
-        validate_item("items", freeze_model, {"b": 2}, "freeze", "freeze")
+        validate_and_filter_item("items", freeze_model, {"b": 2}, "freeze", "freeze")
     assert val_ex.value.schema_name is None
     assert val_ex.value.table_name == "items"
     assert val_ex.value.column_name == str(("b",))  # pydantic location
@@ -591,7 +594,7 @@ def test_item_validation() -> None:
     assert val_ex.value.data_item == {"b": 2}
     # extra type
     with pytest.raises(DataValidationError) as val_ex:
-        validate_item("items", freeze_model, {"a": 2, "b": False}, "freeze", "freeze")
+        validate_and_filter_item("items", freeze_model, {"a": 2, "b": False}, "freeze", "freeze")
     assert val_ex.value.schema_name is None
     assert val_ex.value.table_name == "items"
     assert val_ex.value.column_name == str(("a",))  # pydantic location
@@ -603,7 +606,7 @@ def test_item_validation() -> None:
     # discard values
     discard_value_model = apply_schema_contract_to_model(ItemModel, "discard_value", "freeze")
     # violate extra field
-    item = validate_item(
+    item = validate_and_filter_item(
         "items", discard_value_model, {"b": False, "a": False}, "discard_value", "freeze"
     )
     # "a" extra got removed
@@ -612,21 +615,25 @@ def test_item_validation() -> None:
     # evolve data types and extras
     evolve_model = apply_schema_contract_to_model(ItemModel, "evolve", "evolve")
     # for data types a lenient model will be created that accepts any type
-    item = validate_item("items", evolve_model, {"b": 2}, "evolve", "evolve")
+    item = validate_and_filter_item("items", evolve_model, {"b": 2}, "evolve", "evolve")
     assert item.b == 2
     # extra fields allowed
-    item = validate_item("items", evolve_model, {"b": False, "a": False}, "evolve", "evolve")
+    item = validate_and_filter_item(
+        "items", evolve_model, {"b": False, "a": False}, "evolve", "evolve"
+    )
     assert item.b is False
     assert item.a is False  # type: ignore[attr-defined]
 
     # accept new types but discard new columns
     mixed_model = apply_schema_contract_to_model(ItemModel, "discard_row", "evolve")
     # for data types a lenient model will be created that accepts any type
-    item = validate_item("items", mixed_model, {"b": 3}, "discard_row", "evolve")
+    item = validate_and_filter_item("items", mixed_model, {"b": 3}, "discard_row", "evolve")
     assert item.b == 3
     # extra fields forbidden - full rows discarded
     assert (
-        validate_item("items", mixed_model, {"b": False, "a": False}, "discard_row", "evolve")
+        validate_and_filter_item(
+            "items", mixed_model, {"b": False, "a": False}, "discard_row", "evolve"
+        )
         is None
     )
 

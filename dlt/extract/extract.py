@@ -374,7 +374,7 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
     ) -> str:
         # generate load package to be able to commit all the sources together later
         load_id = self.extract_storage.create_load_package(
-            source.discover_schema(), reuse_exiting_package=True
+            source.schema, reuse_exiting_package=True
         )
         with Container().injectable_context(
             SourceSchemaInjectableContext(source.schema)

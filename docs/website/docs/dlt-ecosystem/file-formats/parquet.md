@@ -3,6 +3,7 @@ title: Parquet
 description: The parquet file format
 keywords: [parquet, file formats]
 ---
+import SetTheFormat from './_set_the_format.mdx';
 
 # Parquet file format
 
@@ -16,13 +17,11 @@ pip install "dlt[parquet]"
 
 ## Supported Destinations
 
-Supported by: **BigQuery**, **DuckDB**, **Snowflake**, **filesystem**, **Athena**, **Databricks**, **Synapse**
+Supported by: **BigQuery**, **DuckDB**, **Snowflake**, **Filesystem**, **Athena**, **Databricks**, **Synapse**
 
-By setting the `loader_file_format` argument to `parquet` in the run command, the pipeline will store your data in the parquet format at the destination:
+## How to configure
 
-```py
-info = pipeline.run(some_source(), loader_file_format="parquet")
-```
+<SetTheFormat file_type="parquet"/>
 
 ## Destination AutoConfig
 `dlt` uses [destination capabilities](../../walkthroughs/create-new-destination.md#3-set-the-destination-capabilities) to configure the parquet writer:

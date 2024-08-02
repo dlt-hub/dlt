@@ -386,7 +386,7 @@ from dlt.sources.helpers.rest_client.paginators import JSONResponsePaginator
 
 {
     "path": "posts",
-    "paginator": JSONResponsePaginator(
+    "paginator": JSONLinkPaginator(
         next_url_path="pagination.next"
     ),
 }
@@ -400,15 +400,29 @@ These are the available paginators:
 
 | `type` | Paginator class | Description |
 | ------------ | -------------- | ----------- |
-| `json_response` | [JSONResponsePaginator](../../general-usage/http/rest-client.md#jsonresponsepaginator) | The link to the next page is in the body (JSON) of the response.<br/>*Parameters:*<ul><li>`next_url_path` (str) - the JSONPath to the next page URL</li></ul> |
+| `json_link` | [JSONLinkPaginator](../../general-usage/http/rest-client.md#jsonresponsepaginator) | The link to the next page is in the body (JSON) of the response.<br/>*Parameters:*<ul><li>`next_url_path` (str) - the JSONPath to the next page URL</li></ul> |
 | `header_link` | [HeaderLinkPaginator](../../general-usage/http/rest-client.md#headerlinkpaginator) | The links to the next page are in the response headers.<br/>*Parameters:*<ul><li>`link_header` (str) - the name of the header containing the links. Default is "next".</li></ul> |
 | `offset` | [OffsetPaginator](../../general-usage/http/rest-client.md#offsetpaginator) | The pagination is based on an offset parameter. With total items count either in the response body or explicitly provided.<br/>*Parameters:*<ul><li>`limit` (int) - the maximum number of items to retrieve in each request</li><li>`offset` (int) - the initial offset for the first request. Defaults to `0`</li><li>`offset_param` (str) - the name of the query parameter used to specify the offset. Defaults to "offset"</li><li>`limit_param` (str) - the name of the query parameter used to specify the limit. Defaults to "limit"</li><li>`total_path` (str) - a JSONPath expression for the total number of items. If not provided, pagination is controlled by `maximum_offset`</li><li>`maximum_offset` (int) - optional maximum offset value. Limits pagination even without total count</li></ul> |
-| `page_number` | [PageNumberPaginator](../../general-usage/http/rest-client.md#pagenumberpaginator) | The pagination is based on a page number parameter. With total pages count either in the response body or explicitly provided.<br/>*Parameters:*<ul><li>`initial_page` (int) - the starting page number. Defaults to `0`</li><li>`page_param` (str) - the query parameter name for the page number. Defaults to "page"</li><li>`total_path` (str) - a JSONPath expression for the total number of pages. If not provided, pagination is controlled by `maximum_page`</li><li>`maximum_page` (int) - optional maximum page number. Stops pagination once this page is reached</li></ul> |
+| `page_number` | [PageNumberPaginator](../../general-usage/http/rest-client.md#pagenumberpaginator) | The pagination is based on a page number parameter. With total pages count either in the response body or explicitly provided.<br/>*Parameters:*<ul><li>`base_page` (int) - the starting page number. Defaults to `0`</li><li>`page_param` (str) - the query parameter name for the page number. Defaults to "page"</li><li>`total_path` (str) - a JSONPath expression for the total number of pages. If not provided, pagination is controlled by `maximum_page`</li><li>`maximum_page` (int) - optional maximum page number. Stops pagination once this page is reached</li></ul> |
 | `cursor` | [JSONResponseCursorPaginator](../../general-usage/http/rest-client.md#jsonresponsecursorpaginator) | The pagination is based on a cursor parameter. The value of the cursor is in the response body (JSON).<br/>*Parameters:*<ul><li>`cursor_path` (str) - the JSONPath to the cursor value. Defaults to "cursors.next"</li><li>`cursor_param` (str) - the query parameter name for the cursor. Defaults to "after"</li></ul> |
 | `single_page` | SinglePagePaginator | The response will be interpreted as a single-page response, ignoring possible pagination metadata. |
 | `auto` | `None` | Explicitly specify that the source should automatically detect the pagination method. |
 
 For more complex pagination methods, you can implement a [custom paginator](../../general-usage/http/rest-client.md#implementing-a-custom-paginator), instantiate it, and use it in the configuration.
+
+Alternatively, you can use the dictionary configuration syntax also for custom paginators. For this, you need to register your custom paginator:
+
+```py
+rest_api.config_setup.register_paginator("custom_paginator", CustomPaginator)
+
+{
+    # ...
+    "paginator": {
+        "type": "custom_paginator",
+        "next_url_path": "paging.nextLink",
+    }
+}
+```
 
 ### Data selection
 
@@ -693,7 +707,7 @@ Let's break down the configuration.
 
 ### Incremental loading using the `incremental` field
 
-The alternative method is to use the `incremental` field in the [endpoint configuration](#endpoint-configuration). This method is more flexible and allows you to specify the start and end conditions for the incremental loading.
+The alternative method is to use the `incremental` field in the [endpoint configuration](#endpoint-configuration). This configuration is more powerful than the method shown above because it also allows you to specify not only the start parameter and value but also the end parameter and value for the incremental loading.
 
 Let's take the same example as above and configure it using the `incremental` field:
 
@@ -721,6 +735,7 @@ The full available configuration for the `incremental` field is:
         "cursor_path": "<path_to_cursor_field>",
         "initial_value": "<initial_value>",
         "end_value": "<end_value>",
+        "convert": a_callable,
     }
 }
 ```
@@ -732,10 +747,43 @@ The fields are:
 - `cursor_path` (str): The JSONPath to the field within each item in the list. This is the field that will be used to track the incremental loading. In the example above, it's `"created_at"`.
 - `initial_value` (str): The initial value for the cursor. This is the value that will initialize the state of incremental loading.
 - `end_value` (str): The end value for the cursor to stop the incremental loading. This is optional and can be omitted if you only need to track the start condition. If you set this field, `initial_value` needs to be set as well.
+- `convert` (callable): A callable that converts the cursor value into the format that the query parameter requires. For example, a UNIX timestamp can be converted into an ISO 8601 date or a date can be converted into `created_at+gt+{date}`.
 
 See the [incremental loading](../../general-usage/incremental-loading.md#incremental-loading-with-a-cursor-field) guide for more details.
 
 If you encounter issues with incremental loading, see the [troubleshooting section](../../general-usage/incremental-loading.md#troubleshooting) in the incremental loading guide.
+
+### Convert the incremental value before calling the API
+
+If you need to transform the values in the cursor field before passing them to the API endpoint, you can specify a callable under the key `convert`. For example, the API might return UNIX epoch timestamps but expects to be queried with an ISO 8601 date. To achieve that, we can specify a function that converts from the date format returned by the API to the date format required for API requests.
+
+In the following examples, `1704067200` is returned from the API in the field `updated_at` but the API will be called with `?created_since=2024-01-01`.
+
+Incremental loading using the `params` field:
+```py
+{
+    "created_since": {
+        "type": "incremental",
+        "cursor_path": "updated_at",
+        "initial_value": "1704067200",
+        "convert": lambda epoch: pendulum.from_timestamp(int(epoch)).to_date_string(),
+    }
+}
+```
+
+Incremental loading using the `incremental` field:
+```py
+{
+    "path": "posts",
+    "data_selector": "results",
+    "incremental": {
+        "start_param": "created_since",
+        "cursor_path": "updated_at",
+        "initial_value": "1704067200",
+        "convert": lambda epoch: pendulum.from_timestamp(int(epoch)).to_date_string(),
+    },
+}
+```
 
 ## Advanced configuration
 
@@ -751,13 +799,24 @@ If you encounter issues with incremental loading, see the [troubleshooting secti
 
 ### Response actions
 
-The `response_actions` field in the endpoint configuration allows you to specify how to handle specific responses from the API based on status codes or content substrings. This is useful for handling edge cases like ignoring responses on specific conditions.
+The `response_actions` field in the endpoint configuration allows you to specify how to handle specific responses or all responses from the API. For example, responses with specific status codes or content substrings can be ignored.
+Additionally, all responses or only responses with specific status codes or content substrings can be transformed with a custom callable, such as a function. This callable is passed on to the requests library as a [response hook](https://requests.readthedocs.io/en/latest/user/advanced/#event-hooks). The callable can modify the response object and has to return it for the modifications to take effect.
 
 :::caution Experimental Feature
 This is an experimental feature and may change in future releases.
 :::
 
-#### Example
+**Fields:**
+
+- `status_code` (int, optional): The HTTP status code to match.
+- `content` (str, optional): A substring to search for in the response content.
+- `action` (str or Callable or List[Callable], optional): The action to take when the condition is met. Currently supported actions:
+  - `"ignore"`: Ignore the response.
+  - a callable accepting and returning the response object.
+  - a list of callables, each accepting and returning the response object.
+
+
+#### Example A
 
 ```py
 {
@@ -772,12 +831,78 @@ This is an experimental feature and may change in future releases.
 
 In this example, the source will ignore responses with a status code of 404, responses with the content "Not found", and responses with a status code of 200 _and_ content "some text".
 
-**Fields:**
+#### Example B
 
-- `status_code` (int, optional): The HTTP status code to match.
-- `content` (str, optional): A substring to search for in the response content.
-- `action` (str): The action to take when the condition is met. Currently supported actions:
-  - `ignore`: Ignore the response.
+```py
+def set_encoding(response, *args, **kwargs):
+    # sets the encoding in case it's not correctly detected
+    response.encoding = 'windows-1252'
+    return response
+
+
+def add_and_remove_fields(response: Response, *args, **kwargs) -> Response:
+    payload = response.json()
+    for record in payload["data"]:
+        record["custom_field"] = "foobar"
+        record.pop("email", None)
+    modified_content: bytes = json.dumps(payload).encode("utf-8")
+    response._content = modified_content
+    return response
+
+
+source_config = {
+    "client": {
+        # ...
+    },
+    "resources": [
+        {
+            "name": "issues",
+            "endpoint": {
+                "path": "issues",
+                "response_actions": [
+                    set_encoding,
+                    {
+                        "status_code": 200,
+                        "content": "some text",
+                        "action": add_and_remove_fields,
+                    },
+                ],
+            },
+        },
+    ],
+}
+```
+
+In this example, the resource will set the correct encoding for all responses first. Thereafter, for all responses that have the status code 200, we will add a field `custom_field` and remove the field `email`.
+
+#### Example C
+
+```py
+def set_encoding(response, *args, **kwargs):
+    # sets the encoding in case it's not correctly detected
+    response.encoding = 'windows-1252'
+    return response
+
+source_config = {
+    "client": {
+        # ...
+    },
+    "resources": [
+        {
+            "name": "issues",
+            "endpoint": {
+                "path": "issues",
+                "response_actions": [
+                    set_encoding,
+                ],
+            },
+        },
+    ],
+}
+```
+
+In this example, the resource will set the correct encoding for all responses. More callables can be added to the list of response_actions.
+
 
 ## Troubleshooting
 

@@ -11,6 +11,7 @@ from dlt.common.schema.schema import Schema, utils
 from dlt.common.schema.utils import normalize_table_identifiers
 from dlt.common.utils import uniq_id
 from dlt.common.destination.exceptions import DestinationUndefinedEntity
+from dlt.common.destination.reference import WithStateSync
 
 from dlt.load import Load
 from dlt.pipeline.exceptions import SqlClientNotAvailable
@@ -453,8 +454,19 @@ def test_ignore_state_unfinished_load(destination_config: DestinationTestConfigu
     @dlt.resource
     def some_data(param: str) -> Any:
         dlt.current.source_state()[param] = param
-        yield param
+        yield {"col1": param, param: 1}
 
+    job_client: WithStateSync
+    # Load some complete load packages with state to the destination
+    p.run(some_data("state1"), loader_file_format=destination_config.file_format)
+    p.run(some_data("state2"), loader_file_format=destination_config.file_format)
+    p.run(some_data("state3"), loader_file_format=destination_config.file_format)
+
+    with p._get_destination_clients(p.default_schema)[0] as job_client:  # type: ignore[assignment]
+        state = load_pipeline_state_from_destination(pipeline_name, job_client)
+        assert state and state["_state_version"] == 3
+
+    # Simulate a load package that stores state but is not completed (no entry in loads table)
     def complete_package_mock(self, load_id: str, schema: Schema, aborted: bool = False):
         # complete in local storage but skip call to the database
         self.load_storage.complete_load_package(load_id, aborted)
@@ -463,11 +475,18 @@ def test_ignore_state_unfinished_load(destination_config: DestinationTestConfigu
         p.run(some_data("fix_1"), loader_file_format=destination_config.file_format)
         # assert complete_package.called
 
-    job_client: SqlJobClientBase
     with p._get_destination_clients(p.default_schema)[0] as job_client:  # type: ignore[assignment]
         # state without completed load id is not visible
         state = load_pipeline_state_from_destination(pipeline_name, job_client)
-        assert state is None
+        # Restored state version has not changed
+        assert state and state["_state_version"] == 3
+
+    newest_schema_hash = p.default_schema.version_hash
+    p._wipe_working_folder()
+    p = destination_config.setup_pipeline(pipeline_name=pipeline_name, dataset_name=dataset_name)
+    p.sync_destination()
+
+    assert p.default_schema.version_hash == newest_schema_hash
 
 
 @pytest.mark.parametrize(

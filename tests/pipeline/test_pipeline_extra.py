@@ -3,6 +3,8 @@ import importlib.util
 from typing import Any, ClassVar, Dict, Iterator, List, Optional
 import pytest
 
+from dlt.pipeline.exceptions import PipelineStepFailed
+
 try:
     from pydantic import BaseModel
     from dlt.common.libs.pydantic import DltConfig
@@ -237,6 +239,35 @@ def test_mark_hints_pydantic_columns() -> None:
     assert table["columns"]["name"]["data_type"] == "text"
 
 
+def test_dump_trace_freeze_exception() -> None:
+    class TestRow(BaseModel):
+        id_: int
+        example_string: str
+
+    # yield model in resource so incremental fails when looking for "id"
+    # TODO: support pydantic models in incremental
+
+    @dlt.resource(name="table_name", primary_key="id", write_disposition="replace")
+    def generate_rows_incremental(
+        ts: dlt.sources.incremental[int] = dlt.sources.incremental(cursor_path="id"),
+    ):
+        for i in range(10):
+            yield TestRow(id_=i, example_string="abc")
+            if ts.end_out_of_range:
+                return
+
+    pipeline = dlt.pipeline(pipeline_name="test_dump_trace_freeze_exception", destination="duckdb")
+
+    with pytest.raises(PipelineStepFailed):
+        # must raise because incremental failed
+        pipeline.run(generate_rows_incremental())
+
+    # force to reload trace from storage
+    pipeline._last_trace = None
+    # trace file not present because we tried to pickle TestRow which is a local object
+    assert pipeline.last_trace is None
+
+
 @pytest.mark.parametrize("file_format", ("parquet", "insert_values", "jsonl"))
 def test_columns_hint_with_file_formats(file_format: TLoaderFileFormat) -> None:
     @dlt.resource(write_disposition="replace", columns=[{"name": "text", "data_type": "text"}])
@@ -437,28 +468,20 @@ def test_arrow_no_pandas() -> None:
 
 def test_empty_parquet(test_storage: FileStorage) -> None:
     from dlt.destinations import filesystem
+    from tests.pipeline.utils import users_materialize_table_schema
 
     local = filesystem(os.path.abspath(TEST_STORAGE_ROOT))
 
     # we have two options to materialize columns: add columns hint or use dlt.mark to emit schema
     # at runtime. below we use the second option
 
-    @dlt.resource
-    def users():
-        yield dlt.mark.with_hints(
-            # this is a special empty item which will materialize table schema
-            dlt.mark.materialize_table_schema(),
-            # emit table schema with the item
-            dlt.mark.make_hints(
-                columns=[
-                    {"name": "id", "data_type": "bigint", "precision": 4, "nullable": False},
-                    {"name": "name", "data_type": "text", "nullable": False},
-                ]
-            ),
-        )
-
     # write parquet file to storage
-    info = dlt.run(users, destination=local, loader_file_format="parquet", dataset_name="user_data")
+    info = dlt.run(
+        users_materialize_table_schema,
+        destination=local,
+        loader_file_format="parquet",
+        dataset_name="user_data",
+    )
     assert_load_info(info)
     assert set(info.pipeline.default_schema.tables["users"]["columns"].keys()) == {"id", "name", "_dlt_load_id", "_dlt_id"}  # type: ignore
     # find parquet file

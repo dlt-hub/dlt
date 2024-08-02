@@ -685,6 +685,13 @@ def get_file_format(tables: TSchemaTables, table_name: str) -> TFileFormat:
     )
 
 
+def get_merge_strategy(tables: TSchemaTables, table_name: str) -> TLoaderMergeStrategy:
+    return cast(
+        TLoaderMergeStrategy,
+        get_inherited_table_hint(tables, table_name, "x-merge-strategy", allow_none=True),
+    )
+
+
 def fill_hints_from_parent_and_clone_table(
     tables: TSchemaTables, table: TTableSchema
 ) -> TTableSchema:

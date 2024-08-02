@@ -2,7 +2,7 @@ import pytest
 import contextlib
 import codecs
 import os
-from typing import Any, Iterator, List, Sequence, IO, Tuple, Optional, Dict, Union, Generator
+from typing import Any, Iterator, List, Sequence, IO, Tuple, Optional, Dict, Union, Generator, cast
 import shutil
 from pathlib import Path
 from urllib.parse import urlparse
@@ -27,6 +27,7 @@ from dlt.common.destination.reference import DEFAULT_FILE_LAYOUT
 from dlt.common.data_writers import DataWriter
 from dlt.common.pipeline import PipelineContext
 from dlt.common.schema import TTableSchemaColumns, Schema
+from dlt.common.schema.typing import TTableFormat
 from dlt.common.storages import SchemaStorage, FileStorage, SchemaStorageConfiguration
 from dlt.common.schema.utils import new_table, normalize_table_identifiers
 from dlt.common.storages import ParsedLoadJobFileName, LoadStorage, PackageStorage
@@ -120,6 +121,7 @@ class DestinationTestConfiguration:
     destination: str
     staging: Optional[TDestinationReferenceArg] = None
     file_format: Optional[TLoaderFileFormat] = None
+    table_format: Optional[TTableFormat] = None
     bucket_url: Optional[str] = None
     stage_name: Optional[str] = None
     staging_iam_role: Optional[str] = None
@@ -131,12 +133,15 @@ class DestinationTestConfiguration:
     disable_compression: bool = False
     dev_mode: bool = False
     credentials: Optional[Union[CredentialsConfiguration, Dict[str, Any]]] = None
+    env_vars: Optional[Dict[str, str]] = None
 
     @property
     def name(self) -> str:
         name: str = self.destination
         if self.file_format:
             name += f"-{self.file_format}"
+        if self.table_format:
+            name += f"-{self.table_format}"
         if not self.staging:
             name += "-no-staging"
         else:
@@ -172,6 +177,10 @@ class DestinationTestConfiguration:
             for key, value in dict(self.credentials).items():
                 os.environ[f"DESTINATION__CREDENTIALS__{key.upper()}"] = str(value)
 
+        if self.env_vars is not None:
+            for k, v in self.env_vars.items():
+                os.environ[k] = v
+
     def setup_pipeline(
         self, pipeline_name: str, dataset_name: str = None, dev_mode: bool = False, **kwargs
     ) -> dlt.Pipeline:
@@ -202,9 +211,13 @@ def destinations_configs(
     all_staging_configs: bool = False,
     local_filesystem_configs: bool = False,
     all_buckets_filesystem_configs: bool = False,
+    table_format_filesystem_configs: bool = False,
     subset: Sequence[str] = (),
+    bucket_subset: Sequence[str] = (),
     exclude: Sequence[str] = (),
+    bucket_exclude: Sequence[str] = (),
     file_format: Union[TLoaderFileFormat, Sequence[TLoaderFileFormat]] = None,
+    table_format: Union[TTableFormat, Sequence[TTableFormat]] = None,
     supports_merge: Optional[bool] = None,
     supports_dbt: Optional[bool] = None,
     force_iceberg: Optional[bool] = None,
@@ -460,17 +473,26 @@ def destinations_configs(
     if local_filesystem_configs:
         destination_configs += [
             DestinationTestConfiguration(
-                destination="filesystem", bucket_url=FILE_BUCKET, file_format="insert_values"
+                destination="filesystem",
+                bucket_url=FILE_BUCKET,
+                file_format="insert_values",
+                supports_merge=False,
             )
         ]
         destination_configs += [
             DestinationTestConfiguration(
-                destination="filesystem", bucket_url=FILE_BUCKET, file_format="parquet"
+                destination="filesystem",
+                bucket_url=FILE_BUCKET,
+                file_format="parquet",
+                supports_merge=False,
             )
         ]
         destination_configs += [
             DestinationTestConfiguration(
-                destination="filesystem", bucket_url=FILE_BUCKET, file_format="jsonl"
+                destination="filesystem",
+                bucket_url=FILE_BUCKET,
+                file_format="jsonl",
+                supports_merge=False,
             )
         ]
 
@@ -478,7 +500,31 @@ def destinations_configs(
         for bucket in DEFAULT_BUCKETS:
             destination_configs += [
                 DestinationTestConfiguration(
-                    destination="filesystem", bucket_url=bucket, extra_info=bucket
+                    destination="filesystem",
+                    bucket_url=bucket,
+                    extra_info=bucket,
+                    supports_merge=False,
+                )
+            ]
+
+    if table_format_filesystem_configs:
+        for bucket in DEFAULT_BUCKETS:
+            destination_configs += [
+                DestinationTestConfiguration(
+                    destination="filesystem",
+                    bucket_url=bucket,
+                    extra_info=bucket,
+                    table_format="delta",
+                    supports_merge=True,
+                    env_vars=(
+                        {
+                            "DESTINATION__FILESYSTEM__DELTALAKE_STORAGE_OPTIONS": (
+                                '{"AWS_S3_ALLOW_UNSAFE_RENAME": "true"}'
+                            )
+                        }
+                        if bucket == AWS_BUCKET
+                        else None
+                    ),
                 )
             ]
 
@@ -490,9 +536,21 @@ def destinations_configs(
     # filter out destinations not in subset
     if subset:
         destination_configs = [conf for conf in destination_configs if conf.destination in subset]
+    if bucket_subset:
+        destination_configs = [
+            conf
+            for conf in destination_configs
+            if conf.destination != "filesystem" or conf.bucket_url in bucket_subset
+        ]
     if exclude:
         destination_configs = [
             conf for conf in destination_configs if conf.destination not in exclude
+        ]
+    if bucket_exclude:
+        destination_configs = [
+            conf
+            for conf in destination_configs
+            if conf.destination != "filesystem" or conf.bucket_url not in bucket_exclude
         ]
     if file_format:
         if not isinstance(file_format, Sequence):
@@ -501,6 +559,14 @@ def destinations_configs(
             conf
             for conf in destination_configs
             if conf.file_format and conf.file_format in file_format
+        ]
+    if table_format:
+        if not isinstance(table_format, Sequence):
+            table_format = [table_format]
+        destination_configs = [
+            conf
+            for conf in destination_configs
+            if conf.table_format and conf.table_format in table_format
         ]
     if supports_merge is not None:
         destination_configs = [
@@ -520,6 +586,18 @@ def destinations_configs(
         destination_configs = [
             conf for conf in destination_configs if conf.force_iceberg is force_iceberg
         ]
+
+    # add marks
+    destination_configs = [
+        cast(
+            DestinationTestConfiguration,
+            pytest.param(
+                conf,
+                marks=pytest.mark.needspyarrow17 if conf.table_format == "delta" else [],
+            ),
+        )
+        for conf in destination_configs
+    ]
 
     return destination_configs
 

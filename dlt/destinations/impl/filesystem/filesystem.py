@@ -9,11 +9,18 @@ from contextlib import contextmanager
 
 import dlt
 from dlt.common import logger, time, json, pendulum
+from dlt.common.utils import assert_min_pkg_version
 from dlt.common.storages.fsspec_filesystem import glob_files
 from dlt.common.typing import DictStrAny
 from dlt.common.schema import Schema, TSchemaTables, TTableSchema
+from dlt.common.schema.utils import get_first_column_name_with_prop, get_columns_names_with_prop
 from dlt.common.storages import FileStorage, fsspec_from_config
-from dlt.common.storages.load_package import LoadJobInfo, ParsedLoadJobFileName, TPipelineStateDoc
+from dlt.common.storages.load_package import (
+    LoadJobInfo,
+    ParsedLoadJobFileName,
+    TPipelineStateDoc,
+    load_package as current_load_package,
+)
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
     NewLoadJob,
@@ -116,18 +123,73 @@ class DeltaLoadFilesystemJob(NewReferenceJob):
     def write(self) -> None:
         from dlt.common.libs.pyarrow import pyarrow as pa
         from dlt.common.libs.deltalake import (
+            DeltaTable,
             write_delta_table,
+            ensure_delta_compatible_arrow_schema,
             _deltalake_storage_options,
+            try_get_deltatable,
         )
 
+        assert_min_pkg_version(
+            pkg_name="pyarrow",
+            version="17.0.0",
+            msg="`pyarrow>=17.0.0` is needed for `delta` table format on `filesystem` destination.",
+        )
+
+        # create Arrow dataset from Parquet files
         file_paths = [job.file_path for job in self.table_jobs]
+        arrow_ds = pa.dataset.dataset(file_paths)
 
-        write_delta_table(
-            path=self.client.make_remote_uri(self.make_remote_path()),
-            data=pa.dataset.dataset(file_paths),
-            write_disposition=self.table["write_disposition"],
-            storage_options=_deltalake_storage_options(self.client.config),
-        )
+        # create Delta table object
+        dt_path = self.client.make_remote_uri(self.make_remote_path())
+        storage_options = _deltalake_storage_options(self.client.config)
+        dt = try_get_deltatable(dt_path, storage_options=storage_options)
+
+        # explicitly check if there is data
+        # (https://github.com/delta-io/delta-rs/issues/2686)
+        if arrow_ds.head(1).num_rows == 0:
+            if dt is None:
+                # create new empty Delta table with schema from Arrow table
+                DeltaTable.create(
+                    table_uri=dt_path,
+                    schema=ensure_delta_compatible_arrow_schema(arrow_ds.schema),
+                    mode="overwrite",
+                )
+            return
+
+        arrow_rbr = arrow_ds.scanner().to_reader()  # RecordBatchReader
+
+        if self.table["write_disposition"] == "merge" and dt is not None:
+            assert self.table["x-merge-strategy"] in self.client.capabilities.supported_merge_strategies  # type: ignore[typeddict-item]
+
+            if self.table["x-merge-strategy"] == "upsert":  # type: ignore[typeddict-item]
+                if "parent" in self.table:
+                    unique_column = get_first_column_name_with_prop(self.table, "unique")
+                    predicate = f"target.{unique_column} = source.{unique_column}"
+                else:
+                    primary_keys = get_columns_names_with_prop(self.table, "primary_key")
+                    predicate = " AND ".join([f"target.{c} = source.{c}" for c in primary_keys])
+
+                qry = (
+                    dt.merge(
+                        source=arrow_rbr,
+                        predicate=predicate,
+                        source_alias="source",
+                        target_alias="target",
+                    )
+                    .when_matched_update_all()
+                    .when_not_matched_insert_all()
+                )
+
+                qry.execute()
+
+        else:
+            write_delta_table(
+                table_or_uri=dt_path if dt is None else dt,
+                data=arrow_rbr,
+                write_disposition=self.table["write_disposition"],
+                storage_options=storage_options,
+            )
 
     def make_remote_path(self) -> str:
         # directory path, not file path
@@ -424,11 +486,9 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
         # don't save the state this way when used as staging
         if self.config.as_staging:
             return
+
         # get state doc from current pipeline
-        from dlt.pipeline.current import load_package
-
-        pipeline_state_doc = load_package()["state"].get("pipeline_state")
-
+        pipeline_state_doc = current_load_package()["state"].get("pipeline_state")
         if not pipeline_state_doc:
             return
 
@@ -555,7 +615,9 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
         if table_format == "delta":
             delta_jobs = [
                 DeltaLoadFilesystemJob(
-                    self, table, get_table_jobs(completed_table_chain_jobs, table["name"])
+                    self,
+                    table=self.prepare_load_table(table["name"]),
+                    table_jobs=get_table_jobs(completed_table_chain_jobs, table["name"]),
                 )
                 for table in table_chain
             ]

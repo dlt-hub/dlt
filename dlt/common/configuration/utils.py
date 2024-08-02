@@ -14,12 +14,13 @@ from typing import (
     get_args,
     Literal,
     get_origin,
-    List,
 )
 from collections.abc import Mapping as C_Mapping
 
+import yaml
+
 from dlt.common.json import json
-from dlt.common.typing import AnyType, TAny
+from dlt.common.typing import AnyType, DictStrAny, TAny
 from dlt.common.data_types import coerce_value, py_type_to_sc_type
 from dlt.common.configuration.providers import EnvironProvider
 from dlt.common.configuration.exceptions import ConfigValueCannotBeCoercedException, LookupTrace
@@ -118,7 +119,10 @@ def serialize_value(value: Any) -> str:
 
 
 def auto_cast(value: str) -> Any:
-    # try to cast to bool, int, float and complex (via JSON)
+    """Parse and cast str `value` to bool, int, float and complex (via JSON)
+
+    F[f]alse and T[t]rue strings are cast to bool values
+    """
     if value.lower() == "true":
         return True
     if value.lower() == "false":
@@ -132,9 +136,29 @@ def auto_cast(value: str) -> Any:
         # only lists and dictionaries count
         if isinstance(c_v, (list, dict)):
             return c_v
-    with contextlib.suppress(ValueError):
-        return tomlkit.parse(value)
     return value
+
+
+def auto_config_fragment(value: str) -> Optional[DictStrAny]:
+    """Tries to parse config fragment assuming toml, yaml and json formats
+
+    Only dicts are considered valid fragments.
+    None is returned when not a fragment
+    """
+    try:
+        return tomlkit.parse(value).unwrap()
+    except ValueError:
+        pass
+    with contextlib.suppress(Exception):
+        c_v = yaml.safe_load(value)
+        if isinstance(c_v, dict):
+            return c_v
+    with contextlib.suppress(ValueError):
+        c_v = json.loads(value)
+        # only lists and dictionaries count
+        if isinstance(c_v, dict):
+            return c_v
+    return None
 
 
 def log_traces(

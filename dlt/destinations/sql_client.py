@@ -7,6 +7,7 @@ from typing import (
     Any,
     ClassVar,
     ContextManager,
+    Dict,
     Generic,
     Iterator,
     Optional,
@@ -15,6 +16,7 @@ from typing import (
     Type,
     AnyStr,
     List,
+    TypedDict,
 )
 
 from dlt.common.typing import TFun
@@ -26,6 +28,16 @@ from dlt.destinations.exceptions import (
     LoadClientNotConnected,
 )
 from dlt.destinations.typing import DBApi, TNativeConn, DBApiCursor, DataFrame, DBTransaction
+
+
+class TJobQueryTags(TypedDict):
+    """Applied to sql client when a job using it starts. Using to tag queries"""
+
+    source: str
+    resource: str
+    table: str
+    load_id: str
+    pipeline_name: str
 
 
 class SqlClientBase(ABC, Generic[TNativeConn]):
@@ -53,6 +65,7 @@ class SqlClientBase(ABC, Generic[TNativeConn]):
         self.staging_dataset_name = staging_dataset_name
         self.database_name = database_name
         self.capabilities = capabilities
+        self._query_tags: TJobQueryTags = None
 
     @abstractmethod
     def open_connection(self) -> TNativeConn:
@@ -162,8 +175,13 @@ SELECT 1
         # connection is scoped to a current database
         return None
 
-    def fully_qualified_dataset_name(self, escape: bool = True) -> str:
-        return ".".join(self.make_qualified_table_name_path(None, escape=escape))
+    def fully_qualified_dataset_name(self, escape: bool = True, staging: bool = False) -> str:
+        if staging:
+            with self.with_staging_dataset():
+                path = self.make_qualified_table_name_path(None, escape=escape)
+        else:
+            path = self.make_qualified_table_name_path(None, escape=escape)
+        return ".".join(path)
 
     def make_qualified_table_name(self, table_name: str, escape: bool = True) -> str:
         return ".".join(self.make_qualified_table_name_path(table_name, escape=escape))
@@ -188,6 +206,12 @@ SELECT 1
             path.append(table_name)
         return path
 
+    def get_qualified_table_names(self, table_name: str, escape: bool = True) -> Tuple[str, str]:
+        """Returns qualified names for table and corresponding staging table as tuple."""
+        with self.with_staging_dataset():
+            staging_table_name = self.make_qualified_table_name(table_name, escape)
+        return self.make_qualified_table_name(table_name, escape), staging_table_name
+
     def escape_column_name(self, column_name: str, escape: bool = True) -> str:
         column_name = self.capabilities.casefold_identifier(column_name)
         if escape:
@@ -209,6 +233,10 @@ SELECT 1
 
     def with_staging_dataset(self) -> ContextManager["SqlClientBase[TNativeConn]"]:
         return self.with_alternative_dataset_name(self.staging_dataset_name)
+
+    def set_query_tags(self, tags: TJobQueryTags) -> None:
+        """Sets current schema (source), resource, load_id and table name when a job starts"""
+        self._query_tags = tags
 
     def _ensure_native_conn(self) -> None:
         if not self.native_connection:
