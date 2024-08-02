@@ -30,6 +30,8 @@ class lancedb(Destination[LanceDBClientConfiguration, "LanceDBClient"]):
         caps.decimal_precision = (38, 18)
         caps.timestamp_precision = 6
 
+        caps.recommended_file_size = 128_000_000
+
         return caps
 
     @property
