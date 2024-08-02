@@ -249,7 +249,7 @@ def test_delta_table_pyarrow_version_check() -> None:
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
-        all_buckets_filesystem_configs=True,
+        table_format_filesystem_configs=True,
         table_format="delta",
         bucket_exclude=(MEMORY_BUCKET),
     ),
@@ -312,8 +312,9 @@ def test_delta_table_core(
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
-        local_filesystem_configs=True,
+        table_format_filesystem_configs=True,
         table_format="delta",
+        bucket_subset=(FILE_BUCKET),
     ),
     ids=lambda x: x.name,
 )
@@ -358,8 +359,9 @@ def test_delta_table_multiple_files(
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
-        local_filesystem_configs=True,
+        table_format_filesystem_configs=True,
         table_format="delta",
+        bucket_subset=(FILE_BUCKET),
     ),
     ids=lambda x: x.name,
 )
@@ -434,8 +436,9 @@ def test_delta_table_child_tables(
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
-        local_filesystem_configs=True,
+        table_format_filesystem_configs=True,
         table_format="delta",
+        bucket_subset=(FILE_BUCKET),
     ),
     ids=lambda x: x.name,
 )
@@ -524,8 +527,9 @@ def test_delta_table_empty_source(
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
-        local_filesystem_configs=True,
+        table_format_filesystem_configs=True,
         table_format="delta",
+        bucket_subset=(FILE_BUCKET),
     ),
     ids=lambda x: x.name,
 )
@@ -572,8 +576,9 @@ def test_delta_table_mixed_source(
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
-        local_filesystem_configs=True,
+        table_format_filesystem_configs=True,
         table_format="delta",
+        bucket_subset=(FILE_BUCKET),
     ),
     ids=lambda x: x.name,
 )

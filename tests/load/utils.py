@@ -211,6 +211,7 @@ def destinations_configs(
     all_staging_configs: bool = False,
     local_filesystem_configs: bool = False,
     all_buckets_filesystem_configs: bool = False,
+    table_format_filesystem_configs: bool = False,
     subset: Sequence[str] = (),
     bucket_subset: Sequence[str] = (),
     exclude: Sequence[str] = (),
@@ -494,14 +495,6 @@ def destinations_configs(
                 supports_merge=False,
             )
         ]
-        destination_configs += [
-            DestinationTestConfiguration(
-                destination="filesystem",
-                bucket_url=FILE_BUCKET,
-                table_format="delta",
-                supports_merge=True,
-            )
-        ]
 
     if all_buckets_filesystem_configs:
         for bucket in DEFAULT_BUCKETS:
@@ -513,6 +506,9 @@ def destinations_configs(
                     supports_merge=False,
                 )
             ]
+
+    if table_format_filesystem_configs:
+        for bucket in DEFAULT_BUCKETS:
             destination_configs += [
                 DestinationTestConfiguration(
                     destination="filesystem",
