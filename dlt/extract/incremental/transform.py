@@ -166,7 +166,10 @@ class JsonIncremental(IncrementalTransform):
 
         row_value = self.find_cursor_value(row)
         if row_value is None:
-            return row, False, False
+            if self.on_cursor_value_none == "exclude":
+                return None, False, False
+            else:
+                return row, False, False
 
         last_value = self.last_value
         last_value_func = self.last_value_func
