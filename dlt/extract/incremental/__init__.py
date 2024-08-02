@@ -141,6 +141,8 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         self._primary_key: Optional[TTableHintTemplate[TColumnNames]] = primary_key
         self.row_order = row_order
         self.allow_external_schedulers = allow_external_schedulers
+        if on_cursor_value_none not in ["raise", "include", "exclude"]:
+            raise ValueError(f"Unexpected argument for on_cursor_value_none. Got {on_cursor_value_none}")
         self.on_cursor_value_none = on_cursor_value_none
 
         self._cached_state: IncrementalColumnState = None

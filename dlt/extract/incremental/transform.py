@@ -122,17 +122,15 @@ class JsonIncremental(IncrementalTransform):
         """
         if self._compiled_cursor_path:
             cursor_values = find_values(self._compiled_cursor_path, row)
-            if self.on_cursor_value_none == "raise":
-                if cursor_values == []:
+            if cursor_values == []:
+                if self.on_cursor_value_none == "raise":
                     raise IncrementalCursorPathMissing(self.resource_name, self.cursor_path, row)
-                elif None in cursor_values:
+                elif self.on_cursor_value_none == "exclude":
+                    return None
+            elif None in cursor_values:
+                if self.on_cursor_value_none == "raise":
                     raise IncrementalCursorPathHasValueNone(self.resource_name, self.cursor_path, row)
-            elif self.on_cursor_value_none == "include":
-                # TODO: decide if we also want to raise if the field is not present
-                if cursor_values == []:
-                    raise IncrementalCursorPathMissing(self.resource_name, self.cursor_path, row)
-            elif self.on_cursor_value_none == "exclude":
-                if cursor_values == [] or None in cursor_values:
+                elif self.on_cursor_value_none == "exclude":
                     return None
 
             # ignores the other found values, e.g. when the path is $data.items[*].created_at
@@ -145,14 +143,12 @@ class JsonIncremental(IncrementalTransform):
                         raise IncrementalCursorPathMissing(self.resource_name, self.cursor_path, row)
                     else:
                         raise IncrementalCursorPathHasValueNone(self.resource_name, self.cursor_path, row)
-                if self.on_cursor_value_none == "exclude":
+                elif self.on_cursor_value_none == "exclude":
                     return None
-                if self.on_cursor_value_none == "include":
+                elif self.on_cursor_value_none == "include":
                     # TODO: decide if we also want to raise if the field is not present
                     if self.cursor_path not in row.keys():
                         raise IncrementalCursorPathMissing(self.resource_name, self.cursor_path, row)
-                    else:
-                        return row_value
 
         return row_value
 
