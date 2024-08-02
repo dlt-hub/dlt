@@ -3,6 +3,8 @@ import os
 import posixpath
 from pathlib import Path
 from typing import Any, Callable, List, Dict, cast
+from importlib.metadata import version as pkg_version
+from packaging.version import Version
 
 from pytest_mock import MockerFixture
 import dlt
@@ -12,6 +14,7 @@ from dlt.common import json
 from dlt.common import pendulum
 from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.common.utils import uniq_id
+from dlt.common.exceptions import DependencyVersionException
 from dlt.destinations import filesystem
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 from dlt.destinations.impl.filesystem.typing import TExtraPlaceholders
@@ -25,6 +28,7 @@ from tests.load.utils import (
     destinations_configs,
     DestinationTestConfiguration,
     MEMORY_BUCKET,
+    FILE_BUCKET,
 )
 
 from tests.pipeline.utils import load_table_counts, assert_load_info, load_tables_to_dicts
@@ -218,11 +222,34 @@ def test_pipeline_parquet_filesystem_destination() -> None:
         assert table.column("value").to_pylist() == [1, 2, 3, 4, 5]
 
 
+def test_delta_table_pyarrow_version_check() -> None:
+    """Tests pyarrow version checking for `delta` table format.
+
+    DependencyVersionException should be raised if pyarrow<17.0.0.
+    """
+    # test intentionally does not use destination_configs(), because that
+    # function automatically marks `delta` table format configs as
+    # `needspyarrow17`, which should not happen for this test to run in an
+    # environment where pyarrow<17.0.0
+
+    assert Version(pkg_version("pyarrow")) < Version("17.0.0"), "test assumes `pyarrow<17.0.0`"
+
+    @dlt.resource(table_format="delta")
+    def foo():
+        yield {"foo": 1, "bar": 2}
+
+    pipeline = dlt.pipeline(destination=filesystem(FILE_BUCKET))
+
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        pipeline.run(foo())
+    assert isinstance(pip_ex.value.__context__, DependencyVersionException)
+
+
 @pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
-        all_buckets_filesystem_configs=True,
+        table_format_filesystem_configs=True,
         table_format="delta",
         bucket_exclude=(MEMORY_BUCKET),
     ),
@@ -285,8 +312,9 @@ def test_delta_table_core(
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
-        local_filesystem_configs=True,
+        table_format_filesystem_configs=True,
         table_format="delta",
+        bucket_subset=(FILE_BUCKET),
     ),
     ids=lambda x: x.name,
 )
@@ -331,8 +359,9 @@ def test_delta_table_multiple_files(
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
-        local_filesystem_configs=True,
+        table_format_filesystem_configs=True,
         table_format="delta",
+        bucket_subset=(FILE_BUCKET),
     ),
     ids=lambda x: x.name,
 )
@@ -407,8 +436,100 @@ def test_delta_table_child_tables(
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
-        local_filesystem_configs=True,
+        table_format_filesystem_configs=True,
         table_format="delta",
+        bucket_subset=(FILE_BUCKET),
+    ),
+    ids=lambda x: x.name,
+)
+def test_delta_table_empty_source(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Tests empty source handling for `delta` table format.
+
+    Tests both empty Arrow table and `dlt.mark.materialize_table_schema()`.
+    """
+    from dlt.common.libs.pyarrow import pyarrow as pa
+    from dlt.common.libs.deltalake import ensure_delta_compatible_arrow_data
+    from tests.pipeline.utils import _get_delta_table, users_materialize_table_schema
+
+    @dlt.resource(table_format="delta")
+    def delta_table(data):
+        yield data
+
+    # create empty Arrow table with schema
+    arrow_table = arrow_table_all_data_types(
+        "arrow-table",
+        include_decimal_default_precision=False,
+        include_decimal_arrow_max_precision=True,
+        include_not_normalized_name=False,
+        include_null=False,
+        num_rows=2,
+    )[0]
+    empty_arrow_table = arrow_table.schema.empty_table()
+    assert empty_arrow_table.num_rows == 0  # it's empty
+    assert empty_arrow_table.schema.equals(arrow_table.schema)  # it has a schema
+
+    pipeline = destination_config.setup_pipeline("fs_pipe", dev_mode=True)
+
+    # run 1: empty Arrow table with schema
+    # this should create empty Delta table with same schema as Arrow table
+    info = pipeline.run(delta_table(empty_arrow_table))
+    assert_load_info(info)
+    client = cast(FilesystemClient, pipeline.destination_client())
+    dt = _get_delta_table(client, "delta_table")
+    assert dt.version() == 0
+    dt_arrow_table = dt.to_pyarrow_table()
+    assert dt_arrow_table.shape == (0, empty_arrow_table.num_columns)
+    assert dt_arrow_table.schema.equals(
+        ensure_delta_compatible_arrow_data(empty_arrow_table).schema
+    )
+
+    # run 2: non-empty Arrow table with same schema as run 1
+    # this should load records into Delta table
+    info = pipeline.run(delta_table(arrow_table))
+    assert_load_info(info)
+    dt = _get_delta_table(client, "delta_table")
+    assert dt.version() == 1
+    dt_arrow_table = dt.to_pyarrow_table()
+    assert dt_arrow_table.shape == (2, empty_arrow_table.num_columns)
+    assert dt_arrow_table.schema.equals(
+        ensure_delta_compatible_arrow_data(empty_arrow_table).schema
+    )
+
+    # run 3: empty Arrow table with different schema
+    # this should not alter the Delta table
+    empty_arrow_table_2 = pa.schema(
+        [pa.field("foo", pa.int64()), pa.field("bar", pa.string())]
+    ).empty_table()
+
+    info = pipeline.run(delta_table(empty_arrow_table_2))
+    assert_load_info(info)
+    dt = _get_delta_table(client, "delta_table")
+    assert dt.version() == 1  # still 1, no new commit was done
+    dt_arrow_table = dt.to_pyarrow_table()
+    assert dt_arrow_table.shape == (2, empty_arrow_table.num_columns)  # shape did not change
+    assert dt_arrow_table.schema.equals(  # schema did not change
+        ensure_delta_compatible_arrow_data(empty_arrow_table).schema
+    )
+
+    # test `dlt.mark.materialize_table_schema()`
+    users_materialize_table_schema.apply_hints(table_format="delta")
+    info = pipeline.run(users_materialize_table_schema())
+    assert_load_info(info)
+    dt = _get_delta_table(client, "users")
+    assert dt.version() == 0
+    dt_arrow_table = dt.to_pyarrow_table()
+    assert dt_arrow_table.num_rows == 0
+    assert "id", "name" == dt_arrow_table.schema.names[:2]
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        table_format_filesystem_configs=True,
+        table_format="delta",
+        bucket_subset=(FILE_BUCKET),
     ),
     ids=lambda x: x.name,
 )
@@ -455,8 +576,9 @@ def test_delta_table_mixed_source(
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
-        local_filesystem_configs=True,
+        table_format_filesystem_configs=True,
         table_format="delta",
+        bucket_subset=(FILE_BUCKET),
     ),
     ids=lambda x: x.name,
 )

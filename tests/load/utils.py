@@ -2,7 +2,7 @@ import pytest
 import contextlib
 import codecs
 import os
-from typing import Any, Iterator, List, Sequence, IO, Tuple, Optional, Dict, Union, Generator
+from typing import Any, Iterator, List, Sequence, IO, Tuple, Optional, Dict, Union, Generator, cast
 import shutil
 from pathlib import Path
 from urllib.parse import urlparse
@@ -212,6 +212,7 @@ def destinations_configs(
     all_staging_configs: bool = False,
     local_filesystem_configs: bool = False,
     all_buckets_filesystem_configs: bool = False,
+    table_format_filesystem_configs: bool = False,
     subset: Sequence[str] = (),
     bucket_subset: Sequence[str] = (),
     exclude: Sequence[str] = (),
@@ -495,14 +496,6 @@ def destinations_configs(
                 supports_merge=False,
             )
         ]
-        destination_configs += [
-            DestinationTestConfiguration(
-                destination="filesystem",
-                bucket_url=FILE_BUCKET,
-                table_format="delta",
-                supports_merge=True,
-            )
-        ]
 
     if all_buckets_filesystem_configs:
         for bucket in DEFAULT_BUCKETS:
@@ -514,6 +507,9 @@ def destinations_configs(
                     supports_merge=False,
                 )
             ]
+
+    if table_format_filesystem_configs:
+        for bucket in DEFAULT_BUCKETS:
             destination_configs += [
                 DestinationTestConfiguration(
                     destination="filesystem",
@@ -591,6 +587,18 @@ def destinations_configs(
         destination_configs = [
             conf for conf in destination_configs if conf.force_iceberg is force_iceberg
         ]
+
+    # add marks
+    destination_configs = [
+        cast(
+            DestinationTestConfiguration,
+            pytest.param(
+                conf,
+                marks=pytest.mark.needspyarrow17 if conf.table_format == "delta" else [],
+            ),
+        )
+        for conf in destination_configs
+    ]
 
     return destination_configs
 

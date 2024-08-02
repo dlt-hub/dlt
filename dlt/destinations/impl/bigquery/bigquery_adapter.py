@@ -7,7 +7,7 @@ from dlt.common.schema.typing import (
     TColumnNames,
     TTableSchemaColumns,
 )
-from dlt.destinations.utils import ensure_resource
+from dlt.destinations.utils import get_resource_for_adapter
 from dlt.extract import DltResource
 from dlt.extract.items import TTableHintTemplate
 
@@ -78,7 +78,7 @@ def bigquery_adapter(
         >>> bigquery_adapter(data, partition="date_hired", table_expiration_datetime="2024-01-30", table_description="Employee Data")
         [DltResource with hints applied]
     """
-    resource = ensure_resource(data)
+    resource = get_resource_for_adapter(data)
 
     additional_table_hints: Dict[str, TTableHintTemplate[Any]] = {}
     column_hints: TTableSchemaColumns = {}
