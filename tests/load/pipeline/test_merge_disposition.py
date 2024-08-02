@@ -58,6 +58,7 @@ def skip_if_not_supported(
     destinations_configs(
         default_sql_configs=True,
         all_buckets_filesystem_configs=True,
+        table_format_filesystem_configs=True,
         supports_merge=True,
         bucket_subset=(FILE_BUCKET, AZ_BUCKET),  # test one local, one remote
     ),
@@ -138,7 +139,9 @@ def test_merge_on_keys_in_schema(
     destinations_configs(
         default_sql_configs=True,
         local_filesystem_configs=True,
+        table_format_filesystem_configs=True,
         supports_merge=True,
+        bucket_subset=(FILE_BUCKET),
     ),
     ids=lambda x: x.name,
 )
@@ -248,7 +251,11 @@ def test_merge_record_updates(
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
-        default_sql_configs=True, local_filesystem_configs=True, supports_merge=True
+        default_sql_configs=True,
+        local_filesystem_configs=True,
+        table_format_filesystem_configs=True,
+        supports_merge=True,
+        bucket_subset=(FILE_BUCKET),
     ),
     ids=lambda x: x.name,
 )
@@ -732,7 +739,11 @@ def test_no_deduplicate_only_merge_key(destination_config: DestinationTestConfig
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
-        default_sql_configs=True, local_filesystem_configs=True, supports_merge=True
+        default_sql_configs=True,
+        local_filesystem_configs=True,
+        table_format_filesystem_configs=True,
+        supports_merge=True,
+        bucket_subset=(FILE_BUCKET),
     ),
     ids=lambda x: x.name,
 )
@@ -1207,7 +1218,7 @@ def test_merge_strategy_config() -> None:
     "destination_config",
     destinations_configs(
         default_sql_configs=True,
-        local_filesystem_configs=True,
+        table_format_filesystem_configs=True,
         supports_merge=True,
         subset=["postgres", "filesystem"],  # test one SQL and one non-SQL destination
     ),
