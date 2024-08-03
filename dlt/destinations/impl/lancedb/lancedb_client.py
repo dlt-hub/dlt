@@ -773,8 +773,8 @@ class LoadLanceDBJob(LoadJob, FollowupJob):
             TWriteDisposition, self.table_schema.get("write_disposition", "append")
         )
 
-        with FileStorage.open_zipsafe_ro(local_path) as f:
-            records: List[DictStrAny] = [json.loads(line) for line in f]
+        with FileStorage.open_zipsafe_ro(local_path, mode="rb") as f:
+            arrow_table: pa.Table = pq.read_table(f, memory_map=True)
 
         if self.table_schema not in self.schema.dlt_tables():
             for record in records:

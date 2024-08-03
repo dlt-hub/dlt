@@ -16,8 +16,8 @@ class lancedb(Destination[LanceDBClientConfiguration, "LanceDBClient"]):
 
     def _raw_capabilities(self) -> DestinationCapabilitiesContext:
         caps = DestinationCapabilitiesContext()
-        caps.preferred_loader_file_format = "jsonl"
-        caps.supported_loader_file_formats = ["jsonl"]
+        caps.preferred_loader_file_format = "parquet"
+        caps.supported_loader_file_formats = ["parquet"]
 
         caps.max_identifier_length = 200
         caps.max_column_identifier_length = 1024
