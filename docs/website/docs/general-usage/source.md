@@ -188,7 +188,7 @@ MongoDB databases. Our practical experience is that setting the `max_nesting_lev
 produces the clearest and human-readable schemas.
 
 :::tip TIP
-The `max_table_nesting parameter` at the source level doesn't automatically apply to individual 
+The `max_table_nesting` parameter at the source level doesn't automatically apply to individual 
 resources when accessed directly (e.g., using `source.resources["resource_1"])`. To make sure it 
 works, either use `source.with_resources("resource_1")` or set the parameter directly on the resource.
 :::
