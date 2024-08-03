@@ -364,9 +364,24 @@ We recommend to not create schemas explicitly. Instead, user should provide a fe
 settings and then let the table and column schemas to be generated from the resource hints and the
 data itself.
 
-To view and print the default schema in a clear YAML format, use the following command:
+To view and print the default schema in a clear YAML format use the command:
 
 ```py
+pipeline.default_schema.to_pretty_yaml()
+```
+This can be used in a pipeline as:
+
+```py
+# Create a pipeline
+pipeline = dlt.pipeline(
+               pipeline_name="chess_pipeline", 
+               destination='duckdb', 
+               dataset_name="games_data")
+
+# Run the pipeline
+load_info = pipeline.run(source)
+
+# Print the default schema in a pretty YAML format
 print(pipeline.default_schema.to_pretty_yaml())
 ```
 This will display a structured YAML representation of your schema, showing details like tables, columns, data types, and metadata, including version, version_hash, and engine_version.
