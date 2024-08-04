@@ -2,9 +2,11 @@ import os
 import uuid
 from typing import Sequence, Union, Dict, List
 
+import pyarrow as pa
+import pyarrow.compute as pc
+
 from dlt.common.schema import TTableSchema
 from dlt.common.schema.utils import get_columns_names_with_prop
-from dlt.common.typing import DictStrAny
 from dlt.destinations.impl.lancedb.configuration import TEmbeddingProvider
 
 
@@ -16,19 +18,35 @@ PROVIDER_ENVIRONMENT_VARIABLES_MAP: Dict[TEmbeddingProvider, str] = {
 }
 
 
-def generate_uuid(data: DictStrAny, unique_identifiers: Sequence[str], table_name: str) -> str:
-    """Generates deterministic UUID - used for deduplication.
+# TODO: Update `generate_arrow_uuid_column` when pyarrow 17.0.0 becomes available with vectorized operations (batched + memory-mapped)
+def generate_arrow_uuid_column(
+    table: pa.Table, unique_identifiers: List[str], id_field_name: str, table_name: str
+) -> pa.Table:
+    """Generates deterministic UUID - used for deduplication, returning a new arrow
+    table with added UUID column.
 
     Args:
-        data (Dict[str, Any]): Arbitrary data to generate UUID for.
-        unique_identifiers (Sequence[str]): A list of unique identifiers.
-        table_name (str): LanceDB table name.
+        table (pa.Table): PyArrow table to generate UUIDs for.
+        unique_identifiers (List[str]): A list of unique identifier column names.
+        id_field_name (str): Name of the new UUID column.
+        table_name (str): Name of the table.
 
     Returns:
-        str: A string representation of the generated UUID.
+        pa.Table: New PyArrow table with the new UUID column.
     """
-    data_id = "_".join(str(data[key]) for key in unique_identifiers)
-    return str(uuid.uuid5(uuid.NAMESPACE_DNS, table_name + data_id))
+
+    string_columns = []
+    for col in unique_identifiers:
+        column = table[col]
+        column = pc.cast(column, pa.string())
+        column = pc.fill_null(column, "")
+        string_columns.append(column.to_pylist())
+
+    concat_values = ["".join(x) for x in zip(*string_columns)]
+    uuids = [str(uuid.uuid5(uuid.NAMESPACE_OID, x + table_name)) for x in concat_values]
+    uuid_column = pa.array(uuids)
+
+    return table.append_column(id_field_name, uuid_column)
 
 
 def list_merge_identifiers(table_schema: TTableSchema) -> List[str]:
