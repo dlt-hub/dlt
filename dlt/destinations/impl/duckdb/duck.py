@@ -5,7 +5,7 @@ from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.data_types import TDataType
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.schema import TColumnSchema, TColumnHint, Schema
-from dlt.common.destination.reference import LoadJob, FollowupJob, TLoadJobState
+from dlt.common.destination.reference import RunnableLoadJob, HasFollowupJobs, LoadJob
 from dlt.common.schema.typing import TTableSchema, TColumnType, TTableFormat
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.utils import maybe_context
@@ -113,12 +113,16 @@ class DuckDbTypeMapper(TypeMapper):
         return super().from_db_type(db_type, precision, scale)
 
 
-class DuckDbCopyJob(LoadJob, FollowupJob):
-    def __init__(self, table_name: str, file_path: str, sql_client: DuckDbSqlClient) -> None:
-        super().__init__(FileStorage.get_file_name_from_file_path(file_path))
+class DuckDbCopyJob(RunnableLoadJob, HasFollowupJobs):
+    def __init__(self, file_path: str) -> None:
+        super().__init__(file_path)
+        self._job_client: "DuckDbClient" = None
 
-        qualified_table_name = sql_client.make_qualified_table_name(table_name)
-        if file_path.endswith("parquet"):
+    def run(self) -> None:
+        self._sql_client = self._job_client.sql_client
+
+        qualified_table_name = self._sql_client.make_qualified_table_name(self.load_table_name)
+        if self._file_path.endswith("parquet"):
             source_format = "PARQUET"
             options = ""
             # lock when creating a new lock
@@ -127,26 +131,20 @@ class DuckDbCopyJob(LoadJob, FollowupJob):
                 lock: threading.Lock = TABLES_LOCKS.setdefault(
                     qualified_table_name, threading.Lock()
                 )
-        elif file_path.endswith("jsonl"):
+        elif self._file_path.endswith("jsonl"):
             # NOTE: loading JSON does not work in practice on duckdb: the missing keys fail the load instead of being interpreted as NULL
             source_format = "JSON"  # newline delimited, compression auto
-            options = ", COMPRESSION GZIP" if FileStorage.is_gzipped(file_path) else ""
+            options = ", COMPRESSION GZIP" if FileStorage.is_gzipped(self._file_path) else ""
             lock = None
         else:
-            raise ValueError(file_path)
+            raise ValueError(self._file_path)
 
         with maybe_context(lock):
-            with sql_client.begin_transaction():
-                sql_client.execute_sql(
-                    f"COPY {qualified_table_name} FROM '{file_path}' ( FORMAT"
+            with self._sql_client.begin_transaction():
+                self._sql_client.execute_sql(
+                    f"COPY {qualified_table_name} FROM '{self._file_path}' ( FORMAT"
                     f" {source_format} {options});"
                 )
-
-    def state(self) -> TLoadJobState:
-        return "completed"
-
-    def exception(self) -> str:
-        raise NotImplementedError()
 
 
 class DuckDbClient(InsertValuesJobClient):
@@ -168,10 +166,12 @@ class DuckDbClient(InsertValuesJobClient):
         self.active_hints = HINT_TO_POSTGRES_ATTR if self.config.create_indexes else {}
         self.type_mapper = DuckDbTypeMapper(self.capabilities)
 
-    def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
-        job = super().start_file_load(table, file_path, load_id)
+    def create_load_job(
+        self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
+    ) -> LoadJob:
+        job = super().create_load_job(table, file_path, load_id, restore)
         if not job:
-            job = DuckDbCopyJob(table["name"], file_path, self.sql_client)
+            job = DuckDbCopyJob(file_path)
         return job
 
     def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:

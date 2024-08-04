@@ -4,12 +4,13 @@ from urllib.parse import urlparse, urlunparse
 from dlt import config
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
+    HasFollowupJobs,
     FollowupJob,
-    NewLoadJob,
     TLoadJobState,
-    LoadJob,
+    RunnableLoadJob,
     CredentialsConfiguration,
     SupportsStagingDestination,
+    LoadJob,
 )
 from dlt.common.configuration.specs import (
     AwsCredentialsWithoutDefaults,
@@ -25,12 +26,12 @@ from dlt.common.storages import FilesystemConfiguration, fsspec_from_config
 
 
 from dlt.destinations.insert_job_client import InsertValuesJobClient
-from dlt.destinations.job_impl import EmptyLoadJob
+from dlt.destinations.job_impl import FinalizedLoadJobWithFollowupJobs
 from dlt.destinations.exceptions import LoadJobTerminalException
 from dlt.destinations.impl.databricks.configuration import DatabricksClientConfiguration
 from dlt.destinations.impl.databricks.sql_client import DatabricksSqlClient
-from dlt.destinations.sql_jobs import SqlMergeJob
-from dlt.destinations.job_impl import NewReferenceJob
+from dlt.destinations.sql_jobs import SqlMergeFollowupJob
+from dlt.destinations.job_impl import ReferenceFollowupJob
 from dlt.destinations.type_mapping import TypeMapper
 
 
@@ -103,30 +104,31 @@ class DatabricksTypeMapper(TypeMapper):
         return super().from_db_type(db_type, precision, scale)
 
 
-class DatabricksLoadJob(LoadJob, FollowupJob):
+class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
     def __init__(
         self,
-        table: TTableSchema,
         file_path: str,
-        table_name: str,
-        load_id: str,
-        client: DatabricksSqlClient,
         staging_config: FilesystemConfiguration,
     ) -> None:
-        file_name = FileStorage.get_file_name_from_file_path(file_path)
-        super().__init__(file_name)
-        staging_credentials = staging_config.credentials
+        super().__init__(file_path)
+        self._staging_config = staging_config
+        self._job_client: "DatabricksClient" = None
 
-        qualified_table_name = client.make_qualified_table_name(table_name)
+    def run(self) -> None:
+        self._sql_client = self._job_client.sql_client
 
+        qualified_table_name = self._sql_client.make_qualified_table_name(self.load_table_name)
+        staging_credentials = self._staging_config.credentials
         # extract and prepare some vars
         bucket_path = orig_bucket_path = (
-            NewReferenceJob.resolve_reference(file_path)
-            if NewReferenceJob.is_reference_job(file_path)
+            ReferenceFollowupJob.resolve_reference(self._file_path)
+            if ReferenceFollowupJob.is_reference_job(self._file_path)
             else ""
         )
         file_name = (
-            FileStorage.get_file_name_from_file_path(bucket_path) if bucket_path else file_name
+            FileStorage.get_file_name_from_file_path(bucket_path)
+            if bucket_path
+            else self._file_name
         )
         from_clause = ""
         credentials_clause = ""
@@ -166,13 +168,13 @@ class DatabricksLoadJob(LoadJob, FollowupJob):
                 from_clause = f"FROM '{bucket_path}'"
             else:
                 raise LoadJobTerminalException(
-                    file_path,
+                    self._file_path,
                     f"Databricks cannot load data from staging bucket {bucket_path}. Only s3 and"
                     " azure buckets are supported",
                 )
         else:
             raise LoadJobTerminalException(
-                file_path,
+                self._file_path,
                 "Cannot load from local file. Databricks does not support loading from local files."
                 " Configure staging with an s3 or azure storage bucket.",
             )
@@ -183,32 +185,32 @@ class DatabricksLoadJob(LoadJob, FollowupJob):
         elif file_name.endswith(".jsonl"):
             if not config.get("data_writer.disable_compression"):
                 raise LoadJobTerminalException(
-                    file_path,
+                    self._file_path,
                     "Databricks loader does not support gzip compressed JSON files. Please disable"
                     " compression in the data writer configuration:"
                     " https://dlthub.com/docs/reference/performance#disabling-and-enabling-file-compression",
                 )
-            if table_schema_has_type(table, "decimal"):
+            if table_schema_has_type(self._load_table, "decimal"):
                 raise LoadJobTerminalException(
-                    file_path,
+                    self._file_path,
                     "Databricks loader cannot load DECIMAL type columns from json files. Switch to"
                     " parquet format to load decimals.",
                 )
-            if table_schema_has_type(table, "binary"):
+            if table_schema_has_type(self._load_table, "binary"):
                 raise LoadJobTerminalException(
-                    file_path,
+                    self._file_path,
                     "Databricks loader cannot load BINARY type columns from json files. Switch to"
                     " parquet format to load byte values.",
                 )
-            if table_schema_has_type(table, "complex"):
+            if table_schema_has_type(self._load_table, "complex"):
                 raise LoadJobTerminalException(
-                    file_path,
+                    self._file_path,
                     "Databricks loader cannot load complex columns (lists and dicts) from json"
                     " files. Switch to parquet format to load complex types.",
                 )
-            if table_schema_has_type(table, "date"):
+            if table_schema_has_type(self._load_table, "date"):
                 raise LoadJobTerminalException(
-                    file_path,
+                    self._file_path,
                     "Databricks loader cannot load DATE type columns from json files. Switch to"
                     " parquet format to load dates.",
                 )
@@ -216,7 +218,7 @@ class DatabricksLoadJob(LoadJob, FollowupJob):
             source_format = "JSON"
             format_options_clause = "FORMAT_OPTIONS('inferTimestamp'='true')"
             # Databricks fails when trying to load empty json files, so we have to check the file size
-            fs, _ = fsspec_from_config(staging_config)
+            fs, _ = fsspec_from_config(self._staging_config)
             file_size = fs.size(orig_bucket_path)
             if file_size == 0:  # Empty file, do nothing
                 return
@@ -227,16 +229,10 @@ class DatabricksLoadJob(LoadJob, FollowupJob):
             FILEFORMAT = {source_format}
             {format_options_clause}
             """
-        client.execute_sql(statement)
-
-    def state(self) -> TLoadJobState:
-        return "completed"
-
-    def exception(self) -> str:
-        raise NotImplementedError()
+        self._sql_client.execute_sql(statement)
 
 
-class DatabricksMergeJob(SqlMergeJob):
+class DatabricksMergeJob(SqlMergeFollowupJob):
     @classmethod
     def _to_temp_table(cls, select_sql: str, temp_table_name: str) -> str:
         return f"CREATE TEMPORARY VIEW {temp_table_name} AS {select_sql};"
@@ -271,24 +267,19 @@ class DatabricksClient(InsertValuesJobClient, SupportsStagingDestination):
         self.sql_client: DatabricksSqlClient = sql_client  # type: ignore[assignment]
         self.type_mapper = DatabricksTypeMapper(self.capabilities)
 
-    def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
-        job = super().start_file_load(table, file_path, load_id)
+    def create_load_job(
+        self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
+    ) -> LoadJob:
+        job = super().create_load_job(table, file_path, load_id, restore)
 
         if not job:
             job = DatabricksLoadJob(
-                table,
                 file_path,
-                table["name"],
-                load_id,
-                self.sql_client,
                 staging_config=cast(FilesystemConfiguration, self.config.staging_config),
             )
         return job
 
-    def restore_file_load(self, file_path: str) -> LoadJob:
-        return EmptyLoadJob.from_file_path(file_path, "completed")
-
-    def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
+    def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[FollowupJob]:
         return [DatabricksMergeJob.from_table_chain(table_chain, self.sql_client)]
 
     def _make_add_column_sql(

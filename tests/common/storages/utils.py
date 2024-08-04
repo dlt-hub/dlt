@@ -157,25 +157,38 @@ def write_temp_job_file(
     return Path(file_name).name
 
 
-def start_loading_file(
-    s: LoadStorage, content: Sequence[StrAny], start_job: bool = True
-) -> Tuple[str, str]:
+def start_loading_files(
+    s: LoadStorage, content: Sequence[StrAny], start_job: bool = True, file_count: int = 1
+) -> Tuple[str, List[str]]:
     load_id = uniq_id()
     s.new_packages.create_package(load_id)
     # write test file
-    item_storage = s.create_item_storage(DataWriter.writer_spec_from_file_format("jsonl", "object"))
-    file_name = write_temp_job_file(
-        item_storage, s.storage, load_id, "mock_table", None, uniq_id(), content
-    )
+    file_names: List[str] = []
+    for _ in range(0, file_count):
+        item_storage = s.create_item_storage(
+            DataWriter.writer_spec_from_file_format("jsonl", "object")
+        )
+        file_name = write_temp_job_file(
+            item_storage, s.storage, load_id, "mock_table", None, uniq_id(), content
+        )
+        file_names.append(file_name)
     # write schema and schema update
     s.new_packages.save_schema(load_id, Schema("mock"))
     s.new_packages.save_schema_updates(load_id, {})
     s.commit_new_load_package(load_id)
-    assert_package_info(s, load_id, "normalized", "new_jobs")
+    assert_package_info(s, load_id, "normalized", "new_jobs", jobs_count=file_count)
     if start_job:
-        s.normalized_packages.start_job(load_id, file_name)
-        assert_package_info(s, load_id, "normalized", "started_jobs")
-    return load_id, file_name
+        for file_name in file_names:
+            s.normalized_packages.start_job(load_id, file_name)
+            assert_package_info(s, load_id, "normalized", "started_jobs")
+    return load_id, file_names
+
+
+def start_loading_file(
+    s: LoadStorage, content: Sequence[StrAny], start_job: bool = True
+) -> Tuple[str, str]:
+    load_id, file_names = start_loading_files(s, content, start_job)
+    return load_id, file_names[0]
 
 
 def assert_package_info(
