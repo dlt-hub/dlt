@@ -10,15 +10,15 @@ It then [injects](custom_sources/#injection-mechanism) these values where needed
 
 ## Available config providers
 
-**Where configs and credentials are coming from?** `dlt` looks for configuration and secrets values in the config providers in the following order during pipeline execution:
+There are multiple ways to define configurations and credentials for your pipelines. `dlt` looks for these definitions in the following order during pipeline execution:
 
-1. [Environment Variables](#env-variables): At the top of the hierarchy are environment variables. If a value for a specific argument is found in an environment variable, dlt will use it and will not proceed to search in lower-priority providers.
+1. [Environment Variables](#env-variables): If a value for a specific argument is found in an environment variable, dlt will use it and will not proceed to search in lower-priority providers.
 
-1. [Vaults (Airflow/Google/AWS/Azure)](#vaults): Vaults can provide configuration values and secrets. However, they typically focus on handling sensitive information.
+1. [Vaults](#vaults): Credentials specified in vaults like Google Secrets Manager, Azure Key Vault, AWS Secrets Manager.
 
 1. [secrets.toml and config.toml files](#secrets-toml-and-config-toml): These files are used for storing both configuration values and secrets. `secrets.toml` is dedicated to sensitive information, while `config.toml` contains non-sensitive configuration data.
 
-1. [Default Argument Values](custom_sources#ingestion-mechanism): These are the values specified in the function's signature. They have the lowest priority in the lookup hierarchy.
+1. [Default Argument Values](custom_sources#ingestion-mechanism): These are the values specified in the function's signature. 
 
 :::tip
 Please make sure your pipeline name contains no whitespace or any other punctuation characters except `"-"` and `"_"`. This way you will ensure your code is working with any configuration option.
@@ -26,7 +26,7 @@ Please make sure your pipeline name contains no whitespace or any other punctuat
 
 ## Naming convention
 
-How `dlt` defines which keys to look for? `dlt` uses a specific naming hierarchy to search for the secrets and configs values. This makes configurations and secrets easy to manage and allows to disambiguate values with the same keys by placing them in different sections.
+`dlt` uses a specific naming hierarchy to search for the secrets and configs values. This makes configurations and secrets easy to manage.
 
 To keep the naming convention flexible, `dlt` looks for a lot of possible combinations of key names, starting from the most specific possible path. Then, if the value is not found, it removes the right-most section and tries again.
 
@@ -74,8 +74,8 @@ project_id = "<project_id_2>"
 
 ### Credential types
 
-In most of the cases credentials are just key-value pairs, but in some cases the actual structure of [credentials](prebuilt_types) could be quite complex and support several ways of setting it up.
-For example, to connect to `sql_database` source user can either set up a connection string:
+In most cases credentials are just key-value pairs, but in some cases the actual structure of [credentials](prebuilt_types) could be quite complex and support several ways of setting it up.
+For example, to connect to a `sql_database` source you can either set up a connection string:
 
 ```toml
 [sources.sql_database]
@@ -98,7 +98,7 @@ role = "role"
 
 ## ENV variables
 
-Environment variables could be used both for storing configuration values and for secrets. `dlt` prioritizes security by looking in environment variables before looking into configuration files.
+`dlt` prioritizes security by looking in environment variables before looking into the .toml files.
 
 The format of lookup keys is slightly different from secrets files because for ENV variables, all names are capitalized and sections are separated with a double underscore `"__"`. For example, to specify the Facebook Ads access token through environment variables, you would need to set up:
 
@@ -106,7 +106,7 @@ The format of lookup keys is slightly different from secrets files because for E
 export SOURCES__FACEBOOK_ADS__ACCESS_TOKEN="<access_token>"
 ```
 
-Check out the [example](#credentials-via-env-variables) of setting up credentials through environment variables.
+Check out the [example](#examples) of setting up credentials through environment variables.
 
 :::tip
 To organize development and securely manage environment variables for credentials storage, you can use the [python-dotenv](https://pypi.org/project/python-dotenv/) to automatically load variables from an `.env` file.
@@ -114,9 +114,8 @@ To organize development and securely manage environment variables for credential
 
 ## Vaults
 
-Vault integration methods vary based on the vault type. For an example involving [GCP credentials](#GCP-Credentials), refer to our documentation.
-For other vault integrations you are welcome to [contact sales](https://dlthub.com/contact-sales) to learn about our paid tools designed for data platform teams.
-Tools include integration with vaults, ensuring your data remains secure while maintaining user autonomy.
+Vault integration methods vary based on the vault type. Check out our example involving [Google Cloud Secrets Manager](../../walkthroughs/add_credentials.md#retrieving-credentials-from-google-cloud-secret-manager).
+For other vault integrations you are welcome to [contact sales](https://dlthub.com/contact-sales) to learn about our [building blocks for data platform teams(https://dlthub.com/product/data-platform-teams#secure)].
 
 ## secrets.toml and config.toml
 
@@ -138,9 +137,8 @@ By default, the `.gitignore` file in the project prevents `secrets.toml` from be
 
 ### Location
 
-:::info
-The TOML provider always loads those files from the `.dlt` folder, located **relative** to the current Working Directory.
-:::
+
+The TOML provider always loads those files from the `.dlt` folder, located **relative** to the current working directory.
 
 For example, if your working directory is `my_dlt_project` and your project has the following structure:
 
