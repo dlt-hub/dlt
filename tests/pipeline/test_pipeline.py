@@ -2675,150 +2675,60 @@ def assert_imported_file(
 # - Parquet the timezone is a flag stored separately from the timestamp value (it does not affect timestamp values)
 
 
-# TEST_1 duckdb TIMESTAMP, dlt TIMEZONE disabled
-#
-# SET TimeZone = 'America/Los_Angeles';
-# CREATE TABLE events (
-#     event_id INTEGER,
-#     event_tstamp TIMESTAMP
-# );
-# INSERT INTO events (event_id, event_tstamp) VALUES
-#   (1, '2024-07-30 10:00:00.123+00:00'),
-#   (2, '2024-07-30 10:00:00.123456+02:00');
-# SELECT * FROM events;
-#
-# ┌──────────┬────────────────────────────┐
-# │ event_id │        event_tstamp        │
-# │  int32   │         timestamp          │
-# ├──────────┼────────────────────────────┤
-# │        1 │ 2024-07-30 10:00:00.123    │
-# │        2 │ 2024-07-30 08:00:00.123456 │
-# └──────────┴────────────────────────────┘
-
-
-def test_duckdb_column_hint_timezone_disabled() -> None:
+def test_duckdb_column_hint_timezone() -> None:
+    # talbe: events_timezone_off
     @dlt.resource(
         columns={"event_tstamp": {"data_type": "timestamp", "timezone": False}},
         primary_key="event_id",
     )
-    def events():
+    def events_timezone_off():
         yield [
             {"event_id": 1, "event_tstamp": "2024-07-30T10:00:00.123+00:00"},
             {"event_id": 2, "event_tstamp": "2024-07-30T10:00:00.123456+02:00"},
         ]
 
-    pipeline = dlt.pipeline(destination="duckdb")
-
-    pipeline.run(events(), table_name="events")
-
-    # fetch the table definition from the DuckDB
-    with pipeline.sql_client() as client:
-        table_info = client.execute_sql("DESCRIBE events")
-        timestamp_type = None
-        for row in table_info:
-            if row[0] == "event_tstamp":
-                timestamp_type = row[1]
-                break
-    assert timestamp_type == "TIMESTAMP"
-
-    # fetch data from DuckDB
-    with pipeline.sql_client() as client:
-        rows = client.execute_sql("SELECT event_tstamp FROM events ORDER BY event_id")
-
-    values = [r[0].strftime("%Y-%m-%dT%H:%M:%S.%f") for r in rows]
-
-    assert values == ["2024-07-30T10:00:00.123000", "2024-07-30T08:00:00.123456"]
-
-
-# TEST_2 duckdb TIMESTAMPTZ, dlt TIMEZONE enabled
-#
-# SET TimeZone = 'UTC';
-# CREATE TABLE events (
-#     event_id INTEGER,
-#     event_tstamp TIMESTAMPTZ
-# );
-# INSERT INTO events (event_id, event_tstamp) VALUES
-#   (1, '2024-07-30 10:00:00.123+00:00'),
-#   (2, '2024-07-30 10:00:00.123456+02:00');
-# SELECT * FROM events;
-#
-# ┌──────────┬───────────────────────────────┐
-# │ event_id │         event_tstamp          │
-# │  int32   │   timestamp with time zone    │
-# ├──────────┼───────────────────────────────┤
-# │        1 │ 2024-07-30 10:00:00.123+00    │
-# │        2 │ 2024-07-30 08:00:00.123456+00 │
-# └──────────┴───────────────────────────────┘
-
-
-def test_duckdb_column_hint_timezone_enabled() -> None:
+    # talbe: events_timezone_on
     @dlt.resource(
         columns={"event_tstamp": {"data_type": "timestamp", "timezone": True}},
         primary_key="event_id",
     )
-    def events():
+    def events_timezone_on():
         yield [
             {"event_id": 1, "event_tstamp": "2024-07-30T10:00:00.123+00:00"},
             {"event_id": 2, "event_tstamp": "2024-07-30T10:00:00.123456+02:00"},
         ]
 
-    pipeline = dlt.pipeline(destination="duckdb")
-
-    pipeline.run(events(), table_name="events")
-
-    # fetch the table definition from the DuckDB
-    with pipeline.sql_client() as client:
-        table_info = client.execute_sql("DESCRIBE events")
-        timestamp_type = None
-        for row in table_info:
-            if row[0] == "event_tstamp":
-                timestamp_type = row[1]
-                break
-
-    assert timestamp_type == "TIMESTAMP WITH TIME ZONE"
-
-    # fetch data from DuckDB
-    with pipeline.sql_client() as client:
-        rows = client.execute_sql("SELECT event_tstamp FROM events ORDER BY event_id")
-
-    values = [r[0].strftime("%Y-%m-%dT%H:%M:%S.%f") for r in rows]
-
-    assert values == ["2024-07-30T10:00:00.123000", "2024-07-30T08:00:00.123456"]
-
-
-def test_duckdb_column_hint_timezone_empty() -> None:
+    # talbe: events_timezone_unset
     @dlt.resource(
-        columns={"event_tstamp": {"data_type": "timestamp", "timezone": None}},
         primary_key="event_id",
     )
-    def events():
+    def events_timezone_unset():
         yield [
             {"event_id": 1, "event_tstamp": "2024-07-30T10:00:00.123+00:00"},
             {"event_id": 2, "event_tstamp": "2024-07-30T10:00:00.123456+02:00"},
         ]
 
     pipeline = dlt.pipeline(destination="duckdb")
+    pipeline.run([events_timezone_off(), events_timezone_on(), events_timezone_unset()])
 
-    pipeline.run(events(), table_name="events")
-
-    # fetch the table definition from the DuckDB
     with pipeline.sql_client() as client:
-        table_info = client.execute_sql("DESCRIBE events")
-        timestamp_type = None
-        for row in table_info:
-            if row[0] == "event_tstamp":
-                timestamp_type = row[1]
-                break
+        expected_results = {
+            "events_timezone_off": "TIMESTAMP",
+            "events_timezone_on": "TIMESTAMP WITH TIME ZONE",
+            "events_timezone_unset": "TIMESTAMP",
+        }
+        for table in expected_results.keys():
+            # check data type
+            table_info = client.execute_sql(f"DESCRIBE {table}")
+            for row in table_info:
+                if row[0] == "event_tstamp":
+                    assert row[1] == expected_results[table]
+                    break
 
-    assert timestamp_type == "TIMESTAMP"
-
-    # fetch data from DuckDB
-    with pipeline.sql_client() as client:
-        rows = client.execute_sql("SELECT event_tstamp FROM events ORDER BY event_id")
-
-    values = [r[0].strftime("%Y-%m-%dT%H:%M:%S.%f") for r in rows]
-
-    assert values == ["2024-07-30T10:00:00.123000", "2024-07-30T08:00:00.123456"]
+            # check timestamp data
+            rows = client.execute_sql(f"SELECT event_tstamp FROM {table} ORDER BY event_id")
+            values = [r[0].strftime("%Y-%m-%dT%H:%M:%S.%f") for r in rows]
+            assert values == ["2024-07-30T10:00:00.123000", "2024-07-30T08:00:00.123456"]
 
 
 def test_filesystem_column_hint_timezone() -> None:
