@@ -661,6 +661,7 @@ def test_cursor_path_none_includes_records_and_updates_incremental_cursor_1(
     p.run(some_data(), destination="duckdb")
 
     assert_query_data(p, "select count(id) from some_data", [3])
+    assert_query_data(p, "select count(created_at) from some_data", [2])
 
     s = p.state["sources"][p.default_schema_name]["resources"]["some_data"]["incremental"][
         "created_at"
@@ -689,6 +690,7 @@ def test_cursor_path_none_includes_records_and_updates_incremental_cursor_2(
     p.run(some_data(), destination="duckdb")
 
     assert_query_data(p, "select count(id) from some_data", [3])
+    assert_query_data(p, "select count(created_at) from some_data", [2])
 
     s = p.state["sources"][p.default_schema_name]["resources"]["some_data"]["incremental"][
         "created_at"
@@ -716,6 +718,7 @@ def test_cursor_path_none_includes_records_and_updates_incremental_cursor_3(
     p = dlt.pipeline(pipeline_name=uniq_id())
     p.run(some_data(), destination="duckdb")
     assert_query_data(p, "select count(id) from some_data", [3])
+    assert_query_data(p, "select count(created_at) from some_data", [2])
 
     s = p.state["sources"][p.default_schema_name]["resources"]["some_data"]["incremental"][
         "created_at"
@@ -742,6 +745,7 @@ def test_cursor_path_none_includes_records_without_cursor_path(
     p = dlt.pipeline(pipeline_name=uniq_id())
     p.run(some_data(), destination="duckdb")
     assert_query_data(p, "select count(id) from some_data", [2])
+    assert_query_data(p, "select count(created_at) from some_data", [1])
 
     s = p.state["sources"][p.default_schema_name]["resources"]["some_data"]["incremental"][
         "created_at"
