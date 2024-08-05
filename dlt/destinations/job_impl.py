@@ -1,11 +1,11 @@
 from abc import ABC, abstractmethod
 import os
 import tempfile  # noqa: 251
-from typing import Dict, Iterable, List, Optional
+from typing import Dict, Iterable, List, cast
 
 from dlt.common.json import json
 from dlt.common.destination.reference import NewLoadJob, FollowupJob, TLoadJobState, LoadJob
-from dlt.common.storages.load_package import commit_load_package_state
+from dlt.common.storages.load_package import commit_load_package_state, TReferenceJobFileFormat
 from dlt.common.schema import Schema, TTableSchema
 from dlt.common.storages import FileStorage
 from dlt.common.typing import TDataItems
@@ -52,13 +52,22 @@ class NewLoadJobImpl(EmptyLoadJobWithoutFollowup, NewLoadJob):
 
 
 class NewReferenceJob(NewLoadJobImpl):
+    ext_postfix: str = None
+
     def __init__(
         self, file_name: str, status: TLoadJobState, exception: str = None, remote_path: str = None
     ) -> None:
-        file_name = os.path.splitext(file_name)[0] + ".reference"
+        file_name = os.path.splitext(file_name)[0] + "." + self.ext
         super().__init__(file_name, status, exception)
         self._remote_path = remote_path
         self._save_text_file(remote_path)
+
+    @property
+    def ext(self) -> TReferenceJobFileFormat:
+        ext = "reference"
+        if self.ext_postfix is not None:
+            ext += "_" + self.ext_postfix
+        return cast(TReferenceJobFileFormat, ext)
 
     @staticmethod
     def is_reference_job(file_path: str) -> bool:

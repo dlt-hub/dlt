@@ -1,13 +1,14 @@
 from typing import Optional, Dict, Union
 from pathlib import Path
 
-from dlt import version
+from dlt import version, Pipeline
 from dlt.common import logger
 from dlt.common.libs.pyarrow import pyarrow as pa
 from dlt.common.libs.pyarrow import cast_arrow_schema_types
 from dlt.common.schema.typing import TWriteDisposition
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.storages import FilesystemConfiguration
+from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 
 try:
     from deltalake import write_deltalake, DeltaTable
@@ -77,6 +78,33 @@ def write_delta_table(
         storage_options=storage_options,
         engine="rust",  # `merge` schema mode requires `rust` engine
     )
+
+
+def get_delta_tables(pipeline: Pipeline, *tables: str) -> Dict[str, DeltaTable]:
+    """Returns Delta tables loaded by `pipeline` as `deltalake.DeltaTable` objects.
+
+    Returned object is a dictionary with table names as keys and `DeltaTable` objects as values.
+    Dictionary only contains Delta tables succesfully loaded in most recent pipeline run.
+    Optionally filters dictionary by table names specified as `*tables*`.
+    Raises ValueError if table name specified as `*tables` is not found.
+    """
+    with pipeline.destination_client() as client:
+        assert isinstance(
+            client, FilesystemClient
+        ), "The `get_delta_tables` function requires a `filesystem` destination."
+
+        last_load_id = pipeline.get_last_completed_load_id()
+        loaded_delta_tables = pipeline.list_loaded_tables_names(last_load_id, "reference_delta")
+        if len(tables) > 0:
+            invalid_tables = set(tables) - set(loaded_delta_tables)
+            if len(invalid_tables) > 0:
+                raise ValueError(
+                    "Last pipeline run did not load data to Delta tables with"
+                    f" these names: {', '.join(invalid_tables)}."
+                )
+            loaded_delta_tables = [t for t in loaded_delta_tables if t in tables]
+        table_dirs = client.get_table_dirs(loaded_delta_tables)
+        return {name: DeltaTable(_dir) for name, _dir in zip(loaded_delta_tables, table_dirs)}
 
 
 def _deltalake_storage_options(config: FilesystemConfiguration) -> Dict[str, str]:

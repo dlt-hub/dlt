@@ -99,6 +99,8 @@ class LoadFilesystemJob(LoadJob):
 
 
 class DeltaLoadFilesystemJob(NewReferenceJob):
+    ext_postfix: str = "delta"
+
     def __init__(
         self,
         client: "FilesystemClient",
@@ -110,7 +112,7 @@ class DeltaLoadFilesystemJob(NewReferenceJob):
         self.table_jobs = table_jobs
 
         ref_file_name = ParsedLoadJobFileName(
-            table["name"], ParsedLoadJobFileName.new_file_id(), 0, "reference"
+            table["name"], ParsedLoadJobFileName.new_file_id(), 0, self.ext
         ).file_name()
         super().__init__(
             file_name=ref_file_name,

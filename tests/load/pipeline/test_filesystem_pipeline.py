@@ -285,7 +285,9 @@ def test_delta_table_core(
     data_types_jobs = [
         job for job in completed_jobs if job.job_file_info.table_name == "data_types"
     ]
-    assert all([job.file_path.endswith((".parquet", ".reference")) for job in data_types_jobs])
+    assert all(
+        [job.file_path.endswith((".parquet", ".reference_delta")) for job in data_types_jobs]
+    )
 
     # 10 rows should be loaded to the Delta table and the content of the first
     # row should match expected values
@@ -560,7 +562,9 @@ def test_delta_table_mixed_source(
     delta_table_jobs = [
         job for job in completed_jobs if job.job_file_info.table_name == "delta_table"
     ]
-    assert all([job.file_path.endswith((".parquet", ".reference")) for job in delta_table_jobs])
+    assert all(
+        [job.file_path.endswith((".parquet", ".reference_delta")) for job in delta_table_jobs]
+    )
 
     # `jsonl` file format should be respected for `non_delta_table` resource
     non_delta_table_job = [
@@ -592,8 +596,59 @@ def test_delta_table_dynamic_dispatch(
     info = pipeline.run(github_events())
     assert_load_info(info)
     completed_jobs = info.load_packages[0].jobs["completed_jobs"]
-    # 20 event types, two jobs per table (.parquet and .reference), 1 job for _dlt_pipeline_state
+    # 20 event types, two jobs per table (.parquet and .reference_delta), 1 job for _dlt_pipeline_state
     assert len(completed_jobs) == 2 * 20 + 1
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        local_filesystem_configs=True,
+        table_format="delta",
+    ),
+    ids=lambda x: x.name,
+)
+def test_delta_table_get_delta_tables_helper(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Tests `get_delta_tables` helper function."""
+    from dlt.common.libs.deltalake import DeltaTable, get_delta_tables
+
+    @dlt.resource(table_format="delta")
+    def foo_delta():
+        yield [{"foo": 1}, {"foo": 2}]
+
+    @dlt.resource(table_format="delta")
+    def bar_delta():
+        yield [{"bar": 1}]
+
+    @dlt.resource
+    def baz_not_delta():
+        yield [{"baz": 1}]
+
+    pipeline = destination_config.setup_pipeline("fs_pipe", dev_mode=True)
+
+    info = pipeline.run(foo_delta())
+    assert_load_info(info)
+    delta_tables = get_delta_tables(pipeline)
+    assert delta_tables.keys() == {"foo_delta"}
+    assert isinstance(delta_tables["foo_delta"], DeltaTable)
+    assert delta_tables["foo_delta"].to_pyarrow_table().num_rows == 2
+
+    info = pipeline.run([foo_delta(), bar_delta(), baz_not_delta()])
+    assert_load_info(info)
+    delta_tables = get_delta_tables(pipeline)
+    assert delta_tables.keys() == {"foo_delta", "bar_delta"}
+    assert delta_tables["bar_delta"].to_pyarrow_table().num_rows == 1
+    assert get_delta_tables(pipeline, "foo_delta").keys() == {"foo_delta"}
+    assert get_delta_tables(pipeline, "bar_delta").keys() == {"bar_delta"}
+    assert get_delta_tables(pipeline, "foo_delta", "bar_delta").keys() == {"foo_delta", "bar_delta"}
+
+    with pytest.raises(ValueError):
+        get_delta_tables(pipeline, "baz_not_delta")
+
+    with pytest.raises(ValueError):
+        get_delta_tables(pipeline, "non_existing_table")
 
 
 TEST_LAYOUTS = (

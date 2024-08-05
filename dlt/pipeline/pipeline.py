@@ -63,7 +63,7 @@ from dlt.common.storages import (
     LoadJobInfo,
     LoadPackageInfo,
 )
-from dlt.common.storages.load_package import TPipelineStateDoc
+from dlt.common.storages.load_package import TJobFileFormat
 from dlt.common.destination import (
     DestinationCapabilitiesContext,
     merge_caps_file_formats,
@@ -912,6 +912,28 @@ class Pipeline(SupportsPipeline):
     def list_completed_load_packages(self) -> Sequence[str]:
         """Returns a list of all load package ids that are completely loaded"""
         return self._get_load_storage().list_loaded_packages()
+
+    def get_last_completed_load_id(self) -> Optional[str]:
+        """Returns load id of last completed load package.
+
+        Returns None if no completed load package exists.
+        """
+        pkgs = self.list_completed_load_packages()
+        return pkgs[-1] if len(pkgs) > 0 else None
+
+    def list_loaded_tables_names(
+        self, load_id: str, file_format: TJobFileFormat = None
+    ) -> Sequence[str]:
+        """Returns list of names of tables loaded in package identified by `load_id`.
+
+        List of tables is based on completed jobs.
+        Completed jobs can be filtered by `file_format`.
+        """
+        pkg = self.get_load_package_info(load_id)
+        jobs = pkg.jobs["completed_jobs"]
+        if file_format is not None:
+            jobs = [job for job in jobs if job.job_file_info.file_format == file_format]
+        return list({job.job_file_info.table_name for job in jobs})
 
     def get_load_package_info(self, load_id: str) -> LoadPackageInfo:
         """Returns information on extracted/normalized/completed package with given load_id, all jobs and their statuses."""
