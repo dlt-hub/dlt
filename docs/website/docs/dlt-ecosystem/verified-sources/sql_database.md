@@ -126,6 +126,7 @@ Read more about sources and resources here: [General Usage: Source](../../genera
 
 1. **Load all the tables from a database**  
 Calling `sql_database()` loads all tables from the database.
+
     ```py
     def load_entire_database() -> None:
 
@@ -147,6 +148,7 @@ Calling `sql_database()` loads all tables from the database.
     ```
 2. **Load select tables from a database**  
 Calling `sql_database().with_resources("family", "clan")` loads only the tables `"family"` and `"clan"` from the database.
+
     ```py
     def load_select_tables_from_database() -> None:
 
@@ -170,6 +172,7 @@ Calling `sql_database().with_resources("family", "clan")` loads only the tables 
 
 3. **Load a standalone table**  
 Calling `sql_table(table="family")` fetches only the table `"family"`
+
     ```py
     def load_select_tables_from_database() -> None:
 
@@ -192,7 +195,8 @@ Calling `sql_table(table="family")` fetches only the table `"family"`
     ```
 
 :::tip
-We intend our sources to be fully hackable. Feel free to change the source code of the sources and resources to customize it to your needs. :::  
+We intend our sources to be fully hackable. Feel free to change the source code of the sources and resources to customize it to your needs. 
+:::  
 
 
 ## Configuring connection to the SQL database
@@ -227,7 +231,8 @@ credentials = ConnectionStringCredentials(
 
 source = sql_table(credentials).with_resource("family")
 ```
-:::Note: It is recommended to configure credentials in `.dlt/secrets.toml` and to not include any sensitive information in the pipeline code:::
+:::
+Note: It is recommended to configure credentials in `.dlt/secrets.toml` and to not include any sensitive information in the pipeline code. :::
 
 ### Other connection options
 #### Using SqlAlchemy Engine as credentials  
@@ -618,7 +623,6 @@ individual rows of the table which can be modified by using custom python functi
 Examples:
 1. Pseudonymizing data to hide personally identifiable information (PII) before loading it to the destination. (See [here](https://dlthub.com/docs/general-usage/customising-pipelines/pseudonymizing_columns) for more information on pseudonymizing data with `dlt`)
 
-
     ```py
     import hashlib
 
@@ -649,23 +653,23 @@ Examples:
     print(info)
     ```
 
-1. Excluding unnecessary columns before load
+2. Excluding unnecessary columns before load
 
-   ```py
-   def remove_columns(doc):
-       del doc["rfam_id"]
-       return doc
+    ```py
+    def remove_columns(doc):
+        del doc["rfam_id"]
+        return doc
 
-   pipeline = dlt.pipeline(
-       # Configure the pipeline
-   )
-   # using sql_database source to load family table and remove the column "rfam_id"
-   source = sql_database().with_resources("family")
-   # modify this source instance's resource
-   source = source.family.add_map(remove_columns)
-   # Run the pipeline. For a large db this may take a while
-   info = pipeline.run(source, write_disposition="replace")
-   print(info)
-   ```
+    pipeline = dlt.pipeline(
+        # Configure the pipeline
+    )
+    # using sql_database source to load family table and remove the column "rfam_id"
+    source = sql_database().with_resources("family")
+    # modify this source instance's resource
+    source = source.family.add_map(remove_columns)
+    # Run the pipeline. For a large db this may take a while
+    info = pipeline.run(source, write_disposition="replace")
+    print(info)
+    ```
 
 <!--@@@DLT_TUBA sql_database-->
