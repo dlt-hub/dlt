@@ -155,6 +155,35 @@ class TestRESTClient:
         pages = list(pages_iter)
         assert pages == []
 
+    def test_auth_masks_bearer_token(self):
+        auth = BearerTokenAuth(cast(TSecretStrValue, "test-token"))
+        assert auth.mask_secrets() == "t*****n"
+
+    def test_auth_masks_api_key(self):
+        auth = APIKeyAuth(api_key=cast(TSecretStrValue, "test-token"))
+        assert auth.mask_secrets() == "t*****n"
+
+    def test_auth_masks_http_basic(self):
+        auth = HttpBasicAuth("a_user", cast(TSecretStrValue, "test-token"))
+        assert auth.mask_secrets() == "a*****n"
+
+    def test_auth_masks_oauth2(self):
+        auth = OAuth2ClientCredentials(
+            access_token_url=cast(TSecretStrValue, "https://api.example.com/oauth/token"),
+            client_id=cast(TSecretStrValue, "test-client-id"),
+            client_secret=cast(TSecretStrValue, "test-client-secret"),
+            session=Client().session,
+        )
+
+        assert auth.mask_secrets() == str(
+            {"access_token": "None", "client_id": "t*****d", "client_secret": "t*****t"}
+        )
+
+        auth.access_token = cast(TSecretStrValue, "test-token")
+        assert auth.mask_secrets() == str(
+            {"access_token": "t*****n", "client_id": "t*****d", "client_secret": "t*****t"}
+        )
+
     def test_basic_auth_success(self, rest_client: RESTClient):
         response = rest_client.get(
             "/protected/posts/basic-auth",
@@ -349,6 +378,9 @@ class TestRESTClient:
                 request.headers["Authorization"] = f"Bearer {self.token}"
                 return request
 
+            def mask_secrets(self) -> str:
+                return self.mask_secret(self.token)
+
         class CustomAuthAuthBase(AuthBase):
             def __init__(self, token: str):
                 self.token = token
@@ -356,6 +388,8 @@ class TestRESTClient:
             def __call__(self, request: PreparedRequest) -> PreparedRequest:
                 request.headers["Authorization"] = f"Bearer {self.token}"
                 return request
+
+
 
         auth_list = [
             CustomAuthConfigBase("test-token"),
