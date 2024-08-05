@@ -71,7 +71,7 @@ from dlt.destinations.impl.lancedb.schema import (
     TArrowField,
 )
 from dlt.destinations.impl.lancedb.utils import (
-    list_merge_identifiers,
+    get_unique_identifiers_from_table_schema,
     set_non_standard_providers_environment_variables,
     generate_arrow_uuid_column,
 )
@@ -764,7 +764,7 @@ class LoadLanceDBJob(LoadJob, FollowupJob):
         self.table_name: str = table_schema["name"]
         self.fq_table_name: str = fq_table_name
         self.fq_parent_table_name: Optional[str] = fq_parent_table_name
-        self.unique_identifiers: List[str] = list_merge_identifiers(table_schema)
+        self.unique_identifiers: List[str] = get_unique_identifiers_from_table_schema(table_schema)
         self.embedding_fields: List[str] = get_columns_names_with_prop(table_schema, VECTORIZE_HINT)
         self.embedding_model_func: TextEmbeddingFunction = model_func
         self.embedding_model_dimensions: int = client_config.embedding_model_dimensions
@@ -776,7 +776,7 @@ class LoadLanceDBJob(LoadJob, FollowupJob):
         with FileStorage.open_zipsafe_ro(local_path, mode="rb") as f:
             arrow_table: pa.Table = pq.read_table(f)
 
-        if self.table_schema not in self.schema.dlt_tables():
+        if self.table_schema['name'] not in self.schema.dlt_table_names():
             arrow_table = generate_arrow_uuid_column(
                 arrow_table,
                 unique_identifiers=self.unique_identifiers,

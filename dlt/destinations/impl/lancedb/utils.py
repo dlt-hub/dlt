@@ -35,21 +35,20 @@ def generate_arrow_uuid_column(
         pa.Table: New PyArrow table with the new UUID column.
     """
 
-    string_columns = []
+    unique_identifiers_columns = []
     for col in unique_identifiers:
         column = table[col]
         column = pc.cast(column, pa.string())
         column = pc.fill_null(column, "")
-        string_columns.append(column.to_pylist())
+        unique_identifiers_columns.append(column.to_pylist())
 
-    concat_values = ["".join(x) for x in zip(*string_columns)]
-    uuids = [str(uuid.uuid5(uuid.NAMESPACE_OID, x + table_name)) for x in concat_values]
+    concatenated_ids = ["".join(x) for x in zip(*unique_identifiers_columns)]
+    uuids = [str(uuid.uuid5(uuid.NAMESPACE_OID, x + table_name)) for x in concatenated_ids]
     uuid_column = pa.array(uuids)
-
     return table.append_column(id_field_name, uuid_column)
 
 
-def list_merge_identifiers(table_schema: TTableSchema) -> List[str]:
+def get_unique_identifiers_from_table_schema(table_schema: TTableSchema) -> List[str]:
     """Returns a list of merge keys for a table used for either merging or deduplication.
 
     Args:
@@ -58,12 +57,14 @@ def list_merge_identifiers(table_schema: TTableSchema) -> List[str]:
     Returns:
         Sequence[str]: A list of unique column identifiers.
     """
+    primary_keys = get_columns_names_with_prop(table_schema, "primary_key")
+    merge_keys = []
     if table_schema.get("write_disposition") == "merge":
-        primary_keys = get_columns_names_with_prop(table_schema, "primary_key")
         merge_keys = get_columns_names_with_prop(table_schema, "merge_key")
-        if join_keys := list(set(primary_keys + merge_keys)):
-            return join_keys
-    return get_columns_names_with_prop(table_schema, "unique")
+    if join_keys := list(set(primary_keys + merge_keys)):
+        return join_keys
+    else:
+        return get_columns_names_with_prop(table_schema, "unique")
 
 
 def set_non_standard_providers_environment_variables(
