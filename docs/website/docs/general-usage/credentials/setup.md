@@ -18,6 +18,9 @@ There are multiple ways to define configurations and credentials for your pipeli
 
 1. [secrets.toml and config.toml files](#secretstoml-and-configtoml): These files are used for storing both configuration values and secrets. `secrets.toml` is dedicated to sensitive information, while `config.toml` contains non-sensitive configuration data.
 
+1. [Custom Providers](#custom-providers) added with `register_provider`: This is a custom provider implementation you can design yourself.
+A custom config provider is helpful if you want to use your own configuration file structure or perform advanced preprocessing of configs and secrets.
+
 1. [Default Argument Values](advanced#ingestion-mechanism): These are the values specified in the function's signature.
 
 :::tip
@@ -173,6 +176,32 @@ The TOML provider also has the capability to read files from `~/.dlt/` (located 
 
 `dlt` organizes sections in TOML files in a specific structure required by the [injection mechanism](advanced/#injection-mechanism).
 Understanding this structure gives you more flexibility in setting credentials. For more details, see [Toml files structure](advanced/#toml-files-structure).
+
+## Custom Providers
+
+You can use the `CustomLoaderDocProvider` classes to supply a custom dictionary to `dlt` for use
+as a supplier of `config` and `secret` values. The code below demonstrates how to use a config stored in `config.json`.
+
+```py
+import dlt
+
+from dlt.common.configuration.providers import CustomLoaderDocProvider
+
+# create a function that loads a dict
+def load_config():
+   with open("config.json", "rb") as f:
+      config_dict = json.load(f)
+
+# create the custom provider
+provider = CustomLoaderDocProvider("my_json_provider",load_config)
+
+# register provider
+dlt.config.register_provider(provider)
+```
+
+:::tip
+Check our an [example](../../examples/custom_config_provider) for a `yaml` based config provider that supports switchable profiles.
+:::
 
 ## Examples
 
