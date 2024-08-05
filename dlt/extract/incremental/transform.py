@@ -305,6 +305,9 @@ class ArrowIncremental(IncrementalTransform):
 
         # TODO: Json path support. For now assume the cursor_path is a column name
         cursor_path = self.cursor_path
+        if self.on_cursor_value_missing == "exclude":
+            tbl = self._remove_null_at_cursor_path(tbl, cursor_path)
+
         # The new max/min value
         try:
             # NOTE: datetimes are always pendulum in UTC
@@ -316,7 +319,7 @@ class ArrowIncremental(IncrementalTransform):
                 self.resource_name,
                 cursor_path,
                 tbl,
-                f"Column name {cursor_path} was not found in the arrow table. Not nested JSON paths"
+                f"Column name `{cursor_path}` was not found in the arrow table. Nested JSON paths"
                 " are not supported for arrow tables and dataframes, the incremental cursor_path"
                 " must be a column name.",
             ) from e
@@ -389,3 +392,8 @@ class ArrowIncremental(IncrementalTransform):
         if is_pandas:
             return tbl.to_pandas(), start_out_of_range, end_out_of_range
         return tbl, start_out_of_range, end_out_of_range
+
+    def _remove_null_at_cursor_path(self, tbl, cursor_path):
+        mask = pa.compute.is_valid(tbl[cursor_path])
+        filtered = tbl.filter(mask)
+        return filtered

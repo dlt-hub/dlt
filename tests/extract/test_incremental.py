@@ -749,7 +749,7 @@ def test_cursor_path_none_includes_records_without_cursor_path(
     assert s["last_value"] == 1
 
 
-@pytest.mark.parametrize("item_type", ["object"])
+@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
 def test_cursor_path_none_excludes_records_and_updates_incremental_cursor(
     item_type: TestDataItemFormat,
 ) -> None:
