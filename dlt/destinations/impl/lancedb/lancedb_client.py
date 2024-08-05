@@ -21,9 +21,9 @@ import pyarrow.parquet as pq
 from lancedb import DBConnection
 from lancedb.embeddings import EmbeddingFunctionRegistry, TextEmbeddingFunction  # type: ignore
 from lancedb.query import LanceQueryBuilder  # type: ignore
-from lancedb.table import Table  # type: ignore
+import lancedb.table  # type: ignore
 from numpy import ndarray
-from pyarrow import Array, ChunkedArray, ArrowInvalid, Table
+from pyarrow import Array, ChunkedArray, ArrowInvalid
 
 from dlt.common import json, pendulum, logger
 from dlt.common.destination import DestinationCapabilitiesContext
@@ -271,7 +271,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
         )
 
     def get_table_schema(self, table_name: str) -> TArrowSchema:
-        schema_table: Table = self.db_client.open_table(table_name)
+        schema_table: "lancedb.table.Table" = self.db_client.open_table(table_name)
         schema_table.checkout_latest()
         schema = schema_table.schema
         return cast(
@@ -280,7 +280,9 @@ class LanceDBClient(JobClientBase, WithStateSync):
         )
 
     @lancedb_error
-    def create_table(self, table_name: str, schema: TArrowSchema, mode: str = "create") -> Table:
+    def create_table(
+        self, table_name: str, schema: TArrowSchema, mode: str = "create"
+    ) -> "lancedb.table.Table":
         """Create a LanceDB Table from the provided LanceModel or PyArrow schema.
 
         Args:
@@ -314,7 +316,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
         Returns:
             A LanceDB query builder.
         """
-        query_table: Table = self.db_client.open_table(table_name)
+        query_table: "lancedb.table.Table" = self.db_client.open_table(table_name)
         query_table.checkout_latest()
         return query_table.search(query=query)
 
@@ -366,7 +368,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
     def is_storage_initialized(self) -> bool:
         return self.table_exists(self.sentinel_table)
 
-    def _create_sentinel_table(self) -> Table:
+    def _create_sentinel_table(self) -> "lancedb.table.Table":
         """Create an empty table to indicate that the storage is initialized."""
         return self.create_table(schema=NULL_SCHEMA, table_name=self.sentinel_table)
 
@@ -408,7 +410,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
         try:
             fq_table_name = self.make_qualified_table_name(table_name)
 
-            table: Table = self.db_client.open_table(fq_table_name)
+            table: "lancedb.table.Table" = self.db_client.open_table(fq_table_name)
             table.checkout_latest()
             arrow_schema: TArrowSchema = table.schema
         except FileNotFoundError:
@@ -425,15 +427,15 @@ class LanceDBClient(JobClientBase, WithStateSync):
 
     @lancedb_error
     def add_table_fields(
-        self, table_name: str, field_schemas: List[TArrowField]
-    ) -> Optional[Table]:
+        self, table_name: str, field_schemas: List[pa.Field]
+    ) -> Optional["lancedb.table.Table"]:
         """Add multiple fields to the LanceDB table at once.
 
         Args:
-            table_name: The name of the table to create the fields on.
-            field_schemas: The list of fields to create.
+        table_name: The name of the table to create the fields on.
+        field_schemas: The list of PyArrow Fields to create.
         """
-        table: Table = self.db_client.open_table(table_name)
+        table: "lancedb.table.Table" = self.db_client.open_table(table_name)
         table.checkout_latest()
         arrow_table = table.to_arrow()
 
@@ -540,10 +542,10 @@ class LanceDBClient(JobClientBase, WithStateSync):
         fq_state_table_name = self.make_qualified_table_name(self.schema.state_table_name)
         fq_loads_table_name = self.make_qualified_table_name(self.schema.loads_table_name)
 
-        state_table_: Table = self.db_client.open_table(fq_state_table_name)
+        state_table_: "lancedb.table.Table" = self.db_client.open_table(fq_state_table_name)
         state_table_.checkout_latest()
 
-        loads_table_: Table = self.db_client.open_table(fq_loads_table_name)
+        loads_table_: "lancedb.table.Table" = self.db_client.open_table(fq_loads_table_name)
         loads_table_.checkout_latest()
 
         # normalize property names
@@ -589,7 +591,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
     def get_stored_schema_by_hash(self, schema_hash: str) -> Optional[StorageSchemaInfo]:
         fq_version_table_name = self.make_qualified_table_name(self.schema.version_table_name)
 
-        version_table: Table = self.db_client.open_table(fq_version_table_name)
+        version_table: "lancedb.table.Table" = self.db_client.open_table(fq_version_table_name)
         version_table.checkout_latest()
         p_version_hash = self.schema.naming.normalize_identifier("version_hash")
         p_inserted_at = self.schema.naming.normalize_identifier("inserted_at")
@@ -622,7 +624,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
         """Retrieves newest schema from destination storage."""
         fq_version_table_name = self.make_qualified_table_name(self.schema.version_table_name)
 
-        version_table: Table = self.db_client.open_table(fq_version_table_name)
+        version_table: "lancedb.table.Table" = self.db_client.open_table(fq_version_table_name)
         version_table.checkout_latest()
         p_version_hash = self.schema.naming.normalize_identifier("version_hash")
         p_inserted_at = self.schema.naming.normalize_identifier("inserted_at")
@@ -776,7 +778,7 @@ class LoadLanceDBJob(LoadJob, FollowupJob):
         with FileStorage.open_zipsafe_ro(local_path, mode="rb") as f:
             arrow_table: pa.Table = pq.read_table(f)
 
-        if self.table_schema['name'] not in self.schema.dlt_table_names():
+        if self.table_schema["name"] not in self.schema.dlt_table_names():
             arrow_table = generate_arrow_uuid_column(
                 arrow_table,
                 unique_identifiers=self.unique_identifiers,
