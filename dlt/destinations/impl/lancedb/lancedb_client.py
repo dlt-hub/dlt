@@ -87,6 +87,7 @@ else:
 
 TIMESTAMP_PRECISION_TO_UNIT: Dict[int, str] = {0: "s", 3: "ms", 6: "us", 9: "ns"}
 UNIT_TO_TIMESTAMP_PRECISION: Dict[str, int] = {v: k for k, v in TIMESTAMP_PRECISION_TO_UNIT.items()}
+BATCH_PROCESS_CHUNK_SIZE = 10_000
 
 
 class LanceDBTypeMapper(TypeMapper):
@@ -859,15 +860,25 @@ class LanceDBRemoveOrphansJob(NewLoadJobImpl):
 
         try:
             if self.fq_parent_table_name:
-                # Chunks and embeddings in child table.
-                parent_ids = set(pc.unique(parent_table.to_arrow()["_dlt_id"]).to_pylist())
-                child_ids = set(pc.unique(child_table.to_arrow()["_dlt_parent_id"]).to_pylist())
+                parent_id_iter: "pa.RecordBatchReader" = (
+                    parent_table.to_lance().scanner(columns=["_dlt_id"]).to_reader()
+                )
+                all_parent_ids = set()
 
-                if orphaned_ids := child_ids - parent_ids:
-                    if len(orphaned_ids) > 1:
-                        child_table.delete(f"_dlt_parent_id IN {tuple(orphaned_ids)}")
-                    elif len(orphaned_ids) == 1:
-                        child_table.delete(f"_dlt_parent_id = '{orphaned_ids.pop()}'")
+                for batch in parent_id_iter:
+                    chunk_ids = set(pc.unique(batch["_dlt_id"]).to_pylist())
+                    all_parent_ids.update(chunk_ids)
+
+                    # Delete it from db and clear memory.
+                    if len(all_parent_ids) >= BATCH_PROCESS_CHUNK_SIZE:
+                        delete_condition = f"_dlt_parent_id NOT IN {tuple(all_parent_ids)}"
+                        child_table.delete(delete_condition)
+                        all_parent_ids.clear()
+
+                # Process any remaining IDs.
+                if all_parent_ids:
+                    delete_condition = f"_dlt_parent_id NOT IN {tuple(all_parent_ids)}"
+                    child_table.delete(delete_condition)
 
             else:
                 # Chunks and embeddings in the root table.
