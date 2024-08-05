@@ -48,7 +48,7 @@ from dlt.common.schema.typing import (
     TColumnType,
     TTableFormat,
     TTableSchemaColumns,
-    TWriteDisposition,
+    TWriteDisposition, TColumnSchema,
 )
 from dlt.common.schema.utils import get_columns_names_with_prop
 from dlt.common.storages import FileStorage, LoadJobInfo, ParsedLoadJobFileName
@@ -461,13 +461,13 @@ class LanceDBClient(JobClientBase, WithStateSync):
     def _execute_schema_update(self, only_tables: Iterable[str]) -> None:
         for table_name in only_tables or self.schema.tables:
             exists, existing_columns = self.get_storage_table(table_name)
-            new_columns = self.schema.get_new_table_columns(
+            new_columns: List[TColumnSchema] = self.schema.get_new_table_columns(
                 table_name,
                 existing_columns,
                 self.capabilities.generates_case_sensitive_identifiers(),
             )
             logger.info(f"Found {len(new_columns)} updates for {table_name} in {self.schema.name}")
-            if len(new_columns) > 0:
+            if new_columns:
                 if exists:
                     field_schemas: List[TArrowField] = [
                         make_arrow_field_schema(column["name"], column, self.type_mapper)
