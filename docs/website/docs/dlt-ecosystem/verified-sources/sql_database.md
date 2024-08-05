@@ -125,7 +125,7 @@ Read more about sources and resources here: [General Usage: Source](../../genera
 #### Examples:
 
 1. **Load all the tables from a database**  
-Calling `sql_database()` loads all tables from the database.
+Calling `sql_database()` loads all tables from the database.  
 
     ```py
     def load_entire_database() -> None:
@@ -145,9 +145,10 @@ Calling `sql_database()` loads all tables from the database.
 
         # Print load info
         print(info)
-    ```
+    ```  
+
 2. **Load select tables from a database**  
-Calling `sql_database().with_resources("family", "clan")` loads only the tables `"family"` and `"clan"` from the database.
+Calling `sql_database().with_resources("family", "clan")` loads only the tables `"family"` and `"clan"` from the database.  
 
     ```py
     def load_select_tables_from_database() -> None:
@@ -168,7 +169,7 @@ Calling `sql_database().with_resources("family", "clan")` loads only the tables 
         # Print load info
         print(info)
 
-    ```
+    ```  
 
 3. **Load a standalone table**  
 Calling `sql_table(table="family")` fetches only the table `"family"`
