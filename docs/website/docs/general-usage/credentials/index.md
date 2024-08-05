@@ -11,7 +11,7 @@ import DocCardList from '@theme/DocCardList';
 2. Configuration files (`secrets.toml` and `config.toml`)
 3. Key managers and Vaults
 
-`dlt` automatically extracts configuration settings and secrets based on flexible [naming conventions](setup/#naming-convention). It then [injects](custom_sources/#injection-mechanism) these values where needed in code.
+`dlt` automatically extracts configuration settings and secrets based on flexible [naming conventions](setup/#naming-convention). It then [injects](advanced/#injection-mechanism) these values where needed in code.
 
 # Learn Details About
 

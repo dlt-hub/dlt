@@ -1,6 +1,6 @@
 ---
-title: Secrets with custom sources
-description: How to use secrets inside sources and destinations.
+title: Advanced secrets and configs
+description: Learn advanced hacks and tricks about credentials.
 keywords: [credentials, secrets.toml, secrets, config, configuration, environment variables, provider]
 ---
 
@@ -8,7 +8,7 @@ keywords: [credentials, secrets.toml, secrets, config, configuration, environmen
 
 ## Injection mechanism
 
-`dlt` has a special treatment for functions decorated with `@dlt.source`, `@dlt.resource`, and `@dlt.destination`. When such function is called, `dlt` takes the argument names in the signature and supplies (`injects`) the required values by looking for them in [various config providers](setup).
+`dlt` has a special treatment for functions decorated with `@dlt.source`, `@dlt.resource`, and `@dlt.destination`. When such a function is called, `dlt` takes the argument names in the signature and supplies (`injects`) the required values by looking for them in [various config providers](setup).
 
 ### Injection rules
 
@@ -91,7 +91,40 @@ Now,
    * connection string (used in SQL Alchemy) (in code and via config providers).
    * if nothing is passed, the default credentials are used (i.e., those present on Cloud Function runner)
 
-## Advanced: Read configs and secrets manually
+## Toml files structure
+
+`dlt` arranges the sections of [toml files](setup/#secretstoml-and-configtoml) into a **default layout** that is expected by the [injection mechanism](#injection-mechanism).
+This layout makes it easy to configure simple cases but also provides a room for more explicit sections and complex cases, i.e., having several sources with different credentials
+or even hosting several pipelines in the same project sharing the same config and credentials.
+
+```text
+pipeline_name
+    |
+    |-sources
+        |-<source 1 module name>
+            |-<source function 1 name>
+                |- {all source and resource options and secrets}
+            |-<source function 2 name>
+                |- {all source and resource options and secrets}
+        |-<source 2 module>
+            |...
+
+        |-extract
+            |- extract options for resources i.e., parallelism settings, maybe retries
+    |-destination
+        |- <destination name>
+            |- {destination options}
+                |-credentials
+                    |-{credentials options}
+    |-schema
+        |-<schema name>
+            |-schema settings: not implemented but I'll let people set nesting level, name convention, normalizer, etc. here
+    |-load
+    |-normalize
+```
+
+
+## Read configs and secrets manually
 
 `dlt` handles credentials and configuration automatically, but also offers flexibility for manual processing.
 `dlt.secrets` and `dlt.config` provide dictionary-like access to configuration values and secrets, enabling any custom preprocessing if needed.
@@ -117,7 +150,7 @@ credentials = dlt.secrets.get("my_section.gcp_credentials", GcpServiceAccountCre
 ```
 Creates a `GcpServiceAccountCredentials` instance out of values (typically a dictionary) under the `my_section.gcp_credentials` key.
 
-## Advanced: Write configs and secrets in code
+## Write configs and secrets in code
 
 `dlt.config` and `dlt.secrets` objects can also be used as setters. For example:
 ```py

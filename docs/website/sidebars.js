@@ -145,7 +145,7 @@ const sidebars = {
           },
           items: [
             'general-usage/credentials/setup',
-            'general-usage/credentials/custom_sources',
+            'general-usage/credentials/advanced',
             'general-usage/credentials/prebuilt_types',
           ]
         },
