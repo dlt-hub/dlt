@@ -37,15 +37,17 @@ def generate_arrow_uuid_column(
 
     unique_identifiers_columns = []
     for col in unique_identifiers:
-        column = table[col]
-        column = pc.cast(column, pa.string())
-        column = pc.fill_null(column, "")
+        column = pc.fill_null(pc.cast(table[col], pa.string()), "")
         unique_identifiers_columns.append(column.to_pylist())
 
-    concatenated_ids = ["".join(x) for x in zip(*unique_identifiers_columns)]
-    uuids = [str(uuid.uuid5(uuid.NAMESPACE_OID, x + table_name)) for x in concatenated_ids]
-    uuid_column = pa.array(uuids)
-    return table.append_column(id_field_name, uuid_column)
+    uuids = pa.array(
+        [
+            str(uuid.uuid5(uuid.NAMESPACE_OID, x + table_name))
+            for x in ["".join(x) for x in zip(*unique_identifiers_columns)]
+        ]
+    )
+
+    return table.append_column(id_field_name, uuids)
 
 
 def get_unique_identifiers_from_table_schema(table_schema: TTableSchema) -> List[str]:
