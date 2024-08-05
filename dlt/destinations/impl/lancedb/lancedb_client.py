@@ -15,13 +15,13 @@ from typing import (
 )
 
 import lancedb  # type: ignore
+import lancedb.table  # type: ignore
 import pyarrow as pa
 import pyarrow.compute as pc
 import pyarrow.parquet as pq
 from lancedb import DBConnection
 from lancedb.embeddings import EmbeddingFunctionRegistry, TextEmbeddingFunction  # type: ignore
 from lancedb.query import LanceQueryBuilder  # type: ignore
-import lancedb.table  # type: ignore
 from numpy import ndarray
 from pyarrow import Array, ChunkedArray, ArrowInvalid
 
@@ -48,7 +48,8 @@ from dlt.common.schema.typing import (
     TColumnType,
     TTableFormat,
     TTableSchemaColumns,
-    TWriteDisposition, TColumnSchema,
+    TWriteDisposition,
+    TColumnSchema,
 )
 from dlt.common.schema.utils import get_columns_names_with_prop
 from dlt.common.storages import FileStorage, LoadJobInfo, ParsedLoadJobFileName
@@ -69,6 +70,7 @@ from dlt.destinations.impl.lancedb.schema import (
     TArrowSchema,
     NULL_SCHEMA,
     TArrowField,
+    arrow_datatype_to_fusion_datatype,
 )
 from dlt.destinations.impl.lancedb.utils import (
     get_unique_identifiers_from_table_schema,
@@ -426,34 +428,33 @@ class LanceDBClient(JobClientBase, WithStateSync):
         return True, table_schema
 
     @lancedb_error
-    def add_table_fields(
-        self, table_name: str, field_schemas: List[pa.Field]
-    ) -> Optional["lancedb.table.Table"]:
-        """Add multiple fields to the LanceDB table at once.
+    def extend_lancedb_table_schema(self, table_name: str, field_schemas: List[pa.Field]) -> None:
+        """Extend LanceDB table schema with empty columns.
 
         Args:
         table_name: The name of the table to create the fields on.
-        field_schemas: The list of PyArrow Fields to create.
+        field_schemas: The list of PyArrow Fields to create in the target LanceDB table.
         """
         table: "lancedb.table.Table" = self.db_client.open_table(table_name)
         table.checkout_latest()
-        arrow_table = table.to_arrow()
-
-        # Check if any of the new fields already exist in the table.
-        existing_fields = set(arrow_table.schema.names)
-        new_fields = [field for field in field_schemas if field.name not in existing_fields]
-
-        if not new_fields:
-            # All fields already present, skip.
-            return None
-
-        null_arrays = [pa.nulls(len(arrow_table), type=field.type) for field in new_fields]
-
-        for field, null_array in zip(new_fields, null_arrays):
-            arrow_table = arrow_table.append_column(field, null_array)
 
         try:
-            return self.db_client.create_table(table_name, arrow_table, mode="overwrite")
+            # Use DataFusion SQL syntax to alter fields without loading data into client memory.
+            # Currently, the most efficient way to modify column values is in LanceDB.
+            new_fields = {
+                field.name: f"CAST(NULL AS {arrow_datatype_to_fusion_datatype(field.type)})"
+                for field in field_schemas
+            }
+            table.add_columns(new_fields)
+
+            # Make new columns nullable in the Arrow schema.
+            # Necessary because the Datafusion SQL API doesn't set new columns as nullable by default.
+            for field in field_schemas:
+                table.alter_columns({"path": field.name, "nullable": field.nullable})
+
+                # TODO: Update method below doesn't work for bulk NULL assignments, raise with LanceDB developers.
+                # table.update(values={field.name: None})
+
         except OSError:
             # Error occurred while creating the table, skip.
             return None
@@ -474,7 +475,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
                         for column in new_columns
                     ]
                     fq_table_name = self.make_qualified_table_name(table_name)
-                    self.add_table_fields(fq_table_name, field_schemas)
+                    self.extend_lancedb_table_schema(fq_table_name, field_schemas)
                 else:
                     if table_name not in self.schema.dlt_table_names():
                         embedding_fields = get_columns_names_with_prop(
