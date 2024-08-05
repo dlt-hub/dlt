@@ -12,10 +12,7 @@ from dlt.common.schema.utils import (
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.common.schema import Schema, TSchemaTables
 from dlt.common.schema.typing import TTableSchema
-from dlt.common.destination.reference import (
-    JobClientBase,
-    WithStagingDataset,
-)
+from dlt.common.destination.reference import JobClientBase, WithStagingDataset, LoadJob
 from dlt.load.configuration import LoaderConfiguration
 from dlt.common.destination import DestinationCapabilitiesContext
 
@@ -230,10 +227,30 @@ def _extend_tables_with_table_chain(
     return result
 
 
+def get_available_worker_slots(
+    config: LoaderConfiguration,
+    capabilities: DestinationCapabilitiesContext,
+    running_jobs: Sequence[LoadJob],
+) -> int:
+    """
+    Returns the number of available worker slots
+    """
+    parallelism_strategy = config.parallelism_strategy or capabilities.loader_parallelism_strategy
+
+    # find real max workers value
+    max_workers = 1 if parallelism_strategy == "sequential" else config.workers
+    if mp := capabilities.max_parallel_load_jobs:
+        max_workers = min(max_workers, mp)
+
+    return max(0, max_workers - len(running_jobs))
+
+
 def filter_new_jobs(
     file_names: Sequence[str],
     capabilities: DestinationCapabilitiesContext,
     config: LoaderConfiguration,
+    running_jobs: Sequence[LoadJob],
+    available_slots: int,
 ) -> Sequence[str]:
     """Filters the list of new jobs to adhere to max_workers and parallellism strategy"""
     """NOTE: in the current setup we only filter based on settings for the final destination"""
@@ -246,24 +263,27 @@ def filter_new_jobs(
     # config can overwrite destination settings, if nothing is set, code below defaults to parallel
     parallelism_strategy = config.parallelism_strategy or capabilities.loader_parallelism_strategy
 
-    # find real max workers value
-    max_workers = 1 if parallelism_strategy == "sequential" else config.workers
-    if mp := capabilities.max_parallel_load_jobs:
-        max_workers = min(max_workers, mp)
-
     # regular sequential works on all jobs
     eligible_jobs = file_names
 
     # we must ensure there only is one job per table
     if parallelism_strategy == "table-sequential":
-        eligible_jobs = sorted(
-            eligible_jobs, key=lambda j: ParsedLoadJobFileName.parse(j).table_name
-        )
-        eligible_jobs = [
-            next(table_jobs)
-            for _, table_jobs in groupby(
-                eligible_jobs, lambda j: ParsedLoadJobFileName.parse(j).table_name
-            )
-        ]
+        # TODO later: this whole code block is a bit inefficient for long lists of jobs
+        # better would be to keep a list of loadjobinfos in the loader which we can iterate
 
-    return eligible_jobs[:max_workers]
+        # find table names of all currently running jobs
+        running_tables = {j._parsed_file_name.table_name for j in running_jobs}
+        new_jobs: List[str] = []
+
+        for job in eligible_jobs:
+            if (table_name := ParsedLoadJobFileName.parse(job).table_name) not in running_tables:
+                running_tables.add(table_name)
+                new_jobs.append(job)
+            # exit loop if we have enough
+            if len(new_jobs) >= available_slots:
+                break
+
+        return new_jobs
+
+    else:
+        return eligible_jobs[:available_slots]

@@ -17,6 +17,7 @@ from dlt.common.configuration.specs import CredentialsConfiguration
 from dlt.common.destination.reference import (
     DestinationClientDwhConfiguration,
     JobClientBase,
+    RunnableLoadJob,
     LoadJob,
     DestinationClientStagingConfiguration,
     TDestinationReferenceArg,
@@ -211,6 +212,7 @@ def destinations_configs(
     all_staging_configs: bool = False,
     local_filesystem_configs: bool = False,
     all_buckets_filesystem_configs: bool = False,
+    table_format_filesystem_configs: bool = False,
     subset: Sequence[str] = (),
     bucket_subset: Sequence[str] = (),
     exclude: Sequence[str] = (),
@@ -494,14 +496,6 @@ def destinations_configs(
                 supports_merge=False,
             )
         ]
-        destination_configs += [
-            DestinationTestConfiguration(
-                destination="filesystem",
-                bucket_url=FILE_BUCKET,
-                table_format="delta",
-                supports_merge=True,
-            )
-        ]
 
     if all_buckets_filesystem_configs:
         for bucket in DEFAULT_BUCKETS:
@@ -513,6 +507,9 @@ def destinations_configs(
                     supports_merge=False,
                 )
             ]
+
+    if table_format_filesystem_configs:
+        for bucket in DEFAULT_BUCKETS:
             destination_configs += [
                 DestinationTestConfiguration(
                     destination="filesystem",
@@ -698,7 +695,12 @@ def expect_load_file(
     ).file_name()
     file_storage.save(file_name, query.encode("utf-8"))
     table = client.prepare_load_table(table_name)
-    job = client.start_file_load(table, file_storage.make_full_path(file_name), uniq_id())
+    load_id = uniq_id()
+    job = client.create_load_job(table, file_storage.make_full_path(file_name), load_id)
+
+    if isinstance(job, RunnableLoadJob):
+        job.set_run_vars(load_id=load_id, schema=client.schema, load_table=table)
+        job.run_managed(client)
     while job.state() == "running":
         sleep(0.5)
     assert job.file_name() == file_name
@@ -846,18 +848,37 @@ def write_dataset(
 
 
 def prepare_load_package(
-    load_storage: LoadStorage, cases: Sequence[str], write_disposition: str = "append"
+    load_storage: LoadStorage,
+    cases: Sequence[str],
+    write_disposition: str = "append",
+    jobs_per_case: int = 1,
 ) -> Tuple[str, Schema]:
+    """
+    Create a load package with explicitely provided files
+    job_per_case multiplies the amount of load jobs, for big packages use small files
+    """
     load_id = uniq_id()
     load_storage.new_packages.create_package(load_id)
     for case in cases:
         path = f"./tests/load/cases/loading/{case}"
-        shutil.copy(
-            path,
-            load_storage.new_packages.storage.make_full_path(
+        for _ in range(jobs_per_case):
+            new_path = load_storage.new_packages.storage.make_full_path(
                 load_storage.new_packages.get_job_state_folder_path(load_id, "new_jobs")
-            ),
-        )
+            )
+            shutil.copy(
+                path,
+                new_path,
+            )
+            if jobs_per_case > 1:
+                parsed_name = ParsedLoadJobFileName.parse(case)
+                new_file_name = ParsedLoadJobFileName(
+                    parsed_name.table_name,
+                    ParsedLoadJobFileName.new_file_id(),
+                    0,
+                    parsed_name.file_format,
+                ).file_name()
+                shutil.move(new_path + "/" + case, new_path + "/" + new_file_name)
+
     schema_path = Path("./tests/load/cases/loading/schema.json")
     # load without migration
     data = json.loads(schema_path.read_text(encoding="utf8"))

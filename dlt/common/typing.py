@@ -106,7 +106,9 @@ TVariantRV = Tuple[str, Any]
 VARIANT_FIELD_FORMAT = "v_%s"
 TFileOrPath = Union[str, PathLike, IO[Any]]
 TSortOrder = Literal["asc", "desc"]
-TLoaderFileFormat = Literal["jsonl", "typed-jsonl", "insert_values", "parquet", "csv"]
+TLoaderFileFormat = Literal[
+    "jsonl", "typed-jsonl", "insert_values", "parquet", "csv", "reference", "reference_delta"
+]
 """known loader file formats"""
 
 

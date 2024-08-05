@@ -1,6 +1,7 @@
 import functools
 import os
 from pathlib import Path
+import time
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, cast
 
 import google.cloud.bigquery as bigquery  # noqa: I250
@@ -10,14 +11,16 @@ from google.api_core import retry
 from google.cloud.bigquery.retry import _RETRYABLE_REASONS
 
 from dlt.common import logger
+from dlt.common.runtime.signals import sleep
 from dlt.common.json import json
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
+    HasFollowupJobs,
     FollowupJob,
-    NewLoadJob,
     TLoadJobState,
-    LoadJob,
+    RunnableLoadJob,
     SupportsStagingDestination,
+    LoadJob,
 )
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns
 from dlt.common.schema.typing import TTableSchema, TColumnType, TTableFormat
@@ -33,7 +36,7 @@ from dlt.destinations.exceptions import (
     DatabaseUndefinedRelation,
     DestinationSchemaWillNotUpdate,
     DestinationTerminalException,
-    LoadJobNotExistsException,
+    DatabaseTerminalException,
     LoadJobTerminalException,
 )
 from dlt.destinations.impl.bigquery.bigquery_adapter import (
@@ -48,8 +51,8 @@ from dlt.destinations.impl.bigquery.bigquery_adapter import (
 from dlt.destinations.impl.bigquery.configuration import BigQueryClientConfiguration
 from dlt.destinations.impl.bigquery.sql_client import BigQuerySqlClient, BQ_TERMINAL_REASONS
 from dlt.destinations.job_client_impl import SqlJobClientWithStaging
-from dlt.destinations.job_impl import NewReferenceJob
-from dlt.destinations.sql_jobs import SqlMergeJob
+from dlt.destinations.job_impl import ReferenceFollowupJob
+from dlt.destinations.sql_jobs import SqlMergeFollowupJob
 from dlt.destinations.type_mapping import TypeMapper
 from dlt.destinations.utils import parse_db_data_type_str_with_precision
 
@@ -104,60 +107,95 @@ class BigQueryTypeMapper(TypeMapper):
         return super().from_db_type(*parse_db_data_type_str_with_precision(db_type))
 
 
-class BigQueryLoadJob(LoadJob, FollowupJob):
+class BigQueryLoadJob(RunnableLoadJob, HasFollowupJobs):
     def __init__(
         self,
-        file_name: str,
-        bq_load_job: bigquery.LoadJob,
+        file_path: str,
         http_timeout: float,
         retry_deadline: float,
     ) -> None:
-        self.bq_load_job = bq_load_job
-        self.default_retry = bigquery.DEFAULT_RETRY.with_deadline(retry_deadline)
-        self.http_timeout = http_timeout
-        super().__init__(file_name)
+        super().__init__(file_path)
+        self._default_retry = bigquery.DEFAULT_RETRY.with_deadline(retry_deadline)
+        self._http_timeout = http_timeout
+        self._job_client: "BigQueryClient" = None
+        self._bq_load_job: bigquery.LoadJob = None
+        # vars only used for testing
+        self._created_job = False
+        self._resumed_job = False
 
-    def state(self) -> TLoadJobState:
-        if not self.bq_load_job.done(retry=self.default_retry, timeout=self.http_timeout):
-            return "running"
-        if self.bq_load_job.output_rows is not None and self.bq_load_job.error_result is None:
-            return "completed"
-        reason = self.bq_load_job.error_result.get("reason")
-        if reason in BQ_TERMINAL_REASONS:
-            # the job permanently failed for the reason above
-            return "failed"
-        elif reason in ["internalError"]:
-            logger.warning(
-                f"Got reason {reason} for job {self.file_name}, job considered still"
-                f" running. ({self.bq_load_job.error_result})"
-            )
-            # the status of the job couldn't be obtained, job still running.
-            return "running"
-        else:
-            # retry on all other reasons, including `backendError` which requires retry when the job is done.
-            return "retry"
+    def run(self) -> None:
+        # start the job (or retrieve in case it already exists)
+        try:
+            self._bq_load_job = self._job_client._create_load_job(self._load_table, self._file_path)
+            self._created_job = True
+        except api_core_exceptions.GoogleAPICallError as gace:
+            reason = BigQuerySqlClient._get_reason_from_errors(gace)
+            if reason == "notFound":
+                # google.api_core.exceptions.NotFound: 404 – table not found
+                raise DatabaseUndefinedRelation(gace) from gace
+            elif (
+                reason == "duplicate"
+            ):  # google.api_core.exceptions.Conflict: 409 PUT – already exists
+                self._bq_load_job = self._job_client._retrieve_load_job(self._file_path)
+                self._resumed_job = True
+                logger.info(
+                    f"Found existing bigquery job for job {self._file_name}, will resume job."
+                )
+            elif reason in BQ_TERMINAL_REASONS:
+                # google.api_core.exceptions.BadRequest - will not be processed ie bad job name
+                raise LoadJobTerminalException(
+                    self._file_path, f"The server reason was: {reason}"
+                ) from gace
+            else:
+                raise DatabaseTransientException(gace) from gace
 
-    def bigquery_job_id(self) -> str:
-        return BigQueryLoadJob.get_job_id_from_file_path(super().file_name())
+        # we loop on the job thread until we detect a status change
+        while True:
+            sleep(1)
+            # not done yet
+            if not self._bq_load_job.done(retry=self._default_retry, timeout=self._http_timeout):
+                continue
+            # done, break loop and go to completed state
+            if self._bq_load_job.output_rows is not None and self._bq_load_job.error_result is None:
+                break
+            reason = self._bq_load_job.error_result.get("reason")
+            if reason in BQ_TERMINAL_REASONS:
+                # the job permanently failed for the reason above
+                raise DatabaseTerminalException(
+                    Exception(
+                        f"Bigquery Load Job failed, reason reported from bigquery: '{reason}'"
+                    )
+                )
+            elif reason in ["internalError"]:
+                logger.warning(
+                    f"Got reason {reason} for job {self._file_name}, job considered still"
+                    f" running. ({self._bq_load_job.error_result})"
+                )
+                continue
+            else:
+                raise DatabaseTransientException(
+                    Exception(
+                        f"Bigquery Job needs to be retried, reason reported from bigquer '{reason}'"
+                    )
+                )
 
     def exception(self) -> str:
-        exception: str = json.dumps(
+        return json.dumps(
             {
-                "error_result": self.bq_load_job.error_result,
-                "errors": self.bq_load_job.errors,
-                "job_start": self.bq_load_job.started,
-                "job_end": self.bq_load_job.ended,
-                "job_id": self.bq_load_job.job_id,
+                "error_result": self._bq_load_job.error_result,
+                "errors": self._bq_load_job.errors,
+                "job_start": self._bq_load_job.started,
+                "job_end": self._bq_load_job.ended,
+                "job_id": self._bq_load_job.job_id,
             }
         )
-        return exception
 
     @staticmethod
     def get_job_id_from_file_path(file_path: str) -> str:
         return Path(file_path).name.replace(".", "_")
 
 
-class BigQueryMergeJob(SqlMergeJob):
+class BigQueryMergeJob(SqlMergeFollowupJob):
     @classmethod
     def gen_key_table_clauses(
         cls,
@@ -195,97 +233,46 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
         self.sql_client: BigQuerySqlClient = sql_client  # type: ignore
         self.type_mapper = BigQueryTypeMapper(self.capabilities)
 
-    def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
+    def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[FollowupJob]:
         return [BigQueryMergeJob.from_table_chain(table_chain, self.sql_client)]
 
-    def restore_file_load(self, file_path: str) -> LoadJob:
-        """Returns a completed SqlLoadJob or restored BigQueryLoadJob
-
-        See base class for details on SqlLoadJob.
-        BigQueryLoadJob is restored with a job ID derived from `file_path`.
-
-        Args:
-            file_path (str): a path to a job file.
-
-        Returns:
-            LoadJob: completed SqlLoadJob or restored BigQueryLoadJob
-        """
-        job = super().restore_file_load(file_path)
-        if not job:
-            try:
-                job = BigQueryLoadJob(
-                    FileStorage.get_file_name_from_file_path(file_path),
-                    self._retrieve_load_job(file_path),
-                    self.config.http_timeout,
-                    self.config.retry_deadline,
-                )
-            except api_core_exceptions.GoogleAPICallError as gace:
-                reason = BigQuerySqlClient._get_reason_from_errors(gace)
-                if reason == "notFound":
-                    raise LoadJobNotExistsException(file_path) from gace
-                elif reason in BQ_TERMINAL_REASONS:
-                    raise LoadJobTerminalException(
-                        file_path, f"The server reason was: {reason}"
-                    ) from gace
-                else:
-                    raise DatabaseTransientException(gace) from gace
-        return job
-
-    def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
-        job = super().start_file_load(table, file_path, load_id)
+    def create_load_job(
+        self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
+    ) -> LoadJob:
+        job = super().create_load_job(table, file_path, load_id)
 
         if not job:
             insert_api = table.get("x-insert-api", "default")
-            try:
-                if insert_api == "streaming":
-                    if table["write_disposition"] != "append":
-                        raise DestinationTerminalException(
-                            "BigQuery streaming insert can only be used with `append`"
-                            " write_disposition, while the given resource has"
-                            f" `{table['write_disposition']}`."
-                        )
-                    if file_path.endswith(".jsonl"):
-                        job_cls = DestinationJsonlLoadJob
-                    elif file_path.endswith(".parquet"):
-                        job_cls = DestinationParquetLoadJob  # type: ignore
-                    else:
-                        raise ValueError(
-                            f"Unsupported file type for BigQuery streaming inserts: {file_path}"
-                        )
-
-                    job = job_cls(
-                        table,
-                        file_path,
-                        self.config,  # type: ignore
-                        self.schema,
-                        destination_state(),
-                        functools.partial(_streaming_load, self.sql_client),
-                        [],
+            if insert_api == "streaming":
+                if table["write_disposition"] != "append":
+                    raise DestinationTerminalException(
+                        "BigQuery streaming insert can only be used with `append`"
+                        " write_disposition, while the given resource has"
+                        f" `{table['write_disposition']}`."
                     )
+                if file_path.endswith(".jsonl"):
+                    job_cls = DestinationJsonlLoadJob
+                elif file_path.endswith(".parquet"):
+                    job_cls = DestinationParquetLoadJob  # type: ignore
                 else:
-                    job = BigQueryLoadJob(
-                        FileStorage.get_file_name_from_file_path(file_path),
-                        self._create_load_job(table, file_path),
-                        self.config.http_timeout,
-                        self.config.retry_deadline,
+                    raise ValueError(
+                        f"Unsupported file type for BigQuery streaming inserts: {file_path}"
                     )
-            except api_core_exceptions.GoogleAPICallError as gace:
-                reason = BigQuerySqlClient._get_reason_from_errors(gace)
-                if reason == "notFound":
-                    # google.api_core.exceptions.NotFound: 404 – table not found
-                    raise DatabaseUndefinedRelation(gace) from gace
-                elif (
-                    reason == "duplicate"
-                ):  # google.api_core.exceptions.Conflict: 409 PUT – already exists
-                    return self.restore_file_load(file_path)
-                elif reason in BQ_TERMINAL_REASONS:
-                    # google.api_core.exceptions.BadRequest - will not be processed ie bad job name
-                    raise LoadJobTerminalException(
-                        file_path, f"The server reason was: {reason}"
-                    ) from gace
-                else:
-                    raise DatabaseTransientException(gace) from gace
 
+                job = job_cls(
+                    file_path,
+                    self.config,  # type: ignore
+                    destination_state(),
+                    _streaming_load,  # type: ignore
+                    [],
+                    callable_requires_job_client_args=True,
+                )
+            else:
+                job = BigQueryLoadJob(
+                    file_path,
+                    self.config.http_timeout,
+                    self.config.retry_deadline,
+                )
         return job
 
     def _get_table_update_sql(
@@ -445,8 +432,8 @@ SELECT {",".join(self._get_storage_table_query_columns())}
         # determine whether we load from local or uri
         bucket_path = None
         ext: str = os.path.splitext(file_path)[1][1:]
-        if NewReferenceJob.is_reference_job(file_path):
-            bucket_path = NewReferenceJob.resolve_reference(file_path)
+        if ReferenceFollowupJob.is_reference_job(file_path):
+            bucket_path = ReferenceFollowupJob.resolve_reference(file_path)
             ext = os.path.splitext(bucket_path)[1][1:]
 
         # Select a correct source format
@@ -515,7 +502,7 @@ SELECT {",".join(self._get_storage_table_query_columns())}
 
 
 def _streaming_load(
-    sql_client: SqlClientBase[BigQueryClient], items: List[Dict[Any, Any]], table: Dict[str, Any]
+    items: List[Dict[Any, Any]], table: Dict[str, Any], job_client: BigQueryClient
 ) -> None:
     """
     Upload the given items into BigQuery table, using streaming API.
@@ -541,6 +528,8 @@ def _streaming_load(
         """
         reason = exc.errors[0]["reason"]
         return reason in _RETRYABLE_REASONS
+
+    sql_client = job_client.sql_client
 
     full_name = sql_client.make_qualified_table_name(table["name"], escape=False)
 

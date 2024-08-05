@@ -7,6 +7,7 @@ from dlt.common.storages.configuration import FileSystemCredentials
 
 from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
 from dlt.destinations.impl.filesystem.typing import TCurrentDateTime, TExtraPlaceholders
+from dlt.common.normalizers.naming.naming import NamingConvention
 
 if t.TYPE_CHECKING:
     from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
@@ -28,7 +29,7 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, "Filesyst
     spec = FilesystemDestinationClientConfiguration
 
     def _raw_capabilities(self) -> DestinationCapabilitiesContext:
-        return DestinationCapabilitiesContext.generic_capabilities(
+        caps = DestinationCapabilitiesContext.generic_capabilities(
             preferred_loader_file_format="jsonl",
             loader_file_format_adapter=loader_file_format_adapter,
             supported_table_formats=["delta"],
@@ -37,6 +38,11 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, "Filesyst
             # loader file format)
             supported_merge_strategies=["upsert"],
         )
+        caps.supported_loader_file_formats = list(caps.supported_loader_file_formats) + [
+            "reference",
+            "reference_delta",
+        ]
+        return caps
 
     @property
     def client_class(self) -> t.Type["FilesystemClient"]:

@@ -114,24 +114,27 @@ def test_loading_errors(client: InsertValuesJobClient, file_storage: FileStorage
         f"('{uniq_id()}', '{uniq_id()}', '90238094809sajlkjxoiewjhduuiuehd',"
         f" '{str(pendulum.now())}', NULL);"
     )
-    with pytest.raises(DatabaseTerminalException) as exv:
-        expect_load_file(client, file_storage, insert_sql + insert_values, user_table_name)
-    assert type(exv.value.dbapi_exception) is TUndefinedColumn
+    job = expect_load_file(
+        client, file_storage, insert_sql + insert_values, user_table_name, "failed"
+    )
+    assert type(job._exception.dbapi_exception) is TUndefinedColumn  # type: ignore
     # insert null value
     insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp)\nVALUES\n"
     insert_values = f"('{uniq_id()}', '{uniq_id()}', '90238094809sajlkjxoiewjhduuiuehd', NULL);"
-    with pytest.raises(DatabaseTerminalException) as exv:
-        expect_load_file(client, file_storage, insert_sql + insert_values, user_table_name)
-    assert type(exv.value.dbapi_exception) is TNotNullViolation
+    job = expect_load_file(
+        client, file_storage, insert_sql + insert_values, user_table_name, "failed"
+    )
+    assert type(job._exception.dbapi_exception) is TNotNullViolation  # type: ignore
     # insert wrong type
     insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp)\nVALUES\n"
     insert_values = (
         f"('{uniq_id()}', '{uniq_id()}', '90238094809sajlkjxoiewjhduuiuehd',"
         f" {client.capabilities.escape_literal(True)});"
     )
-    with pytest.raises(DatabaseTerminalException) as exv:
-        expect_load_file(client, file_storage, insert_sql + insert_values, user_table_name)
-    assert type(exv.value.dbapi_exception) is TDatatypeMismatch
+    job = expect_load_file(
+        client, file_storage, insert_sql + insert_values, user_table_name, "failed"
+    )
+    assert type(job._exception.dbapi_exception) is TDatatypeMismatch  # type: ignore
     # numeric overflow on bigint
     insert_sql = (
         "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp, metadata__rasa_x_id)\nVALUES\n"
@@ -141,9 +144,10 @@ def test_loading_errors(client: InsertValuesJobClient, file_storage: FileStorage
         f"('{uniq_id()}', '{uniq_id()}', '90238094809sajlkjxoiewjhduuiuehd',"
         f" '{str(pendulum.now())}', {2**64//2});"
     )
-    with pytest.raises(DatabaseTerminalException) as exv:
-        expect_load_file(client, file_storage, insert_sql + insert_values, user_table_name)
-    assert type(exv.value.dbapi_exception) == TNumericValueOutOfRange
+    job = expect_load_file(
+        client, file_storage, insert_sql + insert_values, user_table_name, "failed"
+    )
+    assert type(job._exception) == DatabaseTerminalException  # type: ignore
     # numeric overflow on NUMERIC
     insert_sql = (
         "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp,"
@@ -164,10 +168,13 @@ def test_loading_errors(client: InsertValuesJobClient, file_storage: FileStorage
         f"('{uniq_id()}', '{uniq_id()}', '90238094809sajlkjxoiewjhduuiuehd',"
         f" '{str(pendulum.now())}', {above_limit});"
     )
-    with pytest.raises(DatabaseTerminalException) as exv:
-        expect_load_file(client, file_storage, insert_sql + insert_values, user_table_name)
+    job = expect_load_file(
+        client, file_storage, insert_sql + insert_values, user_table_name, "failed"
+    )
+    assert type(job._exception) == DatabaseTerminalException  # type: ignore
+
     assert (
-        type(exv.value.dbapi_exception) == psycopg2.errors.InternalError_
+        type(job._exception.dbapi_exception) == psycopg2.errors.InternalError_  # type: ignore
         if dtype == "redshift"
         else TNumericValueOutOfRange
     )
