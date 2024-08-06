@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
 import dataclasses
 from importlib import import_module
+from contextlib import contextmanager
+
 from types import TracebackType
 from typing import (
     Callable,
@@ -570,24 +572,13 @@ class SupportsDataAccess(ABC):
     """Add support for accessing data as arrow tables or pandas dataframes"""
 
     @abstractmethod
-    def iter_df(
+    def cursor_for_relation(
         self,
         *,
         table: str = None,
-        batch_size: int = 1000,
         sql: str = None,
         prepare_tables: List[str] = None,
-    ) -> Generator[DataFrame, None, None]: ...
-
-    @abstractmethod
-    def iter_arrow(
-        self,
-        *,
-        table: str = None,
-        batch_size: int = 1000,
-        sql: str = None,
-        prepare_tables: List[str] = None,
-    ) -> Generator[ArrowTable, None, None]: ...
+    ) -> ContextManager[Any]: ...
 
 
 # TODO: type Destination properly

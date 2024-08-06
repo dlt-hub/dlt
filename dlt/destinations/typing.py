@@ -1,4 +1,4 @@
-from typing import Any, AnyStr, List, Type, Optional, Protocol, Tuple, TypeVar
+from typing import Any, AnyStr, List, Type, Optional, Protocol, Tuple, TypeVar, Generator
 
 from dlt.common.typing import DataFrame, ArrowTable
 
@@ -47,3 +47,7 @@ class DBApiCursor(Protocol):
             Optional[DataFrame]: A data frame with query results. If chunk_size > 0, None will be returned if there is no more data in results
         """
         ...
+
+    def iter_df(self, chunk_size: int = 1000) -> Generator[DataFrame, None, None]: ...
+
+    def iter_arrow(self, chunk_size: int = 1000) -> Generator[ArrowTable, None, None]: ...

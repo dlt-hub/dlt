@@ -286,38 +286,15 @@ SELECT 1
         else:
             return f"DELETE FROM {qualified_table_name} WHERE 1=1;"
 
-    def iter_df(
-        self,
-        *,
-        table: str = None,
-        batch_size: int = 1000,
-        sql: str = None,
-        prepare_tables: List[str] = None,
-    ) -> Generator[DataFrame, None, None]:
+    @contextmanager
+    def cursor_for_relation(
+        self, *, table: str = None, sql: str = None, prepare_tables: List[str] = None
+    ) -> Generator[DBApiCursor, Any, Any]:
         if not sql:
             table = self.make_qualified_table_name(table)
             sql = f"SELECT * FROM {table}"
-
-        # iterate over results in batch size chunks
         with self.execute_query(sql) as cursor:
-            while True:
-                if not (result := cursor.fetchmany(batch_size)):
-                    return
-                df = DataFrame(result)
-                df.columns = [x[0] for x in cursor.description]
-                yield df
-
-    def iter_arrow(
-        self,
-        *,
-        table: str = None,
-        batch_size: int = 1000,
-        sql: str = None,
-        prepare_tables: List[str] = None,
-    ) -> Generator[ArrowTable, None, None]:
-        """Default implementation converts df to arrow"""
-        for df in self.iter_df(sql=sql, table=table, batch_size=batch_size):
-            yield ArrowTable.from_pandas(df)
+            yield cursor
 
 
 class DBApiCursorImpl(DBApiCursor):
@@ -356,6 +333,21 @@ class DBApiCursorImpl(DBApiCursor):
                 return None
             else:
                 return df
+
+    def iter_df(self, chunk_size: int = 1000) -> Generator[DataFrame, None, None]:
+        from dlt.common.libs.pandas_sql import _wrap_result
+
+        # iterate over results in batch size chunks
+        columns = self._get_columns()
+        while True:
+            if not (result := self.fetchmany(chunk_size)):
+                return
+            yield _wrap_result(result, columns)
+
+    def iter_arrow(self, chunk_size: int = 1000) -> Generator[ArrowTable, None, None]:
+        """Default implementation converts df to arrow"""
+        for df in self.iter_df(chunk_size=chunk_size):
+            yield ArrowTable.from_pandas(df)
 
 
 def raise_database_error(f: TFun) -> TFun:

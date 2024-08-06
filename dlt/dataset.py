@@ -1,4 +1,4 @@
-from typing import cast, Any, TYPE_CHECKING, Generator, List
+from typing import cast, Any, TYPE_CHECKING, Generator, List, ContextManager
 
 from contextlib import contextmanager
 
@@ -21,7 +21,7 @@ class Relation:
         self.table = table
 
     @contextmanager
-    def _client(self) -> Generator[SupportsDataAccess, None, None]:
+    def _client(self) -> Generator[SupportsDataAccess, Any, Any]:
         from dlt.destinations.job_client_impl import SqlJobClientBase
         from dlt.destinations.fs_client import FSClientBase
 
@@ -41,58 +41,60 @@ class Relation:
             " dataset."
         )
 
+    @contextmanager
+    def _cursor_for_relation(self) -> Generator[Any, Any, Any]:
+        with self._client() as client:
+            with client.cursor_for_relation(
+                sql=self.sql, table=self.table, prepare_tables=self.prepare_tables
+            ) as cursor:
+                yield cursor
+
     def df(
         self,
         *,
-        batch_size: int = 1000,
+        chunk_size: int = 1000,
     ) -> DataFrame:
         """Get first batch of table as dataframe"""
         return next(
             self.iter_df(
-                batch_size=batch_size,
+                chunk_size=chunk_size,
             )
         )
 
     def arrow(
         self,
         *,
-        batch_size: int = 1000,
+        chunk_size: int = 1000,
     ) -> ArrowTable:
         """Get first batch of table as arrow table"""
         return next(
             self.iter_arrow(
-                batch_size=batch_size,
+                chunk_size=chunk_size,
             )
         )
 
     def iter_df(
         self,
         *,
-        batch_size: int = 1000,
+        chunk_size: int = 1000,
     ) -> Generator[DataFrame, None, None]:
-        """iterates over the whole table in dataframes of the given batch_size, batch_size of -1 will return the full table in the first batch"""
+        """iterates over the whole table in dataframes of the given chunk_size, chunk_size of -1 will return the full table in the first batch"""
         # if no table is given, take the bound table
-        with self._client() as data_access:
-            yield from data_access.iter_df(
-                sql=self.sql,
-                table=self.table,
-                batch_size=batch_size,
-                prepare_tables=self.prepare_tables,
+        with self._cursor_for_relation() as cursor:
+            yield from cursor.iter_df(
+                chunk_size=chunk_size,
             )
 
     def iter_arrow(
         self,
         *,
-        batch_size: int = 1000,
+        chunk_size: int = 1000,
     ) -> Generator[ArrowTable, None, None]:
-        """iterates over the whole table in arrow tables of the given batch_size, batch_size of -1 will return the full table in the first batch"""
+        """iterates over the whole table in arrow tables of the given chunk_size, chunk_size of -1 will return the full table in the first batch"""
         # if no table is given, take the bound table
-        with self._client() as data_access:
-            yield from data_access.iter_arrow(
-                sql=self.sql,
-                table=self.table,
-                batch_size=batch_size,
-                prepare_tables=self.prepare_tables,
+        with self._cursor_for_relation() as cursor:
+            yield from cursor.iter_arrow(
+                chunk_size=chunk_size,
             )
 
 

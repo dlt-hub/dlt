@@ -1,7 +1,7 @@
 import posixpath
 import os
 import base64
-
+from contextlib import contextmanager
 from types import TracebackType
 from typing import (
     List,
@@ -14,6 +14,7 @@ from typing import (
     cast,
     Generator,
     Literal,
+    Any,
 )
 from fsspec import AbstractFileSystem
 from contextlib import contextmanager
@@ -31,6 +32,7 @@ from dlt.common.storages.load_package import (
     TPipelineStateDoc,
     load_package as current_load_package,
 )
+from dlt.destinations.sql_client import DBApiCursor
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
     FollowupJob,
@@ -646,15 +648,11 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
 
         return db
 
-    def iter_df(
-        self,
-        *,
-        table: str = None,
-        batch_size: int = 1000,
-        sql: str = None,
-        prepare_tables: List[str] = None,
-    ) -> Generator[DataFrame, None, None]:
-        """Provide dataframes via duckdb"""
+    @contextmanager
+    def cursor_for_relation(
+        self, *, table: str = None, sql: str = None, prepare_tables: List[str] = None
+    ) -> Generator[DBApiCursor, Any, Any]:
+        from dlt.destinations.impl.duckdb.sql_client import DuckDBDBApiCursorImpl
 
         if table:
             prepare_tables = [table]
@@ -669,27 +667,8 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
 
         db = self.get_duckdb(tables=prepare_tables)
 
-        # yield in batches
-        offset = 0
-        while True:
-            df = db.sql(sql + f" OFFSET {offset} LIMIT {batch_size}").df()
-            if len(df.index) == 0:
-                break
-            yield df
-            offset += batch_size
+        if not sql:
+            sql = f"SELECT * FROM {table}"
 
-    def iter_arrow(
-        self,
-        *,
-        table: str = None,
-        batch_size: int = 1000,
-        sql: str = None,
-        prepare_tables: List[str] = None,
-    ) -> Generator[ArrowTable, None, None]:
-        """Default implementation converts df to arrow"""
-
-        # TODO: duckdb supports iterating in batches natively..
-        for df in self.iter_df(
-            sql=sql, table=table, batch_size=batch_size, prepare_tables=prepare_tables
-        ):
-            yield ArrowTable.from_pandas(df)
+        db.execute(sql)
+        yield DuckDBDBApiCursorImpl(db)  # type: ignore
