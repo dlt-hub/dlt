@@ -40,7 +40,6 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, "Filesyst
         )
         caps.supported_loader_file_formats = list(caps.supported_loader_file_formats) + [
             "reference",
-            "reference_delta",
         ]
         return caps
 

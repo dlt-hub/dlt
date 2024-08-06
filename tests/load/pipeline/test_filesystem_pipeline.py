@@ -290,9 +290,7 @@ def test_delta_table_core(
     data_types_jobs = [
         job for job in completed_jobs if job.job_file_info.table_name == "data_types"
     ]
-    assert all(
-        [job.file_path.endswith((".parquet", ".reference_delta")) for job in data_types_jobs]
-    )
+    assert all([job.file_path.endswith((".parquet", ".reference")) for job in data_types_jobs])
 
     # 10 rows should be loaded to the Delta table and the content of the first
     # row should match expected values
@@ -571,9 +569,7 @@ def test_delta_table_mixed_source(
     delta_table_jobs = [
         job for job in completed_jobs if job.job_file_info.table_name == "delta_table"
     ]
-    assert all(
-        [job.file_path.endswith((".parquet", ".reference_delta")) for job in delta_table_jobs]
-    )
+    assert all([job.file_path.endswith((".parquet", ".reference")) for job in delta_table_jobs])
 
     # `jsonl` file format should be respected for `non_delta_table` resource
     non_delta_table_job = [
@@ -606,7 +602,7 @@ def test_delta_table_dynamic_dispatch(
     info = pipeline.run(github_events())
     assert_load_info(info)
     completed_jobs = info.load_packages[0].jobs["completed_jobs"]
-    # 20 event types, two jobs per table (.parquet and .reference_delta), 1 job for _dlt_pipeline_state
+    # 20 event types, two jobs per table (.parquet and .reference), 1 job for _dlt_pipeline_state
     assert len(completed_jobs) == 2 * 20 + 1
 
 

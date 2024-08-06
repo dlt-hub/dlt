@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 import os
 import tempfile  # noqa: 251
-from typing import Dict, Iterable, List, cast
+from typing import Dict, Iterable, List
 
 from dlt.common.json import json
 from dlt.common.destination.reference import (
@@ -12,7 +12,7 @@ from dlt.common.destination.reference import (
     FollowupJob,
     LoadJob,
 )
-from dlt.common.storages.load_package import commit_load_package_state, TReferenceJobFileFormat
+from dlt.common.storages.load_package import commit_load_package_state
 from dlt.common.schema import Schema, TTableSchema
 from dlt.common.storages import FileStorage
 from dlt.common.typing import TDataItems
@@ -80,18 +80,15 @@ class FollowupJobImpl(FollowupJob):
 
 
 class ReferenceFollowupJob(FollowupJobImpl):
-    ext: TReferenceJobFileFormat = "reference"
-    """Extension used for reference file."""
-
     def __init__(self, original_file_name: str, remote_paths: List[str]) -> None:
-        file_name = os.path.splitext(original_file_name)[0] + "." + self.ext
+        file_name = os.path.splitext(original_file_name)[0] + "." + "reference"
         self._remote_paths = remote_paths
         super().__init__(file_name)
         self._save_text_file("\n".join(remote_paths))
 
-    @classmethod
-    def is_reference_job(cls, file_path: str) -> bool:
-        return os.path.splitext(file_path)[1][1:] == cls.ext
+    @staticmethod
+    def is_reference_job(file_path: str) -> bool:
+        return os.path.splitext(file_path)[1][1:] == "reference"
 
     @staticmethod
     def resolve_references(file_path: str) -> List[str]:

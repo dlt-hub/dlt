@@ -18,7 +18,6 @@ from dlt.common.storages import FileStorage, fsspec_from_config
 from dlt.common.storages.load_package import (
     LoadJobInfo,
     TPipelineStateDoc,
-    TReferenceJobFileFormat,
     load_package as current_load_package,
 )
 from dlt.common.destination import DestinationCapabilitiesContext
@@ -87,10 +86,6 @@ class FilesystemLoadJob(RunnableLoadJob):
             self._job_client.dataset_path,
             path_utils.normalize_path_sep(self.pathlib, self.destination_file_name),
         )
-
-
-class DeltaReferenceFollowupJob(ReferenceFollowupJob):
-    ext: TReferenceJobFileFormat = "reference_delta"
 
 
 class DeltaLoadFilesystemJob(FilesystemLoadJob):
@@ -371,7 +366,7 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
             import dlt.common.libs.deltalake  # assert dependencies are installed
 
             # a reference job for a delta table indicates a table chain followup job
-            if DeltaReferenceFollowupJob.is_reference_job(file_path):
+            if ReferenceFollowupJob.is_reference_job(file_path):
                 return DeltaLoadFilesystemJob(file_path)
             # otherwise just continue
             return FilesystemLoadJobWithFollowup(file_path)
@@ -593,5 +588,5 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
                     if job.job_file_info.table_name == table["name"]
                 ]
                 file_name = FileStorage.get_file_name_from_file_path(table_job_paths[0])
-                jobs.append(DeltaReferenceFollowupJob(file_name, table_job_paths))
+                jobs.append(ReferenceFollowupJob(file_name, table_job_paths))
         return jobs
