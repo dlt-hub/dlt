@@ -646,10 +646,10 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
             protocol = "" if self.is_local_filesystem else f"{self.config.protocol}://"
             files_string = ",".join([f"'{protocol}{f}'" for f in files])
             create_table_sql_base = (
-                f"CREATE TABLE {ptable} AS SELECT * FROM {read_command}([{files_string}])"
+                f"CREATE VIEW {ptable} AS SELECT * FROM {read_command}([{files_string}])"
             )
             create_table_sql_gzipped = (
-                f"CREATE TABLE {ptable} AS SELECT * FROM {read_command}([{files_string}],"
+                f"CREATE VIEW {ptable} AS SELECT * FROM {read_command}([{files_string}],"
                 " compression = 'gzip')"
             )
             try:
