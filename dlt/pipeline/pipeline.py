@@ -438,11 +438,6 @@ class Pipeline(SupportsPipeline):
                         workers,
                         refresh=refresh or self.refresh,
                     )
-                    # set dataset objects
-                    # TODO: find a better place..
-                    for _, resource in source.resources.items():
-                        resource.dataset = self.dataset
-                        resource.dataset.bind_table_name(resource.table_name)
 
                 # this will update state version hash so it will not be extracted again by with_state_sync
                 self._bump_version_and_extract_state(

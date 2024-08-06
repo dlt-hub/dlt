@@ -15,10 +15,6 @@ class Dataset:
         from dlt.pipeline import Pipeline
 
         self.pipeline: Pipeline = cast(Pipeline, pipeline)
-        self._bound_table_name: str = None
-
-    def bind_table_name(self, t: str) -> None:
-        self._bound_table_name = t
 
     @contextmanager
     def _client(self) -> Generator[SupportsDataAccess, None, None]:
@@ -42,7 +38,7 @@ class Dataset:
     def df(
         self,
         *,
-        table: str = None,
+        table: str,
         batch_size: int = 1000,
         sql: str = None,
         prepare_tables: List[str] = None
@@ -55,7 +51,7 @@ class Dataset:
     def arrow(
         self,
         *,
-        table: str = None,
+        table: str,
         batch_size: int = 1000,
         sql: str = None,
         prepare_tables: List[str] = None
@@ -70,14 +66,13 @@ class Dataset:
     def iter_df(
         self,
         *,
-        table: str = None,
+        table: str,
         batch_size: int = 1000,
         sql: str = None,
         prepare_tables: List[str] = None
     ) -> Generator[DataFrame, None, None]:
         """iterates over the whole table in dataframes of the given batch_size, batch_size of -1 will return the full table in the first batch"""
         # if no table is given, take the bound table
-        table = table or self._bound_table_name
         with self._client() as data_access:
             yield from data_access.iter_df(
                 sql=sql, table=table, batch_size=batch_size, prepare_tables=prepare_tables
@@ -86,14 +81,13 @@ class Dataset:
     def iter_arrow(
         self,
         *,
-        table: str = None,
+        table: str,
         batch_size: int = 1000,
         sql: str = None,
         prepare_tables: List[str] = None
     ) -> Generator[ArrowTable, None, None]:
         """iterates over the whole table in arrow tables of the given batch_size, batch_size of -1 will return the full table in the first batch"""
         # if no table is given, take the bound table
-        table = table or self._bound_table_name
         with self._client() as data_access:
             yield from data_access.iter_arrow(
                 sql=sql, table=table, batch_size=batch_size, prepare_tables=prepare_tables

@@ -105,7 +105,6 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         self._args_bound = args_bound
         self._explicit_args: DictStrAny = None
         self.source_name = None
-        self.dataset: Dataset = None
         super().__init__(hints)
 
     @classmethod

@@ -638,7 +638,7 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
             if file_type == "jsonl":
                 read_command = "read_json"
             elif file_type == "parquet":
-                read_command = "re ad_parquet"
+                read_command = "read_parquet"
             else:
                 raise AssertionError(f"Unknown filetype {file_type} for table {ptable}")
 
