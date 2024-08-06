@@ -1,3 +1,4 @@
+from copy import deepcopy
 import io
 import os
 import asyncio
@@ -267,7 +268,12 @@ def test_save_load_trace() -> None:
     loaded_trace = load_trace(pipeline.working_dir)
     print(loaded_trace.asstr(2))
     assert len(trace.steps) == 4
-    assert loaded_trace.asdict() == trace.asdict()
+    loaded_trace_dict = deepcopy(loaded_trace.asdict())
+    trace_dict = deepcopy(trace.asdict())
+    assert loaded_trace_dict == trace_dict
+    # do it again to check if we are not popping
+    assert loaded_trace_dict == loaded_trace.asdict()
+    assert trace_dict == trace.asdict()
 
     # exception also saves trace
     @dlt.resource
@@ -292,6 +298,29 @@ def test_save_load_trace() -> None:
     assert step.step_exception == run_step.step_exception
     assert_trace_printable(trace)
     assert pipeline.last_trace.last_normalize_info is None
+
+
+def test_save_load_empty_trace() -> None:
+    os.environ["COMPLETED_PROB"] = "1.0"
+    os.environ["RESTORE_FROM_DESTINATION"] = "false"
+    pipeline = dlt.pipeline()
+    pipeline.run([], table_name="data", destination="dummy")
+    trace = pipeline.last_trace
+    assert_trace_printable(trace)
+    assert len(trace.steps) == 4
+
+    pipeline.activate()
+
+    # load trace and check if all elements are present
+    loaded_trace = load_trace(pipeline.working_dir)
+    print(loaded_trace.asstr(2))
+    assert len(trace.steps) == 4
+    loaded_trace_dict = deepcopy(loaded_trace.asdict())
+    trace_dict = deepcopy(trace.asdict())
+    assert loaded_trace_dict == trace_dict
+    # do it again to check if we are not popping
+    assert loaded_trace_dict == loaded_trace.asdict()
+    assert trace_dict == trace.asdict()
 
 
 def test_disable_trace(environment: DictStrStr) -> None:
@@ -333,12 +362,12 @@ def test_trace_telemetry() -> None:
     with patch("dlt.common.runtime.sentry.before_send", _mock_sentry_before_send), patch(
         "dlt.common.runtime.anon_tracker.before_send", _mock_anon_tracker_before_send
     ):
-        # os.environ["FAIL_PROB"] = "1.0"  # make it complete immediately
         start_test_telemetry()
 
         ANON_TRACKER_SENT_ITEMS.clear()
         SENTRY_SENT_ITEMS.clear()
-        # default dummy fails all files
+        # make dummy fail all files
+        os.environ["FAIL_PROB"] = "1.0"
         load_info = dlt.pipeline().run(
             [1, 2, 3], table_name="data", destination="dummy", dataset_name="data_data"
         )
@@ -368,6 +397,11 @@ def test_trace_telemetry() -> None:
                 # dummy has empty fingerprint
                 assert event["properties"]["destination_fingerprint"] == ""
         # we have two failed files (state and data) that should be logged by sentry
+        # TODO: make this work
+        print(SENTRY_SENT_ITEMS)
+        for item in SENTRY_SENT_ITEMS:
+            # print(item)
+            print(item["logentry"]["message"])
         assert len(SENTRY_SENT_ITEMS) == 2
 
         # trace with exception
@@ -499,7 +533,9 @@ def assert_trace_printable(trace: PipelineTrace) -> None:
     str(trace)
     trace.asstr(0)
     trace.asstr(1)
-    trace.asdict()
+    trace_dict = deepcopy(trace.asdict())
+    # check if we do not pop
+    assert trace_dict == trace.asdict()
     with io.BytesIO() as b:
         json.typed_dump(trace, b, pretty=True)
         b.getvalue()

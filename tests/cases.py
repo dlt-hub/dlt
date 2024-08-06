@@ -303,6 +303,7 @@ def arrow_table_all_data_types(
     include_date: bool = True,
     include_not_normalized_name: bool = True,
     include_name_clash: bool = False,
+    include_null: bool = True,
     num_rows: int = 3,
     tz="UTC",
 ) -> Tuple[Any, List[Dict[str, Any]], Dict[str, List[Any]]]:
@@ -323,8 +324,10 @@ def arrow_table_all_data_types(
         "float_null": [round(random.uniform(0, 100), 4) for _ in range(num_rows - 1)] + [
             None
         ],  # decrease precision
-        "null": pd.Series([None for _ in range(num_rows)]),
     }
+
+    if include_null:
+        data["null"] = pd.Series([None for _ in range(num_rows)])
 
     if include_name_clash:
         data["pre Normalized Column"] = [random.choice(ascii_lowercase) for _ in range(num_rows)]
@@ -373,7 +376,7 @@ def arrow_table_all_data_types(
                 "Pre Normalized Column": "pre_normalized_column",
             }
         )
-        .drop(columns=["null"])
+        .drop(columns=(["null"] if include_null else []))
         .to_dict("records")
     )
     if object_format == "object":

@@ -76,6 +76,21 @@ def many_delayed(many, iters):
         yield dlt.resource(run_deferred(iters), name="resource_" + str(n))
 
 
+@dlt.resource(table_name="users")
+def users_materialize_table_schema():
+    yield dlt.mark.with_hints(
+        # this is a special empty item which will materialize table schema
+        dlt.mark.materialize_table_schema(),
+        # emit table schema with the item
+        dlt.mark.make_hints(
+            columns=[
+                {"name": "id", "data_type": "bigint", "precision": 4, "nullable": False},
+                {"name": "name", "data_type": "text", "nullable": False},
+            ]
+        ),
+    )
+
+
 #
 # Utils for accessing data in pipelines
 #
@@ -238,6 +253,13 @@ def load_tables_to_dicts(
     if sortkey is not None:
         result = {k: _sort_list_of_dicts(v, sortkey) for k, v in result.items()}
     return result
+
+
+def assert_records_as_set(actual: List[Dict[str, Any]], expected: List[Dict[str, Any]]) -> None:
+    """Compares two lists of dicts regardless of order"""
+    actual_set = set(frozenset(dict_.items()) for dict_ in actual)
+    expected_set = set(frozenset(dict_.items()) for dict_ in expected)
+    assert actual_set == expected_set
 
 
 def assert_only_table_columns(

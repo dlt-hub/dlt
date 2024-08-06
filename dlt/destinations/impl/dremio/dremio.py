@@ -3,11 +3,12 @@ from urllib.parse import urlparse
 
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
-    FollowupJob,
+    HasFollowupJobs,
     TLoadJobState,
-    LoadJob,
+    RunnableLoadJob,
     SupportsStagingDestination,
-    NewLoadJob,
+    FollowupJob,
+    LoadJob,
 )
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns
 from dlt.common.schema.typing import TTableSchema, TColumnType, TTableFormat, TColumnSchemaBase
@@ -17,9 +18,9 @@ from dlt.destinations.exceptions import LoadJobTerminalException
 from dlt.destinations.impl.dremio.configuration import DremioClientConfiguration
 from dlt.destinations.impl.dremio.sql_client import DremioSqlClient
 from dlt.destinations.job_client_impl import SqlJobClientWithStaging
-from dlt.destinations.job_impl import EmptyLoadJob
-from dlt.destinations.job_impl import NewReferenceJob
-from dlt.destinations.sql_jobs import SqlMergeJob
+from dlt.destinations.job_impl import FinalizedLoadJobWithFollowupJobs
+from dlt.destinations.job_impl import ReferenceFollowupJob
+from dlt.destinations.sql_jobs import SqlMergeFollowupJob
 from dlt.destinations.type_mapping import TypeMapper
 from dlt.destinations.sql_client import SqlClientBase
 
@@ -69,7 +70,7 @@ class DremioTypeMapper(TypeMapper):
         return super().from_db_type(db_type, precision, scale)
 
 
-class DremioMergeJob(SqlMergeJob):
+class DremioMergeJob(SqlMergeFollowupJob):
     @classmethod
     def _new_temp_table_name(cls, name_prefix: str, sql_client: SqlClientBase[Any]) -> str:
         return sql_client.make_qualified_table_name(f"_temp_{name_prefix}_{uniq_id()}")
@@ -83,23 +84,25 @@ class DremioMergeJob(SqlMergeJob):
         return "NULL"
 
 
-class DremioLoadJob(LoadJob, FollowupJob):
+class DremioLoadJob(RunnableLoadJob, HasFollowupJobs):
     def __init__(
         self,
         file_path: str,
-        table_name: str,
-        client: DremioSqlClient,
         stage_name: Optional[str] = None,
     ) -> None:
-        file_name = FileStorage.get_file_name_from_file_path(file_path)
-        super().__init__(file_name)
+        super().__init__(file_path)
+        self._stage_name = stage_name
+        self._job_client: "DremioClient" = None
 
-        qualified_table_name = client.make_qualified_table_name(table_name)
+    def run(self) -> None:
+        self._sql_client = self._job_client.sql_client
+
+        qualified_table_name = self._sql_client.make_qualified_table_name(self.load_table_name)
 
         # extract and prepare some vars
         bucket_path = (
-            NewReferenceJob.resolve_reference(file_path)
-            if NewReferenceJob.is_reference_job(file_path)
+            ReferenceFollowupJob.resolve_reference(self._file_path)
+            if ReferenceFollowupJob.is_reference_job(self._file_path)
             else ""
         )
 
@@ -107,32 +110,28 @@ class DremioLoadJob(LoadJob, FollowupJob):
             raise RuntimeError("Could not resolve bucket path.")
 
         file_name = (
-            FileStorage.get_file_name_from_file_path(bucket_path) if bucket_path else file_name
+            FileStorage.get_file_name_from_file_path(bucket_path)
+            if bucket_path
+            else self._file_name
         )
 
         bucket_url = urlparse(bucket_path)
         bucket_scheme = bucket_url.scheme
-        if bucket_scheme == "s3" and stage_name:
+        if bucket_scheme == "s3" and self._stage_name:
             from_clause = (
-                f"FROM '@{stage_name}/{bucket_url.hostname}/{bucket_url.path.lstrip('/')}'"
+                f"FROM '@{self._stage_name}/{bucket_url.hostname}/{bucket_url.path.lstrip('/')}'"
             )
         else:
             raise LoadJobTerminalException(
-                file_path, "Only s3 staging currently supported in Dremio destination"
+                self._file_path, "Only s3 staging currently supported in Dremio destination"
             )
 
         source_format = file_name.split(".")[-1]
 
-        client.execute_sql(f"""COPY INTO {qualified_table_name}
+        self._sql_client.execute_sql(f"""COPY INTO {qualified_table_name}
             {from_clause}
             FILE_FORMAT '{source_format}'
             """)
-
-    def state(self) -> TLoadJobState:
-        return "completed"
-
-    def exception(self) -> str:
-        raise NotImplementedError()
 
 
 class DremioClient(SqlJobClientWithStaging, SupportsStagingDestination):
@@ -153,20 +152,17 @@ class DremioClient(SqlJobClientWithStaging, SupportsStagingDestination):
         self.sql_client: DremioSqlClient = sql_client  # type: ignore
         self.type_mapper = DremioTypeMapper(self.capabilities)
 
-    def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
-        job = super().start_file_load(table, file_path, load_id)
+    def create_load_job(
+        self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
+    ) -> LoadJob:
+        job = super().create_load_job(table, file_path, load_id, restore)
 
         if not job:
             job = DremioLoadJob(
                 file_path=file_path,
-                table_name=table["name"],
-                client=self.sql_client,
                 stage_name=self.config.staging_data_source,
             )
         return job
-
-    def restore_file_load(self, file_path: str) -> LoadJob:
-        return EmptyLoadJob.from_file_path(file_path, "completed")
 
     def _get_table_update_sql(
         self,
@@ -205,7 +201,7 @@ class DremioClient(SqlJobClientWithStaging, SupportsStagingDestination):
             f"{name} {self.type_mapper.to_db_type(c)} {self._gen_not_null(c.get('nullable', True))}"
         )
 
-    def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
+    def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[FollowupJob]:
         return [DremioMergeJob.from_table_chain(table_chain, self.sql_client)]
 
     def _make_add_column_sql(

@@ -320,7 +320,7 @@ You'll need those setting when [importing external files](../../general-usage/re
 
 You can define query tag by defining a query tag placeholder in snowflake credentials:
 ```toml
-[destination.snowflake.credentials]
+[destination.snowflake]
 query_tag='{{"source":"{source}", "resource":"{resource}", "table": "{table}", "load_id":"{load_id}", "pipeline_name":"{pipeline_name}"}}'
 ```
 which contains Python named formatters corresponding to tag names ie. `{source}` will assume the name of the dlt source.

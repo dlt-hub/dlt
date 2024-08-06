@@ -20,35 +20,37 @@ from contextlib import contextmanager
 
 import dlt
 from dlt.common import logger, time, json, pendulum
+from dlt.common.utils import assert_min_pkg_version
 from dlt.common.storages.fsspec_filesystem import glob_files
 from dlt.common.typing import DictStrAny
 from dlt.common.schema import Schema, TSchemaTables, TTableSchema
+from dlt.common.schema.utils import get_first_column_name_with_prop, get_columns_names_with_prop
 from dlt.common.storages import FileStorage, fsspec_from_config
 from dlt.common.storages.load_package import (
     LoadJobInfo,
-    ParsedLoadJobFileName,
     TPipelineStateDoc,
     load_package as current_load_package,
 )
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
-    NewLoadJob,
-    TLoadJobState,
-    LoadJob,
-    JobClientBase,
     FollowupJob,
+    TLoadJobState,
+    RunnableLoadJob,
+    JobClientBase,
+    HasFollowupJobs,
     WithStagingDataset,
     WithStateSync,
     StorageSchemaInfo,
     StateInfo,
-    DoNothingJob,
-    DoNothingFollowupJob,
+    LoadJob,
 )
 from dlt.common.destination.exceptions import DestinationUndefinedEntity
 from dlt.destinations.typing import DataFrame, ArrowTable
-from dlt.destinations.job_impl import EmptyLoadJob, NewReferenceJob
+from dlt.destinations.job_impl import (
+    ReferenceFollowupJob,
+    FinalizedLoadJob,
+)
 from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
-from dlt.destinations.job_impl import NewReferenceJob
 from dlt.destinations import path_utils
 from dlt.destinations.fs_client import FSClientBase
 
@@ -56,31 +58,27 @@ INIT_FILE_NAME = "init"
 FILENAME_SEPARATOR = "__"
 
 
-class LoadFilesystemJob(LoadJob):
+class FilesystemLoadJob(RunnableLoadJob):
     def __init__(
         self,
-        client: "FilesystemClient",
-        local_path: str,
-        load_id: str,
-        table: TTableSchema,
+        file_path: str,
     ) -> None:
-        self.client = client
-        self.table = table
-        self.is_local_filesystem = client.config.protocol == "file"
+        super().__init__(file_path)
+        self._job_client: FilesystemClient = None
+
+    def run(self) -> None:
         # pick local filesystem pathlib or posix for buckets
+        self.is_local_filesystem = self._job_client.config.protocol == "file"
         self.pathlib = os.path if self.is_local_filesystem else posixpath
 
-        file_name = FileStorage.get_file_name_from_file_path(local_path)
-        super().__init__(file_name)
-
         self.destination_file_name = path_utils.create_path(
-            client.config.layout,
-            file_name,
-            client.schema.name,
-            load_id,
-            current_datetime=client.config.current_datetime,
+            self._job_client.config.layout,
+            self._file_name,
+            self._job_client.schema.name,
+            self._load_id,
+            current_datetime=self._job_client.config.current_datetime,
             load_package_timestamp=dlt.current.load_package()["state"]["created_at"],
-            extra_placeholders=client.config.extra_placeholders,
+            extra_placeholders=self._job_client.config.extra_placeholders,
         )
         # We would like to avoid failing for local filesystem where
         # deeply nested directory will not exist before writing a file.
@@ -89,79 +87,109 @@ class LoadFilesystemJob(LoadJob):
         # remote_path = f"{client.config.protocol}://{posixpath.join(dataset_path, destination_file_name)}"
         remote_path = self.make_remote_path()
         if self.is_local_filesystem:
-            client.fs_client.makedirs(self.pathlib.dirname(remote_path), exist_ok=True)
-        client.fs_client.put_file(local_path, remote_path)
+            self._job_client.fs_client.makedirs(self.pathlib.dirname(remote_path), exist_ok=True)
+        self._job_client.fs_client.put_file(self._file_path, remote_path)
 
     def make_remote_path(self) -> str:
         """Returns path on the remote filesystem to which copy the file, without scheme. For local filesystem a native path is used"""
         # path.join does not normalize separators and available
         # normalization functions are very invasive and may string the trailing separator
         return self.pathlib.join(  # type: ignore[no-any-return]
-            self.client.dataset_path,
+            self._job_client.dataset_path,
             path_utils.normalize_path_sep(self.pathlib, self.destination_file_name),
         )
 
-    def state(self) -> TLoadJobState:
-        return "completed"
 
-    def exception(self) -> str:
-        raise NotImplementedError()
-
-
-class DeltaLoadFilesystemJob(NewReferenceJob):
-    def __init__(
-        self,
-        client: "FilesystemClient",
-        table: TTableSchema,
-        table_jobs: Sequence[LoadJobInfo],
-    ) -> None:
-        self.client = client
-        self.table = table
-        self.table_jobs = table_jobs
-
-        ref_file_name = ParsedLoadJobFileName(
-            table["name"], ParsedLoadJobFileName.new_file_id(), 0, "reference"
-        ).file_name()
+class DeltaLoadFilesystemJob(FilesystemLoadJob):
+    def __init__(self, file_path: str) -> None:
         super().__init__(
-            file_name=ref_file_name,
-            status="running",
-            remote_path=self.client.make_remote_uri(self.make_remote_path()),
+            file_path=file_path,
         )
 
-        self.write()
-
-    def write(self) -> None:
+    def run(self) -> None:
         from dlt.common.libs.pyarrow import pyarrow as pa
         from dlt.common.libs.deltalake import (
+            DeltaTable,
             write_delta_table,
+            ensure_delta_compatible_arrow_schema,
             _deltalake_storage_options,
+            try_get_deltatable,
         )
 
-        file_paths = [job.file_path for job in self.table_jobs]
-
-        write_delta_table(
-            path=self.client.make_remote_uri(self.make_remote_path()),
-            data=pa.dataset.dataset(file_paths),
-            write_disposition=self.table["write_disposition"],
-            storage_options=_deltalake_storage_options(self.client.config),
+        assert_min_pkg_version(
+            pkg_name="pyarrow",
+            version="17.0.0",
+            msg="`pyarrow>=17.0.0` is needed for `delta` table format on `filesystem` destination.",
         )
 
-    def make_remote_path(self) -> str:
-        # directory path, not file path
-        return self.client.get_table_dir(self.table["name"])
+        # create Arrow dataset from Parquet files
+        file_paths = ReferenceFollowupJob.resolve_references(self._file_path)
+        arrow_ds = pa.dataset.dataset(file_paths)
 
-    def state(self) -> TLoadJobState:
-        return "completed"
+        # create Delta table object
+        dt_path = self._job_client.make_remote_uri(
+            self._job_client.get_table_dir(self.load_table_name)
+        )
+        storage_options = _deltalake_storage_options(self._job_client.config)
+        dt = try_get_deltatable(dt_path, storage_options=storage_options)
+
+        # explicitly check if there is data
+        # (https://github.com/delta-io/delta-rs/issues/2686)
+        if arrow_ds.head(1).num_rows == 0:
+            if dt is None:
+                # create new empty Delta table with schema from Arrow table
+                DeltaTable.create(
+                    table_uri=dt_path,
+                    schema=ensure_delta_compatible_arrow_schema(arrow_ds.schema),
+                    mode="overwrite",
+                )
+            return
+
+        arrow_rbr = arrow_ds.scanner().to_reader()  # RecordBatchReader
+
+        if self._load_table["write_disposition"] == "merge" and dt is not None:
+            assert self._load_table["x-merge-strategy"] in self._job_client.capabilities.supported_merge_strategies  # type: ignore[typeddict-item]
+
+            if self._load_table["x-merge-strategy"] == "upsert":  # type: ignore[typeddict-item]
+                if "parent" in self._load_table:
+                    unique_column = get_first_column_name_with_prop(self._load_table, "unique")
+                    predicate = f"target.{unique_column} = source.{unique_column}"
+                else:
+                    primary_keys = get_columns_names_with_prop(self._load_table, "primary_key")
+                    predicate = " AND ".join([f"target.{c} = source.{c}" for c in primary_keys])
+
+                qry = (
+                    dt.merge(
+                        source=arrow_rbr,
+                        predicate=predicate,
+                        source_alias="source",
+                        target_alias="target",
+                    )
+                    .when_matched_update_all()
+                    .when_not_matched_insert_all()
+                )
+
+                qry.execute()
+
+        else:
+            write_delta_table(
+                table_or_uri=dt_path if dt is None else dt,
+                data=arrow_rbr,
+                write_disposition=self._load_table["write_disposition"],
+                storage_options=storage_options,
+            )
 
 
-class FollowupFilesystemJob(FollowupJob, LoadFilesystemJob):
-    def create_followup_jobs(self, final_state: TLoadJobState) -> List[NewLoadJob]:
+class FilesystemLoadJobWithFollowup(HasFollowupJobs, FilesystemLoadJob):
+    def create_followup_jobs(self, final_state: TLoadJobState) -> List[FollowupJob]:
         jobs = super().create_followup_jobs(final_state)
-        if final_state == "completed":
-            ref_job = NewReferenceJob(
-                file_name=self.file_name(),
-                status="running",
-                remote_path=self.client.make_remote_uri(self.make_remote_path()),
+        if self._load_table.get("table_format") == "delta":
+            # delta table jobs only require table chain followup jobs
+            pass
+        elif final_state == "completed":
+            ref_job = ReferenceFollowupJob(
+                original_file_name=self.file_name(),
+                remote_paths=[self._job_client.make_remote_uri(self.make_remote_path())],
             )
             jobs.append(ref_job)
         return jobs
@@ -242,7 +270,7 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
                 self._delete_file(filename)
 
     def truncate_tables(self, table_names: List[str]) -> None:
-        """Truncate a set of tables with given `table_names`"""
+        """Truncate a set of regular tables with given `table_names`"""
         table_dirs = set(self.get_table_dirs(table_names))
         table_prefixes = [self.get_table_prefix(t) for t in table_names]
         for table_dir in table_dirs:
@@ -338,22 +366,25 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
     def is_storage_initialized(self) -> bool:
         return self.fs_client.exists(self.pathlib.join(self.dataset_path, INIT_FILE_NAME))  # type: ignore[no-any-return]
 
-    def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
+    def create_load_job(
+        self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
+    ) -> LoadJob:
         # skip the state table, we create a jsonl file in the complete_load step
         # this does not apply to scenarios where we are using filesystem as staging
         # where we want to load the state the regular way
         if table["name"] == self.schema.state_table_name and not self.config.as_staging:
-            return DoNothingJob(file_path)
+            return FinalizedLoadJob(file_path)
         if table.get("table_format") == "delta":
             import dlt.common.libs.deltalake  # assert dependencies are installed
 
-            return DoNothingFollowupJob(file_path)
+            # a reference job for a delta table indicates a table chain followup job
+            if ReferenceFollowupJob.is_reference_job(file_path):
+                return DeltaLoadFilesystemJob(file_path)
+            # otherwise just continue
+            return FilesystemLoadJobWithFollowup(file_path)
 
-        cls = FollowupFilesystemJob if self.config.as_staging else LoadFilesystemJob
-        return cls(self, file_path, load_id, table)
-
-    def restore_file_load(self, file_path: str) -> LoadJob:
-        return EmptyLoadJob.from_file_path(file_path, "completed")
+        cls = FilesystemLoadJobWithFollowup if self.config.as_staging else FilesystemLoadJob
+        return cls(file_path)
 
     def make_remote_uri(self, remote_path: str) -> str:
         """Returns uri to the remote filesystem to which copy the file"""
@@ -556,26 +587,20 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
         self,
         table_chain: Sequence[TTableSchema],
         completed_table_chain_jobs: Optional[Sequence[LoadJobInfo]] = None,
-    ) -> List[NewLoadJob]:
-        def get_table_jobs(
-            table_jobs: Sequence[LoadJobInfo], table_name: str
-        ) -> Sequence[LoadJobInfo]:
-            return [job for job in table_jobs if job.job_file_info.table_name == table_name]
-
+    ) -> List[FollowupJob]:
         assert completed_table_chain_jobs is not None
         jobs = super().create_table_chain_completed_followup_jobs(
             table_chain, completed_table_chain_jobs
         )
-        table_format = table_chain[0].get("table_format")
-        if table_format == "delta":
-            delta_jobs = [
-                DeltaLoadFilesystemJob(
-                    self, table, get_table_jobs(completed_table_chain_jobs, table["name"])
-                )
-                for table in table_chain
-            ]
-            jobs.extend(delta_jobs)
-
+        if table_chain[0].get("table_format") == "delta":
+            for table in table_chain:
+                table_job_paths = [
+                    job.file_path
+                    for job in completed_table_chain_jobs
+                    if job.job_file_info.table_name == table["name"]
+                ]
+                file_name = FileStorage.get_file_name_from_file_path(table_job_paths[0])
+                jobs.append(ReferenceFollowupJob(file_name, table_job_paths))
         return jobs
 
     def iter_df(

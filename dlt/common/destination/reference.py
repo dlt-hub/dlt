@@ -30,6 +30,7 @@ from dlt.common import logger
 from dlt.common.typing import DataFrame, ArrowTable
 from dlt.common.configuration.specs.base_configuration import extract_inner_hint
 from dlt.common.destination.utils import verify_schema_capabilities
+from dlt.common.exceptions import TerminalValueError
 from dlt.common.normalizers.naming import NamingConvention
 
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
@@ -37,6 +38,7 @@ from dlt.common.schema.utils import (
     get_file_format,
     get_write_disposition,
     get_table_format,
+    get_merge_strategy,
 )
 from dlt.common.configuration import configspec, resolve_configuration, known_sections, NotResolved
 from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration
@@ -45,6 +47,8 @@ from dlt.common.destination.exceptions import (
     InvalidDestinationReference,
     UnknownDestinationModule,
     DestinationSchemaTampered,
+    DestinationTransientException,
+    DestinationTerminalException,
 )
 from dlt.common.schema.exceptions import UnknownTableException
 from dlt.common.storages import FileStorage
@@ -262,11 +266,45 @@ class DestinationClientDwhWithStagingConfiguration(DestinationClientDwhConfigura
     """configuration of the staging, if present, injected at runtime"""
 
 
-TLoadJobState = Literal["running", "failed", "retry", "completed"]
+TLoadJobState = Literal["ready", "running", "failed", "retry", "completed"]
 
 
-class LoadJob:
-    """Represents a job that loads a single file
+class LoadJob(ABC):
+    """
+    A stateful load job, represents one job file
+    """
+
+    def __init__(self, file_path: str) -> None:
+        self._file_path = file_path
+        self._file_name = FileStorage.get_file_name_from_file_path(file_path)
+        # NOTE: we only accept a full filepath in the constructor
+        assert self._file_name != self._file_path
+        self._parsed_file_name = ParsedLoadJobFileName.parse(self._file_name)
+
+    def job_id(self) -> str:
+        """The job id that is derived from the file name and does not changes during job lifecycle"""
+        return self._parsed_file_name.job_id()
+
+    def file_name(self) -> str:
+        """A name of the job file"""
+        return self._file_name
+
+    def job_file_info(self) -> ParsedLoadJobFileName:
+        return self._parsed_file_name
+
+    @abstractmethod
+    def state(self) -> TLoadJobState:
+        """Returns current state. Should poll external resource if necessary."""
+        pass
+
+    @abstractmethod
+    def exception(self) -> str:
+        """The exception associated with failed or retry states"""
+        pass
+
+
+class RunnableLoadJob(LoadJob, ABC):
+    """Represents a runnable job that loads a single file
 
     Each job starts in "running" state and ends in one of terminal states: "retry", "failed" or "completed".
     Each job is uniquely identified by a file name. The file is guaranteed to exist in "running" state. In terminal state, the file may not be present.
@@ -277,39 +315,80 @@ class LoadJob:
     immediately transition job into "failed" or "retry" state respectively.
     """
 
-    def __init__(self, file_name: str) -> None:
+    def __init__(self, file_path: str) -> None:
         """
         File name is also a job id (or job id is deterministically derived) so it must be globally unique
         """
         # ensure file name
-        assert file_name == FileStorage.get_file_name_from_file_path(file_name)
-        self._file_name = file_name
-        self._parsed_file_name = ParsedLoadJobFileName.parse(file_name)
+        super().__init__(file_path)
+        self._state: TLoadJobState = "ready"
+        self._exception: Exception = None
+
+        # variables needed by most jobs, set by the loader in set_run_vars
+        self._schema: Schema = None
+        self._load_table: TTableSchema = None
+        self._load_id: str = None
+        self._job_client: "JobClientBase" = None
+
+    def set_run_vars(self, load_id: str, schema: Schema, load_table: TTableSchema) -> None:
+        """
+        called by the loader right before the job is run
+        """
+        self._load_id = load_id
+        self._schema = schema
+        self._load_table = load_table
+
+    @property
+    def load_table_name(self) -> str:
+        return self._load_table["name"]
+
+    def run_managed(
+        self,
+        job_client: "JobClientBase",
+    ) -> None:
+        """
+        wrapper around the user implemented run method
+        """
+        # only jobs that are not running or have not reached a final state
+        # may be started
+        assert self._state in ("ready", "retry")
+        self._job_client = job_client
+
+        # filepath is now moved to running
+        try:
+            self._state = "running"
+            self._job_client.prepare_load_job_execution(self)
+            self.run()
+            self._state = "completed"
+        except (DestinationTerminalException, TerminalValueError) as e:
+            self._state = "failed"
+            self._exception = e
+        except (DestinationTransientException, Exception) as e:
+            self._state = "retry"
+            self._exception = e
+        finally:
+            # sanity check
+            assert self._state in ("completed", "retry", "failed")
 
     @abstractmethod
+    def run(self) -> None:
+        """
+        run the actual job, this will be executed on a thread and should be implemented by the user
+        exception will be handled outside of this function
+        """
+        raise NotImplementedError()
+
     def state(self) -> TLoadJobState:
         """Returns current state. Should poll external resource if necessary."""
-        pass
+        return self._state
 
-    def file_name(self) -> str:
-        """A name of the job file"""
-        return self._file_name
-
-    def job_id(self) -> str:
-        """The job id that is derived from the file name and does not changes during job lifecycle"""
-        return self._parsed_file_name.job_id()
-
-    def job_file_info(self) -> ParsedLoadJobFileName:
-        return self._parsed_file_name
-
-    @abstractmethod
     def exception(self) -> str:
         """The exception associated with failed or retry states"""
-        pass
+        return str(self._exception)
 
 
-class NewLoadJob(LoadJob):
-    """Adds a trait that allows to save new job file"""
+class FollowupJob:
+    """Base class for follow up jobs that should be created"""
 
     @abstractmethod
     def new_file_path(self) -> str:
@@ -317,33 +396,12 @@ class NewLoadJob(LoadJob):
         pass
 
 
-class FollowupJob:
-    """Adds a trait that allows to create a followup job"""
+class HasFollowupJobs:
+    """Adds a trait that allows to create single or table chain followup jobs"""
 
-    def create_followup_jobs(self, final_state: TLoadJobState) -> List[NewLoadJob]:
+    def create_followup_jobs(self, final_state: TLoadJobState) -> List[FollowupJob]:
         """Return list of new jobs. `final_state` is state to which this job transits"""
         return []
-
-
-class DoNothingJob(LoadJob):
-    """The most lazy class of dlt"""
-
-    def __init__(self, file_path: str) -> None:
-        super().__init__(FileStorage.get_file_name_from_file_path(file_path))
-
-    def state(self) -> TLoadJobState:
-        # this job is always done
-        return "completed"
-
-    def exception(self) -> str:
-        # this part of code should be never reached
-        raise NotImplementedError()
-
-
-class DoNothingFollowupJob(DoNothingJob, FollowupJob):
-    """The second most lazy class of dlt"""
-
-    pass
 
 
 class JobClientBase(ABC):
@@ -398,13 +456,16 @@ class JobClientBase(ABC):
         return expected_update
 
     @abstractmethod
-    def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
-        """Creates and starts a load job for a particular `table` with content in `file_path`"""
+    def create_load_job(
+        self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
+    ) -> LoadJob:
+        """Creates a load job for a particular `table` with content in `file_path`"""
         pass
 
-    @abstractmethod
-    def restore_file_load(self, file_path: str) -> LoadJob:
-        """Finds and restores already started loading job identified by `file_path` if destination supports it."""
+    def prepare_load_job_execution(  # noqa: B027, optional override
+        self, job: RunnableLoadJob
+    ) -> None:
+        """Prepare the connected job client for the execution of a load job (used for query tags in sql clients)"""
         pass
 
     def should_truncate_table_before_load(self, table: TTableSchema) -> bool:
@@ -414,7 +475,7 @@ class JobClientBase(ABC):
         self,
         table_chain: Sequence[TTableSchema],
         completed_table_chain_jobs: Optional[Sequence[LoadJobInfo]] = None,
-    ) -> List[NewLoadJob]:
+    ) -> List[FollowupJob]:
         """Creates a list of followup jobs that should be executed after a table chain is completed"""
         return []
 
@@ -451,6 +512,8 @@ class JobClientBase(ABC):
             # add write disposition if not specified - in child tables
             if "write_disposition" not in table:
                 table["write_disposition"] = get_write_disposition(self.schema.tables, table_name)
+            if "x-merge-strategy" not in table:
+                table["x-merge-strategy"] = get_merge_strategy(self.schema.tables, table_name)  # type: ignore[typeddict-unknown-key]
             if "table_format" not in table:
                 table["table_format"] = get_table_format(self.schema.tables, table_name)
             if "file_format" not in table:

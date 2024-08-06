@@ -13,7 +13,7 @@ import pytest
 
 import dlt
 
-from streamlit.testing.v1 import AppTest  # type: ignore[import-not-found]
+from streamlit.testing.v1 import AppTest  # type: ignore[import-not-found, unused-ignore]
 
 from dlt.helpers.streamlit_app.utils import render_with_pipeline
 from dlt.pipeline.exceptions import CannotRestorePipelineException
@@ -102,8 +102,8 @@ def test_multiple_resources_pipeline():
     assert streamlit_app.session_state["color_mode"] == "dark"
 
     # Check page links in sidebar
-    assert "Explore data" in streamlit_app.sidebar[2].label
-    assert "Load info" in streamlit_app.sidebar[3].label
+    assert "Explore data" in streamlit_app.sidebar[2].label  # type: ignore[union-attr, unused-ignore]
+    assert "Load info" in streamlit_app.sidebar[3].label  # type: ignore[union-attr, unused-ignore]
 
     # Check that at leas 4 content sections rendered
     assert len(streamlit_app.subheader) > 4

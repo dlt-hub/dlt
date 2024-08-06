@@ -146,7 +146,7 @@ def _airflow_providers() -> List[ConfigProvider]:
             from dlt.common.configuration.providers.airflow import AirflowSecretsTomlProvider
 
             # probe if Airflow variable containing all secrets is present
-            from dlt.common.configuration.providers.toml import SECRETS_TOML_KEY
+            from dlt.common.configuration.providers.vault import SECRETS_TOML_KEY
 
             secrets_toml_var = Variable.get(SECRETS_TOML_KEY, default_var=None)
 

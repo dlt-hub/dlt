@@ -30,20 +30,26 @@ class PydanticValidator(ValidateItem, Generic[_TPydanticModel]):
         self.model = apply_schema_contract_to_model(model, column_mode, data_mode)
         self.list_model = create_list_model(self.model, data_mode)
 
-    def __call__(
-        self, item: TDataItems, meta: Any = None
-    ) -> Union[_TPydanticModel, List[_TPydanticModel]]:
+    def __call__(self, item: TDataItems, meta: Any = None) -> TDataItems:
         """Validate a data item against the pydantic model"""
         if item is None:
             return None
 
-        from dlt.common.libs.pydantic import validate_item, validate_items
+        from dlt.common.libs.pydantic import validate_and_filter_item, validate_and_filter_items
 
         if isinstance(item, list):
-            return validate_items(
-                self.table_name, self.list_model, item, self.column_mode, self.data_mode
-            )
-        return validate_item(self.table_name, self.model, item, self.column_mode, self.data_mode)
+            return [
+                model.dict(by_alias=True)
+                for model in validate_and_filter_items(
+                    self.table_name, self.list_model, item, self.column_mode, self.data_mode
+                )
+            ]
+        item = validate_and_filter_item(
+            self.table_name, self.model, item, self.column_mode, self.data_mode
+        )
+        if item is not None:
+            item = item.dict(by_alias=True)
+        return item
 
     def __str__(self, *args: Any, **kwargs: Any) -> str:
         return f"PydanticValidator(model={self.model.__qualname__})"

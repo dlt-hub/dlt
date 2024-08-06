@@ -5,10 +5,7 @@ from textwrap import dedent
 from urllib.parse import urlparse, urlunparse
 
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.reference import (
-    SupportsStagingDestination,
-    NewLoadJob,
-)
+from dlt.common.destination.reference import SupportsStagingDestination, FollowupJob, LoadJob
 
 from dlt.common.schema import TTableSchema, TColumnSchema, Schema, TColumnHint
 from dlt.common.schema.utils import (
@@ -22,9 +19,12 @@ from dlt.common.configuration.specs import (
     AzureServicePrincipalCredentialsWithoutDefaults,
 )
 
-from dlt.destinations.job_impl import NewReferenceJob
+from dlt.destinations.job_impl import ReferenceFollowupJob
 from dlt.destinations.sql_client import SqlClientBase
-from dlt.destinations.job_client_impl import SqlJobClientBase, LoadJob, CopyRemoteFileLoadJob
+from dlt.destinations.job_client_impl import (
+    SqlJobClientBase,
+    CopyRemoteFileLoadJob,
+)
 from dlt.destinations.exceptions import LoadJobTerminalException
 
 from dlt.destinations.impl.mssql.mssql import (
@@ -131,7 +131,7 @@ class SynapseClient(MsSqlJobClient, SupportsStagingDestination):
 
     def _create_replace_followup_jobs(
         self, table_chain: Sequence[TTableSchema]
-    ) -> List[NewLoadJob]:
+    ) -> List[FollowupJob]:
         return SqlJobClientBase._create_replace_followup_jobs(self, table_chain)
 
     def prepare_load_table(self, table_name: str, staging: bool = False) -> TTableSchema:
@@ -158,16 +158,16 @@ class SynapseClient(MsSqlJobClient, SupportsStagingDestination):
             table[TABLE_INDEX_TYPE_HINT] = self.config.default_table_index_type  # type: ignore[typeddict-unknown-key]
         return table
 
-    def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
-        job = super().start_file_load(table, file_path, load_id)
+    def create_load_job(
+        self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
+    ) -> LoadJob:
+        job = super().create_load_job(table, file_path, load_id, restore)
         if not job:
-            assert NewReferenceJob.is_reference_job(
+            assert ReferenceFollowupJob.is_reference_job(
                 file_path
             ), "Synapse must use staging to load files"
             job = SynapseCopyFileLoadJob(
-                table,
                 file_path,
-                self.sql_client,
                 self.config.staging_config.credentials,  # type: ignore[arg-type]
                 self.config.staging_use_msi,
             )
@@ -177,22 +177,21 @@ class SynapseClient(MsSqlJobClient, SupportsStagingDestination):
 class SynapseCopyFileLoadJob(CopyRemoteFileLoadJob):
     def __init__(
         self,
-        table: TTableSchema,
         file_path: str,
-        sql_client: SqlClientBase[Any],
         staging_credentials: Optional[
             Union[AzureCredentialsWithoutDefaults, AzureServicePrincipalCredentialsWithoutDefaults]
         ] = None,
         staging_use_msi: bool = False,
     ) -> None:
         self.staging_use_msi = staging_use_msi
-        super().__init__(table, file_path, sql_client, staging_credentials)
+        super().__init__(file_path, staging_credentials)
 
-    def execute(self, table: TTableSchema, bucket_path: str) -> None:
+    def run(self) -> None:
+        self._sql_client = self._job_client.sql_client
         # get format
-        ext = os.path.splitext(bucket_path)[1][1:]
+        ext = os.path.splitext(self._bucket_path)[1][1:]
         if ext == "parquet":
-            if table_schema_has_type(table, "time"):
+            if table_schema_has_type(self._load_table, "time"):
                 # Synapse interprets Parquet TIME columns as bigint, resulting in
                 # an incompatibility error.
                 raise LoadJobTerminalException(
@@ -216,8 +215,8 @@ class SynapseCopyFileLoadJob(CopyRemoteFileLoadJob):
             (AzureCredentialsWithoutDefaults, AzureServicePrincipalCredentialsWithoutDefaults),
         )
         azure_storage_account_name = staging_credentials.azure_storage_account_name
-        https_path = self._get_https_path(bucket_path, azure_storage_account_name)
-        table_name = table["name"]
+        https_path = self._get_https_path(self._bucket_path, azure_storage_account_name)
+        table_name = self._load_table["name"]
 
         if self.staging_use_msi:
             credential = "IDENTITY = 'Managed Identity'"
@@ -251,10 +250,6 @@ class SynapseCopyFileLoadJob(CopyRemoteFileLoadJob):
                 )
             """)
             self._sql_client.execute_sql(sql)
-
-    def exception(self) -> str:
-        # this part of code should be never reached
-        raise NotImplementedError()
 
     def _get_https_path(self, bucket_path: str, storage_account_name: str) -> str:
         """

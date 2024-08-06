@@ -21,8 +21,9 @@ from dlt.common.storages.load_package import load_package as current_load_packag
 from dlt.common.utils import uniq_id
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.destinations.exceptions import MergeDispositionException
-from dlt.destinations.job_impl import NewLoadJobImpl
+from dlt.destinations.job_impl import FollowupJobImpl
 from dlt.destinations.sql_client import SqlClientBase
+from dlt.common.destination.exceptions import DestinationTransientException
 
 
 class SqlJobParams(TypedDict, total=False):
@@ -33,10 +34,19 @@ class SqlJobParams(TypedDict, total=False):
 DEFAULTS: SqlJobParams = {"replace": False}
 
 
-class SqlBaseJob(NewLoadJobImpl):
-    """Sql base job for jobs that rely on the whole tablechain"""
+class SqlJobCreationException(DestinationTransientException):
+    def __init__(self, original_exception: Exception, table_chain: Sequence[TTableSchema]) -> None:
+        tables_str = yaml.dump(
+            table_chain, allow_unicode=True, default_flow_style=False, sort_keys=False
+        )
+        super().__init__(
+            f"Could not create SQLFollowupJob with exception {str(original_exception)}. Table"
+            f" chain: {tables_str}"
+        )
 
-    failed_text: str = ""
+
+class SqlFollowupJob(FollowupJobImpl):
+    """Sql base job for jobs that rely on the whole tablechain"""
 
     @classmethod
     def from_table_chain(
@@ -44,7 +54,7 @@ class SqlBaseJob(NewLoadJobImpl):
         table_chain: Sequence[TTableSchema],
         sql_client: SqlClientBase[Any],
         params: Optional[SqlJobParams] = None,
-    ) -> NewLoadJobImpl:
+    ) -> FollowupJobImpl:
         """Generates a list of sql statements, that will be executed by the sql client when the job is executed in the loader.
 
         The `table_chain` contains a list schemas of a tables with parent-child relationship, ordered by the ancestry (the root of the tree is first on the list).
@@ -54,6 +64,7 @@ class SqlBaseJob(NewLoadJobImpl):
         file_info = ParsedLoadJobFileName(
             top_table["name"], ParsedLoadJobFileName.new_file_id(), 0, "sql"
         )
+
         try:
             # Remove line breaks from multiline statements and write one SQL statement per line in output file
             # to support clients that need to execute one statement at a time (i.e. snowflake)
@@ -61,15 +72,12 @@ class SqlBaseJob(NewLoadJobImpl):
                 " ".join(stmt.splitlines())
                 for stmt in cls.generate_sql(table_chain, sql_client, params)
             ]
-            job = cls(file_info.file_name(), "running")
+            job = cls(file_info.file_name())
             job._save_text_file("\n".join(sql))
-        except Exception:
-            # return failed job
-            tables_str = yaml.dump(
-                table_chain, allow_unicode=True, default_flow_style=False, sort_keys=False
-            )
-            job = cls(file_info.file_name(), "failed", pretty_format_exception())
-            job._save_text_file("\n".join([cls.failed_text, tables_str]))
+        except Exception as e:
+            # raise exception with some context
+            raise SqlJobCreationException(e, table_chain) from e
+
         return job
 
     @classmethod
@@ -82,10 +90,8 @@ class SqlBaseJob(NewLoadJobImpl):
         pass
 
 
-class SqlStagingCopyJob(SqlBaseJob):
+class SqlStagingCopyFollowupJob(SqlFollowupJob):
     """Generates a list of sql statements that copy the data from staging dataset into destination dataset."""
-
-    failed_text: str = "Tried to generate a staging copy sql job for the following tables:"
 
     @classmethod
     def _generate_clone_sql(
@@ -141,13 +147,11 @@ class SqlStagingCopyJob(SqlBaseJob):
         return cls._generate_insert_sql(table_chain, sql_client, params)
 
 
-class SqlMergeJob(SqlBaseJob):
+class SqlMergeFollowupJob(SqlFollowupJob):
     """
     Generates a list of sql statements that merge the data from staging dataset into destination dataset.
     If no merge keys are discovered, falls back to append.
     """
-
-    failed_text: str = "Tried to generate a merge sql job for the following tables:"
 
     @classmethod
     def generate_sql(  # type: ignore[return]
@@ -620,7 +624,7 @@ class SqlMergeJob(SqlBaseJob):
 
         # generate merge statement for root table
         on_str = " AND ".join([f"d.{c} = s.{c}" for c in primary_keys])
-        root_table_column_names = list(map(escape_column_id, root_table["columns"].keys()))
+        root_table_column_names = list(map(escape_column_id, root_table["columns"]))
         update_str = ", ".join([c + " = " + "s." + c for c in root_table_column_names])
         col_str = ", ".join(["{alias}" + c for c in root_table_column_names])
         delete_str = (
@@ -660,10 +664,14 @@ class SqlMergeJob(SqlBaseJob):
                 """)
 
                 # insert records for new elements in the list
-                col_str = ", ".join(["{alias}" + escape_column_id(c) for c in table["columns"]])
+                table_column_names = list(map(escape_column_id, table["columns"]))
+                update_str = ", ".join([c + " = " + "s." + c for c in table_column_names])
+                col_str = ", ".join(["{alias}" + c for c in table_column_names])
                 sql.append(f"""
                     MERGE INTO {table_name} d USING {staging_table_name} s
                     ON d.{unique_column} = s.{unique_column}
+                    WHEN MATCHED
+                        THEN UPDATE SET {update_str}
                     WHEN NOT MATCHED
                         THEN INSERT ({col_str.format(alias="")}) VALUES ({col_str.format(alias="s.")});
                 """)

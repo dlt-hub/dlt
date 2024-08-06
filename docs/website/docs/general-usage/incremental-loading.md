@@ -41,7 +41,7 @@ user's profile Stateless data cannot change - for example, a recorded event, suc
 
 Because stateless data does not need to be updated, we can just append it.
 
-For stateful data, comes a second question - Can I extract it incrementally from the source? If yes, you should use [slowly changing dimensions (Type-2)](#scd2-strategy), which allow you to maintain historical records of data changes over time. 
+For stateful data, comes a second question - Can I extract it incrementally from the source? If yes, you should use [slowly changing dimensions (Type-2)](#scd2-strategy), which allow you to maintain historical records of data changes over time.
 
 If not, then we need to replace the entire data set. If however we can request the data incrementally such
 as "all users added or modified since yesterday" then we can simply apply changes to our existing
@@ -49,9 +49,10 @@ dataset with the merge write disposition.
 
 ## Merge incremental loading
 
-The `merge` write disposition can be used with two different strategies:
+The `merge` write disposition can be used with three different strategies:
 1) `delete-insert` (default strategy)
 2) `scd2`
+3) `upsert`
 
 ### `delete-insert` strategy
 
@@ -391,6 +392,44 @@ must be unique for a root table. We are working to allow `updated_at` style trac
 column in the root table to stamp changes in nested data.
 * `merge_key(s)` are (for now) ignored.
 
+### `upsert` strategy
+
+:::caution
+The `upsert` merge strategy is currently supported for these destinations:
+- `athena`
+- `bigquery`
+- `databricks`
+- `mssql`
+- `postgres`
+- `snowflake`
+- 🧪 `filesytem` with `delta` table format (see limitations [here](../dlt-ecosystem/destinations/filesystem.md#known-limitations))
+:::
+
+The `upsert` merge strategy does primary-key based *upserts*:
+- *update* record if key exists in target table
+- *insert* record if key does not exist in target table
+
+You can [delete records](#delete-records) with the `hard_delete` hint.
+
+#### `upsert` versus `delete-insert`
+
+Unlike the default `delete-insert` merge strategy, the `upsert` strategy:
+1. needs a `primary_key`
+2. expects this `primary_key` to be unique (`dlt` does not deduplicate)
+3. does not support `merge_key`
+4. uses `MERGE` or `UPDATE` operations to process updates
+
+#### Example: `upsert` merge strategy
+```py
+@dlt.resource(
+    write_disposition={"disposition": "merge", "strategy": "upsert"},
+    primary_key="my_primary_key"
+)
+def my_upsert_resource():
+    ...
+...
+```
+
 ## Incremental loading with a cursor field
 
 In most of the REST APIs (and other data sources i.e. database tables) you can request new or updated
@@ -460,15 +499,14 @@ We just yield all the events and `dlt` does the filtering (using `id` column dec
 Github returns events ordered from newest to oldest. So we declare the `rows_order` as **descending** to [stop requesting more pages once the incremental value is out of range](#declare-row-order-to-not-request-unnecessary-data). We stop requesting more data from the API after finding the first event with `created_at` earlier than `initial_value`.
 
 :::note
-**Note on Incremental Cursor Behavior:**
-When using incremental cursors for loading data, it's essential to understand how `dlt` handles records in relation to the cursor's
-last value. By default, `dlt` will load only those records for which the incremental cursor value is higher than the last known value of the cursor.
-This means that any records with a cursor value lower than or equal to the last recorded value will be ignored during the loading process.
-This behavior ensures efficiency by avoiding the reprocessing of records that have already been loaded, but it can lead to confusion if
-there are expectations of loading older records that fall below the current cursor threshold. If your use case requires the inclusion of
-such records, you can consider adjusting your data extraction logic, using a full refresh strategy where appropriate or using `last_value_func` as discussed in the subsquent section.
-:::
+`dlt.sources.incremental` is implemented as a [filter function](resource.md#filter-transform-and-pivot-data) that is executed **after** all other transforms
+you add with `add_map` / `add_filter`. This means that you can manipulate the data item before incremental filter sees it. For example:
+* you can create surrogate primary key from other columns
+* you can modify cursor value or create a new field composed from other fields
+* dump Pydantic models to Python dicts to allow incremental to find custost values
 
+[Data validation with Pydantic](schema-contracts.md#use-pydantic-models-for-data-validation) happens **before** incremental filtering.
+:::
 
 ### max, min or custom `last_value_func`
 
@@ -839,6 +877,59 @@ Consider the example below for reading incremental loading parameters from "conf
    pipeline.run(generate_incremental_records)
    ```
    `id_after` incrementally stores the latest `cursor_path` value for future pipeline runs.
+
+### Loading NULL values in the incremental cursor field
+
+When loading incrementally with a cursor field, each row is expected to contain a value at the cursor field that is not `None`.
+For example, the following source data will raise an error:
+```py
+@dlt.resource
+def some_data(updated_at=dlt.sources.incremental("updated_at")):
+    yield [
+        {"id": 1, "created_at": 1, "updated_at": 1},
+        {"id": 2, "created_at": 2, "updated_at": 2},
+        {"id": 3, "created_at": 4, "updated_at": None},
+    ]
+
+list(some_data())
+```
+
+If you want to load data that includes `None` values you can transform the records before the incremental processing.
+You can add steps to the pipeline that [filter, transform, or pivot your data](../general-usage/resource.md#filter-transform-and-pivot-data).
+
+:::caution
+It is important to set the `insert_at` parameter of the `add_map` function to control the order of the execution and ensure that your custom steps are executed before the incremental processing starts.
+In the following example, the step of data yielding is at `index = 0`, the custom transformation at `index = 1`, and the incremental processing at `index = 2`.
+:::
+
+See below how you can modify rows before the incremental processing using `add_map()` and filter rows using `add_filter()`.
+
+```py
+@dlt.resource
+def some_data(updated_at=dlt.sources.incremental("updated_at")):
+    yield [
+        {"id": 1, "created_at": 1, "updated_at": 1},
+        {"id": 2, "created_at": 2, "updated_at": 2},
+        {"id": 3, "created_at": 4, "updated_at": None},
+    ]
+
+def set_default_updated_at(record):
+    if record.get("updated_at") is None:
+        record["updated_at"] = record.get("created_at")
+    return record
+
+# modifies records before the incremental processing
+with_default_values = some_data().add_map(set_default_updated_at, insert_at=1)
+result = list(with_default_values)
+assert len(result) == 3
+assert result[2]["updated_at"] == 4
+
+# removes records before the incremental processing
+without_none = some_data().add_filter(lambda r: r.get("updated_at") is not None, insert_at=1)
+result_filtered = list(without_none)
+assert len(result_filtered) == 2
+```
+
 
 ## Doing a full refresh
 

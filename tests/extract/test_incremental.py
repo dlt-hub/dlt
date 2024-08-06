@@ -25,6 +25,7 @@ from dlt.common.json import json
 
 from dlt.extract import DltSource
 from dlt.extract.exceptions import InvalidStepFunctionArguments
+from dlt.extract.items import ValidateItem
 from dlt.extract.resource import DltResource
 from dlt.sources.helpers.transform import take_first
 from dlt.extract.incremental import IncrementalResourceWrapper, Incremental
@@ -861,6 +862,9 @@ def test_replace_resets_state(item_type: TestDataItemFormat) -> None:
         # print(f"CHILD: {state}")
         state["mark"] = f"mark:{item['delta']}"
         yield item
+
+    print(parent_r._pipe._steps)
+    print(child._pipe._steps)
 
     # also transformer will not receive new data
     info = p.run(child)
@@ -2007,3 +2011,57 @@ def test_allow_external_schedulers(item_type: TestDataItemFormat) -> None:
     r.incremental.allow_external_schedulers = True
     result = data_item_to_list(item_type, list(r))
     assert len(result) == 3
+
+
+@pytest.mark.parametrize("yield_pydantic", (True, False))
+def test_pydantic_columns_validator(yield_pydantic: bool) -> None:
+    from pydantic import BaseModel, Field, ConfigDict
+
+    # forbid extra fields so "id" in json is not a valid field BUT
+    # add alias for id_ that will serde "id" correctly
+    class TestRow(BaseModel):
+        model_config = ConfigDict(frozen=True, extra="forbid")
+
+        id_: int = Field(alias="id")
+        example_string: str
+        ts: datetime
+
+    @dlt.resource(name="table_name", columns=TestRow, primary_key="id", write_disposition="replace")
+    def generate_rows():
+        for i in range(10):
+            item = {"id": i, "example_string": "abc", "ts": datetime.now()}
+            yield TestRow.model_validate(item) if yield_pydantic else item
+
+    @dlt.resource(name="table_name", columns=TestRow, primary_key="id", write_disposition="replace")
+    def generate_rows_incremental(
+        ts: dlt.sources.incremental[datetime] = dlt.sources.incremental(cursor_path="ts"),
+    ):
+        for i in range(10):
+            item = {"id": i, "example_string": "abc", "ts": datetime.now()}
+            yield TestRow.model_validate(item) if yield_pydantic else item
+            if ts.end_out_of_range:
+                return
+
+    @dlt.source
+    def test_source_incremental():
+        return generate_rows_incremental
+
+    @dlt.source
+    def test_source():
+        return generate_rows
+
+    pip_1_name = "test_pydantic_columns_validator_" + uniq_id()
+    pipeline = dlt.pipeline(pipeline_name=pip_1_name, destination="duckdb")
+
+    info = pipeline.run(test_source())
+    info.raise_on_failed_jobs()
+
+    info = pipeline.run(test_source_incremental())
+    info.raise_on_failed_jobs()
+
+    # verify that right steps are at right place
+    steps = test_source().table_name._pipe._steps
+    assert isinstance(steps[-1], ValidateItem)
+    incremental_steps = test_source_incremental().table_name._pipe._steps
+    assert isinstance(incremental_steps[-2], ValidateItem)
+    assert isinstance(incremental_steps[-1], IncrementalResourceWrapper)

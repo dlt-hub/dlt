@@ -196,6 +196,7 @@ def test_pipeline_command_failed_jobs(repo_dir: str, project_files: FileStorage)
 
 def test_pipeline_command_drop_partial_loads(repo_dir: str, project_files: FileStorage) -> None:
     init_command.init_command("chess", "dummy", False, repo_dir)
+    os.environ["EXCEPTION_PROB"] = "1.0"
 
     try:
         pipeline = dlt.attach(pipeline_name="chess_pipeline")
@@ -203,14 +204,22 @@ def test_pipeline_command_drop_partial_loads(repo_dir: str, project_files: FileS
     except Exception as e:
         print(e)
 
-    # now run the pipeline
-    os.environ["EXCEPTION_PROB"] = "1.0"
-    os.environ["FAIL_IN_INIT"] = "False"
-    os.environ["TIMEOUT"] = "1.0"
     venv = Venv.restore_current()
     with pytest.raises(CalledProcessError) as cpe:
         print(venv.run_script("chess_pipeline.py"))
-    assert "Dummy job status raised exception" in cpe.value.stdout
+    assert "PipelineStepFailed" in cpe.value.stdout
+
+    # complete job manually to make a partial load
+    pipeline = dlt.attach(pipeline_name="chess_pipeline")
+    load_storage = pipeline._get_load_storage()
+    load_id = load_storage.normalized_packages.list_packages()[0]
+    job = load_storage.normalized_packages.list_new_jobs(load_id)[0]
+    load_storage.normalized_packages.start_job(
+        load_id, FileStorage.get_file_name_from_file_path(job)
+    )
+    load_storage.normalized_packages.complete_job(
+        load_id, FileStorage.get_file_name_from_file_path(job)
+    )
 
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
         pipeline_command.pipeline_command("info", "chess_pipeline", None, 1)

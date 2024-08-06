@@ -1,7 +1,7 @@
 import pytest
 
 from dlt.sources.helpers.rest_client import paginate
-from dlt.sources.helpers.rest_client.paginators import JSONResponsePaginator
+from dlt.sources.helpers.rest_client.paginators import JSONLinkPaginator
 from .conftest import assert_pagination
 
 
@@ -9,7 +9,7 @@ from .conftest import assert_pagination
 def test_requests_paginate():
     pages_iter = paginate(
         "https://api.example.com/posts",
-        paginator=JSONResponsePaginator(next_url_path="next_page"),
+        paginator=JSONLinkPaginator(next_url_path="next_page"),
     )
 
     pages = list(pages_iter)

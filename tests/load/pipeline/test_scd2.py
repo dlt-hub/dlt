@@ -21,7 +21,12 @@ from tests.load.utils import (
     destinations_configs,
     DestinationTestConfiguration,
 )
-from tests.pipeline.utils import load_tables_to_dicts, assert_load_info, load_table_counts
+from tests.pipeline.utils import (
+    load_tables_to_dicts,
+    assert_load_info,
+    load_table_counts,
+    assert_records_as_set,
+)
 
 from tests.utils import TPythonTableFormat
 
@@ -64,13 +69,6 @@ def get_table(
     )
 
 
-def assert_records_as_set(actual: List[Dict[str, Any]], expected: List[Dict[str, Any]]) -> None:
-    """Compares two lists of dicts regardless of order"""
-    actual_set = set(frozenset(dict_.items()) for dict_ in actual)
-    expected_set = set(frozenset(dict_.items()) for dict_ in expected)
-    assert actual_set == expected_set
-
-
 @pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config,simple,validity_column_names,active_record_timestamp",
@@ -103,6 +101,10 @@ def test_core_functionality(
     validity_column_names: List[str],
     active_record_timestamp: Optional[pendulum.DateTime],
 ) -> None:
+    # somehow destination_config comes through as ParameterSet instead of
+    # DestinationTestConfiguration
+    destination_config = destination_config.values[0]  # type: ignore[attr-defined]
+
     p = destination_config.setup_pipeline("abstract", dev_mode=True)
 
     @dlt.resource(

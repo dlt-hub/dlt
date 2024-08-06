@@ -42,18 +42,20 @@ from dlt.common.destination.reference import (
     WithStateSync,
     DestinationClientConfiguration,
     DestinationClientDwhConfiguration,
-    NewLoadJob,
+    FollowupJob,
     WithStagingDataset,
-    TLoadJobState,
+    RunnableLoadJob,
     LoadJob,
     JobClientBase,
-    FollowupJob,
+    HasFollowupJobs,
     CredentialsConfiguration,
 )
 
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
-from dlt.destinations.job_impl import EmptyLoadJobWithoutFollowup, NewReferenceJob
-from dlt.destinations.sql_jobs import SqlMergeJob, SqlStagingCopyJob
+from dlt.destinations.job_impl import (
+    ReferenceFollowupJob,
+)
+from dlt.destinations.sql_jobs import SqlMergeFollowupJob, SqlStagingCopyFollowupJob
 from dlt.destinations.typing import TNativeConn
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.utils import (
@@ -66,36 +68,32 @@ from dlt.destinations.utils import (
 DDL_COMMANDS = ["ALTER", "CREATE", "DROP"]
 
 
-class SqlLoadJob(LoadJob):
+class SqlLoadJob(RunnableLoadJob):
     """A job executing sql statement, without followup trait"""
 
-    def __init__(self, file_path: str, sql_client: SqlClientBase[Any]) -> None:
-        super().__init__(FileStorage.get_file_name_from_file_path(file_path))
+    def __init__(self, file_path: str) -> None:
+        super().__init__(file_path)
+        self._job_client: "SqlJobClientBase" = None
+
+    def run(self) -> None:
+        self._sql_client = self._job_client.sql_client
         # execute immediately if client present
-        with FileStorage.open_zipsafe_ro(file_path, "r", encoding="utf-8") as f:
+        with FileStorage.open_zipsafe_ro(self._file_path, "r", encoding="utf-8") as f:
             sql = f.read()
 
         # Some clients (e.g. databricks) do not support multiple statements in one execute call
-        if not sql_client.capabilities.supports_multiple_statements:
-            sql_client.execute_many(self._split_fragments(sql))
+        if not self._sql_client.capabilities.supports_multiple_statements:
+            self._sql_client.execute_many(self._split_fragments(sql))
         # if we detect ddl transactions, only execute transaction if supported by client
         elif (
             not self._string_contains_ddl_queries(sql)
-            or sql_client.capabilities.supports_ddl_transactions
+            or self._sql_client.capabilities.supports_ddl_transactions
         ):
             # with sql_client.begin_transaction():
-            sql_client.execute_sql(sql)
+            self._sql_client.execute_sql(sql)
         else:
             # sql_client.execute_sql(sql)
-            sql_client.execute_many(self._split_fragments(sql))
-
-    def state(self) -> TLoadJobState:
-        # this job is always done
-        return "completed"
-
-    def exception(self) -> str:
-        # this part of code should be never reached
-        raise NotImplementedError()
+            self._sql_client.execute_many(self._split_fragments(sql))
 
     def _string_contains_ddl_queries(self, sql: str) -> bool:
         for cmd in DDL_COMMANDS:
@@ -111,27 +109,16 @@ class SqlLoadJob(LoadJob):
         return os.path.splitext(file_path)[1][1:] == "sql"
 
 
-class CopyRemoteFileLoadJob(LoadJob, FollowupJob):
+class CopyRemoteFileLoadJob(RunnableLoadJob, HasFollowupJobs):
     def __init__(
         self,
-        table: TTableSchema,
         file_path: str,
-        sql_client: SqlClientBase[Any],
         staging_credentials: Optional[CredentialsConfiguration] = None,
     ) -> None:
-        super().__init__(FileStorage.get_file_name_from_file_path(file_path))
-        self._sql_client = sql_client
+        super().__init__(file_path)
+        self._job_client: "SqlJobClientBase" = None
         self._staging_credentials = staging_credentials
-
-        self.execute(table, NewReferenceJob.resolve_reference(file_path))
-
-    def execute(self, table: TTableSchema, bucket_path: str) -> None:
-        # implement in child implementations
-        raise NotImplementedError()
-
-    def state(self) -> TLoadJobState:
-        # this job is always done
-        return "completed"
+        self._bucket_path = ReferenceFollowupJob.resolve_reference(file_path)
 
 
 class SqlJobClientBase(JobClientBase, WithStateSync):
@@ -227,19 +214,23 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
             and self.config.replace_strategy == "truncate-and-insert"
         )
 
-    def _create_append_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
+    def _create_append_followup_jobs(
+        self, table_chain: Sequence[TTableSchema]
+    ) -> List[FollowupJob]:
         return []
 
-    def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
-        return [SqlMergeJob.from_table_chain(table_chain, self.sql_client)]
+    def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[FollowupJob]:
+        return [SqlMergeFollowupJob.from_table_chain(table_chain, self.sql_client)]
 
     def _create_replace_followup_jobs(
         self, table_chain: Sequence[TTableSchema]
-    ) -> List[NewLoadJob]:
-        jobs: List[NewLoadJob] = []
+    ) -> List[FollowupJob]:
+        jobs: List[FollowupJob] = []
         if self.config.replace_strategy in ["insert-from-staging", "staging-optimized"]:
             jobs.append(
-                SqlStagingCopyJob.from_table_chain(table_chain, self.sql_client, {"replace": True})
+                SqlStagingCopyFollowupJob.from_table_chain(
+                    table_chain, self.sql_client, {"replace": True}
+                )
             )
         return jobs
 
@@ -247,7 +238,7 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
         self,
         table_chain: Sequence[TTableSchema],
         completed_table_chain_jobs: Optional[Sequence[LoadJobInfo]] = None,
-    ) -> List[NewLoadJob]:
+    ) -> List[FollowupJob]:
         """Creates a list of followup jobs for merge write disposition and staging replace strategies"""
         jobs = super().create_table_chain_completed_followup_jobs(
             table_chain, completed_table_chain_jobs
@@ -261,28 +252,13 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
             jobs.extend(self._create_replace_followup_jobs(table_chain))
         return jobs
 
-    def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
+    def create_load_job(
+        self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
+    ) -> LoadJob:
         """Starts SqlLoadJob for files ending with .sql or returns None to let derived classes to handle their specific jobs"""
-
         if SqlLoadJob.is_sql_job(file_path):
-            # execute sql load job
-            return SqlLoadJob(file_path, self.sql_client)
-        return None
-
-    def restore_file_load(self, file_path: str) -> LoadJob:
-        """Returns a completed SqlLoadJob or None to let derived classes to handle their specific jobs
-
-        Returns completed jobs as SqlLoadJob is executed atomically in start_file_load so any jobs that should be recreated are already completed.
-        Obviously the case of asking for jobs that were never created will not be handled. With correctly implemented loader that cannot happen.
-
-        Args:
-            file_path (str): a path to a job file
-
-        Returns:
-            LoadJob: A restored job or none
-        """
-        if SqlLoadJob.is_sql_job(file_path):
-            return EmptyLoadJobWithoutFollowup.from_file_path(file_path, "completed")
+            # create sql load job
+            return SqlLoadJob(file_path)
         return None
 
     def complete_load(self, load_id: str) -> None:
@@ -677,6 +653,9 @@ WHERE """
             for exception in exceptions:
                 logger.error(str(exception))
             raise exceptions[0]
+
+    def prepare_load_job_execution(self, job: RunnableLoadJob) -> None:
+        self._set_query_tags_for_job(load_id=job._load_id, table=job._load_table)
 
     def _set_query_tags_for_job(self, load_id: str, table: TTableSchema) -> None:
         """Sets query tags in sql_client for a job in package `load_id`, starting for a particular `table`"""

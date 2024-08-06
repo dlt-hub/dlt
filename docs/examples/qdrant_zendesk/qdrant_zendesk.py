@@ -165,14 +165,13 @@ if __name__ == "__main__":
         dataset_name="zendesk_data",
     )
 
-    # run the dlt pipeline and save info about the load process
-    load_info = pipeline.run(
-        # here we use a special function to tell Qdrant which fields to embed
-        qdrant_adapter(
-            zendesk_support(),  # retrieve tickets data
-            embed=["subject", "description"],
-        )
-    )
+    # here we instantiate the source
+    source = zendesk_support()
+    # ...and apply special hints on the ticket resource to tell qdrant which fields to embed
+    qdrant_adapter(source.tickets_data, embed=["subject", "description"])
+
+    # run the dlt pipeline and print info about the load process
+    load_info = pipeline.run(source)
 
     print(load_info)
 
@@ -189,7 +188,7 @@ if __name__ == "__main__":
 
         # query Qdrant with prompt: getting tickets info close to "cancellation"
         response = qdrant_client.query(
-            "zendesk_data_content",  # collection/dataset name with the 'content' suffix -> tickets content table
+            "zendesk_data_tickets_data",  # tickets_data collection
             query_text="cancel subscription",  # prompt to search
             limit=3,  # limit the number of results to the nearest 3 embeddings
         )

@@ -14,9 +14,10 @@ from typing import Dict, List, Optional, Sequence, Any, Tuple
 
 
 from dlt.common.destination.reference import (
-    NewLoadJob,
+    FollowupJob,
     CredentialsConfiguration,
     SupportsStagingDestination,
+    LoadJob,
 )
 from dlt.common.data_types import TDataType
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
@@ -27,12 +28,12 @@ from dlt.common.schema.typing import TTableSchema, TColumnType, TTableFormat, TT
 from dlt.common.configuration.specs import AwsCredentialsWithoutDefaults
 
 from dlt.destinations.insert_job_client import InsertValuesJobClient
-from dlt.destinations.sql_jobs import SqlMergeJob
+from dlt.destinations.sql_jobs import SqlMergeFollowupJob
 from dlt.destinations.exceptions import DatabaseTerminalException, LoadJobTerminalException
-from dlt.destinations.job_client_impl import CopyRemoteFileLoadJob, LoadJob
+from dlt.destinations.job_client_impl import CopyRemoteFileLoadJob
 from dlt.destinations.impl.postgres.sql_client import Psycopg2SqlClient
 from dlt.destinations.impl.redshift.configuration import RedshiftClientConfiguration
-from dlt.destinations.job_impl import NewReferenceJob
+from dlt.destinations.job_impl import ReferenceFollowupJob
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.type_mapping import TypeMapper
 
@@ -123,16 +124,16 @@ class RedshiftSqlClient(Psycopg2SqlClient):
 class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
     def __init__(
         self,
-        table: TTableSchema,
         file_path: str,
-        sql_client: SqlClientBase[Any],
         staging_credentials: Optional[CredentialsConfiguration] = None,
         staging_iam_role: str = None,
     ) -> None:
+        super().__init__(file_path, staging_credentials)
         self._staging_iam_role = staging_iam_role
-        super().__init__(table, file_path, sql_client, staging_credentials)
+        self._job_client: "RedshiftClient" = None
 
-    def execute(self, table: TTableSchema, bucket_path: str) -> None:
+    def run(self) -> None:
+        self._sql_client = self._job_client.sql_client
         # we assume s3 credentials where provided for the staging
         credentials = ""
         if self._staging_iam_role:
@@ -148,11 +149,11 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
             )
 
         # get format
-        ext = os.path.splitext(bucket_path)[1][1:]
+        ext = os.path.splitext(self._bucket_path)[1][1:]
         file_type = ""
         dateformat = ""
         compression = ""
-        if table_schema_has_type(table, "time"):
+        if table_schema_has_type(self._load_table, "time"):
             raise LoadJobTerminalException(
                 self.file_name(),
                 f"Redshift cannot load TIME columns from {ext} files. Switch to direct INSERT file"
@@ -160,7 +161,7 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
                 " `datetime.datetime`",
             )
         if ext == "jsonl":
-            if table_schema_has_type(table, "binary"):
+            if table_schema_has_type(self._load_table, "binary"):
                 raise LoadJobTerminalException(
                     self.file_name(),
                     "Redshift cannot load VARBYTE columns from json files. Switch to parquet to"
@@ -170,7 +171,7 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
             dateformat = "dateformat 'auto' timeformat 'auto'"
             compression = "GZIP"
         elif ext == "parquet":
-            if table_schema_has_type_with_precision(table, "binary"):
+            if table_schema_has_type_with_precision(self._load_table, "binary"):
                 raise LoadJobTerminalException(
                     self.file_name(),
                     f"Redshift cannot load fixed width VARBYTE columns from {ext} files. Switch to"
@@ -179,7 +180,7 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
             file_type = "PARQUET"
             # if table contains complex types then SUPER field will be used.
             # https://docs.aws.amazon.com/redshift/latest/dg/ingest-super.html
-            if table_schema_has_type(table, "complex"):
+            if table_schema_has_type(self._load_table, "complex"):
                 file_type += " SERIALIZETOJSON"
         else:
             raise ValueError(f"Unsupported file type {ext} for Redshift.")
@@ -187,19 +188,15 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
         with self._sql_client.begin_transaction():
             # TODO: if we ever support csv here remember to add column names to COPY
             self._sql_client.execute_sql(f"""
-                COPY {self._sql_client.make_qualified_table_name(table['name'])}
-                FROM '{bucket_path}'
+                COPY {self._sql_client.make_qualified_table_name(self.load_table_name)}
+                FROM '{self._bucket_path}'
                 {file_type}
                 {dateformat}
                 {compression}
                 {credentials} MAXERROR 0;""")
 
-    def exception(self) -> str:
-        # this part of code should be never reached
-        raise NotImplementedError()
 
-
-class RedshiftMergeJob(SqlMergeJob):
+class RedshiftMergeJob(SqlMergeFollowupJob):
     @classmethod
     def gen_key_table_clauses(
         cls,
@@ -218,7 +215,7 @@ class RedshiftMergeJob(SqlMergeJob):
                 f" {staging_root_table_name} WHERE"
                 f" {' OR '.join([c.format(d=root_table_name,s=staging_root_table_name) for c in key_clauses])})"
             ]
-        return SqlMergeJob.gen_key_table_clauses(
+        return SqlMergeFollowupJob.gen_key_table_clauses(
             root_table_name, staging_root_table_name, key_clauses, for_delete
         )
 
@@ -241,7 +238,7 @@ class RedshiftClient(InsertValuesJobClient, SupportsStagingDestination):
         self.config: RedshiftClientConfiguration = config
         self.type_mapper = RedshiftTypeMapper(self.capabilities)
 
-    def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
+    def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[FollowupJob]:
         return [RedshiftMergeJob.from_table_chain(table_chain, self.sql_client)]
 
     def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:
@@ -255,17 +252,17 @@ class RedshiftClient(InsertValuesJobClient, SupportsStagingDestination):
             f"{column_name} {self.type_mapper.to_db_type(c)} {hints_str} {self._gen_not_null(c.get('nullable', True))}"
         )
 
-    def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
+    def create_load_job(
+        self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
+    ) -> LoadJob:
         """Starts SqlLoadJob for files ending with .sql or returns None to let derived classes to handle their specific jobs"""
-        job = super().start_file_load(table, file_path, load_id)
+        job = super().create_load_job(table, file_path, load_id, restore)
         if not job:
-            assert NewReferenceJob.is_reference_job(
+            assert ReferenceFollowupJob.is_reference_job(
                 file_path
             ), "Redshift must use staging to load files"
             job = RedshiftCopyFileLoadJob(
-                table,
                 file_path,
-                self.sql_client,
                 staging_credentials=self.config.staging_config.credentials,
                 staging_iam_role=self.config.staging_iam_role,
             )

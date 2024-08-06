@@ -661,7 +661,7 @@ def test_use_most_specific_union_type(
     environment.clear()
 
     # pass via toml
-    secrets_toml = toml_providers[SECRETS_TOML]._toml  # type: ignore[attr-defined]
+    secrets_toml = toml_providers[SECRETS_TOML]._config_doc  # type: ignore[attr-defined]
     secrets_toml["local_credentials"] = conn_str
     assert isinstance(postgres_direct(), ConnectionStringCredentials)
     assert isinstance(postgres_union(), ConnectionStringCredentials)
@@ -669,7 +669,7 @@ def test_use_most_specific_union_type(
     # make sure config is successfully deleted
     with pytest.raises(ConfigFieldMissingException):
         postgres_union()
-    # config_toml = toml_providers[CONFIG_TOML]._toml
+    # config_toml = toml_providers[CONFIG_TOML]._config_doc
     secrets_toml["local_credentials"] = {}
     for k, v in conn_dict.items():
         secrets_toml["local_credentials"][k] = v
