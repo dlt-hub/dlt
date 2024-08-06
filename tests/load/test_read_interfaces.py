@@ -40,13 +40,13 @@ def test_read_interfaces_sql(destination_config: DestinationTestConfiguration) -
     )
 
     # get one df
-    df = pipeline.dataset.df(table="items", batch_size=5)
+    df = pipeline.dataset["items"].df(batch_size=5)
     assert len(df.index) == 5
     assert set(df.columns.values) == {"id", "_dlt_load_id", "_dlt_id"}
 
     # iterate all dataframes
     frames = []
-    for df in pipeline.dataset.iter_df(table="items", batch_size=70):
+    for df in pipeline.dataset["items"].iter_df(batch_size=70):
         frames.append(df)
 
     # check frame amount and items counts
@@ -58,7 +58,7 @@ def test_read_interfaces_sql(destination_config: DestinationTestConfiguration) -
     assert set(ids) == set(range(300))
 
     # basic check of arrow table
-    table = pipeline.dataset.arrow(table="items", batch_size=5)
+    table = pipeline.dataset.items.arrow(batch_size=5)
     assert set(table.column_names) == {"id", "_dlt_load_id", "_dlt_id"}
     assert table.num_rows == 5
 
@@ -93,13 +93,13 @@ def test_read_interfaces_filesystem(destination_config: DestinationTestConfigura
     pipeline.run(s, loader_file_format=destination_config.file_format)
 
     # get one df
-    df = pipeline.dataset.df(table="items", batch_size=5)
+    df = pipeline.dataset["items"].df(batch_size=5)
     assert len(df.index) == 5
     assert set(df.columns.values) == {"id", "_dlt_load_id", "_dlt_id"}
 
     # iterate all dataframes
     frames = []
-    for df in pipeline.dataset.iter_df(table="items", batch_size=70):
+    for df in pipeline.dataset.items.iter_df(batch_size=70):
         frames.append(df)
 
     # check frame amount and items counts
@@ -111,6 +111,6 @@ def test_read_interfaces_filesystem(destination_config: DestinationTestConfigura
     assert set(ids) == set(range(300))
 
     # basic check of arrow table
-    table = pipeline.dataset.arrow(table="items", batch_size=5)
+    table = pipeline.dataset["items"].arrow(batch_size=5)
     assert set(table.column_names) == {"id", "_dlt_load_id", "_dlt_id"}
     assert table.num_rows == 5

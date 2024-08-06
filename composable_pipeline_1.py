@@ -54,8 +54,8 @@ if __name__ == "__main__":
     # run and print result
     print("RUNNING WAREHOUSE INGESTION")
     print(duck_pipeline.run([c(), o()]))
-    print(duck_pipeline.dataset.df(table="customers"))
-    print(duck_pipeline.dataset.df(table="orders"))
+    print(duck_pipeline.dataset.customers.df())
+    print(duck_pipeline.dataset.orders.df())
     print("===========================")
 
     #
@@ -67,22 +67,22 @@ if __name__ == "__main__":
 
     print("RUNNING LOCAL SNAPSHOT EXTRACTION")
     lake_pipeline.run(
-        duck_pipeline.dataset.iter_df(table="customers"),
+        duck_pipeline.dataset.customers.iter_df(),
         loader_file_format="jsonl",
         table_name="customers",
         write_disposition="replace",
     )
     lake_pipeline.run(
-        duck_pipeline.dataset.iter_df(
-            sql="SELECT * FROM orders WHERE orders.order_day = 'tuesday'"
-        ),
+        duck_pipeline.dataset.sql(
+            "SELECT * FROM orders WHERE orders.order_day = 'tuesday'"
+        ).iter_df(),
         loader_file_format="jsonl",
         table_name="orders",
         write_disposition="replace",
     )
 
-    print(lake_pipeline.dataset.df(table="customers"))
-    print(lake_pipeline.dataset.df(table="orders"))
+    print(lake_pipeline.dataset.customers.df())
+    print(lake_pipeline.dataset.orders.df())
     print("===========================")
 
     #
@@ -95,15 +95,15 @@ if __name__ == "__main__":
     )
 
     denom_pipeline.run(
-        lake_pipeline.dataset.iter_df(
+        lake_pipeline.dataset.sql(
             sql=(
                 "SELECT orders.*, customers.name FROM orders LEFT JOIN customers ON"
                 " orders.customer_id = customers.id"
             ),
             prepare_tables=["customers", "orders"],
-        ),
+        ).iter_df(),
         loader_file_format="jsonl",
         table_name="customers",
         write_disposition="replace",
     )
-    print(denom_pipeline.dataset.df(table="customers"))
+    print(denom_pipeline.dataset.customers.df())
