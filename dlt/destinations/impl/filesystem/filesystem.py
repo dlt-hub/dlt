@@ -4,7 +4,6 @@ import base64
 
 from types import TracebackType
 from typing import (
-    ClassVar,
     List,
     Type,
     Iterable,
@@ -14,6 +13,7 @@ from typing import (
     Sequence,
     cast,
     Generator,
+    Literal,
 )
 from fsspec import AbstractFileSystem
 from contextlib import contextmanager
@@ -45,7 +45,7 @@ from dlt.common.destination.reference import (
     LoadJob,
 )
 from dlt.common.destination.exceptions import DestinationUndefinedEntity
-from dlt.destinations.typing import DataFrame, ArrowTable
+from dlt.common.typing import DataFrame, ArrowTable, DuckDBPyConnection
 from dlt.destinations.job_impl import (
     ReferenceFollowupJob,
     FinalizedLoadJob,
@@ -603,35 +603,21 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
                 jobs.append(ReferenceFollowupJob(file_name, table_job_paths))
         return jobs
 
-    def iter_df(
+    def get_duckdb(
         self,
-        *,
-        table: str = None,
-        batch_size: int = 1000,
-        sql: str = None,
-        prepare_tables: List[str] = None,
-    ) -> Generator[DataFrame, None, None]:
-        """Provide dataframes via duckdb"""
+        tables: List[str],
+        db: DuckDBPyConnection = None,
+        table_type: Literal["view", "table"] = "view",
+    ) -> DuckDBPyConnection:
         import duckdb
-        from duckdb import InvalidInputException
-
-        if table:
-            prepare_tables = [table]
-            if sql:
-                raise Exception("You must either provide the table argument or a sql expression")
-            sql = f"SELECT * FROM {table}"
-        elif not prepare_tables or not sql:
-            raise Exception(
-                "You must either provide a table argument or sql and prepare table arguments to"
-                " access this dataset"
-            )
+        from duckdb import InvalidInputException, IOException
 
         # create in memory table, for now we read all available files
         db = duckdb.connect(":memory:")
         db.register_filesystem(self.fs_client)
 
         # create all tables in duck instance
-        for ptable in prepare_tables:
+        for ptable in tables:
             files = self.list_table_files(ptable)
             # discover tables files
             file_type = os.path.splitext(files[0])[1][1:]
@@ -646,17 +632,42 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
             protocol = "" if self.is_local_filesystem else f"{self.config.protocol}://"
             files_string = ",".join([f"'{protocol}{f}'" for f in files])
             create_table_sql_base = (
-                f"CREATE VIEW {ptable} AS SELECT * FROM {read_command}([{files_string}])"
+                f"CREATE {table_type} {ptable} AS SELECT * FROM {read_command}([{files_string}])"
             )
             create_table_sql_gzipped = (
-                f"CREATE VIEW {ptable} AS SELECT * FROM {read_command}([{files_string}],"
+                f"CREATE {table_type} {ptable} AS SELECT * FROM {read_command}([{files_string}],"
                 " compression = 'gzip')"
             )
             try:
                 db.sql(create_table_sql_base)
-            except InvalidInputException:
-                # try to load gzipped files
+            except (InvalidInputException, IOException):
+                # try to load non gzipped files
                 db.sql(create_table_sql_gzipped)
+
+        return db
+
+    def iter_df(
+        self,
+        *,
+        table: str = None,
+        batch_size: int = 1000,
+        sql: str = None,
+        prepare_tables: List[str] = None,
+    ) -> Generator[DataFrame, None, None]:
+        """Provide dataframes via duckdb"""
+
+        if table:
+            prepare_tables = [table]
+            if sql:
+                raise Exception("You must either provide the table argument or a sql expression")
+            sql = f"SELECT * FROM {table}"
+        elif not prepare_tables or not sql:
+            raise Exception(
+                "You must either provide a table argument or sql and prepare table arguments to"
+                " access this dataset"
+            )
+
+        db = self.get_duckdb(tables=prepare_tables)
 
         # yield in batches
         offset = 0

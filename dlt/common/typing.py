@@ -88,6 +88,11 @@ try:
 except ImportError:
     ArrowTable: Type[Any] = None  # type: ignore
 
+try:
+    from duckdb import DuckDBPyConnection
+except ImportError:
+    DuckDBPyConnection: Type[Any] = None  # type: ignore
+
 AnyType: TypeAlias = Any
 NoneType = type(None)
 DictStrAny: TypeAlias = Dict[str, Any]
