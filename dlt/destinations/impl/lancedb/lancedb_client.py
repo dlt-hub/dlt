@@ -42,6 +42,7 @@ from dlt.common.destination.reference import (
     NewLoadJob,
     FollowupJob,
 )
+from dlt.common.exceptions import SystemConfigurationException
 from dlt.common.pendulum import timedelta
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
 from dlt.common.schema.typing import (
@@ -884,12 +885,18 @@ class LanceDBRemoveOrphansJob(NewLoadJobImpl):
             else:
                 # Chunks and embeddings in the root table.
 
+                document_id_field = get_columns_names_with_prop(self.table_schema, DOCUMENT_ID_HINT)
+                if document_id_field and get_columns_names_with_prop(
+                    self.table_schema, "primary_key"
+                ):
+                    raise SystemConfigurationException(
+                        "You CANNOT specify a primary key AND a document ID hint for the same"
+                        " resource when using merge disposition."
+                    )
+
                 # If document ID is defined, we use this as the sole grouping key to identify stale chunks,
                 # else fallback to the compound `id_field_name`.
-                grouping_key = (
-                    get_columns_names_with_prop(self.table_schema, DOCUMENT_ID_HINT)
-                    or self.id_field_name
-                )
+                grouping_key = document_id_field or self.id_field_name
                 grouping_key = grouping_key if isinstance(grouping_key, list) else [grouping_key]
                 child_table_arrow: pa.Table = child_table.to_lance().to_table(
                     columns=[*grouping_key, "_dlt_load_id", "_dlt_id"]

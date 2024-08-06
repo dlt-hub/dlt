@@ -16,6 +16,7 @@ from dlt.destinations.impl.lancedb.lancedb_adapter import (
 )
 from dlt.destinations.impl.lancedb.lancedb_client import LanceDBClient
 from dlt.extract import DltResource
+from dlt.pipeline.exceptions import PipelineStepFailed
 from tests.load.lancedb.utils import assert_table, chunk_document, mock_embed
 from tests.load.utils import sequence_generator, drop_active_pipeline_data
 from tests.pipeline.utils import assert_load_info
@@ -646,3 +647,55 @@ def test_merge_no_orphans_with_doc_id() -> None:
         tbl: Table = client.db_client.open_table(embeddings_table_name)  # type: ignore[attr-defined]
         df = tbl.to_pandas()
         assert set(df["chunk_text"]) == expected_text
+
+
+def test_primary_key_not_compatible_with_doc_id_hint_on_merge_disposition() -> None:
+    @dlt.resource(  # type: ignore
+        write_disposition="merge",
+        table_name="document",
+        primary_key="doc_id",
+        columns={"doc_id": {DOCUMENT_ID_HINT: True}},
+    )
+    def documents(docs: List[DictStrAny]) -> Generator[DictStrAny, None, None]:
+        for doc in docs:
+            doc_id = doc["doc_id"]
+            chunks = chunk_document(doc["text"])
+            embeddings = [
+                {
+                    "chunk_hash": digest128(chunk),
+                    "chunk_text": chunk,
+                    "embedding": mock_embed(),
+                }
+                for chunk in chunks
+            ]
+            yield {"doc_id": doc_id, "doc_text": doc["text"], "embeddings": embeddings}
+
+    @dlt.source(max_table_nesting=1)
+    def documents_source(
+        docs: List[DictStrAny],
+    ) -> Union[Generator[Dict[str, Any], None, None], DltResource]:
+        return documents(docs)
+
+    pipeline = dlt.pipeline(
+        pipeline_name="test_mandatory_doc_id_hint_on_merge_disposition",
+        destination="lancedb",
+        dataset_name="test_mandatory_doc_id_hint_on_merge_disposition",
+        dev_mode=True,
+    )
+
+    initial_docs = [
+        {
+            "text": (
+                "This is the first document. It contains some text that will be chunked and"
+                " embedded. (I don't want to be seen in updated run's embedding chunk texts btw)"
+            ),
+            "doc_id": 1,
+        },
+        {
+            "text": "Here's another document. It's a bit different from the first one.",
+            "doc_id": 2,
+        },
+    ]
+
+    with pytest.raises(PipelineStepFailed):
+        pipeline.run(documents(initial_docs))
