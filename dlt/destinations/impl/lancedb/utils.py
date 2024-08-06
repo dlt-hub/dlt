@@ -74,5 +74,3 @@ def set_non_standard_providers_environment_variables(
 ) -> None:
     if embedding_model_provider in PROVIDER_ENVIRONMENT_VARIABLES_MAP:
         os.environ[PROVIDER_ENVIRONMENT_VARIABLES_MAP[embedding_model_provider]] = api_key or ""
-
-
