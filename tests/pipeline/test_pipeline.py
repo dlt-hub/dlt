@@ -2666,15 +2666,6 @@ def assert_imported_file(
     )
 
 
-# Timestamp behaves differently among databases:
-
-# - DuckDB has two types:
-# - - TIMESTAMP ignores TimeZone session but still converts all timestamps with timezones to UTC
-# - - TIMEDTAMPTZ uses TimeZone session to convert timestamps, and store TimeZone as part of the value
-
-# - Parquet the timezone is a flag stored separately from the timestamp value (it does not affect timestamp values)
-
-
 def test_duckdb_column_hint_timezone() -> None:
     # talbe: events_timezone_off
     @dlt.resource(
@@ -2778,56 +2769,26 @@ def test_filesystem_column_hint_timezone() -> None:
 
     client: FilesystemClient = pipeline.destination_client()  # type: ignore[assignment]
 
-    # table: events_timezone_off
-    events_glob = posixpath.join(client.dataset_path, "events_timezone_off/*")
-    events_files = client.fs_client.glob(events_glob)
+    expected_results = {
+        "events_timezone_off": None,
+        "events_timezone_on": "UTC",
+        "events_timezone_unset": "UTC",
+    }
 
-    with open(events_files[0], "rb") as f:
-        table = pq.read_table(f)
+    for t in expected_results.keys():
+        events_glob = posixpath.join(client.dataset_path, f"{t}/*")
+        events_files = client.fs_client.glob(events_glob)
 
-        # convert the timestamps to strings
-        timestamps = [
-            ts.as_py().strftime("%Y-%m-%dT%H:%M:%S.%f") for ts in table.column("event_tstamp")
-        ]
-        assert timestamps == ["2024-07-30T10:00:00.123000", "2024-07-30T08:00:00.123456"]
+        with open(events_files[0], "rb") as f:
+            table = pq.read_table(f)
 
-        # check if the Parquet file contains timezone information
-        schema = table.schema
-        field = schema.field("event_tstamp")
-        assert field.type.tz is None
+            # convert the timestamps to strings
+            timestamps = [
+                ts.as_py().strftime("%Y-%m-%dT%H:%M:%S.%f") for ts in table.column("event_tstamp")
+            ]
+            assert timestamps == ["2024-07-30T10:00:00.123000", "2024-07-30T08:00:00.123456"]
 
-    # table: events_timezone_on
-    events_glob = posixpath.join(client.dataset_path, "events_timezone_on/*")
-    events_files = client.fs_client.glob(events_glob)
-
-    with open(events_files[0], "rb") as f:
-        table = pq.read_table(f)
-
-        # convert the timestamps to strings
-        timestamps = [
-            ts.as_py().strftime("%Y-%m-%dT%H:%M:%S.%f") for ts in table.column("event_tstamp")
-        ]
-        assert timestamps == ["2024-07-30T10:00:00.123000", "2024-07-30T08:00:00.123456"]
-
-        # check if the Parquet file contains timezone information
-        schema = table.schema
-        field = schema.field("event_tstamp")
-        assert field.type.tz == "UTC"
-
-    # table: events_timezone_unset
-    events_glob = posixpath.join(client.dataset_path, "events_timezone_unset/*")
-    events_files = client.fs_client.glob(events_glob)
-
-    with open(events_files[0], "rb") as f:
-        table = pq.read_table(f)
-
-        # convert the timestamps to strings
-        timestamps = [
-            ts.as_py().strftime("%Y-%m-%dT%H:%M:%S.%f") for ts in table.column("event_tstamp")
-        ]
-        assert timestamps == ["2024-07-30T10:00:00.123000", "2024-07-30T08:00:00.123456"]
-
-        # check if the Parquet file contains timezone information
-        schema = table.schema
-        field = schema.field("event_tstamp")
-        assert field.type.tz == "UTC"
+            # check if the Parquet file contains timezone information
+            schema = table.schema
+            field = schema.field("event_tstamp")
+            assert field.type.tz == expected_results[t]
