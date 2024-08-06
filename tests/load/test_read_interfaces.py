@@ -60,7 +60,7 @@ def test_read_interfaces_sql(destination_config: DestinationTestConfiguration) -
     # basic check of arrow table
     table = pipeline.dataset.arrow(table="items", batch_size=5)
     assert set(table.column_names) == {"id", "_dlt_load_id", "_dlt_id"}
-    table.num_rows == 5
+    assert table.num_rows == 5
 
 
 @pytest.mark.essential
@@ -113,4 +113,4 @@ def test_read_interfaces_filesystem(destination_config: DestinationTestConfigura
     # basic check of arrow table
     table = pipeline.dataset.arrow(table="items", batch_size=5)
     assert set(table.column_names) == {"id", "_dlt_load_id", "_dlt_id"}
-    table.num_rows == 5
+    assert table.num_rows == 5
