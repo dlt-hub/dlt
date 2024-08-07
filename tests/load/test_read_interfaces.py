@@ -2,6 +2,8 @@ import pytest
 import dlt
 import os
 
+from dlt import Pipeline
+
 from typing import List
 from functools import reduce
 
@@ -22,6 +24,78 @@ def source():
     return [items, items2]
 
 
+def _run_dataset_checks(pipeline: Pipeline) -> None:
+    # run source
+    s = source()
+    pipeline.run(
+        s,
+    )
+
+    # access via key
+    relationship = pipeline.dataset["items"]
+
+    #
+    # check dataframes
+    #
+    df = relationship.df(chunk_size=5)
+    assert len(df.index) == 5
+    assert set(df.columns.values) == {"id", "_dlt_load_id", "_dlt_id"}
+
+    # iterate all dataframes
+    frames = list(relationship.iter_df(chunk_size=70))
+
+    # check frame amount and items counts
+    assert len(frames) == 5
+    assert [len(df.index) for df in frames] == [70, 70, 70, 70, 20]
+
+    # check all items are present
+    ids = reduce(lambda a, b: a + b, [f["id"].to_list() for f in frames])
+    assert set(ids) == set(range(300))
+
+    # access via prop
+    relationship = pipeline.dataset.items
+
+    #
+    # check arrow tables
+    #
+    table = relationship.arrow(chunk_size=5)
+    assert set(table.column_names) == {"id", "_dlt_load_id", "_dlt_id"}
+    assert table.num_rows == 5
+
+    # check frame amount and items counts
+    tables = list(relationship.iter_arrow(chunk_size=70))
+    assert [t.num_rows for t in tables] == [70, 70, 70, 70, 20]
+
+    # check all items are present
+    ids = reduce(lambda a, b: a + b, [t.column("id").to_pylist() for t in tables])
+    assert set(ids) == set(range(300))
+
+    # check fetch accessors
+    relationship = pipeline.dataset.items
+
+    # check accessing one item
+    one = relationship.fetchone()
+    assert one[0] in range(300)
+
+    # check fetchall
+    fall = relationship.fetchall()
+    assert len(fall) == 300
+    assert {item[0] for item in fall} == set(range(300))
+
+    # check fetchmany
+    many = relationship.fetchmany(150)
+    assert len(many) == 150
+    assert {item[0] for item in many} == set(
+        range(150)
+    )  # NOTE: might not work for all destinations, result is not ordered
+
+    # check iterfetchmany
+    chunks = list(relationship.iter_fetchmany(chunk_size=70))
+    assert [len(chunk) for chunk in chunks] == [70, 70, 70, 70, 20]
+    ids = reduce(lambda a, b: a + b, [[item[0] for item in chunk] for chunk in chunks])
+    assert set(ids) == set(range(300))
+
+
 @pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
@@ -32,35 +106,7 @@ def test_read_interfaces_sql(destination_config: DestinationTestConfiguration) -
     pipeline = destination_config.setup_pipeline(
         "read_pipeline", dataset_name="read_test", dev_mode=True
     )
-
-    # run source
-    s = source()
-    pipeline.run(
-        s,
-    )
-
-    # get one df
-    df = pipeline.dataset["items"].df(chunk_size=5)
-    assert len(df.index) == 5
-    assert set(df.columns.values) == {"id", "_dlt_load_id", "_dlt_id"}
-
-    # iterate all dataframes
-    frames = []
-    for df in pipeline.dataset["items"].iter_df(chunk_size=70):
-        frames.append(df)
-
-    # check frame amount and items counts
-    assert len(frames) == 5
-    assert [len(df.index) for df in frames] == [70, 70, 70, 70, 20]
-
-    # check all items are present
-    ids = reduce(lambda a, b: a + b, [f["id"].to_list() for f in frames])
-    assert set(ids) == set(range(300))
-
-    # basic check of arrow table
-    table = pipeline.dataset.items.arrow(chunk_size=5)
-    assert set(table.column_names) == {"id", "_dlt_load_id", "_dlt_id"}
-    assert table.num_rows == 5
+    _run_dataset_checks(pipeline)
 
 
 @pytest.mark.essential
@@ -88,29 +134,4 @@ def test_read_interfaces_filesystem(destination_config: DestinationTestConfigura
         dev_mode=True,
     )
 
-    # run source
-    s = source()
-    pipeline.run(s, loader_file_format=destination_config.file_format)
-
-    # get one df
-    df = pipeline.dataset["items"].df(chunk_size=5)
-    assert len(df.index) == 5
-    assert set(df.columns.values) == {"id", "_dlt_load_id", "_dlt_id"}
-
-    # iterate all dataframes
-    frames = []
-    for df in pipeline.dataset.items.iter_df(chunk_size=70):
-        frames.append(df)
-
-    # check frame amount and items counts
-    assert len(frames) == 5
-    assert [len(df.index) for df in frames] == [70, 70, 70, 70, 20]
-
-    # check all items are present
-    ids = reduce(lambda a, b: a + b, [f["id"].to_list() for f in frames])
-    assert set(ids) == set(range(300))
-
-    # basic check of arrow table
-    table = pipeline.dataset["items"].arrow(chunk_size=5)
-    assert set(table.column_names) == {"id", "_dlt_load_id", "_dlt_id"}
-    assert table.num_rows == 5
+    _run_dataset_checks(pipeline)

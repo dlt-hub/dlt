@@ -22,6 +22,8 @@ from typing import (
     Generic,
     Generator,
     TYPE_CHECKING,
+    Protocol,
+    Tuple,
 )
 from typing_extensions import Annotated
 import datetime  # noqa: 251
@@ -568,8 +570,44 @@ class SupportsStagingDestination:
         return True
 
 
-class SupportsDataAccess(ABC):
-    """Add support for accessing data as arrow tables or pandas dataframes"""
+class SupportsDataAccess(Protocol):
+    """Add support accessing data items"""
+
+    def df(self, chunk_size: int = None, **kwargs: None) -> Optional[DataFrame]:
+        """Fetches the results as data frame. For large queries the results may be chunked
+
+        Fetches the results into a data frame. The default implementation uses helpers in `pandas.io.sql` to generate Pandas data frame.
+        This function will try to use native data frame generation for particular destination. For `BigQuery`: `QueryJob.to_dataframe` is used.
+        For `duckdb`: `DuckDBPyConnection.df'
+
+        Args:
+            chunk_size (int, optional): Will chunk the results into several data frames. Defaults to None
+            **kwargs (Any): Additional parameters which will be passed to native data frame generation function.
+
+        Returns:
+            Optional[DataFrame]: A data frame with query results. If chunk_size > 0, None will be returned if there is no more data in results
+        """
+        ...
+
+    def arrow(self, *, chunk_size: int = None) -> Optional[ArrowTable]: ...
+
+    def iter_df(self, chunk_size: int = 1000) -> Generator[DataFrame, None, None]: ...
+
+    def iter_arrow(self, chunk_size: int = 1000) -> Generator[ArrowTable, None, None]: ...
+
+    def fetchall(self) -> List[Tuple[Any, ...]]: ...
+
+    def fetchmany(self, chunk_size: int = ...) -> List[Tuple[Any, ...]]: ...
+
+    def iter_fetchmany(
+        self, chunk_size: int = ...
+    ) -> Generator[List[Tuple[Any, ...]], Any, Any]: ...
+
+    def fetchone(self) -> Optional[Tuple[Any, ...]]: ...
+
+
+class SupportsRelationshipAccess(ABC):
+    """Add support for accessing a cursor for a given relationship or query"""
 
     @abstractmethod
     def cursor_for_relation(
@@ -578,7 +616,7 @@ class SupportsDataAccess(ABC):
         table: str = None,
         sql: str = None,
         prepare_tables: List[str] = None,
-    ) -> ContextManager[Any]: ...
+    ) -> ContextManager[SupportsDataAccess]: ...
 
 
 # TODO: type Destination properly

@@ -5,10 +5,10 @@ from abc import ABC, abstractmethod
 from fsspec import AbstractFileSystem
 
 from dlt.common.typing import DuckDBPyConnection
-from dlt.common.destination.reference import SupportsDataAccess
+from dlt.common.destination.reference import SupportsRelationshipAccess
 
 
-class FSClientBase(SupportsDataAccess, ABC):
+class FSClientBase(SupportsRelationshipAccess, ABC):
     fs_client: AbstractFileSystem
 
     @property

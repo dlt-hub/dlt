@@ -24,20 +24,20 @@ class DuckDBDBApiCursorImpl(DBApiCursorImpl):
     """Use native duckdb data frame support if available"""
 
     native_cursor: duckdb.DuckDBPyConnection  # type: ignore
-    vector_size: ClassVar[int] = 2048
+    default_chunk_size: ClassVar[int] = 2048  # vector size is 2048
 
-    def df(self, chunk_size: int = None, **kwargs: Any) -> DataFrame:
-        if chunk_size is None:
-            return self.native_cursor.df(**kwargs)
-        else:
-            multiple = chunk_size // self.vector_size + (
-                0 if self.vector_size % chunk_size == 0 else 1
-            )
-            df = self.native_cursor.fetch_df_chunk(multiple, **kwargs)
-            if df.shape[0] == 0:
-                return None
-            else:
-                return df
+    # def df(self, chunk_size: int = None, **kwargs: Any) -> DataFrame:
+    #     if chunk_size is None:
+    #         return self.native_cursor.df(**kwargs)
+    #     else:
+    #         multiple = chunk_size // self.vector_size + (
+    #             0 if self.vector_size % chunk_size == 0 else 1
+    #         )
+    #         df = self.native_cursor.fetch_df_chunk(multiple, **kwargs)
+    #         if df.shape[0] == 0:
+    #             return None
+    #         else:
+    #             return df
 
 
 class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):

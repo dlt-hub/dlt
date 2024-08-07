@@ -1,9 +1,8 @@
-from typing import cast, Any, TYPE_CHECKING, Generator, List, ContextManager
+from typing import cast, Any, TYPE_CHECKING, Generator, List, Tuple, Optional
 
 from contextlib import contextmanager
 
-
-from dlt.common.destination.reference import SupportsDataAccess
+from dlt.common.destination.reference import SupportsRelationshipAccess, SupportsDataAccess
 
 from dlt.common.typing import DataFrame, ArrowTable
 
@@ -21,7 +20,7 @@ class Relation:
         self.table = table
 
     @contextmanager
-    def _client(self) -> Generator[SupportsDataAccess, Any, Any]:
+    def _client(self) -> Generator[SupportsRelationshipAccess, Any, Any]:
         from dlt.destinations.job_client_impl import SqlJobClientBase
         from dlt.destinations.fs_client import FSClientBase
 
@@ -42,7 +41,8 @@ class Relation:
         )
 
     @contextmanager
-    def _cursor_for_relation(self) -> Generator[Any, Any, Any]:
+    def cursor(self) -> Generator[SupportsDataAccess, Any, Any]:
+        """Gets a DBApiCursor for the current relation"""
         with self._client() as client:
             with client.cursor_for_relation(
                 sql=self.sql, table=self.table, prepare_tables=self.prepare_tables
@@ -52,35 +52,28 @@ class Relation:
     def df(
         self,
         *,
-        chunk_size: int = 1000,
+        chunk_size: int = None,
     ) -> DataFrame:
         """Get first batch of table as dataframe"""
-        return next(
-            self.iter_df(
-                chunk_size=chunk_size,
-            )
-        )
+        with self.cursor() as cursor:
+            return cursor.df(chunk_size=chunk_size)
 
     def arrow(
         self,
         *,
-        chunk_size: int = 1000,
+        chunk_size: int = None,
     ) -> ArrowTable:
         """Get first batch of table as arrow table"""
-        return next(
-            self.iter_arrow(
-                chunk_size=chunk_size,
-            )
-        )
+        with self.cursor() as cursor:
+            return cursor.arrow(chunk_size=chunk_size)
 
     def iter_df(
         self,
         *,
-        chunk_size: int = 1000,
+        chunk_size: int = None,
     ) -> Generator[DataFrame, None, None]:
         """iterates over the whole table in dataframes of the given chunk_size, chunk_size of -1 will return the full table in the first batch"""
-        # if no table is given, take the bound table
-        with self._cursor_for_relation() as cursor:
+        with self.cursor() as cursor:
             yield from cursor.iter_df(
                 chunk_size=chunk_size,
             )
@@ -88,14 +81,31 @@ class Relation:
     def iter_arrow(
         self,
         *,
-        chunk_size: int = 1000,
+        chunk_size: int = None,
     ) -> Generator[ArrowTable, None, None]:
         """iterates over the whole table in arrow tables of the given chunk_size, chunk_size of -1 will return the full table in the first batch"""
-        # if no table is given, take the bound table
-        with self._cursor_for_relation() as cursor:
+        with self.cursor() as cursor:
             yield from cursor.iter_arrow(
                 chunk_size=chunk_size,
             )
+
+    def fetchall(self) -> List[Tuple[Any, ...]]:
+        with self.cursor() as cursor:
+            return cursor.fetchall()
+
+    def fetchmany(self, chunk_size: int = None) -> List[Tuple[Any, ...]]:
+        with self.cursor() as cursor:
+            return cursor.fetchmany(chunk_size)
+
+    def iter_fetchmany(self, chunk_size: int = None) -> Generator[List[Tuple[Any, ...]], Any, Any]:
+        with self.cursor() as cursor:
+            yield from cursor.iter_fetchmany(
+                chunk_size=chunk_size,
+            )
+
+    def fetchone(self) -> Optional[Tuple[Any, ...]]:
+        with self.cursor() as cursor:
+            return cursor.fetchone()
 
 
 class Dataset:
@@ -110,7 +120,9 @@ class Dataset:
         return Relation(pipeline=self.pipeline, sql=sql, prepare_tables=prepare_tables)
 
     def __getitem__(self, table: str) -> Relation:
+        """access of table via dict notation"""
         return Relation(pipeline=self.pipeline, table=table)
 
     def __getattr__(self, table: str) -> Relation:
+        """access of table via property notation"""
         return Relation(pipeline=self.pipeline, table=table)
