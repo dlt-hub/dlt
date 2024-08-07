@@ -835,14 +835,14 @@ def test_cursor_path_none_can_raise_on_none_2(item_type: TestDataItemFormat) -> 
         assert e.value.json_path == "created_at"
 
     # same thing when run in pipeline
-    with pytest.raises(PipelineStepFailed) as e:
+    with pytest.raises(PipelineStepFailed) as e: # type: ignore[assignment]
         p = dlt.pipeline(pipeline_name=uniq_id())
         p.extract(some_data())
     if item_type == "object":
         assert isinstance(e.value.__context__, IncrementalCursorPathMissing)
     else:
         assert isinstance(e.value.__context__, IncrementalCursorPathHasValueNone)
-    assert e.value.__context__.json_path == "created_at"
+    assert e.value.__context__.json_path == "created_at"  # type: ignore[attr-defined]
 
 
 @pytest.mark.parametrize("item_type", ["arrow-table", "arrow-batch", "pandas"])
@@ -868,7 +868,7 @@ def test_cursor_path_none_can_raise_on_column_missing(item_type: TestDataItemFor
     with pytest.raises(PipelineStepFailed) as pip_ex:
         p = dlt.pipeline(pipeline_name=uniq_id())
         p.extract(some_data())
-    assert pip_ex.value.__context__.json_path == "created_at"
+    assert pip_ex.value.__context__.json_path == "created_at"  # type: ignore[attr-defined]
     assert isinstance(pip_ex.value.__context__, IncrementalCursorPathMissing)
 
 
