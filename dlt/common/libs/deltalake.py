@@ -87,6 +87,8 @@ def get_delta_tables(pipeline: Pipeline, *tables: str) -> Dict[str, DeltaTable]:
     Optionally filters dictionary by table names specified as `*tables*`.
     Raises ValueError if table name specified as `*tables` is not found.
     """
+    from dlt.common.schema.utils import get_table_format
+
     with pipeline.destination_client() as client:
         assert isinstance(
             client, FilesystemClient
@@ -95,7 +97,7 @@ def get_delta_tables(pipeline: Pipeline, *tables: str) -> Dict[str, DeltaTable]:
         schema_delta_tables = [
             t["name"]
             for t in pipeline.default_schema.tables.values()
-            if t.get("table_format") == "delta"
+            if get_table_format(pipeline.default_schema.tables, t["name"]) == "delta"
         ]
         if len(tables) > 0:
             invalid_tables = set(tables) - set(schema_delta_tables)

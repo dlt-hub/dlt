@@ -652,6 +652,18 @@ def test_delta_table_get_delta_tables_helper(
     assert get_delta_tables(pipeline, "bar_delta").keys() == {"bar_delta"}
     assert get_delta_tables(pipeline, "foo_delta", "bar_delta").keys() == {"foo_delta", "bar_delta"}
 
+    # test with child table
+    @dlt.resource(table_format="delta")
+    def parent_delta():
+        yield [{"foo": 1, "child": [1, 2, 3]}]
+
+    info = pipeline.run(parent_delta())
+    assert_load_info(info)
+    delta_tables = get_delta_tables(pipeline)
+    assert "parent_delta__child" in delta_tables.keys()
+    assert delta_tables["parent_delta__child"].to_pyarrow_table().num_rows == 3
+
+    # test invalid input
     with pytest.raises(ValueError):
         get_delta_tables(pipeline, "baz_not_delta")
 
