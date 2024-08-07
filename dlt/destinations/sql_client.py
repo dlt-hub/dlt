@@ -321,7 +321,10 @@ class DBApiCursorImpl(DBApiCursor):
         May use native pandas/arrow reader if available. Depending on
         the native implementation chunk size may vary.
         """
-        return next(self.iter_df(chunk_size=chunk_size))
+        try:
+            return next(self.iter_df(chunk_size=chunk_size))
+        except StopIteration:
+            return None
 
     def arrow(self, chunk_size: int = None, **kwargs: Any) -> Optional[ArrowTable]:
         """Fetches results as data frame in full or in specified chunks.
@@ -329,7 +332,10 @@ class DBApiCursorImpl(DBApiCursor):
         May use native pandas/arrow reader if available. Depending on
         the native implementation chunk size may vary.
         """
-        return next(self.iter_arrow(chunk_size=chunk_size))
+        try:
+            return next(self.iter_arrow(chunk_size=chunk_size))
+        except StopIteration:
+            return None
 
     def iter_fetchmany(self, chunk_size: int) -> Generator[List[Tuple[Any, ...]], Any, Any]:
         while True:
