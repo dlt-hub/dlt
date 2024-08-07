@@ -671,5 +671,6 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
         if not sql:
             sql = f"SELECT * FROM {table}"
 
+        # we can use the implementation of the duckdb cursor here
         db.execute(sql)
         yield DuckDBDBApiCursorImpl(db)  # type: ignore

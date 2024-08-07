@@ -11,7 +11,9 @@ from tests.load.utils import destinations_configs, DestinationTestConfiguration,
 from pandas import DataFrame
 
 
-def _run_dataset_checks(pipeline: Pipeline) -> None:
+def _run_dataset_checks(
+    pipeline: Pipeline, destination_config: DestinationTestConfiguration
+) -> None:
     destination_type = pipeline.destination_client().config.destination_type
 
     skip_df_chunk_size_check = False
@@ -45,9 +47,7 @@ def _run_dataset_checks(pipeline: Pipeline) -> None:
 
     # run source
     s = source()
-    pipeline.run(
-        s,
-    )
+    pipeline.run(s, loader_file_format=destination_config.file_format)
 
     # access via key
     relationship = pipeline.dataset["items"]
@@ -132,7 +132,7 @@ def test_read_interfaces_sql(destination_config: DestinationTestConfiguration) -
     pipeline = destination_config.setup_pipeline(
         "read_pipeline", dataset_name="read_test", dev_mode=True
     )
-    _run_dataset_checks(pipeline)
+    _run_dataset_checks(pipeline, destination_config)
 
 
 @pytest.mark.essential
@@ -160,4 +160,43 @@ def test_read_interfaces_filesystem(destination_config: DestinationTestConfigura
         dev_mode=True,
     )
 
-    _run_dataset_checks(pipeline)
+    _run_dataset_checks(pipeline, destination_config)
+
+
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(local_filesystem_configs=True),
+    ids=lambda x: x.name,
+)
+def test_evolving_filesystem(destination_config: DestinationTestConfiguration) -> None:
+    """test that files with unequal schemas still work together"""
+
+    if destination_config.file_format not in ["parquet", "jsonl"]:
+        pytest.skip(
+            f"Test only works for jsonl and parquet, given: {destination_config.file_format}"
+        )
+
+    @dlt.resource(table_name="items")
+    def items():
+        yield from [{"id": i} for i in range(20)]
+
+    pipeline = destination_config.setup_pipeline(
+        "read_pipeline",
+        dataset_name="read_test",
+        dev_mode=True,
+    )
+
+    pipeline.run([items()], loader_file_format=destination_config.file_format)
+
+    df = pipeline.dataset.items.df()
+    assert len(df.index) == 20
+
+    @dlt.resource(table_name="items")
+    def items2():
+        yield from [{"id": i, "other_value": "Blah"} for i in range(20, 50)]
+
+    pipeline.run([items2()], loader_file_format=destination_config.file_format)
+    # check df and arrow access
+    assert len(pipeline.dataset.items.df().index) == 50
+    assert pipeline.dataset.items.arrow().num_rows == 50
