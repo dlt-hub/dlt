@@ -1,5 +1,17 @@
 from contextlib import contextmanager, suppress
-from typing import Any, AnyStr, ClassVar, Generator, Iterator, Optional, Sequence, List, Tuple, Union, Dict
+from typing import (
+    Any,
+    AnyStr,
+    ClassVar,
+    Generator,
+    Iterator,
+    Optional,
+    Sequence,
+    List,
+    Tuple,
+    Union,
+    Dict,
+)
 
 
 from databricks import sql as databricks_lib
@@ -44,7 +56,8 @@ class DatabricksCursorImpl(DBApiCursorImpl):
     def iter_df(self, chunk_size: int) -> Generator[DataFrame, None, None]:
         for table in self.iter_arrow(chunk_size=chunk_size):
             yield table.to_pandas()
-        
+
+
 class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction):
     dbapi: ClassVar[DBApi] = databricks_lib
 
