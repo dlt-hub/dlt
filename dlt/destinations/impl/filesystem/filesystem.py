@@ -9,7 +9,6 @@ from contextlib import contextmanager
 
 import dlt
 from dlt.common import logger, time, json, pendulum
-from dlt.common.utils import assert_min_pkg_version
 from dlt.common.storages.fsspec_filesystem import glob_files
 from dlt.common.typing import DictStrAny
 from dlt.common.schema import Schema, TSchemaTables, TTableSchema
@@ -102,12 +101,6 @@ class DeltaLoadFilesystemJob(FilesystemLoadJob):
             ensure_delta_compatible_arrow_schema,
             _deltalake_storage_options,
             try_get_deltatable,
-        )
-
-        assert_min_pkg_version(
-            pkg_name="pyarrow",
-            version="17.0.0",
-            msg="`pyarrow>=17.0.0` is needed for `delta` table format on `filesystem` destination.",
         )
 
         # create Arrow dataset from Parquet files

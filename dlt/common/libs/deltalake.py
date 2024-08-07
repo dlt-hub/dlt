@@ -8,6 +8,7 @@ from dlt.common.libs.pyarrow import cast_arrow_schema_types
 from dlt.common.schema.typing import TWriteDisposition
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.storages import FilesystemConfiguration
+from dlt.common.utils import assert_min_pkg_version
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 
 try:
@@ -19,6 +20,14 @@ except ModuleNotFoundError:
         [f"{version.DLT_PKG_NAME}[deltalake]"],
         "Install `deltalake` so dlt can create Delta tables in the `filesystem` destination.",
     )
+
+
+# because we use RecordBatchReader.cast()
+assert_min_pkg_version(
+    pkg_name="pyarrow",
+    version="17.0.0",
+    msg="`pyarrow>=17.0.0` is needed for `delta` table format on `filesystem` destination.",
+)
 
 
 def ensure_delta_compatible_arrow_schema(schema: pa.Schema) -> pa.Schema:
