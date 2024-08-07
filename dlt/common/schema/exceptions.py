@@ -8,6 +8,7 @@ from dlt.common.schema.typing import (
     TSchemaEvolutionMode,
 )
 from dlt.common.normalizers.naming import NamingConvention
+from dlt.common.schema.typing import TColumnSchema, TColumnSchemaBase
 
 
 class SchemaException(DltException):
@@ -231,3 +232,27 @@ class TableIdentifiersFrozen(SchemaException):
 
 class ColumnNameConflictException(SchemaException):
     pass
+
+
+class UnboundColumnException(SchemaException):
+    def __init__(self, schema_name: str, table_name: str, column: TColumnSchemaBase) -> None:
+        self.column = column
+        self.schema_name = schema_name
+        self.table_name = table_name
+        nullable = column.get("nullable", True)
+        merge_key = column.get("merge_key", False)
+        primary_key = column.get("primary_key", False)
+        if merge_key:
+            col_type_msg = "merge key"
+        elif primary_key:
+            col_type_msg = "primary key"
+        elif nullable:
+            col_type_msg = "nullable"
+        else:
+            col_type_msg = "non-nullable"
+        super().__init__(
+            f"A {col_type_msg} column {column['name']} in table {table_name} in schema"
+            f" {schema_name} is incomplete. It was not bound to the data during normalizations"
+            " stage and its data type is unknown. Did you add this column manually in code? Make"
+            " sure spelling correctly matches the data."
+        )

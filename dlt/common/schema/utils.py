@@ -352,6 +352,19 @@ def is_complete_column(col: TColumnSchemaBase) -> bool:
     return bool(col.get("name")) and bool(col.get("data_type"))
 
 
+def is_nullable_column(col: TColumnSchemaBase) -> bool:
+    """Returns true if column is nullable"""
+    return col.get("nullable", True)
+
+
+def find_incomplete_columns(tables: List[TTableSchema]) -> Iterable[Tuple[str, TColumnSchemaBase, bool]]:
+    """Yields (table_name, column, nullable) for all incomplete columns in `tables`"""
+    for table in tables:
+        for col in table["columns"].values():
+            if not is_complete_column(col):
+                yield table["name"], col, is_nullable_column(col)
+
+
 def compare_complete_columns(a: TColumnSchema, b: TColumnSchema) -> bool:
     """Compares mandatory fields of complete columns"""
     assert is_complete_column(a)

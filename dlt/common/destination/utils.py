@@ -6,7 +6,6 @@ from dlt.common.schema import Schema
 from dlt.common.schema.exceptions import (
     SchemaIdentifierNormalizationCollision,
 )
-from dlt.common.schema.utils import is_complete_column
 from dlt.common.typing import DictStrStr
 
 from .capabilities import DestinationCapabilitiesContext
@@ -104,12 +103,5 @@ def verify_schema_capabilities(
                         f"{table_name}.{column_name}",
                         capabilities.max_column_identifier_length,
                     )
-                )
-            if not is_complete_column(column):
-                log(
-                    f"A column {column_name} in table {table_name} in schema"
-                    f" {schema.name} is incomplete. It was not bound to the data during"
-                    " normalizations stage and its data type is unknown. Did you add this"
-                    " column manually in code ie. as a merge key?"
                 )
     return exception_log
