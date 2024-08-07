@@ -2,8 +2,12 @@ from dlt.extract.exceptions import PipeException
 from dlt.common.typing import TDataItem
 
 
+
+
 class IncrementalCursorPathMissing(PipeException):
-    def __init__(self, pipe_name: str, json_path: str, item: TDataItem, msg: str = None) -> None:
+    def __init__(
+        self, pipe_name: str, json_path: str, item: TDataItem = None, msg: str = None
+    ) -> None:
         self.json_path = json_path
         self.item = item
         msg = (
@@ -14,7 +18,9 @@ class IncrementalCursorPathMissing(PipeException):
 
 
 class IncrementalCursorPathHasValueNone(PipeException):
-    def __init__(self, pipe_name: str, json_path: str, item: TDataItem, msg: str = None) -> None:
+    def __init__(
+        self, pipe_name: str, json_path: str, item: TDataItem = None, msg: str = None
+    ) -> None:
         self.json_path = json_path
         self.item = item
         msg = (

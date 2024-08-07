@@ -305,8 +305,6 @@ class ArrowIncremental(IncrementalTransform):
 
         # TODO: Json path support. For now assume the cursor_path is a column name
         cursor_path = self.cursor_path
-        if self.on_cursor_value_missing == "exclude":
-            tbl = self._remove_null_at_cursor_path(tbl, cursor_path)
 
         # The new max/min value
         try:
@@ -323,6 +321,11 @@ class ArrowIncremental(IncrementalTransform):
                 " are not supported for arrow tables and dataframes, the incremental cursor_path"
                 " must be a column name.",
             ) from e
+
+        if tbl.schema.field(cursor_path).nullable:
+            tbl_without_null, tbl_with_null = self._process_null_at_cursor_path(tbl)
+
+        tbl = tbl_without_null
 
         # If end_value is provided, filter to include table rows that are "less" than end_value
         if self.end_value is not None:
@@ -382,6 +385,8 @@ class ArrowIncremental(IncrementalTransform):
                     )
                 )
             )
+        if self.on_cursor_value_missing == "include":
+            tbl = pa.concat_tables([tbl, tbl_with_null])
 
         if len(tbl) == 0:
             return None, start_out_of_range, end_out_of_range
@@ -393,7 +398,11 @@ class ArrowIncremental(IncrementalTransform):
             return tbl.to_pandas(), start_out_of_range, end_out_of_range
         return tbl, start_out_of_range, end_out_of_range
 
-    def _remove_null_at_cursor_path(self, tbl, cursor_path):
-        mask = pa.compute.is_valid(tbl[cursor_path])
-        filtered = tbl.filter(mask)
-        return filtered
+    def _process_null_at_cursor_path(self, tbl: pa.Table) -> Tuple["pa.Table", "pa.Table"]:
+        mask = pa.compute.is_valid(tbl[self.cursor_path])
+        rows_without_null = tbl.filter(mask)
+        rows_with_null = tbl.filter(pa.compute.invert(mask))
+        if self.on_cursor_value_missing == "raise":
+            if rows_with_null.num_rows > 0:
+                raise IncrementalCursorPathHasValueNone(self.resource_name, self.cursor_path)
+        return rows_without_null, rows_with_null

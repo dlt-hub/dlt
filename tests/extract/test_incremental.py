@@ -780,13 +780,14 @@ def test_cursor_path_none_excludes_records_and_updates_incremental_cursor(
     assert s["last_value"] == 2
 
 
-def test_cursor_path_none_can_raise_on_none() -> None:
-    # No None support for pandas and arrow yet
-    source_items = [
+@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
+def test_cursor_path_none_can_raise_on_none_1(item_type: TestDataItemFormat) -> None:
+    data = [
         {"id": 1, "created_at": 1},
         {"id": 2, "created_at": None},
         {"id": 3, "created_at": 2},
     ]
+    source_items = data_to_item_format(item_type, data)
 
     @dlt.resource
     def some_data(
@@ -805,6 +806,70 @@ def test_cursor_path_none_can_raise_on_none() -> None:
 
     assert isinstance(pip_ex.value.__context__, IncrementalCursorPathHasValueNone)
     assert pip_ex.value.__context__.json_path == "created_at"
+
+
+@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
+def test_cursor_path_none_can_raise_on_none_2(item_type: TestDataItemFormat) -> None:
+    data = [
+        {"id": 1, "created_at": 1},
+        {"id": 2},
+        {"id": 3, "created_at": 2},
+    ]
+    source_items = data_to_item_format(item_type, data)
+
+    @dlt.resource
+    def some_data(
+        created_at=dlt.sources.incremental("created_at", on_cursor_value_missing="raise")
+    ):
+        yield source_items
+
+    # there is no fixed, error because cursor path is missing
+    if item_type == "object":
+        with pytest.raises(IncrementalCursorPathMissing) as ex:
+            list(some_data())
+        assert ex.value.json_path == "created_at"
+    # there is a fixed schema, error because value is null
+    else:
+        with pytest.raises(IncrementalCursorPathHasValueNone) as e:
+            list(some_data())
+        assert e.value.json_path == "created_at"
+
+    # same thing when run in pipeline
+    with pytest.raises(PipelineStepFailed) as e:
+        p = dlt.pipeline(pipeline_name=uniq_id())
+        p.extract(some_data())
+    if item_type == "object":
+        assert isinstance(e.value.__context__, IncrementalCursorPathMissing)
+    else:
+        assert isinstance(e.value.__context__, IncrementalCursorPathHasValueNone)
+    assert e.value.__context__.json_path == "created_at"
+
+
+@pytest.mark.parametrize("item_type", ["arrow-table", "arrow-batch", "pandas"])
+def test_cursor_path_none_can_raise_on_column_missing(item_type: TestDataItemFormat) -> None:
+    data = [
+        {"id": 1},
+        {"id": 2},
+        {"id": 3},
+    ]
+    source_items = data_to_item_format(item_type, data)
+
+    @dlt.resource
+    def some_data(
+        created_at=dlt.sources.incremental("created_at", on_cursor_value_missing="raise")
+    ):
+        yield source_items
+
+    with pytest.raises(IncrementalCursorPathMissing) as py_ex:
+        list(some_data())
+    assert py_ex.value.json_path == "created_at"
+
+    # same thing when run in pipeline
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        p = dlt.pipeline(pipeline_name=uniq_id())
+        p.extract(some_data())
+    assert pip_ex.value.__context__.json_path == "created_at"
+    assert isinstance(pip_ex.value.__context__, IncrementalCursorPathMissing)
 
 
 def test_cursor_path_none_nested_can_raise_on_none_1() -> None:
