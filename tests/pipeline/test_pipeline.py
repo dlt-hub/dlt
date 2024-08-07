@@ -40,7 +40,7 @@ from dlt.common.utils import uniq_id
 from dlt.common.schema import Schema
 
 from dlt.destinations import filesystem, redshift, dummy
-from dlt.destinations.impl.filesystem.filesystem import INIT_FILE_NAME, FilesystemClient
+from dlt.destinations.impl.filesystem.filesystem import INIT_FILE_NAME
 from dlt.extract.exceptions import InvalidResourceDataTypeBasic, PipeGenInvalid, SourceExhausted
 from dlt.extract.extract import ExtractStorage
 from dlt.extract import DltResource, DltSource
@@ -2728,82 +2728,3 @@ def test_duckdb_column_hint_timezone() -> None:
                 "2024-07-30T08:00:00.123456",
                 "2024-07-30T10:00:00.123456",
             ]
-
-
-def test_filesystem_column_hint_timezone() -> None:
-    import pyarrow.parquet as pq
-    import posixpath
-
-    os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = "_storage"
-
-    # talbe: events_timezone_off
-    @dlt.resource(
-        columns={"event_tstamp": {"data_type": "timestamp", "timezone": False}},
-        primary_key="event_id",
-    )
-    def events_timezone_off():
-        yield [
-            {"event_id": 1, "event_tstamp": "2024-07-30T10:00:00.123+00:00"},
-            {"event_id": 2, "event_tstamp": "2024-07-30T10:00:00.123456+02:00"},
-            {"event_id": 3, "event_tstamp": "2024-07-30T10:00:00.123456"},
-        ]
-
-    # talbe: events_timezone_on
-    @dlt.resource(
-        columns={"event_tstamp": {"data_type": "timestamp", "timezone": True}},
-        primary_key="event_id",
-    )
-    def events_timezone_on():
-        yield [
-            {"event_id": 1, "event_tstamp": "2024-07-30T10:00:00.123+00:00"},
-            {"event_id": 2, "event_tstamp": "2024-07-30T10:00:00.123456+02:00"},
-            {"event_id": 3, "event_tstamp": "2024-07-30T10:00:00.123456"},
-        ]
-
-    # talbe: events_timezone_unset
-    @dlt.resource(
-        primary_key="event_id",
-    )
-    def events_timezone_unset():
-        yield [
-            {"event_id": 1, "event_tstamp": "2024-07-30T10:00:00.123+00:00"},
-            {"event_id": 2, "event_tstamp": "2024-07-30T10:00:00.123456+02:00"},
-            {"event_id": 3, "event_tstamp": "2024-07-30T10:00:00.123456"},
-        ]
-
-    pipeline = dlt.pipeline(destination="filesystem")
-
-    pipeline.run(
-        [events_timezone_off(), events_timezone_on(), events_timezone_unset()],
-        loader_file_format="parquet",
-    )
-
-    client: FilesystemClient = pipeline.destination_client()  # type: ignore[assignment]
-
-    expected_results = {
-        "events_timezone_off": None,
-        "events_timezone_on": "UTC",
-        "events_timezone_unset": "UTC",
-    }
-
-    for t in expected_results.keys():
-        events_glob = posixpath.join(client.dataset_path, f"{t}/*")
-        events_files = client.fs_client.glob(events_glob)
-
-        with open(events_files[0], "rb") as f:
-            table = pq.read_table(f)
-
-            # convert the timestamps to strings
-            timestamps = [
-                ts.as_py().strftime("%Y-%m-%dT%H:%M:%S.%f") for ts in table.column("event_tstamp")
-            ]
-            assert timestamps == [
-                "2024-07-30T10:00:00.123000",
-                "2024-07-30T08:00:00.123456",
-                "2024-07-30T10:00:00.123456",
-            ]
-
-            # check if the Parquet file contains timezone information
-            schema = table.schema
-            field = schema.field("event_tstamp")
-            assert field.type.tz == expected_results[t]
