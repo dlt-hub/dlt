@@ -20,7 +20,7 @@ PROVIDER_ENVIRONMENT_VARIABLES_MAP: Dict[TEmbeddingProvider, str] = {
 
 # TODO: Update `generate_arrow_uuid_column` when pyarrow 17.0.0 becomes available with vectorized operations (batched + memory-mapped)
 def generate_arrow_uuid_column(
-    table: pa.Table, unique_identifiers: List[str], id_field_name: str, table_name: str
+    table: pa.Table, unique_identifiers: Sequence[str], id_field_name: str, table_name: str
 ) -> pa.Table:
     """Generates deterministic UUID - used for deduplication, returning a new arrow
     table with added UUID column.
