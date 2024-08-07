@@ -70,7 +70,7 @@ class Relation:
     def iter_df(
         self,
         *,
-        chunk_size: int = None,
+        chunk_size: int,
     ) -> Generator[DataFrame, None, None]:
         """iterates over the whole table in dataframes of the given chunk_size, chunk_size of -1 will return the full table in the first batch"""
         with self.cursor() as cursor:
@@ -81,7 +81,7 @@ class Relation:
     def iter_arrow(
         self,
         *,
-        chunk_size: int = None,
+        chunk_size: int,
     ) -> Generator[ArrowTable, None, None]:
         """iterates over the whole table in arrow tables of the given chunk_size, chunk_size of -1 will return the full table in the first batch"""
         with self.cursor() as cursor:
@@ -93,11 +93,11 @@ class Relation:
         with self.cursor() as cursor:
             return cursor.fetchall()
 
-    def fetchmany(self, chunk_size: int = None) -> List[Tuple[Any, ...]]:
+    def fetchmany(self, chunk_size: int) -> List[Tuple[Any, ...]]:
         with self.cursor() as cursor:
             return cursor.fetchmany(chunk_size)
 
-    def iter_fetchmany(self, chunk_size: int = None) -> Generator[List[Tuple[Any, ...]], Any, Any]:
+    def iter_fetchmany(self, chunk_size: int) -> Generator[List[Tuple[Any, ...]], Any, Any]:
         with self.cursor() as cursor:
             yield from cursor.iter_fetchmany(
                 chunk_size=chunk_size,

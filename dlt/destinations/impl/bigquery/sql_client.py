@@ -48,13 +48,13 @@ class BigQueryDBApiCursorImpl(DBApiCursorImpl):
     def __init__(self, curr: DBApiCursor) -> None:
         super().__init__(curr)
 
-    def iter_df(self, chunk_size: int = None) -> Generator[DataFrame, None, None]:
+    def iter_df(self, chunk_size: int) -> Generator[DataFrame, None, None]:
         query_job: bigquery.QueryJob = getattr(
             self.native_cursor, "_query_job", self.native_cursor.query_job
         )
         return query_job.result(page_size=chunk_size).to_dataframe_iterable()  # type: ignore
 
-    def iter_arrow(self, chunk_size: int = None) -> Generator[ArrowTable, None, None]:
+    def iter_arrow(self, chunk_size: int) -> Generator[ArrowTable, None, None]:
         query_job: bigquery.QueryJob = getattr(
             self.native_cursor, "_query_job", self.native_cursor.query_job
         )

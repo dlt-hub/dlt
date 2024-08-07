@@ -29,7 +29,7 @@ class DatabricksCursorImpl(DBApiCursorImpl):
     """Use native data frame support if available"""
 
     native_cursor: DatabricksSqlCursor  # type: ignore[assignment]
-    default_chunk_size: ClassVar[int] = 2048  # vector size is 2048
+    vector_size: ClassVar[int] = 2048  # vector size is 2048
 
     def df(self, chunk_size: int = None, **kwargs: Any) -> DataFrame:
         if chunk_size is None:

@@ -300,9 +300,6 @@ SELECT 1
 class DBApiCursorImpl(DBApiCursor):
     """A DBApi Cursor wrapper with dataframes reading functionality"""
 
-    # default size of an iter chunk if none is given
-    default_chunk_size: ClassVar[int] = 1000
-
     def __init__(self, curr: DBApiCursor) -> None:
         self.native_cursor = curr
 
@@ -334,29 +331,28 @@ class DBApiCursorImpl(DBApiCursor):
         """
         return next(self.iter_arrow(chunk_size=chunk_size))
 
-    def iter_fetchmany(self, chunk_size: int = None) -> Generator[List[Tuple[Any, ...]], Any, Any]:
-        chunk_size = chunk_size or self.default_chunk_size
+    def iter_fetchmany(self, chunk_size: int) -> Generator[List[Tuple[Any, ...]], Any, Any]:
         while True:
             if not (result := self.fetchmany(chunk_size)):
                 return
             yield result
 
-    def iter_df(self, chunk_size: int = None) -> Generator[DataFrame, None, None]:
+    def iter_df(self, chunk_size: int) -> Generator[DataFrame, None, None]:
         from dlt.common.libs.pandas_sql import _wrap_result
 
         columns = self._get_columns()
 
         # if no chunk size, fetch all
-        # if not chunk_size:
-        #     yield _wrap_result(self.fetchall(), columns)
-        #     return
+        if not chunk_size:
+            yield _wrap_result(self.fetchall(), columns)
+            return
 
         # otherwise iterate over results in batch size chunks
         for result in self.iter_fetchmany(chunk_size=chunk_size):
             # TODO: ensure that this is arrow backed
             yield _wrap_result(result, columns, dtype_backend="pyarrow")
 
-    def iter_arrow(self, chunk_size: int = None) -> Generator[ArrowTable, None, None]:
+    def iter_arrow(self, chunk_size: int) -> Generator[ArrowTable, None, None]:
         """Default implementation converts df to arrow"""
         for df in self.iter_df(chunk_size=chunk_size):
             # TODO: is this efficient?

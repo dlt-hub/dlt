@@ -11,20 +11,33 @@ from tests.load.utils import destinations_configs, DestinationTestConfiguration,
 from pandas import DataFrame
 
 
-@dlt.source()
-def source():
-    @dlt.resource()
-    def items():
-        yield from [{"id": i, "children": [{"id": i + 100}, {"id": i + 1000}]} for i in range(300)]
-
-    @dlt.resource()
-    def items2():
-        yield from [{"id": i, "children": [{"id": i + 100}, {"id": i + 1000}]} for i in range(150)]
-
-    return [items, items2]
-
-
 def _run_dataset_checks(pipeline: Pipeline) -> None:
+    destination_type = pipeline.destination_client().config.destination_type
+
+    if destination_type == "bigquery":
+        chunk_size = 50
+        total_records = 80
+    elif destination_type == "mssql":
+        chunk_size = 700
+        total_records = 1000
+    else:
+        chunk_size = 2048
+        total_records = 3000
+
+    # we always expect 2 chunks based on the above setup
+    expected_chunk_counts = [chunk_size, total_records - chunk_size]
+
+    @dlt.source()
+    def source():
+        @dlt.resource()
+        def items():
+            yield from [
+                {"id": i, "children": [{"id": i + 100}, {"id": i + 1000}]}
+                for i in range(total_records)
+            ]
+
+        return [items]
+
     # run source
     s = source()
     pipeline.run(
@@ -34,23 +47,30 @@ def _run_dataset_checks(pipeline: Pipeline) -> None:
     # access via key
     relationship = pipeline.dataset["items"]
 
+    # full frame
+    df = relationship.df()
+    assert len(df.index) == total_records
+
     #
     # check dataframes
     #
-    df = relationship.df(chunk_size=5)
-    assert len(df.index) == 5
+
+    # full frame
+    df = relationship.df()
+    assert len(df.index) == total_records
+
+    # chunk
+    df = relationship.df(chunk_size=chunk_size)
+    assert len(df.index) == chunk_size
     assert set(df.columns.values) == {"id", "_dlt_load_id", "_dlt_id"}
 
     # iterate all dataframes
-    frames = list(relationship.iter_df(chunk_size=70))
-
-    # check frame amount and items counts
-    assert len(frames) == 5
-    assert [len(df.index) for df in frames] == [70, 70, 70, 70, 20]
+    frames = list(relationship.iter_df(chunk_size=chunk_size))
+    assert [len(df.index) for df in frames] == expected_chunk_counts
 
     # check all items are present
     ids = reduce(lambda a, b: a + b, [f["id"].to_list() for f in frames])
-    assert set(ids) == set(range(300))
+    assert set(ids) == set(range(total_records))
 
     # access via prop
     relationship = pipeline.dataset.items
@@ -58,39 +78,45 @@ def _run_dataset_checks(pipeline: Pipeline) -> None:
     #
     # check arrow tables
     #
-    table = relationship.arrow(chunk_size=5)
+
+    # full table
+    table = relationship.arrow()
+    assert table.num_rows == total_records
+
+    # chunk
+    table = relationship.arrow(chunk_size=chunk_size)
     assert set(table.column_names) == {"id", "_dlt_load_id", "_dlt_id"}
-    assert table.num_rows == 5
+    assert table.num_rows == chunk_size
 
     # check frame amount and items counts
-    tables = list(relationship.iter_arrow(chunk_size=70))
-    assert [t.num_rows for t in tables] == [70, 70, 70, 70, 20]
+    tables = list(relationship.iter_arrow(chunk_size=chunk_size))
+    assert [t.num_rows for t in tables] == expected_chunk_counts
 
     # check all items are present
     ids = reduce(lambda a, b: a + b, [t.column("id").to_pylist() for t in tables])
-    assert set(ids) == set(range(300))
+    assert set(ids) == set(range(total_records))
 
     # check fetch accessors
     relationship = pipeline.dataset.items
 
     # check accessing one item
     one = relationship.fetchone()
-    assert one[0] in range(300)
+    assert one[0] in range(total_records)
 
     # check fetchall
     fall = relationship.fetchall()
-    assert len(fall) == 300
-    assert {item[0] for item in fall} == set(range(300))
+    assert len(fall) == total_records
+    assert {item[0] for item in fall} == set(range(total_records))
 
     # check fetchmany
-    many = relationship.fetchmany(150)
-    assert len(many) == 150
+    many = relationship.fetchmany(chunk_size)
+    assert len(many) == chunk_size
 
     # check iterfetchmany
-    chunks = list(relationship.iter_fetchmany(chunk_size=70))
-    assert [len(chunk) for chunk in chunks] == [70, 70, 70, 70, 20]
+    chunks = list(relationship.iter_fetchmany(chunk_size=chunk_size))
+    assert [len(chunk) for chunk in chunks] == expected_chunk_counts
     ids = reduce(lambda a, b: a + b, [[item[0] for item in chunk] for chunk in chunks])
-    assert set(ids) == set(range(300))
+    assert set(ids) == set(range(total_records))
 
 
 @pytest.mark.essential
@@ -118,7 +144,7 @@ def test_read_interfaces_sql(destination_config: DestinationTestConfiguration) -
 )
 def test_read_interfaces_filesystem(destination_config: DestinationTestConfiguration) -> None:
     # we force multiple files per table, they may only hold 50 items
-    os.environ["DATA_WRITER__FILE_MAX_ITEMS"] = "50"
+    os.environ["DATA_WRITER__FILE_MAX_ITEMS"] = "30"
 
     if destination_config.file_format not in ["parquet", "jsonl"]:
         pytest.skip(
