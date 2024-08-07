@@ -30,6 +30,7 @@ from tests.load.utils import (
     DestinationTestConfiguration,
     MEMORY_BUCKET,
     FILE_BUCKET,
+    AZ_BUCKET,
 )
 
 from tests.pipeline.utils import load_table_counts, assert_load_info, load_tables_to_dicts
@@ -611,7 +612,7 @@ def test_delta_table_dynamic_dispatch(
     destinations_configs(
         table_format_filesystem_configs=True,
         table_format="delta",
-        bucket_subset=(FILE_BUCKET),
+        bucket_subset=(FILE_BUCKET, AZ_BUCKET),
     ),
     ids=lambda x: x.name,
 )

@@ -105,8 +105,12 @@ def get_delta_tables(pipeline: Pipeline, *tables: str) -> Dict[str, DeltaTable]:
                     f"{', '.join(invalid_tables)}."
                 )
             schema_delta_tables = [t for t in schema_delta_tables if t in tables]
-        table_dirs = client.get_table_dirs(schema_delta_tables)
-        return {name: DeltaTable(_dir) for name, _dir in zip(schema_delta_tables, table_dirs)}
+        table_dirs = client.get_table_dirs(schema_delta_tables, remote=True)
+        storage_options = _deltalake_storage_options(client.config)
+        return {
+            name: DeltaTable(_dir, storage_options=storage_options)
+            for name, _dir in zip(schema_delta_tables, table_dirs)
+        }
 
 
 def _deltalake_storage_options(config: FilesystemConfiguration) -> Dict[str, str]:
