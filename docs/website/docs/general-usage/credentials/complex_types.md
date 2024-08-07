@@ -1,6 +1,6 @@
 ---
-title: Prebuilt credential types
-description: How to specify complex custom credentials.
+title: Complex credential types
+description: Instructions for credentials like DB connection string.
 keywords: [credentials, secrets.toml, secrets, config, configuration, environment
       variables, specs]
 ---

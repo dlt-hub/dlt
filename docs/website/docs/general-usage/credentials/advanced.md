@@ -65,7 +65,7 @@ Doing so provides several benefits:
 1. You'll never receive the invalid data types in your code.
 1. `dlt` will automatically parse and coerce types for you, so you don't need to parse it yourself.
 1. `dlt` can generate sample config and secret files for your source automatically.
-1. You can request [built-in and custom credentials](prebuilt_types) (i.e., connection strings, AWS / GCP / Azure credentials).
+1. You can request [built-in and custom credentials](complex_types) (i.e., connection strings, AWS / GCP / Azure credentials).
 1. You can specify a set of possible types via `Union`, i.e., OAuth or API Key authorization.
 
 Let's consider the example:
@@ -84,7 +84,7 @@ def google_sheets(
 Now,
 
 1. You are sure that you get a list of strings as `tab_names`.
-1. You will get actual Google credentials (see [GCP Credential Configuration](prebuilt_types#gcp-credentials)), and users can
+1. You will get actual Google credentials (see [GCP Credential Configuration](complex_types#gcp-credentials)), and users can
    pass them in many different forms:
 
    * `service.json` as a string or dictionary (in code and via config providers).

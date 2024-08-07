@@ -6,13 +6,19 @@ keywords: [credentials, secrets.toml, secrets, config, configuration, environmen
 ---
 
 `dlt` automatically extracts configuration settings and secrets based on flexible [naming conventions](setup/#naming-convention).
+
 It then [injects](advanced/#injection-mechanism) these values where needed in functions decorated with `@dlt.source`, `@dlt.resource`, or `@dlt.destination`.
+
+:::note
+* **Configuration** refers to non-sensitive settings that define a data pipeline's behavior. These include file paths, database hosts, timeouts, API URLs, and performance settings.
+* **Secrets** are sensitive data like passwords, API keys, and private keys. They should never be hard-coded to avoid security risks.
+:::
 
 ## Available config providers
 
 There are multiple ways to define configurations and credentials for your pipelines. `dlt` looks for these definitions in the following order during pipeline execution:
 
-1. [Environment Variables](#env-variables): If a value for a specific argument is found in an environment variable, dlt will use it and will not proceed to search in lower-priority providers.
+1. [Environment Variables](#environment-variables): If a value for a specific argument is found in an environment variable, dlt will use it and will not proceed to search in lower-priority providers.
 
 1. [Vaults](#vaults): Credentials specified in vaults like Google Secrets Manager, Azure Key Vault, AWS Secrets Manager.
 
@@ -80,7 +86,7 @@ project_id = "<project_id_2>"
 
 ### Credential types
 
-In most cases, credentials are just key-value pairs, but in some cases, the actual structure of [credentials](prebuilt_types) could be quite complex and support several ways of setting it up.
+In most cases, credentials are just key-value pairs, but in some cases, the actual structure of [credentials](complex_types) could be quite complex and support several ways of setting it up.
 For example, to connect to a `sql_database` source, you can either set up a connection string:
 
 ```toml
@@ -100,13 +106,13 @@ warehouse = "warehouse_name"
 role = "role"
 ```
 
-`dlt` can work with both ways and convert one to another. To learn more about which credential types are supported, visit the [prebuilt credential types](prebuilt_types) page.
+`dlt` can work with both ways and convert one to another. To learn more about which credential types are supported, visit the [complex credential types](complex_types) page.
 
-## ENV variables
+## Environment variables
 
 `dlt` prioritizes security by looking in environment variables before looking into the .toml files.
 
-The format of lookup keys is slightly different from secrets files because for ENV variables, all names are capitalized, and sections are separated with a double underscore `"__"`. For example, to specify the Facebook Ads access token through environment variables, you would need to set up:
+The format of lookup keys is slightly different from secrets files because for environment variables, all names are capitalized, and sections are separated with a double underscore `"__"`. For example, to specify the Facebook Ads access token through environment variables, you would need to set up:
 
 ```sh
 export SOURCES__FACEBOOK_ADS__ACCESS_TOKEN="<access_token>"

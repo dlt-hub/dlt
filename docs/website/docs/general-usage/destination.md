@@ -72,7 +72,7 @@ You can create and pass partial credentials and `dlt` will fill the missing data
 <!--@@@DLT_SNIPPET ./snippets/destination-snippets.py::config_partial_spec-->
 
 
-Please read how to use [various built in credentials types](credentials/prebuilt_types).
+Please read how to use [various built in credentials types](credentials/complex_types).
 :::
 
 ### Inspect destination capabilities

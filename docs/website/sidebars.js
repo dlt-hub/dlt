@@ -146,7 +146,7 @@ const sidebars = {
           items: [
             'general-usage/credentials/setup',
             'general-usage/credentials/advanced',
-            'general-usage/credentials/prebuilt_types',
+            'general-usage/credentials/complex_types',
           ]
         },
         'general-usage/pipeline',

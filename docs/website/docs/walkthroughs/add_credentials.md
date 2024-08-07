@@ -42,7 +42,7 @@ To add credentials to your deployment,
 
 - either use one of the `dlt deploy` commands;
 - or follow the instructions to [pass credentials via code](../general-usage/credentials/advanced#examples)
-or [environment](../general-usage/credentials/setup#env-variables).
+or [environment](../general-usage/credentials/setup#environment-variables).
 
 ### Reading credentials from environment variables
 
