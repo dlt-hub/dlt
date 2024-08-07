@@ -2,8 +2,6 @@ from dlt.extract.exceptions import PipeException
 from dlt.common.typing import TDataItem
 
 
-
-
 class IncrementalCursorPathMissing(PipeException):
     def __init__(
         self, pipe_name: str, json_path: str, item: TDataItem = None, msg: str = None
