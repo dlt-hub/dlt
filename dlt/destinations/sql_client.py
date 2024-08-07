@@ -353,7 +353,8 @@ class DBApiCursorImpl(DBApiCursor):
 
         # otherwise iterate over results in batch size chunks
         for result in self.iter_fetchmany(chunk_size=chunk_size):
-            yield _wrap_result(result, columns)
+            # TODO: ensure that this is arrow backed
+            yield _wrap_result(result, columns, dtype_backend="pyarrow")
 
     def iter_arrow(self, chunk_size: int = None) -> Generator[ArrowTable, None, None]:
         """Default implementation converts df to arrow"""
