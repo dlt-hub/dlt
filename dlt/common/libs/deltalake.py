@@ -22,14 +22,6 @@ except ModuleNotFoundError:
     )
 
 
-# because we use RecordBatchReader.cast()
-assert_min_pkg_version(
-    pkg_name="pyarrow",
-    version="17.0.0",
-    msg="`pyarrow>=17.0.0` is needed for `delta` table format on `filesystem` destination.",
-)
-
-
 def ensure_delta_compatible_arrow_schema(schema: pa.Schema) -> pa.Schema:
     """Returns Arrow schema compatible with Delta table format.
 
@@ -51,6 +43,13 @@ def ensure_delta_compatible_arrow_data(
 
     Casts `data` schema to replace data types not supported by Delta.
     """
+    # RecordBatchReader.cast() requires pyarrow>=17.0.0
+    # cast() got introduced in 16.0.0, but with bug
+    assert_min_pkg_version(
+        pkg_name="pyarrow",
+        version="17.0.0",
+        msg="`pyarrow>=17.0.0` is needed for `delta` table format on `filesystem` destination.",
+    )
     schema = ensure_delta_compatible_arrow_schema(data.schema)
     return data.cast(schema)
 
