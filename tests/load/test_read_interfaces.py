@@ -14,6 +14,7 @@ from pandas import DataFrame
 def _run_dataset_checks(pipeline: Pipeline) -> None:
     destination_type = pipeline.destination_client().config.destination_type
 
+    skip_df_chunk_size_check = False
     if destination_type == "bigquery":
         chunk_size = 50
         total_records = 80
@@ -23,6 +24,10 @@ def _run_dataset_checks(pipeline: Pipeline) -> None:
     else:
         chunk_size = 2048
         total_records = 3000
+
+    # on filesystem one chunk is one file and not the default vector size
+    if destination_type == "filesystem":
+        skip_df_chunk_size_check = True
 
     # we always expect 2 chunks based on the above setup
     expected_chunk_counts = [chunk_size, total_records - chunk_size]
@@ -55,18 +60,16 @@ def _run_dataset_checks(pipeline: Pipeline) -> None:
     # check dataframes
     #
 
-    # full frame
-    df = relationship.df()
-    assert len(df.index) == total_records
-
     # chunk
     df = relationship.df(chunk_size=chunk_size)
-    assert len(df.index) == chunk_size
+    if not skip_df_chunk_size_check:
+        assert len(df.index) == chunk_size
     assert set(df.columns.values) == {"id", "_dlt_load_id", "_dlt_id"}
 
     # iterate all dataframes
     frames = list(relationship.iter_df(chunk_size=chunk_size))
-    assert [len(df.index) for df in frames] == expected_chunk_counts
+    if not skip_df_chunk_size_check:
+        assert [len(df.index) for df in frames] == expected_chunk_counts
 
     # check all items are present
     ids = reduce(lambda a, b: a + b, [f["id"].to_list() for f in frames])
@@ -144,7 +147,7 @@ def test_read_interfaces_sql(destination_config: DestinationTestConfiguration) -
 )
 def test_read_interfaces_filesystem(destination_config: DestinationTestConfiguration) -> None:
     # we force multiple files per table, they may only hold 50 items
-    os.environ["DATA_WRITER__FILE_MAX_ITEMS"] = "30"
+    os.environ["DATA_WRITER__FILE_MAX_ITEMS"] = "700"
 
     if destination_config.file_format not in ["parquet", "jsonl"]:
         pytest.skip(

@@ -620,6 +620,7 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
 
         # create all tables in duck instance
         for ptable in tables:
+            folder = self.get_table_dir(ptable)
             files = self.list_table_files(ptable)
             # discover tables files
             file_type = os.path.splitext(files[0])[1][1:]
@@ -632,7 +633,7 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
 
             # create table
             protocol = "" if self.is_local_filesystem else f"{self.config.protocol}://"
-            files_string = ",".join([f"'{protocol}{f}'" for f in files])
+            files_string = f"'{protocol}{folder}/**/*.{file_type}'"
             create_table_sql_base = (
                 f"CREATE {table_type} {ptable} AS SELECT * FROM {read_command}([{files_string}])"
             )
