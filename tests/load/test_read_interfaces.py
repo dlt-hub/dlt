@@ -85,9 +85,6 @@ def _run_dataset_checks(pipeline: Pipeline) -> None:
     # check fetchmany
     many = relationship.fetchmany(150)
     assert len(many) == 150
-    assert {item[0] for item in many} == set(
-        range(150)
-    )  # NOTE: might not work for all destinations, result is not ordered
 
     # check iterfetchmany
     chunks = list(relationship.iter_fetchmany(chunk_size=70))

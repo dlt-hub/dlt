@@ -335,8 +335,7 @@ class DBApiCursorImpl(DBApiCursor):
         return next(self.iter_arrow(chunk_size=chunk_size))
 
     def iter_fetchmany(self, chunk_size: int = None) -> Generator[List[Tuple[Any, ...]], Any, Any]:
-        if not chunk_size:
-            chunk_size = self.default_chunk_size
+        chunk_size = chunk_size or self.default_chunk_size
         while True:
             if not (result := self.fetchmany(chunk_size)):
                 return
@@ -348,9 +347,9 @@ class DBApiCursorImpl(DBApiCursor):
         columns = self._get_columns()
 
         # if no chunk size, fetch all
-        if not chunk_size:
-            yield _wrap_result(self.fetchall(), columns)
-            return
+        # if not chunk_size:
+        #     yield _wrap_result(self.fetchall(), columns)
+        #     return
 
         # otherwise iterate over results in batch size chunks
         for result in self.iter_fetchmany(chunk_size=chunk_size):

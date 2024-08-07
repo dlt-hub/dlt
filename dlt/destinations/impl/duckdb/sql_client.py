@@ -1,7 +1,7 @@
 import duckdb
 
 from contextlib import contextmanager
-from typing import Any, AnyStr, ClassVar, Iterator, Optional, Sequence
+from typing import Any, AnyStr, ClassVar, Iterator, Optional, Sequence, Generator
 from dlt.common.destination import DestinationCapabilitiesContext
 
 from dlt.destinations.exceptions import (
@@ -9,7 +9,7 @@ from dlt.destinations.exceptions import (
     DatabaseTransientException,
     DatabaseUndefinedRelation,
 )
-from dlt.destinations.typing import DBApi, DBApiCursor, DBTransaction, DataFrame
+from dlt.destinations.typing import DBApi, DBApiCursor, DBTransaction, DataFrame, ArrowTable
 from dlt.destinations.sql_client import (
     SqlClientBase,
     DBApiCursorImpl,
@@ -26,18 +26,21 @@ class DuckDBDBApiCursorImpl(DBApiCursorImpl):
     native_cursor: duckdb.DuckDBPyConnection  # type: ignore
     default_chunk_size: ClassVar[int] = 2048  # vector size is 2048
 
-    # def df(self, chunk_size: int = None, **kwargs: Any) -> DataFrame:
-    #     if chunk_size is None:
-    #         return self.native_cursor.df(**kwargs)
-    #     else:
-    #         multiple = chunk_size // self.vector_size + (
-    #             0 if self.vector_size % chunk_size == 0 else 1
-    #         )
-    #         df = self.native_cursor.fetch_df_chunk(multiple, **kwargs)
+    # def iter_df(self, chunk_size: int = None) -> Generator[DataFrame, None, None]:
+    #     chunk_size = chunk_size or self.default_chunk_size
+    #     while True:
+    #         df = self.native_cursor.
     #         if df.shape[0] == 0:
-    #             return None
-    #         else:
-    #             return df
+    #             break
+    #         yield df
+
+    # def iter_arrow(self, chunk_size: int = None) -> Generator[ArrowTable, None, None]:
+    #     chunk_size = chunk_size or self.default_chunk_size
+    #     while True:
+    #         table = self.native_cursor.fetch_arrow_table(chunk_size)
+    #         if table.num_rows == 0:
+    #             break
+    #         yield table
 
 
 class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
