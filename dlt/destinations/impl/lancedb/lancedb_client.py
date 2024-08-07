@@ -862,7 +862,8 @@ class LanceDBRemoveOrphansJob(NewLoadJobImpl):
         try:
             if self.fq_parent_table_name:
                 # Chunks and embeddings in child table.
-                # By referencing underlying lance dataset we benefit from projection push-down to storage layer (LanceDB).
+
+                # By referencing the underlying lance dataset, we benefit from projection push-down to the storage layer (LanceDB).
                 parent_ids = set(
                     pc.unique(
                         parent_table.to_lance().to_table(columns=["_dlt_id"])["_dlt_id"]
