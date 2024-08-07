@@ -2661,6 +2661,7 @@ def test_duckdb_column_hint_timezone() -> None:
         yield [
             {"event_id": 1, "event_tstamp": "2024-07-30T10:00:00.123+00:00"},
             {"event_id": 2, "event_tstamp": "2024-07-30T10:00:00.123456+02:00"},
+            {"event_id": 3, "event_tstamp": "2024-07-30T10:00:00.123456"},
         ]
 
     # talbe: events_timezone_on
@@ -2672,6 +2673,7 @@ def test_duckdb_column_hint_timezone() -> None:
         yield [
             {"event_id": 1, "event_tstamp": "2024-07-30T10:00:00.123+00:00"},
             {"event_id": 2, "event_tstamp": "2024-07-30T10:00:00.123456+02:00"},
+            {"event_id": 3, "event_tstamp": "2024-07-30T10:00:00.123456"},
         ]
 
     # talbe: events_timezone_unset
@@ -2682,6 +2684,7 @@ def test_duckdb_column_hint_timezone() -> None:
         yield [
             {"event_id": 1, "event_tstamp": "2024-07-30T10:00:00.123+00:00"},
             {"event_id": 2, "event_tstamp": "2024-07-30T10:00:00.123456+02:00"},
+            {"event_id": 3, "event_tstamp": "2024-07-30T10:00:00.123456"},
         ]
 
     pipeline = dlt.pipeline(destination="duckdb")
@@ -2703,8 +2706,17 @@ def test_duckdb_column_hint_timezone() -> None:
 
             # check timestamp data
             rows = client.execute_sql(f"SELECT event_tstamp FROM {table} ORDER BY event_id")
+
+            import pandas as pd
+
+            df = pd.DataFrame(rows)
+
             values = [r[0].strftime("%Y-%m-%dT%H:%M:%S.%f") for r in rows]
-            assert values == ["2024-07-30T10:00:00.123000", "2024-07-30T08:00:00.123456"]
+            assert values == [
+                "2024-07-30T10:00:00.123000",
+                "2024-07-30T08:00:00.123456",
+                "2024-07-30T10:00:00.123456",
+            ]
 
 
 def test_filesystem_column_hint_timezone() -> None:
@@ -2722,6 +2734,7 @@ def test_filesystem_column_hint_timezone() -> None:
         yield [
             {"event_id": 1, "event_tstamp": "2024-07-30T10:00:00.123+00:00"},
             {"event_id": 2, "event_tstamp": "2024-07-30T10:00:00.123456+02:00"},
+            {"event_id": 3, "event_tstamp": "2024-07-30T10:00:00.123456"},
         ]
 
     # talbe: events_timezone_on
@@ -2733,6 +2746,7 @@ def test_filesystem_column_hint_timezone() -> None:
         yield [
             {"event_id": 1, "event_tstamp": "2024-07-30T10:00:00.123+00:00"},
             {"event_id": 2, "event_tstamp": "2024-07-30T10:00:00.123456+02:00"},
+            {"event_id": 3, "event_tstamp": "2024-07-30T10:00:00.123456"},
         ]
 
     # talbe: events_timezone_unset
@@ -2743,6 +2757,7 @@ def test_filesystem_column_hint_timezone() -> None:
         yield [
             {"event_id": 1, "event_tstamp": "2024-07-30T10:00:00.123+00:00"},
             {"event_id": 2, "event_tstamp": "2024-07-30T10:00:00.123456+02:00"},
+            {"event_id": 3, "event_tstamp": "2024-07-30T10:00:00.123456"},
         ]
 
     pipeline = dlt.pipeline(destination="filesystem")
@@ -2771,7 +2786,11 @@ def test_filesystem_column_hint_timezone() -> None:
             timestamps = [
                 ts.as_py().strftime("%Y-%m-%dT%H:%M:%S.%f") for ts in table.column("event_tstamp")
             ]
-            assert timestamps == ["2024-07-30T10:00:00.123000", "2024-07-30T08:00:00.123456"]
+            assert timestamps == [
+                "2024-07-30T10:00:00.123000",
+                "2024-07-30T08:00:00.123456",
+                "2024-07-30T10:00:00.123456",
+            ]
 
             # check if the Parquet file contains timezone information
             schema = table.schema
