@@ -40,7 +40,7 @@ from dlt.common.utils import uniq_id
 from dlt.common.schema import Schema
 
 from dlt.destinations import filesystem, redshift, dummy
-from dlt.destinations.impl.filesystem.filesystem import INIT_FILE_NAME
+from dlt.destinations.impl.filesystem.filesystem import INIT_FILE_NAME, FilesystemClient
 from dlt.extract.exceptions import InvalidResourceDataTypeBasic, PipeGenInvalid, SourceExhausted
 from dlt.extract.extract import ExtractStorage
 from dlt.extract import DltResource, DltSource
@@ -2721,10 +2721,6 @@ def test_duckdb_column_hint_timezone() -> None:
 
             # check timestamp data
             rows = client.execute_sql(f"SELECT event_tstamp FROM {table} ORDER BY event_id")
-
-            import pandas as pd
-
-            df = pd.DataFrame(rows)
 
             values = [r[0].strftime("%Y-%m-%dT%H:%M:%S.%f") for r in rows]
             assert values == [
