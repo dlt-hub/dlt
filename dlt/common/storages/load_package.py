@@ -723,19 +723,12 @@ class PackageStorage:
 
     @staticmethod
     def is_package_partially_loaded(package_info: LoadPackageInfo) -> bool:
-        """Checks if package is partially loaded - has jobs that are not new."""
-        if package_info.state == "normalized":
-            pending_jobs: Sequence[TJobState] = ["new_jobs"]
-        else:
-            pending_jobs = ["completed_jobs", "failed_jobs"]
-        return (
-            sum(
-                len(package_info.jobs[job_state])
-                for job_state in WORKING_FOLDERS
-                if job_state not in pending_jobs
-            )
-            > 0
-        )
+        """Checks if package is partially loaded - has jobs that are completed and jobs that are not."""
+        all_jobs_count = sum(len(package_info.jobs[job_state]) for job_state in WORKING_FOLDERS)
+        completed_jobs_count = len(package_info.jobs["completed_jobs"])
+        if completed_jobs_count and all_jobs_count - completed_jobs_count > 0:
+            return True
+        return False
 
     @staticmethod
     def _job_elapsed_time_seconds(file_path: str, now_ts: float = None) -> float:

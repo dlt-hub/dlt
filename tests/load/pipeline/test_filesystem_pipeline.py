@@ -19,6 +19,7 @@ from dlt.destinations import filesystem
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 from dlt.destinations.impl.filesystem.typing import TExtraPlaceholders
 from dlt.pipeline.exceptions import PipelineStepFailed
+from dlt.load.exceptions import LoadClientJobRetry
 
 from tests.cases import arrow_table_all_data_types, table_update_and_row, assert_all_data_types_row
 from tests.common.utils import load_json_case
@@ -242,7 +243,11 @@ def test_delta_table_pyarrow_version_check() -> None:
 
     with pytest.raises(PipelineStepFailed) as pip_ex:
         pipeline.run(foo())
-    assert isinstance(pip_ex.value.__context__, DependencyVersionException)
+    assert isinstance(pip_ex.value.__context__, LoadClientJobRetry)
+    assert (
+        "`pyarrow>=17.0.0` is needed for `delta` table format on `filesystem` destination"
+        in pip_ex.value.__context__.retry_message
+    )
 
 
 @pytest.mark.essential

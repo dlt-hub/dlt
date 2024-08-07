@@ -35,12 +35,13 @@ from dlt.common.destination.exceptions import (
 from dlt.common.destination.reference import (
     JobClientBase,
     WithStateSync,
-    LoadJob,
+    RunnableLoadJob,
     StorageSchemaInfo,
     StateInfo,
     TLoadJobState,
     NewLoadJob,
     FollowupJob,
+    LoadJob,
 )
 from dlt.common.exceptions import SystemConfigurationException
 from dlt.common.pendulum import timedelta
@@ -78,6 +79,7 @@ from dlt.destinations.impl.lancedb.utils import (
     set_non_standard_providers_environment_variables,
     generate_arrow_uuid_column,
 )
+from dlt.destinations.job_impl import FinalizedLoadJobWithFollowupJobs
 from dlt.destinations.job_impl import EmptyLoadJob, NewLoadJobImpl
 from dlt.destinations.type_mapping import TypeMapper
 
@@ -151,7 +153,7 @@ class LanceDBTypeMapper(TypeMapper):
             )
         if isinstance(db_type, pa.Decimal128Type):
             precision, scale = db_type.precision, db_type.scale
-            if (precision, scale) == self.capabilities.wei_precision:
+            if (precision, scale)==self.capabilities.wei_precision:
                 return cast(TColumnType, dict(data_type="wei"))
             return dict(data_type="decimal", precision=precision, scale=scale)
         return super().from_db_type(cast(str, db_type), precision, scale)
@@ -191,9 +193,9 @@ def write_to_db(
     try:
         if write_disposition in ("append", "skip"):
             tbl.add(records)
-        elif write_disposition == "replace":
+        elif write_disposition=="replace":
             tbl.add(records, mode="overwrite")
-        elif write_disposition == "merge":
+        elif write_disposition=="merge":
             if not id_field_name:
                 raise ValueError("To perform a merge update, 'id_field_name' must be specified.")
             tbl.merge_insert(
@@ -242,7 +244,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
             self.config.credentials.embedding_model_provider_api_key,
         )
         # Use the monkey-patched implementation if openai was chosen.
-        if embedding_model_provider == "openai":
+        if embedding_model_provider=="openai":
             from dlt.destinations.impl.lancedb.models import PatchedOpenAIEmbeddings
 
             self.model_func = PatchedOpenAIEmbeddings(
@@ -337,7 +339,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
         else:
             table_names = self.db_client.table_names()
 
-        return [table_name for table_name in table_names if table_name != self.sentinel_table]
+        return [table_name for table_name in table_names if table_name!=self.sentinel_table]
 
     @lancedb_error
     def drop_storage(self) -> None:
@@ -576,7 +578,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
             loads_table, keys=p_dlt_load_id, right_keys=p_load_id, join_type="inner"
         ).sort_by([(p_dlt_load_id, "descending")])
 
-        if joined_table.num_rows == 0:
+        if joined_table.num_rows==0:
             return None
 
         state = joined_table.take([0]).to_pylist()[0]
@@ -690,19 +692,14 @@ class LanceDBClient(JobClientBase, WithStateSync):
             write_disposition=write_disposition,
         )
 
-    def restore_file_load(self, file_path: str) -> LoadJob:
-        return EmptyLoadJob.from_file_path(file_path, "completed")
-
-    def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
+    def create_load_job(
+        self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
+    ) -> LoadJob:
         parent_table = table.get("parent")
 
-        return LoadLanceDBJob(
-            self.schema,
-            table,
-            file_path,
+        return LanceDBLoadJob(
+            file_path=file_path,
             type_mapper=self.type_mapper,
-            db_client=self.db_client,
-            client_config=self.config,
             model_func=self.model_func,
             fq_table_name=self.make_qualified_table_name(table["name"]),
             fq_parent_table_name=(
@@ -725,7 +722,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
                 continue
 
             # Only tables with merge disposition are dispatched for orphan removal jobs.
-            if table.get("write_disposition") == "merge":
+            if table.get("write_disposition")=="merge":
                 parent_table = table.get("parent")
                 jobs.append(
                     LanceDBRemoveOrphansJob(
@@ -745,43 +742,38 @@ class LanceDBClient(JobClientBase, WithStateSync):
         return table_name in self.db_client.table_names()
 
 
-class LoadLanceDBJob(LoadJob, FollowupJob):
+class LanceDBLoadJob(RunnableLoadJob, FollowupJob):
     arrow_schema: TArrowSchema
 
     def __init__(
         self,
-        schema: Schema,
-        table_schema: TTableSchema,
-        local_path: str,
+        file_path: str,
         type_mapper: LanceDBTypeMapper,
-        db_client: DBConnection,
-        client_config: LanceDBClientConfiguration,
         model_func: TextEmbeddingFunction,
         fq_table_name: str,
         fq_parent_table_name: Optional[str],
     ) -> None:
-        file_name = FileStorage.get_file_name_from_file_path(local_path)
-        super().__init__(file_name)
-        self.schema: Schema = schema
-        self.table_schema: TTableSchema = table_schema
-        self.db_client: DBConnection = db_client
-        self.type_mapper: TypeMapper = type_mapper
-        self.table_name: str = table_schema["name"]
-        self.fq_table_name: str = fq_table_name
-        self.fq_parent_table_name: Optional[str] = fq_parent_table_name
-        self.unique_identifiers: List[str] = get_unique_identifiers_from_table_schema(table_schema)
-        self.embedding_fields: List[str] = get_columns_names_with_prop(table_schema, VECTORIZE_HINT)
-        self.embedding_model_func: TextEmbeddingFunction = model_func
-        self.embedding_model_dimensions: int = client_config.embedding_model_dimensions
-        self.id_field_name: str = client_config.id_field_name
-        self.write_disposition: TWriteDisposition = cast(
-            TWriteDisposition, self.table_schema.get("write_disposition", "append")
+        super().__init__(file_path)
+        self._type_mapper: TypeMapper = type_mapper
+        self._fq_table_name: str = fq_table_name
+        self._model_func = model_func
+        self._job_client: "LanceDBClient" = None
+
+    def run(self) -> None:
+        self._db_client: DBConnection = self._job_client.db_client
+        self._embedding_model_func: TextEmbeddingFunction = self._model_func
+        self._embedding_model_dimensions: int = self._job_client.config.embedding_model_dimensions
+        self._id_field_name: str = self._job_client.config.id_field_name
+
+        unique_identifiers: Sequence[str] = get_unique_identifiers_from_table_schema(self._load_table)
+        write_disposition: TWriteDisposition = cast(
+            TWriteDisposition, self._load_table.get("write_disposition", "append")
         )
 
-        with FileStorage.open_zipsafe_ro(local_path, mode="rb") as f:
+        with FileStorage.open_zipsafe_ro(self._file_path, mode="rb") as f:
             arrow_table: pa.Table = pq.read_table(f)
 
-        if self.table_schema["name"] not in self.schema.dlt_table_names():
+        if self._load_table not in self._schema.dlt_tables():
             arrow_table = generate_arrow_uuid_column(
                 arrow_table,
                 unique_identifiers=self.unique_identifiers,
@@ -791,17 +783,11 @@ class LoadLanceDBJob(LoadJob, FollowupJob):
 
         write_to_db(
             arrow_table,
-            db_client=db_client,
-            table_name=self.fq_table_name,
-            write_disposition=self.write_disposition,
-            id_field_name=self.id_field_name,
+            db_client=self._db_client,
+            table_name=self._fq_table_name,
+            write_disposition=write_disposition,
+            id_field_name=self._id_field_name,
         )
-
-    def state(self) -> TLoadJobState:
-        return "completed"
-
-    def exception(self) -> str:
-        raise NotImplementedError()
 
 
 class LanceDBRemoveOrphansJob(NewLoadJobImpl):
@@ -841,7 +827,7 @@ class LanceDBRemoveOrphansJob(NewLoadJobImpl):
     def execute(self) -> None:
         orphaned_ids: Set[str]
 
-        if self.write_disposition != "merge":
+        if self.write_disposition!="merge":
             raise DestinationTerminalException(
                 f"Unsupported write disposition {self.write_disposition} for LanceDB Destination"
                 " Orphan Removal Job - failed AND WILL **NOT** BE RETRIED."
@@ -880,7 +866,7 @@ class LanceDBRemoveOrphansJob(NewLoadJobImpl):
                 if orphaned_ids := child_ids - parent_ids:
                     if len(orphaned_ids) > 1:
                         child_table.delete(f"_dlt_parent_id IN {tuple(orphaned_ids)}")
-                    elif len(orphaned_ids) == 1:
+                    elif len(orphaned_ids)==1:
                         child_table.delete(f"_dlt_parent_id = '{orphaned_ids.pop()}'")
 
             else:
@@ -912,7 +898,7 @@ class LanceDBRemoveOrphansJob(NewLoadJobImpl):
 
                 if len(orphaned_ids) > 1:
                     child_table.delete(f"_dlt_id IN {tuple(orphaned_ids)}")
-                elif len(orphaned_ids) == 1:
+                elif len(orphaned_ids)==1:
                     child_table.delete(f"_dlt_id = '{orphaned_ids.pop()}'")
 
         except ArrowInvalid as e:

@@ -192,8 +192,8 @@ def test_load_case_sensitive_data(client: WeaviateClient, file_storage: FileStor
         write_dataset(client, f, [data_clash], table_create)
         query = f.getvalue().decode()
     class_name = client.schema.naming.normalize_table_identifier(class_name)
-    with pytest.raises(PropertyNameConflict):
-        expect_load_file(client, file_storage, query, class_name)
+    job = expect_load_file(client, file_storage, query, class_name, "failed")
+    assert type(job._exception) is PropertyNameConflict  # type: ignore
 
 
 def test_load_case_sensitive_data_ci(ci_client: WeaviateClient, file_storage: FileStorage) -> None:
