@@ -514,6 +514,12 @@ You need the `deltalake` package to use this format:
 pip install "dlt[deltalake]"
 ```
 
+You also need `pyarrow>=17.0.0`:
+
+```sh
+pip install 'pyarrow>=17.0.0'
+```
+
 Set the `table_format` argument to `delta` when defining your resource:
 
 ```py
