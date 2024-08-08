@@ -19,6 +19,7 @@ import lancedb.table  # type: ignore
 import pyarrow as pa
 import pyarrow.compute as pc
 import pyarrow.parquet as pq
+import yaml
 from lancedb import DBConnection
 from lancedb.embeddings import EmbeddingFunctionRegistry, TextEmbeddingFunction  # type: ignore
 from lancedb.query import LanceQueryBuilder  # type: ignore
@@ -692,16 +693,9 @@ class LanceDBClient(JobClientBase, WithStateSync):
     def create_load_job(
         self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
-        parent_table = table.get("parent")
-
         return LanceDBLoadJob(
             file_path=file_path,
-            type_mapper=self.type_mapper,
-            model_func=self.model_func,
             fq_table_name=self.make_qualified_table_name(table["name"]),
-            fq_parent_table_name=(
-                self.make_qualified_table_name(parent_table) if parent_table else None
-            ),
         )
 
     def create_table_chain_completed_followup_jobs(
@@ -714,25 +708,25 @@ class LanceDBClient(JobClientBase, WithStateSync):
             table_chain, completed_table_chain_jobs
         )
 
-        for table in table_chain:
-            if table in self.schema.dlt_tables():
-                continue
-
-            # Only tables with merge disposition are dispatched for orphan removal jobs.
-            if table.get("write_disposition") == "merge":
-                parent_table = table.get("parent")
-                jobs.append(
-                    LanceDBRemoveOrphansJob(
-                        db_client=self.db_client,
-                        table_schema=self.prepare_load_table(table["name"]),
-                        fq_table_name=self.make_qualified_table_name(table["name"]),
-                        fq_parent_table_name=(
-                            self.make_qualified_table_name(parent_table) if parent_table else None
-                        ),
-                        client_config=self.config,
-                    )
-                )
-
+        # for table in table_chain:
+        #     if table in self.schema.dlt_tables():
+        #         continue
+        #
+        #     # Only tables with merge disposition are dispatched for orphan removal jobs.
+        #     if table.get("write_disposition") == "merge":
+        #         parent_table = table.get("parent")
+        #         jobs.append(
+        #             LanceDBRemoveOrphansJob(
+        #                 db_client=self.db_client,
+        #                 table_schema=self.prepare_load_table(table["name"]),
+        #                 fq_table_name=self.make_qualified_table_name(table["name"]),
+        #                 fq_parent_table_name=(
+        #                     self.make_qualified_table_name(parent_table) if parent_table else None
+        #                 ),
+        #                 client_config=self.config,
+        #             )
+        #         )
+        #
         return jobs
 
     def table_exists(self, table_name: str) -> bool:
@@ -745,21 +739,14 @@ class LanceDBLoadJob(RunnableLoadJob):
     def __init__(
         self,
         file_path: str,
-        type_mapper: LanceDBTypeMapper,
-        model_func: TextEmbeddingFunction,
         fq_table_name: str,
-        fq_parent_table_name: Optional[str],
     ) -> None:
         super().__init__(file_path)
-        self._type_mapper: TypeMapper = type_mapper
         self._fq_table_name: str = fq_table_name
-        self._model_func = model_func
         self._job_client: "LanceDBClient" = None
 
     def run(self) -> None:
         self._db_client: DBConnection = self._job_client.db_client
-        self._embedding_model_func: TextEmbeddingFunction = self._model_func
-        self._embedding_model_dimensions: int = self._job_client.config.embedding_model_dimensions
         self._id_field_name: str = self._job_client.config.id_field_name
 
         unique_identifiers: Sequence[str] = get_unique_identifiers_from_table_schema(
@@ -822,7 +809,7 @@ class LanceDBRemoveOrphansJob(FollowupJobImpl):
 
         self.execute()
 
-    def execute(self) -> None:
+    def run(self) -> None:
         orphaned_ids: Set[str]
 
         if self.write_disposition != "merge":
@@ -903,3 +890,34 @@ class LanceDBRemoveOrphansJob(FollowupJobImpl):
             raise DestinationTerminalException(
                 "Python and Arrow datatype mismatch - batch failed AND WILL **NOT** BE RETRIED."
             ) from e
+
+    @classmethod
+    def from_table_chain(
+        cls,
+        table_chain: Sequence[TTableSchema],
+    ) -> FollowupJobImpl:
+        """Generates a list of orphan removal tasks that the client will execute when the job is executed in the loader.
+
+        The `table_chain` contains a listo of table schemas with parent-child relationship, ordered by the ancestry (the root of the tree is first on the list).
+        """
+        top_table = table_chain[0]
+        file_info = ParsedLoadJobFileName(
+            top_table["name"], ParsedLoadJobFileName.new_file_id(), 0, "parquet"
+        )
+        try:
+            job = cls(file_info.file_name())
+            # Write parquet file contents??
+        except Exception as e:
+            raise LanceDBJobCreationException(e, table_chain) from e
+        return job
+
+
+class LanceDBJobCreationException(DestinationTransientException):
+    def __init__(self, original_exception: Exception, table_chain: Sequence[TTableSchema]) -> None:
+        tables_chain = yaml.dump(
+            table_chain, allow_unicode=True, default_flow_style=False, sort_keys=False
+        )
+        super().__init__(
+            f"Could not create SQLFollowupJob with exception {str(original_exception)}. Table"
+            f" chain: {tables_chain}"
+        )
