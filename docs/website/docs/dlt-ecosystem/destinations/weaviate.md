@@ -116,6 +116,22 @@ weaviate_adapter(
     tokenization={"title": "word", "description": "whitespace"},
 )
 ```
+When adapting resources, it's important to implement changes directly to the data source itself rather than extracting resources separately. Here's how:
+
+```py
+products_tables = sql_database().with_resources("products", "customers")
+
+pipeline = dlt.pipeline(
+        pipeline_name="postgres_to_weaviate_pipeline",
+        destination="weaviate",
+    )
+
+# adapt the resource within the source
+weaviate_adapter(products_tables.products, vectorize="description")
+weaviate_adapter(products_tables.customers, vectorize="bio")
+
+info = pipeline.run(products_tables)
+```    
 
 :::tip
 
