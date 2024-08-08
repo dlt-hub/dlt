@@ -1,7 +1,7 @@
 from typing import Any, AnyStr, List, Type, Optional, Protocol, Tuple, TypeVar, Generator
 
 from dlt.common.typing import DataFrame, ArrowTable
-from dlt.common.destination.reference import SupportsDataAccess
+from dlt.common.destination.reference import SupportsReadRelation
 
 # native connection
 TNativeConn = TypeVar("TNativeConn", bound=Any)
@@ -19,7 +19,7 @@ class DBApi(Protocol):
     paramstyle: str
 
 
-class DBApiCursor(SupportsDataAccess):
+class DBApiCursor(SupportsReadRelation):
     """Protocol for DBAPI cursor"""
 
     description: Tuple[Any, ...]

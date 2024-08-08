@@ -298,6 +298,7 @@ def test_execute_query(client: SqlJobClientBase) -> None:
             rows = curr.fetchall()
             assert len(rows) == 0
 
+
 @pytest.mark.parametrize(
     "client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name
 )

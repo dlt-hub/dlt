@@ -570,10 +570,10 @@ class SupportsStagingDestination:
         return True
 
 
-class SupportsDataAccess(Protocol):
-    """Add support accessing data items"""
+class SupportsReadRelation(Protocol):
+    """Add support accessing data items on a relation"""
 
-    def df(self, chunk_size: int = None, **kwargs: None) -> Optional[DataFrame]:
+    def df(self, chunk_size: int = None) -> Optional[DataFrame]:
         """Fetches the results as data frame. For large queries the results may be chunked
 
         Fetches the results into a data frame. The default implementation uses helpers in `pandas.io.sql` to generate Pandas data frame.
@@ -589,7 +589,7 @@ class SupportsDataAccess(Protocol):
         """
         ...
 
-    def arrow(self, *, chunk_size: int = None) -> Optional[ArrowTable]: ...
+    def arrow(self, chunk_size: int = None) -> Optional[ArrowTable]: ...
 
     def iter_df(self, chunk_size: int) -> Generator[DataFrame, None, None]: ...
 
@@ -604,6 +604,16 @@ class SupportsDataAccess(Protocol):
     def fetchone(self) -> Optional[Tuple[Any, ...]]: ...
 
 
+class SupportsReadDataset(Protocol):
+    """Add support for read access on a dataset"""
+
+    def sql(self, sql: str, prepare_tables: List[str] = None) -> SupportsReadRelation: ...
+
+    def __getitem__(self, table: str) -> SupportsReadRelation: ...
+
+    def __getattr__(self, table: str) -> SupportsReadRelation: ...
+
+
 class SupportsRelationshipAccess(ABC):
     """Add support for accessing a cursor for a given relationship or query"""
 
@@ -614,7 +624,7 @@ class SupportsRelationshipAccess(ABC):
         table: str = None,
         sql: str = None,
         prepare_tables: List[str] = None,
-    ) -> ContextManager[SupportsDataAccess]: ...
+    ) -> ContextManager[SupportsReadRelation]: ...
 
 
 # TODO: type Destination properly

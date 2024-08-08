@@ -58,7 +58,6 @@ from dlt.extract.exceptions import (
     ResourceNotATransformer,
 )
 from dlt.extract.wrappers import wrap_additional_type
-from dlt.dataset import Dataset
 
 
 def with_table_name(item: TDataItems, table_name: str) -> DataItemWithMeta:

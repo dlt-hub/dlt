@@ -81,6 +81,7 @@ from dlt.common.destination.reference import (
     DestinationClientStagingConfiguration,
     DestinationClientStagingConfiguration,
     DestinationClientDwhWithStagingConfiguration,
+    SupportsReadDataset,
 )
 from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.pipeline import (
@@ -147,7 +148,6 @@ from dlt.pipeline.state_sync import (
 )
 from dlt.common.storages.load_package import TLoadPackageState
 from dlt.pipeline.helpers import refresh_source
-from dlt.dataset import Dataset
 
 
 def with_state_sync(may_extract_state: bool = False) -> Callable[[TFun], TFun]:
@@ -1702,6 +1702,8 @@ class Pipeline(SupportsPipeline):
         return {"pipeline_name": self.pipeline_name}
 
     @property
-    def dataset(self) -> Dataset:
+    def dataset(self) -> SupportsReadDataset:
         """Access helper to dataset"""
-        return Dataset(self)
+        from dlt.destinations.dataset import Dataset
+
+        return Dataset(self.destination_client())
