@@ -18,6 +18,7 @@ def init_logging(config: RunConfiguration) -> None:
 def initialize_runtime(config: RunConfiguration) -> None:
     from dlt.common.runtime.telemetry import start_telemetry
     from dlt.sources.helpers import requests
+    from dlt.plugins import discover_plugins
 
     global _INITIALIZED, _RUN_CONFIGURATION
 

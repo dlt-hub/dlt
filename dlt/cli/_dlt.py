@@ -563,6 +563,13 @@ def main() -> int:
 
     subparsers.add_parser("telemetry", help="Shows telemetry status")
 
+    # add subparsers for plugins
+    from dlt.plugins import _DLT_CLI_PLUGINS
+
+    for name, plugin in _DLT_CLI_PLUGINS.items():
+        sp = subparsers.add_parser(name, help=plugin["cli_help"])
+        plugin["func"](sp, None)
+
     args = parser.parse_args()
 
     if Venv.is_virtual_env() and not Venv.is_venv_activated():
@@ -572,6 +579,9 @@ def main() -> int:
             " environment. You should uninstall the dlt from global environment and install it in"
             " the current virtual environment instead."
         )
+
+    if args.command in _DLT_CLI_PLUGINS.keys():
+        return _DLT_CLI_PLUGINS[args.command]["func"](None, args)
 
     if args.command == "schema":
         return schema_command_wrapper(args.file, args.format, args.remove_defaults)

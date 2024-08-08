@@ -42,6 +42,7 @@ from dlt.pipeline import (
 )
 from dlt.pipeline import progress
 from dlt import destinations
+from dlt.plugins import discover_plugins
 
 pipeline = _pipeline
 current = _current
@@ -53,6 +54,9 @@ TSecretValue = _TSecretValue
 TCredentials = _CredentialsConfiguration
 "When typing source/resource function arguments it indicates that a given argument represents credentials and should be taken from dlt.secrets. Credentials may be a string, dictionary or any other type."
 
+# TODO: where would this go??
+# discover all plugins
+discover_plugins()
 
 __all__ = [
     "__version__",
