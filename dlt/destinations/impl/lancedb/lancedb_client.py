@@ -78,7 +78,7 @@ from dlt.destinations.impl.lancedb.utils import (
     set_non_standard_providers_environment_variables,
     generate_arrow_uuid_column,
 )
-from dlt.destinations.job_impl import FollowupJobImpl
+from dlt.destinations.job_impl import ReferenceFollowupJob
 from dlt.destinations.type_mapping import TypeMapper
 
 if TYPE_CHECKING:
@@ -693,41 +693,17 @@ class LanceDBClient(JobClientBase, WithStateSync):
     def create_load_job(
         self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
-        return LanceDBLoadJob(
-            file_path=file_path,
-            fq_table_name=self.make_qualified_table_name(table["name"]),
-        )
+        if ReferenceFollowupJob.is_reference_job(file_path):
+            return LanceDBRemoveOrphansJob(file_path, table)
+        else:
+            return LanceDBLoadJob(file_path, table)
 
     def create_table_chain_completed_followup_jobs(
         self,
         table_chain: Sequence[TTableSchema],
         completed_table_chain_jobs: Optional[Sequence[LoadJobInfo]] = None,
     ) -> List[FollowupJob]:
-        assert completed_table_chain_jobs is not None
-        jobs = super().create_table_chain_completed_followup_jobs(
-            table_chain, completed_table_chain_jobs
-        )
-
-        # for table in table_chain:
-        #     if table in self.schema.dlt_tables():
-        #         continue
-        #
-        #     # Only tables with merge disposition are dispatched for orphan removal jobs.
-        #     if table.get("write_disposition") == "merge":
-        #         parent_table = table.get("parent")
-        #         jobs.append(
-        #             LanceDBRemoveOrphansJob(
-        #                 db_client=self.db_client,
-        #                 table_schema=self.prepare_load_table(table["name"]),
-        #                 fq_table_name=self.make_qualified_table_name(table["name"]),
-        #                 fq_parent_table_name=(
-        #                     self.make_qualified_table_name(parent_table) if parent_table else None
-        #                 ),
-        #                 client_config=self.config,
-        #             )
-        #         )
-        #
-        return jobs
+        return [LanceDBRemoveOrphansJob.from_table_chain(table_chain)]
 
     def table_exists(self, table_name: str) -> bool:
         return table_name in self.db_client.table_names()
@@ -739,16 +715,16 @@ class LanceDBLoadJob(RunnableLoadJob):
     def __init__(
         self,
         file_path: str,
-        fq_table_name: str,
+        table_schema: TTableSchema,
     ) -> None:
         super().__init__(file_path)
-        self._fq_table_name: str = fq_table_name
         self._job_client: "LanceDBClient" = None
+        self._table_schema: TTableSchema = table_schema
 
     def run(self) -> None:
-        self._db_client: DBConnection = self._job_client.db_client
-        self._id_field_name: str = self._job_client.config.id_field_name
-
+        db_client: DBConnection = self._job_client.db_client
+        fq_table_name: str = self._job_client.make_qualified_table_name(self._table_schema["name"])
+        id_field_name: str = self._job_client.config.id_field_name
         unique_identifiers: Sequence[str] = get_unique_identifiers_from_table_schema(
             self._load_table
         )
@@ -763,67 +739,44 @@ class LanceDBLoadJob(RunnableLoadJob):
             arrow_table = generate_arrow_uuid_column(
                 arrow_table,
                 unique_identifiers=unique_identifiers,
-                table_name=self._fq_table_name,
-                id_field_name=self._id_field_name,
+                table_name=fq_table_name,
+                id_field_name=id_field_name,
             )
 
         write_to_db(
             arrow_table,
-            db_client=self._db_client,
-            table_name=self._fq_table_name,
+            db_client=db_client,
+            table_name=fq_table_name,
             write_disposition=write_disposition,
-            id_field_name=self._id_field_name,
+            id_field_name=id_field_name,
         )
 
 
-class LanceDBRemoveOrphansJob(FollowupJobImpl):
+class LanceDBRemoveOrphansJob(RunnableLoadJob):
+    orphaned_ids: Set[str]
+
     def __init__(
         self,
-        db_client: DBConnection,
+        file_path: str,
         table_schema: TTableSchema,
-        client_config: LanceDBClientConfiguration,
-        fq_table_name: str,
-        fq_parent_table_name: Optional[str],
     ) -> None:
-        self.db_client = db_client
-        self.table_schema: TTableSchema = table_schema
-        self.fq_table_name: str = fq_table_name
-        self.fq_parent_table_name: Optional[str] = fq_parent_table_name
-        self.write_disposition: TWriteDisposition = cast(
-            TWriteDisposition, self.table_schema.get("write_disposition")
-        )
-        self.id_field_name: str = client_config.id_field_name
-
-        job_id = ParsedLoadJobFileName(
-            table_schema["name"],
-            ParsedLoadJobFileName.new_file_id(),
-            0,
-            "parquet",
-        ).file_name()
-
-        super().__init__(
-            file_name=job_id,
-        )
-
-        self._save_text_file("")
-
-        self.execute()
+        super().__init__(file_path)
+        self._job_client: "LanceDBClient" = None
+        self._table_schema: TTableSchema = table_schema
 
     def run(self) -> None:
-        orphaned_ids: Set[str]
+        db_client: DBConnection = self._job_client.db_client
+        fq_table_name: str = self._job_client.make_qualified_table_name(self._table_schema["name"])
+        fq_parent_table_name: str = self._job_client.make_qualified_table_name(
+            self._table_schema["parent"]
+        )
+        id_field_name: str = self._job_client.config.id_field_name
 
-        if self.write_disposition != "merge":
-            raise DestinationTerminalException(
-                f"Unsupported write disposition {self.write_disposition} for LanceDB Destination"
-                " Orphan Removal Job - failed AND WILL **NOT** BE RETRIED."
-            )
-
-        # Orphans are removed irrespective of which merge strategy is picked.
         try:
-            child_table = self.db_client.open_table(self.fq_table_name)
+            child_table = db_client.open_table(fq_table_name)
             child_table.checkout_latest()
-            if self.fq_parent_table_name:
-                parent_table = self.db_client.open_table(self.fq_parent_table_name)
+            if fq_parent_table_name:
+                parent_table = db_client.open_table(fq_parent_table_name)
                 parent_table.checkout_latest()
         except FileNotFoundError as e:
             raise DestinationTransientException(
@@ -831,10 +784,9 @@ class LanceDBRemoveOrphansJob(FollowupJobImpl):
             ) from e
 
         try:
-            if self.fq_parent_table_name:
+            if fq_parent_table_name:
                 # Chunks and embeddings in child table.
 
-                # By referencing the underlying lance dataset, we benefit from projection push-down to the storage layer (LanceDB).
                 parent_ids = set(
                     pc.unique(
                         parent_table.to_lance().to_table(columns=["_dlt_id"])["_dlt_id"]
@@ -857,9 +809,11 @@ class LanceDBRemoveOrphansJob(FollowupJobImpl):
             else:
                 # Chunks and embeddings in the root table.
 
-                document_id_field = get_columns_names_with_prop(self.table_schema, DOCUMENT_ID_HINT)
+                document_id_field = get_columns_names_with_prop(
+                    self._table_schema, DOCUMENT_ID_HINT
+                )
                 if document_id_field and get_columns_names_with_prop(
-                    self.table_schema, "primary_key"
+                    self._table_schema, "primary_key"
                 ):
                     raise SystemConfigurationException(
                         "You CANNOT specify a primary key AND a document ID hint for the same"
@@ -868,7 +822,7 @@ class LanceDBRemoveOrphansJob(FollowupJobImpl):
 
                 # If document ID is defined, we use this as the sole grouping key to identify stale chunks,
                 # else fallback to the compound `id_field_name`.
-                grouping_key = document_id_field or self.id_field_name
+                grouping_key = document_id_field or id_field_name
                 grouping_key = grouping_key if isinstance(grouping_key, list) else [grouping_key]
                 child_table_arrow: pa.Table = child_table.to_lance().to_table(
                     columns=[*grouping_key, "_dlt_load_id", "_dlt_id"]
@@ -895,10 +849,10 @@ class LanceDBRemoveOrphansJob(FollowupJobImpl):
     def from_table_chain(
         cls,
         table_chain: Sequence[TTableSchema],
-    ) -> FollowupJobImpl:
+    ) -> "LanceDBRemoveOrphansJob":
         """Generates a list of orphan removal tasks that the client will execute when the job is executed in the loader.
 
-        The `table_chain` contains a listo of table schemas with parent-child relationship, ordered by the ancestry (the root of the tree is first on the list).
+        The `table_chain` contains a list of table schemas with parent-child relationship, ordered by the ancestry (the root of the tree is first on the list).
         """
         top_table = table_chain[0]
         file_info = ParsedLoadJobFileName(
