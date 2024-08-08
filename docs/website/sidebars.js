@@ -206,6 +206,7 @@ const sidebars = {
       items: [
         'walkthroughs/create-a-pipeline',
         'walkthroughs/add-a-verified-source',
+        'walkthroughs/add-incremental-configuration',
         'walkthroughs/add_credentials',
         'walkthroughs/run-a-pipeline',
         'walkthroughs/adjust-a-schema',
