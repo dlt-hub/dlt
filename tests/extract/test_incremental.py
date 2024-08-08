@@ -835,7 +835,7 @@ def test_cursor_path_none_can_raise_on_none_2(item_type: TestDataItemFormat) -> 
         assert e.value.json_path == "created_at"
 
     # same thing when run in pipeline
-    with pytest.raises(PipelineStepFailed) as e: # type: ignore[assignment]
+    with pytest.raises(PipelineStepFailed) as e:  # type: ignore[assignment]
         p = dlt.pipeline(pipeline_name=uniq_id())
         p.extract(some_data())
     if item_type == "object":
