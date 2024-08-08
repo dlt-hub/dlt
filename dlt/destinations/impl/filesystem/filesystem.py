@@ -45,7 +45,7 @@ from dlt.common.destination.reference import (
     StorageSchemaInfo,
     StateInfo,
     LoadJob,
-    SupportsReadDataset,
+    SupportsReadableDataset,
 )
 from dlt.common.destination.exceptions import DestinationUndefinedEntity
 from dlt.common.typing import DuckDBPyConnection
@@ -56,7 +56,7 @@ from dlt.destinations.job_impl import (
 from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
 from dlt.destinations import path_utils
 from dlt.destinations.fs_client import FSClientBase
-from dlt.destinations.dataset import Dataset
+from dlt.destinations.dataset import ReadableDataset
 
 INIT_FILE_NAME = "init"
 FILENAME_SEPARATOR = "__"
@@ -652,7 +652,7 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
         return db
 
     @contextmanager
-    def cursor_for_relation(
+    def get_readable_relation(
         self, *, table: str = None, sql: str = None, prepare_tables: List[str] = None
     ) -> Generator[DBApiCursor, Any, Any]:
         from dlt.destinations.impl.duckdb.sql_client import DuckDBDBApiCursorImpl
@@ -677,5 +677,5 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
         db.execute(sql)
         yield DuckDBDBApiCursorImpl(db)  # type: ignore
 
-    def dataset(self) -> SupportsReadDataset:
-        return Dataset(self)
+    def dataset(self) -> SupportsReadableDataset:
+        return ReadableDataset(self)

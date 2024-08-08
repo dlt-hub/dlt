@@ -41,7 +41,7 @@ from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns, TSchem
 from dlt.common.destination.reference import (
     StateInfo,
     StorageSchemaInfo,
-    SupportsReadDataset,
+    SupportsReadableDataset,
     WithStateSync,
     DestinationClientConfiguration,
     DestinationClientDwhConfiguration,
@@ -52,10 +52,10 @@ from dlt.common.destination.reference import (
     JobClientBase,
     HasFollowupJobs,
     CredentialsConfiguration,
-    SupportsRelationshipAccess,
-    SupportsReadRelation,
+    WithReadableRelations,
+    SupportsReadableRelation,
 )
-from dlt.destinations.dataset import Dataset
+from dlt.destinations.dataset import ReadableDataset
 
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
 from dlt.destinations.job_impl import (
@@ -127,7 +127,7 @@ class CopyRemoteFileLoadJob(RunnableLoadJob, HasFollowupJobs):
         self._bucket_path = ReferenceFollowupJob.resolve_reference(file_path)
 
 
-class SqlJobClientBase(SupportsRelationshipAccess, JobClientBase, WithStateSync):
+class SqlJobClientBase(WithReadableRelations, JobClientBase, WithStateSync):
     INFO_TABLES_QUERY_THRESHOLD: ClassVar[int] = 1000
     """Fallback to querying all tables in the information schema if checking more than threshold"""
 
@@ -685,9 +685,9 @@ WHERE """
         )
 
     @contextmanager
-    def cursor_for_relation(
+    def get_readable_relation(
         self, *, table: str = None, sql: str = None, prepare_tables: List[str] = None
-    ) -> Generator[SupportsReadRelation, Any, Any]:
+    ) -> Generator[SupportsReadableRelation, Any, Any]:
         with self.sql_client as sql_client:
             if not sql:
                 table = sql_client.make_qualified_table_name(table)
@@ -695,8 +695,8 @@ WHERE """
             with sql_client.execute_query(sql) as cursor:
                 yield cursor
 
-    def dataset(self) -> SupportsReadDataset:
-        return Dataset(self)
+    def dataset(self) -> SupportsReadableDataset:
+        return ReadableDataset(self)
 
 
 class SqlJobClientWithStaging(SqlJobClientBase, WithStagingDataset):

@@ -81,7 +81,7 @@ from dlt.common.destination.reference import (
     DestinationClientStagingConfiguration,
     DestinationClientStagingConfiguration,
     DestinationClientDwhWithStagingConfiguration,
-    SupportsReadDataset,
+    SupportsReadableDataset,
 )
 from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.pipeline import (
@@ -1702,6 +1702,6 @@ class Pipeline(SupportsPipeline):
         return {"pipeline_name": self.pipeline_name}
 
     @property
-    def dataset(self) -> SupportsReadDataset:
+    def dataset(self) -> SupportsReadableDataset:
         """Access helper to dataset"""
         return self.destination_client().dataset()

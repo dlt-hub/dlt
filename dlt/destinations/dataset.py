@@ -2,19 +2,19 @@ from typing import Any, Generator, List, Tuple, Optional
 
 from contextlib import contextmanager
 from dlt.common.destination.reference import (
-    SupportsRelationshipAccess,
-    SupportsReadRelation,
-    SupportsReadDataset,
+    WithReadableRelations,
+    SupportsReadableRelation,
+    SupportsReadableDataset,
 )
 
 from dlt.common.typing import DataFrame, ArrowTable
 
 
-class Relation(SupportsReadRelation):
+class ReadableRelation(SupportsReadableRelation):
     def __init__(
         self,
         *,
-        client: SupportsRelationshipAccess,
+        client: WithReadableRelations,
         table: str = None,
         sql: str = None,
         prepare_tables: List[str] = None,
@@ -26,9 +26,9 @@ class Relation(SupportsReadRelation):
         self.table = table
 
     @contextmanager
-    def cursor(self) -> Generator[SupportsReadRelation, Any, Any]:
+    def cursor(self) -> Generator[SupportsReadableRelation, Any, Any]:
         """Gets a DBApiCursor for the current relation"""
-        with self.client.cursor_for_relation(
+        with self.client.get_readable_relation(
             sql=self.sql, table=self.table, prepare_tables=self.prepare_tables
         ) as cursor:
             yield cursor
@@ -88,19 +88,19 @@ class Relation(SupportsReadRelation):
             return cursor.fetchone()
 
 
-class Dataset(SupportsReadDataset):
+class ReadableDataset(SupportsReadableDataset):
     """Access to dataframes and arrowtables in the destination dataset"""
 
-    def __init__(self, client: SupportsRelationshipAccess) -> None:
+    def __init__(self, client: WithReadableRelations) -> None:
         self.client = client
 
-    def sql(self, sql: str, prepare_tables: List[str] = None) -> SupportsReadRelation:
-        return Relation(client=self.client, sql=sql, prepare_tables=prepare_tables)
+    def sql(self, sql: str, prepare_tables: List[str] = None) -> SupportsReadableRelation:
+        return ReadableRelation(client=self.client, sql=sql, prepare_tables=prepare_tables)
 
-    def __getitem__(self, table: str) -> SupportsReadRelation:
+    def __getitem__(self, table: str) -> SupportsReadableRelation:
         """access of table via dict notation"""
-        return Relation(client=self.client, table=table)
+        return ReadableRelation(client=self.client, table=table)
 
-    def __getattr__(self, table: str) -> SupportsReadRelation:
+    def __getattr__(self, table: str) -> SupportsReadableRelation:
         """access of table via property notation"""
-        return Relation(client=self.client, table=table)
+        return ReadableRelation(client=self.client, table=table)

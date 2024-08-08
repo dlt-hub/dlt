@@ -408,8 +408,8 @@ class HasFollowupJobs:
         return []
 
 
-class SupportsReadRelation(Protocol):
-    """Add support accessing data items on a relation"""
+class SupportsReadableRelation(Protocol):
+    """A readable relation retrieved from a destination that supports it"""
 
     def df(self, chunk_size: int = None) -> Optional[DataFrame]:
         """Fetches the results as data frame. For large queries the results may be chunked
@@ -442,14 +442,14 @@ class SupportsReadRelation(Protocol):
     def fetchone(self) -> Optional[Tuple[Any, ...]]: ...
 
 
-class SupportsReadDataset(Protocol):
-    """Add support for read access on a dataset"""
+class SupportsReadableDataset(Protocol):
+    """A readable dataset retrieved from a destination, has support for creating readable relations for a query or table"""
 
-    def sql(self, sql: str, prepare_tables: List[str] = None) -> SupportsReadRelation: ...
+    def sql(self, sql: str, prepare_tables: List[str] = None) -> SupportsReadableRelation: ...
 
-    def __getitem__(self, table: str) -> SupportsReadRelation: ...
+    def __getitem__(self, table: str) -> SupportsReadableRelation: ...
 
-    def __getattr__(self, table: str) -> SupportsReadRelation: ...
+    def __getattr__(self, table: str) -> SupportsReadableRelation: ...
 
 
 class JobClientBase(ABC):
@@ -570,7 +570,7 @@ class JobClientBase(ABC):
         except KeyError:
             raise UnknownTableException(self.schema.name, table_name)
 
-    def dataset(self) -> SupportsReadDataset:
+    def dataset(self) -> SupportsReadableDataset:
         raise Exception("Destination does not support SupportsReadDataset")
 
 
@@ -617,17 +617,17 @@ class SupportsStagingDestination:
         return True
 
 
-class SupportsRelationshipAccess(ABC):
-    """Add support for accessing a cursor for a given relationship or query"""
+class WithReadableRelations(ABC):
+    """Add support for getting readable reletions form a destination"""
 
     @abstractmethod
-    def cursor_for_relation(
+    def get_readable_relation(
         self,
         *,
         table: str = None,
         sql: str = None,
         prepare_tables: List[str] = None,
-    ) -> ContextManager[SupportsReadRelation]: ...
+    ) -> ContextManager[SupportsReadableRelation]: ...
 
 
 # TODO: type Destination properly
