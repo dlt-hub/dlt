@@ -402,7 +402,7 @@ class ArrowIncremental(IncrementalTransform):
             return tbl.to_pandas(), start_out_of_range, end_out_of_range
         return tbl, start_out_of_range, end_out_of_range
 
-    def _process_null_at_cursor_path(self, tbl: pa.Table) -> Tuple["pa.Table", "pa.Table"]:
+    def _process_null_at_cursor_path(self, tbl: "pa.Table") -> Tuple["pa.Table", "pa.Table"]:
         mask = pa.compute.is_valid(tbl[self.cursor_path])
         rows_without_null = tbl.filter(mask)
         rows_with_null = tbl.filter(pa.compute.invert(mask))
