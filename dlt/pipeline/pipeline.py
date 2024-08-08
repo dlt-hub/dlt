@@ -1701,7 +1701,6 @@ class Pipeline(SupportsPipeline):
         # pickle only the SupportsPipeline protocol fields
         return {"pipeline_name": self.pipeline_name}
 
-    @property
     def dataset(self) -> SupportsReadableDataset:
         """Access helper to dataset"""
         return self.destination_client().dataset()

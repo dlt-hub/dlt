@@ -66,10 +66,12 @@ class ReadableRelation(SupportsReadableRelation):
             )
 
     def fetchall(self) -> List[Tuple[Any, ...]]:
+        """does a dbapi fetch all"""
         with self.cursor() as cursor:
             return cursor.fetchall()
 
     def fetchmany(self, chunk_size: int) -> List[Tuple[Any, ...]]:
+        """does a dbapi fetchmany with a given chunk size"""
         with self.cursor() as cursor:
             return cursor.fetchmany(chunk_size)
 

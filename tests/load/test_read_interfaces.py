@@ -54,7 +54,7 @@ def _run_dataset_checks(
     pipeline.run(s, loader_file_format=destination_config.file_format)
 
     # access via key
-    relationship = pipeline.dataset["items"]
+    relationship = pipeline.dataset()["items"]
 
     # full frame
     df = relationship.df()
@@ -80,7 +80,7 @@ def _run_dataset_checks(
     assert set(ids) == set(range(total_records))
 
     # access via prop
-    relationship = pipeline.dataset.items
+    relationship = pipeline.dataset().items
 
     #
     # check arrow tables
@@ -104,7 +104,7 @@ def _run_dataset_checks(
     assert set(ids) == set(range(total_records))
 
     # check fetch accessors
-    relationship = pipeline.dataset.items
+    relationship = pipeline.dataset().items
 
     # check accessing one item
     one = relationship.fetchone()
@@ -193,7 +193,7 @@ def test_evolving_filesystem(destination_config: DestinationTestConfiguration) -
 
     pipeline.run([items()], loader_file_format=destination_config.file_format)
 
-    df = pipeline.dataset.items.df()
+    df = pipeline.dataset().items.df()
     assert len(df.index) == 20
 
     @dlt.resource(table_name="items")
@@ -202,5 +202,5 @@ def test_evolving_filesystem(destination_config: DestinationTestConfiguration) -
 
     pipeline.run([items2()], loader_file_format=destination_config.file_format)
     # check df and arrow access
-    assert len(pipeline.dataset.items.df().index) == 50
-    assert pipeline.dataset.items.arrow().num_rows == 50
+    assert len(pipeline.dataset().items.df().index) == 50
+    assert pipeline.dataset().items.arrow().num_rows == 50
