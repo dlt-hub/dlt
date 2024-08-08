@@ -445,7 +445,7 @@ class SupportsReadableRelation(Protocol):
 class SupportsReadableDataset(Protocol):
     """A readable dataset retrieved from a destination, has support for creating readable relations for a query or table"""
 
-    def sql(self, sql: str, prepare_tables: List[str] = None) -> SupportsReadableRelation: ...
+    def sql(self, sql: str) -> SupportsReadableRelation: ...
 
     def __getitem__(self, table: str) -> SupportsReadableRelation: ...
 
@@ -626,7 +626,6 @@ class WithReadableRelations(ABC):
         *,
         table: str = None,
         sql: str = None,
-        prepare_tables: List[str] = None,
     ) -> ContextManager[SupportsReadableRelation]: ...
 
 

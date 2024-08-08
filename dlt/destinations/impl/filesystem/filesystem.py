@@ -15,6 +15,7 @@ from typing import (
     Generator,
     Literal,
     Any,
+    Dict,
 )
 from fsspec import AbstractFileSystem
 from contextlib import contextmanager
@@ -607,21 +608,26 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
                 jobs.append(ReferenceFollowupJob(file_name, table_job_paths))
         return jobs
 
-    def get_duckdb(
-        self,
-        tables: List[str],
-        db: DuckDBPyConnection = None,
-        table_type: Literal["view", "table"] = "view",
-    ) -> DuckDBPyConnection:
+    def get_duckdb(self, tables: List[str]) -> DuckDBPyConnection:
         import duckdb
         from duckdb import InvalidInputException, IOException
 
-        # create in memory table, for now we read all available files
-        db = duckdb.connect(":memory:")
-        db.register_filesystem(self.fs_client)
+        # cache duckdb instance and list of created views
+        db: DuckDBPyConnection = getattr(self, "_duckdb", None)
+        existing_views: List[str] = getattr(self, "_existing_duckdb_views", [])
+
+        if not db:
+            db = duckdb.connect(":memory:")
+            db.register_filesystem(self.fs_client)
+            self._duckdb = db
+            self._existing_duckdb_views = existing_views
 
         # create all tables in duck instance
         for ptable in tables:
+            if ptable in existing_views:
+                continue
+            existing_views.append(ptable)
+
             folder = self.get_table_dir(ptable)
             files = self.list_table_files(ptable)
             # discover tables files
@@ -637,10 +643,10 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
             protocol = "" if self.is_local_filesystem else f"{self.config.protocol}://"
             files_string = f"'{protocol}{folder}/**/*.{file_type}'"
             create_table_sql_base = (
-                f"CREATE {table_type} {ptable} AS SELECT * FROM {read_command}([{files_string}])"
+                f"CREATE VIEW {ptable} AS SELECT * FROM {read_command}([{files_string}])"
             )
             create_table_sql_gzipped = (
-                f"CREATE {table_type} {ptable} AS SELECT * FROM {read_command}([{files_string}],"
+                f"CREATE VIEW {ptable} AS SELECT * FROM {read_command}([{files_string}],"
                 " compression = 'gzip')"
             )
             try:
@@ -653,29 +659,22 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
 
     @contextmanager
     def get_readable_relation(
-        self, *, table: str = None, sql: str = None, prepare_tables: List[str] = None
+        self, *, table: str = None, sql: str = None
     ) -> Generator[DBApiCursor, Any, Any]:
         from dlt.destinations.impl.duckdb.sql_client import DuckDBDBApiCursorImpl
+        import sqlglot
+        import sqlglot.expressions as exp
 
         if table:
-            prepare_tables = [table]
-            if sql:
-                raise Exception("You must either provide the table argument or a sql expression")
             sql = f"SELECT * FROM {table}"
-        elif not prepare_tables or not sql:
-            raise Exception(
-                "You must either provide a table argument or sql and prepare table arguments to"
-                " access this dataset"
-            )
 
-        db = self.get_duckdb(tables=prepare_tables)
-
-        if not sql:
-            sql = f"SELECT * FROM {table}"
+        # find all tables to preload
+        expression = sqlglot.parse_one(sql, read="oracle")
+        load_tables = [t.name for t in expression.find_all(exp.Table)]
 
         # we can use the implementation of the duckdb cursor here
-        db.execute(sql)
-        yield DuckDBDBApiCursorImpl(db)  # type: ignore
+        db = self.get_duckdb(tables=load_tables)
+        yield DuckDBDBApiCursorImpl(db.execute(sql))  # type: ignore
 
     def dataset(self) -> SupportsReadableDataset:
         return ReadableDataset(self)

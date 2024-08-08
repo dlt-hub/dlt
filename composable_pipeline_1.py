@@ -100,7 +100,6 @@ if __name__ == "__main__":
                 "SELECT orders.*, customers.name FROM orders LEFT JOIN customers ON"
                 " orders.customer_id = customers.id"
             ),
-            prepare_tables=["customers", "orders"],
         ).iter_df(),
         loader_file_format="jsonl",
         table_name="customers",

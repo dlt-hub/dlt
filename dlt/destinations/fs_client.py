@@ -1,10 +1,9 @@
-from typing import Iterable, cast, Any, List, Literal
+from typing import Iterable, cast, Any, List
 
 import gzip
 from abc import ABC, abstractmethod
 from fsspec import AbstractFileSystem
 
-from dlt.common.typing import DuckDBPyConnection
 from dlt.common.destination.reference import WithReadableRelations
 
 
@@ -59,16 +58,3 @@ class FSClientBase(WithReadableRelations, ABC):
             path, mode="rt", compression=compression, encoding=encoding, newline=newline
         ) as f:
             return cast(str, f.read())
-
-    @abstractmethod
-    def get_duckdb(
-        self,
-        tables: List[str],
-        db: DuckDBPyConnection = None,
-        table_type: Literal["view", "table"] = "view",
-    ) -> DuckDBPyConnection:
-        """
-        Returns a duckdb in memory instance with given tables loaded as views or tables.
-        Can also take an existing duckdb object to add tables from the filesystem.
-        """
-        pass

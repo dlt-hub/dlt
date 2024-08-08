@@ -17,20 +17,16 @@ class ReadableRelation(SupportsReadableRelation):
         client: WithReadableRelations,
         table: str = None,
         sql: str = None,
-        prepare_tables: List[str] = None,
     ) -> None:
         """Create a lazy evaluated relation to for the dataset of a destination"""
         self.client = client
-        self.prepare_tables = prepare_tables
         self.sql = sql
         self.table = table
 
     @contextmanager
     def cursor(self) -> Generator[SupportsReadableRelation, Any, Any]:
         """Gets a DBApiCursor for the current relation"""
-        with self.client.get_readable_relation(
-            sql=self.sql, table=self.table, prepare_tables=self.prepare_tables
-        ) as cursor:
+        with self.client.get_readable_relation(sql=self.sql, table=self.table) as cursor:
             yield cursor
 
     def df(
@@ -94,8 +90,8 @@ class ReadableDataset(SupportsReadableDataset):
     def __init__(self, client: WithReadableRelations) -> None:
         self.client = client
 
-    def sql(self, sql: str, prepare_tables: List[str] = None) -> SupportsReadableRelation:
-        return ReadableRelation(client=self.client, sql=sql, prepare_tables=prepare_tables)
+    def sql(self, sql: str) -> SupportsReadableRelation:
+        return ReadableRelation(client=self.client, sql=sql)
 
     def __getitem__(self, table: str) -> SupportsReadableRelation:
         """access of table via dict notation"""

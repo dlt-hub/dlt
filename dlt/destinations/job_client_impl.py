@@ -686,7 +686,7 @@ WHERE """
 
     @contextmanager
     def get_readable_relation(
-        self, *, table: str = None, sql: str = None, prepare_tables: List[str] = None
+        self, *, table: str = None, sql: str = None
     ) -> Generator[SupportsReadableRelation, Any, Any]:
         with self.sql_client as sql_client:
             if not sql:
