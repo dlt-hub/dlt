@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "example-plugin"
+version = "0.1.0"
+description = ""
+authors = ["dave <shrps@posteo.net>"]
+readme = "README.md"
+packages = [
+    { include = "example_plugin" },
+]
+
+[tool.poetry.plugins."dlt.plugin"]
+example_plugin = "example_plugin"
+
+[tool.poetry.dependencies]
+python = ">=3.8.1,<3.13"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
