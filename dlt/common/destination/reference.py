@@ -408,6 +408,50 @@ class HasFollowupJobs:
         return []
 
 
+class SupportsReadRelation(Protocol):
+    """Add support accessing data items on a relation"""
+
+    def df(self, chunk_size: int = None) -> Optional[DataFrame]:
+        """Fetches the results as data frame. For large queries the results may be chunked
+
+        Fetches the results into a data frame. The default implementation uses helpers in `pandas.io.sql` to generate Pandas data frame.
+        This function will try to use native data frame generation for particular destination. For `BigQuery`: `QueryJob.to_dataframe` is used.
+        For `duckdb`: `DuckDBPyConnection.df'
+
+        Args:
+            chunk_size (int, optional): Will chunk the results into several data frames. Defaults to None
+            **kwargs (Any): Additional parameters which will be passed to native data frame generation function.
+
+        Returns:
+            Optional[DataFrame]: A data frame with query results. If chunk_size > 0, None will be returned if there is no more data in results
+        """
+        ...
+
+    def arrow(self, chunk_size: int = None) -> Optional[ArrowTable]: ...
+
+    def iter_df(self, chunk_size: int) -> Generator[DataFrame, None, None]: ...
+
+    def iter_arrow(self, chunk_size: int) -> Generator[ArrowTable, None, None]: ...
+
+    def fetchall(self) -> List[Tuple[Any, ...]]: ...
+
+    def fetchmany(self, chunk_size: int) -> List[Tuple[Any, ...]]: ...
+
+    def iter_fetchmany(self, chunk_size: int) -> Generator[List[Tuple[Any, ...]], Any, Any]: ...
+
+    def fetchone(self) -> Optional[Tuple[Any, ...]]: ...
+
+
+class SupportsReadDataset(Protocol):
+    """Add support for read access on a dataset"""
+
+    def sql(self, sql: str, prepare_tables: List[str] = None) -> SupportsReadRelation: ...
+
+    def __getitem__(self, table: str) -> SupportsReadRelation: ...
+
+    def __getattr__(self, table: str) -> SupportsReadRelation: ...
+
+
 class JobClientBase(ABC):
     def __init__(
         self,
@@ -526,6 +570,9 @@ class JobClientBase(ABC):
         except KeyError:
             raise UnknownTableException(self.schema.name, table_name)
 
+    def dataset(self) -> SupportsReadDataset:
+        raise Exception("Destination does not support SupportsReadDataset")
+
 
 class WithStateSync(ABC):
     @abstractmethod
@@ -568,50 +615,6 @@ class SupportsStagingDestination:
     def should_truncate_table_before_load_on_staging_destination(self, table: TTableSchema) -> bool:
         # the default is to truncate the tables on the staging destination...
         return True
-
-
-class SupportsReadRelation(Protocol):
-    """Add support accessing data items on a relation"""
-
-    def df(self, chunk_size: int = None) -> Optional[DataFrame]:
-        """Fetches the results as data frame. For large queries the results may be chunked
-
-        Fetches the results into a data frame. The default implementation uses helpers in `pandas.io.sql` to generate Pandas data frame.
-        This function will try to use native data frame generation for particular destination. For `BigQuery`: `QueryJob.to_dataframe` is used.
-        For `duckdb`: `DuckDBPyConnection.df'
-
-        Args:
-            chunk_size (int, optional): Will chunk the results into several data frames. Defaults to None
-            **kwargs (Any): Additional parameters which will be passed to native data frame generation function.
-
-        Returns:
-            Optional[DataFrame]: A data frame with query results. If chunk_size > 0, None will be returned if there is no more data in results
-        """
-        ...
-
-    def arrow(self, chunk_size: int = None) -> Optional[ArrowTable]: ...
-
-    def iter_df(self, chunk_size: int) -> Generator[DataFrame, None, None]: ...
-
-    def iter_arrow(self, chunk_size: int) -> Generator[ArrowTable, None, None]: ...
-
-    def fetchall(self) -> List[Tuple[Any, ...]]: ...
-
-    def fetchmany(self, chunk_size: int) -> List[Tuple[Any, ...]]: ...
-
-    def iter_fetchmany(self, chunk_size: int) -> Generator[List[Tuple[Any, ...]], Any, Any]: ...
-
-    def fetchone(self) -> Optional[Tuple[Any, ...]]: ...
-
-
-class SupportsReadDataset(Protocol):
-    """Add support for read access on a dataset"""
-
-    def sql(self, sql: str, prepare_tables: List[str] = None) -> SupportsReadRelation: ...
-
-    def __getitem__(self, table: str) -> SupportsReadRelation: ...
-
-    def __getattr__(self, table: str) -> SupportsReadRelation: ...
 
 
 class SupportsRelationshipAccess(ABC):

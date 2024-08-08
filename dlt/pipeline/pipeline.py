@@ -1704,6 +1704,4 @@ class Pipeline(SupportsPipeline):
     @property
     def dataset(self) -> SupportsReadDataset:
         """Access helper to dataset"""
-        from dlt.destinations.dataset import Dataset
-
-        return Dataset(self.destination_client())
+        return self.destination_client().dataset()

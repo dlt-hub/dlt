@@ -36,7 +36,6 @@ from dlt.destinations.typing import (
     DBTransaction,
     ArrowTable,
 )
-from dlt.common.destination.reference import SupportsRelationshipAccess
 
 
 from dlt.destinations.typing import DBApi, TNativeConn, DBApiCursor, DataFrame, DBTransaction
@@ -52,7 +51,7 @@ class TJobQueryTags(TypedDict):
     pipeline_name: str
 
 
-class SqlClientBase(SupportsRelationshipAccess, ABC, Generic[TNativeConn]):
+class SqlClientBase(ABC, Generic[TNativeConn]):
     dbapi: ClassVar[DBApi] = None
 
     database_name: Optional[str]
@@ -285,16 +284,6 @@ SELECT 1
             return f"TRUNCATE TABLE {qualified_table_name};"
         else:
             return f"DELETE FROM {qualified_table_name} WHERE 1=1;"
-
-    @contextmanager
-    def cursor_for_relation(
-        self, *, table: str = None, sql: str = None, prepare_tables: List[str] = None
-    ) -> Generator[DBApiCursor, Any, Any]:
-        if not sql:
-            table = self.make_qualified_table_name(table)
-            sql = f"SELECT * FROM {table}"
-        with self.execute_query(sql) as cursor:
-            yield cursor
 
 
 class DBApiCursorImpl(DBApiCursor):

@@ -45,9 +45,10 @@ from dlt.common.destination.reference import (
     StorageSchemaInfo,
     StateInfo,
     LoadJob,
+    SupportsReadDataset,
 )
 from dlt.common.destination.exceptions import DestinationUndefinedEntity
-from dlt.common.typing import DataFrame, ArrowTable, DuckDBPyConnection
+from dlt.common.typing import DuckDBPyConnection
 from dlt.destinations.job_impl import (
     ReferenceFollowupJob,
     FinalizedLoadJob,
@@ -55,6 +56,7 @@ from dlt.destinations.job_impl import (
 from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
 from dlt.destinations import path_utils
 from dlt.destinations.fs_client import FSClientBase
+from dlt.destinations.dataset import Dataset
 
 INIT_FILE_NAME = "init"
 FILENAME_SEPARATOR = "__"
@@ -674,3 +676,6 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
         # we can use the implementation of the duckdb cursor here
         db.execute(sql)
         yield DuckDBDBApiCursorImpl(db)  # type: ignore
+
+    def dataset(self) -> SupportsReadDataset:
+        return Dataset(self)
