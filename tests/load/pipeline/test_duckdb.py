@@ -1,14 +1,22 @@
+from typing import ClassVar, Optional
 import pytest
 import os
+from datetime import datetime  # noqa: I251
 
+from dlt.common.libs.pydantic import DltConfig
 from dlt.common.schema.exceptions import SchemaIdentifierNormalizationCollision
-from dlt.common.time import ensure_pendulum_datetime
+from dlt.common.time import ensure_pendulum_datetime, pendulum
+
+from dlt.destinations import duckdb
 from dlt.destinations.exceptions import DatabaseTerminalException
 from dlt.pipeline.exceptions import PipelineStepFailed
 
 from tests.cases import TABLE_UPDATE_ALL_INT_PRECISIONS, TABLE_UPDATE_ALL_TIMESTAMP_PRECISIONS
 from tests.load.utils import destinations_configs, DestinationTestConfiguration
 from tests.pipeline.utils import airtable_emojis, load_table_counts
+
+# mark all tests as essential, do not remove
+pytestmark = pytest.mark.essential
 
 
 @pytest.mark.parametrize(
@@ -125,3 +133,75 @@ def test_duck_precision_types(destination_config: DestinationTestConfiguration) 
     table_row.pop("_dlt_id")
     table_row.pop("_dlt_load_id")
     assert table_row == row[0]
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["duckdb"]),
+    ids=lambda x: x.name,
+)
+def test_new_nested_prop_parquet(destination_config: DestinationTestConfiguration) -> None:
+    from pydantic import BaseModel
+
+    class EventDetail(BaseModel):
+        detail_id: str
+        is_complete: bool
+
+    class EventV1(BaseModel):
+        dlt_config: ClassVar[DltConfig] = {"skip_complex_types": True}
+
+        ver: int
+        id: str  # noqa
+        details: EventDetail
+
+    duck_factory = duckdb("_storage/test_duck.db")
+
+    pipeline = destination_config.setup_pipeline(
+        "test_new_nested_prop_parquet", dataset_name="test_dataset"
+    )
+    pipeline.destination = duck_factory  # type: ignore
+
+    event = {"ver": 1, "id": "id1", "details": {"detail_id": "detail_1", "is_complete": False}}
+
+    info = pipeline.run(
+        [event],
+        table_name="events",
+        columns=EventV1,
+        loader_file_format="parquet",
+        schema_contract="evolve",
+    )
+    info.raise_on_failed_jobs()
+    print(pipeline.default_schema.to_pretty_yaml())
+
+    # we will use a different pipeline with a separate schema but writing to the same dataset and to the same table
+    # the table schema is identical to the previous one with a single field ("time") added
+    # this will create a different order of columns than in the destination database ("time" will map to "_dlt_id")
+    # duckdb copies columns by column index so that will fail
+
+    class EventDetailV2(BaseModel):
+        detail_id: str
+        is_complete: bool
+        time: Optional[datetime]
+
+    class EventV2(BaseModel):
+        dlt_config: ClassVar[DltConfig] = {"skip_complex_types": True}
+
+        ver: int
+        id: str  # noqa
+        details: EventDetailV2
+
+    event["details"]["time"] = pendulum.now()  # type: ignore
+
+    pipeline = destination_config.setup_pipeline(
+        "test_new_nested_prop_parquet_2", dataset_name="test_dataset"
+    )
+    pipeline.destination = duck_factory  # type: ignore
+    info = pipeline.run(
+        [event],
+        table_name="events",
+        columns=EventV2,
+        loader_file_format="parquet",
+        schema_contract="evolve",
+    )
+    info.raise_on_failed_jobs()
+    print(pipeline.default_schema.to_pretty_yaml())
