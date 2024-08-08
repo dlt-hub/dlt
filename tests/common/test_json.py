@@ -217,6 +217,15 @@ def test_json_pendulum(json_impl: SupportsJson) -> None:
     assert s_r == pendulum.parse(dt_str_z)
 
 
+# @pytest.mark.parametrize("json_impl", _JSON_IMPL)
+# def test_json_timedelta(json_impl: SupportsJson) -> None:
+#     from datetime import timedelta
+#     start_date = pendulum.parse("2005-04-02T20:37:37.358236Z")
+#     delta = pendulum.interval(start_date, pendulum.now())
+#     assert isinstance(delta, timedelta)
+#     print(str(delta.as_timedelta()))
+
+
 @pytest.mark.parametrize("json_impl", _JSON_IMPL)
 def test_json_named_tuple(json_impl: SupportsJson) -> None:
     assert (
