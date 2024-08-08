@@ -1,8 +1,9 @@
-from typing import TypedDict, Optional, Any, List, TypeVar, Callable, Sequence
+from typing import TypedDict, Optional, Any, List, Literal, TypeVar, Callable, Sequence
 
 
 TCursorValue = TypeVar("TCursorValue", bound=Any)
 LastValueFunc = Callable[[Sequence[TCursorValue]], Any]
+OnCursorValueMissing = Literal["raise", "include", "exclude"]
 
 
 class IncrementalColumnState(TypedDict):
