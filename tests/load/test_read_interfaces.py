@@ -17,6 +17,7 @@ def _run_dataset_checks(
     destination_type = pipeline.destination_client().config.destination_type
 
     skip_df_chunk_size_check = False
+    expected_columns = ["id", "_dlt_load_id", "_dlt_id"]
     if destination_type == "bigquery":
         chunk_size = 50
         total_records = 80
@@ -26,6 +27,9 @@ def _run_dataset_checks(
     else:
         chunk_size = 2048
         total_records = 3000
+
+    if destination_type == "snowflake":
+        expected_columns = [e.upper() for e in expected_columns]
 
     # on filesystem one chunk is one file and not the default vector size
     if destination_type == "filesystem":
@@ -64,7 +68,7 @@ def _run_dataset_checks(
     df = relationship.df(chunk_size=chunk_size)
     if not skip_df_chunk_size_check:
         assert len(df.index) == chunk_size
-    assert set(df.columns.values) == {"id", "_dlt_load_id", "_dlt_id"}
+    assert set(df.columns.values) == set(expected_columns)
 
     # iterate all dataframes
     frames = list(relationship.iter_df(chunk_size=chunk_size))
@@ -72,7 +76,7 @@ def _run_dataset_checks(
         assert [len(df.index) for df in frames] == expected_chunk_counts
 
     # check all items are present
-    ids = reduce(lambda a, b: a + b, [f["id"].to_list() for f in frames])
+    ids = reduce(lambda a, b: a + b, [f[expected_columns[0]].to_list() for f in frames])
     assert set(ids) == set(range(total_records))
 
     # access via prop
@@ -88,7 +92,7 @@ def _run_dataset_checks(
 
     # chunk
     table = relationship.arrow(chunk_size=chunk_size)
-    assert set(table.column_names) == {"id", "_dlt_load_id", "_dlt_id"}
+    assert set(table.column_names) == set(expected_columns)
     assert table.num_rows == chunk_size
 
     # check frame amount and items counts
@@ -96,7 +100,7 @@ def _run_dataset_checks(
     assert [t.num_rows for t in tables] == expected_chunk_counts
 
     # check all items are present
-    ids = reduce(lambda a, b: a + b, [t.column("id").to_pylist() for t in tables])
+    ids = reduce(lambda a, b: a + b, [t.column(expected_columns[0]).to_pylist() for t in tables])
     assert set(ids) == set(range(total_records))
 
     # check fetch accessors
