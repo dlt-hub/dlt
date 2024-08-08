@@ -1,6 +1,6 @@
 import warnings
 from abc import ABC, abstractmethod
-from typing import Optional, Dict, Any
+from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse, urljoin
 
 from requests import Response, Request
@@ -39,7 +39,7 @@ class BasePaginator(ABC):
         pass
 
     @abstractmethod
-    def update_state(self, response: Response) -> None:
+    def update_state(self, response: Response, data: List[Any] = None) -> None:
         """Updates the paginator's state based on the response from the API.
 
         This method should extract necessary pagination details (like next page
@@ -73,7 +73,7 @@ class BasePaginator(ABC):
 class SinglePagePaginator(BasePaginator):
     """A paginator for single-page API responses."""
 
-    def update_state(self, response: Response) -> None:
+    def update_state(self, response: Response, data: List[Any] = None) -> None:
         self._has_next_page = False
 
     def update_request(self, request: Request) -> None:
@@ -96,6 +96,7 @@ class RangePaginator(BasePaginator):
         maximum_value: Optional[int] = None,
         total_path: Optional[jsonpath.TJsonPath] = None,
         error_message_items: str = "items",
+        stop_after_empty_page: bool = False,
     ):
         """
         Args:
@@ -127,6 +128,7 @@ class RangePaginator(BasePaginator):
         self.maximum_value = maximum_value
         self.total_path = jsonpath.compile_path(total_path) if total_path else None
         self.error_message_items = error_message_items
+        self.stop_after_empty_page = stop_after_empty_page
 
     def init_request(self, request: Request) -> None:
         if request.params is None:
@@ -134,26 +136,32 @@ class RangePaginator(BasePaginator):
 
         request.params[self.param_name] = self.current_value
 
-    def update_state(self, response: Response) -> None:
-        total = None
-        if self.total_path:
-            response_json = response.json()
-            values = jsonpath.find_values(self.total_path, response_json)
-            total = values[0] if values else None
-            if total is None:
-                self._handle_missing_total(response_json)
-
-            try:
-                total = int(total)
-            except ValueError:
-                self._handle_invalid_total(total)
-
-        self.current_value += self.value_step
-
-        if (total is not None and self.current_value >= total + self.base_index) or (
-            self.maximum_value is not None and self.current_value >= self.maximum_value
-        ):
+    def update_state(self, response: Response, data: List[Any] = None) -> None:
+        if self._stop_after_this_page(data):
             self._has_next_page = False
+        else:
+            total = None
+            if self.total_path:
+                response_json = response.json()
+                values = jsonpath.find_values(self.total_path, response_json)
+                total = values[0] if values else None
+                if total is None:
+                    self._handle_missing_total(response_json)
+
+                try:
+                    total = int(total)
+                except ValueError:
+                    self._handle_invalid_total(total)
+
+            self.current_value += self.value_step
+
+            if (total is not None and self.current_value >= total + self.base_index) or (
+                self.maximum_value is not None and self.current_value >= self.maximum_value
+            ):
+                self._has_next_page = False
+
+    def _stop_after_this_page(self, data: List[Any]) -> bool:
+        return self.stop_after_empty_page and data == []
 
     def _handle_missing_total(self, response_json: Dict[str, Any]) -> None:
         raise ValueError(
@@ -229,6 +237,7 @@ class PageNumberPaginator(RangePaginator):
         page_param: str = "page",
         total_path: jsonpath.TJsonPath = "total",
         maximum_page: Optional[int] = None,
+        stop_after_empty_page: bool = False,
     ):
         """
         Args:
@@ -260,6 +269,7 @@ class PageNumberPaginator(RangePaginator):
             value_step=1,
             maximum_value=maximum_page,
             error_message_items="pages",
+            stop_after_empty_page=stop_after_empty_page,
         )
 
     def __str__(self) -> str:
@@ -330,6 +340,7 @@ class OffsetPaginator(RangePaginator):
         limit_param: str = "limit",
         total_path: jsonpath.TJsonPath = "total",
         maximum_offset: Optional[int] = None,
+        stop_after_empty_page: bool = False,
     ) -> None:
         """
         Args:
@@ -356,6 +367,7 @@ class OffsetPaginator(RangePaginator):
             total_path=total_path,
             value_step=limit,
             maximum_value=maximum_offset,
+            stop_after_empty_page=stop_after_empty_page,
         )
         self.limit_param = limit_param
         self.limit = limit
@@ -484,7 +496,7 @@ class HeaderLinkPaginator(BaseNextUrlPaginator):
         super().__init__()
         self.links_next_key = links_next_key
 
-    def update_state(self, response: Response) -> None:
+    def update_state(self, response: Response, data: List[Any] = None) -> None:
         """Extracts the next page URL from the 'Link' header in the response."""
         self._next_reference = response.links.get(self.links_next_key, {}).get("url")
 
@@ -539,7 +551,7 @@ class JSONLinkPaginator(BaseNextUrlPaginator):
         super().__init__()
         self.next_url_path = jsonpath.compile_path(next_url_path)
 
-    def update_state(self, response: Response) -> None:
+    def update_state(self, response: Response, data: List[Any] = None) -> None:
         """Extracts the next page URL from the JSON response."""
         values = jsonpath.find_values(self.next_url_path, response.json())
         self._next_reference = values[0] if values else None
@@ -618,7 +630,7 @@ class JSONResponseCursorPaginator(BaseReferencePaginator):
         self.cursor_path = jsonpath.compile_path(cursor_path)
         self.cursor_param = cursor_param
 
-    def update_state(self, response: Response) -> None:
+    def update_state(self, response: Response, data: List[Any] = None) -> None:
         """Extracts the cursor value from the JSON response."""
         values = jsonpath.find_values(self.cursor_path, response.json())
         self._next_reference = values[0] if values else None
