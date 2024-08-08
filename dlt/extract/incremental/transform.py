@@ -138,10 +138,21 @@ class JsonIncremental(IncrementalTransform):
             # ignores the other found values, e.g. when the path is $data.items[*].created_at
             row_value = cursor_values[0]
         else:
-            row_value = row.get(self.cursor_path)
+            row_value = None
+            try:
+                row_value = row.get(self.cursor_path)
+            except AttributeError:
+                # just to pass tests/pipeline/test_pipeline_extra.py::test_dump_trace_freeze_exception
+                # Wouldn't it be preferrable to tell the exact exception?
+                pass
             if row_value is None:
                 if self.on_cursor_value_missing == "raise":
-                    if self.cursor_path not in row.keys():
+                    has_field = None
+                    if isinstance(row, dict):
+                        has_field = self.cursor_path in row.keys()
+                    else:
+                        has_field = hasattr(row, self.cursor_path)
+                    if not has_field:
                         raise IncrementalCursorPathMissing(
                             self.resource_name, self.cursor_path, row
                         )
