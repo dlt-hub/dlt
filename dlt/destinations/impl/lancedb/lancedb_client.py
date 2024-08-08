@@ -112,7 +112,10 @@ class LanceDBTypeMapper(TypeMapper):
         return pa.decimal128(precision, scale)
 
     def to_db_datetime_type(
-        self, precision: Optional[int], table_format: TTableFormat = None
+        self,
+        timezone: Optional[bool],
+        precision: Optional[int],
+        table_format: TTableFormat = None,
     ) -> pa.TimestampType:
         unit: str = TIMESTAMP_PRECISION_TO_UNIT[self.capabilities.timestamp_precision]
         return pa.timestamp(unit, "UTC")

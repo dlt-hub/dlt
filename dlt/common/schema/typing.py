@@ -94,6 +94,7 @@ class TColumnType(TypedDict, total=False):
     data_type: Optional[TDataType]
     precision: Optional[int]
     scale: Optional[int]
+    timezone: Optional[bool]
 
 
 class TColumnSchemaBase(TColumnType, total=False):

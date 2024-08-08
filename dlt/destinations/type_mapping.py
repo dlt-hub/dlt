@@ -27,7 +27,10 @@ class TypeMapper:
         return self.sct_to_unbound_dbt["bigint"]
 
     def to_db_datetime_type(
-        self, precision: Optional[int], table_format: TTableFormat = None
+        self,
+        timezone: Optional[bool],
+        precision: Optional[int],
+        table_format: TTableFormat = None,
     ) -> str:
         # Override in subclass if db supports other timestamp types (e.g. with different time resolutions)
         return None
@@ -43,12 +46,16 @@ class TypeMapper:
         return self.sct_to_dbt["decimal"] % (precision_tup[0], precision_tup[1])
 
     def to_db_type(self, column: TColumnSchema, table_format: TTableFormat = None) -> str:
-        precision, scale = column.get("precision"), column.get("scale")
+        timezone, precision, scale = (
+            column.get("timezone"),
+            column.get("precision"),
+            column.get("scale"),
+        )
         sc_t = column["data_type"]
         if sc_t == "bigint":
             db_t = self.to_db_integer_type(precision, table_format)
         elif sc_t == "timestamp":
-            db_t = self.to_db_datetime_type(precision, table_format)
+            db_t = self.to_db_datetime_type(timezone, precision, table_format)
         elif sc_t == "time":
             db_t = self.to_db_time_type(precision, table_format)
         elif sc_t == "decimal":
