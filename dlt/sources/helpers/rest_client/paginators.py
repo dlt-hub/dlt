@@ -96,7 +96,7 @@ class RangePaginator(BasePaginator):
         maximum_value: Optional[int] = None,
         total_path: Optional[jsonpath.TJsonPath] = None,
         error_message_items: str = "items",
-        stop_after_empty_page: bool = False,
+        stop_after_empty_page: bool = True,
     ):
         """
         Args:
@@ -237,7 +237,7 @@ class PageNumberPaginator(RangePaginator):
         page_param: str = "page",
         total_path: jsonpath.TJsonPath = "total",
         maximum_page: Optional[int] = None,
-        stop_after_empty_page: bool = False,
+        stop_after_empty_page: bool = True,
     ):
         """
         Args:
@@ -340,7 +340,7 @@ class OffsetPaginator(RangePaginator):
         limit_param: str = "limit",
         total_path: jsonpath.TJsonPath = "total",
         maximum_offset: Optional[int] = None,
-        stop_after_empty_page: bool = False,
+        stop_after_empty_page: bool = True,
     ) -> None:
         """
         Args:
