@@ -225,7 +225,7 @@ class RESTClient:
 
             if paginator is None:
                 paginator = self.detect_paginator(response, data)
-            paginator.update_state(response)
+            paginator.update_state(response, data)
             paginator.update_request(request)
 
             # yield data with context

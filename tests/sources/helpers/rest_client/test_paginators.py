@@ -1,3 +1,4 @@
+from typing import Any, List
 from unittest.mock import Mock
 
 import pytest
@@ -312,6 +313,19 @@ class TestOffsetPaginator:
 
         assert_pagination(pages)
 
+    def test_stop_after_empty_page(self):
+        paginator = OffsetPaginator(
+            offset=0,
+            limit=50,
+            maximum_offset=100,
+            total_path=None,
+            stop_after_empty_page=True,
+        )
+        response = Mock(Response, json=lambda: {"items": []})
+        no_data_found: List[Any] = []
+        paginator.update_state(response, no_data_found)  # Page 1
+        assert paginator.has_next_page is False
+
 
 @pytest.mark.usefixtures("mock_api_server")
 class TestPageNumberPaginator:
@@ -370,6 +384,21 @@ class TestPageNumberPaginator:
 
         paginator.update_state(response)  # Page 2
         assert paginator.current_value == 3
+        assert paginator.has_next_page is False
+
+    def test_stop_after_empty_page(self):
+        paginator = PageNumberPaginator(
+            base_page=1,
+            page=1,
+            maximum_page=5,
+            stop_after_empty_page=True,
+            total_path=None,
+        )
+        response = Mock(Response, json=lambda: {"items": []})
+        no_data_found: List[Any] = []
+        assert paginator.has_next_page is True
+        paginator.update_state(response, no_data_found)
+        assert paginator.current_value == 1
         assert paginator.has_next_page is False
 
     def test_client_pagination_one_based(self, rest_client):
