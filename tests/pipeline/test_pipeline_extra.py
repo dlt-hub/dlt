@@ -2,6 +2,7 @@ import os
 import importlib.util
 from typing import Any, ClassVar, Dict, Iterator, List, Optional
 import pytest
+from unittest import mock
 
 from dlt.pipeline.exceptions import PipelineStepFailed
 
@@ -99,6 +100,20 @@ def test_pipeline_progress(progress: TCollectorArg) -> None:
         assert isinstance(collector, AliveCollector)
     if progress == "log":
         assert isinstance(collector, LogCollector)
+
+
+@pytest.mark.parametrize("progress", ["tqdm", "enlighten", "log", "alive_progress"])
+def test_pipeline_normalize_progress(progress: TCollectorArg) -> None:
+    os.environ["TIMEOUT"] = "3.0"
+
+    p = dlt.pipeline(destination="dummy", progress=progress)
+    p.extract(many_delayed(5, 10))
+
+    with mock.patch.object(p.collector, "update") as col_mock:
+        p.normalize()
+        assert col_mock.call_count == 54
+
+    p.run(dataset_name="dummy")
 
 
 @pytest.mark.parametrize("method", ("extract", "run"))
