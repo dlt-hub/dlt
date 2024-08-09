@@ -39,7 +39,7 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, "Filesyst
             supported_merge_strategies=["upsert"],
         )
         caps.supported_loader_file_formats = list(caps.supported_loader_file_formats) + [
-            "reference"
+            "reference",
         ]
         return caps
 

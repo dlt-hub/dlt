@@ -1,13 +1,15 @@
 from typing import Optional, Dict, Union
 from pathlib import Path
 
-from dlt import version
+from dlt import version, Pipeline
 from dlt.common import logger
 from dlt.common.libs.pyarrow import pyarrow as pa
 from dlt.common.libs.pyarrow import cast_arrow_schema_types
 from dlt.common.schema.typing import TWriteDisposition
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.storages import FilesystemConfiguration
+from dlt.common.utils import assert_min_pkg_version
+from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 
 try:
     from deltalake import write_deltalake, DeltaTable
@@ -41,6 +43,13 @@ def ensure_delta_compatible_arrow_data(
 
     Casts `data` schema to replace data types not supported by Delta.
     """
+    # RecordBatchReader.cast() requires pyarrow>=17.0.0
+    # cast() got introduced in 16.0.0, but with bug
+    assert_min_pkg_version(
+        pkg_name="pyarrow",
+        version="17.0.0",
+        msg="`pyarrow>=17.0.0` is needed for `delta` table format on `filesystem` destination.",
+    )
     schema = ensure_delta_compatible_arrow_schema(data.schema)
     return data.cast(schema)
 
@@ -77,6 +86,41 @@ def write_delta_table(
         storage_options=storage_options,
         engine="rust",  # `merge` schema mode requires `rust` engine
     )
+
+
+def get_delta_tables(pipeline: Pipeline, *tables: str) -> Dict[str, DeltaTable]:
+    """Returns Delta tables in `pipeline.default_schema` as `deltalake.DeltaTable` objects.
+
+    Returned object is a dictionary with table names as keys and `DeltaTable` objects as values.
+    Optionally filters dictionary by table names specified as `*tables*`.
+    Raises ValueError if table name specified as `*tables` is not found.
+    """
+    from dlt.common.schema.utils import get_table_format
+
+    with pipeline.destination_client() as client:
+        assert isinstance(
+            client, FilesystemClient
+        ), "The `get_delta_tables` function requires a `filesystem` destination."
+
+        schema_delta_tables = [
+            t["name"]
+            for t in pipeline.default_schema.tables.values()
+            if get_table_format(pipeline.default_schema.tables, t["name"]) == "delta"
+        ]
+        if len(tables) > 0:
+            invalid_tables = set(tables) - set(schema_delta_tables)
+            if len(invalid_tables) > 0:
+                raise ValueError(
+                    "Schema does not contain Delta tables with these names: "
+                    f"{', '.join(invalid_tables)}."
+                )
+            schema_delta_tables = [t for t in schema_delta_tables if t in tables]
+        table_dirs = client.get_table_dirs(schema_delta_tables, remote=True)
+        storage_options = _deltalake_storage_options(client.config)
+        return {
+            name: DeltaTable(_dir, storage_options=storage_options)
+            for name, _dir in zip(schema_delta_tables, table_dirs)
+        }
 
 
 def _deltalake_storage_options(config: FilesystemConfiguration) -> Dict[str, str]:
