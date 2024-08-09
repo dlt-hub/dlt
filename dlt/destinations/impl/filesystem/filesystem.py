@@ -9,7 +9,6 @@ from contextlib import contextmanager
 
 import dlt
 from dlt.common import logger, time, json, pendulum
-from dlt.common.utils import assert_min_pkg_version
 from dlt.common.storages.fsspec_filesystem import glob_files
 from dlt.common.typing import DictStrAny
 from dlt.common.schema import Schema, TSchemaTables, TTableSchema
@@ -102,12 +101,6 @@ class DeltaLoadFilesystemJob(FilesystemLoadJob):
             ensure_delta_compatible_arrow_schema,
             _deltalake_storage_options,
             try_get_deltatable,
-        )
-
-        assert_min_pkg_version(
-            pkg_name="pyarrow",
-            version="17.0.0",
-            msg="`pyarrow>=17.0.0` is needed for `delta` table format on `filesystem` destination.",
         )
 
         # create Arrow dataset from Parquet files
@@ -303,10 +296,13 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
 
         return expected_update
 
-    def get_table_dir(self, table_name: str) -> str:
+    def get_table_dir(self, table_name: str, remote: bool = False) -> str:
         # dlt tables do not respect layout (for now)
         table_prefix = self.get_table_prefix(table_name)
-        return self.pathlib.dirname(table_prefix)  # type: ignore[no-any-return]
+        table_dir: str = self.pathlib.dirname(table_prefix)
+        if remote:
+            table_dir = self.make_remote_uri(table_dir)
+        return table_dir
 
     def get_table_prefix(self, table_name: str) -> str:
         # dlt tables do not respect layout (for now)
@@ -322,9 +318,9 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
             self.dataset_path, path_utils.normalize_path_sep(self.pathlib, table_prefix)
         )
 
-    def get_table_dirs(self, table_names: Iterable[str]) -> List[str]:
+    def get_table_dirs(self, table_names: Iterable[str], remote: bool = False) -> List[str]:
         """Gets directories where table data is stored."""
-        return [self.get_table_dir(t) for t in table_names]
+        return [self.get_table_dir(t, remote=remote) for t in table_names]
 
     def list_table_files(self, table_name: str) -> List[str]:
         """gets list of files associated with one table"""
