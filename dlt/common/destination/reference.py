@@ -190,6 +190,8 @@ class DestinationClientDwhConfiguration(DestinationClientConfiguration):
     """How to handle replace disposition for this destination, can be classic or staging"""
     staging_dataset_name_layout: str = "%s_staging"
     """Layout for staging dataset, where %s is replaced with dataset name. placeholder is optional"""
+    enable_dataset_name_normalization: bool = True
+    """Whether to normalize the dataset name. Affects staging dataset as well."""
 
     def _bind_dataset_name(
         self: TDestinationDwhClient, dataset_name: str, default_schema_name: str = None
@@ -208,11 +210,14 @@ class DestinationClientDwhConfiguration(DestinationClientConfiguration):
         If default schema name is None or equals schema.name, the schema suffix is skipped.
         """
         dataset_name = self._make_dataset_name(schema.name)
-        return (
-            dataset_name
-            if not dataset_name
-            else schema.naming.normalize_table_identifier(dataset_name)
-        )
+        if not dataset_name:
+            return dataset_name
+        else:
+            return (
+                schema.naming.normalize_table_identifier(dataset_name)
+                if self.enable_dataset_name_normalization
+                else dataset_name
+            )
 
     def normalize_staging_dataset_name(self, schema: Schema) -> str:
         """Builds staging dataset name out of dataset_name and staging_dataset_name_layout."""
@@ -227,7 +232,11 @@ class DestinationClientDwhConfiguration(DestinationClientConfiguration):
             # no placeholder, then layout is a full name. so you can have a single staging dataset
             dataset_name = self.staging_dataset_name_layout
 
-        return schema.naming.normalize_table_identifier(dataset_name)
+        return (
+            schema.naming.normalize_table_identifier(dataset_name)
+            if self.enable_dataset_name_normalization
+            else dataset_name
+        )
 
     def _make_dataset_name(self, schema_name: str) -> str:
         if not schema_name:
