@@ -19,7 +19,6 @@ import lancedb.table  # type: ignore
 import pyarrow as pa
 import pyarrow.compute as pc
 import pyarrow.parquet as pq
-import yaml
 from lancedb import DBConnection
 from lancedb.embeddings import EmbeddingFunctionRegistry, TextEmbeddingFunction  # type: ignore
 from lancedb.query import LanceQueryBuilder  # type: ignore
@@ -41,6 +40,8 @@ from dlt.common.destination.reference import (
     StateInfo,
     FollowupJob,
     LoadJob,
+    HasFollowupJobs,
+    TLoadJobState,
 )
 from dlt.common.exceptions import SystemConfigurationException
 from dlt.common.pendulum import timedelta
@@ -53,7 +54,7 @@ from dlt.common.schema.typing import (
     TColumnSchema,
 )
 from dlt.common.schema.utils import get_columns_names_with_prop
-from dlt.common.storages import FileStorage, LoadJobInfo, ParsedLoadJobFileName
+from dlt.common.storages import FileStorage, LoadJobInfo
 from dlt.common.typing import DictStrAny
 from dlt.destinations.impl.lancedb.configuration import (
     LanceDBClientConfiguration,
@@ -696,14 +697,17 @@ class LanceDBClient(JobClientBase, WithStateSync):
         if ReferenceFollowupJob.is_reference_job(file_path):
             return LanceDBRemoveOrphansJob(file_path, table)
         else:
-            return LanceDBLoadJob(file_path, table)
+            return LanceDBLoadJobWithFollowup(file_path, table)
 
     def create_table_chain_completed_followup_jobs(
         self,
         table_chain: Sequence[TTableSchema],
         completed_table_chain_jobs: Optional[Sequence[LoadJobInfo]] = None,
     ) -> List[FollowupJob]:
-        return [LanceDBRemoveOrphansJob.from_table_chain(table_chain)]
+        table_job_paths = [job.file_path for job in completed_table_chain_jobs]
+        file_name = FileStorage.get_file_name_from_file_path(table_job_paths[0])
+        job = ReferenceFollowupJob(file_name, table_job_paths)
+        return [job]
 
     def table_exists(self, table_name: str) -> bool:
         return table_name in self.db_client.table_names()
@@ -752,6 +756,11 @@ class LanceDBLoadJob(RunnableLoadJob):
         )
 
 
+class LanceDBLoadJobWithFollowup(HasFollowupJobs, LanceDBLoadJob):
+    def create_followup_jobs(self, final_state: TLoadJobState) -> List[FollowupJob]:
+        return super().create_followup_jobs(final_state)
+
+
 class LanceDBRemoveOrphansJob(RunnableLoadJob):
     orphaned_ids: Set[str]
 
@@ -786,7 +795,6 @@ class LanceDBRemoveOrphansJob(RunnableLoadJob):
         try:
             if fq_parent_table_name:
                 # Chunks and embeddings in child table.
-
                 parent_ids = set(
                     pc.unique(
                         parent_table.to_lance().to_table(columns=["_dlt_id"])["_dlt_id"]
@@ -808,7 +816,6 @@ class LanceDBRemoveOrphansJob(RunnableLoadJob):
 
             else:
                 # Chunks and embeddings in the root table.
-
                 document_id_field = get_columns_names_with_prop(
                     self._table_schema, DOCUMENT_ID_HINT
                 )
@@ -844,34 +851,3 @@ class LanceDBRemoveOrphansJob(RunnableLoadJob):
             raise DestinationTerminalException(
                 "Python and Arrow datatype mismatch - batch failed AND WILL **NOT** BE RETRIED."
             ) from e
-
-    @classmethod
-    def from_table_chain(
-        cls,
-        table_chain: Sequence[TTableSchema],
-    ) -> "LanceDBRemoveOrphansJob":
-        """Generates a list of orphan removal tasks that the client will execute when the job is executed in the loader.
-
-        The `table_chain` contains a list of table schemas with parent-child relationship, ordered by the ancestry (the root of the tree is first on the list).
-        """
-        top_table = table_chain[0]
-        file_info = ParsedLoadJobFileName(
-            top_table["name"], ParsedLoadJobFileName.new_file_id(), 0, "parquet"
-        )
-        try:
-            job = cls(file_info.file_name())
-            # Write parquet file contents??
-        except Exception as e:
-            raise LanceDBJobCreationException(e, table_chain) from e
-        return job
-
-
-class LanceDBJobCreationException(DestinationTransientException):
-    def __init__(self, original_exception: Exception, table_chain: Sequence[TTableSchema]) -> None:
-        tables_chain = yaml.dump(
-            table_chain, allow_unicode=True, default_flow_style=False, sort_keys=False
-        )
-        super().__init__(
-            f"Could not create SQLFollowupJob with exception {str(original_exception)}. Table"
-            f" chain: {tables_chain}"
-        )
