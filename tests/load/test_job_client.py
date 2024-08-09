@@ -897,7 +897,10 @@ def test_many_schemas_single_dataset(
         # no were detected - even if the schema is new. all the tables overlap and change in nullability does not do any updates
         assert schema_update == {}
         # 3 rows because we load to the same table
-        if destination_config.file_format == "parquet":
+        if (
+            destination_config.file_format == "parquet"
+            or client.capabilities.preferred_loader_file_format == "parquet"
+        ):
             event_3_schema.tables["event_user"]["columns"]["input_channel"]["nullable"] = True
         _load_something(client, 3)
 
