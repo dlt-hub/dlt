@@ -1,11 +1,10 @@
 ---
-title: 🧪 MotherDuck
+title: MotherDuck
 description: MotherDuck `dlt` destination
 keywords: [MotherDuck, duckdb, destination, data warehouse]
 ---
 
 # MotherDuck
-> 🧪 MotherDuck is still invitation-only and is being intensively tested. Please see the limitations/problems at the end.
 
 ## Install dlt with MotherDuck
 **To install the dlt library with MotherDuck dependencies:**
@@ -50,10 +49,18 @@ Alternatively, you can use the connection string syntax.
 motherduck.credentials="md:///dlt_data_3?token=<my service token>"
 ```
 
+:::tip
+Motherduck now supports configurable **access tokens**. Please refer to the [documentation](https://motherduck.com/docs/key-tasks/authenticating-to-motherduck/#authentication-using-an-access-token)
+:::
+
 **4. Run the pipeline**
 ```sh
 python3 chess_pipeline.py
 ```
+
+### Motherduck connection identifier
+We enable Motherduck to identify that the connection is created by `dlt`. Motherduck will use this identifier to better understand the usage patterns
+associated with `dlt` integration. The connection identifier is `dltHub_dlt/DLT_VERSION(OS_NAME)`.
 
 ## Write disposition
 All write dispositions are supported.
@@ -64,22 +71,19 @@ By default, Parquet files and the `COPY` command are used to move files to the r
 The **INSERT** format is also supported and will execute large INSERT queries directly into the remote database. This method is significantly slower and may exceed the maximum query size, so it is not advised.
 
 ## dbt support
-This destination [integrates with dbt](../transformations/dbt/dbt.md) via [dbt-duckdb](https://github.com/jwills/dbt-duckdb), which is a community-supported package. `dbt` version >= 1.5 is required (which is the current `dlt` default.)
+This destination [integrates with dbt](../transformations/dbt/dbt.md) via [dbt-duckdb](https://github.com/jwills/dbt-duckdb), which is a community-supported package. `dbt` version >= 1.7 is required
+
+## Multi-statement transaction support
+Motherduck supports multi-statement transactions. This change happened with `duckdb 0.10.2`.
 
 ## Syncing of `dlt` state
 This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination).
 
-## Automated tests
-Each destination must pass a few hundred automatic tests. MotherDuck is passing these tests (except for the transactions, of course). However, we have encountered issues with ATTACH timeouts when connecting, which makes running such a number of tests unstable. Tests on CI are disabled.
+## Troubleshooting
 
-## Troubleshooting / limitations
-
-### I see a lot of errors in the log like DEADLINE_EXCEEDED or Connection timed out
-MotherDuck is very sensitive to the quality of the internet connection and the **number of workers used to load data**. Decrease the number of workers and ensure your internet connection is stable. We have not found any way to increase these timeouts yet.
-
-### MotherDuck does not support transactions.
-Do not use `begin`, `commit`, and `rollback` on `dlt` **sql_client** or on the duckdb dbapi connection. It has no effect on DML statements (they are autocommit). It confuses the query engine for DDL (tables not found, etc.).
-If your connection is of poor quality and you get a timeout when executing a DML query, it may happen that your transaction got executed.
+### My database is attached in read only mode
+ie. `Error: Invalid Input Error: Cannot execute statement of type "CREATE" on database "dlt_data" which is attached in read-only mode!`
+We encountered this problem for databases created with `duckdb 0.9.x` and then migrated to `0.10.x`. After switch to `1.0.x` on Motherduck, all our databases had permission "read-only" visible in UI. We could not figure out how to change it so we dropped and recreated our databases.
 
 ### I see some exception with home_dir missing when opening `md:` connection.
 Some internal component (HTTPS) requires the **HOME** env variable to be present. Export such a variable to the command line. Here is what we do in our tests:
@@ -88,17 +92,5 @@ os.environ["HOME"] = "/tmp"
 ```
 before opening the connection.
 
-### I see some watchdog timeouts.
-We also see them.
-```text
-'ATTACH_DATABASE': keepalive watchdog timeout
-```
-Our observation is that if you write a lot of data into the database, then close the connection and then open it again to write, there's a chance of such a timeout. A possible **WAL** file is being written to the remote duckdb database.
 
-### Invalid Input Error: Initialization function "motherduck_init" from file
-Use `duckdb 0.8.1` or above.
-
-### Motherduck connection identifier
-We enable Motherduck to identify that the connection is created by `dlt`. Motherduck will use this identifier to better understand the usage patterns
-associated with `dlt` integration. The connection identifier is `dltHub_dlt/DLT_VERSION(OS_NAME)`.
 <!--@@@DLT_TUBA motherduck-->

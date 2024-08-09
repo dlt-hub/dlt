@@ -19,10 +19,6 @@ from dlt.destinations.type_mapping import TypeMapper
 
 HINT_TO_POSTGRES_ATTR: Dict[TColumnHint, str] = {"unique": "UNIQUE"}
 
-# duckdb cannot load PARQUET to the same table in parallel. so serialize it per table
-PARQUET_TABLE_LOCK = threading.Lock()
-TABLES_LOCKS: Dict[str, threading.Lock] = {}
-
 
 class DuckDbTypeMapper(TypeMapper):
     sct_to_unbound_dbt = {
@@ -123,28 +119,20 @@ class DuckDbCopyJob(RunnableLoadJob, HasFollowupJobs):
 
         qualified_table_name = self._sql_client.make_qualified_table_name(self.load_table_name)
         if self._file_path.endswith("parquet"):
-            source_format = "PARQUET"
-            options = ""
-            # lock when creating a new lock
-            with PARQUET_TABLE_LOCK:
-                # create or get lock per table name
-                lock: threading.Lock = TABLES_LOCKS.setdefault(
-                    qualified_table_name, threading.Lock()
-                )
+            source_format = "read_parquet"
+            options = ", union_by_name=true"
         elif self._file_path.endswith("jsonl"):
             # NOTE: loading JSON does not work in practice on duckdb: the missing keys fail the load instead of being interpreted as NULL
-            source_format = "JSON"  # newline delimited, compression auto
-            options = ", COMPRESSION GZIP" if FileStorage.is_gzipped(self._file_path) else ""
-            lock = None
+            source_format = "read_json"  # newline delimited, compression auto
+            options = ", COMPRESSION=GZIP" if FileStorage.is_gzipped(self._file_path) else ""
         else:
             raise ValueError(self._file_path)
 
-        with maybe_context(lock):
-            with self._sql_client.begin_transaction():
-                self._sql_client.execute_sql(
-                    f"COPY {qualified_table_name} FROM '{self._file_path}' ( FORMAT"
-                    f" {source_format} {options});"
-                )
+        with self._sql_client.begin_transaction():
+            self._sql_client.execute_sql(
+                f"INSERT INTO {qualified_table_name} BY NAME SELECT * FROM"
+                f" {source_format}('{self._file_path}' {options});"
+            )
 
 
 class DuckDbClient(InsertValuesJobClient):

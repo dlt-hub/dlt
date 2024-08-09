@@ -29,6 +29,7 @@ from dlt.pipeline.exceptions import (
     PipelineStepFailed,
 )
 
+from tests.cases import TABLE_ROW_ALL_DATA_TYPES_DATETIMES
 from tests.utils import TEST_STORAGE_ROOT, data_to_item_format
 from tests.pipeline.utils import (
     assert_data_table_counts,
@@ -39,7 +40,6 @@ from tests.pipeline.utils import (
     select_data,
 )
 from tests.load.utils import (
-    TABLE_ROW_ALL_DATA_TYPES,
     TABLE_UPDATE_COLUMNS_SCHEMA,
     assert_all_data_types_row,
     delete_dataset,
@@ -844,7 +844,7 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
     def other_data():
         yield [1, 2, 3, 4, 5]
 
-    data_types = deepcopy(TABLE_ROW_ALL_DATA_TYPES)
+    data_types = deepcopy(TABLE_ROW_ALL_DATA_TYPES_DATETIMES)
     column_schemas = deepcopy(TABLE_UPDATE_COLUMNS_SCHEMA)
 
     # parquet on bigquery and clickhouse does not support JSON but we still want to run the test
