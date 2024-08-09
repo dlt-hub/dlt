@@ -1,22 +1,28 @@
 from typing import Iterator, Generator, Any, List
+from typing import Union, Dict
 
 import pytest
+from lancedb.table import Table  # type: ignore
 
 import dlt
 from dlt.common import json
-from dlt.common.typing import DictStrStr, DictStrAny
-from dlt.common.utils import uniq_id
+from dlt.common.typing import DictStrAny
+from dlt.common.typing import DictStrStr
+from dlt.common.utils import uniq_id, digest128
 from dlt.destinations.impl.lancedb.lancedb_adapter import (
     lancedb_adapter,
     VECTORIZE_HINT,
+    DOCUMENT_ID_HINT,
 )
 from dlt.destinations.impl.lancedb.lancedb_client import LanceDBClient
-from tests.load.lancedb.utils import assert_table
+from dlt.extract import DltResource
+from dlt.pipeline.exceptions import PipelineStepFailed
+from tests.load.lancedb.utils import assert_table, chunk_document, mock_embed
 from tests.load.utils import sequence_generator, drop_active_pipeline_data
 from tests.pipeline.utils import assert_load_info
 
 
-# Mark all tests as essential, do not remove.
+# Mark all tests as essential, don't remove.
 pytestmark = pytest.mark.essential
 
 
@@ -44,6 +50,18 @@ def test_adapter_and_hints() -> None:
         "name": "content",
         "data_type": "text",
         "x-lancedb-embed": True,
+    }
+
+    lancedb_adapter(
+        some_data,
+        document_id=["content"],
+    )
+
+    assert some_data.columns["content"] == {  # type: ignore
+        "name": "content",
+        "data_type": "text",
+        "x-lancedb-embed": True,
+        "x-lancedb-doc-id": True,
     }
 
 
@@ -433,3 +451,251 @@ def test_empty_dataset_allowed() -> None:
     assert client.dataset_name is None
     assert client.sentinel_table == "dltSentinelTable"
     assert_table(pipe, "content", expected_items_count=3)
+
+
+def test_merge_no_orphans() -> None:
+    @dlt.resource(
+        write_disposition="merge",
+        primary_key=["doc_id"],
+        table_name="document",
+    )
+    def documents(docs: List[DictStrAny]) -> Generator[DictStrAny, None, None]:
+        for doc in docs:
+            doc_id = doc["doc_id"]
+            chunks = chunk_document(doc["text"])
+            embeddings = [
+                {
+                    "chunk_hash": digest128(chunk),
+                    "chunk_text": chunk,
+                    "embedding": mock_embed(),
+                }
+                for chunk in chunks
+            ]
+            yield {"doc_id": doc_id, "doc_text": doc["text"], "embeddings": embeddings}
+
+    @dlt.source(max_table_nesting=1)
+    def documents_source(
+        docs: List[DictStrAny],
+    ) -> Union[Generator[Dict[str, Any], None, None], DltResource]:
+        return documents(docs)
+
+    pipeline = dlt.pipeline(
+        pipeline_name="chunked_docs",
+        destination="lancedb",
+        dataset_name="chunked_documents",
+        dev_mode=True,
+    )
+
+    initial_docs = [
+        {
+            "text": (
+                "This is the first document. It contains some text that will be chunked and"
+                " embedded. (I don't want to be seen in updated run's embedding chunk texts btw)"
+            ),
+            "doc_id": 1,
+        },
+        {
+            "text": "Here's another document. It's a bit different from the first one.",
+            "doc_id": 2,
+        },
+    ]
+
+    info = pipeline.run(documents_source(initial_docs))
+    assert_load_info(info)
+
+    updated_docs = [
+        {
+            "text": "This is the first document, but it has been updated with new content.",
+            "doc_id": 1,
+        },
+        {
+            "text": "This is a completely new document that wasn't in the initial set.",
+            "doc_id": 3,
+        },
+    ]
+
+    info = pipeline.run(documents_source(updated_docs))
+    assert_load_info(info)
+
+    with pipeline.destination_client() as client:
+        # Orphaned chunks/documents must have been discarded.
+        # Shouldn't contain any text from `initial_docs' where doc_id=1.
+        expected_text = {
+            "Here's ano",
+            "ther docum",
+            "ent. It's ",
+            "a bit diff",
+            "erent from",
+            " the first",
+            " one.",
+            "This is th",
+            "e first do",
+            "cument, bu",
+            "t it has b",
+            "een update",
+            "d with new",
+            " content.",
+            "This is a ",
+            "completely",
+            " new docum",
+            "ent that w",
+            "asn't in t",
+            "he initial",
+            " set.",
+        }
+
+        embeddings_table_name = client.make_qualified_table_name("document__embeddings")  # type: ignore[attr-defined]
+
+        tbl: Table = client.db_client.open_table(embeddings_table_name)  # type: ignore[attr-defined]
+        df = tbl.to_pandas()
+        assert set(df["chunk_text"]) == expected_text
+
+
+def test_merge_no_orphans_with_doc_id() -> None:
+    @dlt.resource(  # type: ignore
+        write_disposition="merge",
+        table_name="document",
+        columns={"doc_id": {DOCUMENT_ID_HINT: True}},
+    )
+    def documents(docs: List[DictStrAny]) -> Generator[DictStrAny, None, None]:
+        for doc in docs:
+            doc_id = doc["doc_id"]
+            chunks = chunk_document(doc["text"])
+            embeddings = [
+                {
+                    "chunk_hash": digest128(chunk),
+                    "chunk_text": chunk,
+                    "embedding": mock_embed(),
+                }
+                for chunk in chunks
+            ]
+            yield {"doc_id": doc_id, "doc_text": doc["text"], "embeddings": embeddings}
+
+    @dlt.source(max_table_nesting=1)
+    def documents_source(
+        docs: List[DictStrAny],
+    ) -> Union[Generator[Dict[str, Any], None, None], DltResource]:
+        return documents(docs)
+
+    pipeline = dlt.pipeline(
+        pipeline_name="chunked_docs",
+        destination="lancedb",
+        dataset_name="chunked_documents",
+        dev_mode=True,
+    )
+
+    initial_docs = [
+        {
+            "text": (
+                "This is the first document. It contains some text that will be chunked and"
+                " embedded. (I don't want to be seen in updated run's embedding chunk texts btw)"
+            ),
+            "doc_id": 1,
+        },
+        {
+            "text": "Here's another document. It's a bit different from the first one.",
+            "doc_id": 2,
+        },
+    ]
+
+    info = pipeline.run(documents_source(initial_docs))
+    assert_load_info(info)
+
+    updated_docs = [
+        {
+            "text": "This is the first document, but it has been updated with new content.",
+            "doc_id": 1,
+        },
+        {
+            "text": "This is a completely new document that wasn't in the initial set.",
+            "doc_id": 3,
+        },
+    ]
+
+    info = pipeline.run(documents_source(updated_docs))
+    assert_load_info(info)
+
+    with pipeline.destination_client() as client:
+        # Orphaned chunks/documents must have been discarded.
+        # Shouldn't contain any text from `initial_docs' where doc_id=1.
+        expected_text = {
+            "Here's ano",
+            "ther docum",
+            "ent. It's ",
+            "a bit diff",
+            "erent from",
+            " the first",
+            " one.",
+            "This is th",
+            "e first do",
+            "cument, bu",
+            "t it has b",
+            "een update",
+            "d with new",
+            " content.",
+            "This is a ",
+            "completely",
+            " new docum",
+            "ent that w",
+            "asn't in t",
+            "he initial",
+            " set.",
+        }
+
+        embeddings_table_name = client.make_qualified_table_name("document__embeddings")  # type: ignore[attr-defined]
+
+        tbl: Table = client.db_client.open_table(embeddings_table_name)  # type: ignore[attr-defined]
+        df = tbl.to_pandas()
+        assert set(df["chunk_text"]) == expected_text
+
+
+def test_primary_key_not_compatible_with_doc_id_hint_on_merge_disposition() -> None:
+    @dlt.resource(  # type: ignore
+        write_disposition="merge",
+        table_name="document",
+        primary_key="doc_id",
+        columns={"doc_id": {DOCUMENT_ID_HINT: True}},
+    )
+    def documents(docs: List[DictStrAny]) -> Generator[DictStrAny, None, None]:
+        for doc in docs:
+            doc_id = doc["doc_id"]
+            chunks = chunk_document(doc["text"])
+            embeddings = [
+                {
+                    "chunk_hash": digest128(chunk),
+                    "chunk_text": chunk,
+                    "embedding": mock_embed(),
+                }
+                for chunk in chunks
+            ]
+            yield {"doc_id": doc_id, "doc_text": doc["text"], "embeddings": embeddings}
+
+    @dlt.source(max_table_nesting=1)
+    def documents_source(
+        docs: List[DictStrAny],
+    ) -> Union[Generator[Dict[str, Any], None, None], DltResource]:
+        return documents(docs)
+
+    pipeline = dlt.pipeline(
+        pipeline_name="test_mandatory_doc_id_hint_on_merge_disposition",
+        destination="lancedb",
+        dataset_name="test_mandatory_doc_id_hint_on_merge_disposition",
+        dev_mode=True,
+    )
+
+    initial_docs = [
+        {
+            "text": (
+                "This is the first document. It contains some text that will be chunked and"
+                " embedded. (I don't want to be seen in updated run's embedding chunk texts btw)"
+            ),
+            "doc_id": 1,
+        },
+        {
+            "text": "Here's another document. It's a bit different from the first one.",
+            "doc_id": 2,
+        },
+    ]
+
+    with pytest.raises(PipelineStepFailed):
+        pipeline.run(documents(initial_docs))

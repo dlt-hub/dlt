@@ -72,3 +72,13 @@ class MockEmbeddingFunc(TextEmbeddingFunction):
 
     def ndims(self) -> int:
         return 2
+
+
+def mock_embed(
+    dim: int = 10,
+) -> str:
+    return str(np.random.random_sample(dim))
+
+
+def chunk_document(doc: str, chunk_size: int = 10) -> List[str]:
+    return [doc[i : i + chunk_size] for i in range(0, len(doc), chunk_size)]

@@ -1,6 +1,5 @@
 """Utilities for creating arrow schemas from table schemas."""
 
-from dlt.common.json import json
 from typing import (
     List,
     cast,
@@ -11,6 +10,7 @@ import pyarrow as pa
 from lancedb.embeddings import TextEmbeddingFunction  # type: ignore
 from typing_extensions import TypeAlias
 
+from dlt.common.json import json
 from dlt.common.schema import Schema, TColumnSchema
 from dlt.common.typing import DictStrAny
 from dlt.destinations.type_mapping import TypeMapper
@@ -82,3 +82,22 @@ def make_arrow_table_schema(
         metadata["embedding_functions"] = json.dumps(embedding_functions).encode("utf-8")
 
     return pa.schema(arrow_schema, metadata=metadata)
+
+
+def arrow_datatype_to_fusion_datatype(arrow_type: TArrowSchema) -> str:
+    type_map = {
+        pa.bool_(): "BOOLEAN",
+        pa.int64(): "BIGINT",
+        pa.float64(): "DOUBLE",
+        pa.utf8(): "STRING",
+        pa.binary(): "BYTEA",
+        pa.date32(): "DATE",
+    }
+
+    if isinstance(arrow_type, pa.Decimal128Type):
+        return f"DECIMAL({arrow_type.precision}, {arrow_type.scale})"
+
+    if isinstance(arrow_type, pa.TimestampType):
+        return "TIMESTAMP"
+
+    return type_map.get(arrow_type, "UNKNOWN")

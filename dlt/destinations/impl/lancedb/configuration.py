@@ -59,6 +59,7 @@ TEmbeddingProvider = Literal[
     "sentence-transformers",
     "huggingface",
     "colbert",
+    "ollama",
 ]
 
 
