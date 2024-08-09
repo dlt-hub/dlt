@@ -81,6 +81,7 @@ from dlt.common.destination.reference import (
     DestinationClientStagingConfiguration,
     DestinationClientStagingConfiguration,
     DestinationClientDwhWithStagingConfiguration,
+    SupportsReadableDataset,
 )
 from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.pipeline import (
@@ -437,6 +438,7 @@ class Pipeline(SupportsPipeline):
                         workers,
                         refresh=refresh or self.refresh,
                     )
+
                 # this will update state version hash so it will not be extracted again by with_state_sync
                 self._bump_version_and_extract_state(
                     self._container[StateInjectableContext].state,
@@ -1698,3 +1700,7 @@ class Pipeline(SupportsPipeline):
     def __getstate__(self) -> Any:
         # pickle only the SupportsPipeline protocol fields
         return {"pipeline_name": self.pipeline_name}
+
+    def dataset(self) -> SupportsReadableDataset:
+        """Access helper to dataset"""
+        return self.destination_client().dataset()

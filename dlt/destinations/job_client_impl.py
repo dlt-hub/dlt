@@ -14,9 +14,11 @@ from typing import (
     Type,
     Iterable,
     Iterator,
+    Generator,
 )
 import zlib
 import re
+from contextlib import contextmanager
 
 from dlt.common import pendulum, logger
 from dlt.common.json import json
@@ -39,6 +41,7 @@ from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns, TSchem
 from dlt.common.destination.reference import (
     StateInfo,
     StorageSchemaInfo,
+    SupportsReadableDataset,
     WithStateSync,
     DestinationClientConfiguration,
     DestinationClientDwhConfiguration,
@@ -49,7 +52,10 @@ from dlt.common.destination.reference import (
     JobClientBase,
     HasFollowupJobs,
     CredentialsConfiguration,
+    WithReadableRelations,
+    SupportsReadableRelation,
 )
+from dlt.destinations.dataset import ReadableDataset
 
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
 from dlt.destinations.job_impl import (
@@ -121,7 +127,7 @@ class CopyRemoteFileLoadJob(RunnableLoadJob, HasFollowupJobs):
         self._bucket_path = ReferenceFollowupJob.resolve_reference(file_path)
 
 
-class SqlJobClientBase(JobClientBase, WithStateSync):
+class SqlJobClientBase(WithReadableRelations, JobClientBase, WithStateSync):
     INFO_TABLES_QUERY_THRESHOLD: ClassVar[int] = 1000
     """Fallback to querying all tables in the information schema if checking more than threshold"""
 
@@ -677,6 +683,20 @@ WHERE """
                 "pipeline_name": pipeline_name,
             }
         )
+
+    @contextmanager
+    def get_readable_relation(
+        self, *, table: str = None, sql: str = None
+    ) -> Generator[SupportsReadableRelation, Any, Any]:
+        with self.sql_client as sql_client:
+            if not sql:
+                table = sql_client.make_qualified_table_name(table)
+                sql = f"SELECT * FROM {table}"
+            with sql_client.execute_query(sql) as cursor:
+                yield cursor
+
+    def dataset(self) -> SupportsReadableDataset:
+        return ReadableDataset(self)
 
 
 class SqlJobClientWithStaging(SqlJobClientBase, WithStagingDataset):

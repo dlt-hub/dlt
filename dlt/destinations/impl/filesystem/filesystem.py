@@ -1,9 +1,22 @@
 import posixpath
 import os
 import base64
-
+from contextlib import contextmanager
 from types import TracebackType
-from typing import ClassVar, List, Type, Iterable, Iterator, Optional, Tuple, Sequence, cast
+from typing import (
+    List,
+    Type,
+    Iterable,
+    Iterator,
+    Optional,
+    Tuple,
+    Sequence,
+    cast,
+    Generator,
+    Literal,
+    Any,
+    Dict,
+)
 from fsspec import AbstractFileSystem
 from contextlib import contextmanager
 
@@ -19,6 +32,7 @@ from dlt.common.storages.load_package import (
     TPipelineStateDoc,
     load_package as current_load_package,
 )
+from dlt.destinations.sql_client import DBApiCursor
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
     FollowupJob,
@@ -31,8 +45,10 @@ from dlt.common.destination.reference import (
     StorageSchemaInfo,
     StateInfo,
     LoadJob,
+    SupportsReadableDataset,
 )
 from dlt.common.destination.exceptions import DestinationUndefinedEntity
+from dlt.common.typing import DuckDBPyConnection
 from dlt.destinations.job_impl import (
     ReferenceFollowupJob,
     FinalizedLoadJob,
@@ -40,6 +56,7 @@ from dlt.destinations.job_impl import (
 from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
 from dlt.destinations import path_utils
 from dlt.destinations.fs_client import FSClientBase
+from dlt.destinations.dataset import ReadableDataset
 
 INIT_FILE_NAME = "init"
 FILENAME_SEPARATOR = "__"
@@ -586,3 +603,74 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
                 file_name = FileStorage.get_file_name_from_file_path(table_job_paths[0])
                 jobs.append(ReferenceFollowupJob(file_name, table_job_paths))
         return jobs
+
+    def get_duckdb(self, tables: List[str]) -> DuckDBPyConnection:
+        import duckdb
+        from duckdb import InvalidInputException, IOException
+
+        # cache duckdb instance and list of created views
+        db: DuckDBPyConnection = getattr(self, "_duckdb", None)
+        existing_views: List[str] = getattr(self, "_existing_duckdb_views", [])
+
+        if not db:
+            db = duckdb.connect(":memory:")
+            db.register_filesystem(self.fs_client)
+            self._duckdb = db
+            self._existing_duckdb_views = existing_views
+
+        # create all tables in duck instance
+        for ptable in tables:
+            if ptable in existing_views:
+                continue
+            existing_views.append(ptable)
+
+            folder = self.get_table_dir(ptable)
+            files = self.list_table_files(ptable)
+            # discover tables files
+            file_type = os.path.splitext(files[0])[1][1:]
+            if file_type == "jsonl":
+                read_command = "read_json"
+            elif file_type == "parquet":
+                read_command = "read_parquet"
+            else:
+                raise AssertionError(f"Unknown filetype {file_type} for table {ptable}")
+
+            # create table
+            protocol = "" if self.is_local_filesystem else f"{self.config.protocol}://"
+            files_string = f"'{protocol}{folder}/**/*.{file_type}'"
+            create_table_sql_base = (
+                f"CREATE VIEW {ptable} AS SELECT * FROM {read_command}([{files_string}])"
+            )
+            create_table_sql_gzipped = (
+                f"CREATE VIEW {ptable} AS SELECT * FROM {read_command}([{files_string}],"
+                " compression = 'gzip')"
+            )
+            try:
+                db.sql(create_table_sql_base)
+            except (InvalidInputException, IOException):
+                # try to load non gzipped files
+                db.sql(create_table_sql_gzipped)
+
+        return db
+
+    @contextmanager
+    def get_readable_relation(
+        self, *, table: str = None, sql: str = None
+    ) -> Generator[DBApiCursor, Any, Any]:
+        from dlt.destinations.impl.duckdb.sql_client import DuckDBDBApiCursorImpl
+        import sqlglot
+        import sqlglot.expressions as exp
+
+        if table:
+            sql = f"SELECT * FROM {table}"
+
+        # find all tables to preload
+        expression = sqlglot.parse_one(sql, read="oracle")
+        load_tables = [t.name for t in expression.find_all(exp.Table)]
+
+        # we can use the implementation of the duckdb cursor here
+        db = self.get_duckdb(tables=load_tables)
+        yield DuckDBDBApiCursorImpl(db.execute(sql))  # type: ignore
+
+    def dataset(self) -> SupportsReadableDataset:
+        return ReadableDataset(self)

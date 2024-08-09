@@ -505,6 +505,7 @@ def destinations_configs(
                     bucket_url=bucket,
                     extra_info=bucket,
                     supports_merge=False,
+                    file_format="parquet",
                 )
             ]
 

@@ -77,6 +77,22 @@ else:
     REPattern = _REPattern
     PathLike = os.PathLike
 
+
+try:
+    from pandas import DataFrame
+except ImportError:
+    DataFrame: Type[Any] = None  # type: ignore
+
+try:
+    from pyarrow import Table as ArrowTable
+except ImportError:
+    ArrowTable: Type[Any] = None  # type: ignore
+
+try:
+    from duckdb import DuckDBPyConnection
+except ImportError:
+    DuckDBPyConnection: Type[Any] = None  # type: ignore
+
 AnyType: TypeAlias = Any
 NoneType = type(None)
 DictStrAny: TypeAlias = Dict[str, Any]

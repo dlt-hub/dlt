@@ -16,6 +16,7 @@ from typing import (
     Type,
     AnyStr,
     List,
+    Generator,
     TypedDict,
 )
 
@@ -27,6 +28,16 @@ from dlt.destinations.exceptions import (
     DestinationConnectionError,
     LoadClientNotConnected,
 )
+from dlt.destinations.typing import (
+    DBApi,
+    TNativeConn,
+    DBApiCursor,
+    DataFrame,
+    DBTransaction,
+    ArrowTable,
+)
+
+
 from dlt.destinations.typing import DBApi, TNativeConn, DBApiCursor, DataFrame, DBTransaction
 
 
@@ -299,18 +310,48 @@ class DBApiCursorImpl(DBApiCursor):
         May use native pandas/arrow reader if available. Depending on
         the native implementation chunk size may vary.
         """
+        try:
+            return next(self.iter_df(chunk_size=chunk_size))
+        except StopIteration:
+            return None
+
+    def arrow(self, chunk_size: int = None, **kwargs: Any) -> Optional[ArrowTable]:
+        """Fetches results as data frame in full or in specified chunks.
+
+        May use native pandas/arrow reader if available. Depending on
+        the native implementation chunk size may vary.
+        """
+        try:
+            return next(self.iter_arrow(chunk_size=chunk_size))
+        except StopIteration:
+            return None
+
+    def iter_fetchmany(self, chunk_size: int) -> Generator[List[Tuple[Any, ...]], Any, Any]:
+        while True:
+            if not (result := self.fetchmany(chunk_size)):
+                return
+            yield result
+
+    def iter_df(self, chunk_size: int) -> Generator[DataFrame, None, None]:
         from dlt.common.libs.pandas_sql import _wrap_result
 
         columns = self._get_columns()
-        if chunk_size is None:
-            return _wrap_result(self.native_cursor.fetchall(), columns, **kwargs)
-        else:
-            df = _wrap_result(self.native_cursor.fetchmany(chunk_size), columns, **kwargs)
-            # if no rows return None
-            if df.shape[0] == 0:
-                return None
-            else:
-                return df
+
+        # if no chunk size, fetch all
+        if not chunk_size:
+            yield _wrap_result(self.fetchall(), columns)
+            return
+
+        # otherwise iterate over results in batch size chunks
+        for result in self.iter_fetchmany(chunk_size=chunk_size):
+            # TODO: ensure that this is arrow backed
+            yield _wrap_result(result, columns, dtype_backend="pyarrow")
+
+    def iter_arrow(self, chunk_size: int) -> Generator[ArrowTable, None, None]:
+        """Default implementation converts df to arrow"""
+        for df in self.iter_df(chunk_size=chunk_size):
+            # TODO: is this efficient?
+            yield ArrowTable.from_pandas(df)
 
 
 def raise_database_error(f: TFun) -> TFun:

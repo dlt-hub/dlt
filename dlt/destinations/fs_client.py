@@ -1,10 +1,13 @@
-import gzip
 from typing import Iterable, cast, Any, List
+
+import gzip
 from abc import ABC, abstractmethod
 from fsspec import AbstractFileSystem
 
+from dlt.common.destination.reference import WithReadableRelations
 
-class FSClientBase(ABC):
+
+class FSClientBase(WithReadableRelations, ABC):
     fs_client: AbstractFileSystem
 
     @property
