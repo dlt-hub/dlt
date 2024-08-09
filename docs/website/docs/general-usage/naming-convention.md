@@ -114,11 +114,11 @@ You can pick from a few built-in naming conventions.
 
 
 ### Ignore naming convention for `dataset_name`
-You control the dataset naming normalization separately. Set `dataset_name_normalization` to `false` to ignore the naming convention for `dataset_name`:
+You control the dataset naming normalization separately. Set `enable_dataset_name_normalization` to `false` to ignore the naming convention for `dataset_name`:
 
 ```toml
 [destination.snowflake]
-dataset_name_normalization=false
+enable_dataset_name_normalization=false
 ```
 
 In that case, the `dataset_name` would be preserved the same as it was set in the pipeline:
@@ -128,9 +128,9 @@ import dlt
 pipeline = dlt.pipeline(dataset_name="MyCamelCaseName")
 ```
 
-The default value for the `dataset_name_normalization` configuration option is `true`.
+The default value for the `enable_dataset_name_normalization` configuration option is `true`.
 :::note
-The same setting would be applied to [staging dataset](../dlt-ecosystem/staging#staging-dataset). Thus, if you set `dataset_name_normalization` to `false`, the staging dataset name would also **not** be normalized.
+The same setting would be applied to [staging dataset](../dlt-ecosystem/staging#staging-dataset). Thus, if you set `enable_dataset_name_normalization` to `false`, the staging dataset name would also **not** be normalized.
 :::
 
 :::caution

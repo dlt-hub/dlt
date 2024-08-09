@@ -353,7 +353,7 @@ def test_normalize_dataset_name() -> None:
 
     # test dataset_name_normalization false
     assert (
-        DestinationClientDwhConfiguration(dataset_name_normalization=False)
+        DestinationClientDwhConfiguration(enable_dataset_name_normalization=False)
         ._bind_dataset_name(dataset_name="BarbaPapa__Ba", default_schema_name="default")
         .normalize_dataset_name(Schema("default"))
         == "BarbaPapa__Ba"
@@ -407,7 +407,7 @@ def test_normalize_staging_dataset_name() -> None:
     # test dataset_name_normalization false
     assert (
         DestinationClientDwhConfiguration(
-            dataset_name_normalization=False, staging_dataset_name_layout="%s__Staging"
+            enable_dataset_name_normalization=False, staging_dataset_name_layout="%s__Staging"
         )
         ._bind_dataset_name(dataset_name="BarbaPapa__Ba", default_schema_name="default")
         .normalize_staging_dataset_name(Schema("default"))

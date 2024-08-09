@@ -190,7 +190,7 @@ class DestinationClientDwhConfiguration(DestinationClientConfiguration):
     """How to handle replace disposition for this destination, can be classic or staging"""
     staging_dataset_name_layout: str = "%s_staging"
     """Layout for staging dataset, where %s is replaced with dataset name. placeholder is optional"""
-    dataset_name_normalization: bool = True
+    enable_dataset_name_normalization: bool = True
     """Whether to normalize the dataset name. Affects staging dataset as well."""
 
     def _bind_dataset_name(
@@ -215,7 +215,7 @@ class DestinationClientDwhConfiguration(DestinationClientConfiguration):
         else:
             return (
                 schema.naming.normalize_table_identifier(dataset_name)
-                if self.dataset_name_normalization
+                if self.enable_dataset_name_normalization
                 else dataset_name
             )
 
@@ -234,7 +234,7 @@ class DestinationClientDwhConfiguration(DestinationClientConfiguration):
 
         return (
             schema.naming.normalize_table_identifier(dataset_name)
-            if self.dataset_name_normalization
+            if self.enable_dataset_name_normalization
             else dataset_name
         )
 
