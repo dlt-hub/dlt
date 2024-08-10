@@ -852,10 +852,7 @@ class LanceDBRemoveOrphansJob(RunnableLoadJob):
 class LanceDBRemoveOrphansFollowupJob(FollowupJobImpl):
     def __init__(self, file_name: str) -> None:
         super().__init__(file_name)
-        self._write_empty_parquet_file()
-
-    def _write_empty_parquet_file(self):
-        pq.write_table(pa.table({}), self._file_path)
+        self._save_text_file("")
 
     @classmethod
     def from_table_chain(
@@ -865,14 +862,12 @@ class LanceDBRemoveOrphansFollowupJob(FollowupJobImpl):
         jobs = []
         for table in table_chain:
             if table.get("write_disposition") == "merge":
-                # TODO: insert Identify orphan IDs into load job file here. Removal should then happen through `write_to_db` in orphan removal job.
                 file_info = ParsedLoadJobFileName(
-                    table["name"], ParsedLoadJobFileName.new_file_id(), 0, "parquet"
+                    table["name"], ParsedLoadJobFileName.new_file_id(), 0, "reference"
                 )
                 jobs.append(cls(file_info.file_name()))
         return jobs
 
     @staticmethod
     def is_remove_orphan_job(file_path: str) -> bool:
-        return os.path.basename(file_path) == ".parquet"
-
+        return os.path.splitext(file_path)[1][1:] == "reference"
