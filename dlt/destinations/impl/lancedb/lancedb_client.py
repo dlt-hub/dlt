@@ -675,9 +675,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
                 self.schema.naming.normalize_identifier("schema_name"): self.schema.name,
                 self.schema.naming.normalize_identifier("status"): 0,
                 self.schema.naming.normalize_identifier("inserted_at"): str(pendulum.now()),
-                self.schema.naming.normalize_identifier(
-                    "schema_version_hash"
-                ): None,  # Payload schema must match the target schema.
+                self.schema.naming.normalize_identifier("schema_version_hash"): None,
             }
         ]
         fq_loads_table_name = self.make_qualified_table_name(self.schema.loads_table_name)
@@ -704,7 +702,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
         table_chain: Sequence[TTableSchema],
         completed_table_chain_jobs: Optional[Sequence[LoadJobInfo]] = None,
     ) -> List[FollowupJob]:
-        return LanceDBRemoveOrphansFollowupJob.from_table_chain(table_chain)
+        return LanceDBRemoveOrphansFollowupJob.from_table_chain(table_chain)  # type: ignore
 
     def table_exists(self, table_name: str) -> bool:
         return table_name in self.db_client.table_names()
@@ -772,9 +770,12 @@ class LanceDBRemoveOrphansJob(RunnableLoadJob):
     def run(self) -> None:
         db_client: DBConnection = self._job_client.db_client
         fq_table_name: str = self._job_client.make_qualified_table_name(self._table_schema["name"])
-        fq_parent_table_name: str = self._job_client.make_qualified_table_name(
-            self._table_schema["parent"]
-        )
+        try:
+            fq_parent_table_name: str = self._job_client.make_qualified_table_name(
+                self._table_schema["parent"]
+            )
+        except KeyError:
+            fq_parent_table_name = None  # The table is a root table.
         id_field_name: str = self._job_client.config.id_field_name
 
         try:
@@ -858,7 +859,7 @@ class LanceDBRemoveOrphansFollowupJob(FollowupJobImpl):
     def from_table_chain(
         cls,
         table_chain: Sequence[TTableSchema],
-    ) -> List[FollowupJobImpl]:
+    ) -> List["LanceDBRemoveOrphansFollowupJob"]:
         jobs = []
         for table in table_chain:
             if table.get("write_disposition") == "merge":
