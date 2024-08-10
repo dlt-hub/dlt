@@ -1,3 +1,4 @@
+import os
 from types import TracebackType
 from typing import (
     List,
@@ -693,7 +694,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
     def create_load_job(
         self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
-        if file_path.endswith(".remove_orphans"):
+        if LanceDBRemoveOrphansFollowupJob.is_remove_orphan_job(file_path):
             return LanceDBRemoveOrphansJob(file_path, table)
         else:
             return LanceDBLoadJobWithFollowup(file_path, table)
@@ -703,22 +704,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
         table_chain: Sequence[TTableSchema],
         completed_table_chain_jobs: Optional[Sequence[LoadJobInfo]] = None,
     ) -> List[FollowupJob]:
-        assert completed_table_chain_jobs is not None
-        jobs = super().create_table_chain_completed_followup_jobs(
-            table_chain, completed_table_chain_jobs
-        )
-        for table in table_chain:
-            if (
-                table.get("write_disposition") == "merge"
-                and table["name"] not in self.schema.dlt_table_names()
-            ):
-                file_name = repr(
-                    ParsedLoadJobFileName(
-                        table["name"], ParsedLoadJobFileName.new_file_id(), 0, "remove_orphans"
-                    )
-                )
-                jobs.append(FollowupJobImpl(file_name))
-        return jobs
+        return LanceDBRemoveOrphansFollowupJob.from_table_chain(table_chain)
 
     def table_exists(self, table_name: str) -> bool:
         return table_name in self.db_client.table_names()
@@ -866,3 +852,22 @@ class LanceDBRemoveOrphansJob(RunnableLoadJob):
 class LanceDBRemoveOrphansFollowupJob(FollowupJobImpl):
     def __init__(self, file_name: str) -> None:
         super().__init__(file_name)
+        self._save_text_file("")
+
+    @classmethod
+    def from_table_chain(
+        cls,
+        table_chain: Sequence[TTableSchema],
+    ) -> List[FollowupJobImpl]:
+        jobs = []
+        for table in table_chain:
+            if table.get("write_disposition") == "merge":
+                file_info = ParsedLoadJobFileName(
+                    table["name"], ParsedLoadJobFileName.new_file_id(), 0, "remove_orphans"
+                )
+                jobs.append(cls(file_info.file_name()))
+        return jobs
+
+    @staticmethod
+    def is_remove_orphan_job(file_path: str) -> bool:
+        return os.path.basename(file_path) == ".remove_orphans"
