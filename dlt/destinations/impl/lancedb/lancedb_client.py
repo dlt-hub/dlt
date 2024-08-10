@@ -41,7 +41,6 @@ from dlt.common.destination.reference import (
     FollowupJob,
     LoadJob,
     HasFollowupJobs,
-    TLoadJobState,
 )
 from dlt.common.exceptions import SystemConfigurationException
 from dlt.common.pendulum import timedelta
@@ -54,7 +53,7 @@ from dlt.common.schema.typing import (
     TColumnSchema,
 )
 from dlt.common.schema.utils import get_columns_names_with_prop
-from dlt.common.storages import FileStorage, LoadJobInfo
+from dlt.common.storages import FileStorage, LoadJobInfo, ParsedLoadJobFileName
 from dlt.common.typing import DictStrAny
 from dlt.destinations.impl.lancedb.configuration import (
     LanceDBClientConfiguration,
@@ -79,7 +78,7 @@ from dlt.destinations.impl.lancedb.utils import (
     set_non_standard_providers_environment_variables,
     generate_arrow_uuid_column,
 )
-from dlt.destinations.job_impl import ReferenceFollowupJob
+from dlt.destinations.job_impl import FollowupJobImpl
 from dlt.destinations.type_mapping import TypeMapper
 
 if TYPE_CHECKING:
@@ -694,7 +693,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
     def create_load_job(
         self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
-        if ReferenceFollowupJob.is_reference_job(file_path):
+        if file_path.endswith(".remove_orphans"):
             return LanceDBRemoveOrphansJob(file_path, table)
         else:
             return LanceDBLoadJobWithFollowup(file_path, table)
@@ -704,10 +703,22 @@ class LanceDBClient(JobClientBase, WithStateSync):
         table_chain: Sequence[TTableSchema],
         completed_table_chain_jobs: Optional[Sequence[LoadJobInfo]] = None,
     ) -> List[FollowupJob]:
-        table_job_paths = [job.file_path for job in completed_table_chain_jobs]
-        file_name = FileStorage.get_file_name_from_file_path(table_job_paths[0])
-        job = ReferenceFollowupJob(file_name, table_job_paths)
-        return [job]
+        assert completed_table_chain_jobs is not None
+        jobs = super().create_table_chain_completed_followup_jobs(
+            table_chain, completed_table_chain_jobs
+        )
+        for table in table_chain:
+            if (
+                table.get("write_disposition") == "merge"
+                and table["name"] not in self.schema.dlt_table_names()
+            ):
+                file_name = repr(
+                    ParsedLoadJobFileName(
+                        table["name"], ParsedLoadJobFileName.new_file_id(), 0, "remove_orphans"
+                    )
+                )
+                jobs.append(FollowupJobImpl(file_name))
+        return jobs
 
     def table_exists(self, table_name: str) -> bool:
         return table_name in self.db_client.table_names()
@@ -757,8 +768,7 @@ class LanceDBLoadJob(RunnableLoadJob):
 
 
 class LanceDBLoadJobWithFollowup(HasFollowupJobs, LanceDBLoadJob):
-    def create_followup_jobs(self, final_state: TLoadJobState) -> List[FollowupJob]:
-        return super().create_followup_jobs(final_state)
+    pass
 
 
 class LanceDBRemoveOrphansJob(RunnableLoadJob):
@@ -851,3 +861,8 @@ class LanceDBRemoveOrphansJob(RunnableLoadJob):
             raise DestinationTerminalException(
                 "Python and Arrow datatype mismatch - batch failed AND WILL **NOT** BE RETRIED."
             ) from e
+
+
+class LanceDBRemoveOrphansFollowupJob(FollowupJobImpl):
+    def __init__(self, file_name: str) -> None:
+        super().__init__(file_name)
