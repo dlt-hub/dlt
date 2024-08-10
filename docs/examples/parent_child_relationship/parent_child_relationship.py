@@ -19,7 +19,7 @@ import dlt
 # Define a dlt resource with write disposition to 'merge'
 @dlt.resource(name='parent_with_children', write_disposition={"disposition": "merge"})
 def data_source() -> Dict[str, Any]:
-    # Example data 
+    # Example data
     data = [
         {
             'parent_id': 1,
@@ -47,19 +47,20 @@ def add_parent_id(record):
         child[parent_id_key] = record[parent_id_key]
     return record
 
-# Create and configure the dlt pipeline
-pipeline = dlt.pipeline(
-    pipeline_name='generic_pipeline',
-    destination='duckdb',
-    dataset_name='dataset',
-)
 
-# Run the pipeline
-load_info = pipeline.run(
-    data_source()
-    .add_map(add_parent_id),
-    primary_key="parent_id"
-)
+if __name__ == "__main__":
+    # Create and configure the dlt pipeline
+    pipeline = dlt.pipeline(
+        pipeline_name='generic_pipeline',
+        destination='duckdb',
+        dataset_name='dataset',
+    )
 
-# print pipeline load info
-print(load_info)
+    # Run the pipeline
+    load_info = pipeline.run(
+        data_source()
+        .add_map(add_parent_id),
+        primary_key="parent_id"
+    )
+    # Output the load information after pipeline execution
+    print(load_info)
