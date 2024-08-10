@@ -14,6 +14,7 @@ In this example, we'll explore how to:
 - Use the [`add_map` function](https://dlthub.com/docs/api_reference/extract/resource#add_map) to apply this custom logic to every record in our dataset.
 """
 
+from typing import Dict, Any
 import dlt
 
 # Define a dlt resource with write disposition to 'merge'
@@ -41,12 +42,11 @@ def data_source() -> Dict[str, Any]:
     yield data
 
 # Function to add parent_id to each child record within a parent record
-def add_parent_id(record):
+def add_parent_id(record: Dict[str, Any]) -> Dict[str, Any]:
     parent_id_key = "parent_id"
     for child in record["children"]:
         child[parent_id_key] = record[parent_id_key]
     return record
-
 
 if __name__ == "__main__":
     # Create and configure the dlt pipeline
@@ -64,3 +64,4 @@ if __name__ == "__main__":
     )
     # Output the load information after pipeline execution
     print(load_info)
+
