@@ -326,6 +326,36 @@ class TestOffsetPaginator:
         paginator.update_state(response, no_data_found)  # Page 1
         assert paginator.has_next_page is False
 
+    def test_guarantee_termination(self):
+        OffsetPaginator(
+            limit=10,
+            total_path=None,
+        )
+
+        OffsetPaginator(
+            limit=10,
+            total_path=None,
+            maximum_offset=1,
+            stop_after_empty_page=False,
+        )
+
+        with pytest.raises(ValueError) as e:
+            OffsetPaginator(
+                limit=10,
+                total_path=None,
+                stop_after_empty_page=False,
+            )
+        assert e.match("`total_path` or `maximum_offset` or `stop_after_empty_page` must be provided")
+
+        with pytest.raises(ValueError) as e:
+            OffsetPaginator(
+                limit=10,
+                total_path=None,
+                stop_after_empty_page=False,
+                maximum_offset=None,
+            )
+        assert e.match("`total_path` or `maximum_offset` or `stop_after_empty_page` must be provided")
+
 
 @pytest.mark.usefixtures("mock_api_server")
 class TestPageNumberPaginator:
@@ -430,6 +460,32 @@ class TestPageNumberPaginator:
         pages = list(pages_iter)
 
         assert_pagination(pages)
+
+    def test_guarantee_termination(self):
+        PageNumberPaginator(
+            total_path=None,
+        )
+
+        PageNumberPaginator(
+            total_path=None,
+            maximum_page=1,
+            stop_after_empty_page=False,
+        )
+
+        with pytest.raises(ValueError) as e:
+            PageNumberPaginator(
+                total_path=None,
+                stop_after_empty_page=False,
+            )
+        assert e.match("`total_path` or `maximum_page` or `stop_after_empty_page` must be provided")
+
+        with pytest.raises(ValueError) as e:
+            PageNumberPaginator(
+                total_path=None,
+                stop_after_empty_page=False,
+                maximum_page=None,
+            )
+        assert e.match("`total_path` or `maximum_page` or `stop_after_empty_page` must be provided")
 
 
 @pytest.mark.usefixtures("mock_api_server")

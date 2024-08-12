@@ -121,8 +121,10 @@ class RangePaginator(BasePaginator):
               a page contains no result items. Defaults to `True`.
         """
         super().__init__()
-        if total_path is None and maximum_value is None:
-            raise ValueError("Either `total_path` or `maximum_value` must be provided.")
+        if total_path is None and maximum_value is None and not stop_after_empty_page:
+            raise ValueError(
+                "Either `total_path` or `maximum_value` or stop_after_empty_page must be provided."
+            )
         self.param_name = param_name
         self.current_value = initial_value
         self.value_step = value_step
@@ -260,8 +262,10 @@ class PageNumberPaginator(RangePaginator):
             stop_after_empty_page (bool): Whether pagination should stop when
               a page contains no result items. Defaults to `True`.
         """
-        if total_path is None and maximum_page is None:
-            raise ValueError("Either `total_path` or `maximum_page` must be provided.")
+        if total_path is None and maximum_page is None and not stop_after_empty_page:
+            raise ValueError(
+                "Either `total_path` or `maximum_page` or `stop_after_empty_page` must be provided."
+            )
 
         page = page if page is not None else base_page
 
@@ -365,8 +369,10 @@ class OffsetPaginator(RangePaginator):
             stop_after_empty_page (bool): Whether pagination should stop when
               a page contains no result items. Defaults to `True`.
         """
-        if total_path is None and maximum_offset is None:
-            raise ValueError("Either `total_path` or `maximum_offset` must be provided.")
+        if total_path is None and maximum_offset is None and not stop_after_empty_page:
+            raise ValueError(
+                "Either `total_path` or `maximum_offset` or `stop_after_empty_page` must be provided."
+            )
         super().__init__(
             param_name=offset_param,
             initial_value=offset,
