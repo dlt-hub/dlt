@@ -96,7 +96,7 @@ class RangePaginator(BasePaginator):
         maximum_value: Optional[int] = None,
         total_path: Optional[jsonpath.TJsonPath] = None,
         error_message_items: str = "items",
-        stop_after_empty_page: bool = True,
+        stop_after_empty_page: Optional[bool] = True,
     ):
         """
         Args:
@@ -117,6 +117,8 @@ class RangePaginator(BasePaginator):
                 If not provided, `maximum_value` must be specified.
             error_message_items (str): The name of the items in the error message.
                 Defaults to 'items'.
+            stop_after_empty_page (bool): Whether pagination should stop when
+              a page contains no result items. Defaults to `True`.
         """
         super().__init__()
         if total_path is None and maximum_value is None:
@@ -237,7 +239,7 @@ class PageNumberPaginator(RangePaginator):
         page_param: str = "page",
         total_path: jsonpath.TJsonPath = "total",
         maximum_page: Optional[int] = None,
-        stop_after_empty_page: bool = True,
+        stop_after_empty_page: Optional[bool] = True,
     ):
         """
         Args:
@@ -255,6 +257,8 @@ class PageNumberPaginator(RangePaginator):
                 will stop once this page is reached or exceeded, even if more
                 data is available. This allows you to limit the maximum number
                 of pages for pagination. Defaults to None.
+            stop_after_empty_page (bool): Whether pagination should stop when
+              a page contains no result items. Defaults to `True`.
         """
         if total_path is None and maximum_page is None:
             raise ValueError("Either `total_path` or `maximum_page` must be provided.")
@@ -340,7 +344,7 @@ class OffsetPaginator(RangePaginator):
         limit_param: str = "limit",
         total_path: jsonpath.TJsonPath = "total",
         maximum_offset: Optional[int] = None,
-        stop_after_empty_page: bool = True,
+        stop_after_empty_page: Optional[bool] = True,
     ) -> None:
         """
         Args:
@@ -358,6 +362,8 @@ class OffsetPaginator(RangePaginator):
                 pagination will stop once this offset is reached or exceeded,
                 even if more data is available. This allows you to limit the
                 maximum range for pagination. Defaults to None.
+            stop_after_empty_page (bool): Whether pagination should stop when
+              a page contains no result items. Defaults to `True`.
         """
         if total_path is None and maximum_offset is None:
             raise ValueError("Either `total_path` or `maximum_offset` must be provided.")
