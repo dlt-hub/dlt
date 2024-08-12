@@ -1,14 +1,23 @@
+from typing import ClassVar, Optional
 import pytest
 import os
+from datetime import datetime  # noqa: I251
 
+import dlt
+from dlt.common import json
+from dlt.common.libs.pydantic import DltConfig
 from dlt.common.schema.exceptions import SchemaIdentifierNormalizationCollision
-from dlt.common.time import ensure_pendulum_datetime
-from dlt.destinations.exceptions import DatabaseTerminalException
+from dlt.common.time import ensure_pendulum_datetime, pendulum
+
+from dlt.destinations import duckdb
 from dlt.pipeline.exceptions import PipelineStepFailed
 
 from tests.cases import TABLE_UPDATE_ALL_INT_PRECISIONS, TABLE_UPDATE_ALL_TIMESTAMP_PRECISIONS
 from tests.load.utils import destinations_configs, DestinationTestConfiguration
-from tests.pipeline.utils import airtable_emojis, load_table_counts
+from tests.pipeline.utils import airtable_emojis, assert_data_table_counts, load_table_counts
+
+# mark all tests as essential, do not remove
+pytestmark = pytest.mark.essential
 
 
 @pytest.mark.parametrize(
@@ -18,7 +27,6 @@ from tests.pipeline.utils import airtable_emojis, load_table_counts
 )
 def test_duck_case_names(destination_config: DestinationTestConfiguration) -> None:
     # we want to have nice tables
-    # dlt.config["schema.naming"] = "duck_case"
     os.environ["SCHEMA__NAMING"] = "duck_case"
     pipeline = destination_config.setup_pipeline("test_duck_case_names")
     # create tables and columns with emojis and other special characters
@@ -125,3 +133,132 @@ def test_duck_precision_types(destination_config: DestinationTestConfiguration) 
     table_row.pop("_dlt_id")
     table_row.pop("_dlt_load_id")
     assert table_row == row[0]
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["duckdb"]),
+    ids=lambda x: x.name,
+)
+def test_new_nested_prop_parquet(destination_config: DestinationTestConfiguration) -> None:
+    from pydantic import BaseModel
+
+    class EventDetail(BaseModel):
+        detail_id: str
+        is_complete: bool
+
+    class EventV1(BaseModel):
+        dlt_config: ClassVar[DltConfig] = {"skip_complex_types": True}
+
+        ver: int
+        id: str  # noqa
+        details: EventDetail
+
+    duck_factory = duckdb("_storage/test_duck.db")
+
+    pipeline = destination_config.setup_pipeline(
+        "test_new_nested_prop_parquet", dataset_name="test_dataset"
+    )
+    pipeline.destination = duck_factory  # type: ignore
+
+    event = {"ver": 1, "id": "id1", "details": {"detail_id": "detail_1", "is_complete": False}}
+
+    info = pipeline.run(
+        [event],
+        table_name="events",
+        columns=EventV1,
+        loader_file_format="parquet",
+        schema_contract="evolve",
+    )
+    info.raise_on_failed_jobs()
+    print(pipeline.default_schema.to_pretty_yaml())
+
+    # we will use a different pipeline with a separate schema but writing to the same dataset and to the same table
+    # the table schema is identical to the previous one with a single field ("time") added
+    # this will create a different order of columns than in the destination database ("time" will map to "_dlt_id")
+    # duckdb copies columns by column index so that will fail
+
+    class EventDetailV2(BaseModel):
+        detail_id: str
+        is_complete: bool
+        time: Optional[datetime]
+
+    class EventV2(BaseModel):
+        dlt_config: ClassVar[DltConfig] = {"skip_complex_types": True}
+
+        ver: int
+        id: str  # noqa
+        details: EventDetailV2
+
+    event["details"]["time"] = pendulum.now()  # type: ignore
+
+    pipeline = destination_config.setup_pipeline(
+        "test_new_nested_prop_parquet_2", dataset_name="test_dataset"
+    )
+    pipeline.destination = duck_factory  # type: ignore
+    info = pipeline.run(
+        [event],
+        table_name="events",
+        columns=EventV2,
+        loader_file_format="parquet",
+        schema_contract="evolve",
+    )
+    info.raise_on_failed_jobs()
+    print(pipeline.default_schema.to_pretty_yaml())
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["duckdb"]),
+    ids=lambda x: x.name,
+)
+def test_jsonl_reader(destination_config: DestinationTestConfiguration) -> None:
+    pipeline = destination_config.setup_pipeline("test_jsonl_reader")
+
+    data = [{"a": 1, "b": 2}, {"a": 1}]
+    info = pipeline.run(data, table_name="data", loader_file_format="jsonl")
+    info.raise_on_failed_jobs()
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["duckdb"]),
+    ids=lambda x: x.name,
+)
+def test_provoke_parallel_parquet_same_table(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    @dlt.resource(name="events", file_format="parquet")
+    def _get_shuffled_events(repeat: int = 1):
+        for _ in range(repeat):
+            with open(
+                "tests/normalize/cases/github.events.load_page_1_duck.json", "r", encoding="utf-8"
+            ) as f:
+                issues = json.load(f)
+                yield issues
+
+    os.environ["DATA_WRITER__BUFFER_MAX_ITEMS"] = "200"
+    os.environ["DATA_WRITER__FILE_MAX_ITEMS"] = "200"
+
+    pipeline = destination_config.setup_pipeline("test_provoke_parallel_parquet_same_table")
+
+    info = pipeline.run(_get_shuffled_events(50))
+    info.raise_on_failed_jobs()
+    assert_data_table_counts(
+        pipeline,
+        expected_counts={
+            "events": 5000,
+            "events__payload__pull_request__base__repo__topics": 14500,
+            "events__payload__commits": 3850,
+            "events__payload__pull_request__requested_reviewers": 1200,
+            "events__payload__pull_request__labels": 1300,
+            "events__payload__issue__labels": 150,
+            "events__payload__issue__assignees": 50,
+        },
+    )
+    metrics = pipeline.last_trace.last_normalize_info.metrics[
+        pipeline.last_trace.last_normalize_info.loads_ids[0]
+    ][0]
+    event_files = [m for m in metrics["job_metrics"].keys() if m.startswith("events.")]
+    assert len(event_files) == 5000 // 200
+    assert all(m.endswith("parquet") for m in event_files)

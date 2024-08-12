@@ -63,7 +63,7 @@ You can configure the following file formats to load data to duckdb:
 :::note
 `duckdb` cannot COPY many parquet files to a single table from multiple threads. In this situation, `dlt` serializes the loads. Still, that may be faster than INSERT.
 :::
-* [jsonl](../file-formats/jsonl.md) **is supported but does not work if JSON fields are optional. The missing keys fail the COPY instead of being interpreted as NULL.**
+* [jsonl](../file-formats/jsonl.md)
 
 :::tip
 `duckdb` has [timestamp types](https://duckdb.org/docs/sql/data_types/timestamp.html) with resolutions from milliseconds to nanoseconds. However

@@ -2,7 +2,20 @@ import pytest
 import contextlib
 import codecs
 import os
-from typing import Any, Iterator, List, Sequence, IO, Tuple, Optional, Dict, Union, Generator, cast
+from typing import (
+    Any,
+    AnyStr,
+    Iterator,
+    List,
+    Sequence,
+    IO,
+    Tuple,
+    Optional,
+    Dict,
+    Union,
+    Generator,
+    cast,
+)
 import shutil
 from pathlib import Path
 from urllib.parse import urlparse
@@ -241,7 +254,8 @@ def destinations_configs(
             if destination not in ("athena", "synapse", "databricks", "dremio", "clickhouse")
         ]
         destination_configs += [
-            DestinationTestConfiguration(destination="duckdb", file_format="parquet")
+            DestinationTestConfiguration(destination="duckdb", file_format="parquet"),
+            DestinationTestConfiguration(destination="motherduck", file_format="insert_values"),
         ]
         # Athena needs filesystem staging, which will be automatically set; we have to supply a bucket url though.
         destination_configs += [
@@ -683,17 +697,20 @@ def load_table(name: str) -> Dict[str, TTableSchemaColumns]:
 def expect_load_file(
     client: JobClientBase,
     file_storage: FileStorage,
-    query: str,
+    query: AnyStr,
     table_name: str,
     status="completed",
+    file_format: TLoaderFileFormat = None,
 ) -> LoadJob:
     file_name = ParsedLoadJobFileName(
         table_name,
         ParsedLoadJobFileName.new_file_id(),
         0,
-        client.capabilities.preferred_loader_file_format,
+        file_format or client.capabilities.preferred_loader_file_format,
     ).file_name()
-    file_storage.save(file_name, query.encode("utf-8"))
+    if isinstance(query, str):
+        query = query.encode("utf-8")  # type: ignore[assignment]
+    file_storage.save(file_name, query)
     table = client.prepare_load_table(table_name)
     load_id = uniq_id()
     job = client.create_load_job(table, file_storage.make_full_path(file_name), load_id)
@@ -704,7 +721,7 @@ def expect_load_file(
     while job.state() == "running":
         sleep(0.5)
     assert job.file_name() == file_name
-    assert job.state() == status
+    assert job.state() == status, f"Got {job.state()} with ({job.exception()})"
     return job
 
 
@@ -830,16 +847,15 @@ def write_dataset(
     f: IO[bytes],
     rows: Union[List[Dict[str, Any]], List[StrAny]],
     columns_schema: TTableSchemaColumns,
+    file_format: TLoaderFileFormat = None,
 ) -> None:
     spec = DataWriter.writer_spec_from_file_format(
-        client.capabilities.preferred_loader_file_format, "object"
+        file_format or client.capabilities.preferred_loader_file_format, "object"
     )
     # adapt bytes stream to text file format
     if not spec.is_binary_format and isinstance(f.read(0), bytes):
         f = codecs.getwriter("utf-8")(f)  # type: ignore[assignment]
-    writer = DataWriter.from_file_format(
-        client.capabilities.preferred_loader_file_format, "object", f, client.capabilities
-    )
+    writer = DataWriter.from_file_format(spec.file_format, "object", f, client.capabilities)
     # remove None values
     for idx, row in enumerate(rows):
         rows[idx] = {k: v for k, v in row.items() if v is not None}
