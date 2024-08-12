@@ -56,7 +56,6 @@ NON_SQL_DESTINATIONS = {
     "filesystem",
     "weaviate",
     "dummy",
-    "motherduck",
     "qdrant",
     "lancedb",
     "destination",

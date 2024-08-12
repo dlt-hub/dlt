@@ -33,10 +33,11 @@ class motherduck(Destination[MotherDuckClientConfiguration, "MotherDuckClient"])
         caps.is_max_query_length_in_bytes = True
         caps.max_text_data_type_length = 1024 * 1024 * 1024
         caps.is_max_text_data_type_length_in_bytes = True
-        caps.supports_ddl_transactions = False
+        caps.supports_ddl_transactions = True
         caps.alter_add_multi_column = False
         caps.supports_truncate_command = False
         caps.supported_merge_strategies = ["delete-insert", "scd2"]
+        caps.max_parallel_load_jobs = 8
 
         return caps
 
