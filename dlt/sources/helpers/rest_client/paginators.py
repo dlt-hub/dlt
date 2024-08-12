@@ -39,7 +39,7 @@ class BasePaginator(ABC):
         pass
 
     @abstractmethod
-    def update_state(self, response: Response, data: List[Any] = None) -> None:
+    def update_state(self, response: Response, data: Optional[List[Any]] = None) -> None:
         """Updates the paginator's state based on the response from the API.
 
         This method should extract necessary pagination details (like next page
@@ -73,7 +73,7 @@ class BasePaginator(ABC):
 class SinglePagePaginator(BasePaginator):
     """A paginator for single-page API responses."""
 
-    def update_state(self, response: Response, data: List[Any] = None) -> None:
+    def update_state(self, response: Response, data: Optional[List[Any]] = None) -> None:
         self._has_next_page = False
 
     def update_request(self, request: Request) -> None:
@@ -140,7 +140,7 @@ class RangePaginator(BasePaginator):
 
         request.params[self.param_name] = self.current_value
 
-    def update_state(self, response: Response, data: List[Any] = None) -> None:
+    def update_state(self, response: Response, data: Optional[List[Any]] = None) -> None:
         if self._stop_after_this_page(data):
             self._has_next_page = False
         else:
@@ -164,7 +164,7 @@ class RangePaginator(BasePaginator):
             ):
                 self._has_next_page = False
 
-    def _stop_after_this_page(self, data: List[Any]) -> bool:
+    def _stop_after_this_page(self, data: Optional[List[Any]]) -> bool:
         return self.stop_after_empty_page and data == []
 
     def _handle_missing_total(self, response_json: Dict[str, Any]) -> None:
@@ -508,7 +508,7 @@ class HeaderLinkPaginator(BaseNextUrlPaginator):
         super().__init__()
         self.links_next_key = links_next_key
 
-    def update_state(self, response: Response, data: List[Any] = None) -> None:
+    def update_state(self, response: Response, data: Optional[List[Any]] = None) -> None:
         """Extracts the next page URL from the 'Link' header in the response."""
         self._next_reference = response.links.get(self.links_next_key, {}).get("url")
 
@@ -563,7 +563,7 @@ class JSONLinkPaginator(BaseNextUrlPaginator):
         super().__init__()
         self.next_url_path = jsonpath.compile_path(next_url_path)
 
-    def update_state(self, response: Response, data: List[Any] = None) -> None:
+    def update_state(self, response: Response, data: Optional[List[Any]] = None) -> None:
         """Extracts the next page URL from the JSON response."""
         values = jsonpath.find_values(self.next_url_path, response.json())
         self._next_reference = values[0] if values else None
@@ -642,7 +642,7 @@ class JSONResponseCursorPaginator(BaseReferencePaginator):
         self.cursor_path = jsonpath.compile_path(cursor_path)
         self.cursor_param = cursor_param
 
-    def update_state(self, response: Response, data: List[Any] = None) -> None:
+    def update_state(self, response: Response, data: Optional[List[Any]] = None) -> None:
         """Extracts the cursor value from the JSON response."""
         values = jsonpath.find_values(self.cursor_path, response.json())
         self._next_reference = values[0] if values else None
