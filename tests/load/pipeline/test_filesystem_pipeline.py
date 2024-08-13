@@ -442,7 +442,7 @@ def test_delta_table_child_tables(
     destinations_configs(
         table_format_filesystem_configs=True,
         table_format="delta",
-        bucket_subset=(FILE_BUCKET),
+        bucket_subset=(FILE_BUCKET, AZ_BUCKET),
     ),
     ids=lambda x: x.name,
 )

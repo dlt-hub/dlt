@@ -123,6 +123,7 @@ class DeltaLoadFilesystemJob(FilesystemLoadJob):
                     table_uri=dt_path,
                     schema=ensure_delta_compatible_arrow_schema(arrow_ds.schema),
                     mode="overwrite",
+                    storage_options=storage_options,
                 )
             return
 
