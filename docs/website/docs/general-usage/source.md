@@ -187,11 +187,21 @@ Several data sources are prone to contain semi-structured documents with very de
 MongoDB databases. Our practical experience is that setting the `max_nesting_level` to 2 or 3
 produces the clearest and human-readable schemas.
 
-:::tip TIP
+:::tip
 The `max_table_nesting` parameter at the source level doesn't automatically apply to individual 
 resources when accessed directly (e.g., using `source.resources["resource_1"])`. To make sure it 
 works, either use `source.with_resources("resource_1")` or set the parameter directly on the resource.
 :::
+
+
+You can directly configure the `max_table_nesting` parameter on the resource level as:
+
+```py
+@dlt.resource(max_table_nesting=0)
+def my_resource():
+  ....
+```
+
 
 ### Modify schema
 
