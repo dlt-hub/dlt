@@ -2,11 +2,11 @@ import os
 from typing import Iterator, Tuple, Union, cast
 
 import pytest
-from deltalake import DeltaTable
 
 import dlt
 from dlt.common.libs.pyarrow import pyarrow as pa
 from dlt.common.libs.deltalake import (
+    DeltaTable,
     write_delta_table,
     _deltalake_storage_options,
 )

@@ -27,6 +27,7 @@ import inspect
 from dlt.common import logger
 from dlt.common.configuration.specs.base_configuration import extract_inner_hint
 from dlt.common.destination.utils import verify_schema_capabilities
+from dlt.common.exceptions import TerminalValueError
 from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
 from dlt.common.schema.utils import (
@@ -42,6 +43,8 @@ from dlt.common.destination.exceptions import (
     InvalidDestinationReference,
     UnknownDestinationModule,
     DestinationSchemaTampered,
+    DestinationTransientException,
+    DestinationTerminalException,
 )
 from dlt.common.schema.exceptions import UnknownTableException
 from dlt.common.storages import FileStorage
@@ -187,6 +190,8 @@ class DestinationClientDwhConfiguration(DestinationClientConfiguration):
     """How to handle replace disposition for this destination, can be classic or staging"""
     staging_dataset_name_layout: str = "%s_staging"
     """Layout for staging dataset, where %s is replaced with dataset name. placeholder is optional"""
+    enable_dataset_name_normalization: bool = True
+    """Whether to normalize the dataset name. Affects staging dataset as well."""
 
     def _bind_dataset_name(
         self: TDestinationDwhClient, dataset_name: str, default_schema_name: str = None
@@ -205,11 +210,14 @@ class DestinationClientDwhConfiguration(DestinationClientConfiguration):
         If default schema name is None or equals schema.name, the schema suffix is skipped.
         """
         dataset_name = self._make_dataset_name(schema.name)
-        return (
-            dataset_name
-            if not dataset_name
-            else schema.naming.normalize_table_identifier(dataset_name)
-        )
+        if not dataset_name:
+            return dataset_name
+        else:
+            return (
+                schema.naming.normalize_table_identifier(dataset_name)
+                if self.enable_dataset_name_normalization
+                else dataset_name
+            )
 
     def normalize_staging_dataset_name(self, schema: Schema) -> str:
         """Builds staging dataset name out of dataset_name and staging_dataset_name_layout."""
@@ -224,7 +232,11 @@ class DestinationClientDwhConfiguration(DestinationClientConfiguration):
             # no placeholder, then layout is a full name. so you can have a single staging dataset
             dataset_name = self.staging_dataset_name_layout
 
-        return schema.naming.normalize_table_identifier(dataset_name)
+        return (
+            schema.naming.normalize_table_identifier(dataset_name)
+            if self.enable_dataset_name_normalization
+            else dataset_name
+        )
 
     def _make_dataset_name(self, schema_name: str) -> str:
         if not schema_name:
@@ -258,11 +270,45 @@ class DestinationClientDwhWithStagingConfiguration(DestinationClientDwhConfigura
     """configuration of the staging, if present, injected at runtime"""
 
 
-TLoadJobState = Literal["running", "failed", "retry", "completed"]
+TLoadJobState = Literal["ready", "running", "failed", "retry", "completed"]
 
 
-class LoadJob:
-    """Represents a job that loads a single file
+class LoadJob(ABC):
+    """
+    A stateful load job, represents one job file
+    """
+
+    def __init__(self, file_path: str) -> None:
+        self._file_path = file_path
+        self._file_name = FileStorage.get_file_name_from_file_path(file_path)
+        # NOTE: we only accept a full filepath in the constructor
+        assert self._file_name != self._file_path
+        self._parsed_file_name = ParsedLoadJobFileName.parse(self._file_name)
+
+    def job_id(self) -> str:
+        """The job id that is derived from the file name and does not changes during job lifecycle"""
+        return self._parsed_file_name.job_id()
+
+    def file_name(self) -> str:
+        """A name of the job file"""
+        return self._file_name
+
+    def job_file_info(self) -> ParsedLoadJobFileName:
+        return self._parsed_file_name
+
+    @abstractmethod
+    def state(self) -> TLoadJobState:
+        """Returns current state. Should poll external resource if necessary."""
+        pass
+
+    @abstractmethod
+    def exception(self) -> str:
+        """The exception associated with failed or retry states"""
+        pass
+
+
+class RunnableLoadJob(LoadJob, ABC):
+    """Represents a runnable job that loads a single file
 
     Each job starts in "running" state and ends in one of terminal states: "retry", "failed" or "completed".
     Each job is uniquely identified by a file name. The file is guaranteed to exist in "running" state. In terminal state, the file may not be present.
@@ -273,39 +319,80 @@ class LoadJob:
     immediately transition job into "failed" or "retry" state respectively.
     """
 
-    def __init__(self, file_name: str) -> None:
+    def __init__(self, file_path: str) -> None:
         """
         File name is also a job id (or job id is deterministically derived) so it must be globally unique
         """
         # ensure file name
-        assert file_name == FileStorage.get_file_name_from_file_path(file_name)
-        self._file_name = file_name
-        self._parsed_file_name = ParsedLoadJobFileName.parse(file_name)
+        super().__init__(file_path)
+        self._state: TLoadJobState = "ready"
+        self._exception: Exception = None
+
+        # variables needed by most jobs, set by the loader in set_run_vars
+        self._schema: Schema = None
+        self._load_table: TTableSchema = None
+        self._load_id: str = None
+        self._job_client: "JobClientBase" = None
+
+    def set_run_vars(self, load_id: str, schema: Schema, load_table: TTableSchema) -> None:
+        """
+        called by the loader right before the job is run
+        """
+        self._load_id = load_id
+        self._schema = schema
+        self._load_table = load_table
+
+    @property
+    def load_table_name(self) -> str:
+        return self._load_table["name"]
+
+    def run_managed(
+        self,
+        job_client: "JobClientBase",
+    ) -> None:
+        """
+        wrapper around the user implemented run method
+        """
+        # only jobs that are not running or have not reached a final state
+        # may be started
+        assert self._state in ("ready", "retry")
+        self._job_client = job_client
+
+        # filepath is now moved to running
+        try:
+            self._state = "running"
+            self._job_client.prepare_load_job_execution(self)
+            self.run()
+            self._state = "completed"
+        except (DestinationTerminalException, TerminalValueError) as e:
+            self._state = "failed"
+            self._exception = e
+        except (DestinationTransientException, Exception) as e:
+            self._state = "retry"
+            self._exception = e
+        finally:
+            # sanity check
+            assert self._state in ("completed", "retry", "failed")
 
     @abstractmethod
+    def run(self) -> None:
+        """
+        run the actual job, this will be executed on a thread and should be implemented by the user
+        exception will be handled outside of this function
+        """
+        raise NotImplementedError()
+
     def state(self) -> TLoadJobState:
         """Returns current state. Should poll external resource if necessary."""
-        pass
+        return self._state
 
-    def file_name(self) -> str:
-        """A name of the job file"""
-        return self._file_name
-
-    def job_id(self) -> str:
-        """The job id that is derived from the file name and does not changes during job lifecycle"""
-        return self._parsed_file_name.job_id()
-
-    def job_file_info(self) -> ParsedLoadJobFileName:
-        return self._parsed_file_name
-
-    @abstractmethod
     def exception(self) -> str:
         """The exception associated with failed or retry states"""
-        pass
+        return str(self._exception)
 
 
-class NewLoadJob(LoadJob):
-    """Adds a trait that allows to save new job file"""
+class FollowupJob:
+    """Base class for follow up jobs that should be created"""
 
     @abstractmethod
     def new_file_path(self) -> str:
@@ -313,33 +400,12 @@ class NewLoadJob(LoadJob):
         pass
 
 
-class FollowupJob:
-    """Adds a trait that allows to create a followup job"""
+class HasFollowupJobs:
+    """Adds a trait that allows to create single or table chain followup jobs"""
 
-    def create_followup_jobs(self, final_state: TLoadJobState) -> List[NewLoadJob]:
+    def create_followup_jobs(self, final_state: TLoadJobState) -> List[FollowupJob]:
         """Return list of new jobs. `final_state` is state to which this job transits"""
         return []
-
-
-class DoNothingJob(LoadJob):
-    """The most lazy class of dlt"""
-
-    def __init__(self, file_path: str) -> None:
-        super().__init__(FileStorage.get_file_name_from_file_path(file_path))
-
-    def state(self) -> TLoadJobState:
-        # this job is always done
-        return "completed"
-
-    def exception(self) -> str:
-        # this part of code should be never reached
-        raise NotImplementedError()
-
-
-class DoNothingFollowupJob(DoNothingJob, FollowupJob):
-    """The second most lazy class of dlt"""
-
-    pass
 
 
 class JobClientBase(ABC):
@@ -394,13 +460,16 @@ class JobClientBase(ABC):
         return expected_update
 
     @abstractmethod
-    def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
-        """Creates and starts a load job for a particular `table` with content in `file_path`"""
+    def create_load_job(
+        self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
+    ) -> LoadJob:
+        """Creates a load job for a particular `table` with content in `file_path`"""
         pass
 
-    @abstractmethod
-    def restore_file_load(self, file_path: str) -> LoadJob:
-        """Finds and restores already started loading job identified by `file_path` if destination supports it."""
+    def prepare_load_job_execution(  # noqa: B027, optional override
+        self, job: RunnableLoadJob
+    ) -> None:
+        """Prepare the connected job client for the execution of a load job (used for query tags in sql clients)"""
         pass
 
     def should_truncate_table_before_load(self, table: TTableSchema) -> bool:
@@ -410,7 +479,7 @@ class JobClientBase(ABC):
         self,
         table_chain: Sequence[TTableSchema],
         completed_table_chain_jobs: Optional[Sequence[LoadJobInfo]] = None,
-    ) -> List[NewLoadJob]:
+    ) -> List[FollowupJob]:
         """Creates a list of followup jobs that should be executed after a table chain is completed"""
         return []
 

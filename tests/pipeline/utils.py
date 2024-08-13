@@ -172,16 +172,6 @@ def _load_file(client: FSClientBase, filepath) -> List[Dict[str, Any]]:
 #
 # Load table dicts
 #
-def _get_delta_table(client: FilesystemClient, table_name: str) -> "DeltaTable":  # type: ignore[name-defined] # noqa: F821
-    from deltalake import DeltaTable
-    from dlt.common.libs.deltalake import _deltalake_storage_options
-
-    table_dir = client.get_table_dir(table_name)
-    remote_table_dir = f"{client.config.protocol}://{table_dir}"
-    return DeltaTable(
-        remote_table_dir,
-        storage_options=_deltalake_storage_options(client.config),
-    )
 
 
 def _load_tables_to_dicts_fs(p: dlt.Pipeline, *table_names: str) -> Dict[str, List[Dict[str, Any]]]:
@@ -189,13 +179,20 @@ def _load_tables_to_dicts_fs(p: dlt.Pipeline, *table_names: str) -> Dict[str, Li
     client = p._fs_client()
     result: Dict[str, Any] = {}
 
+    delta_table_names = [
+        table_name
+        for table_name in table_names
+        if get_table_format(p.default_schema.tables, table_name) == "delta"
+    ]
+    if len(delta_table_names) > 0:
+        from dlt.common.libs.deltalake import get_delta_tables
+
+        delta_tables = get_delta_tables(p, *table_names)
+
     for table_name in table_names:
-        if (
-            table_name in p.default_schema.data_table_names()
-            and get_table_format(p.default_schema.tables, table_name) == "delta"
-        ):
+        if table_name in p.default_schema.data_table_names() and table_name in delta_table_names:
             assert isinstance(client, FilesystemClient)
-            dt = _get_delta_table(client, table_name)
+            dt = delta_tables[table_name]
             result[table_name] = dt.to_pyarrow_table().to_pylist()
         else:
             table_files = client.list_table_files(table_name)
