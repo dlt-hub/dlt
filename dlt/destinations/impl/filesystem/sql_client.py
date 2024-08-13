@@ -91,3 +91,9 @@ class FilesystemSqlClient(DuckDbSqlClient):
             yield DuckDBDBApiCursorImpl(self._conn)  # type: ignore
         except duckdb.Error as outer:
             raise outer
+
+    def open_connection(self) -> None:
+        pass
+
+    def close_connection(self) -> None:
+        pass

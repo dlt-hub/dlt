@@ -23,6 +23,7 @@ from typing import (
 from dlt.common.typing import TFun
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.utils import concat_strings_with_limit
+from dlt.common.destination.reference import JobClientBase
 
 from dlt.destinations.exceptions import (
     DestinationConnectionError,
@@ -286,10 +287,18 @@ SELECT 1
             return f"DELETE FROM {qualified_table_name} WHERE 1=1;"
 
 
-class WithSqlClient:
+class WithSqlClient(JobClientBase):
     @property
     @abstractmethod
     def sql_client(self) -> SqlClientBase[TNativeConn]: ...
+
+    def __enter__(self) -> "WithSqlClient":
+        return self
+
+    def __exit__(
+        self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: TracebackType
+    ) -> None:
+        pass
 
 
 class DBApiCursorImpl(DBApiCursor):

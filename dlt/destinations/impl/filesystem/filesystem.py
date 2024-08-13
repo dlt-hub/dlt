@@ -201,7 +201,7 @@ class FilesystemLoadJobWithFollowup(HasFollowupJobs, FilesystemLoadJob):
 
 
 class FilesystemClient(
-    FSClientBase, JobClientBase, WithStagingDataset, WithStateSync, WithSqlClient
+    FSClientBase, WithSqlClient, JobClientBase, WithStagingDataset, WithStateSync
 ):
     """filesystem client storing jobs in memory"""
 
