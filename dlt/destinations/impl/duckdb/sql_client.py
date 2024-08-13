@@ -48,7 +48,6 @@ class DuckDBDBApiCursorImpl(DBApiCursorImpl):
             yield df
 
     def iter_arrow(self, chunk_size: int) -> Generator[ArrowTable, None, None]:
-        # full table
         if not chunk_size:
             yield self.native_cursor.fetch_arrow_table()
             return

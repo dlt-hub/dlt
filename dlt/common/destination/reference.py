@@ -38,6 +38,7 @@ from dlt.common.destination.utils import verify_schema_capabilities, verify_supp
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.metrics import LoadJobMetrics
 from dlt.common.normalizers.naming import NamingConvention
+from dlt.common.schema.typing import TTableSchemaColumns
 
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
 
@@ -506,6 +507,9 @@ class DBApiCursor(SupportsReadableRelation):
     native_cursor: "DBApiCursor"
     """Cursor implementation native to current destination"""
 
+    columns: TTableSchemaColumns
+    """Known dlt table columns for this cursor"""
+
     def execute(self, query: AnyStr, *args: Any, **kwargs: Any) -> None: ...
     def close(self) -> None: ...
 
@@ -513,7 +517,7 @@ class DBApiCursor(SupportsReadableRelation):
 class SupportsReadableDataset(Protocol):
     """A readable dataset retrieved from a destination, has support for creating readable relations for a query or table"""
 
-    def query(self, sql: str) -> SupportsReadableRelation: ...
+    def query(self, query: str) -> SupportsReadableRelation: ...
 
     def __getitem__(self, table: str) -> SupportsReadableRelation: ...
 
@@ -709,11 +713,15 @@ class WithReadableRelations(ABC):
     """Add support for getting readable reletions form a destination"""
 
     @abstractmethod
-    def get_readable_relation(
+    def table_relation(
+        self, *, table: str, columns: TTableSchemaColumns
+    ) -> ContextManager[SupportsReadableRelation]: ...
+
+    @abstractmethod
+    def query_relation(
         self,
         *,
-        table: str = None,
-        sql: str = None,
+        query: str,
     ) -> ContextManager[SupportsReadableRelation]: ...
 
 

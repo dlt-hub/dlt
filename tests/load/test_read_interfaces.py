@@ -7,7 +7,12 @@ from dlt import Pipeline
 from typing import List
 from functools import reduce
 
-from tests.load.utils import destinations_configs, DestinationTestConfiguration, AZ_BUCKET, ABFS_BUCKET
+from tests.load.utils import (
+    destinations_configs,
+    DestinationTestConfiguration,
+    AZ_BUCKET,
+    ABFS_BUCKET,
+)
 from pandas import DataFrame
 
 

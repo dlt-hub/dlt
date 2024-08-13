@@ -21,6 +21,7 @@ from typing import (
 )
 
 from dlt.common.typing import TFun
+from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.utils import concat_strings_with_limit
 from dlt.common.destination.reference import JobClientBase
@@ -362,25 +363,45 @@ class DBApiCursorImpl(DBApiCursor):
             yield result
 
     def iter_df(self, chunk_size: int) -> Generator[DataFrame, None, None]:
-        from dlt.common.libs.pandas_sql import _wrap_result
+        """Default implementation converts arrow to df"""
+        from dlt.common.libs.pandas import pandas as pd
 
-        columns = self._get_columns()
-
-        # if no chunk size, fetch all
-        if not chunk_size:
-            yield _wrap_result(self.fetchall(), columns)
-            return
-
-        # otherwise iterate over results in batch size chunks
-        for result in self.iter_fetchmany(chunk_size=chunk_size):
-            # TODO: ensure that this is arrow backed
-            yield _wrap_result(result, columns, dtype_backend="pyarrow")
+        for table in self.iter_arrow(chunk_size=chunk_size):
+            # NOTE: we go via arrow table
+            # https://github.com/apache/arrow/issues/38644 for reference on types_mapper
+            yield table.to_pandas(types_mapper=pd.ArrowDtype)
 
     def iter_arrow(self, chunk_size: int) -> Generator[ArrowTable, None, None]:
-        """Default implementation converts df to arrow"""
-        for df in self.iter_df(chunk_size=chunk_size):
-            # TODO: is this efficient?
-            yield ArrowTable.from_pandas(df)
+        """Default implementation converts query result to arrow table"""
+        from dlt.common.libs.pyarrow import table_schema_columns_to_py_arrow, pyarrow
+
+        def _result_to_arrow_table(
+            result: List[Tuple[Any, ...]], columns: List[str], schema: pyarrow.schema
+        ) -> ArrowTable:
+            # TODO: it might be faster to creaty pyarrow arrays and create tables from them
+            pylist = [dict(zip(columns, t)) for t in result]
+            return ArrowTable.from_pylist(pylist, schema=schema)
+
+        cursor_columns = self._get_columns()
+
+        # we can create the arrow schema if columns are present
+        # TODO: when using this dataset as a source for a new pipeline, we should
+        # get the capabilities of the destination that it will end up it
+        arrow_schema = (
+            table_schema_columns_to_py_arrow(
+                self.columns, caps=DestinationCapabilitiesContext.generic_capabilities()
+            )
+            if self.columns
+            else None
+        )
+
+        if not chunk_size:
+            result = self.fetchall()
+            yield _result_to_arrow_table(result, cursor_columns, arrow_schema)
+            return
+
+        for result in self.iter_fetchmany(chunk_size=chunk_size):
+            yield _result_to_arrow_table(result, cursor_columns, arrow_schema)
 
 
 def raise_database_error(f: TFun) -> TFun:

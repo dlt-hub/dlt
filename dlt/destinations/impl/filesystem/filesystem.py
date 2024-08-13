@@ -4,6 +4,7 @@ import base64
 from contextlib import contextmanager
 from types import TracebackType
 from typing import (
+    ContextManager,
     List,
     Type,
     Iterable,
@@ -41,6 +42,7 @@ from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
     FollowupJobRequest,
     PreparedTableSchema,
+    SupportsReadableRelation,
     TLoadJobState,
     RunnableLoadJob,
     JobClientBase,
@@ -697,14 +699,17 @@ class FilesystemClient(
         return jobs
 
     @contextmanager
-    def get_readable_relation(
-        self, *, table: str = None, sql: str = None
+    def table_relation(
+        self, *, table: str, columns: TTableSchemaColumns
     ) -> Generator[DBApiCursor, Any, Any]:
-        if table:
-            sql = f"SELECT * FROM {table}"
+        with self.sql_client.execute_query(f"SELECT * FROM {table}") as cursor:
+            cursor.columns = columns
+            yield cursor
 
-        with self.sql_client.execute_query(sql) as cursor:
+    @contextmanager
+    def query_relation(self, *, query: str) -> Generator[DBApiCursor, Any, Any]:
+        with self.sql_client.execute_query(query) as cursor:
             yield cursor
 
     def dataset(self) -> SupportsReadableDataset:
-        return ReadableDataset(self)
+        return ReadableDataset(self, self.schema)

@@ -714,18 +714,24 @@ WHERE """
         )
 
     @contextmanager
-    def get_readable_relation(
-        self, *, table: str = None, sql: str = None
+    def table_relation(
+        self, *, table: str, columns: TTableSchemaColumns
     ) -> Generator[SupportsReadableRelation, Any, Any]:
         with self.sql_client as sql_client:
-            if not sql:
-                table = sql_client.make_qualified_table_name(table)
-                sql = f"SELECT * FROM {table}"
-            with sql_client.execute_query(sql) as cursor:
+            table = sql_client.make_qualified_table_name(table)
+            query = f"SELECT * FROM {table}"
+            with sql_client.execute_query(query) as cursor:
+                cursor.columns = columns
+                yield cursor
+
+    @contextmanager
+    def query_relation(self, *, query: str) -> Generator[SupportsReadableRelation, Any, Any]:
+        with self.sql_client as sql_client:
+            with sql_client.execute_query(query) as cursor:
                 yield cursor
 
     def dataset(self) -> SupportsReadableDataset:
-        return ReadableDataset(self)
+        return ReadableDataset(self, self.schema)
 
 
 class SqlJobClientWithStagingDataset(SqlJobClientBase, WithStagingDataset):

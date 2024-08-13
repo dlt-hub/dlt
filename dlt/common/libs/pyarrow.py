@@ -395,6 +395,36 @@ def py_arrow_to_table_schema_columns(schema: pyarrow.Schema) -> TTableSchemaColu
     return result
 
 
+def table_schema_columns_to_py_arrow(
+    columns: TTableSchemaColumns,
+    caps: DestinationCapabilitiesContext,
+    timestamp_timezone: str = "UTC",
+) -> pyarrow.Schema:
+    """Convert a table schema columns dict to a pyarrow schema.
+
+    Args:
+        columns (TTableSchemaColumns): table schema columns
+
+    Returns:
+        pyarrow.Schema: pyarrow schema
+
+    """
+    return pyarrow.schema(
+        [
+            pyarrow.field(
+                name,
+                get_py_arrow_datatype(
+                    schema_item,
+                    caps,
+                    timestamp_timezone,
+                ),
+                nullable=schema_item.get("nullable", True),
+            )
+            for name, schema_item in columns.items()
+        ]
+    )
+
+
 def get_parquet_metadata(parquet_file: TFileOrPath) -> Tuple[int, pyarrow.Schema]:
     """Gets parquet file metadata (including row count and schema)
 
