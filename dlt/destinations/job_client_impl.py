@@ -63,7 +63,7 @@ from dlt.destinations.job_impl import (
 )
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob, SqlStagingCopyFollowupJob
 from dlt.destinations.typing import TNativeConn
-from dlt.destinations.sql_client import SqlClientBase
+from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.destinations.utils import (
     get_pipeline_state_query_columns,
     info_schema_null_to_bool,
@@ -127,7 +127,7 @@ class CopyRemoteFileLoadJob(RunnableLoadJob, HasFollowupJobs):
         self._bucket_path = ReferenceFollowupJob.resolve_reference(file_path)
 
 
-class SqlJobClientBase(WithReadableRelations, JobClientBase, WithStateSync):
+class SqlJobClientBase(WithSqlClient, WithReadableRelations, JobClientBase, WithStateSync):
     INFO_TABLES_QUERY_THRESHOLD: ClassVar[int] = 1000
     """Fallback to querying all tables in the information schema if checking more than threshold"""
 
@@ -156,6 +156,14 @@ class SqlJobClientBase(WithReadableRelations, JobClientBase, WithStateSync):
         self.sql_client = sql_client
         assert isinstance(config, DestinationClientDwhConfiguration)
         self.config: DestinationClientDwhConfiguration = config
+
+    @property
+    def sql_client(self) -> SqlClientBase[TNativeConn]:
+        return self._sql_client
+
+    @sql_client.setter
+    def sql_client(self, client: SqlClientBase[TNativeConn]) -> None:
+        self._sql_client = client
 
     def drop_storage(self) -> None:
         self.sql_client.drop_dataset()

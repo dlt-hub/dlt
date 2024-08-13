@@ -286,6 +286,12 @@ SELECT 1
             return f"DELETE FROM {qualified_table_name} WHERE 1=1;"
 
 
+class WithSqlClient:
+    @property
+    @abstractmethod
+    def sql_client(self) -> SqlClientBase[TNativeConn]: ...
+
+
 class DBApiCursorImpl(DBApiCursor):
     """A DBApi Cursor wrapper with dataframes reading functionality"""
 
