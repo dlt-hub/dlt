@@ -41,7 +41,7 @@ from dlt.common.destination.reference import (
     LoadJob,
 )
 from dlt.common.pendulum import timedelta
-from dlt.common.schema import Schema, TTableSchema, TSchemaTables
+from dlt.common.schema import Schema, TTableSchema, TSchemaTables, TColumnSchema
 from dlt.common.schema.typing import (
     TColumnType,
     TTableFormat,
@@ -105,23 +105,20 @@ class LanceDBTypeMapper(TypeMapper):
         pa.date32(): "date",
     }
 
-    def to_db_decimal_type(
-        self, precision: Optional[int], scale: Optional[int]
-    ) -> pa.Decimal128Type:
-        precision, scale = self.decimal_precision(precision, scale)
+    def to_db_decimal_type(self, column: TColumnSchema = None) -> pa.Decimal128Type:
+        precision, scale = self.decimal_precision(column.get("precision"), column.get("scale"))
         return pa.decimal128(precision, scale)
 
     def to_db_datetime_type(
         self,
-        timezone: Optional[bool],
-        precision: Optional[int],
-        table_format: TTableFormat = None,
+        column: TColumnSchema = None,
+        table: TTableSchema = None,
     ) -> pa.TimestampType:
         unit: str = TIMESTAMP_PRECISION_TO_UNIT[self.capabilities.timestamp_precision]
         return pa.timestamp(unit, "UTC")
 
     def to_db_time_type(
-        self, precision: Optional[int], table_format: TTableFormat = None
+        self, column: TColumnSchema = None, table: TTableSchema = None
     ) -> pa.Time64Type:
         unit: str = TIMESTAMP_PRECISION_TO_UNIT[self.capabilities.timestamp_precision]
         return pa.time64(unit)

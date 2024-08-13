@@ -291,7 +291,7 @@ class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
     def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[FollowupJob]:
         return [ClickHouseMergeJob.from_table_chain(table_chain, self.sql_client)]
 
-    def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:
+    def _get_column_def_sql(self, c: TColumnSchema, table: TTableSchema = None) -> str:
         # Build column definition.
         # The primary key and sort order definition is defined outside column specification.
         hints_ = " ".join(
@@ -305,9 +305,9 @@ class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
         # Alter table statements only accept `Nullable` modifiers.
         # JSON type isn't nullable in ClickHouse.
         type_with_nullability_modifier = (
-            f"Nullable({self.type_mapper.to_db_type(c)})"
+            f"Nullable({self.type_mapper.to_db_type(c,table)})"
             if c.get("nullable", True)
-            else self.type_mapper.to_db_type(c)
+            else self.type_mapper.to_db_type(c, table)
         )
 
         return (

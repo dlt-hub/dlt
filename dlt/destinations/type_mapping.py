@@ -1,6 +1,12 @@
 from typing import Tuple, ClassVar, Dict, Optional
 
-from dlt.common.schema.typing import TColumnSchema, TDataType, TColumnType, TTableFormat
+from dlt.common.schema.typing import (
+    TColumnSchema,
+    TDataType,
+    TColumnType,
+    TTableFormat,
+    TTableSchema,
+)
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.utils import without_none
 
@@ -20,46 +26,38 @@ class TypeMapper:
     def __init__(self, capabilities: DestinationCapabilitiesContext) -> None:
         self.capabilities = capabilities
 
-    def to_db_integer_type(
-        self, precision: Optional[int], table_format: TTableFormat = None
-    ) -> str:
+    def to_db_integer_type(self, column: TColumnSchema = None, table: TTableSchema = None) -> str:
         # Override in subclass if db supports other integer types (e.g. smallint, integer, tinyint, etc.)
         return self.sct_to_unbound_dbt["bigint"]
 
     def to_db_datetime_type(
         self,
-        timezone: Optional[bool],
-        precision: Optional[int],
-        table_format: TTableFormat = None,
+        column: TColumnSchema = None,
+        table: TTableSchema = None,
     ) -> str:
         # Override in subclass if db supports other timestamp types (e.g. with different time resolutions)
         return None
 
-    def to_db_time_type(self, precision: Optional[int], table_format: TTableFormat = None) -> str:
+    def to_db_time_type(self, column: TColumnSchema = None, table: TTableSchema = None) -> str:
         # Override in subclass if db supports other time types (e.g. with different time resolutions)
         return None
 
-    def to_db_decimal_type(self, precision: Optional[int], scale: Optional[int]) -> str:
-        precision_tup = self.decimal_precision(precision, scale)
+    def to_db_decimal_type(self, column: TColumnSchema = None) -> str:
+        precision_tup = self.decimal_precision(column.get("precision"), column.get("scale"))
         if not precision_tup or "decimal" not in self.sct_to_dbt:
             return self.sct_to_unbound_dbt["decimal"]
         return self.sct_to_dbt["decimal"] % (precision_tup[0], precision_tup[1])
 
-    def to_db_type(self, column: TColumnSchema, table_format: TTableFormat = None) -> str:
-        timezone, precision, scale = (
-            column.get("timezone"),
-            column.get("precision"),
-            column.get("scale"),
-        )
+    def to_db_type(self, column: TColumnSchema, table: TTableSchema = None) -> str:
         sc_t = column["data_type"]
         if sc_t == "bigint":
-            db_t = self.to_db_integer_type(precision, table_format)
+            db_t = self.to_db_integer_type(column, table)
         elif sc_t == "timestamp":
-            db_t = self.to_db_datetime_type(timezone, precision, table_format)
+            db_t = self.to_db_datetime_type(column, table)
         elif sc_t == "time":
-            db_t = self.to_db_time_type(precision, table_format)
+            db_t = self.to_db_time_type(column, table)
         elif sc_t == "decimal":
-            db_t = self.to_db_decimal_type(precision, scale)
+            db_t = self.to_db_decimal_type(column)
         else:
             db_t = None
         if db_t:
@@ -68,14 +66,16 @@ class TypeMapper:
         bounded_template = self.sct_to_dbt.get(sc_t)
         if not bounded_template:
             return self.sct_to_unbound_dbt[sc_t]
-        precision_tuple = self.precision_tuple_or_default(sc_t, precision, scale)
+        precision_tuple = self.precision_tuple_or_default(sc_t, column)
         if not precision_tuple:
             return self.sct_to_unbound_dbt[sc_t]
         return self.sct_to_dbt[sc_t] % precision_tuple
 
     def precision_tuple_or_default(
-        self, data_type: TDataType, precision: Optional[int], scale: Optional[int]
+        self, data_type: TDataType, column: TColumnSchema = None
     ) -> Optional[Tuple[int, ...]]:
+        precision = column.get("precision")
+        scale = column.get("scale")
         if data_type in ("timestamp", "time"):
             if precision is None:
                 return None  # Use default which is usually the max

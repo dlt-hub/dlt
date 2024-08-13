@@ -82,9 +82,8 @@ class RedshiftTypeMapper(TypeMapper):
         "integer": "bigint",
     }
 
-    def to_db_integer_type(
-        self, precision: Optional[int], table_format: TTableFormat = None
-    ) -> str:
+    def to_db_integer_type(self, column: TColumnSchema = None, table: TTableSchema = None) -> str:
+        precision = column.get("precision")
         if precision is None:
             return "bigint"
         if precision <= 16:
@@ -241,7 +240,7 @@ class RedshiftClient(InsertValuesJobClient, SupportsStagingDestination):
     def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[FollowupJob]:
         return [RedshiftMergeJob.from_table_chain(table_chain, self.sql_client)]
 
-    def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:
+    def _get_column_def_sql(self, c: TColumnSchema, table: TTableSchema = None) -> str:
         hints_str = " ".join(
             HINT_TO_REDSHIFT_ATTR.get(h, "")
             for h in HINT_TO_REDSHIFT_ATTR.keys()
@@ -249,7 +248,7 @@ class RedshiftClient(InsertValuesJobClient, SupportsStagingDestination):
         )
         column_name = self.sql_client.escape_column_name(c["name"])
         return (
-            f"{column_name} {self.type_mapper.to_db_type(c)} {hints_str} {self._gen_not_null(c.get('nullable', True))}"
+            f"{column_name} {self.type_mapper.to_db_type(c,table)} {hints_str} {self._gen_not_null(c.get('nullable', True))}"
         )
 
     def create_load_job(
