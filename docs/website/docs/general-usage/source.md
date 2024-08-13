@@ -199,7 +199,7 @@ You can directly configure the `max_table_nesting` parameter on the resource lev
 ```py
 @dlt.resource(max_table_nesting=0)
 def my_resource():
-  ....
+    ...
 ```
 
 
