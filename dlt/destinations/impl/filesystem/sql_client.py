@@ -14,19 +14,19 @@ from dlt.destinations.typing import DBApiCursor
 from dlt.destinations.sql_client import raise_database_error
 from dlt.destinations.fs_client import FSClientBase
 
-from dlt.destinations.impl.duckdb.sql_client import DuckDbSqlClient, DuckDBDBApiCursorImpl
-from dlt.destinations.impl.duckdb.configuration import DuckDbBaseCredentials
+from dlt.destinations.impl.duckdb.sql_client import DuckDbSqlClient
+from dlt.destinations.impl.duckdb.factory import duckdb as duckdb_factory
 
 
 class FilesystemSqlClient(DuckDbSqlClient):
     def __init__(self, fs_client: FSClientBase, protocol: str) -> None:
-        """For now we do not use any capabilities and do all operations in the default dataset"""
+        """For now we do all operations in the memory dataset"""
         """TODO: is this ok?"""
         super().__init__(
-            dataset_name="default",
+            dataset_name="memory",
             staging_dataset_name=None,
             credentials=None,
-            capabilities=None,
+            capabilities=duckdb_factory()._raw_capabilities(),
         )
         self.fs_client = fs_client
         self._conn = duckdb.connect(":memory:")
