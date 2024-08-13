@@ -20,6 +20,8 @@ from dlt.destinations.impl.duckdb.configuration import DuckDbBaseCredentials
 
 class FilesystemSqlClient(DuckDbSqlClient):
     def __init__(self, fs_client: FSClientBase, protocol: str) -> None:
+        """For now we do not use any capabilities and do all operations in the default dataset"""
+        """TODO: is this ok?"""
         super().__init__(
             dataset_name="default",
             staging_dataset_name=None,
@@ -45,6 +47,7 @@ class FilesystemSqlClient(DuckDbSqlClient):
 
             folder = self.fs_client.get_table_dir(ptable)
             files = self.fs_client.list_table_files(ptable)
+
             # discover tables files
             file_type = os.path.splitext(files[0])[1][1:]
             if file_type == "jsonl":
@@ -52,7 +55,7 @@ class FilesystemSqlClient(DuckDbSqlClient):
             elif file_type == "parquet":
                 read_command = "read_parquet"
             else:
-                raise AssertionError(f"Unknown filetype {file_type} for table {ptable}")
+                raise AssertionError(f"Unknown filetype {file_type} for table {ptable}")
 
             # create table
             protocol = "" if self.is_local_filesystem else f"{self.protocol}://"
@@ -93,7 +96,9 @@ class FilesystemSqlClient(DuckDbSqlClient):
             raise outer
 
     def open_connection(self) -> None:
+        """we are using an in memory instance, nothing to do"""
         pass
 
     def close_connection(self) -> None:
+        """we are using an in memory instance, nothing to do"""
         pass
