@@ -67,16 +67,16 @@ if __name__ == "__main__":
 
     print("RUNNING LOCAL SNAPSHOT EXTRACTION")
     lake_pipeline.run(
-        duck_pipeline.dataset().customers.iter_df(),
-        loader_file_format="jsonl",
+        duck_pipeline.dataset().customers.iter_df(500),
+        loader_file_format="parquet",
         table_name="customers",
         write_disposition="replace",
     )
     lake_pipeline.run(
         duck_pipeline.dataset().sql(
             "SELECT * FROM orders WHERE orders.order_day = 'tuesday'"
-        ).iter_df(),
-        loader_file_format="jsonl",
+        ).iter_df(500),
+        loader_file_format="parquet",
         table_name="orders",
         write_disposition="replace",
     )
@@ -100,8 +100,8 @@ if __name__ == "__main__":
                 "SELECT orders.*, customers.name FROM orders LEFT JOIN customers ON"
                 " orders.customer_id = customers.id"
             ),
-        ).iter_df(),
-        loader_file_format="jsonl",
+        ).iter_df(500),
+        loader_file_format="parquet",
         table_name="customers",
         write_disposition="replace",
     )
