@@ -29,7 +29,7 @@ from dlt.common.destination.exceptions import (
     DestinationTerminalException,
     UnknownDestinationModule,
 )
-from dlt.common.exceptions import PipelineStateNotAvailable
+from dlt.common.exceptions import PipelineStateNotAvailable, TerminalValueError
 from dlt.common.pipeline import LoadInfo, PipelineContext
 from dlt.common.runtime.collector import LogCollector
 from dlt.common.schema.exceptions import TableIdentifiersFrozen
@@ -2666,8 +2666,38 @@ def assert_imported_file(
     )
 
 
+def test_duckdb_column_invalid_timestamp() -> None:
+    # DuckDB does not have timestamps with timezone and precision
+    @dlt.resource(
+        columns={"event_tstamp": {"data_type": "timestamp", "timezone": True, "precision": 3}},
+        primary_key="event_id",
+    )
+    def events():
+        yield [{"event_id": 1, "event_tstamp": "2024-07-30T10:00:00.123+00:00"}]
+
+    pipeline = dlt.pipeline(destination="duckdb")
+
+    with pytest.raises((TerminalValueError, PipelineStepFailed)):
+        pipeline.run(events())
+
+
+def test_duckdb_column_invalid_timestamp_precision() -> None:
+    # DuckDB does not support precision higher than 9
+    @dlt.resource(
+        columns={"event_tstamp": {"data_type": "timestamp", "precision": 10}},
+        primary_key="event_id",
+    )
+    def events():
+        yield [{"event_id": 1, "event_tstamp": "2024-07-30T10:00:00.123+00:00"}]
+
+    pipeline = dlt.pipeline(destination="duckdb")
+
+    with pytest.raises((TerminalValueError, PipelineStepFailed)):
+        pipeline.run(events())
+
+
 def test_duckdb_column_hint_timezone() -> None:
-    # talbe: events_timezone_off
+    # table: events_timezone_off
     @dlt.resource(
         columns={"event_tstamp": {"data_type": "timestamp", "timezone": False}},
         primary_key="event_id",
@@ -2679,7 +2709,7 @@ def test_duckdb_column_hint_timezone() -> None:
             {"event_id": 3, "event_tstamp": "2024-07-30T10:00:00.123456"},
         ]
 
-    # talbe: events_timezone_on
+    # table: events_timezone_on
     @dlt.resource(
         columns={"event_tstamp": {"data_type": "timestamp", "timezone": True}},
         primary_key="event_id",
@@ -2691,7 +2721,7 @@ def test_duckdb_column_hint_timezone() -> None:
             {"event_id": 3, "event_tstamp": "2024-07-30T10:00:00.123456"},
         ]
 
-    # talbe: events_timezone_unset
+    # table: events_timezone_unset
     @dlt.resource(
         primary_key="event_id",
     )

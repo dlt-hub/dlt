@@ -62,9 +62,8 @@ class DuckDbTypeMapper(TypeMapper):
         "TIMESTAMP_NS": "timestamp",
     }
 
-    def to_db_integer_type(
-        self, precision: Optional[int], table_format: TTableFormat = None
-    ) -> str:
+    def to_db_integer_type(self, column: TColumnSchema = None, table: TTableSchema = None) -> str:
+        precision = column.get("precision")
         if precision is None:
             return "BIGINT"
         # Precision is number of bits
@@ -84,27 +83,39 @@ class DuckDbTypeMapper(TypeMapper):
 
     def to_db_datetime_type(
         self,
-        timezone: Optional[bool],
-        precision: Optional[int],
-        table_format: TTableFormat = None,
+        column: TColumnSchema = None,
+        table: TTableSchema = None,
     ) -> str:
-        # TIMESTAMP and TIMESTAMPTZ(TIMESTAMP WITH TIME ZONE) supports microsecond precision
+        column_name = column.get("name")
+        table_name = table.get("name")
+        timezone = column.get("timezone")
+        precision = column.get("precision")
+
+        if timezone and precision is not None:
+            raise TerminalValueError(
+                f"DuckDB does not support both timezone and precision for column '{column_name}' in"
+                f" table '{table_name}'. To resolve this issue, either set timezone to False or"
+                " None, or use the default precision."
+            )
+
         if timezone:
             return "TIMESTAMP WITH TIME ZONE"
 
-        if precision is None or precision == 6:
-            return "TIMESTAMP"
-        elif precision == 0:
-            return "TIMESTAMP_S"
-        elif precision == 3:
-            return "TIMESTAMP_MS"
-        elif precision == 9:
-            return "TIMESTAMP_NS"
-        else:
-            raise TerminalValueError(
-                f"timestamp with {precision} decimals after seconds cannot be mapped into DuckDB"
-                " TIMESTAMP type"
-            )
+        # map precision to the appropriate TIMESTAMP type
+        precision_map = {
+            None: "TIMESTAMP",
+            6: "TIMESTAMP",
+            0: "TIMESTAMP_S",
+            3: "TIMESTAMP_MS",
+            9: "TIMESTAMP_NS",
+        }
+        if precision in precision_map:
+            return precision_map[precision]
+
+        raise TerminalValueError(
+            f"Precision '{precision}' decimals after seconds cannot be mapped to a DuckDB TIMESTAMP"
+            " type."
+        )
 
     def from_db_type(
         self, db_type: str, precision: Optional[int], scale: Optional[int]
@@ -170,7 +181,7 @@ class DuckDbClient(InsertValuesJobClient):
             job = DuckDbCopyJob(file_path)
         return job
 
-    def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:
+    def _get_column_def_sql(self, c: TColumnSchema, table: TTableSchema = None) -> str:
         hints_str = " ".join(
             self.active_hints.get(h, "")
             for h in self.active_hints.keys()
@@ -178,7 +189,7 @@ class DuckDbClient(InsertValuesJobClient):
         )
         column_name = self.sql_client.escape_column_name(c["name"])
         return (
-            f"{column_name} {self.type_mapper.to_db_type(c)} {hints_str} {self._gen_not_null(c.get('nullable', True))}"
+            f"{column_name} {self.type_mapper.to_db_type(c,table)} {hints_str} {self._gen_not_null(c.get('nullable', True))}"
         )
 
     def _from_db_type(
