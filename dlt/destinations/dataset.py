@@ -92,7 +92,7 @@ class ReadableDataset(SupportsReadableDataset):
     def __init__(self, client: WithReadableRelations) -> None:
         self.client = client
 
-    def sql(self, sql: str) -> SupportsReadableRelation:
+    def query(self, sql: str) -> SupportsReadableRelation:
         return ReadableRelation(client=self.client, sql=sql)
 
     def __getitem__(self, table: str) -> SupportsReadableRelation:

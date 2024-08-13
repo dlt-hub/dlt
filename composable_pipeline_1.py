@@ -73,7 +73,7 @@ if __name__ == "__main__":
         write_disposition="replace",
     )
     lake_pipeline.run(
-        duck_pipeline.dataset().sql(
+        duck_pipeline.dataset().query(
             "SELECT * FROM orders WHERE orders.order_day = 'tuesday'"
         ).iter_df(500),
         loader_file_format="parquet",
@@ -95,7 +95,7 @@ if __name__ == "__main__":
     )
 
     denom_pipeline.run(
-        lake_pipeline.dataset().sql(
+        lake_pipeline.dataset().query(
             sql=(
                 "SELECT orders.*, customers.name FROM orders LEFT JOIN customers ON"
                 " orders.customer_id = customers.id"

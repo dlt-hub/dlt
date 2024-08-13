@@ -76,24 +76,14 @@ class FilesystemSqlClient(DuckDbSqlClient):
     @contextmanager
     @raise_database_error
     def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> Iterator[DBApiCursor]:
-        assert isinstance(query, str)
-
         # find all tables to preload
-        expression = sqlglot.parse_one(query, read="duckdb")
+        expression = sqlglot.parse_one(query, read="duckdb")  # type: ignore
         load_tables = [t.name for t in expression.find_all(exp.Table)]
         self.populate_duckdb(load_tables)
 
         # TODO: raise on non-select queries here, they do not make sense in this context
-
-        db_args = args if args else kwargs if kwargs else None
-        if db_args:
-            # TODO: must provide much better refactoring of params
-            query = query.replace("%s", "?")
-        try:
-            self._conn.execute(query, db_args)
-            yield DuckDBDBApiCursorImpl(self._conn)  # type: ignore
-        except duckdb.Error as outer:
-            raise outer
+        with super().execute_query(query, *args, **kwargs) as cursor:
+            yield cursor
 
     def open_connection(self) -> None:
         """we are using an in memory instance, nothing to do"""
