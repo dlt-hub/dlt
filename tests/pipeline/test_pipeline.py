@@ -2739,7 +2739,7 @@ def test_duckdb_column_hint_timezone() -> None:
         expected_results = {
             "events_timezone_off": "TIMESTAMP",
             "events_timezone_on": "TIMESTAMP WITH TIME ZONE",
-            "events_timezone_unset": "TIMESTAMP",
+            "events_timezone_unset": "TIMESTAMP WITH TIME ZONE",
         }
         for table in expected_results.keys():
             # check data type
