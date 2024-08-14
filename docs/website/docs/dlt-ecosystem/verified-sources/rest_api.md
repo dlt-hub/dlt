@@ -553,6 +553,19 @@ Available authentication types:
 
 For more complex authentication methods, you can implement a [custom authentication class](../../general-usage/http/rest-client.md#implementing-custom-authentication) and use it in the configuration.
 
+You can use the dictionary configuration syntax also for custom authentication classes after registering them as follows:
+
+```py
+rest_api.config_setup.register_auth("custom_auth", CustomAuth)
+
+{
+    # ...
+    "auth": {
+        "type": "custom_auth",
+        "api_key": dlt.secrets["sources.my_source.my_api_key"],
+    }
+}
+```
 
 
 ### Define resource relationships
