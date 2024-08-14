@@ -352,18 +352,7 @@ load_info = pipeline.run(source_data)
 ```
 This example iterates through MongoDB collections, applying the complex [data type](schema#data-types) to a specified column, and then processes the data with `pipeline.run`.
 
-## Export and import schema files
-
-
-Please follow the guide on [how to adjust a schema](../walkthroughs/adjust-a-schema.md) to export and import `yaml`
-schema files in your pipeline.
-
-## Attaching schemas to sources
-
-We recommend to not create schemas explicitly. Instead, user should provide a few global schema
-settings and then let the table and column schemas to be generated from the resource hints and the
-data itself.
-
+## View and print the schema
 To view and print the default schema in a clear YAML format use the command:
 
 ```py
@@ -385,6 +374,17 @@ load_info = pipeline.run(source)
 print(pipeline.default_schema.to_pretty_yaml())
 ```
 This will display a structured YAML representation of your schema, showing details like tables, columns, data types, and metadata, including version, version_hash, and engine_version.
+
+## Export and import schema files
+
+Please follow the guide on [how to adjust a schema](../walkthroughs/adjust-a-schema.md) to export and import `yaml`
+schema files in your pipeline.
+
+## Attaching schemas to sources
+
+We recommend to not create schemas explicitly. Instead, user should provide a few global schema
+settings and then let the table and column schemas to be generated from the resource hints and the
+data itself.
 
 The `dlt.source` decorator accepts a schema instance that you can create yourself and modify in
 whatever way you wish. The decorator also support a few typical use cases:
