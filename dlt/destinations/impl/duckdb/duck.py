@@ -100,17 +100,17 @@ class DuckDbTypeMapper(TypeMapper):
 
         if timezone:
             return "TIMESTAMP WITH TIME ZONE"
+        elif timezone is not None:  # condition for when timezone is False given that none is falsy
+            return "TIMESTAMP"
 
-        # map precision to the appropriate TIMESTAMP type
-        precision_map = {
-            None: super().to_db_datetime_type(column, table),
-            6: super().to_db_datetime_type(column, table),
-            0: "TIMESTAMP_S",
-            3: "TIMESTAMP_MS",
-            9: "TIMESTAMP_NS",
-        }
-        if precision in precision_map:
-            return precision_map[precision]
+        if precision is None or precision == 6:
+            return super().to_db_datetime_type(column, table)
+        elif precision == 0:
+            return "TIMESTAMP_S"
+        elif precision == 3:
+            return "TIMESTAMP_MS"
+        elif precision == 9:
+            return "TIMESTAMP_NS"
 
         raise TerminalValueError(
             f"Precision '{precision}' decimals after seconds cannot be mapped to a DuckDB TIMESTAMP"
