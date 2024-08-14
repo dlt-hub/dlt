@@ -246,12 +246,15 @@ class UnboundColumnException(SchemaException):
         elif column.get("primary_key"):
             key_type = "primary key"
 
-        msg = f"The column {column['name']} in table {table_name} did not receive any data during this load. "
+        msg = (
+            f"The column {column['name']} in table {table_name} did not receive any data during"
+            " this load. "
+        )
         if key_type or not nullable:
             msg += f"It is marked as non-nullable{' '+key_type} and it must have values. "
 
         msg += (
-            "This can happen if you specify the column manually, for example using the 'merge_key', 'primary_key' or 'columns' argument "
-            "but it does not exist in the data."
+            "This can happen if you specify the column manually, for example using the 'merge_key',"
+            " 'primary_key' or 'columns' argument but it does not exist in the data."
         )
         super().__init__(schema_name, msg)
