@@ -225,6 +225,7 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
             config.credentials,
             capabilities,
             config.get_location(),
+            config.project_id,
             config.http_timeout,
             config.retry_deadline,
         )
