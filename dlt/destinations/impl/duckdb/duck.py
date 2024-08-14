@@ -103,8 +103,8 @@ class DuckDbTypeMapper(TypeMapper):
 
         # map precision to the appropriate TIMESTAMP type
         precision_map = {
-            None: "TIMESTAMP",
-            6: "TIMESTAMP",
+            None: super().to_db_datetime_type(column, table),
+            6: super().to_db_datetime_type(column, table),
             0: "TIMESTAMP_S",
             3: "TIMESTAMP_MS",
             9: "TIMESTAMP_NS",
