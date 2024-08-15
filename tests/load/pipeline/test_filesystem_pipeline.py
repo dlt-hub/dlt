@@ -323,6 +323,51 @@ def test_delta_table_core(
     ),
     ids=lambda x: x.name,
 )
+def test_delta_table_does_not_contain_job_files(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Asserts Parquet job files do not end up in Delta table."""
+
+    pipeline = destination_config.setup_pipeline("fs_pipe", dev_mode=True)
+
+    @dlt.resource(table_format="delta")
+    def delta_table():
+        yield [{"foo": 1}]
+
+    # create Delta table
+    info = pipeline.run(delta_table())
+    assert_load_info(info)
+
+    # get Parquet jobs
+    completed_jobs = info.load_packages[0].jobs["completed_jobs"]
+    parquet_jobs = [
+        job
+        for job in completed_jobs
+        if job.job_file_info.table_name == "delta_table" and job.file_path.endswith(".parquet")
+    ]
+    assert len(parquet_jobs) == 1
+
+    # get Parquet files in Delta table folder
+    with pipeline.destination_client() as client:
+        assert isinstance(client, FilesystemClient)
+        table_dir = client.get_table_dir("delta_table")
+        parquet_files = [f for f in client.fs_client.ls(table_dir) if f.endswith(".parquet")]
+    assert len(parquet_files) == 1
+
+    # Parquet file should not be the job file
+    file_id = parquet_jobs[0].job_file_info.file_id
+    assert file_id not in parquet_files[0]
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        table_format_filesystem_configs=True,
+        table_format="delta",
+        bucket_subset=(FILE_BUCKET),
+    ),
+    ids=lambda x: x.name,
+)
 def test_delta_table_multiple_files(
     destination_config: DestinationTestConfiguration,
 ) -> None:

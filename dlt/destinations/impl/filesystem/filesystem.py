@@ -36,6 +36,7 @@ from dlt.common.destination.exceptions import DestinationUndefinedEntity
 from dlt.destinations.job_impl import (
     ReferenceFollowupJob,
     FinalizedLoadJob,
+    FinalizedLoadJobWithFollowupJobs,
 )
 from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
 from dlt.destinations import path_utils
@@ -366,7 +367,7 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
             if ReferenceFollowupJob.is_reference_job(file_path):
                 return DeltaLoadFilesystemJob(file_path)
             # otherwise just continue
-            return FilesystemLoadJobWithFollowup(file_path)
+            return FinalizedLoadJobWithFollowupJobs(file_path)
 
         cls = FilesystemLoadJobWithFollowup if self.config.as_staging else FilesystemLoadJob
         return cls(file_path)
