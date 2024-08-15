@@ -9,11 +9,14 @@ to = "/docs/intro"
 [[redirects]]
 from = "/docs/general-usage/credentials/configuration"
 to = "/docs/general-usage/credentials/setup"
+status = 301
 
 [[redirects]]
 from = "/docs/general-usage/credentials/config_providers"
 to = "/docs/general-usage/credentials"
+status = 301
 
 [[redirects]]
 from = "/docs/general-usage/credentials/config_specs"
 to = "/docs/general-usage/credentials"
+status = 301
