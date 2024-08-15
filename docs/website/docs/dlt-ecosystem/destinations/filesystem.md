@@ -543,7 +543,6 @@ def my_delta_resource():
 ```
 
 :::caution
-
 It is **not** possible to change partition columns after the Delta table has been created. Trying to do so causes an error stating that the partition columns don't match.
 :::
 
