@@ -530,6 +530,23 @@ def my_delta_resource():
 
 > `dlt` always uses `parquet` as `loader_file_format` when using the `delta` table format. Any setting of `loader_file_format` is disregarded.
 
+#### Delta table partitioning
+A Delta table can be partitioned ([Hive-style partitioning](https://delta.io/blog/pros-cons-hive-style-partionining/)) by specifying one or more `partition` column hints. This example partitions the Delta table by the `foo` column:
+
+```py
+@dlt.resource(
+  table_format="delta",
+  columns={"foo": {"partition": True}}
+)
+def my_delta_resource():
+    ...
+```
+
+:::caution
+It is **not** possible to change partition columns after the Delta table has been created. Trying to do so causes an error stating that the partition columns don't match.
+:::
+
+
 #### Storage options
 You can pass storage options by configuring `destination.filesystem.deltalake_storage_options`:
 
