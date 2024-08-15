@@ -123,7 +123,7 @@ class RangePaginator(BasePaginator):
         super().__init__()
         if total_path is None and maximum_value is None and not stop_after_empty_page:
             raise ValueError(
-                "Either `total_path` or `maximum_value` or stop_after_empty_page must be provided."
+                "Either `total_path` or `maximum_value` or `stop_after_empty_page` must be provided."
             )
         self.param_name = param_name
         self.current_value = initial_value
