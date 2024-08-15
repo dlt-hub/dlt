@@ -471,7 +471,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
             f"All jobs completed, archiving package {load_id} with aborted set to {aborted}"
         )
 
-    def update_loadpackage_info(self, load_id: str) -> None:
+    def update_load_package_info(self, load_id: str) -> None:
         # update counter we only care about the jobs that are scheduled to be loaded
         package_jobs = self.load_storage.normalized_packages.get_load_package_jobs(load_id)
         total_jobs = reduce(lambda p, c: p + len(c), package_jobs.values(), 0)
@@ -491,6 +491,8 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         # and they must be like that in order to drop existing tables
         dropped_tables = current_load_package()["state"].get("dropped_tables", [])
         truncated_tables = current_load_package()["state"].get("truncated_tables", [])
+
+        self.update_load_package_info(load_id)
 
         # initialize analytical storage ie. create dataset required by passed schema
         with self.get_destination_client(schema) as job_client:
@@ -539,14 +541,10 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         pending_exception: Optional[LoadClientJobException] = None
         while True:
             try:
-                # we continously spool new jobs and complete finished ones
+                # we continuously spool new jobs and complete finished ones
                 running_jobs, finalized_jobs, new_pending_exception = self.complete_jobs(
                     load_id, running_jobs, schema
                 )
-                # update load package info if any jobs where finalized
-                if finalized_jobs:
-                    self.update_loadpackage_info(load_id)
-
                 pending_exception = pending_exception or new_pending_exception
 
                 # do not spool new jobs if there was a signal or an exception was encountered
