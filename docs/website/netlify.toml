@@ -5,3 +5,15 @@ to = "/docs/intro"
 [[redirects]]
 from = "/docs"
 to = "/docs/intro"
+
+[[redirects]]
+from = "/docs/general-usage/credentials/configuration"
+to = "/docs/general-usage/credentials/setup"
+
+[[redirects]]
+from = "/docs/general-usage/credentials/config_providers"
+to = "/docs/general-usage/credentials"
+
+[[redirects]]
+from = "/docs/general-usage/credentials/config_specs"
+to = "/docs/general-usage/credentials"
