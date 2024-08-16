@@ -118,7 +118,7 @@ def mock_api_server():
         @router.get(r"/posts/\d+$")
         def post_detail(request, context):
             post_id = request.url.split("/")[-1]
-            return {"id": post_id, "body": f"Post body {post_id}"}
+            return {"id": int(post_id), "body": f"Post body {post_id}"}
 
         @router.get(r"/posts/\d+/some_details_404")
         def post_detail_404(request, context):
