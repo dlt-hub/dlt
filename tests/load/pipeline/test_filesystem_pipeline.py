@@ -323,6 +323,51 @@ def test_delta_table_core(
     ),
     ids=lambda x: x.name,
 )
+def test_delta_table_does_not_contain_job_files(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Asserts Parquet job files do not end up in Delta table."""
+
+    pipeline = destination_config.setup_pipeline("fs_pipe", dev_mode=True)
+
+    @dlt.resource(table_format="delta")
+    def delta_table():
+        yield [{"foo": 1}]
+
+    # create Delta table
+    info = pipeline.run(delta_table())
+    assert_load_info(info)
+
+    # get Parquet jobs
+    completed_jobs = info.load_packages[0].jobs["completed_jobs"]
+    parquet_jobs = [
+        job
+        for job in completed_jobs
+        if job.job_file_info.table_name == "delta_table" and job.file_path.endswith(".parquet")
+    ]
+    assert len(parquet_jobs) == 1
+
+    # get Parquet files in Delta table folder
+    with pipeline.destination_client() as client:
+        assert isinstance(client, FilesystemClient)
+        table_dir = client.get_table_dir("delta_table")
+        parquet_files = [f for f in client.fs_client.ls(table_dir) if f.endswith(".parquet")]
+    assert len(parquet_files) == 1
+
+    # Parquet file should not be the job file
+    file_id = parquet_jobs[0].job_file_info.file_id
+    assert file_id not in parquet_files[0]
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        table_format_filesystem_configs=True,
+        table_format="delta",
+        bucket_subset=(FILE_BUCKET),
+    ),
+    ids=lambda x: x.name,
+)
 def test_delta_table_multiple_files(
     destination_config: DestinationTestConfiguration,
 ) -> None:
@@ -435,6 +480,91 @@ def test_delta_table_child_tables(
     assert len(rows_dict["complex_table"]) == 2
     assert len(rows_dict["complex_table__child"]) == 3
     assert len(rows_dict["complex_table__child__grandchild"]) == 5
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        table_format_filesystem_configs=True,
+        table_format="delta",
+        bucket_subset=(FILE_BUCKET),
+    ),
+    ids=lambda x: x.name,
+)
+def test_delta_table_partitioning(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Tests partitioning for `delta` table format."""
+
+    from dlt.common.libs.deltalake import get_delta_tables
+    from tests.pipeline.utils import users_materialize_table_schema
+
+    pipeline = destination_config.setup_pipeline("fs_pipe", dev_mode=True)
+
+    # zero partition columns
+    @dlt.resource(table_format="delta")
+    def zero_part():
+        yield {"foo": 1, "bar": 1}
+
+    info = pipeline.run(zero_part())
+    assert_load_info(info)
+    dt = get_delta_tables(pipeline, "zero_part")["zero_part"]
+    assert dt.metadata().partition_columns == []
+    assert load_table_counts(pipeline, "zero_part")["zero_part"] == 1
+
+    # one partition column
+    @dlt.resource(table_format="delta", columns={"c1": {"partition": True}})
+    def one_part():
+        yield [
+            {"c1": "foo", "c2": 1},
+            {"c1": "foo", "c2": 2},
+            {"c1": "bar", "c2": 3},
+            {"c1": "baz", "c2": 4},
+        ]
+
+    info = pipeline.run(one_part())
+    assert_load_info(info)
+    dt = get_delta_tables(pipeline, "one_part")["one_part"]
+    assert dt.metadata().partition_columns == ["c1"]
+    assert load_table_counts(pipeline, "one_part")["one_part"] == 4
+
+    # two partition columns
+    @dlt.resource(
+        table_format="delta", columns={"c1": {"partition": True}, "c2": {"partition": True}}
+    )
+    def two_part():
+        yield [
+            {"c1": "foo", "c2": 1, "c3": True},
+            {"c1": "foo", "c2": 2, "c3": True},
+            {"c1": "bar", "c2": 1, "c3": True},
+            {"c1": "baz", "c2": 1, "c3": True},
+        ]
+
+    info = pipeline.run(two_part())
+    assert_load_info(info)
+    dt = get_delta_tables(pipeline, "two_part")["two_part"]
+    assert dt.metadata().partition_columns == ["c1", "c2"]
+    assert load_table_counts(pipeline, "two_part")["two_part"] == 4
+
+    # test partitioning with empty source
+    users_materialize_table_schema.apply_hints(
+        table_format="delta",
+        columns={"id": {"partition": True}},
+    )
+    info = pipeline.run(users_materialize_table_schema())
+    assert_load_info(info)
+    dt = get_delta_tables(pipeline, "users")["users"]
+    assert dt.metadata().partition_columns == ["id"]
+    assert load_table_counts(pipeline, "users")["users"] == 0
+
+    # changing partitioning after initial table creation is not supported
+    zero_part.apply_hints(columns={"foo": {"partition": True}})
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        pipeline.run(zero_part())
+    assert isinstance(pip_ex.value.__context__, LoadClientJobRetry)
+    assert "partitioning" in pip_ex.value.__context__.retry_message
+    dt = get_delta_tables(pipeline, "zero_part")["zero_part"]
+    assert dt.metadata().partition_columns == []
 
 
 @pytest.mark.parametrize(

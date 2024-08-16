@@ -36,6 +36,7 @@ from dlt.common.destination.exceptions import DestinationUndefinedEntity
 from dlt.destinations.job_impl import (
     ReferenceFollowupJob,
     FinalizedLoadJob,
+    FinalizedLoadJobWithFollowupJobs,
 )
 from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
 from dlt.destinations import path_utils
@@ -114,6 +115,9 @@ class DeltaLoadFilesystemJob(FilesystemLoadJob):
         storage_options = _deltalake_storage_options(self._job_client.config)
         dt = try_get_deltatable(dt_path, storage_options=storage_options)
 
+        # get partition columns
+        part_cols = get_columns_names_with_prop(self._load_table, "partition")
+
         # explicitly check if there is data
         # (https://github.com/delta-io/delta-rs/issues/2686)
         if arrow_ds.head(1).num_rows == 0:
@@ -123,6 +127,7 @@ class DeltaLoadFilesystemJob(FilesystemLoadJob):
                     table_uri=dt_path,
                     schema=ensure_delta_compatible_arrow_schema(arrow_ds.schema),
                     mode="overwrite",
+                    partition_by=part_cols,
                     storage_options=storage_options,
                 )
             return
@@ -158,6 +163,7 @@ class DeltaLoadFilesystemJob(FilesystemLoadJob):
                 table_or_uri=dt_path if dt is None else dt,
                 data=arrow_rbr,
                 write_disposition=self._load_table["write_disposition"],
+                partition_by=part_cols,
                 storage_options=storage_options,
             )
 
@@ -366,7 +372,7 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
             if ReferenceFollowupJob.is_reference_job(file_path):
                 return DeltaLoadFilesystemJob(file_path)
             # otherwise just continue
-            return FilesystemLoadJobWithFollowup(file_path)
+            return FinalizedLoadJobWithFollowupJobs(file_path)
 
         cls = FilesystemLoadJobWithFollowup if self.config.as_staging else FilesystemLoadJob
         return cls(file_path)

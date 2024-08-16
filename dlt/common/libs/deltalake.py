@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Union
+from typing import Optional, Dict, Union, List
 from pathlib import Path
 
 from dlt import version, Pipeline
@@ -71,9 +71,13 @@ def write_delta_table(
     table_or_uri: Union[str, Path, DeltaTable],
     data: Union[pa.Table, pa.RecordBatchReader],
     write_disposition: TWriteDisposition,
+    partition_by: Optional[Union[List[str], str]] = None,
     storage_options: Optional[Dict[str, str]] = None,
 ) -> None:
-    """Writes in-memory Arrow table to on-disk Delta table."""
+    """Writes in-memory Arrow table to on-disk Delta table.
+
+    Thin wrapper around `deltalake.write_deltalake`.
+    """
 
     # throws warning for `s3` protocol: https://github.com/delta-io/delta-rs/issues/2460
     # TODO: upgrade `deltalake` lib after https://github.com/delta-io/delta-rs/pull/2500
@@ -81,6 +85,7 @@ def write_delta_table(
     write_deltalake(  # type: ignore[call-overload]
         table_or_uri=table_or_uri,
         data=ensure_delta_compatible_arrow_data(data),
+        partition_by=partition_by,
         mode=get_delta_write_mode(write_disposition),
         schema_mode="merge",  # enable schema evolution (adding new columns)
         storage_options=storage_options,
