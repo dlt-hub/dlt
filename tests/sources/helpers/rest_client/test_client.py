@@ -77,7 +77,7 @@ class TestRESTClient:
     def test_get_single_resource(self, rest_client):
         response = rest_client.get("/posts/1")
         assert response.status_code == 200
-        assert response.json() == {"id": "1", "body": "Post body 1"}
+        assert response.json() == {"id": 1, "body": "Post body 1"}
 
     def test_pagination(self, rest_client: RESTClient):
         pages_iter = rest_client.paginate(
