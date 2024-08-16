@@ -242,7 +242,7 @@ class TestOffsetPaginator:
     def test_update_state(self):
         paginator = OffsetPaginator(offset=0, limit=10)
         response = Mock(Response, json=lambda: {"total": 20})
-        paginator.update_state(response)
+        paginator.update_state(response, data=[{}])
         assert paginator.current_value == 10
         assert paginator.has_next_page is True
 
@@ -253,7 +253,7 @@ class TestOffsetPaginator:
     def test_update_state_with_string_total(self):
         paginator = OffsetPaginator(0, 10)
         response = Mock(Response, json=lambda: {"total": "20"})
-        paginator.update_state(response)
+        paginator.update_state(response, data=[{}])
         assert paginator.current_value == 10
         assert paginator.has_next_page is True
 
@@ -261,13 +261,13 @@ class TestOffsetPaginator:
         paginator = OffsetPaginator(0, 10)
         response = Mock(Response, json=lambda: {"total": "invalid"})
         with pytest.raises(ValueError):
-            paginator.update_state(response)
+            paginator.update_state(response, data=[{}])
 
     def test_update_state_without_total(self):
         paginator = OffsetPaginator(0, 10)
         response = Mock(Response, json=lambda: {})
         with pytest.raises(ValueError):
-            paginator.update_state(response)
+            paginator.update_state(response, data=[{}])
 
     def test_init_request(self):
         paginator = OffsetPaginator(offset=123, limit=42)
@@ -281,7 +281,7 @@ class TestOffsetPaginator:
 
         response = Mock(Response, json=lambda: {"total": 200})
 
-        paginator.update_state(response)
+        paginator.update_state(response, data=[{}])
 
         # Test for the next request
         next_request = Mock(spec=Request)
@@ -295,11 +295,11 @@ class TestOffsetPaginator:
     def test_maximum_offset(self):
         paginator = OffsetPaginator(offset=0, limit=50, maximum_offset=100, total_path=None)
         response = Mock(Response, json=lambda: {"items": []})
-        paginator.update_state(response)  # Offset 0 to 50
+        paginator.update_state(response, data=[{}])  # Offset 0 to 50
         assert paginator.current_value == 50
         assert paginator.has_next_page is True
 
-        paginator.update_state(response)  # Offset 50 to 100
+        paginator.update_state(response, data=[{}])  # Offset 50 to 100
         assert paginator.current_value == 100
         assert paginator.has_next_page is False
 
@@ -362,22 +362,22 @@ class TestPageNumberPaginator:
     def test_update_state(self):
         paginator = PageNumberPaginator(base_page=1, page=1, total_path="total_pages")
         response = Mock(Response, json=lambda: {"total_pages": 3})
-        paginator.update_state(response)
+        paginator.update_state(response, data=[{}])
         assert paginator.current_value == 2
         assert paginator.has_next_page is True
 
-        paginator.update_state(response)
+        paginator.update_state(response, data=[{}])
         assert paginator.current_value == 3
         assert paginator.has_next_page is True
 
         # Test for reaching the end
-        paginator.update_state(response)
+        paginator.update_state(response, data=[{}])
         assert paginator.has_next_page is False
 
     def test_update_state_with_string_total_pages(self):
         paginator = PageNumberPaginator(base_page=1, page=1)
         response = Mock(Response, json=lambda: {"total": "3"})
-        paginator.update_state(response)
+        paginator.update_state(response, data=[{}])
         assert paginator.current_value == 2
         assert paginator.has_next_page is True
 
@@ -385,34 +385,34 @@ class TestPageNumberPaginator:
         paginator = PageNumberPaginator(base_page=1, page=1)
         response = Mock(Response, json=lambda: {"total_pages": "invalid"})
         with pytest.raises(ValueError):
-            paginator.update_state(response)
+            paginator.update_state(response, data=[{}])
 
     def test_update_state_without_total_pages(self):
         paginator = PageNumberPaginator(base_page=1, page=1)
         response = Mock(Response, json=lambda: {})
         with pytest.raises(ValueError):
-            paginator.update_state(response)
+            paginator.update_state(response, data=[{}])
 
     def test_update_request(self):
         paginator = PageNumberPaginator(base_page=1, page=1, page_param="page")
         request = Mock(Request)
         response = Mock(Response, json=lambda: {"total": 3})
-        paginator.update_state(response)
+        paginator.update_state(response, data=[{}])
         request.params = {}
         paginator.update_request(request)
         assert request.params["page"] == 2
-        paginator.update_state(response)
+        paginator.update_state(response, data=[{}])
         paginator.update_request(request)
         assert request.params["page"] == 3
 
     def test_maximum_page(self):
         paginator = PageNumberPaginator(base_page=1, page=1, maximum_page=3, total_path=None)
         response = Mock(Response, json=lambda: {"items": []})
-        paginator.update_state(response)  # Page 1
+        paginator.update_state(response, data=[{}])  # Page 1
         assert paginator.current_value == 2
         assert paginator.has_next_page is True
 
-        paginator.update_state(response)  # Page 2
+        paginator.update_state(response, data=[{}])  # Page 2
         assert paginator.current_value == 3
         assert paginator.has_next_page is False
 

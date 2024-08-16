@@ -165,7 +165,7 @@ class RangePaginator(BasePaginator):
                 self._has_next_page = False
 
     def _stop_after_this_page(self, data: Optional[List[Any]]=None) -> bool:
-        return self.stop_after_empty_page and data == []
+        return self.stop_after_empty_page and not data
 
     def _handle_missing_total(self, response_json: Dict[str, Any]) -> None:
         raise ValueError(
