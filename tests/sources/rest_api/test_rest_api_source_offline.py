@@ -19,6 +19,7 @@ from dlt.sources.rest_api import (
     Endpoint,
     create_response_hooks,
 )
+from tests.sources.rest_api.conftest import DEFAULT_PAGE_SIZE, DEFAULT_TOTAL_PAGES
 
 
 def test_load_mock_api(mock_api_server):
@@ -75,9 +76,9 @@ def test_load_mock_api(mock_api_server):
 
     assert table_counts.keys() == {"posts", "post_comments", "post_details"}
 
-    assert table_counts["posts"] == 100
-    assert table_counts["post_details"] == 100
-    assert table_counts["post_comments"] == 5000
+    assert table_counts["posts"] == DEFAULT_PAGE_SIZE * DEFAULT_TOTAL_PAGES
+    assert table_counts["post_details"] == DEFAULT_PAGE_SIZE * DEFAULT_TOTAL_PAGES
+    assert table_counts["post_comments"] == 50 * DEFAULT_PAGE_SIZE * DEFAULT_TOTAL_PAGES
 
     with pipeline.sql_client() as client:
         posts_table = client.make_qualified_table_name("posts")
@@ -88,14 +89,14 @@ def test_load_mock_api(mock_api_server):
 
     assert_query_data(
         pipeline,
-        f"SELECT title FROM {posts_table} ORDER BY id limit 5",
-        [f"Post {i}" for i in range(5)],
+        f"SELECT title FROM {posts_table} ORDER BY id limit 25",
+        [f"Post {i}" for i in range(25)],
     )
 
     assert_query_data(
         pipeline,
-        f"SELECT body FROM {posts_details_table} ORDER BY id limit 5",
-        [f"Post body {i}" for i in range(5)],
+        f"SELECT body FROM {posts_details_table} ORDER BY id limit 25",
+        [f"Post body {i}" for i in range(25)],
     )
 
     assert_query_data(
@@ -173,6 +174,7 @@ def test_source_with_post_request(mock_api_server):
         }
     )
 
+    # TODO: This is empty
     res = list(mock_source.with_resources("search_posts"))
 
     for i in range(49):
