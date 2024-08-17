@@ -53,7 +53,7 @@ from dlt.common.schema.typing import (
     TColumnSchema,
 )
 from dlt.common.schema.utils import get_columns_names_with_prop
-from dlt.common.storages import FileStorage, LoadJobInfo
+from dlt.common.storages import FileStorage, LoadJobInfo, ParsedLoadJobFileName
 from dlt.common.typing import DictStrAny
 from dlt.destinations.impl.lancedb.configuration import (
     LanceDBClientConfiguration,
@@ -692,7 +692,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
         self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
         if ReferenceFollowupJob.is_reference_job(file_path):
-            return LanceDBRemoveOrphansJob(file_path, table)
+            return LanceDBRemoveOrphansJob(file_path)
         else:
             return LanceDBLoadJob(file_path, table)
 
@@ -705,14 +705,17 @@ class LanceDBClient(JobClientBase, WithStateSync):
             table_chain, completed_table_chain_jobs
         )
         if table_chain[0].get("write_disposition") == "merge":
-            for table in table_chain:
-                table_job_paths = [
-                    job.file_path
-                    for job in completed_table_chain_jobs
-                    if job.job_file_info.table_name == table["name"]
-                ]
-                file_name = FileStorage.get_file_name_from_file_path(table_job_paths[0])
-                jobs.append(ReferenceFollowupJob(file_name, table_job_paths))
+            # TODO: Use staging to write deletion records. For now we use only one job.
+            all_job_paths_ordered = [
+                job.file_path
+                for table in table_chain
+                for job in completed_table_chain_jobs
+                if job.job_file_info.table_name == table.get("name")
+            ]
+            root_table_file_name = FileStorage.get_file_name_from_file_path(
+                all_job_paths_ordered[0]
+            )
+            jobs.append(ReferenceFollowupJob(root_table_file_name, all_job_paths_ordered))
         return jobs
 
     def table_exists(self, table_name: str) -> bool:
@@ -762,96 +765,103 @@ class LanceDBLoadJob(RunnableLoadJob, HasFollowupJobs):
         )
 
 
+# TODO: Implement staging for this step with insert deletes.
 class LanceDBRemoveOrphansJob(RunnableLoadJob):
     orphaned_ids: Set[str]
 
     def __init__(
         self,
         file_path: str,
-        table_schema: TTableSchema,
     ) -> None:
         super().__init__(file_path)
         self._job_client: "LanceDBClient" = None
-        self._table_schema: TTableSchema = table_schema
+        self.references = ReferenceFollowupJob.resolve_references(file_path)
 
     def run(self) -> None:
         db_client: DBConnection = self._job_client.db_client
-        fq_table_name: str = self._job_client.make_qualified_table_name(self._table_schema["name"])
-        try:
-            fq_parent_table_name: str = self._job_client.make_qualified_table_name(
-                self._table_schema["parent"]
-            )
-        except KeyError:
-            fq_parent_table_name = None  # The table is a root table.
         id_field_name: str = self._job_client.config.id_field_name
 
-        try:
-            child_table = db_client.open_table(fq_table_name)
-            child_table.checkout_latest()
-            if fq_parent_table_name:
-                parent_table = db_client.open_table(fq_parent_table_name)
-                parent_table.checkout_latest()
-        except FileNotFoundError as e:
-            raise DestinationTransientException(
-                "Couldn't open lancedb database. Orphan removal WILL BE RETRIED"
-            ) from e
+        # We don't all insert jobs for each table using this method.
+        table_lineage: List[TTableSchema] = []
+        for file_path_ in self.references:
+            table = self._schema.get_table(ParsedLoadJobFileName.parse(file_path_).table_name)
+            if table["name"] not in [table_["name"] for table_ in table_lineage]:
+                table_lineage.append(table)
 
-        try:
-            if fq_parent_table_name:
-                # Chunks and embeddings in child table.
-                parent_ids = set(
-                    pc.unique(
-                        parent_table.to_lance().to_table(columns=["_dlt_id"])["_dlt_id"]
-                    ).to_pylist()
+        for table in table_lineage:
+            fq_table_name: str = self._job_client.make_qualified_table_name(table["name"])
+            try:
+                fq_parent_table_name: str = self._job_client.make_qualified_table_name(
+                    table["parent"]
                 )
-                child_ids = set(
-                    pc.unique(
-                        child_table.to_lance().to_table(columns=["_dlt_parent_id"])[
-                            "_dlt_parent_id"
-                        ]
-                    ).to_pylist()
-                )
+            except KeyError:
+                fq_parent_table_name = None  # The table is a root table.
 
-                if orphaned_ids := child_ids - parent_ids:
-                    if len(orphaned_ids) > 1:
-                        child_table.delete(f"_dlt_parent_id IN {tuple(orphaned_ids)}")
-                    elif len(orphaned_ids) == 1:
-                        child_table.delete(f"_dlt_parent_id = '{orphaned_ids.pop()}'")
+            try:
+                child_table = db_client.open_table(fq_table_name)
+                child_table.checkout_latest()
+                if fq_parent_table_name:
+                    parent_table = db_client.open_table(fq_parent_table_name)
+                    parent_table.checkout_latest()
+            except FileNotFoundError as e:
+                raise DestinationTransientException(
+                    "Couldn't open lancedb database. Orphan removal WILL BE RETRIED"
+                ) from e
 
-            else:
-                # Chunks and embeddings in the root table.
-                document_id_field = get_columns_names_with_prop(
-                    self._table_schema, DOCUMENT_ID_HINT
-                )
-                if document_id_field and get_columns_names_with_prop(
-                    self._table_schema, "primary_key"
-                ):
-                    raise SystemConfigurationException(
-                        "You CANNOT specify a primary key AND a document ID hint for the same"
-                        " resource when using merge disposition."
+            try:
+                if fq_parent_table_name:
+                    # Chunks and embeddings in child table.
+                    parent_ids = set(
+                        pc.unique(
+                            parent_table.to_lance().to_table(columns=["_dlt_id"])["_dlt_id"]
+                        ).to_pylist()
+                    )
+                    child_ids = set(
+                        pc.unique(
+                            child_table.to_lance().to_table(columns=["_dlt_parent_id"])[
+                                "_dlt_parent_id"
+                            ]
+                        ).to_pylist()
                     )
 
-                # If document ID is defined, we use this as the sole grouping key to identify stale chunks,
-                # else fallback to the compound `id_field_name`.
-                grouping_key = document_id_field or id_field_name
-                grouping_key = grouping_key if isinstance(grouping_key, list) else [grouping_key]
-                child_table_arrow: pa.Table = child_table.to_lance().to_table(
-                    columns=[*grouping_key, "_dlt_load_id", "_dlt_id"]
-                )
+                    if orphaned_ids := child_ids - parent_ids:
+                        if len(orphaned_ids) > 1:
+                            child_table.delete(f"_dlt_parent_id IN {tuple(orphaned_ids)}")
+                        elif len(orphaned_ids) == 1:
+                            child_table.delete(f"_dlt_parent_id = '{orphaned_ids.pop()}'")
 
-                grouped = child_table_arrow.group_by(grouping_key).aggregate(
-                    [("_dlt_load_id", "max")]
-                )
-                joined = child_table_arrow.join(grouped, keys=grouping_key)
-                orphaned_mask = pc.not_equal(joined["_dlt_load_id"], joined["_dlt_load_id_max"])
-                orphaned_ids = joined.filter(orphaned_mask).column("_dlt_id").to_pylist()
+                else:
+                    # Chunks and embeddings in the root table.
+                    document_id_field = get_columns_names_with_prop(table, DOCUMENT_ID_HINT)
+                    if document_id_field and get_columns_names_with_prop(table, "primary_key"):
+                        raise SystemConfigurationException(
+                            "You CANNOT specify a primary key AND a document ID hint for the same"
+                            " resource when using merge disposition."
+                        )
 
-                if len(orphaned_ids) > 1:
-                    child_table.delete(f"_dlt_id IN {tuple(orphaned_ids)}")
-                elif len(orphaned_ids) == 1:
-                    child_table.delete(f"_dlt_id = '{orphaned_ids.pop()}'")
+                    # If document ID is defined, we use this as the sole grouping key to identify stale chunks,
+                    # else fallback to the compound `id_field_name`.
+                    grouping_key = document_id_field or id_field_name
+                    grouping_key = (
+                        grouping_key if isinstance(grouping_key, list) else [grouping_key]
+                    )
+                    child_table_arrow: pa.Table = child_table.to_lance().to_table(
+                        columns=[*grouping_key, "_dlt_load_id", "_dlt_id"]
+                    )
 
-        except ArrowInvalid as e:
-            raise DestinationTerminalException(
-                "Python and Arrow datatype mismatch - batch failed AND WILL **NOT** BE RETRIED."
-            ) from e
+                    grouped = child_table_arrow.group_by(grouping_key).aggregate(
+                        [("_dlt_load_id", "max")]
+                    )
+                    joined = child_table_arrow.join(grouped, keys=grouping_key)
+                    orphaned_mask = pc.not_equal(joined["_dlt_load_id"], joined["_dlt_load_id_max"])
+                    orphaned_ids = joined.filter(orphaned_mask).column("_dlt_id").to_pylist()
+
+                    if len(orphaned_ids) > 1:
+                        child_table.delete(f"_dlt_id IN {tuple(orphaned_ids)}")
+                    elif len(orphaned_ids) == 1:
+                        child_table.delete(f"_dlt_id = '{orphaned_ids.pop()}'")
+
+            except ArrowInvalid as e:
+                raise DestinationTerminalException(
+                    "Python and Arrow datatype mismatch - batch failed AND WILL **NOT** BE RETRIED."
+                ) from e
