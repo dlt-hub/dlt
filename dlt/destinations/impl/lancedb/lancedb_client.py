@@ -1,3 +1,4 @@
+import contextlib
 from types import TracebackType
 from typing import (
     List,
@@ -12,6 +13,7 @@ from typing import (
     Sequence,
     TYPE_CHECKING,
     Set,
+    Iterator,
 )
 
 import lancedb  # type: ignore
@@ -41,6 +43,7 @@ from dlt.common.destination.reference import (
     FollowupJob,
     LoadJob,
     HasFollowupJobs,
+    WithStagingDataset,
 )
 from dlt.common.exceptions import SystemConfigurationException
 from dlt.common.pendulum import timedelta
@@ -210,10 +213,12 @@ def write_to_db(
         ) from e
 
 
-class LanceDBClient(JobClientBase, WithStateSync):
+class LanceDBClient(JobClientBase, WithStateSync, WithStagingDataset):
     """LanceDB destination handler."""
 
     model_func: TextEmbeddingFunction
+    """The embedder callback used for each chunk."""
+    dataset_name: str
 
     def __init__(
         self,
@@ -231,6 +236,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
         self.registry = EmbeddingFunctionRegistry.get_instance()
         self.type_mapper = LanceDBTypeMapper(self.capabilities)
         self.sentinel_table_name = config.sentinel_table_name
+        self.dataset_name = self.config.normalize_dataset_name(self.schema)
 
         embedding_model_provider = self.config.embedding_model_provider
 
@@ -258,10 +264,6 @@ class LanceDBClient(JobClientBase, WithStateSync):
 
         self.vector_field_name = self.config.vector_field_name
         self.id_field_name = self.config.id_field_name
-
-    @property
-    def dataset_name(self) -> str:
-        return self.config.normalize_dataset_name(self.schema)
 
     @property
     def sentinel_table(self) -> str:
@@ -720,6 +722,20 @@ class LanceDBClient(JobClientBase, WithStateSync):
 
     def table_exists(self, table_name: str) -> bool:
         return table_name in self.db_client.table_names()
+
+    @contextlib.contextmanager
+    def with_staging_dataset(self) -> Iterator["LanceDBClient"]:
+        current_dataset_name = self.dataset_name
+        try:
+            self.dataset_name = self.schema.naming.normalize_table_identifier(
+                f"{current_dataset_name}_staging"
+            )
+            yield self
+        finally:
+            self.dataset_name = current_dataset_name
+
+    def should_load_data_to_staging_dataset(self, table: TTableSchema) -> bool:
+        return table["write_disposition"] == "merge"
 
 
 class LanceDBLoadJob(RunnableLoadJob, HasFollowupJobs):
