@@ -748,7 +748,7 @@ class LanceDBLoadJob(RunnableLoadJob, HasFollowupJobs):
         with FileStorage.open_zipsafe_ro(self._file_path, mode="rb") as f:
             arrow_table: pa.Table = pq.read_table(f)
 
-        if self._load_table not in self._schema.dlt_tables():
+        if self._load_table["name"] not in self._schema.dlt_table_names():
             arrow_table = generate_arrow_uuid_column(
                 arrow_table,
                 unique_identifiers=unique_identifiers,

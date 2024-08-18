@@ -27,7 +27,7 @@ def generate_arrow_uuid_column(
 
     Args:
         table (pa.Table): PyArrow table to generate UUIDs for.
-        unique_identifiers (List[str]): A list of unique identifier column names.
+        unique_identifiers (Sequence[str]): A list of unique identifier column names.
         id_field_name (str): Name of the new UUID column.
         table_name (str): Name of the table.
 
