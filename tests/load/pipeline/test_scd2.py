@@ -709,6 +709,8 @@ def test_user_provided_row_hash(destination_config: DestinationTestConfiguration
     table = p.default_schema.get_table("dim_test")
     assert table["columns"]["row_hash"]["x-row-version"]  # type: ignore[typeddict-item]
     assert "x-row-version" not in table["columns"]["_dlt_id"]
+    # _dlt_id unique constraint should not be dropped when users bring their own hash
+    assert table["columns"]["_dlt_id"]["unique"]
 
     # load 2 — update and delete a record
     dim_snap = [
