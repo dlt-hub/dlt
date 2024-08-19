@@ -46,13 +46,28 @@ def get_load_package_created_at(pipeline: dlt.Pipeline, load_info: LoadInfo) -> 
 
 
 def get_table(
-    pipeline: dlt.Pipeline, table_name: str, sort_column: str, include_root_id: bool = True
+    pipeline: dlt.Pipeline, table_name: str, sort_column: str = None, include_root_id: bool = True
 ) -> List[Dict[str, Any]]:
     """Returns destination table contents as list of dictionaries."""
 
     def strip_timezone(ts: datetime) -> datetime:
         """Converts timezone of datetime object to UTC and removes timezone awareness."""
         return ensure_pendulum_datetime(ts).astimezone(tz=timezone.utc).replace(tzinfo=None)
+
+    table = [
+        {
+            k: strip_timezone(v) if isinstance(v, datetime) else v
+            for k, v in r.items()
+            if not k.startswith("_dlt")
+            or k in DEFAULT_VALIDITY_COLUMN_NAMES
+            or (k == "_dlt_root_id" if include_root_id else False)
+        }
+        for r in load_tables_to_dicts(pipeline, table_name)[table_name]
+    ]
+
+    if sort_column is None:
+        return table
+    return sorted(table, key=lambda d: d[sort_column])
 
     return sorted(
         [
@@ -288,7 +303,7 @@ def test_child_table(destination_config: DestinationTestConfiguration, simple: b
         {from_: ts_2, to: None, "nk": 1, "c1": "foo_updated"},  # new
     ]
     assert_records_as_set(
-        get_table(p, "dim_test__c2", cname),
+        get_table(p, "dim_test__c2"),
         [
             {"_dlt_root_id": get_row_hash(l1_1), cname: 1},
             {"_dlt_root_id": get_row_hash(l2_1), cname: 1},  # new
@@ -310,7 +325,7 @@ def test_child_table(destination_config: DestinationTestConfiguration, simple: b
     ts_3 = get_load_package_created_at(p, info)
     assert_load_info(info)
     assert_records_as_set(
-        get_table(p, "dim_test", "c1"),
+        get_table(p, "dim_test"),
         [
             {from_: ts_1, to: None, "nk": 2, "c1": "bar"},
             {from_: ts_1, to: ts_2, "nk": 1, "c1": "foo"},
@@ -326,7 +341,7 @@ def test_child_table(destination_config: DestinationTestConfiguration, simple: b
         {"_dlt_root_id": get_row_hash(l3_1), cname: 2},  # new
         {"_dlt_root_id": get_row_hash(l1_2), cname: 3},
     ]
-    assert_records_as_set(get_table(p, "dim_test__c2", cname), exp_3)
+    assert_records_as_set(get_table(p, "dim_test__c2"), exp_3)
 
     # load 4 — delete a record
     dim_snap = [
@@ -336,7 +351,7 @@ def test_child_table(destination_config: DestinationTestConfiguration, simple: b
     ts_4 = get_load_package_created_at(p, info)
     assert_load_info(info)
     assert_records_as_set(
-        get_table(p, "dim_test", "c1"),
+        get_table(p, "dim_test"),
         [
             {from_: ts_1, to: ts_4, "nk": 2, "c1": "bar"},  # updated
             {from_: ts_1, to: ts_2, "nk": 1, "c1": "foo"},
@@ -345,7 +360,7 @@ def test_child_table(destination_config: DestinationTestConfiguration, simple: b
         ],
     )
     assert_records_as_set(
-        get_table(p, "dim_test__c2", cname), exp_3
+        get_table(p, "dim_test__c2"), exp_3
     )  # deletes should not alter child tables
 
     # load 5 — insert a record
@@ -357,7 +372,7 @@ def test_child_table(destination_config: DestinationTestConfiguration, simple: b
     ts_5 = get_load_package_created_at(p, info)
     assert_load_info(info)
     assert_records_as_set(
-        get_table(p, "dim_test", "c1"),
+        get_table(p, "dim_test"),
         [
             {from_: ts_1, to: ts_4, "nk": 2, "c1": "bar"},
             {from_: ts_5, to: None, "nk": 3, "c1": "baz"},  # new
@@ -367,7 +382,7 @@ def test_child_table(destination_config: DestinationTestConfiguration, simple: b
         ],
     )
     assert_records_as_set(
-        get_table(p, "dim_test__c2", cname),
+        get_table(p, "dim_test__c2"),
         [
             {"_dlt_root_id": get_row_hash(l1_1), cname: 1},
             {"_dlt_root_id": get_row_hash(l2_1), cname: 1},
@@ -403,7 +418,7 @@ def test_grandchild_table(destination_config: DestinationTestConfiguration) -> N
     info = p.run(r(dim_snap), loader_file_format=destination_config.file_format)
     assert_load_info(info)
     assert_records_as_set(
-        get_table(p, "dim_test__c2__cc1", "value"),
+        get_table(p, "dim_test__c2__cc1"),
         [
             {"_dlt_root_id": get_row_hash(l1_1), "value": 1},
             {"_dlt_root_id": get_row_hash(l1_2), "value": 1},
@@ -419,7 +434,7 @@ def test_grandchild_table(destination_config: DestinationTestConfiguration) -> N
     info = p.run(r(dim_snap), loader_file_format=destination_config.file_format)
     assert_load_info(info)
     assert_records_as_set(
-        (get_table(p, "dim_test__c2__cc1", "value")),
+        (get_table(p, "dim_test__c2__cc1")),
         [
             {"_dlt_root_id": get_row_hash(l1_1), "value": 1},
             {"_dlt_root_id": get_row_hash(l1_2), "value": 1},
@@ -443,7 +458,7 @@ def test_grandchild_table(destination_config: DestinationTestConfiguration) -> N
         {"_dlt_root_id": get_row_hash(l1_2), "value": 2},
         {"_dlt_root_id": get_row_hash(l3_1), "value": 2},  # new
     ]
-    assert_records_as_set(get_table(p, "dim_test__c2__cc1", "value"), exp_3)
+    assert_records_as_set(get_table(p, "dim_test__c2__cc1"), exp_3)
 
     # load 4 — delete a record
     dim_snap = [
@@ -451,7 +466,7 @@ def test_grandchild_table(destination_config: DestinationTestConfiguration) -> N
     ]
     info = p.run(r(dim_snap), loader_file_format=destination_config.file_format)
     assert_load_info(info)
-    assert_records_as_set(get_table(p, "dim_test__c2__cc1", "value"), exp_3)
+    assert_records_as_set(get_table(p, "dim_test__c2__cc1"), exp_3)
 
     # load 5 — insert a record
     dim_snap = [
@@ -461,7 +476,7 @@ def test_grandchild_table(destination_config: DestinationTestConfiguration) -> N
     info = p.run(r(dim_snap), loader_file_format=destination_config.file_format)
     assert_load_info(info)
     assert_records_as_set(
-        get_table(p, "dim_test__c2__cc1", "value"),
+        get_table(p, "dim_test__c2__cc1"),
         [
             {"_dlt_root_id": get_row_hash(l1_1), "value": 1},
             {"_dlt_root_id": get_row_hash(l1_2), "value": 1},
