@@ -179,6 +179,25 @@ pipeline.run(
 )
 ```
 
+#### Orphan Removal
+
+To maintain referential integrity between parent document tables and chunk tables, you can automatically remove orphaned chunks when updating or deleting parent documents.
+Specify the "x-lancedb-doc-id" hint as follows:
+
+```py
+pipeline.run(
+  lancedb_adapter(
+    movies,
+    embed="title",
+    document_id="id"
+  ),
+  write_disposition="merge",
+)
+```
+
+This sets `document_id` as the primary key and uses it to remove orphans in root tables and child tables recursively.
+While it's technically possible to set both a primary key, and the `document_id` hint separately, doing so leads to confusing behavior and should be avoided.
+
 ### Append
 
 This is the default disposition. It will append the data to the existing data in the destination.

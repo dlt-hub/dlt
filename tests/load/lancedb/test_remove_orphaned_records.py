@@ -216,10 +216,7 @@ def test_lancedb_root_table_remove_orphaned_records_with_real_embeddings() -> No
     ) -> Any:
         return documents(docs)
 
-    lancedb_adapter(
-        documents,
-        embed=["chunk"],
-    )
+    lancedb_adapter(documents, embed=["chunk"], document_id="doc_id")
 
     pipeline = dlt.pipeline(
         pipeline_name="test_lancedb_remove_orphaned_records_with_embeddings",
