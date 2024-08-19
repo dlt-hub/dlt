@@ -7,7 +7,11 @@ import requests_mock
 from dlt.sources.helpers.rest_client import RESTClient
 
 from tests.sources.helpers.rest_client.api_router import APIRouter
-from tests.sources.helpers.rest_client.paginators import PageNumberPaginator, OffsetPaginator, CursorPaginator
+from tests.sources.helpers.rest_client.paginators import (
+    PageNumberPaginator,
+    OffsetPaginator,
+    CursorPaginator,
+)
 
 
 MOCK_BASE_URL = "https://api.example.com"
@@ -24,7 +28,10 @@ def generate_posts(count=DEFAULT_PAGE_SIZE * DEFAULT_TOTAL_PAGES):
 
 
 def generate_comments(post_id, count=50):
-    return [{"id": i, "post_id": post_id, "body": f"Comment {i} for post {post_id}"} for i in range(count)]
+    return [
+        {"id": i, "post_id": post_id, "body": f"Comment {i} for post {post_id}"}
+        for i in range(count)
+    ]
 
 
 def get_page_number(qs, key="page", default=1):
@@ -60,6 +67,7 @@ def paginate_by_page_number(
 @pytest.fixture(scope="module")
 def mock_api_server():
     with requests_mock.Mocker() as m:
+
         @router.get(r"/posts_no_key(\?page=\d+)?$")
         def posts_no_key(request, context):
             return paginate_by_page_number(request, generate_posts(), records_key=None)
