@@ -1,4 +1,4 @@
-from typing import List, Tuple, Dict, Union, cast
+from typing import List, Tuple, Dict
 
 import dlt
 import pytest
@@ -18,6 +18,7 @@ from dlt.common.configuration.exceptions import ConfigFieldMissingException, Con
 from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.configuration.inject import get_fun_spec
 from dlt.common.configuration.specs import BaseConfiguration
+from dlt.common.utils import digest128
 
 from dlt.destinations.impl.destination.factory import _DESTINATIONS
 from dlt.destinations.impl.destination.configuration import CustomDestinationClientConfiguration
@@ -58,8 +59,22 @@ def _run_through_sink(
 
     p = dlt.pipeline("sink_test", destination=test_sink, dev_mode=True)
     p.run([items_resource()])
-
     return calls
+
+
+def test_custom_destination_info():
+    @dlt.destination
+    def test_sink(items: TDataItems, table: TTableSchema) -> None:
+        pass
+
+    p = dlt.pipeline("sink_test", destination=test_sink, dev_mode=True)  # type: ignore
+    assert p.destination.destination_info == {
+        "destination_name": "test_sink",
+        "destination_type": "dlt.destinations.destination",
+        "environment": None,
+        "fingerprint": digest128(test_sink.__module__ + "." + "test_sink"),
+        "repr": "test_sink(dlt.destinations.destination)",
+    }
 
 
 @pytest.mark.parametrize("loader_file_format", SUPPORTED_LOADER_FORMATS)
