@@ -264,7 +264,10 @@ class EndpointResource(EndpointResourceBase, total=False):
     name: TTableHintTemplate[str]
 
 
-class RESTAPIConfig(TypedDict):
+class RESTAPIConfigBase(TypedDict):
     client: ClientConfig
-    resource_defaults: Optional[EndpointResourceBase]
     resources: List[Union[str, EndpointResource]]
+
+
+class RESTAPIConfig(RESTAPIConfigBase, total=False):
+    resource_defaults: Optional[EndpointResourceBase]
