@@ -707,7 +707,6 @@ class LanceDBClient(JobClientBase, WithStateSync, WithStagingDataset):
             table_chain, completed_table_chain_jobs
         )
         if table_chain[0].get("write_disposition") == "merge":
-            # TODO: Use staging to write deletion records. For now we use only one job.
             all_job_paths_ordered = [
                 job.file_path
                 for table in table_chain
@@ -735,7 +734,7 @@ class LanceDBClient(JobClientBase, WithStateSync, WithStagingDataset):
             self.dataset_name = current_dataset_name
 
     def should_load_data_to_staging_dataset(self, table: TTableSchema) -> bool:
-        return table["write_disposition"] == "merge"
+        return False
 
 
 class LanceDBLoadJob(RunnableLoadJob, HasFollowupJobs):
