@@ -166,7 +166,7 @@ def test_source_with_post_request(mock_api_server):
                     "endpoint": {
                         "path": "/posts/search",
                         "method": "POST",
-                        "json": {"ids_greater_than": 50, "page_size": 100, "page": 1},
+                        "json": {"ids_greater_than": 50, "page_size": 25, "page_count": 4},
                         "paginator": JSONBodyPageCursorPaginator(),
                     },
                 }
@@ -174,7 +174,6 @@ def test_source_with_post_request(mock_api_server):
         }
     )
 
-    # TODO: This is empty
     res = list(mock_source.with_resources("search_posts"))
 
     for i in range(49):
@@ -260,7 +259,6 @@ def test_posts_without_key(mock_api_server):
     ]
 
 
-@pytest.mark.skip
 def test_load_mock_api_typeddict_config(mock_api_server):
     pipeline = dlt.pipeline(
         pipeline_name="rest_api_mock",
@@ -299,8 +297,8 @@ def test_load_mock_api_typeddict_config(mock_api_server):
 
     assert table_counts.keys() == {"posts", "post_comments"}
 
-    assert table_counts["posts"] == 100
-    assert table_counts["post_comments"] == 5000
+    assert table_counts["posts"] == DEFAULT_PAGE_SIZE * DEFAULT_TOTAL_PAGES
+    assert table_counts["post_comments"] == DEFAULT_PAGE_SIZE * DEFAULT_TOTAL_PAGES * 50
 
 
 def test_response_action_on_status_code(mock_api_server, mocker):
