@@ -245,6 +245,7 @@ def test_auth_shorthands(auth_type: AuthType, section: str) -> None:
             ConfigSectionContext(sections=("sources", "rest_api")), merge_existing=False
         ):
             import os
+
             print(os.environ)
             auth = create_auth(auth_type)
             assert isinstance(auth, AUTH_MAP[auth_type])
@@ -341,15 +342,18 @@ def test_error_message_invalid_auth_type() -> None:
         create_auth("non_existing_method")  # type: ignore
     assert (
         str(e.value)
-        == "Invalid authentication: non_existing_method. Available options: bearer, api_key, http_basic, oauth2_client_credentials"
+        == "Invalid authentication: non_existing_method. Available options: bearer, api_key,"
+        " http_basic, oauth2_client_credentials"
     )
+
 
 def test_error_message_invalid_paginator() -> None:
     with pytest.raises(ValueError) as e:
         create_paginator("non_existing_method")  # type: ignore
     assert (
         str(e.value)
-        == "Invalid paginator: non_existing_method. Available options: json_link, json_response, header_link, auto, single_page, cursor, offset, page_number"
+        == "Invalid paginator: non_existing_method. Available options: json_link, json_response,"
+        " header_link, auto, single_page, cursor, offset, page_number"
     )
 
 
@@ -480,9 +484,7 @@ def test_resource_merge_with_objects() -> None:
             "table_name": lambda item: item["type"],
             "endpoint": {
                 "paginator": HeaderLinkPaginator(),
-                "params": {
-                    "since": dlt.sources.incremental[int]("id", row_order="desc")
-                },
+                "params": {"since": dlt.sources.incremental[int]("id", row_order="desc")},
             },
         },
     )
@@ -634,9 +636,7 @@ def test_process_parent_data_item() -> None:
             resolve_param,
             ["obj_id", "node"],
         )
-    assert "in order to include it in child records under _issues_node" in str(
-        val_ex.value
-    )
+    assert "in order to include it in child records under _issues_node" in str(val_ex.value)
 
 
 def test_resource_schema() -> None:
@@ -719,7 +719,8 @@ def test_one_resource_cannot_have_many_incrementals() -> None:
     with pytest.raises(ValueError) as e:
         setup_incremental_object(request_params)
     error_message = re.escape(
-        "Only a single incremental parameter is allower per endpoint. Found: ['first_incremental', 'second_incremental']"
+        "Only a single incremental parameter is allower per endpoint. Found: ['first_incremental',"
+        " 'second_incremental']"
     )
     assert e.match(error_message)
 
@@ -737,7 +738,8 @@ def test_one_resource_cannot_have_many_incrementals_2(incremental_with_init) -> 
     with pytest.raises(ValueError) as e:
         setup_incremental_object(request_params)
     error_message = re.escape(
-        "Only a single incremental parameter is allower per endpoint. Found: ['first_incremental', 'second_incremental']"
+        "Only a single incremental parameter is allower per endpoint. Found: ['first_incremental',"
+        " 'second_incremental']"
     )
     assert e.match(error_message)
 
@@ -751,9 +753,7 @@ def test_constructs_incremental_from_request_param() -> None:
             "initial_value": "2024-01-01T00:00:00Z",
         },
     }
-    (incremental_config, incremental_param, _) = setup_incremental_object(
-        request_params
-    )
+    (incremental_config, incremental_param, _) = setup_incremental_object(request_params)
     assert incremental_config == dlt.sources.incremental(
         cursor_path="updated_at", initial_value="2024-01-01T00:00:00Z"
     )
@@ -790,9 +790,7 @@ def test_constructs_incremental_from_request_param_with_convert(
         }
     }
 
-    (incremental_obj, incremental_param, convert) = setup_incremental_object(
-        param_config, None
-    )
+    (incremental_obj, incremental_param, convert) = setup_incremental_object(param_config, None)
     assert incremental_param == IncrementalParam(start="since", end=None)
     assert convert == epoch_to_datetime
 
@@ -839,9 +837,7 @@ def test_does_not_construct_incremental_from_request_param_with_unsupported_incr
     with pytest.raises(ValueError) as e:
         setup_incremental_object(param_config_3)
 
-    assert e.match(
-        "Only initial_value is allowed in the configuration of param: since_3."
-    )
+    assert e.match("Only initial_value is allowed in the configuration of param: since_3.")
 
 
 def test_constructs_incremental_from_endpoint_config_incremental(
@@ -897,9 +893,7 @@ def test_calls_convert_from_endpoint_config_incremental(mocker) -> None:
     incremental_obj.last_value = "1"
 
     incremental_param = IncrementalParam(start="since", end=None)
-    created_param = _set_incremental_params(
-        {}, incremental_obj, incremental_param, callback
-    )
+    created_param = _set_incremental_params({}, incremental_obj, incremental_param, callback)
     assert created_param == {"since": "1970-01-01"}
     assert callback.call_args_list[0].args == ("1",)
 
@@ -920,14 +914,10 @@ def test_calls_convert_from_request_param(mocker) -> None:
         "convert": callback,
     }
 
-    (incremental_obj, incremental_param, _) = setup_incremental_object(
-        {}, incremental_config
-    )
+    (incremental_obj, incremental_param, _) = setup_incremental_object({}, incremental_config)
     assert incremental_param is not None
     assert incremental_obj is not None
-    created_param = _set_incremental_params(
-        {}, incremental_obj, incremental_param, callback
-    )
+    created_param = _set_incremental_params({}, incremental_obj, incremental_param, callback)
     assert created_param == {"since": "1970-01-01", "until": "1970-01-02"}
     assert callback.call_args_list[0].args == (str(start),)
     assert callback.call_args_list[1].args == (str(one_day_later),)
@@ -944,14 +934,10 @@ def test_default_convert_is_identity() -> None:
         "end_value": str(one_day_later),
     }
 
-    (incremental_obj, incremental_param, _) = setup_incremental_object(
-        {}, incremental_config
-    )
+    (incremental_obj, incremental_param, _) = setup_incremental_object({}, incremental_config)
     assert incremental_param is not None
     assert incremental_obj is not None
-    created_param = _set_incremental_params(
-        {}, incremental_obj, incremental_param, None
-    )
+    created_param = _set_incremental_params({}, incremental_obj, incremental_param, None)
     assert created_param == {"since": str(start), "until": str(one_day_later)}
 
 
@@ -971,9 +957,7 @@ def test_incremental_param_transform_is_deprecated(incremental_with_init) -> Non
     }
 
     with pytest.deprecated_call():
-        (incremental_obj, incremental_param, convert) = setup_incremental_object(
-            param_config, None
-        )
+        (incremental_obj, incremental_param, convert) = setup_incremental_object(param_config, None)
 
         assert incremental_param == IncrementalParam(start="since", end=None)
         assert convert == epoch_to_datetime
@@ -1506,9 +1490,7 @@ AUTH_CONFIGS = [
         secret_keys=["token"],
         config=BearerTokenAuth(token="sensitive-secret"),
     ),
-    AuthConfigTest(
-        secret_keys=["api_key"], config=APIKeyAuth(api_key="sensitive-secret")
-    ),
+    AuthConfigTest(secret_keys=["api_key"], config=APIKeyAuth(api_key="sensitive-secret")),
     AuthConfigTest(
         secret_keys=["username", "password"],
         config=HttpBasicAuth("sensitive-secret", "sensitive-secret"),
@@ -1587,6 +1569,4 @@ def test_validation_masks_auth_secrets() -> None:
     assert (
         re.search("sensitive-secret", str(e.value)) is None
     ), "unexpectedly printed 'sensitive-secret'"
-    assert e.match(
-        re.escape("'{'type': 'bearer', 'location': 'header', 'token': 's*****t'}'")
-    )
+    assert e.match(re.escape("'{'type': 'bearer', 'location': 'header', 'token': 's*****t'}'"))
