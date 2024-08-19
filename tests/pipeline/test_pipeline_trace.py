@@ -7,6 +7,7 @@ from typing import Any, List
 from unittest.mock import patch
 import pytest
 import requests_mock
+import yaml
 
 import dlt
 
@@ -18,6 +19,8 @@ from dlt.common.schema import Schema
 from dlt.common.runtime.telemetry import stop_telemetry
 from dlt.common.typing import DictStrAny, StrStr, DictStrStr, TSecretValue
 from dlt.common.utils import digest128
+
+from dlt.destinations import dummy, filesystem
 
 from dlt.pipeline.exceptions import PipelineStepFailed
 from dlt.pipeline.pipeline import Pipeline
@@ -31,7 +34,8 @@ from dlt.extract import DltResource, DltSource
 from dlt.extract.extract import describe_extract_data
 from dlt.extract.pipe import Pipe
 
-from tests.utils import start_test_telemetry
+from tests.pipeline.utils import PIPELINE_TEST_CASES_PATH
+from tests.utils import TEST_STORAGE_ROOT, start_test_telemetry
 from tests.common.configuration.utils import toml_providers, environment
 
 
@@ -122,7 +126,7 @@ def test_create_trace(toml_providers: ConfigProvidersContext, environment: Any) 
     resolved = _find_resolved_value(trace.resolved_config_values, "credentials", ["databricks"])
     assert resolved.is_secret_hint is True
     assert resolved.value == databricks_creds
-    assert_trace_printable(trace)
+    assert_trace_serializable(trace)
     # activate pipeline because other was running in assert trace
     p.activate()
 
@@ -153,7 +157,7 @@ def test_create_trace(toml_providers: ConfigProvidersContext, environment: Any) 
     assert isinstance(step.step_info, ExtractInfo)
     assert len(step.exception_traces) > 0
     assert step.step_info.extract_data_info == [{"name": "async_exception", "data_type": "source"}]
-    assert_trace_printable(trace)
+    assert_trace_serializable(trace)
 
     extract_info = step.step_info
     # only new (unprocessed) package is present, all other metrics are empty, state won't be extracted
@@ -174,7 +178,7 @@ def test_create_trace(toml_providers: ConfigProvidersContext, environment: Any) 
     step = trace.steps[2]
     assert step.step == "normalize"
     assert step.step_info is norm_info
-    assert_trace_printable(trace)
+    assert_trace_serializable(trace)
     assert isinstance(p.last_trace.last_normalize_info, NormalizeInfo)
     assert p.last_trace.last_normalize_info.row_counts == {"_dlt_pipeline_state": 1, "data": 3}
 
@@ -216,7 +220,7 @@ def test_create_trace(toml_providers: ConfigProvidersContext, environment: Any) 
     assert resolved.is_secret_hint is False
     assert resolved.value == "1.0"
     assert resolved.config_type_name == "DummyClientConfiguration"
-    assert_trace_printable(trace)
+    assert_trace_serializable(trace)
     assert isinstance(p.last_trace.last_load_info, LoadInfo)
     p.activate()
 
@@ -234,10 +238,151 @@ def test_create_trace(toml_providers: ConfigProvidersContext, environment: Any) 
     assert step.step == "load"
     assert step.step_info is load_info  # same load info
     assert trace.steps[0].step_info is not extract_info
-    assert_trace_printable(trace)
+    assert_trace_serializable(trace)
     assert isinstance(p.last_trace.last_load_info, LoadInfo)
     assert isinstance(p.last_trace.last_normalize_info, NormalizeInfo)
     assert isinstance(p.last_trace.last_extract_info, ExtractInfo)
+
+
+def test_trace_schema() -> None:
+    os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "True"
+    os.environ["RESTORE_FROM_DESTINATION"] = "False"
+
+    @dlt.source(section="many_hints")
+    def many_hints(
+        api_type=dlt.config.value,
+        credentials: str = dlt.secrets.value,
+        secret_value: TSecretValue = TSecretValue("123"),  # noqa: B008
+    ):
+        # TODO: create table / column schema from typed dicts, not explicitly
+        @dlt.resource(
+            write_disposition="replace",
+            primary_key="id",
+            table_format="delta",
+            file_format="jsonl",
+            schema_contract="evolve",
+            columns=[
+                {
+                    "name": "multi",
+                    "data_type": "decimal",
+                    "nullable": True,
+                    "cluster": True,
+                    "description": "unknown",
+                    "merge_key": True,
+                    "precision": 9,
+                    "scale": 3,
+                    "sort": True,
+                    "variant": True,
+                    "partition": True,
+                }
+            ],
+        )
+        def data():
+            yield [{"id": 1, "multi": "1.2"}, {"id": 2}, {"id": 3}]
+
+        return data()
+
+    @dlt.source
+    def github():
+        @dlt.resource
+        def get_shuffled_events():
+            for _ in range(1):
+                with open(
+                    "tests/normalize/cases/github.events.load_page_1_duck.json",
+                    "r",
+                    encoding="utf-8",
+                ) as f:
+                    issues = json.load(f)
+                    yield issues
+
+        return get_shuffled_events()
+
+    @dlt.source
+    def async_exception(max_range=1):
+        async def get_val(v):
+            await asyncio.sleep(0.1)
+            if v % 3 == 0:
+                raise ValueError(v)
+            return v
+
+        @dlt.resource
+        def data():
+            yield from [get_val(v) for v in range(1, max_range)]
+
+        return data()
+
+    # create pipeline with staging to get remote_uri in load step job_metrics
+    dummy_dest = dummy(completed_prob=1.0)
+    pipeline = dlt.pipeline(
+        pipeline_name="test_trace_schema",
+        destination=dummy_dest,
+        staging=filesystem(os.path.abspath(os.path.join(TEST_STORAGE_ROOT, "_remote_filesystem"))),
+        dataset_name="various",
+    )
+
+    # mock config
+    os.environ["API_TYPE"] = "REST"
+    os.environ["SOURCES__MANY_HINTS__CREDENTIALS"] = "CREDS"
+
+    info = pipeline.run([many_hints(), github()])
+    info.raise_on_failed_jobs()
+
+    trace = pipeline.last_trace
+    pipeline._schema_storage.storage.save("trace.json", json.dumps(trace, pretty=True))
+
+    schema = dlt.Schema("trace")
+    trace_pipeline = dlt.pipeline(
+        pipeline_name="test_trace_schema_traces", destination=dummy(completed_prob=1.0)
+    )
+    info = trace_pipeline.run([trace], table_name="trace", schema=schema)
+    info.raise_on_failed_jobs()
+
+    # add exception trace
+    with pytest.raises(PipelineStepFailed):
+        pipeline.extract(async_exception(max_range=4))
+
+    trace_exception = pipeline.last_trace
+    pipeline._schema_storage.storage.save(
+        "trace_exception.json", json.dumps(trace_exception, pretty=True)
+    )
+
+    info = trace_pipeline.run([trace_exception], table_name="trace")
+    info.raise_on_failed_jobs()
+    inferred_trace_contract = trace_pipeline.schemas["trace"]
+    inferred_contract_str = inferred_trace_contract.to_pretty_yaml(remove_processing_hints=True)
+
+    # NOTE: this saves actual inferred contract (schema) to schema storage, move it to test cases if you update
+    # trace shapes
+    # TODO: create a proper schema for dlt trace and tables/columns
+    pipeline._schema_storage.storage.save("trace.schema.yaml", inferred_contract_str)
+    # print(pipeline._schema_storage.storage.storage_path)
+
+    # load the schema and use it as contract
+    with open(f"{PIPELINE_TEST_CASES_PATH}/contracts/trace.schema.yaml", encoding="utf-8") as f:
+        imported_schema = yaml.safe_load(f)
+    trace_contract = Schema.from_dict(imported_schema, remove_processing_hints=True)
+    # compare pretty forms of the schemas, they must be identical
+    # NOTE: if this fails you can comment this out and use contract run below to find first offending difference
+    # assert trace_contract.to_pretty_yaml() == inferred_contract_str
+
+    # use trace contract to load data again
+    contract_trace_pipeline = dlt.pipeline(
+        pipeline_name="test_trace_schema_traces_contract", destination=dummy(completed_prob=1.0)
+    )
+    info = contract_trace_pipeline.run(
+        [trace_exception, trace],
+        table_name="trace",
+        schema=trace_contract,
+        schema_contract="freeze",
+    )
+
+    # assert inferred_trace_contract.version_hash == trace_contract.version_hash
+
+    # print(trace_pipeline.schemas["trace"].to_pretty_yaml())
+    # print(pipeline._schema_storage.storage.storage_path)
+
+
+# def test_trace_schema_contract() -> None:
 
 
 def test_save_load_trace() -> None:
@@ -255,7 +400,7 @@ def test_save_load_trace() -> None:
     assert resolved.is_secret_hint is False
     assert resolved.value == "1.0"
     assert resolved.config_type_name == "DummyClientConfiguration"
-    assert_trace_printable(trace)
+    assert_trace_serializable(trace)
     # check row counts
     assert pipeline.last_trace.last_normalize_info.row_counts == {
         "_dlt_pipeline_state": 1,
@@ -296,7 +441,7 @@ def test_save_load_trace() -> None:
     assert run_step.step == "run"
     assert run_step.step_exception is not None
     assert step.step_exception == run_step.step_exception
-    assert_trace_printable(trace)
+    assert_trace_serializable(trace)
     assert pipeline.last_trace.last_normalize_info is None
 
 
@@ -306,7 +451,7 @@ def test_save_load_empty_trace() -> None:
     pipeline = dlt.pipeline()
     pipeline.run([], table_name="data", destination="dummy")
     trace = pipeline.last_trace
-    assert_trace_printable(trace)
+    assert_trace_serializable(trace)
     assert len(trace.steps) == 4
 
     pipeline.activate()
@@ -529,7 +674,7 @@ def _mock_sentry_before_send(event: DictStrAny, _unused_hint: Any = None) -> Dic
     return event
 
 
-def assert_trace_printable(trace: PipelineTrace) -> None:
+def assert_trace_serializable(trace: PipelineTrace) -> None:
     str(trace)
     trace.asstr(0)
     trace.asstr(1)
