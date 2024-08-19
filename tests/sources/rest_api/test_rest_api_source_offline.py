@@ -1,6 +1,5 @@
 import json
 import pytest
-from typing import Any, cast, Dict
 import pendulum
 from unittest import mock
 
@@ -405,7 +404,7 @@ def test_response_actions_called_in_order(mock_api_server, mocker):
         mock_response_hook_1,
         {"status_code": 200, "action": mock_response_hook_2},
     ]
-    hooks = cast(Dict[str, Any], create_response_hooks(response_actions))
+    hooks = create_response_hooks(response_actions)
     assert len(hooks.get("response")) == 2
 
     mock_source = rest_api_source(

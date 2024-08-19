@@ -8,15 +8,16 @@ import dlt.extract
 import pytest
 from unittest.mock import patch
 from copy import copy, deepcopy
-from typing import cast, get_args, Dict, List, Any, Optional, NamedTuple, Union
+from typing import cast, get_args, Dict, List, Literal, Any, Optional, NamedTuple, Union
 
-from graphlib import CycleError
+from graphlib import CycleError  # type: ignore
 
 import dlt
 from dlt.common.utils import update_dict_nested, custom_environ
 from dlt.common.jsonpath import compile_path
 from dlt.common.configuration import inject_section
 from dlt.common.configuration.specs import ConfigSectionContext
+from dlt.common.typing import TSecretStrValue
 
 from dlt.extract.incremental import Incremental
 
@@ -47,10 +48,11 @@ from dlt.sources.rest_api.typing import (
     AuthConfigBase,
     AuthType,
     AuthTypeConfig,
+    Endpoint,
     EndpointResource,
     EndpointResourceBase,
+    PaginatorConfig,
     PaginatorType,
-    PaginatorTypeConfig,
     RESTAPIConfig,
     ResolvedParam,
     ResponseAction,
@@ -108,7 +110,7 @@ def test_configurations_dict_is_not_modified_in_place(config):
 
 
 @pytest.mark.parametrize("paginator_type", get_args(PaginatorType))
-def test_paginator_shorthands(paginator_type: PaginatorType) -> None:
+def test_paginator_shorthands(paginator_type: PaginatorConfig) -> None:
     try:
         create_paginator(paginator_type)
     except ValueError as v_ex:
@@ -118,13 +120,13 @@ def test_paginator_shorthands(paginator_type: PaginatorType) -> None:
 
 
 @pytest.mark.parametrize("paginator_type_config", PAGINATOR_TYPE_CONFIGS)
-def test_paginator_type_configs(paginator_type_config: PaginatorTypeConfig) -> None:
+def test_paginator_type_configs(paginator_type_config: PaginatorConfig) -> None:
     paginator = create_paginator(paginator_type_config)
-    if paginator_type_config["type"] == "auto":
+    if paginator_type_config["type"] == "auto":  # type: ignore[index]
         assert paginator is None
     else:
         # assert types and default params
-        assert isinstance(paginator, PAGINATOR_MAP[paginator_type_config["type"]])
+        assert isinstance(paginator, PAGINATOR_MAP[paginator_type_config["type"]])  # type: ignore[index]
         # check if params are bound
         if isinstance(paginator, HeaderLinkPaginator):
             assert paginator.links_next_key == "next_page"
@@ -154,7 +156,7 @@ def test_paginator_instance_config() -> None:
 
 
 def test_page_number_paginator_creation() -> None:
-    config: RESTAPIConfig = {  # type: ignore
+    config: RESTAPIConfig = {
         "client": {
             "base_url": "https://api.example.com",
             "paginator": {
@@ -178,7 +180,7 @@ def test_allow_deprecated_json_response_paginator(mock_api_server) -> None:
     Delete this test as soon as we stop supporting the deprecated key json_response
     for the JSONLinkPaginator
     """
-    config: RESTAPIConfig = {  # type: ignore
+    config: RESTAPIConfig = {
         "client": {"base_url": "https://api.example.com"},
         "resources": [
             {
@@ -202,7 +204,7 @@ def test_allow_deprecated_json_response_paginator_2(mock_api_server) -> None:
     Delete this test as soon as we stop supporting the deprecated key json_response
     for the JSONLinkPaginator
     """
-    config: RESTAPIConfig = {  # type: ignore
+    config: RESTAPIConfig = {
         "client": {"base_url": "https://api.example.com"},
         "resources": [
             {
@@ -430,10 +432,10 @@ def test_resource_endpoint_deep_merge() -> None:
 
 def test_resource_endpoint_shallow_merge() -> None:
     # merge paginators and other typed dicts as whole
-    resource_config = {
+    resource_config: EndpointResource = {
         "name": "resources",
         "max_table_nesting": 5,
-        "write_disposition": {"disposition": "merge", "x-merge-strategy": "scd2"},
+        "write_disposition": {"disposition": "merge", "strategy": "scd2"},
         "schema_contract": {"tables": "freeze"},
         "endpoint": {
             "paginator": {"type": "cursor", "cursor_param": "cursor"},
@@ -445,7 +447,7 @@ def test_resource_endpoint_shallow_merge() -> None:
         resource_config,
         {
             "max_table_nesting": 1,
-            "parallel": True,
+            "parallelized": True,
             "write_disposition": {
                 "disposition": "replace",
             },
@@ -464,7 +466,7 @@ def test_resource_endpoint_shallow_merge() -> None:
     )
     # resource should keep all values, just parallel is added
     expected_resource = copy(resource_config)
-    expected_resource["parallel"] = True
+    expected_resource["parallelized"] = True
     assert resource == expected_resource
 
 
@@ -489,14 +491,14 @@ def test_resource_merge_with_objects() -> None:
         },
     )
     # objects are as is, not cloned
-    assert resource["endpoint"]["paginator"] is paginator
-    assert resource["endpoint"]["params"]["since"] is incremental
+    assert resource["endpoint"]["paginator"] is paginator  # type: ignore[index]
+    assert resource["endpoint"]["params"]["since"] is incremental  # type: ignore[index]
     # callable coming from default
     assert callable(resource["table_name"])
 
 
 def test_resource_merge_with_none() -> None:
-    endpoint_config = {
+    endpoint_config: EndpointResource = {
         "name": "resource",
         "endpoint": {"path": "user/{id}", "paginator": None, "data_selector": None},
     }
@@ -520,7 +522,7 @@ def test_setup_for_single_item_endpoint() -> None:
     assert "data_selector" not in endpoint
 
     # simulate using None to remove defaults
-    endpoint_config = {
+    endpoint_config: EndpointResource = {
         "name": "resource",
         "endpoint": {"path": "user/{id}", "paginator": None, "data_selector": None},
     }
@@ -529,7 +531,8 @@ def test_setup_for_single_item_endpoint() -> None:
         endpoint_config,
         {"endpoint": {"paginator": HeaderLinkPaginator(), "data_selector": "data"}},
     )
-    endpoint = _setup_single_entity_endpoint(resource["endpoint"])
+
+    endpoint = _setup_single_entity_endpoint(cast(Endpoint, resource["endpoint"]))
     assert endpoint["data_selector"] == "$"
     assert isinstance(endpoint["paginator"], SinglePagePaginator)
 
@@ -552,38 +555,39 @@ def test_bind_path_param() -> None:
     }
     tp_1 = deepcopy(three_params)
     _bind_path_params(tp_1)
+
     # do not replace resolved params
-    assert tp_1["endpoint"]["path"] == "dlt-hub/dlt/issues/{id}/comments"
+    assert tp_1["endpoint"]["path"] == "dlt-hub/dlt/issues/{id}/comments"  # type: ignore[index]
     # bound params popped
-    assert len(tp_1["endpoint"]["params"]) == 1
-    assert "id" in tp_1["endpoint"]["params"]
+    assert len(tp_1["endpoint"]["params"]) == 1  # type: ignore[index]
+    assert "id" in tp_1["endpoint"]["params"]  # type: ignore[index]
 
     tp_2 = deepcopy(three_params)
-    tp_2["endpoint"]["params"]["id"] = 12345
+    tp_2["endpoint"]["params"]["id"] = 12345  # type: ignore[index]
     _bind_path_params(tp_2)
-    assert tp_2["endpoint"]["path"] == "dlt-hub/dlt/issues/12345/comments"
-    assert len(tp_2["endpoint"]["params"]) == 0
+    assert tp_2["endpoint"]["path"] == "dlt-hub/dlt/issues/12345/comments"  # type: ignore[index]
+    assert len(tp_2["endpoint"]["params"]) == 0  # type: ignore[index]
 
     # param missing
     tp_3 = deepcopy(three_params)
     with pytest.raises(ValueError) as val_ex:
-        del tp_3["endpoint"]["params"]["id"]
+        del tp_3["endpoint"]["params"]["id"]  # type: ignore[index, union-attr]
         _bind_path_params(tp_3)
     # path is a part of an exception
-    assert tp_3["endpoint"]["path"] in str(val_ex.value)
+    assert tp_3["endpoint"]["path"] in str(val_ex.value)  # type: ignore[index]
 
     # path without params
     tp_4 = deepcopy(three_params)
-    tp_4["endpoint"]["path"] = "comments"
+    tp_4["endpoint"]["path"] = "comments"  # type: ignore[index]
     # no unbound params
-    del tp_4["endpoint"]["params"]["id"]
+    del tp_4["endpoint"]["params"]["id"]  # type: ignore[index, union-attr]
     tp_5 = deepcopy(tp_4)
     _bind_path_params(tp_4)
     assert tp_4 == tp_5
 
     # resolved param will remain unbounded and
     tp_6 = deepcopy(three_params)
-    tp_6["endpoint"]["path"] = "{org}/{repo}/issues/1234/comments"
+    tp_6["endpoint"]["path"] = "{org}/{repo}/issues/1234/comments"  # type: ignore[index]
     with pytest.raises(NotImplementedError):
         _bind_path_params(tp_6)
 
@@ -671,7 +675,7 @@ def test_resource_schema() -> None:
 
 
 @pytest.fixture()
-def incremental_with_init_and_end() -> Incremental:
+def incremental_with_init_and_end() -> Incremental[str]:
     return dlt.sources.incremental(
         cursor_path="updated_at",
         initial_value="2024-01-01T00:00:00Z",
@@ -680,7 +684,7 @@ def incremental_with_init_and_end() -> Incremental:
 
 
 @pytest.fixture()
-def incremental_with_init() -> Incremental:
+def incremental_with_init() -> Incremental[str]:
     return dlt.sources.incremental(
         cursor_path="updated_at",
         initial_value="2024-01-01T00:00:00Z",
@@ -966,7 +970,6 @@ def test_incremental_param_transform_is_deprecated(incremental_with_init) -> Non
 
 
 def test_incremental_endpoint_config_transform_is_deprecated(
-    mocker,
     incremental_with_init_and_end,
 ) -> None:
     """Tests that deprecated interface works but issues deprecation warning"""
@@ -980,7 +983,7 @@ def test_incremental_endpoint_config_transform_is_deprecated(
         "cursor_path": "updated_at",
         "initial_value": "2024-01-01T00:00:00Z",
         "end_value": "2024-06-30T00:00:00Z",
-        "transform": epoch_to_datetime,
+        "transform": epoch_to_datetime,  # type: ignore[typeddict-unknown-key]
     }
 
     with pytest.deprecated_call():
@@ -1045,14 +1048,14 @@ def test_create_multiple_response_actions():
         {"content": "Not found", "action": "ignore"},
         {"status_code": 200, "content": "some text", "action": "ignore"},
     ]
-    hooks = cast(Dict[str, Any], create_response_hooks(response_actions))
+    hooks = create_response_hooks(response_actions)
     assert len(hooks["response"]) == 4
 
     response_actions_2: List[ResponseAction] = [
         custom_hook,
         {"status_code": 200, "action": custom_hook},
     ]
-    hooks_2 = cast(Dict[str, Any], create_response_hooks(response_actions_2))
+    hooks_2 = create_response_hooks(response_actions_2)
     assert len(hooks_2["response"]) == 2
 
 
@@ -1064,11 +1067,11 @@ def test_response_action_raises_type_error(mocker):
     response.status_code = 200
 
     with pytest.raises(ValueError) as e_1:
-        _handle_response_action(response, {"status_code": 200, "action": C()})
+        _handle_response_action(response, {"status_code": 200, "action": C()})  # type: ignore[typeddict-item]
     assert e_1.match("does not conform to expected type")
 
     with pytest.raises(ValueError) as e_2:
-        _handle_response_action(response, {"status_code": 200, "action": 123})
+        _handle_response_action(response, {"status_code": 200, "action": 123})  # type: ignore[typeddict-item]
     assert e_2.match("does not conform to expected type")
 
     assert ("ignore", None) == _handle_response_action(
@@ -1159,7 +1162,7 @@ def test_two_resources_can_depend_on_one_parent_resource() -> None:
             "type": "resolve",
             "field": "id",
             "resource": "users",
-        },
+        }
     }
     config: RESTAPIConfig = {
         "client": {
@@ -1171,14 +1174,14 @@ def test_two_resources_can_depend_on_one_parent_resource() -> None:
                 "name": "user_details",
                 "endpoint": {
                     "path": "user/{user_id}/",
-                    "params": user_id,
+                    "params": user_id,  # type: ignore[typeddict-item]
                 },
             },
             {
                 "name": "meetings",
                 "endpoint": {
                     "path": "meetings/{user_id}/",
-                    "params": user_id,
+                    "params": user_id,  # type: ignore[typeddict-item]
                 },
             },
         ],
@@ -1369,7 +1372,7 @@ def test_resource_defaults_params_get_merged() -> None:
         },
     }
     merged_resource = _merge_resource_endpoints(resource_defaults, resource)
-    assert merged_resource["endpoint"]["params"]["per_page"] == 30
+    assert merged_resource["endpoint"]["params"]["per_page"] == 30  # type: ignore[index]
 
 
 def test_resource_defaults_params_get_overwritten() -> None:
@@ -1393,7 +1396,7 @@ def test_resource_defaults_params_get_overwritten() -> None:
         },
     }
     merged_resource = _merge_resource_endpoints(resource_defaults, resource)
-    assert merged_resource["endpoint"]["params"]["per_page"] == 50
+    assert merged_resource["endpoint"]["params"]["per_page"] == 50  # type: ignore[index]
 
 
 def test_resource_defaults_params_no_resource_params() -> None:
@@ -1413,7 +1416,7 @@ def test_resource_defaults_params_no_resource_params() -> None:
         },
     }
     merged_resource = _merge_resource_endpoints(resource_defaults, resource)
-    assert merged_resource["endpoint"]["params"]["per_page"] == 30
+    assert merged_resource["endpoint"]["params"]["per_page"] == 30  # type: ignore[index]
 
 
 def test_resource_defaults_no_params() -> None:
@@ -1432,14 +1435,14 @@ def test_resource_defaults_no_params() -> None:
         },
     }
     merged_resource = _merge_resource_endpoints(resource_defaults, resource)
-    assert merged_resource["endpoint"]["params"] == {
+    assert merged_resource["endpoint"]["params"] == {  # type: ignore[index]
         "per_page": 50,
         "sort": "updated",
     }
 
 
 class AuthConfigTest(NamedTuple):
-    secret_keys: List[str]
+    secret_keys: List[Literal["token", "api_key", "password", "username"]]
     config: Union[Dict[str, Any], AuthConfigBase]
     masked_secrets: Optional[List[str]] = ["s*****t"]
 
@@ -1488,22 +1491,25 @@ AUTH_CONFIGS = [
     ),
     AuthConfigTest(
         secret_keys=["token"],
-        config=BearerTokenAuth(token="sensitive-secret"),
+        config=BearerTokenAuth(token=cast(TSecretStrValue, "sensitive-secret")),
     ),
-    AuthConfigTest(secret_keys=["api_key"], config=APIKeyAuth(api_key="sensitive-secret")),
+    AuthConfigTest(
+        secret_keys=["api_key"],
+        config=APIKeyAuth(api_key=cast(TSecretStrValue, "sensitive-secret")),
+    ),
     AuthConfigTest(
         secret_keys=["username", "password"],
-        config=HttpBasicAuth("sensitive-secret", "sensitive-secret"),
+        config=HttpBasicAuth("sensitive-secret", cast(TSecretStrValue, "sensitive-secret")),
         masked_secrets=["s*****t", "s*****t"],
     ),
     AuthConfigTest(
         secret_keys=["username", "password"],
-        config=HttpBasicAuth("sensitive-secret", ""),
+        config=HttpBasicAuth("sensitive-secret", cast(TSecretStrValue, "")),
         masked_secrets=["s*****t", "*****"],
     ),
     AuthConfigTest(
         secret_keys=["username", "password"],
-        config=HttpBasicAuth("", "sensitive-secret"),
+        config=HttpBasicAuth("", cast(TSecretStrValue, "sensitive-secret")),
         masked_secrets=["*****", "s*****t"],
     ),
 ]
@@ -1513,14 +1519,14 @@ AUTH_CONFIGS = [
 def test_secret_masking_auth_config(secret_keys, config, masked_secrets):
     masked = _mask_secrets(config)
     for key, mask in zip(secret_keys, masked_secrets):
-        assert masked[key] == mask
+        assert masked[key] == mask  # type: ignore[literal-required]
 
 
 def test_secret_masking_oauth() -> None:
     config = OAuth2ClientCredentials(
-        access_token_url="",
-        client_id="sensitive-secret",
-        client_secret="sensitive-secret",
+        access_token_url=cast(TSecretStrValue, ""),
+        client_id=cast(TSecretStrValue, "sensitive-secret"),
+        client_secret=cast(TSecretStrValue, "sensitive-secret"),
     )
 
     obj = _mask_secrets(config)
@@ -1546,17 +1552,17 @@ def test_secret_masking_custom_auth() -> None:
     # TODO
     # assert auth.token == "s*****t"
 
-    auth_2 = _mask_secrets(CustomAuthBase())
+    auth_2 = _mask_secrets(CustomAuthBase())  # type: ignore[arg-type]
     assert "s*****t" not in str(auth_2)
     # TODO
     # assert auth_2.token == "s*****t"
 
 
 def test_validation_masks_auth_secrets() -> None:
-    incorrect_config: RESTAPIConfig = {  # type: ignore
+    incorrect_config: RESTAPIConfig = {
         "client": {
             "base_url": "https://api.example.com",
-            "auth": {
+            "auth": {  # type: ignore[typeddict-item]
                 "type": "bearer",
                 "location": "header",
                 "token": "sensitive-secret",
