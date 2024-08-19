@@ -197,9 +197,9 @@ def test_unauthorized_access_to_protected_endpoint(mock_api_server):
         }
     )
 
-    # TODO: Check if it's specically a 401 error
-    with pytest.raises(PipelineStepFailed):
+    with pytest.raises(PipelineStepFailed) as e:
         pipeline.run(mock_source)
+    assert e.match("401 Client Error")
 
 
 def test_posts_under_results_key(mock_api_server):
