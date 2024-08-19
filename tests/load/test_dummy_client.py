@@ -8,7 +8,7 @@ from typing import List, Tuple
 
 from dlt.common.exceptions import TerminalException, TerminalValueError
 from dlt.common.storages import FileStorage, PackageStorage, ParsedLoadJobFileName
-from dlt.common.storages.load_package import LoadJobInfo, TJobState
+from dlt.common.storages.load_package import LoadJobInfo, TPackageJobState
 from dlt.common.storages.load_storage import JobFileFormatUnsupported
 from dlt.common.destination.reference import RunnableLoadJob, TDestination
 from dlt.common.schema.utils import (
@@ -32,6 +32,7 @@ from dlt.load.exceptions import (
 from dlt.load.utils import get_completed_table_chain, init_client, _extend_tables_with_table_chain
 
 from tests.utils import (
+    MockPipeline,
     clean_test_storage,
     init_test_logging,
     TEST_DICT_CONFIG_PROVIDER,
@@ -78,10 +79,14 @@ def test_spool_job_started() -> None:
                 load_id, PackageStorage.STARTED_JOBS_FOLDER, job.file_name()
             )
         )
+        assert_job_metrics(job, "completed")
         jobs.append(job)
     remaining_jobs, finalized_jobs, _ = load.complete_jobs(load_id, jobs, schema)
     assert len(remaining_jobs) == 0
     assert len(finalized_jobs) == 2
+    assert len(load._job_metrics) == 2
+    for job in jobs:
+        assert load._job_metrics[job.job_id()] == job.metrics()
 
 
 def test_unsupported_writer_type() -> None:
@@ -199,7 +204,9 @@ def test_spool_job_failed() -> None:
                 load_id, PackageStorage.STARTED_JOBS_FOLDER, job.file_name()
             )
         )
+        assert_job_metrics(job, "failed")
         jobs.append(job)
+    assert len(jobs) == 2
     # complete files
     remaining_jobs, finalized_jobs, _ = load.complete_jobs(load_id, jobs, schema)
     assert len(remaining_jobs) == 0
@@ -215,6 +222,8 @@ def test_spool_job_failed() -> None:
                 load_id, PackageStorage.FAILED_JOBS_FOLDER, job.file_name() + ".exception"
             )
         )
+        # load should collect two jobs
+        assert load._job_metrics[job.job_id()] == job.metrics()
     started_files = load.load_storage.normalized_packages.list_started_jobs(load_id)
     assert len(started_files) == 0
 
@@ -226,6 +235,13 @@ def test_spool_job_failed() -> None:
     assert package_info.state == "loaded"
     # all jobs failed
     assert len(package_info.jobs["failed_jobs"]) == 2
+    # check metrics
+    load_info = load.get_step_info(MockPipeline("pipe", True))  # type: ignore[abstract]
+    metrics = load_info.metrics[load_id][0]["job_metrics"]
+    assert len(metrics) == 2
+    for job in jobs:
+        assert job.job_id() in metrics
+        assert metrics[job.job_id()].state == "failed"
 
 
 def test_spool_job_failed_terminally_exception_init() -> None:
@@ -244,6 +260,11 @@ def test_spool_job_failed_terminally_exception_init() -> None:
         assert len(package_info.jobs["started_jobs"]) == 0
         # load id was never committed
         complete_load.assert_not_called()
+        # metrics can be gathered
+        assert len(load._job_metrics) == 2
+        load_info = load.get_step_info(MockPipeline("pipe", True))  # type: ignore[abstract]
+        metrics = load_info.metrics[load_id][0]["job_metrics"]
+        assert len(metrics) == 2
 
 
 def test_spool_job_failed_transiently_exception_init() -> None:
@@ -264,6 +285,10 @@ def test_spool_job_failed_transiently_exception_init() -> None:
 
         # load id was never committed
         complete_load.assert_not_called()
+        # no metrics were gathered
+        assert len(load._job_metrics) == 0
+        load_info = load.get_step_info(MockPipeline("pipe", True))  # type: ignore[abstract]
+        assert len(load_info.metrics) == 0
 
 
 def test_spool_job_failed_exception_complete() -> None:
@@ -279,6 +304,11 @@ def test_spool_job_failed_exception_complete() -> None:
     # both failed - we wait till the current loop is completed and then raise
     assert len(package_info.jobs["failed_jobs"]) == 2
     assert len(package_info.jobs["started_jobs"]) == 0
+    # metrics can be gathered
+    assert len(load._job_metrics) == 2
+    load_info = load.get_step_info(MockPipeline("pipe", True))  # type: ignore[abstract]
+    metrics = load_info.metrics[load_id][0]["job_metrics"]
+    assert len(metrics) == 2
 
 
 def test_spool_job_retry_new() -> None:
@@ -328,6 +358,7 @@ def test_spool_job_retry_started() -> None:
     remaining_jobs, finalized_jobs, _ = load.complete_jobs(load_id, jobs, schema)
     assert len(remaining_jobs) == 0
     assert len(finalized_jobs) == 0
+    assert len(load._job_metrics) == 0
     # clear retry flag
     dummy_impl.JOBS = {}
     files = load.load_storage.normalized_packages.list_new_jobs(load_id)
@@ -407,6 +438,8 @@ def test_failing_followup_jobs() -> None:
     assert len(dummy_impl.JOBS) == 2
     assert len(dummy_impl.RETRIED_JOBS) == 0
     assert len(dummy_impl.CREATED_FOLLOWUP_JOBS) == 0
+    # no metrics were collected
+    assert len(load._job_metrics) == 0
 
     # now we can retry the same load, it will restart the two jobs and successfully create the followup jobs
     load.initial_client_config.fail_followup_job_creation = False  # type: ignore
@@ -436,6 +469,8 @@ def test_failing_table_chain_followup_jobs() -> None:
     assert len(dummy_impl.JOBS) == 2
     assert len(dummy_impl.RETRIED_JOBS) == 0
     assert len(dummy_impl.CREATED_FOLLOWUP_JOBS) == 0
+    # no metrics were collected
+    assert len(load._job_metrics) == 0
 
     # now we can retry the same load, it will restart the two jobs and successfully create the table chain followup jobs
     load.initial_client_config.fail_table_chain_followup_job_creation = False  # type: ignore
@@ -662,11 +697,11 @@ def test_get_completed_table_chain_cases() -> None:
     # child completed, parent not
     event_user = schema.get_table("event_user")
     event_user_entities = schema.get_table("event_user__parse_data__entities")
-    event_user_job: Tuple[TJobState, ParsedLoadJobFileName] = (
+    event_user_job: Tuple[TPackageJobState, ParsedLoadJobFileName] = (
         "started_jobs",
         ParsedLoadJobFileName("event_user", "event_user_id", 0, "jsonl"),
     )
-    event_user_entities_job: Tuple[TJobState, ParsedLoadJobFileName] = (
+    event_user_entities_job: Tuple[TPackageJobState, ParsedLoadJobFileName] = (
         "completed_jobs",
         ParsedLoadJobFileName(
             "event_user__parse_data__entities", "event_user__parse_data__entities_id", 0, "jsonl"
@@ -857,6 +892,31 @@ def test_dummy_staging_filesystem() -> None:
     assert len(dummy_impl.CREATED_FOLLOWUP_JOBS) == 0
 
 
+def test_load_multiple_packages() -> None:
+    load = setup_loader(client_config=DummyClientConfiguration(completed_prob=1.0))
+    load.config.pool_type = "none"
+    load_id_1, _ = prepare_load_package(load.load_storage, NORMALIZED_FILES)
+    sleep(0.1)
+    load_id_2, _ = prepare_load_package(load.load_storage, NORMALIZED_FILES)
+    load.run(None)
+    # assert load._current_load_id is None
+    metrics_id_1 = load._job_metrics
+    assert len(metrics_id_1) == 2
+    assert load._step_info_metrics(load_id_1)[0]["job_metrics"] == metrics_id_1
+    load.run(None)
+    metrics_id_2 = load._job_metrics
+    assert len(metrics_id_2) == 2
+    assert load._step_info_metrics(load_id_2)[0]["job_metrics"] == metrics_id_2
+    load_info = load.get_step_info(MockPipeline("pipe", True))  # type: ignore[abstract]
+    assert load_id_1 in load_info.metrics
+    assert load_id_2 in load_info.metrics
+    assert load_info.metrics[load_id_1][0]["job_metrics"] == metrics_id_1
+    assert load_info.metrics[load_id_2][0]["job_metrics"] == metrics_id_2
+    # execute empty run
+    load.run(None)
+    assert len(load_info.metrics) == 2
+
+
 def test_terminal_exceptions() -> None:
     try:
         raise TerminalValueError("a")
@@ -864,6 +924,15 @@ def test_terminal_exceptions() -> None:
         assert True
     else:
         raise AssertionError()
+
+
+def assert_job_metrics(job: RunnableLoadJob, expected_state: str) -> None:
+    metrics = job.metrics()
+    assert metrics.state == expected_state
+    assert metrics.started_at <= metrics.finished_at
+    assert metrics.job_id == job.job_id()
+    assert metrics.table_name == job._parsed_file_name.table_name
+    assert metrics.file_path == job._file_path
 
 
 def assert_complete_job(
@@ -910,6 +979,29 @@ def assert_complete_job(
                 assert load.load_storage.loaded_packages.storage.has_folder(completed_path)
             # complete load on client was called
             complete_load.assert_called_once_with(load_id)
+            # assert if all jobs in final state have metrics
+            metrics = load.get_step_info(MockPipeline("pipe", True)).metrics[load_id][0]  # type: ignore[abstract]
+            package_info = load.load_storage.loaded_packages.get_load_package_jobs(load_id)
+            for state, jobs in package_info.items():
+                for job in jobs:
+                    job_metrics = metrics["job_metrics"].get(job.job_id())
+                    if state in ("failed_jobs", "completed_jobs"):
+                        assert job_metrics is not None
+                        assert (
+                            metrics["job_metrics"][job.job_id()].state == "failed"
+                            if state == "failed_jobs"
+                            else "completed"
+                        )
+                        remote_uri = job_metrics.remote_uri
+                        if load.initial_client_config.create_followup_jobs:  # type: ignore
+                            assert remote_uri.endswith(job.file_name())
+                        elif load.is_staging_destination_job(job.file_name()):
+                            # staging destination should contain reference to remote filesystem
+                            assert "file://" in remote_uri and REMOTE_FILESYSTEM in remote_uri
+                        else:
+                            assert remote_uri is None
+                    else:
+                        assert job_metrics is None
 
 
 def run_all(load: Load) -> None:
@@ -941,9 +1033,9 @@ def setup_loader(
     staging = None
     if filesystem_staging:
         # do not accept jsonl to not conflict with filesystem destination
-        client_config = client_config or DummyClientConfiguration(
-            loader_file_format="reference", completed_prob=1
-        )
+        # client_config = client_config or DummyClientConfiguration(
+        #     loader_file_format="reference", completed_prob=1
+        # )
         staging_system_config = FilesystemDestinationClientConfiguration()._bind_dataset_name(
             dataset_name="dummy"
         )
