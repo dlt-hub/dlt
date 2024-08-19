@@ -577,7 +577,8 @@ TDestinationReferenceArg = Union[
 
 
 class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
-    """A destination factory that can be partially pre-configured
+    """
+    A destination factory that can be partially pre-configured
     with credentials and other config params.
     """
 
@@ -652,6 +653,29 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
     def _raw_capabilities(self) -> DestinationCapabilitiesContext:
         """Returns raw capabilities, before being adjusted with naming convention and config"""
         ...
+
+    @property
+    def destination_info(self) -> Dict[str, Any]:
+        """Return the destination info as a dict.
+
+        Returns:
+            Dict[str, Any]: Destination info.
+        """
+        conf = self.configuration(self.spec())
+        bucket_url = conf.get("bucket_url")
+        if bucket_url:
+            is_remote = not ("localhost" in bucket_url or "127.0.0.1" in bucket_url)
+        else:
+            is_remote = False
+
+        return {
+            "destination_name": self.destination_name,
+            "destination_type": self.destination_type,
+            "environment": conf.get("environment"),
+            "fingerprint": conf.fingerprint(),
+            "repr": self.destination_description,
+            "is_remote": is_remote,
+        }
 
     @property
     def destination_name(self) -> str:

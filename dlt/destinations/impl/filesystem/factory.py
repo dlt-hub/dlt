@@ -95,3 +95,14 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, "Filesyst
             environment=environment,
             **kwargs,
         )
+
+    @property
+    def destination_info(self) -> t.Dict[str, t.Any]:
+        """Return the destination info as a dict.
+
+        Returns:
+            Dict[str, Any]: Destination info.
+        """
+        info = super().destination_info
+        info["is_remote"] = not self.configuration(self.spec()).bucket_url.startswith("file://")
+        return info
