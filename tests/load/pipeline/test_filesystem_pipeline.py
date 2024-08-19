@@ -798,6 +798,51 @@ def test_delta_table_get_delta_tables_helper(
         get_delta_tables(pipeline, "non_existing_table")
 
 
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        table_format_filesystem_configs=True,
+        table_format="delta",
+        bucket_subset=(FILE_BUCKET,),
+    ),
+    ids=lambda x: x.name,
+)
+def test_parquet_to_delta_upgrade(destination_config: DestinationTestConfiguration):
+    # change the resource to start creating delta tables
+    from dlt.common.libs.deltalake import get_delta_tables
+
+    @dlt.resource()
+    def foo():
+        yield [{"foo": 1}, {"foo": 2}]
+
+    pipeline = destination_config.setup_pipeline("fs_pipe")
+
+    info = pipeline.run(foo())
+    assert_load_info(info)
+    delta_tables = get_delta_tables(pipeline)
+    assert set(delta_tables.keys()) == set()
+
+    # drop the pipeline
+    pipeline.deactivate()
+
+    # redefine the resource
+
+    @dlt.resource(table_format="delta")  # type: ignore
+    def foo():
+        yield [{"foo": 1}, {"foo": 2}]
+
+    pipeline = destination_config.setup_pipeline("fs_pipe")
+
+    info = pipeline.run(foo())
+    assert_load_info(info)
+    delta_tables = get_delta_tables(pipeline)
+    assert set(delta_tables.keys()) == {"foo"}
+
+    # optimize all delta tables to make sure storage is there
+    for table in delta_tables.values():
+        table.vacuum()
+
+
 TEST_LAYOUTS = (
     "{schema_name}/{table_name}/{load_id}.{file_id}.{ext}",
     "{schema_name}.{table_name}.{load_id}.{file_id}.{ext}",

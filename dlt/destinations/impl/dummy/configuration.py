@@ -25,7 +25,7 @@ class DummyClientConfiguration(DestinationClientConfiguration):
     retry_prob: float = 0.0
     """probability of job retry"""
     completed_prob: float = 0.0
-    """probablibitly of successful job completion"""
+    """probability of successful job completion"""
     exception_prob: float = 0.0
     """probability of exception transient exception when running job"""
     timeout: float = 10.0

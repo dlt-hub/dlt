@@ -5,6 +5,7 @@ from typing import Iterator
 
 from dlt.common import pendulum, json
 from dlt.common.data_writers.exceptions import DataWriterNotFound, SpecLookupFailed
+from dlt.common.metrics import DataWriterMetrics
 from dlt.common.typing import AnyFun
 
 from dlt.common.data_writers.escape import (
@@ -25,7 +26,6 @@ from dlt.common.data_writers.writers import (
     ArrowToTypedJsonlListWriter,
     CsvWriter,
     DataWriter,
-    DataWriterMetrics,
     EMPTY_DATA_WRITER_METRICS,
     ImportFileWriter,
     InsertValuesWriter,

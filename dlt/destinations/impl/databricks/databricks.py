@@ -5,7 +5,7 @@ from dlt import config
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
     HasFollowupJobs,
-    FollowupJob,
+    FollowupJobRequest,
     TLoadJobState,
     RunnableLoadJob,
     CredentialsConfiguration,
@@ -31,7 +31,7 @@ from dlt.destinations.exceptions import LoadJobTerminalException
 from dlt.destinations.impl.databricks.configuration import DatabricksClientConfiguration
 from dlt.destinations.impl.databricks.sql_client import DatabricksSqlClient
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
-from dlt.destinations.job_impl import ReferenceFollowupJob
+from dlt.destinations.job_impl import ReferenceFollowupJobRequest
 from dlt.destinations.type_mapping import TypeMapper
 
 
@@ -121,8 +121,8 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
         staging_credentials = self._staging_config.credentials
         # extract and prepare some vars
         bucket_path = orig_bucket_path = (
-            ReferenceFollowupJob.resolve_reference(self._file_path)
-            if ReferenceFollowupJob.is_reference_job(self._file_path)
+            ReferenceFollowupJobRequest.resolve_reference(self._file_path)
+            if ReferenceFollowupJobRequest.is_reference_job(self._file_path)
             else ""
         )
         file_name = (
@@ -279,7 +279,9 @@ class DatabricksClient(InsertValuesJobClient, SupportsStagingDestination):
             )
         return job
 
-    def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[FollowupJob]:
+    def _create_merge_followup_jobs(
+        self, table_chain: Sequence[TTableSchema]
+    ) -> List[FollowupJobRequest]:
         return [DatabricksMergeJob.from_table_chain(table_chain, self.sql_client)]
 
     def _make_add_column_sql(

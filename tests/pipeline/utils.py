@@ -98,6 +98,9 @@ def users_materialize_table_schema():
 
 def assert_load_info(info: LoadInfo, expected_load_packages: int = 1) -> None:
     """Asserts that expected number of packages was loaded and there are no failed jobs"""
+    # make sure we can serialize
+    info.asstr(verbosity=2)
+    info.asdict()
     assert len(info.loads_ids) == expected_load_packages
     # all packages loaded
     assert all(p.completed_at is not None for p in info.load_packages) is True
