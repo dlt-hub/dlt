@@ -1,5 +1,6 @@
 import dlt
 import pytest
+from dlt.sources.rest_api.typing import RESTAPIConfig
 from dlt.sources.helpers.rest_client.paginators import SinglePagePaginator
 
 from dlt.sources.rest_api import rest_api_source
@@ -17,7 +18,7 @@ def _make_pipeline(destination_name: str):
 
 @pytest.mark.parametrize("destination_name", ALL_DESTINATIONS)
 def test_rest_api_source(destination_name: str) -> None:
-    config = {
+    config: RESTAPIConfig = {
         "client": {
             "base_url": "https://pokeapi.co/api/v2/",
         },
@@ -54,7 +55,7 @@ def test_rest_api_source(destination_name: str) -> None:
 
 @pytest.mark.parametrize("destination_name", ALL_DESTINATIONS)
 def test_dependent_resource(destination_name: str) -> None:
-    config = {
+    config: RESTAPIConfig = {
         "client": {
             "base_url": "https://pokeapi.co/api/v2/",
         },

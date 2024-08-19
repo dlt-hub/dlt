@@ -54,7 +54,6 @@ from dlt.sources.helpers.rest_client.auth import (
 
 from .typing import (
     EndpointResourceBase,
-    AuthType,
     AuthConfig,
     IncrementalConfig,
     PaginatorConfig,
@@ -154,7 +153,7 @@ def register_auth(
     AUTH_MAP[auth_name] = auth_class
 
 
-def get_auth_class(auth_type: AuthType) -> Type[AuthConfigBase]:
+def get_auth_class(auth_type: str) -> Type[AuthConfigBase]:
     try:
         return AUTH_MAP[auth_type]
     except KeyError:

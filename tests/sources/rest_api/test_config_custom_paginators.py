@@ -1,3 +1,4 @@
+from typing import cast
 import pytest
 from dlt.sources import rest_api
 from dlt.sources.rest_api.typing import PaginatorConfig
@@ -50,6 +51,7 @@ class TestCustomPaginator:
     def test_registering_allows_usage(self, custom_paginator_config) -> None:
         rest_api.config_setup.register_paginator("custom_paginator", CustomPaginator)
         paginator = rest_api.config_setup.create_paginator(custom_paginator_config)
+        paginator = cast(CustomPaginator, paginator)
         assert paginator.has_next_page is True
         assert str(paginator.next_url_path) == "response.next_page_link"
 
@@ -61,5 +63,5 @@ class TestCustomPaginator:
             pass
 
         with pytest.raises(ValueError) as e:
-            rest_api.config_setup.register_paginator("not_a_paginator", NotAPaginator)
+            rest_api.config_setup.register_paginator("not_a_paginator", NotAPaginator)  # type: ignore[arg-type]
         assert e.match("Invalid paginator: NotAPaginator.")

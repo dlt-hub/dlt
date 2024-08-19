@@ -1,7 +1,8 @@
 from collections import namedtuple
-from typing import List
+from typing import cast, List
 
 import dlt
+from dlt.common.typing import TSecretStrValue
 from dlt.common.exceptions import DictValidationException
 from dlt.common.configuration.specs import configspec
 from dlt.sources.helpers.rest_client.paginators import HeaderLinkPaginator
@@ -10,7 +11,7 @@ from dlt.sources.helpers.rest_client.auth import OAuth2AuthBase
 from dlt.sources.helpers.rest_client.paginators import SinglePagePaginator
 from dlt.sources.helpers.rest_client.auth import HttpBasicAuth
 
-from dlt.sources.rest_api.typing import AuthTypeConfig, PaginatorTypeConfig, RESTAPIConfig
+from dlt.sources.rest_api.typing import RESTAPIConfig
 
 
 ConfigTest = namedtuple("ConfigTest", ["expected_message", "exception", "config"])
@@ -175,7 +176,7 @@ VALID_CONFIGS: List[RESTAPIConfig] = [
         "client": {
             "base_url": "https://example.com",
             "paginator": CustomPaginator(),
-            "auth": CustomOAuthAuth(access_token="X"),
+            "auth": CustomOAuthAuth(access_token=cast(TSecretStrValue, "X")),
         },
         "resource_defaults": {
             "table_name": lambda event: event["type"],
@@ -198,7 +199,7 @@ VALID_CONFIGS: List[RESTAPIConfig] = [
         "client": {
             "base_url": "https://example.com",
             "paginator": "header_link",
-            "auth": HttpBasicAuth("my-secret", ""),
+            "auth": HttpBasicAuth("my-secret", cast(TSecretStrValue, "")),
         },
         "resources": ["users"],
     },
@@ -307,7 +308,7 @@ VALID_CONFIGS: List[RESTAPIConfig] = [
 
 
 # NOTE: leaves some parameters as defaults to test if they are set correctly
-PAGINATOR_TYPE_CONFIGS: List[PaginatorTypeConfig] = [
+PAGINATOR_TYPE_CONFIGS = [
     {"type": "auto"},
     {"type": "single_page"},
     {"type": "page_number", "page": 10, "base_page": 1, "total_path": "response.pages"},
@@ -319,7 +320,7 @@ PAGINATOR_TYPE_CONFIGS: List[PaginatorTypeConfig] = [
 
 
 # NOTE: leaves some required parameters to inject them from config
-AUTH_TYPE_CONFIGS: List[AuthTypeConfig] = [
+AUTH_TYPE_CONFIGS = [
     {"type": "bearer", "token": "token"},
     {"type": "api_key", "location": "cookie"},
     {"type": "http_basic", "username": "username"},

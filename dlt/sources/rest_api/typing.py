@@ -268,5 +268,6 @@ class RESTAPIConfigBase(TypedDict):
     client: ClientConfig
     resources: List[Union[str, EndpointResource]]
 
+
 class RESTAPIConfig(RESTAPIConfigBase, total=False):
     resource_defaults: Optional[EndpointResourceBase]
