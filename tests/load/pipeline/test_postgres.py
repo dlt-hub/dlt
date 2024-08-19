@@ -6,7 +6,6 @@ import pytest
 
 from dlt.common.utils import uniq_id
 
-from dlt.destinations.impl.postgres.sql_client import Psycopg2SqlClient
 from tests.load.utils import destinations_configs, DestinationTestConfiguration
 from tests.pipeline.utils import assert_load_info, load_tables_to_dicts
 from tests.utils import TestDataItemFormat
@@ -52,6 +51,7 @@ def test_postgres_encoded_binary(
 #     ids=lambda x: x.name,
 # )
 # def test_postgres_encoding(destination_config: DestinationTestConfiguration):
+#     from dlt.destinations.impl.postgres.sql_client import Psycopg2SqlClient
 #     pipeline = destination_config.setup_pipeline("postgres_" + uniq_id(), dev_mode=True)
 #     client: Psycopg2SqlClient = pipeline.sql_client()
 #     # client.credentials.query["encoding"] = "ru"

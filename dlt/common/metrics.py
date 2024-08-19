@@ -1,4 +1,4 @@
-import datetime
+import datetime  # noqa: I251
 from typing import Any, Dict, List, NamedTuple, Optional, Tuple, TypedDict  # noqa: 251
 
 

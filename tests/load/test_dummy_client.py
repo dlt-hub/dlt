@@ -898,7 +898,6 @@ def test_load_multiple_packages() -> None:
     load_id_1, _ = prepare_load_package(load.load_storage, NORMALIZED_FILES)
     sleep(0.1)
     load_id_2, _ = prepare_load_package(load.load_storage, NORMALIZED_FILES)
-    load.run(None)
     # assert load._current_load_id is None
     metrics_id_1 = load._job_metrics
     assert len(metrics_id_1) == 2

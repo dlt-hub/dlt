@@ -180,12 +180,13 @@ def test_data_writer_metrics_add() -> None:
     metrics = DataWriterMetrics("file", 10, 100, now, now + 10)
     add_m: DataWriterMetrics = metrics + EMPTY_DATA_WRITER_METRICS  # type: ignore[assignment]
     assert add_m == DataWriterMetrics("", 10, 100, now, now + 10)
-    assert metrics + metrics == DataWriterMetrics("", 20, 200, now, now + 10)
+    # will keep "file" because it is in both
+    assert metrics + metrics == DataWriterMetrics("file", 20, 200, now, now + 10)
     assert sum((metrics, metrics, metrics), EMPTY_DATA_WRITER_METRICS) == DataWriterMetrics(
         "", 30, 300, now, now + 10
     )
     # time range extends when added
-    add_m = metrics + DataWriterMetrics("file", 99, 120, now - 10, now + 20)  # type: ignore[assignment]
+    add_m = metrics + DataWriterMetrics("fileX", 99, 120, now - 10, now + 20)  # type: ignore[assignment]
     assert add_m == DataWriterMetrics("", 109, 220, now - 10, now + 20)
 
 
