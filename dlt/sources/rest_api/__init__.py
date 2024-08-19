@@ -225,9 +225,7 @@ def create_resources(
 
         resolved_param: ResolvedParam = resolved_param_map[resource_name]
 
-        include_from_parent: List[str] = endpoint_resource.get(
-            "include_from_parent", []
-        )
+        include_from_parent: List[str] = endpoint_resource.get("include_from_parent", [])
         if not resolved_param and include_from_parent:
             raise ValueError(
                 f"Resource {resource_name} has include_from_parent but is not "
@@ -249,9 +247,7 @@ def create_resources(
 
         hooks = create_response_hooks(endpoint_config.get("response_actions"))
 
-        resource_kwargs = exclude_keys(
-            endpoint_resource, {"endpoint", "include_from_parent"}
-        )
+        resource_kwargs = exclude_keys(endpoint_resource, {"endpoint", "include_from_parent"})
 
         if resolved_param is None:
 
@@ -377,16 +373,11 @@ def _validate_config(config: RESTAPIConfig) -> None:
 
 
 def _mask_secrets(auth_config: AuthConfig) -> AuthConfig:
-    if isinstance(auth_config, AuthBase) and not isinstance(
-        auth_config, AuthConfigBase
-    ):
+    if isinstance(auth_config, AuthBase) and not isinstance(auth_config, AuthConfigBase):
         return auth_config
 
     has_sensitive_key = any(key in auth_config for key in SENSITIVE_KEYS)
-    if (
-        isinstance(auth_config, (APIKeyAuth, BearerTokenAuth, HttpBasicAuth))
-        or has_sensitive_key
-    ):
+    if isinstance(auth_config, (APIKeyAuth, BearerTokenAuth, HttpBasicAuth)) or has_sensitive_key:
         return _mask_secrets_dict(auth_config)
     # Here, we assume that OAuth2 and other custom classes that don't implement __get__()
     # also don't print secrets in __str__()

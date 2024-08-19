@@ -9,9 +9,7 @@ from dlt.sources.helpers.rest_client.auth import APIKeyAuth, OAuth2ClientCredent
 class CustomOAuth2(OAuth2ClientCredentials):
     def build_access_token_request(self) -> Dict[str, Any]:
         """Used e.g. by Zoom Zoom Video Communications, Inc."""
-        authentication: str = b64encode(
-            f"{self.client_id}:{self.client_secret}".encode()
-        ).decode()
+        authentication: str = b64encode(f"{self.client_id}:{self.client_secret}".encode()).decode()
         return {
             "headers": {
                 "Authorization": f"Basic {authentication}",

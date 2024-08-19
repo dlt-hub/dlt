@@ -69,7 +69,9 @@ from .utils import exclude_keys
 
 PAGINATOR_MAP: Dict[str, Type[BasePaginator]] = {
     "json_link": JSONLinkPaginator,
-    "json_response": JSONLinkPaginator,  # deprecated. Use json_link instead. Will be removed in upcoming release
+    "json_response": (
+        JSONLinkPaginator
+    ),  # deprecated. Use json_link instead. Will be removed in upcoming release
     "header_link": HeaderLinkPaginator,
     "auto": None,
     "single_page": SinglePagePaginator,
@@ -109,8 +111,7 @@ def get_paginator_class(paginator_name: str) -> Type[BasePaginator]:
     except KeyError:
         available_options = ", ".join(PAGINATOR_MAP.keys())
         raise ValueError(
-            f"Invalid paginator: {paginator_name}. "
-            f"Available options: {available_options}"
+            f"Invalid paginator: {paginator_name}. Available options: {available_options}"
         )
 
 
@@ -127,16 +128,15 @@ def create_paginator(
             return paginator_class() if paginator_class else None
         except TypeError:
             raise ValueError(
-                f"Paginator {paginator_config} requires arguments to create an instance. Use {paginator_class} instance instead."
+                f"Paginator {paginator_config} requires arguments to create an instance. Use"
+                f" {paginator_class} instance instead."
             )
 
     if isinstance(paginator_config, dict):
         paginator_type = paginator_config.get("type", "auto")
         paginator_class = get_paginator_class(paginator_type)
         return (
-            paginator_class(**exclude_keys(paginator_config, {"type"}))
-            if paginator_class
-            else None
+            paginator_class(**exclude_keys(paginator_config, {"type"})) if paginator_class else None
         )
 
     return None
@@ -160,8 +160,7 @@ def get_auth_class(auth_type: AuthType) -> Type[AuthConfigBase]:
     except KeyError:
         available_options = ", ".join(AUTH_MAP.keys())
         raise ValueError(
-            f"Invalid authentication: {auth_type}. "
-            f"Available options: {available_options}"
+            f"Invalid authentication: {auth_type}. Available options: {available_options}"
         )
 
 
@@ -190,9 +189,7 @@ def create_auth(auth_config: Optional[AuthConfig]) -> Optional[AuthConfigBase]:
 def setup_incremental_object(
     request_params: Dict[str, Any],
     incremental_config: Optional[IncrementalConfig] = None,
-) -> Tuple[
-    Optional[Incremental[Any]], Optional[IncrementalParam], Optional[Callable[..., Any]]
-]:
+) -> Tuple[Optional[Incremental[Any]], Optional[IncrementalParam], Optional[Callable[..., Any]]]:
     incremental_params: List[str] = []
     for param_name, param_config in request_params.items():
         if (
@@ -203,20 +200,27 @@ def setup_incremental_object(
             incremental_params.append(param_name)
     if len(incremental_params) > 1:
         raise ValueError(
-            f"Only a single incremental parameter is allower per endpoint. Found: {incremental_params}"
+            "Only a single incremental parameter is allower per endpoint. Found:"
+            f" {incremental_params}"
         )
     convert: Optional[Callable[..., Any]]
     for param_name, param_config in request_params.items():
         if isinstance(param_config, dlt.sources.incremental):
             if param_config.end_value is not None:
                 raise ValueError(
-                    f"Only initial_value is allowed in the configuration of param: {param_name}. To set end_value too use the incremental configuration at the resource level. See https://dlthub.com/docs/dlt-ecosystem/verified-sources/rest_api#incremental-loading/"
+                    f"Only initial_value is allowed in the configuration of param: {param_name}. To"
+                    " set end_value too use the incremental configuration at the resource level."
+                    " See"
+                    " https://dlthub.com/docs/dlt-ecosystem/verified-sources/rest_api#incremental-loading/"
                 )
             return param_config, IncrementalParam(start=param_name, end=None), None
         if isinstance(param_config, dict) and param_config.get("type") == "incremental":
             if param_config.get("end_value") or param_config.get("end_param"):
                 raise ValueError(
-                    f"Only start_param and initial_value are allowed in the configuration of param: {param_name}. To set end_value too use the incremental configuration at the resource level. See https://dlthub.com/docs/dlt-ecosystem/verified-sources/rest_api#incremental-loading"
+                    "Only start_param and initial_value are allowed in the configuration of param:"
+                    f" {param_name}. To set end_value too use the incremental configuration at the"
+                    " resource level. See"
+                    " https://dlthub.com/docs/dlt-ecosystem/verified-sources/rest_api#incremental-loading"
                 )
             convert = parse_convert_or_deprecated_transform(param_config)
 
@@ -251,8 +255,8 @@ def parse_convert_or_deprecated_transform(
     deprecated_transform = config.get("transform", None)
     if deprecated_transform:
         warnings.warn(
-            "The key `transform` is deprecated in the incremental configuration and it will be removed. "
-            "Use `convert` instead",
+            "The key `transform` is deprecated in the incremental configuration and it will be"
+            " removed. Use `convert` instead",
             DeprecationWarning,
             stacklevel=2,
         )
@@ -307,7 +311,8 @@ def build_resource_dependency_graph(
             predecessor = resolved_param.resolve_config["resource"]
             if predecessor not in endpoint_resource_map:
                 raise ValueError(
-                    f"A transformer resource {resource_name} refers to non existing parent resource {predecessor} on {resolved_param}"
+                    f"A transformer resource {resource_name} refers to non existing parent resource"
+                    f" {predecessor} on {resolved_param}"
                 )
             dependency_graph.add(resource_name, predecessor)
             resolved_param_map[resource_name] = resolved_param
@@ -365,7 +370,8 @@ def _bind_path_params(resource: EndpointResource) -> None:
             params = resource["endpoint"].get("params", {})
             if name not in params and name not in path_params:
                 raise ValueError(
-                    f"The path {path} defined in resource {resource['name']} requires param with name {name} but it is not found in {params}"
+                    f"The path {path} defined in resource {resource['name']} requires param with"
+                    f" name {name} but it is not found in {params}"
                 )
             if name in resolve_params:
                 resolve_params.remove(name)
@@ -377,14 +383,17 @@ def _bind_path_params(resource: EndpointResource) -> None:
                     param_type = params[name].get("type")
                     if param_type != "resolve":
                         raise ValueError(
-                            f"The path {path} defined in resource {resource['name']} tries to bind param {name} with type {param_type}. Paths can only bind 'resource' type params."
+                            f"The path {path} defined in resource {resource['name']} tries to bind"
+                            f" param {name} with type {param_type}. Paths can only bind 'resource'"
+                            " type params."
                         )
                     # resolved params are bound later
                     path_params[name] = "{" + name + "}"
 
     if len(resolve_params) > 0:
         raise NotImplementedError(
-            f"Resource {resource['name']} defines resolve params {resolve_params} that are not bound in path {path}. Resolve query params not supported yet."
+            f"Resource {resource['name']} defines resolve params {resolve_params} that are not"
+            f" bound in path {path}. Resolve query params not supported yet."
         )
 
     resource["endpoint"]["path"] = path.format(**path_params)
@@ -422,10 +431,7 @@ def _find_resolved_params(endpoint_config: Endpoint) -> List[ResolvedParam]:
 
 def _action_type_unless_custom_hook(
     action_type: Optional[str], custom_hook: Optional[List[Callable[..., Any]]]
-) -> Union[
-    Tuple[str, Optional[List[Callable[..., Any]]]],
-    Tuple[None, List[Callable[..., Any]]],
-]:
+) -> Union[Tuple[str, Optional[List[Callable[..., Any]]]], Tuple[None, List[Callable[..., Any]]],]:
     if custom_hook:
         return (None, custom_hook)
     return (action_type, None)
@@ -465,7 +471,8 @@ def _handle_response_action(
             custom_hooks = response_action
         else:
             raise ValueError(
-                f"Action {response_action} does not conform to expected type. Expected: str or Callable or List[Callable]. Found: {type(response_action)}"
+                f"Action {response_action} does not conform to expected type. Expected: str or"
+                f" Callable or List[Callable]. Found: {type(response_action)}"
             )
 
     if status_code is not None and content_substr is not None:
@@ -561,7 +568,9 @@ def process_parent_data_item(
     if not field_values:
         field_path = resolved_param.resolve_config["field"]
         raise ValueError(
-            f"Transformer expects a field '{field_path}' to be present in the incoming data from resource {parent_resource_name} in order to bind it to path param {resolved_param.param_name}. Available parent fields are {', '.join(item.keys())}"
+            f"Transformer expects a field '{field_path}' to be present in the incoming data from"
+            f" resource {parent_resource_name} in order to bind it to path param"
+            f" {resolved_param.param_name}. Available parent fields are {', '.join(item.keys())}"
         )
     bound_path = path.format(**{resolved_param.param_name: field_values[0]})
 
@@ -571,7 +580,9 @@ def process_parent_data_item(
             child_key = make_parent_key_name(parent_resource_name, parent_key)
             if parent_key not in item:
                 raise ValueError(
-                    f"Transformer expects a field '{parent_key}' to be present in the incoming data from resource {parent_resource_name} in order to include it in child records under {child_key}. Available parent fields are {', '.join(item.keys())}"
+                    f"Transformer expects a field '{parent_key}' to be present in the incoming data"
+                    f" from resource {parent_resource_name} in order to include it in child records"
+                    f" under {child_key}. Available parent fields are {', '.join(item.keys())}"
                 )
             parent_record[child_key] = item[parent_key]
 
@@ -606,20 +617,14 @@ def _merge_resource_endpoints(
             **config_endpoint["params"],
         }
     # merge columns
-    if (default_columns := default_config.get("columns")) and (
-        columns := config.get("columns")
-    ):
+    if (default_columns := default_config.get("columns")) and (columns := config.get("columns")):
         # merge only native dlt formats, skip pydantic and others
-        if isinstance(columns, (list, dict)) and isinstance(
-            default_columns, (list, dict)
-        ):
+        if isinstance(columns, (list, dict)) and isinstance(default_columns, (list, dict)):
             # normalize columns
             columns = ensure_table_schema_columns(columns)
             default_columns = ensure_table_schema_columns(default_columns)
             # merge columns with deep merging hints
-            config["columns"] = merge_columns(
-                copy(default_columns), columns, merge_columns=True
-            )
+            config["columns"] = merge_columns(copy(default_columns), columns, merge_columns=True)
 
     # no need to deep merge resources
     merged_resource: EndpointResource = {

@@ -43,7 +43,6 @@ except ImportError:
     )
 
 from dlt.sources.helpers.rest_client.auth import (
-    AuthConfigBase,
     HttpBasicAuth,
     BearerTokenAuth,
     APIKeyAuth,
