@@ -81,6 +81,39 @@ class PostgresTypeMapper(TypeMapper):
             f"bigint with {precision} bits precision cannot be mapped into postgres integer type"
         )
 
+    def to_db_datetime_type(
+        self,
+        column: TColumnSchema = None,
+        table: TTableSchema = None,
+    ) -> str:
+        column_name = column.get("name")
+        table_name = table.get("name")
+        timezone = column.get("timezone")
+        precision = column.get("precision")
+
+        if timezone is None and precision is None:
+            return super().to_db_datetime_type(column, table)
+
+        timestamp = "timestamp"
+
+        # append precision if specified and valid
+        if precision is not None:
+            if 0 <= precision <= 6:
+                timestamp += f" ({precision})"
+            else:
+                raise TerminalValueError(
+                    f"Postgres does not support precision '{precision}' for '{column_name}' in"
+                    f" table '{table_name}'"
+                )
+
+        # append timezone part
+        if timezone:
+            timestamp += " with time zone"
+        elif timezone is not None:  # explicitly handle the case where timezone is False
+            timestamp += " without time zone"
+
+        return timestamp
+
     def from_db_type(
         self, db_type: str, precision: Optional[int] = None, scale: Optional[int] = None
     ) -> TColumnType:
