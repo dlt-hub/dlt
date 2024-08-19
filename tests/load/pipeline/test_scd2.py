@@ -154,8 +154,8 @@ def test_core_functionality(
     assert table["columns"][from_]["x-valid-from"]  # type: ignore[typeddict-item]
     assert table["columns"][to]["x-valid-to"]  # type: ignore[typeddict-item]
     assert table["columns"]["_dlt_id"]["x-row-version"]  # type: ignore[typeddict-item]
-    # _dlt_id is still unique
-    assert table["columns"]["_dlt_id"]["unique"]
+    # root table _dlt_id is not unique with `scd2` merge strategy
+    assert not table["columns"]["_dlt_id"]["unique"]
 
     # assert load results
     ts_1 = get_load_package_created_at(p, info)
@@ -487,6 +487,67 @@ def test_grandchild_table(destination_config: DestinationTestConfiguration) -> N
             {"_dlt_root_id": get_row_hash(l3_1), "value": 2},
         ],
     )
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, supports_merge=True),
+    ids=lambda x: x.name,
+)
+def test_record_reinsert(destination_config: DestinationTestConfiguration) -> None:
+    p = destination_config.setup_pipeline("abstract", dev_mode=True)
+
+    @dlt.resource(
+        table_name="dim_test", write_disposition={"disposition": "merge", "strategy": "scd2"}
+    )
+    def r(data):
+        yield data
+
+    # load 1 — initial load
+    dim_snap = [
+        r1 := {"nk": 1, "c1": "foo", "c2": "foo", "child": [1]},
+        r2 := {"nk": 2, "c1": "bar", "c2": "bar", "child": [2, 3]},
+    ]
+    info = p.run(r(dim_snap))
+    assert_load_info(info)
+    assert load_table_counts(p, "dim_test")["dim_test"] == 2
+    assert load_table_counts(p, "dim_test__child")["dim_test__child"] == 3
+    ts_1 = get_load_package_created_at(p, info)
+
+    # load 2 — delete natural key 1
+    dim_snap = [r2]
+    info = p.run(r(dim_snap))
+    assert_load_info(info)
+    assert load_table_counts(p, "dim_test")["dim_test"] == 2
+    assert load_table_counts(p, "dim_test__child")["dim_test__child"] == 3
+    ts_2 = get_load_package_created_at(p, info)
+
+    # load 3 — reinsert natural key 1
+    dim_snap = [r1, r2]
+    info = p.run(r(dim_snap))
+    assert_load_info(info)
+    assert load_table_counts(p, "dim_test")["dim_test"] == 3
+    assert load_table_counts(p, "dim_test__child")["dim_test__child"] == 3  # no new record
+    ts_3 = get_load_package_created_at(p, info)
+
+    # assert parent records
+    from_, to = DEFAULT_VALIDITY_COLUMN_NAMES
+    r1_no_child = {k: v for k, v in r1.items() if k != "child"}
+    r2_no_child = {k: v for k, v in r2.items() if k != "child"}
+    expected = [
+        {**{from_: ts_1, to: ts_2}, **r1_no_child},
+        {**{from_: ts_3, to: None}, **r1_no_child},
+        {**{from_: ts_1, to: None}, **r2_no_child},
+    ]
+    assert_records_as_set(get_table(p, "dim_test"), expected)
+
+    # assert child records
+    expected = [
+        {"_dlt_root_id": get_row_hash(r1), "value": 1},  # links to two records in parent
+        {"_dlt_root_id": get_row_hash(r2), "value": 2},
+        {"_dlt_root_id": get_row_hash(r2), "value": 3},
+    ]
+    assert_records_as_set(get_table(p, "dim_test__child"), expected)
 
 
 @pytest.mark.parametrize(
