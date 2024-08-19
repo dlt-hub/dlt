@@ -78,9 +78,11 @@ to disable tz adjustments.
 
 ## Supported Column Hints
 
-* `duckdb` can create unique indexes for columns with `unique` hints. However, **this feature is disabled by default** as it can significantly slow down data loading.
+`duckdb` can create unique indexes for columns with `unique` hints. However, **this feature is disabled by default** as it can significantly slow down data loading.
 
-* `duckdb` supports various [timestamp types](https://duckdb.org/docs/sql/data_types/timestamp.html). You can configure them using column flags in the `dlt.resource` decorator or `pipeline.run` method.
+## Timestamp and timezone configuration
+
+`duckdb` supports various [timestamp types](https://duckdb.org/docs/sql/data_types/timestamp.html). You can configure them using column flags in the `dlt.resource` decorator or `pipeline.run` method.
 
 #### Example: TIMESTAMP_MS
 
