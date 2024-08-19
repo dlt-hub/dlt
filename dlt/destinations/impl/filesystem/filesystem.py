@@ -9,6 +9,7 @@ from contextlib import contextmanager
 
 import dlt
 from dlt.common import logger, time, json, pendulum
+from dlt.common.metrics import LoadJobMetrics
 from dlt.common.storages.fsspec_filesystem import glob_files
 from dlt.common.typing import DictStrAny
 from dlt.common.schema import Schema, TSchemaTables, TTableSchema
@@ -21,7 +22,7 @@ from dlt.common.storages.load_package import (
 )
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
-    FollowupJob,
+    FollowupJobRequest,
     TLoadJobState,
     RunnableLoadJob,
     JobClientBase,
@@ -34,7 +35,7 @@ from dlt.common.destination.reference import (
 )
 from dlt.common.destination.exceptions import DestinationUndefinedEntity
 from dlt.destinations.job_impl import (
-    ReferenceFollowupJob,
+    ReferenceFollowupJobRequest,
     FinalizedLoadJob,
     FinalizedLoadJobWithFollowupJobs,
 )
@@ -87,6 +88,13 @@ class FilesystemLoadJob(RunnableLoadJob):
             path_utils.normalize_path_sep(self.pathlib, self.destination_file_name),
         )
 
+    def make_remote_uri(self) -> str:
+        return self._job_client.make_remote_uri(self.make_remote_path())
+
+    def metrics(self) -> Optional[LoadJobMetrics]:
+        m = super().metrics()
+        return m._replace(remote_uri=self.make_remote_uri())
+
 
 class DeltaLoadFilesystemJob(FilesystemLoadJob):
     def __init__(self, file_path: str) -> None:
@@ -105,7 +113,7 @@ class DeltaLoadFilesystemJob(FilesystemLoadJob):
         )
 
         # create Arrow dataset from Parquet files
-        file_paths = ReferenceFollowupJob.resolve_references(self._file_path)
+        file_paths = ReferenceFollowupJobRequest.resolve_references(self._file_path)
         arrow_ds = pa.dataset.dataset(file_paths)
 
         # create Delta table object
@@ -169,13 +177,13 @@ class DeltaLoadFilesystemJob(FilesystemLoadJob):
 
 
 class FilesystemLoadJobWithFollowup(HasFollowupJobs, FilesystemLoadJob):
-    def create_followup_jobs(self, final_state: TLoadJobState) -> List[FollowupJob]:
+    def create_followup_jobs(self, final_state: TLoadJobState) -> List[FollowupJobRequest]:
         jobs = super().create_followup_jobs(final_state)
         if self._load_table.get("table_format") == "delta":
             # delta table jobs only require table chain followup jobs
             pass
         elif final_state == "completed":
-            ref_job = ReferenceFollowupJob(
+            ref_job = ReferenceFollowupJobRequest(
                 original_file_name=self.file_name(),
                 remote_paths=[self._job_client.make_remote_uri(self.make_remote_path())],
             )
@@ -369,7 +377,7 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
             import dlt.common.libs.deltalake  # assert dependencies are installed
 
             # a reference job for a delta table indicates a table chain followup job
-            if ReferenceFollowupJob.is_reference_job(file_path):
+            if ReferenceFollowupJobRequest.is_reference_job(file_path):
                 return DeltaLoadFilesystemJob(file_path)
             # otherwise just continue
             return FinalizedLoadJobWithFollowupJobs(file_path)
@@ -578,7 +586,7 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
         self,
         table_chain: Sequence[TTableSchema],
         completed_table_chain_jobs: Optional[Sequence[LoadJobInfo]] = None,
-    ) -> List[FollowupJob]:
+    ) -> List[FollowupJobRequest]:
         assert completed_table_chain_jobs is not None
         jobs = super().create_table_chain_completed_followup_jobs(
             table_chain, completed_table_chain_jobs
@@ -591,5 +599,5 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
                     if job.job_file_info.table_name == table["name"]
                 ]
                 file_name = FileStorage.get_file_name_from_file_path(table_job_paths[0])
-                jobs.append(ReferenceFollowupJob(file_name, table_job_paths))
+                jobs.append(ReferenceFollowupJobRequest(file_name, table_job_paths))
         return jobs
