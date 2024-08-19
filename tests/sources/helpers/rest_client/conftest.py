@@ -138,10 +138,11 @@ def mock_api_server():
         def search_posts(request, context):
             body = request.json()
             page_size = body.get("page_size", DEFAULT_PAGE_SIZE)
+            page_count = body.get("page_count", DEFAULT_TOTAL_PAGES)
             page_number = body.get("page", 1)
 
             # Simulate a search with filtering
-            records = generate_posts()
+            records = generate_posts(page_size * page_count)
             ids_greater_than = body.get("ids_greater_than", 0)
             records = [r for r in records if r["id"] > ids_greater_than]
 
