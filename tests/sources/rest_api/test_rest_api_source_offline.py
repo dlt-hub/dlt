@@ -166,7 +166,7 @@ def test_source_with_post_request(mock_api_server):
                     "endpoint": {
                         "path": "/posts/search",
                         "method": "POST",
-                        "json": {"ids_greater_than": 50},
+                        "json": {"ids_greater_than": 50, "page_size": 100, "page": 1},
                         "paginator": JSONBodyPageCursorPaginator(),
                     },
                 }
