@@ -113,8 +113,8 @@ class DuckDbTypeMapper(TypeMapper):
             return "TIMESTAMP_NS"
 
         raise TerminalValueError(
-            f"Precision '{precision}' decimals after seconds cannot be mapped to a DuckDB TIMESTAMP"
-            " type."
+            f"DuckDB does not support precision '{precision}' for '{column_name}' in table"
+            f" '{table_name}'"
         )
 
     def from_db_type(
