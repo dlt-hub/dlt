@@ -251,6 +251,19 @@ executed. You can achieve the same in the decorator `@dlt.source(root_key=True)`
 ### `scd2` strategy
 `dlt` can create [Slowly Changing Dimension Type 2](https://en.wikipedia.org/wiki/Slowly_changing_dimension#Type_2:_add_new_row) (SCD2) destination tables for dimension tables that change in the source. The resource is expected to provide a full extract of the source table each run. A row hash is stored in `_dlt_id` and used as surrogate key to identify source records that have been inserted, updated, or deleted. A `NULL` value is used by default to indicate an active record, but it's possible to use a configurable high timestamp (e.g. 9999-12-31 00:00:00.000000) instead.
 
+:::note
+The `unique` hint for `_dlt_id` in the root table is set to `false`  when using `scd2`. This differs from [default behavior](./destination-tables.md#child-and-parent-tables). The reason is that the surrogate key stored in `_dlt_id` contains duplicates after an _insert-delete-reinsert_ pattern:
+1. record with surrogate key X is inserted in a load at `t1`
+2. record with surrogate key X is deleted in a later load at `t2`
+3. record with surrogate key X is reinserted in an even later load at `t3`
+
+After this pattern, the `scd2` table in the destination has two records for surrogate key X: one for validity window `[t1, t2]`, and one for `[t3, NULL]`. A duplicate value exists in `_dlt_id` because both records have the same surrogate key.
+
+Note that:
+- the composite key `(_dlt_id, _dlt_valid_from)` is unique   
+- `_dlt_id` remains unique for child tables—`scd2` does not affect this
+:::
+
 #### Example: `scd2` merge strategy
 ```py
 @dlt.resource(
