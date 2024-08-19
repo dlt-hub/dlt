@@ -10,7 +10,7 @@ from dlt.common.data_writers import (
     get_best_writer_spec,
     is_native_writer,
 )
-from dlt.common.utils import chunks
+from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
 from dlt.common.schema.typing import TStoredSchema, TTableSchema
 from dlt.common.storages import (
     NormalizeStorage,
@@ -20,6 +20,7 @@ from dlt.common.storages import (
     ParsedLoadJobFileName,
 )
 from dlt.common.schema import TSchemaUpdate, Schema
+from dlt.common.utils import chunks
 
 from dlt.normalize.configuration import NormalizeConfiguration
 from dlt.normalize.exceptions import NormalizeJobFailed
@@ -61,6 +62,7 @@ def w_normalize_files(
     stored_schema: TStoredSchema,
     load_id: str,
     extracted_items_files: Sequence[str],
+    collector: Collector = NULL_COLLECTOR,
 ) -> TWorkerRV:
     destination_caps = config.destination_capabilities
     schema_updates: List[TSchemaUpdate] = []
@@ -82,7 +84,9 @@ def w_normalize_files(
         load_storage = LoadStorage(False, supported_file_formats, loader_storage_config)
 
         def _get_items_normalizer(
-            parsed_file_name: ParsedLoadJobFileName, table_schema: TTableSchema
+            parsed_file_name: ParsedLoadJobFileName,
+            table_schema: TTableSchema,
+            collector: Collector = NULL_COLLECTOR,
         ) -> ItemsNormalizer:
             item_format = DataWriter.item_format_from_file_extension(parsed_file_name.file_format)
 
@@ -183,11 +187,7 @@ def w_normalize_files(
                 f" format {item_storage.writer_spec.file_format}"
             )
             norm = item_normalizers[table_name] = cls(
-                item_storage,
-                normalize_storage,
-                schema,
-                load_id,
-                config,
+                item_storage, normalize_storage, schema, load_id, config, collector
             )
             return norm
 
@@ -236,6 +236,7 @@ def w_normalize_files(
                 normalizer = _get_items_normalizer(
                     parsed_file_name,
                     stored_schema["tables"].get(root_table_name, {"name": root_table_name}),
+                    collector,
                 )
                 logger.debug(
                     f"Processing extracted items in {extracted_items_file} in load_id"

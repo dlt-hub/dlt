@@ -49,6 +49,7 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
     @with_config(spec=NormalizeConfiguration, sections=(known_sections.NORMALIZE,))
     def __init__(
         self,
+        extracted_count: Optional[int] = None,
         collector: Collector = NULL_COLLECTOR,
         schema_storage: SchemaStorage = None,
         config: NormalizeConfiguration = config.value,
@@ -59,6 +60,7 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
         self.pool = NullExecutor()
         self.load_storage: LoadStorage = None
         self.schema_storage: SchemaStorage = None
+        self.extracted_count = extracted_count
 
         # setup storages
         self.create_storages()
@@ -102,6 +104,7 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
                 schema_dict,
                 load_id,
                 files,
+                self.collector,
             )
             for files in chunk_files
         ]
@@ -128,9 +131,6 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
                         summary.file_metrics.extend(result.file_metrics)
                         # update metrics
                         self.collector.update("Files", len(result.file_metrics))
-                        self.collector.update(
-                            "Items", sum(result.file_metrics, EMPTY_DATA_WRITER_METRICS).items_count
-                        )
                     except CannotCoerceColumnException as exc:
                         # schema conflicts resulting from parallel executing
                         logger.warning(
@@ -161,12 +161,10 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
             schema.to_dict(),
             load_id,
             files,
+            self.collector,
         )
         self.update_schema(schema, result.schema_updates)
         self.collector.update("Files", len(result.file_metrics))
-        self.collector.update(
-            "Items", sum(result.file_metrics, EMPTY_DATA_WRITER_METRICS).items_count
-        )
         return result
 
     def spool_files(
@@ -296,7 +294,8 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
                 continue
             with self.collector(f"Normalize {schema.name} in {load_id}"):
                 self.collector.update("Files", 0, len(schema_files))
-                self.collector.update("Items", 0)
+                self.collector.update("Items", 0, total=self.extracted_count)
+
                 self._step_info_start_load_id(load_id)
                 self.spool_schema_files(load_id, schema, schema_files)
 
