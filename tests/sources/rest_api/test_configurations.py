@@ -10,7 +10,7 @@ from unittest.mock import patch
 from copy import copy, deepcopy
 from typing import cast, get_args, Dict, List, Literal, Any, Optional, NamedTuple, Union
 
-from graphlib import CycleError
+from graphlib import CycleError # type: ignore
 
 import dlt
 from dlt.common.utils import update_dict_nested, custom_environ
