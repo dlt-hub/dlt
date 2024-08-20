@@ -3,7 +3,7 @@
 from typing import (
     List,
     cast,
-    Optional,
+    Optional, Tuple,
 )
 
 import pyarrow as pa
@@ -11,7 +11,7 @@ from lancedb.embeddings import TextEmbeddingFunction  # type: ignore
 from typing_extensions import TypeAlias
 
 from dlt.common.json import json
-from dlt.common.schema import Schema, TColumnSchema
+from dlt.common.schema import Schema, TColumnSchema, TTableSchema
 from dlt.common.typing import DictStrAny
 from dlt.destinations.type_mapping import TypeMapper
 
@@ -21,6 +21,7 @@ TArrowDataType: TypeAlias = pa.DataType
 TArrowField: TypeAlias = pa.Field
 NULL_SCHEMA: TArrowSchema = pa.schema([])
 """Empty pyarrow Schema with no fields."""
+TTableLineage: TypeAlias = List[Tuple[TTableSchema, str, str]]
 
 
 def arrow_schema_to_dict(schema: TArrowSchema) -> DictStrAny:
