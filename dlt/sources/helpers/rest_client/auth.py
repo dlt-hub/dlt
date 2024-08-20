@@ -1,6 +1,5 @@
 import math
 import dataclasses
-from abc import abstractmethod
 from base64 import b64encode
 from typing import (
     TYPE_CHECKING,
@@ -157,7 +156,7 @@ class OAuth2ClientCredentials(OAuth2AuthBase):
 
     def __init__(
         self,
-        access_token_url: TSecretStrValue,
+        access_token_url: str,
         client_id: TSecretStrValue,
         client_secret: TSecretStrValue,
         access_token_request_data: Dict[str, Any] = None,

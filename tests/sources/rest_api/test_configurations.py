@@ -8,7 +8,7 @@ import dlt.extract
 import pytest
 from unittest.mock import patch
 from copy import copy, deepcopy
-from typing import cast, get_args, Dict, List, Any, Optional, NamedTuple, Union
+from typing import cast, get_args, Dict, List, Literal, Any, Optional, NamedTuple, Union
 
 from graphlib import CycleError
 
@@ -17,6 +17,7 @@ from dlt.common.utils import update_dict_nested, custom_environ
 from dlt.common.jsonpath import compile_path
 from dlt.common.configuration import inject_section
 from dlt.common.configuration.specs import ConfigSectionContext
+from dlt.common.typing import TSecretStrValue
 
 from dlt.extract.incremental import Incremental
 
@@ -54,6 +55,7 @@ from dlt.sources.rest_api.typing import (
     PaginatorType,
     RESTAPIConfig,
     ResolvedParam,
+    ResolveParamConfig,
     ResponseAction,
     IncrementalConfig,
 )
@@ -554,38 +556,39 @@ def test_bind_path_param() -> None:
     }
     tp_1 = deepcopy(three_params)
     _bind_path_params(tp_1)
+
     # do not replace resolved params
-    assert tp_1["endpoint"]["path"] == "dlt-hub/dlt/issues/{id}/comments"
+    assert tp_1["endpoint"]["path"] == "dlt-hub/dlt/issues/{id}/comments"  # type: ignore[index]
     # bound params popped
-    assert len(tp_1["endpoint"]["params"]) == 1
-    assert "id" in tp_1["endpoint"]["params"]
+    assert len(tp_1["endpoint"]["params"]) == 1  # type: ignore[index]
+    assert "id" in tp_1["endpoint"]["params"]  # type: ignore[index]
 
     tp_2 = deepcopy(three_params)
-    tp_2["endpoint"]["params"]["id"] = 12345
+    tp_2["endpoint"]["params"]["id"] = 12345  # type: ignore[index]
     _bind_path_params(tp_2)
-    assert tp_2["endpoint"]["path"] == "dlt-hub/dlt/issues/12345/comments"
-    assert len(tp_2["endpoint"]["params"]) == 0
+    assert tp_2["endpoint"]["path"] == "dlt-hub/dlt/issues/12345/comments"  # type: ignore[index]
+    assert len(tp_2["endpoint"]["params"]) == 0  # type: ignore[index]
 
     # param missing
     tp_3 = deepcopy(three_params)
     with pytest.raises(ValueError) as val_ex:
-        del tp_3["endpoint"]["params"]["id"]
+        del tp_3["endpoint"]["params"]["id"]  # type: ignore[index, union-attr]
         _bind_path_params(tp_3)
     # path is a part of an exception
-    assert tp_3["endpoint"]["path"] in str(val_ex.value)
+    assert tp_3["endpoint"]["path"] in str(val_ex.value)  # type: ignore[index]
 
     # path without params
     tp_4 = deepcopy(three_params)
-    tp_4["endpoint"]["path"] = "comments"
+    tp_4["endpoint"]["path"] = "comments"  # type: ignore[index]
     # no unbound params
-    del tp_4["endpoint"]["params"]["id"]
+    del tp_4["endpoint"]["params"]["id"]  # type: ignore[index, union-attr]
     tp_5 = deepcopy(tp_4)
     _bind_path_params(tp_4)
     assert tp_4 == tp_5
 
     # resolved param will remain unbounded and
     tp_6 = deepcopy(three_params)
-    tp_6["endpoint"]["path"] = "{org}/{repo}/issues/1234/comments"
+    tp_6["endpoint"]["path"] = "{org}/{repo}/issues/1234/comments"  # type: ignore[index]
     with pytest.raises(NotImplementedError):
         _bind_path_params(tp_6)
 
@@ -1066,7 +1069,7 @@ def test_response_action_raises_type_error(mocker):
     response.status_code = 200
 
     with pytest.raises(ValueError) as e_1:
-        _handle_response_action(response, {"status_code": 200, "action": C()})
+        _handle_response_action(response, {"status_code": 200, "action": C()})  # type: ignore[typeddict-item]
     assert e_1.match("does not conform to expected type")
 
     with pytest.raises(ValueError) as e_2:
@@ -1156,7 +1159,7 @@ def test_config_validation_for_response_actions(mocker):
 
 
 def test_two_resources_can_depend_on_one_parent_resource() -> None:
-    user_id = {
+    user_id: ResolveParamConfig = {
         "user_id": {
             "type": "resolve",
             "field": "id",
@@ -1371,7 +1374,7 @@ def test_resource_defaults_params_get_merged() -> None:
         },
     }
     merged_resource = _merge_resource_endpoints(resource_defaults, resource)
-    assert merged_resource["endpoint"]["params"]["per_page"] == 30
+    assert merged_resource["endpoint"]["params"]["per_page"] == 30  # type: ignore[index]
 
 
 def test_resource_defaults_params_get_overwritten() -> None:
@@ -1395,7 +1398,7 @@ def test_resource_defaults_params_get_overwritten() -> None:
         },
     }
     merged_resource = _merge_resource_endpoints(resource_defaults, resource)
-    assert merged_resource["endpoint"]["params"]["per_page"] == 50
+    assert merged_resource["endpoint"]["params"]["per_page"] ==  50 # type: ignore[index]
 
 
 def test_resource_defaults_params_no_resource_params() -> None:
@@ -1415,7 +1418,7 @@ def test_resource_defaults_params_no_resource_params() -> None:
         },
     }
     merged_resource = _merge_resource_endpoints(resource_defaults, resource)
-    assert merged_resource["endpoint"]["params"]["per_page"] == 30
+    assert merged_resource["endpoint"]["params"]["per_page"] == 30  # type: ignore[index]
 
 
 def test_resource_defaults_no_params() -> None:
@@ -1434,14 +1437,14 @@ def test_resource_defaults_no_params() -> None:
         },
     }
     merged_resource = _merge_resource_endpoints(resource_defaults, resource)
-    assert merged_resource["endpoint"]["params"] == {
+    assert merged_resource["endpoint"]["params"] == { # type: ignore[index]
         "per_page": 50,
         "sort": "updated",
     }
 
 
 class AuthConfigTest(NamedTuple):
-    secret_keys: List[str]
+    secret_keys: List[Literal["token", "api_key", "password", "username"]]
     config: Union[Dict[str, Any], AuthConfigBase]
     masked_secrets: Optional[List[str]] = ["s*****t"]
 
@@ -1490,22 +1493,22 @@ AUTH_CONFIGS = [
     ),
     AuthConfigTest(
         secret_keys=["token"],
-        config=BearerTokenAuth(token="sensitive-secret"),
+        config=BearerTokenAuth(token=cast(TSecretStrValue, "sensitive-secret")),
     ),
-    AuthConfigTest(secret_keys=["api_key"], config=APIKeyAuth(api_key="sensitive-secret")),
+    AuthConfigTest(secret_keys=["api_key"], config=APIKeyAuth(api_key=cast(TSecretStrValue, "sensitive-secret"))),
     AuthConfigTest(
         secret_keys=["username", "password"],
-        config=HttpBasicAuth("sensitive-secret", "sensitive-secret"),
+        config=HttpBasicAuth("sensitive-secret", cast(TSecretStrValue,"sensitive-secret")),
         masked_secrets=["s*****t", "s*****t"],
     ),
     AuthConfigTest(
         secret_keys=["username", "password"],
-        config=HttpBasicAuth("sensitive-secret", ""),
+        config=HttpBasicAuth("sensitive-secret", cast(TSecretStrValue, "")),
         masked_secrets=["s*****t", "*****"],
     ),
     AuthConfigTest(
         secret_keys=["username", "password"],
-        config=HttpBasicAuth("", "sensitive-secret"),
+        config=HttpBasicAuth("", cast(TSecretStrValue, "sensitive-secret")),
         masked_secrets=["*****", "s*****t"],
     ),
 ]
@@ -1520,9 +1523,9 @@ def test_secret_masking_auth_config(secret_keys, config, masked_secrets):
 
 def test_secret_masking_oauth() -> None:
     config = OAuth2ClientCredentials(
-        access_token_url="",
-        client_id="sensitive-secret",
-        client_secret="sensitive-secret",
+        access_token_url=cast(TSecretStrValue,""),
+        client_id=cast(TSecretStrValue, "sensitive-secret"),
+        client_secret=cast(TSecretStrValue, "sensitive-secret"),
     )
 
     obj = _mask_secrets(config)
@@ -1548,7 +1551,7 @@ def test_secret_masking_custom_auth() -> None:
     # TODO
     # assert auth.token == "s*****t"
 
-    auth_2 = _mask_secrets(CustomAuthBase())
+    auth_2 = _mask_secrets(CustomAuthBase())  # type: ignore[arg-type]
     assert "s*****t" not in str(auth_2)
     # TODO
     # assert auth_2.token == "s*****t"
@@ -1558,7 +1561,7 @@ def test_validation_masks_auth_secrets() -> None:
     incorrect_config: RESTAPIConfig = {
         "client": {
             "base_url": "https://api.example.com",
-            "auth": {
+            "auth": {  # type: ignore[typeddict-item]
                 "type": "bearer",
                 "location": "header",
                 "token": "sensitive-secret",
