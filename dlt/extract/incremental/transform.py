@@ -118,7 +118,8 @@ class JsonIncremental(IncrementalTransform):
     def find_cursor_value(self, row: TDataItem) -> Any:
         """Finds value in row at cursor defined by self.cursor_path.
 
-        Will use compiled JSONPath if present, otherwise it reverts to column search if row is dict
+        Will use compiled JSONPath if present.
+        Otherwise, reverts to field access if row is dict, Pydantic model, or of other class.
         """
         if self._compiled_cursor_path:
             cursor_values = find_values(self._compiled_cursor_path, row)
@@ -138,20 +139,10 @@ class JsonIncremental(IncrementalTransform):
             # ignores the other found values, e.g. when the path is $data.items[*].created_at
             row_value = cursor_values[0]
         else:
-            row_value = None
-            try:
-                row_value = row.get(self.cursor_path)
-            except AttributeError:
-                # just to pass tests/pipeline/test_pipeline_extra.py::test_dump_trace_freeze_exception
-                # Wouldn't it be preferrable to tell the exact exception?
-                pass
+            row_value = self._value_at_cursor_path(row)
             if row_value is None:
                 if self.on_cursor_value_missing == "raise":
-                    has_field = None
-                    if isinstance(row, dict):
-                        has_field = self.cursor_path in row.keys()
-                    else:
-                        has_field = hasattr(row, self.cursor_path)
+                    has_field = self._contains_cursor_path(row)
                     if not has_field:
                         raise IncrementalCursorPathMissing(
                             self.resource_name, self.cursor_path, row
@@ -164,6 +155,27 @@ class JsonIncremental(IncrementalTransform):
                     return None
 
         return row_value
+
+
+    def _value_at_cursor_path(self, row: TDataItem):
+        row_value = None
+        try:
+            row_value = row.get(self.cursor_path)
+        except AttributeError:
+            # supports Pydantic models and other classes
+            row_value = getattr(row, self.cursor_path)
+        return row_value
+
+
+    def _contains_cursor_path(self, row: TDataItem) -> bool:
+        has_field = None
+        try:
+            has_field = self.cursor_path in row.keys()
+        except AttributeError:
+            # supports Pydantic models and other classes
+            has_field = hasattr(row, self.cursor_path)
+        return has_field
+
 
     def __call__(
         self,
