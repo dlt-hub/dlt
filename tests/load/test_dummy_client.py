@@ -8,6 +8,7 @@ from typing import List, Tuple
 
 from dlt.common.exceptions import TerminalException, TerminalValueError
 from dlt.common.storages import FileStorage, PackageStorage, ParsedLoadJobFileName
+from dlt.common.storages.configuration import FilesystemConfiguration
 from dlt.common.storages.load_package import LoadJobInfo, TPackageJobState
 from dlt.common.storages.load_storage import JobFileFormatUnsupported
 from dlt.common.destination.reference import RunnableLoadJob, TDestination
@@ -898,11 +899,14 @@ def test_load_multiple_packages() -> None:
     load_id_1, _ = prepare_load_package(load.load_storage, NORMALIZED_FILES)
     sleep(0.1)
     load_id_2, _ = prepare_load_package(load.load_storage, NORMALIZED_FILES)
+    run_metrics = load.run(None)
+    assert run_metrics.pending_items == 1
     # assert load._current_load_id is None
     metrics_id_1 = load._job_metrics
     assert len(metrics_id_1) == 2
     assert load._step_info_metrics(load_id_1)[0]["job_metrics"] == metrics_id_1
-    load.run(None)
+    run_metrics = load.run(None)
+    assert run_metrics.pending_items == 0
     metrics_id_2 = load._job_metrics
     assert len(metrics_id_2) == 2
     assert load._step_info_metrics(load_id_2)[0]["job_metrics"] == metrics_id_2
@@ -996,7 +1000,10 @@ def assert_complete_job(
                             assert remote_uri.endswith(job.file_name())
                         elif load.is_staging_destination_job(job.file_name()):
                             # staging destination should contain reference to remote filesystem
-                            assert "file://" in remote_uri and REMOTE_FILESYSTEM in remote_uri
+                            assert (
+                                FilesystemConfiguration.make_file_uri(REMOTE_FILESYSTEM)
+                                in remote_uri
+                            )
                         else:
                             assert remote_uri is None
                     else:

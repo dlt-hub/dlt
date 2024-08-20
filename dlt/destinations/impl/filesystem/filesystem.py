@@ -103,6 +103,13 @@ class DeltaLoadFilesystemJob(FilesystemLoadJob):
         )
 
     def run(self) -> None:
+        # pick local filesystem pathlib or posix for buckets
+        self.is_local_filesystem = self._job_client.config.protocol == "file"
+        self.pathlib = os.path if self.is_local_filesystem else posixpath
+        self.destination_file_name = self._job_client.make_remote_uri(
+            self._job_client.get_table_dir(self.load_table_name)
+        )
+
         from dlt.common.libs.pyarrow import pyarrow as pa
         from dlt.common.libs.deltalake import (
             DeltaTable,
@@ -117,11 +124,9 @@ class DeltaLoadFilesystemJob(FilesystemLoadJob):
         arrow_ds = pa.dataset.dataset(file_paths)
 
         # create Delta table object
-        dt_path = self._job_client.make_remote_uri(
-            self._job_client.get_table_dir(self.load_table_name)
-        )
+
         storage_options = _deltalake_storage_options(self._job_client.config)
-        dt = try_get_deltatable(dt_path, storage_options=storage_options)
+        dt = try_get_deltatable(self.destination_file_name, storage_options=storage_options)
 
         # get partition columns
         part_cols = get_columns_names_with_prop(self._load_table, "partition")
@@ -132,7 +137,7 @@ class DeltaLoadFilesystemJob(FilesystemLoadJob):
             if dt is None:
                 # create new empty Delta table with schema from Arrow table
                 DeltaTable.create(
-                    table_uri=dt_path,
+                    table_uri=self.destination_file_name,
                     schema=ensure_delta_compatible_arrow_schema(arrow_ds.schema),
                     mode="overwrite",
                     partition_by=part_cols,
@@ -168,7 +173,7 @@ class DeltaLoadFilesystemJob(FilesystemLoadJob):
 
         else:
             write_delta_table(
-                table_or_uri=dt_path if dt is None else dt,
+                table_or_uri=self.destination_file_name if dt is None else dt,
                 data=arrow_rbr,
                 write_disposition=self._load_table["write_disposition"],
                 partition_by=part_cols,
