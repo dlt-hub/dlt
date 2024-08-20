@@ -156,26 +156,19 @@ class JsonIncremental(IncrementalTransform):
 
         return row_value
 
-
-    def _value_at_cursor_path(self, row: TDataItem):
-        row_value = None
+    def _value_at_cursor_path(self, row: TDataItem) -> Optional[TDataItem]:
         try:
-            row_value = row.get(self.cursor_path)
+            return row.get(self.cursor_path)
         except AttributeError:
             # supports Pydantic models and other classes
-            row_value = getattr(row, self.cursor_path)
-        return row_value
-
+            return getattr(row, self.cursor_path)
 
     def _contains_cursor_path(self, row: TDataItem) -> bool:
-        has_field = None
         try:
-            has_field = self.cursor_path in row.keys()
+            return self.cursor_path in row.keys()
         except AttributeError:
             # supports Pydantic models and other classes
-            has_field = hasattr(row, self.cursor_path)
-        return has_field
-
+            return hasattr(row, self.cursor_path)
 
     def __call__(
         self,
