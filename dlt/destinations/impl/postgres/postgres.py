@@ -107,10 +107,10 @@ class PostgresTypeMapper(TypeMapper):
                 )
 
         # append timezone part
-        if timezone is not None:  # explicitly handle the case where timezone is False
-            timestamp += " without time zone"
-        else:
+        if timezone is None or timezone:  # timezone True and None
             timestamp += " with time zone"
+        else:  # timezone is explicitly False
+            timestamp += " without time zone"
 
         return timestamp
 
