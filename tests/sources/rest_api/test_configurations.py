@@ -10,7 +10,7 @@ from unittest.mock import patch
 from copy import copy, deepcopy
 from typing import cast, get_args, Dict, List, Literal, Any, Optional, NamedTuple, Union
 
-from graphlib import CycleError # type: ignore
+from graphlib import CycleError  # type: ignore
 
 import dlt
 from dlt.common.utils import update_dict_nested, custom_environ
@@ -448,7 +448,7 @@ def test_resource_endpoint_shallow_merge() -> None:
         resource_config,
         {
             "max_table_nesting": 1,
-            "parallel": True,
+            "parallelized": True,
             "write_disposition": {
                 "disposition": "replace",
             },
@@ -467,7 +467,7 @@ def test_resource_endpoint_shallow_merge() -> None:
     )
     # resource should keep all values, just parallel is added
     expected_resource = copy(resource_config)
-    expected_resource["parallel"] = True
+    expected_resource["parallelized"] = True
     assert resource == expected_resource
 
 
@@ -499,7 +499,7 @@ def test_resource_merge_with_objects() -> None:
 
 
 def test_resource_merge_with_none() -> None:
-    endpoint_config:EndpointResource = {
+    endpoint_config: EndpointResource = {
         "name": "resource",
         "endpoint": {"path": "user/{id}", "paginator": None, "data_selector": None},
     }
@@ -971,7 +971,6 @@ def test_incremental_param_transform_is_deprecated(incremental_with_init) -> Non
 
 
 def test_incremental_endpoint_config_transform_is_deprecated(
-    mocker,
     incremental_with_init_and_end,
 ) -> None:
     """Tests that deprecated interface works but issues deprecation warning"""
@@ -985,7 +984,7 @@ def test_incremental_endpoint_config_transform_is_deprecated(
         "cursor_path": "updated_at",
         "initial_value": "2024-01-01T00:00:00Z",
         "end_value": "2024-06-30T00:00:00Z",
-        "transform": epoch_to_datetime,
+        "transform": epoch_to_datetime,  # type: ignore[typeddict-unknown-key]
     }
 
     with pytest.deprecated_call():
@@ -1073,7 +1072,7 @@ def test_response_action_raises_type_error(mocker):
     assert e_1.match("does not conform to expected type")
 
     with pytest.raises(ValueError) as e_2:
-        _handle_response_action(response, {"status_code": 200, "action": 123})
+        _handle_response_action(response, {"status_code": 200, "action": 123})  # type: ignore[typeddict-item]
     assert e_2.match("does not conform to expected type")
 
     assert ("ignore", None) == _handle_response_action(
@@ -1159,7 +1158,7 @@ def test_config_validation_for_response_actions(mocker):
 
 
 def test_two_resources_can_depend_on_one_parent_resource() -> None:
-    user_id: ResolveParamConfig = {
+    user_id: Dict[str, ResolveParamConfig] = {
         "user_id": {
             "type": "resolve",
             "field": "id",
@@ -1398,7 +1397,7 @@ def test_resource_defaults_params_get_overwritten() -> None:
         },
     }
     merged_resource = _merge_resource_endpoints(resource_defaults, resource)
-    assert merged_resource["endpoint"]["params"]["per_page"] ==  50 # type: ignore[index]
+    assert merged_resource["endpoint"]["params"]["per_page"] == 50  # type: ignore[index]
 
 
 def test_resource_defaults_params_no_resource_params() -> None:
@@ -1437,7 +1436,7 @@ def test_resource_defaults_no_params() -> None:
         },
     }
     merged_resource = _merge_resource_endpoints(resource_defaults, resource)
-    assert merged_resource["endpoint"]["params"] == { # type: ignore[index]
+    assert merged_resource["endpoint"]["params"] == {  # type: ignore[index]
         "per_page": 50,
         "sort": "updated",
     }
@@ -1495,10 +1494,13 @@ AUTH_CONFIGS = [
         secret_keys=["token"],
         config=BearerTokenAuth(token=cast(TSecretStrValue, "sensitive-secret")),
     ),
-    AuthConfigTest(secret_keys=["api_key"], config=APIKeyAuth(api_key=cast(TSecretStrValue, "sensitive-secret"))),
+    AuthConfigTest(
+        secret_keys=["api_key"],
+        config=APIKeyAuth(api_key=cast(TSecretStrValue, "sensitive-secret")),
+    ),
     AuthConfigTest(
         secret_keys=["username", "password"],
-        config=HttpBasicAuth("sensitive-secret", cast(TSecretStrValue,"sensitive-secret")),
+        config=HttpBasicAuth("sensitive-secret", cast(TSecretStrValue, "sensitive-secret")),
         masked_secrets=["s*****t", "s*****t"],
     ),
     AuthConfigTest(
@@ -1523,7 +1525,7 @@ def test_secret_masking_auth_config(secret_keys, config, masked_secrets):
 
 def test_secret_masking_oauth() -> None:
     config = OAuth2ClientCredentials(
-        access_token_url=cast(TSecretStrValue,""),
+        access_token_url=cast(TSecretStrValue, ""),
         client_id=cast(TSecretStrValue, "sensitive-secret"),
         client_secret=cast(TSecretStrValue, "sensitive-secret"),
     )
