@@ -825,11 +825,9 @@ class LanceDBRemoveOrphansJob(RunnableLoadJob):
                 columns=[source_table_id_field_name],
                 batch_size=BATCH_PROCESS_CHUNK_SIZE,
             ).to_reader() as arrow_rbr:
-                records: pa.Table = arrow_rbr.read_all()
-                records_with_conforming_schema = records.join(target_table_schema.empty_table(), keys=source_table_id_field_name)
 
                 write_records(
-                    records_with_conforming_schema,
+                    arrow_rbr,
                     db_client=db_client,
                     id_field_name=target_table_id_field_name,
                     table_name=fq_table_name,
