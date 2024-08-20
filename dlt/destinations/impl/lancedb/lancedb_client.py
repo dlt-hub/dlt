@@ -780,7 +780,6 @@ class LanceDBLoadJob(RunnableLoadJob, HasFollowupJobs):
         )
 
 
-# TODO: Implement staging for this step with insert deletes.
 class LanceDBRemoveOrphansJob(RunnableLoadJob):
     orphaned_ids: Set[str]
 
