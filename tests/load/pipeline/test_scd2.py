@@ -3,6 +3,7 @@
 import pytest
 from typing import List, Dict, Any, Optional
 from datetime import date, datetime, timezone  # noqa: I251
+from contextlib import nullcontext as does_not_raise
 
 import dlt
 from dlt.common.typing import TAnyDateTime
@@ -583,6 +584,7 @@ def test_validity_column_name_conflict(destination_config: DestinationTestConfig
         "9999-12-31T00:00:00",
         "9999-12-31T00:00:00+00:00",
         "9999-12-31T00:00:00+01:00",
+        "i_am_not_a_timestamp",
     ],
 )
 def test_active_record_timestamp(
@@ -591,22 +593,28 @@ def test_active_record_timestamp(
 ) -> None:
     p = destination_config.setup_pipeline("abstract", dev_mode=True)
 
-    @dlt.resource(
-        table_name="dim_test",
-        write_disposition={
-            "disposition": "merge",
-            "strategy": "scd2",
-            "active_record_timestamp": active_record_timestamp,
-        },
-    )
-    def r():
-        yield {"foo": "bar"}
+    context = does_not_raise()
+    if active_record_timestamp == "i_am_not_a_timestamp":
+        context = pytest.raises(ValueError)  # type: ignore[assignment]
 
-    p.run(r())
-    actual_active_record_timestamp = ensure_pendulum_datetime(
-        load_tables_to_dicts(p, "dim_test")["dim_test"][0]["_dlt_valid_to"]
-    )
-    assert actual_active_record_timestamp == ensure_pendulum_datetime(active_record_timestamp)
+    with context:
+
+        @dlt.resource(
+            table_name="dim_test",
+            write_disposition={
+                "disposition": "merge",
+                "strategy": "scd2",
+                "active_record_timestamp": active_record_timestamp,
+            },
+        )
+        def r():
+            yield {"foo": "bar"}
+
+        p.run(r())
+        actual_active_record_timestamp = ensure_pendulum_datetime(
+            load_tables_to_dicts(p, "dim_test")["dim_test"][0]["_dlt_valid_to"]
+        )
+        assert actual_active_record_timestamp == ensure_pendulum_datetime(active_record_timestamp)
 
 
 @pytest.mark.parametrize(
