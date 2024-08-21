@@ -1,7 +1,7 @@
 from typing import Any, Dict, List, Sequence, Tuple, cast, TypedDict, Optional, Callable, Union
 
 import yaml
-from dlt.common.logger import pretty_format_exception
+from dlt.common.time import ensure_pendulum_datetime
 
 from dlt.common.schema.typing import (
     TTableSchema,
@@ -721,10 +721,18 @@ class SqlMergeFollowupJob(SqlFollowupJob):
             format_datetime_literal = (
                 DestinationCapabilitiesContext.generic_capabilities().format_datetime_literal
             )
-        boundary_ts = format_datetime_literal(
-            current_load_package()["state"]["created_at"],
+
+        boundary_ts = ensure_pendulum_datetime(
+            root_table.get(  # type: ignore[arg-type]
+                "x-boundary-timestamp",
+                current_load_package()["state"]["created_at"],
+            )
+        )
+        boundary_literal = format_datetime_literal(
+            boundary_ts,
             caps.timestamp_precision,
         )
+
         active_record_timestamp = get_active_record_timestamp(root_table)
         if active_record_timestamp is None:
             active_record_literal = "NULL"
@@ -737,7 +745,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
 
         # retire updated and deleted records
         sql.append(f"""
-            {cls.gen_update_table_prefix(root_table_name)} {to} = {boundary_ts}
+            {cls.gen_update_table_prefix(root_table_name)} {to} = {boundary_literal}
             WHERE {is_active_clause}
             AND {hash_} NOT IN (SELECT {hash_} FROM {staging_root_table_name});
         """)
@@ -747,7 +755,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         col_str = ", ".join([c for c in columns if c not in (from_, to)])
         sql.append(f"""
             INSERT INTO {root_table_name} ({col_str}, {from_}, {to})
-            SELECT {col_str}, {boundary_ts} AS {from_}, {active_record_literal} AS {to}
+            SELECT {col_str}, {boundary_literal} AS {from_}, {active_record_literal} AS {to}
             FROM {staging_root_table_name} AS s
             WHERE {hash_} NOT IN (SELECT {hash_} FROM {root_table_name} WHERE {is_active_clause});
         """)
