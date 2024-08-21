@@ -55,7 +55,6 @@ from dlt.sources.rest_api.typing import (
     PaginatorType,
     RESTAPIConfig,
     ResolvedParam,
-    ResolveParamConfig,
     ResponseAction,
     IncrementalConfig,
 )
@@ -436,7 +435,7 @@ def test_resource_endpoint_shallow_merge() -> None:
     resource_config: EndpointResource = {
         "name": "resources",
         "max_table_nesting": 5,
-        "write_disposition": {"disposition": "merge", "x-merge-strategy": "scd2"},
+        "write_disposition": {"disposition": "merge", "strategy": "scd2"},
         "schema_contract": {"tables": "freeze"},
         "endpoint": {
             "paginator": {"type": "cursor", "cursor_param": "cursor"},
@@ -676,7 +675,7 @@ def test_resource_schema() -> None:
 
 
 @pytest.fixture()
-def incremental_with_init_and_end() -> Incremental:
+def incremental_with_init_and_end() -> Incremental[str]:
     return dlt.sources.incremental(
         cursor_path="updated_at",
         initial_value="2024-01-01T00:00:00Z",
@@ -685,7 +684,7 @@ def incremental_with_init_and_end() -> Incremental:
 
 
 @pytest.fixture()
-def incremental_with_init() -> Incremental:
+def incremental_with_init() -> Incremental[str]:
     return dlt.sources.incremental(
         cursor_path="updated_at",
         initial_value="2024-01-01T00:00:00Z",
@@ -1158,12 +1157,12 @@ def test_config_validation_for_response_actions(mocker):
 
 
 def test_two_resources_can_depend_on_one_parent_resource() -> None:
-    user_id: Dict[str, ResolveParamConfig] = {
+    user_id = {
         "user_id": {
             "type": "resolve",
             "field": "id",
             "resource": "users",
-        },
+        }
     }
     config: RESTAPIConfig = {
         "client": {
@@ -1175,14 +1174,14 @@ def test_two_resources_can_depend_on_one_parent_resource() -> None:
                 "name": "user_details",
                 "endpoint": {
                     "path": "user/{user_id}/",
-                    "params": user_id,
+                    "params": user_id,  # type: ignore[typeddict-item]
                 },
             },
             {
                 "name": "meetings",
                 "endpoint": {
                     "path": "meetings/{user_id}/",
-                    "params": user_id,
+                    "params": user_id,  # type: ignore[typeddict-item]
                 },
             },
         ],
@@ -1520,7 +1519,7 @@ AUTH_CONFIGS = [
 def test_secret_masking_auth_config(secret_keys, config, masked_secrets):
     masked = _mask_secrets(config)
     for key, mask in zip(secret_keys, masked_secrets):
-        assert masked[key] == mask
+        assert masked[key] == mask  # type: ignore[literal-required]
 
 
 def test_secret_masking_oauth() -> None:
