@@ -421,7 +421,7 @@ class HasFollowupJobs:
     """Adds a trait that allows to create single or table chain followup jobs"""
 
     def create_followup_jobs(self, final_state: TLoadJobState) -> List[FollowupJobRequest]:
-        """Return list of new jobs. `final_state` is state to which this job transits"""
+        """Return list of jobs requests for jobs that should be created. `final_state` is state to which this job transits"""
         return []
 
 

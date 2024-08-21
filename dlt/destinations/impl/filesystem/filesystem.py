@@ -104,6 +104,8 @@ class DeltaLoadFilesystemJob(FilesystemLoadJob):
 
     def run(self) -> None:
         # pick local filesystem pathlib or posix for buckets
+        # TODO: since we pass _job_client via run_managed and not set_env_vars it is hard
+        # to write a handler with those two line below only in FilesystemLoadJob
         self.is_local_filesystem = self._job_client.config.protocol == "file"
         self.pathlib = os.path if self.is_local_filesystem else posixpath
         self.destination_file_name = self._job_client.make_remote_uri(
