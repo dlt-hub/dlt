@@ -2681,21 +2681,6 @@ def test_duckdb_column_invalid_timestamp() -> None:
         pipeline.run(events())
 
 
-def test_duckdb_column_invalid_timestamp_precision() -> None:
-    # DuckDB does not support precision higher than 9
-    @dlt.resource(
-        columns={"event_tstamp": {"data_type": "timestamp", "precision": 10}},
-        primary_key="event_id",
-    )
-    def events():
-        yield [{"event_id": 1, "event_tstamp": "2024-07-30T10:00:00.123+00:00"}]
-
-    pipeline = dlt.pipeline(destination="duckdb")
-
-    with pytest.raises((TerminalValueError, PipelineStepFailed)):
-        pipeline.run(events())
-
-
 def test_duckdb_column_hint_timezone() -> None:
     # table: events_timezone_off
     @dlt.resource(

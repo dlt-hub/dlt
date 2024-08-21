@@ -17,6 +17,7 @@ from dlt.common.schema.typing import VERSION_TABLE_NAME
 from dlt.common.schema.utils import new_table
 from dlt.common.typing import TDataItem
 from dlt.common.utils import uniq_id
+from dlt.common.exceptions import TerminalValueError
 
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
 from dlt.destinations import filesystem, redshift
@@ -1146,3 +1147,26 @@ def simple_nested_pipeline(
         dataset_name=dataset_name,
     )
     return p, _data
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["duckdb", "postgres", "snowflake"]),
+    ids=lambda x: x.name,
+)
+def test_dest_column_invalid_timestamp_precision(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    invalid_precision = 10
+
+    @dlt.resource(
+        columns={"event_tstamp": {"data_type": "timestamp", "precision": invalid_precision}},
+        primary_key="event_id",
+    )
+    def events():
+        yield [{"event_id": 1, "event_tstamp": "2024-07-30T10:00:00.123+00:00"}]
+
+    pipeline = destination_config.setup_pipeline(uniq_id())
+
+    with pytest.raises((TerminalValueError, PipelineStepFailed)):
+        pipeline.run(events())
