@@ -69,20 +69,6 @@ def get_table(
         return table
     return sorted(table, key=lambda d: d[sort_column])
 
-    return sorted(
-        [
-            {
-                k: strip_timezone(v) if isinstance(v, datetime) else v
-                for k, v in r.items()
-                if not k.startswith("_dlt")
-                or k in DEFAULT_VALIDITY_COLUMN_NAMES
-                or (k == "_dlt_root_id" if include_root_id else False)
-            }
-            for r in load_tables_to_dicts(pipeline, table_name)[table_name]
-        ],
-        key=lambda d: d[sort_column],
-    )
-
 
 @pytest.mark.essential
 @pytest.mark.parametrize(
