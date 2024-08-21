@@ -6,6 +6,8 @@ import pytest
 
 import dlt
 from dlt.common.utils import uniq_id
+from dlt.common.exceptions import TerminalValueError
+from dlt.pipeline.exceptions import PipelineStepFailed
 
 from tests.load.utils import destinations_configs, DestinationTestConfiguration
 from tests.pipeline.utils import assert_load_info, load_tables_to_dicts
@@ -43,6 +45,28 @@ def test_postgres_encoded_binary(
     # print(bytes(data["table"][0]["hash"]))
     # data in postgres equals unencoded blob
     assert data["table"][0]["hash"].tobytes() == blob
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["postgres"]),
+    ids=lambda x: x.name,
+)
+def test_postgres_column_invalid_timestamp_precision(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    # PostgreSQL does not support precision higher than 6
+    @dlt.resource(
+        columns={"event_tstamp": {"data_type": "timestamp", "precision": 7}},
+        primary_key="event_id",
+    )
+    def events():
+        yield [{"event_id": 1, "event_tstamp": "2024-07-30T10:00:00.123+00:00"}]
+
+    pipeline = destination_config.setup_pipeline("postgres_" + uniq_id())
+
+    with pytest.raises((TerminalValueError, PipelineStepFailed)):
+        pipeline.run(events())
 
 
 @pytest.mark.parametrize(
