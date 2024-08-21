@@ -702,7 +702,9 @@ def test_cursor_path_none_does_not_include_overlapping_records(
     p.run(some_data(2), destination="duckdb")
 
     assert_query_data(p, "select id from some_data order by id", [1, 2, 3, 5, 6])
-    assert_query_data(p, "select created_at from some_data order by created_at", [1, 2, 3, None, None])
+    assert_query_data(
+        p, "select created_at from some_data order by created_at", [1, 2, 3, None, None]
+    )
 
     s = p.state["sources"][p.default_schema_name]["resources"]["some_data"]["incremental"][
         "created_at"

@@ -401,6 +401,11 @@ class ArrowIncremental(IncrementalTransform):
                     )
                 )
             )
+
+        # drop the temp unique index before concat and returning
+        if "_dlt_index" in tbl.schema.names:
+            tbl = pyarrow.remove_columns(tbl, ["_dlt_index"])
+
         if self.on_cursor_value_missing == "include":
             if isinstance(tbl, pa.RecordBatch):
                 assert isinstance(tbl_with_null, pa.RecordBatch)
@@ -410,12 +415,8 @@ class ArrowIncremental(IncrementalTransform):
 
         if len(tbl) == 0:
             return None, start_out_of_range, end_out_of_range
-        try:
-            tbl = pyarrow.remove_columns(tbl, ["_dlt_index"])
-        except KeyError:
-            pass
         if is_pandas:
-            return tbl.to_pandas(), start_out_of_range, end_out_of_range
+            tbl = tbl.to_pandas()
         return tbl, start_out_of_range, end_out_of_range
 
     def _process_null_at_cursor_path(self, tbl: "pa.Table") -> Tuple["pa.Table", "pa.Table"]:
