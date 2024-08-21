@@ -749,20 +749,20 @@ class SqlMergeFollowupJob(SqlFollowupJob):
             INSERT INTO {root_table_name} ({col_str}, {from_}, {to})
             SELECT {col_str}, {boundary_ts} AS {from_}, {active_record_literal} AS {to}
             FROM {staging_root_table_name} AS s
-            WHERE {hash_} NOT IN (SELECT {hash_} FROM {root_table_name});
+            WHERE {hash_} NOT IN (SELECT {hash_} FROM {root_table_name} WHERE {is_active_clause});
         """)
 
         # insert list elements for new active records in child tables
         child_tables = table_chain[1:]
         if child_tables:
-            unique_column = escape_column_id(
-                cls._get_unique_col(table_chain, sql_client, root_table)
-            )
             # TODO: - based on deterministic child hashes (OK)
             # - if row hash changes all is right
             # - if it does not we only capture new records, while we should replace existing with those in stage
             # - this write disposition is way more similar to regular merge (how root tables are handled is different, other tables handled same)
             for table in child_tables:
+                unique_column = escape_column_id(
+                    cls._get_unique_col(table_chain, sql_client, table)
+                )
                 table_name, staging_table_name = sql_client.get_qualified_table_names(table["name"])
                 sql.append(f"""
                     INSERT INTO {table_name}
