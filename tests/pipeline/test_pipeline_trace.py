@@ -248,6 +248,10 @@ def test_trace_schema() -> None:
     os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "True"
     os.environ["RESTORE_FROM_DESTINATION"] = "False"
 
+    # mock runtime env
+    os.environ["CIRCLECI"] = "1"
+    os.environ["AWS_LAMBDA_FUNCTION_NAME"] = "lambda"
+
     @dlt.source(section="many_hints")
     def many_hints(
         api_type=dlt.config.value,
