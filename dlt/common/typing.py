@@ -425,3 +425,23 @@ def copy_sig(
         return func
 
     return decorator
+
+
+def copy_sig_any(
+    wrapper: Callable[Concatenate[TDataItem, TInputArgs], Any],
+) -> Callable[
+    [Callable[..., TReturnVal]], Callable[Concatenate[TDataItem, TInputArgs], TReturnVal]
+]:
+    """Copies docstring and signature from wrapper to func but keeps the func return value type
+
+    It converts the type of first argument of the wrapper to Any which allows to type transformers in DltSources.
+    See filesystem source readers as example
+    """
+
+    def decorator(
+        func: Callable[..., TReturnVal]
+    ) -> Callable[Concatenate[Any, TInputArgs], TReturnVal]:
+        func.__doc__ = wrapper.__doc__
+        return func
+
+    return decorator
