@@ -465,11 +465,16 @@ class DltResourceHints:
                     "x-valid-to": True,
                     "x-active-record-timestamp": mddict.get("active_record_timestamp"),
                 }
+                # unique constraint is dropped for C_DLT_ID when used to store
+                # SCD2 row hash (only applies to root table)
                 hash_ = mddict.get("row_version_column_name", DataItemNormalizer.C_DLT_ID)
                 dict_["columns"][hash_] = {
                     "name": hash_,
                     "nullable": False,
                     "x-row-version": True,
+                    # duplicate value in row hash column is possible in case
+                    # of insert-delete-reinsert pattern
+                    "unique": False,
                 }
 
     @staticmethod
