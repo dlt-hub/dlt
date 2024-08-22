@@ -389,6 +389,9 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
             config,
             capabilities,
         )
+        SupportsStagingDestination.__init__(
+            self, config.truncate_table_before_load_on_staging_destination
+        )
         super().__init__(schema, config, sql_client)
         self.sql_client: AthenaSQLClient = sql_client  # type: ignore
         self.config: AthenaClientConfiguration = config

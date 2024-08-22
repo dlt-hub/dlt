@@ -283,6 +283,9 @@ class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
             capabilities,
             config,
         )
+        SupportsStagingDestination.__init__(
+            self, config.truncate_table_before_load_on_staging_destination
+        )
         super().__init__(schema, config, self.sql_client)
         self.config: ClickHouseClientConfiguration = config
         self.active_hints = deepcopy(HINT_TO_CLICKHOUSE_ATTR)

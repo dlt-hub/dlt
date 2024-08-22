@@ -262,6 +262,9 @@ class DatabricksClient(InsertValuesJobClient, SupportsStagingDestination):
             config.credentials,
             capabilities,
         )
+        SupportsStagingDestination.__init__(
+            self, config.truncate_table_before_load_on_staging_destination
+        )
         super().__init__(schema, config, sql_client)
         self.config: DatabricksClientConfiguration = config
         self.sql_client: DatabricksSqlClient = sql_client  # type: ignore[assignment]

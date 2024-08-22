@@ -179,9 +179,10 @@ def _init_dataset_and_update_schema(
     applied_update = job_client.update_stored_schema(
         only_tables=update_tables, expected_update=expected_update
     )
-    logger.info(
-        f"Client for {job_client.config.destination_type} will truncate tables {staging_text}"
-    )
+    if truncate_tables:
+        logger.info(
+            f"Client for {job_client.config.destination_type} will truncate tables {staging_text}"
+        )
 
     job_client.initialize_storage(truncate_tables=truncate_tables)
     return applied_update

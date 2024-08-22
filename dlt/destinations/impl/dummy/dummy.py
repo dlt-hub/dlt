@@ -134,6 +134,7 @@ class DummyClient(JobClientBase, SupportsStagingDestination, WithStagingDataset)
         config: DummyClientConfiguration,
         capabilities: DestinationCapabilitiesContext,
     ) -> None:
+        SupportsStagingDestination.__init__(self)
         super().__init__(schema, config, capabilities)
         self.in_staging_context = False
         self.config: DummyClientConfiguration = config
