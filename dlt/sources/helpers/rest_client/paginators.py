@@ -123,7 +123,8 @@ class RangePaginator(BasePaginator):
         super().__init__()
         if total_path is None and maximum_value is None and not stop_after_empty_page:
             raise ValueError(
-                "Either `total_path` or `maximum_value` or `stop_after_empty_page` must be provided."
+                "Either `total_path` or `maximum_value` or `stop_after_empty_page` must be"
+                " provided."
             )
         self.param_name = param_name
         self.current_value = initial_value
@@ -164,7 +165,7 @@ class RangePaginator(BasePaginator):
             ):
                 self._has_next_page = False
 
-    def _stop_after_this_page(self, data: Optional[List[Any]]=None) -> bool:
+    def _stop_after_this_page(self, data: Optional[List[Any]] = None) -> bool:
         return self.stop_after_empty_page and not data
 
     def _handle_missing_total(self, response_json: Dict[str, Any]) -> None:
@@ -371,7 +372,8 @@ class OffsetPaginator(RangePaginator):
         """
         if total_path is None and maximum_offset is None and not stop_after_empty_page:
             raise ValueError(
-                "Either `total_path` or `maximum_offset` or `stop_after_empty_page` must be provided."
+                "Either `total_path` or `maximum_offset` or `stop_after_empty_page` must be"
+                " provided."
             )
         super().__init__(
             param_name=offset_param,
