@@ -33,6 +33,7 @@ from .typing import (
     IncrementalParamConfig,
     RESTAPIConfig,
     ParamBindType,
+    ProcessingSteps,
 )
 from .config_setup import (
     IncrementalParam,
@@ -222,6 +223,7 @@ def create_resources(
         request_params = endpoint_config.get("params", {})
         request_json = endpoint_config.get("json", None)
         paginator = create_paginator(endpoint_config.get("paginator"))
+        processing_steps = endpoint_resource.pop("processing_steps", [])
 
         resolved_param: ResolvedParam = resolved_param_map[resource_name]
 
@@ -248,6 +250,17 @@ def create_resources(
         hooks = create_response_hooks(endpoint_config.get("response_actions"))
 
         resource_kwargs = exclude_keys(endpoint_resource, {"endpoint", "include_from_parent"})
+
+        def process(
+            resource: DltResource,
+            processing_steps: List[ProcessingSteps],
+        ) -> Any:
+            for step in processing_steps:
+                if "filter" in step:
+                    resource.add_filter(step["filter"])
+                if "map" in step:
+                    resource.add_map(step["map"])
+            return resource
 
         if resolved_param is None:
 
@@ -296,6 +309,8 @@ def create_resources(
                 data_selector=endpoint_config.get("data_selector"),
                 hooks=hooks,
             )
+
+            resources[resource_name] = process(resources[resource_name], processing_steps)
 
         else:
             predecessor = resources[resolved_param.resolve_config["resource"]]
@@ -357,6 +372,8 @@ def create_resources(
                 data_selector=endpoint_config.get("data_selector"),
                 hooks=hooks,
             )
+
+            resources[resource_name] = process(resources[resource_name], processing_steps)
 
     return resources
 

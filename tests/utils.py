@@ -375,8 +375,8 @@ def assert_query_data(
         with c.execute_query(sql) as cur:
             rows = list(cur.fetchall())
             assert len(rows) == len(table_data)
-            for row, d in zip(rows, table_data):
-                row = list(row)
+            for r, d in zip(rows, table_data):
+                row = list(r)
                 # first element comes from the data
                 assert row[0] == d
                 # the second is load id

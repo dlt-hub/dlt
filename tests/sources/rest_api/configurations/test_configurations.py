@@ -1,7 +1,7 @@
 import re
 import dlt.common
 import dlt.common.exceptions
-import pendulum
+from dlt.common import pendulum
 from requests.auth import AuthBase
 
 import dlt.extract
@@ -344,8 +344,8 @@ def test_error_message_invalid_auth_type() -> None:
         create_auth("non_existing_method")  # type: ignore
     assert (
         str(e.value)
-        == "Invalid authentication: non_existing_method. Available options: bearer, api_key,"
-        " http_basic, oauth2_client_credentials"
+        == "Invalid authentication: non_existing_method."
+        " Available options: bearer, api_key, http_basic, oauth2_client_credentials."
     )
 
 
@@ -355,7 +355,7 @@ def test_error_message_invalid_paginator() -> None:
     assert (
         str(e.value)
         == "Invalid paginator: non_existing_method. Available options: json_link, json_response,"
-        " header_link, auto, single_page, cursor, offset, page_number"
+        " header_link, auto, single_page, cursor, offset, page_number."
     )
 
 
