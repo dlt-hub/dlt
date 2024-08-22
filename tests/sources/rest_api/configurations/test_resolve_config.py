@@ -1,24 +1,21 @@
 import re
-
-import pytest
 from copy import deepcopy
 
+import pytest
 from graphlib import CycleError  # type: ignore
 
-
 from dlt.sources.rest_api import (
-    rest_api_source,
     rest_api_resources,
+    rest_api_source,
 )
-
 from dlt.sources.rest_api.config_setup import (
     _bind_path_params,
     process_parent_data_item,
 )
 from dlt.sources.rest_api.typing import (
     EndpointResource,
-    RESTAPIConfig,
     ResolvedParam,
+    RESTAPIConfig,
 )
 
 try:

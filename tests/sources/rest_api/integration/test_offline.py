@@ -1,21 +1,20 @@
-import pytest
-from dlt.common import pendulum
 from unittest import mock
 
+import pytest
+
 import dlt
+from dlt.common import pendulum
 from dlt.pipeline.exceptions import PipelineStepFailed
 from dlt.sources.helpers.rest_client.paginators import BaseReferencePaginator
-
-from tests.utils import assert_load_info, load_table_counts, assert_query_data
-
-from dlt.sources.rest_api import rest_api_source
 from dlt.sources.rest_api import (
-    RESTAPIConfig,
     ClientConfig,
-    EndpointResource,
     Endpoint,
+    EndpointResource,
+    RESTAPIConfig,
+    rest_api_source,
 )
 from tests.sources.rest_api.conftest import DEFAULT_PAGE_SIZE, DEFAULT_TOTAL_PAGES
+from tests.utils import assert_load_info, assert_query_data, load_table_counts
 
 
 def test_load_mock_api(mock_api_server):
