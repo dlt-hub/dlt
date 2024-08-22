@@ -1,6 +1,6 @@
-import json
+from dlt.common import json
 import pytest
-import pendulum
+from dlt.common import pendulum
 from unittest import mock
 
 import dlt
@@ -22,9 +22,6 @@ from tests.sources.rest_api.conftest import DEFAULT_PAGE_SIZE, DEFAULT_TOTAL_PAG
 
 
 def test_load_mock_api(mock_api_server):
-    # import os
-    # os.environ["EXTRACT__NEXT_ITEM_MODE"] = "fifo"
-    # os.environ["EXTRACT__MAX_PARALLEL_ITEMS"] = "1"
     pipeline = dlt.pipeline(
         pipeline_name="rest_api_mock",
         destination="duckdb",

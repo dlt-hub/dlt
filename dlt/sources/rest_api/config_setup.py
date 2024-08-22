@@ -110,7 +110,7 @@ def get_paginator_class(paginator_name: str) -> Type[BasePaginator]:
     except KeyError:
         available_options = ", ".join(PAGINATOR_MAP.keys())
         raise ValueError(
-            f"Invalid paginator: {paginator_name}. Available options: {available_options}"
+            f"Invalid paginator: {paginator_name}. Available options: {available_options}."
         )
 
 
@@ -159,7 +159,7 @@ def get_auth_class(auth_type: str) -> Type[AuthConfigBase]:
     except KeyError:
         available_options = ", ".join(AUTH_MAP.keys())
         raise ValueError(
-            f"Invalid authentication: {auth_type}. Available options: {available_options}"
+            f"Invalid authentication: {auth_type}. Available options: {available_options}."
         )
 
 

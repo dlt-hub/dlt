@@ -239,6 +239,11 @@ class Endpoint(TypedDict, total=False):
     incremental: Optional[IncrementalConfig]
 
 
+class ProcessingSteps(TypedDict):
+    filter: Optional[Callable[[Any], bool]]  # noqa: A003
+    map: Optional[Callable[[Any], Any]]  # noqa: A003
+
+
 class ResourceBase(TypedDict, total=False):
     """Defines hints that may be passed to `dlt.resource` decorator"""
 
@@ -253,6 +258,7 @@ class ResourceBase(TypedDict, total=False):
     table_format: Optional[TTableHintTemplate[TTableFormat]]
     selected: Optional[bool]
     parallelized: Optional[bool]
+    processing_steps: Optional[List[ProcessingSteps]]
 
 
 class EndpointResourceBase(ResourceBase, total=False):
