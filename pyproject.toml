@@ -83,7 +83,6 @@ lancedb = { version = ">=0.8.2", optional = true, markers = "python_version >= '
 deltalake = { version = ">=0.17.4", optional = true }
 graphlib-backport = {version = "*", python = "<3.9"}
 
-
 [tool.poetry.extras]
 gcp = ["grpcio", "google-cloud-bigquery", "db-dtypes", "gcsfs"]
 # bigquery is alias on gcp extras
@@ -91,6 +90,7 @@ bigquery = ["grpcio", "google-cloud-bigquery", "pyarrow", "db-dtypes", "gcsfs"]
 postgres = ["psycopg2-binary", "psycopg2cffi"]
 redshift = ["psycopg2-binary", "psycopg2cffi"]
 parquet = ["pyarrow"]
+duckdb = ["duckdb"]
 filesystem = ["s3fs", "botocore"]
 s3 = ["s3fs", "botocore"]
 gs = ["gcsfs"]
