@@ -216,7 +216,7 @@ def write_records(
         ) from e
 
 
-class LanceDBClient(JobClientBase, WithStateSync, WithStagingDataset):
+class LanceDBClient(JobClientBase, WithStateSync):
     """LanceDB destination handler."""
 
     model_func: TextEmbeddingFunction
@@ -725,19 +725,6 @@ class LanceDBClient(JobClientBase, WithStateSync, WithStagingDataset):
     def table_exists(self, table_name: str) -> bool:
         return table_name in self.db_client.table_names()
 
-    @contextlib.contextmanager
-    def with_staging_dataset(self) -> Iterator["LanceDBClient"]:
-        current_dataset_name = self.dataset_name
-        try:
-            self.dataset_name = self.schema.naming.normalize_table_identifier(
-                f"{current_dataset_name}_staging"
-            )
-            yield self
-        finally:
-            self.dataset_name = current_dataset_name
-
-    def should_load_data_to_staging_dataset(self, table: TTableSchema) -> bool:
-        return False
 
 
 class LanceDBLoadJob(RunnableLoadJob, HasFollowupJobs):
