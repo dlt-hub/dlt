@@ -1,4 +1,3 @@
-import contextlib
 from types import TracebackType
 from typing import (
     List,
@@ -13,7 +12,6 @@ from typing import (
     Sequence,
     TYPE_CHECKING,
     Set,
-    Iterator,
 )
 
 import lancedb  # type: ignore
@@ -25,7 +23,7 @@ from lancedb.common import DATA  # type: ignore
 from lancedb.embeddings import EmbeddingFunctionRegistry, TextEmbeddingFunction  # type: ignore
 from lancedb.query import LanceQueryBuilder  # type: ignore
 from numpy import ndarray
-from pyarrow import Array, ChunkedArray, ArrowInvalid, RecordBatchReader
+from pyarrow import Array, ChunkedArray, ArrowInvalid
 
 from dlt.common import json, pendulum, logger
 from dlt.common.destination import DestinationCapabilitiesContext
@@ -43,7 +41,6 @@ from dlt.common.destination.reference import (
     FollowupJob,
     LoadJob,
     HasFollowupJobs,
-    WithStagingDataset,
 )
 from dlt.common.pendulum import timedelta
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
@@ -200,6 +197,7 @@ def write_records(
             if not id_field_name:
                 raise ValueError("To perform a merge update, 'id_field_name' must be specified.")
             if remove_orphans:
+                # tbl.to_lance().merge_insert(id_field_name).when_not_matched_by_source_delete().execute(records)
                 tbl.merge_insert(id_field_name).when_not_matched_by_source_delete().execute(records)
             else:
                 tbl.merge_insert(
@@ -726,7 +724,6 @@ class LanceDBClient(JobClientBase, WithStateSync):
         return table_name in self.db_client.table_names()
 
 
-
 class LanceDBLoadJob(RunnableLoadJob, HasFollowupJobs):
     arrow_schema: TArrowSchema
 
@@ -791,36 +788,52 @@ class LanceDBRemoveOrphansJob(RunnableLoadJob):
             )
             for file_path_ in self.references
         ]
-        source_table_id_field_name = "_dlt_id"
 
-        for table, table_name, table_path in table_lineage:
-            target_is_root_table = "parent" not in table
-            fq_table_name = self._job_client.make_qualified_table_name(table_name)
-            target_table_schema = pq.read_schema(table_path)
+        for target_table, target_table_name, target_table_path in table_lineage:
+            target_is_root_table = "parent" not in target_table
+            fq_table_name = self._job_client.make_qualified_table_name(target_table_name)
 
             if target_is_root_table:
                 target_table_id_field_name = "_dlt_id"
-                arrow_ds = pa.dataset.dataset(table_path)
+                # arrow_ds = pa.dataset.dataset(table_path)
+                with FileStorage.open_zipsafe_ro(target_table_path, mode="rb") as f:
+                    payload_arrow_table: pa.Table = pq.read_table(f)
+
+                # Append ID Field, which is only defined in the LanceDB table.
+                payload_arrow_table = payload_arrow_table.append_column(
+                    pa.field(self._job_client.id_field_name, pa.string()),
+                    pa.array([""] * payload_arrow_table.num_rows, type=pa.string()),
+                )
             else:
                 # TODO:  change schema of source table id to math target table id.
                 target_table_id_field_name = "_dlt_parent_id"
-                parent_table_path = self.get_parent_path(table_lineage, table.get("parent"))
-                arrow_ds = pa.dataset.dataset(parent_table_path)
+                parent_table_path = self.get_parent_path(table_lineage, target_table.get("parent"))
+                # arrow_ds = pa.dataset.dataset(parent_table_path)
+                with FileStorage.open_zipsafe_ro(parent_table_path, mode="rb") as f:
+                    payload_arrow_table: pa.Table = pq.read_table(f)
 
-            arrow_rbr: RecordBatchReader
-            with arrow_ds.scanner(
-                columns=[source_table_id_field_name],
-                batch_size=BATCH_PROCESS_CHUNK_SIZE,
-            ).to_reader() as arrow_rbr:
+            # arrow_rbr: RecordBatchReader
+            # with arrow_ds.scanner(
+            #     columns=[source_table_id_field_name],
+            #     batch_size=BATCH_PROCESS_CHUNK_SIZE,
+            # ).to_reader() as arrow_rbr:
+            # with FileStorage.open_zipsafe_ro(target_table_path, mode="rb") as f:
+            #     target_table_arrow_schema: pa.Schema = pq.read_schema(f)
 
-                write_records(
-                    arrow_rbr,
-                    db_client=db_client,
-                    id_field_name=target_table_id_field_name,
-                    table_name=fq_table_name,
-                    write_disposition="merge",
-                    remove_orphans=True,
-                )
+            # payload_arrow_table_with_conforming_schema = payload_arrow_table.join(
+            #     target_table_arrow_schema.empty_table(),
+            #     keys=target_table_id_field_name,
+            # )
+
+            write_records(
+                # payload_arrow_table_with_conforming_schema,
+                payload_arrow_table,
+                db_client=db_client,
+                id_field_name=target_table_id_field_name,
+                table_name=fq_table_name,
+                write_disposition="merge",
+                remove_orphans=True,
+            )
 
     @staticmethod
     def get_parent_path(table_lineage: TTableLineage, table: str) -> Optional[str]:
