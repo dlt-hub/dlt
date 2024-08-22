@@ -1,6 +1,8 @@
+from typing import Any, List, Optional
 from unittest import mock
 
 import pytest
+from requests import Request, Response
 
 import dlt
 from dlt.common import pendulum
@@ -140,10 +142,10 @@ def test_ignoring_endpoint_returning_404(mock_api_server):
 
 def test_source_with_post_request(mock_api_server):
     class JSONBodyPageCursorPaginator(BaseReferencePaginator):
-        def update_state(self, response):
+        def update_state(self, response: Response, data: Optional[List[Any]] = None) -> None:
             self._next_reference = response.json().get("next_page")
 
-        def update_request(self, request):
+        def update_request(self, request: Request) -> None:
             if request.json is None:
                 request.json = {}
 
