@@ -347,7 +347,9 @@ class TestOffsetPaginator:
                 total_path=None,
                 stop_after_empty_page=False,
             )
-        assert e.match("`total_path` or `maximum_offset` or `stop_after_empty_page` must be provided")
+        assert e.match(
+            "`total_path` or `maximum_offset` or `stop_after_empty_page` must be provided"
+        )
 
         with pytest.raises(ValueError) as e:
             OffsetPaginator(
@@ -356,7 +358,9 @@ class TestOffsetPaginator:
                 stop_after_empty_page=False,
                 maximum_offset=None,
             )
-        assert e.match("`total_path` or `maximum_offset` or `stop_after_empty_page` must be provided")
+        assert e.match(
+            "`total_path` or `maximum_offset` or `stop_after_empty_page` must be provided"
+        )
 
 
 @pytest.mark.usefixtures("mock_api_server")
