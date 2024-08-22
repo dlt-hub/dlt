@@ -1,19 +1,22 @@
-import dlt.common
-import dlt.common.exceptions
-
-import dlt.extract
-import pytest
 from typing import get_args
 
+import pytest
 
 import dlt
+import dlt.common
+import dlt.common.exceptions
+import dlt.extract
 from dlt.common.jsonpath import compile_path
-
-
+from dlt.sources.helpers.rest_client.paginators import (
+    HeaderLinkPaginator,
+    JSONResponseCursorPaginator,
+    JSONResponsePaginator,
+    OffsetPaginator,
+    PageNumberPaginator,
+)
 from dlt.sources.rest_api import (
     rest_api_source,
 )
-
 from dlt.sources.rest_api.config_setup import (
     PAGINATOR_MAP,
     create_paginator,
@@ -22,13 +25,6 @@ from dlt.sources.rest_api.typing import (
     PaginatorConfig,
     PaginatorType,
     RESTAPIConfig,
-)
-from dlt.sources.helpers.rest_client.paginators import (
-    HeaderLinkPaginator,
-    JSONResponseCursorPaginator,
-    OffsetPaginator,
-    PageNumberPaginator,
-    JSONResponsePaginator,
 )
 
 try:

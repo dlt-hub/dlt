@@ -1,8 +1,6 @@
-from dlt.sources.rest_api import rest_api_source
-from dlt.sources.helpers.requests import Response
 from dlt.common import json
-
-from dlt.sources.rest_api import create_response_hooks
+from dlt.sources.helpers.requests import Response
+from dlt.sources.rest_api import create_response_hooks, rest_api_source
 
 
 def test_response_action_on_status_code(mock_api_server, mocker):

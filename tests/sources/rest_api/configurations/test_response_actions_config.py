@@ -1,7 +1,6 @@
 import pytest
 from typing import List
 
-
 from dlt.sources.rest_api import (
     rest_api_source,
 )

@@ -1,25 +1,21 @@
 import re
-import dlt.common
-import dlt.common.exceptions
+from typing import Any, Dict, List, Literal, NamedTuple, Optional, Union, cast, get_args
+
+import pytest
 from requests.auth import AuthBase
 
-import dlt.extract
-import pytest
-from typing import cast, get_args, Dict, List, Literal, Any, Optional, NamedTuple, Union
-
-
 import dlt
-from dlt.common.utils import custom_environ
+import dlt.common
+import dlt.common.exceptions
+import dlt.extract
 from dlt.common.configuration import inject_section
 from dlt.common.configuration.specs import ConfigSectionContext
 from dlt.common.typing import TSecretStrValue
-
-
+from dlt.common.utils import custom_environ
 from dlt.sources.rest_api import (
-    rest_api_source,
     _mask_secrets,
+    rest_api_source,
 )
-
 from dlt.sources.rest_api.config_setup import (
     AUTH_MAP,
     create_auth,
@@ -38,9 +34,9 @@ except ImportError:
 
 
 from dlt.sources.helpers.rest_client.auth import (
-    HttpBasicAuth,
-    BearerTokenAuth,
     APIKeyAuth,
+    BearerTokenAuth,
+    HttpBasicAuth,
     OAuth2ClientCredentials,
 )
 

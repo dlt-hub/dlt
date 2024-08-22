@@ -1,9 +1,11 @@
 from base64 import b64encode
+from typing import Any, Dict, cast
+
 import pytest
-from typing import Any, cast, Dict
+
 from dlt.sources import rest_api
-from dlt.sources.rest_api.typing import ApiKeyAuthConfig, AuthConfig
 from dlt.sources.helpers.rest_client.auth import APIKeyAuth, OAuth2ClientCredentials
+from dlt.sources.rest_api.typing import ApiKeyAuthConfig, AuthConfig
 
 
 class CustomOAuth2(OAuth2ClientCredentials):

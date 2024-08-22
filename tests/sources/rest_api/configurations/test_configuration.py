@@ -1,36 +1,32 @@
-import dlt.common
-import dlt.common.exceptions
-
-import dlt.extract
-import pytest
-from unittest.mock import patch
 from copy import copy
 from typing import cast
+from unittest.mock import patch
 
+import pytest
 
 import dlt
+import dlt.common
+import dlt.common.exceptions
+import dlt.extract
 from dlt.common.utils import update_dict_nested
-
-
-from dlt.sources.rest_api import (
-    rest_api_source,
-    rest_api_resources,
+from dlt.sources.helpers.rest_client.paginators import (
+    HeaderLinkPaginator,
+    SinglePagePaginator,
 )
-
+from dlt.sources.rest_api import (
+    rest_api_resources,
+    rest_api_source,
+)
 from dlt.sources.rest_api.config_setup import (
-    _setup_single_entity_endpoint,
     _make_endpoint_resource,
     _merge_resource_endpoints,
+    _setup_single_entity_endpoint,
 )
 from dlt.sources.rest_api.typing import (
     Endpoint,
     EndpointResource,
     EndpointResourceBase,
     RESTAPIConfig,
-)
-from dlt.sources.helpers.rest_client.paginators import (
-    HeaderLinkPaginator,
-    SinglePagePaginator,
 )
 
 try:
@@ -40,8 +36,8 @@ except ImportError:
 
 
 from .source_configs import (
-    VALID_CONFIGS,
     INVALID_CONFIGS,
+    VALID_CONFIGS,
 )
 
 
