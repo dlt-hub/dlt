@@ -1,5 +1,5 @@
 ---
-title: Tutorial
+title: Tutorials
 description: Build a data pipeline with dlt
 keywords: [tutorial, api, github, duckdb, pipeline]
 ---

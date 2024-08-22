@@ -32,12 +32,15 @@ const sidebars = {
     'getting-started',
     {
       type: 'category',
-      label: 'Tutorial',
+      label: 'Tutorials',
       link: {
         type: 'doc',
         id: 'tutorial/intro',
       },
       items: [
+        'tutorial/rest-api',
+        'tutorial/sql-database',
+        'tutorial/filesystem',
         'tutorial/load-data-from-an-api',
         'tutorial/grouping-resources',
       ]

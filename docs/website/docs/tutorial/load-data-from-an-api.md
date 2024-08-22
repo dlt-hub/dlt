@@ -1,5 +1,5 @@
 ---
-title: Load data from an API
+title: "Building a custom dlt pipeline"
 description: quick start with dlt
 keywords: [getting started, quick start, basic examples]
 ---
