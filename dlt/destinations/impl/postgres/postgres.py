@@ -92,7 +92,7 @@ class PostgresTypeMapper(TypeMapper):
         precision = column.get("precision")
 
         if timezone is None and precision is None:
-            return super().to_db_datetime_type(column, table)
+            return None
 
         timestamp = "timestamp"
 

@@ -104,7 +104,7 @@ class DuckDbTypeMapper(TypeMapper):
             return "TIMESTAMP"
 
         if precision is None or precision == 6:
-            return super().to_db_datetime_type(column, table)
+            return None
         elif precision == 0:
             return "TIMESTAMP_S"
         elif precision == 3:

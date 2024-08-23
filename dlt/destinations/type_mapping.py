@@ -1,5 +1,6 @@
 from typing import Tuple, ClassVar, Dict, Optional
 
+from dlt.common import logger
 from dlt.common.schema.typing import (
     TColumnSchema,
     TDataType,
@@ -36,6 +37,18 @@ class TypeMapper:
         table: TTableSchema = None,
     ) -> str:
         # Override in subclass if db supports other timestamp types (e.g. with different time resolutions)
+        column_name = column.get("name")
+        table_name = table.get("name")
+        timezone = column.get("timezone")
+        precision = column.get("precision")
+
+        if timezone is not None or precision is not None:
+            logger.warning(
+                "Column flags for timezone or precision are not yet supported in this destination."
+                f" One or both of these flags were used in column '{column_name}' of table"
+                f" '{table_name}'."
+            )
+
         return None
 
     def to_db_time_type(self, column: TColumnSchema = None, table: TTableSchema = None) -> str:

@@ -114,6 +114,15 @@ class LanceDBTypeMapper(TypeMapper):
         column: TColumnSchema = None,
         table: TTableSchema = None,
     ) -> pa.TimestampType:
+        column_name = column.get("name")
+        table_name = table.get("name")
+        timezone = column.get("timezone")
+        precision = column.get("precision")
+        if timezone is not None or precision is not None:
+            logger.warning(
+                "LanceDB does not currently support column flags for timezone or precision."
+                f" These flags were used in column '{column_name}' of table '{table_name}'."
+            )
         unit: str = TIMESTAMP_PRECISION_TO_UNIT[self.capabilities.timestamp_precision]
         return pa.timestamp(unit, "UTC")
 
