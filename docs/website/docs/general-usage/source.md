@@ -201,7 +201,11 @@ You can directly configure the `max_table_nesting` parameter on the resource lev
 def my_resource():
     ...
 ```
-
+or
+```py
+my_source = my_source()
+my_source.my_resource.max_table_nesting = 0
+```
 
 ### Modify schema
 
