@@ -112,8 +112,8 @@ When using the `qdrant_adapter`, it's important to apply it directly to resource
 products_tables = sql_database().with_resources("products", "customers")
 
 pipeline = dlt.pipeline(
-        pipeline_name="postgres_to_weaviate_pipeline",
-        destination="weaviate",
+        pipeline_name="postgres_to_qdrant_pipeline",
+        destination="qdrant",
     )
 
 # apply adapter to the needed resources

@@ -150,8 +150,8 @@ When using the `lancedb_adapter`, it's important to apply it directly to resourc
 products_tables = sql_database().with_resources("products", "customers")
 
 pipeline = dlt.pipeline(
-        pipeline_name="postgres_to_weaviate_pipeline",
-        destination="weaviate",
+        pipeline_name="postgres_to_lancedb_pipeline",
+        destination="lancedb",
     )
 
 # apply adapter to the needed resources
