@@ -76,15 +76,20 @@ DATA_WRITER__TIMESTAMP_TIMEZONE=""
 to disable tz adjustments.
 :::
 
-## Supported Column Hints
+## Supported column hints
 
 `duckdb` can create unique indexes for columns with `unique` hints. However, **this feature is disabled by default** as it can significantly slow down data loading.
 
-## Timestamp and timezone configuration
+## Supported column flags
 
-`duckdb` supports various [timestamp types](https://duckdb.org/docs/sql/data_types/timestamp.html). You can configure them using column flags in the `dlt.resource` decorator or `pipeline.run` method.
+`duckdb` supports various [timestamp types](https://duckdb.org/docs/sql/data_types/timestamp.html). These can be configured using the column flags `timezone` and `precision` in the `dlt.resource` decorator or the `pipeline.run` method.
 
-#### Example: TIMESTAMP_MS
+- **Precision**:  supported precision values are 0, 3, and 9 for fractional seconds. Note that `timezone` and `precision` cannot be used together; attempting to combine them will result in an error.
+- **Timezone**:
+  - Setting `timezone=False` maps to `TIMESTAMP`.
+  - Setting `timezone=True` (or omitting the flag, which defaults to `True`) maps to `TIMESTAMP WITH TIME ZONE` (`TIMESTAMPTZ`).
+
+#### Example precision: TIMESTAMP_MS
 
 ```py
 @dlt.resource(
@@ -98,11 +103,11 @@ pipeline = dlt.pipeline(destination="duckdb")
 pipeline.run(events())
 ```
 
-#### Example: TIMESTAMP WITH TIME ZONE (TIMESTAMPTZ)
+#### Example timezone: TIMESTAMP
 
 ```py
 @dlt.resource(
-    columns={"event_tstamp": {"data_type": "timestamp", "timezone": True}},
+    columns={"event_tstamp": {"data_type": "timestamp", "timezone": False}},
     primary_key="event_id",
 )
 def events():
@@ -111,8 +116,6 @@ def events():
 pipeline = dlt.pipeline(destination="duckdb")
 pipeline.run(events())
 ```
-
-**Note:** DuckDB does not support combining `timezone` and `precision` flags simultaneously. Attempting to use both will result in an error.
 
 ## Destination Configuration
 

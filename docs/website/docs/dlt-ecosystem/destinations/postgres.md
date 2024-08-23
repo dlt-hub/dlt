@@ -98,6 +98,28 @@ In the example above `arrow_table` will be converted to csv with **pyarrow** and
 ## Supported column hints
 `postgres` will create unique indexes for all columns with `unique` hints. This behavior **may be disabled**.
 
+## Supported column flags
+
+`postgres` supports various timestamp types, which can be configured using the column flags `timezone` and `precision` in the `dlt.resource` decorator or the `pipeline.run` method.
+
+- **Precision**: allows you to specify the number of decimal places for fractional seconds, ranging from 0 to 6. It can be used in combination with the `timezone` flag.
+- **Timezone**: 
+  - Setting `timezone=False` maps to `TIMESTAMP WITHOUT TIME ZONE`.
+  - Setting `timezone=True` (or omitting the flag, which defaults to `True`) maps to `TIMESTAMP WITH TIME ZONE`.
+
+#### Example precision and timezone: TIMESTAMP (3) WITHOUT TIME ZONE 
+```py
+@dlt.resource(
+    columns={"event_tstamp": {"data_type": "timestamp", "precision": 3, "timezone": False}},
+    primary_key="event_id",
+)
+def events():
+    yield [{"event_id": 1, "event_tstamp": "2024-07-30T10:00:00.123"}]
+
+pipeline = dlt.pipeline(destination="postgres")
+pipeline.run(events())
+```
+
 ### Table and column identifiers
 Postgres supports both case sensitive and case insensitive identifiers. All unquoted and lowercase identifiers resolve case-insensitively in SQL statements. Case insensitive [naming conventions](../../general-usage/naming-convention.md#case-sensitive-and-insensitive-destinations) like the default **snake_case** will generate case insensitive identifiers. Case sensitive (like **sql_cs_v1**) will generate
 case sensitive identifiers that must be quoted in SQL statements.
