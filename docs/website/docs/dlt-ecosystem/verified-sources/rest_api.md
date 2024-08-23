@@ -102,7 +102,7 @@ The GitHub API [requires an access token](https://docs.github.com/en/rest/authen
 After you get the token, add it to the `secrets.toml` file:
 
 ```toml
-[sources.rest_api.github]
+[sources.rest_api_pipeline.github_source]
 github_token = "your_github_token"
 ```
 
