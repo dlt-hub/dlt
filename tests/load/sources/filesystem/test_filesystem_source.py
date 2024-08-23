@@ -10,6 +10,7 @@ from dlt.sources.filesystem import filesystem, readers, FileItem, FileItemDict, 
 from dlt.sources.filesystem.helpers import fsspec_from_resource
 
 from tests.common.storages.utils import TEST_SAMPLE_FILES
+from tests.load.utils import DestinationTestConfiguration, destinations_configs
 from tests.pipeline.utils import (
     assert_load_info,
     load_table_counts,
@@ -17,7 +18,7 @@ from tests.pipeline.utils import (
 )
 from tests.utils import TEST_STORAGE_ROOT
 
-from .cases import GLOB_RESULTS, TESTS_BUCKET_URLS
+from tests.load.sources.filesystem.cases import GLOB_RESULTS, TESTS_BUCKET_URLS
 
 
 @pytest.fixture(autouse=True)
@@ -107,14 +108,15 @@ def test_fsspec_as_credentials():
 
 
 @pytest.mark.parametrize("bucket_url", TESTS_BUCKET_URLS)
-def test_csv_transformers(bucket_url: str) -> None:
-    pipeline = dlt.pipeline(
-        pipeline_name="file_data",
-        destination="duckdb",
-        dataset_name="all_files",
-        full_refresh=True,
-    )
-
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, all_buckets_filesystem_configs=True),
+    ids=lambda x: x.name,
+)
+def test_csv_transformers(
+    bucket_url: str, destination_config: DestinationTestConfiguration
+) -> None:
+    pipeline = destination_config.setup_pipeline("test_csv_transformers", dev_mode=True)
     # load all csvs merging data on a date column
     met_files = filesystem(bucket_url=bucket_url, file_glob="met_csv/A801/*.csv") | read_csv()
     met_files.apply_hints(write_disposition="merge", merge_key="date")
@@ -139,7 +141,14 @@ def test_csv_transformers(bucket_url: str) -> None:
 
 
 @pytest.mark.parametrize("bucket_url", TESTS_BUCKET_URLS)
-def test_standard_readers(bucket_url: str) -> None:
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, all_buckets_filesystem_configs=True),
+    ids=lambda x: x.name,
+)
+def test_standard_readers(
+    bucket_url: str, destination_config: DestinationTestConfiguration
+) -> None:
     # extract pipes with standard readers
     jsonl_reader = readers(bucket_url, file_glob="**/*.jsonl").read_jsonl()
     parquet_reader = readers(bucket_url, file_glob="**/*.parquet").read_parquet()
@@ -161,12 +170,7 @@ def test_standard_readers(bucket_url: str) -> None:
     downloader = filesystem(bucket_url, file_glob="**").add_map(_copy)
 
     # load in single pipeline
-    pipeline = dlt.pipeline(
-        pipeline_name="file_data",
-        destination="duckdb",
-        dataset_name="all_files",
-        full_refresh=True,
-    )
+    pipeline = destination_config.setup_pipeline("test_standard_readers", dev_mode=True)
     load_info = pipeline.run(
         [
             jsonl_reader.with_name("jsonl_example"),
@@ -198,17 +202,19 @@ def test_standard_readers(bucket_url: str) -> None:
 
 
 @pytest.mark.parametrize("bucket_url", TESTS_BUCKET_URLS)
-def test_incremental_load(bucket_url: str) -> None:
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, all_buckets_filesystem_configs=True),
+    ids=lambda x: x.name,
+)
+def test_incremental_load(
+    bucket_url: str, destination_config: DestinationTestConfiguration
+) -> None:
     @dlt.transformer
     def bypass(items) -> str:
         return items
 
-    pipeline = dlt.pipeline(
-        pipeline_name="file_data",
-        destination="duckdb",
-        dataset_name="filesystem_data_duckdb",
-        full_refresh=True,
-    )
+    pipeline = destination_config.setup_pipeline("test_incremental_load", dev_mode=True)
 
     # Load all files
     all_files = filesystem(bucket_url=bucket_url, file_glob="csv/*")
@@ -252,22 +258,3 @@ def test_file_chunking() -> None:
         assert len(pipe_item.item) == 2
         # no need to test more chunks
         break
-
-
-@pytest.mark.parametrize(
-    "example_name",
-    (
-        "read_custom_file_type_excel",
-        "stream_and_merge_csv",
-        "read_csv_with_duckdb",
-        "read_csv_duckdb_compressed",
-        "read_parquet_and_jsonl_chunked",
-        "read_files_incrementally_mtime",
-    ),
-)
-def test_all_examples(example_name: str) -> None:
-    from dlt.sources import filesystem_pipeline
-
-    filesystem_pipeline.TESTS_BUCKET_URL = TEST_SAMPLE_FILES
-
-    getattr(filesystem_pipeline, example_name)()
