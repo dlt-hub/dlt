@@ -66,7 +66,7 @@ class PostgresTypeMapper(TypeMapper):
         "integer": "bigint",
     }
 
-    def to_db_integer_type(self, column: TColumnSchema = None, table: TTableSchema = None) -> str:
+    def to_db_integer_type(self, column: TColumnSchema, table: TTableSchema = None) -> str:
         precision = column.get("precision")
         if precision is None:
             return "bigint"
@@ -83,7 +83,7 @@ class PostgresTypeMapper(TypeMapper):
 
     def to_db_datetime_type(
         self,
-        column: TColumnSchema = None,
+        column: TColumnSchema,
         table: TTableSchema = None,
     ) -> str:
         column_name = column.get("name")

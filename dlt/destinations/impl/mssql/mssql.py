@@ -59,7 +59,7 @@ class MsSqlTypeMapper(TypeMapper):
         "int": "bigint",
     }
 
-    def to_db_integer_type(self, column: TColumnSchema = None, table: TTableSchema = None) -> str:
+    def to_db_integer_type(self, column: TColumnSchema, table: TTableSchema = None) -> str:
         precision = column.get("precision")
         if precision is None:
             return "bigint"

@@ -105,7 +105,7 @@ class AthenaTypeMapper(TypeMapper):
     def __init__(self, capabilities: DestinationCapabilitiesContext):
         super().__init__(capabilities)
 
-    def to_db_integer_type(self, column: TColumnSchema = None, table: TTableSchema = None) -> str:
+    def to_db_integer_type(self, column: TColumnSchema, table: TTableSchema = None) -> str:
         precision = column.get("precision")
         table_format = table.get("table_format")
         if precision is None:

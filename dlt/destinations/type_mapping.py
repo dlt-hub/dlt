@@ -27,38 +27,38 @@ class TypeMapper:
     def __init__(self, capabilities: DestinationCapabilitiesContext) -> None:
         self.capabilities = capabilities
 
-    def to_db_integer_type(self, column: TColumnSchema = None, table: TTableSchema = None) -> str:
+    def to_db_integer_type(self, column: TColumnSchema, table: TTableSchema = None) -> str:
         # Override in subclass if db supports other integer types (e.g. smallint, integer, tinyint, etc.)
         return self.sct_to_unbound_dbt["bigint"]
 
     def to_db_datetime_type(
         self,
-        column: TColumnSchema = None,
+        column: TColumnSchema,
         table: TTableSchema = None,
     ) -> str:
         # Override in subclass if db supports other timestamp types (e.g. with different time resolutions)
-        if column is not None and table is not None:
-            timezone = column.get("timezone")
-            precision = column.get("precision")
-            if timezone is not None or precision is not None:
-                logger.warning(
-                    "Column flags for timezone or precision are not yet supported in this"
-                    " destination. One or both of these flags were used in column"
-                    f" '{column.get('name')}' of table '{table.get('name')}'."
-                )
+        timezone = column.get("timezone")
+        precision = column.get("precision")
+        if timezone is not None or precision is not None:
+            logger.warning(
+                "Column flags for timezone or precision are not yet supported in this"
+                " destination. One or both of these flags were used in column"
+                f" '{column.get('name')}''."
+            )
 
         return None
 
-    def to_db_time_type(self, column: TColumnSchema = None, table: TTableSchema = None) -> str:
+    def to_db_time_type(self, column: TColumnSchema, table: TTableSchema = None) -> str:
         # Override in subclass if db supports other time types (e.g. with different time resolutions)
         return None
 
-    def to_db_decimal_type(self, column: TColumnSchema = None) -> str:
+    def to_db_decimal_type(self, column: TColumnSchema) -> str:
         precision_tup = self.decimal_precision(column.get("precision"), column.get("scale"))
         if not precision_tup or "decimal" not in self.sct_to_dbt:
             return self.sct_to_unbound_dbt["decimal"]
         return self.sct_to_dbt["decimal"] % (precision_tup[0], precision_tup[1])
 
+    # TODO: refactor lancedb and wevavite to make table object required
     def to_db_type(self, column: TColumnSchema, table: TTableSchema = None) -> str:
         sc_t = column["data_type"]
         if sc_t == "bigint":
@@ -83,7 +83,7 @@ class TypeMapper:
         return self.sct_to_dbt[sc_t] % precision_tuple
 
     def precision_tuple_or_default(
-        self, data_type: TDataType, column: TColumnSchema = None
+        self, data_type: TDataType, column: TColumnSchema
     ) -> Optional[Tuple[int, ...]]:
         precision = column.get("precision")
         scale = column.get("scale")

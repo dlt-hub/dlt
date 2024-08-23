@@ -79,7 +79,7 @@ class SnowflakeTypeMapper(TypeMapper):
 
     def to_db_datetime_type(
         self,
-        column: TColumnSchema = None,
+        column: TColumnSchema,
         table: TTableSchema = None,
     ) -> str:
         column_name = column.get("name")

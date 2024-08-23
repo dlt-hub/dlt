@@ -105,30 +105,27 @@ class LanceDBTypeMapper(TypeMapper):
         pa.date32(): "date",
     }
 
-    def to_db_decimal_type(self, column: TColumnSchema = None) -> pa.Decimal128Type:
+    def to_db_decimal_type(self, column: TColumnSchema) -> pa.Decimal128Type:
         precision, scale = self.decimal_precision(column.get("precision"), column.get("scale"))
         return pa.decimal128(precision, scale)
 
     def to_db_datetime_type(
         self,
-        column: TColumnSchema = None,
+        column: TColumnSchema,
         table: TTableSchema = None,
     ) -> pa.TimestampType:
         column_name = column.get("name")
-        table_name = table.get("name")
         timezone = column.get("timezone")
         precision = column.get("precision")
         if timezone is not None or precision is not None:
             logger.warning(
                 "LanceDB does not currently support column flags for timezone or precision."
-                f" These flags were used in column '{column_name}' of table '{table_name}'."
+                f" These flags were used in column '{column_name}'."
             )
         unit: str = TIMESTAMP_PRECISION_TO_UNIT[self.capabilities.timestamp_precision]
         return pa.timestamp(unit, "UTC")
 
-    def to_db_time_type(
-        self, column: TColumnSchema = None, table: TTableSchema = None
-    ) -> pa.Time64Type:
+    def to_db_time_type(self, column: TColumnSchema, table: TTableSchema = None) -> pa.Time64Type:
         unit: str = TIMESTAMP_PRECISION_TO_UNIT[self.capabilities.timestamp_precision]
         return pa.time64(unit)
 

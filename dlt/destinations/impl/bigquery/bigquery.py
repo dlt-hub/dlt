@@ -90,7 +90,7 @@ class BigQueryTypeMapper(TypeMapper):
         "TIME": "time",
     }
 
-    def to_db_decimal_type(self, column: TColumnSchema = None) -> str:
+    def to_db_decimal_type(self, column: TColumnSchema) -> str:
         # Use BigQuery's BIGNUMERIC for large precision decimals
         precision, scale = self.decimal_precision(column.get("precision"), column.get("scale"))
         if precision > 38 or scale > 9:

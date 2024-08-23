@@ -62,7 +62,7 @@ class DuckDbTypeMapper(TypeMapper):
         "TIMESTAMP_NS": "timestamp",
     }
 
-    def to_db_integer_type(self, column: TColumnSchema = None, table: TTableSchema = None) -> str:
+    def to_db_integer_type(self, column: TColumnSchema, table: TTableSchema = None) -> str:
         precision = column.get("precision")
         if precision is None:
             return "BIGINT"
@@ -83,7 +83,7 @@ class DuckDbTypeMapper(TypeMapper):
 
     def to_db_datetime_type(
         self,
-        column: TColumnSchema = None,
+        column: TColumnSchema,
         table: TTableSchema = None,
     ) -> str:
         column_name = column.get("name")
