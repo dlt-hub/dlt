@@ -389,9 +389,7 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
             config,
             capabilities,
         )
-        SupportsStagingDestination.__init__(
-            self, config.truncate_table_before_load_on_staging_destination
-        )
+        SupportsStagingDestination.__init__(self, config)
         super().__init__(schema, config, sql_client)
         self.sql_client: AthenaSQLClient = sql_client  # type: ignore
         self.config: AthenaClientConfiguration = config
@@ -534,7 +532,7 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
         if table["write_disposition"] == "replace" and not self._is_iceberg_table(
             self.prepare_load_table(table["name"])
         ):
-            return True
+            return self.truncate_table_before_load_on_staging_destination
         return False
 
     def should_load_data_to_staging_dataset_on_staging_destination(

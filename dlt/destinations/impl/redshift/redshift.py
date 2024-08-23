@@ -233,9 +233,7 @@ class RedshiftClient(InsertValuesJobClient, SupportsStagingDestination):
             config.credentials,
             capabilities,
         )
-        SupportsStagingDestination.__init__(
-            self, config.truncate_table_before_load_on_staging_destination
-        )
+        SupportsStagingDestination.__init__(self, config)
         super().__init__(schema, config, sql_client)
         self.sql_client = sql_client
         self.config: RedshiftClientConfiguration = config

@@ -42,9 +42,13 @@ truncate_staging_dataset=true
 `dlt` allows to chain destinations where the first one (`staging`) is responsible for uploading the files from local filesystem to the remote storage. It then generates followup jobs for the second destination that (typically) copy the files from remote storage into destination.
 
 Currently, only one destination the [filesystem](destinations/filesystem.md) can be used as a staging. Following destinations can copy remote files:
-1. [Redshift.](destinations/redshift.md#staging-support)
-2. [Bigquery.](destinations/bigquery.md#staging-support)
-3. [Snowflake.](destinations/snowflake.md#staging-support)
+
+1. [Azure Synapse](destinations/synapse#staging-support)
+1. [Athena](destinations/athena#staging-support)
+1. [Bigquery](destinations/bigquery.md#staging-support)
+1. [Dremio](destinations/dremio#staging-support)
+1. [Redshift](destinations/redshift.md#staging-support)
+1. [Snowflake](destinations/snowflake.md#staging-support)
 
 ### How to use
 In essence, you need to set up two destinations and then pass them to `dlt.pipeline`. Below we'll use `filesystem` staging with `parquet` files to load into `Redshift` destination.
@@ -96,4 +100,21 @@ In essence, you need to set up two destinations and then pass them to `dlt.pipel
 
     Run the pipeline script as usual.
 
-> 💡 Please note that `dlt` does not delete loaded files from the staging storage after the load is complete.
+:::tip
+Please note that `dlt` does not delete loaded files from the staging storage after the load is complete, but it trunkate previously loaded files.
+:::
+
+### How to prevent staging files truncation
+
+Before `dlt` loads data to staging storage it truncates previously loaded files. To prevent it and keep the whole history
+of loaded files you can use the following parameter:
+
+```toml
+[destination.redshift]
+truncate_table_before_load_on_staging_destination=false
+```
+
+:::caution
+[Athena](destinations/athena#staging-support) destination only truncate not iceberg tables with `replace` merge_disposition.
+Therefore, parameter `truncate_table_before_load_on_staging_destination` only control truncation of corresponding files for these tables.
+:::

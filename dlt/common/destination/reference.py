@@ -583,9 +583,9 @@ class WithStagingDataset(ABC):
 class SupportsStagingDestination:
     """Adds capability to support a staging destination for the load"""
 
-    def __init__(self, truncate_table_before_load_on_staging_destination: bool = True) -> None:
+    def __init__(self, config: DestinationClientDwhWithStagingConfiguration) -> None:
         self.truncate_table_before_load_on_staging_destination = (
-            truncate_table_before_load_on_staging_destination
+            config.truncate_table_before_load_on_staging_destination
         )
 
     def should_load_data_to_staging_dataset_on_staging_destination(

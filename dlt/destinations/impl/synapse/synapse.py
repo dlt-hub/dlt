@@ -59,6 +59,7 @@ class SynapseClient(MsSqlJobClient, SupportsStagingDestination):
         config: SynapseClientConfiguration,
         capabilities: DestinationCapabilitiesContext,
     ) -> None:
+        SupportsStagingDestination.__init__(self, config)
         super().__init__(schema, config, capabilities)
         self.config: SynapseClientConfiguration = config
         self.sql_client = SynapseSqlClient(
