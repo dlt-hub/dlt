@@ -11,15 +11,15 @@ description: Learn how to integrate custom parent keys into child records
 keywords: [parent child relationship, parent key]
 ---
 
-This example demonstrates handling data with parent-child relationships using 
-the `dlt` library. You learn how to integrate specific fields (e.g., primary, 
+This example demonstrates handling data with parent-child relationships using
+the `dlt` library. You learn how to integrate specific fields (e.g., primary,
 foreign keys) from a parent record into each child record.
+
 In this example, we'll explore how to:
 
-- Add `parent_id` into each child record using `add_parent_id` function.
-- Ensure every child is correctly linked to its `parent_id` using a tailored function, `add_parent_id`.
+- Add `parent_id` into each child record using `add_parent_id` function
 - Use the [`add_map` function](https://dlthub.com/docs/api_reference/extract/resource#add_map) to apply this
-custom logic to every record in our dataset.
+custom logic to every record in the dataset
 
 :::note important
 Please note that dlt metadata, including `_dlt_id` and `_dlt_load_id`, will still be loaded into the tables.
