@@ -37,17 +37,15 @@ class TypeMapper:
         table: TTableSchema = None,
     ) -> str:
         # Override in subclass if db supports other timestamp types (e.g. with different time resolutions)
-        column_name = column.get("name")
-        table_name = table.get("name")
-        timezone = column.get("timezone")
-        precision = column.get("precision")
-
-        if timezone is not None or precision is not None:
-            logger.warning(
-                "Column flags for timezone or precision are not yet supported in this destination."
-                f" One or both of these flags were used in column '{column_name}' of table"
-                f" '{table_name}'."
-            )
+        if column is not None and table is not None:
+            timezone = column.get("timezone")
+            precision = column.get("precision")
+            if timezone is not None or precision is not None:
+                logger.warning(
+                    "Column flags for timezone or precision are not yet supported in this"
+                    " destination. One or both of these flags were used in column"
+                    f" '{column.get('name')}' of table '{table.get('name')}'."
+                )
 
         return None
 
