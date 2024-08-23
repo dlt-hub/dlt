@@ -272,7 +272,7 @@ To create your data pipeline using single loading and
    destination dataset names. The pipeline name helps retrieve the
    [state](https://dlthub.com/docs/general-usage/state) of the last run, essential for incremental
    data loading. Changing these names might trigger a
-   [“full_refresh”](https://dlthub.com/docs/general-usage/pipeline#do-experiments-with-full-refresh),
+   [“dev_mode”](https://dlthub.com/docs/general-usage/pipeline#do-experiments-with-dev-mode),
    disrupting metadata tracking for
    [incremental data loading](https://dlthub.com/docs/general-usage/incremental-loading).
 
