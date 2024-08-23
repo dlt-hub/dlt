@@ -46,7 +46,7 @@ def test_create_trace(toml_providers: ConfigProvidersContext, environment: Any) 
     ):
         @dlt.resource(write_disposition="replace", primary_key="id")
         def data():
-            yield [1, 2, 3]
+            yield [{"id": 1}, {"id": 2}, {"id": 3}]
 
         return data()
 
@@ -362,12 +362,12 @@ def test_trace_telemetry() -> None:
     with patch("dlt.common.runtime.sentry.before_send", _mock_sentry_before_send), patch(
         "dlt.common.runtime.anon_tracker.before_send", _mock_anon_tracker_before_send
     ):
-        # os.environ["FAIL_PROB"] = "1.0"  # make it complete immediately
         start_test_telemetry()
 
         ANON_TRACKER_SENT_ITEMS.clear()
         SENTRY_SENT_ITEMS.clear()
-        # default dummy fails all files
+        # make dummy fail all files
+        os.environ["FAIL_PROB"] = "1.0"
         load_info = dlt.pipeline().run(
             [1, 2, 3], table_name="data", destination="dummy", dataset_name="data_data"
         )
@@ -397,6 +397,11 @@ def test_trace_telemetry() -> None:
                 # dummy has empty fingerprint
                 assert event["properties"]["destination_fingerprint"] == ""
         # we have two failed files (state and data) that should be logged by sentry
+        # TODO: make this work
+        print(SENTRY_SENT_ITEMS)
+        for item in SENTRY_SENT_ITEMS:
+            # print(item)
+            print(item["logentry"]["message"])
         assert len(SENTRY_SENT_ITEMS) == 2
 
         # trace with exception

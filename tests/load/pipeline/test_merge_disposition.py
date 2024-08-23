@@ -11,7 +11,11 @@ from dlt.common import json, pendulum
 from dlt.common.configuration.container import Container
 from dlt.common.pipeline import StateInjectableContext
 from dlt.common.schema.utils import has_table_seen_data
-from dlt.common.schema.exceptions import SchemaCorruptedException
+from dlt.common.schema.exceptions import (
+    SchemaCorruptedException,
+    UnboundColumnException,
+    CannotCoerceNullException,
+)
 from dlt.common.schema.typing import TLoaderMergeStrategy
 from dlt.common.typing import StrAny
 from dlt.common.utils import digest128
@@ -20,6 +24,7 @@ from dlt.common.destination.exceptions import DestinationCapabilitiesException
 from dlt.extract import DltResource
 from dlt.sources.helpers.transform import skip_first, take_first
 from dlt.pipeline.exceptions import PipelineStepFailed
+from dlt.normalize.exceptions import NormalizeJobFailed
 
 from tests.pipeline.utils import (
     assert_load_info,
@@ -443,44 +448,6 @@ def test_merge_no_merge_keys(destination_config: DestinationTestConfiguration) -
     github_1_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables()])
     # we have 10 rows more, merge falls back to append if no keys present
     assert github_1_counts["issues"] == 100 - 45 + 10
-
-
-@pytest.mark.parametrize(
-    "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
-)
-def test_merge_keys_non_existing_columns(destination_config: DestinationTestConfiguration) -> None:
-    p = destination_config.setup_pipeline("github_3", dev_mode=True)
-    github_data = github()
-    # set keys names that do not exist in the data
-    github_data.load_issues.apply_hints(merge_key=("mA1", "Ma2"), primary_key=("123-x",))
-    # skip first 45 rows
-    github_data.load_issues.add_filter(skip_first(45))
-    info = p.run(github_data, loader_file_format=destination_config.file_format)
-    assert_load_info(info)
-    github_1_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables()])
-    assert github_1_counts["issues"] == 100 - 45
-    assert (
-        p.default_schema.tables["issues"]["columns"]["m_a1"].items()
-        > {"merge_key": True, "nullable": False}.items()
-    )
-
-    # for non merge destinations we just check that the run passes
-    if not destination_config.supports_merge:
-        return
-
-    # all the keys are invalid so the merge falls back to append
-    github_data = github()
-    github_data.load_issues.apply_hints(merge_key=("mA1", "Ma2"), primary_key=("123-x",))
-    github_data.load_issues.add_filter(take_first(1))
-    info = p.run(github_data, loader_file_format=destination_config.file_format)
-    assert_load_info(info)
-    github_2_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables()])
-    assert github_2_counts["issues"] == 100 - 45 + 1
-    with p._sql_job_client(p.default_schema) as job_c:
-        _, storage_cols = job_c.get_storage_table("issues")
-        storage_cols = normalize_storage_table_cols("issues", storage_cols, p.default_schema)
-        assert "url" in storage_cols
-        assert "m_a1" not in storage_cols  # unbound columns were not created
 
 
 @pytest.mark.parametrize(
@@ -1242,3 +1209,51 @@ def test_upsert_merge_strategy_config(destination_config: DestinationTestConfigu
     with pytest.raises(PipelineStepFailed) as pip_ex:
         p.run(r())
     assert isinstance(pip_ex.value.__context__, SchemaCorruptedException)
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["duckdb"]),
+    ids=lambda x: x.name,
+)
+def test_missing_merge_key_column(destination_config: DestinationTestConfiguration) -> None:
+    """Merge key is not present in data, error is raised"""
+
+    @dlt.resource(merge_key="not_a_column", write_disposition={"disposition": "merge"})
+    def merging_test_table():
+        yield {"foo": "bar"}
+
+    p = destination_config.setup_pipeline("abstract", full_refresh=True)
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        p.run(merging_test_table())
+
+    ex = pip_ex.value
+    assert ex.step == "normalize"
+    assert isinstance(ex.__context__, UnboundColumnException)
+
+    assert "not_a_column" in str(ex)
+    assert "merge key" in str(ex)
+    assert "merging_test_table" in str(ex)
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["duckdb"]),
+    ids=lambda x: x.name,
+)
+def test_merge_key_null_values(destination_config: DestinationTestConfiguration) -> None:
+    """Merge key is present in data, but some rows have null values"""
+
+    @dlt.resource(merge_key="id", write_disposition={"disposition": "merge"})
+    def r():
+        yield [{"id": 1}, {"id": None}, {"id": 2}]
+
+    p = destination_config.setup_pipeline("abstract", full_refresh=True)
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        p.run(r())
+
+    ex = pip_ex.value
+    assert ex.step == "normalize"
+
+    assert isinstance(ex.__context__, NormalizeJobFailed)
+    assert isinstance(ex.__context__.__context__, CannotCoerceNullException)

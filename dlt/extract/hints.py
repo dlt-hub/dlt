@@ -26,6 +26,7 @@ from dlt.common.schema.utils import (
     new_table,
 )
 from dlt.common.typing import TDataItem
+from dlt.common.time import ensure_pendulum_datetime
 from dlt.common.utils import clone_dict_nested
 from dlt.common.normalizers.json.relational import DataItemNormalizer
 from dlt.common.validation import validate_dict_ignoring_xkeys
@@ -444,6 +445,8 @@ class DltResourceHints:
         mddict: TMergeDispositionDict = deepcopy(dict_["write_disposition"])
         if mddict is not None:
             dict_["x-merge-strategy"] = mddict.get("strategy", DEFAULT_MERGE_STRATEGY)
+            if "boundary_timestamp" in mddict:
+                dict_["x-boundary-timestamp"] = mddict["boundary_timestamp"]
             # add columns for `scd2` merge strategy
             if dict_.get("x-merge-strategy") == "scd2":
                 if mddict.get("validity_column_names") is None:
@@ -465,11 +468,16 @@ class DltResourceHints:
                     "x-valid-to": True,
                     "x-active-record-timestamp": mddict.get("active_record_timestamp"),
                 }
+                # unique constraint is dropped for C_DLT_ID when used to store
+                # SCD2 row hash (only applies to root table)
                 hash_ = mddict.get("row_version_column_name", DataItemNormalizer.C_DLT_ID)
                 dict_["columns"][hash_] = {
                     "name": hash_,
                     "nullable": False,
                     "x-row-version": True,
+                    # duplicate value in row hash column is possible in case
+                    # of insert-delete-reinsert pattern
+                    "unique": False,
                 }
 
     @staticmethod
@@ -507,3 +515,14 @@ class DltResourceHints:
                     f'`{wd["strategy"]}` is not a valid merge strategy. '
                     f"""Allowed values: {', '.join(['"' + s + '"' for s in MERGE_STRATEGIES])}."""
                 )
+
+            for ts in ("active_record_timestamp", "boundary_timestamp"):
+                if ts == "active_record_timestamp" and wd.get("active_record_timestamp") is None:
+                    continue  # None is allowed for active_record_timestamp
+                if ts in wd:
+                    try:
+                        ensure_pendulum_datetime(wd[ts])  # type: ignore[literal-required]
+                    except Exception:
+                        raise ValueError(
+                            f'could not parse `{ts}` value "{wd[ts]}"'  # type: ignore[literal-required]
+                        )

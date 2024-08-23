@@ -1,5 +1,5 @@
 
-name: dest | redshift, postgres and fs
+name: dest | motherduck
 
 on:
   pull_request:
@@ -15,34 +15,25 @@ concurrency:
   cancel-in-progress: true
 
 env:
-
   DLT_SECRETS_TOML: ${{ secrets.DLT_SECRETS_TOML }}
-
-  # For s3 compatible tests
-  TESTS__R2_AWS_ACCESS_KEY_ID: a4950a5003b26f5a71ac97ef3848ff4c
-  TESTS__R2_AWS_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_SECRET_ACCESS_KEY }}
-  TESTS__R2_ENDPOINT_URL: https://9830548e4e4b582989be0811f2a0a97f.r2.cloudflarestorage.com
 
   RUNTIME__SENTRY_DSN: https://6f6f7b6f8e0f458a89be4187603b55fe@o1061158.ingest.sentry.io/4504819859914752
   RUNTIME__LOG_LEVEL: ERROR
   RUNTIME__DLTHUB_TELEMETRY_ENDPOINT: ${{ secrets.RUNTIME__DLTHUB_TELEMETRY_ENDPOINT }}
-  # Test redshift and filesystem with all buckets
-  # postgres runs again here so we can test on mac/windows
-  ACTIVE_DESTINATIONS: "[\"redshift\", \"postgres\", \"duckdb\", \"filesystem\", \"dummy\"]"
+
+  ACTIVE_DESTINATIONS: "[\"motherduck\"]"
+  ALL_FILESYSTEM_DRIVERS: "[\"memory\"]"
 
 jobs:
   get_docs_changes:
     name: docs changes
     uses: ./.github/workflows/get_docs_changes.yml
-    # Tests that require credentials do not run in forks
     if: ${{ !github.event.pull_request.head.repo.fork || contains(github.event.pull_request.labels.*.name, 'ci from fork')}}
 
   run_loader:
-    name: dest | redshift, postgres and fs tests
+    name: dest | motherduck tests
     needs: get_docs_changes
     if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
-    strategy:
-      fail-fast: false
     defaults:
       run:
         shell: bash
@@ -69,13 +60,11 @@ jobs:
         id: cached-poetry-dependencies
         uses: actions/cache@v3
         with:
-          # path: ${{ steps.pip-cache.outputs.dir }}
           path: .venv
-          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}-redshift
+          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}-motherduck
 
       - name: Install dependencies
-        # if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction -E redshift -E gs -E s3 -E az -E parquet -E duckdb -E cli --with sentry-sdk --with pipeline -E deltalake
+        run: poetry install --no-interaction -E motherduck -E s3 -E gs -E az -E parquet --with sentry-sdk --with pipeline
 
       - name: create secrets.toml
         run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml

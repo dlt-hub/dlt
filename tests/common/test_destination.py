@@ -351,6 +351,22 @@ def test_normalize_dataset_name() -> None:
         == "set_barba_papa"
     )
 
+    # test dataset_name_normalization false
+    assert (
+        DestinationClientDwhConfiguration(enable_dataset_name_normalization=False)
+        ._bind_dataset_name(dataset_name="BarbaPapa__Ba", default_schema_name="default")
+        .normalize_dataset_name(Schema("default"))
+        == "BarbaPapa__Ba"
+    )
+
+    # test dataset_name_normalization default is true
+    assert (
+        DestinationClientDwhConfiguration()
+        ._bind_dataset_name(dataset_name="BarbaPapa__Ba", default_schema_name="default")
+        .normalize_dataset_name(Schema("default"))
+        == "barba_papa_ba"
+    )
+
 
 def test_normalize_staging_dataset_name() -> None:
     # default normalized staging dataset
@@ -386,6 +402,24 @@ def test_normalize_staging_dataset_name() -> None:
         ._bind_dataset_name(dataset_name=None, default_schema_name="default")
         .normalize_staging_dataset_name(Schema("private"))
         == "static_staging"
+    )
+
+    # test dataset_name_normalization false
+    assert (
+        DestinationClientDwhConfiguration(
+            enable_dataset_name_normalization=False, staging_dataset_name_layout="%s__Staging"
+        )
+        ._bind_dataset_name(dataset_name="BarbaPapa__Ba", default_schema_name="default")
+        .normalize_staging_dataset_name(Schema("default"))
+        == "BarbaPapa__Ba__Staging"
+    )
+
+    # test dataset_name_normalization default is true
+    assert (
+        DestinationClientDwhConfiguration(staging_dataset_name_layout="%s__Staging")
+        ._bind_dataset_name(dataset_name="BarbaPapa__Ba", default_schema_name="default")
+        .normalize_staging_dataset_name(Schema("default"))
+        == "barba_papa_ba_staging"
     )
 
 

@@ -352,8 +352,30 @@ load_info = pipeline.run(source_data)
 ```
 This example iterates through MongoDB collections, applying the complex [data type](schema#data-types) to a specified column, and then processes the data with `pipeline.run`.
 
-## Export and import schema files
+## View and print the schema
+To view and print the default schema in a clear YAML format use the command:
 
+```py
+pipeline.default_schema.to_pretty_yaml()
+```
+This can be used in a pipeline as:
+
+```py
+# Create a pipeline
+pipeline = dlt.pipeline(
+               pipeline_name="chess_pipeline", 
+               destination='duckdb', 
+               dataset_name="games_data")
+
+# Run the pipeline
+load_info = pipeline.run(source)
+
+# Print the default schema in a pretty YAML format
+print(pipeline.default_schema.to_pretty_yaml())
+```
+This will display a structured YAML representation of your schema, showing details like tables, columns, data types, and metadata, including version, version_hash, and engine_version.
+
+## Export and import schema files
 
 Please follow the guide on [how to adjust a schema](../walkthroughs/adjust-a-schema.md) to export and import `yaml`
 schema files in your pipeline.

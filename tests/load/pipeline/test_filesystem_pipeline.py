@@ -19,6 +19,7 @@ from dlt.destinations import filesystem
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 from dlt.destinations.impl.filesystem.typing import TExtraPlaceholders
 from dlt.pipeline.exceptions import PipelineStepFailed
+from dlt.load.exceptions import LoadClientJobRetry
 
 from tests.cases import arrow_table_all_data_types, table_update_and_row, assert_all_data_types_row
 from tests.common.utils import load_json_case
@@ -29,6 +30,7 @@ from tests.load.utils import (
     DestinationTestConfiguration,
     MEMORY_BUCKET,
     FILE_BUCKET,
+    AZ_BUCKET,
 )
 
 from tests.pipeline.utils import load_table_counts, assert_load_info, load_tables_to_dicts
@@ -242,7 +244,11 @@ def test_delta_table_pyarrow_version_check() -> None:
 
     with pytest.raises(PipelineStepFailed) as pip_ex:
         pipeline.run(foo())
-    assert isinstance(pip_ex.value.__context__, DependencyVersionException)
+    assert isinstance(pip_ex.value.__context__, LoadClientJobRetry)
+    assert (
+        "`pyarrow>=17.0.0` is needed for `delta` table format on `filesystem` destination"
+        in pip_ex.value.__context__.retry_message
+    )
 
 
 @pytest.mark.essential
@@ -264,7 +270,7 @@ def test_delta_table_core(
     Tests `append` and `replace` write dispositions (`merge` is tested elsewhere).
     """
 
-    from tests.pipeline.utils import _get_delta_table
+    from dlt.common.libs.deltalake import get_delta_tables
 
     # create resource that yields rows with all data types
     column_schemas, row = table_update_and_row()
@@ -303,10 +309,54 @@ def test_delta_table_core(
     # should do logical replace, increasing the table version
     info = pipeline.run(data_types(), write_disposition="replace")
     assert_load_info(info)
-    client = cast(FilesystemClient, pipeline.destination_client())
-    assert _get_delta_table(client, "data_types").version() == 2
+    assert get_delta_tables(pipeline, "data_types")["data_types"].version() == 2
     rows = load_tables_to_dicts(pipeline, "data_types", exclude_system_cols=True)["data_types"]
     assert len(rows) == 10
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        table_format_filesystem_configs=True,
+        table_format="delta",
+        bucket_subset=(FILE_BUCKET),
+    ),
+    ids=lambda x: x.name,
+)
+def test_delta_table_does_not_contain_job_files(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Asserts Parquet job files do not end up in Delta table."""
+
+    pipeline = destination_config.setup_pipeline("fs_pipe", dev_mode=True)
+
+    @dlt.resource(table_format="delta")
+    def delta_table():
+        yield [{"foo": 1}]
+
+    # create Delta table
+    info = pipeline.run(delta_table())
+    assert_load_info(info)
+
+    # get Parquet jobs
+    completed_jobs = info.load_packages[0].jobs["completed_jobs"]
+    parquet_jobs = [
+        job
+        for job in completed_jobs
+        if job.job_file_info.table_name == "delta_table" and job.file_path.endswith(".parquet")
+    ]
+    assert len(parquet_jobs) == 1
+
+    # get Parquet files in Delta table folder
+    with pipeline.destination_client() as client:
+        assert isinstance(client, FilesystemClient)
+        table_dir = client.get_table_dir("delta_table")
+        parquet_files = [f for f in client.fs_client.ls(table_dir) if f.endswith(".parquet")]
+    assert len(parquet_files) == 1
+
+    # Parquet file should not be the job file
+    file_id = parquet_jobs[0].job_file_info.file_id
+    assert file_id not in parquet_files[0]
 
 
 @pytest.mark.parametrize(
@@ -326,7 +376,7 @@ def test_delta_table_multiple_files(
     Files should be loaded into the Delta table in a single commit.
     """
 
-    from tests.pipeline.utils import _get_delta_table
+    from dlt.common.libs.deltalake import get_delta_tables
 
     os.environ["DATA_WRITER__FILE_MAX_ITEMS"] = "2"  # force multiple files
 
@@ -350,8 +400,7 @@ def test_delta_table_multiple_files(
     assert len(delta_table_parquet_jobs) == 5  # 10 records, max 2 per file
 
     # all 10 records should have been loaded into a Delta table in a single commit
-    client = cast(FilesystemClient, pipeline.destination_client())
-    assert _get_delta_table(client, "delta_table").version() == 0
+    assert get_delta_tables(pipeline, "delta_table")["delta_table"].version() == 0
     rows = load_tables_to_dicts(pipeline, "delta_table", exclude_system_cols=True)["delta_table"]
     assert len(rows) == 10
 
@@ -442,6 +491,91 @@ def test_delta_table_child_tables(
     ),
     ids=lambda x: x.name,
 )
+def test_delta_table_partitioning(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Tests partitioning for `delta` table format."""
+
+    from dlt.common.libs.deltalake import get_delta_tables
+    from tests.pipeline.utils import users_materialize_table_schema
+
+    pipeline = destination_config.setup_pipeline("fs_pipe", dev_mode=True)
+
+    # zero partition columns
+    @dlt.resource(table_format="delta")
+    def zero_part():
+        yield {"foo": 1, "bar": 1}
+
+    info = pipeline.run(zero_part())
+    assert_load_info(info)
+    dt = get_delta_tables(pipeline, "zero_part")["zero_part"]
+    assert dt.metadata().partition_columns == []
+    assert load_table_counts(pipeline, "zero_part")["zero_part"] == 1
+
+    # one partition column
+    @dlt.resource(table_format="delta", columns={"c1": {"partition": True}})
+    def one_part():
+        yield [
+            {"c1": "foo", "c2": 1},
+            {"c1": "foo", "c2": 2},
+            {"c1": "bar", "c2": 3},
+            {"c1": "baz", "c2": 4},
+        ]
+
+    info = pipeline.run(one_part())
+    assert_load_info(info)
+    dt = get_delta_tables(pipeline, "one_part")["one_part"]
+    assert dt.metadata().partition_columns == ["c1"]
+    assert load_table_counts(pipeline, "one_part")["one_part"] == 4
+
+    # two partition columns
+    @dlt.resource(
+        table_format="delta", columns={"c1": {"partition": True}, "c2": {"partition": True}}
+    )
+    def two_part():
+        yield [
+            {"c1": "foo", "c2": 1, "c3": True},
+            {"c1": "foo", "c2": 2, "c3": True},
+            {"c1": "bar", "c2": 1, "c3": True},
+            {"c1": "baz", "c2": 1, "c3": True},
+        ]
+
+    info = pipeline.run(two_part())
+    assert_load_info(info)
+    dt = get_delta_tables(pipeline, "two_part")["two_part"]
+    assert dt.metadata().partition_columns == ["c1", "c2"]
+    assert load_table_counts(pipeline, "two_part")["two_part"] == 4
+
+    # test partitioning with empty source
+    users_materialize_table_schema.apply_hints(
+        table_format="delta",
+        columns={"id": {"partition": True}},
+    )
+    info = pipeline.run(users_materialize_table_schema())
+    assert_load_info(info)
+    dt = get_delta_tables(pipeline, "users")["users"]
+    assert dt.metadata().partition_columns == ["id"]
+    assert load_table_counts(pipeline, "users")["users"] == 0
+
+    # changing partitioning after initial table creation is not supported
+    zero_part.apply_hints(columns={"foo": {"partition": True}})
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        pipeline.run(zero_part())
+    assert isinstance(pip_ex.value.__context__, LoadClientJobRetry)
+    assert "partitioning" in pip_ex.value.__context__.retry_message
+    dt = get_delta_tables(pipeline, "zero_part")["zero_part"]
+    assert dt.metadata().partition_columns == []
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        table_format_filesystem_configs=True,
+        table_format="delta",
+        bucket_subset=(FILE_BUCKET, AZ_BUCKET),
+    ),
+    ids=lambda x: x.name,
+)
 def test_delta_table_empty_source(
     destination_config: DestinationTestConfiguration,
 ) -> None:
@@ -450,8 +584,8 @@ def test_delta_table_empty_source(
     Tests both empty Arrow table and `dlt.mark.materialize_table_schema()`.
     """
     from dlt.common.libs.pyarrow import pyarrow as pa
-    from dlt.common.libs.deltalake import ensure_delta_compatible_arrow_data
-    from tests.pipeline.utils import _get_delta_table, users_materialize_table_schema
+    from dlt.common.libs.deltalake import ensure_delta_compatible_arrow_data, get_delta_tables
+    from tests.pipeline.utils import users_materialize_table_schema
 
     @dlt.resource(table_format="delta")
     def delta_table(data):
@@ -476,8 +610,7 @@ def test_delta_table_empty_source(
     # this should create empty Delta table with same schema as Arrow table
     info = pipeline.run(delta_table(empty_arrow_table))
     assert_load_info(info)
-    client = cast(FilesystemClient, pipeline.destination_client())
-    dt = _get_delta_table(client, "delta_table")
+    dt = get_delta_tables(pipeline, "delta_table")["delta_table"]
     assert dt.version() == 0
     dt_arrow_table = dt.to_pyarrow_table()
     assert dt_arrow_table.shape == (0, empty_arrow_table.num_columns)
@@ -489,7 +622,7 @@ def test_delta_table_empty_source(
     # this should load records into Delta table
     info = pipeline.run(delta_table(arrow_table))
     assert_load_info(info)
-    dt = _get_delta_table(client, "delta_table")
+    dt = get_delta_tables(pipeline, "delta_table")["delta_table"]
     assert dt.version() == 1
     dt_arrow_table = dt.to_pyarrow_table()
     assert dt_arrow_table.shape == (2, empty_arrow_table.num_columns)
@@ -505,7 +638,7 @@ def test_delta_table_empty_source(
 
     info = pipeline.run(delta_table(empty_arrow_table_2))
     assert_load_info(info)
-    dt = _get_delta_table(client, "delta_table")
+    dt = get_delta_tables(pipeline, "delta_table")["delta_table"]
     assert dt.version() == 1  # still 1, no new commit was done
     dt_arrow_table = dt.to_pyarrow_table()
     assert dt_arrow_table.shape == (2, empty_arrow_table.num_columns)  # shape did not change
@@ -517,7 +650,7 @@ def test_delta_table_empty_source(
     users_materialize_table_schema.apply_hints(table_format="delta")
     info = pipeline.run(users_materialize_table_schema())
     assert_load_info(info)
-    dt = _get_delta_table(client, "users")
+    dt = get_delta_tables(pipeline, "users")["users"]
     assert dt.version() == 0
     dt_arrow_table = dt.to_pyarrow_table()
     assert dt_arrow_table.num_rows == 0
@@ -599,6 +732,70 @@ def test_delta_table_dynamic_dispatch(
     completed_jobs = info.load_packages[0].jobs["completed_jobs"]
     # 20 event types, two jobs per table (.parquet and .reference), 1 job for _dlt_pipeline_state
     assert len(completed_jobs) == 2 * 20 + 1
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        table_format_filesystem_configs=True,
+        table_format="delta",
+        bucket_subset=(FILE_BUCKET, AZ_BUCKET),
+    ),
+    ids=lambda x: x.name,
+)
+def test_delta_table_get_delta_tables_helper(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Tests `get_delta_tables` helper function."""
+    from dlt.common.libs.deltalake import DeltaTable, get_delta_tables
+
+    @dlt.resource(table_format="delta")
+    def foo_delta():
+        yield [{"foo": 1}, {"foo": 2}]
+
+    @dlt.resource(table_format="delta")
+    def bar_delta():
+        yield [{"bar": 1}]
+
+    @dlt.resource
+    def baz_not_delta():
+        yield [{"baz": 1}]
+
+    pipeline = destination_config.setup_pipeline("fs_pipe", dev_mode=True)
+
+    info = pipeline.run(foo_delta())
+    assert_load_info(info)
+    delta_tables = get_delta_tables(pipeline)
+    assert delta_tables.keys() == {"foo_delta"}
+    assert isinstance(delta_tables["foo_delta"], DeltaTable)
+    assert delta_tables["foo_delta"].to_pyarrow_table().num_rows == 2
+
+    info = pipeline.run([foo_delta(), bar_delta(), baz_not_delta()])
+    assert_load_info(info)
+    delta_tables = get_delta_tables(pipeline)
+    assert delta_tables.keys() == {"foo_delta", "bar_delta"}
+    assert delta_tables["bar_delta"].to_pyarrow_table().num_rows == 1
+    assert get_delta_tables(pipeline, "foo_delta").keys() == {"foo_delta"}
+    assert get_delta_tables(pipeline, "bar_delta").keys() == {"bar_delta"}
+    assert get_delta_tables(pipeline, "foo_delta", "bar_delta").keys() == {"foo_delta", "bar_delta"}
+
+    # test with child table
+    @dlt.resource(table_format="delta")
+    def parent_delta():
+        yield [{"foo": 1, "child": [1, 2, 3]}]
+
+    info = pipeline.run(parent_delta())
+    assert_load_info(info)
+    delta_tables = get_delta_tables(pipeline)
+    assert "parent_delta__child" in delta_tables.keys()
+    assert delta_tables["parent_delta__child"].to_pyarrow_table().num_rows == 3
+
+    # test invalid input
+    with pytest.raises(ValueError):
+        get_delta_tables(pipeline, "baz_not_delta")
+
+    with pytest.raises(ValueError):
+        get_delta_tables(pipeline, "non_existing_table")
 
 
 TEST_LAYOUTS = (
