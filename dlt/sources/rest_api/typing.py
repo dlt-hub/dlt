@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 from typing_extensions import TypedDict
+
 from typing import (
     Any,
     Callable,
@@ -20,6 +21,30 @@ from dlt.extract.hints import TResourceHintsBase
 from dlt.sources.helpers.rest_client.auth import AuthConfigBase, TApiKeyLocation
 from dlt.sources.helpers.rest_client.paginators import (
     BasePaginator,
+    TypedDict,
+    Union,
+)
+from dataclasses import dataclass, field
+
+from dlt.common import jsonpath
+from dlt.common.typing import TSortOrder
+from dlt.common.schema.typing import (
+    TColumnNames,
+    TTableFormat,
+    TAnySchemaColumns,
+    TWriteDispositionConfig,
+    TSchemaContract,
+)
+
+from dlt.extract.items import TTableHintTemplate
+from dlt.extract.incremental.typing import LastValueFunc
+
+from dlt.sources.helpers.rest_client.paginators import BasePaginator
+from dlt.sources.helpers.rest_client.typing import HTTPMethodBasic
+from dlt.sources.helpers.rest_client.auth import AuthConfigBase, TApiKeyLocation
+
+from dlt.sources.helpers.rest_client.paginators import (
+    SinglePagePaginator,
     HeaderLinkPaginator,
     JSONResponseCursorPaginator,
     OffsetPaginator,
@@ -27,6 +52,7 @@ from dlt.sources.helpers.rest_client.paginators import (
     SinglePagePaginator,
 )
 from dlt.sources.helpers.rest_client.typing import HTTPMethodBasic
+
 
 try:
     from dlt.sources.helpers.rest_client.paginators import JSONLinkPaginator
@@ -36,9 +62,9 @@ except ImportError:
     )
 
 from dlt.sources.helpers.rest_client.auth import (
-    APIKeyAuth,
-    BearerTokenAuth,
     HttpBasicAuth,
+    BearerTokenAuth,
+    APIKeyAuth,
 )
 
 PaginatorType = Literal[
