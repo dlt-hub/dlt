@@ -1,10 +1,15 @@
+from typing import Any
 import dlt
 import pytest
 from dlt.sources.rest_api.typing import RESTAPIConfig
 from dlt.sources.helpers.rest_client.paginators import SinglePagePaginator
 
 from dlt.sources.rest_api import rest_api_source
-from tests.utils import ALL_DESTINATIONS, assert_load_info, load_table_counts
+from tests.pipeline.utils import assert_load_info, load_table_counts
+from tests.load.utils import (
+    destinations_configs,
+    DestinationTestConfiguration,
+)
 
 
 def _make_pipeline(destination_name: str):
@@ -16,8 +21,12 @@ def _make_pipeline(destination_name: str):
     )
 
 
-@pytest.mark.parametrize("destination_name", ALL_DESTINATIONS)
-def test_rest_api_source(destination_name: str) -> None:
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True),
+    ids=lambda x: x.name,
+)
+def test_rest_api_source(destination_config: DestinationTestConfiguration, request: Any) -> None:
     config: RESTAPIConfig = {
         "client": {
             "base_url": "https://pokeapi.co/api/v2/",
@@ -39,9 +48,8 @@ def test_rest_api_source(destination_name: str) -> None:
         ],
     }
     data = rest_api_source(config)
-    pipeline = _make_pipeline(destination_name)
+    pipeline = destination_config.setup_pipeline(request.node.name, dev_mode=True)
     load_info = pipeline.run(data)
-    print(load_info)
     assert_load_info(load_info)
     table_names = [t["name"] for t in pipeline.default_schema.data_tables()]
     table_counts = load_table_counts(pipeline, *table_names)
@@ -53,8 +61,12 @@ def test_rest_api_source(destination_name: str) -> None:
     assert table_counts["location"] == 1036
 
 
-@pytest.mark.parametrize("destination_name", ALL_DESTINATIONS)
-def test_dependent_resource(destination_name: str) -> None:
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True),
+    ids=lambda x: x.name,
+)
+def test_dependent_resource(destination_config: DestinationTestConfiguration, request: Any) -> None:
     config: RESTAPIConfig = {
         "client": {
             "base_url": "https://pokeapi.co/api/v2/",
@@ -96,7 +108,7 @@ def test_dependent_resource(destination_name: str) -> None:
     }
 
     data = rest_api_source(config)
-    pipeline = _make_pipeline(destination_name)
+    pipeline = destination_config.setup_pipeline(request.node.name, dev_mode=True)
     load_info = pipeline.run(data)
     assert_load_info(load_info)
     table_names = [t["name"] for t in pipeline.default_schema.data_tables()]
