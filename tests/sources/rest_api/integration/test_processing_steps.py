@@ -1,6 +1,16 @@
 from typing import Any, Callable, Dict, List
 
+import dlt
 from dlt.sources.rest_api import RESTAPIConfig, rest_api_source
+
+
+def _make_pipeline(destination_name: str):
+    return dlt.pipeline(
+        pipeline_name="rest_api",
+        destination=destination_name,
+        dataset_name="rest_api_data",
+        full_refresh=True,
+    )
 
 
 def test_rest_api_source_filtered(mock_api_server) -> None:

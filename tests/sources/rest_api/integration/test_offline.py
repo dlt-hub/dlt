@@ -16,7 +16,7 @@ from dlt.sources.rest_api import (
     rest_api_source,
 )
 from tests.sources.rest_api.conftest import DEFAULT_PAGE_SIZE, DEFAULT_TOTAL_PAGES
-from tests.pipeline.utils import assert_load_info, assert_query_data, load_table_counts
+from tests.utils import assert_load_info, assert_query_data, load_table_counts
 
 
 def test_load_mock_api(mock_api_server):
@@ -309,7 +309,6 @@ def test_posts_with_inremental_date_conversion(mock_api_server) -> None:
                         "start_param": "since",
                         "end_param": "until",
                         "cursor_path": "updated_at",
-                        # TODO: allow and test int and datetime values
                         "initial_value": str(start_time.int_timestamp),
                         "end_value": str(one_day_later.int_timestamp),
                         "convert": lambda epoch: pendulum.from_timestamp(
