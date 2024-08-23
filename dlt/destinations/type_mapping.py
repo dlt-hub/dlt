@@ -39,12 +39,18 @@ class TypeMapper:
         # Override in subclass if db supports other timestamp types (e.g. with different time resolutions)
         timezone = column.get("timezone")
         precision = column.get("precision")
+
         if timezone is not None or precision is not None:
-            logger.warning(
+            message = (
                 "Column flags for timezone or precision are not yet supported in this"
                 " destination. One or both of these flags were used in column"
-                f" '{column.get('name')}''."
+                f" '{column.get('name')}'."
             )
+            # TODO: refactor lancedb and wevavite to make table object required
+            if table:
+                message += f" in table '{table.get('name')}'."
+
+            logger.warning(message)
 
         return None
 
