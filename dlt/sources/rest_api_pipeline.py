@@ -1,11 +1,12 @@
 from typing import Any
 
 import dlt
+from dlt.common.pendulum import pendulum
 from dlt.sources.rest_api import (
     RESTAPIConfig,
     check_connection,
-    rest_api_source,
     rest_api_resources,
+    rest_api_source,
 )
 
 
@@ -58,7 +59,7 @@ def github_source(github_token: str = dlt.secrets.value) -> Any:
                         "since": {
                             "type": "incremental",
                             "cursor_path": "updated_at",
-                            "initial_value": "2024-01-25T11:21:28Z",
+                            "initial_value": pendulum.today().subtract(days=30).to_iso8601_string(),
                         },
                     },
                 },
