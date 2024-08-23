@@ -203,7 +203,7 @@ def my_resource():
 ```
 or
 ```py
-my_source = my_source()
+my_source = source()
 my_source.my_resource.max_table_nesting = 0
 ```
 
