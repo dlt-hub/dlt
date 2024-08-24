@@ -522,22 +522,31 @@ WHERE """
         """Make one or more ADD COLUMN sql clauses to be joined in ALTER TABLE statement(s)"""
         return [f"ADD COLUMN {self._get_column_def_sql(c, table_format)}" for c in new_columns]
 
+    def _make_create_table(self, qualified_name: str, table: TTableSchema) -> str:
+        not_exists_clause = " "
+        if (
+            table["name"] in self.schema.dlt_table_names()
+            and self.capabilities.create_table_not_exists
+        ):
+            not_exists_clause = " IF NOT EXISTS "
+        return f"CREATE TABLE{not_exists_clause}{qualified_name}"
+
     def _get_table_update_sql(
         self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
     ) -> List[str]:
         # build sql
-        canonical_name = self.sql_client.make_qualified_table_name(table_name)
+        qualified_name = self.sql_client.make_qualified_table_name(table_name)
         table = self.prepare_load_table(table_name)
         table_format = table.get("table_format")
         sql_result: List[str] = []
         if not generate_alter:
             # build CREATE
-            sql = f"CREATE TABLE {canonical_name} (\n"
+            sql = self._make_create_table(qualified_name, table) + " (\n"
             sql += ",\n".join([self._get_column_def_sql(c, table_format) for c in new_columns])
             sql += ")"
             sql_result.append(sql)
         else:
-            sql_base = f"ALTER TABLE {canonical_name}\n"
+            sql_base = f"ALTER TABLE {qualified_name}\n"
             add_column_statements = self._make_add_column_sql(new_columns, table_format)
             if self.capabilities.alter_add_multi_column:
                 column_sql = ",\n"
@@ -561,13 +570,13 @@ WHERE """
                     if hint == "not_null":
                         logger.warning(
                             f"Column(s) {hint_columns} with NOT NULL are being added to existing"
-                            f" table {canonical_name}. If there's data in the table the operation"
+                            f" table {qualified_name}. If there's data in the table the operation"
                             " will fail."
                         )
                     else:
                         logger.warning(
                             f"Column(s) {hint_columns} with hint {hint} are being added to existing"
-                            f" table {canonical_name}. Several hint types may not be added to"
+                            f" table {qualified_name}. Several hint types may not be added to"
                             " existing tables."
                         )
         return sql_result
