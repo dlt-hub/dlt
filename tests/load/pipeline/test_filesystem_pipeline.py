@@ -619,7 +619,7 @@ def test_delta_table_schema_evolution(
     # create Arrow table with many columns, two rows
     arrow_table = arrow_table_all_data_types(
         "arrow-table",
-        include_decimal_default_precision=False,
+        include_decimal_default_precision=True,
         include_decimal_arrow_max_precision=True,
         include_not_normalized_name=False,
         include_null=False,
@@ -669,7 +669,7 @@ def test_delta_table_empty_source(
     # create empty Arrow table with schema
     arrow_table = arrow_table_all_data_types(
         "arrow-table",
-        include_decimal_default_precision=False,
+        include_decimal_default_precision=True,
         include_decimal_arrow_max_precision=True,
         include_not_normalized_name=False,
         include_null=False,
