@@ -24,10 +24,11 @@ import datetime  # noqa: 251
 from copy import deepcopy
 import inspect
 
-from dlt.common import logger
+from dlt.common import logger, pendulum
 from dlt.common.configuration.specs.base_configuration import extract_inner_hint
 from dlt.common.destination.utils import verify_schema_capabilities
 from dlt.common.exceptions import TerminalValueError
+from dlt.common.metrics import LoadJobMetrics
 from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
 from dlt.common.schema.utils import (
@@ -284,6 +285,8 @@ class LoadJob(ABC):
         # NOTE: we only accept a full filepath in the constructor
         assert self._file_name != self._file_path
         self._parsed_file_name = ParsedLoadJobFileName.parse(self._file_name)
+        self._started_at: pendulum.DateTime = None
+        self._finished_at: pendulum.DateTime = None
 
     def job_id(self) -> str:
         """The job id that is derived from the file name and does not changes during job lifecycle"""
@@ -305,6 +308,18 @@ class LoadJob(ABC):
     def exception(self) -> str:
         """The exception associated with failed or retry states"""
         pass
+
+    def metrics(self) -> Optional[LoadJobMetrics]:
+        """Returns job execution metrics"""
+        return LoadJobMetrics(
+            self._parsed_file_name.job_id(),
+            self._file_path,
+            self._parsed_file_name.table_name,
+            self._started_at,
+            self._finished_at,
+            self.state(),
+            None,
+        )
 
 
 class RunnableLoadJob(LoadJob, ABC):
@@ -361,6 +376,7 @@ class RunnableLoadJob(LoadJob, ABC):
         # filepath is now moved to running
         try:
             self._state = "running"
+            self._started_at = pendulum.now()
             self._job_client.prepare_load_job_execution(self)
             self.run()
             self._state = "completed"
@@ -371,6 +387,7 @@ class RunnableLoadJob(LoadJob, ABC):
             self._state = "retry"
             self._exception = e
         finally:
+            self._finished_at = pendulum.now()
             # sanity check
             assert self._state in ("completed", "retry", "failed")
 
@@ -391,7 +408,7 @@ class RunnableLoadJob(LoadJob, ABC):
         return str(self._exception)
 
 
-class FollowupJob:
+class FollowupJobRequest:
     """Base class for follow up jobs that should be created"""
 
     @abstractmethod
@@ -403,8 +420,8 @@ class FollowupJob:
 class HasFollowupJobs:
     """Adds a trait that allows to create single or table chain followup jobs"""
 
-    def create_followup_jobs(self, final_state: TLoadJobState) -> List[FollowupJob]:
-        """Return list of new jobs. `final_state` is state to which this job transits"""
+    def create_followup_jobs(self, final_state: TLoadJobState) -> List[FollowupJobRequest]:
+        """Return list of jobs requests for jobs that should be created. `final_state` is state to which this job transits"""
         return []
 
 
@@ -479,7 +496,7 @@ class JobClientBase(ABC):
         self,
         table_chain: Sequence[TTableSchema],
         completed_table_chain_jobs: Optional[Sequence[LoadJobInfo]] = None,
-    ) -> List[FollowupJob]:
+    ) -> List[FollowupJobRequest]:
         """Creates a list of followup jobs that should be executed after a table chain is completed"""
         return []
 

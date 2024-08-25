@@ -12,6 +12,7 @@ import pytest
 
 from dlt.common import json
 from dlt.common import pendulum
+from dlt.common.storages.configuration import FilesystemConfiguration
 from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.common.utils import uniq_id
 from dlt.common.exceptions import DependencyVersionException
@@ -299,6 +300,17 @@ def test_delta_table_core(
     assert len(rows) == 10
     assert_all_data_types_row(rows[0], schema=column_schemas)
 
+    # make sure remote_uri is in metrics
+    metrics = info.metrics[info.loads_ids[0]][0]
+    # TODO: only final copy job has remote_uri. not the initial (empty) job for particular files
+    # we could implement an empty job for delta that generates correct remote_uri
+    remote_uri = list(metrics["job_metrics"].values())[-1].remote_uri
+    assert remote_uri.endswith("data_types")
+    bucket_uri = destination_config.bucket_url
+    if FilesystemConfiguration.is_local_path(bucket_uri):
+        bucket_uri = FilesystemConfiguration.make_file_uri(bucket_uri)
+    assert remote_uri.startswith(bucket_uri)
+
     # another run should append rows to the table
     info = pipeline.run(data_types())
     assert_load_info(info)
@@ -567,6 +579,7 @@ def test_delta_table_partitioning(
     assert dt.metadata().partition_columns == []
 
 
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
@@ -796,6 +809,51 @@ def test_delta_table_get_delta_tables_helper(
 
     with pytest.raises(ValueError):
         get_delta_tables(pipeline, "non_existing_table")
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        table_format_filesystem_configs=True,
+        table_format="delta",
+        bucket_subset=(FILE_BUCKET,),
+    ),
+    ids=lambda x: x.name,
+)
+def test_parquet_to_delta_upgrade(destination_config: DestinationTestConfiguration):
+    # change the resource to start creating delta tables
+    from dlt.common.libs.deltalake import get_delta_tables
+
+    @dlt.resource()
+    def foo():
+        yield [{"foo": 1}, {"foo": 2}]
+
+    pipeline = destination_config.setup_pipeline("fs_pipe")
+
+    info = pipeline.run(foo())
+    assert_load_info(info)
+    delta_tables = get_delta_tables(pipeline)
+    assert set(delta_tables.keys()) == set()
+
+    # drop the pipeline
+    pipeline.deactivate()
+
+    # redefine the resource
+
+    @dlt.resource(table_format="delta")  # type: ignore
+    def foo():
+        yield [{"foo": 1}, {"foo": 2}]
+
+    pipeline = destination_config.setup_pipeline("fs_pipe")
+
+    info = pipeline.run(foo())
+    assert_load_info(info)
+    delta_tables = get_delta_tables(pipeline)
+    assert set(delta_tables.keys()) == {"foo"}
+
+    # optimize all delta tables to make sure storage is there
+    for table in delta_tables.values():
+        table.vacuum()
 
 
 TEST_LAYOUTS = (

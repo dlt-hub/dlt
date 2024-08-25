@@ -39,7 +39,7 @@ from dlt.common.typing import DictStrAny
 from dlt.common.utils import uniq_id
 from dlt.common.schema import Schema
 
-from dlt.destinations import filesystem, redshift, dummy
+from dlt.destinations import filesystem, redshift, dummy, duckdb
 from dlt.destinations.impl.filesystem.filesystem import INIT_FILE_NAME
 from dlt.extract.exceptions import InvalidResourceDataTypeBasic, PipeGenInvalid, SourceExhausted
 from dlt.extract.extract import ExtractStorage
@@ -2635,6 +2635,57 @@ def test_access_pipeline_in_resource() -> None:
     info = pipeline.run(comments("USER_B"))
     assert_load_info(info)
     assert pipeline.last_trace.last_normalize_info.row_counts["user_comments"] == 3
+
+
+def test_exceed_job_file_name_length() -> None:
+    # use very long table name both for parent and for a child
+    data = {
+        "id": 1,
+        "child use very long table name both for parent and for a child use very long table name both for parent and for a child use very long table name both for parent and for a child use very long table name both for parent and for a child use very long table name both for parent and for a child": [
+            1,
+            2,
+            3,
+        ],
+        "col use very long table name both for parent and for a child use very long table name both for parent and for a child use very long table name both for parent and for a child use very long table name both for parent and for a child use very long table name both for parent and for a child": (
+            "data"
+        ),
+    }
+
+    table_name = (
+        "parent use very long table name both for parent and for a child use very long table name"
+        " both for parent and for a child use very long table name both for parent and for a child"
+        " use very long table name both for parent and for a child use very long table name both"
+        " for parent and for a child use very long table name both for parent and for a child "
+    )
+
+    pipeline = dlt.pipeline(
+        pipeline_name="test_exceed_job_file_name_length",
+        destination="duckdb",
+    )
+    # path too long
+    with pytest.raises(PipelineStepFailed) as os_err:
+        pipeline.run([data], table_name=table_name)
+    assert isinstance(os_err.value.__cause__, OSError)
+
+    # fit into 255 + 1
+    suffix_len = len(".b61d3af76c.0.insert-values")
+    pipeline = dlt.pipeline(
+        pipeline_name="test_exceed_job_file_name_length",
+        destination=duckdb(
+            max_identifier_length=255 - suffix_len + 1,
+        ),
+    )
+    # path too long
+    with pytest.raises(PipelineStepFailed):
+        pipeline.run([data], table_name=table_name)
+
+    pipeline = dlt.pipeline(
+        pipeline_name="test_exceed_job_file_name_length",
+        destination=duckdb(
+            max_identifier_length=255 - suffix_len,
+        ),
+    )
+    pipeline.run([data], table_name=table_name)
 
 
 def assert_imported_file(

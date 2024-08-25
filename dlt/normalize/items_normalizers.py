@@ -3,9 +3,9 @@ from abc import abstractmethod
 
 from dlt.common import logger
 from dlt.common.json import json
-from dlt.common.data_writers import DataWriterMetrics
 from dlt.common.data_writers.writers import ArrowToObjectAdapter
 from dlt.common.json import custom_pua_decode, may_have_pua
+from dlt.common.metrics import DataWriterMetrics
 from dlt.common.normalizers.json.relational import DataItemNormalizer as RelationalNormalizer
 from dlt.common.runtime import signals
 from dlt.common.schema.typing import TSchemaEvolutionMode, TTableSchemaColumns, TSchemaContractDict

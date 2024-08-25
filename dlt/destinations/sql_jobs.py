@@ -21,7 +21,7 @@ from dlt.common.storages.load_package import load_package as current_load_packag
 from dlt.common.utils import uniq_id
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.destinations.exceptions import MergeDispositionException
-from dlt.destinations.job_impl import FollowupJobImpl
+from dlt.destinations.job_impl import FollowupJobRequestImpl
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.common.destination.exceptions import DestinationTransientException
 
@@ -45,7 +45,7 @@ class SqlJobCreationException(DestinationTransientException):
         )
 
 
-class SqlFollowupJob(FollowupJobImpl):
+class SqlFollowupJob(FollowupJobRequestImpl):
     """Sql base job for jobs that rely on the whole tablechain"""
 
     @classmethod
@@ -54,7 +54,7 @@ class SqlFollowupJob(FollowupJobImpl):
         table_chain: Sequence[TTableSchema],
         sql_client: SqlClientBase[Any],
         params: Optional[SqlJobParams] = None,
-    ) -> FollowupJobImpl:
+    ) -> FollowupJobRequestImpl:
         """Generates a list of sql statements, that will be executed by the sql client when the job is executed in the loader.
 
         The `table_chain` contains a list schemas of a tables with parent-child relationship, ordered by the ancestry (the root of the tree is first on the list).

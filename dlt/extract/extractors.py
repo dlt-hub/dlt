@@ -4,9 +4,9 @@ from typing import Set, Dict, Any, Optional, List, Union
 from dlt.common.configuration import known_sections, resolve_configuration, with_config
 from dlt.common import logger
 from dlt.common.configuration.specs import BaseConfiguration, configspec
-from dlt.common.data_writers import DataWriterMetrics
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.exceptions import MissingDependencyException
+from dlt.common.metrics import DataWriterMetrics
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
 from dlt.common.typing import TDataItems, TDataItem, TLoaderFileFormat
 from dlt.common.schema import Schema, utils

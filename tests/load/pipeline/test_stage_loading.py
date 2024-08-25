@@ -4,6 +4,7 @@ from typing import Dict, Any, List
 import dlt, os
 from dlt.common import json, sleep
 from copy import deepcopy
+from dlt.common.storages.configuration import FilesystemConfiguration
 from dlt.common.utils import uniq_id
 from dlt.common.schema.typing import TDataType
 
@@ -15,6 +16,9 @@ from tests.load.utils import (
     assert_all_data_types_row,
 )
 from tests.cases import table_update_and_row
+
+# mark all tests as essential, do not remove
+pytestmark = pytest.mark.essential
 
 
 @dlt.resource(
@@ -46,6 +50,18 @@ def test_staging_load(destination_config: DestinationTestConfiguration) -> None:
 
     info = pipeline.run(github(), loader_file_format=destination_config.file_format)
     assert_load_info(info)
+    # checks if remote_uri is set correctly on copy jobs
+    metrics = info.metrics[info.loads_ids[0]][0]
+    for job_metrics in metrics["job_metrics"].values():
+        remote_uri = job_metrics.remote_uri
+        job_ext = os.path.splitext(job_metrics.job_id)[1]
+        if job_ext not in (".reference", ".sql"):
+            assert remote_uri.endswith(job_ext)
+            bucket_uri = destination_config.bucket_url
+            if FilesystemConfiguration.is_local_path(bucket_uri):
+                bucket_uri = FilesystemConfiguration.make_file_uri(bucket_uri)
+            assert remote_uri.startswith(bucket_uri)
+
     package_info = pipeline.get_load_package_info(info.loads_ids[0])
     assert package_info.state == "loaded"
 
