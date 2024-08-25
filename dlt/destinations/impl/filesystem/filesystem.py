@@ -303,6 +303,7 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
         only_tables: Iterable[str] = None,
         expected_update: TSchemaTables = None,
     ) -> TSchemaTables:
+        applied_update = super().update_stored_schema(only_tables, expected_update)
         # create destination dirs for all tables
         table_names = only_tables or self.schema.tables.keys()
         dirs_to_create = self.get_table_dirs(table_names)
@@ -316,7 +317,9 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
         if not self.config.as_staging:
             self._store_current_schema()
 
-        return expected_update
+        # we assume that expected_update == applied_update so table schemas in dest were not
+        # externally changed
+        return applied_update
 
     def get_table_dir(self, table_name: str, remote: bool = False) -> str:
         # dlt tables do not respect layout (for now)

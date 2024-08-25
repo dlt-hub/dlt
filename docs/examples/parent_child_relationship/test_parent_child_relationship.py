@@ -1,4 +1,3 @@
-
 import pytest
 
 from tests.utils import skipifgithubfork
@@ -29,6 +28,7 @@ Please note that dlt metadata, including `_dlt_id` and `_dlt_load_id`, will stil
 from typing import List, Dict, Any, Generator
 import dlt
 
+
 # Define a dlt resource with write disposition to 'merge'
 @dlt.resource(name="parent_with_children", write_disposition={"disposition": "merge"})
 def data_source() -> Generator[List[Dict[str, Any]], None, None]:
@@ -51,12 +51,14 @@ def data_source() -> Generator[List[Dict[str, Any]], None, None]:
 
     yield data
 
+
 # Function to add parent_id to each child record within a parent record
 def add_parent_id(record: Dict[str, Any]) -> Dict[str, Any]:
     parent_id_key = "parent_id"
     for child in record["children"]:
         child[parent_id_key] = record[parent_id_key]
     return record
+
 
 @skipifgithubfork
 @pytest.mark.forked
@@ -69,10 +71,6 @@ def test_parent_child_relationship():
     )
 
     # Run the pipeline
-    load_info = pipeline.run(
-        data_source()
-        .add_map(add_parent_id),
-        primary_key="parent_id"
-    )
+    load_info = pipeline.run(data_source().add_map(add_parent_id), primary_key="parent_id")
     # Output the load information after pipeline execution
     print(load_info)
