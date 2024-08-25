@@ -99,10 +99,9 @@ class DeltaLoadFilesystemJob(FilesystemLoadJob):
         from dlt.common.libs.deltalake import (
             DeltaTable,
             write_delta_table,
+            merge_delta_table,
             ensure_delta_compatible_arrow_schema,
-            ensure_delta_compatible_arrow_data,
             _deltalake_storage_options,
-            _evolve_delta_table_schema,
             try_get_deltatable,
         )
 
@@ -138,32 +137,11 @@ class DeltaLoadFilesystemJob(FilesystemLoadJob):
 
         if self._load_table["write_disposition"] == "merge" and dt is not None:
             assert self._load_table["x-merge-strategy"] in self._job_client.capabilities.supported_merge_strategies  # type: ignore[typeddict-item]
-
-            if self._load_table["x-merge-strategy"] == "upsert":  # type: ignore[typeddict-item]
-                # `DeltaTable.merge` does not support automatic schema evolution
-                # https://github.com/delta-io/delta-rs/issues/2282
-                _evolve_delta_table_schema(dt, arrow_ds.schema)
-
-                if "parent" in self._load_table:
-                    unique_column = get_first_column_name_with_prop(self._load_table, "unique")
-                    predicate = f"target.{unique_column} = source.{unique_column}"
-                else:
-                    primary_keys = get_columns_names_with_prop(self._load_table, "primary_key")
-                    predicate = " AND ".join([f"target.{c} = source.{c}" for c in primary_keys])
-
-                qry = (
-                    dt.merge(
-                        source=ensure_delta_compatible_arrow_data(arrow_rbr),
-                        predicate=predicate,
-                        source_alias="source",
-                        target_alias="target",
-                    )
-                    .when_matched_update_all()
-                    .when_not_matched_insert_all()
-                )
-
-                qry.execute()
-
+            merge_delta_table(
+                table=dt,
+                data=arrow_rbr,
+                schema=self._load_table,
+            )
         else:
             write_delta_table(
                 table_or_uri=dt_path if dt is None else dt,

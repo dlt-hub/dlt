@@ -5,7 +5,8 @@ from dlt import version, Pipeline
 from dlt.common import logger
 from dlt.common.libs.pyarrow import pyarrow as pa
 from dlt.common.libs.pyarrow import cast_arrow_schema_types
-from dlt.common.schema.typing import TWriteDisposition
+from dlt.common.schema.typing import TWriteDisposition, TTableSchema
+from dlt.common.schema.utils import get_first_column_name_with_prop, get_columns_names_with_prop
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.storages import FilesystemConfiguration
 from dlt.common.utils import assert_min_pkg_version
@@ -75,7 +76,7 @@ def write_delta_table(
     partition_by: Optional[Union[List[str], str]] = None,
     storage_options: Optional[Dict[str, str]] = None,
 ) -> None:
-    """Writes in-memory Arrow table to on-disk Delta table.
+    """Writes in-memory Arrow data to on-disk Delta table.
 
     Thin wrapper around `deltalake.write_deltalake`.
     """
@@ -92,6 +93,42 @@ def write_delta_table(
         storage_options=storage_options,
         engine="rust",  # `merge` schema mode requires `rust` engine
     )
+
+
+def merge_delta_table(
+    table: DeltaTable,
+    data: Union[pa.Table, pa.RecordBatchReader],
+    schema: TTableSchema,
+) -> None:
+    """Merges in-memory Arrow data into on-disk Delta table."""
+
+    strategy = schema["x-merge-strategy"]  # type: ignore[typeddict-item]
+    if strategy == "upsert":
+        # `DeltaTable.merge` does not support automatic schema evolution
+        # https://github.com/delta-io/delta-rs/issues/2282
+        _evolve_delta_table_schema(table, data.schema)
+
+        if "parent" in schema:
+            unique_column = get_first_column_name_with_prop(schema, "unique")
+            predicate = f"target.{unique_column} = source.{unique_column}"
+        else:
+            primary_keys = get_columns_names_with_prop(schema, "primary_key")
+            predicate = " AND ".join([f"target.{c} = source.{c}" for c in primary_keys])
+
+        qry = (
+            table.merge(
+                source=ensure_delta_compatible_arrow_data(data),
+                predicate=predicate,
+                source_alias="source",
+                target_alias="target",
+            )
+            .when_matched_update_all()
+            .when_not_matched_insert_all()
+        )
+
+        qry.execute()
+    else:
+        ValueError(f'Merge strategy "{strategy}" not supported.')
 
 
 def get_delta_tables(pipeline: Pipeline, *tables: str) -> Dict[str, DeltaTable]:
