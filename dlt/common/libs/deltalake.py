@@ -12,6 +12,7 @@ from dlt.common.utils import assert_min_pkg_version
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 
 try:
+    import deltalake
     from deltalake import write_deltalake, DeltaTable
     from deltalake.writer import try_get_deltatable
 except ModuleNotFoundError:
@@ -145,3 +146,16 @@ def _deltalake_storage_options(config: FilesystemConfiguration) -> Dict[str, str
             + ". dlt will use the values in `deltalake_storage_options`."
         )
     return {**creds, **extra_options}
+
+
+def _evolve_delta_table_schema(delta_table: DeltaTable, arrow_schema: pa.Schema) -> None:
+    """Evolves `delta_table` schema if different from `arrow_schema`.
+
+    Adds column(s) to `delta_table` present in `arrow_schema` but not in `delta_table`.
+    """
+    new_fields = [
+        deltalake.Field.from_pyarrow(field)
+        for field in ensure_delta_compatible_arrow_schema(arrow_schema)
+        if field not in delta_table.to_pyarrow_dataset().schema
+    ]
+    delta_table.alter.add_columns(new_fields)

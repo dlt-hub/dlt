@@ -100,7 +100,9 @@ class DeltaLoadFilesystemJob(FilesystemLoadJob):
             DeltaTable,
             write_delta_table,
             ensure_delta_compatible_arrow_schema,
+            ensure_delta_compatible_arrow_data,
             _deltalake_storage_options,
+            _evolve_delta_table_schema,
             try_get_deltatable,
         )
 
@@ -138,6 +140,10 @@ class DeltaLoadFilesystemJob(FilesystemLoadJob):
             assert self._load_table["x-merge-strategy"] in self._job_client.capabilities.supported_merge_strategies  # type: ignore[typeddict-item]
 
             if self._load_table["x-merge-strategy"] == "upsert":  # type: ignore[typeddict-item]
+                # `DeltaTable.merge` does not support automatic schema evolution
+                # https://github.com/delta-io/delta-rs/issues/2282
+                _evolve_delta_table_schema(dt, arrow_ds.schema)
+
                 if "parent" in self._load_table:
                     unique_column = get_first_column_name_with_prop(self._load_table, "unique")
                     predicate = f"target.{unique_column} = source.{unique_column}"
@@ -147,7 +153,7 @@ class DeltaLoadFilesystemJob(FilesystemLoadJob):
 
                 qry = (
                     dt.merge(
-                        source=arrow_rbr,
+                        source=ensure_delta_compatible_arrow_data(arrow_rbr),
                         predicate=predicate,
                         source_alias="source",
                         target_alias="target",

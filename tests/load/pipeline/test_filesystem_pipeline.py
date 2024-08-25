@@ -14,7 +14,7 @@ from dlt.common import json
 from dlt.common import pendulum
 from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.common.utils import uniq_id
-from dlt.common.exceptions import DependencyVersionException
+from dlt.common.schema.typing import TWriteDisposition
 from dlt.destinations import filesystem
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 from dlt.destinations.impl.filesystem.typing import TExtraPlaceholders
@@ -565,6 +565,81 @@ def test_delta_table_partitioning(
     assert "partitioning" in pip_ex.value.__context__.retry_message
     dt = get_delta_tables(pipeline, "zero_part")["zero_part"]
     assert dt.metadata().partition_columns == []
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        table_format_filesystem_configs=True,
+        table_format="delta",
+        bucket_subset=(FILE_BUCKET),
+    ),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize(
+    "write_disposition",
+    (
+        "append",
+        "replace",
+        pytest.param({"disposition": "merge", "strategy": "upsert"}, id="upsert"),
+    ),
+)
+def test_delta_table_schema_evolution(
+    destination_config: DestinationTestConfiguration,
+    write_disposition: TWriteDisposition,
+) -> None:
+    """Tests schema evolution (adding new columns) for `delta` table format."""
+    from dlt.common.libs.deltalake import get_delta_tables, ensure_delta_compatible_arrow_data
+    from dlt.common.libs.pyarrow import pyarrow
+
+    @dlt.resource(
+        write_disposition=write_disposition,
+        primary_key="pk",
+        table_format="delta",
+    )
+    def delta_table(data):
+        yield data
+
+    pipeline = destination_config.setup_pipeline("fs_pipe", dev_mode=True)
+
+    # create Arrow table with one column, one row
+    pk_field = pyarrow.field("pk", pyarrow.int64(), nullable=False)
+    schema = pyarrow.schema([pk_field])
+    arrow_table = pyarrow.Table.from_pydict({"pk": [1]}, schema=schema)
+    assert arrow_table.shape == (1, 1)
+
+    # initial load
+    info = pipeline.run(delta_table(arrow_table))
+    assert_load_info(info)
+    dt = get_delta_tables(pipeline, "delta_table")["delta_table"]
+    expected = ensure_delta_compatible_arrow_data(arrow_table)
+    actual = dt.to_pyarrow_table()
+    assert actual.equals(expected)
+
+    # create Arrow table with many columns, two rows
+    arrow_table = arrow_table_all_data_types(
+        "arrow-table",
+        include_decimal_default_precision=False,
+        include_decimal_arrow_max_precision=True,
+        include_not_normalized_name=False,
+        include_null=False,
+        num_rows=2,
+    )[0]
+    arrow_table = arrow_table.add_column(0, pk_field, [[1, 2]])
+
+    # second load — this should evolve the schema (i.e. add the new columns)
+    info = pipeline.run(delta_table(arrow_table))
+    assert_load_info(info)
+    dt = get_delta_tables(pipeline, "delta_table")["delta_table"]
+    actual = dt.to_pyarrow_table()
+    expected = ensure_delta_compatible_arrow_data(arrow_table)
+    if write_disposition == "append":
+        # just check shape and schema for `append`, because table comparison is
+        # more involved than with the other dispositions
+        assert actual.num_rows == 3
+        actual.schema.equals(expected.schema)
+        return
+    assert actual.sort_by("pk").equals(expected.sort_by("pk"))
 
 
 @pytest.mark.parametrize(
