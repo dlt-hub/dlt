@@ -63,7 +63,9 @@ class synapse(Destination[SynapseClientConfiguration, "SynapseClient"]):
         caps.supports_transactions = True
         caps.supports_ddl_transactions = False
 
-        caps.create_table_not_exists = False  # IF NOT EXISTS on CREATE TABLE not supported
+        caps.supports_create_table_if_not_exists = (
+            False  # IF NOT EXISTS on CREATE TABLE not supported
+        )
 
         # Synapse throws "Some part of your SQL statement is nested too deeply. Rewrite the query or break it up into smaller queries."
         # if number of records exceeds a certain number. Which exact number that is seems not deterministic:

@@ -526,7 +526,7 @@ WHERE """
         not_exists_clause = " "
         if (
             table["name"] in self.schema.dlt_table_names()
-            and self.capabilities.create_table_not_exists
+            and self.capabilities.supports_create_table_if_not_exists
         ):
             not_exists_clause = " IF NOT EXISTS "
         return f"CREATE TABLE{not_exists_clause}{qualified_name}"

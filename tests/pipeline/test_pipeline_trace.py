@@ -551,7 +551,7 @@ def test_trace_telemetry() -> None:
         for item in SENTRY_SENT_ITEMS:
             # print(item)
             print(item["logentry"]["message"])
-        assert len(SENTRY_SENT_ITEMS) == 2
+        assert len(SENTRY_SENT_ITEMS) == 4
 
         # trace with exception
         @dlt.resource
