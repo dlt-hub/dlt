@@ -38,9 +38,9 @@ from dlt.common.destination.reference import (
     RunnableLoadJob,
     StorageSchemaInfo,
     StateInfo,
-    FollowupJob,
     LoadJob,
     HasFollowupJobs,
+    FollowupJobRequest,
 )
 from dlt.common.pendulum import timedelta
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
@@ -75,8 +75,9 @@ from dlt.destinations.impl.lancedb.utils import (
     get_unique_identifiers_from_table_schema,
     set_non_standard_providers_environment_variables,
     generate_arrow_uuid_column,
+    get_default_arrow_value,
 )
-from dlt.destinations.job_impl import ReferenceFollowupJob
+from dlt.destinations.job_impl import ReferenceFollowupJobRequest
 from dlt.destinations.type_mapping import TypeMapper
 
 if TYPE_CHECKING:
@@ -197,7 +198,6 @@ def write_records(
             if not id_field_name:
                 raise ValueError("To perform a merge update, 'id_field_name' must be specified.")
             if remove_orphans:
-                # tbl.to_lance().merge_insert(id_field_name).when_not_matched_by_source_delete().execute(records)
                 tbl.merge_insert(id_field_name).when_not_matched_by_source_delete().execute(records)
             else:
                 tbl.merge_insert(
@@ -694,30 +694,17 @@ class LanceDBClient(JobClientBase, WithStateSync):
     def create_load_job(
         self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
-        if ReferenceFollowupJob.is_reference_job(file_path):
+        if ReferenceFollowupJobRequest.is_reference_job(file_path):
             return LanceDBRemoveOrphansJob(file_path)
         else:
             return LanceDBLoadJob(file_path, table)
 
-    def create_table_chain_completed_followup_jobs(
-        self,
-        table_chain: Sequence[TTableSchema],
-        completed_table_chain_jobs: Optional[Sequence[LoadJobInfo]] = None,
-    ) -> List[FollowupJob]:
-        jobs = super().create_table_chain_completed_followup_jobs(
-            table_chain, completed_table_chain_jobs
-        )
-        if table_chain[0].get("write_disposition") == "merge":
-            all_job_paths_ordered = [
-                job.file_path
-                for table in table_chain
-                for job in completed_table_chain_jobs
-                if job.job_file_info.table_name == table.get("name")
-            ]
-            root_table_file_name = FileStorage.get_file_name_from_file_path(
-                all_job_paths_ordered[0]
-            )
-            jobs.append(ReferenceFollowupJob(root_table_file_name, all_job_paths_ordered))
+    def create_table_chain_completed_followup_jobs(self, table_chain: Sequence[TTableSchema], completed_table_chain_jobs: Optional[Sequence[LoadJobInfo]] = None, ) -> List[FollowupJobRequest]:
+        jobs = super().create_table_chain_completed_followup_jobs(table_chain, completed_table_chain_jobs)
+        if table_chain[0].get("write_disposition")=="merge":
+            all_job_paths_ordered = [job.file_path for table in table_chain for job in completed_table_chain_jobs if job.job_file_info.table_name==table.get("name")]
+            root_table_file_name = FileStorage.get_file_name_from_file_path(all_job_paths_ordered[0])
+            jobs.append(ReferenceFollowupJobRequest(root_table_file_name, all_job_paths_ordered))
         return jobs
 
     def table_exists(self, table_name: str) -> bool:
@@ -727,11 +714,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
 class LanceDBLoadJob(RunnableLoadJob, HasFollowupJobs):
     arrow_schema: TArrowSchema
 
-    def __init__(
-        self,
-        file_path: str,
-        table_schema: TTableSchema,
-    ) -> None:
+    def __init__(self, file_path: str, table_schema: TTableSchema, ) -> None:
         super().__init__(file_path)
         self._job_client: "LanceDBClient" = None
         self._table_schema: TTableSchema = table_schema
@@ -740,43 +723,25 @@ class LanceDBLoadJob(RunnableLoadJob, HasFollowupJobs):
         db_client: DBConnection = self._job_client.db_client
         fq_table_name: str = self._job_client.make_qualified_table_name(self._table_schema["name"])
         id_field_name: str = self._job_client.config.id_field_name
-        unique_identifiers: Sequence[str] = get_unique_identifiers_from_table_schema(
-            self._load_table
-        )
-        write_disposition: TWriteDisposition = cast(
-            TWriteDisposition, self._load_table.get("write_disposition", "append")
-        )
+        unique_identifiers: Sequence[str] = get_unique_identifiers_from_table_schema(self._load_table)
+        write_disposition: TWriteDisposition = cast(TWriteDisposition, self._load_table.get("write_disposition", "append"))
 
         with FileStorage.open_zipsafe_ro(self._file_path, mode="rb") as f:
             arrow_table: pa.Table = pq.read_table(f)
 
         if self._load_table["name"] not in self._schema.dlt_table_names():
-            arrow_table = generate_arrow_uuid_column(
-                arrow_table,
-                unique_identifiers=unique_identifiers,
-                table_name=fq_table_name,
-                id_field_name=id_field_name,
-            )
+            arrow_table = generate_arrow_uuid_column(arrow_table, unique_identifiers=unique_identifiers, table_name=fq_table_name, id_field_name=id_field_name, )
 
-        write_records(
-            arrow_table,
-            db_client=db_client,
-            table_name=fq_table_name,
-            write_disposition=write_disposition,
-            id_field_name=id_field_name,
-        )
+        write_records(arrow_table, db_client=db_client, table_name=fq_table_name, write_disposition=write_disposition, id_field_name=id_field_name, )
 
 
 class LanceDBRemoveOrphansJob(RunnableLoadJob):
     orphaned_ids: Set[str]
 
-    def __init__(
-        self,
-        file_path: str,
-    ) -> None:
+    def __init__(self, file_path: str, ) -> None:
         super().__init__(file_path)
         self._job_client: "LanceDBClient" = None
-        self.references = ReferenceFollowupJob.resolve_references(file_path)
+        self.references = ReferenceFollowupJobRequest.resolve_references(file_path)
 
     def run(self) -> None:
         db_client: DBConnection = self._job_client.db_client
@@ -795,38 +760,42 @@ class LanceDBRemoveOrphansJob(RunnableLoadJob):
 
             if target_is_root_table:
                 target_table_id_field_name = "_dlt_id"
-                # arrow_ds = pa.dataset.dataset(table_path)
-                with FileStorage.open_zipsafe_ro(target_table_path, mode="rb") as f:
-                    payload_arrow_table: pa.Table = pq.read_table(f)
-
-                # Append ID Field, which is only defined in the LanceDB table.
-                payload_arrow_table = payload_arrow_table.append_column(
-                    pa.field(self._job_client.id_field_name, pa.string()),
-                    pa.array([""] * payload_arrow_table.num_rows, type=pa.string()),
-                )
+                file_path = target_table_path
             else:
-                # TODO:  change schema of source table id to math target table id.
                 target_table_id_field_name = "_dlt_parent_id"
-                parent_table_path = self.get_parent_path(table_lineage, target_table.get("parent"))
-                # arrow_ds = pa.dataset.dataset(parent_table_path)
-                with FileStorage.open_zipsafe_ro(parent_table_path, mode="rb") as f:
-                    payload_arrow_table: pa.Table = pq.read_table(f)
+                file_path = self.get_parent_path(table_lineage, target_table.get("parent"))
 
-            # arrow_rbr: RecordBatchReader
-            # with arrow_ds.scanner(
-            #     columns=[source_table_id_field_name],
-            #     batch_size=BATCH_PROCESS_CHUNK_SIZE,
-            # ).to_reader() as arrow_rbr:
-            # with FileStorage.open_zipsafe_ro(target_table_path, mode="rb") as f:
-            #     target_table_arrow_schema: pa.Schema = pq.read_schema(f)
+            with FileStorage.open_zipsafe_ro(file_path, mode="rb") as f:
+                payload_arrow_table: pa.Table = pq.read_table(f)
 
-            # payload_arrow_table_with_conforming_schema = payload_arrow_table.join(
-            #     target_table_arrow_schema.empty_table(),
-            #     keys=target_table_id_field_name,
-            # )
+            # Get target table schema
+            with FileStorage.open_zipsafe_ro(target_table_path, mode="rb") as f:
+                target_table_schema: pa.Schema = pq.read_schema(f)
+
+            # LanceDB requires the payload to have all fields populated, even if we don't intend to use them in our merge operation.
+            # Unfortunately, we can't just create NULL fields; else LanceDB always truncates the target using `when_not_matched_by_source_delete`.
+            schema_difference = pa.schema(
+                set(target_table_schema) - set(payload_arrow_table.schema)
+            )
+            for field in schema_difference:
+                try:
+                    default_value = get_default_arrow_value(field.type)
+                    default_array = pa.array(
+                        [default_value] * payload_arrow_table.num_rows, type=field.type
+                    )
+                    payload_arrow_table = payload_arrow_table.append_column(field, default_array)
+                except ValueError as e:
+                    logger.warn(f"{e}. Using null values for field '{field.name}'.")
+                    null_array = pa.array([None] * payload_arrow_table.num_rows, type=field.type)
+                    payload_arrow_table = payload_arrow_table.append_column(field, null_array)
+
+            # TODO: Remove special field, we don't need it.
+            payload_arrow_table = payload_arrow_table.append_column(
+                pa.field(self._job_client.id_field_name, pa.string()),
+                pa.array([""] * payload_arrow_table.num_rows, type=pa.string()),
+            )
 
             write_records(
-                # payload_arrow_table_with_conforming_schema,
                 payload_arrow_table,
                 db_client=db_client,
                 id_field_name=target_table_id_field_name,
@@ -837,4 +806,4 @@ class LanceDBRemoveOrphansJob(RunnableLoadJob):
 
     @staticmethod
     def get_parent_path(table_lineage: TTableLineage, table: str) -> Optional[str]:
-        return next(entry[1] for entry in table_lineage if entry[1] == table)
+        return next(entry[2] for entry in table_lineage if entry[1] == table)

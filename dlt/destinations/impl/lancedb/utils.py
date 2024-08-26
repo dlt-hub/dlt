@@ -1,5 +1,6 @@
 import os
 import uuid
+from datetime import date, datetime
 from typing import Sequence, Union, Dict, List
 
 import pyarrow as pa
@@ -74,3 +75,19 @@ def set_non_standard_providers_environment_variables(
 ) -> None:
     if embedding_model_provider in PROVIDER_ENVIRONMENT_VARIABLES_MAP:
         os.environ[PROVIDER_ENVIRONMENT_VARIABLES_MAP[embedding_model_provider]] = api_key or ""
+
+def get_default_arrow_value(field_type):
+    if pa.types.is_integer(field_type):
+        return 0
+    elif pa.types.is_floating(field_type):
+        return 0.0
+    elif pa.types.is_string(field_type):
+        return ""
+    elif pa.types.is_boolean(field_type):
+        return False
+    elif pa.types.is_date(field_type):
+        return date.today()
+    elif pa.types.is_timestamp(field_type):
+        return datetime.now()
+    else:
+        raise ValueError(f"Unsupported data type: {field_type}")
