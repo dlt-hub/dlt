@@ -422,7 +422,6 @@ def assert_query_data(
             assert row[1] in info.loads_ids
 
 
-
 def assert_schema_on_data(
     table_schema: TTableSchema,
     rows: List[Dict[str, Any]],
@@ -468,7 +467,6 @@ def assert_schema_on_data(
         ), "Some columns didn't receive NULLs which is required"
 
 
-
 def load_table_distinct_counts(
     p: dlt.Pipeline, distinct_column: str, *table_names: str
 ) -> DictStrAny:
@@ -476,7 +474,8 @@ def load_table_distinct_counts(
     with p.sql_client() as c:
         query = "\nUNION ALL\n".join(
             [
-                f"SELECT '{name}' as name, COUNT(DISTINCT {distinct_column}) as c FROM {c.make_qualified_table_name(name)}"
+                f"SELECT '{name}' as name, COUNT(DISTINCT {distinct_column}) as c FROM"
+                f" {c.make_qualified_table_name(name)}"
                 for name in table_names
             ]
         )

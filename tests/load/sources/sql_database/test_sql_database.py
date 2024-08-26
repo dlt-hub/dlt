@@ -23,7 +23,12 @@ from tests.load.utils import (
     DestinationTestConfiguration,
 )
 
-from tests.sources.sql_database.test_sql_database_source import default_test_callback, convert_time_to_us, assert_row_counts
+from tests.sources.sql_database.test_sql_database_source import (
+    default_test_callback,
+    convert_time_to_us,
+    assert_row_counts,
+)
+
 
 @pytest.mark.parametrize(
     "destination_config",
@@ -32,7 +37,10 @@ from tests.sources.sql_database.test_sql_database_source import default_test_cal
 )
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pandas", "pyarrow", "connectorx"])
 def test_load_sql_schema_loads_all_tables(
-    sql_source_db: SQLAlchemySourceDB, destination_config: DestinationTestConfiguration, backend: TableBackend, request: Any,
+    sql_source_db: SQLAlchemySourceDB,
+    destination_config: DestinationTestConfiguration,
+    backend: TableBackend,
+    request: Any,
 ) -> None:
     pipeline = destination_config.setup_pipeline(request.node.name, dev_mode=True)
 
@@ -54,19 +62,14 @@ def test_load_sql_schema_loads_all_tables(
         source.has_precision.add_map(mock_json_column("json_col"))
         source.has_precision_nullable.add_map(mock_json_column("json_col"))
 
-    assert (
-        "chat_message_view" not in source.resources
-    )  # Views are not reflected by default
+    assert "chat_message_view" not in source.resources  # Views are not reflected by default
 
     load_info = pipeline.run(source)
-    print(
-        humanize.precisedelta(
-            pipeline.last_trace.finished_at - pipeline.last_trace.started_at
-        )
-    )
+    print(humanize.precisedelta(pipeline.last_trace.finished_at - pipeline.last_trace.started_at))
     assert_load_info(load_info)
 
     assert_row_counts(pipeline, sql_source_db)
+
 
 @pytest.mark.parametrize(
     "destination_config",
@@ -75,7 +78,10 @@ def test_load_sql_schema_loads_all_tables(
 )
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pandas", "pyarrow", "connectorx"])
 def test_load_sql_schema_loads_all_tables_parallel(
-    sql_source_db: SQLAlchemySourceDB,  destination_config: DestinationTestConfiguration, backend: TableBackend, request: Any,
+    sql_source_db: SQLAlchemySourceDB,
+    destination_config: DestinationTestConfiguration,
+    backend: TableBackend,
+    request: Any,
 ) -> None:
     pipeline = destination_config.setup_pipeline(request.node.name, dev_mode=True)
     source = sql_database(
@@ -97,11 +103,7 @@ def test_load_sql_schema_loads_all_tables_parallel(
         source.has_precision_nullable.add_map(mock_json_column("json_col"))
 
     load_info = pipeline.run(source)
-    print(
-        humanize.precisedelta(
-            pipeline.last_trace.finished_at - pipeline.last_trace.started_at
-        )
-    )
+    print(humanize.precisedelta(pipeline.last_trace.finished_at - pipeline.last_trace.started_at))
     assert_load_info(load_info)
 
     assert_row_counts(pipeline, sql_source_db)
@@ -114,7 +116,10 @@ def test_load_sql_schema_loads_all_tables_parallel(
 )
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pandas", "pyarrow", "connectorx"])
 def test_load_sql_table_names(
-    sql_source_db: SQLAlchemySourceDB,  destination_config: DestinationTestConfiguration, backend: TableBackend, request: Any,
+    sql_source_db: SQLAlchemySourceDB,
+    destination_config: DestinationTestConfiguration,
+    backend: TableBackend,
+    request: Any,
 ) -> None:
     pipeline = destination_config.setup_pipeline(request.node.name, dev_mode=True)
     tables = ["chat_channel", "chat_message"]
@@ -139,14 +144,15 @@ def test_load_sql_table_names(
 )
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pandas", "pyarrow", "connectorx"])
 def test_load_sql_table_incremental(
-    sql_source_db: SQLAlchemySourceDB,  destination_config: DestinationTestConfiguration, backend: TableBackend, request: Any,
+    sql_source_db: SQLAlchemySourceDB,
+    destination_config: DestinationTestConfiguration,
+    backend: TableBackend,
+    request: Any,
 ) -> None:
     """Run pipeline twice. Insert more rows after first run
     and ensure only those rows are stored after the second run.
     """
-    os.environ["SOURCES__SQL_DATABASE__CHAT_MESSAGE__INCREMENTAL__CURSOR_PATH"] = (
-        "updated_at"
-    )
+    os.environ["SOURCES__SQL_DATABASE__CHAT_MESSAGE__INCREMENTAL__CURSOR_PATH"] = "updated_at"
 
     pipeline = destination_config.setup_pipeline(request.node.name, dev_mode=True)
     tables = ["chat_message"]
@@ -175,7 +181,9 @@ def test_load_sql_table_incremental(
     ids=lambda x: x.name,
 )
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pandas", "pyarrow", "connectorx"])
-def test_load_mysql_data_load(destination_config: DestinationTestConfiguration, backend: TableBackend, request: Any) -> None:
+def test_load_mysql_data_load(
+    destination_config: DestinationTestConfiguration, backend: TableBackend, request: Any
+) -> None:
     # reflect a database
     credentials = ConnectionStringCredentials(
         "mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam"
@@ -185,9 +193,7 @@ def test_load_mysql_data_load(destination_config: DestinationTestConfiguration, 
 
     if backend == "connectorx":
         # connector-x has different connection string format
-        backend_kwargs = {
-            "conn": "mysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam"
-        }
+        backend_kwargs = {"conn": "mysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam"}
     else:
         backend_kwargs = {}
 
@@ -236,7 +242,10 @@ def test_load_mysql_data_load(destination_config: DestinationTestConfiguration, 
 )
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pandas", "pyarrow", "connectorx"])
 def test_load_sql_table_resource_loads_data(
-    sql_source_db: SQLAlchemySourceDB, destination_config: DestinationTestConfiguration, backend: TableBackend, request: Any,
+    sql_source_db: SQLAlchemySourceDB,
+    destination_config: DestinationTestConfiguration,
+    backend: TableBackend,
+    request: Any,
 ) -> None:
     @dlt.source
     def sql_table_source() -> List[DltResource]:
@@ -264,7 +273,10 @@ def test_load_sql_table_resource_loads_data(
 )
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
 def test_load_sql_table_resource_incremental(
-    sql_source_db: SQLAlchemySourceDB,  destination_config: DestinationTestConfiguration, backend: TableBackend, request: Any,
+    sql_source_db: SQLAlchemySourceDB,
+    destination_config: DestinationTestConfiguration,
+    backend: TableBackend,
+    request: Any,
 ) -> None:
     @dlt.source
     def sql_table_source() -> List[DltResource]:
@@ -296,7 +308,10 @@ def test_load_sql_table_resource_incremental(
 )
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
 def test_load_sql_table_resource_incremental_initial_value(
-    sql_source_db: SQLAlchemySourceDB,  destination_config: DestinationTestConfiguration, backend: TableBackend, request: Any,
+    sql_source_db: SQLAlchemySourceDB,
+    destination_config: DestinationTestConfiguration,
+    backend: TableBackend,
+    request: Any,
 ) -> None:
     @dlt.source
     def sql_table_source() -> List[DltResource]:
