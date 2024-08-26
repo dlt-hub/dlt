@@ -46,7 +46,7 @@ from dlt.common.schema.typing import (
 from dlt.common.schema.utils import table_schema_has_type
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import LoadJob
-from dlt.common.destination.reference import FollowupJob, SupportsStagingDestination
+from dlt.common.destination.reference import FollowupJobRequest, SupportsStagingDestination
 from dlt.common.data_writers.escape import escape_hive_identifier
 from dlt.destinations.sql_jobs import SqlStagingCopyFollowupJob, SqlMergeFollowupJob
 
@@ -490,7 +490,7 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
 
     def _create_append_followup_jobs(
         self, table_chain: Sequence[TTableSchema]
-    ) -> List[FollowupJob]:
+    ) -> List[FollowupJobRequest]:
         if self._is_iceberg_table(self.prepare_load_table(table_chain[0]["name"])):
             return [
                 SqlStagingCopyFollowupJob.from_table_chain(
@@ -501,7 +501,7 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
 
     def _create_replace_followup_jobs(
         self, table_chain: Sequence[TTableSchema]
-    ) -> List[FollowupJob]:
+    ) -> List[FollowupJobRequest]:
         if self._is_iceberg_table(self.prepare_load_table(table_chain[0]["name"])):
             return [
                 SqlStagingCopyFollowupJob.from_table_chain(
@@ -510,7 +510,9 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
             ]
         return super()._create_replace_followup_jobs(table_chain)
 
-    def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[FollowupJob]:
+    def _create_merge_followup_jobs(
+        self, table_chain: Sequence[TTableSchema]
+    ) -> List[FollowupJobRequest]:
         return [AthenaMergeJob.from_table_chain(table_chain, self.sql_client)]
 
     def _is_iceberg_table(self, table: TTableSchema) -> bool:

@@ -29,7 +29,7 @@ from dlt.destinations.exceptions import LoadJobTerminalException
 from dlt.destinations.impl.snowflake.configuration import SnowflakeClientConfiguration
 from dlt.destinations.impl.snowflake.sql_client import SnowflakeSqlClient
 from dlt.destinations.impl.snowflake.sql_client import SnowflakeSqlClient
-from dlt.destinations.job_impl import ReferenceFollowupJob
+from dlt.destinations.job_impl import ReferenceFollowupJobRequest
 from dlt.destinations.type_mapping import TypeMapper
 
 
@@ -98,11 +98,11 @@ class SnowflakeLoadJob(RunnableLoadJob, HasFollowupJobs):
         self._sql_client = self._job_client.sql_client
 
         # resolve reference
-        is_local_file = not ReferenceFollowupJob.is_reference_job(self._file_path)
+        is_local_file = not ReferenceFollowupJobRequest.is_reference_job(self._file_path)
         file_url = (
             self._file_path
             if is_local_file
-            else ReferenceFollowupJob.resolve_reference(self._file_path)
+            else ReferenceFollowupJobRequest.resolve_reference(self._file_path)
         )
         # take file name
         file_name = FileStorage.get_file_name_from_file_path(file_url)

@@ -2,7 +2,7 @@ from typing import List, Set, Iterable, Callable, Optional, Tuple, Sequence
 from itertools import groupby
 
 from dlt.common import logger
-from dlt.common.storages.load_package import LoadJobInfo, PackageStorage, TJobState
+from dlt.common.storages.load_package import LoadJobInfo, PackageStorage, TPackageJobState
 from dlt.common.schema.utils import (
     fill_hints_from_parent_and_clone_table,
     get_child_tables,
@@ -19,7 +19,7 @@ from dlt.common.destination import DestinationCapabilitiesContext
 
 def get_completed_table_chain(
     schema: Schema,
-    all_jobs: Iterable[Tuple[TJobState, ParsedLoadJobFileName]],
+    all_jobs: Iterable[Tuple[TPackageJobState, ParsedLoadJobFileName]],
     top_merged_table: TTableSchema,
     being_completed_job_id: str = None,
 ) -> List[TTableSchema]:

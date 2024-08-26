@@ -14,6 +14,7 @@ from typing import (
 )
 import os
 import time
+from dlt.common.metrics import LoadJobMetrics
 from dlt.common.pendulum import pendulum
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
 from dlt.common.storages import FileStorage
@@ -25,7 +26,7 @@ from dlt.common.destination.exceptions import (
 )
 from dlt.common.destination.reference import (
     HasFollowupJobs,
-    FollowupJob,
+    FollowupJobRequest,
     SupportsStagingDestination,
     TLoadJobState,
     RunnableLoadJob,
@@ -37,10 +38,9 @@ from dlt.destinations.sql_jobs import SqlMergeFollowupJob
 
 from dlt.destinations.exceptions import (
     LoadJobNotExistsException,
-    LoadJobInvalidStateTransitionException,
 )
 from dlt.destinations.impl.dummy.configuration import DummyClientConfiguration
-from dlt.destinations.job_impl import ReferenceFollowupJob
+from dlt.destinations.job_impl import ReferenceFollowupJobRequest
 
 
 class LoadDummyBaseJob(RunnableLoadJob):
@@ -78,18 +78,25 @@ class LoadDummyBaseJob(RunnableLoadJob):
             c_r = random.random()
             if self.config.retry_prob >= c_r:
                 # this will make the job go to a retry state
-                raise DestinationTransientException("a random retry occured")
+                raise DestinationTransientException("a random retry occurred")
 
             # fail prob
             c_r = random.random()
             if self.config.fail_prob >= c_r:
                 # this will make the the job go to a failed state
-                raise DestinationTerminalException("a random fail occured")
+                raise DestinationTerminalException("a random fail occurred")
 
             time.sleep(0.1)
 
+    def metrics(self) -> Optional[LoadJobMetrics]:
+        m = super().metrics()
+        # add remote uri if there's followup job
+        if self.config.create_followup_jobs:
+            m = m._replace(remote_uri=self._file_name)
+        return m
 
-class DummyFollowupJob(ReferenceFollowupJob):
+
+class DummyFollowupJobRequest(ReferenceFollowupJobRequest):
     def __init__(
         self, original_file_name: str, remote_paths: List[str], config: DummyClientConfiguration
     ) -> None:
@@ -100,9 +107,9 @@ class DummyFollowupJob(ReferenceFollowupJob):
 
 
 class LoadDummyJob(LoadDummyBaseJob, HasFollowupJobs):
-    def create_followup_jobs(self, final_state: TLoadJobState) -> List[FollowupJob]:
+    def create_followup_jobs(self, final_state: TLoadJobState) -> List[FollowupJobRequest]:
         if self.config.create_followup_jobs and final_state == "completed":
-            new_job = DummyFollowupJob(
+            new_job = DummyFollowupJobRequest(
                 original_file_name=self.file_name(),
                 remote_paths=[self._file_name],
                 config=self.config,
@@ -113,8 +120,8 @@ class LoadDummyJob(LoadDummyBaseJob, HasFollowupJobs):
 
 
 JOBS: Dict[str, LoadDummyBaseJob] = {}
-CREATED_FOLLOWUP_JOBS: Dict[str, FollowupJob] = {}
-CREATED_TABLE_CHAIN_FOLLOWUP_JOBS: Dict[str, FollowupJob] = {}
+CREATED_FOLLOWUP_JOBS: Dict[str, FollowupJobRequest] = {}
+CREATED_TABLE_CHAIN_FOLLOWUP_JOBS: Dict[str, FollowupJobRequest] = {}
 RETRIED_JOBS: Dict[str, LoadDummyBaseJob] = {}
 
 
@@ -173,7 +180,7 @@ class DummyClient(JobClientBase, SupportsStagingDestination, WithStagingDataset)
         self,
         table_chain: Sequence[TTableSchema],
         completed_table_chain_jobs: Optional[Sequence[LoadJobInfo]] = None,
-    ) -> List[FollowupJob]:
+    ) -> List[FollowupJobRequest]:
         """Creates a list of followup jobs that should be executed after a table chain is completed"""
 
         # if sql job follow up is configure we schedule a merge job that will always fail
@@ -184,7 +191,7 @@ class DummyClient(JobClientBase, SupportsStagingDestination, WithStagingDataset)
         if self.config.create_followup_table_chain_reference_jobs:
             table_job_paths = [job.file_path for job in completed_table_chain_jobs]
             file_name = FileStorage.get_file_name_from_file_path(table_job_paths[0])
-            job = ReferenceFollowupJob(file_name, table_job_paths)
+            job = ReferenceFollowupJobRequest(file_name, table_job_paths)
             CREATED_TABLE_CHAIN_FOLLOWUP_JOBS[job.job_id()] = job
             return [job]
         return []
@@ -212,7 +219,7 @@ class DummyClient(JobClientBase, SupportsStagingDestination, WithStagingDataset)
         pass
 
     def _create_job(self, job_id: str) -> LoadDummyBaseJob:
-        if ReferenceFollowupJob.is_reference_job(job_id):
+        if ReferenceFollowupJobRequest.is_reference_job(job_id):
             return LoadDummyBaseJob(job_id, config=self.config)
         else:
             return LoadDummyJob(job_id, config=self.config)

@@ -189,8 +189,9 @@ def wipe_pipeline(preserve_environ) -> Iterator[None]:
     yield
     if container[PipelineContext].is_active():
         # take existing pipeline
-        p = dlt.pipeline()
-        p._wipe_working_folder()
+        # NOTE: no more needed. test storage is wiped fully when test starts
+        # p = dlt.pipeline()
+        # p._wipe_working_folder()
         # deactivate context
         container[PipelineContext].deactivate()
 
