@@ -56,7 +56,7 @@ def lancedb_adapter(
 
     if document_id:
         if isinstance(document_id, str):
-            embed = [document_id]
+            document_id = [document_id]
         if not isinstance(document_id, list):
             raise ValueError(
                 "'document_id' must be a list of column names or a single column name as a string."
