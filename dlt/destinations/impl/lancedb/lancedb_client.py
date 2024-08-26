@@ -712,8 +712,9 @@ class LanceDBClient(JobClientBase, WithStateSync):
         if table_chain[0].get("write_disposition") == "merge":
             all_job_paths_ordered = [
                 job.file_path
-                for _ in table_chain
+                for table in table_chain
                 for job in completed_table_chain_jobs
+                if job.job_file_info.table_name == table.get("name")
             ]
             root_table_file_name = FileStorage.get_file_name_from_file_path(
                 all_job_paths_ordered[0]
