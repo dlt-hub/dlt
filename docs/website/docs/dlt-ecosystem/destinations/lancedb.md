@@ -144,7 +144,22 @@ lancedb_adapter(
 )
 ```
 
-Bear in mind that you can't use an adapter on a [dlt source](../../general-usage/source.md), only a [dlt resource](../../general-usage/resource.md).
+When using the `lancedb_adapter`, it's important to apply it directly to resources, not to the whole source. Here's an example:
+
+```py
+products_tables = sql_database().with_resources("products", "customers")
+
+pipeline = dlt.pipeline(
+        pipeline_name="postgres_to_lancedb_pipeline",
+        destination="lancedb",
+    )
+
+# apply adapter to the needed resources
+lancedb_adapter(products_tables.products, embed="description")
+lancedb_adapter(products_tables.customers, embed="bio")
+
+info = pipeline.run(products_tables)
+```
 
 ## Write disposition
 

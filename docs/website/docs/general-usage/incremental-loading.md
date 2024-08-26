@@ -348,7 +348,23 @@ You can configure the literal used to indicate an active record with `active_rec
     write_disposition={
         "disposition": "merge",
         "strategy": "scd2",
-        "active_record_timestamp": "9999-12-31",  # e.g. datetime.datetime(9999, 12, 31) is also accepted
+        # accepts various types of date/datetime objects
+        "active_record_timestamp": "9999-12-31",
+    }
+)
+def dim_customer():
+    ...
+```
+
+#### Example: configure boundary timestamp
+You can configure the "boundary timestamp" used for record validity windows with `boundary_timestamp`. The provided date(time) value is used as "valid from" for new records and as "valid to" for retired records. The timestamp at which a load package is created is used if `boundary_timestamp` is omitted.
+```py
+@dlt.resource(
+    write_disposition={
+        "disposition": "merge",
+        "strategy": "scd2",
+        # accepts various types of date/datetime objects
+        "boundary_timestamp": "2024-08-21T12:15:00+00:00",
     }
 )
 def dim_customer():

@@ -20,7 +20,7 @@ from dlt.common.destination.reference import (
     TLoadJobState,
     HasFollowupJobs,
     RunnableLoadJob,
-    FollowupJob,
+    FollowupJobRequest,
     LoadJob,
 )
 from dlt.common.schema import Schema, TColumnSchema
@@ -52,7 +52,7 @@ from dlt.destinations.job_client_impl import (
     SqlJobClientBase,
     SqlJobClientWithStaging,
 )
-from dlt.destinations.job_impl import ReferenceFollowupJob, FinalizedLoadJobWithFollowupJobs
+from dlt.destinations.job_impl import ReferenceFollowupJobRequest, FinalizedLoadJobWithFollowupJobs
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
 from dlt.destinations.type_mapping import TypeMapper
 
@@ -141,8 +141,8 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
         bucket_path = None
         file_name = self._file_name
 
-        if ReferenceFollowupJob.is_reference_job(self._file_path):
-            bucket_path = ReferenceFollowupJob.resolve_reference(self._file_path)
+        if ReferenceFollowupJobRequest.is_reference_job(self._file_path):
+            bucket_path = ReferenceFollowupJobRequest.resolve_reference(self._file_path)
             file_name = FileStorage.get_file_name_from_file_path(bucket_path)
             bucket_url = urlparse(bucket_path)
             bucket_scheme = bucket_url.scheme
@@ -288,7 +288,9 @@ class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
         self.active_hints = deepcopy(HINT_TO_CLICKHOUSE_ATTR)
         self.type_mapper = ClickHouseTypeMapper(self.capabilities)
 
-    def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[FollowupJob]:
+    def _create_merge_followup_jobs(
+        self, table_chain: Sequence[TTableSchema]
+    ) -> List[FollowupJobRequest]:
         return [ClickHouseMergeJob.from_table_chain(table_chain, self.sql_client)]
 
     def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:

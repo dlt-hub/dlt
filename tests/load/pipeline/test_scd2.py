@@ -3,6 +3,7 @@
 import pytest
 from typing import List, Dict, Any, Optional
 from datetime import date, datetime, timezone  # noqa: I251
+from contextlib import nullcontext as does_not_raise
 
 import dlt
 from dlt.common.typing import TAnyDateTime
@@ -45,14 +46,15 @@ def get_load_package_created_at(pipeline: dlt.Pipeline, load_info: LoadInfo) -> 
     return reduce_pendulum_datetime_precision(created_at, caps.timestamp_precision)
 
 
+def strip_timezone(ts: TAnyDateTime) -> pendulum.DateTime:
+    """Converts timezone of datetime object to UTC and removes timezone awareness."""
+    return ensure_pendulum_datetime(ts).astimezone(tz=timezone.utc).replace(tzinfo=None)
+
+
 def get_table(
     pipeline: dlt.Pipeline, table_name: str, sort_column: str = None, include_root_id: bool = True
 ) -> List[Dict[str, Any]]:
     """Returns destination table contents as list of dictionaries."""
-
-    def strip_timezone(ts: datetime) -> datetime:
-        """Converts timezone of datetime object to UTC and removes timezone awareness."""
-        return ensure_pendulum_datetime(ts).astimezone(tz=timezone.utc).replace(tzinfo=None)
 
     table = [
         {
@@ -68,20 +70,6 @@ def get_table(
     if sort_column is None:
         return table
     return sorted(table, key=lambda d: d[sort_column])
-
-    return sorted(
-        [
-            {
-                k: strip_timezone(v) if isinstance(v, datetime) else v
-                for k, v in r.items()
-                if not k.startswith("_dlt")
-                or k in DEFAULT_VALIDITY_COLUMN_NAMES
-                or (k == "_dlt_root_id" if include_root_id else False)
-            }
-            for r in load_tables_to_dicts(pipeline, table_name)[table_name]
-        ],
-        key=lambda d: d[sort_column],
-    )
 
 
 @pytest.mark.essential
@@ -596,6 +584,7 @@ def test_validity_column_name_conflict(destination_config: DestinationTestConfig
         "9999-12-31T00:00:00",
         "9999-12-31T00:00:00+00:00",
         "9999-12-31T00:00:00+01:00",
+        "i_am_not_a_timestamp",
     ],
 )
 def test_active_record_timestamp(
@@ -604,22 +593,126 @@ def test_active_record_timestamp(
 ) -> None:
     p = destination_config.setup_pipeline("abstract", dev_mode=True)
 
+    context = does_not_raise()
+    if active_record_timestamp == "i_am_not_a_timestamp":
+        context = pytest.raises(ValueError)  # type: ignore[assignment]
+
+    with context:
+
+        @dlt.resource(
+            table_name="dim_test",
+            write_disposition={
+                "disposition": "merge",
+                "strategy": "scd2",
+                "active_record_timestamp": active_record_timestamp,
+            },
+        )
+        def r():
+            yield {"foo": "bar"}
+
+        p.run(r())
+        actual_active_record_timestamp = ensure_pendulum_datetime(
+            load_tables_to_dicts(p, "dim_test")["dim_test"][0]["_dlt_valid_to"]
+        )
+        assert actual_active_record_timestamp == ensure_pendulum_datetime(active_record_timestamp)
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["duckdb"]),
+    ids=lambda x: x.name,
+)
+def test_boundary_timestamp(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    p = destination_config.setup_pipeline("abstract", dev_mode=True)
+
+    ts1 = "2024-08-21T12:15:00+00:00"
+    ts2 = "2024-08-22"
+    ts3 = date(2024, 8, 20)  # earlier than ts1 and ts2
+    ts4 = "i_am_not_a_timestamp"
+
     @dlt.resource(
         table_name="dim_test",
         write_disposition={
             "disposition": "merge",
             "strategy": "scd2",
-            "active_record_timestamp": active_record_timestamp,
+            "boundary_timestamp": ts1,
         },
     )
-    def r():
-        yield {"foo": "bar"}
+    def r(data):
+        yield data
 
-    p.run(r())
-    actual_active_record_timestamp = ensure_pendulum_datetime(
-        load_tables_to_dicts(p, "dim_test")["dim_test"][0]["_dlt_valid_to"]
+    # load 1 — initial load
+    dim_snap = [
+        l1_1 := {"nk": 1, "foo": "foo"},
+        l1_2 := {"nk": 2, "foo": "foo"},
+    ]
+    info = p.run(r(dim_snap))
+    assert_load_info(info)
+    assert load_table_counts(p, "dim_test")["dim_test"] == 2
+    from_, to = DEFAULT_VALIDITY_COLUMN_NAMES
+    expected = [
+        {**{from_: strip_timezone(ts1), to: None}, **l1_1},
+        {**{from_: strip_timezone(ts1), to: None}, **l1_2},
+    ]
+    assert get_table(p, "dim_test", "nk") == expected
+
+    # load 2 — different source records, different boundary timestamp
+    r.apply_hints(
+        write_disposition={
+            "disposition": "merge",
+            "strategy": "scd2",
+            "boundary_timestamp": ts2,
+        }
     )
-    assert actual_active_record_timestamp == ensure_pendulum_datetime(active_record_timestamp)
+    dim_snap = [
+        l2_1 := {"nk": 1, "foo": "bar"},  # natural key 1 updated
+        # l1_2,  # natural key 2 no longer present
+        l2_3 := {"nk": 3, "foo": "foo"},  # new natural key
+    ]
+    info = p.run(r(dim_snap))
+    assert_load_info(info)
+    assert load_table_counts(p, "dim_test")["dim_test"] == 4
+    expected = [
+        {**{from_: strip_timezone(ts1), to: strip_timezone(ts2)}, **l1_1},  # retired
+        {**{from_: strip_timezone(ts1), to: strip_timezone(ts2)}, **l1_2},  # retired
+        {**{from_: strip_timezone(ts2), to: None}, **l2_1},  # new
+        {**{from_: strip_timezone(ts2), to: None}, **l2_3},  # new
+    ]
+    assert_records_as_set(get_table(p, "dim_test"), expected)
+
+    # load 3 — earlier boundary timestamp
+    # we naively apply any valid timestamp
+    # may lead to "valid from" > "valid to", as in this test case
+    r.apply_hints(
+        write_disposition={
+            "disposition": "merge",
+            "strategy": "scd2",
+            "boundary_timestamp": ts3,
+        }
+    )
+    dim_snap = [l2_1]  # natural key 3 no longer present
+    info = p.run(r(dim_snap))
+    assert_load_info(info)
+    assert load_table_counts(p, "dim_test")["dim_test"] == 4
+    expected = [
+        {**{from_: strip_timezone(ts1), to: strip_timezone(ts2)}, **l1_1},  # unchanged
+        {**{from_: strip_timezone(ts1), to: strip_timezone(ts2)}, **l1_2},  # unchanged
+        {**{from_: strip_timezone(ts2), to: None}, **l2_1},  # unchanged
+        {**{from_: strip_timezone(ts2), to: strip_timezone(ts3)}, **l2_3},  # retired
+    ]
+    assert_records_as_set(get_table(p, "dim_test"), expected)
+
+    # invalid boundary timestamp should raise error
+    with pytest.raises(ValueError):
+        r.apply_hints(
+            write_disposition={
+                "disposition": "merge",
+                "strategy": "scd2",
+                "boundary_timestamp": ts4,
+            }
+        )
 
 
 @pytest.mark.parametrize(

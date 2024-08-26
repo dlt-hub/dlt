@@ -45,6 +45,7 @@ from dlt.common.schema.typing import TTableFormat
 from dlt.common.storages import SchemaStorage, FileStorage, SchemaStorageConfiguration
 from dlt.common.schema.utils import new_table, normalize_table_identifiers
 from dlt.common.storages import ParsedLoadJobFileName, LoadStorage, PackageStorage
+from dlt.common.storages.load_package import create_load_id
 from dlt.common.typing import StrAny
 from dlt.common.utils import uniq_id
 
@@ -712,7 +713,7 @@ def expect_load_file(
         query = query.encode("utf-8")  # type: ignore[assignment]
     file_storage.save(file_name, query)
     table = client.prepare_load_table(table_name)
-    load_id = uniq_id()
+    load_id = create_load_id()
     job = client.create_load_job(table, file_storage.make_full_path(file_name), load_id)
 
     if isinstance(job, RunnableLoadJob):
@@ -873,7 +874,7 @@ def prepare_load_package(
     Create a load package with explicitely provided files
     job_per_case multiplies the amount of load jobs, for big packages use small files
     """
-    load_id = uniq_id()
+    load_id = create_load_id()
     load_storage.new_packages.create_package(load_id)
     for case in cases:
         path = f"./tests/load/cases/loading/{case}"

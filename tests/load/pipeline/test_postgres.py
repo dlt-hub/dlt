@@ -42,3 +42,18 @@ def test_postgres_encoded_binary(
     # print(bytes(data["table"][0]["hash"]))
     # data in postgres equals unencoded blob
     assert data["table"][0]["hash"].tobytes() == blob
+
+
+# TODO: uncomment and finalize when we implement encoding for psycopg2
+# @pytest.mark.parametrize(
+#     "destination_config",
+#     destinations_configs(default_sql_configs=True, subset=["postgres"]),
+#     ids=lambda x: x.name,
+# )
+# def test_postgres_encoding(destination_config: DestinationTestConfiguration):
+#     from dlt.destinations.impl.postgres.sql_client import Psycopg2SqlClient
+#     pipeline = destination_config.setup_pipeline("postgres_" + uniq_id(), dev_mode=True)
+#     client: Psycopg2SqlClient = pipeline.sql_client()
+#     # client.credentials.query["encoding"] = "ru"
+#     with client:
+#         print(client.native_connection.encoding)

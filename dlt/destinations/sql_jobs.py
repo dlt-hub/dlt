@@ -1,7 +1,7 @@
 from typing import Any, Dict, List, Sequence, Tuple, cast, TypedDict, Optional, Callable, Union
 
 import yaml
-from dlt.common.logger import pretty_format_exception
+from dlt.common.time import ensure_pendulum_datetime
 
 from dlt.common.schema.typing import (
     TTableSchema,
@@ -21,7 +21,7 @@ from dlt.common.storages.load_package import load_package as current_load_packag
 from dlt.common.utils import uniq_id
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.destinations.exceptions import MergeDispositionException
-from dlt.destinations.job_impl import FollowupJobImpl
+from dlt.destinations.job_impl import FollowupJobRequestImpl
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.common.destination.exceptions import DestinationTransientException
 
@@ -45,7 +45,7 @@ class SqlJobCreationException(DestinationTransientException):
         )
 
 
-class SqlFollowupJob(FollowupJobImpl):
+class SqlFollowupJob(FollowupJobRequestImpl):
     """Sql base job for jobs that rely on the whole tablechain"""
 
     @classmethod
@@ -54,7 +54,7 @@ class SqlFollowupJob(FollowupJobImpl):
         table_chain: Sequence[TTableSchema],
         sql_client: SqlClientBase[Any],
         params: Optional[SqlJobParams] = None,
-    ) -> FollowupJobImpl:
+    ) -> FollowupJobRequestImpl:
         """Generates a list of sql statements, that will be executed by the sql client when the job is executed in the loader.
 
         The `table_chain` contains a list schemas of a tables with parent-child relationship, ordered by the ancestry (the root of the tree is first on the list).
@@ -720,10 +720,18 @@ class SqlMergeFollowupJob(SqlFollowupJob):
             format_datetime_literal = (
                 DestinationCapabilitiesContext.generic_capabilities().format_datetime_literal
             )
-        boundary_ts = format_datetime_literal(
-            current_load_package()["state"]["created_at"],
+
+        boundary_ts = ensure_pendulum_datetime(
+            root_table.get(  # type: ignore[arg-type]
+                "x-boundary-timestamp",
+                current_load_package()["state"]["created_at"],
+            )
+        )
+        boundary_literal = format_datetime_literal(
+            boundary_ts,
             caps.timestamp_precision,
         )
+
         active_record_timestamp = get_active_record_timestamp(root_table)
         if active_record_timestamp is None:
             active_record_literal = "NULL"
@@ -736,7 +744,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
 
         # retire updated and deleted records
         sql.append(f"""
-            {cls.gen_update_table_prefix(root_table_name)} {to} = {boundary_ts}
+            {cls.gen_update_table_prefix(root_table_name)} {to} = {boundary_literal}
             WHERE {is_active_clause}
             AND {hash_} NOT IN (SELECT {hash_} FROM {staging_root_table_name});
         """)
@@ -746,7 +754,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         col_str = ", ".join([c for c in columns if c not in (from_, to)])
         sql.append(f"""
             INSERT INTO {root_table_name} ({col_str}, {from_}, {to})
-            SELECT {col_str}, {boundary_ts} AS {from_}, {active_record_literal} AS {to}
+            SELECT {col_str}, {boundary_literal} AS {from_}, {active_record_literal} AS {to}
             FROM {staging_root_table_name} AS s
             WHERE {hash_} NOT IN (SELECT {hash_} FROM {root_table_name} WHERE {is_active_clause});
         """)
