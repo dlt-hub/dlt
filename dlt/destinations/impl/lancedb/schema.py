@@ -1,5 +1,5 @@
 """Utilities for creating arrow schemas from table schemas."""
-
+from collections import namedtuple
 from typing import (
     List,
     cast,
@@ -21,7 +21,8 @@ TArrowDataType: TypeAlias = pa.DataType
 TArrowField: TypeAlias = pa.Field
 NULL_SCHEMA: TArrowSchema = pa.schema([])
 """Empty pyarrow Schema with no fields."""
-TTableLineage: TypeAlias = List[Tuple[TTableSchema, str, str]]
+TableJob = namedtuple('TableJob', ['table_schema', 'table_name', 'file_path'])
+TTableLineage: TypeAlias = List[TableJob]
 
 
 def arrow_schema_to_dict(schema: TArrowSchema) -> DictStrAny:
@@ -102,3 +103,4 @@ def arrow_datatype_to_fusion_datatype(arrow_type: TArrowSchema) -> str:
         return "TIMESTAMP"
 
     return type_map.get(arrow_type, "UNKNOWN")
+

@@ -9,6 +9,7 @@ import pyarrow.compute as pc
 from dlt.common.schema import TTableSchema
 from dlt.common.schema.utils import get_columns_names_with_prop
 from dlt.destinations.impl.lancedb.configuration import TEmbeddingProvider
+from dlt.destinations.impl.lancedb.schema import TArrowDataType
 
 
 PROVIDER_ENVIRONMENT_VARIABLES_MAP: Dict[TEmbeddingProvider, str] = {
@@ -62,7 +63,7 @@ def get_unique_identifiers_from_table_schema(table_schema: TTableSchema) -> List
     """
     primary_keys = get_columns_names_with_prop(table_schema, "primary_key")
     merge_keys = []
-    if table_schema.get("write_disposition") == "merge":
+    if table_schema.get("write_disposition")=="merge":
         merge_keys = get_columns_names_with_prop(table_schema, "merge_key")
     if join_keys := list(set(primary_keys + merge_keys)):
         return join_keys
@@ -76,7 +77,8 @@ def set_non_standard_providers_environment_variables(
     if embedding_model_provider in PROVIDER_ENVIRONMENT_VARIABLES_MAP:
         os.environ[PROVIDER_ENVIRONMENT_VARIABLES_MAP[embedding_model_provider]] = api_key or ""
 
-def get_default_arrow_value(field_type):
+
+def get_default_arrow_value(field_type: TArrowDataType) -> object:
     if pa.types.is_integer(field_type):
         return 0
     elif pa.types.is_floating(field_type):
