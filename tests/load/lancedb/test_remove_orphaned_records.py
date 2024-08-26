@@ -198,11 +198,10 @@ def test_lancedb_remove_orphaned_records_root_table() -> None:
 
 
 def test_lancedb_root_table_remove_orphaned_records_with_real_embeddings() -> None:
-    @dlt.resource(  # type: ignore
+    @dlt.resource(
         write_disposition="merge",
         table_name="document",
         merge_key=["chunk"],
-        columns={"doc_id": {DOCUMENT_ID_HINT: True}},
     )
     def documents(docs: List[DictStrAny]) -> Generator[DictStrAny, None, None]:
         for doc in docs:
