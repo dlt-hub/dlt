@@ -383,9 +383,13 @@ class RunnableLoadJob(LoadJob, ABC):
         except (DestinationTerminalException, TerminalValueError) as e:
             self._state = "failed"
             self._exception = e
+            logger.exception(f"Terminal exception in job {self.job_id()} in file {self._file_path}")
         except (DestinationTransientException, Exception) as e:
             self._state = "retry"
             self._exception = e
+            logger.exception(
+                f"Transient exception in job {self.job_id()} in file {self._file_path}"
+            )
         finally:
             self._finished_at = pendulum.now()
             # sanity check
