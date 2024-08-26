@@ -3,7 +3,7 @@ import os
 import base64
 
 from types import TracebackType
-from typing import ClassVar, List, Type, Iterable, Iterator, Optional, Tuple, Sequence, cast
+from typing import Dict, List, Type, Iterable, Iterator, Optional, Tuple, Sequence, cast
 from fsspec import AbstractFileSystem
 from contextlib import contextmanager
 
@@ -12,7 +12,7 @@ from dlt.common import logger, time, json, pendulum
 from dlt.common.storages.fsspec_filesystem import glob_files
 from dlt.common.typing import DictStrAny
 from dlt.common.schema import Schema, TSchemaTables, TTableSchema
-from dlt.common.schema.utils import get_first_column_name_with_prop, get_columns_names_with_prop
+from dlt.common.schema.utils import get_columns_names_with_prop
 from dlt.common.storages import FileStorage, fsspec_from_config
 from dlt.common.storages.load_package import (
     LoadJobInfo,
@@ -90,69 +90,83 @@ class FilesystemLoadJob(RunnableLoadJob):
 
 class DeltaLoadFilesystemJob(FilesystemLoadJob):
     def __init__(self, file_path: str) -> None:
+        from dlt.common.libs.pyarrow import pyarrow as pa
+
         super().__init__(
             file_path=file_path,
         )
-
-    def run(self) -> None:
-        from dlt.common.libs.pyarrow import pyarrow as pa
-        from dlt.common.libs.deltalake import (
-            DeltaTable,
-            write_delta_table,
-            merge_delta_table,
-            ensure_delta_compatible_arrow_schema,
-            _deltalake_storage_options,
-            _evolve_delta_table_schema,
-            try_get_deltatable,
-        )
-
         # create Arrow dataset from Parquet files
         file_paths = ReferenceFollowupJob.resolve_references(self._file_path)
-        arrow_ds = pa.dataset.dataset(file_paths)
+        self.arrow_ds = pa.dataset.dataset(file_paths)
 
-        # create Delta table object
-        dt_path = self._job_client.make_remote_uri(
-            self._job_client.get_table_dir(self.load_table_name)
-        )
-        storage_options = _deltalake_storage_options(self._job_client.config)
-        dt = try_get_deltatable(dt_path, storage_options=storage_options)
-
-        # get partition columns
-        part_cols = get_columns_names_with_prop(self._load_table, "partition")
+    def run(self) -> None:
+        from dlt.common.libs.deltalake import write_delta_table, merge_delta_table
 
         # explicitly check if there is data
         # (https://github.com/delta-io/delta-rs/issues/2686)
-        if arrow_ds.head(1).num_rows == 0:
-            if dt is None:
-                # create new empty Delta table with schema from Arrow table
-                DeltaTable.create(
-                    table_uri=dt_path,
-                    schema=ensure_delta_compatible_arrow_schema(arrow_ds.schema),
-                    mode="overwrite",
-                    partition_by=part_cols,
-                    storage_options=storage_options,
-                )
-            else:
-                _evolve_delta_table_schema(dt, arrow_ds.schema)
+        if self.arrow_ds.head(1).num_rows == 0:
+            self._create_or_evolve_delta_table()
             return
 
-        arrow_rbr = arrow_ds.scanner().to_reader()  # RecordBatchReader
+        arrow_rbr = self.arrow_ds.scanner().to_reader()  # RecordBatchReader
 
-        if self._load_table["write_disposition"] == "merge" and dt is not None:
+        if self._load_table["write_disposition"] == "merge" and self._delta_table is not None:
             assert self._load_table["x-merge-strategy"] in self._job_client.capabilities.supported_merge_strategies  # type: ignore[typeddict-item]
             merge_delta_table(
-                table=dt,
+                table=self._delta_table,
                 data=arrow_rbr,
                 schema=self._load_table,
             )
         else:
             write_delta_table(
-                table_or_uri=dt_path if dt is None else dt,
+                table_or_uri=(
+                    self._delta_table_path if self._delta_table is None else self._delta_table
+                ),
                 data=arrow_rbr,
                 write_disposition=self._load_table["write_disposition"],
-                partition_by=part_cols,
-                storage_options=storage_options,
+                partition_by=self._partition_columns,
+                storage_options=self._storage_options,
             )
+
+    @property
+    def _delta_table_path(self) -> str:
+        return self._job_client.make_remote_uri(
+            self._job_client.get_table_dir(self.load_table_name)
+        )
+
+    @property
+    def _storage_options(self) -> Dict[str, str]:
+        from dlt.common.libs.deltalake import _deltalake_storage_options
+
+        return _deltalake_storage_options(self._job_client.config)
+
+    @property
+    def _delta_table(self) -> Optional["DeltaTable"]:  # type: ignore[name-defined] # noqa: F821
+        from dlt.common.libs.deltalake import try_get_deltatable
+
+        return try_get_deltatable(self._delta_table_path, storage_options=self._storage_options)
+
+    @property
+    def _partition_columns(self) -> List[str]:
+        return get_columns_names_with_prop(self._load_table, "partition")
+
+    def _create_or_evolve_delta_table(self) -> None:
+        from dlt.common.libs.deltalake import (
+            DeltaTable,
+            ensure_delta_compatible_arrow_schema,
+            _evolve_delta_table_schema,
+        )
+
+        if self._delta_table is None:
+            DeltaTable.create(
+                table_uri=self._delta_table_path,
+                schema=ensure_delta_compatible_arrow_schema(self.arrow_ds.schema),
+                mode="overwrite",
+                partition_by=self._partition_columns,
+                storage_options=self._storage_options,
+            )
+        else:
+            _evolve_delta_table_schema(self._delta_table, self.arrow_ds.schema)
 
 
 class FilesystemLoadJobWithFollowup(HasFollowupJobs, FilesystemLoadJob):
