@@ -131,31 +131,37 @@ def merge_delta_table(
         ValueError(f'Merge strategy "{strategy}" not supported.')
 
 
-def get_delta_tables(pipeline: Pipeline, *tables: str) -> Dict[str, DeltaTable]:
-    """Returns Delta tables in `pipeline.default_schema` as `deltalake.DeltaTable` objects.
+def get_delta_tables(
+    pipeline: Pipeline, *tables: str, schema_name: str = None
+) -> Dict[str, DeltaTable]:
+    """Returns Delta tables in `pipeline.default_schema (default)` as `deltalake.DeltaTable` objects.
 
     Returned object is a dictionary with table names as keys and `DeltaTable` objects as values.
     Optionally filters dictionary by table names specified as `*tables*`.
-    Raises ValueError if table name specified as `*tables` is not found.
+    Raises ValueError if table name specified as `*tables` is not found. You may try to switch to other
+    schemas via `schema_name` argument.
     """
     from dlt.common.schema.utils import get_table_format
 
-    with pipeline.destination_client() as client:
+    with pipeline.destination_client(schema_name=schema_name) as client:
         assert isinstance(
             client, FilesystemClient
         ), "The `get_delta_tables` function requires a `filesystem` destination."
 
         schema_delta_tables = [
             t["name"]
-            for t in pipeline.default_schema.tables.values()
-            if get_table_format(pipeline.default_schema.tables, t["name"]) == "delta"
+            for t in client.schema.tables.values()
+            if get_table_format(client.schema.tables, t["name"]) == "delta"
         ]
         if len(tables) > 0:
             invalid_tables = set(tables) - set(schema_delta_tables)
             if len(invalid_tables) > 0:
+                available_schemas = ""
+                if len(pipeline.schema_names) > 1:
+                    available_schemas = f" Available schemas are {pipeline.schema_names}"
                 raise ValueError(
-                    "Schema does not contain Delta tables with these names: "
-                    f"{', '.join(invalid_tables)}."
+                    f"Schema {client.schema.name} does not contain Delta tables with these names: "
+                    f"{', '.join(invalid_tables)}.{available_schemas}"
                 )
             schema_delta_tables = [t for t in schema_delta_tables if t in tables]
         table_dirs = client.get_table_dirs(schema_delta_tables, remote=True)

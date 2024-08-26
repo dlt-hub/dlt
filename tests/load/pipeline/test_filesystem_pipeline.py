@@ -891,6 +891,22 @@ def test_delta_table_get_delta_tables_helper(
     with pytest.raises(ValueError):
         get_delta_tables(pipeline, "non_existing_table")
 
+    # test unknown schema
+    with pytest.raises(FileNotFoundError):
+        get_delta_tables(pipeline, "non_existing_table", schema_name="aux_2")
+
+    # load to a new schema and under new name
+    aux_schema = dlt.Schema("aux_2")
+    # NOTE: you cannot have a file with name
+    info = pipeline.run(parent_delta().with_name("aux_delta"), schema=aux_schema)
+    # also state in seprate package
+    assert_load_info(info, expected_load_packages=2)
+    delta_tables = get_delta_tables(pipeline, schema_name="aux_2")
+    assert "aux_delta__child" in delta_tables.keys()
+    get_delta_tables(pipeline, "aux_delta", schema_name="aux_2")
+    with pytest.raises(ValueError):
+        get_delta_tables(pipeline, "aux_delta")
+
 
 @pytest.mark.parametrize(
     "destination_config",
