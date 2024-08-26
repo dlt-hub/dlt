@@ -552,13 +552,13 @@ def test_completed_loop_with_delete_completed() -> None:
 def test_truncate_table_before_load_on_stanging(to_truncate) -> None:
     load = setup_loader(
         client_config=DummyClientConfiguration(
-            truncate_table_before_load_on_staging_destination=to_truncate
+            truncate_tables_on_staging_destination_before_load=to_truncate
         )
     )
     load_id, schema = prepare_load_package(load.load_storage, NORMALIZED_FILES)
     destination_client = load.get_destination_client(schema)
     assert (
-        destination_client.should_truncate_table_before_load_on_staging_destination(
+        destination_client.should_truncate_table_before_load_on_staging_destination(  # type: ignore
             schema.tables["_dlt_version"]
         )
         == to_truncate

@@ -269,7 +269,7 @@ class DestinationClientDwhWithStagingConfiguration(DestinationClientDwhConfigura
 
     staging_config: Optional[DestinationClientStagingConfiguration] = None
     """configuration of the staging, if present, injected at runtime"""
-    truncate_table_before_load_on_staging_destination: bool = True
+    truncate_tables_on_staging_destination_before_load: bool = True
     """If dlt should truncate the tables on staging destination before loading data."""
 
 
@@ -584,8 +584,8 @@ class SupportsStagingDestination:
     """Adds capability to support a staging destination for the load"""
 
     def __init__(self, config: DestinationClientDwhWithStagingConfiguration) -> None:
-        self.truncate_table_before_load_on_staging_destination = (
-            config.truncate_table_before_load_on_staging_destination
+        self.truncate_tables_on_staging_destination_before_load = (
+            config.truncate_tables_on_staging_destination_before_load
         )
 
     def should_load_data_to_staging_dataset_on_staging_destination(
@@ -595,7 +595,7 @@ class SupportsStagingDestination:
 
     def should_truncate_table_before_load_on_staging_destination(self, table: TTableSchema) -> bool:
         # the default is to truncate the tables on the staging destination...
-        return self.truncate_table_before_load_on_staging_destination
+        return self.truncate_tables_on_staging_destination_before_load
 
 
 # TODO: type Destination properly

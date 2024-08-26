@@ -532,7 +532,7 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
         if table["write_disposition"] == "replace" and not self._is_iceberg_table(
             self.prepare_load_table(table["name"])
         ):
-            return self.truncate_table_before_load_on_staging_destination
+            return self.truncate_tables_on_staging_destination_before_load
         return False
 
     def should_load_data_to_staging_dataset_on_staging_destination(
