@@ -28,7 +28,7 @@ from sqlalchemy import (
     Time,
     JSON,
     ARRAY,
-    Uuid,
+    # Uuid,  # requires sqlalchemy 2.0. Use String(length=36) for lower versions
 )
 from sqlalchemy.dialects.postgresql import DATERANGE, JSONB
 
@@ -164,7 +164,7 @@ class SQLAlchemySourceDB:
                 Column("float_col", Float, nullable=nullable),
                 Column("json_col", JSONB, nullable=nullable),
                 Column("bool_col", Boolean, nullable=nullable),
-                Column("uuid_col", Uuid, nullable=nullable),
+                Column("uuid_col", String(length=36), nullable=nullable),
             )
 
         _make_precision_table("has_precision", False)
