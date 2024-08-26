@@ -39,9 +39,7 @@ def columns_to_arrow(
     )
 
 
-def row_tuples_to_arrow(
-    rows: Sequence[RowAny], columns: TTableSchemaColumns, tz: str
-) -> Any:
+def row_tuples_to_arrow(rows: Sequence[RowAny], columns: TTableSchemaColumns, tz: str) -> Any:
     """Converts the rows to an arrow table using the columns schema.
     Columns missing `data_type` will be inferred from the row data.
     Columns with object types not supported by arrow are excluded from the resulting table.
@@ -60,8 +58,7 @@ def row_tuples_to_arrow(
         pivoted_rows = np.asarray(rows, dtype="object", order="k").T  # type: ignore[call-overload]
 
     columnar = {
-        col: dat.ravel()
-        for col, dat in zip(columns, np.vsplit(pivoted_rows, len(columns)))
+        col: dat.ravel() for col, dat in zip(columns, np.vsplit(pivoted_rows, len(columns)))
     }
     columnar_known_types = {
         col["name"]: columnar[col["name"]]
@@ -82,19 +79,21 @@ def row_tuples_to_arrow(
         # cast double / float ndarrays to decimals if type mismatch, looks like decimals and floats are often mixed up in dialects
         if pa.types.is_decimal(field.type) and issubclass(py_type, (str, float)):
             logger.warning(
-                f"Field {field.name} was reflected as decimal type, but rows contains {py_type.__name__}. Additional cast is required which may slow down arrow table generation."
+                f"Field {field.name} was reflected as decimal type, but rows contains"
+                f" {py_type.__name__}. Additional cast is required which may slow down arrow table"
+                " generation."
             )
             float_array = pa.array(columnar_known_types[field.name], type=pa.float64())
             columnar_known_types[field.name] = float_array.cast(field.type, safe=False)
         if issubclass(py_type, (dict, list)):
             logger.warning(
-                f"Field {field.name} was reflected as JSON type and needs to be serialized back to string to be placed in arrow table. This will slow data extraction down. You should cast JSON field to STRING in your database system ie. by creating and extracting an SQL VIEW that selects with cast."
+                f"Field {field.name} was reflected as JSON type and needs to be serialized back to"
+                " string to be placed in arrow table. This will slow data extraction down. You"
+                " should cast JSON field to STRING in your database system ie. by creating and"
+                " extracting an SQL VIEW that selects with cast."
             )
             json_str_array = pa.array(
-                [
-                    None if s is None else json.dumps(s)
-                    for s in columnar_known_types[field.name]
-                ]
+                [None if s is None else json.dumps(s) for s in columnar_known_types[field.name]]
             )
             columnar_known_types[field.name] = json_str_array
 
@@ -107,7 +106,8 @@ def row_tuples_to_arrow(
                 arrow_col = pa.array(columnar_unknown_types[key])
                 if pa.types.is_null(arrow_col.type):
                     logger.warning(
-                        f"Column {key} contains only NULL values and data type could not be inferred. This column is removed from a arrow table"
+                        f"Column {key} contains only NULL values and data type could not be"
+                        " inferred. This column is removed from a arrow table"
                     )
                     continue
 
@@ -116,16 +116,17 @@ def row_tuples_to_arrow(
                 # E.g. dataclasses -> dict, UUID -> str
                 try:
                     arrow_col = pa.array(
-                        map_nested_in_place(
-                            custom_encode, list(columnar_unknown_types[key])
-                        )
+                        map_nested_in_place(custom_encode, list(columnar_unknown_types[key]))
                     )
                     logger.warning(
-                        f"Column {key} contains a data type which is not supported by pyarrow and got converted into {arrow_col.type}. This slows down arrow table generation."
+                        f"Column {key} contains a data type which is not supported by pyarrow and"
+                        f" got converted into {arrow_col.type}. This slows down arrow table"
+                        " generation."
                     )
                 except (pa.ArrowInvalid, TypeError):
                     logger.warning(
-                        f"Column {key} contains a data type which is not supported by pyarrow. This column will be ignored. Error: {e}"
+                        f"Column {key} contains a data type which is not supported by pyarrow. This"
+                        f" column will be ignored. Error: {e}"
                     )
             if arrow_col is not None:
                 columnar_known_types[key] = arrow_col

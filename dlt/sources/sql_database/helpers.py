@@ -64,7 +64,8 @@ class TableLoader:
                 self.cursor_column = table.c[incremental.cursor_path]
             except KeyError as e:
                 raise KeyError(
-                    f"Cursor column '{incremental.cursor_path}' does not exist in table '{table.name}'"
+                    f"Cursor column '{incremental.cursor_path}' does not exist in table"
+                    f" '{table.name}'"
                 ) from e
             self.last_value = incremental.last_value
             self.end_value = incremental.end_value
@@ -83,9 +84,7 @@ class TableLoader:
         last_value_func = self.incremental.last_value_func
 
         # generate where
-        if (
-            last_value_func is max
-        ):  # Query ordered and filtered according to last_value function
+        if last_value_func is max:  # Query ordered and filtered according to last_value function
             filter_op = operator.ge
             filter_op_end = operator.lt
         elif last_value_func is min:
@@ -158,9 +157,7 @@ class TableLoader:
         try:
             import connectorx as cx  # type: ignore
         except ImportError:
-            raise MissingDependencyException(
-                "Connector X table backend", ["connectorx"]
-            )
+            raise MissingDependencyException("Connector X table backend", ["connectorx"])
 
         # default settings
         backend_kwargs = {
@@ -175,12 +172,12 @@ class TableLoader:
             ).render_as_string(hide_password=False),
         )
         try:
-            query_str = str(
-                query.compile(self.engine, compile_kwargs={"literal_binds": True})
-            )
+            query_str = str(query.compile(self.engine, compile_kwargs={"literal_binds": True}))
         except CompileError as ex:
             raise NotImplementedError(
-                f"Query for table {self.table.name} could not be compiled to string to execute it on ConnectorX. If you are on SQLAlchemy 1.4.x the causing exception is due to literals that cannot be rendered, upgrade to 2.x: {str(ex)}"
+                f"Query for table {self.table.name} could not be compiled to string to execute it"
+                " on ConnectorX. If you are on SQLAlchemy 1.4.x the causing exception is due to"
+                f" literals that cannot be rendered, upgrade to 2.x: {str(ex)}"
             ) from ex
         df = cx.read_sql(conn, query_str, **backend_kwargs)
         yield df
@@ -202,9 +199,7 @@ def table_rows(
 ) -> Iterator[TDataItem]:
     columns: TTableSchemaColumns = None
     if defer_table_reflect:
-        table = Table(
-            table.name, table.metadata, autoload_with=engine, extend_existing=True
-        )
+        table = Table(table.name, table.metadata, autoload_with=engine, extend_existing=True)
         default_table_adapter(table, included_columns)
         if table_adapter_callback:
             table_adapter_callback(table)
@@ -286,7 +281,9 @@ def _detect_precision_hints_deprecated(value: Optional[bool]) -> None:
     if value is None:
         return
 
-    msg = "`detect_precision_hints` argument is deprecated and will be removed in a future release. "
+    msg = (
+        "`detect_precision_hints` argument is deprecated and will be removed in a future release. "
+    )
     if value:
         msg += "Use `reflection_level='full_with_precision'` which has the same effect instead."
 

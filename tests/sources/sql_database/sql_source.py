@@ -9,9 +9,7 @@ from sqlalchemy import (
     MetaData,
     Table,
     Column,
-    String,
     Integer,
-    DateTime,
     Boolean,
     Text,
     func,
@@ -26,7 +24,6 @@ from sqlalchemy import (
     Float,
     Date,
     Time,
-    JSON,
     ARRAY,
     # Uuid,  # requires sqlalchemy 2.0. Use String(length=36) for lower versions
 )
@@ -58,9 +55,7 @@ class SQLAlchemySourceDB:
 
     def drop_schema(self) -> None:
         with self.engine.begin() as conn:
-            conn.execute(
-                sqla_schema.DropSchema(self.schema, cascade=True, if_exists=True)
-            )
+            conn.execute(sqla_schema.DropSchema(self.schema, cascade=True, if_exists=True))
 
     def get_table(self, name: str) -> Table:
         return self.metadata.tables[f"{self.schema}.{name}"]
@@ -151,9 +146,7 @@ class SQLAlchemySourceDB:
                 Column("int_col", Integer(), nullable=nullable),
                 Column("bigint_col", BigInteger(), nullable=nullable),
                 Column("smallint_col", SmallInteger(), nullable=nullable),
-                Column(
-                    "numeric_col", Numeric(precision=10, scale=2), nullable=nullable
-                ),
+                Column("numeric_col", Numeric(precision=10, scale=2), nullable=nullable),
                 Column("numeric_default_col", Numeric(), nullable=nullable),
                 Column("string_col", String(length=10), nullable=nullable),
                 Column("string_default_col", String(), nullable=nullable),
@@ -291,13 +284,9 @@ class SQLAlchemySourceDB:
         view_info["ids"] = info["ids"]
         return message_ids
 
-    def _fake_precision_data(
-        self, table_name: str, n: int = 100, null_n: int = 0
-    ) -> None:
+    def _fake_precision_data(self, table_name: str, n: int = 100, null_n: int = 0) -> None:
         table = self.metadata.tables[f"{self.schema}.{table_name}"]
-        self.table_infos.setdefault(
-            table_name, dict(row_count=n + null_n, is_view=False)
-        )
+        self.table_infos.setdefault(table_name, dict(row_count=n + null_n, is_view=False))
 
         rows = [
             dict(
@@ -333,9 +322,7 @@ class SQLAlchemySourceDB:
 
     def _fake_unsupported_data(self, n: int = 100) -> None:
         table = self.metadata.tables[f"{self.schema}.has_unsupported_types"]
-        self.table_infos.setdefault(
-            "has_unsupported_types", dict(row_count=n, is_view=False)
-        )
+        self.table_infos.setdefault("has_unsupported_types", dict(row_count=n, is_view=False))
 
         rows = [
             dict(

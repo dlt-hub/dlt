@@ -158,14 +158,10 @@ def mock_json_column(field: str) -> TDataItem:
             return table
         else:
             col_index = table.column_names.index(field)
-            json_str_array = pa.array(
-                [None if s is None else json_mock_str for s in table[field]]
-            )
+            json_str_array = pa.array([None if s is None else json_mock_str for s in table[field]])
             return table.set_column(
                 col_index,
-                pa.field(
-                    field, pa.string(), nullable=table.schema.field(field).nullable
-                ),
+                pa.field(field, pa.string(), nullable=table.schema.field(field).nullable),
                 json_str_array,
             )
 

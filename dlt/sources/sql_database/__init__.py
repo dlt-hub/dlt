@@ -121,9 +121,7 @@ def sql_database(
         )
 
 
-@dlt.resource(
-    name=lambda args: args["table"], standalone=True, spec=SqlTableResourceConfiguration
-)
+@dlt.resource(name=lambda args: args["table"], standalone=True, spec=SqlTableResourceConfiguration)
 def sql_table(
     credentials: Union[ConnectionStringCredentials, Engine, str] = dlt.secrets.value,
     table: str = dlt.config.value,
