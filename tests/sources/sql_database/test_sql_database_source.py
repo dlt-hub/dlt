@@ -18,10 +18,10 @@ from dlt.extract.exceptions import ResourceExtractionError
 from dlt.sources import DltResource
 from dlt.sources.credentials import ConnectionStringCredentials
 
-from sources.sql_database import sql_database, sql_table, TableBackend, ReflectionLevel
-from sources.sql_database.helpers import unwrap_json_connector_x
+from dlt.sources.sql_database import sql_database, sql_table, TableBackend, ReflectionLevel
+from dlt.sources.sql_database.helpers import unwrap_json_connector_x
 
-from tests.sql_database.test_helpers import mock_json_column
+from tests.sources.sql_database.test_helpers import mock_json_column
 from tests.utils import (
     ALL_DESTINATIONS,
     assert_load_info,
@@ -31,7 +31,7 @@ from tests.utils import (
     assert_schema_on_data,
     preserve_environ,
 )
-from tests.sql_database.sql_source import SQLAlchemySourceDB
+from tests.sources.sql_database.sql_source import SQLAlchemySourceDB
 
 
 @pytest.fixture(autouse=True)

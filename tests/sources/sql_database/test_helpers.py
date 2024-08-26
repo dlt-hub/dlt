@@ -3,10 +3,10 @@ import pytest
 import dlt
 from dlt.common.typing import TDataItem
 
-from sources.sql_database.helpers import TableLoader, TableBackend
-from sources.sql_database.schema_types import table_to_columns
+from dlt.sources.sql_database.helpers import TableLoader, TableBackend
+from dlt.sources.sql_database.schema_types import table_to_columns
 
-from tests.sql_database.sql_source import SQLAlchemySourceDB
+from tests.sources.sql_database.sql_source import SQLAlchemySourceDB
 
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])

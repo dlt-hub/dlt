@@ -4,7 +4,7 @@ import pytest
 import dlt
 from dlt.sources.credentials import ConnectionStringCredentials
 
-from tests.sql_database.sql_source import SQLAlchemySourceDB
+from tests.sources.sql_database.sql_source import SQLAlchemySourceDB
 
 
 def _create_db(**kwargs) -> Iterator[SQLAlchemySourceDB]:

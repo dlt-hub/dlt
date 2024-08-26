@@ -4,7 +4,7 @@ from uuid import uuid4
 import pytest
 import pyarrow as pa
 
-from sources.sql_database.arrow_helpers import row_tuples_to_arrow
+from dlt.sources.sql_database.arrow_helpers import row_tuples_to_arrow
 
 
 @pytest.mark.parametrize("all_unknown", [True, False])
