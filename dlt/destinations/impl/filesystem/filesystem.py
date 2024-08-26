@@ -102,6 +102,7 @@ class DeltaLoadFilesystemJob(FilesystemLoadJob):
             merge_delta_table,
             ensure_delta_compatible_arrow_schema,
             _deltalake_storage_options,
+            _evolve_delta_table_schema,
             try_get_deltatable,
         )
 
@@ -131,6 +132,8 @@ class DeltaLoadFilesystemJob(FilesystemLoadJob):
                     partition_by=part_cols,
                     storage_options=storage_options,
                 )
+            else:
+                _evolve_delta_table_schema(dt, arrow_ds.schema)
             return
 
         arrow_rbr = arrow_ds.scanner().to_reader()  # RecordBatchReader

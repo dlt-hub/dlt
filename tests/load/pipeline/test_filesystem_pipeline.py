@@ -638,8 +638,30 @@ def test_delta_table_schema_evolution(
         # more involved than with the other dispositions
         assert actual.num_rows == 3
         actual.schema.equals(expected.schema)
-        return
-    assert actual.sort_by("pk").equals(expected.sort_by("pk"))
+    else:
+        assert actual.sort_by("pk").equals(expected.sort_by("pk"))
+
+    # create empty Arrow table with additional column
+    arrow_table = arrow_table.append_column(
+        pyarrow.field("another_new_column", pyarrow.string()),
+        [["foo", "foo"]],
+    )
+    empty_arrow_table = arrow_table.schema.empty_table()
+
+    # load 3 — this should evolve the schema without changing data
+    info = pipeline.run(delta_table(empty_arrow_table))
+    assert_load_info(info)
+    dt = get_delta_tables(pipeline, "delta_table")["delta_table"]
+    actual = dt.to_pyarrow_table()
+    expected_schema = ensure_delta_compatible_arrow_data(arrow_table).schema
+    assert actual.schema.equals(expected_schema)
+    expected_num_rows = 3 if write_disposition == "append" else 2
+    assert actual.num_rows == expected_num_rows
+    # new column should have NULLs only
+    assert (
+        actual.column("another_new_column").combine_chunks().to_pylist()
+        == [None] * expected_num_rows
+    )
 
 
 @pytest.mark.parametrize(
@@ -702,22 +724,6 @@ def test_delta_table_empty_source(
     dt_arrow_table = dt.to_pyarrow_table()
     assert dt_arrow_table.shape == (2, empty_arrow_table.num_columns)
     assert dt_arrow_table.schema.equals(
-        ensure_delta_compatible_arrow_data(empty_arrow_table).schema
-    )
-
-    # run 3: empty Arrow table with different schema
-    # this should not alter the Delta table
-    empty_arrow_table_2 = pa.schema(
-        [pa.field("foo", pa.int64()), pa.field("bar", pa.string())]
-    ).empty_table()
-
-    info = pipeline.run(delta_table(empty_arrow_table_2))
-    assert_load_info(info)
-    dt = get_delta_tables(pipeline, "delta_table")["delta_table"]
-    assert dt.version() == 1  # still 1, no new commit was done
-    dt_arrow_table = dt.to_pyarrow_table()
-    assert dt_arrow_table.shape == (2, empty_arrow_table.num_columns)  # shape did not change
-    assert dt_arrow_table.schema.equals(  # schema did not change
         ensure_delta_compatible_arrow_data(empty_arrow_table).schema
     )
 
