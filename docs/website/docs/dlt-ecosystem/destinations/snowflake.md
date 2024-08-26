@@ -136,7 +136,12 @@ If you set the [`replace` strategy](../../general-usage/full-loading.md) to `sta
 recreated with a [clone command](https://docs.snowflake.com/en/sql-reference/sql/create-clone) from the staging tables.
 
 ## Data loading
-The data is loaded using an internal Snowflake stage. We use the `PUT` command and per-table built-in stages by default. Stage files are immediately removed (if not specified otherwise).
+The data is loaded using an internal Snowflake stage. We use the `PUT` command and per-table built-in stages by default. Stage files are kept by default, unless specified otherwise via the `keep_staged_files` parameter:
+
+```toml
+[destination.snowflake]
+keep_staged_files = false
+```
 
 ## Supported file formats
 * [insert-values](../file-formats/insert-format.md) is used by default
