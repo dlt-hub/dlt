@@ -114,9 +114,7 @@ class DeltaLoadFilesystemJob(FilesystemLoadJob):
         self.is_local_filesystem = self._job_client.config.protocol == "file"
         self.pathlib = os.path if self.is_local_filesystem else posixpath
         # `destination_file_name` is a folder path, not a file path
-        self.destination_file_name = self._job_client.make_remote_uri(
-            self._job_client.get_table_dir(self.load_table_name)
-        )
+        self.destination_file_name = self._job_client.get_table_dir(self.load_table_name)
 
         from dlt.common.libs.deltalake import write_delta_table, merge_delta_table
 
@@ -138,7 +136,7 @@ class DeltaLoadFilesystemJob(FilesystemLoadJob):
         else:
             write_delta_table(
                 table_or_uri=(
-                    self.destination_file_name if self._delta_table is None else self._delta_table
+                    self.make_remote_uri() if self._delta_table is None else self._delta_table
                 ),
                 data=arrow_rbr,
                 write_disposition=self._load_table["write_disposition"],
@@ -156,7 +154,7 @@ class DeltaLoadFilesystemJob(FilesystemLoadJob):
     def _delta_table(self) -> Optional["DeltaTable"]:  # type: ignore[name-defined] # noqa: F821
         from dlt.common.libs.deltalake import try_get_deltatable
 
-        return try_get_deltatable(self.destination_file_name, storage_options=self._storage_options)
+        return try_get_deltatable(self.make_remote_uri(), storage_options=self._storage_options)
 
     @property
     def _partition_columns(self) -> List[str]:
@@ -171,7 +169,7 @@ class DeltaLoadFilesystemJob(FilesystemLoadJob):
 
         if self._delta_table is None:
             DeltaTable.create(
-                table_uri=self.destination_file_name,
+                table_uri=self.make_remote_uri(),
                 schema=ensure_delta_compatible_arrow_schema(self.arrow_ds.schema),
                 mode="overwrite",
                 partition_by=self._partition_columns,
