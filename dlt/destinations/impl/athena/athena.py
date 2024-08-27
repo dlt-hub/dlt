@@ -452,7 +452,7 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
                 partition_clause = self._iceberg_partition_clause(
                     cast(Optional[Dict[str, str]], table.get(PARTITION_HINT))
                 )
-                sql.append(f"""CREATE TABLE {qualified_table_name}
+                sql.append(f"""{self._make_create_table(qualified_table_name, table)}
                         ({columns})
                         {partition_clause}
                         LOCATION '{location.rstrip('/')}'

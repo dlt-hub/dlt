@@ -184,11 +184,10 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         # and all child tables must be lists
         return digest128(f"{parent_row_id}_{child_table}_{list_idx}", DLT_ID_LENGTH_BYTES)
 
-    @staticmethod
-    def _link_row(row: DictStrAny, parent_row_id: str, list_idx: int) -> DictStrAny:
+    def _link_row(self, row: DictStrAny, parent_row_id: str, list_idx: int) -> DictStrAny:
         assert parent_row_id
-        row["_dlt_parent_id"] = parent_row_id
-        row["_dlt_list_idx"] = list_idx
+        row[self.c_dlt_parent_id] = parent_row_id
+        row[self.c_dlt_list_idx] = list_idx
 
         return row
 
@@ -227,7 +226,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
                 if row_id_type == "row_hash":
                     row_id = DataItemNormalizer._get_child_row_hash(parent_row_id, table, pos)
                     # link to parent table
-                    DataItemNormalizer._link_row(flattened_row, parent_row_id, pos)
+                    self._link_row(flattened_row, parent_row_id, pos)
 
         flattened_row[self.c_dlt_id] = row_id
         return row_id
@@ -260,7 +259,6 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         parent_row_id: Optional[str] = None,
         _r_lvl: int = 0,
     ) -> TNormalizedRowIterator:
-        v: DictStrAny = None
         table = self.schema.naming.shorten_fragments(*parent_path, *ident_path)
 
         for idx, v in enumerate(seq):
@@ -285,7 +283,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
                 child_row_hash = DataItemNormalizer._get_child_row_hash(parent_row_id, table, idx)
                 wrap_v = wrap_in_dict(v)
                 wrap_v[self.c_dlt_id] = child_row_hash
-                e = DataItemNormalizer._link_row(wrap_v, parent_row_id, idx)
+                e = self._link_row(wrap_v, parent_row_id, idx)
                 DataItemNormalizer._extend_row(extend, e)
                 yield (table, self.schema.naming.shorten_fragments(*parent_path)), e
 
