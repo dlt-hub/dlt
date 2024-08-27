@@ -3,7 +3,8 @@ from collections import namedtuple
 from typing import (
     List,
     cast,
-    Optional, Tuple,
+    Optional,
+    Tuple,
 )
 
 import pyarrow as pa
@@ -21,7 +22,7 @@ TArrowDataType: TypeAlias = pa.DataType
 TArrowField: TypeAlias = pa.Field
 NULL_SCHEMA: TArrowSchema = pa.schema([])
 """Empty pyarrow Schema with no fields."""
-TableJob = namedtuple('TableJob', ['table_schema', 'table_name', 'file_path'])
+TableJob = namedtuple("TableJob", ["table_schema", "table_name", "file_path"])
 TTableLineage: TypeAlias = List[TableJob]
 
 
@@ -99,4 +100,3 @@ def arrow_datatype_to_fusion_datatype(arrow_type: TArrowSchema) -> str:
         return "TIMESTAMP"
 
     return type_map.get(arrow_type, "UNKNOWN")
-

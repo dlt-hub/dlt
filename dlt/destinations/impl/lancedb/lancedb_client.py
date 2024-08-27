@@ -76,6 +76,7 @@ from dlt.destinations.impl.lancedb.utils import (
     set_non_standard_providers_environment_variables,
     get_default_arrow_value,
     get_lancedb_merge_key,
+    IterableWrapper,
 )
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest
 from dlt.destinations.type_mapping import TypeMapper
@@ -163,7 +164,7 @@ def write_records(
     db_client: DBConnection,
     table_name: str,
     write_disposition: Optional[TWriteDisposition] = "append",
-    merge_key: Optional[Union[str, List[str]]] = None,
+    merge_key: Optional[Union[str, IterableWrapper[str]]] = None,
     remove_orphans: Optional[bool] = False,
 ) -> None:
     """Inserts records into a LanceDB table with automatic embedding computation.

@@ -43,7 +43,7 @@ def get_default_arrow_value(field_type: TArrowDataType) -> object:
         raise ValueError(f"Unsupported data type: {field_type}")
 
 
-ItemType = TypeVar('ItemType')
+ItemType = TypeVar("ItemType")
 
 
 # LanceDB `merge_insert` expects an 'iter()' method instead of using standard iteration.
@@ -66,8 +66,8 @@ def get_lancedb_merge_key(load_table: TTableSchema) -> Optional[Union[str, Itera
             "https://github.com/lancedb/lancedb/issues/1120. Only `merge_key` is supported!"
         )
     if merge_key := get_columns_names_with_prop(load_table, "merge_key"):
-        return merge_key[0] if len(merge_key)==1 else IterableWrapper(merge_key)
+        return merge_key[0] if len(merge_key) == 1 else IterableWrapper(merge_key)
     elif unique_key := get_columns_names_with_prop(load_table, "unique"):
-        return unique_key[0] if len(unique_key)==1 else IterableWrapper(unique_key)
+        return unique_key[0] if len(unique_key) == 1 else IterableWrapper(unique_key)
     else:
         return None
