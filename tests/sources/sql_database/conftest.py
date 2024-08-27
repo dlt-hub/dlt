@@ -1,9 +1,9 @@
 from typing import Iterator
+
 import pytest
 
 import dlt
 from dlt.sources.credentials import ConnectionStringCredentials
-
 from tests.sources.sql_database.sql_source import SQLAlchemySourceDB
 
 

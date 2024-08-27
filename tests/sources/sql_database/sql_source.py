@@ -1,37 +1,40 @@
-from typing import List, TypedDict, Dict
 import random
 from copy import deepcopy
+from typing import Dict, List, TypedDict
 from uuid import uuid4
 
 import mimesis
 from sqlalchemy import (
-    create_engine,
-    MetaData,
-    Table,
-    Column,
-    Integer,
-    Boolean,
-    Text,
-    func,
-    text,
-    schema as sqla_schema,
-    ForeignKey,
+    ARRAY,
     BigInteger,
+    Boolean,
+    Column,
+    Date,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    MetaData,
     Numeric,
     SmallInteger,
     String,
-    DateTime,
-    Float,
-    Date,
+    Table,
+    Text,
     Time,
-    ARRAY,
-    # Uuid,  # requires sqlalchemy 2.0. Use String(length=36) for lower versions
+    create_engine,
+    func,
+    text,
 )
+from sqlalchemy import (
+    schema as sqla_schema,
+)
+
+# Uuid,  # requires sqlalchemy 2.0. Use String(length=36) for lower versions
 from sqlalchemy.dialects.postgresql import DATERANGE, JSONB
 
+from dlt.common.pendulum import pendulum, timedelta
 from dlt.common.utils import chunks, uniq_id
 from dlt.sources.credentials import ConnectionStringCredentials
-from dlt.common.pendulum import pendulum, timedelta
 
 
 class SQLAlchemySourceDB:
