@@ -59,7 +59,6 @@ class SynapseClient(MsSqlJobClient, SupportsStagingDestination):
         config: SynapseClientConfiguration,
         capabilities: DestinationCapabilitiesContext,
     ) -> None:
-        SupportsStagingDestination.__init__(self, config)
         super().__init__(schema, config, capabilities)
         self.config: SynapseClientConfiguration = config
         self.sql_client = SynapseSqlClient(
@@ -173,6 +172,9 @@ class SynapseClient(MsSqlJobClient, SupportsStagingDestination):
                 self.config.staging_use_msi,
             )
         return job
+
+    def should_truncate_table_before_load_on_staging_destination(self, table: TTableSchema) -> bool:
+        return self.config.truncate_tables_on_staging_destination_before_load
 
 
 class SynapseCopyFileLoadJob(CopyRemoteFileLoadJob):

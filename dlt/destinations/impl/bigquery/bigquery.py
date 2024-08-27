@@ -229,7 +229,6 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
             config.http_timeout,
             config.retry_deadline,
         )
-        SupportsStagingDestination.__init__(self, config)
         super().__init__(schema, config, sql_client)
         self.config: BigQueryClientConfiguration = config
         self.sql_client: BigQuerySqlClient = sql_client  # type: ignore
@@ -503,6 +502,9 @@ SELECT {",".join(self._get_storage_table_query_columns())}
         return get_inherited_table_hint(
             self.schema._schema_tables, table_name, AUTODETECT_SCHEMA_HINT, allow_none=True
         ) or (self.config.autodetect_schema and table_name not in self.schema.dlt_table_names())
+
+    def should_truncate_table_before_load_on_staging_destination(self, table: TTableSchema) -> bool:
+        return self.config.truncate_tables_on_staging_destination_before_load
 
 
 def _streaming_load(

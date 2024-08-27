@@ -580,22 +580,17 @@ class WithStagingDataset(ABC):
         return self  # type: ignore
 
 
-class SupportsStagingDestination:
+class SupportsStagingDestination(ABC):
     """Adds capability to support a staging destination for the load"""
-
-    def __init__(self, config: DestinationClientDwhWithStagingConfiguration) -> None:
-        self.truncate_tables_on_staging_destination_before_load = (
-            config.truncate_tables_on_staging_destination_before_load
-        )
 
     def should_load_data_to_staging_dataset_on_staging_destination(
         self, table: TTableSchema
     ) -> bool:
         return False
 
+    @abstractmethod
     def should_truncate_table_before_load_on_staging_destination(self, table: TTableSchema) -> bool:
-        # the default is to truncate the tables on the staging destination...
-        return self.truncate_tables_on_staging_destination_before_load
+        pass
 
 
 # TODO: type Destination properly

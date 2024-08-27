@@ -283,7 +283,6 @@ class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
             capabilities,
             config,
         )
-        SupportsStagingDestination.__init__(self, config)
         super().__init__(schema, config, self.sql_client)
         self.config: ClickHouseClientConfiguration = config
         self.active_hints = deepcopy(HINT_TO_CLICKHOUSE_ATTR)
@@ -373,3 +372,6 @@ class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
         self, ch_t: str, precision: Optional[int], scale: Optional[int]
     ) -> TColumnType:
         return self.type_mapper.from_db_type(ch_t, precision, scale)
+
+    def should_truncate_table_before_load_on_staging_destination(self, table: TTableSchema) -> bool:
+        return self.config.truncate_tables_on_staging_destination_before_load

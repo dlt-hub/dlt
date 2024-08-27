@@ -266,7 +266,6 @@ class SnowflakeClient(SqlJobClientWithStaging, SupportsStagingDestination):
             capabilities,
             config.query_tag,
         )
-        SupportsStagingDestination.__init__(self, config)
         super().__init__(schema, config, sql_client)
         self.config: SnowflakeClientConfiguration = config
         self.sql_client: SnowflakeSqlClient = sql_client  # type: ignore
@@ -326,3 +325,6 @@ class SnowflakeClient(SqlJobClientWithStaging, SupportsStagingDestination):
         return (
             f"{name} {self.type_mapper.to_db_type(c)} {self._gen_not_null(c.get('nullable', True))}"
         )
+
+    def should_truncate_table_before_load_on_staging_destination(self, table: TTableSchema) -> bool:
+        return self.config.truncate_tables_on_staging_destination_before_load
