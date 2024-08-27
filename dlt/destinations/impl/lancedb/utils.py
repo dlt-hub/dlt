@@ -1,10 +1,8 @@
 import os
-import uuid
 from datetime import date, datetime
-from typing import Sequence, Union, Dict, List
+from typing import Union, Dict
 
 import pyarrow as pa
-import pyarrow.compute as pc
 
 from dlt.common import logger
 from dlt.common.destination.exceptions import DestinationTerminalException
@@ -20,57 +18,6 @@ PROVIDER_ENVIRONMENT_VARIABLES_MAP: Dict[TEmbeddingProvider, str] = {
     "openai": "OPENAI_API_KEY",
     "huggingface": "HUGGINGFACE_API_KEY",
 }
-
-
-# TODO: Update `generate_arrow_uuid_column` when pyarrow 17.0.0 becomes available with vectorized operations (batched + memory-mapped)
-def generate_arrow_uuid_column(
-    table: pa.Table, unique_identifiers: Sequence[str], id_field_name: str, table_name: str
-) -> pa.Table:
-    """Generates deterministic UUID - used for deduplication, returning a new arrow
-    table with added UUID column.
-
-    Args:
-        table (pa.Table): PyArrow table to generate UUIDs for.
-        unique_identifiers (Sequence[str]): A list of unique identifier column names.
-        id_field_name (str): Name of the new UUID column.
-        table_name (str): Name of the table.
-
-    Returns:
-        pa.Table: New PyArrow table with the new UUID column.
-    """
-
-    unique_identifiers_columns = []
-    for col in unique_identifiers:
-        column = pc.fill_null(pc.cast(table[col], pa.string()), "")
-        unique_identifiers_columns.append(column.to_pylist())
-
-    uuids = pa.array(
-        [
-            str(uuid.uuid5(uuid.NAMESPACE_OID, x + table_name))
-            for x in ["".join(x) for x in zip(*unique_identifiers_columns)]
-        ]
-    )
-
-    return table.append_column(id_field_name, uuids)
-
-
-def get_unique_identifiers_from_table_schema(table_schema: TTableSchema) -> List[str]:
-    """Returns a list of merge keys for a table used for either merging or deduplication.
-
-    Args:
-        table_schema (TTableSchema): a dlt table schema.
-
-    Returns:
-        Sequence[str]: A list of unique column identifiers.
-    """
-    primary_keys = get_columns_names_with_prop(table_schema, "primary_key")
-    merge_keys = []
-    if table_schema.get("write_disposition") == "merge":
-        merge_keys = get_columns_names_with_prop(table_schema, "merge_key")
-    if join_keys := list(set(primary_keys + merge_keys)):
-        return join_keys
-    else:
-        return get_columns_names_with_prop(table_schema, "unique")
 
 
 def set_non_standard_providers_environment_variables(
@@ -114,7 +61,8 @@ def get_lancedb_merge_key(load_table: TTableSchema) -> str:
             logger.warning(
                 "LanceDB destination currently does not yet support primary key constraints:"
                 " https://github.com/lancedb/lancedb/issues/1120. Only `merge_key` is supported."
-                " The primary key will be used as a proxy merge key! Please use `merge_key` instead."
+                " The primary key will be used as a proxy merge key! Please use `merge_key`"
+                " instead."
             )
             return primary_key[0]
     if len(merge_key_) == 1:
