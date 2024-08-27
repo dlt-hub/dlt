@@ -15,7 +15,7 @@ from dlt.common import pendulum
 from dlt.common.storages.configuration import FilesystemConfiguration
 from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.common.utils import uniq_id
-from dlt.common.exceptions import DependencyVersionException
+from dlt.common.schema.typing import TWriteDisposition
 from dlt.destinations import filesystem
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 from dlt.destinations.impl.filesystem.typing import TExtraPlaceholders
@@ -585,6 +585,103 @@ def test_delta_table_partitioning(
     destinations_configs(
         table_format_filesystem_configs=True,
         table_format="delta",
+        bucket_subset=(FILE_BUCKET),
+    ),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize(
+    "write_disposition",
+    (
+        "append",
+        "replace",
+        pytest.param({"disposition": "merge", "strategy": "upsert"}, id="upsert"),
+    ),
+)
+def test_delta_table_schema_evolution(
+    destination_config: DestinationTestConfiguration,
+    write_disposition: TWriteDisposition,
+) -> None:
+    """Tests schema evolution (adding new columns) for `delta` table format."""
+    from dlt.common.libs.deltalake import get_delta_tables, ensure_delta_compatible_arrow_data
+    from dlt.common.libs.pyarrow import pyarrow
+
+    @dlt.resource(
+        write_disposition=write_disposition,
+        primary_key="pk",
+        table_format="delta",
+    )
+    def delta_table(data):
+        yield data
+
+    pipeline = destination_config.setup_pipeline("fs_pipe", dev_mode=True)
+
+    # create Arrow table with one column, one row
+    pk_field = pyarrow.field("pk", pyarrow.int64(), nullable=False)
+    schema = pyarrow.schema([pk_field])
+    arrow_table = pyarrow.Table.from_pydict({"pk": [1]}, schema=schema)
+    assert arrow_table.shape == (1, 1)
+
+    # initial load
+    info = pipeline.run(delta_table(arrow_table))
+    assert_load_info(info)
+    dt = get_delta_tables(pipeline, "delta_table")["delta_table"]
+    expected = ensure_delta_compatible_arrow_data(arrow_table)
+    actual = dt.to_pyarrow_table()
+    assert actual.equals(expected)
+
+    # create Arrow table with many columns, two rows
+    arrow_table = arrow_table_all_data_types(
+        "arrow-table",
+        include_decimal_default_precision=True,
+        include_decimal_arrow_max_precision=True,
+        include_not_normalized_name=False,
+        include_null=False,
+        num_rows=2,
+    )[0]
+    arrow_table = arrow_table.add_column(0, pk_field, [[1, 2]])
+
+    # second load — this should evolve the schema (i.e. add the new columns)
+    info = pipeline.run(delta_table(arrow_table))
+    assert_load_info(info)
+    dt = get_delta_tables(pipeline, "delta_table")["delta_table"]
+    actual = dt.to_pyarrow_table()
+    expected = ensure_delta_compatible_arrow_data(arrow_table)
+    if write_disposition == "append":
+        # just check shape and schema for `append`, because table comparison is
+        # more involved than with the other dispositions
+        assert actual.num_rows == 3
+        actual.schema.equals(expected.schema)
+    else:
+        assert actual.sort_by("pk").equals(expected.sort_by("pk"))
+
+    # create empty Arrow table with additional column
+    arrow_table = arrow_table.append_column(
+        pyarrow.field("another_new_column", pyarrow.string()),
+        [["foo", "foo"]],
+    )
+    empty_arrow_table = arrow_table.schema.empty_table()
+
+    # load 3 — this should evolve the schema without changing data
+    info = pipeline.run(delta_table(empty_arrow_table))
+    assert_load_info(info)
+    dt = get_delta_tables(pipeline, "delta_table")["delta_table"]
+    actual = dt.to_pyarrow_table()
+    expected_schema = ensure_delta_compatible_arrow_data(arrow_table).schema
+    assert actual.schema.equals(expected_schema)
+    expected_num_rows = 3 if write_disposition == "append" else 2
+    assert actual.num_rows == expected_num_rows
+    # new column should have NULLs only
+    assert (
+        actual.column("another_new_column").combine_chunks().to_pylist()
+        == [None] * expected_num_rows
+    )
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        table_format_filesystem_configs=True,
+        table_format="delta",
         bucket_subset=(FILE_BUCKET, AZ_BUCKET),
     ),
     ids=lambda x: x.name,
@@ -607,7 +704,7 @@ def test_delta_table_empty_source(
     # create empty Arrow table with schema
     arrow_table = arrow_table_all_data_types(
         "arrow-table",
-        include_decimal_default_precision=False,
+        include_decimal_default_precision=True,
         include_decimal_arrow_max_precision=True,
         include_not_normalized_name=False,
         include_null=False,
@@ -640,22 +737,6 @@ def test_delta_table_empty_source(
     dt_arrow_table = dt.to_pyarrow_table()
     assert dt_arrow_table.shape == (2, empty_arrow_table.num_columns)
     assert dt_arrow_table.schema.equals(
-        ensure_delta_compatible_arrow_data(empty_arrow_table).schema
-    )
-
-    # run 3: empty Arrow table with different schema
-    # this should not alter the Delta table
-    empty_arrow_table_2 = pa.schema(
-        [pa.field("foo", pa.int64()), pa.field("bar", pa.string())]
-    ).empty_table()
-
-    info = pipeline.run(delta_table(empty_arrow_table_2))
-    assert_load_info(info)
-    dt = get_delta_tables(pipeline, "delta_table")["delta_table"]
-    assert dt.version() == 1  # still 1, no new commit was done
-    dt_arrow_table = dt.to_pyarrow_table()
-    assert dt_arrow_table.shape == (2, empty_arrow_table.num_columns)  # shape did not change
-    assert dt_arrow_table.schema.equals(  # schema did not change
         ensure_delta_compatible_arrow_data(empty_arrow_table).schema
     )
 
@@ -809,6 +890,22 @@ def test_delta_table_get_delta_tables_helper(
 
     with pytest.raises(ValueError):
         get_delta_tables(pipeline, "non_existing_table")
+
+    # test unknown schema
+    with pytest.raises(FileNotFoundError):
+        get_delta_tables(pipeline, "non_existing_table", schema_name="aux_2")
+
+    # load to a new schema and under new name
+    aux_schema = dlt.Schema("aux_2")
+    # NOTE: you cannot have a file with name
+    info = pipeline.run(parent_delta().with_name("aux_delta"), schema=aux_schema)
+    # also state in seprate package
+    assert_load_info(info, expected_load_packages=2)
+    delta_tables = get_delta_tables(pipeline, schema_name="aux_2")
+    assert "aux_delta__child" in delta_tables.keys()
+    get_delta_tables(pipeline, "aux_delta", schema_name="aux_2")
+    with pytest.raises(ValueError):
+        get_delta_tables(pipeline, "aux_delta")
 
 
 @pytest.mark.parametrize(
