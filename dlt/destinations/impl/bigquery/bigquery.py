@@ -432,7 +432,7 @@ SELECT {",".join(self._get_storage_table_query_columns())}
         # append to table for merge loads (append to stage) and regular appends.
         table_name = table["name"]
 
-        # determine whether we load from local or uri
+        # determine whether we load from local or url
         bucket_path = None
         ext: str = os.path.splitext(file_path)[1][1:]
         if ReferenceFollowupJobRequest.is_reference_job(file_path):

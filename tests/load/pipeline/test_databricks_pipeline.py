@@ -1,10 +1,7 @@
 import pytest
 import os
 
-import dlt
-
 from dlt.common.utils import uniq_id
-from dlt.destinations.impl.databricks.databricks import DatabricksLoadJob
 from tests.load.utils import DestinationTestConfiguration, destinations_configs, AZ_BUCKET
 from tests.pipeline.utils import assert_load_info
 
@@ -26,6 +23,7 @@ def test_databricks_external_location(destination_config: DestinationTestConfigu
     dataset_name = "test_databricks_external_location" + uniq_id()
 
     from dlt.destinations import databricks, filesystem
+    from dlt.destinations.impl.databricks.databricks import DatabricksLoadJob
 
     abfss_bucket_url = DatabricksLoadJob.ensure_databricks_abfss_url(AZ_BUCKET, "dltdata")
     stage = filesystem(abfss_bucket_url)

@@ -50,17 +50,17 @@ def test_staging_load(destination_config: DestinationTestConfiguration) -> None:
 
     info = pipeline.run(github(), loader_file_format=destination_config.file_format)
     assert_load_info(info)
-    # checks if remote_uri is set correctly on copy jobs
+    # checks if remote_url is set correctly on copy jobs
     metrics = info.metrics[info.loads_ids[0]][0]
     for job_metrics in metrics["job_metrics"].values():
-        remote_uri = job_metrics.remote_uri
+        remote_url = job_metrics.remote_url
         job_ext = os.path.splitext(job_metrics.job_id)[1]
         if job_ext not in (".reference", ".sql"):
-            assert remote_uri.endswith(job_ext)
+            assert remote_url.endswith(job_ext)
             bucket_uri = destination_config.bucket_url
             if FilesystemConfiguration.is_local_path(bucket_uri):
-                bucket_uri = FilesystemConfiguration.make_file_uri(bucket_uri)
-            assert remote_uri.startswith(bucket_uri)
+                bucket_uri = FilesystemConfiguration.make_file_url(bucket_uri)
+            assert remote_url.startswith(bucket_uri)
 
     package_info = pipeline.get_load_package_info(info.loads_ids[0])
     assert package_info.state == "loaded"
