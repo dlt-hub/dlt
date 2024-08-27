@@ -11,6 +11,7 @@ VECTORIZE_HINT = "x-lancedb-embed"
 def lancedb_adapter(
     data: Any,
     embed: TColumnNames = None,
+    merge_key: TColumnNames = None,
 ) -> DltResource:
     """Prepares data for the LanceDB destination by specifying which columns should be embedded.
 
@@ -19,6 +20,8 @@ def lancedb_adapter(
             of DltResource. If raw data, the function wraps it into a DltResource
             object.
         embed (TColumnNames, optional): Specify columns to generate embeddings for.
+            It can be a single column name as a string, or a list of column names.
+        merge_key (TColumnNames, optional): Specify columns to merge on.
             It can be a single column name as a string, or a list of column names.
 
     Returns:
@@ -50,8 +53,25 @@ def lancedb_adapter(
                 VECTORIZE_HINT: True,  # type: ignore[misc]
             }
 
+    if merge_key:
+        if isinstance(merge_key, str):
+            merge_key = [merge_key]
+        if not isinstance(merge_key, list):
+            raise ValueError(
+                "'merge_key' must be a list of column names or a single column name as a string."
+            )
+
+        for column_name in merge_key:
+            column_hints[column_name] = {
+                "name": column_name,
+                "merge_key": True,
+            }
+
     if not column_hints:
-        raise ValueError("You must must provide the 'embed' argument if using the adapter.")
+        raise ValueError(
+            "You must must provide at least either the 'embed' or 'merge_key' argument if using the"
+            " adapter."
+        )
     else:
         resource.apply_hints(columns=column_hints)
 

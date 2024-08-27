@@ -163,7 +163,7 @@ def write_records(
     db_client: DBConnection,
     table_name: str,
     write_disposition: Optional[TWriteDisposition] = "append",
-    merge_key: Optional[str] = None,
+    merge_key: Optional[Union[str, List[str]]] = None,
     remove_orphans: Optional[bool] = False,
 ) -> None:
     """Inserts records into a LanceDB table with automatic embedding computation.

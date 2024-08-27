@@ -140,7 +140,7 @@ def test_lancedb_remove_orphaned_records_root_table() -> None:
     @dlt.resource(
         table_name="root",
         write_disposition="merge",
-        merge_key=["doc_id"],
+        merge_key=["doc_id", "chunk_hash"],
     )
     def identity_resource(
         data: List[DictStrAny],
@@ -262,3 +262,58 @@ def test_lancedb_root_table_remove_orphaned_records_with_real_embeddings() -> No
         for _, vector in enumerate(df["vector__"]):
             assert isinstance(vector, np.ndarray)
             assert vector.size > 0
+
+
+def test_lancedb_compound_merge_key_root_table() -> None:
+    pipeline = dlt.pipeline(
+        pipeline_name="test_lancedb_compound_merge_key",
+        destination="lancedb",
+        dataset_name=f"test_lancedb_remove_orphaned_records_root_table_{uniq_id()}",
+        dev_mode=True,
+    )
+
+    @dlt.resource(
+        table_name="root",
+        write_disposition="merge",
+        merge_key=["doc_id", "chunk_hash"],
+    )
+    def identity_resource(
+        data: List[DictStrAny],
+    ) -> Generator[List[DictStrAny], None, None]:
+        yield data
+
+    run_1 = [
+        {"doc_id": 1, "chunk_hash": "a", "foo": "bar"},
+        {"doc_id": 1, "chunk_hash": "b", "foo": "coo"},
+    ]
+    info = pipeline.run(identity_resource(run_1))
+    assert_load_info(info)
+
+    run_2 = [
+        {"doc_id": 1, "chunk_hash": "a", "foo": "aat"},
+        {"doc_id": 1, "chunk_hash": "c", "foo": "loot"},
+    ]
+    info = pipeline.run(identity_resource(run_2))
+    assert_load_info(info)
+
+    with pipeline.destination_client() as client:
+        expected_root_table_df = (
+            pd.DataFrame(
+                data=[
+                    {"doc_id": 1, "chunk_hash": "a", "foo": "aat"},
+                    {"doc_id": 1, "chunk_hash": "b", "foo": "coo"},
+                    {"doc_id": 1, "chunk_hash": "c", "foo": "loot"},
+                ]
+            )
+            .sort_values(by=["doc_id", "chunk_hash", "foo"])
+            .reset_index(drop=True)
+        )
+
+        root_table_name = client.make_qualified_table_name("root")  # type: ignore[attr-defined]
+        tbl = client.db_client.open_table(root_table_name)  # type: ignore[attr-defined]
+
+        actual_root_df: DataFrame = (
+            tbl.to_pandas().sort_values(by=["doc_id", "chunk_hash", "foo"]).reset_index(drop=True)
+        )[["doc_id", "chunk_hash", "foo"]]
+
+        assert_frame_equal(actual_root_df, expected_root_table_df)

@@ -50,6 +50,18 @@ def test_adapter_and_hints() -> None:
         "x-lancedb-embed": True,
     }
 
+    lancedb_adapter(
+        some_data,
+        merge_key=["content"],
+    )
+
+    assert some_data.columns["content"] == {  # type: ignore
+        "name": "content",
+        "data_type": "text",
+        "x-lancedb-embed": True,
+        "merge_key": True,
+    }
+
 
 def test_basic_state_and_schema() -> None:
     generator_instance1 = sequence_generator()
@@ -119,7 +131,6 @@ def test_pipeline_append() -> None:
 
 
 def test_explicit_append() -> None:
-    """Append should work even when the primary key is specified."""
     data = [
         {"doc_id": 1, "content": "1"},
         {"doc_id": 2, "content": "2"},
@@ -375,10 +386,9 @@ def test_merge_github_nested() -> None:
         data = json.load(f)
 
     info = pipe.run(
-        lancedb_adapter(data[:17], embed=["title", "body"]),
+        lancedb_adapter(data[:17], embed=["title", "body"], merge_key="id"),
         table_name="issues",
         write_disposition="merge",
-        primary_key="id",
     )
     assert_load_info(info)
     # assert if schema contains tables with right names
