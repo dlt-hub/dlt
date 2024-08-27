@@ -75,6 +75,7 @@ from dlt.destinations.impl.lancedb.schema import (
 from dlt.destinations.impl.lancedb.utils import (
     set_non_standard_providers_environment_variables,
     get_default_arrow_value,
+    get_lancedb_merge_key,
 )
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest
 from dlt.destinations.type_mapping import TypeMapper
@@ -162,7 +163,7 @@ def write_records(
     db_client: DBConnection,
     table_name: str,
     write_disposition: Optional[TWriteDisposition] = "append",
-    merge_key: Optional[Union[str, List[str]]] = None,
+    merge_key: Optional[str] = None,
     remove_orphans: Optional[bool] = False,
 ) -> None:
     """Inserts records into a LanceDB table with automatic embedding computation.
@@ -740,14 +741,9 @@ class LanceDBLoadJob(RunnableLoadJob, HasFollowupJobs):
         with FileStorage.open_zipsafe_ro(self._file_path, mode="rb") as f:
             arrow_table: pa.Table = pq.read_table(f)
 
-        # TODO: To function
         merge_key = (
-            get_columns_names_with_prop(self._load_table, "merge_key")
-            or get_columns_names_with_prop(self._load_table, "primary_key")
-            or get_columns_names_with_prop(self._load_table, "unique")
+            get_lancedb_merge_key(self._load_table) if write_disposition == "merge" else None
         )
-        if isinstance(merge_key, list) and len(merge_key) >= 1:
-            merge_key = merge_key[0]
 
         write_records(
             arrow_table,
@@ -820,7 +816,7 @@ class LanceDBRemoveOrphansJob(RunnableLoadJob):
             write_records(
                 payload_arrow_table,
                 db_client=db_client,
-                merge_key=target_table_id_field_name,  # type: ignore
+                merge_key=target_table_id_field_name,
                 table_name=fq_table_name,
                 write_disposition="merge",
                 remove_orphans=True,

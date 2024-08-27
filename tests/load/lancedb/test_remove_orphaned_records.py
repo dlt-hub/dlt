@@ -140,7 +140,6 @@ def test_lancedb_remove_orphaned_records_root_table() -> None:
     @dlt.resource(
         table_name="root",
         write_disposition="merge",
-        primary_key=["doc_id", "chunk_hash"],
         merge_key=["doc_id"],
     )
     def identity_resource(
@@ -195,8 +194,7 @@ def test_lancedb_root_table_remove_orphaned_records_with_real_embeddings() -> No
     @dlt.resource(
         write_disposition="merge",
         table_name="document",
-        primary_key=["doc_id", "chunk"],
-        merge_key=["doc_id"],
+        merge_key="doc_id",
     )
     def documents(docs: List[DictStrAny]) -> Generator[DictStrAny, None, None]:
         for doc in docs:

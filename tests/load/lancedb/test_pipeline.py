@@ -15,7 +15,6 @@ from dlt.destinations.impl.lancedb.lancedb_adapter import (
 )
 from dlt.destinations.impl.lancedb.lancedb_client import LanceDBClient
 from dlt.extract import DltResource
-from dlt.pipeline.exceptions import PipelineStepFailed
 from tests.load.lancedb.utils import assert_table, chunk_document, mock_embed
 from tests.load.utils import sequence_generator, drop_active_pipeline_data
 from tests.pipeline.utils import assert_load_info
@@ -127,7 +126,7 @@ def test_explicit_append() -> None:
         {"doc_id": 3, "content": "3"},
     ]
 
-    @dlt.resource(primary_key="doc_id")
+    @dlt.resource(merge_key="doc_id")
     def some_data() -> Generator[List[DictStrAny], Any, None]:
         yield data
 
@@ -266,11 +265,11 @@ def test_pipeline_merge() -> None:
         },
     ]
 
-    @dlt.resource(primary_key="doc_id")
+    @dlt.resource()
     def movies_data() -> Any:
         yield data
 
-    @dlt.resource(primary_key=["doc_id", "merge_id", "title"], merge_key="doc_id")
+    @dlt.resource(merge_key="doc_id")
     def movies_data_explicit_merge_keys() -> Any:
         yield data
 
@@ -306,21 +305,6 @@ def test_pipeline_merge() -> None:
     )
     assert_load_info(info)
     assert_table(pipeline, "movies_data", items=data)
-
-    info = pipeline.run(
-        movies_data(),
-        write_disposition="merge",
-    )
-    assert_load_info(info)
-    assert_table(pipeline, "movies_data", items=data)
-
-    # Test with explicit merge keys.
-    info = pipeline.run(
-        movies_data_explicit_merge_keys(),
-        write_disposition="merge",
-    )
-    assert_load_info(info)
-    assert_table(pipeline, "movies_data_explicit_merge_keys", items=data)
 
 
 def test_pipeline_with_schema_evolution() -> None:

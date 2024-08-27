@@ -6,6 +6,8 @@ from typing import Sequence, Union, Dict, List
 import pyarrow as pa
 import pyarrow.compute as pc
 
+from dlt.common import logger
+from dlt.common.destination.exceptions import DestinationTerminalException
 from dlt.common.schema import TTableSchema
 from dlt.common.schema.utils import get_columns_names_with_prop
 from dlt.destinations.impl.lancedb.configuration import TEmbeddingProvider
@@ -63,7 +65,7 @@ def get_unique_identifiers_from_table_schema(table_schema: TTableSchema) -> List
     """
     primary_keys = get_columns_names_with_prop(table_schema, "primary_key")
     merge_keys = []
-    if table_schema.get("write_disposition")=="merge":
+    if table_schema.get("write_disposition") == "merge":
         merge_keys = get_columns_names_with_prop(table_schema, "merge_key")
     if join_keys := list(set(primary_keys + merge_keys)):
         return join_keys
@@ -93,3 +95,31 @@ def get_default_arrow_value(field_type: TArrowDataType) -> object:
         return datetime.now()
     else:
         raise ValueError(f"Unsupported data type: {field_type}")
+
+
+def get_lancedb_merge_key(load_table: TTableSchema) -> str:
+    if merge_key_ := get_columns_names_with_prop(load_table, "merge_key"):
+        if len(merge_key_) > 1:
+            DestinationTerminalException(
+                "LanceDB destination does not support compound merge keys."
+            )
+    if primary_key := get_columns_names_with_prop(load_table, "primary_key"):
+        if merge_key_:
+            logger.warning(
+                "LanceDB destination currently does not yet support primary key constraints:"
+                " https://github.com/lancedb/lancedb/issues/1120. Only `merge_key` is supported."
+                " The supplied primary key will be ignored!"
+            )
+        elif len(primary_key) == 1:
+            logger.warning(
+                "LanceDB destination currently does not yet support primary key constraints:"
+                " https://github.com/lancedb/lancedb/issues/1120. Only `merge_key` is supported."
+                " The primary key will be used as a proxy merge key! Please use `merge_key` instead."
+            )
+            return primary_key[0]
+    if len(merge_key_) == 1:
+        return merge_key_[0]
+    elif len(unique_key := get_columns_names_with_prop(load_table, "unique")) == 1:
+        return unique_key[0]
+    else:
+        return ""
