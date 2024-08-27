@@ -1,3 +1,4 @@
+from dataclasses import dataclass, field
 from typing import (
     Any,
     Callable,
@@ -8,32 +9,27 @@ from typing import (
     TypedDict,
     Union,
 )
-from dataclasses import dataclass, field
 
 from dlt.common import jsonpath
-from dlt.common.typing import TSortOrder
 from dlt.common.schema.typing import (
-    TColumnNames,
-    TTableFormat,
     TAnySchemaColumns,
-    TWriteDispositionConfig,
+    TColumnNames,
     TSchemaContract,
+    TTableFormat,
+    TWriteDispositionConfig,
 )
-
+from dlt.extract.incremental.typing import IncrementalArgs
 from dlt.extract.items import TTableHintTemplate
-from dlt.extract.incremental.typing import LastValueFunc
-
-from dlt.sources.helpers.rest_client.paginators import BasePaginator
-from dlt.sources.helpers.rest_client.typing import HTTPMethodBasic
 from dlt.sources.helpers.rest_client.auth import AuthConfigBase, TApiKeyLocation
-
 from dlt.sources.helpers.rest_client.paginators import (
-    SinglePagePaginator,
+    BasePaginator,
     HeaderLinkPaginator,
     JSONResponseCursorPaginator,
     OffsetPaginator,
     PageNumberPaginator,
+    SinglePagePaginator,
 )
+from dlt.sources.helpers.rest_client.typing import HTTPMethodBasic
 
 try:
     from dlt.sources.helpers.rest_client.paginators import JSONLinkPaginator
@@ -43,9 +39,9 @@ except ImportError:
     )
 
 from dlt.sources.helpers.rest_client.auth import (
-    HttpBasicAuth,
-    BearerTokenAuth,
     APIKeyAuth,
+    BearerTokenAuth,
+    HttpBasicAuth,
 )
 
 PaginatorType = Literal[
@@ -176,17 +172,11 @@ class ClientConfig(TypedDict, total=False):
     paginator: Optional[PaginatorConfig]
 
 
-class IncrementalArgs(TypedDict, total=False):
-    cursor_path: str
-    initial_value: Optional[str]
-    last_value_func: Optional[LastValueFunc[str]]
-    primary_key: Optional[TTableHintTemplate[TColumnNames]]
-    end_value: Optional[str]
-    row_order: Optional[TSortOrder]
+class IncrementalRESTArgs(IncrementalArgs[Any], total=False):
     convert: Optional[Callable[..., Any]]
 
 
-class IncrementalConfig(IncrementalArgs, total=False):
+class IncrementalConfig(IncrementalRESTArgs, total=False):
     start_param: str
     end_param: Optional[str]
 
@@ -203,7 +193,7 @@ class ResolveParamConfig(ParamBindConfig):
     field: str
 
 
-class IncrementalParamConfig(ParamBindConfig, IncrementalArgs):
+class IncrementalParamConfig(ParamBindConfig, IncrementalRESTArgs):
     pass
     # TODO: implement param type to bind incremental to
     # param_type: Optional[Literal["start_param", "end_param"]]
