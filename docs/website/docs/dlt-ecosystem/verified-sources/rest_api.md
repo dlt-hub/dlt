@@ -1,6 +1,6 @@
 ---
 title: REST API generic source
-description: dlt verified source for REST APIs
+description: Loads data from REST APIs using declarative configuration
 keywords: [rest api, restful api]
 ---
 import Header from './_source-info-header.md';
