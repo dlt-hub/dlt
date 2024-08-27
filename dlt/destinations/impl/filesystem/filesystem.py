@@ -89,6 +89,7 @@ class FilesystemLoadJob(RunnableLoadJob):
         )
 
     def make_remote_uri(self) -> str:
+        """Returns path on a remote filesystem as a full uri including scheme."""
         return self._job_client.make_remote_uri(self.make_remote_path())
 
     def metrics(self) -> Optional[LoadJobMetrics]:
