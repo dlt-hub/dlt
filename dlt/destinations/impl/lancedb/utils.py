@@ -9,7 +9,7 @@ import pyarrow.compute as pc
 from dlt.common.schema import TTableSchema
 from dlt.common.schema.utils import get_columns_names_with_prop
 from dlt.destinations.impl.lancedb.configuration import TEmbeddingProvider
-from dlt.destinations.impl.lancedb.schema import TArrowDataType, TTableLineage
+from dlt.destinations.impl.lancedb.schema import TArrowDataType
 
 
 PROVIDER_ENVIRONMENT_VARIABLES_MAP: Dict[TEmbeddingProvider, str] = {
@@ -93,27 +93,3 @@ def get_default_arrow_value(field_type: TArrowDataType) -> object:
         return datetime.now()
     else:
         raise ValueError(f"Unsupported data type: {field_type}")
-
-
-def create_unique_table_lineage(table_lineage: TTableLineage) -> TTableLineage:
-    """Create a unique table lineage, keeping the last job for each table.
-
-    Args:
-        table_lineage: The full table lineage.
-
-    Returns:
-        A new list of TableJob objects with the duplicates removed, keeping the
-        last occurrence of each unique table name while maintaining the
-        original order of appearance.
-    """
-    seen_table_names = set()
-    unique_lineage = []
-
-    for job in reversed(table_lineage):
-        if job.table_name not in seen_table_names:
-            seen_table_names.add(job.table_name)
-            unique_lineage.append(job)
-
-    return list(reversed(unique_lineage))
-
-
