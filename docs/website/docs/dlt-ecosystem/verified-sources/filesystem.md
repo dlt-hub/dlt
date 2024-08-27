@@ -1,6 +1,6 @@
 ---
 title: Filesystem
-description: dlt verified source for Readers Source and Filesystem
+description: AWS S3, Google Cloud Storage, Azure Blob Storage, local files
 keywords: [readers source and filesystem, filesystem, readers source]
 ---
 import Header from './_source-info-header.md';
@@ -123,7 +123,7 @@ For more information, read the
 
 3. You can pass the bucket URL and glob pattern or use `config.toml`. For local filesystems, use
    `file://`  as follows:
-   
+
    ```toml
    [sources.filesystem] # use [sources.readers.credentials] for the "readers" source
    bucket_url='file://Users/admin/Documents/csv_files'
@@ -136,7 +136,7 @@ For more information, read the
    bucket_url='~\Documents\csv_files\'
    file_glob="*"
    ```
-   
+
    In the example above we use Windows path to current user's Documents folder. Mind that literal toml string (single quotes)
    was used to conveniently use the backslashes without need to escape.
 
