@@ -54,6 +54,8 @@ class databricks(Destination[DatabricksClientConfiguration, "DatabricksClient"])
     def __init__(
         self,
         credentials: t.Union[DatabricksCredentials, t.Dict[str, t.Any], str] = None,
+        is_staging_external_location: t.Optional[bool] = False,
+        staging_credentials_name: t.Optional[str] = None,
         destination_name: t.Optional[str] = None,
         environment: t.Optional[str] = None,
         **kwargs: t.Any,
@@ -65,10 +67,14 @@ class databricks(Destination[DatabricksClientConfiguration, "DatabricksClient"])
         Args:
             credentials: Credentials to connect to the databricks database. Can be an instance of `DatabricksCredentials` or
                 a connection string in the format `databricks://user:password@host:port/database`
+            is_staging_external_location: If true, the temporary credentials are not propagated to the COPY command
+            staging_credentials_name: If set, credentials with given name will be used in copy command
             **kwargs: Additional arguments passed to the destination config
         """
         super().__init__(
             credentials=credentials,
+            is_staging_external_location=is_staging_external_location,
+            staging_credentials_name=staging_credentials_name,
             destination_name=destination_name,
             environment=environment,
             **kwargs,
