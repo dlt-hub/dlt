@@ -442,7 +442,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
 
         try:
             # Use DataFusion SQL syntax to alter fields without loading data into client memory.
-            # Currently, the most efficient way to modify column values is in LanceDB.
+            # Now, the most efficient way to modify column values is in LanceDB.
             new_fields = {
                 field.name: f"CAST(NULL AS {arrow_datatype_to_fusion_datatype(field.type)})"
                 for field in field_schemas
@@ -489,7 +489,6 @@ class LanceDBClient(JobClientBase, WithStateSync):
                     else:
                         embedding_fields = None
                         vector_field_name = None
-                        id_field_name = None
                         embedding_model_func = None
                         embedding_model_dimensions = None
 
@@ -551,7 +550,9 @@ class LanceDBClient(JobClientBase, WithStateSync):
 
         # normalize property names
         p_load_id = self.schema.naming.normalize_identifier("load_id")
-        p_dlt_load_id = self.schema.naming.normalize_identifier("_dlt_load_id")
+        p_dlt_load_id = self.schema.naming.normalize_identifier(
+            self.schema.data_item_normalizer.C_DLT_LOAD_ID  # type: ignore[attr-defined]
+        )
         p_pipeline_name = self.schema.naming.normalize_identifier("pipeline_name")
         p_status = self.schema.naming.normalize_identifier("status")
         p_version = self.schema.naming.normalize_identifier("version")
@@ -783,10 +784,11 @@ class LanceDBRemoveOrphansJob(RunnableLoadJob):
             fq_table_name = self._job_client.make_qualified_table_name(job.table_name)
 
             if target_is_root_table:
-                target_table_id_field_name = "_dlt_id"
+                target_table_id_field_name = self._schema.data_item_normalizer.C_DLT_ID  # type: ignore[attr-defined]
                 file_path = job.file_path
             else:
-                target_table_id_field_name = "_dlt_parent_id"
+                # This should look for root NOT parent. more efficient!
+                target_table_id_field_name = self._schema.data_item_normalizer.C_DLT_ROOT_ID  # type: ignore[attr-defined]
                 file_path = self.get_parent_path(table_lineage, job.table_schema.get("parent"))
 
             with FileStorage.open_zipsafe_ro(file_path, mode="rb") as f:
