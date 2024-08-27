@@ -1,32 +1,27 @@
-import pytest
 import os
 from typing import Any, List
 
 import humanize
+import pytest
 
 import dlt
-
 from dlt.sources import DltResource
 from dlt.sources.credentials import ConnectionStringCredentials
-
-from dlt.sources.sql_database import sql_database, sql_table, TableBackend
-
-from tests.sources.sql_database.test_helpers import mock_json_column
+from dlt.sources.sql_database import TableBackend, sql_database, sql_table
+from tests.load.utils import (
+    DestinationTestConfiguration,
+    destinations_configs,
+)
 from tests.pipeline.utils import (
     assert_load_info,
     load_table_counts,
 )
 from tests.sources.sql_database.sql_source import SQLAlchemySourceDB
-
-from tests.load.utils import (
-    destinations_configs,
-    DestinationTestConfiguration,
-)
-
+from tests.sources.sql_database.test_helpers import mock_json_column
 from tests.sources.sql_database.test_sql_database_source import (
-    default_test_callback,
-    convert_time_to_us,
     assert_row_counts,
+    convert_time_to_us,
+    default_test_callback,
 )
 
 

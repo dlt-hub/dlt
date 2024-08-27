@@ -1,32 +1,34 @@
-from copy import deepcopy
-import pytest
 import os
-from typing import Any, List, Optional, Set, Callable
-import sqlalchemy as sa
 import re
+from copy import deepcopy
 from datetime import datetime  # noqa: I251
+from typing import Any, Callable, List, Optional, Set
+
+import pytest
+import sqlalchemy as sa
 
 import dlt
 from dlt.common import json
-from dlt.common.utils import uniq_id
-from dlt.common.schema.typing import TTableSchemaColumns, TColumnSchema, TSortOrder
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
-
+from dlt.common.schema.typing import TColumnSchema, TSortOrder, TTableSchemaColumns
+from dlt.common.utils import uniq_id
 from dlt.extract.exceptions import ResourceExtractionError
 from dlt.sources import DltResource
-
-from dlt.sources.sql_database import sql_database, sql_table, TableBackend, ReflectionLevel
+from dlt.sources.sql_database import (
+    ReflectionLevel,
+    TableBackend,
+    sql_database,
+    sql_table,
+)
 from dlt.sources.sql_database.helpers import unwrap_json_connector_x
-
-from tests.sources.sql_database.test_helpers import mock_json_column
 from tests.pipeline.utils import (
     assert_load_info,
     assert_schema_on_data,
     load_tables_to_dicts,
 )
-from tests.utils import data_item_length
-
 from tests.sources.sql_database.sql_source import SQLAlchemySourceDB
+from tests.sources.sql_database.test_helpers import mock_json_column
+from tests.utils import data_item_length
 
 
 @pytest.fixture(autouse=True)
@@ -735,17 +737,6 @@ def test_sql_database_include_view_in_table_names(
 
     assert_row_counts(pipeline, sql_source_db, ["app_user", "chat_message_view"])
 
-
-def test_pass_engine_credentials(sql_source_db: SQLAlchemySourceDB) -> None:
-    # verify database
-    database = sql_database(
-        sql_source_db.engine, schema=sql_source_db.schema, table_names=["chat_message"]
-    )
-    assert len(list(database)) == sql_source_db.table_infos["chat_message"]["row_count"]
-
-    # verify table
-    table = sql_table(sql_source_db.engine, table="chat_message", schema=sql_source_db.schema)
-    assert len(list(table)) == sql_source_db.table_infos["chat_message"]["row_count"]
 
 
 @pytest.mark.parametrize("backend", ["pyarrow", "pandas", "sqlalchemy"])

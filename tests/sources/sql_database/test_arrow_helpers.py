@@ -1,8 +1,8 @@
-from datetime import datetime, timezone, date  # noqa: I251
+from datetime import date, datetime, timezone  # noqa: I251
 from uuid import uuid4
 
-import pytest
 import pyarrow as pa
+import pytest
 
 from dlt.sources.sql_database.arrow_helpers import row_tuples_to_arrow
 
