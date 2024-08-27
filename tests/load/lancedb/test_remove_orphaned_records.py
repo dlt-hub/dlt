@@ -6,13 +6,11 @@ import pytest
 from lancedb.table import Table  # type: ignore
 from pandas import DataFrame
 from pandas.testing import assert_frame_equal
-from pyarrow import Table
 
 import dlt
 from dlt.common.typing import DictStrAny
 from dlt.common.utils import uniq_id
 from dlt.destinations.impl.lancedb.lancedb_adapter import (
-    DOCUMENT_ID_HINT,
     lancedb_adapter,
 )
 from tests.load.lancedb.utils import chunk_document
@@ -42,11 +40,7 @@ def test_lancedb_remove_orphaned_records() -> None:
         dev_mode=True,
     )
 
-    @dlt.resource(  # type: ignore[call-overload]
-        table_name="parent",
-        write_disposition="merge",
-        columns={"id": {DOCUMENT_ID_HINT: True}},
-    )
+    @dlt.resource(table_name="parent", write_disposition="merge", merge_key=["id"])
     def identity_resource(
         data: List[DictStrAny],
     ) -> Generator[List[DictStrAny], None, None]:
@@ -143,11 +137,11 @@ def test_lancedb_remove_orphaned_records_root_table() -> None:
         dev_mode=True,
     )
 
-    @dlt.resource(  # type: ignore[call-overload]
+    @dlt.resource(
         table_name="root",
         write_disposition="merge",
-        merge_key=["chunk_hash"],
-        columns={"doc_id": {DOCUMENT_ID_HINT: True}},
+        primary_key=["doc_id", "chunk_hash"],
+        merge_key=["doc_id"],
     )
     def identity_resource(
         data: List[DictStrAny],
@@ -201,7 +195,8 @@ def test_lancedb_root_table_remove_orphaned_records_with_real_embeddings() -> No
     @dlt.resource(
         write_disposition="merge",
         table_name="document",
-        merge_key=["chunk"],
+        primary_key=["doc_id", "chunk"],
+        merge_key=["doc_id"],
     )
     def documents(docs: List[DictStrAny]) -> Generator[DictStrAny, None, None]:
         for doc in docs:

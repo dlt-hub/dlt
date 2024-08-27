@@ -43,7 +43,6 @@ def make_arrow_table_schema(
     table_name: str,
     schema: Schema,
     type_mapper: TypeMapper,
-    id_field_name: Optional[str] = None,
     vector_field_name: Optional[str] = None,
     embedding_fields: Optional[List[str]] = None,
     embedding_model_func: Optional[TextEmbeddingFunction] = None,
@@ -51,9 +50,6 @@ def make_arrow_table_schema(
 ) -> TArrowSchema:
     """Creates a PyArrow schema from a dlt schema."""
     arrow_schema: List[TArrowField] = []
-
-    if id_field_name:
-        arrow_schema.append(pa.field(id_field_name, pa.string()))
 
     if embedding_fields:
         # User's provided dimension config, if provided, takes precedence.

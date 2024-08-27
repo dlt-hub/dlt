@@ -6,13 +6,11 @@ from dlt.extract import DltResource
 
 
 VECTORIZE_HINT = "x-lancedb-embed"
-DOCUMENT_ID_HINT = "x-lancedb-doc-id"
 
 
 def lancedb_adapter(
     data: Any,
     embed: TColumnNames = None,
-    document_id: TColumnNames = None,
 ) -> DltResource:
     """Prepares data for the LanceDB destination by specifying which columns should be embedded.
 
@@ -22,8 +20,6 @@ def lancedb_adapter(
             object.
         embed (TColumnNames, optional): Specify columns to generate embeddings for.
             It can be a single column name as a string, or a list of column names.
-        document_id (TColumnNames, optional): Specify columns which represenet the document
-            and which will be appended to primary/merge keys.
 
     Returns:
         DltResource: A resource with applied LanceDB-specific hints.
@@ -54,22 +50,8 @@ def lancedb_adapter(
                 VECTORIZE_HINT: True,  # type: ignore[misc]
             }
 
-    if document_id:
-        if isinstance(document_id, str):
-            document_id = [document_id]
-        if not isinstance(document_id, list):
-            raise ValueError(
-                "'document_id' must be a list of column names or a single column name as a string."
-            )
-
-        for column_name in document_id:
-            column_hints[column_name] = {
-                "name": column_name,
-                DOCUMENT_ID_HINT: True,  # type: ignore[misc]
-            }
-
     if not column_hints:
-        raise ValueError("At least one of 'embed' or 'document_id' must be specified.")
+        raise ValueError("You must must provide the 'embed' argument if using the adapter.")
     else:
         resource.apply_hints(columns=column_hints)
 

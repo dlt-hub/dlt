@@ -73,9 +73,7 @@ from dlt.destinations.impl.lancedb.schema import (
     TableJob,
 )
 from dlt.destinations.impl.lancedb.utils import (
-    get_unique_identifiers_from_table_schema,
     set_non_standard_providers_environment_variables,
-    generate_arrow_uuid_column,
     get_default_arrow_value,
 )
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest
@@ -164,7 +162,7 @@ def write_records(
     db_client: DBConnection,
     table_name: str,
     write_disposition: Optional[TWriteDisposition] = "append",
-    id_field_name: Optional[str] = None,
+    merge_key: Optional[Union[str, List[str]]] = None,
     remove_orphans: Optional[bool] = False,
 ) -> None:
     """Inserts records into a LanceDB table with automatic embedding computation.
@@ -173,7 +171,7 @@ def write_records(
         records: The data to be inserted as payload.
         db_client: The LanceDB client connection.
         table_name: The name of the table to insert into.
-        id_field_name: The name of the ID field for update/merge operations.
+        merge_key: Keys for update/merge operations.
         write_disposition: The write disposition - one of 'skip', 'append', 'replace', 'merge'.
         remove_orphans (bool): Whether to remove orphans after insertion or not (only merge disposition).
 
@@ -196,13 +194,11 @@ def write_records(
         elif write_disposition == "replace":
             tbl.add(records, mode="overwrite")
         elif write_disposition == "merge":
-            if not id_field_name:
-                raise ValueError("To perform a merge update, 'id_field_name' must be specified.")
             if remove_orphans:
-                tbl.merge_insert(id_field_name).when_not_matched_by_source_delete().execute(records)
+                tbl.merge_insert(merge_key).when_not_matched_by_source_delete().execute(records)
             else:
                 tbl.merge_insert(
-                    id_field_name
+                    merge_key
                 ).when_matched_update_all().when_not_matched_insert_all().execute(records)
         else:
             raise DestinationTerminalException(
@@ -265,7 +261,6 @@ class LanceDBClient(JobClientBase, WithStateSync):
             )
 
         self.vector_field_name = self.config.vector_field_name
-        self.id_field_name = self.config.id_field_name
 
     @property
     def sentinel_table(self) -> str:
@@ -488,7 +483,6 @@ class LanceDBClient(JobClientBase, WithStateSync):
                             self.schema.get_table(table_name=table_name), VECTORIZE_HINT
                         )
                         vector_field_name = self.vector_field_name
-                        id_field_name = self.id_field_name
                         embedding_model_func = self.model_func
                         embedding_model_dimensions = self.config.embedding_model_dimensions
                     else:
@@ -506,7 +500,6 @@ class LanceDBClient(JobClientBase, WithStateSync):
                         embedding_model_func=embedding_model_func,
                         embedding_model_dimensions=embedding_model_dimensions,
                         vector_field_name=vector_field_name,
-                        id_field_name=id_field_name,
                     )
                     fq_table_name = self.make_qualified_table_name(table_name)
                     self.create_table(fq_table_name, table_schema)
@@ -740,10 +733,6 @@ class LanceDBLoadJob(RunnableLoadJob, HasFollowupJobs):
     def run(self) -> None:
         db_client: DBConnection = self._job_client.db_client
         fq_table_name: str = self._job_client.make_qualified_table_name(self._table_schema["name"])
-        id_field_name: str = self._job_client.config.id_field_name
-        unique_identifiers: Sequence[str] = get_unique_identifiers_from_table_schema(
-            self._load_table
-        )
         write_disposition: TWriteDisposition = cast(
             TWriteDisposition, self._load_table.get("write_disposition", "append")
         )
@@ -751,20 +740,21 @@ class LanceDBLoadJob(RunnableLoadJob, HasFollowupJobs):
         with FileStorage.open_zipsafe_ro(self._file_path, mode="rb") as f:
             arrow_table: pa.Table = pq.read_table(f)
 
-        if self._load_table["name"] not in self._schema.dlt_table_names():
-            arrow_table = generate_arrow_uuid_column(
-                arrow_table,
-                unique_identifiers=unique_identifiers,
-                table_name=fq_table_name,
-                id_field_name=id_field_name,
-            )
+        # TODO: To function
+        merge_key = (
+            get_columns_names_with_prop(self._load_table, "merge_key")
+            or get_columns_names_with_prop(self._load_table, "primary_key")
+            or get_columns_names_with_prop(self._load_table, "unique")
+        )
+        if isinstance(merge_key, list) and len(merge_key) >= 1:
+            merge_key = merge_key[0]
 
         write_records(
             arrow_table,
             db_client=db_client,
             table_name=fq_table_name,
             write_disposition=write_disposition,
-            id_field_name=id_field_name,
+            merge_key=merge_key,
         )
 
 
@@ -827,16 +817,10 @@ class LanceDBRemoveOrphansJob(RunnableLoadJob):
                     null_array = pa.array([None] * payload_arrow_table.num_rows, type=field.type)
                     payload_arrow_table = payload_arrow_table.append_column(field, null_array)
 
-            # TODO: Remove special field, we don't need it.
-            payload_arrow_table = payload_arrow_table.append_column(
-                pa.field(self._job_client.id_field_name, pa.string()),
-                pa.array([""] * payload_arrow_table.num_rows, type=pa.string()),
-            )
-
             write_records(
                 payload_arrow_table,
                 db_client=db_client,
-                id_field_name=target_table_id_field_name,
+                merge_key=target_table_id_field_name,  # type: ignore
                 table_name=fq_table_name,
                 write_disposition="merge",
                 remove_orphans=True,
