@@ -1255,12 +1255,6 @@ def test_dest_column_hint_timezone(destination_config: DestinationTestConfigurat
         },
     }
 
-    input_data = [
-        {"event_id": 1, "event_tstamp": "2024-07-30T10:00:00.123+00:00"},
-        {"event_id": 2, "event_tstamp": "2024-07-30T10:00:00.123456+02:00"},
-        {"event_id": 3, "event_tstamp": "2024-07-30T10:00:00.123456"},
-    ]
-
     # table: events_timezone_off
     @dlt.resource(
         columns={"event_tstamp": {"data_type": "timestamp", "timezone": False}},
