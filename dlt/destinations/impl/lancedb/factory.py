@@ -32,6 +32,8 @@ class lancedb(Destination[LanceDBClientConfiguration, "LanceDBClient"]):
 
         caps.recommended_file_size = 128_000_000
 
+        caps.supported_merge_strategies = ["delete-insert", "upsert"]
+
         return caps
 
     @property

@@ -51,7 +51,7 @@ from dlt.common.schema.typing import (
     TWriteDisposition,
     TColumnSchema,
 )
-from dlt.common.schema.utils import get_columns_names_with_prop
+from dlt.common.schema.utils import get_columns_names_with_prop, DEFAULT_MERGE_STRATEGY
 from dlt.common.storages import FileStorage, LoadJobInfo, ParsedLoadJobFileName
 from dlt.destinations.impl.lancedb.configuration import (
     LanceDBClientConfiguration,
@@ -704,7 +704,10 @@ class LanceDBClient(JobClientBase, WithStateSync):
         jobs = super().create_table_chain_completed_followup_jobs(
             table_chain, completed_table_chain_jobs
         )
-        if table_chain[0].get("write_disposition") == "merge":
+        # Orphan removal is only supported for upsert strategy because we need a deterministic key hash.
+        first_table_in_chain = table_chain[0]
+        merge_strategy = first_table_in_chain.get("x-merge-strategy", DEFAULT_MERGE_STRATEGY)
+        if first_table_in_chain.get("write_disposition") == "merge" and merge_strategy == "upsert":
             all_job_paths_ordered = [
                 job.file_path
                 for table in table_chain
@@ -743,9 +746,7 @@ class LanceDBLoadJob(RunnableLoadJob, HasFollowupJobs):
         with FileStorage.open_zipsafe_ro(self._file_path, mode="rb") as f:
             arrow_table: pa.Table = pq.read_table(f)
 
-        merge_key = (
-            get_lancedb_merge_key(self._load_table) if write_disposition == "merge" else None
-        )
+        merge_key = self._schema.data_item_normalizer.C_DLT_ID  # type: ignore[attr-defined]
 
         write_records(
             arrow_table,

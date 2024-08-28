@@ -436,8 +436,9 @@ def test_empty_dataset_allowed() -> None:
 
 def test_merge_no_orphans() -> None:
     @dlt.resource(
-        write_disposition="merge",
+        write_disposition={"disposition": "merge", "strategy": "upsert"},
         table_name="document",
+        primary_key=["doc_id", "chunk_hash"],
         merge_key=["doc_id"],
     )
     def documents(docs: List[DictStrAny]) -> Generator[DictStrAny, None, None]:

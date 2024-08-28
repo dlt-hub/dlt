@@ -4,7 +4,7 @@ from typing import Union, Dict, Optional, TypeVar, Generic, Iterable, Iterator
 
 import pyarrow as pa
 
-from dlt.common.destination.exceptions import DestinationTerminalException
+from dlt.common import logger
 from dlt.common.schema import TTableSchema
 from dlt.common.schema.utils import get_columns_names_with_prop
 from dlt.destinations.impl.lancedb.configuration import TEmbeddingProvider
@@ -60,14 +60,18 @@ class IterableWrapper(Generic[ItemType]):
 
 
 def get_lancedb_merge_key(load_table: TTableSchema) -> Optional[Union[str, IterableWrapper[str]]]:
-    if get_columns_names_with_prop(load_table, "primary_key"):
-        raise DestinationTerminalException(
-            "LanceDB destination currently does not yet support primary key constraints: "
-            "https://github.com/lancedb/lancedb/issues/1120. Only `merge_key` is supported!"
-        )
     if merge_key := get_columns_names_with_prop(load_table, "merge_key"):
         return merge_key[0] if len(merge_key) == 1 else IterableWrapper(merge_key)
+    elif primary_key := get_columns_names_with_prop(load_table, "primary_key"):
+        # No merge key defined, warn and merge on the primary key.
+        logger.warning(
+            "Merge strategy selected without defined merge key - using primary key as merge key."
+        )
+        return primary_key[0] if len(primary_key) == 1 else IterableWrapper(merge_key)
     elif unique_key := get_columns_names_with_prop(load_table, "unique"):
+        logger.warning(
+            "Merge strategy selected without defined merge key - using unique key as merge key."
+        )
         return unique_key[0] if len(unique_key) == 1 else IterableWrapper(unique_key)
     else:
         return None
