@@ -57,6 +57,11 @@ def get_repo_dir(cloned_init_repo: FileStorage) -> str:
 
 
 def get_project_files() -> FileStorage:
-    _SOURCES.clear()
+
+    # we only remove sources registered outside of dlt core
+    for name, source in _SOURCES.copy().items():
+        if not source.module.__name__.startswith("dlt.sources"):
+            _SOURCES.pop(name)
+        
     # project dir
     return FileStorage(PROJECT_DIR, makedirs=True)
