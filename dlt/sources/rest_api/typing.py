@@ -13,13 +13,10 @@ from typing import (
 from dlt.common import jsonpath
 from dlt.common.schema.typing import (
     TAnySchemaColumns,
-    TColumnNames,
-    TSchemaContract,
-    TTableFormat,
-    TWriteDispositionConfig,
 )
 from dlt.extract.incremental.typing import IncrementalArgs
 from dlt.extract.items import TTableHintTemplate
+from dlt.extract.hints import TResourceHintsBase
 from dlt.sources.helpers.rest_client.auth import AuthConfigBase, TApiKeyLocation
 from dlt.sources.helpers.rest_client.paginators import (
     BasePaginator,
@@ -234,18 +231,12 @@ class ProcessingSteps(TypedDict):
     map: Optional[Callable[[Any], Any]]  # noqa: A003
 
 
-class ResourceBase(TypedDict, total=False):
+class ResourceBase(TResourceHintsBase, total=False):
     """Defines hints that may be passed to `dlt.resource` decorator"""
 
     table_name: Optional[TTableHintTemplate[str]]
     max_table_nesting: Optional[int]
-    write_disposition: Optional[TTableHintTemplate[TWriteDispositionConfig]]
-    parent: Optional[TTableHintTemplate[str]]
     columns: Optional[TTableHintTemplate[TAnySchemaColumns]]
-    primary_key: Optional[TTableHintTemplate[TColumnNames]]
-    merge_key: Optional[TTableHintTemplate[TColumnNames]]
-    schema_contract: Optional[TTableHintTemplate[TSchemaContract]]
-    table_format: Optional[TTableHintTemplate[TTableFormat]]
     selected: Optional[bool]
     parallelized: Optional[bool]
     processing_steps: Optional[List[ProcessingSteps]]

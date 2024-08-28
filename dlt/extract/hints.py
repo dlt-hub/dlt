@@ -41,18 +41,18 @@ from dlt.extract.validation import create_item_validator
 
 
 class TResourceHintsBase(TypedDict, total=False):
-    write_disposition: TTableHintTemplate[TWriteDispositionConfig]
-    parent: TTableHintTemplate[str]
-    primary_key: TTableHintTemplate[TColumnNames]
-    schema_contract: TTableHintTemplate[TSchemaContract]
-    table_format: TTableHintTemplate[TTableFormat]
+    write_disposition: Optional[TTableHintTemplate[TWriteDispositionConfig]]
+    parent: Optional[TTableHintTemplate[str]]
+    primary_key: Optional[TTableHintTemplate[TColumnNames]]
+    schema_contract: Optional[TTableHintTemplate[TSchemaContract]]
+    table_format: Optional[TTableHintTemplate[TTableFormat]]
+    merge_key: Optional[TTableHintTemplate[TColumnNames]]
 
 
 class TResourceHints(TResourceHintsBase, total=False):
     name: TTableHintTemplate[str]
     # description: TTableHintTemplate[str]
     # table_sealed: Optional[bool]
-    merge_key: TTableHintTemplate[TColumnNames]
     columns: TTableHintTemplate[TTableSchemaColumns]
     incremental: Incremental[Any]
     file_format: TTableHintTemplate[TFileFormat]
