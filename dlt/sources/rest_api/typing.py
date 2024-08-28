@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from typing_extensions import TypedDict
 from typing import (
     Any,
     Callable,
@@ -6,7 +7,6 @@ from typing import (
     List,
     Literal,
     Optional,
-    TypedDict,
     Union,
 )
 
