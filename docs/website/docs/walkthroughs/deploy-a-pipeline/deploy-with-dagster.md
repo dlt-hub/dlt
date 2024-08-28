@@ -185,10 +185,7 @@ More details can be found in the article
 
 
 :::info  
-For the complete hands-on project on “Orchestrating unstructured data pipelines with dagster and
-`dlt`", please refer to [article](https://dagster.io/blog/dagster-dlt). The author offers a
-detailed overview and steps for ingesting GitHub issue data from a repository and storing it in
-BigQuery. You can use a similar approach to build your pipelines.  
+For a complete picture of Dagster's integration with dlt, please refer to their [documentation](https://docs.dagster.io/integrations/embedded-elt/dlt). This documentation offers a detailed overview and steps for ingesting GitHub data and storing it in Snowflake. You can use a similar approach to build your pipelines.  
 :::
 
 ### Additional Resources
