@@ -586,10 +586,21 @@ class SupportsStagingDestination(ABC):
     def should_load_data_to_staging_dataset_on_staging_destination(
         self, table: TTableSchema
     ) -> bool:
+        """If set to True, and staging destination is configured, the data will be loaded to staging dataset on staging destination
+        instead of a regular dataset on staging destination. Currently it is used by Athena Iceberg which uses staging dataset
+        on staging destination to copy data to iceberg tables stored on regular dataset on staging destination.
+        The default is to load data to regular dataset on staging destination from where warehouses like Snowflake (that have their
+        own storage) will copy data.
+        """
         return False
 
     @abstractmethod
     def should_truncate_table_before_load_on_staging_destination(self, table: TTableSchema) -> bool:
+        """If set to True, data in `table` will be truncated on staging destination (regular dataset). This is the default behavior which
+        can be changed with a config flag.
+        For Athena + Iceberg this setting is always False - Athena uses regular dataset to store Iceberg tables and we avoid touching it.
+        For Athena we truncate those tables only on "replace" write disposition.
+        """
         pass
 
 
