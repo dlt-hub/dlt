@@ -18,7 +18,7 @@ class IncrementalColumnState(TypedDict):
 
 
 class IncrementalArgs(TypedDict, Generic[TCursorValue], total=False):
-    cursor_path: TCursorValue
+    cursor_path: str
     initial_value: Optional[TCursorValue]
     last_value_func: Optional[LastValueFunc[TCursorValue]]
     primary_key: Optional[TTableHintTemplate[TColumnNames]]
