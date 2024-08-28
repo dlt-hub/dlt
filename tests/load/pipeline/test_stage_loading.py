@@ -74,8 +74,14 @@ def test_staging_load(destination_config: DestinationTestConfiguration) -> None:
 
     assert len(package_info.jobs["failed_jobs"]) == 0
     # we have 4 parquet and 4 reference jobs plus one merge job
-    num_jobs = 4 + 4 + 1 if destination_config.supports_merge else 4 + 4
-    assert len(package_info.jobs["completed_jobs"]) == num_jobs
+    num_jobs = 4 + 4
+    num_sql_jobs = 0
+    if destination_config.supports_merge:
+        num_sql_jobs += 1
+    # sql job is used to copy parquet to Athena Iceberg table (_dlt_pipeline_state)
+    if destination_config.destination == "athena" and destination_config.table_format == "iceberg":
+        num_sql_jobs += 1
+    assert len(package_info.jobs["completed_jobs"]) == num_jobs + num_sql_jobs
     assert (
         len(
             [
@@ -110,7 +116,7 @@ def test_staging_load(destination_config: DestinationTestConfiguration) -> None:
                     if x.job_file_info.file_format == "sql"
                 ]
             )
-            == 1
+            == num_sql_jobs
         )
 
     initial_counts = load_table_counts(
