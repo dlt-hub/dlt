@@ -218,7 +218,18 @@ def test_truncate_staging_dataset(destination_config: DestinationTestConfigurati
     # check there are two staging files
     _, staging_client = pipeline._get_destination_clients(pipeline.default_schema)
     with staging_client:
-        assert len(staging_client.list_table_files(table_name)) == 2  # type: ignore[attr-defined]
+        # except Athena + Iceberg which does not store tables in staging dataset
+        if (
+            destination_config.destination == "athena"
+            and destination_config.table_format == "iceberg"
+        ):
+            table_count = 0
+            # but keeps them in staging dataset on staging destination - but only the last one
+            with staging_client.with_staging_dataset():  # type: ignore[attr-defined]
+                assert len(staging_client.list_table_files(table_name)) == 1  # type: ignore[attr-defined]
+        else:
+            table_count = 2
+        assert len(staging_client.list_table_files(table_name)) == table_count  # type: ignore[attr-defined]
 
     # load the data with truncating, so only new file is on the staging
     pipeline.destination.config_params["truncate_tables_on_staging_destination_before_load"] = True
@@ -231,7 +242,15 @@ def test_truncate_staging_dataset(destination_config: DestinationTestConfigurati
     # check there is only one staging file
     _, staging_client = pipeline._get_destination_clients(pipeline.default_schema)
     with staging_client:
-        assert len(staging_client.list_table_files(table_name)) == 1  # type: ignore[attr-defined]
+        # except for Athena which does not delete staging destination tables
+        if destination_config.destination == "athena":
+            if destination_config.table_format == "iceberg":
+                table_count = 0
+            else:
+                table_count = 3
+        else:
+            table_count = 1
+        assert len(staging_client.list_table_files(table_name)) == table_count  # type: ignore[attr-defined]
 
 
 @pytest.mark.parametrize(
