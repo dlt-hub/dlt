@@ -789,7 +789,6 @@ class LanceDBRemoveOrphansJob(RunnableLoadJob):
                 target_table_id_field_name = self._schema.data_item_normalizer.C_DLT_ID  # type: ignore[attr-defined]
                 file_path = job.file_path
             else:
-                # This should look for root NOT parent. more efficient!
                 target_table_id_field_name = self._schema.data_item_normalizer.C_DLT_ROOT_ID  # type: ignore[attr-defined]
                 file_path = self.get_parent_path(table_lineage, job.table_schema.get("parent"))
 
