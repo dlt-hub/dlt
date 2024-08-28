@@ -56,7 +56,7 @@ class FilesystemLoadJob(RunnableLoadJob):
         self._job_client: FilesystemClient = None
 
     def run(self) -> None:
-        self.__is_local_filesystem = self._job_client.config.protocol == "file"
+        self.__is_local_filesystem = self._job_client.config.is_local_filesystem
         # We would like to avoid failing for local filesystem where
         # deeply nested directory will not exist before writing a file.
         # It `auto_mkdir` is disabled by default in fsspec so we made some
@@ -88,12 +88,13 @@ class FilesystemLoadJob(RunnableLoadJob):
             path_utils.normalize_path_sep(pathlib, destination_file_name),
         )
 
-    def make_remote_uri(self) -> str:
-        return self._job_client.make_remote_uri(self.make_remote_path())
+    def make_remote_url(self) -> str:
+        """Returns path on a remote filesystem as a full url including scheme."""
+        return self._job_client.make_remote_url(self.make_remote_path())
 
     def metrics(self) -> Optional[LoadJobMetrics]:
         m = super().metrics()
-        return m._replace(remote_uri=self.make_remote_uri())
+        return m._replace(remote_url=self.make_remote_url())
 
 
 class DeltaLoadFilesystemJob(FilesystemLoadJob):
@@ -111,7 +112,7 @@ class DeltaLoadFilesystemJob(FilesystemLoadJob):
         return self._job_client.get_table_dir(self.load_table_name)
 
     def run(self) -> None:
-        logger.info(f"Will copy file(s) {self.file_paths} to delta table {self.make_remote_uri()}")
+        logger.info(f"Will copy file(s) {self.file_paths} to delta table {self.make_remote_url()}")
 
         from dlt.common.libs.deltalake import write_delta_table, merge_delta_table
 
@@ -132,7 +133,7 @@ class DeltaLoadFilesystemJob(FilesystemLoadJob):
             else:
                 write_delta_table(
                     table_or_uri=(
-                        self.make_remote_uri() if self._delta_table is None else self._delta_table
+                        self.make_remote_url() if self._delta_table is None else self._delta_table
                     ),
                     data=arrow_rbr,
                     write_disposition=self._load_table["write_disposition"],
@@ -150,7 +151,7 @@ class DeltaLoadFilesystemJob(FilesystemLoadJob):
     def _delta_table(self) -> Optional["DeltaTable"]:  # type: ignore[name-defined] # noqa: F821
         from dlt.common.libs.deltalake import try_get_deltatable
 
-        return try_get_deltatable(self.make_remote_uri(), storage_options=self._storage_options)
+        return try_get_deltatable(self.make_remote_url(), storage_options=self._storage_options)
 
     @property
     def _partition_columns(self) -> List[str]:
@@ -165,7 +166,7 @@ class DeltaLoadFilesystemJob(FilesystemLoadJob):
 
         if self._delta_table is None:
             DeltaTable.create(
-                table_uri=self.make_remote_uri(),
+                table_uri=self.make_remote_url(),
                 schema=ensure_delta_compatible_arrow_schema(self.arrow_ds.schema),
                 mode="overwrite",
                 partition_by=self._partition_columns,
@@ -184,7 +185,7 @@ class FilesystemLoadJobWithFollowup(HasFollowupJobs, FilesystemLoadJob):
         elif final_state == "completed":
             ref_job = ReferenceFollowupJobRequest(
                 original_file_name=self.file_name(),
-                remote_paths=[self._job_client.make_remote_uri(self.make_remote_path())],
+                remote_paths=[self._job_client.make_remote_url(self.make_remote_path())],
             )
             jobs.append(ref_job)
         return jobs
@@ -207,7 +208,7 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
     ) -> None:
         super().__init__(schema, config, capabilities)
         self.fs_client, fs_path = fsspec_from_config(config)
-        self.is_local_filesystem = config.protocol == "file"
+        self.is_local_filesystem = config.is_local_filesystem
         self.bucket_path = (
             config.make_local_path(config.bucket_url) if self.is_local_filesystem else fs_path
         )
@@ -318,7 +319,7 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
         table_prefix = self.get_table_prefix(table_name)
         table_dir: str = self.pathlib.dirname(table_prefix)
         if remote:
-            table_dir = self.make_remote_uri(table_dir)
+            table_dir = self.make_remote_url(table_dir)
         return table_dir
 
     def get_table_prefix(self, table_name: str) -> str:
@@ -352,7 +353,7 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
         # we fallback to our own glob implementation that is tested to return consistent results for
         # filesystems we support. we were not able to use `find` or `walk` because they were selecting
         # files wrongly (on azure walk on path1/path2/ would also select files from path1/path2_v2/ but returning wrong dirs)
-        for details in glob_files(self.fs_client, self.make_remote_uri(table_dir), "**"):
+        for details in glob_files(self.fs_client, self.make_remote_url(table_dir), "**"):
             file = details["file_name"]
             filepath = self.pathlib.join(table_dir, details["relative_path"])
             # skip INIT files
@@ -387,12 +388,12 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
         cls = FilesystemLoadJobWithFollowup if self.config.as_staging else FilesystemLoadJob
         return cls(file_path)
 
-    def make_remote_uri(self, remote_path: str) -> str:
+    def make_remote_url(self, remote_path: str) -> str:
         """Returns uri to the remote filesystem to which copy the file"""
         if self.is_local_filesystem:
-            return self.config.make_file_uri(remote_path)
+            return self.config.make_file_url(remote_path)
         else:
-            return f"{self.config.protocol}://{remote_path}"
+            return self.config.make_url(remote_path)
 
     def __enter__(self) -> "FilesystemClient":
         return self

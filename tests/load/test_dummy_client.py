@@ -548,6 +548,23 @@ def test_completed_loop_with_delete_completed() -> None:
     assert_complete_job(load, should_delete_completed=True)
 
 
+@pytest.mark.parametrize("to_truncate", [True, False])
+def test_truncate_table_before_load_on_stanging(to_truncate) -> None:
+    load = setup_loader(
+        client_config=DummyClientConfiguration(
+            truncate_tables_on_staging_destination_before_load=to_truncate
+        )
+    )
+    load_id, schema = prepare_load_package(load.load_storage, NORMALIZED_FILES)
+    destination_client = load.get_destination_client(schema)
+    assert (
+        destination_client.should_truncate_table_before_load_on_staging_destination(  # type: ignore
+            schema.tables["_dlt_version"]
+        )
+        == to_truncate
+    )
+
+
 def test_retry_on_new_loop() -> None:
     # test job that retries sitting in new jobs
     load = setup_loader(client_config=DummyClientConfiguration(retry_prob=1.0))
@@ -995,17 +1012,17 @@ def assert_complete_job(
                             if state == "failed_jobs"
                             else "completed"
                         )
-                        remote_uri = job_metrics.remote_uri
+                        remote_url = job_metrics.remote_url
                         if load.initial_client_config.create_followup_jobs:  # type: ignore
-                            assert remote_uri.endswith(job.file_name())
+                            assert remote_url.endswith(job.file_name())
                         elif load.is_staging_destination_job(job.file_name()):
                             # staging destination should contain reference to remote filesystem
                             assert (
-                                FilesystemConfiguration.make_file_uri(REMOTE_FILESYSTEM)
-                                in remote_uri
+                                FilesystemConfiguration.make_file_url(REMOTE_FILESYSTEM)
+                                in remote_url
                             )
                         else:
-                            assert remote_uri is None
+                            assert remote_url is None
                     else:
                         assert job_metrics is None
 

@@ -281,7 +281,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
             else:
                 # list of simple types
                 child_row_hash = DataItemNormalizer._get_child_row_hash(parent_row_id, table, idx)
-                wrap_v = wrap_in_dict(v)
+                wrap_v = wrap_in_dict(self.c_value, v)
                 wrap_v[self.c_dlt_id] = child_row_hash
                 e = self._link_row(wrap_v, parent_row_id, idx)
                 DataItemNormalizer._extend_row(extend, e)
@@ -387,7 +387,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
     ) -> TNormalizedRowIterator:
         # wrap items that are not dictionaries in dictionary, otherwise they cannot be processed by the JSON normalizer
         if not isinstance(item, dict):
-            item = wrap_in_dict(item)
+            item = wrap_in_dict(self.c_value, item)
         # we will extend event with all the fields necessary to load it as root row
         row = cast(DictStrAny, item)
         # identify load id if loaded data must be processed after loading incrementally

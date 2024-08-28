@@ -562,7 +562,7 @@ tables:
       finished_at:
         data_type: timestamp
         nullable: true
-      remote_uri:
+      remote_url:
         data_type: text
         nullable: true
     parent: trace__steps

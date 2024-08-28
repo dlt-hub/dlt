@@ -1,12 +1,12 @@
 import pytest
-from typing import Dict, Any, List
+from typing import List
 
 import dlt, os
-from dlt.common import json, sleep
-from copy import deepcopy
+from dlt.common import json
 from dlt.common.storages.configuration import FilesystemConfiguration
 from dlt.common.utils import uniq_id
 from dlt.common.schema.typing import TDataType
+from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 
 from tests.load.pipeline.test_merge_disposition import github
 from tests.pipeline.utils import load_table_counts, assert_load_info
@@ -40,6 +40,13 @@ def load_modified_issues():
         yield from issues
 
 
+@dlt.resource(table_name="events", write_disposition="append", primary_key="timestamp")
+def event_many_load_2():
+    with open("tests/normalize/cases/event.event.many_load_2.json", "r", encoding="utf-8") as f:
+        events = json.load(f)
+        yield from events
+
+
 @pytest.mark.parametrize(
     "destination_config", destinations_configs(all_staging_configs=True), ids=lambda x: x.name
 )
@@ -50,17 +57,17 @@ def test_staging_load(destination_config: DestinationTestConfiguration) -> None:
 
     info = pipeline.run(github(), loader_file_format=destination_config.file_format)
     assert_load_info(info)
-    # checks if remote_uri is set correctly on copy jobs
+    # checks if remote_url is set correctly on copy jobs
     metrics = info.metrics[info.loads_ids[0]][0]
     for job_metrics in metrics["job_metrics"].values():
-        remote_uri = job_metrics.remote_uri
+        remote_url = job_metrics.remote_url
         job_ext = os.path.splitext(job_metrics.job_id)[1]
         if job_ext not in (".reference", ".sql"):
-            assert remote_uri.endswith(job_ext)
+            assert remote_url.endswith(job_ext)
             bucket_uri = destination_config.bucket_url
             if FilesystemConfiguration.is_local_path(bucket_uri):
-                bucket_uri = FilesystemConfiguration.make_file_uri(bucket_uri)
-            assert remote_uri.startswith(bucket_uri)
+                bucket_uri = FilesystemConfiguration.make_file_url(bucket_uri)
+            assert remote_url.startswith(bucket_uri)
 
     package_info = pipeline.get_load_package_info(info.loads_ids[0])
     assert package_info.state == "loaded"
@@ -181,6 +188,50 @@ def test_staging_load(destination_config: DestinationTestConfiguration) -> None:
         pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()]
     )
     assert replace_counts == initial_counts
+
+
+@pytest.mark.parametrize(
+    "destination_config", destinations_configs(all_staging_configs=True), ids=lambda x: x.name
+)
+def test_truncate_staging_dataset(destination_config: DestinationTestConfiguration) -> None:
+    """This test checks if tables truncation on staging destination done according to the configuration.
+
+    Test loads data to the destination three times:
+    * with truncation
+    * without truncation (after this 2 staging files should be left)
+    * with truncation (after this 1 staging file should be left)
+    """
+    pipeline = destination_config.setup_pipeline(
+        pipeline_name="test_stage_loading", dataset_name="test_staging_load" + uniq_id()
+    )
+    resource = event_many_load_2()
+    table_name: str = resource.table_name  # type: ignore[assignment]
+
+    # load the data, files stay on the stage after the load
+    info = pipeline.run(resource)
+    assert_load_info(info)
+
+    # load the data without truncating of the staging, should see two files on staging
+    pipeline.destination.config_params["truncate_tables_on_staging_destination_before_load"] = False
+    info = pipeline.run(resource)
+    assert_load_info(info)
+    # check there are two staging files
+    _, staging_client = pipeline._get_destination_clients(pipeline.default_schema)
+    with staging_client:
+        assert len(staging_client.list_table_files(table_name)) == 2  # type: ignore[attr-defined]
+
+    # load the data with truncating, so only new file is on the staging
+    pipeline.destination.config_params["truncate_tables_on_staging_destination_before_load"] = True
+    info = pipeline.run(resource)
+    assert_load_info(info)
+    # check that table exists in the destination
+    with pipeline.sql_client() as sql_client:
+        qual_name = sql_client.make_qualified_table_name
+        assert len(sql_client.execute_sql(f"SELECT * from {qual_name(table_name)}")) > 4
+    # check there is only one staging file
+    _, staging_client = pipeline._get_destination_clients(pipeline.default_schema)
+    with staging_client:
+        assert len(staging_client.list_table_files(table_name)) == 1  # type: ignore[attr-defined]
 
 
 @pytest.mark.parametrize(

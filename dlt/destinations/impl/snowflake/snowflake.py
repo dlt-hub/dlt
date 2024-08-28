@@ -325,3 +325,6 @@ class SnowflakeClient(SqlJobClientWithStaging, SupportsStagingDestination):
         return (
             f"{name} {self.type_mapper.to_db_type(c)} {self._gen_not_null(c.get('nullable', True))}"
         )
+
+    def should_truncate_table_before_load_on_staging_destination(self, table: TTableSchema) -> bool:
+        return self.config.truncate_tables_on_staging_destination_before_load

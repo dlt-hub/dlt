@@ -34,7 +34,6 @@ from pyathena.formatter import (
 
 from dlt.common import logger
 from dlt.common.exceptions import TerminalValueError
-from dlt.common.storages.fsspec_filesystem import fsspec_from_config
 from dlt.common.utils import uniq_id, without_none
 from dlt.common.schema import TColumnSchema, Schema, TTableSchema
 from dlt.common.schema.typing import (
@@ -531,7 +530,7 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
         if table["write_disposition"] == "replace" and not self._is_iceberg_table(
             self.prepare_load_table(table["name"])
         ):
-            return True
+            return self.config.truncate_tables_on_staging_destination_before_load
         return False
 
     def should_load_data_to_staging_dataset_on_staging_destination(

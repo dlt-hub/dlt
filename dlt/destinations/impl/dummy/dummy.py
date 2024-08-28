@@ -90,9 +90,9 @@ class LoadDummyBaseJob(RunnableLoadJob):
 
     def metrics(self) -> Optional[LoadJobMetrics]:
         m = super().metrics()
-        # add remote uri if there's followup job
+        # add remote url if there's followup job
         if self.config.create_followup_jobs:
-            m = m._replace(remote_uri=self._file_name)
+            m = m._replace(remote_url=self._file_name)
         return m
 
 
@@ -201,6 +201,9 @@ class DummyClient(JobClientBase, SupportsStagingDestination, WithStagingDataset)
 
     def should_load_data_to_staging_dataset(self, table: TTableSchema) -> bool:
         return super().should_load_data_to_staging_dataset(table)
+
+    def should_truncate_table_before_load_on_staging_destination(self, table: TTableSchema) -> bool:
+        return self.config.truncate_tables_on_staging_destination_before_load
 
     @contextmanager
     def with_staging_dataset(self) -> Iterator[JobClientBase]:

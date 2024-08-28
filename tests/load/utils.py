@@ -70,6 +70,7 @@ from tests.cases import (
 AWS_BUCKET = dlt.config.get("tests.bucket_url_s3", str)
 GCS_BUCKET = dlt.config.get("tests.bucket_url_gs", str)
 AZ_BUCKET = dlt.config.get("tests.bucket_url_az", str)
+ABFS_BUCKET = dlt.config.get("tests.bucket_url_abfss", str)
 GDRIVE_BUCKET = dlt.config.get("tests.bucket_url_gdrive", str)
 FILE_BUCKET = dlt.config.get("tests.bucket_url_file", str)
 R2_BUCKET = dlt.config.get("tests.bucket_url_r2", str)
@@ -79,6 +80,7 @@ ALL_FILESYSTEM_DRIVERS = dlt.config.get("ALL_FILESYSTEM_DRIVERS", list) or [
     "s3",
     "gs",
     "az",
+    "abfss",
     "gdrive",
     "file",
     "memory",
@@ -86,7 +88,15 @@ ALL_FILESYSTEM_DRIVERS = dlt.config.get("ALL_FILESYSTEM_DRIVERS", list) or [
 ]
 
 # Filter out buckets not in all filesystem drivers
-WITH_GDRIVE_BUCKETS = [GCS_BUCKET, AWS_BUCKET, FILE_BUCKET, MEMORY_BUCKET, AZ_BUCKET, GDRIVE_BUCKET]
+WITH_GDRIVE_BUCKETS = [
+    GCS_BUCKET,
+    AWS_BUCKET,
+    FILE_BUCKET,
+    MEMORY_BUCKET,
+    ABFS_BUCKET,
+    AZ_BUCKET,
+    GDRIVE_BUCKET,
+]
 WITH_GDRIVE_BUCKETS = [
     bucket
     for bucket in WITH_GDRIVE_BUCKETS

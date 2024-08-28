@@ -2600,6 +2600,20 @@ def test_underscore_tables_and_columns() -> None:
     assert pipeline.last_trace.last_normalize_info.row_counts["_ids"] == 2
 
 
+def test_dlt_columns_nested_table_collisions() -> None:
+    # we generate all identifiers in upper case to test for a bug where dlt columns for nested tables were hardcoded to
+    # small caps. they got normalized to upper case after the first run and then added again as small caps
+    # generating duplicate columns and raising collision exception as duckdb is ci destination
+    duck = duckdb(naming_convention="tests.common.cases.normalizers.sql_upper")
+    pipeline = dlt.pipeline("test_dlt_columns_child_table_collisions", destination=duck)
+    customers = [
+        {"id": 1, "name": "dave", "orders": [1, 2, 3]},
+    ]
+    assert_load_info(pipeline.run(customers, table_name="CUSTOMERS"))
+    # this one would fail without bugfix
+    assert_load_info(pipeline.run(customers, table_name="CUSTOMERS"))
+
+
 def test_access_pipeline_in_resource() -> None:
     pipeline = dlt.pipeline("test_access_pipeline_in_resource", destination="duckdb")
 

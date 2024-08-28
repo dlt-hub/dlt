@@ -210,3 +210,6 @@ class DremioClient(SqlJobClientWithStaging, SupportsStagingDestination):
         self, new_columns: Sequence[TColumnSchema], table_format: TTableFormat = None
     ) -> List[str]:
         return ["ADD COLUMNS (" + ", ".join(self._get_column_def_sql(c) for c in new_columns) + ")"]
+
+    def should_truncate_table_before_load_on_staging_destination(self, table: TTableSchema) -> bool:
+        return self.config.truncate_tables_on_staging_destination_before_load
