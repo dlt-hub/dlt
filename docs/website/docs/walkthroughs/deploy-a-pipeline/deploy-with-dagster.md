@@ -50,7 +50,9 @@ capabilities for handling data extraction and load and Dagster's orchestration f
 
 ### Orchestrating `dlt` pipeline on Dagster
 
-Here's a concise guide to orchestrating a `dlt` pipeline with Dagster, using the project "Ingesting
+Here's a concise guide to orchestrating a `dlt` pipeline with Dagster, creating a pipeline which ingests GitHub issues data from a repository and loading
+
+using the project "Ingesting
 GitHub issues data from a repository and storing it in BigQuery" as an example. 
 
 More details can be found in the article
@@ -60,75 +62,129 @@ More details can be found in the article
 1. Create a `dlt` pipeline. For more, please refer to the documentation:
 [Creating a pipeline.](https://dlthub.com/docs/walkthroughs/create-a-pipeline)
 
-1. Set up a Dagster project, configure resources, and define the asset as follows:
+1. Install Dagster and the embedded ELT package using pip:
+   ```sh
+      pip install dagster dagster-embedded-elt
+      ```
 
-   1. To create a Dagster project:
+1. Set up a Dagster project:
       ```sh
       mkdir dagster_github_issues  
       cd dagster_github_issues  
       dagster project scaffold --name github-issues  
       ```
+      ![image](https://github.com/user-attachments/assets/f9002de1-bcdf-49f4-941b-abd59ea7968d)
 
-   1. Define `dlt` as a Dagster resource:
+ 1. Add the dlt pipleine to github_source:
+
+    In your Dagster project, define the dlt pipeline in github_source folder.
+    
+    **Note**: That dlt Dagster helper works only with dlt source. Your resources always should be grouped in a source.
       ```py
-      from dagster import ConfigurableResource  
-      from dagster import ConfigurableResource  
-      import dlt  
-
-      class DltPipeline(ConfigurableResource):  
-          pipeline_name: str  
-          dataset_name: str  
-          destination: str  
-
-          def create_pipeline(self, resource_data, table_name):  
-       
-              # configure the pipeline with your destination details  
-              pipeline = dlt.pipeline(  
-                  pipeline_name=self.pipeline_name, 
-                                destination=self.destination, 
-                                dataset_name=self.dataset_name  
-              )  
-
-              # run the pipeline with your parameters  
-              load_info = pipeline.run(resource_data, table_name=table_name)  
-
-              return load_info  
-      ```
-   1. Define the asset as:
-      ```py
-      @asset  
-      def issues_pipeline(pipeline: DltPipeline):  
+      import dlt
+      ...
+      @dlt.resource(
+          table_name="issues",
+          write_disposition="merge",
+          primary_key="id",
+      )
+      def get_issues(
+              updated_at=dlt.sources.incremental("updated_at", initial_value="1970-01-01T00:00:00Z")
+      ):
+          url = (
+              f"{BASE_URL}?since={updated_at.last_value}&per_page=100&sort=updated"
+              "&directions=desc&state=open"
+          )
+          yield pagination(url)
           
-          logger = get_dagster_logger()  
-          results = pipeline.create_pipeline(github_issues_resource, table_name='github_issues')  
-          logger.info(results)  
+      @dlt.source
+      def github_source():
+          return get_issues()
+
       ```
+ 1. Create a dlt_assets definition:
+    
+     The @dlt_assets decorator takes a dlt_source and dlt_pipeline parameter. In this example, we used the github_source source and created a     dlt_pipeline to ingest data from Github to DuckDB.
+
+    Here’s an example of how to define assets (github_source/assets.py):
+
+      ```py
+      from dagster import AssetExecutionContext
+      from dagster_embedded_elt.dlt import DagsterDltResource, dlt_assets
+      from dlt import pipeline
+      from .github_pipeline import github_source
+      
+      @dlt_assets(
+          dlt_source=github_source(),
+          dlt_pipeline=pipeline(
+              pipeline_name="github_issues",
+              dataset_name="github",
+              destination="duckdb",
+              progress="log",
+          ),
+          name="github",
+          group_name="github",
+      )
+      def dagster_github_assets(context: AssetExecutionContext, dlt: DagsterDltResource):
+          yield from dlt.run(context=context)
+      ```
+      
       > For more information, please refer to
-      > [Dagster’s documentation.](https://docs.dagster.io/getting-started/quickstart)
+      > [Dagster’s documentation.](https://docs.dagster.io/_apidocs/libraries/dagster-embedded-elt#dagster_embedded_elt.dlt.dlt_assets)
+    
+1. Create the Definitions object
 
-1. Next, define Dagster definitions as follows:
+   The last step is to include the assets and resource in a [Definitions]([url](https://docs.dagster.io/_apidocs/definitions#dagster.Definitions)) object (github_source/definitions.py). This enables Dagster tools to load everything we've defined:
+
    ```py
-   all_assets = load_assets_from_modules([assets])  
-   simple_pipeline = define_asset_job(name="simple_pipeline", selection= ['issues_pipeline'])  
-
-   defs = Definitions(  
-       assets=all_assets,  
-       jobs=[simple_pipeline],  
-       resources={  
-           "pipeline": DltPipeline(
-               pipeline_name = "github_issues",
-               dataset_name = "dagster_github_issues",
-               destination = "bigquery",
-           ),  
-       }  
-   ) 
+    from dagster import Definitions, load_assets_from_modules
+    from dagster_embedded_elt.dlt import DagsterDltResource
+    from . import assets
+    
+    dlt_resource = DagsterDltResource()
+    all_assets = load_assets_from_modules([assets])
+    
+    defs = Definitions(
+        assets=all_assets,
+        resources={
+            "dlt": dlt_resource,
+        },
+    )
    ```
 
-1. Finally, start the web server as:
+1. Run the web server locally:
+    1. Install the necessary dependencies using the following command:
+       
+       ```sh
+       pip install -e ".[dev]"
+       ```
 
-   ```sh
-   dagster dev
-   ```
+       We use -e to install dependencies in [editable mode]([url](https://pip.pypa.io/en/latest/topics/local-project-installs/#editable-installs)). This allows changes to be automatically applied when we modify the code.
+     
+    2. Run the project:
+  
+       ```sh
+       dagster dev
+       ```
+  
+    3. Navigate to localhost:3000 in your web browser to access the Dagster UI.
+  
+       ![image](https://github.com/user-attachments/assets/97b74b86-df94-47e5-8ae2-de7cc47f56d8)
+
+1. Run the pipeline:  
+
+   Now that you have a running instance of Dagster, we can run our data pipeline.
+
+   To run the pipeline, go to **Assets** and click the **Materialize** button in the top right. In Dagster, materialization refers to executing the code associated with an asset to produce an output.
+
+   ![image](https://github.com/user-attachments/assets/79416fb7-8362-4640-b205-e59aa7ac785c)
+
+   You will see the following logs in your command line:
+
+   ![image](https://github.com/user-attachments/assets/f0e3bec8-f702-46a6-b69f-194a1dacf625)
+
+   Want to see real-world examples of dlt in production? Check out how to use it internally at Dagster in the [Dagster Open Platform]([url](https://github.com/dagster-io/dagster-open-platform)) project.
+
 
 :::info 
 For the complete hands-on project on “Orchestrating unstructured data pipelines with dagster and
