@@ -6,6 +6,7 @@ from types import ModuleType
 from typing import Dict, List, Sequence, Tuple
 from importlib.metadata import version as pkg_version
 from pathlib import Path
+from importlib import import_module
 
 from dlt.common import git
 from dlt.common.configuration.paths import get_dlt_settings_dir, make_dlt_settings_path
@@ -24,6 +25,7 @@ from dlt.common.reflection.utils import rewrite_python_script
 from dlt.common.schema.utils import is_valid_schema_name
 from dlt.common.schema.exceptions import InvalidSchemaName
 from dlt.common.storages.file_storage import FileStorage
+from dlt.sources import init as init_module
 
 import dlt.reflection.names as n
 from dlt.reflection.script_inspector import inspect_pipeline_script, load_script_module
@@ -46,6 +48,7 @@ INIT_MODULE_NAME = "init"
 SOURCES_MODULE_NAME = "sources"
 SKIP_CORE_SOURCES_FOLDERS = [
     "helpers",
+    "init",
     "rest_api",
 ]  # TODO: remove rest api here once pipeline file is here
 
@@ -243,16 +246,27 @@ def init_command(
     # lookup core sources
     local_path = Path(os.path.dirname(os.path.realpath(__file__))).parent / SOURCES_MODULE_NAME
     local_sources_storage = FileStorage(str(local_path))
+    is_local_source = (
+        local_sources_storage.has_folder(source_name)
+        and source_name not in SKIP_CORE_SOURCES_FOLDERS
+    )
 
-    fmt.echo("Looking up the init scripts in %s..." % fmt.bold(repo_location))
-    clone_storage = git.get_fresh_repo_files(repo_location, get_dlt_repos_dir(), branch=branch)
-    # copy init files from here
-    init_storage = FileStorage(clone_storage.make_full_path(INIT_MODULE_NAME))
-    # copy dlt source files from here
-    sources_storage = FileStorage(clone_storage.make_full_path(SOURCES_MODULE_NAME))
-    # load init module and get init files and script
-    init_module = load_script_module(clone_storage.storage_path, INIT_MODULE_NAME)
+    # look up init storage
+    init_path = (
+        Path(os.path.dirname(os.path.realpath(__file__))).parent
+        / SOURCES_MODULE_NAME
+        / INIT_MODULE_NAME
+    )
     pipeline_script, template_files = _get_template_files(init_module, use_generic_template)
+    init_storage = FileStorage(str(init_path))
+
+    # look up verified sources
+    if not is_local_source:
+        fmt.echo("Looking up the init scripts in %s..." % fmt.bold(repo_location))
+        clone_storage = git.get_fresh_repo_files(repo_location, get_dlt_repos_dir(), branch=branch)
+        # copy dlt source files from here
+        sources_storage = FileStorage(clone_storage.make_full_path(SOURCES_MODULE_NAME))
+
     # prepare destination storage
     dest_storage = FileStorage(os.path.abspath("."))
     if not dest_storage.has_folder(get_dlt_settings_dir()):
@@ -270,11 +284,9 @@ def init_command(
     remote_index: TVerifiedSourceFileIndex = None
     sources_module_prefix: str = ""
 
-    if (
-        local_sources_storage.has_folder(source_name)
-        and source_name not in SKIP_CORE_SOURCES_FOLDERS
-    ):
+    if is_local_source:
         # TODO: we do not need to check out the verified sources in this case
+        fmt.echo("Creating pipeline from core source...")
         pipeline_script = source_name + "_pipeline.py"
         source_files = VerifiedSourceFiles(
             False,
