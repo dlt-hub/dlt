@@ -148,7 +148,8 @@ def test_init_list_verified_pipelines_update_warning(
 
 
 def test_init_all_sources_together(repo_dir: str, project_files: FileStorage) -> None:
-    source_candidates = get_verified_source_candidates(repo_dir)
+    source_candidates = set(get_verified_source_candidates(repo_dir)).union(set(CORE_SOURCES))
+
     # source_candidates = [source_name for source_name in source_candidates if source_name == "salesforce"]
     for source_name in source_candidates:
         # all must install correctly
@@ -157,7 +158,7 @@ def test_init_all_sources_together(repo_dir: str, project_files: FileStorage) ->
         _, secrets = assert_source_files(project_files, source_name, "bigquery")
 
     # requirements.txt is created from the first source and not overwritten afterwards
-    assert_index_version_constraint(project_files, source_candidates[0])
+    assert_index_version_constraint(project_files, list(source_candidates)[0])
     # secrets should contain sections for all sources
     for source_name in source_candidates:
         assert secrets.get_value(source_name, type, None, "sources") is not None
@@ -176,9 +177,11 @@ def test_init_all_sources_together(repo_dir: str, project_files: FileStorage) ->
     assert_init_files(project_files, "generic_pipeline", "redshift", "bigquery")
 
 
-def test_init_all_verified_sources_isolated(cloned_init_repo: FileStorage) -> None:
+def test_init_all_sources_isolated(cloned_init_repo: FileStorage) -> None:
     repo_dir = get_repo_dir(cloned_init_repo)
-    for candidate in get_verified_source_candidates(repo_dir):
+    # ensure we test both sources form verified sources and core sources
+    source_candidates = set(get_verified_source_candidates(repo_dir)).union(set(CORE_SOURCES))
+    for candidate in source_candidates:
         clean_test_storage()
         repo_dir = get_repo_dir(cloned_init_repo)
         files = get_project_files()
@@ -186,7 +189,8 @@ def test_init_all_verified_sources_isolated(cloned_init_repo: FileStorage) -> No
             init_command.init_command(candidate, "bigquery", False, repo_dir)
             assert_source_files(files, candidate, "bigquery")
             assert_requirements_txt(files, "bigquery")
-            assert_index_version_constraint(files, candidate)
+            if candidate not in CORE_SOURCES:
+                assert_index_version_constraint(files, candidate)
 
 
 @pytest.mark.parametrize("destination_name", IMPLEMENTED_DESTINATIONS)
