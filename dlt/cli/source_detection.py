@@ -82,7 +82,6 @@ def detect_source_configs(
     checked_sources: Dict[str, SourceInfo] = {}
 
     for source_name, source_info in sources.items():
-
         # accept only sources declared in the `init` or `pipeline` modules
         if source_info.module.__name__.startswith(module_prefix):
             checked_sources[source_name] = source_info
