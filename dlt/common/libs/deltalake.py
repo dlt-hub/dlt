@@ -202,4 +202,4 @@ def _evolve_delta_table_schema(delta_table: DeltaTable, arrow_schema: pa.Schema)
         for field in ensure_delta_compatible_arrow_schema(arrow_schema)
         if field not in delta_table.to_pyarrow_dataset().schema
     ]
-    delta_table.alter.add_columns(new_fields)
+    delta_table.alter.add_columns(new_fields)  # type: ignore
