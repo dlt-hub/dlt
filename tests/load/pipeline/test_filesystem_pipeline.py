@@ -300,16 +300,16 @@ def test_delta_table_core(
     assert len(rows) == 10
     assert_all_data_types_row(rows[0], schema=column_schemas)
 
-    # make sure remote_uri is in metrics
+    # make sure remote_url is in metrics
     metrics = info.metrics[info.loads_ids[0]][0]
-    # TODO: only final copy job has remote_uri. not the initial (empty) job for particular files
-    # we could implement an empty job for delta that generates correct remote_uri
-    remote_uri = list(metrics["job_metrics"].values())[-1].remote_uri
-    assert remote_uri.endswith("data_types")
-    bucket_uri = destination_config.bucket_url
-    if FilesystemConfiguration.is_local_path(bucket_uri):
-        bucket_uri = FilesystemConfiguration.make_file_uri(bucket_uri)
-    assert remote_uri.startswith(bucket_uri)
+    # TODO: only final copy job has remote_url. not the initial (empty) job for particular files
+    # we could implement an empty job for delta that generates correct remote_url
+    remote_url = list(metrics["job_metrics"].values())[-1].remote_url
+    assert remote_url.endswith("data_types")
+    bucket_url = destination_config.bucket_url
+    if FilesystemConfiguration.is_local_path(bucket_url):
+        bucket_url = FilesystemConfiguration.make_file_url(bucket_url)
+    assert remote_url.startswith(bucket_url)
 
     # another run should append rows to the table
     info = pipeline.run(data_types())

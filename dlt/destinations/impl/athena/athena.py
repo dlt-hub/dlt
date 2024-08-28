@@ -34,7 +34,6 @@ from pyathena.formatter import (
 
 from dlt.common import logger
 from dlt.common.exceptions import TerminalValueError
-from dlt.common.storages.fsspec_filesystem import fsspec_from_config
 from dlt.common.utils import uniq_id, without_none
 from dlt.common.schema import TColumnSchema, Schema, TTableSchema
 from dlt.common.schema.typing import (

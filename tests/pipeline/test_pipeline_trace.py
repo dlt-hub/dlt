@@ -315,7 +315,7 @@ def test_trace_schema() -> None:
 
         return data()
 
-    # create pipeline with staging to get remote_uri in load step job_metrics
+    # create pipeline with staging to get remote_url in load step job_metrics
     dummy_dest = dummy(completed_prob=1.0)
     pipeline = dlt.pipeline(
         pipeline_name="test_trace_schema",

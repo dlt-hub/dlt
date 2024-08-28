@@ -90,9 +90,9 @@ class LoadDummyBaseJob(RunnableLoadJob):
 
     def metrics(self) -> Optional[LoadJobMetrics]:
         m = super().metrics()
-        # add remote uri if there's followup job
+        # add remote url if there's followup job
         if self.config.create_followup_jobs:
-            m = m._replace(remote_uri=self._file_name)
+            m = m._replace(remote_url=self._file_name)
         return m
 
 

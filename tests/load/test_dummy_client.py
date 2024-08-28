@@ -1012,17 +1012,17 @@ def assert_complete_job(
                             if state == "failed_jobs"
                             else "completed"
                         )
-                        remote_uri = job_metrics.remote_uri
+                        remote_url = job_metrics.remote_url
                         if load.initial_client_config.create_followup_jobs:  # type: ignore
-                            assert remote_uri.endswith(job.file_name())
+                            assert remote_url.endswith(job.file_name())
                         elif load.is_staging_destination_job(job.file_name()):
                             # staging destination should contain reference to remote filesystem
                             assert (
-                                FilesystemConfiguration.make_file_uri(REMOTE_FILESYSTEM)
-                                in remote_uri
+                                FilesystemConfiguration.make_file_url(REMOTE_FILESYSTEM)
+                                in remote_url
                             )
                         else:
-                            assert remote_uri is None
+                            assert remote_url is None
                     else:
                         assert job_metrics is None
 

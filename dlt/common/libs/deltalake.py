@@ -176,7 +176,8 @@ def _deltalake_storage_options(config: FilesystemConfiguration) -> Dict[str, str
     """Returns dict that can be passed as `storage_options` in `deltalake` library."""
     creds = {}
     extra_options = {}
-    if config.protocol in ("az", "gs", "s3"):
+    # TODO: create a mixin with to_object_store_rs_credentials for a proper discovery
+    if hasattr(config.credentials, "to_object_store_rs_credentials"):
         creds = config.credentials.to_object_store_rs_credentials()
     if config.deltalake_storage_options is not None:
         extra_options = config.deltalake_storage_options
