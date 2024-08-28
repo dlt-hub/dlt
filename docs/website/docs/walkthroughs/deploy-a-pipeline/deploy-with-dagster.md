@@ -109,7 +109,6 @@ More details can be found in the article
       ```py
       from dagster import AssetExecutionContext
       from dagster_embedded_elt.dlt import DagsterDltResource, dlt_assets
-      from dlt import pipeline
       from .github_pipeline import github_source
       
       @dlt_assets(
