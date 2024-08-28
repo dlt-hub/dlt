@@ -1,4 +1,6 @@
-from typing import TypedDict, Optional, Any, List, Literal, TypeVar, Callable, Sequence
+from typing_extensions import Generic, TypedDict
+
+from typing import Any, Callable, List, Literal, Optional, Sequence, TypeVar
 
 from dlt.common.schema.typing import TColumnNames
 from dlt.common.typing import TSortOrder
