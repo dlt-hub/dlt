@@ -5,6 +5,7 @@ import tomlkit
 from types import ModuleType
 from typing import Dict, List, Sequence, Tuple
 from importlib.metadata import version as pkg_version
+from pathlib import Path
 
 from dlt.common import git
 from dlt.common.configuration.paths import get_dlt_settings_dir, make_dlt_settings_path
@@ -42,6 +43,7 @@ DLT_INIT_DOCS_URL = "https://dlthub.com/docs/reference/command-line-interface#dl
 DEFAULT_VERIFIED_SOURCES_REPO = "https://github.com/dlt-hub/verified-sources.git"
 INIT_MODULE_NAME = "init"
 SOURCES_MODULE_NAME = "sources"
+SKIP_CORE_SOURCES_FOLDERS = ["helpers"]
 
 
 def _get_template_files(
@@ -234,6 +236,10 @@ def init_command(
     destination_reference = Destination.from_reference(destination_type)
     destination_spec = destination_reference.spec
 
+    # lookup core sources
+    local_path = Path(os.path.dirname(os.path.realpath(__file__))).parent / SOURCES_MODULE_NAME
+    local_sources_storage = FileStorage(str(local_path))
+
     fmt.echo("Looking up the init scripts in %s..." % fmt.bold(repo_location))
     clone_storage = git.get_fresh_repo_files(repo_location, get_dlt_repos_dir(), branch=branch)
     # copy init files from here
@@ -258,7 +264,29 @@ def init_command(
     # look for existing source
     source_files: VerifiedSourceFiles = None
     remote_index: TVerifiedSourceFileIndex = None
-    if sources_storage.has_folder(source_name):
+    sources_module_prefix: str = ""
+
+    if (
+        local_sources_storage.has_folder(source_name)
+        and source_name not in SKIP_CORE_SOURCES_FOLDERS
+    ):
+        # TODO: we do not need to check out the verified sources in this case
+        pipeline_script = source_name + "_pipeline.py"
+        source_files = VerifiedSourceFiles(
+            False,
+            local_sources_storage,
+            pipeline_script,
+            pipeline_script,
+            [],
+            SourceRequirements([]),
+            "",
+        )
+        sources_module_prefix = "dlt.sources." + source_name
+        if dest_storage.has_file(pipeline_script):
+            fmt.warning("Pipeline script %s already exist, exiting" % pipeline_script)
+            return
+    elif sources_storage.has_folder(source_name):
+        sources_module_prefix = source_name
         # get pipeline files
         source_files = files_ops.get_verified_source_files(sources_storage, source_name)
         # get file index from remote verified source files being copied
@@ -295,6 +323,7 @@ def init_command(
         source_files.files.extend(template_files)
 
     else:
+        sources_module_prefix = "pipeline"
         if not is_valid_schema_name(source_name):
             raise InvalidSchemaName(source_name)
         dest_pipeline_script = source_name + ".py"
@@ -389,7 +418,7 @@ def init_command(
         # template sources are always in module starting with "pipeline"
         # for templates, place config and secrets into top level section
         required_secrets, required_config, checked_sources = source_detection.detect_source_configs(
-            _SOURCES, "pipeline", ()
+            _SOURCES, sources_module_prefix, ()
         )
         # template has a strict rules where sources are placed
         for source_q_name, source_config in checked_sources.items():
@@ -412,7 +441,7 @@ def init_command(
         # pipeline sources are in module with name starting from {pipeline_name}
         # for verified pipelines place in the specific source section
         required_secrets, required_config, checked_sources = source_detection.detect_source_configs(
-            _SOURCES, source_name, (known_sections.SOURCES, source_name)
+            _SOURCES, sources_module_prefix, (known_sections.SOURCES, source_name)
         )
 
     if len(checked_sources) == 0:
