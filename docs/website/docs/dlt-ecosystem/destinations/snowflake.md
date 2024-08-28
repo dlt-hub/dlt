@@ -171,7 +171,7 @@ Note that we ignore missing columns `ERROR_ON_COLUMN_COUNT_MISMATCH = FALSE` and
 Snowflake supports the following [column hints](https://dlthub.com/docs/general-usage/schema#tables-and-columns):
 * `cluster` - creates a cluster column(s). Many columns per table are supported and only when a new table is created.
 
-### Table and column identifiers
+## Table and column identifiers
 Snowflake supports both case sensitive and case insensitive identifiers. All unquoted and uppercase identifiers resolve case-insensitively in SQL statements. Case insensitive [naming conventions](../../general-usage/naming-convention.md#case-sensitive-and-insensitive-destinations) like the default **snake_case** will generate case insensitive identifiers. Case sensitive (like **sql_cs_v1**) will generate
 case sensitive identifiers that must be quoted in SQL statements.
 
