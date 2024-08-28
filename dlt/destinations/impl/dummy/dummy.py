@@ -202,6 +202,9 @@ class DummyClient(JobClientBase, SupportsStagingDestination, WithStagingDataset)
     def should_load_data_to_staging_dataset(self, table: TTableSchema) -> bool:
         return super().should_load_data_to_staging_dataset(table)
 
+    def should_truncate_table_before_load_on_staging_destination(self, table: TTableSchema) -> bool:
+        return self.config.truncate_tables_on_staging_destination_before_load
+
     @contextmanager
     def with_staging_dataset(self) -> Iterator[JobClientBase]:
         try:

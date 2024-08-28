@@ -325,3 +325,6 @@ class DatabricksClient(InsertValuesJobClient, SupportsStagingDestination):
             "full_data_type"
         )
         return fields
+
+    def should_truncate_table_before_load_on_staging_destination(self, table: TTableSchema) -> bool:
+        return self.config.truncate_tables_on_staging_destination_before_load

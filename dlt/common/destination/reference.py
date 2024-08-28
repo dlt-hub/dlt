@@ -269,6 +269,8 @@ class DestinationClientDwhWithStagingConfiguration(DestinationClientDwhConfigura
 
     staging_config: Optional[DestinationClientStagingConfiguration] = None
     """configuration of the staging, if present, injected at runtime"""
+    truncate_tables_on_staging_destination_before_load: bool = True
+    """If dlt should truncate the tables on staging destination before loading data."""
 
 
 TLoadJobState = Literal["ready", "running", "failed", "retry", "completed"]
@@ -578,7 +580,7 @@ class WithStagingDataset(ABC):
         return self  # type: ignore
 
 
-class SupportsStagingDestination:
+class SupportsStagingDestination(ABC):
     """Adds capability to support a staging destination for the load"""
 
     def should_load_data_to_staging_dataset_on_staging_destination(
@@ -586,9 +588,9 @@ class SupportsStagingDestination:
     ) -> bool:
         return False
 
+    @abstractmethod
     def should_truncate_table_before_load_on_staging_destination(self, table: TTableSchema) -> bool:
-        # the default is to truncate the tables on the staging destination...
-        return True
+        pass
 
 
 # TODO: type Destination properly
