@@ -59,8 +59,6 @@ More details can be found in the article
 [“Orchestrating unstructured data pipelines with dagster and dlt."](https://dagster.io/blog/dagster-dlt)
 
 **The steps are as follows:**
-1. Create a `dlt` pipeline. For more, please refer to the documentation:
-[Creating a pipeline.](https://dlthub.com/docs/walkthroughs/create-a-pipeline)
 
 1. Install Dagster and the embedded ELT package using pip:
    ```sh
@@ -75,11 +73,11 @@ More details can be found in the article
       ```
       ![image](https://github.com/user-attachments/assets/f9002de1-bcdf-49f4-941b-abd59ea7968d)
 
- 1. Add the dlt pipleine to github_source:
+ 1. Add a dlt pipleine to github_source:
 
     In your Dagster project, define the dlt pipeline in github_source folder.
     
-    **Note**: That dlt Dagster helper works only with dlt source. Your resources always should be grouped in a source.
+    **Note**: The dlt Dagster helper works only with dlt sources. Your resources always should be grouped in a source.
       ```py
       import dlt
       ...
@@ -134,7 +132,7 @@ More details can be found in the article
     
 1. Create the Definitions object
 
-   The last step is to include the assets and resource in a [Definitions]([url](https://docs.dagster.io/_apidocs/definitions#dagster.Definitions)) object (github_source/definitions.py). This enables Dagster tools to load everything we've defined:
+   The last step is to include the assets and resource in a [Definitions](https://docs.dagster.io/_apidocs/definitions#dagster.Definitions) object (github_source/definitions.py). This enables Dagster tools to load everything we've defined:
 
    ```py
     from dagster import Definitions, load_assets_from_modules
@@ -159,7 +157,7 @@ More details can be found in the article
        pip install -e ".[dev]"
        ```
 
-       We use -e to install dependencies in [editable mode]([url](https://pip.pypa.io/en/latest/topics/local-project-installs/#editable-installs)). This allows changes to be automatically applied when we modify the code.
+       We use -e to install dependencies in [editable mode](https://pip.pypa.io/en/latest/topics/local-project-installs/#editable-installs). This allows changes to be automatically applied when we modify the code.
      
     2. Run the project:
   
@@ -183,18 +181,24 @@ More details can be found in the article
 
    ![image](https://github.com/user-attachments/assets/f0e3bec8-f702-46a6-b69f-194a1dacf625)
 
-   Want to see real-world examples of dlt in production? Check out how to use it internally at Dagster in the [Dagster Open Platform]([url](https://github.com/dagster-io/dagster-open-platform)) project.
+   Want to see real-world examples of dlt in production? Check out how dlt is used internally at Dagster in the [Dagster Open Platform](https://github.com/dagster-io/dagster-open-platform) project.
 
 
-:::info 
+:::info  
 For the complete hands-on project on “Orchestrating unstructured data pipelines with dagster and
 `dlt`", please refer to [article](https://dagster.io/blog/dagster-dlt). The author offers a
 detailed overview and steps for ingesting GitHub issue data from a repository and storing it in
-BigQuery. You can use a similar approach to build your pipelines.
+BigQuery. You can use a similar approach to build your pipelines.  
 :::
 
 ### Additional Resources
 
+- Check out the [Dagster Cloud Documentation](https://docs.dagster.cloud/) to learn more about deploying on Dagster Cloud.
+
+- Learn more about Dagtser's integration with dlt:
+  [dlt & Dagster](https://docs.dagster.io/integrations/embedded-elt/dlt)
+  [Embedded ELT Documentation](https://docs.dagster.io/_apidocs/libraries/dagster-embedded-elt#dagster_embedded_elt.dlt.dlt_assets)
+  
 - A general configurable `dlt` resource orchestrated on Dagster:
   [dlt resource](https://github.com/dagster-io/dagster-open-platform/blob/5030ff6828e2b001a557c6864f279c3b476b0ca0/dagster_open_platform/resources/dlt_resource.py#L29).
 
@@ -209,5 +213,5 @@ BigQuery. You can use a similar approach to build your pipelines.
   > independent of each other.
 
 :::note 
-These are external repositories and are subject to change. 
+Some of these are external repositories and are subject to change. 
 :::
