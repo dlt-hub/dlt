@@ -44,7 +44,10 @@ DLT_INIT_DOCS_URL = "https://dlthub.com/docs/reference/command-line-interface#dl
 DEFAULT_VERIFIED_SOURCES_REPO = "https://github.com/dlt-hub/verified-sources.git"
 INIT_MODULE_NAME = "init"
 SOURCES_MODULE_NAME = "sources"
-SKIP_CORE_SOURCES_FOLDERS = ["helpers", "rest_api"] # TODO: remove rest api here once pipeline file is here
+SKIP_CORE_SOURCES_FOLDERS = [
+    "helpers",
+    "rest_api",
+]  # TODO: remove rest api here once pipeline file is here
 
 
 def _get_template_files(
