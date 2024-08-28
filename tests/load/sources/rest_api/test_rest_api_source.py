@@ -23,7 +23,7 @@ def _make_pipeline(destination_name: str):
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True),
+    destinations_configs(default_sql_configs=True, local_filesystem_configs=True),
     ids=lambda x: x.name,
 )
 def test_rest_api_source(destination_config: DestinationTestConfiguration, request: Any) -> None:
@@ -63,7 +63,7 @@ def test_rest_api_source(destination_config: DestinationTestConfiguration, reque
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True),
+    destinations_configs(default_sql_configs=True, local_filesystem_configs=True),
     ids=lambda x: x.name,
 )
 def test_dependent_resource(destination_config: DestinationTestConfiguration, request: Any) -> None:
