@@ -357,7 +357,9 @@ def is_nullable_column(col: TColumnSchemaBase) -> bool:
     return col.get("nullable", True)
 
 
-def find_incomplete_columns(tables: List[TTableSchema]) -> Iterable[Tuple[str, TColumnSchemaBase, bool]]:
+def find_incomplete_columns(
+    tables: List[TTableSchema],
+) -> Iterable[Tuple[str, TColumnSchemaBase, bool]]:
     """Yields (table_name, column, nullable) for all incomplete columns in `tables`"""
     for table in tables:
         for col in table["columns"].values():

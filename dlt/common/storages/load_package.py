@@ -143,8 +143,8 @@ def create_load_id() -> str:
 
 
 # folders to manage load jobs in a single load package
-TJobState = Literal["new_jobs", "failed_jobs", "started_jobs", "completed_jobs"]
-WORKING_FOLDERS: Set[TJobState] = set(get_args(TJobState))
+TPackageJobState = Literal["new_jobs", "failed_jobs", "started_jobs", "completed_jobs"]
+WORKING_FOLDERS: Set[TPackageJobState] = set(get_args(TPackageJobState))
 TLoadPackageStatus = Literal["new", "extracted", "normalized", "loaded", "aborted"]
 
 
@@ -191,7 +191,7 @@ class ParsedLoadJobFileName(NamedTuple):
 
 
 class LoadJobInfo(NamedTuple):
-    state: TJobState
+    state: TPackageJobState
     file_path: str
     file_size: int
     created_at: datetime.datetime
@@ -204,6 +204,7 @@ class LoadJobInfo(NamedTuple):
         # flatten
         del d["job_file_info"]
         d.update(self.job_file_info._asdict())
+        d["job_id"] = self.job_file_info.job_id()
         return d
 
     def asstr(self, verbosity: int = 0) -> str:
@@ -241,7 +242,7 @@ class _LoadPackageInfo(NamedTuple):
     schema: Schema
     schema_update: TSchemaTables
     completed_at: datetime.datetime
-    jobs: Dict[TJobState, List[LoadJobInfo]]
+    jobs: Dict[TPackageJobState, List[LoadJobInfo]]
 
 
 class LoadPackageInfo(SupportsHumanize, _LoadPackageInfo):
@@ -298,10 +299,10 @@ class LoadPackageInfo(SupportsHumanize, _LoadPackageInfo):
 
 
 class PackageStorage:
-    NEW_JOBS_FOLDER: ClassVar[TJobState] = "new_jobs"
-    FAILED_JOBS_FOLDER: ClassVar[TJobState] = "failed_jobs"
-    STARTED_JOBS_FOLDER: ClassVar[TJobState] = "started_jobs"
-    COMPLETED_JOBS_FOLDER: ClassVar[TJobState] = "completed_jobs"
+    NEW_JOBS_FOLDER: ClassVar[TPackageJobState] = "new_jobs"
+    FAILED_JOBS_FOLDER: ClassVar[TPackageJobState] = "failed_jobs"
+    STARTED_JOBS_FOLDER: ClassVar[TPackageJobState] = "started_jobs"
+    COMPLETED_JOBS_FOLDER: ClassVar[TPackageJobState] = "completed_jobs"
 
     SCHEMA_FILE_NAME: ClassVar[str] = "schema.json"
     SCHEMA_UPDATES_FILE_NAME = (  # updates to the tables in schema created by normalizer
@@ -330,11 +331,11 @@ class PackageStorage:
         """Gets path of the package relative to storage root"""
         return load_id
 
-    def get_job_state_folder_path(self, load_id: str, state: TJobState) -> str:
+    def get_job_state_folder_path(self, load_id: str, state: TPackageJobState) -> str:
         """Gets path to the jobs in `state` in package `load_id`, relative to the storage root"""
         return os.path.join(self.get_package_path(load_id), state)
 
-    def get_job_file_path(self, load_id: str, state: TJobState, file_name: str) -> str:
+    def get_job_file_path(self, load_id: str, state: TPackageJobState, file_name: str) -> str:
         """Get path to job with `file_name` in `state` in package `load_id`, relative to the storage root"""
         return os.path.join(self.get_job_state_folder_path(load_id, state), file_name)
 
@@ -369,12 +370,12 @@ class PackageStorage:
 
     def list_job_with_states_for_table(
         self, load_id: str, table_name: str
-    ) -> Sequence[Tuple[TJobState, ParsedLoadJobFileName]]:
+    ) -> Sequence[Tuple[TPackageJobState, ParsedLoadJobFileName]]:
         return self.filter_jobs_for_table(self.list_all_jobs_with_states(load_id), table_name)
 
     def list_all_jobs_with_states(
         self, load_id: str
-    ) -> Sequence[Tuple[TJobState, ParsedLoadJobFileName]]:
+    ) -> Sequence[Tuple[TPackageJobState, ParsedLoadJobFileName]]:
         info = self.get_load_package_jobs(load_id)
         state_jobs = []
         for state, jobs in info.items():
@@ -413,7 +414,7 @@ class PackageStorage:
     #
 
     def import_job(
-        self, load_id: str, job_file_path: str, job_state: TJobState = "new_jobs"
+        self, load_id: str, job_file_path: str, job_state: TPackageJobState = "new_jobs"
     ) -> None:
         """Adds new job by moving the `job_file_path` into `new_jobs` of package `load_id`"""
         self.storage.atomic_import(
@@ -568,12 +569,14 @@ class PackageStorage:
     # Get package info
     #
 
-    def get_load_package_jobs(self, load_id: str) -> Dict[TJobState, List[ParsedLoadJobFileName]]:
+    def get_load_package_jobs(
+        self, load_id: str
+    ) -> Dict[TPackageJobState, List[ParsedLoadJobFileName]]:
         """Gets all jobs in a package and returns them as lists assigned to a particular state."""
         package_path = self.get_package_path(load_id)
         if not self.storage.has_folder(package_path):
             raise LoadPackageNotFound(load_id)
-        all_jobs: Dict[TJobState, List[ParsedLoadJobFileName]] = {}
+        all_jobs: Dict[TPackageJobState, List[ParsedLoadJobFileName]] = {}
         for state in WORKING_FOLDERS:
             jobs: List[ParsedLoadJobFileName] = []
             with contextlib.suppress(FileNotFoundError):
@@ -616,7 +619,7 @@ class PackageStorage:
         schema = Schema.from_dict(self._load_schema(load_id))
 
         # read jobs with all statuses
-        all_job_infos: Dict[TJobState, List[LoadJobInfo]] = {}
+        all_job_infos: Dict[TPackageJobState, List[LoadJobInfo]] = {}
         for state, jobs in package_jobs.items():
             all_job_infos[state] = [
                 self._read_job_file_info(load_id, state, job, package_created_at) for job in jobs
@@ -643,7 +646,7 @@ class PackageStorage:
         return failed_message
 
     def job_to_job_info(
-        self, load_id: str, state: TJobState, job: ParsedLoadJobFileName
+        self, load_id: str, state: TPackageJobState, job: ParsedLoadJobFileName
     ) -> LoadJobInfo:
         """Creates partial job info by converting job object. size, mtime and failed message will not be populated"""
         full_path = os.path.join(
@@ -660,7 +663,11 @@ class PackageStorage:
         )
 
     def _read_job_file_info(
-        self, load_id: str, state: TJobState, job: ParsedLoadJobFileName, now: DateTime = None
+        self,
+        load_id: str,
+        state: TPackageJobState,
+        job: ParsedLoadJobFileName,
+        now: DateTime = None,
     ) -> LoadJobInfo:
         """Creates job info by reading additional props from storage"""
         failed_message = None
@@ -687,8 +694,8 @@ class PackageStorage:
     def _move_job(
         self,
         load_id: str,
-        source_folder: TJobState,
-        dest_folder: TJobState,
+        source_folder: TPackageJobState,
+        dest_folder: TPackageJobState,
         file_name: str,
         new_file_name: str = None,
     ) -> str:
@@ -736,8 +743,8 @@ class PackageStorage:
 
     @staticmethod
     def filter_jobs_for_table(
-        all_jobs: Iterable[Tuple[TJobState, ParsedLoadJobFileName]], table_name: str
-    ) -> Sequence[Tuple[TJobState, ParsedLoadJobFileName]]:
+        all_jobs: Iterable[Tuple[TPackageJobState, ParsedLoadJobFileName]], table_name: str
+    ) -> Sequence[Tuple[TPackageJobState, ParsedLoadJobFileName]]:
         return [job for job in all_jobs if job[1].table_name == table_name]
 
 

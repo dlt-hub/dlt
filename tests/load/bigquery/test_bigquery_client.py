@@ -32,6 +32,7 @@ from tests.load.utils import (
     prepare_table,
     yield_client_with_storage,
     cm_yield_client_with_storage,
+    cm_yield_client,
 )
 
 # mark all tests as essential, do not remove
@@ -51,6 +52,18 @@ def file_storage() -> FileStorage:
 @pytest.fixture(autouse=True)
 def auto_delete_storage() -> None:
     delete_test_storage()
+
+
+@pytest.fixture
+def bigquery_project_id() -> Iterator[str]:
+    project_id = "different_project_id"
+    project_id_key = "DESTINATION__BIGQUERY__PROJECT_ID"
+    saved_project_id = os.environ.get(project_id_key)
+    os.environ[project_id_key] = project_id
+    yield project_id
+    del os.environ[project_id_key]
+    if saved_project_id:
+        os.environ[project_id_key] = saved_project_id
 
 
 def test_service_credentials_with_default(environment: Any) -> None:
@@ -245,6 +258,21 @@ def test_bigquery_configuration() -> None:
     assert (
         BigQueryClientConfiguration()._bind_dataset_name(dataset_name="dataset").fingerprint() == ""
     )
+
+
+def test_bigquery_different_project_id(bigquery_project_id) -> None:
+    """Test scenario when bigquery project_id different from gcp credentials project_id."""
+    config = resolve_configuration(
+        BigQueryClientConfiguration()._bind_dataset_name(dataset_name="dataset"),
+        sections=("destination", "bigquery"),
+    )
+    assert config.project_id == bigquery_project_id
+    with cm_yield_client(
+        "bigquery",
+        dataset_name="dataset",
+        default_config_values={"project_id": bigquery_project_id},
+    ) as client:
+        assert bigquery_project_id in client.sql_client.catalog_name()
 
 
 def test_bigquery_autodetect_configuration(client: BigQueryClient) -> None:

@@ -1,7 +1,7 @@
 from typing import Dict, Optional, Sequence, List, Any
 
 from dlt.common.exceptions import TerminalValueError
-from dlt.common.destination.reference import FollowupJob
+from dlt.common.destination.reference import FollowupJobRequest
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.schema import TColumnSchema, TColumnHint, Schema
 from dlt.common.schema.typing import TTableSchema, TColumnType, TTableFormat
@@ -160,7 +160,9 @@ class MsSqlJobClient(InsertValuesJobClient):
         self.active_hints = HINT_TO_MSSQL_ATTR if self.config.create_indexes else {}
         self.type_mapper = MsSqlTypeMapper(self.capabilities)
 
-    def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[FollowupJob]:
+    def _create_merge_followup_jobs(
+        self, table_chain: Sequence[TTableSchema]
+    ) -> List[FollowupJobRequest]:
         return [MsSqlMergeJob.from_table_chain(table_chain, self.sql_client)]
 
     def _make_add_column_sql(
@@ -189,7 +191,7 @@ class MsSqlJobClient(InsertValuesJobClient):
 
     def _create_replace_followup_jobs(
         self, table_chain: Sequence[TTableSchema]
-    ) -> List[FollowupJob]:
+    ) -> List[FollowupJobRequest]:
         if self.config.replace_strategy == "staging-optimized":
             return [MsSqlStagingCopyJob.from_table_chain(table_chain, self.sql_client)]
         return super()._create_replace_followup_jobs(table_chain)

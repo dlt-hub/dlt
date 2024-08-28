@@ -5,12 +5,17 @@ from concurrent.futures import Executor
 import os
 
 from dlt.common import logger
+from dlt.common.metrics import LoadJobMetrics
 from dlt.common.runtime.signals import sleep
 from dlt.common.configuration import with_config, known_sections
 from dlt.common.configuration.accessors import config
 from dlt.common.pipeline import LoadInfo, LoadMetrics, SupportsPipeline, WithStepInfo
 from dlt.common.schema.utils import get_top_level_table
-from dlt.common.storages.load_storage import LoadPackageInfo, ParsedLoadJobFileName, TJobState
+from dlt.common.storages.load_storage import (
+    LoadPackageInfo,
+    ParsedLoadJobFileName,
+    TPackageJobState,
+)
 from dlt.common.storages.load_package import (
     LoadPackageStateInjectableContext,
     load_package as current_load_package,
@@ -29,7 +34,7 @@ from dlt.common.destination.reference import (
     Destination,
     RunnableLoadJob,
     LoadJob,
-    FollowupJob,
+    FollowupJobRequest,
     TLoadJobState,
     DestinationClientConfiguration,
     SupportsStagingDestination,
@@ -84,6 +89,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         self.pool = NullExecutor()
         self.load_storage: LoadStorage = self.create_storage(is_storage_owner)
         self._loaded_packages: List[LoadPackageInfo] = []
+        self._job_metrics: Dict[str, LoadJobMetrics] = {}
         self._run_loop_sleep_duration: float = (
             1.0  # amount of time to sleep between querying completed jobs
         )
@@ -308,7 +314,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         where they will be picked up for execution
         """
 
-        jobs: List[FollowupJob] = []
+        jobs: List[FollowupJobRequest] = []
         if isinstance(starting_job, HasFollowupJobs):
             # check for merge jobs only for jobs executing on the destination, the staging destination jobs must be excluded
             # NOTE: we may move that logic to the interface
@@ -392,6 +398,11 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 # create followup jobs
                 self.create_followup_jobs(load_id, state, job, schema)
 
+                # preserve metrics
+                metrics = job.metrics()
+                if metrics:
+                    self._job_metrics[job.job_id()] = metrics
+
                 # try to get exception message from job
                 failed_message = job.exception()
                 self.load_storage.normalized_packages.fail_job(
@@ -423,7 +434,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                     if r_c > 0 and r_c % self.config.raise_on_max_retries == 0:
                         pending_exception = LoadClientJobRetry(
                             load_id,
-                            job.job_file_info().job_id(),
+                            job.job_id(),
                             r_c,
                             self.config.raise_on_max_retries,
                             retry_message=retry_message,
@@ -431,6 +442,15 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
             elif state == "completed":
                 # create followup jobs
                 self.create_followup_jobs(load_id, state, job, schema)
+
+                # preserve metrics
+                # TODO: metrics should be persisted. this is different vs. all other steps because load step
+                # may be restarted in the middle of execution
+                # NOTE: we could use package state but cases with 100k jobs must be tested
+                metrics = job.metrics()
+                if metrics:
+                    self._job_metrics[job.job_id()] = metrics
+
                 # move to completed folder after followup jobs are created
                 # in case of exception when creating followup job, the loader will retry operation and try to complete again
                 self.load_storage.normalized_packages.complete_job(load_id, job.file_name())
@@ -464,14 +484,18 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         self.load_storage.complete_load_package(load_id, aborted)
         # collect package info
         self._loaded_packages.append(self.load_storage.get_load_package_info(load_id))
-        self._step_info_complete_load_id(load_id, metrics={"started_at": None, "finished_at": None})
+        # TODO: job metrics must be persisted
+        self._step_info_complete_load_id(
+            load_id,
+            metrics={"started_at": None, "finished_at": None, "job_metrics": self._job_metrics},
+        )
         # delete jobs only now
         self.load_storage.maybe_remove_completed_jobs(load_id)
         logger.info(
             f"All jobs completed, archiving package {load_id} with aborted set to {aborted}"
         )
 
-    def update_loadpackage_info(self, load_id: str) -> None:
+    def init_jobs_counter(self, load_id: str) -> None:
         # update counter we only care about the jobs that are scheduled to be loaded
         package_jobs = self.load_storage.normalized_packages.get_load_package_jobs(load_id)
         total_jobs = reduce(lambda p, c: p + len(c), package_jobs.values(), 0)
@@ -491,6 +515,8 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         # and they must be like that in order to drop existing tables
         dropped_tables = current_load_package()["state"].get("dropped_tables", [])
         truncated_tables = current_load_package()["state"].get("truncated_tables", [])
+
+        self.init_jobs_counter(load_id)
 
         # initialize analytical storage ie. create dataset required by passed schema
         with self.get_destination_client(schema) as job_client:
@@ -539,14 +565,10 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         pending_exception: Optional[LoadClientJobException] = None
         while True:
             try:
-                # we continously spool new jobs and complete finished ones
+                # we continuously spool new jobs and complete finished ones
                 running_jobs, finalized_jobs, new_pending_exception = self.complete_jobs(
                     load_id, running_jobs, schema
                 )
-                # update load package info if any jobs where finalized
-                if finalized_jobs:
-                    self.update_loadpackage_info(load_id)
-
                 pending_exception = pending_exception or new_pending_exception
 
                 # do not spool new jobs if there was a signal or an exception was encountered
@@ -608,7 +630,8 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 )
             ):
                 # the same load id may be processed across multiple runs
-                if not self.current_load_id:
+                if self.current_load_id is None:
+                    self._job_metrics = {}
                     self._step_info_start_load_id(load_id)
                 self.load_single_package(load_id, schema)
 

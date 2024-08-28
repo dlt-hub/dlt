@@ -136,7 +136,12 @@ If you set the [`replace` strategy](../../general-usage/full-loading.md) to `sta
 recreated with a [clone command](https://docs.snowflake.com/en/sql-reference/sql/create-clone) from the staging tables.
 
 ## Data loading
-The data is loaded using an internal Snowflake stage. We use the `PUT` command and per-table built-in stages by default. Stage files are immediately removed (if not specified otherwise).
+The data is loaded using an internal Snowflake stage. We use the `PUT` command and per-table built-in stages by default. Stage files are kept by default, unless specified otherwise via the `keep_staged_files` parameter:
+
+```toml
+[destination.snowflake]
+keep_staged_files = false
+```
 
 ## Supported file formats
 * [insert-values](../file-formats/insert-format.md) is used by default
@@ -171,7 +176,7 @@ Note that we ignore missing columns `ERROR_ON_COLUMN_COUNT_MISMATCH = FALSE` and
 Snowflake supports the following [column hints](https://dlthub.com/docs/general-usage/schema#tables-and-columns):
 * `cluster` - creates a cluster column(s). Many columns per table are supported and only when a new table is created.
 
-### Table and column identifiers
+## Table and column identifiers
 Snowflake supports both case sensitive and case insensitive identifiers. All unquoted and uppercase identifiers resolve case-insensitively in SQL statements. Case insensitive [naming conventions](../../general-usage/naming-convention.md#case-sensitive-and-insensitive-destinations) like the default **snake_case** will generate case insensitive identifiers. Case sensitive (like **sql_cs_v1**) will generate
 case sensitive identifiers that must be quoted in SQL statements.
 
