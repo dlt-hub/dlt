@@ -168,7 +168,7 @@ class PipelineTrace(SupportsHumanize, _PipelineTrace):
         """A dictionary representation of PipelineTrace that can be loaded with `dlt`"""
         d = self._asdict()
         # run step is the same as load step
-        d["steps"] = [step.asdict() for step in self.steps]  # if step.step != "run"
+        d["steps"] = [step.asdict() for step in self.steps if step.step != "run"]
         return d
 
     @property

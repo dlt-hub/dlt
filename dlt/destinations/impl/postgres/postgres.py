@@ -9,7 +9,7 @@ from dlt.common.destination.exceptions import (
 from dlt.common.destination.reference import (
     HasFollowupJobs,
     RunnableLoadJob,
-    FollowupJob,
+    FollowupJobRequest,
     LoadJob,
     TLoadJobState,
 )
@@ -278,7 +278,7 @@ class PostgresClient(InsertValuesJobClient):
 
     def _create_replace_followup_jobs(
         self, table_chain: Sequence[TTableSchema]
-    ) -> List[FollowupJob]:
+    ) -> List[FollowupJobRequest]:
         if self.config.replace_strategy == "staging-optimized":
             return [PostgresStagingCopyJob.from_table_chain(table_chain, self.sql_client)]
         return super()._create_replace_followup_jobs(table_chain)

@@ -14,7 +14,7 @@ from typing import Dict, List, Optional, Sequence, Any, Tuple
 
 
 from dlt.common.destination.reference import (
-    FollowupJob,
+    FollowupJobRequest,
     CredentialsConfiguration,
     SupportsStagingDestination,
     LoadJob,
@@ -33,7 +33,7 @@ from dlt.destinations.exceptions import DatabaseTerminalException, LoadJobTermin
 from dlt.destinations.job_client_impl import CopyRemoteFileLoadJob
 from dlt.destinations.impl.postgres.sql_client import Psycopg2SqlClient
 from dlt.destinations.impl.redshift.configuration import RedshiftClientConfiguration
-from dlt.destinations.job_impl import ReferenceFollowupJob
+from dlt.destinations.job_impl import ReferenceFollowupJobRequest
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.type_mapping import TypeMapper
 
@@ -237,7 +237,9 @@ class RedshiftClient(InsertValuesJobClient, SupportsStagingDestination):
         self.config: RedshiftClientConfiguration = config
         self.type_mapper = RedshiftTypeMapper(self.capabilities)
 
-    def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[FollowupJob]:
+    def _create_merge_followup_jobs(
+        self, table_chain: Sequence[TTableSchema]
+    ) -> List[FollowupJobRequest]:
         return [RedshiftMergeJob.from_table_chain(table_chain, self.sql_client)]
 
     def _get_column_def_sql(self, c: TColumnSchema, table: TTableSchema = None) -> str:
@@ -257,7 +259,7 @@ class RedshiftClient(InsertValuesJobClient, SupportsStagingDestination):
         """Starts SqlLoadJob for files ending with .sql or returns None to let derived classes to handle their specific jobs"""
         job = super().create_load_job(table, file_path, load_id, restore)
         if not job:
-            assert ReferenceFollowupJob.is_reference_job(
+            assert ReferenceFollowupJobRequest.is_reference_job(
                 file_path
             ), "Redshift must use staging to load files"
             job = RedshiftCopyFileLoadJob(
@@ -271,3 +273,6 @@ class RedshiftClient(InsertValuesJobClient, SupportsStagingDestination):
         self, pq_t: str, precision: Optional[int], scale: Optional[int]
     ) -> TColumnType:
         return self.type_mapper.from_db_type(pq_t, precision, scale)
+
+    def should_truncate_table_before_load_on_staging_destination(self, table: TTableSchema) -> bool:
+        return self.config.truncate_tables_on_staging_destination_before_load

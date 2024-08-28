@@ -34,7 +34,6 @@ from pyathena.formatter import (
 
 from dlt.common import logger
 from dlt.common.exceptions import TerminalValueError
-from dlt.common.storages.fsspec_filesystem import fsspec_from_config
 from dlt.common.utils import uniq_id, without_none
 from dlt.common.schema import TColumnSchema, Schema, TTableSchema
 from dlt.common.schema.typing import (
@@ -46,7 +45,7 @@ from dlt.common.schema.typing import (
 from dlt.common.schema.utils import table_schema_has_type
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import LoadJob
-from dlt.common.destination.reference import FollowupJob, SupportsStagingDestination
+from dlt.common.destination.reference import FollowupJobRequest, SupportsStagingDestination
 from dlt.common.data_writers.escape import escape_hive_identifier
 from dlt.destinations.sql_jobs import SqlStagingCopyFollowupJob, SqlMergeFollowupJob
 
@@ -452,7 +451,7 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
                 partition_clause = self._iceberg_partition_clause(
                     cast(Optional[Dict[str, str]], table.get(PARTITION_HINT))
                 )
-                sql.append(f"""CREATE TABLE {qualified_table_name}
+                sql.append(f"""{self._make_create_table(qualified_table_name, table)}
                         ({columns})
                         {partition_clause}
                         LOCATION '{location.rstrip('/')}'
@@ -490,7 +489,7 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
 
     def _create_append_followup_jobs(
         self, table_chain: Sequence[TTableSchema]
-    ) -> List[FollowupJob]:
+    ) -> List[FollowupJobRequest]:
         if self._is_iceberg_table(self.prepare_load_table(table_chain[0]["name"])):
             return [
                 SqlStagingCopyFollowupJob.from_table_chain(
@@ -501,7 +500,7 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
 
     def _create_replace_followup_jobs(
         self, table_chain: Sequence[TTableSchema]
-    ) -> List[FollowupJob]:
+    ) -> List[FollowupJobRequest]:
         if self._is_iceberg_table(self.prepare_load_table(table_chain[0]["name"])):
             return [
                 SqlStagingCopyFollowupJob.from_table_chain(
@@ -510,7 +509,9 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
             ]
         return super()._create_replace_followup_jobs(table_chain)
 
-    def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[FollowupJob]:
+    def _create_merge_followup_jobs(
+        self, table_chain: Sequence[TTableSchema]
+    ) -> List[FollowupJobRequest]:
         return [AthenaMergeJob.from_table_chain(table_chain, self.sql_client)]
 
     def _is_iceberg_table(self, table: TTableSchema) -> bool:
@@ -529,7 +530,7 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
         if table["write_disposition"] == "replace" and not self._is_iceberg_table(
             self.prepare_load_table(table["name"])
         ):
-            return True
+            return self.config.truncate_tables_on_staging_destination_before_load
         return False
 
     def should_load_data_to_staging_dataset_on_staging_destination(

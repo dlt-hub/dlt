@@ -5,7 +5,7 @@ from textwrap import dedent
 from urllib.parse import urlparse, urlunparse
 
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.reference import SupportsStagingDestination, FollowupJob, LoadJob
+from dlt.common.destination.reference import SupportsStagingDestination, FollowupJobRequest, LoadJob
 
 from dlt.common.schema import TTableSchema, TColumnSchema, Schema, TColumnHint
 from dlt.common.schema.utils import (
@@ -19,7 +19,7 @@ from dlt.common.configuration.specs import (
     AzureServicePrincipalCredentialsWithoutDefaults,
 )
 
-from dlt.destinations.job_impl import ReferenceFollowupJob
+from dlt.destinations.job_impl import ReferenceFollowupJobRequest
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.job_client_impl import (
     SqlJobClientBase,
@@ -131,7 +131,7 @@ class SynapseClient(MsSqlJobClient, SupportsStagingDestination):
 
     def _create_replace_followup_jobs(
         self, table_chain: Sequence[TTableSchema]
-    ) -> List[FollowupJob]:
+    ) -> List[FollowupJobRequest]:
         return SqlJobClientBase._create_replace_followup_jobs(self, table_chain)
 
     def prepare_load_table(self, table_name: str, staging: bool = False) -> TTableSchema:
@@ -163,7 +163,7 @@ class SynapseClient(MsSqlJobClient, SupportsStagingDestination):
     ) -> LoadJob:
         job = super().create_load_job(table, file_path, load_id, restore)
         if not job:
-            assert ReferenceFollowupJob.is_reference_job(
+            assert ReferenceFollowupJobRequest.is_reference_job(
                 file_path
             ), "Synapse must use staging to load files"
             job = SynapseCopyFileLoadJob(
@@ -172,6 +172,9 @@ class SynapseClient(MsSqlJobClient, SupportsStagingDestination):
                 self.config.staging_use_msi,
             )
         return job
+
+    def should_truncate_table_before_load_on_staging_destination(self, table: TTableSchema) -> bool:
+        return self.config.truncate_tables_on_staging_destination_before_load
 
 
 class SynapseCopyFileLoadJob(CopyRemoteFileLoadJob):
