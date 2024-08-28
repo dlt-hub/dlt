@@ -82,24 +82,7 @@ If you set the [`replace` strategy](../../general-usage/full-loading.md) to `sta
 ## Data loading
 `dlt` will load data using large INSERT VALUES statements by default. Loading is multithreaded (20 threads by default).
 
-### Fast loading with arrow tables and csv
-You can use [arrow tables](../verified-sources/arrow-pandas.md) and [csv](../file-formats/csv.md) to quickly load tabular data. Pick the `csv` loader file format
-like below
-```py
-info = pipeline.run(arrow_table, loader_file_format="csv")
-```
-In the example above `arrow_table` will be converted to csv with **pyarrow** and then streamed into **postgres** with COPY command. This method skips the regular
-`dlt` normalizer used for Python objects and is several times faster.
-
-## Supported file formats
-* [insert-values](../file-formats/insert-format.md) is used by default.
-* [csv](../file-formats/csv.md) is supported
-
-## Supported column hints
-`postgres` will create unique indexes for all columns with `unique` hints. This behavior **may be disabled**.
-
-## Supported column flags
-
+### Data types
 `postgres` supports various timestamp types, which can be configured using the column flags `timezone` and `precision` in the `dlt.resource` decorator or the `pipeline.run` method.
 
 - **Precision**: allows you to specify the number of decimal places for fractional seconds, ranging from 0 to 6. It can be used in combination with the `timezone` flag.
@@ -119,6 +102,22 @@ def events():
 pipeline = dlt.pipeline(destination="postgres")
 pipeline.run(events())
 ```
+
+### Fast loading with arrow tables and csv
+You can use [arrow tables](../verified-sources/arrow-pandas.md) and [csv](../file-formats/csv.md) to quickly load tabular data. Pick the `csv` loader file format
+like below
+```py
+info = pipeline.run(arrow_table, loader_file_format="csv")
+```
+In the example above `arrow_table` will be converted to csv with **pyarrow** and then streamed into **postgres** with COPY command. This method skips the regular
+`dlt` normalizer used for Python objects and is several times faster.
+
+## Supported file formats
+* [insert-values](../file-formats/insert-format.md) is used by default.
+* [csv](../file-formats/csv.md) is supported
+
+## Supported column hints
+`postgres` will create unique indexes for all columns with `unique` hints. This behavior **may be disabled**.
 
 ### Table and column identifiers
 Postgres supports both case sensitive and case insensitive identifiers. All unquoted and lowercase identifiers resolve case-insensitively in SQL statements. Case insensitive [naming conventions](../../general-usage/naming-convention.md#case-sensitive-and-insensitive-destinations) like the default **snake_case** will generate case insensitive identifiers. Case sensitive (like **sql_cs_v1**) will generate
