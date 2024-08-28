@@ -39,11 +39,12 @@ from dlt.cli.pipeline_files import (
 from dlt.cli.exceptions import CliCommandException
 from dlt.cli.requirements import SourceRequirements
 
+
 DLT_INIT_DOCS_URL = "https://dlthub.com/docs/reference/command-line-interface#dlt-init"
 DEFAULT_VERIFIED_SOURCES_REPO = "https://github.com/dlt-hub/verified-sources.git"
 INIT_MODULE_NAME = "init"
 SOURCES_MODULE_NAME = "sources"
-SKIP_CORE_SOURCES_FOLDERS = ["helpers"]
+SKIP_CORE_SOURCES_FOLDERS = ["helpers", "rest_api"] # TODO: remove rest api here once pipeline file is here
 
 
 def _get_template_files(
@@ -277,7 +278,7 @@ def init_command(
             local_sources_storage,
             pipeline_script,
             pipeline_script,
-            [],
+            [".gitignore"],
             SourceRequirements([]),
             "",
         )

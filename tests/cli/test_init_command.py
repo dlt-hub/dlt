@@ -49,6 +49,10 @@ from tests.cli.utils import (
 from tests.common.utils import modify_and_commit_file
 from tests.utils import IMPLEMENTED_DESTINATIONS, clean_test_storage
 
+# we hardcode the core sources here so we can check that the init script picks
+# up the right source
+CORE_SOURCES = ["filesystem"]
+
 
 def get_verified_source_candidates(repo_dir: str) -> List[str]:
     sources_storage = FileStorage(os.path.join(repo_dir, SOURCES_MODULE_NAME))
@@ -143,7 +147,7 @@ def test_init_list_verified_pipelines_update_warning(
     assert "0.0.1" not in parsed_requirement.specifier
 
 
-def test_init_all_verified_sources_together(repo_dir: str, project_files: FileStorage) -> None:
+def test_init_all_sources_together(repo_dir: str, project_files: FileStorage) -> None:
     source_candidates = get_verified_source_candidates(repo_dir)
     # source_candidates = [source_name for source_name in source_candidates if source_name == "salesforce"]
     for source_name in source_candidates:
@@ -530,7 +534,7 @@ def assert_source_files(
     visitor, secrets = assert_common_files(
         project_files, source_name + "_pipeline.py", destination_name
     )
-    assert project_files.has_folder(source_name)
+    assert project_files.has_folder(source_name) == (source_name not in CORE_SOURCES)
     source_secrets = secrets.get_value(source_name, type, None, source_name)
     if has_source_section:
         assert source_secrets is not None
