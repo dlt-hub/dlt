@@ -169,7 +169,7 @@ class ClientConfig(TypedDict, total=False):
     paginator: Optional[PaginatorConfig]
 
 
-class IncrementalRESTArgs(IncrementalArgs[Any], total=False):
+class IncrementalRESTArgs(IncrementalArgs, total=False):
     convert: Optional[Callable[..., Any]]
 
 

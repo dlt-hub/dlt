@@ -309,6 +309,7 @@ def test_posts_with_inremental_date_conversion(mock_api_server) -> None:
                         "start_param": "since",
                         "end_param": "until",
                         "cursor_path": "updated_at",
+                        # TODO: allow and test int and datetime values
                         "initial_value": str(start_time.int_timestamp),
                         "end_value": str(one_day_later.int_timestamp),
                         "convert": lambda epoch: pendulum.from_timestamp(

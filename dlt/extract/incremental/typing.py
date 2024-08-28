@@ -1,4 +1,4 @@
-from typing_extensions import Generic, TypedDict
+from typing_extensions import TypedDict
 
 from typing import Any, Callable, List, Literal, Optional, Sequence, TypeVar
 
@@ -17,11 +17,11 @@ class IncrementalColumnState(TypedDict):
     unique_hashes: List[str]
 
 
-class IncrementalArgs(TypedDict, Generic[TCursorValue], total=False):
+class IncrementalArgs(TypedDict, total=False):
     cursor_path: str
-    initial_value: Optional[TCursorValue]
-    last_value_func: Optional[LastValueFunc[TCursorValue]]
+    initial_value: Optional[str]
+    last_value_func: Optional[LastValueFunc[str]]
     primary_key: Optional[TTableHintTemplate[TColumnNames]]
-    end_value: Optional[TCursorValue]
+    end_value: Optional[str]
     row_order: Optional[TSortOrder]
     allow_external_schedulers: Optional[bool]
