@@ -1,7 +1,9 @@
 from typing import Iterator, Generator, Any, List, Mapping
 
+import lancedb  # type: ignore
 import pytest
-from lancedb import DBConnection  # type: ignore
+from lancedb import DBConnection
+from lancedb.embeddings import EmbeddingFunctionRegistry  # type: ignore
 
 import dlt
 from dlt.common import json
@@ -504,3 +506,47 @@ def test_semantic_query() -> None:
             .to_list()
         )
         assert results[0]["text"] == "Frodo was a happy puppy"
+
+
+def test_semantic_query_custom_embedding_functions_registered() -> None:
+    """Test the LanceDB registry registered custom embedding functions defined in models, if any.
+    See: https://github.com/dlt-hub/dlt/issues/1765"""
+
+    @dlt.resource
+    def search_data_resource() -> Generator[Mapping[str, object], Any, None]:
+        yield from search_data
+
+    lancedb_adapter(
+        search_data_resource,
+        embed=["text"],
+    )
+
+    pipeline = dlt.pipeline(
+        pipeline_name="test_fts_query",
+        destination="lancedb",
+        dataset_name=f"test_pipeline_append{uniq_id()}",
+    )
+    info = pipeline.run(
+        search_data_resource(),
+    )
+    assert_load_info(info)
+
+    client: LanceDBClient
+    with pipeline.destination_client() as client:  # type: ignore[assignment]
+        db_client_uri = client.db_client.uri
+        table_name = client.make_qualified_table_name("search_data_resource")
+
+    # A new python process doesn't seem to correctly deserialize the custom embedding functions into global __REGISTRY__.
+    EmbeddingFunctionRegistry.get_instance().reset()
+
+    # Must read into __REGISTRY__ here.
+    db = lancedb.connect(db_client_uri)
+    tbl = db[table_name]
+    tbl.checkout_latest()
+
+    results = (
+        tbl.search("puppy", query_type="vector", ordering_field_name="_distance")
+        .select(["text"])
+        .to_list()
+    )
+    assert results[0]["text"] == "Frodo was a happy puppy"
