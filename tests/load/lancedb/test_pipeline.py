@@ -1,6 +1,7 @@
-from typing import Iterator, Generator, Any, List
+from typing import Iterator, Generator, Any, List, Mapping
 
 import pytest
+from lancedb import DBConnection
 
 import dlt
 from dlt.common import json
@@ -433,3 +434,73 @@ def test_empty_dataset_allowed() -> None:
     assert client.dataset_name is None
     assert client.sentinel_table == "dltSentinelTable"
     assert_table(pipe, "content", expected_items_count=3)
+
+
+search_data = [
+    {"text": "Frodo was a happy puppy"},
+    {"text": "There are several kittens playing"},
+]
+
+
+def test_fts_query() -> None:
+    @dlt.resource
+    def search_data_resource() -> Generator[Mapping[str, object], Any, None]:
+        yield from search_data
+
+    pipeline = dlt.pipeline(
+        pipeline_name="test_fts_query",
+        destination="lancedb",
+        dataset_name=f"test_pipeline_append{uniq_id()}",
+    )
+    info = pipeline.run(
+        search_data_resource(),
+    )
+    assert_load_info(info)
+
+    client: LanceDBClient
+    with pipeline.destination_client() as client:  # type: ignore[assignment]
+        db_client: DBConnection = client.db_client
+
+        table_name = client.make_qualified_table_name("search_data_resource")
+        tbl = db_client[table_name]
+        tbl.checkout_latest()
+
+        tbl.create_fts_index("text")
+        results = tbl.search("kittens", query_type="fts").select(["text"]).to_list()
+        assert results[0]["text"] == "There are several kittens playing"
+
+
+def test_semantic_query() -> None:
+    @dlt.resource
+    def search_data_resource() -> Generator[Mapping[str, object], Any, None]:
+        yield from search_data
+
+    lancedb_adapter(
+        search_data_resource,
+        embed=["text"],
+    )
+
+    pipeline = dlt.pipeline(
+        pipeline_name="test_fts_query",
+        destination="lancedb",
+        dataset_name=f"test_pipeline_append{uniq_id()}",
+    )
+    info = pipeline.run(
+        search_data_resource(),
+    )
+    assert_load_info(info)
+
+    client: LanceDBClient
+    with pipeline.destination_client() as client:  # type: ignore[assignment]
+        db_client: DBConnection = client.db_client
+
+        table_name = client.make_qualified_table_name("search_data_resource")
+        tbl = db_client[table_name]
+        tbl.checkout_latest()
+
+        results = (
+            tbl.search("puppy", query_type="vector", ordering_field_name="_distance")
+            .select(["text"])
+            .to_list()
+        )
+        assert results[0]["text"] == "Frodo was a happy puppy"
