@@ -1,0 +1,38 @@
+---
+sidebar_label: factory
+title: destinations.impl.snowflake.factory
+---
+
+## snowflake Objects
+
+```python
+class snowflake(Destination[SnowflakeClientConfiguration, "SnowflakeClient"])
+```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/3739c9ac839aafef713f6d5ebbc6a81b2a39a1b0/dlt/destinations/impl/snowflake/factory.py#L14)
+
+### \_\_init\_\_
+
+```python
+def __init__(credentials: t.Union[SnowflakeCredentials, t.Dict[str, t.Any],
+                                  str] = None,
+             stage_name: t.Optional[str] = None,
+             keep_staged_files: bool = True,
+             destination_name: t.Optional[str] = None,
+             environment: t.Optional[str] = None,
+             **kwargs: t.Any) -> None
+```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/3739c9ac839aafef713f6d5ebbc6a81b2a39a1b0/dlt/destinations/impl/snowflake/factory.py#L26)
+
+Configure the Snowflake destination to use in a pipeline.
+
+All arguments provided here supersede other configuration sources such as environment variables and dlt config files.
+
+**Arguments**:
+
+- `credentials` - Credentials to connect to the snowflake database. Can be an instance of `SnowflakeCredentials` or
+  a connection string in the format `snowflake://user:password@host:port/database`
+- `stage_name` - Name of an existing stage to use for loading data. Default uses implicit stage per table
+- `keep_staged_files` - Whether to delete or keep staged files after loading
+

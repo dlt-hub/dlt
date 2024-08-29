@@ -83,7 +83,9 @@ const config = {
           href: 'https://dlthub.com'
         },
         items: [
-          { label: 'dlt ' + (process.env.IS_MASTER_BRANCH ? "stable ": "devel ") + (process.env.DOCUSAURUS_DLT_VERSION || "0.0.1"), position: 'left', href: 'https://github.com/dlt-hub/dlt', className: 'version-navbar'  },
+          {
+            type: 'docsVersionDropdown',
+          },          
           {
             type: 'doc',
             docId: 'intro',
