@@ -257,6 +257,27 @@ def destinations_configs(
     # build destination configs
     destination_configs: List[DestinationTestConfiguration] = []
 
+    # default sql configs that are also default staging configs
+    default_sql_configs_with_staging = [
+        # Athena needs filesystem staging, which will be automatically set; we have to supply a bucket url though.
+        DestinationTestConfiguration(
+            destination="athena",
+            file_format="parquet",
+            supports_merge=False,
+            bucket_url=AWS_BUCKET,
+        ),
+        DestinationTestConfiguration(
+            destination="athena",
+            file_format="parquet",
+            bucket_url=AWS_BUCKET,
+            force_iceberg=True,
+            supports_merge=True,
+            supports_dbt=False,
+            table_format="iceberg",
+            extra_info="iceberg",
+        ),
+    ]
+
     # default non staging sql based configs, one per destination
     if default_sql_configs:
         destination_configs += [
@@ -268,26 +289,10 @@ def destinations_configs(
             DestinationTestConfiguration(destination="duckdb", file_format="parquet"),
             DestinationTestConfiguration(destination="motherduck", file_format="insert_values"),
         ]
-        # Athena needs filesystem staging, which will be automatically set; we have to supply a bucket url though.
-        destination_configs += [
-            DestinationTestConfiguration(
-                destination="athena",
-                file_format="parquet",
-                supports_merge=False,
-                bucket_url=AWS_BUCKET,
-            )
-        ]
-        destination_configs += [
-            DestinationTestConfiguration(
-                destination="athena",
-                file_format="parquet",
-                bucket_url=AWS_BUCKET,
-                force_iceberg=True,
-                supports_merge=True,
-                supports_dbt=False,
-                extra_info="iceberg",
-            )
-        ]
+
+        # add Athena staging configs
+        destination_configs += default_sql_configs_with_staging
+
         destination_configs += [
             DestinationTestConfiguration(
                 destination="clickhouse", file_format="jsonl", supports_dbt=False
@@ -331,6 +336,10 @@ def destinations_configs(
             ),
             DestinationTestConfiguration(destination="qdrant", extra_info="server"),
         ]
+
+    if (default_sql_configs or all_staging_configs) and not default_sql_configs:
+        # athena default configs not added yet
+        destination_configs += default_sql_configs_with_staging
 
     if default_staging_configs or all_staging_configs:
         destination_configs += [
