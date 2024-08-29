@@ -1,7 +1,7 @@
 from typing import Iterator, Generator, Any, List, Mapping
 
 import pytest
-from lancedb import DBConnection
+from lancedb import DBConnection  # type: ignore
 
 import dlt
 from dlt.common import json
@@ -22,7 +22,7 @@ pytestmark = pytest.mark.essential
 
 
 @pytest.fixture(autouse=True)
-def drop_lancedb_data() -> Iterator[None]:
+def drop_lancedb_data() -> Iterator[Any]:
     yield
     drop_active_pipeline_data()
 
