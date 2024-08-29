@@ -155,6 +155,7 @@ pyjwt = "^2.8.0"
 pytest-mock = "^3.14.0"
 types-regex = "^2024.5.15.20240519"
 flake8-print = "^5.0.0"
+paramiko = "^3.4.1"
 
 [tool.poetry.group.pipeline]
 optional = true
