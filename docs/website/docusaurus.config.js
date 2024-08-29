@@ -50,12 +50,7 @@ const config = {
           editUrl: (params) => {
             return "https://github.com/dlt-hub/dlt/tree/devel/docs/website/docs/" + params.docPath;
           },
-          versions: {
-            current: {
-              label: 'current',
-            },
-          },
-          lastVersion: 'current',
+
           showLastUpdateAuthor: true,
           showLastUpdateTime: true,
         },
