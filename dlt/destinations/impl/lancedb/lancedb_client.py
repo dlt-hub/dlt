@@ -725,11 +725,13 @@ class LanceDBLoadJob(RunnableLoadJob):
         if (self._job_client.config.embedding_model_provider == "openai") and (
             source_columns := get_columns_names_with_prop(self._load_table, VECTORIZE_HINT)
         ):
-            records: List[Dict[str, Any]]
-            for record in records:
-                for k, v in record.items():
-                    if k in source_columns and not v:
-                        record[k] = EMPTY_STRING_PLACEHOLDER
+            records = [
+                {
+                    k: EMPTY_STRING_PLACEHOLDER if k in source_columns and v in ("", None) else v
+                    for k, v in record.items()
+                }
+                for record in records
+            ]
 
         if self._load_table not in self._schema.dlt_tables():
             for record in records:
