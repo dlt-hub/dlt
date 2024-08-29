@@ -104,12 +104,11 @@ Here's a concise guide to orchestrating a `dlt` pipeline with Dagster, creating 
       import dlt
       from dagster import AssetExecutionContext
       from dagster_embedded_elt.dlt import DagsterDltResource, dlt_assets
-      from dlt import pipeline
       from .github_pipeline import github_source
       
       @dlt_assets(
           dlt_source=github_source(),
-          dlt_pipeline=pipeline(
+          dlt_pipeline=dlt.pipeline(
               pipeline_name="github_issues",
               dataset_name="github",
               destination="duckdb",
@@ -130,7 +129,6 @@ Here's a concise guide to orchestrating a `dlt` pipeline with Dagster, creating 
    The last step is to include the assets and resource in a [Definitions](https://docs.dagster.io/_apidocs/definitions#dagster.Definitions) object ('github_source/definitions.py'). This enables Dagster tools to load everything we have defined:
 
    ```py
-    import assets
     from dagster import Definitions, load_assets_from_modules
     from dagster_embedded_elt.dlt import DagsterDltResource
     from . import assets
