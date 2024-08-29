@@ -131,7 +131,7 @@ Here's a concise guide to orchestrating a `dlt` pipeline with Dagster, creating 
    ```py
     from dagster import Definitions, load_assets_from_modules
     from dagster_embedded_elt.dlt import DagsterDltResource
-    from . import assets
+    import assets
     
     dlt_resource = DagsterDltResource()
     all_assets = load_assets_from_modules([assets])
