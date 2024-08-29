@@ -259,6 +259,13 @@ bucket_url='\\?\UNC\localhost\c$\a\b\c'
 ```
 :::
 
+### SFTP
+
+TODO: add explanation and examples
+```py
+pip install paramiko
+```
+
 ## Write disposition
 The filesystem destination handles the write dispositions as follows:
 - `append` - files belonging to such tables are added to the dataset folder
