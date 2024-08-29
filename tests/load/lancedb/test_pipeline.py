@@ -1,3 +1,4 @@
+import multiprocessing
 from typing import Iterator, Generator, Any, List, Mapping
 
 import lancedb  # type: ignore
@@ -536,17 +537,26 @@ def test_semantic_query_custom_embedding_functions_registered() -> None:
         db_client_uri = client.db_client.uri
         table_name = client.make_qualified_table_name("search_data_resource")
 
-    # A new python process doesn't seem to correctly deserialize the custom embedding functions into global __REGISTRY__.
-    EmbeddingFunctionRegistry.get_instance().reset()
+    # A new python process doesn't seem to correctly deserialize the custom embedding
+    # functions into global __REGISTRY__.
+    # We make sure to reset it as well to make sure no globals are propagated to the spawned process.
+    EmbeddingFunctionRegistry().reset()
+    with multiprocessing.get_context("spawn").Pool(1) as pool:
+        results = pool.apply(run_lance_search_in_separate_process, (db_client_uri, table_name))
+
+    assert results[0]["text"] == "Frodo was a happy puppy"
+
+
+def run_lance_search_in_separate_process(db_client_uri: str, table_name: str) -> Any:
+    import lancedb
 
     # Must read into __REGISTRY__ here.
     db = lancedb.connect(db_client_uri)
     tbl = db[table_name]
     tbl.checkout_latest()
 
-    results = (
+    return (
         tbl.search("puppy", query_type="vector", ordering_field_name="_distance")
         .select(["text"])
         .to_list()
     )
-    assert results[0]["text"] == "Frodo was a happy puppy"
