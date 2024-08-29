@@ -96,11 +96,12 @@ Here's a concise guide to orchestrating a `dlt` pipeline with Dagster, creating 
       ```
  1. Create a dlt_assets definition:
     
-     The @dlt_assets decorator takes a 'dlt_source' and 'dlt_pipeline' parameter. In this example, we used the 'github_source' source and created a 'dlt_pipeline' to ingest data from Github to DuckDB.
+     The @dlt_assets decorator takes a `dlt_source` and `dlt_pipeline` parameter. In this example, we used the `github_source` source and created a `dlt_pipeline` to ingest data from Github to DuckDB.
 
     Here’s an example of how to define assets (github_source/assets.py):
 
       ```py
+      import dlt
       from dagster import AssetExecutionContext
       from dagster_embedded_elt.dlt import DagsterDltResource, dlt_assets
       from dlt import pipeline
@@ -129,6 +130,7 @@ Here's a concise guide to orchestrating a `dlt` pipeline with Dagster, creating 
    The last step is to include the assets and resource in a [Definitions](https://docs.dagster.io/_apidocs/definitions#dagster.Definitions) object ('github_source/definitions.py'). This enables Dagster tools to load everything we have defined:
 
    ```py
+    import assets
     from dagster import Definitions, load_assets_from_modules
     from dagster_embedded_elt.dlt import DagsterDltResource
     from . import assets
