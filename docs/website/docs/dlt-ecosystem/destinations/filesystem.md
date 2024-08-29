@@ -262,7 +262,8 @@ bucket_url='\\?\UNC\localhost\c$\a\b\c'
 ### SFTP
 
 TODO: add explanation and examples
-```py
+
+```sh
 pip install paramiko
 ```
 
