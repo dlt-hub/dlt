@@ -50,13 +50,7 @@ capabilities for handling data extraction and load and Dagster's orchestration f
 
 ### Orchestrating `dlt` pipeline on Dagster
 
-Here's a concise guide to orchestrating a `dlt` pipeline with Dagster, creating a pipeline which ingests GitHub issues data from a repository and loading
-
-using the project "Ingesting
-GitHub issues data from a repository and storing it in BigQuery" as an example. 
-
-More details can be found in the article
-[“Orchestrating unstructured data pipelines with dagster and dlt."](https://dagster.io/blog/dagster-dlt)
+Here's a concise guide to orchestrating a `dlt` pipeline with Dagster, creating a pipeline which ingests GitHub issues data from a repository and loads it to DuckDB.
 
 **The steps are as follows:**
 
@@ -102,13 +96,14 @@ More details can be found in the article
       ```
  1. Create a dlt_assets definition:
     
-     The @dlt_assets decorator takes a dlt_source and dlt_pipeline parameter. In this example, we used the github_source source and created a     dlt_pipeline to ingest data from Github to DuckDB.
+     The @dlt_assets decorator takes a 'dlt_source' and 'dlt_pipeline' parameter. In this example, we used the 'github_source' source and created a 'dlt_pipeline' to ingest data from Github to DuckDB.
 
     Here’s an example of how to define assets (github_source/assets.py):
 
       ```py
       from dagster import AssetExecutionContext
       from dagster_embedded_elt.dlt import DagsterDltResource, dlt_assets
+      from dlt import pipeline
       from .github_pipeline import github_source
       
       @dlt_assets(
@@ -131,7 +126,7 @@ More details can be found in the article
     
 1. Create the Definitions object
 
-   The last step is to include the assets and resource in a [Definitions](https://docs.dagster.io/_apidocs/definitions#dagster.Definitions) object (github_source/definitions.py). This enables Dagster tools to load everything we've defined:
+   The last step is to include the assets and resource in a [Definitions](https://docs.dagster.io/_apidocs/definitions#dagster.Definitions) object ('github_source/definitions.py'). This enables Dagster tools to load everything we have defined:
 
    ```py
     from dagster import Definitions, load_assets_from_modules
