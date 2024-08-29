@@ -14,14 +14,19 @@ fs = fsspec.filesystem("sftp", host="localhost", port=2222, username="foo", key_
 # List files on the SFTP server
 print(fs.ls("/data"))
 
+example = "/data/hello.txt"
+
 # Write data to a file
-with fs.open("/data/hello.txt", "w") as f:
+with fs.open(example, "w") as f:
     f.write("This is a new file added via SFTP!")
 
 # Read data from the file
-with fs.open("/data/hello.txt", "r") as f:
+with fs.open(example, "r") as f:
     data = f.read()
     print(data)
+
+# Check file metada -> confirmed! field mtime (modification time) available
+print(fs.info(example))
 
 # List files on the SFTP server
 print(fs.ls("/data"))
