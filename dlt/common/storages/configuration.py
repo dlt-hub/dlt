@@ -12,6 +12,7 @@ from dlt.common.configuration.specs import (
     GcpOAuthCredentials,
     AnyAzureCredentials,
     BaseConfiguration,
+    SFTPCredentials,
 )
 from dlt.common.typing import DictStrAny
 from dlt.common.utils import digest128
@@ -48,7 +49,11 @@ class LoadStorageConfiguration(BaseConfiguration):
 
 
 FileSystemCredentials = Union[
-    AwsCredentials, GcpServiceAccountCredentials, AnyAzureCredentials, GcpOAuthCredentials
+    AwsCredentials,
+    GcpServiceAccountCredentials,
+    AnyAzureCredentials,
+    GcpOAuthCredentials,
+    SFTPCredentials,
 ]
 
 
@@ -109,6 +114,7 @@ class FilesystemConfiguration(BaseConfiguration):
     * az, abfs, adl, abfss, azure
     * file, memory
     * gdrive
+    * sftp
     """
 
     PROTOCOL_CREDENTIALS: ClassVar[Dict[str, Any]] = {
@@ -121,6 +127,7 @@ class FilesystemConfiguration(BaseConfiguration):
         "adl": AnyAzureCredentials,
         "abfss": AnyAzureCredentials,
         "azure": AnyAzureCredentials,
+        "sftp": SFTPCredentials,
     }
 
     bucket_url: str = None
