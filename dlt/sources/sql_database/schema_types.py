@@ -22,10 +22,10 @@ ReflectionLevel = Literal["minimal", "full", "full_with_precision"]
 
 # optionally create generics with any so they can be imported by dlt importer
 if TYPE_CHECKING:
-    SelectAny: TypeAlias = Select[Any]
-    ColumnAny: TypeAlias = Column[Any]
-    RowAny: TypeAlias = Row[Any]
-    TypeEngineAny = TypeEngine[Any]
+    SelectAny: TypeAlias = Select[Any]  # type: ignore[type-arg]
+    ColumnAny: TypeAlias = Column[Any]  # type: ignore[type-arg]
+    RowAny: TypeAlias = Row[Any]  # type: ignore[type-arg]
+    TypeEngineAny = TypeEngine[Any]  # type: ignore[type-arg]
 else:
     SelectAny: TypeAlias = Type[Any]
     ColumnAny: TypeAlias = Type[Any]
@@ -40,10 +40,10 @@ def default_table_adapter(table: Table, included_columns: Optional[List[str]]) -
     """Default table adapter being always called before custom one"""
     if included_columns is not None:
         # Delete columns not included in the load
-        for col in list(table._columns):
+        for col in list(table._columns):  # type: ignore[attr-defined]
             if col.name not in included_columns:
-                table._columns.remove(col)
-    for col in table._columns:
+                table._columns.remove(col)  # type: ignore[attr-defined]
+    for col in table._columns:  # type: ignore[attr-defined]
         sql_t = col.type
         # if isinstance(sql_t, sqltypes.Uuid):  # in sqlalchemy 2.0 uuid type is available
         # emit uuids as string by default
@@ -70,7 +70,7 @@ def sqla_col_to_column_schema(
     sql_t = sql_col.type
 
     if type_adapter_callback:
-        sql_t = type_adapter_callback(sql_t)  # type: ignore[assignment]
+        sql_t = type_adapter_callback(sql_t)
         # Check if sqla type class rather than instance is returned
         if sql_t is not None and isinstance(sql_t, type):
             sql_t = sql_t()

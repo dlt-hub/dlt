@@ -50,7 +50,7 @@ def row_tuples_to_arrow(rows: Sequence[RowAny], columns: TTableSchemaColumns, tz
     try:
         from pandas._libs import lib
 
-        pivoted_rows = lib.to_object_array_tuples(rows).T  # type: ignore[attr-defined]
+        pivoted_rows = lib.to_object_array_tuples(rows).T
     except ImportError:
         logger.info(
             "Pandas not installed, reverting to numpy.asarray to create a table which is slower"

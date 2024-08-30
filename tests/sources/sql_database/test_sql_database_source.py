@@ -2,7 +2,7 @@ import os
 import re
 from copy import deepcopy
 from datetime import datetime  # noqa: I251
-from typing import Any, Callable, List, Optional, Set
+from typing import Any, Callable, cast, List, Optional, Set
 
 import pytest
 import sqlalchemy as sa
@@ -48,6 +48,7 @@ def reset_os_environ():
     # Restore the original state of os.environ
     os.environ.clear()
     os.environ.update(original_environ)
+
 
 def make_pipeline(destination_name: str) -> dlt.Pipeline:
     return dlt.pipeline(
@@ -240,7 +241,7 @@ def test_load_sql_table_resource_select_columns(
         schema=sql_source_db.schema,
         table="chat_message",
         defer_table_reflect=defer_table_reflect,
-        table_adapter_callback=lambda table: table._columns.remove(table.columns["content"]),
+        table_adapter_callback=lambda table: table._columns.remove(table.columns["content"]),  # type: ignore[attr-defined]
         backend=backend,
     )
     pipeline = make_pipeline("duckdb")
@@ -393,7 +394,7 @@ def test_type_adapter_callback(
     def conversion_callback(t):
         if isinstance(t, sa.JSON):
             return sa.Text
-        elif isinstance(t, sa.Double):
+        elif isinstance(t, sa.Double):  # type: ignore[attr-defined]
             return sa.BIGINT
         return t
 
@@ -994,7 +995,7 @@ def assert_precision_columns(
     actual = list(columns.values())
     expected = NULL_PRECISION_COLUMNS if nullable else NOT_NULL_PRECISION_COLUMNS
     # always has nullability set and always has hints
-    expected = deepcopy(expected)
+    expected = cast(List[TColumnSchema], deepcopy(expected))
     if backend == "sqlalchemy":
         expected = remove_timestamp_precision(expected)
         actual = remove_dlt_columns(actual)
@@ -1014,11 +1015,15 @@ def assert_no_precision_columns(
     actual = list(columns.values())
 
     # we always infer and emit nullability
-    expected: List[TColumnSchema] = deepcopy(
-        NULL_NO_PRECISION_COLUMNS if nullable else NOT_NULL_NO_PRECISION_COLUMNS
+    expected = cast(
+        List[TColumnSchema],
+        deepcopy(NULL_NO_PRECISION_COLUMNS if nullable else NOT_NULL_NO_PRECISION_COLUMNS),
     )
     if backend == "pyarrow":
-        expected = deepcopy(NULL_PRECISION_COLUMNS if nullable else NOT_NULL_PRECISION_COLUMNS)
+        expected = cast(
+            List[TColumnSchema],
+            deepcopy(NULL_PRECISION_COLUMNS if nullable else NOT_NULL_PRECISION_COLUMNS),
+        )
         # always has nullability set and always has hints
         # default precision is not set
         expected = remove_default_precision(expected)
@@ -1032,7 +1037,10 @@ def assert_no_precision_columns(
         # pandas destroys decimals
         expected = convert_non_pandas_types(expected)
     elif backend == "connectorx":
-        expected = deepcopy(NULL_PRECISION_COLUMNS if nullable else NOT_NULL_PRECISION_COLUMNS)
+        expected = cast(
+            List[TColumnSchema],
+            deepcopy(NULL_PRECISION_COLUMNS if nullable else NOT_NULL_PRECISION_COLUMNS),
+        )
         expected = convert_connectorx_types(expected)
 
     assert actual == expected

@@ -84,8 +84,10 @@ def test_row_tuples_to_arrow_unknown_types(all_unknown: bool) -> None:
 
 
 pytest.importorskip("sqlalchemy", minversion="2.0")
+
+
 def test_row_tuples_to_arrow_detects_range_type() -> None:
-    from sqlalchemy.dialects.postgresql import Range
+    from sqlalchemy.dialects.postgresql import Range  # type: ignore[attr-defined]
 
     # Applies to NUMRANGE, DATERANGE, etc sql types. Sqlalchemy returns a Range dataclass
     IntRange = Range
@@ -95,7 +97,11 @@ def test_row_tuples_to_arrow_detects_range_type() -> None:
         (IntRange(2, 20),),
         (IntRange(3, 30),),
     ]
-    result = row_tuples_to_arrow(rows=rows, columns={"range_col": {"name": "range_col", "nullable": False}}, tz="UTC")
+    result = row_tuples_to_arrow(
+        rows=rows,  # type: ignore[arg-type]
+        columns={"range_col": {"name": "range_col", "nullable": False}},
+        tz="UTC",
+    )
     assert result.num_columns == 1
     assert pa.types.is_struct(result[0].type)
 

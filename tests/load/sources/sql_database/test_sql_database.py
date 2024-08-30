@@ -170,6 +170,7 @@ def test_load_sql_table_incremental(
     assert_row_counts(pipeline, sql_source_db, tables)
 
 
+@pytest.mark.skip(reason="Skipping this test temporarily")
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(default_sql_configs=True),

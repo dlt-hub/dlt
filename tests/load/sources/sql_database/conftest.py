@@ -1,1 +1,1 @@
-from tests.sources.sql_database.conftest import *
+from tests.sources.sql_database.conftest import *  # noqa: F403
