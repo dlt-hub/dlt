@@ -78,7 +78,7 @@ else:
 
 TIMESTAMP_PRECISION_TO_UNIT: Dict[int, str] = {0: "s", 3: "ms", 6: "us", 9: "ns"}
 UNIT_TO_TIMESTAMP_PRECISION: Dict[str, int] = {v: k for k, v in TIMESTAMP_PRECISION_TO_UNIT.items()}
-EMPTY_STRING_PLACEHOLDER = "__EMPTY_STRING_PLACEHOLDER__"
+EMPTY_STRING_PLACEHOLDER = "0uEoDNBpQUBwsxKbmxxB"
 
 
 class LanceDBTypeMapper(TypeMapper):
