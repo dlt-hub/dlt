@@ -34,7 +34,6 @@ from pyathena.formatter import (
 
 from dlt.common import logger
 from dlt.common.exceptions import TerminalValueError
-from dlt.common.storages.fsspec_filesystem import fsspec_from_config
 from dlt.common.utils import uniq_id, without_none
 from dlt.common.schema import TColumnSchema, Schema, TTableSchema
 from dlt.common.schema.typing import (
@@ -45,10 +44,10 @@ from dlt.common.schema.typing import (
 )
 from dlt.common.schema.utils import table_schema_has_type
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.reference import LoadJob, DoNothingFollowupJob, DoNothingJob
-from dlt.common.destination.reference import NewLoadJob, SupportsStagingDestination
+from dlt.common.destination.reference import LoadJob
+from dlt.common.destination.reference import FollowupJobRequest, SupportsStagingDestination
 from dlt.common.data_writers.escape import escape_hive_identifier
-from dlt.destinations.sql_jobs import SqlStagingCopyJob, SqlMergeJob
+from dlt.destinations.sql_jobs import SqlStagingCopyFollowupJob, SqlMergeFollowupJob
 
 from dlt.destinations.typing import DBApi, DBTransaction
 from dlt.destinations.exceptions import (
@@ -65,6 +64,7 @@ from dlt.destinations.sql_client import (
 )
 from dlt.destinations.typing import DBApiCursor
 from dlt.destinations.job_client_impl import SqlJobClientWithStaging
+from dlt.destinations.job_impl import FinalizedLoadJobWithFollowupJobs, FinalizedLoadJob
 from dlt.destinations.impl.athena.configuration import AthenaClientConfiguration
 from dlt.destinations.type_mapping import TypeMapper
 from dlt.destinations import path_utils
@@ -104,9 +104,9 @@ class AthenaTypeMapper(TypeMapper):
     def __init__(self, capabilities: DestinationCapabilitiesContext):
         super().__init__(capabilities)
 
-    def to_db_integer_type(
-        self, precision: Optional[int], table_format: TTableFormat = None
-    ) -> str:
+    def to_db_integer_type(self, column: TColumnSchema, table: TTableSchema = None) -> str:
+        precision = column.get("precision")
+        table_format = table.get("table_format")
         if precision is None:
             return "bigint"
         if precision <= 8:
@@ -160,7 +160,7 @@ class DLTAthenaFormatter(DefaultParameterFormatter):
         DLTAthenaFormatter._INSTANCE = self
 
 
-class AthenaMergeJob(SqlMergeJob):
+class AthenaMergeJob(SqlMergeFollowupJob):
     @classmethod
     def _new_temp_table_name(cls, name_prefix: str, sql_client: SqlClientBase[Any]) -> str:
         # reproducible name so we know which table to drop
@@ -403,9 +403,9 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
     ) -> TColumnType:
         return self.type_mapper.from_db_type(hive_t, precision, scale)
 
-    def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:
+    def _get_column_def_sql(self, c: TColumnSchema, table: TTableSchema = None) -> str:
         return (
-            f"{self.sql_client.escape_ddl_identifier(c['name'])} {self.type_mapper.to_db_type(c, table_format)}"
+            f"{self.sql_client.escape_ddl_identifier(c['name'])} {self.type_mapper.to_db_type(c, table)}"
         )
 
     def _iceberg_partition_clause(self, partition_hints: Optional[Dict[str, str]]) -> str:
@@ -429,9 +429,9 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
         # for the system tables we need to create empty iceberg tables to be able to run, DELETE and UPDATE queries
         # or if we are in iceberg mode, we create iceberg tables for all tables
         table = self.prepare_load_table(table_name, self.in_staging_mode)
-        table_format = table.get("table_format")
+
         is_iceberg = self._is_iceberg_table(table) or table.get("write_disposition", None) == "skip"
-        columns = ", ".join([self._get_column_def_sql(c, table_format) for c in new_columns])
+        columns = ", ".join([self._get_column_def_sql(c, table) for c in new_columns])
 
         # create unique tag for iceberg table so it is never recreated in the same folder
         # athena requires some kind of special cleaning (or that is a bug) so we cannot refresh
@@ -451,7 +451,7 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
                 partition_clause = self._iceberg_partition_clause(
                     cast(Optional[Dict[str, str]], table.get(PARTITION_HINT))
                 )
-                sql.append(f"""CREATE TABLE {qualified_table_name}
+                sql.append(f"""{self._make_create_table(qualified_table_name, table)}
                         ({columns})
                         {partition_clause}
                         LOCATION '{location.rstrip('/')}'
@@ -468,7 +468,9 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
                         LOCATION '{location}';""")
         return sql
 
-    def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
+    def create_load_job(
+        self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
+    ) -> LoadJob:
         """Starts SqlLoadJob for files ending with .sql or returns None to let derived classes to handle their specific jobs"""
         if table_schema_has_type(table, "time"):
             raise LoadJobTerminalException(
@@ -476,32 +478,40 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
                 "Athena cannot load TIME columns from parquet tables. Please convert"
                 " `datetime.time` objects in your data to `str` or `datetime.datetime`.",
             )
-        job = super().start_file_load(table, file_path, load_id)
+        job = super().create_load_job(table, file_path, load_id, restore)
         if not job:
             job = (
-                DoNothingFollowupJob(file_path)
+                FinalizedLoadJobWithFollowupJobs(file_path)
                 if self._is_iceberg_table(self.prepare_load_table(table["name"]))
-                else DoNothingJob(file_path)
+                else FinalizedLoadJob(file_path)
             )
         return job
 
-    def _create_append_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
+    def _create_append_followup_jobs(
+        self, table_chain: Sequence[TTableSchema]
+    ) -> List[FollowupJobRequest]:
         if self._is_iceberg_table(self.prepare_load_table(table_chain[0]["name"])):
             return [
-                SqlStagingCopyJob.from_table_chain(table_chain, self.sql_client, {"replace": False})
+                SqlStagingCopyFollowupJob.from_table_chain(
+                    table_chain, self.sql_client, {"replace": False}
+                )
             ]
         return super()._create_append_followup_jobs(table_chain)
 
     def _create_replace_followup_jobs(
         self, table_chain: Sequence[TTableSchema]
-    ) -> List[NewLoadJob]:
+    ) -> List[FollowupJobRequest]:
         if self._is_iceberg_table(self.prepare_load_table(table_chain[0]["name"])):
             return [
-                SqlStagingCopyJob.from_table_chain(table_chain, self.sql_client, {"replace": True})
+                SqlStagingCopyFollowupJob.from_table_chain(
+                    table_chain, self.sql_client, {"replace": True}
+                )
             ]
         return super()._create_replace_followup_jobs(table_chain)
 
-    def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
+    def _create_merge_followup_jobs(
+        self, table_chain: Sequence[TTableSchema]
+    ) -> List[FollowupJobRequest]:
         return [AthenaMergeJob.from_table_chain(table_chain, self.sql_client)]
 
     def _is_iceberg_table(self, table: TTableSchema) -> bool:

@@ -6,14 +6,20 @@ from dlt.common.destination.exceptions import (
     DestinationInvalidFileFormat,
     DestinationTerminalException,
 )
-from dlt.common.destination.reference import FollowupJob, LoadJob, NewLoadJob, TLoadJobState
+from dlt.common.destination.reference import (
+    HasFollowupJobs,
+    RunnableLoadJob,
+    FollowupJobRequest,
+    LoadJob,
+    TLoadJobState,
+)
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.schema import TColumnSchema, TColumnHint, Schema
 from dlt.common.schema.typing import TTableSchema, TColumnType, TTableFormat
 from dlt.common.storages.file_storage import FileStorage
 
-from dlt.destinations.sql_jobs import SqlStagingCopyJob, SqlJobParams
+from dlt.destinations.sql_jobs import SqlStagingCopyFollowupJob, SqlJobParams
 from dlt.destinations.insert_job_client import InsertValuesJobClient
 from dlt.destinations.impl.postgres.sql_client import Psycopg2SqlClient
 from dlt.destinations.impl.postgres.configuration import PostgresClientConfiguration
@@ -60,9 +66,8 @@ class PostgresTypeMapper(TypeMapper):
         "integer": "bigint",
     }
 
-    def to_db_integer_type(
-        self, precision: Optional[int], table_format: TTableFormat = None
-    ) -> str:
+    def to_db_integer_type(self, column: TColumnSchema, table: TTableSchema = None) -> str:
+        precision = column.get("precision")
         if precision is None:
             return "bigint"
         # Precision is number of bits
@@ -76,6 +81,39 @@ class PostgresTypeMapper(TypeMapper):
             f"bigint with {precision} bits precision cannot be mapped into postgres integer type"
         )
 
+    def to_db_datetime_type(
+        self,
+        column: TColumnSchema,
+        table: TTableSchema = None,
+    ) -> str:
+        column_name = column.get("name")
+        table_name = table.get("name")
+        timezone = column.get("timezone")
+        precision = column.get("precision")
+
+        if timezone is None and precision is None:
+            return None
+
+        timestamp = "timestamp"
+
+        # append precision if specified and valid
+        if precision is not None:
+            if 0 <= precision <= 6:
+                timestamp += f" ({precision})"
+            else:
+                raise TerminalValueError(
+                    f"Postgres does not support precision '{precision}' for '{column_name}' in"
+                    f" table '{table_name}'"
+                )
+
+        # append timezone part
+        if timezone is None or timezone:  # timezone True and None
+            timestamp += " with time zone"
+        else:  # timezone is explicitly False
+            timestamp += " without time zone"
+
+        return timestamp
+
     def from_db_type(
         self, db_type: str, precision: Optional[int] = None, scale: Optional[int] = None
     ) -> TColumnType:
@@ -85,7 +123,7 @@ class PostgresTypeMapper(TypeMapper):
         return super().from_db_type(db_type, precision, scale)
 
 
-class PostgresStagingCopyJob(SqlStagingCopyJob):
+class PostgresStagingCopyJob(SqlStagingCopyFollowupJob):
     @classmethod
     def generate_sql(
         cls,
@@ -110,21 +148,24 @@ class PostgresStagingCopyJob(SqlStagingCopyJob):
         return sql
 
 
-class PostgresCsvCopyJob(LoadJob, FollowupJob):
-    def __init__(self, table: TTableSchema, file_path: str, client: "PostgresClient") -> None:
-        super().__init__(FileStorage.get_file_name_from_file_path(file_path))
-        config = client.config
-        sql_client = client.sql_client
-        csv_format = config.csv_format or CsvFormatConfiguration()
-        table_name = table["name"]
+class PostgresCsvCopyJob(RunnableLoadJob, HasFollowupJobs):
+    def __init__(self, file_path: str) -> None:
+        super().__init__(file_path)
+        self._job_client: PostgresClient = None
+
+    def run(self) -> None:
+        self._config = self._job_client.config
+        sql_client = self._job_client.sql_client
+        csv_format = self._config.csv_format or CsvFormatConfiguration()
+        table_name = self.load_table_name
         sep = csv_format.delimiter
         if csv_format.on_error_continue:
             logger.warning(
-                f"When processing {file_path} on table {table_name} Postgres csv reader does not"
-                " support on_error_continue"
+                f"When processing {self._file_path} on table {table_name} Postgres csv reader does"
+                " not support on_error_continue"
             )
 
-        with FileStorage.open_zipsafe_ro(file_path, "rb") as f:
+        with FileStorage.open_zipsafe_ro(self._file_path, "rb") as f:
             if csv_format.include_header:
                 # all headers in first line
                 headers_row: str = f.readline().decode(csv_format.encoding).strip()
@@ -132,12 +173,12 @@ class PostgresCsvCopyJob(LoadJob, FollowupJob):
             else:
                 # read first row to figure out the headers
                 split_first_row: str = f.readline().decode(csv_format.encoding).strip().split(sep)
-                split_headers = list(client.schema.get_table_columns(table_name).keys())
+                split_headers = list(self._job_client.schema.get_table_columns(table_name).keys())
                 if len(split_first_row) > len(split_headers):
                     raise DestinationInvalidFileFormat(
                         "postgres",
                         "csv",
-                        file_path,
+                        self._file_path,
                         f"First row {split_first_row} has more rows than columns {split_headers} in"
                         f" table {table_name}",
                     )
@@ -158,7 +199,7 @@ class PostgresCsvCopyJob(LoadJob, FollowupJob):
             split_columns = []
             # detect columns with NULL to use in FORCE NULL
             # detect headers that are not in columns
-            for col in client.schema.get_table_columns(table_name).values():
+            for col in self._job_client.schema.get_table_columns(table_name).values():
                 norm_col = sql_client.escape_column_name(col["name"], escape=True)
                 split_columns.append(norm_col)
                 if norm_col in split_headers and col.get("nullable", True):
@@ -168,7 +209,7 @@ class PostgresCsvCopyJob(LoadJob, FollowupJob):
                 raise DestinationInvalidFileFormat(
                     "postgres",
                     "csv",
-                    file_path,
+                    self._file_path,
                     f"Following headers {split_unknown_headers} cannot be matched to columns"
                     f" {split_columns} of table {table_name}.",
                 )
@@ -196,12 +237,6 @@ class PostgresCsvCopyJob(LoadJob, FollowupJob):
                 with sql_client.native_connection.cursor() as cursor:
                     cursor.copy_expert(copy_sql, f, size=8192)
 
-    def state(self) -> TLoadJobState:
-        return "completed"
-
-    def exception(self) -> str:
-        raise NotImplementedError()
-
 
 class PostgresClient(InsertValuesJobClient):
     def __init__(
@@ -222,13 +257,15 @@ class PostgresClient(InsertValuesJobClient):
         self.active_hints = HINT_TO_POSTGRES_ATTR if self.config.create_indexes else {}
         self.type_mapper = PostgresTypeMapper(self.capabilities)
 
-    def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
-        job = super().start_file_load(table, file_path, load_id)
+    def create_load_job(
+        self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
+    ) -> LoadJob:
+        job = super().create_load_job(table, file_path, load_id, restore)
         if not job and file_path.endswith("csv"):
-            job = PostgresCsvCopyJob(table, file_path, self)
+            job = PostgresCsvCopyJob(file_path)
         return job
 
-    def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:
+    def _get_column_def_sql(self, c: TColumnSchema, table: TTableSchema = None) -> str:
         hints_str = " ".join(
             self.active_hints.get(h, "")
             for h in self.active_hints.keys()
@@ -236,12 +273,12 @@ class PostgresClient(InsertValuesJobClient):
         )
         column_name = self.sql_client.escape_column_name(c["name"])
         return (
-            f"{column_name} {self.type_mapper.to_db_type(c)} {hints_str} {self._gen_not_null(c.get('nullable', True))}"
+            f"{column_name} {self.type_mapper.to_db_type(c,table)} {hints_str} {self._gen_not_null(c.get('nullable', True))}"
         )
 
     def _create_replace_followup_jobs(
         self, table_chain: Sequence[TTableSchema]
-    ) -> List[NewLoadJob]:
+    ) -> List[FollowupJobRequest]:
         if self.config.replace_strategy == "staging-optimized":
             return [PostgresStagingCopyJob.from_table_chain(table_chain, self.sql_client)]
         return super()._create_replace_followup_jobs(table_chain)

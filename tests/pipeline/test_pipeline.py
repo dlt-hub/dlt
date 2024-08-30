@@ -5,12 +5,14 @@ import itertools
 import logging
 import os
 import random
+import shutil
 import threading
 from time import sleep
 from typing import Any, List, Tuple, cast
 from tenacity import retry_if_exception, Retrying, stop_after_attempt
 
 import pytest
+from dlt.common.storages import FileStorage
 
 import dlt
 from dlt.common import json, pendulum
@@ -27,7 +29,7 @@ from dlt.common.destination.exceptions import (
     DestinationTerminalException,
     UnknownDestinationModule,
 )
-from dlt.common.exceptions import PipelineStateNotAvailable
+from dlt.common.exceptions import PipelineStateNotAvailable, TerminalValueError
 from dlt.common.pipeline import LoadInfo, PipelineContext
 from dlt.common.runtime.collector import LogCollector
 from dlt.common.schema.exceptions import TableIdentifiersFrozen
@@ -37,7 +39,7 @@ from dlt.common.typing import DictStrAny
 from dlt.common.utils import uniq_id
 from dlt.common.schema import Schema
 
-from dlt.destinations import filesystem, redshift, dummy
+from dlt.destinations import filesystem, redshift, dummy, duckdb
 from dlt.destinations.impl.filesystem.filesystem import INIT_FILE_NAME
 from dlt.extract.exceptions import InvalidResourceDataTypeBasic, PipeGenInvalid, SourceExhausted
 from dlt.extract.extract import ExtractStorage
@@ -1759,11 +1761,24 @@ def test_remove_pending_packages() -> None:
     assert pipeline.has_pending_data is False
     # partial load
     os.environ["EXCEPTION_PROB"] = "1.0"
-    os.environ["FAIL_IN_INIT"] = "False"
     os.environ["TIMEOUT"] = "1.0"
-    # should produce partial loads
+    # will make job go into retry state
     with pytest.raises(PipelineStepFailed):
         pipeline.run(airtable_emojis())
+    # move job into completed folder manually to simulate partial package
+    load_storage = pipeline._get_load_storage()
+    load_id = load_storage.normalized_packages.list_packages()[0]
+    job = load_storage.normalized_packages.list_new_jobs(load_id)[0]
+    started_path = load_storage.normalized_packages.start_job(
+        load_id, FileStorage.get_file_name_from_file_path(job)
+    )
+    completed_path = load_storage.normalized_packages.complete_job(
+        load_id, FileStorage.get_file_name_from_file_path(job)
+    )
+    # to test partial loads we need two jobs one completed an one in another state
+    # to simulate this, we just duplicate the completed job into the started path
+    shutil.copyfile(completed_path, started_path)
+    # now "with partial loads" can be tested
     assert pipeline.has_pending_data
     pipeline.drop_pending_packages(with_partial_loads=False)
     assert pipeline.has_pending_data
@@ -2585,6 +2600,20 @@ def test_underscore_tables_and_columns() -> None:
     assert pipeline.last_trace.last_normalize_info.row_counts["_ids"] == 2
 
 
+def test_dlt_columns_nested_table_collisions() -> None:
+    # we generate all identifiers in upper case to test for a bug where dlt columns for nested tables were hardcoded to
+    # small caps. they got normalized to upper case after the first run and then added again as small caps
+    # generating duplicate columns and raising collision exception as duckdb is ci destination
+    duck = duckdb(naming_convention="tests.common.cases.normalizers.sql_upper")
+    pipeline = dlt.pipeline("test_dlt_columns_child_table_collisions", destination=duck)
+    customers = [
+        {"id": 1, "name": "dave", "orders": [1, 2, 3]},
+    ]
+    assert_load_info(pipeline.run(customers, table_name="CUSTOMERS"))
+    # this one would fail without bugfix
+    assert_load_info(pipeline.run(customers, table_name="CUSTOMERS"))
+
+
 def test_access_pipeline_in_resource() -> None:
     pipeline = dlt.pipeline("test_access_pipeline_in_resource", destination="duckdb")
 
@@ -2622,6 +2651,57 @@ def test_access_pipeline_in_resource() -> None:
     assert pipeline.last_trace.last_normalize_info.row_counts["user_comments"] == 3
 
 
+def test_exceed_job_file_name_length() -> None:
+    # use very long table name both for parent and for a child
+    data = {
+        "id": 1,
+        "child use very long table name both for parent and for a child use very long table name both for parent and for a child use very long table name both for parent and for a child use very long table name both for parent and for a child use very long table name both for parent and for a child": [
+            1,
+            2,
+            3,
+        ],
+        "col use very long table name both for parent and for a child use very long table name both for parent and for a child use very long table name both for parent and for a child use very long table name both for parent and for a child use very long table name both for parent and for a child": (
+            "data"
+        ),
+    }
+
+    table_name = (
+        "parent use very long table name both for parent and for a child use very long table name"
+        " both for parent and for a child use very long table name both for parent and for a child"
+        " use very long table name both for parent and for a child use very long table name both"
+        " for parent and for a child use very long table name both for parent and for a child "
+    )
+
+    pipeline = dlt.pipeline(
+        pipeline_name="test_exceed_job_file_name_length",
+        destination="duckdb",
+    )
+    # path too long
+    with pytest.raises(PipelineStepFailed) as os_err:
+        pipeline.run([data], table_name=table_name)
+    assert isinstance(os_err.value.__cause__, OSError)
+
+    # fit into 255 + 1
+    suffix_len = len(".b61d3af76c.0.insert-values")
+    pipeline = dlt.pipeline(
+        pipeline_name="test_exceed_job_file_name_length",
+        destination=duckdb(
+            max_identifier_length=255 - suffix_len + 1,
+        ),
+    )
+    # path too long
+    with pytest.raises(PipelineStepFailed):
+        pipeline.run([data], table_name=table_name)
+
+    pipeline = dlt.pipeline(
+        pipeline_name="test_exceed_job_file_name_length",
+        destination=duckdb(
+            max_identifier_length=255 - suffix_len,
+        ),
+    )
+    pipeline.run([data], table_name=table_name)
+
+
 def assert_imported_file(
     pipeline: Pipeline,
     table_name: str,
@@ -2649,3 +2729,18 @@ def assert_imported_file(
         extract_info.metrics[extract_info.loads_ids[0]][0]["table_metrics"][table_name].items_count
         == expected_rows
     )
+
+
+def test_duckdb_column_invalid_timestamp() -> None:
+    # DuckDB does not have timestamps with timezone and precision
+    @dlt.resource(
+        columns={"event_tstamp": {"data_type": "timestamp", "timezone": True, "precision": 3}},
+        primary_key="event_id",
+    )
+    def events():
+        yield [{"event_id": 1, "event_tstamp": "2024-07-30T10:00:00.123+00:00"}]
+
+    pipeline = dlt.pipeline(destination="duckdb")
+
+    with pytest.raises((TerminalValueError, PipelineStepFailed)):
+        pipeline.run(events())

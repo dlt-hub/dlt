@@ -568,7 +568,7 @@ class Schema:
     def data_table_names(
         self, seen_data_only: bool = False, include_incomplete: bool = False
     ) -> List[str]:
-        """Returns list of table table names. Excludes dlt table names."""
+        """Returns list of table names. Excludes dlt table names."""
         return [
             t["name"]
             for t in self.data_tables(

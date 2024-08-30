@@ -30,6 +30,7 @@ from dlt.extract.resource import DltResource
 from dlt.sources.helpers.transform import take_first
 from dlt.extract.incremental import IncrementalResourceWrapper, Incremental
 from dlt.extract.incremental.exceptions import (
+    IncrementalCursorInvalidCoercion,
     IncrementalCursorPathMissing,
     IncrementalPrimaryKeyMissing,
     IncrementalCursorPathHasValueNone,
@@ -1761,7 +1762,7 @@ def test_timezone_naive_datetime(item_type: TestDataItemFormat) -> None:
     )
     # will cause invalid comparison
     if item_type == "object":
-        with pytest.raises(InvalidStepFunctionArguments):
+        with pytest.raises(IncrementalCursorInvalidCoercion):
             list(resource)
     else:
         data = data_item_to_list(item_type, list(resource))
@@ -2523,3 +2524,21 @@ def test_pydantic_columns_validator(yield_pydantic: bool) -> None:
     incremental_steps = test_source_incremental().table_name._pipe._steps
     assert isinstance(incremental_steps[-2], ValidateItem)
     assert isinstance(incremental_steps[-1], IncrementalResourceWrapper)
+
+
+@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
+def test_cursor_date_coercion(item_type: TestDataItemFormat) -> None:
+    today = datetime.today().date()
+
+    @dlt.resource()
+    def updated_is_int(updated_at=dlt.sources.incremental("updated_at", initial_value=today)):
+        data = [{"updated_at": d} for d in [1, 2, 3]]
+        yield data_to_item_format(item_type, data)
+
+    pip_1_name = "test_pydantic_columns_validator_" + uniq_id()
+    pipeline = dlt.pipeline(pipeline_name=pip_1_name, destination="duckdb")
+
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        pipeline.run(updated_is_int())
+    assert isinstance(pip_ex.value.__cause__, IncrementalCursorInvalidCoercion)
+    assert pip_ex.value.__cause__.cursor_path == "updated_at"

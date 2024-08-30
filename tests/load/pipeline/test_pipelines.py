@@ -17,6 +17,7 @@ from dlt.common.schema.typing import VERSION_TABLE_NAME
 from dlt.common.schema.utils import new_table
 from dlt.common.typing import TDataItem
 from dlt.common.utils import uniq_id
+from dlt.common.exceptions import TerminalValueError
 
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
 from dlt.destinations import filesystem, redshift
@@ -29,6 +30,7 @@ from dlt.pipeline.exceptions import (
     PipelineStepFailed,
 )
 
+from tests.cases import TABLE_ROW_ALL_DATA_TYPES_DATETIMES
 from tests.utils import TEST_STORAGE_ROOT, data_to_item_format
 from tests.pipeline.utils import (
     assert_data_table_counts,
@@ -39,7 +41,6 @@ from tests.pipeline.utils import (
     select_data,
 )
 from tests.load.utils import (
-    TABLE_ROW_ALL_DATA_TYPES,
     TABLE_UPDATE_COLUMNS_SCHEMA,
     assert_all_data_types_row,
     delete_dataset,
@@ -844,7 +845,7 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
     def other_data():
         yield [1, 2, 3, 4, 5]
 
-    data_types = deepcopy(TABLE_ROW_ALL_DATA_TYPES)
+    data_types = deepcopy(TABLE_ROW_ALL_DATA_TYPES_DATETIMES)
     column_schemas = deepcopy(TABLE_UPDATE_COLUMNS_SCHEMA)
 
     # parquet on bigquery and clickhouse does not support JSON but we still want to run the test
@@ -1146,3 +1147,150 @@ def simple_nested_pipeline(
         dataset_name=dataset_name,
     )
     return p, _data
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["duckdb", "postgres", "snowflake"]),
+    ids=lambda x: x.name,
+)
+def test_dest_column_invalid_timestamp_precision(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    invalid_precision = 10
+
+    @dlt.resource(
+        columns={"event_tstamp": {"data_type": "timestamp", "precision": invalid_precision}},
+        primary_key="event_id",
+    )
+    def events():
+        yield [{"event_id": 1, "event_tstamp": "2024-07-30T10:00:00.123+00:00"}]
+
+    pipeline = destination_config.setup_pipeline(uniq_id())
+
+    with pytest.raises((TerminalValueError, PipelineStepFailed)):
+        pipeline.run(events())
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["duckdb", "snowflake", "postgres"]),
+    ids=lambda x: x.name,
+)
+def test_dest_column_hint_timezone(destination_config: DestinationTestConfiguration) -> None:
+    destination = destination_config.destination
+
+    input_data = [
+        {"event_id": 1, "event_tstamp": "2024-07-30T10:00:00.123+00:00"},
+        {"event_id": 2, "event_tstamp": "2024-07-30T10:00:00.123456+02:00"},
+        {"event_id": 3, "event_tstamp": "2024-07-30T10:00:00.123456"},
+    ]
+
+    output_values = [
+        "2024-07-30T10:00:00.123000",
+        "2024-07-30T08:00:00.123456",
+        "2024-07-30T10:00:00.123456",
+    ]
+
+    output_map = {
+        "postgres": {
+            "tables": {
+                "events_timezone_off": {
+                    "timestamp_type": "timestamp without time zone",
+                    "timestamp_values": output_values,
+                },
+                "events_timezone_on": {
+                    "timestamp_type": "timestamp with time zone",
+                    "timestamp_values": output_values,
+                },
+                "events_timezone_unset": {
+                    "timestamp_type": "timestamp with time zone",
+                    "timestamp_values": output_values,
+                },
+            },
+            "query_data_type": (
+                "SELECT data_type FROM information_schema.columns WHERE table_schema ='experiments'"
+                " AND table_name = '%s' AND column_name = 'event_tstamp'"
+            ),
+        },
+        "snowflake": {
+            "tables": {
+                "EVENTS_TIMEZONE_OFF": {
+                    "timestamp_type": "TIMESTAMP_NTZ",
+                    "timestamp_values": output_values,
+                },
+                "EVENTS_TIMEZONE_ON": {
+                    "timestamp_type": "TIMESTAMP_TZ",
+                    "timestamp_values": output_values,
+                },
+                "EVENTS_TIMEZONE_UNSET": {
+                    "timestamp_type": "TIMESTAMP_TZ",
+                    "timestamp_values": output_values,
+                },
+            },
+            "query_data_type": (
+                "SELECT data_type FROM information_schema.columns WHERE table_schema ='EXPERIMENTS'"
+                " AND table_name = '%s' AND column_name = 'EVENT_TSTAMP'"
+            ),
+        },
+        "duckdb": {
+            "tables": {
+                "events_timezone_off": {
+                    "timestamp_type": "TIMESTAMP",
+                    "timestamp_values": output_values,
+                },
+                "events_timezone_on": {
+                    "timestamp_type": "TIMESTAMP WITH TIME ZONE",
+                    "timestamp_values": output_values,
+                },
+                "events_timezone_unset": {
+                    "timestamp_type": "TIMESTAMP WITH TIME ZONE",
+                    "timestamp_values": output_values,
+                },
+            },
+            "query_data_type": (
+                "SELECT data_type FROM information_schema.columns WHERE table_schema ='experiments'"
+                " AND table_name = '%s' AND column_name = 'event_tstamp'"
+            ),
+        },
+    }
+
+    # table: events_timezone_off
+    @dlt.resource(
+        columns={"event_tstamp": {"data_type": "timestamp", "timezone": False}},
+        primary_key="event_id",
+    )
+    def events_timezone_off():
+        yield input_data
+
+    # table: events_timezone_on
+    @dlt.resource(
+        columns={"event_tstamp": {"data_type": "timestamp", "timezone": True}},
+        primary_key="event_id",
+    )
+    def events_timezone_on():
+        yield input_data
+
+    # table: events_timezone_unset
+    @dlt.resource(
+        primary_key="event_id",
+    )
+    def events_timezone_unset():
+        yield input_data
+
+    pipeline = destination_config.setup_pipeline(
+        f"{destination}_" + uniq_id(), dataset_name="experiments"
+    )
+
+    pipeline.run([events_timezone_off(), events_timezone_on(), events_timezone_unset()])
+
+    with pipeline.sql_client() as client:
+        for t in output_map[destination]["tables"].keys():  # type: ignore
+            # check data type
+            column_info = client.execute_sql(output_map[destination]["query_data_type"] % t)
+            assert column_info[0][0] == output_map[destination]["tables"][t]["timestamp_type"]  # type: ignore
+            # check timestamp data
+            rows = client.execute_sql(f"SELECT event_tstamp FROM {t} ORDER BY event_id")
+
+            values = [r[0].strftime("%Y-%m-%dT%H:%M:%S.%f") for r in rows]
+            assert values == output_map[destination]["tables"][t]["timestamp_values"]  # type: ignore

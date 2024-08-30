@@ -94,6 +94,7 @@ class TColumnType(TypedDict, total=False):
     data_type: Optional[TDataType]
     precision: Optional[int]
     scale: Optional[int]
+    timezone: Optional[bool]
 
 
 class TColumnSchemaBase(TColumnType, total=False):
@@ -187,6 +188,7 @@ class TMergeDispositionDict(TWriteDispositionDict, total=False):
     strategy: Optional[TLoaderMergeStrategy]
     validity_column_names: Optional[List[str]]
     active_record_timestamp: Optional[TAnyDateTime]
+    boundary_timestamp: Optional[TAnyDateTime]
     row_version_column_name: Optional[str]
 
 

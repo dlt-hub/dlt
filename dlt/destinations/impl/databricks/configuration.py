@@ -43,6 +43,10 @@ class DatabricksCredentials(CredentialsConfiguration):
 class DatabricksClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     destination_type: Final[str] = dataclasses.field(default="databricks", init=False, repr=False, compare=False)  # type: ignore[misc]
     credentials: DatabricksCredentials = None
+    staging_credentials_name: Optional[str] = None
+    "If set, credentials with given name will be used in copy command"
+    is_staging_external_location: bool = False
+    """If true, the temporary credentials are not propagated to the COPY command"""
 
     def __str__(self) -> str:
         """Return displayable destination location"""

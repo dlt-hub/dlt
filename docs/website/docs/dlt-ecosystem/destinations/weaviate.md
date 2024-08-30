@@ -116,6 +116,22 @@ weaviate_adapter(
     tokenization={"title": "word", "description": "whitespace"},
 )
 ```
+When using the `weaviate_adapter`, it's important to apply it directly to resources, not to the whole source. Here's an example:  
+
+```py
+products_tables = sql_database().with_resources("products", "customers")
+
+pipeline = dlt.pipeline(
+        pipeline_name="postgres_to_weaviate_pipeline",
+        destination="weaviate",
+    )
+
+# apply adapter to the needed resources
+weaviate_adapter(products_tables.products, vectorize="description")
+weaviate_adapter(products_tables.customers, vectorize="bio")
+
+info = pipeline.run(products_tables)
+```    
 
 :::tip
 

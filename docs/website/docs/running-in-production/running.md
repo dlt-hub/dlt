@@ -119,7 +119,7 @@ truncate_staging_dataset=true
 ## Using slack to send messages
 
 `dlt` provides basic support for sending slack messages. You can configure Slack incoming hook via
-[secrets.toml or environment variables](../general-usage/credentials/config_providers). Please note that **Slack
+[secrets.toml or environment variables](../general-usage/credentials/setup). Please note that **Slack
 incoming hook is considered a secret and will be immediately blocked when pushed to github
 repository**. In `secrets.toml`:
 
@@ -271,7 +271,7 @@ load_info.raise_on_failed_jobs()
 ```
 
 You may also abort the load package with `LoadClientJobFailed` (terminal exception) on a first
-failed job. Such package is immediately moved to completed but its load id is not added to the
+failed job. Such package is will be completed but its load id is not added to the
 `_dlt_loads` table. All the jobs that were running in parallel are completed before raising. The dlt
 state, if present, will not be visible to `dlt`. Here's example `config.toml` to enable this option:
 
@@ -281,6 +281,20 @@ load.workers=1
 # I hope you know what you are doing by setting this to true
 load.raise_on_failed_jobs=true
 ```
+
+:::caution
+Note that certain write dispositions will irreversibly modify your data
+1. `replace` write disposition with the default `truncate-and-insert` [strategy](../general-usage/full-loading.md) will truncate tables before loading.
+2. `merge` write disposition will merge staging dataset tables into the destination dataset. This will happen only when all data for this table (and nested tables) got loaded.
+
+Here's what you can do to deal with partially loaded packages:
+1. Retry the load step in case of transient errors
+2. Use replace strategy with staging dataset so replace happens only when data for the table (and all nested tables) was fully loaded and is atomic operation (if possible)
+3. Use only "append" write disposition. When your load package fails you are able to use `_dlt_load_id` to remove all unprocessed data.
+4. Use "staging append" (`merge` disposition without primary key and merge key defined).
+
+:::
+
 
 ### What `run` does inside
 

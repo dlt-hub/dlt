@@ -98,6 +98,9 @@ def users_materialize_table_schema():
 
 def assert_load_info(info: LoadInfo, expected_load_packages: int = 1) -> None:
     """Asserts that expected number of packages was loaded and there are no failed jobs"""
+    # make sure we can serialize
+    info.asstr(verbosity=2)
+    info.asdict()
     assert len(info.loads_ids) == expected_load_packages
     # all packages loaded
     assert all(p.completed_at is not None for p in info.load_packages) is True
@@ -172,30 +175,30 @@ def _load_file(client: FSClientBase, filepath) -> List[Dict[str, Any]]:
 #
 # Load table dicts
 #
-def _get_delta_table(client: FilesystemClient, table_name: str) -> "DeltaTable":  # type: ignore[name-defined] # noqa: F821
-    from deltalake import DeltaTable
-    from dlt.common.libs.deltalake import _deltalake_storage_options
-
-    table_dir = client.get_table_dir(table_name)
-    remote_table_dir = f"{client.config.protocol}://{table_dir}"
-    return DeltaTable(
-        remote_table_dir,
-        storage_options=_deltalake_storage_options(client.config),
-    )
 
 
-def _load_tables_to_dicts_fs(p: dlt.Pipeline, *table_names: str) -> Dict[str, List[Dict[str, Any]]]:
+def _load_tables_to_dicts_fs(
+    p: dlt.Pipeline, *table_names: str, schema_name: str = None
+) -> Dict[str, List[Dict[str, Any]]]:
     """For now this will expect the standard layout in the filesystem destination, if changed the results will not be correct"""
-    client = p._fs_client()
+    client = p._fs_client(schema_name=schema_name)
+    assert isinstance(client, FilesystemClient)
+
     result: Dict[str, Any] = {}
 
+    delta_table_names = [
+        table_name
+        for table_name in table_names
+        if get_table_format(client.schema.tables, table_name) == "delta"
+    ]
+    if len(delta_table_names) > 0:
+        from dlt.common.libs.deltalake import get_delta_tables
+
+        delta_tables = get_delta_tables(p, *table_names, schema_name=schema_name)
+
     for table_name in table_names:
-        if (
-            table_name in p.default_schema.data_table_names()
-            and get_table_format(p.default_schema.tables, table_name) == "delta"
-        ):
-            assert isinstance(client, FilesystemClient)
-            dt = _get_delta_table(client, table_name)
+        if table_name in client.schema.data_table_names() and table_name in delta_table_names:
+            dt = delta_tables[table_name]
             result[table_name] = dt.to_pyarrow_table().to_pylist()
         else:
             table_files = client.list_table_files(table_name)
@@ -244,7 +247,7 @@ def load_tables_to_dicts(
         return sorted(list_, key=lambda d: d[sortkey])
 
     if _is_filesystem(p):
-        result = _load_tables_to_dicts_fs(p, *table_names)
+        result = _load_tables_to_dicts_fs(p, *table_names, schema_name=schema_name)
     else:
         result = _load_tables_to_dicts_sql(p, *table_names, schema_name=schema_name)
 

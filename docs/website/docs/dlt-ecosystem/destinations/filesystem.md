@@ -514,6 +514,12 @@ You need the `deltalake` package to use this format:
 pip install "dlt[deltalake]"
 ```
 
+You also need `pyarrow>=17.0.0`:
+
+```sh
+pip install 'pyarrow>=17.0.0'
+```
+
 Set the `table_format` argument to `delta` when defining your resource:
 
 ```py
@@ -523,6 +529,23 @@ def my_delta_resource():
 ```
 
 > `dlt` always uses `parquet` as `loader_file_format` when using the `delta` table format. Any setting of `loader_file_format` is disregarded.
+
+#### Delta table partitioning
+A Delta table can be partitioned ([Hive-style partitioning](https://delta.io/blog/pros-cons-hive-style-partionining/)) by specifying one or more `partition` column hints. This example partitions the Delta table by the `foo` column:
+
+```py
+@dlt.resource(
+  table_format="delta",
+  columns={"foo": {"partition": True}}
+)
+def my_delta_resource():
+    ...
+```
+
+:::caution
+It is **not** possible to change partition columns after the Delta table has been created. Trying to do so causes an error stating that the partition columns don't match.
+:::
+
 
 #### Storage options
 You can pass storage options by configuring `destination.filesystem.deltalake_storage_options`:
@@ -536,7 +559,26 @@ deltalake_storage_options = '{"AWS_S3_LOCKING_PROVIDER": "dynamodb", DELTA_DYNAM
 
 You don't need to specify credentials here. `dlt` merges the required credentials with the options you provided, before passing it as `storage_options`.
 
->❗When using `s3`, you need to specify storage options to [configure](https://delta-io.github.io/delta-rs/usage/writing/writing-to-s3-with-locking-provider/) locking behavior. 
+>❗When using `s3`, you need to specify storage options to [configure](https://delta-io.github.io/delta-rs/usage/writing/writing-to-s3-with-locking-provider/) locking behavior.
+
+#### `get_delta_tables` helper
+You can use the `get_delta_tables` helper function to get `deltalake` [DeltaTable](https://delta-io.github.io/delta-rs/api/delta_table/) objects for your Delta tables:
+
+```py
+from dlt.common.libs.deltalake import get_delta_tables
+
+...
+
+# get dictionary of DeltaTable objects
+delta_tables = get_delta_tables(pipeline)
+
+# execute operations on DeltaTable objects
+delta_tables["my_delta_table"].optimize.compact()
+delta_tables["another_delta_table"].optimize.z_order(["col_a", "col_b"])
+# delta_tables["my_delta_table"].vacuum()
+# etc.
+
+```
 
 ## Syncing of `dlt` state
 This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination). To this end, special folders and files that will be created at your destination which hold information about your pipeline state, schemas and completed loads. These folders DO NOT respect your

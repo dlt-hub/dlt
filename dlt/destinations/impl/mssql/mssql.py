@@ -1,12 +1,12 @@
 from typing import Dict, Optional, Sequence, List, Any
 
 from dlt.common.exceptions import TerminalValueError
-from dlt.common.destination.reference import NewLoadJob
+from dlt.common.destination.reference import FollowupJobRequest
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.schema import TColumnSchema, TColumnHint, Schema
 from dlt.common.schema.typing import TTableSchema, TColumnType, TTableFormat
 
-from dlt.destinations.sql_jobs import SqlStagingCopyJob, SqlMergeJob, SqlJobParams
+from dlt.destinations.sql_jobs import SqlStagingCopyFollowupJob, SqlMergeFollowupJob, SqlJobParams
 
 from dlt.destinations.insert_job_client import InsertValuesJobClient
 
@@ -59,9 +59,8 @@ class MsSqlTypeMapper(TypeMapper):
         "int": "bigint",
     }
 
-    def to_db_integer_type(
-        self, precision: Optional[int], table_format: TTableFormat = None
-    ) -> str:
+    def to_db_integer_type(self, column: TColumnSchema, table: TTableSchema = None) -> str:
+        precision = column.get("precision")
         if precision is None:
             return "bigint"
         if precision <= 8:
@@ -85,7 +84,7 @@ class MsSqlTypeMapper(TypeMapper):
         return super().from_db_type(db_type, precision, scale)
 
 
-class MsSqlStagingCopyJob(SqlStagingCopyJob):
+class MsSqlStagingCopyJob(SqlStagingCopyFollowupJob):
     @classmethod
     def generate_sql(
         cls,
@@ -110,7 +109,7 @@ class MsSqlStagingCopyJob(SqlStagingCopyJob):
         return sql
 
 
-class MsSqlMergeJob(SqlMergeJob):
+class MsSqlMergeJob(SqlMergeFollowupJob):
     @classmethod
     def gen_key_table_clauses(
         cls,
@@ -127,7 +126,7 @@ class MsSqlMergeJob(SqlMergeJob):
                 f" {staging_root_table_name} WHERE"
                 f" {' OR '.join([c.format(d=root_table_name,s=staging_root_table_name) for c in key_clauses])})"
             ]
-        return SqlMergeJob.gen_key_table_clauses(
+        return SqlMergeFollowupJob.gen_key_table_clauses(
             root_table_name, staging_root_table_name, key_clauses, for_delete
         )
 
@@ -137,7 +136,7 @@ class MsSqlMergeJob(SqlMergeJob):
 
     @classmethod
     def _new_temp_table_name(cls, name_prefix: str, sql_client: SqlClientBase[Any]) -> str:
-        name = SqlMergeJob._new_temp_table_name(name_prefix, sql_client)
+        name = SqlMergeFollowupJob._new_temp_table_name(name_prefix, sql_client)
         return "#" + name
 
 
@@ -160,24 +159,24 @@ class MsSqlJobClient(InsertValuesJobClient):
         self.active_hints = HINT_TO_MSSQL_ATTR if self.config.create_indexes else {}
         self.type_mapper = MsSqlTypeMapper(self.capabilities)
 
-    def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
+    def _create_merge_followup_jobs(
+        self, table_chain: Sequence[TTableSchema]
+    ) -> List[FollowupJobRequest]:
         return [MsSqlMergeJob.from_table_chain(table_chain, self.sql_client)]
 
     def _make_add_column_sql(
-        self, new_columns: Sequence[TColumnSchema], table_format: TTableFormat = None
+        self, new_columns: Sequence[TColumnSchema], table: TTableSchema = None
     ) -> List[str]:
         # Override because mssql requires multiple columns in a single ADD COLUMN clause
-        return [
-            "ADD \n" + ",\n".join(self._get_column_def_sql(c, table_format) for c in new_columns)
-        ]
+        return ["ADD \n" + ",\n".join(self._get_column_def_sql(c, table) for c in new_columns)]
 
-    def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:
+    def _get_column_def_sql(self, c: TColumnSchema, table: TTableSchema = None) -> str:
         sc_type = c["data_type"]
         if sc_type == "text" and c.get("unique"):
             # MSSQL does not allow index on large TEXT columns
             db_type = "nvarchar(%i)" % (c.get("precision") or 900)
         else:
-            db_type = self.type_mapper.to_db_type(c)
+            db_type = self.type_mapper.to_db_type(c, table)
 
         hints_str = " ".join(
             self.active_hints.get(h, "")
@@ -189,7 +188,7 @@ class MsSqlJobClient(InsertValuesJobClient):
 
     def _create_replace_followup_jobs(
         self, table_chain: Sequence[TTableSchema]
-    ) -> List[NewLoadJob]:
+    ) -> List[FollowupJobRequest]:
         if self.config.replace_strategy == "staging-optimized":
             return [MsSqlStagingCopyJob.from_table_chain(table_chain, self.sql_client)]
         return super()._create_replace_followup_jobs(table_chain)

@@ -1,7 +1,7 @@
 from typing import Any, Dict, List, Sequence, Tuple, cast, TypedDict, Optional, Callable, Union
 
 import yaml
-from dlt.common.logger import pretty_format_exception
+from dlt.common.time import ensure_pendulum_datetime
 
 from dlt.common.schema.typing import (
     TTableSchema,
@@ -21,8 +21,9 @@ from dlt.common.storages.load_package import load_package as current_load_packag
 from dlt.common.utils import uniq_id
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.destinations.exceptions import MergeDispositionException
-from dlt.destinations.job_impl import NewLoadJobImpl
+from dlt.destinations.job_impl import FollowupJobRequestImpl
 from dlt.destinations.sql_client import SqlClientBase
+from dlt.common.destination.exceptions import DestinationTransientException
 
 
 class SqlJobParams(TypedDict, total=False):
@@ -33,10 +34,19 @@ class SqlJobParams(TypedDict, total=False):
 DEFAULTS: SqlJobParams = {"replace": False}
 
 
-class SqlBaseJob(NewLoadJobImpl):
-    """Sql base job for jobs that rely on the whole tablechain"""
+class SqlJobCreationException(DestinationTransientException):
+    def __init__(self, original_exception: Exception, table_chain: Sequence[TTableSchema]) -> None:
+        tables_str = yaml.dump(
+            table_chain, allow_unicode=True, default_flow_style=False, sort_keys=False
+        )
+        super().__init__(
+            f"Could not create SQLFollowupJob with exception {str(original_exception)}. Table"
+            f" chain: {tables_str}"
+        )
 
-    failed_text: str = ""
+
+class SqlFollowupJob(FollowupJobRequestImpl):
+    """Sql base job for jobs that rely on the whole tablechain"""
 
     @classmethod
     def from_table_chain(
@@ -44,7 +54,7 @@ class SqlBaseJob(NewLoadJobImpl):
         table_chain: Sequence[TTableSchema],
         sql_client: SqlClientBase[Any],
         params: Optional[SqlJobParams] = None,
-    ) -> NewLoadJobImpl:
+    ) -> FollowupJobRequestImpl:
         """Generates a list of sql statements, that will be executed by the sql client when the job is executed in the loader.
 
         The `table_chain` contains a list schemas of a tables with parent-child relationship, ordered by the ancestry (the root of the tree is first on the list).
@@ -54,6 +64,7 @@ class SqlBaseJob(NewLoadJobImpl):
         file_info = ParsedLoadJobFileName(
             top_table["name"], ParsedLoadJobFileName.new_file_id(), 0, "sql"
         )
+
         try:
             # Remove line breaks from multiline statements and write one SQL statement per line in output file
             # to support clients that need to execute one statement at a time (i.e. snowflake)
@@ -61,15 +72,12 @@ class SqlBaseJob(NewLoadJobImpl):
                 " ".join(stmt.splitlines())
                 for stmt in cls.generate_sql(table_chain, sql_client, params)
             ]
-            job = cls(file_info.file_name(), "running")
+            job = cls(file_info.file_name())
             job._save_text_file("\n".join(sql))
-        except Exception:
-            # return failed job
-            tables_str = yaml.dump(
-                table_chain, allow_unicode=True, default_flow_style=False, sort_keys=False
-            )
-            job = cls(file_info.file_name(), "failed", pretty_format_exception())
-            job._save_text_file("\n".join([cls.failed_text, tables_str]))
+        except Exception as e:
+            # raise exception with some context
+            raise SqlJobCreationException(e, table_chain) from e
+
         return job
 
     @classmethod
@@ -82,10 +90,8 @@ class SqlBaseJob(NewLoadJobImpl):
         pass
 
 
-class SqlStagingCopyJob(SqlBaseJob):
+class SqlStagingCopyFollowupJob(SqlFollowupJob):
     """Generates a list of sql statements that copy the data from staging dataset into destination dataset."""
-
-    failed_text: str = "Tried to generate a staging copy sql job for the following tables:"
 
     @classmethod
     def _generate_clone_sql(
@@ -141,13 +147,11 @@ class SqlStagingCopyJob(SqlBaseJob):
         return cls._generate_insert_sql(table_chain, sql_client, params)
 
 
-class SqlMergeJob(SqlBaseJob):
+class SqlMergeFollowupJob(SqlFollowupJob):
     """
     Generates a list of sql statements that merge the data from staging dataset into destination dataset.
     If no merge keys are discovered, falls back to append.
     """
-
-    failed_text: str = "Tried to generate a merge sql job for the following tables:"
 
     @classmethod
     def generate_sql(  # type: ignore[return]
@@ -717,10 +721,18 @@ class SqlMergeJob(SqlBaseJob):
             format_datetime_literal = (
                 DestinationCapabilitiesContext.generic_capabilities().format_datetime_literal
             )
-        boundary_ts = format_datetime_literal(
-            current_load_package()["state"]["created_at"],
+
+        boundary_ts = ensure_pendulum_datetime(
+            root_table.get(  # type: ignore[arg-type]
+                "x-boundary-timestamp",
+                current_load_package()["state"]["created_at"],
+            )
+        )
+        boundary_literal = format_datetime_literal(
+            boundary_ts,
             caps.timestamp_precision,
         )
+
         active_record_timestamp = get_active_record_timestamp(root_table)
         if active_record_timestamp is None:
             active_record_literal = "NULL"
@@ -733,7 +745,7 @@ class SqlMergeJob(SqlBaseJob):
 
         # retire updated and deleted records
         sql.append(f"""
-            {cls.gen_update_table_prefix(root_table_name)} {to} = {boundary_ts}
+            {cls.gen_update_table_prefix(root_table_name)} {to} = {boundary_literal}
             WHERE {is_active_clause}
             AND {hash_} NOT IN (SELECT {hash_} FROM {staging_root_table_name});
         """)
@@ -743,22 +755,22 @@ class SqlMergeJob(SqlBaseJob):
         col_str = ", ".join([c for c in columns if c not in (from_, to)])
         sql.append(f"""
             INSERT INTO {root_table_name} ({col_str}, {from_}, {to})
-            SELECT {col_str}, {boundary_ts} AS {from_}, {active_record_literal} AS {to}
+            SELECT {col_str}, {boundary_literal} AS {from_}, {active_record_literal} AS {to}
             FROM {staging_root_table_name} AS s
-            WHERE {hash_} NOT IN (SELECT {hash_} FROM {root_table_name});
+            WHERE {hash_} NOT IN (SELECT {hash_} FROM {root_table_name} WHERE {is_active_clause});
         """)
 
         # insert list elements for new active records in child tables
         child_tables = table_chain[1:]
         if child_tables:
-            unique_column = escape_column_id(
-                cls._get_unique_col(table_chain, sql_client, root_table)
-            )
             # TODO: - based on deterministic child hashes (OK)
             # - if row hash changes all is right
             # - if it does not we only capture new records, while we should replace existing with those in stage
             # - this write disposition is way more similar to regular merge (how root tables are handled is different, other tables handled same)
             for table in child_tables:
+                unique_column = escape_column_id(
+                    cls._get_unique_col(table_chain, sql_client, table)
+                )
                 table_name, staging_table_name = sql_client.get_qualified_table_names(table["name"])
                 sql.append(f"""
                     INSERT INTO {table_name}

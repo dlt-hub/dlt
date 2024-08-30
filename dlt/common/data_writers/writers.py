@@ -34,6 +34,7 @@ from dlt.common.destination import (
     TLoaderFileFormat,
     ALL_SUPPORTED_FILE_FORMATS,
 )
+from dlt.common.metrics import DataWriterMetrics
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.typing import StrAny
 
@@ -57,25 +58,6 @@ class FileWriterSpec(NamedTuple):
     """File format supports changes of schema: True - at any moment, Buffer - in memory buffer before opening file,  False - not at all"""
     requires_destination_capabilities: bool = False
     supports_compression: bool = False
-
-
-class DataWriterMetrics(NamedTuple):
-    file_path: str
-    items_count: int
-    file_size: int
-    created: float
-    last_modified: float
-
-    def __add__(self, other: Tuple[object, ...], /) -> Tuple[object, ...]:
-        if isinstance(other, DataWriterMetrics):
-            return DataWriterMetrics(
-                "",  # path is not known
-                self.items_count + other.items_count,
-                self.file_size + other.file_size,
-                min(self.created, other.created),
-                max(self.last_modified, other.last_modified),
-            )
-        return NotImplemented
 
 
 EMPTY_DATA_WRITER_METRICS = DataWriterMetrics("", 0, 0, 2**32, 0.0)

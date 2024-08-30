@@ -8,6 +8,7 @@ from dlt.common.pendulum import pendulum
 from dlt.common.typing import TDataItem
 from dlt.common.jsonpath import find_values, JSONPathFields, compile_path
 from dlt.extract.incremental.exceptions import (
+    IncrementalCursorInvalidCoercion,
     IncrementalCursorPathMissing,
     IncrementalPrimaryKeyMissing,
     IncrementalCursorPathHasValueNone,
@@ -203,14 +204,36 @@ class JsonIncremental(IncrementalTransform):
 
         # Check whether end_value has been reached
         # Filter end value ranges exclusively, so in case of "max" function we remove values >= end_value
-        if self.end_value is not None and (
-            last_value_func((row_value, self.end_value)) != self.end_value
-            or last_value_func((row_value,)) == self.end_value
-        ):
-            return None, False, True
-
+        if self.end_value is not None:
+            try:
+                if (
+                    last_value_func((row_value, self.end_value)) != self.end_value
+                    or last_value_func((row_value,)) == self.end_value
+                ):
+                    return None, False, True
+            except Exception as ex:
+                raise IncrementalCursorInvalidCoercion(
+                    self.resource_name,
+                    self.cursor_path,
+                    self.end_value,
+                    "end_value",
+                    row_value,
+                    type(row_value).__name__,
+                    str(ex),
+                ) from ex
         check_values = (row_value,) + ((last_value,) if last_value is not None else ())
-        new_value = last_value_func(check_values)
+        try:
+            new_value = last_value_func(check_values)
+        except Exception as ex:
+            raise IncrementalCursorInvalidCoercion(
+                self.resource_name,
+                self.cursor_path,
+                last_value,
+                "start_value/initial_value",
+                row_value,
+                type(row_value).__name__,
+                str(ex),
+            ) from ex
         # new_value is "less" or equal to last_value (the actual max)
         if last_value == new_value:
             # use func to compute row_value into last_value compatible
@@ -345,14 +368,36 @@ class ArrowIncremental(IncrementalTransform):
 
         # If end_value is provided, filter to include table rows that are "less" than end_value
         if self.end_value is not None:
-            end_value_scalar = to_arrow_scalar(self.end_value, cursor_data_type)
+            try:
+                end_value_scalar = to_arrow_scalar(self.end_value, cursor_data_type)
+            except Exception as ex:
+                raise IncrementalCursorInvalidCoercion(
+                    self.resource_name,
+                    cursor_path,
+                    self.end_value,
+                    "end_value",
+                    "<arrow column>",
+                    cursor_data_type,
+                    str(ex),
+                ) from ex
             tbl = tbl.filter(end_compare(tbl[cursor_path], end_value_scalar))
             # Is max row value higher than end value?
             # NOTE: pyarrow bool *always* evaluates to python True. `as_py()` is necessary
             end_out_of_range = not end_compare(row_value_scalar, end_value_scalar).as_py()
 
         if self.start_value is not None:
-            start_value_scalar = to_arrow_scalar(self.start_value, cursor_data_type)
+            try:
+                start_value_scalar = to_arrow_scalar(self.start_value, cursor_data_type)
+            except Exception as ex:
+                raise IncrementalCursorInvalidCoercion(
+                    self.resource_name,
+                    cursor_path,
+                    self.start_value,
+                    "start_value/initial_value",
+                    "<arrow column>",
+                    cursor_data_type,
+                    str(ex),
+                ) from ex
             # Remove rows lower or equal than the last start value
             keep_filter = last_value_compare(tbl[cursor_path], start_value_scalar)
             start_out_of_range = bool(pa.compute.any(pa.compute.invert(keep_filter)).as_py())

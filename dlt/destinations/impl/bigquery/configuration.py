@@ -1,6 +1,6 @@
 import dataclasses
 import warnings
-from typing import ClassVar, List, Final
+from typing import ClassVar, List, Final, Optional
 
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import GcpServiceAccountCredentials
@@ -14,6 +14,8 @@ class BigQueryClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     destination_type: Final[str] = dataclasses.field(default="bigquery", init=False, repr=False, compare=False)  # type: ignore
     credentials: GcpServiceAccountCredentials = None
     location: str = "US"
+    project_id: Optional[str] = None
+    """Note, that this is BigQuery project_id which could be different from credentials.project_id"""
     has_case_sensitive_identifiers: bool = True
     """If True then dlt expects to load data into case sensitive dataset"""
     should_set_case_sensitivity_on_new_dataset: bool = False

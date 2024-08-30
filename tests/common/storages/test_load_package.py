@@ -21,33 +21,68 @@ from dlt.common.storages.load_package import (
     clear_destination_state,
 )
 
-from tests.common.storages.utils import start_loading_file, assert_package_info, load_storage
+from tests.common.storages.utils import (
+    start_loading_file,
+    assert_package_info,
+    load_storage,
+    start_loading_files,
+)
 from tests.utils import TEST_STORAGE_ROOT, autouse_test_storage
 
 
 def test_is_partially_loaded(load_storage: LoadStorage) -> None:
-    load_id, file_name = start_loading_file(
-        load_storage, [{"content": "a"}, {"content": "b"}], start_job=False
+    load_id, file_names = start_loading_files(
+        load_storage, [{"content": "a"}, {"content": "b"}], start_job=False, file_count=2
     )
     info = load_storage.get_load_package_info(load_id)
     # all jobs are new
     assert PackageStorage.is_package_partially_loaded(info) is False
-    # start job
-    load_storage.normalized_packages.start_job(load_id, file_name)
+    # start one job
+    load_storage.normalized_packages.start_job(load_id, file_names[0])
     info = load_storage.get_load_package_info(load_id)
-    assert PackageStorage.is_package_partially_loaded(info) is True
+    assert PackageStorage.is_package_partially_loaded(info) is False
     # complete job
-    load_storage.normalized_packages.complete_job(load_id, file_name)
+    load_storage.normalized_packages.complete_job(load_id, file_names[0])
     info = load_storage.get_load_package_info(load_id)
     assert PackageStorage.is_package_partially_loaded(info) is True
+    # start second job
+    load_storage.normalized_packages.start_job(load_id, file_names[1])
+    info = load_storage.get_load_package_info(load_id)
+    assert PackageStorage.is_package_partially_loaded(info) is True
+    # finish second job, now not partial anymore
+    load_storage.normalized_packages.complete_job(load_id, file_names[1])
+    info = load_storage.get_load_package_info(load_id)
+    assert PackageStorage.is_package_partially_loaded(info) is False
+
     # must complete package
     load_storage.complete_load_package(load_id, False)
     info = load_storage.get_load_package_info(load_id)
     assert PackageStorage.is_package_partially_loaded(info) is False
 
-    # abort package
+    # abort package (will never be partially loaded)
     load_id, file_name = start_loading_file(load_storage, [{"content": "a"}, {"content": "b"}])
     load_storage.complete_load_package(load_id, True)
+    info = load_storage.get_load_package_info(load_id)
+    assert PackageStorage.is_package_partially_loaded(info) is False
+
+    # abort partially loaded will stay partially loaded
+    load_id, file_names = start_loading_files(
+        load_storage, [{"content": "a"}, {"content": "b"}], start_job=False, file_count=2
+    )
+    load_storage.normalized_packages.start_job(load_id, file_names[0])
+    load_storage.normalized_packages.complete_job(load_id, file_names[0])
+    load_storage.complete_load_package(load_id, True)
+    info = load_storage.get_load_package_info(load_id)
+    assert PackageStorage.is_package_partially_loaded(info) is True
+
+    # failed jobs will also result in partial loads, if one job is completed
+    load_id, file_names = start_loading_files(
+        load_storage, [{"content": "a"}, {"content": "b"}], start_job=False, file_count=2
+    )
+    load_storage.normalized_packages.start_job(load_id, file_names[0])
+    load_storage.normalized_packages.complete_job(load_id, file_names[0])
+    load_storage.normalized_packages.start_job(load_id, file_names[1])
+    load_storage.normalized_packages.fail_job(load_id, file_names[1], "much broken, so bad")
     info = load_storage.get_load_package_info(load_id)
     assert PackageStorage.is_package_partially_loaded(info) is True
 

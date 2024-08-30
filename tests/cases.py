@@ -178,7 +178,7 @@ def table_update_and_row(
     Optionally exclude some data types from the schema and row.
     """
     column_schemas = deepcopy(TABLE_UPDATE_COLUMNS_SCHEMA)
-    data_row = deepcopy(TABLE_ROW_ALL_DATA_TYPES)
+    data_row = deepcopy(TABLE_ROW_ALL_DATA_TYPES_DATETIMES)
     exclude_col_names = list(exclude_columns or [])
     if exclude_types:
         exclude_col_names.extend(
@@ -203,7 +203,7 @@ def assert_all_data_types_row(
     # content must equal
     # print(db_row)
     schema = schema or TABLE_UPDATE_COLUMNS_SCHEMA
-    expected_row = expected_row or TABLE_ROW_ALL_DATA_TYPES
+    expected_row = expected_row or TABLE_ROW_ALL_DATA_TYPES_DATETIMES
 
     # Include only columns requested in schema
     if isinstance(db_row, dict):
@@ -274,8 +274,8 @@ def assert_all_data_types_row(
             # then it must be json
             db_mapping["col9"] = json.loads(db_mapping["col9"])
 
-    if "col10" in db_mapping:
-        db_mapping["col10"] = db_mapping["col10"].isoformat()
+    # if "col10" in db_mapping:
+    #     db_mapping["col10"] = db_mapping["col10"].isoformat()
     if "col11" in db_mapping:
         db_mapping["col11"] = ensure_pendulum_time(db_mapping["col11"]).isoformat()
 
