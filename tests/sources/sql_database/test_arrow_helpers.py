@@ -11,11 +11,6 @@ from dlt.sources.sql_database.arrow_helpers import row_tuples_to_arrow
 def test_row_tuples_to_arrow_unknown_types(all_unknown: bool) -> None:
     """Test inferring data types with pyarrow"""
 
-    from sqlalchemy.dialects.postgresql import Range
-
-    # Applies to NUMRANGE, DATERANGE, etc sql types. Sqlalchemy returns a Range dataclass
-    IntRange = Range
-
     rows = [
         (
             1,
@@ -26,7 +21,6 @@ def test_row_tuples_to_arrow_unknown_types(all_unknown: bool) -> None:
             uuid4(),
             datetime.now(timezone.utc),
             [1, 2, 3],
-            IntRange(1, 10),
         ),
         (
             2,
@@ -37,7 +31,6 @@ def test_row_tuples_to_arrow_unknown_types(all_unknown: bool) -> None:
             uuid4(),
             datetime.now(timezone.utc),
             [4, 5, 6],
-            IntRange(2, 20),
         ),
         (
             3,
@@ -48,7 +41,6 @@ def test_row_tuples_to_arrow_unknown_types(all_unknown: bool) -> None:
             uuid4(),
             datetime.now(timezone.utc),
             [7, 8, 9],
-            IntRange(3, 30),
         ),
     ]
 
@@ -66,7 +58,6 @@ def test_row_tuples_to_arrow_unknown_types(all_unknown: bool) -> None:
             "nullable": False,
         },
         "array_col": {"name": "array_col", "nullable": False},
-        "range_col": {"name": "range_col", "nullable": False},
     }
 
     if all_unknown:
@@ -90,10 +81,26 @@ def test_row_tuples_to_arrow_unknown_types(all_unknown: bool) -> None:
     assert pa.types.is_string(result[5].type)
     assert pa.types.is_timestamp(result[6].type)
     assert pa.types.is_list(result[7].type)
-    assert pa.types.is_struct(result[8].type)
+
+
+pytest.importorskip("sqlalchemy", minversion="2.0")
+def test_row_tuples_to_arrow_detects_range_type() -> None:
+    from sqlalchemy.dialects.postgresql import Range
+
+    # Applies to NUMRANGE, DATERANGE, etc sql types. Sqlalchemy returns a Range dataclass
+    IntRange = Range
+
+    rows = [
+        (IntRange(1, 10),),
+        (IntRange(2, 20),),
+        (IntRange(3, 30),),
+    ]
+    result = row_tuples_to_arrow(rows=rows, columns={"range_col": {"name": "range_col", "nullable": False}}, tz="UTC")
+    assert result.num_columns == 1
+    assert pa.types.is_struct(result[0].type)
 
     # Check range has all fields
-    range_type = result[8].type
+    range_type = result[0].type
     range_fields = {f.name: f for f in range_type}
     assert pa.types.is_int64(range_fields["lower"].type)
     assert pa.types.is_int64(range_fields["upper"].type)
