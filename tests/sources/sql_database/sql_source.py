@@ -142,7 +142,7 @@ class SQLAlchemySourceDB:
             Column("c", Integer(), primary_key=True),
         )
 
-        def _make_precision_table(table_name: str, nullable: bool) -> Table:
+        def _make_precision_table(table_name: str, nullable: bool) -> None:
             Table(
                 table_name,
                 self.metadata,
@@ -218,7 +218,7 @@ class SQLAlchemySourceDB:
                 for i in chunk
             ]
             with self.engine.begin() as conn:
-                result = conn.execute(table.insert().values(rows).returning(table.c.id))  # type: ignore
+                result = conn.execute(table.insert().values(rows).returning(table.c.id))
                 user_ids.extend(result.scalars())
         info["row_count"] += n
         info["ids"] += user_ids
@@ -245,7 +245,7 @@ class SQLAlchemySourceDB:
                 for i in chunk
             ]
             with self.engine.begin() as conn:
-                result = conn.execute(table.insert().values(rows).returning(table.c.id))  # type: ignore
+                result = conn.execute(table.insert().values(rows).returning(table.c.id))
                 channel_ids.extend(result.scalars())
         info["row_count"] += n
         info["ids"] += channel_ids
@@ -289,7 +289,7 @@ class SQLAlchemySourceDB:
 
     def _fake_precision_data(self, table_name: str, n: int = 100, null_n: int = 0) -> None:
         table = self.metadata.tables[f"{self.schema}.{table_name}"]
-        self.table_infos.setdefault(table_name, dict(row_count=n + null_n, is_view=False))
+        self.table_infos.setdefault(table_name, dict(row_count=n + null_n, is_view=False))  # type: ignore[call-overload]
 
         rows = [
             dict(
@@ -325,7 +325,7 @@ class SQLAlchemySourceDB:
 
     def _fake_unsupported_data(self, n: int = 100) -> None:
         table = self.metadata.tables[f"{self.schema}.has_unsupported_types"]
-        self.table_infos.setdefault("has_unsupported_types", dict(row_count=n, is_view=False))
+        self.table_infos.setdefault("has_unsupported_types", dict(row_count=n, is_view=False))  # type: ignore[call-overload]
 
         rows = [
             dict(

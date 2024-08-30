@@ -32,7 +32,7 @@ from .schema_types import (
     TTypeAdapter,
 )
 
-from sqlalchemy import Table, create_engine, select
+from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import CompileError
 
@@ -80,7 +80,7 @@ class TableLoader:
         table = self.table
         query = table.select()
         if not self.incremental:
-            return query
+            return query  # type: ignore[no-any-return]
         last_value_func = self.incremental.last_value_func
 
         # generate where
@@ -91,7 +91,7 @@ class TableLoader:
             filter_op = operator.le
             filter_op_end = operator.gt
         else:  # Custom last_value, load everything and let incremental handle filtering
-            return query
+            return query  # type: ignore[no-any-return]
 
         if self.last_value is not None:
             query = query.where(filter_op(self.cursor_column, self.last_value))
@@ -111,7 +111,7 @@ class TableLoader:
         if order_by is not None:
             query = query.order_by(order_by)
 
-        return query
+        return query  # type: ignore[no-any-return]
 
     def make_query(self) -> SelectAny:
         if self.query_adapter_callback:
@@ -155,7 +155,7 @@ class TableLoader:
         self, query: SelectAny, backend_kwargs: Dict[str, Any]
     ) -> Iterator[TDataItem]:
         try:
-            import connectorx as cx  # type: ignore
+            import connectorx as cx
         except ImportError:
             raise MissingDependencyException("Connector X table backend", ["connectorx"])
 
@@ -199,7 +199,7 @@ def table_rows(
 ) -> Iterator[TDataItem]:
     columns: TTableSchemaColumns = None
     if defer_table_reflect:
-        table = Table(table.name, table.metadata, autoload_with=engine, extend_existing=True)
+        table = Table(table.name, table.metadata, autoload_with=engine, extend_existing=True)  # type: ignore[attr-defined]
         default_table_adapter(table, included_columns)
         if table_adapter_callback:
             table_adapter_callback(table)
@@ -252,7 +252,7 @@ def engine_from_credentials(
         credentials = credentials.to_native_representation()
     engine = create_engine(credentials, **backend_kwargs)
     setattr(engine, "may_dispose_after_use", may_dispose_after_use)  # noqa
-    return engine
+    return engine  # type: ignore[no-any-return]
 
 
 def unwrap_json_connector_x(field: str) -> TDataItem:
