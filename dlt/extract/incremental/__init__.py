@@ -35,7 +35,12 @@ from dlt.extract.incremental.exceptions import (
     IncrementalCursorPathMissing,
     IncrementalPrimaryKeyMissing,
 )
-from dlt.extract.incremental.typing import IncrementalColumnState, TCursorValue, LastValueFunc
+from dlt.extract.incremental.typing import (
+    IncrementalColumnState,
+    TCursorValue,
+    LastValueFunc,
+    OnCursorValueMissing,
+)
 from dlt.extract.pipe import Pipe
 from dlt.extract.items import SupportsPipe, TTableHintTemplate, ItemTransform
 from dlt.extract.incremental.transform import (
@@ -81,7 +86,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
     >>> info = p.run(r, destination="duckdb")
 
     Args:
-        cursor_path: The name or a JSON path to an cursor field. Uses the same names of fields as in your JSON document, before they are normalized to store in the database.
+        cursor_path: The name or a JSON path to a cursor field. Uses the same names of fields as in your JSON document, before they are normalized to store in the database.
         initial_value: Optional value used for `last_value` when no state is available, e.g. on the first run of the pipeline. If not provided `last_value` will be `None` on the first run.
         last_value_func: Callable used to determine which cursor value to save in state. It is called with a list of the stored state value and all cursor vals from currently processing items. Default is `max`
         primary_key: Optional primary key used to deduplicate data. If not provided, a primary key defined by the resource will be used. Pass a tuple to define a compound key. Pass empty tuple to disable unique checks
@@ -95,6 +100,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
             specified range of data. Currently Airflow scheduler is detected: "data_interval_start" and "data_interval_end" are taken from the context and passed Incremental class.
             The values passed explicitly to Incremental will be ignored.
             Note that if logical "end date" is present then also "end_value" will be set which means that resource state is not used and exactly this range of date will be loaded
+        on_cursor_value_missing: Specify what happens when the cursor_path does not exist in a record or a record has `None` at the cursor_path: raise, include, exclude
     """
 
     # this is config/dataclass so declare members
@@ -104,6 +110,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
     end_value: Optional[Any] = None
     row_order: Optional[TSortOrder] = None
     allow_external_schedulers: bool = False
+    on_cursor_value_missing: OnCursorValueMissing = "raise"
 
     # incremental acting as empty
     EMPTY: ClassVar["Incremental[Any]"] = None
@@ -118,6 +125,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         end_value: Optional[TCursorValue] = None,
         row_order: Optional[TSortOrder] = None,
         allow_external_schedulers: bool = False,
+        on_cursor_value_missing: OnCursorValueMissing = "raise",
     ) -> None:
         # make sure that path is valid
         if cursor_path:
@@ -133,6 +141,11 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         self._primary_key: Optional[TTableHintTemplate[TColumnNames]] = primary_key
         self.row_order = row_order
         self.allow_external_schedulers = allow_external_schedulers
+        if on_cursor_value_missing not in ["raise", "include", "exclude"]:
+            raise ValueError(
+                f"Unexpected argument for on_cursor_value_missing. Got {on_cursor_value_missing}"
+            )
+        self.on_cursor_value_missing = on_cursor_value_missing
 
         self._cached_state: IncrementalColumnState = None
         """State dictionary cached on first access"""
@@ -171,6 +184,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
                 self.last_value_func,
                 self._primary_key,
                 set(self._cached_state["unique_hashes"]),
+                self.on_cursor_value_missing,
             )
 
     @classmethod

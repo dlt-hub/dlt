@@ -33,6 +33,7 @@ from dlt.extract.incremental.exceptions import (
     IncrementalCursorInvalidCoercion,
     IncrementalCursorPathMissing,
     IncrementalPrimaryKeyMissing,
+    IncrementalCursorPathHasValueNone,
 )
 from dlt.pipeline.exceptions import PipelineStepFailed
 
@@ -43,6 +44,10 @@ from tests.utils import (
     TestDataItemFormat,
     ALL_TEST_DATA_ITEM_FORMATS,
 )
+
+from tests.pipeline.utils import assert_query_data
+
+import pyarrow as pa
 
 
 @pytest.fixture(autouse=True)
@@ -167,8 +172,9 @@ def test_last_value_access_in_resource(item_type: TestDataItemFormat) -> None:
 
     p = dlt.pipeline(pipeline_name=uniq_id())
     p.extract(some_data())
-    p.extract(some_data())
+    assert values == [None]
 
+    p.extract(some_data())
     assert values == [None, 5]
 
 
@@ -633,6 +639,458 @@ def test_missing_cursor_field(item_type: TestDataItemFormat) -> None:
         dlt.run(some_data(), destination="dummy")
     assert isinstance(pip_ex.value.__context__, IncrementalCursorPathMissing)
     assert pip_ex.value.__context__.json_path == "item.timestamp"
+
+
+@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
+def test_cursor_path_none_includes_records_and_updates_incremental_cursor_1(
+    item_type: TestDataItemFormat,
+) -> None:
+    data = [
+        {"id": 1, "created_at": None},
+        {"id": 2, "created_at": 1},
+        {"id": 3, "created_at": 2},
+    ]
+    source_items = data_to_item_format(item_type, data)
+
+    @dlt.resource
+    def some_data(
+        created_at=dlt.sources.incremental("created_at", on_cursor_value_missing="include")
+    ):
+        yield source_items
+
+    p = dlt.pipeline(pipeline_name=uniq_id())
+    p.run(some_data(), destination="duckdb")
+
+    assert_query_data(p, "select count(id) from some_data", [3])
+    assert_query_data(p, "select count(created_at) from some_data", [2])
+
+    s = p.state["sources"][p.default_schema_name]["resources"]["some_data"]["incremental"][
+        "created_at"
+    ]
+    assert s["last_value"] == 2
+
+
+@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
+def test_cursor_path_none_does_not_include_overlapping_records(
+    item_type: TestDataItemFormat,
+) -> None:
+    @dlt.resource
+    def some_data(
+        invocation: int,
+        created_at=dlt.sources.incremental("created_at", on_cursor_value_missing="include"),
+    ):
+        if invocation == 1:
+            yield data_to_item_format(
+                item_type,
+                [
+                    {"id": 1, "created_at": None},
+                    {"id": 2, "created_at": 1},
+                    {"id": 3, "created_at": 2},
+                ],
+            )
+        elif invocation == 2:
+            yield data_to_item_format(
+                item_type,
+                [
+                    {"id": 4, "created_at": 1},
+                    {"id": 5, "created_at": None},
+                    {"id": 6, "created_at": 3},
+                ],
+            )
+
+    p = dlt.pipeline(pipeline_name=uniq_id())
+    p.run(some_data(1), destination="duckdb")
+    p.run(some_data(2), destination="duckdb")
+
+    assert_query_data(p, "select id from some_data order by id", [1, 2, 3, 5, 6])
+    assert_query_data(
+        p, "select created_at from some_data order by created_at", [1, 2, 3, None, None]
+    )
+
+    s = p.state["sources"][p.default_schema_name]["resources"]["some_data"]["incremental"][
+        "created_at"
+    ]
+    assert s["last_value"] == 3
+
+
+@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
+def test_cursor_path_none_includes_records_and_updates_incremental_cursor_2(
+    item_type: TestDataItemFormat,
+) -> None:
+    data = [
+        {"id": 1, "created_at": 1},
+        {"id": 2, "created_at": None},
+        {"id": 3, "created_at": 2},
+    ]
+    source_items = data_to_item_format(item_type, data)
+
+    @dlt.resource
+    def some_data(
+        created_at=dlt.sources.incremental("created_at", on_cursor_value_missing="include")
+    ):
+        yield source_items
+
+    p = dlt.pipeline(pipeline_name=uniq_id())
+    p.run(some_data(), destination="duckdb")
+
+    assert_query_data(p, "select count(id) from some_data", [3])
+    assert_query_data(p, "select count(created_at) from some_data", [2])
+
+    s = p.state["sources"][p.default_schema_name]["resources"]["some_data"]["incremental"][
+        "created_at"
+    ]
+    assert s["last_value"] == 2
+
+
+@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
+def test_cursor_path_none_includes_records_and_updates_incremental_cursor_3(
+    item_type: TestDataItemFormat,
+) -> None:
+    data = [
+        {"id": 1, "created_at": 1},
+        {"id": 2, "created_at": 2},
+        {"id": 3, "created_at": None},
+    ]
+    source_items = data_to_item_format(item_type, data)
+
+    @dlt.resource
+    def some_data(
+        created_at=dlt.sources.incremental("created_at", on_cursor_value_missing="include")
+    ):
+        yield source_items
+
+    p = dlt.pipeline(pipeline_name=uniq_id())
+    p.run(some_data(), destination="duckdb")
+    assert_query_data(p, "select count(id) from some_data", [3])
+    assert_query_data(p, "select count(created_at) from some_data", [2])
+
+    s = p.state["sources"][p.default_schema_name]["resources"]["some_data"]["incremental"][
+        "created_at"
+    ]
+    assert s["last_value"] == 2
+
+
+@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
+def test_cursor_path_none_includes_records_without_cursor_path(
+    item_type: TestDataItemFormat,
+) -> None:
+    data = [
+        {"id": 1, "created_at": 1},
+        {"id": 2},
+    ]
+    source_items = data_to_item_format(item_type, data)
+
+    @dlt.resource
+    def some_data(
+        created_at=dlt.sources.incremental("created_at", on_cursor_value_missing="include")
+    ):
+        yield source_items
+
+    p = dlt.pipeline(pipeline_name=uniq_id())
+    p.run(some_data(), destination="duckdb")
+    assert_query_data(p, "select count(id) from some_data", [2])
+    assert_query_data(p, "select count(created_at) from some_data", [1])
+
+    s = p.state["sources"][p.default_schema_name]["resources"]["some_data"]["incremental"][
+        "created_at"
+    ]
+    assert s["last_value"] == 1
+
+
+@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
+def test_cursor_path_none_excludes_records_and_updates_incremental_cursor(
+    item_type: TestDataItemFormat,
+) -> None:
+    data = [
+        {"id": 1, "created_at": 1},
+        {"id": 2, "created_at": 2},
+        {"id": 3, "created_at": None},
+    ]
+    source_items = data_to_item_format(item_type, data)
+
+    @dlt.resource
+    def some_data(
+        created_at=dlt.sources.incremental("created_at", on_cursor_value_missing="exclude")
+    ):
+        yield source_items
+
+    p = dlt.pipeline(pipeline_name=uniq_id())
+    p.run(some_data(), destination="duckdb")
+    assert_query_data(p, "select count(id) from some_data", [2])
+
+    s = p.state["sources"][p.default_schema_name]["resources"]["some_data"]["incremental"][
+        "created_at"
+    ]
+    assert s["last_value"] == 2
+
+
+@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
+def test_cursor_path_none_can_raise_on_none_1(item_type: TestDataItemFormat) -> None:
+    data = [
+        {"id": 1, "created_at": 1},
+        {"id": 2, "created_at": None},
+        {"id": 3, "created_at": 2},
+    ]
+    source_items = data_to_item_format(item_type, data)
+
+    @dlt.resource
+    def some_data(
+        created_at=dlt.sources.incremental("created_at", on_cursor_value_missing="raise")
+    ):
+        yield source_items
+
+    with pytest.raises(IncrementalCursorPathHasValueNone) as py_ex:
+        list(some_data())
+    assert py_ex.value.json_path == "created_at"
+
+    # same thing when run in pipeline
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        p = dlt.pipeline(pipeline_name=uniq_id())
+        p.extract(some_data())
+
+    assert isinstance(pip_ex.value.__context__, IncrementalCursorPathHasValueNone)
+    assert pip_ex.value.__context__.json_path == "created_at"
+
+
+@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
+def test_cursor_path_none_can_raise_on_none_2(item_type: TestDataItemFormat) -> None:
+    data = [
+        {"id": 1, "created_at": 1},
+        {"id": 2},
+        {"id": 3, "created_at": 2},
+    ]
+    source_items = data_to_item_format(item_type, data)
+
+    @dlt.resource
+    def some_data(
+        created_at=dlt.sources.incremental("created_at", on_cursor_value_missing="raise")
+    ):
+        yield source_items
+
+    # there is no fixed, error because cursor path is missing
+    if item_type == "object":
+        with pytest.raises(IncrementalCursorPathMissing) as ex:
+            list(some_data())
+        assert ex.value.json_path == "created_at"
+    # there is a fixed schema, error because value is null
+    else:
+        with pytest.raises(IncrementalCursorPathHasValueNone) as e:
+            list(some_data())
+        assert e.value.json_path == "created_at"
+
+    # same thing when run in pipeline
+    with pytest.raises(PipelineStepFailed) as e:  # type: ignore[assignment]
+        p = dlt.pipeline(pipeline_name=uniq_id())
+        p.extract(some_data())
+    if item_type == "object":
+        assert isinstance(e.value.__context__, IncrementalCursorPathMissing)
+    else:
+        assert isinstance(e.value.__context__, IncrementalCursorPathHasValueNone)
+    assert e.value.__context__.json_path == "created_at"  # type: ignore[attr-defined]
+
+
+@pytest.mark.parametrize("item_type", ["arrow-table", "arrow-batch", "pandas"])
+def test_cursor_path_none_can_raise_on_column_missing(item_type: TestDataItemFormat) -> None:
+    data = [
+        {"id": 1},
+        {"id": 2},
+        {"id": 3},
+    ]
+    source_items = data_to_item_format(item_type, data)
+
+    @dlt.resource
+    def some_data(
+        created_at=dlt.sources.incremental("created_at", on_cursor_value_missing="raise")
+    ):
+        yield source_items
+
+    with pytest.raises(IncrementalCursorPathMissing) as py_ex:
+        list(some_data())
+    assert py_ex.value.json_path == "created_at"
+
+    # same thing when run in pipeline
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        p = dlt.pipeline(pipeline_name=uniq_id())
+        p.extract(some_data())
+    assert pip_ex.value.__context__.json_path == "created_at"  # type: ignore[attr-defined]
+    assert isinstance(pip_ex.value.__context__, IncrementalCursorPathMissing)
+
+
+def test_cursor_path_none_nested_can_raise_on_none_1() -> None:
+    # No nested json path support for pandas and arrow. See test_nested_cursor_path_arrow_fails
+    @dlt.resource
+    def some_data(
+        created_at=dlt.sources.incremental(
+            "data.items[0].created_at", on_cursor_value_missing="raise"
+        )
+    ):
+        yield {"data": {"items": [{"created_at": None}, {"created_at": 1}]}}
+
+    with pytest.raises(IncrementalCursorPathHasValueNone) as e:
+        list(some_data())
+    assert e.value.json_path == "data.items[0].created_at"
+
+
+def test_cursor_path_none_nested_can_raise_on_none_2() -> None:
+    # No pandas and arrow. See test_nested_cursor_path_arrow_fails
+    @dlt.resource
+    def some_data(
+        created_at=dlt.sources.incremental(
+            "data.items[*].created_at", on_cursor_value_missing="raise"
+        )
+    ):
+        yield {"data": {"items": [{"created_at": None}, {"created_at": 1}]}}
+
+    with pytest.raises(IncrementalCursorPathHasValueNone) as e:
+        list(some_data())
+    assert e.value.json_path == "data.items[*].created_at"
+
+
+def test_cursor_path_none_nested_can_include_on_none_1() -> None:
+    # No nested json path support for pandas and arrow. See test_nested_cursor_path_arrow_fails
+    @dlt.resource
+    def some_data(
+        created_at=dlt.sources.incremental(
+            "data.items[*].created_at", on_cursor_value_missing="include"
+        )
+    ):
+        yield {
+            "data": {
+                "items": [
+                    {"created_at": None},
+                    {"created_at": 1},
+                ]
+            }
+        }
+
+    results = list(some_data())
+    assert results[0]["data"]["items"] == [
+        {"created_at": None},
+        {"created_at": 1},
+    ]
+
+    p = dlt.pipeline(pipeline_name=uniq_id())
+    p.run(some_data(), destination="duckdb")
+
+    assert_query_data(p, "select count(*) from some_data__data__items", [2])
+
+
+def test_cursor_path_none_nested_can_include_on_none_2() -> None:
+    # No nested json path support for pandas and arrow. See test_nested_cursor_path_arrow_fails
+    @dlt.resource
+    def some_data(
+        created_at=dlt.sources.incremental(
+            "data.items[0].created_at", on_cursor_value_missing="include"
+        )
+    ):
+        yield {
+            "data": {
+                "items": [
+                    {"created_at": None},
+                    {"created_at": 1},
+                ]
+            }
+        }
+
+    results = list(some_data())
+    assert results[0]["data"]["items"] == [
+        {"created_at": None},
+        {"created_at": 1},
+    ]
+
+    p = dlt.pipeline(pipeline_name=uniq_id())
+    p.run(some_data(), destination="duckdb")
+
+    assert_query_data(p, "select count(*) from some_data__data__items", [2])
+
+
+def test_cursor_path_none_nested_includes_rows_without_cursor_path() -> None:
+    # No nested json path support for pandas and arrow. See test_nested_cursor_path_arrow_fails
+    @dlt.resource
+    def some_data(
+        created_at=dlt.sources.incremental(
+            "data.items[*].created_at", on_cursor_value_missing="include"
+        )
+    ):
+        yield {
+            "data": {
+                "items": [
+                    {"id": 1},
+                    {"id": 2, "created_at": 2},
+                ]
+            }
+        }
+
+    results = list(some_data())
+    assert results[0]["data"]["items"] == [
+        {"id": 1},
+        {"id": 2, "created_at": 2},
+    ]
+
+    p = dlt.pipeline(pipeline_name=uniq_id())
+    p.run(some_data(), destination="duckdb")
+
+    assert_query_data(p, "select count(*) from some_data__data__items", [2])
+
+
+@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
+def test_set_default_value_for_incremental_cursor(item_type: TestDataItemFormat) -> None:
+    @dlt.resource
+    def some_data(created_at=dlt.sources.incremental("updated_at")):
+        yield data_to_item_format(
+            item_type,
+            [
+                {"id": 1, "created_at": 1, "updated_at": 1},
+                {"id": 2, "created_at": 4, "updated_at": None},
+                {"id": 3, "created_at": 3, "updated_at": 3},
+            ],
+        )
+
+    def set_default_updated_at(record):
+        if record.get("updated_at") is None:
+            record["updated_at"] = record.get("created_at", pendulum.now().int_timestamp)
+        return record
+
+    def set_default_updated_at_pandas(df):
+        df["updated_at"] = df["updated_at"].fillna(df["created_at"])
+        return df
+
+    def set_default_updated_at_arrow(records):
+        updated_at_is_null = pa.compute.is_null(records.column("updated_at"))
+        updated_at_filled = pa.compute.if_else(
+            updated_at_is_null, records.column("created_at"), records.column("updated_at")
+        )
+        if item_type == "arrow-table":
+            records = records.set_column(
+                records.schema.get_field_index("updated_at"),
+                pa.field("updated_at", records.column("updated_at").type),
+                updated_at_filled,
+            )
+        elif item_type == "arrow-batch":
+            columns = [records.column(i) for i in range(records.num_columns)]
+            columns[2] = updated_at_filled
+            records = pa.RecordBatch.from_arrays(columns, schema=records.schema)
+        return records
+
+    if item_type == "object":
+        func = set_default_updated_at
+    elif item_type == "pandas":
+        func = set_default_updated_at_pandas
+    elif item_type in ["arrow-table", "arrow-batch"]:
+        func = set_default_updated_at_arrow
+
+    result = list(some_data().add_map(func, insert_at=1))
+    values = data_item_to_list(item_type, result)
+    assert data_item_length(values) == 3
+    assert values[1]["updated_at"] == 4
+
+    # same for pipeline run
+    p = dlt.pipeline(pipeline_name=uniq_id())
+    p.extract(some_data().add_map(func, insert_at=1))
+    s = p.state["sources"][p.default_schema_name]["resources"]["some_data"]["incremental"][
+        "updated_at"
+    ]
+    assert s["last_value"] == 4
 
 
 def test_json_path_cursor() -> None:
