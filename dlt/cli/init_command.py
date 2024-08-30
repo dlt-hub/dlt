@@ -236,20 +236,24 @@ def init_command(
     source_name: str,
     destination_type: str,
     use_generic_template: bool,
-    repo_location: str,
+    repo_location: str = None,
     branch: str = None,
 ) -> None:
     # try to import the destination and get config spec
     destination_reference = Destination.from_reference(destination_type)
     destination_spec = destination_reference.spec
 
-    # lookup core sources
+    # set default repo
+    explicit_repo_location = repo_location is not None
+    repo_location = repo_location or DEFAULT_VERIFIED_SOURCES_REPO
+
+    # lookup core sources, if explicit repo was passed, we do not use any core sources
     local_path = Path(os.path.dirname(os.path.realpath(__file__))).parent / SOURCES_MODULE_NAME
     local_sources_storage = FileStorage(str(local_path))
     is_local_source = (
         local_sources_storage.has_folder(source_name)
         and source_name not in SKIP_CORE_SOURCES_FOLDERS
-    )
+    ) and not explicit_repo_location
 
     # look up init storage
     init_path = (
@@ -262,7 +266,9 @@ def init_command(
 
     # look up verified sources
     if not is_local_source:
-        fmt.echo("Looking up the init scripts in %s..." % fmt.bold(repo_location))
+        if explicit_repo_location:
+            fmt.echo("Explicit location provided by user, skipping core sources.")
+        fmt.echo("Looking up verified sources at %s..." % fmt.bold(repo_location))
         clone_storage = git.get_fresh_repo_files(repo_location, get_dlt_repos_dir(), branch=branch)
         # copy dlt source files from here
         sources_storage = FileStorage(clone_storage.make_full_path(SOURCES_MODULE_NAME))
@@ -285,8 +291,10 @@ def init_command(
     sources_module_prefix: str = ""
 
     if is_local_source:
-        # TODO: we do not need to check out the verified sources in this case
-        fmt.echo("Creating pipeline from core source...")
+        fmt.echo(
+            f"""Creating pipeline from core source {source_name}.
+                 Please note that from dlt 1.0.0 this source will not be taken from the verified sources repository anymore."""
+        )
         pipeline_script = source_name + "_pipeline.py"
         source_files = VerifiedSourceFiles(
             False,
