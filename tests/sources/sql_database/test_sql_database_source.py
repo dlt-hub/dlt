@@ -40,6 +40,15 @@ def dispose_engines():
     gc.collect()
 
 
+@pytest.fixture(autouse=True)
+def reset_os_environ():
+    # Save the current state of os.environ
+    original_environ = deepcopy(os.environ)
+    yield
+    # Restore the original state of os.environ
+    os.environ.clear()
+    os.environ.update(original_environ)
+
 def make_pipeline(destination_name: str) -> dlt.Pipeline:
     return dlt.pipeline(
         pipeline_name="sql_database",
@@ -736,7 +745,6 @@ def test_sql_database_include_view_in_table_names(
     pipeline.run(source)
 
     assert_row_counts(pipeline, sql_source_db, ["app_user", "chat_message_view"])
-
 
 
 @pytest.mark.parametrize("backend", ["pyarrow", "pandas", "sqlalchemy"])
