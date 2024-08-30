@@ -62,9 +62,8 @@ class DuckDbTypeMapper(TypeMapper):
         "TIMESTAMP_NS": "timestamp",
     }
 
-    def to_db_integer_type(
-        self, precision: Optional[int], table_format: TTableFormat = None
-    ) -> str:
+    def to_db_integer_type(self, column: TColumnSchema, table: TTableSchema = None) -> str:
+        precision = column.get("precision")
         if precision is None:
             return "BIGINT"
         # Precision is number of bits
@@ -83,19 +82,39 @@ class DuckDbTypeMapper(TypeMapper):
         )
 
     def to_db_datetime_type(
-        self, precision: Optional[int], table_format: TTableFormat = None
+        self,
+        column: TColumnSchema,
+        table: TTableSchema = None,
     ) -> str:
+        column_name = column.get("name")
+        table_name = table.get("name")
+        timezone = column.get("timezone")
+        precision = column.get("precision")
+
+        if timezone and precision is not None:
+            raise TerminalValueError(
+                f"DuckDB does not support both timezone and precision for column '{column_name}' in"
+                f" table '{table_name}'. To resolve this issue, either set timezone to False or"
+                " None, or use the default precision."
+            )
+
+        if timezone:
+            return "TIMESTAMP WITH TIME ZONE"
+        elif timezone is not None:  # condition for when timezone is False given that none is falsy
+            return "TIMESTAMP"
+
         if precision is None or precision == 6:
-            return super().to_db_datetime_type(precision, table_format)
-        if precision == 0:
+            return None
+        elif precision == 0:
             return "TIMESTAMP_S"
-        if precision == 3:
+        elif precision == 3:
             return "TIMESTAMP_MS"
-        if precision == 9:
+        elif precision == 9:
             return "TIMESTAMP_NS"
+
         raise TerminalValueError(
-            f"timestamp with {precision} decimals after seconds cannot be mapped into duckdb"
-            " TIMESTAMP type"
+            f"DuckDB does not support precision '{precision}' for '{column_name}' in table"
+            f" '{table_name}'"
         )
 
     def from_db_type(
@@ -162,7 +181,7 @@ class DuckDbClient(InsertValuesJobClient):
             job = DuckDbCopyJob(file_path)
         return job
 
-    def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:
+    def _get_column_def_sql(self, c: TColumnSchema, table: TTableSchema = None) -> str:
         hints_str = " ".join(
             self.active_hints.get(h, "")
             for h in self.active_hints.keys()
@@ -170,7 +189,7 @@ class DuckDbClient(InsertValuesJobClient):
         )
         column_name = self.sql_client.escape_column_name(c["name"])
         return (
-            f"{column_name} {self.type_mapper.to_db_type(c)} {hints_str} {self._gen_not_null(c.get('nullable', True))}"
+            f"{column_name} {self.type_mapper.to_db_type(c,table)} {hints_str} {self._gen_not_null(c.get('nullable', True))}"
         )
 
     def _from_db_type(

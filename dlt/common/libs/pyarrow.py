@@ -54,7 +54,10 @@ def get_py_arrow_datatype(
     elif column_type == "bool":
         return pyarrow.bool_()
     elif column_type == "timestamp":
-        return get_py_arrow_timestamp(column.get("precision") or caps.timestamp_precision, tz)
+        # sets timezone to None when timezone hint is false
+        timezone = tz if column.get("timezone", True) else None
+        precision = column.get("precision") or caps.timestamp_precision
+        return get_py_arrow_timestamp(precision, timezone)
     elif column_type == "bigint":
         return get_pyarrow_int(column.get("precision"))
     elif column_type == "binary":
@@ -139,6 +142,10 @@ def get_column_type_from_py_arrow(dtype: pyarrow.DataType) -> TColumnType:
             precision = 6
         else:
             precision = 9
+
+        if dtype.tz is None:
+            return dict(data_type="timestamp", precision=precision, timezone=False)
+
         return dict(data_type="timestamp", precision=precision)
     elif pyarrow.types.is_date(dtype):
         return dict(data_type="date")

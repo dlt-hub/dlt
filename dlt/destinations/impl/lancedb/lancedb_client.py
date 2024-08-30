@@ -41,7 +41,7 @@ from dlt.common.destination.reference import (
     LoadJob,
 )
 from dlt.common.pendulum import timedelta
-from dlt.common.schema import Schema, TTableSchema, TSchemaTables
+from dlt.common.schema import Schema, TTableSchema, TSchemaTables, TColumnSchema
 from dlt.common.schema.typing import (
     TColumnType,
     TTableFormat,
@@ -105,21 +105,27 @@ class LanceDBTypeMapper(TypeMapper):
         pa.date32(): "date",
     }
 
-    def to_db_decimal_type(
-        self, precision: Optional[int], scale: Optional[int]
-    ) -> pa.Decimal128Type:
-        precision, scale = self.decimal_precision(precision, scale)
+    def to_db_decimal_type(self, column: TColumnSchema) -> pa.Decimal128Type:
+        precision, scale = self.decimal_precision(column.get("precision"), column.get("scale"))
         return pa.decimal128(precision, scale)
 
     def to_db_datetime_type(
-        self, precision: Optional[int], table_format: TTableFormat = None
+        self,
+        column: TColumnSchema,
+        table: TTableSchema = None,
     ) -> pa.TimestampType:
+        column_name = column.get("name")
+        timezone = column.get("timezone")
+        precision = column.get("precision")
+        if timezone is not None or precision is not None:
+            logger.warning(
+                "LanceDB does not currently support column flags for timezone or precision."
+                f" These flags were used in column '{column_name}'."
+            )
         unit: str = TIMESTAMP_PRECISION_TO_UNIT[self.capabilities.timestamp_precision]
         return pa.timestamp(unit, "UTC")
 
-    def to_db_time_type(
-        self, precision: Optional[int], table_format: TTableFormat = None
-    ) -> pa.Time64Type:
+    def to_db_time_type(self, column: TColumnSchema, table: TTableSchema = None) -> pa.Time64Type:
         unit: str = TIMESTAMP_PRECISION_TO_UNIT[self.capabilities.timestamp_precision]
         return pa.time64(unit)
 
