@@ -246,7 +246,6 @@ def test_dump_trace_freeze_exception() -> None:
         example_string: str
 
     # yield model in resource so incremental fails when looking for "id"
-    # TODO: support pydantic models in incremental
 
     @dlt.resource(name="table_name", primary_key="id", write_disposition="replace")
     def generate_rows_incremental(
