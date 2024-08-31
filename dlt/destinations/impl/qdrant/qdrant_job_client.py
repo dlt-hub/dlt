@@ -5,7 +5,7 @@ import threading
 from dlt.common import logger
 from dlt.common.json import json
 from dlt.common.pendulum import pendulum
-from dlt.common.schema import Schema, TTableSchema, TSchemaTables
+from dlt.common.schema import Schema, TSchemaTables
 from dlt.common.schema.utils import (
     get_columns_names_with_prop,
     loads_table,
@@ -14,6 +14,7 @@ from dlt.common.schema.utils import (
 )
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
+    PreparedTableSchema,
     TLoadJobState,
     RunnableLoadJob,
     JobClientBase,
@@ -99,11 +100,11 @@ class QDrantLoadJob(RunnableLoadJob):
         doc = "\n".join(str(data[key]) for key in embedding_fields)
         return doc
 
-    def _list_unique_identifiers(self, table_schema: TTableSchema) -> Sequence[str]:
+    def _list_unique_identifiers(self, table_schema: PreparedTableSchema) -> Sequence[str]:
         """Returns a list of unique identifiers for a table.
 
         Args:
-            table_schema (TTableSchema): a dlt table schema.
+            table_schema (PreparedTableSchema): a dlt table schema.
 
         Returns:
             Sequence[str]: A list of unique column identifiers.
@@ -291,8 +292,7 @@ class QdrantClient(JobClientBase, WithStateSync):
         only_tables: Iterable[str] = None,
         expected_update: TSchemaTables = None,
     ) -> Optional[TSchemaTables]:
-        super().update_stored_schema(only_tables, expected_update)
-        applied_update: TSchemaTables = {}
+        applied_update = super().update_stored_schema(only_tables, expected_update)
         schema_info = self.get_stored_schema_by_hash(self.schema.stored_version_hash)
         if schema_info is None:
             logger.info(
@@ -306,6 +306,8 @@ class QdrantClient(JobClientBase, WithStateSync):
                 f"inserted at {schema_info.inserted_at} found "
                 "in storage, no upgrade required"
             )
+        # we assume that expected_update == applied_update so table schemas in dest were not
+        # externally changed
         return applied_update
 
     def get_stored_state(self, pipeline_name: str) -> Optional[StateInfo]:
@@ -440,7 +442,7 @@ class QdrantClient(JobClientBase, WithStateSync):
             raise
 
     def create_load_job(
-        self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
+        self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
         return QDrantLoadJob(
             file_path,

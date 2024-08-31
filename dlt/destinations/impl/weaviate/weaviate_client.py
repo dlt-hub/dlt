@@ -29,7 +29,7 @@ from dlt.common.json import json
 from dlt.common.pendulum import pendulum
 from dlt.common.typing import StrAny, TFun
 from dlt.common.time import ensure_pendulum_datetime
-from dlt.common.schema import Schema, TTableSchema, TSchemaTables, TTableSchemaColumns
+from dlt.common.schema import Schema, TSchemaTables, TTableSchemaColumns
 from dlt.common.schema.typing import TColumnSchema, TColumnType
 from dlt.common.schema.utils import (
     get_columns_names_with_prop,
@@ -39,6 +39,7 @@ from dlt.common.schema.utils import (
 )
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
+    PreparedTableSchema,
     TLoadJobState,
     RunnableLoadJob,
     JobClientBase,
@@ -218,7 +219,7 @@ class LoadWeaviateJob(RunnableLoadJob):
 
                 batch.add_data_object(data, self._class_name, uuid=uuid)
 
-    def list_unique_identifiers(self, table_schema: TTableSchema) -> Sequence[str]:
+    def list_unique_identifiers(self, table_schema: PreparedTableSchema) -> Sequence[str]:
         if table_schema.get("write_disposition") == "merge":
             primary_keys = get_columns_names_with_prop(table_schema, "primary_key")
             if primary_keys:
@@ -435,9 +436,8 @@ class WeaviateClient(JobClientBase, WithStateSync):
         only_tables: Iterable[str] = None,
         expected_update: TSchemaTables = None,
     ) -> Optional[TSchemaTables]:
-        super().update_stored_schema(only_tables, expected_update)
+        applied_update = super().update_stored_schema(only_tables, expected_update)
         # Retrieve the schema from Weaviate
-        applied_update: TSchemaTables = {}
         try:
             schema_info = self.get_stored_schema_by_hash(self.schema.stored_version_hash)
         except DestinationUndefinedEntity:
@@ -447,6 +447,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
                 f"Schema with hash {self.schema.stored_version_hash} "
                 "not found in the storage. upgrading"
             )
+            # TODO: return a real updated table schema (like in SQL job client)
             self._execute_schema_update(only_tables)
         else:
             logger.info(
@@ -675,7 +676,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
         }
 
     def create_load_job(
-        self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
+        self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
         return LoadWeaviateJob(
             file_path,

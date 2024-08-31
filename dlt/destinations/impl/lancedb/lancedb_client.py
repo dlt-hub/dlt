@@ -33,6 +33,7 @@ from dlt.common.destination.exceptions import (
 )
 from dlt.common.destination.reference import (
     JobClientBase,
+    PreparedTableSchema,
     WithStateSync,
     RunnableLoadJob,
     StorageSchemaInfo,
@@ -41,7 +42,7 @@ from dlt.common.destination.reference import (
     LoadJob,
 )
 from dlt.common.pendulum import timedelta
-from dlt.common.schema import Schema, TTableSchema, TSchemaTables, TColumnSchema
+from dlt.common.schema import Schema, TSchemaTables, TColumnSchema
 from dlt.common.schema.typing import (
     TColumnType,
     TTableFormat,
@@ -112,7 +113,7 @@ class LanceDBTypeMapper(TypeMapper):
     def to_db_datetime_type(
         self,
         column: TColumnSchema,
-        table: TTableSchema = None,
+        table: PreparedTableSchema = None,
     ) -> pa.TimestampType:
         column_name = column.get("name")
         timezone = column.get("timezone")
@@ -125,7 +126,9 @@ class LanceDBTypeMapper(TypeMapper):
         unit: str = TIMESTAMP_PRECISION_TO_UNIT[self.capabilities.timestamp_precision]
         return pa.timestamp(unit, "UTC")
 
-    def to_db_time_type(self, column: TColumnSchema, table: TTableSchema = None) -> pa.Time64Type:
+    def to_db_time_type(
+        self, column: TColumnSchema, table: PreparedTableSchema = None
+    ) -> pa.Time64Type:
         unit: str = TIMESTAMP_PRECISION_TO_UNIT[self.capabilities.timestamp_precision]
         return pa.time64(unit)
 
@@ -382,9 +385,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
         only_tables: Iterable[str] = None,
         expected_update: TSchemaTables = None,
     ) -> Optional[TSchemaTables]:
-        super().update_stored_schema(only_tables, expected_update)
-        applied_update: TSchemaTables = {}
-
+        applied_update = super().update_stored_schema(only_tables, expected_update)
         try:
             schema_info = self.get_stored_schema_by_hash(self.schema.stored_version_hash)
         except DestinationUndefinedEntity:
@@ -395,6 +396,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
                 f"Schema with hash {self.schema.stored_version_hash} "
                 "not found in the storage. upgrading"
             )
+            # TODO: return a real updated table schema (like in SQL job client)
             self._execute_schema_update(only_tables)
         else:
             logger.info(
@@ -402,6 +404,8 @@ class LanceDBClient(JobClientBase, WithStateSync):
                 f"inserted at {schema_info.inserted_at} found "
                 "in storage, no upgrade required"
             )
+        # we assume that expected_update == applied_update so table schemas in dest were not
+        # externally changed
         return applied_update
 
     def get_storage_table(self, table_name: str) -> Tuple[bool, TTableSchemaColumns]:
@@ -694,7 +698,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
         )
 
     def create_load_job(
-        self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
+        self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
         return LanceDBLoadJob(
             file_path=file_path,

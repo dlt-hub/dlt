@@ -16,6 +16,7 @@ from typing import Dict, List, Optional, Sequence, Any, Tuple
 from dlt.common.destination.reference import (
     FollowupJobRequest,
     CredentialsConfiguration,
+    PreparedTableSchema,
     SupportsStagingDestination,
     LoadJob,
 )
@@ -24,7 +25,7 @@ from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.schema import TColumnSchema, TColumnHint, Schema
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.schema.utils import table_schema_has_type, table_schema_has_type_with_precision
-from dlt.common.schema.typing import TTableSchema, TColumnType, TTableFormat, TTableSchemaColumns
+from dlt.common.schema.typing import TColumnType, TTableFormat, TTableSchemaColumns
 from dlt.common.configuration.specs import AwsCredentialsWithoutDefaults
 
 from dlt.destinations.insert_job_client import InsertValuesJobClient
@@ -82,7 +83,7 @@ class RedshiftTypeMapper(TypeMapper):
         "integer": "bigint",
     }
 
-    def to_db_integer_type(self, column: TColumnSchema, table: TTableSchema = None) -> str:
+    def to_db_integer_type(self, column: TColumnSchema, table: PreparedTableSchema = None) -> str:
         precision = column.get("precision")
         if precision is None:
             return "bigint"
@@ -238,11 +239,11 @@ class RedshiftClient(InsertValuesJobClient, SupportsStagingDestination):
         self.type_mapper = RedshiftTypeMapper(self.capabilities)
 
     def _create_merge_followup_jobs(
-        self, table_chain: Sequence[TTableSchema]
+        self, table_chain: Sequence[PreparedTableSchema]
     ) -> List[FollowupJobRequest]:
         return [RedshiftMergeJob.from_table_chain(table_chain, self.sql_client)]
 
-    def _get_column_def_sql(self, c: TColumnSchema, table: TTableSchema = None) -> str:
+    def _get_column_def_sql(self, c: TColumnSchema, table: PreparedTableSchema = None) -> str:
         hints_str = " ".join(
             HINT_TO_REDSHIFT_ATTR.get(h, "")
             for h in HINT_TO_REDSHIFT_ATTR.keys()
@@ -254,7 +255,7 @@ class RedshiftClient(InsertValuesJobClient, SupportsStagingDestination):
         )
 
     def create_load_job(
-        self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
+        self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
         """Starts SqlLoadJob for files ending with .sql or returns None to let derived classes to handle their specific jobs"""
         job = super().create_load_job(table, file_path, load_id, restore)
@@ -274,5 +275,5 @@ class RedshiftClient(InsertValuesJobClient, SupportsStagingDestination):
     ) -> TColumnType:
         return self.type_mapper.from_db_type(pq_t, precision, scale)
 
-    def should_truncate_table_before_load_on_staging_destination(self, table: TTableSchema) -> bool:
+    def should_truncate_table_before_load_on_staging_destination(self, table_name: str) -> bool:
         return self.config.truncate_tables_on_staging_destination_before_load

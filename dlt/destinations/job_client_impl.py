@@ -24,7 +24,6 @@ from dlt.common.schema.typing import (
     COLUMN_HINTS,
     TColumnType,
     TColumnSchemaBase,
-    TTableSchema,
     TTableFormat,
 )
 from dlt.common.schema.utils import (
@@ -37,6 +36,7 @@ from dlt.common.storages import FileStorage
 from dlt.common.storages.load_package import LoadJobInfo
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns, TSchemaTables
 from dlt.common.destination.reference import (
+    PreparedTableSchema,
     StateInfo,
     StorageSchemaInfo,
     WithStateSync,
@@ -61,7 +61,7 @@ from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.utils import (
     get_pipeline_state_query_columns,
     info_schema_null_to_bool,
-    verify_sql_job_client_schema,
+    verify_schema_merge_disposition,
 )
 
 # this should suffice for now
@@ -208,24 +208,25 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
         else:
             yield
 
-    def should_truncate_table_before_load(self, table: TTableSchema) -> bool:
+    def should_truncate_table_before_load(self, table_name: str) -> bool:
+        table = self.prepare_load_table(table_name)
         return (
             table["write_disposition"] == "replace"
             and self.config.replace_strategy == "truncate-and-insert"
         )
 
     def _create_append_followup_jobs(
-        self, table_chain: Sequence[TTableSchema]
+        self, table_chain: Sequence[PreparedTableSchema]
     ) -> List[FollowupJobRequest]:
         return []
 
     def _create_merge_followup_jobs(
-        self, table_chain: Sequence[TTableSchema]
+        self, table_chain: Sequence[PreparedTableSchema]
     ) -> List[FollowupJobRequest]:
         return [SqlMergeFollowupJob.from_table_chain(table_chain, self.sql_client)]
 
     def _create_replace_followup_jobs(
-        self, table_chain: Sequence[TTableSchema]
+        self, table_chain: Sequence[PreparedTableSchema]
     ) -> List[FollowupJobRequest]:
         jobs: List[FollowupJobRequest] = []
         if self.config.replace_strategy in ["insert-from-staging", "staging-optimized"]:
@@ -238,7 +239,7 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
 
     def create_table_chain_completed_followup_jobs(
         self,
-        table_chain: Sequence[TTableSchema],
+        table_chain: Sequence[PreparedTableSchema],
         completed_table_chain_jobs: Optional[Sequence[LoadJobInfo]] = None,
     ) -> List[FollowupJobRequest]:
         """Creates a list of followup jobs for merge write disposition and staging replace strategies"""
@@ -255,7 +256,7 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
         return jobs
 
     def create_load_job(
-        self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
+        self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
         """Starts SqlLoadJob for files ending with .sql or returns None to let derived classes to handle their specific jobs"""
         if SqlLoadJob.is_sql_job(file_path):
@@ -517,12 +518,12 @@ WHERE """
         return sql_updates, schema_update
 
     def _make_add_column_sql(
-        self, new_columns: Sequence[TColumnSchema], table: TTableSchema = None
+        self, new_columns: Sequence[TColumnSchema], table: PreparedTableSchema = None
     ) -> List[str]:
         """Make one or more ADD COLUMN sql clauses to be joined in ALTER TABLE statement(s)"""
         return [f"ADD COLUMN {self._get_column_def_sql(c, table)}" for c in new_columns]
 
-    def _make_create_table(self, qualified_name: str, table: TTableSchema) -> str:
+    def _make_create_table(self, qualified_name: str, table: PreparedTableSchema) -> str:
         not_exists_clause = " "
         if (
             table["name"] in self.schema.dlt_table_names()
@@ -581,7 +582,7 @@ WHERE """
         return sql_result
 
     @abstractmethod
-    def _get_column_def_sql(self, c: TColumnSchema, table: TTableSchema = None) -> str:
+    def _get_column_def_sql(self, c: TColumnSchema, table: PreparedTableSchema = None) -> str:
         pass
 
     @staticmethod
@@ -657,17 +658,20 @@ WHERE """
             schema_str,
         )
 
-    def _verify_schema(self) -> None:
-        super()._verify_schema()
-        if exceptions := verify_sql_job_client_schema(self.schema, warnings=True):
+    def verify_schema(self, only_tables: Iterable[str] = None) -> List[PreparedTableSchema]:
+        loaded_table = super().verify_schema(only_tables)
+        if exceptions := verify_schema_merge_disposition(
+            self.schema, loaded_table, self.capabilities, warnings=True
+        ):
             for exception in exceptions:
                 logger.error(str(exception))
             raise exceptions[0]
+        return loaded_table
 
     def prepare_load_job_execution(self, job: RunnableLoadJob) -> None:
         self._set_query_tags_for_job(load_id=job._load_id, table=job._load_table)
 
-    def _set_query_tags_for_job(self, load_id: str, table: TTableSchema) -> None:
+    def _set_query_tags_for_job(self, load_id: str, table: PreparedTableSchema) -> None:
         """Sets query tags in sql_client for a job in package `load_id`, starting for a particular `table`"""
         from dlt.common.pipeline import current_pipeline
 
@@ -678,7 +682,7 @@ WHERE """
                 "source": self.schema.name,
                 "resource": (
                     get_inherited_table_hint(
-                        self.schema._schema_tables, table["name"], "resource", allow_none=True
+                        self.schema.tables, table["name"], "resource", allow_none=True
                     )
                     or ""
                 ),
@@ -689,19 +693,20 @@ WHERE """
         )
 
 
-class SqlJobClientWithStaging(SqlJobClientBase, WithStagingDataset):
-    in_staging_mode: bool = False
+class SqlJobClientWithStagingDataset(SqlJobClientBase, WithStagingDataset):
+    in_staging_dataset_mode: bool = False
 
     @contextlib.contextmanager
     def with_staging_dataset(self) -> Iterator["SqlJobClientBase"]:
         try:
             with self.sql_client.with_staging_dataset():
-                self.in_staging_mode = True
+                self.in_staging_dataset_mode = True
                 yield self
         finally:
-            self.in_staging_mode = False
+            self.in_staging_dataset_mode = False
 
-    def should_load_data_to_staging_dataset(self, table: TTableSchema) -> bool:
+    def should_load_data_to_staging_dataset(self, table_name: str) -> bool:
+        table = self.prepare_load_table(table_name)
         if table["write_disposition"] == "merge":
             return True
         elif table["write_disposition"] == "replace" and (

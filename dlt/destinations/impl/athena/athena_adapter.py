@@ -1,9 +1,5 @@
-from typing import Any, Optional, Dict, Protocol, Sequence, Union, Final
+from typing import Any, Dict, Sequence, Union, Final
 
-from dateutil import parser
-
-from dlt.common.pendulum import timezone
-from dlt.common.schema.typing import TColumnNames, TTableSchemaColumns, TColumnSchema
 from dlt.destinations.utils import get_resource_for_adapter
 from dlt.extract import DltResource
 from dlt.extract.items import TTableHintTemplate

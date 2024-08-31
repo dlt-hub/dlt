@@ -8,10 +8,23 @@ from dlt.common.data_writers.escape import (
 )
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 
+from dlt.common.schema.typing import TLoaderMergeStrategy, TTableSchema
 from dlt.destinations.impl.athena.configuration import AthenaClientConfiguration
 
 if t.TYPE_CHECKING:
     from dlt.destinations.impl.athena.athena import AthenaClient
+
+
+def athena_merge_strategies_selector(
+    supported_merge_strategies: t.Sequence[TLoaderMergeStrategy],
+    /,
+    *,
+    table_schema: TTableSchema,
+) -> t.Sequence[TLoaderMergeStrategy]:
+    if table_schema.get("table_format") == "iceberg":
+        return supported_merge_strategies
+    else:
+        return []
 
 
 class athena(Destination[AthenaClientConfiguration, "AthenaClient"]):
@@ -47,6 +60,7 @@ class athena(Destination[AthenaClientConfiguration, "AthenaClient"]):
         caps.timestamp_precision = 3
         caps.supports_truncate_command = False
         caps.supported_merge_strategies = ["delete-insert", "upsert", "scd2"]
+        caps.merge_strategies_selector = athena_merge_strategies_selector
         return caps
 
     @property
@@ -61,7 +75,6 @@ class athena(Destination[AthenaClientConfiguration, "AthenaClient"]):
         credentials: t.Union[AwsCredentials, t.Dict[str, t.Any], t.Any] = None,
         athena_work_group: t.Optional[str] = None,
         aws_data_catalog: t.Optional[str] = "awsdatacatalog",
-        force_iceberg: bool = False,
         destination_name: t.Optional[str] = None,
         environment: t.Optional[str] = None,
         **kwargs: t.Any,
@@ -75,7 +88,6 @@ class athena(Destination[AthenaClientConfiguration, "AthenaClient"]):
             credentials: AWS credentials to connect to the Athena database.
             athena_work_group: Athena work group to use
             aws_data_catalog: Athena data catalog to use
-            force_iceberg: Force iceberg tables
             **kwargs: Additional arguments passed to the destination config
         """
         super().__init__(
@@ -83,7 +95,6 @@ class athena(Destination[AthenaClientConfiguration, "AthenaClient"]):
             credentials=credentials,
             athena_work_group=athena_work_group,
             aws_data_catalog=aws_data_catalog,
-            force_iceberg=force_iceberg,
             destination_name=destination_name,
             environment=environment,
             **kwargs,

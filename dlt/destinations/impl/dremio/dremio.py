@@ -4,21 +4,21 @@ from urllib.parse import urlparse
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
     HasFollowupJobs,
+    PreparedTableSchema,
     TLoadJobState,
     RunnableLoadJob,
     SupportsStagingDestination,
     FollowupJobRequest,
     LoadJob,
 )
-from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns
-from dlt.common.schema.typing import TTableSchema, TColumnType, TTableFormat, TColumnSchemaBase
+from dlt.common.schema import TColumnSchema, Schema
+from dlt.common.schema.typing import TColumnType, TTableFormat
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.utils import uniq_id
 from dlt.destinations.exceptions import LoadJobTerminalException
 from dlt.destinations.impl.dremio.configuration import DremioClientConfiguration
 from dlt.destinations.impl.dremio.sql_client import DremioSqlClient
-from dlt.destinations.job_client_impl import SqlJobClientWithStaging
-from dlt.destinations.job_impl import FinalizedLoadJobWithFollowupJobs
+from dlt.destinations.job_client_impl import SqlJobClientWithStagingDataset
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
 from dlt.destinations.type_mapping import TypeMapper
@@ -134,7 +134,7 @@ class DremioLoadJob(RunnableLoadJob, HasFollowupJobs):
             """)
 
 
-class DremioClient(SqlJobClientWithStaging, SupportsStagingDestination):
+class DremioClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
     def __init__(
         self,
         schema: Schema,
@@ -153,7 +153,7 @@ class DremioClient(SqlJobClientWithStaging, SupportsStagingDestination):
         self.type_mapper = DremioTypeMapper(self.capabilities)
 
     def create_load_job(
-        self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
+        self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
         job = super().create_load_job(table, file_path, load_id, restore)
 
@@ -195,19 +195,19 @@ class DremioClient(SqlJobClientWithStaging, SupportsStagingDestination):
     ) -> TColumnType:
         return self.type_mapper.from_db_type(bq_t, precision, scale)
 
-    def _get_column_def_sql(self, c: TColumnSchema, table: TTableSchema = None) -> str:
+    def _get_column_def_sql(self, c: TColumnSchema, table: PreparedTableSchema = None) -> str:
         name = self.sql_client.escape_column_name(c["name"])
         return (
             f"{name} {self.type_mapper.to_db_type(c,table)} {self._gen_not_null(c.get('nullable', True))}"
         )
 
     def _create_merge_followup_jobs(
-        self, table_chain: Sequence[TTableSchema]
+        self, table_chain: Sequence[PreparedTableSchema]
     ) -> List[FollowupJobRequest]:
         return [DremioMergeJob.from_table_chain(table_chain, self.sql_client)]
 
     def _make_add_column_sql(
-        self, new_columns: Sequence[TColumnSchema], table: TTableSchema = None
+        self, new_columns: Sequence[TColumnSchema], table: PreparedTableSchema = None
     ) -> List[str]:
         return [
             "ADD COLUMNS ("
@@ -215,5 +215,5 @@ class DremioClient(SqlJobClientWithStaging, SupportsStagingDestination):
             + ")"
         ]
 
-    def should_truncate_table_before_load_on_staging_destination(self, table: TTableSchema) -> bool:
+    def should_truncate_table_before_load_on_staging_destination(self, table_name: str) -> bool:
         return self.config.truncate_tables_on_staging_destination_before_load

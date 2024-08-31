@@ -8,6 +8,7 @@ from dlt.common.destination.exceptions import (
 )
 from dlt.common.destination.reference import (
     HasFollowupJobs,
+    PreparedTableSchema,
     RunnableLoadJob,
     FollowupJobRequest,
     LoadJob,
@@ -16,7 +17,7 @@ from dlt.common.destination.reference import (
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.schema import TColumnSchema, TColumnHint, Schema
-from dlt.common.schema.typing import TTableSchema, TColumnType, TTableFormat
+from dlt.common.schema.typing import TColumnType, TTableFormat
 from dlt.common.storages.file_storage import FileStorage
 
 from dlt.destinations.sql_jobs import SqlStagingCopyFollowupJob, SqlJobParams
@@ -66,7 +67,7 @@ class PostgresTypeMapper(TypeMapper):
         "integer": "bigint",
     }
 
-    def to_db_integer_type(self, column: TColumnSchema, table: TTableSchema = None) -> str:
+    def to_db_integer_type(self, column: TColumnSchema, table: PreparedTableSchema = None) -> str:
         precision = column.get("precision")
         if precision is None:
             return "bigint"
@@ -84,7 +85,7 @@ class PostgresTypeMapper(TypeMapper):
     def to_db_datetime_type(
         self,
         column: TColumnSchema,
-        table: TTableSchema = None,
+        table: PreparedTableSchema = None,
     ) -> str:
         column_name = column.get("name")
         table_name = table.get("name")
@@ -127,7 +128,7 @@ class PostgresStagingCopyJob(SqlStagingCopyFollowupJob):
     @classmethod
     def generate_sql(
         cls,
-        table_chain: Sequence[TTableSchema],
+        table_chain: Sequence[PreparedTableSchema],
         sql_client: SqlClientBase[Any],
         params: Optional[SqlJobParams] = None,
     ) -> List[str]:
@@ -258,14 +259,14 @@ class PostgresClient(InsertValuesJobClient):
         self.type_mapper = PostgresTypeMapper(self.capabilities)
 
     def create_load_job(
-        self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
+        self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
         job = super().create_load_job(table, file_path, load_id, restore)
         if not job and file_path.endswith("csv"):
             job = PostgresCsvCopyJob(file_path)
         return job
 
-    def _get_column_def_sql(self, c: TColumnSchema, table: TTableSchema = None) -> str:
+    def _get_column_def_sql(self, c: TColumnSchema, table: PreparedTableSchema = None) -> str:
         hints_str = " ".join(
             self.active_hints.get(h, "")
             for h in self.active_hints.keys()
@@ -277,7 +278,7 @@ class PostgresClient(InsertValuesJobClient):
         )
 
     def _create_replace_followup_jobs(
-        self, table_chain: Sequence[TTableSchema]
+        self, table_chain: Sequence[PreparedTableSchema]
     ) -> List[FollowupJobRequest]:
         if self.config.replace_strategy == "staging-optimized":
             return [PostgresStagingCopyJob.from_table_chain(table_chain, self.sql_client)]

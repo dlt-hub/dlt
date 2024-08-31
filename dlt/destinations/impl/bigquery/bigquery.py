@@ -17,13 +17,14 @@ from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
     HasFollowupJobs,
     FollowupJobRequest,
+    PreparedTableSchema,
     TLoadJobState,
     RunnableLoadJob,
     SupportsStagingDestination,
     LoadJob,
 )
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns
-from dlt.common.schema.typing import TTableSchema, TColumnType, TTableFormat
+from dlt.common.schema.typing import TColumnType, TTableFormat
 from dlt.common.schema.utils import get_inherited_table_hint
 from dlt.common.schema.utils import table_schema_has_type
 from dlt.common.storages.file_storage import FileStorage
@@ -50,7 +51,7 @@ from dlt.destinations.impl.bigquery.bigquery_adapter import (
 )
 from dlt.destinations.impl.bigquery.configuration import BigQueryClientConfiguration
 from dlt.destinations.impl.bigquery.sql_client import BigQuerySqlClient, BQ_TERMINAL_REASONS
-from dlt.destinations.job_client_impl import SqlJobClientWithStaging
+from dlt.destinations.job_client_impl import SqlJobClientWithStagingDataset
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
 from dlt.destinations.type_mapping import TypeMapper
@@ -212,7 +213,7 @@ class BigQueryMergeJob(SqlMergeFollowupJob):
         return sql
 
 
-class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
+class BigQueryClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
     def __init__(
         self,
         schema: Schema,
@@ -235,12 +236,12 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
         self.type_mapper = BigQueryTypeMapper(self.capabilities)
 
     def _create_merge_followup_jobs(
-        self, table_chain: Sequence[TTableSchema]
+        self, table_chain: Sequence[PreparedTableSchema]
     ) -> List[FollowupJobRequest]:
         return [BigQueryMergeJob.from_table_chain(table_chain, self.sql_client)]
 
     def create_load_job(
-        self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
+        self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
         job = super().create_load_job(table, file_path, load_id)
 
@@ -286,7 +287,7 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
         if self._should_autodetect_schema(table_name):
             return []
 
-        table: Optional[TTableSchema] = self.prepare_load_table(table_name)
+        table = self.prepare_load_table(table_name)
         sql = super()._get_table_update_sql(table_name, new_columns, generate_alter)
         canonical_name = self.sql_client.make_qualified_table_name(table_name)
 
@@ -354,10 +355,8 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
 
         return sql
 
-    def prepare_load_table(
-        self, table_name: str, prepare_for_staging: bool = False
-    ) -> Optional[TTableSchema]:
-        table = super().prepare_load_table(table_name, prepare_for_staging)
+    def prepare_load_table(self, table_name: str) -> Optional[PreparedTableSchema]:
+        table = super().prepare_load_table(table_name)
         if table_name in self.schema.data_table_names():
             if TABLE_DESCRIPTION_HINT not in table:
                 table[TABLE_DESCRIPTION_HINT] = (  # type: ignore[name-defined, typeddict-unknown-key, unused-ignore]
@@ -417,7 +416,7 @@ SELECT {",".join(self._get_storage_table_query_columns())}
 
         return query, folded_table_names
 
-    def _get_column_def_sql(self, column: TColumnSchema, table: TTableSchema = None) -> str:
+    def _get_column_def_sql(self, column: TColumnSchema, table: PreparedTableSchema = None) -> str:
         name = self.sql_client.escape_column_name(column["name"])
         column_def_sql = (
             f"{name} {self.type_mapper.to_db_type(column, table)} {self._gen_not_null(column.get('nullable', True))}"
@@ -428,7 +427,7 @@ SELECT {",".join(self._get_storage_table_query_columns())}
             column_def_sql += " OPTIONS (rounding_mode='ROUND_HALF_AWAY_FROM_ZERO')"
         return column_def_sql
 
-    def _create_load_job(self, table: TTableSchema, file_path: str) -> bigquery.LoadJob:
+    def _create_load_job(self, table: PreparedTableSchema, file_path: str) -> bigquery.LoadJob:
         # append to table for merge loads (append to stage) and regular appends.
         table_name = table["name"]
 
@@ -500,10 +499,10 @@ SELECT {",".join(self._get_storage_table_query_columns())}
 
     def _should_autodetect_schema(self, table_name: str) -> bool:
         return get_inherited_table_hint(
-            self.schema._schema_tables, table_name, AUTODETECT_SCHEMA_HINT, allow_none=True
+            self.schema.tables, table_name, AUTODETECT_SCHEMA_HINT, allow_none=True
         ) or (self.config.autodetect_schema and table_name not in self.schema.dlt_table_names())
 
-    def should_truncate_table_before_load_on_staging_destination(self, table: TTableSchema) -> bool:
+    def should_truncate_table_before_load_on_staging_destination(self, table_name: str) -> bool:
         return self.config.truncate_tables_on_staging_destination_before_load
 
 

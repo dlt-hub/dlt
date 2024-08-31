@@ -30,8 +30,7 @@ def verify_normalized_table(
 
     1. Log warning if any incomplete nullable columns are in any data tables
     2. Raise `UnboundColumnException` on incomplete non-nullable columns (e.g. missing merge/primary key)
-    3. raise if we detect name conflict for SCD2 columns
-    4. Log warning if table format is not supported by destination capabilities
+    3. Log warning if table format is not supported by destination capabilities
     """
     for column, nullable in find_incomplete_columns(table):
         exc = UnboundColumnException(schema.name, table["name"], column)
@@ -40,10 +39,16 @@ def verify_normalized_table(
         else:
             raise exc
 
-    # if resolve_merge_strategy(schema._schema_tables, table, capabilities) == "scd2":
-    #     validate_validity_column_names(
-    #         schema.name, get_validity_column_names(table)
-    #     )
+    # TODO: 3. raise if we detect name conflict for SCD2 columns
+    # until we track data per column we won't be able to implement this
+    # if resolve_merge_strategy(schema.tables, table, capabilities) == "scd2":
+    #     for validity_column_name in get_validity_column_names(table):
+    #         if validity_column_name in item.keys():
+    #             raise ColumnNameConflictException(
+    #                 schema_name,
+    #                 "Found column in data item with same name as validity column"
+    #                 f' "{validity_column_name}".',
+    #             )
 
     supported_table_formats = capabilities.supported_table_formats or []
     if "table_format" in table and table["table_format"] not in supported_table_formats:

@@ -6,6 +6,7 @@ from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
     HasFollowupJobs,
     FollowupJobRequest,
+    PreparedTableSchema,
     RunnableLoadJob,
     SupportsStagingDestination,
     LoadJob,
@@ -17,7 +18,7 @@ from dlt.common.configuration.specs import (
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.schema import TColumnSchema, Schema
-from dlt.common.schema.typing import TTableSchema, TColumnType, TSchemaTables, TTableFormat
+from dlt.common.schema.typing import TColumnType
 from dlt.common.schema.utils import table_schema_has_type
 from dlt.common.storages import FilesystemConfiguration, fsspec_from_config
 
@@ -68,7 +69,7 @@ class DatabricksTypeMapper(TypeMapper):
         "wei": "DECIMAL(%i,%i)",
     }
 
-    def to_db_integer_type(self, column: TColumnSchema, table: TTableSchema = None) -> str:
+    def to_db_integer_type(self, column: TColumnSchema, table: PreparedTableSchema = None) -> str:
         precision = column.get("precision")
         if precision is None:
             return "BIGINT"
@@ -305,7 +306,7 @@ class DatabricksClient(InsertValuesJobClient, SupportsStagingDestination):
         self.type_mapper = DatabricksTypeMapper(self.capabilities)
 
     def create_load_job(
-        self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
+        self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
         job = super().create_load_job(table, file_path, load_id, restore)
 
@@ -317,12 +318,12 @@ class DatabricksClient(InsertValuesJobClient, SupportsStagingDestination):
         return job
 
     def _create_merge_followup_jobs(
-        self, table_chain: Sequence[TTableSchema]
+        self, table_chain: Sequence[PreparedTableSchema]
     ) -> List[FollowupJobRequest]:
         return [DatabricksMergeJob.from_table_chain(table_chain, self.sql_client)]
 
     def _make_add_column_sql(
-        self, new_columns: Sequence[TColumnSchema], table: TTableSchema = None
+        self, new_columns: Sequence[TColumnSchema], table: PreparedTableSchema = None
     ) -> List[str]:
         # Override because databricks requires multiple columns in a single ADD COLUMN clause
         return [
@@ -352,7 +353,7 @@ class DatabricksClient(InsertValuesJobClient, SupportsStagingDestination):
     ) -> TColumnType:
         return self.type_mapper.from_db_type(bq_t, precision, scale)
 
-    def _get_column_def_sql(self, c: TColumnSchema, table: TTableSchema = None) -> str:
+    def _get_column_def_sql(self, c: TColumnSchema, table: PreparedTableSchema = None) -> str:
         name = self.sql_client.escape_column_name(c["name"])
         return (
             f"{name} {self.type_mapper.to_db_type(c,table)} {self._gen_not_null(c.get('nullable', True))}"
@@ -365,5 +366,5 @@ class DatabricksClient(InsertValuesJobClient, SupportsStagingDestination):
         )
         return fields
 
-    def should_truncate_table_before_load_on_staging_destination(self, table: TTableSchema) -> bool:
+    def should_truncate_table_before_load_on_staging_destination(self, table_name: str) -> bool:
         return self.config.truncate_tables_on_staging_destination_before_load

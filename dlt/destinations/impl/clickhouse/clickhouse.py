@@ -16,6 +16,7 @@ from dlt.common.configuration.specs import (
 )
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
+    PreparedTableSchema,
     SupportsStagingDestination,
     TLoadJobState,
     HasFollowupJobs,
@@ -26,7 +27,6 @@ from dlt.common.destination.reference import (
 from dlt.common.schema import Schema, TColumnSchema
 from dlt.common.schema.typing import (
     TTableFormat,
-    TTableSchema,
     TColumnType,
 )
 from dlt.common.storages import FileStorage
@@ -50,7 +50,7 @@ from dlt.destinations.impl.clickhouse.utils import (
 )
 from dlt.destinations.job_client_impl import (
     SqlJobClientBase,
-    SqlJobClientWithStaging,
+    SqlJobClientWithStagingDataset,
 )
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest, FinalizedLoadJobWithFollowupJobs
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
@@ -269,7 +269,7 @@ class ClickHouseMergeJob(SqlMergeFollowupJob):
         return True
 
 
-class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
+class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
     def __init__(
         self,
         schema: Schema,
@@ -289,11 +289,11 @@ class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
         self.type_mapper = ClickHouseTypeMapper(self.capabilities)
 
     def _create_merge_followup_jobs(
-        self, table_chain: Sequence[TTableSchema]
+        self, table_chain: Sequence[PreparedTableSchema]
     ) -> List[FollowupJobRequest]:
         return [ClickHouseMergeJob.from_table_chain(table_chain, self.sql_client)]
 
-    def _get_column_def_sql(self, c: TColumnSchema, table: TTableSchema = None) -> str:
+    def _get_column_def_sql(self, c: TColumnSchema, table: PreparedTableSchema = None) -> str:
         # Build column definition.
         # The primary key and sort order definition is defined outside column specification.
         hints_ = " ".join(
@@ -318,7 +318,7 @@ class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
         )
 
     def create_load_job(
-        self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
+        self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
         return super().create_load_job(table, file_path, load_id, restore) or ClickHouseLoadJob(
             file_path,
@@ -333,7 +333,7 @@ class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
         new_columns: Sequence[TColumnSchema],
         generate_alter: bool,
     ) -> List[str]:
-        table: TTableSchema = self.prepare_load_table(table_name, self.in_staging_mode)
+        table = self.prepare_load_table(table_name)
         sql = SqlJobClientBase._get_table_update_sql(self, table_name, new_columns, generate_alter)
 
         if generate_alter:
@@ -373,5 +373,5 @@ class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
     ) -> TColumnType:
         return self.type_mapper.from_db_type(ch_t, precision, scale)
 
-    def should_truncate_table_before_load_on_staging_destination(self, table: TTableSchema) -> bool:
+    def should_truncate_table_before_load_on_staging_destination(self, table_name: str) -> bool:
         return self.config.truncate_tables_on_staging_destination_before_load

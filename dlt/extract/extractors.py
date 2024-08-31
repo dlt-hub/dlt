@@ -243,7 +243,7 @@ class Extractor:
         # this is a new table so allow evolve once
         if schema_contract["columns"] != "evolve" and self.schema.is_new_table(table_name):
             computed_table["x-normalizer"] = {"evolve-columns-once": True}
-        existing_table = self.schema._schema_tables.get(table_name, None)
+        existing_table = self.schema.tables.get(table_name, None)
         if existing_table:
             # TODO: revise this. computed table should overwrite certain hints (ie. primary and merge keys) completely
             diff_table = utils.diff_table(self.schema.name, existing_table, computed_table)
@@ -257,7 +257,8 @@ class Extractor:
 
         # merge with schema table
         if diff_table:
-            self.schema.update_table(diff_table)
+            # update table does diff again
+            self.schema.update_table(computed_table)
 
         # process filters
         if filters:
@@ -410,7 +411,7 @@ class ArrowExtractor(Extractor):
             arrow_table["columns"] = pyarrow.py_arrow_to_table_schema_columns(item.schema)
 
             # Add load_id column if needed
-            dlt_load_id_col = self.naming.normalize_table_identifier("_dlt_load_id")
+            dlt_load_id_col = self.naming.normalize_identifier("_dlt_load_id")
             if (
                 self._normalize_config.add_dlt_load_id
                 and dlt_load_id_col not in arrow_table["columns"]

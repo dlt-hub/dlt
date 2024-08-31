@@ -1,14 +1,16 @@
-import threading
-from typing import ClassVar, Dict, Optional
+from typing import Dict, Optional
 
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.data_types import TDataType
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.schema import TColumnSchema, TColumnHint, Schema
-from dlt.common.destination.reference import RunnableLoadJob, HasFollowupJobs, LoadJob
-from dlt.common.schema.typing import TTableSchema, TColumnType, TTableFormat
+from dlt.common.destination.reference import (
+    PreparedTableSchema,
+    RunnableLoadJob,
+    HasFollowupJobs,
+    LoadJob,
+)
+from dlt.common.schema.typing import TColumnType, TTableFormat
 from dlt.common.storages.file_storage import FileStorage
-from dlt.common.utils import maybe_context
 
 from dlt.destinations.insert_job_client import InsertValuesJobClient
 
@@ -62,7 +64,7 @@ class DuckDbTypeMapper(TypeMapper):
         "TIMESTAMP_NS": "timestamp",
     }
 
-    def to_db_integer_type(self, column: TColumnSchema, table: TTableSchema = None) -> str:
+    def to_db_integer_type(self, column: TColumnSchema, table: PreparedTableSchema = None) -> str:
         precision = column.get("precision")
         if precision is None:
             return "BIGINT"
@@ -84,7 +86,7 @@ class DuckDbTypeMapper(TypeMapper):
     def to_db_datetime_type(
         self,
         column: TColumnSchema,
-        table: TTableSchema = None,
+        table: PreparedTableSchema = None,
     ) -> str:
         column_name = column.get("name")
         table_name = table.get("name")
@@ -174,14 +176,14 @@ class DuckDbClient(InsertValuesJobClient):
         self.type_mapper = DuckDbTypeMapper(self.capabilities)
 
     def create_load_job(
-        self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
+        self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
         job = super().create_load_job(table, file_path, load_id, restore)
         if not job:
             job = DuckDbCopyJob(file_path)
         return job
 
-    def _get_column_def_sql(self, c: TColumnSchema, table: TTableSchema = None) -> str:
+    def _get_column_def_sql(self, c: TColumnSchema, table: PreparedTableSchema = None) -> str:
         hints_str = " ".join(
             self.active_hints.get(h, "")
             for h in self.active_hints.keys()

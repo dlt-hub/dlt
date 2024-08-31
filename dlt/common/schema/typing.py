@@ -195,13 +195,9 @@ class TMergeDispositionDict(TWriteDispositionDict, total=False):
 TWriteDispositionConfig = Union[TWriteDisposition, TWriteDispositionDict, TMergeDispositionDict]
 
 
-# TypedDict that defines properties of a table
-class TTableSchema(TTableProcessingHints, total=False):
-    """TypedDict that defines properties of a table"""
-
+class _TTableSchemaBase(TTableProcessingHints, total=False):
     name: Optional[str]
     description: Optional[str]
-    write_disposition: Optional[TWriteDisposition]
     schema_contract: Optional[TSchemaContract]
     table_sealed: Optional[bool]
     parent: Optional[str]
@@ -210,6 +206,12 @@ class TTableSchema(TTableProcessingHints, total=False):
     resource: Optional[str]
     table_format: Optional[TTableFormat]
     file_format: Optional[TFileFormat]
+
+
+class TTableSchema(_TTableSchemaBase, total=False):
+    """TypedDict that defines properties of a table"""
+
+    write_disposition: Optional[TWriteDisposition]
 
 
 class TPartialTableSchema(TTableSchema):
