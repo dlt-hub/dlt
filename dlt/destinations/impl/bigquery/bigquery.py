@@ -90,9 +90,9 @@ class BigQueryTypeMapper(TypeMapper):
         "TIME": "time",
     }
 
-    def to_db_decimal_type(self, precision: Optional[int], scale: Optional[int]) -> str:
+    def to_db_decimal_type(self, column: TColumnSchema) -> str:
         # Use BigQuery's BIGNUMERIC for large precision decimals
-        precision, scale = self.decimal_precision(precision, scale)
+        precision, scale = self.decimal_precision(column.get("precision"), column.get("scale"))
         if precision > 38 or scale > 9:
             return "BIGNUMERIC(%i,%i)" % (precision, scale)
         return "NUMERIC(%i,%i)" % (precision, scale)
@@ -417,10 +417,10 @@ SELECT {",".join(self._get_storage_table_query_columns())}
 
         return query, folded_table_names
 
-    def _get_column_def_sql(self, column: TColumnSchema, table_format: TTableFormat = None) -> str:
+    def _get_column_def_sql(self, column: TColumnSchema, table: TTableSchema = None) -> str:
         name = self.sql_client.escape_column_name(column["name"])
         column_def_sql = (
-            f"{name} {self.type_mapper.to_db_type(column, table_format)} {self._gen_not_null(column.get('nullable', True))}"
+            f"{name} {self.type_mapper.to_db_type(column, table)} {self._gen_not_null(column.get('nullable', True))}"
         )
         if column.get(ROUND_HALF_EVEN_HINT, False):
             column_def_sql += " OPTIONS (rounding_mode='ROUND_HALF_EVEN')"

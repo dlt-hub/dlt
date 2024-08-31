@@ -104,9 +104,9 @@ class AthenaTypeMapper(TypeMapper):
     def __init__(self, capabilities: DestinationCapabilitiesContext):
         super().__init__(capabilities)
 
-    def to_db_integer_type(
-        self, precision: Optional[int], table_format: TTableFormat = None
-    ) -> str:
+    def to_db_integer_type(self, column: TColumnSchema, table: TTableSchema = None) -> str:
+        precision = column.get("precision")
+        table_format = table.get("table_format")
         if precision is None:
             return "bigint"
         if precision <= 8:
@@ -403,9 +403,9 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
     ) -> TColumnType:
         return self.type_mapper.from_db_type(hive_t, precision, scale)
 
-    def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:
+    def _get_column_def_sql(self, c: TColumnSchema, table: TTableSchema = None) -> str:
         return (
-            f"{self.sql_client.escape_ddl_identifier(c['name'])} {self.type_mapper.to_db_type(c, table_format)}"
+            f"{self.sql_client.escape_ddl_identifier(c['name'])} {self.type_mapper.to_db_type(c, table)}"
         )
 
     def _iceberg_partition_clause(self, partition_hints: Optional[Dict[str, str]]) -> str:
@@ -429,9 +429,9 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
         # for the system tables we need to create empty iceberg tables to be able to run, DELETE and UPDATE queries
         # or if we are in iceberg mode, we create iceberg tables for all tables
         table = self.prepare_load_table(table_name, self.in_staging_mode)
-        table_format = table.get("table_format")
+
         is_iceberg = self._is_iceberg_table(table) or table.get("write_disposition", None) == "skip"
-        columns = ", ".join([self._get_column_def_sql(c, table_format) for c in new_columns])
+        columns = ", ".join([self._get_column_def_sql(c, table) for c in new_columns])
 
         # create unique tag for iceberg table so it is never recreated in the same folder
         # athena requires some kind of special cleaning (or that is a bug) so we cannot refresh

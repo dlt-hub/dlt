@@ -195,10 +195,10 @@ class DremioClient(SqlJobClientWithStaging, SupportsStagingDestination):
     ) -> TColumnType:
         return self.type_mapper.from_db_type(bq_t, precision, scale)
 
-    def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:
+    def _get_column_def_sql(self, c: TColumnSchema, table: TTableSchema = None) -> str:
         name = self.sql_client.escape_column_name(c["name"])
         return (
-            f"{name} {self.type_mapper.to_db_type(c)} {self._gen_not_null(c.get('nullable', True))}"
+            f"{name} {self.type_mapper.to_db_type(c,table)} {self._gen_not_null(c.get('nullable', True))}"
         )
 
     def _create_merge_followup_jobs(
@@ -207,9 +207,13 @@ class DremioClient(SqlJobClientWithStaging, SupportsStagingDestination):
         return [DremioMergeJob.from_table_chain(table_chain, self.sql_client)]
 
     def _make_add_column_sql(
-        self, new_columns: Sequence[TColumnSchema], table_format: TTableFormat = None
+        self, new_columns: Sequence[TColumnSchema], table: TTableSchema = None
     ) -> List[str]:
-        return ["ADD COLUMNS (" + ", ".join(self._get_column_def_sql(c) for c in new_columns) + ")"]
+        return [
+            "ADD COLUMNS ("
+            + ", ".join(self._get_column_def_sql(c, table) for c in new_columns)
+            + ")"
+        ]
 
     def should_truncate_table_before_load_on_staging_destination(self, table: TTableSchema) -> bool:
         return self.config.truncate_tables_on_staging_destination_before_load

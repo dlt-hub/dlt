@@ -29,7 +29,7 @@ from dlt.common.destination.exceptions import (
     DestinationTerminalException,
     UnknownDestinationModule,
 )
-from dlt.common.exceptions import PipelineStateNotAvailable
+from dlt.common.exceptions import PipelineStateNotAvailable, TerminalValueError
 from dlt.common.pipeline import LoadInfo, PipelineContext
 from dlt.common.runtime.collector import LogCollector
 from dlt.common.schema.exceptions import TableIdentifiersFrozen
@@ -2729,3 +2729,18 @@ def assert_imported_file(
         extract_info.metrics[extract_info.loads_ids[0]][0]["table_metrics"][table_name].items_count
         == expected_rows
     )
+
+
+def test_duckdb_column_invalid_timestamp() -> None:
+    # DuckDB does not have timestamps with timezone and precision
+    @dlt.resource(
+        columns={"event_tstamp": {"data_type": "timestamp", "timezone": True, "precision": 3}},
+        primary_key="event_id",
+    )
+    def events():
+        yield [{"event_id": 1, "event_tstamp": "2024-07-30T10:00:00.123+00:00"}]
+
+    pipeline = dlt.pipeline(destination="duckdb")
+
+    with pytest.raises((TerminalValueError, PipelineStepFailed)):
+        pipeline.run(events())

@@ -66,9 +66,8 @@ class PostgresTypeMapper(TypeMapper):
         "integer": "bigint",
     }
 
-    def to_db_integer_type(
-        self, precision: Optional[int], table_format: TTableFormat = None
-    ) -> str:
+    def to_db_integer_type(self, column: TColumnSchema, table: TTableSchema = None) -> str:
+        precision = column.get("precision")
         if precision is None:
             return "bigint"
         # Precision is number of bits
@@ -81,6 +80,39 @@ class PostgresTypeMapper(TypeMapper):
         raise TerminalValueError(
             f"bigint with {precision} bits precision cannot be mapped into postgres integer type"
         )
+
+    def to_db_datetime_type(
+        self,
+        column: TColumnSchema,
+        table: TTableSchema = None,
+    ) -> str:
+        column_name = column.get("name")
+        table_name = table.get("name")
+        timezone = column.get("timezone")
+        precision = column.get("precision")
+
+        if timezone is None and precision is None:
+            return None
+
+        timestamp = "timestamp"
+
+        # append precision if specified and valid
+        if precision is not None:
+            if 0 <= precision <= 6:
+                timestamp += f" ({precision})"
+            else:
+                raise TerminalValueError(
+                    f"Postgres does not support precision '{precision}' for '{column_name}' in"
+                    f" table '{table_name}'"
+                )
+
+        # append timezone part
+        if timezone is None or timezone:  # timezone True and None
+            timestamp += " with time zone"
+        else:  # timezone is explicitly False
+            timestamp += " without time zone"
+
+        return timestamp
 
     def from_db_type(
         self, db_type: str, precision: Optional[int] = None, scale: Optional[int] = None
@@ -233,7 +265,7 @@ class PostgresClient(InsertValuesJobClient):
             job = PostgresCsvCopyJob(file_path)
         return job
 
-    def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:
+    def _get_column_def_sql(self, c: TColumnSchema, table: TTableSchema = None) -> str:
         hints_str = " ".join(
             self.active_hints.get(h, "")
             for h in self.active_hints.keys()
@@ -241,7 +273,7 @@ class PostgresClient(InsertValuesJobClient):
         )
         column_name = self.sql_client.escape_column_name(c["name"])
         return (
-            f"{column_name} {self.type_mapper.to_db_type(c)} {hints_str} {self._gen_not_null(c.get('nullable', True))}"
+            f"{column_name} {self.type_mapper.to_db_type(c,table)} {hints_str} {self._gen_not_null(c.get('nullable', True))}"
         )
 
     def _create_replace_followup_jobs(

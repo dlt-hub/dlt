@@ -68,9 +68,8 @@ class DatabricksTypeMapper(TypeMapper):
         "wei": "DECIMAL(%i,%i)",
     }
 
-    def to_db_integer_type(
-        self, precision: Optional[int], table_format: TTableFormat = None
-    ) -> str:
+    def to_db_integer_type(self, column: TColumnSchema, table: TTableSchema = None) -> str:
+        precision = column.get("precision")
         if precision is None:
             return "BIGINT"
         if precision <= 8:
@@ -323,10 +322,12 @@ class DatabricksClient(InsertValuesJobClient, SupportsStagingDestination):
         return [DatabricksMergeJob.from_table_chain(table_chain, self.sql_client)]
 
     def _make_add_column_sql(
-        self, new_columns: Sequence[TColumnSchema], table_format: TTableFormat = None
+        self, new_columns: Sequence[TColumnSchema], table: TTableSchema = None
     ) -> List[str]:
         # Override because databricks requires multiple columns in a single ADD COLUMN clause
-        return ["ADD COLUMN\n" + ",\n".join(self._get_column_def_sql(c) for c in new_columns)]
+        return [
+            "ADD COLUMN\n" + ",\n".join(self._get_column_def_sql(c, table) for c in new_columns)
+        ]
 
     def _get_table_update_sql(
         self,
@@ -351,10 +352,10 @@ class DatabricksClient(InsertValuesJobClient, SupportsStagingDestination):
     ) -> TColumnType:
         return self.type_mapper.from_db_type(bq_t, precision, scale)
 
-    def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:
+    def _get_column_def_sql(self, c: TColumnSchema, table: TTableSchema = None) -> str:
         name = self.sql_client.escape_column_name(c["name"])
         return (
-            f"{name} {self.type_mapper.to_db_type(c)} {self._gen_not_null(c.get('nullable', True))}"
+            f"{name} {self.type_mapper.to_db_type(c,table)} {self._gen_not_null(c.get('nullable', True))}"
         )
 
     def _get_storage_table_query_columns(self) -> List[str]:

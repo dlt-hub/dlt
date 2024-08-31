@@ -517,10 +517,10 @@ WHERE """
         return sql_updates, schema_update
 
     def _make_add_column_sql(
-        self, new_columns: Sequence[TColumnSchema], table_format: TTableFormat = None
+        self, new_columns: Sequence[TColumnSchema], table: TTableSchema = None
     ) -> List[str]:
         """Make one or more ADD COLUMN sql clauses to be joined in ALTER TABLE statement(s)"""
-        return [f"ADD COLUMN {self._get_column_def_sql(c, table_format)}" for c in new_columns]
+        return [f"ADD COLUMN {self._get_column_def_sql(c, table)}" for c in new_columns]
 
     def _make_create_table(self, qualified_name: str, table: TTableSchema) -> str:
         not_exists_clause = " "
@@ -537,17 +537,16 @@ WHERE """
         # build sql
         qualified_name = self.sql_client.make_qualified_table_name(table_name)
         table = self.prepare_load_table(table_name)
-        table_format = table.get("table_format")
         sql_result: List[str] = []
         if not generate_alter:
             # build CREATE
             sql = self._make_create_table(qualified_name, table) + " (\n"
-            sql += ",\n".join([self._get_column_def_sql(c, table_format) for c in new_columns])
+            sql += ",\n".join([self._get_column_def_sql(c, table) for c in new_columns])
             sql += ")"
             sql_result.append(sql)
         else:
             sql_base = f"ALTER TABLE {qualified_name}\n"
-            add_column_statements = self._make_add_column_sql(new_columns, table_format)
+            add_column_statements = self._make_add_column_sql(new_columns, table)
             if self.capabilities.alter_add_multi_column:
                 column_sql = ",\n"
                 sql_result.append(sql_base + column_sql.join(add_column_statements))
@@ -582,7 +581,7 @@ WHERE """
         return sql_result
 
     @abstractmethod
-    def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:
+    def _get_column_def_sql(self, c: TColumnSchema, table: TTableSchema = None) -> str:
         pass
 
     @staticmethod
