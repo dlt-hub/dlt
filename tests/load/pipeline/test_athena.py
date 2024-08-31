@@ -40,7 +40,7 @@ def test_athena_destinations(destination_config: DestinationTestConfiguration) -
             "sub_items": [{"id": 101, "name": "sub item 101"}, {"id": 101, "name": "sub item 102"}],
         }
 
-    pipeline.run(items, loader_file_format=destination_config.file_format)
+    pipeline.run(items, **destination_config.run_kwargs)
 
     # see if we have athena tables with items
     table_counts = load_table_counts(
@@ -71,7 +71,7 @@ def test_athena_destinations(destination_config: DestinationTestConfiguration) -
             ],
         }
 
-    pipeline.run(items2)
+    pipeline.run(items2, **destination_config.run_kwargs)
     table_counts = load_table_counts(
         pipeline, *[t["name"] for t in pipeline.default_schema._schema_tables.values()]
     )
@@ -103,7 +103,7 @@ def test_athena_all_datatypes_and_timestamps(
     def my_source() -> Any:
         return my_resource
 
-    info = pipeline.run(my_source())
+    info = pipeline.run(my_source(), **destination_config.run_kwargs)
     assert_load_info(info)
 
     with pipeline.sql_client() as sql_client:
@@ -190,7 +190,7 @@ def test_athena_blocks_time_column(destination_config: DestinationTestConfigurat
     def my_source() -> Any:
         return my_resource
 
-    info = pipeline.run(my_source())
+    info = pipeline.run(my_source(), **destination_config.run_kwargs)
 
     assert info.has_failed_jobs
 
@@ -223,10 +223,10 @@ def test_athena_file_layouts(destination_config: DestinationTestConfiguration, l
         FILE_LAYOUT_TABLE_NOT_FIRST,  # table not the first variable
     ]:
         with pytest.raises(CantExtractTablePrefix):
-            pipeline.run(resources)
+            pipeline.run(resources, **destination_config.run_kwargs)
         return
 
-    info = pipeline.run(resources)
+    info = pipeline.run(resources, **destination_config.run_kwargs)
     assert_load_info(info)
 
     table_counts = load_table_counts(
@@ -237,11 +237,11 @@ def test_athena_file_layouts(destination_config: DestinationTestConfiguration, l
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, subset=["athena"], force_iceberg=True),
+    destinations_configs(default_sql_configs=True, subset=["athena"], with_table_format="iceberg"),
     ids=lambda x: x.name,
 )
 def test_athena_partitioned_iceberg_table(destination_config: DestinationTestConfiguration):
-    """Load an iceberg table with partition hints and verifiy partitions are created correctly."""
+    """Load an iceberg table with partition hints and verify partitions are created correctly."""
     pipeline = destination_config.setup_pipeline("athena_" + uniq_id(), dev_mode=True)
 
     data_items = [
@@ -269,7 +269,7 @@ def test_athena_partitioned_iceberg_table(destination_config: DestinationTestCon
         ],
     )
 
-    info = pipeline.run(partitioned_table)
+    info = pipeline.run(partitioned_table, **destination_config.run_kwargs)
     assert_load_info(info)
 
     # Get partitions from metadata

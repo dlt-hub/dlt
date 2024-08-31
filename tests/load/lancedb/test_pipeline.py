@@ -2,6 +2,8 @@ from typing import Iterator, Generator, Any, List
 
 import pytest
 
+pytest.importorskip("lancedb")
+
 import dlt
 from dlt.common import json
 from dlt.common.typing import DictStrStr, DictStrAny
@@ -14,7 +16,6 @@ from dlt.destinations.impl.lancedb.lancedb_client import LanceDBClient
 from tests.load.lancedb.utils import assert_table
 from tests.load.utils import sequence_generator, drop_active_pipeline_data
 from tests.pipeline.utils import assert_load_info
-
 
 # Mark all tests as essential, do not remove.
 pytestmark = pytest.mark.essential

@@ -14,8 +14,8 @@ from dlt.common.storages.load_storage import JobFileFormatUnsupported
 from dlt.common.destination.reference import RunnableLoadJob, TDestination
 from dlt.common.schema.utils import (
     fill_hints_from_parent_and_clone_table,
-    get_child_tables,
-    get_top_level_table,
+    get_nested_tables,
+    get_root_table,
 )
 
 from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
@@ -156,7 +156,7 @@ def test_get_completed_table_chain_single_job_per_table() -> None:
     for table_name, table in schema.tables.items():
         schema.tables[table_name] = fill_hints_from_parent_and_clone_table(schema.tables, table)
 
-    top_job_table = get_top_level_table(schema.tables, "event_user")
+    top_job_table = get_root_table(schema.tables, "event_user")
     all_jobs = load.load_storage.normalized_packages.list_all_jobs_with_states(load_id)
     assert get_completed_table_chain(schema, all_jobs, top_job_table) is None
     # fake being completed
@@ -172,7 +172,7 @@ def test_get_completed_table_chain_single_job_per_table() -> None:
         == 1
     )
     # actually complete
-    loop_top_job_table = get_top_level_table(schema.tables, "event_loop_interrupted")
+    loop_top_job_table = get_root_table(schema.tables, "event_loop_interrupted")
     load.load_storage.normalized_packages.start_job(
         load_id, "event_loop_interrupted.839c6e6b514e427687586ccc65bf133f.0.jsonl"
     )
@@ -549,7 +549,7 @@ def test_completed_loop_with_delete_completed() -> None:
 
 
 @pytest.mark.parametrize("to_truncate", [True, False])
-def test_truncate_table_before_load_on_stanging(to_truncate) -> None:
+def test_truncate_table_before_load_on_staging(to_truncate) -> None:
     load = setup_loader(
         client_config=DummyClientConfiguration(
             truncate_tables_on_staging_destination_before_load=to_truncate
@@ -559,7 +559,7 @@ def test_truncate_table_before_load_on_stanging(to_truncate) -> None:
     destination_client = load.get_destination_client(schema)
     assert (
         destination_client.should_truncate_table_before_load_on_staging_destination(  # type: ignore
-            schema.tables["_dlt_version"]
+            schema.tables["_dlt_version"]["name"]
         )
         == to_truncate
     )
@@ -679,7 +679,7 @@ def test_extend_table_chain() -> None:
     assert tables == user_chain - {"event_user__parse_data__entities"}
     # exclude the whole chain
     tables = _extend_tables_with_table_chain(
-        schema, ["event_user"], ["event_user"], lambda table: table["name"] not in entities_chain
+        schema, ["event_user"], ["event_user"], lambda table_name: table_name not in entities_chain
     )
     assert tables == user_chain - entities_chain
     # ask for tables that are not top
@@ -753,7 +753,7 @@ def test_get_completed_table_chain_cases() -> None:
     assert chain == [event_user, event_user_entities]
 
     # merge and replace do not require whole chain to be in jobs
-    user_chain = get_child_tables(schema.tables, "event_user")
+    user_chain = get_nested_tables(schema.tables, "event_user")
     for w_d in ["merge", "replace"]:
         event_user["write_disposition"] = w_d  # type:ignore[typeddict-item]
 
@@ -852,7 +852,7 @@ def test_init_client_truncate_tables() -> None:
             merge_ = lambda table: table["write_disposition"] == "merge"
 
             # set event_bot chain to merge
-            bot_chain = get_child_tables(schema.tables, "event_bot")
+            bot_chain = get_nested_tables(schema.tables, "event_bot")
             for w_d in ["merge", "replace"]:
                 initialize_storage.reset_mock()
                 update_stored_schema.reset_mock()
@@ -1062,7 +1062,7 @@ def setup_loader(
         staging_system_config = FilesystemDestinationClientConfiguration()._bind_dataset_name(
             dataset_name="dummy"
         )
-        staging_system_config.as_staging = True
+        staging_system_config.as_staging_destination = True
         os.makedirs(REMOTE_FILESYSTEM)
         staging = filesystem(bucket_url=REMOTE_FILESYSTEM)
     # patch destination to provide client_config

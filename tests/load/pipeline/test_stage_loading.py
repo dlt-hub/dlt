@@ -6,7 +6,6 @@ from dlt.common import json
 from dlt.common.storages.configuration import FilesystemConfiguration
 from dlt.common.utils import uniq_id
 from dlt.common.schema.typing import TDataType
-from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 
 from tests.load.pipeline.test_merge_disposition import github
 from tests.pipeline.utils import load_table_counts, assert_load_info
@@ -55,7 +54,7 @@ def test_staging_load(destination_config: DestinationTestConfiguration) -> None:
         pipeline_name="test_stage_loading_5", dataset_name="test_staging_load" + uniq_id()
     )
 
-    info = pipeline.run(github(), loader_file_format=destination_config.file_format)
+    info = pipeline.run(github(), **destination_config.run_kwargs)
     assert_load_info(info)
     # checks if remote_url is set correctly on copy jobs
     metrics = info.metrics[info.loads_ids[0]][0]
@@ -75,11 +74,9 @@ def test_staging_load(destination_config: DestinationTestConfiguration) -> None:
     assert len(package_info.jobs["failed_jobs"]) == 0
     # we have 4 parquet and 4 reference jobs plus one merge job
     num_jobs = 4 + 4
-    num_sql_jobs = 0
-    if destination_config.supports_merge:
-        num_sql_jobs += 1
     # sql job is used to copy parquet to Athena Iceberg table (_dlt_pipeline_state)
-    if destination_config.destination == "athena" and destination_config.table_format == "iceberg":
+    num_sql_jobs = 1
+    if destination_config.supports_merge:
         num_sql_jobs += 1
     assert len(package_info.jobs["completed_jobs"]) == num_jobs + num_sql_jobs
     assert (
@@ -139,7 +136,7 @@ def test_staging_load(destination_config: DestinationTestConfiguration) -> None:
 
     if destination_config.supports_merge:
         # test merging in some changed values
-        info = pipeline.run(load_modified_issues, loader_file_format=destination_config.file_format)
+        info = pipeline.run(load_modified_issues, **destination_config.run_kwargs)
         assert_load_info(info)
         assert pipeline.default_schema.tables["issues"]["write_disposition"] == "merge"
         merge_counts = load_table_counts(
@@ -171,7 +168,7 @@ def test_staging_load(destination_config: DestinationTestConfiguration) -> None:
     info = pipeline.run(
         github().load_issues,
         write_disposition="append",
-        loader_file_format=destination_config.file_format,
+        **destination_config.run_kwargs,
     )
     assert_load_info(info)
     assert pipeline.default_schema.tables["issues"]["write_disposition"] == "append"
@@ -185,7 +182,7 @@ def test_staging_load(destination_config: DestinationTestConfiguration) -> None:
     info = pipeline.run(
         github().load_issues,
         write_disposition="replace",
-        loader_file_format=destination_config.file_format,
+        **destination_config.run_kwargs,
     )
     assert_load_info(info)
     assert pipeline.default_schema.tables["issues"]["write_disposition"] == "replace"
@@ -214,12 +211,18 @@ def test_truncate_staging_dataset(destination_config: DestinationTestConfigurati
     table_name: str = resource.table_name  # type: ignore[assignment]
 
     # load the data, files stay on the stage after the load
-    info = pipeline.run(resource)
+    info = pipeline.run(
+        resource,
+        **destination_config.run_kwargs,
+    )
     assert_load_info(info)
 
     # load the data without truncating of the staging, should see two files on staging
     pipeline.destination.config_params["truncate_tables_on_staging_destination_before_load"] = False
-    info = pipeline.run(resource)
+    info = pipeline.run(
+        resource,
+        **destination_config.run_kwargs,
+    )
     assert_load_info(info)
     # check there are two staging files
     _, staging_client = pipeline._get_destination_clients(pipeline.default_schema)
@@ -239,7 +242,10 @@ def test_truncate_staging_dataset(destination_config: DestinationTestConfigurati
 
     # load the data with truncating, so only new file is on the staging
     pipeline.destination.config_params["truncate_tables_on_staging_destination_before_load"] = True
-    info = pipeline.run(resource)
+    info = pipeline.run(
+        resource,
+        **destination_config.run_kwargs,
+    )
     assert_load_info(info)
     # check that table exists in the destination
     with pipeline.sql_client() as sql_client:
@@ -322,7 +328,10 @@ def test_all_data_types(destination_config: DestinationTestConfiguration) -> Non
     def my_source():
         return my_resource
 
-    info = pipeline.run(my_source(), loader_file_format=destination_config.file_format)
+    info = pipeline.run(
+        my_source(),
+        **destination_config.run_kwargs,
+    )
     assert_load_info(info)
 
     with pipeline.sql_client() as sql_client:

@@ -76,11 +76,11 @@ def test_load_arrow_item(
         yield item
 
     # use csv for postgres to get native arrow processing
-    file_format = (
+    destination_config.file_format = (
         destination_config.file_format if destination_config.destination != "postgres" else "csv"
     )
 
-    load_info = pipeline.run(some_data(), loader_file_format=file_format)
+    load_info = pipeline.run(some_data(), **destination_config.run_kwargs)
     assert_load_info(load_info)
     # assert the table types
     some_table_columns = pipeline.default_schema.get_table("some_data")["columns"]
@@ -242,7 +242,7 @@ def test_load_arrow_with_not_null_columns(
 
     pipeline = destination_config.setup_pipeline("arrow_" + uniq_id())
 
-    pipeline.extract(some_data())
+    pipeline.extract(some_data(), table_format=destination_config.table_format)
 
     norm_storage = pipeline._get_normalize_storage()
     extract_files = [
@@ -258,7 +258,7 @@ def test_load_arrow_with_not_null_columns(
         assert result_tbl.schema.field("int").nullable is False
         assert result_tbl.schema.field("int").type == pa.int64()
 
-    pipeline.normalize()
-    # Load is succesful
+    pipeline.normalize(loader_file_format=destination_config.file_format)
+    # Load is successful
     info = pipeline.load()
     assert_load_info(info)

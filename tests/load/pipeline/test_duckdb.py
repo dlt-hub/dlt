@@ -32,13 +32,13 @@ def test_duck_case_names(destination_config: DestinationTestConfiguration) -> No
     # create tables and columns with emojis and other special characters
     info = pipeline.run(
         airtable_emojis().with_resources("📆 Schedule", "🦚Peacock", "🦚WidePeacock"),
-        loader_file_format=destination_config.file_format,
+        **destination_config.run_kwargs,
     )
     info.raise_on_failed_jobs()
     info = pipeline.run(
         [{"🐾Feet": 2, "1+1": "two", "\nhey": "value"}],
         table_name="🦚Peacocks🦚",
-        loader_file_format=destination_config.file_format,
+        **destination_config.run_kwargs,
     )
     info.raise_on_failed_jobs()
     table_counts = load_table_counts(
@@ -58,7 +58,7 @@ def test_duck_case_names(destination_config: DestinationTestConfiguration) -> No
         pipeline.run(
             [{"🐾Feet": 2, "1+1": "two", "🐾feet": "value"}],
             table_name="🦚peacocks🦚",
-            loader_file_format=destination_config.file_format,
+            **destination_config.run_kwargs,
         )
     assert isinstance(pip_ex.value.__context__, SchemaIdentifierNormalizationCollision)
     assert pip_ex.value.__context__.conflict_identifier_name == "🦚Peacocks🦚"
@@ -106,7 +106,7 @@ def test_duck_precision_types(destination_config: DestinationTestConfiguration) 
     info = pipeline.run(
         row,
         table_name="row",
-        loader_file_format=destination_config.file_format,
+        **destination_config.run_kwargs,
         columns=TABLE_UPDATE_ALL_TIMESTAMP_PRECISIONS + TABLE_UPDATE_ALL_INT_PRECISIONS,
     )
     info.raise_on_failed_jobs()
@@ -242,7 +242,7 @@ def test_provoke_parallel_parquet_same_table(
 
     pipeline = destination_config.setup_pipeline("test_provoke_parallel_parquet_same_table")
 
-    info = pipeline.run(_get_shuffled_events(50))
+    info = pipeline.run(_get_shuffled_events(50), **destination_config.run_kwargs)
     info.raise_on_failed_jobs()
     assert_data_table_counts(
         pipeline,

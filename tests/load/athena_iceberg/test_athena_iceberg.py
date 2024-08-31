@@ -1,8 +1,8 @@
 import pytest
-import os
 from typing import Iterator, Any
 
 import dlt
+from tests.load.utils import DestinationTestConfiguration, destinations_configs
 from tests.pipeline.utils import load_table_counts
 
 from dlt.destinations.exceptions import DatabaseTerminalException
@@ -11,19 +11,22 @@ from dlt.destinations.exceptions import DatabaseTerminalException
 pytestmark = pytest.mark.essential
 
 
-def test_iceberg() -> None:
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True,
+        with_table_format="iceberg",
+        subset=["athena"],
+    ),
+    ids=lambda x: x.name,
+)
+def test_iceberg(destination_config: DestinationTestConfiguration) -> None:
     """
     We write two tables, one with the iceberg flag, one without. We expect the iceberg table and its subtables to accept update commands
     and the other table to reject them.
     """
-    os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = "s3://dlt-ci-test-bucket"
 
-    pipeline = dlt.pipeline(
-        pipeline_name="athena-iceberg",
-        destination="athena",
-        staging="filesystem",
-        dev_mode=True,
-    )
+    pipeline = destination_config.setup_pipeline("test_iceberg", dev_mode=True)
 
     def items() -> Iterator[Any]:
         yield {
@@ -67,3 +70,17 @@ def test_iceberg() -> None:
         # modifying iceberg table will succeed
         client.execute_sql("UPDATE items_iceberg SET name='new name'")
         client.execute_sql("UPDATE items_iceberg__sub_items SET name='super new name'")
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True,
+        with_table_format="iceberg",
+        subset=["athena"],
+    ),
+    ids=lambda x: x.name,
+)
+def test_force_iceberg_deprecation(destination_config: DestinationTestConfiguration) -> None:
+    """Fails on deprecated force_iceberg option"""
+    destination_config.force_iceberg = True
