@@ -17,7 +17,6 @@ from copy import deepcopy
 import re
 
 from contextlib import contextmanager
-from fsspec import AbstractFileSystem
 from pendulum.datetime import DateTime, Date
 from datetime import datetime  # noqa: I251
 
@@ -35,16 +34,15 @@ from pyathena.formatter import (
 from dlt.common import logger
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.utils import uniq_id, without_none
-from dlt.common.schema import TColumnSchema, Schema, TTableSchema
+from dlt.common.schema import TColumnSchema, Schema
 from dlt.common.schema.typing import (
-    TTableSchema,
     TColumnType,
     TTableFormat,
     TSortOrder,
 )
 from dlt.common.schema.utils import table_schema_has_type
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.reference import LoadJob
+from dlt.common.destination.reference import LoadJob, PreparedTableSchema
 from dlt.common.destination.reference import FollowupJobRequest, SupportsStagingDestination
 from dlt.common.data_writers.escape import escape_hive_identifier
 from dlt.destinations.sql_jobs import SqlStagingCopyFollowupJob, SqlMergeFollowupJob
@@ -63,7 +61,7 @@ from dlt.destinations.sql_client import (
     raise_open_connection_error,
 )
 from dlt.destinations.typing import DBApiCursor
-from dlt.destinations.job_client_impl import SqlJobClientWithStaging
+from dlt.destinations.job_client_impl import SqlJobClientWithStagingDataset
 from dlt.destinations.job_impl import FinalizedLoadJobWithFollowupJobs, FinalizedLoadJob
 from dlt.destinations.impl.athena.configuration import AthenaClientConfiguration
 from dlt.destinations.type_mapping import TypeMapper
@@ -104,7 +102,7 @@ class AthenaTypeMapper(TypeMapper):
     def __init__(self, capabilities: DestinationCapabilitiesContext):
         super().__init__(capabilities)
 
-    def to_db_integer_type(self, column: TColumnSchema, table: TTableSchema = None) -> str:
+    def to_db_integer_type(self, column: TColumnSchema, table: PreparedTableSchema = None) -> str:
         precision = column.get("precision")
         table_format = table.get("table_format")
         if precision is None:
@@ -366,7 +364,7 @@ class AthenaSQLClient(SqlClientBase[Connection]):
         yield DBApiCursorImpl(cursor)  # type: ignore
 
 
-class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
+class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
     def __init__(
         self,
         schema: Schema,
@@ -403,7 +401,7 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
     ) -> TColumnType:
         return self.type_mapper.from_db_type(hive_t, precision, scale)
 
-    def _get_column_def_sql(self, c: TColumnSchema, table: TTableSchema = None) -> str:
+    def _get_column_def_sql(self, c: TColumnSchema, table: PreparedTableSchema = None) -> str:
         return (
             f"{self.sql_client.escape_ddl_identifier(c['name'])} {self.type_mapper.to_db_type(c, table)}"
         )
@@ -428,15 +426,15 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
 
         # for the system tables we need to create empty iceberg tables to be able to run, DELETE and UPDATE queries
         # or if we are in iceberg mode, we create iceberg tables for all tables
-        table = self.prepare_load_table(table_name, self.in_staging_mode)
-
-        is_iceberg = self._is_iceberg_table(table) or table.get("write_disposition", None) == "skip"
+        table = self.prepare_load_table(table_name)
+        # do not create iceberg tables on staging dataset
+        create_iceberg = not self.in_staging_dataset_mode and self._is_iceberg_table(table)
         columns = ", ".join([self._get_column_def_sql(c, table) for c in new_columns])
 
         # create unique tag for iceberg table so it is never recreated in the same folder
         # athena requires some kind of special cleaning (or that is a bug) so we cannot refresh
         # iceberg tables without it
-        location_tag = uniq_id(6) if is_iceberg else ""
+        location_tag = uniq_id(6) if create_iceberg else ""
         # this will fail if the table prefix is not properly defined
         table_prefix = self.table_prefix_layout.format(table_name=table_name + location_tag)
         location = f"{bucket}/{dataset}/{table_prefix}"
@@ -447,7 +445,7 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
             # alter table to add new columns at the end
             sql.append(f"""ALTER TABLE {qualified_table_name} ADD COLUMNS ({columns});""")
         else:
-            if is_iceberg:
+            if create_iceberg:
                 partition_clause = self._iceberg_partition_clause(
                     cast(Optional[Dict[str, str]], table.get(PARTITION_HINT))
                 )
@@ -469,7 +467,7 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
         return sql
 
     def create_load_job(
-        self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
+        self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
         """Starts SqlLoadJob for files ending with .sql or returns None to let derived classes to handle their specific jobs"""
         if table_schema_has_type(table, "time"):
@@ -482,15 +480,15 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
         if not job:
             job = (
                 FinalizedLoadJobWithFollowupJobs(file_path)
-                if self._is_iceberg_table(self.prepare_load_table(table["name"]))
+                if self._is_iceberg_table(table)
                 else FinalizedLoadJob(file_path)
             )
         return job
 
     def _create_append_followup_jobs(
-        self, table_chain: Sequence[TTableSchema]
+        self, table_chain: Sequence[PreparedTableSchema]
     ) -> List[FollowupJobRequest]:
-        if self._is_iceberg_table(self.prepare_load_table(table_chain[0]["name"])):
+        if self._is_iceberg_table(table_chain[0]):
             return [
                 SqlStagingCopyFollowupJob.from_table_chain(
                     table_chain, self.sql_client, {"replace": False}
@@ -499,9 +497,9 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
         return super()._create_append_followup_jobs(table_chain)
 
     def _create_replace_followup_jobs(
-        self, table_chain: Sequence[TTableSchema]
+        self, table_chain: Sequence[PreparedTableSchema]
     ) -> List[FollowupJobRequest]:
-        if self._is_iceberg_table(self.prepare_load_table(table_chain[0]["name"])):
+        if self._is_iceberg_table(table_chain[0]):
             return [
                 SqlStagingCopyFollowupJob.from_table_chain(
                     table_chain, self.sql_client, {"replace": True}
@@ -510,46 +508,35 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
         return super()._create_replace_followup_jobs(table_chain)
 
     def _create_merge_followup_jobs(
-        self, table_chain: Sequence[TTableSchema]
+        self, table_chain: Sequence[PreparedTableSchema]
     ) -> List[FollowupJobRequest]:
         return [AthenaMergeJob.from_table_chain(table_chain, self.sql_client)]
 
-    def _is_iceberg_table(self, table: TTableSchema) -> bool:
+    def _is_iceberg_table(self, table: PreparedTableSchema) -> bool:
         table_format = table.get("table_format")
-        return table_format == "iceberg"
+        # all dlt tables are iceberg tables
+        return table_format == "iceberg" or table["name"] in self.schema.dlt_table_names()
 
-    def should_load_data_to_staging_dataset(self, table: TTableSchema) -> bool:
+    def should_load_data_to_staging_dataset(self, table_name: str) -> bool:
         # all iceberg tables need staging
-        if self._is_iceberg_table(self.prepare_load_table(table["name"])):
+        table = self.prepare_load_table(table_name)
+        if self._is_iceberg_table(table):
             return True
-        return super().should_load_data_to_staging_dataset(table)
+        return super().should_load_data_to_staging_dataset(table_name)
 
-    def should_truncate_table_before_load_on_staging_destination(self, table: TTableSchema) -> bool:
+    def should_truncate_table_before_load_on_staging_destination(self, table_name: str) -> bool:
         # on athena we only truncate replace tables that are not iceberg
-        table = self.prepare_load_table(table["name"])
-        if table["write_disposition"] == "replace" and not self._is_iceberg_table(
-            self.prepare_load_table(table["name"])
-        ):
+        table = self.prepare_load_table(table_name)
+        if table["write_disposition"] == "replace" and not self._is_iceberg_table(table):
             return True
         return False
 
-    def should_load_data_to_staging_dataset_on_staging_destination(
-        self, table: TTableSchema
-    ) -> bool:
+    def should_load_data_to_staging_dataset_on_staging_destination(self, table_name: str) -> bool:
         """iceberg table data goes into staging on staging destination"""
-        if self._is_iceberg_table(self.prepare_load_table(table["name"])):
+        table = self.prepare_load_table(table_name)
+        if self._is_iceberg_table(table):
             return True
-        return super().should_load_data_to_staging_dataset_on_staging_destination(table)
-
-    def prepare_load_table(
-        self, table_name: str, prepare_for_staging: bool = False
-    ) -> TTableSchema:
-        table = super().prepare_load_table(table_name, prepare_for_staging)
-        if self.config.force_iceberg:
-            table["table_format"] = "iceberg"
-        if prepare_for_staging and table.get("table_format", None) == "iceberg":
-            table.pop("table_format")
-        return table
+        return super().should_load_data_to_staging_dataset_on_staging_destination(table_name)
 
     @staticmethod
     def is_dbapi_exception(ex: Exception) -> bool:

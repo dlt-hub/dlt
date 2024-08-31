@@ -1,6 +1,7 @@
 import dataclasses
 from typing import ClassVar, Final, List, Optional
 
+from dlt.common import logger
 from dlt.common.configuration import configspec
 from dlt.common.destination.reference import DestinationClientDwhWithStagingConfiguration
 from dlt.common.configuration.specs import AwsCredentials
@@ -14,9 +15,16 @@ class AthenaClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     athena_work_group: Optional[str] = None
     aws_data_catalog: Optional[str] = "awsdatacatalog"
     supports_truncate_command: bool = False
-    force_iceberg: Optional[bool] = False
+    force_iceberg: Optional[bool] = None
 
     __config_gen_annotations__: ClassVar[List[str]] = ["athena_work_group"]
+
+    def on_resolved(self) -> None:
+        if self.force_iceberg is not None:
+            logger.warning(
+                "force_iceberg flag is no longer supported. please set table format explicitly on"
+                " the resources"
+            )
 
     def __str__(self) -> str:
         """Return displayable destination location"""
