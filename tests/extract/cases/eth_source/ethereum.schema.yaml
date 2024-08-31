@@ -1,6 +1,6 @@
-version: 14
-version_hash: VuzNqiLOk7XuPxYLndMFMPHTDVItKU5ayiy70nQLdus=
-engine_version: 7
+version: 17
+version_hash: PgEHvn5+BHV1jNzNYpx9aDpq6Pq1PSSetufj/h0hKg4=
+engine_version: 9
 name: ethereum
 tables:
   _dlt_loads:
@@ -163,8 +163,9 @@ tables:
     schema_contract: {}
     name: blocks
     resource: blocks
+    x-normalizer:
+      seen-data: true
   blocks__transactions:
-    parent: blocks
     columns:
       _dlt_id:
         nullable: false
@@ -176,6 +177,7 @@ tables:
         primary_key: true
         foreign_key: true
         data_type: bigint
+        merge_key: true
         name: block_number
       transaction_index:
         nullable: false
@@ -262,8 +264,9 @@ tables:
         data_type: decimal
         name: eth_value
     name: blocks__transactions
+    x-normalizer:
+      seen-data: true
   blocks__transactions__logs:
-    parent: blocks__transactions
     columns:
       _dlt_id:
         nullable: false
@@ -287,13 +290,13 @@ tables:
       block_number:
         nullable: false
         primary_key: true
-        foreign_key: true
+        merge_key: true
         data_type: bigint
         name: block_number
       transaction_index:
         nullable: false
         primary_key: true
-        foreign_key: true
+        merge_key: true
         data_type: bigint
         name: transaction_index
       log_index:
@@ -314,6 +317,8 @@ tables:
         data_type: text
         name: transaction_hash
     name: blocks__transactions__logs
+    x-normalizer:
+      seen-data: true
   blocks__transactions__logs__topics:
     parent: blocks__transactions__logs
     columns:
@@ -341,6 +346,8 @@ tables:
         data_type: text
         name: value
     name: blocks__transactions__logs__topics
+    x-normalizer:
+      seen-data: true
   blocks__transactions__access_list:
     parent: blocks__transactions
     columns:
@@ -368,6 +375,8 @@ tables:
         data_type: text
         name: address
     name: blocks__transactions__access_list
+    x-normalizer:
+      seen-data: true
   blocks__transactions__access_list__storage_keys:
     parent: blocks__transactions__access_list
     columns:
@@ -395,6 +404,8 @@ tables:
         data_type: text
         name: value
     name: blocks__transactions__access_list__storage_keys
+    x-normalizer:
+      seen-data: true
   blocks__uncles:
     parent: blocks
     columns:
@@ -422,6 +433,8 @@ tables:
         data_type: text
         name: value
     name: blocks__uncles
+    x-normalizer:
+      seen-data: true
 settings:
   default_hints:
     foreign_key:
@@ -456,4 +469,7 @@ normalizers:
           blocks:
             timestamp: block_timestamp
             hash: block_hash
+previous_hashes:
+- C5An8WClbavalXDdNSqXbdI7Swqh/mTWMcwWKCF//EE=
+- yjMtV4Zv0IJlfR5DPMwuXxGg8BRhy7E79L26XAHWEGE=
 
