@@ -20,36 +20,51 @@ from dlt.common.destination.exceptions import (
     DestinationLoadingViaStagingNotSupported,
     DestinationLoadingWithoutStagingNotSupported,
 )
-from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
+from dlt.common.schema.typing import TTableSchema, TLoaderMergeStrategy, TTableFormat
 from dlt.common.wei import EVM_DECIMAL_PRECISION
 
 TLoaderParallelismStrategy = Literal["parallel", "table-sequential", "sequential"]
 ALL_SUPPORTED_FILE_FORMATS: Set[TLoaderFileFormat] = set(get_args(TLoaderFileFormat))
 
 
-class LoaderFileFormatAdapter(Protocol):
-    """Callback protocol for `loader_file_format_adapter` capability."""
+class LoaderFileFormatSelector(Protocol):
+    """Selects preferred and supported file formats for a given table schema"""
 
+    @staticmethod
     def __call__(
-        self,
         preferred_loader_file_format: TLoaderFileFormat,
         supported_loader_file_formats: Sequence[TLoaderFileFormat],
         /,
         *,
-        table_schema: "TTableSchema",  # type: ignore[name-defined] # noqa: F821
+        table_schema: TTableSchema,
     ) -> Tuple[TLoaderFileFormat, Sequence[TLoaderFileFormat]]: ...
+
+
+class MergeStrategySelector(Protocol):
+    """Selects right set of merge strategies for a given table schema"""
+
+    @staticmethod
+    def __call__(
+        supported_merge_strategies: Sequence[TLoaderMergeStrategy],
+        /,
+        *,
+        table_schema: TTableSchema,
+    ) -> Sequence["TLoaderMergeStrategy"]: ...
 
 
 @configspec
 class DestinationCapabilitiesContext(ContainerInjectableContext):
     """Injectable destination capabilities required for many Pipeline stages ie. normalize"""
 
+    # do not allow to create default value, destination caps must be always explicitly inserted into container
+    can_create_default: ClassVar[bool] = False
+
     preferred_loader_file_format: TLoaderFileFormat = None
     supported_loader_file_formats: Sequence[TLoaderFileFormat] = None
-    loader_file_format_adapter: LoaderFileFormatAdapter = None
+    loader_file_format_selector: LoaderFileFormatSelector = None
     """Callable that adapts `preferred_loader_file_format` and `supported_loader_file_formats` at runtime."""
-    supported_table_formats: Sequence["TTableFormat"] = None  # type: ignore[name-defined] # noqa: F821
+    supported_table_formats: Sequence[TTableFormat] = None
     recommended_file_size: Optional[int] = None
     """Recommended file size in bytes when writing extract/load files"""
     preferred_staging_file_format: Optional[TLoaderFileFormat] = None
@@ -89,14 +104,12 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     max_table_nesting: Optional[int] = None
     """Allows a destination to overwrite max_table_nesting from source"""
 
-    supported_merge_strategies: Sequence["TLoaderMergeStrategy"] = None  # type: ignore[name-defined] # noqa: F821
+    supported_merge_strategies: Sequence[TLoaderMergeStrategy] = None
+    merge_strategies_selector: MergeStrategySelector = None
     # TODO: also add `supported_replace_strategies` capability
 
-    # do not allow to create default value, destination caps must be always explicitly inserted into container
-    can_create_default: ClassVar[bool] = False
-
     max_parallel_load_jobs: Optional[int] = None
-    """The destination can set the maxium amount of parallel load jobs being executed"""
+    """The destination can set the maximum amount of parallel load jobs being executed"""
     loader_parallelism_strategy: Optional[TLoaderParallelismStrategy] = None
     """The destination can override the parallelism strategy"""
 
@@ -109,16 +122,17 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     def generic_capabilities(
         preferred_loader_file_format: TLoaderFileFormat = None,
         naming_convention: TNamingConventionReferenceArg = None,
-        loader_file_format_adapter: LoaderFileFormatAdapter = None,
-        supported_table_formats: Sequence["TTableFormat"] = None,  # type: ignore[name-defined] # noqa: F821
-        supported_merge_strategies: Sequence["TLoaderMergeStrategy"] = None,  # type: ignore[name-defined] # noqa: F821
+        loader_file_format_selector: LoaderFileFormatSelector = None,
+        supported_table_formats: Sequence[TTableFormat] = None,
+        supported_merge_strategies: Sequence[TLoaderMergeStrategy] = None,
+        merge_strategies_selector: MergeStrategySelector = None,
     ) -> "DestinationCapabilitiesContext":
         from dlt.common.data_writers.escape import format_datetime_literal
 
         caps = DestinationCapabilitiesContext()
         caps.preferred_loader_file_format = preferred_loader_file_format
         caps.supported_loader_file_formats = ["jsonl", "insert_values", "parquet", "csv"]
-        caps.loader_file_format_adapter = loader_file_format_adapter
+        caps.loader_file_format_selector = loader_file_format_selector
         caps.preferred_staging_file_format = None
         caps.supported_staging_file_formats = []
         caps.naming_convention = naming_convention or caps.naming_convention
@@ -140,6 +154,7 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
         caps.supports_transactions = True
         caps.supports_multiple_statements = True
         caps.supported_merge_strategies = supported_merge_strategies or []
+        caps.merge_strategies_selector = merge_strategies_selector
         return caps
 
 

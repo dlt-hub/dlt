@@ -246,8 +246,8 @@ def should_normalize_arrow_schema(
         if norm_name in nullable_mapping and field.nullable != nullable_mapping[norm_name]:
             nullable_updates[norm_name] = nullable_mapping[norm_name]
 
-    dlt_load_id_col = naming.normalize_table_identifier("_dlt_load_id")
-    dlt_id_col = naming.normalize_table_identifier("_dlt_id")
+    dlt_load_id_col = naming.normalize_identifier("_dlt_load_id")
+    dlt_id_col = naming.normalize_identifier("_dlt_id")
     dlt_columns = {dlt_load_id_col, dlt_id_col}
 
     # Do we need to add a load id column?
@@ -343,7 +343,7 @@ def normalize_py_arrow_item(
         load_id_type = pyarrow.dictionary(pyarrow.int8(), pyarrow.string())
         new_fields.append(
             pyarrow.field(
-                naming.normalize_table_identifier("_dlt_load_id"),
+                naming.normalize_identifier("_dlt_load_id"),
                 load_id_type,
                 nullable=False,
             )
