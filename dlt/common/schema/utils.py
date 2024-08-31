@@ -55,7 +55,6 @@ from dlt.common.schema.exceptions import (
 
 RE_NON_ALPHANUMERIC_UNDERSCORE = re.compile(r"[^a-zA-Z\d_]")
 DEFAULT_WRITE_DISPOSITION: TWriteDisposition = "append"
-DEFAULT_MERGE_STRATEGY: TLoaderMergeStrategy = "delete-insert"
 
 
 def is_valid_schema_name(name: str) -> bool:
@@ -65,6 +64,12 @@ def is_valid_schema_name(name: str) -> bool:
         and name.isidentifier()
         and len(name) <= InvalidSchemaName.MAXIMUM_SCHEMA_NAME_LENGTH
     )
+
+
+def is_nested_table(table: TTableSchema) -> bool:
+    """Checks if table is a dlt nested table: connected to parent table via row_key - parent_key reference"""
+    # "parent" table hint indicates NESTED table.
+    return bool(table.get("parent"))
 
 
 def normalize_schema_name(name: str) -> str:
@@ -81,12 +86,6 @@ def apply_defaults(stored_schema: TStoredSchema) -> TStoredSchema:
     for table_name, table in stored_schema["tables"].items():
         # overwrite name
         table["name"] = table_name
-        # add default write disposition to root tables
-        if table.get("parent") is None:
-            if table.get("write_disposition") is None:
-                table["write_disposition"] = DEFAULT_WRITE_DISPOSITION
-            if table.get("resource") is None:
-                table["resource"] = table_name
         for column_name in table["columns"]:
             # add default hints to tables
             column = table["columns"][column_name]
@@ -94,6 +93,12 @@ def apply_defaults(stored_schema: TStoredSchema) -> TStoredSchema:
             column["name"] = column_name
             # set column with default
             # table["columns"][column_name] = column
+        # add default write disposition to root tables
+        if not is_nested_table(table):
+            if table.get("write_disposition") is None:
+                table["write_disposition"] = DEFAULT_WRITE_DISPOSITION
+            if table.get("resource") is None:
+                table["resource"] = table_name
     return stored_schema
 
 
@@ -357,14 +362,11 @@ def is_nullable_column(col: TColumnSchemaBase) -> bool:
     return col.get("nullable", True)
 
 
-def find_incomplete_columns(
-    tables: List[TTableSchema],
-) -> Iterable[Tuple[str, TColumnSchemaBase, bool]]:
-    """Yields (table_name, column, nullable) for all incomplete columns in `tables`"""
-    for table in tables:
-        for col in table["columns"].values():
-            if not is_complete_column(col):
-                yield table["name"], col, is_nullable_column(col)
+def find_incomplete_columns(table: TTableSchema) -> Iterable[Tuple[TColumnSchemaBase, bool]]:
+    """Yields (column, nullable) for all incomplete columns in `table`"""
+    for col in table["columns"].values():
+        if not is_complete_column(col):
+            yield col, is_nullable_column(col)
 
 
 def compare_complete_columns(a: TColumnSchema, b: TColumnSchema) -> bool:
@@ -476,7 +478,7 @@ def diff_table(
             partial_table[k] = v  # type: ignore
 
     # this should not really happen
-    if tab_a.get("parent") is not None and (resource := tab_b.get("resource")):
+    if is_nested_table(tab_a) and (resource := tab_b.get("resource")):
         raise TablePropertiesConflictException(
             schema_name, table_name, "resource", resource, tab_a.get("parent")
         )
@@ -668,9 +670,8 @@ def get_inherited_table_hint(
     if hint:
         return hint
 
-    parent = table.get("parent")
-    if parent:
-        return get_inherited_table_hint(tables, parent, table_hint_name, allow_none)
+    if is_nested_table(table):
+        return get_inherited_table_hint(tables, table.get("parent"), table_hint_name, allow_none)
 
     if allow_none:
         return None
@@ -713,13 +714,18 @@ def fill_hints_from_parent_and_clone_table(
     """Takes write disposition and table format from parent tables if not present"""
     # make a copy of the schema so modifications do not affect the original document
     table = deepcopy(table)
-    # add write disposition if not specified - in child tables
+    table_name = table["name"]
     if "write_disposition" not in table:
-        table["write_disposition"] = get_write_disposition(tables, table["name"])
+        table["write_disposition"] = get_write_disposition(tables, table_name)
     if "table_format" not in table:
-        table["table_format"] = get_table_format(tables, table["name"])
+        if table_format := get_table_format(tables, table_name):
+            table["table_format"] = table_format
     if "file_format" not in table:
-        table["file_format"] = get_file_format(tables, table["name"])
+        if file_format := get_file_format(tables, table_name):
+            table["file_format"] = file_format
+    if "x-merge-strategy" not in table:
+        if strategy := get_merge_strategy(tables, table_name):
+            table["x-merge-strategy"] = strategy  # type: ignore[typeddict-unknown-key]
     return table
 
 
@@ -736,24 +742,27 @@ def table_schema_has_type_with_precision(table: TTableSchema, _typ: TDataType) -
     )
 
 
-def get_top_level_table(tables: TSchemaTables, table_name: str) -> TTableSchema:
-    """Finds top level (without parent) of a `table_name` following the ancestry hierarchy."""
+def get_root_table(tables: TSchemaTables, table_name: str) -> TTableSchema:
+    """Finds root (without parent) of a `table_name` following the nested references (row_key - parent_key)."""
     table = tables[table_name]
-    parent = table.get("parent")
-    if parent:
-        return get_top_level_table(tables, parent)
+    if is_nested_table(table):
+        return get_root_table(tables, table.get("parent"))
     return table
 
 
-def get_child_tables(tables: TSchemaTables, table_name: str) -> List[TTableSchema]:
-    """Get child tables for table name and return a list of tables ordered by ancestry so the child tables are always after their parents"""
+def get_nested_tables(tables: TSchemaTables, table_name: str) -> List[TTableSchema]:
+    """Get nested tables for table name and return a list of tables ordered by ancestry so the nested tables are always after their parents
+
+    Note that this function follows only NESTED TABLE reference typically expressed on _dlt_parent_id (PARENT_KEY) to _dlt_id (ROW_KEY).
+    TABLE REFERENCES (foreign_key - primary_key) are not followed.
+    """
     chain: List[TTableSchema] = []
 
     def _child(t: TTableSchema) -> None:
         name = t["name"]
         chain.append(t)
         for candidate in tables.values():
-            if candidate.get("parent") == name:
+            if is_nested_table(candidate) and candidate.get("parent") == name:
                 _child(candidate)
 
     _child(tables[table_name])
@@ -771,7 +780,7 @@ def group_tables_by_resource(
         resource = table.get("resource")
         if resource and (pattern is None or pattern.match(resource)):
             resource_tables = result.setdefault(resource, [])
-            resource_tables.extend(get_child_tables(tables, table["name"]))
+            resource_tables.extend(get_nested_tables(tables, table["name"]))
     return result
 
 
@@ -866,28 +875,33 @@ def new_table(
         "name": table_name,
         "columns": {} if columns is None else {c["name"]: c for c in columns},
     }
+
+    if write_disposition:
+        table["write_disposition"] = write_disposition
+    if resource:
+        table["resource"] = resource
+    if schema_contract is not None:
+        table["schema_contract"] = schema_contract
+    if table_format:
+        table["table_format"] = table_format
+    if file_format:
+        table["file_format"] = file_format
     if parent_table_name:
         table["parent"] = parent_table_name
-        assert write_disposition is None
-        assert resource is None
-        assert schema_contract is None
     else:
-        # set write disposition only for root tables
-        table["write_disposition"] = write_disposition or DEFAULT_WRITE_DISPOSITION
-        table["resource"] = resource or table_name
-        if schema_contract is not None:
-            table["schema_contract"] = schema_contract
-        if table_format:
-            table["table_format"] = table_format
-        if file_format:
-            table["file_format"] = file_format
+        # set only for root tables
+        if not write_disposition:
+            # set write disposition only for root tables
+            table["write_disposition"] = DEFAULT_WRITE_DISPOSITION
+        if not resource:
+            table["resource"] = table_name
+
     if validate_schema:
         validate_dict_ignoring_xkeys(
             spec=TColumnSchema,
             doc=table["columns"],
             path=f"new_table/{table_name}",
         )
-
     return table
 
 
