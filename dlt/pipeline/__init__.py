@@ -2,7 +2,12 @@ from typing import Sequence, Type, cast, overload, Optional
 from typing_extensions import TypeVar
 
 from dlt.common.schema import Schema
-from dlt.common.schema.typing import TColumnSchema, TWriteDispositionConfig, TSchemaContract
+from dlt.common.schema.typing import (
+    TColumnSchema,
+    TTableFormat,
+    TWriteDispositionConfig,
+    TSchemaContract,
+)
 
 from dlt.common.typing import TSecretValue, Any
 from dlt.common.configuration import with_config
@@ -219,7 +224,9 @@ def run(
     columns: Sequence[TColumnSchema] = None,
     schema: Schema = None,
     loader_file_format: TLoaderFileFormat = None,
+    table_format: TTableFormat = None,
     schema_contract: TSchemaContract = None,
+    refresh: Optional[TRefreshMode] = None,
 ) -> LoadInfo:
     """Loads the data in `data` argument into the destination specified in `destination` and dataset specified in `dataset_name`.
 
@@ -263,6 +270,17 @@ def run(
 
         schema (Schema, optional): An explicit `Schema` object in which all table schemas will be grouped. By default `dlt` takes the schema from the source (if passed in `data` argument) or creates a default one itself.
 
+        loader_file_format (Literal["jsonl", "insert_values", "parquet"], optional). The file format the loader will use to create the load package. Not all file_formats are compatible with all destinations. Defaults to the preferred file format of the selected destination.
+
+        table_format (Literal["delta", "iceberg"], optional). The table format used by the destination to store tables. Currently you can select table format on filesystem and Athena destinations.
+
+        schema_contract (TSchemaContract, optional): On override for the schema contract settings, this will replace the schema contract settings for all tables in the schema. Defaults to None.
+
+        refresh (str | TRefreshMode): Fully or partially reset sources before loading new data in this run. The following refresh modes are supported:
+            * `drop_sources`: Drop tables and source and resource state for all sources currently being processed in `run` or `extract` methods of the pipeline. (Note: schema history is erased)
+            * `drop_resources`: Drop tables and resource state for all resources being processed. Source level state is not modified. (Note: schema history is erased)
+            * `drop_data`: Wipe all data and resource state for all resources being processed. Schema is not modified.
+
     Raises:
         PipelineStepFailed when a problem happened during `extract`, `normalize` or `load` steps.
     Returns:
@@ -279,7 +297,9 @@ def run(
         columns=columns,
         schema=schema,
         loader_file_format=loader_file_format,
+        table_format=table_format,
         schema_contract=schema_contract,
+        refresh=refresh,
     )
 
 
