@@ -23,7 +23,6 @@ from dlt.common.typing import (
     TDataItem,
 )
 from dlt.common.normalizers import TNormalizersConfig, NamingConvention
-from dlt.common.normalizers.utils import explicit_normalizers, import_normalizers
 from dlt.common.normalizers.json import DataItemNormalizer, TNormalizedRowIterator
 from dlt.common.schema import utils
 from dlt.common.data_types import py_type_to_sc_type, coerce_value, TDataType
@@ -58,8 +57,9 @@ from dlt.common.schema.exceptions import (
     SchemaCorruptedException,
     TableIdentifiersFrozen,
 )
-from dlt.common.validation import validate_dict
+from dlt.common.schema.normalizers import import_normalizers, explicit_normalizers
 from dlt.common.schema.exceptions import DataValidationError
+from dlt.common.validation import validate_dict
 
 
 DEFAULT_SCHEMA_CONTRACT_MODE: TSchemaContractDict = {
@@ -387,7 +387,7 @@ class Schema:
                 tables = self._schema_tables
             # find root table
             try:
-                table = utils.get_top_level_table(tables, table_name)
+                table = utils.get_root_table(tables, table_name)
                 settings = table["schema_contract"]
             except KeyError:
                 settings = self._settings.get("schema_contract", {})
@@ -399,11 +399,11 @@ class Schema:
         self, partial_table: TPartialTableSchema, normalize_identifiers: bool = True
     ) -> TPartialTableSchema:
         """Adds or merges `partial_table` into the schema. Identifiers are normalized by default"""
+        parent_table_name = partial_table.get("parent")
         if normalize_identifiers:
             partial_table = utils.normalize_table_identifiers(partial_table, self.naming)
 
         table_name = partial_table["name"]
-        parent_table_name = partial_table.get("parent")
         # check if parent table present
         if parent_table_name is not None:
             if self._schema_tables.get(parent_table_name) is None:
@@ -747,6 +747,7 @@ class Schema:
 
     def will_update_normalizers(self) -> bool:
         """Checks if schema has any pending normalizer updates due to configuration or destination capabilities"""
+
         # import desired modules
         _, to_naming, _ = import_normalizers(
             explicit_normalizers(schema_name=self._schema_name), self._normalizers_config
@@ -1117,6 +1118,8 @@ class Schema:
     def _configure_normalizers(self, explicit_normalizers: TNormalizersConfig) -> None:
         """Gets naming and item normalizer from schema yaml, config providers and destination capabilities and applies them to schema."""
         # import desired modules
+        from dlt.common.schema.normalizers import import_normalizers
+
         normalizers_config, to_naming, item_normalizer_class = import_normalizers(
             explicit_normalizers, self._normalizers_config
         )

@@ -1,7 +1,6 @@
 from typing import Dict, List, cast
 
 from dlt.common.data_types import TDataType
-from dlt.common.normalizers.utils import explicit_normalizers
 from dlt.common.typing import DictStrAny
 from dlt.common.schema.typing import (
     LOADS_TABLE_NAME,
@@ -12,8 +11,6 @@ from dlt.common.schema.typing import (
     TColumnHint,
 )
 from dlt.common.schema.exceptions import SchemaEngineNoUpgradePathException
-
-from dlt.common.normalizers.utils import import_normalizers
 from dlt.common.schema.utils import new_table, version_table, loads_table
 
 
@@ -26,6 +23,8 @@ def migrate_schema(schema_dict: DictStrAny, from_engine: int, to_engine: int) ->
         schema_dict["excludes"] = []
         from_engine = 2
     if from_engine == 2 and to_engine > 2:
+        from dlt.common.schema.normalizers import import_normalizers, explicit_normalizers
+
         # current version of the schema
         current = cast(TStoredSchema, schema_dict)
         # add default normalizers and root hash propagation
