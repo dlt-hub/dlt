@@ -433,6 +433,10 @@ def diff_table(
     * when columns with the same name have different data types
     * when table links to different parent tables
     """
+    if tab_a["name"] != tab_b["name"]:
+        raise TablePropertiesConflictException(
+            schema_name, tab_a["name"], "name", tab_a["name"], tab_b["name"]
+        )
     table_name = tab_a["name"]
     # check if table properties can be merged
     if tab_a.get("parent") != tab_b.get("parent"):
@@ -502,25 +506,24 @@ def merge_table(
     schema_name: str, table: TTableSchema, partial_table: TPartialTableSchema
 ) -> TPartialTableSchema:
     """Merges "partial_table" into "table". `table` is merged in place. Returns the diff partial table.
+    `table` and `partial_table` names must be identical. A table diff is generated and applied to `table`
+    """
+    return merge_diff(table, diff_table(schema_name, table, partial_table))
 
-    `table` and `partial_table` names must be identical. A table diff is generated and applied to `table`:
+
+def merge_diff(table: TTableSchema, table_diff: TPartialTableSchema) -> TPartialTableSchema:
+    """Merges a table diff `table_diff` into `table`. `table` is merged in place. Returns the diff.
     * new columns are added, updated columns are replaced from diff
     * incomplete columns in `table` that got completed in `partial_table` are removed to preserve order
     * table hints are added or replaced from diff
     * nothing gets deleted
     """
-
-    if table["name"] != partial_table["name"]:
-        raise TablePropertiesConflictException(
-            schema_name, table["name"], "name", table["name"], partial_table["name"]
-        )
-    diff = diff_table(schema_name, table, partial_table)
     # add new columns when all checks passed
-    updated_columns = merge_columns(table["columns"], diff["columns"])
-    table.update(diff)
+    updated_columns = merge_columns(table["columns"], table_diff["columns"])
+    table.update(table_diff)
     table["columns"] = updated_columns
 
-    return diff
+    return table_diff
 
 
 def normalize_table_identifiers(table: TTableSchema, naming: NamingConvention) -> TTableSchema:

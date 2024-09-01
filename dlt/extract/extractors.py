@@ -257,8 +257,10 @@ class Extractor:
 
         # merge with schema table
         if diff_table:
-            # update table does diff again
-            self.schema.update_table(computed_table)
+            # diff table identifiers already normalized
+            self.schema.update_table(
+                diff_table, normalize_identifiers=False, from_diff=bool(existing_table)
+            )
 
         # process filters
         if filters:

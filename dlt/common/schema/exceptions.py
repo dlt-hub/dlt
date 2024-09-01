@@ -73,8 +73,8 @@ class TablePropertiesConflictException(SchemaException):
         self.val2 = val2
         super().__init__(
             schema_name,
-            f"Cannot merge partial tables for {table_name} due to property {prop_name}: {val1} !="
-            f" {val2}",
+            f"Cannot merge partial tables into table `{table_name}` due to property `{prop_name}`"
+            f' with different values: "{val1}" != "{val2}"',
         )
 
 

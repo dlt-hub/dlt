@@ -396,9 +396,14 @@ class Schema:
         return Schema.expand_schema_contract_settings(settings)
 
     def update_table(
-        self, partial_table: TPartialTableSchema, normalize_identifiers: bool = True
+        self,
+        partial_table: TPartialTableSchema,
+        normalize_identifiers: bool = True,
+        from_diff: bool = False,
     ) -> TPartialTableSchema:
-        """Adds or merges `partial_table` into the schema. Identifiers are normalized by default"""
+        """Adds or merges `partial_table` into the schema. Identifiers are normalized by default.
+        `from_diff`
+        """
         parent_table_name = partial_table.get("parent")
         if normalize_identifiers:
             partial_table = utils.normalize_table_identifiers(partial_table, self.naming)
@@ -418,10 +423,14 @@ class Schema:
         table = self._schema_tables.get(table_name)
         if table is None:
             # add the whole new table to SchemaTables
+            assert not from_diff, "Cannot update the whole table from diff"
             self._schema_tables[table_name] = partial_table
         else:
-            # merge tables performing additional checks
-            partial_table = utils.merge_table(self.name, table, partial_table)
+            if from_diff:
+                partial_table = utils.merge_diff(table, partial_table)
+            else:
+                # merge tables performing additional checks
+                partial_table = utils.merge_table(self.name, table, partial_table)
 
         self.data_item_normalizer.extend_table(table_name)
         return partial_table
