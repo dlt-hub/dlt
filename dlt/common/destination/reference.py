@@ -474,7 +474,7 @@ class JobClientBase(ABC):
         return [
             self.prepare_load_table(table_name)
             for table_name in set(
-                list(only_tables) + self.schema.data_table_names(seen_data_only=True)
+                list(only_tables or []) + self.schema.data_table_names(seen_data_only=True)
             )
         ]
 
