@@ -4,13 +4,16 @@ description: Use filesystem source as a building block
 keywords: [readers source and filesystem, files, filesystem, readers source, cloud storage]
 ---
 
-The filesystem source actually provides you with the building blocks to facilitate loading data from files. This section aims to give you more information about how you can customize the filesystem source for your use case.
+The filesystem source provides the building blocks to load data from files. This section explains how you can customize the filesystem source for your use case.
 
 ## Standalone Filesystem Resource
 
-You can use the [standalone filesystem](../../../general-usage/resource#declare-a-standalone-resource) resource to list files in cloud storage or local filesystem. This allows you to customize file readers or manage files using [fsspec](https://filesystem-spec.readthedocs.io/en/latest/index.html).
+You can use the [standalone filesystem](../../../general-usage/resource#declare-a-standalone-resource) resource to list files in cloud storage or a local filesystem. This allows you to customize file readers or manage files using [fsspec](https://filesystem-spec.readthedocs.io/en/latest/index.html).
 
 ```py
+from dlt.sources.filesystem import filesystem
+
+pipeline = dlt.pipeline(pipeline_name="my_pipeline", destination="duckdb")
 files = filesystem(bucket_url="s3://my_bucket/data", file_glob="csv_folder/*.csv")
 pipeline.run(files)
 ```
@@ -43,7 +46,7 @@ When using a nested or recursive glob pattern, `relative_path` will include the 
 
 ### File manipulation
 
-[FileItem](https://github.com/dlt-hub/dlt/blob/devel/dlt/common/storages/fsspec_filesystem.py#L40), backed by a dictionary implementation, offers these helper methods:
+[FileItem](https://github.com/dlt-hub/dlt/blob/devel/dlt/common/storages/fsspec_filesystem.py#L40), backed by a dictionary implementation, offers these helpers:
 
 - `read_bytes()` - method, which returns the file content as bytes.
 - `open()` - method which provides a file object when opened.
@@ -51,15 +54,22 @@ When using a nested or recursive glob pattern, `relative_path` will include the 
 
 ## Create Your Own Transformer
 
-While the `filesystem` resource yields the files from cloud storage or local filesystem, to get the actual records from the files you need to apply a transformer resource. `dlt` natively supports three file types: `csv`, `parquet`, and `jsonl` (more details in [filesystem transformer resource](../filesystem/basic#2-choose-the-right-transformer-resource)).
+Although the `filesystem` resource yields the files from cloud storage or a local filesystem, you need to apply a transformer resource to retrieve the records from files. `dlt` natively supports three file types: `csv`, `parquet`, and `jsonl` (more details in [filesystem transformer resource](../filesystem/basic#2-choose-the-right-transformer-resource)).
 
 But you can easily create your own. In order to do this, you just need a function that takes as input a `FileItemDict` iterator and yields a list of records (recommended for performance) or individual records.
 
 ### Example: Read Data from Excel Files
 
-To set up a pipeline that reads from an Excel file using a standalone transformer:
+The code below sets up a pipeline that reads from an Excel file using a standalone transformer:
 
 ```py
+import dlt
+from dlt.common.storages.fsspec_filesystem import FileItemDict
+from dlt.common.typing import TDataItems
+from dlt.sources.filesystem import filesystem
+
+BUCKET_URL = "s3://my_bucket/data"
+
 # Define a standalone transformer to read data from an Excel file.
 @dlt.transformer(standalone=True)
 def read_excel(
@@ -80,13 +90,9 @@ example_xls = filesystem(
     bucket_url=BUCKET_URL, file_glob="../directory/example.xlsx"
 ) | read_excel("example_table")   # Pass the data through the transformer to read the "example_table" sheet.
 
+pipeline = dlt.pipeline(pipeline_name="my_pipeline", destination="duckdb", dataset_name="example_xls_data",)
 # Execute the pipeline and load the extracted data into the "duckdb" destination.
-load_info = dlt.run(
-    example_xls.with_name("example_xls_data"),
-    destination="duckdb",
-    dataset_name="example_xls_data",
-)
-
+load_info = pipeline.run(example_xls.with_name("example_xls_data"))
 # Print the loading information.
 print(load_info)
 ```
@@ -96,6 +102,13 @@ print(load_info)
 You can use any third-party library to parse an `xml` file (e.g., [BeautifulSoup](https://pypi.org/project/beautifulsoup4/), [pandas](https://pandas.pydata.org/docs/reference/api/pandas.read_xml.html)). In the following example, we will be using the [xmltodict](https://pypi.org/project/xmltodict/) Python library.
 
 ```py
+import dlt
+from dlt.common.storages.fsspec_filesystem import FileItemDict
+from dlt.common.typing import TDataItems
+from dlt.sources.filesystem import filesystem
+
+BUCKET_URL = "s3://my_bucket/data"
+
 # Define a standalone transformer to read data from an XML file.
 @dlt.transformer(standalone=True)
 def read_excel(
@@ -116,12 +129,9 @@ example_xls = filesystem(
     bucket_url=BUCKET_URL, file_glob="../directory/example.xml"
 ) | read_excel("example_table")   # Pass the data through the transformer to read the "example_table" sheet.
 
+pipeline = dlt.pipeline(pipeline_name="my_pipeline", destination="duckdb", dataset_name="example_xml_data")
 # Execute the pipeline and load the extracted data into the "duckdb" destination.
-load_info = dlt.run(
-    example_xls.with_name("example_xml_data"),
-    destination="duckdb",
-    dataset_name="example_xml_data",
-)
+load_info = pipeline.run(example_xls.with_name("example_xml_data"))
 
 # Print the loading information.
 print(load_info)
@@ -132,11 +142,13 @@ print(load_info)
 You can get an fsspec client from the filesystem resource after it was extracted, i.e., in order to delete processed files, etc. The filesystem module contains a convenient method `fsspec_from_resource` that can be used as follows:
 
 ```py
-from filesystem import filesystem, fsspec_from_resource
+from dlt.sources.filesystem import filesystem, fsspec_from_resource, read_csv
+
 # get filesystem source
 gs_resource = filesystem("gs://ci-test-bucket/")
 # extract files
-pipeline.run(gs_resource | read_csv)
+pipeline = dlt.pipeline(pipeline_name="my_pipeline", destination="duckdb")
+pipeline.run(gs_resource | read_csv())
 # get fs client
 fs_client = fsspec_from_resource(gs_resource)
 # do any operation
@@ -148,6 +160,13 @@ fs_client.ls("ci-test-bucket/standard_source/samples")
 To copy files locally, add a step in the filesystem resource and then load the listing to the database:
 
 ```py
+import os
+
+import dlt
+from dlt.common.storages.fsspec_filesystem import FileItemDict
+from dlt.common.typing import TDataItems
+from dlt.sources.filesystem import filesystem
+
 def _copy(item: FileItemDict) -> FileItemDict:
     # instantiate fsspec and copy file
     dest_file = os.path.join(local_folder, item["file_name"])
@@ -158,6 +177,8 @@ def _copy(item: FileItemDict) -> FileItemDict:
     # return file item unchanged
     return item
 
+BUCKET_URL = "gs://ci-test-bucket/"
+
 # use recursive glob pattern and add file copy step
 downloader = filesystem(BUCKET_URL, file_glob="**").add_map(_copy)
 
@@ -166,6 +187,7 @@ downloader = filesystem(BUCKET_URL, file_glob="**").add_map(_copy)
 listing = list(downloader)
 print(listing)
 # download to table "listing"
+pipeline = dlt.pipeline(pipeline_name="my_pipeline", destination="duckdb")
 load_info = pipeline.run(
     downloader.with_name("listing"), write_disposition="replace"
 )

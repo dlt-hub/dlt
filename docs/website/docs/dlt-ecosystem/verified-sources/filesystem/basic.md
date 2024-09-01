@@ -14,7 +14,7 @@ To load unstructured data (`.pdf`, `.txt`, e-mail), please refer to the [unstruc
 
 ```py
 import dlt
-from dlt.filesystem import filesystem, read_parquet
+from dlt.sources.filesystem import filesystem, read_parquet
 
 filesystem_resource = filesystem(
   bucket_url="file://Users/admin/Documents/parquet_files",
@@ -50,7 +50,7 @@ To get started with your data pipeline, follow these steps:
    [the pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/filesystem_pipeline.py)
    with the filesystem as the source and [duckdb](../../destinations/duckdb.md) as the destination.
 
-2. If you'd like to use a different destination, simply replace `duckdb` with the name of your
+2. If you would like to use a different destination, simply replace `duckdb` with the name of your
    preferred [destination](../../destinations).
 
 3. After running this command, a new directory will be created with the necessary files and
@@ -122,7 +122,7 @@ You don't need any credentials for the local filesystem.
 
 ### Add credentials to dlt pipeline
 
-To provide credentials to the filesystem source, you can use any method available in `dlt`.
+To provide credentials to the filesystem source, you can use [any method available](../../../general-usage/credentials/setup#available-config-providers) in `dlt`.
 One of the easiest ways is to use configuration files. The `.dlt` folder in your working directory
 contains two files: `config.toml` and  `secrets.toml`. Sensitive information, like passwords and
 access tokens, should only be put into `secrets.toml`, while any other configuration, like the path to
@@ -238,7 +238,7 @@ Usually, you need two resources:
 
 All parameters of the resource can be specified directly in code:
 ```py
-from dlt.filesystem import filesystem
+from dlt.sources.filesystem import filesystem
 
 filesystem_source = filesystem(
   bucket_url="file://Users/admin/Documents/csv_files",
@@ -247,7 +247,7 @@ filesystem_source = filesystem(
 ```
 or taken from the config:
 ```py
-from dlt.filesystem import filesystem
+from dlt.sources.filesystem import filesystem
 
 filesystem_source = filesystem()
 ```
@@ -267,7 +267,7 @@ You can apply any of the above or create your own [transformer](advanced#create-
 resource, use pipe notation `|`:
 
 ```py
-from dlt.filesystem import filesystem, read_csv
+from dlt.sources.filesystem import filesystem, read_csv
 
 filesystem_pipe = filesystem(
   bucket_url="file://Users/admin/Documents/csv_files",
@@ -294,7 +294,7 @@ want and that each pipeline uses a
 
 ```py
 import dlt
-from dlt.filesystem import filesystem, read_csv
+from dlt.sources.filesystem import filesystem, read_csv
 
 filesystem_pipe = filesystem(bucket_url="file://Users/admin/Documents/csv_files", file_glob="*.csv") | read_csv()
 pipeline = dlt.pipeline(pipeline_name="my_pipeline", destination="duckdb")
@@ -308,7 +308,7 @@ For more information on how to create and run the pipeline, read the [Walkthroug
 
 ```py
 import dlt
-from dlt.filesystem import filesystem, read_csv
+from dlt.sources.filesystem import filesystem, read_csv
 
 filesystem_pipe = filesystem(bucket_url="file://Users/admin/Documents/csv_files", file_glob="*.csv") | read_csv()
 # tell dlt to merge on date
@@ -326,10 +326,15 @@ print(pipeline.last_trace.last_normalize_info)
 To load only new CSV files with [incremental loading](../../../general-usage/incremental-loading):
 
  ```py
+ import dlt
+ from dlt.sources.filesystem import filesystem, read_csv
+
  # This configuration will only consider new csv files
- new_files = filesystem(bucket_url=BUCKET_URL, file_glob="directory/*.csv")
+ new_files = filesystem(bucket_url="s3://bucket_name", file_glob="directory/*.csv")
  # add incremental on modification time
  new_files.apply_hints(incremental=dlt.sources.incremental("modification_date"))
+
+ pipeline = dlt.pipeline(pipeline_name="my_pipeline", destination="duckdb")
  load_info = pipeline.run((new_files | read_csv()).with_name("csv_files"))
  print(load_info)
  print(pipeline.last_trace.last_normalize_info)
