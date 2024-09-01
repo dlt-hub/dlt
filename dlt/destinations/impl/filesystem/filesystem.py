@@ -11,6 +11,7 @@ import dlt
 from dlt.common import logger, time, json, pendulum
 from dlt.common.destination.utils import resolve_merge_strategy
 from dlt.common.metrics import LoadJobMetrics
+from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.storages.fsspec_filesystem import glob_files
 from dlt.common.typing import DictStrAny
 from dlt.common.schema import Schema, TSchemaTables
@@ -267,6 +268,17 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
         for filename, fileparts in self._iter_stored_schema_files():
             if fileparts[0] == self.schema.name:
                 self._delete_file(filename)
+
+    def get_storage_tables(
+        self, table_names: Iterable[str]
+    ) -> Iterable[Tuple[str, TTableSchemaColumns]]:
+        """Yields tables that have files in storage, does not return column schemas"""
+        for table_name in table_names:
+            if len(self.list_table_files(table_name)) > 0:
+                yield (table_name, {"_column": {}})
+            else:
+                # if no columns we assume that table does not exist
+                yield (table_name, {})
 
     def truncate_tables(self, table_names: List[str]) -> None:
         """Truncate a set of regular tables with given `table_names`"""
