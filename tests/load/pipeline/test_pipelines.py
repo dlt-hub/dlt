@@ -72,8 +72,8 @@ def test_default_pipeline_names(
     assert p.pipeline_name in possible_names
     assert p.pipelines_dir == os.path.abspath(os.path.join(TEST_STORAGE_ROOT, ".dlt", "pipelines"))
     assert p.dataset_name in possible_dataset_names
-    # assert p.destination is None
-    # assert p.default_schema_name is None
+    assert p.destination is None
+    assert p.default_schema_name is None
 
     data = ["a", "b", "c"]
     with pytest.raises(PipelineStepFailed) as step_ex:
@@ -90,7 +90,7 @@ def test_default_pipeline_names(
     assert p.default_schema_name in ["dlt_pytest", "dlt", "dlt_jb_pytest_runner"]
 
     # this will create additional schema
-    p.extract(data_fun(), schema=dlt.Schema("names"))
+    p.extract(data_fun(), schema=dlt.Schema("names"), table_format=destination_config.table_format)
     assert p.default_schema_name in ["dlt_pytest", "dlt", "dlt_jb_pytest_runner"]
     assert "names" in p.schemas.keys()
 

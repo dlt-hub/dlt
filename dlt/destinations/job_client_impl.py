@@ -659,14 +659,14 @@ WHERE """
         )
 
     def verify_schema(self, only_tables: Iterable[str] = None) -> List[PreparedTableSchema]:
-        loaded_table = super().verify_schema(only_tables)
+        loaded_tables = super().verify_schema(only_tables)
         if exceptions := verify_schema_merge_disposition(
-            self.schema, loaded_table, self.capabilities, warnings=True
+            self.schema, loaded_tables, self.capabilities, warnings=True
         ):
             for exception in exceptions:
                 logger.error(str(exception))
             raise exceptions[0]
-        return loaded_table
+        return loaded_tables
 
     def prepare_load_job_execution(self, job: RunnableLoadJob) -> None:
         self._set_query_tags_for_job(load_id=job._load_id, table=job._load_table)

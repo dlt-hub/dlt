@@ -557,15 +557,17 @@ def test_validity_column_name_conflict(destination_config: DestinationTestConfig
     def r(data):
         yield data
 
-    # configuring a validity column name that appears in the data should cause an exception
-    dim_snap = {"nk": 1, "foo": 1, "from": 1}  # conflict on "from" column
-    with pytest.raises(PipelineStepFailed) as pip_ex:
-        p.run(r(dim_snap), **destination_config.run_kwargs)
-    assert isinstance(pip_ex.value.__context__.__context__, ColumnNameConflictException)
+    # a schema check against an items got dropped because it was very costly and done on each row
+    dim_snap = {"nk": 1, "foo": 1, "from": "X"}  # conflict on "from" column
+    p.run(r(dim_snap), **destination_config.run_kwargs)
     dim_snap = {"nk": 1, "foo": 1, "to": 1}  # conflict on "to" column
-    with pytest.raises(PipelineStepFailed):
-        p.run(r(dim_snap), **destination_config.run_kwargs)
-    assert isinstance(pip_ex.value.__context__.__context__, ColumnNameConflictException)
+    p.run(r(dim_snap), **destination_config.run_kwargs)
+
+    # instead the variant columns got generated
+    dim_test_table = p.default_schema.tables["dim_test"]
+    assert "from__v_text" in dim_test_table["columns"]
+
+    # but `to` column was coerced and then overwritten, this is the cost of dropping the check
 
 
 @pytest.mark.parametrize(

@@ -461,13 +461,8 @@ class JobClientBase(ABC):
 
     def verify_schema(self, only_tables: Iterable[str] = None) -> List[PreparedTableSchema]:
         """Verifies schema before loading, returns a list of verified loaded tables."""
-        load_tables = [
-            self.prepare_load_table(table_name)
-            for table_name in (only_tables or self.schema.data_table_names(seen_data_only=True))
-        ]
         if exceptions := verify_schema_capabilities(
             self.schema,
-            load_tables,
             self.capabilities,
             self.config.destination_type,
             warnings=False,
@@ -475,7 +470,13 @@ class JobClientBase(ABC):
             for exception in exceptions:
                 logger.error(str(exception))
             raise exceptions[0]
-        return load_tables
+        # verify all tables with data
+        return [
+            self.prepare_load_table(table_name)
+            for table_name in set(
+                list(only_tables) + self.schema.data_table_names(seen_data_only=True)
+            )
+        ]
 
     def update_stored_schema(
         self,

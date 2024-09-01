@@ -6,6 +6,7 @@ import io
 
 import dlt
 from dlt.common import json, sleep
+from dlt.common.configuration.utils import auto_cast
 from dlt.common.destination.exceptions import DestinationUndefinedEntity
 from dlt.common.pipeline import LoadInfo
 from dlt.common.schema.utils import get_table_format
@@ -147,7 +148,7 @@ def _load_file(client: FSClientBase, filepath) -> List[Dict[str, Any]]:
         cols = lines[0][15:-2].split(",")
         for line in lines[2:]:
             if line:
-                values = line[1:-3].split(",")
+                values = map(auto_cast, line[1:-3].split(","))
                 result.append(dict(zip(cols, values)))
 
     # load parquet

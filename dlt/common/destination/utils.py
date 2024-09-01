@@ -19,7 +19,6 @@ from .capabilities import DestinationCapabilitiesContext
 
 def verify_schema_capabilities(
     schema: Schema,
-    load_tables: Sequence[TTableSchema],
     capabilities: DestinationCapabilitiesContext,
     destination_type: str,
     warnings: bool = True,
@@ -56,7 +55,7 @@ def verify_schema_capabilities(
     )
 
     # check for any table clashes
-    for table in load_tables:
+    for table in schema.data_tables():
         table_name = table["name"]
         # detect table name conflict
         cased_table_name = case_identifier(table_name)

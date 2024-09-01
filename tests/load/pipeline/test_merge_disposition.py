@@ -101,10 +101,12 @@ def test_merge_on_keys_in_schema(
         blocks__transactions = schema_.tables["blocks__transactions"]
         blocks__transactions["write_disposition"] = "merge"
         blocks__transactions["x-merge-strategy"] = merge_strategy  # type: ignore[typeddict-unknown-key]
+        blocks__transactions["table_format"] = destination_config.table_format
 
         blocks__transactions__logs = schema_.tables["blocks__transactions__logs"]
         blocks__transactions__logs["write_disposition"] = "merge"
         blocks__transactions__logs["x-merge-strategy"] = merge_strategy  # type: ignore[typeddict-unknown-key]
+        blocks__transactions__logs["table_format"] = destination_config.table_format
 
         return data
 
@@ -1179,8 +1181,11 @@ def test_merge_strategy_config() -> None:
         yield {"foo": "bar"}
 
     assert "scd2" not in p.destination.capabilities().supported_merge_strategies
-    with pytest.raises(DestinationCapabilitiesException):
+    with pytest.raises(PipelineStepFailed) as pip_ex:
         p.run(r())
+    assert pip_ex.value.step == "normalize"  # failed already in normalize when generating row ids
+    # PipelineStepFailed -> NormalizeJobFailed -> DestinationCapabilitiesException
+    assert isinstance(pip_ex.value.__cause__.__cause__, DestinationCapabilitiesException)
 
 
 @pytest.mark.parametrize(

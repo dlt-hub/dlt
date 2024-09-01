@@ -848,8 +848,14 @@ def test_init_client_truncate_tables() -> None:
                 "event_bot",
             }
 
-            replace_ = lambda table: table["write_disposition"] == "replace"
-            merge_ = lambda table: table["write_disposition"] == "merge"
+            replace_ = (
+                lambda table_name: client.prepare_load_table(table_name)["write_disposition"]
+                == "replace"
+            )
+            merge_ = (
+                lambda table_name: client.prepare_load_table(table_name)["write_disposition"]
+                == "merge"
+            )
 
             # set event_bot chain to merge
             bot_chain = get_nested_tables(schema.tables, "event_bot")
