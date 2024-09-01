@@ -111,9 +111,7 @@ BUCKET_URL = "s3://my_bucket/data"
 
 # Define a standalone transformer to read data from an XML file.
 @dlt.transformer(standalone=True)
-def read_excel(
-    items: Iterator[FileItemDict], sheet_name: str
-) -> Iterator[TDataItems]:
+def read_xml(items: Iterator[FileItemDict]) -> Iterator[TDataItems]:
     # Import the required xmltodict library.
     import xmltodict
 
@@ -125,13 +123,13 @@ def read_excel(
             yield xmltodict.parse(file.read())
 
 # Set up the pipeline to fetch a specific XML file from a filesystem (bucket).
-example_xls = filesystem(
+example_xml = filesystem(
     bucket_url=BUCKET_URL, file_glob="../directory/example.xml"
-) | read_excel("example_table")   # Pass the data through the transformer to read the "example_table" sheet.
+) | read_xml()   # Pass the data through the transformer
 
 pipeline = dlt.pipeline(pipeline_name="my_pipeline", destination="duckdb", dataset_name="example_xml_data")
 # Execute the pipeline and load the extracted data into the "duckdb" destination.
-load_info = pipeline.run(example_xls.with_name("example_xml_data"))
+load_info = pipeline.run(example_xml.with_name("example_xml_data"))
 
 # Print the loading information.
 print(load_info)
