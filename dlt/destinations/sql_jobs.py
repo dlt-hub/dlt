@@ -340,8 +340,17 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         """
 
     @classmethod
+    def _shorten_table_name(cls, ident: str, sql_client: SqlClientBase[Any]) -> str:
+        """Trims identifier to max length supported by sql_client. Used for dynamically constructed table names"""
+        from dlt.common.normalizers.naming import NamingConvention
+
+        return NamingConvention.shorten_identifier(
+            ident, ident, sql_client.capabilities.max_identifier_length
+        )
+
+    @classmethod
     def _new_temp_table_name(cls, name_prefix: str, sql_client: SqlClientBase[Any]) -> str:
-        return f"{name_prefix}_{uniq_id()}"
+        return cls._shorten_table_name(f"{name_prefix}_{uniq_id()}", sql_client)
 
     @classmethod
     def _to_temp_table(cls, select_sql: str, temp_table_name: str) -> str:

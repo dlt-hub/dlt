@@ -163,7 +163,9 @@ class AthenaMergeJob(SqlMergeFollowupJob):
     def _new_temp_table_name(cls, name_prefix: str, sql_client: SqlClientBase[Any]) -> str:
         # reproducible name so we know which table to drop
         with sql_client.with_staging_dataset():
-            return sql_client.make_qualified_table_name(name_prefix)
+            return sql_client.make_qualified_table_name(
+                cls._shorten_table_name(name_prefix, sql_client)
+            )
 
     @classmethod
     def _to_temp_table(cls, select_sql: str, temp_table_name: str) -> str:
@@ -428,7 +430,7 @@ class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
         # or if we are in iceberg mode, we create iceberg tables for all tables
         table = self.prepare_load_table(table_name)
         # do not create iceberg tables on staging dataset
-        create_iceberg = not self.in_staging_dataset_mode and self._is_iceberg_table(table)
+        create_iceberg = self._is_iceberg_table(table, self.in_staging_dataset_mode)
         columns = ", ".join([self._get_column_def_sql(c, table) for c in new_columns])
 
         # create unique tag for iceberg table so it is never recreated in the same folder
@@ -512,10 +514,15 @@ class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
     ) -> List[FollowupJobRequest]:
         return [AthenaMergeJob.from_table_chain(table_chain, self.sql_client)]
 
-    def _is_iceberg_table(self, table: PreparedTableSchema) -> bool:
+    def _is_iceberg_table(
+        self, table: PreparedTableSchema, is_staging_dataset: bool = False
+    ) -> bool:
         table_format = table.get("table_format")
-        # all dlt tables are iceberg tables
-        return table_format == "iceberg" or table["name"] in self.schema.dlt_table_names()
+        # all dlt tables that are not loaded via files are iceberg tables, no matter if they are on staging or regular dataset
+        # all other iceberg tables are HIVE (external) tables on staging dataset
+        return (table_format == "iceberg" and not is_staging_dataset) or table[
+            "write_disposition"
+        ] == "skip"
 
     def should_load_data_to_staging_dataset(self, table_name: str) -> bool:
         # all iceberg tables need staging

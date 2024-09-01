@@ -73,7 +73,9 @@ class DremioTypeMapper(TypeMapper):
 class DremioMergeJob(SqlMergeFollowupJob):
     @classmethod
     def _new_temp_table_name(cls, name_prefix: str, sql_client: SqlClientBase[Any]) -> str:
-        return sql_client.make_qualified_table_name(f"_temp_{name_prefix}_{uniq_id()}")
+        return sql_client.make_qualified_table_name(
+            cls._shorten_table_name(f"_temp_{name_prefix}_{uniq_id()}", sql_client)
+        )
 
     @classmethod
     def _to_temp_table(cls, select_sql: str, temp_table_name: str) -> str:

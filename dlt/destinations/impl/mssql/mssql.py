@@ -136,8 +136,7 @@ class MsSqlMergeJob(SqlMergeFollowupJob):
 
     @classmethod
     def _new_temp_table_name(cls, name_prefix: str, sql_client: SqlClientBase[Any]) -> str:
-        name = SqlMergeFollowupJob._new_temp_table_name(name_prefix, sql_client)
-        return "#" + name
+        return SqlMergeFollowupJob._new_temp_table_name("#" + name_prefix, sql_client)
 
 
 class MsSqlJobClient(InsertValuesJobClient):
