@@ -1,5 +1,5 @@
 import os
-from typing import Union, Dict, Optional, TypeVar, Generic, Iterable, Iterator
+from typing import Union, Dict, Optional, TypeVar, Generic, Iterable, Iterator, List
 
 import pyarrow as pa
 
@@ -10,7 +10,7 @@ from dlt.common.schema.utils import get_columns_names_with_prop
 from dlt.destinations.impl.lancedb.configuration import TEmbeddingProvider
 from dlt.destinations.impl.lancedb.schema import TArrowDataType
 
-
+EMPTY_STRING_PLACEHOLDER = "0uEoDNBpQUBwsxKbmxxB"
 PROVIDER_ENVIRONMENT_VARIABLES_MAP: Dict[TEmbeddingProvider, str] = {
     "cohere": "COHERE_API_KEY",
     "gemini-text": "GOOGLE_API_KEY",
@@ -77,3 +77,43 @@ def get_lancedb_orphan_removal_merge_key(
         return unique_key[0] if len(unique_key) == 1 else IterableWrapper(unique_key)
     else:
         return None
+
+
+def fill_empty_source_column_values_with_placeholder(
+    table: pa.Table, source_columns: List[str], placeholder: str
+) -> pa.Table:
+    """
+    Replaces empty strings in the specified source columns of an Arrow table with a placeholder string.
+
+    Args:
+        table (pa.Table): The input Arrow table.
+        source_columns (List[str]): A list of column names to replace empty strings in.
+        placeholder (str): The placeholder string to use for replacement.
+
+    Returns:
+        pa.Table: The modified Arrow table with empty strings replaced in the specified columns.
+    """
+    # Create a new table with the same schema as the input table.
+    new_table = table
+
+    # Iterate over each column that needs to be modified
+    for column_name in source_columns:
+        # Get the column index
+        column_index = new_table.schema.get_field_index(column_name)
+
+        # Get the column as an array
+        column_array = new_table.column(column_name).to_pandas()
+
+        # Replace empty strings with the placeholder
+        column_array = column_array.apply(lambda x: placeholder if x=="" else x)
+
+        # Create a new array with the modified values
+        new_array = pa.array(column_array)
+
+        # Replace the column in the new table with the modified array
+        new_table = new_table.set_column(column_index, column_name, new_array)
+
+    return new_table
+
+
+
