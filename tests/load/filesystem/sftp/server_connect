@@ -1,6 +1,0 @@
-#!/bin/sh
-
-# sftp client: sftp -i foo_rsa -oPort=2222 foo@localhost
-
-# python fsspec and paramiko
-python connect.py

@@ -1,3 +1,0 @@
-#!/bin/bash
-
-docker run -d --name my_sftp_container -p 2222:22 my-sftp-server
