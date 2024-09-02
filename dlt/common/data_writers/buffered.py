@@ -3,6 +3,7 @@ import time
 import contextlib
 from typing import ClassVar, Iterator, List, IO, Any, Optional, Type, Generic
 
+from dlt.common.metrics import DataWriterMetrics
 from dlt.common.typing import TDataItem, TDataItems
 from dlt.common.data_writers.exceptions import (
     BufferedDataWriterClosed,
@@ -10,7 +11,7 @@ from dlt.common.data_writers.exceptions import (
     FileImportNotFound,
     InvalidFileNameTemplateException,
 )
-from dlt.common.data_writers.writers import TWriter, DataWriter, DataWriterMetrics, FileWriterSpec
+from dlt.common.data_writers.writers import TWriter, DataWriter, FileWriterSpec
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.configuration import with_config, known_sections, configspec
 from dlt.common.configuration.specs import BaseConfiguration

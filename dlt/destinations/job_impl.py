@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 import os
 import tempfile  # noqa: 251
-from typing import Dict, Iterable, List
+from typing import Dict, Iterable, List, Optional
 
 from dlt.common.json import json
 from dlt.common.destination.reference import (
@@ -9,9 +9,10 @@ from dlt.common.destination.reference import (
     TLoadJobState,
     RunnableLoadJob,
     JobClientBase,
-    FollowupJob,
+    FollowupJobRequest,
     LoadJob,
 )
+from dlt.common.metrics import LoadJobMetrics
 from dlt.common.storages.load_package import commit_load_package_state
 from dlt.common.schema import Schema, TTableSchema
 from dlt.common.storages import FileStorage
@@ -56,7 +57,7 @@ class FinalizedLoadJobWithFollowupJobs(FinalizedLoadJob, HasFollowupJobs):
     pass
 
 
-class FollowupJobImpl(FollowupJob):
+class FollowupJobRequestImpl(FollowupJobRequest):
     """
     Class to create a new loadjob, not stateful and not runnable
     """
@@ -79,7 +80,7 @@ class FollowupJobImpl(FollowupJob):
         return self._parsed_file_name.job_id()
 
 
-class ReferenceFollowupJob(FollowupJobImpl):
+class ReferenceFollowupJobRequest(FollowupJobRequestImpl):
     def __init__(self, original_file_name: str, remote_paths: List[str]) -> None:
         file_name = os.path.splitext(original_file_name)[0] + "." + "reference"
         self._remote_paths = remote_paths
@@ -98,7 +99,7 @@ class ReferenceFollowupJob(FollowupJobImpl):
 
     @staticmethod
     def resolve_reference(file_path: str) -> str:
-        refs = ReferenceFollowupJob.resolve_references(file_path)
+        refs = ReferenceFollowupJobRequest.resolve_references(file_path)
         assert len(refs) == 1
         return refs[0]
 

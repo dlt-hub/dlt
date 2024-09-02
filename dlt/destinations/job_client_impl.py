@@ -42,7 +42,7 @@ from dlt.common.destination.reference import (
     WithStateSync,
     DestinationClientConfiguration,
     DestinationClientDwhConfiguration,
-    FollowupJob,
+    FollowupJobRequest,
     WithStagingDataset,
     RunnableLoadJob,
     LoadJob,
@@ -53,7 +53,7 @@ from dlt.common.destination.reference import (
 
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
 from dlt.destinations.job_impl import (
-    ReferenceFollowupJob,
+    ReferenceFollowupJobRequest,
 )
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob, SqlStagingCopyFollowupJob
 from dlt.destinations.typing import TNativeConn
@@ -118,7 +118,7 @@ class CopyRemoteFileLoadJob(RunnableLoadJob, HasFollowupJobs):
         super().__init__(file_path)
         self._job_client: "SqlJobClientBase" = None
         self._staging_credentials = staging_credentials
-        self._bucket_path = ReferenceFollowupJob.resolve_reference(file_path)
+        self._bucket_path = ReferenceFollowupJobRequest.resolve_reference(file_path)
 
 
 class SqlJobClientBase(JobClientBase, WithStateSync):
@@ -216,16 +216,18 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
 
     def _create_append_followup_jobs(
         self, table_chain: Sequence[TTableSchema]
-    ) -> List[FollowupJob]:
+    ) -> List[FollowupJobRequest]:
         return []
 
-    def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[FollowupJob]:
+    def _create_merge_followup_jobs(
+        self, table_chain: Sequence[TTableSchema]
+    ) -> List[FollowupJobRequest]:
         return [SqlMergeFollowupJob.from_table_chain(table_chain, self.sql_client)]
 
     def _create_replace_followup_jobs(
         self, table_chain: Sequence[TTableSchema]
-    ) -> List[FollowupJob]:
-        jobs: List[FollowupJob] = []
+    ) -> List[FollowupJobRequest]:
+        jobs: List[FollowupJobRequest] = []
         if self.config.replace_strategy in ["insert-from-staging", "staging-optimized"]:
             jobs.append(
                 SqlStagingCopyFollowupJob.from_table_chain(
@@ -238,7 +240,7 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
         self,
         table_chain: Sequence[TTableSchema],
         completed_table_chain_jobs: Optional[Sequence[LoadJobInfo]] = None,
-    ) -> List[FollowupJob]:
+    ) -> List[FollowupJobRequest]:
         """Creates a list of followup jobs for merge write disposition and staging replace strategies"""
         jobs = super().create_table_chain_completed_followup_jobs(
             table_chain, completed_table_chain_jobs
@@ -515,28 +517,36 @@ WHERE """
         return sql_updates, schema_update
 
     def _make_add_column_sql(
-        self, new_columns: Sequence[TColumnSchema], table_format: TTableFormat = None
+        self, new_columns: Sequence[TColumnSchema], table: TTableSchema = None
     ) -> List[str]:
         """Make one or more ADD COLUMN sql clauses to be joined in ALTER TABLE statement(s)"""
-        return [f"ADD COLUMN {self._get_column_def_sql(c, table_format)}" for c in new_columns]
+        return [f"ADD COLUMN {self._get_column_def_sql(c, table)}" for c in new_columns]
+
+    def _make_create_table(self, qualified_name: str, table: TTableSchema) -> str:
+        not_exists_clause = " "
+        if (
+            table["name"] in self.schema.dlt_table_names()
+            and self.capabilities.supports_create_table_if_not_exists
+        ):
+            not_exists_clause = " IF NOT EXISTS "
+        return f"CREATE TABLE{not_exists_clause}{qualified_name}"
 
     def _get_table_update_sql(
         self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
     ) -> List[str]:
         # build sql
-        canonical_name = self.sql_client.make_qualified_table_name(table_name)
+        qualified_name = self.sql_client.make_qualified_table_name(table_name)
         table = self.prepare_load_table(table_name)
-        table_format = table.get("table_format")
         sql_result: List[str] = []
         if not generate_alter:
             # build CREATE
-            sql = f"CREATE TABLE {canonical_name} (\n"
-            sql += ",\n".join([self._get_column_def_sql(c, table_format) for c in new_columns])
+            sql = self._make_create_table(qualified_name, table) + " (\n"
+            sql += ",\n".join([self._get_column_def_sql(c, table) for c in new_columns])
             sql += ")"
             sql_result.append(sql)
         else:
-            sql_base = f"ALTER TABLE {canonical_name}\n"
-            add_column_statements = self._make_add_column_sql(new_columns, table_format)
+            sql_base = f"ALTER TABLE {qualified_name}\n"
+            add_column_statements = self._make_add_column_sql(new_columns, table)
             if self.capabilities.alter_add_multi_column:
                 column_sql = ",\n"
                 sql_result.append(sql_base + column_sql.join(add_column_statements))
@@ -559,19 +569,19 @@ WHERE """
                     if hint == "not_null":
                         logger.warning(
                             f"Column(s) {hint_columns} with NOT NULL are being added to existing"
-                            f" table {canonical_name}. If there's data in the table the operation"
+                            f" table {qualified_name}. If there's data in the table the operation"
                             " will fail."
                         )
                     else:
                         logger.warning(
                             f"Column(s) {hint_columns} with hint {hint} are being added to existing"
-                            f" table {canonical_name}. Several hint types may not be added to"
+                            f" table {qualified_name}. Several hint types may not be added to"
                             " existing tables."
                         )
         return sql_result
 
     @abstractmethod
-    def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:
+    def _get_column_def_sql(self, c: TColumnSchema, table: TTableSchema = None) -> str:
         pass
 
     @staticmethod

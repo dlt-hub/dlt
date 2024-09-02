@@ -16,7 +16,7 @@ from dlt.common.json import json
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
     HasFollowupJobs,
-    FollowupJob,
+    FollowupJobRequest,
     TLoadJobState,
     RunnableLoadJob,
     SupportsStagingDestination,
@@ -51,7 +51,7 @@ from dlt.destinations.impl.bigquery.bigquery_adapter import (
 from dlt.destinations.impl.bigquery.configuration import BigQueryClientConfiguration
 from dlt.destinations.impl.bigquery.sql_client import BigQuerySqlClient, BQ_TERMINAL_REASONS
 from dlt.destinations.job_client_impl import SqlJobClientWithStaging
-from dlt.destinations.job_impl import ReferenceFollowupJob
+from dlt.destinations.job_impl import ReferenceFollowupJobRequest
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
 from dlt.destinations.type_mapping import TypeMapper
 from dlt.destinations.utils import parse_db_data_type_str_with_precision
@@ -90,9 +90,9 @@ class BigQueryTypeMapper(TypeMapper):
         "TIME": "time",
     }
 
-    def to_db_decimal_type(self, precision: Optional[int], scale: Optional[int]) -> str:
+    def to_db_decimal_type(self, column: TColumnSchema) -> str:
         # Use BigQuery's BIGNUMERIC for large precision decimals
-        precision, scale = self.decimal_precision(precision, scale)
+        precision, scale = self.decimal_precision(column.get("precision"), column.get("scale"))
         if precision > 38 or scale > 9:
             return "BIGNUMERIC(%i,%i)" % (precision, scale)
         return "NUMERIC(%i,%i)" % (precision, scale)
@@ -234,7 +234,9 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
         self.sql_client: BigQuerySqlClient = sql_client  # type: ignore
         self.type_mapper = BigQueryTypeMapper(self.capabilities)
 
-    def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[FollowupJob]:
+    def _create_merge_followup_jobs(
+        self, table_chain: Sequence[TTableSchema]
+    ) -> List[FollowupJobRequest]:
         return [BigQueryMergeJob.from_table_chain(table_chain, self.sql_client)]
 
     def create_load_job(
@@ -415,10 +417,10 @@ SELECT {",".join(self._get_storage_table_query_columns())}
 
         return query, folded_table_names
 
-    def _get_column_def_sql(self, column: TColumnSchema, table_format: TTableFormat = None) -> str:
+    def _get_column_def_sql(self, column: TColumnSchema, table: TTableSchema = None) -> str:
         name = self.sql_client.escape_column_name(column["name"])
         column_def_sql = (
-            f"{name} {self.type_mapper.to_db_type(column, table_format)} {self._gen_not_null(column.get('nullable', True))}"
+            f"{name} {self.type_mapper.to_db_type(column, table)} {self._gen_not_null(column.get('nullable', True))}"
         )
         if column.get(ROUND_HALF_EVEN_HINT, False):
             column_def_sql += " OPTIONS (rounding_mode='ROUND_HALF_EVEN')"
@@ -430,11 +432,11 @@ SELECT {",".join(self._get_storage_table_query_columns())}
         # append to table for merge loads (append to stage) and regular appends.
         table_name = table["name"]
 
-        # determine whether we load from local or uri
+        # determine whether we load from local or url
         bucket_path = None
         ext: str = os.path.splitext(file_path)[1][1:]
-        if ReferenceFollowupJob.is_reference_job(file_path):
-            bucket_path = ReferenceFollowupJob.resolve_reference(file_path)
+        if ReferenceFollowupJobRequest.is_reference_job(file_path):
+            bucket_path = ReferenceFollowupJobRequest.resolve_reference(file_path)
             ext = os.path.splitext(bucket_path)[1][1:]
 
         # Select a correct source format
@@ -500,6 +502,9 @@ SELECT {",".join(self._get_storage_table_query_columns())}
         return get_inherited_table_hint(
             self.schema._schema_tables, table_name, AUTODETECT_SCHEMA_HINT, allow_none=True
         ) or (self.config.autodetect_schema and table_name not in self.schema.dlt_table_names())
+
+    def should_truncate_table_before_load_on_staging_destination(self, table: TTableSchema) -> bool:
+        return self.config.truncate_tables_on_staging_destination_before_load
 
 
 def _streaming_load(

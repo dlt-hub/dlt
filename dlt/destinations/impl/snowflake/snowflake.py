@@ -18,7 +18,7 @@ from dlt.common.storages.configuration import FilesystemConfiguration
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns
 from dlt.common.schema.typing import TTableSchema, TColumnType, TTableFormat
-
+from dlt.common.exceptions import TerminalValueError
 
 from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.common.typing import TLoaderFileFormat
@@ -29,7 +29,7 @@ from dlt.destinations.exceptions import LoadJobTerminalException
 from dlt.destinations.impl.snowflake.configuration import SnowflakeClientConfiguration
 from dlt.destinations.impl.snowflake.sql_client import SnowflakeSqlClient
 from dlt.destinations.impl.snowflake.sql_client import SnowflakeSqlClient
-from dlt.destinations.job_impl import ReferenceFollowupJob
+from dlt.destinations.job_impl import ReferenceFollowupJobRequest
 from dlt.destinations.type_mapping import TypeMapper
 
 
@@ -77,6 +77,36 @@ class SnowflakeTypeMapper(TypeMapper):
             return dict(data_type="decimal", precision=precision, scale=scale)
         return super().from_db_type(db_type, precision, scale)
 
+    def to_db_datetime_type(
+        self,
+        column: TColumnSchema,
+        table: TTableSchema = None,
+    ) -> str:
+        column_name = column.get("name")
+        table_name = table.get("name")
+        timezone = column.get("timezone")
+        precision = column.get("precision")
+
+        if timezone is None and precision is None:
+            return None
+
+        timestamp = "TIMESTAMP_TZ"
+
+        if timezone is not None and not timezone:  # explicitaly handles timezone False
+            timestamp = "TIMESTAMP_NTZ"
+
+        # append precision if specified and valid
+        if precision is not None:
+            if 0 <= precision <= 9:
+                timestamp += f"({precision})"
+            else:
+                raise TerminalValueError(
+                    f"Snowflake does not support precision '{precision}' for '{column_name}' in"
+                    f" table '{table_name}'"
+                )
+
+        return timestamp
+
 
 class SnowflakeLoadJob(RunnableLoadJob, HasFollowupJobs):
     def __init__(
@@ -98,11 +128,11 @@ class SnowflakeLoadJob(RunnableLoadJob, HasFollowupJobs):
         self._sql_client = self._job_client.sql_client
 
         # resolve reference
-        is_local_file = not ReferenceFollowupJob.is_reference_job(self._file_path)
+        is_local_file = not ReferenceFollowupJobRequest.is_reference_job(self._file_path)
         file_url = (
             self._file_path
             if is_local_file
-            else ReferenceFollowupJob.resolve_reference(self._file_path)
+            else ReferenceFollowupJobRequest.resolve_reference(self._file_path)
         )
         # take file name
         file_name = FileStorage.get_file_name_from_file_path(file_url)
@@ -289,12 +319,11 @@ class SnowflakeClient(SqlJobClientWithStaging, SupportsStagingDestination):
         return job
 
     def _make_add_column_sql(
-        self, new_columns: Sequence[TColumnSchema], table_format: TTableFormat = None
+        self, new_columns: Sequence[TColumnSchema], table: TTableSchema = None
     ) -> List[str]:
         # Override because snowflake requires multiple columns in a single ADD COLUMN clause
         return [
-            "ADD COLUMN\n"
-            + ",\n".join(self._get_column_def_sql(c, table_format) for c in new_columns)
+            "ADD COLUMN\n" + ",\n".join(self._get_column_def_sql(c, table) for c in new_columns)
         ]
 
     def _get_table_update_sql(
@@ -320,8 +349,11 @@ class SnowflakeClient(SqlJobClientWithStaging, SupportsStagingDestination):
     ) -> TColumnType:
         return self.type_mapper.from_db_type(bq_t, precision, scale)
 
-    def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:
+    def _get_column_def_sql(self, c: TColumnSchema, table: TTableSchema = None) -> str:
         name = self.sql_client.escape_column_name(c["name"])
         return (
-            f"{name} {self.type_mapper.to_db_type(c)} {self._gen_not_null(c.get('nullable', True))}"
+            f"{name} {self.type_mapper.to_db_type(c,table)} {self._gen_not_null(c.get('nullable', True))}"
         )
+
+    def should_truncate_table_before_load_on_staging_destination(self, table: TTableSchema) -> bool:
+        return self.config.truncate_tables_on_staging_destination_before_load

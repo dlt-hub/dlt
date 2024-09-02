@@ -4,10 +4,10 @@ from typing import List, Dict, Sequence, Optional, Callable
 from concurrent.futures import Future, Executor
 
 from dlt.common import logger
+from dlt.common.metrics import DataWriterMetrics
 from dlt.common.runtime.signals import sleep
 from dlt.common.configuration import with_config, known_sections
 from dlt.common.configuration.accessors import config
-from dlt.common.data_writers import DataWriterMetrics
 from dlt.common.data_writers.writers import EMPTY_DATA_WRITER_METRICS
 from dlt.common.runners import TRunMetrics, Runnable, NullExecutor
 from dlt.common.runtime import signals

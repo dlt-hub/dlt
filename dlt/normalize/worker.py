@@ -4,12 +4,12 @@ from dlt.common import logger
 from dlt.common.configuration.container import Container
 from dlt.common.data_writers import (
     DataWriter,
-    DataWriterMetrics,
     create_import_spec,
     resolve_best_writer_spec,
     get_best_writer_spec,
     is_native_writer,
 )
+from dlt.common.metrics import DataWriterMetrics
 from dlt.common.utils import chunks
 from dlt.common.schema.typing import TStoredSchema, TTableSchema
 from dlt.common.storages import (

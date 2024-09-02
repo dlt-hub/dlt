@@ -17,9 +17,9 @@ from typing import (
 import lancedb  # type: ignore
 import lancedb.table  # type: ignore
 import pyarrow as pa
-import pyarrow.compute as pc
 import pyarrow.parquet as pq
 from lancedb import DBConnection
+from lancedb.common import DATA  # type: ignore
 from lancedb.embeddings import EmbeddingFunctionRegistry, TextEmbeddingFunction  # type: ignore
 from lancedb.query import LanceQueryBuilder  # type: ignore
 from numpy import ndarray
@@ -38,23 +38,20 @@ from dlt.common.destination.reference import (
     RunnableLoadJob,
     StorageSchemaInfo,
     StateInfo,
-    FollowupJob,
     LoadJob,
     HasFollowupJobs,
+    FollowupJobRequest,
 )
-from dlt.common.exceptions import SystemConfigurationException
 from dlt.common.pendulum import timedelta
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
 from dlt.common.schema.typing import (
     TColumnType,
-    TTableFormat,
     TTableSchemaColumns,
     TWriteDisposition,
     TColumnSchema,
 )
 from dlt.common.schema.utils import get_columns_names_with_prop
 from dlt.common.storages import FileStorage, LoadJobInfo, ParsedLoadJobFileName
-from dlt.common.typing import DictStrAny
 from dlt.destinations.impl.lancedb.configuration import (
     LanceDBClientConfiguration,
 )
@@ -63,7 +60,7 @@ from dlt.destinations.impl.lancedb.exceptions import (
 )
 from dlt.destinations.impl.lancedb.lancedb_adapter import (
     VECTORIZE_HINT,
-    DOCUMENT_ID_HINT,
+    NO_REMOVE_ORPHANS_HINT,
 )
 from dlt.destinations.impl.lancedb.schema import (
     make_arrow_field_schema,
@@ -72,13 +69,17 @@ from dlt.destinations.impl.lancedb.schema import (
     NULL_SCHEMA,
     TArrowField,
     arrow_datatype_to_fusion_datatype,
+    TTableLineage,
+    TableJob,
 )
 from dlt.destinations.impl.lancedb.utils import (
-    get_unique_identifiers_from_table_schema,
     set_non_standard_providers_environment_variables,
-    generate_arrow_uuid_column,
+    EMPTY_STRING_PLACEHOLDER,
+    fill_empty_source_column_values_with_placeholder,
+    get_canonical_vector_database_doc_id_merge_key,
+    create_filter_condition,
 )
-from dlt.destinations.job_impl import ReferenceFollowupJob
+from dlt.destinations.job_impl import ReferenceFollowupJobRequest
 from dlt.destinations.type_mapping import TypeMapper
 
 if TYPE_CHECKING:
@@ -113,21 +114,27 @@ class LanceDBTypeMapper(TypeMapper):
         pa.date32(): "date",
     }
 
-    def to_db_decimal_type(
-        self, precision: Optional[int], scale: Optional[int]
-    ) -> pa.Decimal128Type:
-        precision, scale = self.decimal_precision(precision, scale)
+    def to_db_decimal_type(self, column: TColumnSchema) -> pa.Decimal128Type:
+        precision, scale = self.decimal_precision(column.get("precision"), column.get("scale"))
         return pa.decimal128(precision, scale)
 
     def to_db_datetime_type(
-        self, precision: Optional[int], table_format: TTableFormat = None
+        self,
+        column: TColumnSchema,
+        table: TTableSchema = None,
     ) -> pa.TimestampType:
+        column_name = column.get("name")
+        timezone = column.get("timezone")
+        precision = column.get("precision")
+        if timezone is not None or precision is not None:
+            logger.warning(
+                "LanceDB does not currently support column flags for timezone or precision."
+                f" These flags were used in column '{column_name}'."
+            )
         unit: str = TIMESTAMP_PRECISION_TO_UNIT[self.capabilities.timestamp_precision]
         return pa.timestamp(unit, "UTC")
 
-    def to_db_time_type(
-        self, precision: Optional[int], table_format: TTableFormat = None
-    ) -> pa.Time64Type:
+    def to_db_time_type(self, column: TColumnSchema, table: TTableSchema = None) -> pa.Time64Type:
         unit: str = TIMESTAMP_PRECISION_TO_UNIT[self.capabilities.timestamp_precision]
         return pa.time64(unit)
 
@@ -157,14 +164,16 @@ class LanceDBTypeMapper(TypeMapper):
         return super().from_db_type(cast(str, db_type), precision, scale)
 
 
-def write_to_db(
-    records: Union[pa.Table, List[DictStrAny]],
+def write_records(
+    records: DATA,
     /,
     *,
     db_client: DBConnection,
     table_name: str,
     write_disposition: Optional[TWriteDisposition] = "append",
-    id_field_name: Optional[str] = None,
+    merge_key: Optional[str] = None,
+    remove_orphans: Optional[bool] = False,
+    filter_condition: Optional[str] = None,
 ) -> None:
     """Inserts records into a LanceDB table with automatic embedding computation.
 
@@ -172,8 +181,11 @@ def write_to_db(
         records: The data to be inserted as payload.
         db_client: The LanceDB client connection.
         table_name: The name of the table to insert into.
-        id_field_name: The name of the ID field for update/merge operations.
+        merge_key: Keys for update/merge operations.
         write_disposition: The write disposition - one of 'skip', 'append', 'replace', 'merge'.
+        remove_orphans (bool): Whether to remove orphans after insertion or not (only merge disposition).
+        filter_condition (str): If None, then all such rows will be deleted.
+            Otherwise, the condition will be used as an SQL filter to limit what rows are deleted.
 
     Raises:
         ValueError: If the write disposition is unsupported, or `id_field_name` is not
@@ -194,11 +206,14 @@ def write_to_db(
         elif write_disposition == "replace":
             tbl.add(records, mode="overwrite")
         elif write_disposition == "merge":
-            if not id_field_name:
-                raise ValueError("To perform a merge update, 'id_field_name' must be specified.")
-            tbl.merge_insert(
-                id_field_name
-            ).when_matched_update_all().when_not_matched_insert_all().execute(records)
+            if remove_orphans:
+                tbl.merge_insert(merge_key).when_not_matched_by_source_delete(
+                    filter_condition
+                ).execute(records)
+            else:
+                tbl.merge_insert(
+                    merge_key
+                ).when_matched_update_all().when_not_matched_insert_all().execute(records)
         else:
             raise DestinationTerminalException(
                 f"Unsupported write disposition {write_disposition} for LanceDB Destination - batch"
@@ -214,6 +229,8 @@ class LanceDBClient(JobClientBase, WithStateSync):
     """LanceDB destination handler."""
 
     model_func: TextEmbeddingFunction
+    """The embedder callback used for each chunk."""
+    dataset_name: str
 
     def __init__(
         self,
@@ -231,6 +248,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
         self.registry = EmbeddingFunctionRegistry.get_instance()
         self.type_mapper = LanceDBTypeMapper(self.capabilities)
         self.sentinel_table_name = config.sentinel_table_name
+        self.dataset_name = self.config.normalize_dataset_name(self.schema)
 
         embedding_model_provider = self.config.embedding_model_provider
 
@@ -241,27 +259,13 @@ class LanceDBClient(JobClientBase, WithStateSync):
             embedding_model_provider,
             self.config.credentials.embedding_model_provider_api_key,
         )
-        # Use the monkey-patched implementation if openai was chosen.
-        if embedding_model_provider == "openai":
-            from dlt.destinations.impl.lancedb.models import PatchedOpenAIEmbeddings
-
-            self.model_func = PatchedOpenAIEmbeddings(
-                max_retries=self.config.options.max_retries,
-                api_key=self.config.credentials.api_key,
-            )
-        else:
-            self.model_func = self.registry.get(embedding_model_provider).create(
-                name=self.config.embedding_model,
-                max_retries=self.config.options.max_retries,
-                api_key=self.config.credentials.api_key,
-            )
+        self.model_func = self.registry.get(embedding_model_provider).create(
+            name=self.config.embedding_model,
+            max_retries=self.config.options.max_retries,
+            api_key=self.config.credentials.api_key,
+        )
 
         self.vector_field_name = self.config.vector_field_name
-        self.id_field_name = self.config.id_field_name
-
-    @property
-    def dataset_name(self) -> str:
-        return self.config.normalize_dataset_name(self.schema)
 
     @property
     def sentinel_table(self) -> str:
@@ -442,7 +446,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
 
         try:
             # Use DataFusion SQL syntax to alter fields without loading data into client memory.
-            # Currently, the most efficient way to modify column values is in LanceDB.
+            # Now, the most efficient way to modify column values is in LanceDB.
             new_fields = {
                 field.name: f"CAST(NULL AS {arrow_datatype_to_fusion_datatype(field.type)})"
                 for field in field_schemas
@@ -484,13 +488,11 @@ class LanceDBClient(JobClientBase, WithStateSync):
                             self.schema.get_table(table_name=table_name), VECTORIZE_HINT
                         )
                         vector_field_name = self.vector_field_name
-                        id_field_name = self.id_field_name
                         embedding_model_func = self.model_func
                         embedding_model_dimensions = self.config.embedding_model_dimensions
                     else:
                         embedding_fields = None
                         vector_field_name = None
-                        id_field_name = None
                         embedding_model_func = None
                         embedding_model_dimensions = None
 
@@ -502,7 +504,6 @@ class LanceDBClient(JobClientBase, WithStateSync):
                         embedding_model_func=embedding_model_func,
                         embedding_model_dimensions=embedding_model_dimensions,
                         vector_field_name=vector_field_name,
-                        id_field_name=id_field_name,
                     )
                     fq_table_name = self.make_qualified_table_name(table_name)
                     self.create_table(fq_table_name, table_schema)
@@ -532,7 +533,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
             "write_disposition"
         )
 
-        write_to_db(
+        write_records(
             records,
             db_client=self.db_client,
             table_name=fq_version_table_name,
@@ -553,7 +554,9 @@ class LanceDBClient(JobClientBase, WithStateSync):
 
         # normalize property names
         p_load_id = self.schema.naming.normalize_identifier("load_id")
-        p_dlt_load_id = self.schema.naming.normalize_identifier("_dlt_load_id")
+        p_dlt_load_id = self.schema.naming.normalize_identifier(
+            self.schema.data_item_normalizer.C_DLT_LOAD_ID  # type: ignore[attr-defined]
+        )
         p_pipeline_name = self.schema.naming.normalize_identifier("pipeline_name")
         p_status = self.schema.naming.normalize_identifier("status")
         p_version = self.schema.naming.normalize_identifier("version")
@@ -681,7 +684,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
         write_disposition = self.schema.get_table(self.schema.loads_table_name).get(
             "write_disposition"
         )
-        write_to_db(
+        write_records(
             records,
             db_client=self.db_client,
             table_name=fq_loads_table_name,
@@ -691,7 +694,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
     def create_load_job(
         self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
-        if ReferenceFollowupJob.is_reference_job(file_path):
+        if ReferenceFollowupJobRequest.is_reference_job(file_path):
             return LanceDBRemoveOrphansJob(file_path)
         else:
             return LanceDBLoadJob(file_path, table)
@@ -700,12 +703,15 @@ class LanceDBClient(JobClientBase, WithStateSync):
         self,
         table_chain: Sequence[TTableSchema],
         completed_table_chain_jobs: Optional[Sequence[LoadJobInfo]] = None,
-    ) -> List[FollowupJob]:
+    ) -> List[FollowupJobRequest]:
         jobs = super().create_table_chain_completed_followup_jobs(
             table_chain, completed_table_chain_jobs
         )
-        if table_chain[0].get("write_disposition") == "merge":
-            # TODO: Use staging to write deletion records. For now we use only one job.
+        # Orphan removal is only supported for upsert strategy because we need a deterministic key hash.
+        first_table_in_chain = table_chain[0]
+        if first_table_in_chain.get(
+            "write_disposition"
+        ) == "merge" and not first_table_in_chain.get(NO_REMOVE_ORPHANS_HINT):
             all_job_paths_ordered = [
                 job.file_path
                 for table in table_chain
@@ -715,7 +721,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
             root_table_file_name = FileStorage.get_file_name_from_file_path(
                 all_job_paths_ordered[0]
             )
-            jobs.append(ReferenceFollowupJob(root_table_file_name, all_job_paths_ordered))
+            jobs.append(ReferenceFollowupJobRequest(root_table_file_name, all_job_paths_ordered))
         return jobs
 
     def table_exists(self, table_name: str) -> bool:
@@ -737,10 +743,6 @@ class LanceDBLoadJob(RunnableLoadJob, HasFollowupJobs):
     def run(self) -> None:
         db_client: DBConnection = self._job_client.db_client
         fq_table_name: str = self._job_client.make_qualified_table_name(self._table_schema["name"])
-        id_field_name: str = self._job_client.config.id_field_name
-        unique_identifiers: Sequence[str] = get_unique_identifiers_from_table_schema(
-            self._load_table
-        )
         write_disposition: TWriteDisposition = cast(
             TWriteDisposition, self._load_table.get("write_disposition", "append")
         )
@@ -748,24 +750,36 @@ class LanceDBLoadJob(RunnableLoadJob, HasFollowupJobs):
         with FileStorage.open_zipsafe_ro(self._file_path, mode="rb") as f:
             arrow_table: pa.Table = pq.read_table(f)
 
-        if self._load_table["name"] not in self._schema.dlt_table_names():
-            arrow_table = generate_arrow_uuid_column(
-                arrow_table,
-                unique_identifiers=unique_identifiers,
-                table_name=fq_table_name,
-                id_field_name=id_field_name,
+        # Replace empty strings with placeholder string if OpenAI is used.
+        # https://github.com/lancedb/lancedb/issues/1577#issuecomment-2318104218.
+        if (self._job_client.config.embedding_model_provider == "openai") and (
+            source_columns := get_columns_names_with_prop(self._load_table, VECTORIZE_HINT)
+        ):
+            arrow_table = fill_empty_source_column_values_with_placeholder(
+                arrow_table, source_columns, EMPTY_STRING_PLACEHOLDER
             )
 
-        write_to_db(
+        # We need upsert merge's deterministic _dlt_id to perform orphan removal.
+        # Hence, we require at least a primary key on the root table if the merge disposition is chosen.
+        if (
+            (self._load_table not in self._schema.dlt_table_names())
+            and not self._load_table.get("parent")  # Is root table.
+            and (write_disposition == "merge")
+            and (not get_columns_names_with_prop(self._load_table, "primary_key"))
+        ):
+            raise DestinationTerminalException(
+                "LanceDB's write disposition requires at least one explicit primary key."
+            )
+
+        write_records(
             arrow_table,
             db_client=db_client,
             table_name=fq_table_name,
             write_disposition=write_disposition,
-            id_field_name=id_field_name,
+            merge_key=self._schema.data_item_normalizer.C_DLT_ID,  # type: ignore[attr-defined]
         )
 
 
-# TODO: Implement staging for this step with insert deletes.
 class LanceDBRemoveOrphansJob(RunnableLoadJob):
     orphaned_ids: Set[str]
 
@@ -775,93 +789,54 @@ class LanceDBRemoveOrphansJob(RunnableLoadJob):
     ) -> None:
         super().__init__(file_path)
         self._job_client: "LanceDBClient" = None
-        self.references = ReferenceFollowupJob.resolve_references(file_path)
+        self.references = ReferenceFollowupJobRequest.resolve_references(file_path)
 
     def run(self) -> None:
+        dlt_load_id = self._schema.data_item_normalizer.C_DLT_LOAD_ID  # type: ignore[attr-defined]
+        dlt_id = self._schema.data_item_normalizer.C_DLT_ID  # type: ignore[attr-defined]
+        dlt_root_id = self._schema.data_item_normalizer.C_DLT_ROOT_ID  # type: ignore[attr-defined]
+
         db_client: DBConnection = self._job_client.db_client
-        id_field_name: str = self._job_client.config.id_field_name
+        table_lineage: TTableLineage = [
+            TableJob(
+                table_schema=self._schema.get_table(
+                    ParsedLoadJobFileName.parse(file_path_).table_name
+                ),
+                table_name=ParsedLoadJobFileName.parse(file_path_).table_name,
+                file_path=file_path_,
+            )
+            for file_path_ in self.references
+        ]
 
-        # We don't all insert jobs for each table using this method.
-        table_lineage: List[TTableSchema] = []
-        for file_path_ in self.references:
-            table = self._schema.get_table(ParsedLoadJobFileName.parse(file_path_).table_name)
-            if table["name"] not in [table_["name"] for table_ in table_lineage]:
-                table_lineage.append(table)
+        for job in table_lineage:
+            target_is_root_table = "parent" not in job.table_schema
+            fq_table_name = self._job_client.make_qualified_table_name(job.table_name)
+            file_path = job.file_path
+            with FileStorage.open_zipsafe_ro(file_path, mode="rb") as f:
+                payload_arrow_table: pa.Table = pq.read_table(f)
 
-        for table in table_lineage:
-            fq_table_name: str = self._job_client.make_qualified_table_name(table["name"])
-            try:
-                fq_parent_table_name: str = self._job_client.make_qualified_table_name(
-                    table["parent"]
+            if target_is_root_table:
+                canonical_doc_id_field = get_canonical_vector_database_doc_id_merge_key(
+                    job.table_schema
                 )
-            except KeyError:
-                fq_parent_table_name = None  # The table is a root table.
+                filter_condition = create_filter_condition(
+                    canonical_doc_id_field, payload_arrow_table[canonical_doc_id_field]
+                )
+                merge_key = dlt_load_id
 
-            try:
-                child_table = db_client.open_table(fq_table_name)
-                child_table.checkout_latest()
-                if fq_parent_table_name:
-                    parent_table = db_client.open_table(fq_parent_table_name)
-                    parent_table.checkout_latest()
-            except FileNotFoundError as e:
-                raise DestinationTransientException(
-                    "Couldn't open lancedb database. Orphan removal WILL BE RETRIED"
-                ) from e
+            else:
+                filter_condition = create_filter_condition(
+                    dlt_root_id,
+                    payload_arrow_table[dlt_root_id],
+                )
+                merge_key = dlt_id
 
-            try:
-                if fq_parent_table_name:
-                    # Chunks and embeddings in child table.
-                    parent_ids = set(
-                        pc.unique(
-                            parent_table.to_lance().to_table(columns=["_dlt_id"])["_dlt_id"]
-                        ).to_pylist()
-                    )
-                    child_ids = set(
-                        pc.unique(
-                            child_table.to_lance().to_table(columns=["_dlt_parent_id"])[
-                                "_dlt_parent_id"
-                            ]
-                        ).to_pylist()
-                    )
-
-                    if orphaned_ids := child_ids - parent_ids:
-                        if len(orphaned_ids) > 1:
-                            child_table.delete(f"_dlt_parent_id IN {tuple(orphaned_ids)}")
-                        elif len(orphaned_ids) == 1:
-                            child_table.delete(f"_dlt_parent_id = '{orphaned_ids.pop()}'")
-
-                else:
-                    # Chunks and embeddings in the root table.
-                    document_id_field = get_columns_names_with_prop(table, DOCUMENT_ID_HINT)
-                    if document_id_field and get_columns_names_with_prop(table, "primary_key"):
-                        raise SystemConfigurationException(
-                            "You CANNOT specify a primary key AND a document ID hint for the same"
-                            " resource when using merge disposition."
-                        )
-
-                    # If document ID is defined, we use this as the sole grouping key to identify stale chunks,
-                    # else fallback to the compound `id_field_name`.
-                    grouping_key = document_id_field or id_field_name
-                    grouping_key = (
-                        grouping_key if isinstance(grouping_key, list) else [grouping_key]
-                    )
-                    child_table_arrow: pa.Table = child_table.to_lance().to_table(
-                        columns=[*grouping_key, "_dlt_load_id", "_dlt_id"]
-                    )
-
-                    grouped = child_table_arrow.group_by(grouping_key).aggregate(
-                        [("_dlt_load_id", "max")]
-                    )
-                    joined = child_table_arrow.join(grouped, keys=grouping_key)
-                    orphaned_mask = pc.not_equal(joined["_dlt_load_id"], joined["_dlt_load_id_max"])
-                    orphaned_ids = joined.filter(orphaned_mask).column("_dlt_id").to_pylist()
-
-                    if len(orphaned_ids) > 1:
-                        child_table.delete(f"_dlt_id IN {tuple(orphaned_ids)}")
-                    elif len(orphaned_ids) == 1:
-                        child_table.delete(f"_dlt_id = '{orphaned_ids.pop()}'")
-
-            except ArrowInvalid as e:
-                raise DestinationTerminalException(
-                    "Python and Arrow datatype mismatch - batch failed AND WILL **NOT** BE RETRIED."
-                ) from e
+            write_records(
+                payload_arrow_table,
+                db_client=db_client,
+                table_name=fq_table_name,
+                write_disposition="merge",
+                merge_key=merge_key,
+                remove_orphans=True,
+                filter_condition=filter_condition,
+            )
