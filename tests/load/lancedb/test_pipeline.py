@@ -1,7 +1,12 @@
+import multiprocessing
+from typing import Iterator, Generator, Any, List, Mapping
 from typing import Iterator, Generator, Any, List
 from typing import Union, Dict
 
+import lancedb  # type: ignore
 import pytest
+from lancedb import DBConnection
+from lancedb.embeddings import EmbeddingFunctionRegistry  # type: ignore
 from lancedb.table import Table  # type: ignore
 
 import dlt
@@ -25,7 +30,7 @@ pytestmark = pytest.mark.essential
 
 
 @pytest.fixture(autouse=True)
-def drop_lancedb_data() -> Iterator[None]:
+def drop_lancedb_data() -> Iterator[Any]:
     yield
     drop_active_pipeline_data()
 
@@ -520,3 +525,126 @@ def test_merge_no_orphans() -> None:
         tbl: Table = client.db_client.open_table(embeddings_table_name)  # type: ignore[attr-defined]
         df = tbl.to_pandas()
         assert set(df["chunk_text"]) == expected_text
+
+
+search_data = [
+    {"text": "Frodo was a happy puppy"},
+    {"text": "There are several kittens playing"},
+]
+
+
+def test_fts_query() -> None:
+    @dlt.resource
+    def search_data_resource() -> Generator[Mapping[str, object], Any, None]:
+        yield from search_data
+
+    pipeline = dlt.pipeline(
+        pipeline_name="test_fts_query",
+        destination="lancedb",
+        dataset_name=f"test_pipeline_append{uniq_id()}",
+    )
+    info = pipeline.run(
+        search_data_resource(),
+    )
+    assert_load_info(info)
+
+    client: LanceDBClient
+    with pipeline.destination_client() as client:  # type: ignore[assignment]
+        db_client: DBConnection = client.db_client
+
+        table_name = client.make_qualified_table_name("search_data_resource")
+        tbl = db_client[table_name]
+        tbl.checkout_latest()
+
+        tbl.create_fts_index("text")
+        results = tbl.search("kittens", query_type="fts").select(["text"]).to_list()
+        assert results[0]["text"] == "There are several kittens playing"
+
+
+def test_semantic_query() -> None:
+    @dlt.resource
+    def search_data_resource() -> Generator[Mapping[str, object], Any, None]:
+        yield from search_data
+
+    lancedb_adapter(
+        search_data_resource,
+        embed=["text"],
+    )
+
+    pipeline = dlt.pipeline(
+        pipeline_name="test_fts_query",
+        destination="lancedb",
+        dataset_name=f"test_pipeline_append{uniq_id()}",
+    )
+    info = pipeline.run(
+        search_data_resource(),
+    )
+    assert_load_info(info)
+
+    client: LanceDBClient
+    with pipeline.destination_client() as client:  # type: ignore[assignment]
+        db_client: DBConnection = client.db_client
+
+        table_name = client.make_qualified_table_name("search_data_resource")
+        tbl = db_client[table_name]
+        tbl.checkout_latest()
+
+        results = (
+            tbl.search("puppy", query_type="vector", ordering_field_name="_distance")
+            .select(["text"])
+            .to_list()
+        )
+        assert results[0]["text"] == "Frodo was a happy puppy"
+
+
+def test_semantic_query_custom_embedding_functions_registered() -> None:
+    """Test the LanceDB registry registered custom embedding functions defined in models, if any.
+    See: https://github.com/dlt-hub/dlt/issues/1765"""
+
+    @dlt.resource
+    def search_data_resource() -> Generator[Mapping[str, object], Any, None]:
+        yield from search_data
+
+    lancedb_adapter(
+        search_data_resource,
+        embed=["text"],
+    )
+
+    pipeline = dlt.pipeline(
+        pipeline_name="test_fts_query",
+        destination="lancedb",
+        dataset_name=f"test_pipeline_append{uniq_id()}",
+    )
+    info = pipeline.run(
+        search_data_resource(),
+    )
+    assert_load_info(info)
+
+    client: LanceDBClient
+    with pipeline.destination_client() as client:  # type: ignore[assignment]
+        db_client_uri = client.db_client.uri
+        table_name = client.make_qualified_table_name("search_data_resource")
+
+    # A new python process doesn't seem to correctly deserialize the custom embedding
+    # functions into global __REGISTRY__.
+    # We make sure to reset it as well to make sure no globals are propagated to the spawned process.
+    EmbeddingFunctionRegistry().reset()
+    with multiprocessing.get_context("spawn").Pool(1) as pool:
+        results = pool.apply(run_lance_search_in_separate_process, (db_client_uri, table_name))
+
+    assert results[0]["text"] == "Frodo was a happy puppy"
+
+
+def run_lance_search_in_separate_process(db_client_uri: str, table_name: str) -> Any:
+    import lancedb
+
+    # Must read into __REGISTRY__ here.
+    db = lancedb.connect(db_client_uri)
+    tbl = db[table_name]
+    tbl.checkout_latest()
+
+    return (
+        tbl.search("puppy", query_type="vector", ordering_field_name="_distance")
+        .select(["text"])
+        .to_list()
+    )

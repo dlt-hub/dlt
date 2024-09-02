@@ -88,6 +88,7 @@ else:
 TIMESTAMP_PRECISION_TO_UNIT: Dict[int, str] = {0: "s", 3: "ms", 6: "us", 9: "ns"}
 UNIT_TO_TIMESTAMP_PRECISION: Dict[str, int] = {v: k for k, v in TIMESTAMP_PRECISION_TO_UNIT.items()}
 BATCH_PROCESS_CHUNK_SIZE = 10_000
+EMPTY_STRING_PLACEHOLDER = "0uEoDNBpQUBwsxKbmxxB"
 
 
 class LanceDBTypeMapper(TypeMapper):
@@ -252,20 +253,11 @@ class LanceDBClient(JobClientBase, WithStateSync):
             embedding_model_provider,
             self.config.credentials.embedding_model_provider_api_key,
         )
-        # Use the monkey-patched implementation if openai was chosen.
-        if embedding_model_provider == "openai":
-            from dlt.destinations.impl.lancedb.models import PatchedOpenAIEmbeddings
-
-            self.model_func = PatchedOpenAIEmbeddings(
-                max_retries=self.config.options.max_retries,
-                api_key=self.config.credentials.api_key,
-            )
-        else:
-            self.model_func = self.registry.get(embedding_model_provider).create(
-                name=self.config.embedding_model,
-                max_retries=self.config.options.max_retries,
-                api_key=self.config.credentials.api_key,
-            )
+        self.model_func = self.registry.get(embedding_model_provider).create(
+            name=self.config.embedding_model,
+            max_retries=self.config.options.max_retries,
+            api_key=self.config.credentials.api_key,
+        )
 
         self.vector_field_name = self.config.vector_field_name
 
@@ -752,6 +744,28 @@ class LanceDBLoadJob(RunnableLoadJob, HasFollowupJobs):
         with FileStorage.open_zipsafe_ro(self._file_path, mode="rb") as f:
             arrow_table: pa.Table = pq.read_table(f)
 
+        # Replace empty strings with placeholder string if OpenAI is used.
+        # https://github.com/lancedb/lancedb/issues/1577#issuecomment-2318104218.
+        if (self._job_client.config.embedding_model_provider == "openai") and (
+            source_columns := get_columns_names_with_prop(self._load_table, VECTORIZE_HINT)
+        ):
+            records = [
+                {
+                    k: EMPTY_STRING_PLACEHOLDER if k in source_columns and v in ("", None) else v
+                    for k, v in record.items()
+                }
+                for record in records
+            ]
+
+        if self._load_table not in self._schema.dlt_tables():
+            for record in records:
+                # Add reserved ID fields.
+                uuid_id = (
+                    generate_uuid(record, unique_identifiers, self._fq_table_name)
+                    if unique_identifiers
+                    else str(uuid.uuid4())
+                )
+                record.update({self._id_field_name: uuid_id})
         merge_key = self._schema.data_item_normalizer.C_DLT_ID  # type: ignore[attr-defined]
 
         # We need upsert merge's deterministic _dlt_id to perform orphan removal.
