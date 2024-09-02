@@ -63,18 +63,18 @@ def get_lancedb_orphan_removal_merge_key(
     load_table: TTableSchema,
 ) -> Optional[Union[str, IterableWrapper[str]]]:
     if merge_key := get_columns_names_with_prop(load_table, "merge_key"):
-        return merge_key[0] if len(merge_key) == 1 else IterableWrapper(merge_key)
+        return merge_key[0] if len(merge_key)==1 else IterableWrapper(merge_key)
     elif primary_key := get_columns_names_with_prop(load_table, "primary_key"):
         # No merge key defined, warn and merge on the primary key.
         logger.warning(
             "Merge strategy selected without defined merge key - using primary key as merge key."
         )
-        return primary_key[0] if len(primary_key) == 1 else IterableWrapper(merge_key)
+        return primary_key[0] if len(primary_key)==1 else IterableWrapper(merge_key)
     elif unique_key := get_columns_names_with_prop(load_table, "unique"):
         logger.warning(
             "Merge strategy selected without defined merge key - using unique key as merge key."
         )
-        return unique_key[0] if len(unique_key) == 1 else IterableWrapper(unique_key)
+        return unique_key[0] if len(unique_key)==1 else IterableWrapper(unique_key)
     else:
         return None
 
@@ -93,30 +93,11 @@ def fill_empty_source_column_values_with_placeholder(
     Returns:
         pa.Table: The modified Arrow table with empty strings and null values replaced in the specified columns.
     """
-    new_columns = []
-
-    for col_name in table.column_names:
+    for col_name in source_columns:
         column = table[col_name]
-        if col_name in source_columns:
-            # Process each chunk separately
-            new_chunks = []
-            for chunk in column.chunks:
-                # Replace null values with the placeholder
-                filled_chunk = pa.compute.fill_null(chunk, fill_value=placeholder)
-                # Replace empty strings with the placeholder using regex
-                new_chunk = pa.compute.replace_substring_regex(
-                    filled_chunk, pattern=r"^$", replacement=placeholder
-                )
-                new_chunks.append(new_chunk)
-
-            # Combine the processed chunks into a new ChunkedArray
-            new_column = pa.chunked_array(new_chunks)
-        else:
-            new_column = column
-
-        new_columns.append(new_column)
-
-    return pa.Table.from_arrays(new_columns, names=table.column_names)
-
-
-1
+        filled_column = pa.compute.fill_null(column, fill_value=placeholder)
+        new_column = pa.compute.replace_substring_regex(
+            filled_column, pattern=r"^$", replacement=placeholder
+        )
+        table = table.set_column(table.column_names.index(col_name), col_name, new_column)
+    return table

@@ -1,11 +1,10 @@
 import multiprocessing
-from typing import Iterator, Generator, Any, List, Mapping
 from typing import Iterator, Generator, Any, List
+from typing import Mapping
 from typing import Union, Dict
 
-import lancedb  # type: ignore
 import pytest
-from lancedb import DBConnection
+from lancedb import DBConnection  # type: ignore
 from lancedb.embeddings import EmbeddingFunctionRegistry  # type: ignore
 from lancedb.table import Table  # type: ignore
 

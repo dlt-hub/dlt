@@ -76,6 +76,8 @@ from dlt.destinations.impl.lancedb.utils import (
     set_non_standard_providers_environment_variables,
     get_default_arrow_value,
     IterableWrapper,
+    EMPTY_STRING_PLACEHOLDER,
+    fill_empty_source_column_values_with_placeholder,
 )
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest
 from dlt.destinations.type_mapping import TypeMapper
@@ -88,7 +90,6 @@ else:
 TIMESTAMP_PRECISION_TO_UNIT: Dict[int, str] = {0: "s", 3: "ms", 6: "us", 9: "ns"}
 UNIT_TO_TIMESTAMP_PRECISION: Dict[str, int] = {v: k for k, v in TIMESTAMP_PRECISION_TO_UNIT.items()}
 BATCH_PROCESS_CHUNK_SIZE = 10_000
-EMPTY_STRING_PLACEHOLDER = "0uEoDNBpQUBwsxKbmxxB"
 
 
 class LanceDBTypeMapper(TypeMapper):
@@ -749,23 +750,10 @@ class LanceDBLoadJob(RunnableLoadJob, HasFollowupJobs):
         if (self._job_client.config.embedding_model_provider == "openai") and (
             source_columns := get_columns_names_with_prop(self._load_table, VECTORIZE_HINT)
         ):
-            records = [
-                {
-                    k: EMPTY_STRING_PLACEHOLDER if k in source_columns and v in ("", None) else v
-                    for k, v in record.items()
-                }
-                for record in records
-            ]
+            arrow_table = fill_empty_source_column_values_with_placeholder(
+                arrow_table, source_columns, EMPTY_STRING_PLACEHOLDER
+            )
 
-        if self._load_table not in self._schema.dlt_tables():
-            for record in records:
-                # Add reserved ID fields.
-                uuid_id = (
-                    generate_uuid(record, unique_identifiers, self._fq_table_name)
-                    if unique_identifiers
-                    else str(uuid.uuid4())
-                )
-                record.update({self._id_field_name: uuid_id})
         merge_key = self._schema.data_item_normalizer.C_DLT_ID  # type: ignore[attr-defined]
 
         # We need upsert merge's deterministic _dlt_id to perform orphan removal.
