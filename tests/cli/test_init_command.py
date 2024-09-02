@@ -181,7 +181,7 @@ def test_init_all_sources_isolated(cloned_init_repo: FileStorage) -> None:
     for candidate in source_candidates:
         clean_test_storage()
         repo_dir = get_repo_dir(cloned_init_repo)
-        files = get_project_files()
+        files = get_project_files(clear_all_sources=False)
         with set_working_dir(files.storage_path):
             init_command.init_command(candidate, "bigquery", False, repo_dir)
             assert_source_files(files, candidate, "bigquery")
@@ -194,11 +194,17 @@ def test_init_all_sources_isolated(cloned_init_repo: FileStorage) -> None:
 def test_init_all_destinations(
     destination_name: str, project_files: FileStorage, repo_dir: str
 ) -> None:
-    if destination_name == "destination":
-        pytest.skip("Init for generic destination not implemented yet")
-    source_name = f"generic_{destination_name}"
+    source_name = "generic"
     init_command.init_command(source_name, destination_name, True, repo_dir)
     assert_init_files(project_files, source_name + "_pipeline", destination_name)
+
+
+def test_custom_destination_note(repo_dir: str, project_files: FileStorage):
+    source_name = "generic"
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        init_command.init_command(source_name, "destination", True, repo_dir)
+        _out = buf.getvalue()
+    assert "to add a destination function that will consume your data" in _out
 
 
 def test_init_code_update_index_diff(repo_dir: str, project_files: FileStorage) -> None:
@@ -535,7 +541,7 @@ def assert_source_files(
     visitor, secrets = assert_common_files(
         project_files, source_name + "_pipeline.py", destination_name
     )
-    assert project_files.has_folder(source_name)  #  == (source_name not in CORE_SOURCES)
+    assert project_files.has_folder(source_name) == (source_name not in CORE_SOURCES)
     source_secrets = secrets.get_value(source_name, type, None, source_name)
     if has_source_section:
         assert source_secrets is not None

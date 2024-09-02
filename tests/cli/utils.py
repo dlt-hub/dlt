@@ -56,11 +56,14 @@ def get_repo_dir(cloned_init_repo: FileStorage) -> str:
     return repo_dir
 
 
-def get_project_files() -> FileStorage:
+def get_project_files(clear_all_sources: bool = True) -> FileStorage:
     # we only remove sources registered outside of dlt core
     for name, source in _SOURCES.copy().items():
         if not source.module.__name__.startswith("dlt.sources"):
             _SOURCES.pop(name)
+
+    if clear_all_sources:
+        _SOURCES.clear()
 
     # project dir
     return FileStorage(PROJECT_DIR, makedirs=True)
