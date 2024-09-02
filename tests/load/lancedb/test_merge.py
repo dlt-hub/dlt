@@ -76,16 +76,24 @@ def test_lancedb_remove_orphaned_records() -> None:
         {
             "id": 1,
             "child": [{"bar": 1, "grandchild": [{"baz": 1}]}],
-        },  # Removed one child and one grandchild
+        },  # Removed one child and one grandchild.
         {
             "id": 2,
             "child": [{"bar": 4, "grandchild": [{"baz": 8}]}],
-        },  # Changed child and grandchild
+        },  # Changed child and grandchild.
     ]
     info = pipeline.run(identity_resource(run_2))
     assert_load_info(info)
 
     with pipeline.destination_client() as client:
+        expected_parent_data = pd.DataFrame(
+            data=[
+                {"id": 1},
+                {"id": 2},
+                {"id": 3},
+            ]
+        )
+
         expected_child_data = pd.DataFrame(
             data=[
                 {"bar": 1},
@@ -105,32 +113,39 @@ def test_lancedb_remove_orphaned_records() -> None:
             ]
         )
 
+        parent_table_name = client.make_qualified_table_name("parent")  # type: ignore[attr-defined]
         child_table_name = client.make_qualified_table_name("parent__child")  # type: ignore[attr-defined]
         grandchild_table_name = client.make_qualified_table_name(  # type: ignore[attr-defined]
             "parent__child__grandchild"
         )
 
+        parent_tbl = client.db_client.open_table(parent_table_name)  # type: ignore[attr-defined]
         child_tbl = client.db_client.open_table(child_table_name)  # type: ignore[attr-defined]
         grandchild_tbl = client.db_client.open_table(grandchild_table_name)  # type: ignore[attr-defined]
 
+        actual_parent_df = (
+            parent_tbl.to_pandas()
+            .sort_values(by="id")
+            .reset_index(drop=True)
+        )
         actual_child_df = (
             child_tbl.to_pandas()
             .sort_values(by="bar")
-            .reset_index(drop=True)
             .reset_index(drop=True)
         )
         actual_grandchild_df = (
             grandchild_tbl.to_pandas()
             .sort_values(by="baz")
             .reset_index(drop=True)
-            .reset_index(drop=True)
         )
 
+        expected_parent_data = expected_parent_data.sort_values(by="id").reset_index(drop=True)
         expected_child_data = expected_child_data.sort_values(by="bar").reset_index(drop=True)
         expected_grandchild_data = expected_grandchild_data.sort_values(by="baz").reset_index(
             drop=True
         )
 
+        assert_frame_equal(actual_parent_df[["id"]], expected_parent_data)
         assert_frame_equal(actual_child_df[["bar"]], expected_child_data)
         assert_frame_equal(actual_grandchild_df[["baz"]], expected_grandchild_data)
 
@@ -273,62 +288,6 @@ def test_lancedb_root_table_remove_orphaned_records_with_real_embeddings() -> No
 
 
 def test_lancedb_compound_merge_key_root_table() -> None:
-    pipeline = dlt.pipeline(
-        pipeline_name="test_lancedb_compound_merge_key",
-        destination="lancedb",
-        dataset_name=f"test_lancedb_remove_orphaned_records_root_table_{uniq_id()}",
-        dev_mode=True,
-    )
-
-    @dlt.resource(
-        table_name="root",
-        write_disposition={"disposition": "merge", "strategy": "upsert"},
-        primary_key=["doc_id", "chunk_hash"],
-        merge_key=["doc_id", "chunk_hash"],
-    )
-    def identity_resource(
-        data: List[DictStrAny],
-    ) -> Generator[List[DictStrAny], None, None]:
-        yield data
-
-    run_1 = [
-        {"doc_id": 1, "chunk_hash": "a", "foo": "bar"},
-        {"doc_id": 1, "chunk_hash": "b", "foo": "coo"},
-    ]
-    info = pipeline.run(identity_resource(run_1))
-    assert_load_info(info)
-
-    run_2 = [
-        {"doc_id": 1, "chunk_hash": "a", "foo": "aat"},
-        {"doc_id": 1, "chunk_hash": "c", "foo": "loot"},
-    ]
-    info = pipeline.run(identity_resource(run_2))
-    assert_load_info(info)
-
-    with pipeline.destination_client() as client:
-        expected_root_table_df = (
-            pd.DataFrame(
-                data=[
-                    {"doc_id": 1, "chunk_hash": "a", "foo": "aat"},
-                    {"doc_id": 1, "chunk_hash": "b", "foo": "coo"},
-                    {"doc_id": 1, "chunk_hash": "c", "foo": "loot"},
-                ]
-            )
-            .sort_values(by=["doc_id", "chunk_hash", "foo"])
-            .reset_index(drop=True)
-        )
-
-        root_table_name = client.make_qualified_table_name("root")  # type: ignore[attr-defined]
-        tbl = client.db_client.open_table(root_table_name)  # type: ignore[attr-defined]
-
-        actual_root_df: DataFrame = (
-            tbl.to_pandas().sort_values(by=["doc_id", "chunk_hash", "foo"]).reset_index(drop=True)
-        )[["doc_id", "chunk_hash", "foo"]]
-
-    assert_frame_equal(actual_root_df, expected_root_table_df)
-
-
-def test_lancedb_compound_merge_key_root_table_no_orphan_removal() -> None:
     pipeline = dlt.pipeline(
         pipeline_name="test_lancedb_compound_merge_key",
         destination="lancedb",
