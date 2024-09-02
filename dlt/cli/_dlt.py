@@ -16,7 +16,7 @@ from dlt.pipeline.exceptions import CannotRestorePipelineException
 
 from dlt.cli.init_command import (
     init_command,
-    list_verified_sources_command,
+    list_sources_command,
     DLT_INIT_DOCS_URL,
     DEFAULT_VERIFIED_SOURCES_REPO,
 )
@@ -75,9 +75,9 @@ def init_command_wrapper(
 
 
 @utils.track_command("list_sources", False)
-def list_verified_sources_command_wrapper(repo_location: str, branch: str) -> int:
+def list_sources_command_wrapper(repo_location: str, branch: str) -> int:
     try:
-        list_verified_sources_command(repo_location, branch)
+        list_sources_command(repo_location, branch)
     except Exception as ex:
         on_exception(ex, DLT_INIT_DOCS_URL)
         return -1
@@ -314,11 +314,11 @@ def main() -> int:
         ),
     )
     init_cmd.add_argument(
-        "--list-verified-sources",
+        "--list-sources",
         "-l",
         default=False,
         action="store_true",
-        help="List available verified sources",
+        help="List available sources",
     )
     init_cmd.add_argument(
         "source",
@@ -606,8 +606,8 @@ def main() -> int:
             del command_kwargs["list_pipelines"]
             return pipeline_command_wrapper(**command_kwargs)
     elif args.command == "init":
-        if args.list_verified_sources:
-            return list_verified_sources_command_wrapper(args.location, args.branch)
+        if args.list_sources:
+            return list_sources_command_wrapper(args.location, args.branch)
         else:
             if not args.source or not args.destination:
                 init_cmd.print_usage()
