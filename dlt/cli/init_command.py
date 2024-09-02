@@ -245,6 +245,7 @@ def init_command(
     use_generic_template: bool,
     repo_location: str,
     branch: str = None,
+    omit_core_sources: bool = False,
 ) -> None:
     # try to import the destination and get config spec
     destination_reference = Destination.from_reference(destination_type)
@@ -259,11 +260,12 @@ def init_command(
     if (
         local_sources_storage.has_folder(source_name)
         and source_name not in SKIP_CORE_SOURCES_FOLDERS
-        # NOTE: if explicit repo was passed, we do not use any core sources
-        # and not explicit_repo_location_provided
+        and not omit_core_sources
     ):
         source_type = "core"
     else:
+        if omit_core_sources:
+            fmt.echo("Omitting dlt core sources.")
         fmt.echo("Looking up verified sources at %s..." % fmt.bold(repo_location))
         clone_storage = git.get_fresh_repo_files(repo_location, get_dlt_repos_dir(), branch=branch)
         # copy dlt source files from here
@@ -502,7 +504,8 @@ def init_command(
             )
             fmt.echo(
                 "NOTE: Beginning with dlt 1.0.0, the source %s will no longer be copied from the"
-                " verified sources repo but imported from dlt.sources." % (fmt.bold(source_name))
+                " verified sources repo but imported from dlt.sources. You can provide the"
+                " --omit-core-sources flag to revert to the old behavior." % (fmt.bold(source_name))
             )
         elif source_configuration.source_type == "verified":
             fmt.echo(

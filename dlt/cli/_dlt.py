@@ -57,9 +57,17 @@ def init_command_wrapper(
     use_generic_template: bool,
     repo_location: str,
     branch: str,
+    omit_core_sources: bool = False,
 ) -> int:
     try:
-        init_command(source_name, destination_type, use_generic_template, repo_location, branch)
+        init_command(
+            source_name,
+            destination_type,
+            use_generic_template,
+            repo_location,
+            branch,
+            omit_core_sources,
+        )
     except Exception as ex:
         on_exception(ex, DLT_INIT_DOCS_URL)
         return -1
@@ -345,6 +353,16 @@ def main() -> int:
         ),
     )
 
+    init_cmd.add_argument(
+        "--omit-core-sources",
+        default=False,
+        action="store_true",
+        help=(
+            "When present, will not create the new pipeline with a core source of the given name"
+            " but will take a source of this name from the default or provided location."
+        ),
+    )
+
     # deploy command requires additional dependencies
     try:
         # make sure the name is defined
@@ -596,7 +614,12 @@ def main() -> int:
                 return -1
             else:
                 return init_command_wrapper(
-                    args.source, args.destination, args.generic, args.location, args.branch
+                    args.source,
+                    args.destination,
+                    args.generic,
+                    args.location,
+                    args.branch,
+                    args.omit_core_sources,
                 )
     elif args.command == "deploy":
         try:

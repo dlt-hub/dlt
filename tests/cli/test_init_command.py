@@ -207,6 +207,25 @@ def test_custom_destination_note(repo_dir: str, project_files: FileStorage):
     assert "to add a destination function that will consume your data" in _out
 
 
+@pytest.mark.parametrize("omit", [True, False])
+# this will break if we have new core sources that are not in verified sources anymore
+@pytest.mark.parametrize("source", CORE_SOURCES)
+def test_omit_core_sources(
+    source: str, omit: bool, project_files: FileStorage, repo_dir: str
+) -> None:
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        init_command.init_command(source, "destination", True, repo_dir, omit_core_sources=omit)
+        _out = buf.getvalue()
+
+    # check messaging
+    assert ("Omitting dlt core sources" in _out) == omit
+    assert ("will no longer be copied from the" in _out) == (not omit)
+
+    # if we omit core sources, there will be a folder with the name of the source from the verified sources repo
+    assert project_files.has_folder(source) == omit
+    assert (f"dlt.sources.{source}" in project_files.load(f"{source}_pipeline.py")) == (not omit)
+
+
 def test_init_code_update_index_diff(repo_dir: str, project_files: FileStorage) -> None:
     sources_storage = FileStorage(os.path.join(repo_dir, SOURCES_MODULE_NAME))
     new_content = '"""New docstrings"""'
