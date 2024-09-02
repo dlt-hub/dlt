@@ -1,10 +1,10 @@
 import os
-from datetime import date, datetime
 from typing import Union, Dict, Optional, TypeVar, Generic, Iterable, Iterator
 
 import pyarrow as pa
 
 from dlt.common import logger
+from dlt.common.pendulum import __utcnow
 from dlt.common.schema import TTableSchema
 from dlt.common.schema.utils import get_columns_names_with_prop
 from dlt.destinations.impl.lancedb.configuration import TEmbeddingProvider
@@ -36,9 +36,9 @@ def get_default_arrow_value(field_type: TArrowDataType) -> object:
     elif pa.types.is_boolean(field_type):
         return False
     elif pa.types.is_date(field_type):
-        return date.today()
+        return __utcnow().today()
     elif pa.types.is_timestamp(field_type):
-        return datetime.now()
+        return __utcnow()
     else:
         raise ValueError(f"Unsupported data type: {field_type}")
 
@@ -55,11 +55,13 @@ class IterableWrapper(Generic[ItemType]):
     def __iter__(self) -> Iterator[ItemType]:
         return iter(self.iterable)
 
-    def iter(self) -> Iterator[ItemType]:
+    def iter(self) -> Iterator[ItemType]:  # noqa: A003
         return iter(self.iterable)
 
 
-def get_lancedb_merge_key(load_table: TTableSchema) -> Optional[Union[str, IterableWrapper[str]]]:
+def get_lancedb_orphan_removal_merge_key(
+    load_table: TTableSchema,
+) -> Optional[Union[str, IterableWrapper[str]]]:
     if merge_key := get_columns_names_with_prop(load_table, "merge_key"):
         return merge_key[0] if len(merge_key) == 1 else IterableWrapper(merge_key)
     elif primary_key := get_columns_names_with_prop(load_table, "primary_key"):

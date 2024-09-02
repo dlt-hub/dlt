@@ -43,15 +43,14 @@ from dlt.common.destination.reference import (
     FollowupJobRequest,
 )
 from dlt.common.pendulum import timedelta
-from dlt.common.schema import Schema, TTableSchema, TSchemaTables, TColumnSchema
+from dlt.common.schema import Schema, TTableSchema, TSchemaTables
 from dlt.common.schema.typing import (
     TColumnType,
-    TTableFormat,
     TTableSchemaColumns,
     TWriteDisposition,
     TColumnSchema,
 )
-from dlt.common.schema.utils import get_columns_names_with_prop, DEFAULT_MERGE_STRATEGY
+from dlt.common.schema.utils import get_columns_names_with_prop
 from dlt.common.storages import FileStorage, LoadJobInfo, ParsedLoadJobFileName
 from dlt.destinations.impl.lancedb.configuration import (
     LanceDBClientConfiguration,
@@ -61,6 +60,7 @@ from dlt.destinations.impl.lancedb.exceptions import (
 )
 from dlt.destinations.impl.lancedb.lancedb_adapter import (
     VECTORIZE_HINT,
+    REMOVE_ORPHANS_HINT,
 )
 from dlt.destinations.impl.lancedb.schema import (
     make_arrow_field_schema,
@@ -75,7 +75,6 @@ from dlt.destinations.impl.lancedb.schema import (
 from dlt.destinations.impl.lancedb.utils import (
     set_non_standard_providers_environment_variables,
     get_default_arrow_value,
-    get_lancedb_merge_key,
     IterableWrapper,
 )
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest
@@ -712,8 +711,9 @@ class LanceDBClient(JobClientBase, WithStateSync):
         )
         # Orphan removal is only supported for upsert strategy because we need a deterministic key hash.
         first_table_in_chain = table_chain[0]
-        merge_strategy = first_table_in_chain.get("x-merge-strategy", DEFAULT_MERGE_STRATEGY)
-        if first_table_in_chain.get("write_disposition") == "merge" and merge_strategy == "upsert":
+        if first_table_in_chain.get("write_disposition") == "merge" and first_table_in_chain.get(
+            REMOVE_ORPHANS_HINT
+        ):
             all_job_paths_ordered = [
                 job.file_path
                 for table in table_chain
@@ -753,6 +753,18 @@ class LanceDBLoadJob(RunnableLoadJob, HasFollowupJobs):
             arrow_table: pa.Table = pq.read_table(f)
 
         merge_key = self._schema.data_item_normalizer.C_DLT_ID  # type: ignore[attr-defined]
+
+        # We need upsert merge's deterministic _dlt_id to perform orphan removal.
+        # Hence, we require at least a primary key on the root table if the merge disposition is chosen.
+        if (
+            (self._load_table not in self._schema.dlt_table_names())
+            and not self._load_table.get("parent")
+            and (write_disposition == "merge")
+            and (not get_columns_names_with_prop(self._load_table, "primary_key"))
+        ):
+            raise DestinationTerminalException(
+                "LanceDB's write disposition requires at least one explicit primary key."
+            )
 
         write_records(
             arrow_table,

@@ -8,7 +8,7 @@ from pandas import DataFrame
 from pandas.testing import assert_frame_equal
 
 import dlt
-from dlt.common.typing import DictStrAny
+from dlt.common.typing import DictStrAny, DictStrStr
 from dlt.common.utils import uniq_id
 from dlt.destinations.impl.lancedb.lancedb_adapter import (
     lancedb_adapter,
@@ -16,6 +16,7 @@ from dlt.destinations.impl.lancedb.lancedb_adapter import (
 from tests.load.lancedb.utils import chunk_document
 from tests.load.utils import (
     drop_active_pipeline_data,
+    sequence_generator,
 )
 from tests.pipeline.utils import (
     assert_load_info,
@@ -264,9 +265,9 @@ def test_lancedb_root_table_remove_orphaned_records_with_real_embeddings() -> No
         df = tbl.to_pandas()
 
         # Check (non-empty) embeddings as present, and that orphaned embeddings have been discarded.
-        assert len(df)==21
-        assert "vector__" in df.columns
-        for _, vector in enumerate(df["vector__"]):
+        assert len(df) == 21
+        assert "vector" in df.columns
+        for _, vector in enumerate(df["vector"]):
             assert isinstance(vector, np.ndarray)
             assert vector.size > 0
 
@@ -281,7 +282,7 @@ def test_lancedb_compound_merge_key_root_table() -> None:
 
     @dlt.resource(
         table_name="root",
-        write_disposition="merge",
+        write_disposition={"disposition": "merge", "strategy": "upsert"},
         primary_key=["doc_id", "chunk_hash"],
         merge_key=["doc_id", "chunk_hash"],
     )
@@ -324,10 +325,10 @@ def test_lancedb_compound_merge_key_root_table() -> None:
             tbl.to_pandas().sort_values(by=["doc_id", "chunk_hash", "foo"]).reset_index(drop=True)
         )[["doc_id", "chunk_hash", "foo"]]
 
-        assert_frame_equal(actual_root_df, expected_root_table_df)
+    assert_frame_equal(actual_root_df, expected_root_table_df)
 
 
-def test_lancedb_compound_merge_key_root_table() -> None:
+def test_lancedb_compound_merge_key_root_table_no_orphan_removal() -> None:
     pipeline = dlt.pipeline(
         pipeline_name="test_lancedb_compound_merge_key",
         destination="lancedb",
@@ -337,7 +338,7 @@ def test_lancedb_compound_merge_key_root_table() -> None:
 
     @dlt.resource(
         table_name="root",
-        write_disposition="merge",
+        write_disposition={"disposition": "merge", "strategy": "upsert"},
         primary_key=["doc_id", "chunk_hash"],
         merge_key=["doc_id", "chunk_hash"],
     )
@@ -345,6 +346,8 @@ def test_lancedb_compound_merge_key_root_table() -> None:
         data: List[DictStrAny],
     ) -> Generator[List[DictStrAny], None, None]:
         yield data
+
+    lancedb_adapter(identity_resource, remove_orphans=False)
 
     run_1 = [
         {"doc_id": 1, "chunk_hash": "a", "foo": "bar"},
@@ -365,7 +368,6 @@ def test_lancedb_compound_merge_key_root_table() -> None:
             pd.DataFrame(
                 data=[
                     {"doc_id": 1, "chunk_hash": "a", "foo": "aat"},
-                    {"doc_id": 1, "chunk_hash": "a", "foo": "bar"},
                     {"doc_id": 1, "chunk_hash": "b", "foo": "coo"},
                     {"doc_id": 1, "chunk_hash": "c", "foo": "loot"},
                 ]
@@ -381,4 +383,28 @@ def test_lancedb_compound_merge_key_root_table() -> None:
             tbl.to_pandas().sort_values(by=["doc_id", "chunk_hash", "foo"]).reset_index(drop=True)
         )[["doc_id", "chunk_hash", "foo"]]
 
-        assert_frame_equal(actual_root_df, expected_root_table_df)
+    assert_frame_equal(actual_root_df, expected_root_table_df)
+
+
+def test_must_provide_at_least_primary_key_on_merge_disposition() -> None:
+    """We need upsert merge's deterministic _dlt_id to perform orphan removal.
+    Hence, we require at least the primary key required (raises exception if missing).
+    Specify a merge key for custom orphan identification."""
+    generator_instance1 = sequence_generator()
+
+    @dlt.resource(write_disposition={"disposition": "merge", "strategy": "upsert"})
+    def some_data() -> Generator[DictStrStr, Any, None]:
+        yield from next(generator_instance1)
+
+    pipeline = dlt.pipeline(
+        pipeline_name="test_must_provide_both_primary_and_merge_key_on_merge_disposition",
+        destination="lancedb",
+        dataset_name=(
+            f"test_must_provide_both_primary_and_merge_key_on_merge_disposition{uniq_id()}"
+        ),
+    )
+    with pytest.raises(Exception):
+        load_info = pipeline.run(
+            some_data(),
+        )
+        assert_load_info(load_info)

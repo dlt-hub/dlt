@@ -137,7 +137,7 @@ def test_explicit_append() -> None:
         {"doc_id": 3, "content": "3"},
     ]
 
-    @dlt.resource(merge_key="doc_id")
+    @dlt.resource()
     def some_data() -> Generator[List[DictStrAny], Any, None]:
         yield data
 
@@ -276,23 +276,11 @@ def test_pipeline_merge() -> None:
         },
     ]
 
-    @dlt.resource()
+    @dlt.resource(primary_key=["doc_id"])
     def movies_data() -> Any:
         yield data
 
-    @dlt.resource(merge_key="doc_id")
-    def movies_data_explicit_merge_keys() -> Any:
-        yield data
-
-    lancedb_adapter(
-        movies_data,
-        embed=["description"],
-    )
-
-    lancedb_adapter(
-        movies_data_explicit_merge_keys,
-        embed=["description"],
-    )
+    lancedb_adapter(movies_data, embed=["description"], remove_orphans=False)
 
     pipeline = dlt.pipeline(
         pipeline_name="movies",
@@ -301,7 +289,7 @@ def test_pipeline_merge() -> None:
     )
     info = pipeline.run(
         movies_data(),
-        write_disposition="merge",
+        write_disposition={"disposition": "merge", "strategy": "upsert"},
         dataset_name=f"MoviesDataset{uniq_id()}",
     )
     assert_load_info(info)
@@ -312,7 +300,7 @@ def test_pipeline_merge() -> None:
 
     info = pipeline.run(
         movies_data(),
-        write_disposition="merge",
+        write_disposition={"disposition": "merge", "strategy": "upsert"},
     )
     assert_load_info(info)
     assert_table(pipeline, "movies_data", items=data)
@@ -386,9 +374,10 @@ def test_merge_github_nested() -> None:
         data = json.load(f)
 
     info = pipe.run(
-        lancedb_adapter(data[:17], embed=["title", "body"], merge_key="id"),
+        lancedb_adapter(data[:17], embed=["title", "body"], remove_orphans=False),
         table_name="issues",
-        write_disposition="merge",
+        write_disposition={"disposition": "merge", "strategy": "upsert"},
+        primary_key="id",
     )
     assert_load_info(info)
     # assert if schema contains tables with right names
@@ -438,7 +427,7 @@ def test_merge_no_orphans() -> None:
     @dlt.resource(
         write_disposition={"disposition": "merge", "strategy": "upsert"},
         table_name="document",
-        primary_key=["doc_id", "chunk_hash"],
+        primary_key=["doc_id"],
         merge_key=["doc_id"],
     )
     def documents(docs: List[DictStrAny]) -> Generator[DictStrAny, None, None]:

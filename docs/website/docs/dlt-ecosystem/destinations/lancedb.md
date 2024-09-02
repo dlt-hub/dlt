@@ -201,8 +201,7 @@ This is the default disposition. It will append the data to the existing data in
 ## Additional Destination Options
 
 - `dataset_separator`: The character used to separate the dataset name from table names. Defaults to "___".
-- `vector_field_name`: The name of the special field to store vector embeddings. Defaults to "vector__".
-- `id_field_name`: The name of the special field used for deduplication and merging. Defaults to "id__".
+- `vector_field_name`: The name of the special field to store vector embeddings. Defaults to "vector".
 - `max_retries`: The maximum number of retries for embedding operations. Set to 0 to disable retries. Defaults to 3.
 
 
