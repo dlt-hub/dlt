@@ -84,6 +84,16 @@ CREDENTIALS_DISPATCH["azure"] = CREDENTIALS_DISPATCH["az"]
 CREDENTIALS_DISPATCH["abfss"] = CREDENTIALS_DISPATCH["az"]
 CREDENTIALS_DISPATCH["gcs"] = CREDENTIALS_DISPATCH["gs"]
 
+# Default kwargs for protocol
+DEFAULT_KWARGS = {
+    # disable concurrent
+    "az": {"max_concurrency": 1}
+}
+DEFAULT_KWARGS["adl"] = DEFAULT_KWARGS["az"]
+DEFAULT_KWARGS["abfs"] = DEFAULT_KWARGS["az"]
+DEFAULT_KWARGS["azure"] = DEFAULT_KWARGS["az"]
+DEFAULT_KWARGS["abfss"] = DEFAULT_KWARGS["az"]
+
 
 def fsspec_filesystem(
     protocol: str,
@@ -125,6 +135,7 @@ def prepare_fsspec_args(config: FilesystemConfiguration) -> DictStrAny:
 
         register_implementation("gdrive", GoogleDriveFileSystem, "GoogleDriveFileSystem")
 
+    fs_kwargs.update(DEFAULT_KWARGS.get(protocol, {}))
     if config.kwargs is not None:
         fs_kwargs.update(config.kwargs)
     if config.client_kwargs is not None:
