@@ -1,7 +1,7 @@
 import pytest
 import os
 import fsspec
-import json
+from dlt.common.json import json
 import os
 import dlt
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
@@ -34,7 +34,7 @@ def test_sftp_server(sftp_filesystem):
 
     try:
         with fs.open(test_file, "w") as f:
-            json.dump(json_data, f)
+            f.write(json.dumps(json_data))
 
         files = fs.ls("/data")
         assert test_file in files
