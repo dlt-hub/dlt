@@ -284,7 +284,7 @@ def test_pipeline_merge() -> None:
     def movies_data() -> Any:
         yield data
 
-    lancedb_adapter(movies_data, embed=["description"], remove_orphans=False)
+    lancedb_adapter(movies_data, embed=["description"], no_remove_orphans=True)
 
     pipeline = dlt.pipeline(
         pipeline_name="movies",
@@ -378,7 +378,7 @@ def test_merge_github_nested() -> None:
         data = json.load(f)
 
     info = pipe.run(
-        lancedb_adapter(data[:17], embed=["title", "body"], remove_orphans=False),
+        lancedb_adapter(data[:17], embed=["title", "body"], no_remove_orphans=True),
         table_name="issues",
         write_disposition={"disposition": "merge", "strategy": "upsert"},
         primary_key="id",

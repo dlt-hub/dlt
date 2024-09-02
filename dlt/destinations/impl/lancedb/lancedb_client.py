@@ -60,7 +60,7 @@ from dlt.destinations.impl.lancedb.exceptions import (
 )
 from dlt.destinations.impl.lancedb.lancedb_adapter import (
     VECTORIZE_HINT,
-    REMOVE_ORPHANS_HINT,
+    NO_REMOVE_ORPHANS_HINT,
 )
 from dlt.destinations.impl.lancedb.schema import (
     make_arrow_field_schema,
@@ -704,8 +704,8 @@ class LanceDBClient(JobClientBase, WithStateSync):
         )
         # Orphan removal is only supported for upsert strategy because we need a deterministic key hash.
         first_table_in_chain = table_chain[0]
-        if first_table_in_chain.get("write_disposition") == "merge" and first_table_in_chain.get(
-            REMOVE_ORPHANS_HINT
+        if first_table_in_chain.get("write_disposition") == "merge" and not first_table_in_chain.get(
+            NO_REMOVE_ORPHANS_HINT
         ):
             all_job_paths_ordered = [
                 job.file_path

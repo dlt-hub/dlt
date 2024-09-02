@@ -306,7 +306,7 @@ def test_lancedb_compound_merge_key_root_table() -> None:
     ) -> Generator[List[DictStrAny], None, None]:
         yield data
 
-    lancedb_adapter(identity_resource, remove_orphans=False)
+    lancedb_adapter(identity_resource, no_remove_orphans=True)
 
     run_1 = [
         {"doc_id": 1, "chunk_hash": "a", "foo": "bar"},

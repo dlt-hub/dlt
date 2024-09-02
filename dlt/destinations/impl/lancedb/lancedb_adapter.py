@@ -7,14 +7,14 @@ from dlt.extract.items import TTableHintTemplate
 
 
 VECTORIZE_HINT = "x-lancedb-embed"
-REMOVE_ORPHANS_HINT = "x-lancedb-remove-orphans"
+NO_REMOVE_ORPHANS_HINT = "x-lancedb-remove-orphans"
 
 
 def lancedb_adapter(
     data: Any,
     embed: TColumnNames = None,
     merge_key: TColumnNames = None,
-    remove_orphans: bool = True,
+    no_remove_orphans: bool = False,
 ) -> DltResource:
     """Prepares data for the LanceDB destination by specifying which columns should be embedded.
 
@@ -26,7 +26,7 @@ def lancedb_adapter(
             It can be a single column name as a string, or a list of column names.
         merge_key (TColumnNames, optional): Specify columns to merge on.
             It can be a single column name as a string, or a list of column names.
-        remove_orphans (bool): Specify whether to remove orphaned records in child
+        no_remove_orphans (bool): Specify whether to remove orphaned records in child
             tables with no parent records after merges to maintain referential integrity.
 
     Returns:
@@ -73,7 +73,7 @@ def lancedb_adapter(
                 "merge_key": True,
             }
 
-    additional_table_hints[REMOVE_ORPHANS_HINT] = remove_orphans
+    additional_table_hints[NO_REMOVE_ORPHANS_HINT] = no_remove_orphans
 
     if column_hints or additional_table_hints:
         resource.apply_hints(columns=column_hints, additional_table_hints=additional_table_hints)
