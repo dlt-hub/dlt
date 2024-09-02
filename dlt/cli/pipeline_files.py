@@ -4,7 +4,7 @@ import os
 import yaml
 import posixpath
 from pathlib import Path
-from typing import Dict, NamedTuple, Sequence, Tuple, TypedDict, List
+from typing import Dict, NamedTuple, Sequence, Tuple, TypedDict, List, Literal
 from dlt.cli.exceptions import VerifiedSourceRepoError
 
 from dlt.common import git
@@ -21,10 +21,12 @@ SOURCES_INIT_INFO_ENGINE_VERSION = 1
 SOURCES_INIT_INFO_FILE = ".sources"
 IGNORE_FILES = ["*.py[cod]", "*$py.class", "__pycache__", "py.typed", "requirements.txt"]
 IGNORE_SOURCES = [".*", "_*"]
+SOURCE_TYPE = Literal["core", "verified", "generic"]
 
 
-class VerifiedSourceFiles(NamedTuple):
-    is_template: bool
+class SourceConfiguration(NamedTuple):
+    source_type: SOURCE_TYPE
+    source_module_prefix: str
     storage: FileStorage
     pipeline_script: str
     dest_pipeline_script: str
@@ -162,7 +164,7 @@ def get_verified_source_names(sources_storage: FileStorage) -> List[str]:
 
 def get_verified_source_files(
     sources_storage: FileStorage, source_name: str
-) -> VerifiedSourceFiles:
+) -> SourceConfiguration:
     if not sources_storage.has_folder(source_name):
         raise VerifiedSourceRepoError(
             f"Verified source {source_name} could not be found in the repository", source_name
@@ -203,8 +205,15 @@ def get_verified_source_files(
     else:
         requirements = SourceRequirements([])
     # find requirements
-    return VerifiedSourceFiles(
-        False, sources_storage, example_script, example_script, files, requirements, docstring
+    return SourceConfiguration(
+        "verified",
+        source_name,
+        sources_storage,
+        example_script,
+        example_script,
+        files,
+        requirements,
+        docstring,
     )
 
 
