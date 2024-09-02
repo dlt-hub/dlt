@@ -52,8 +52,6 @@ def test_lancedb_remove_nested_orphaned_records() -> None:
     ) -> Generator[List[DictStrAny], None, None]:
         yield data
 
-    # lancedb_adapter(identity_resource, no_remove_orphans=True)
-
     run_1 = [
         {
             "id": 1,
@@ -78,11 +76,11 @@ def test_lancedb_remove_nested_orphaned_records() -> None:
         {
             "id": 1,
             "child": [{"bar": 1, "grandchild": [{"baz": 1}]}],
-        },  # Removed one child and one grandchild.
+        },  # Removes bar_2, baz_2 and baz_3.
         {
             "id": 2,
             "child": [{"bar": 4, "grandchild": [{"baz": 8}]}],
-        },  # Changed child and grandchild.
+        },  # Removes bar_3, baz_4.
     ]
     info = pipeline.run(identity_resource(run_2))
     assert_load_info(info)

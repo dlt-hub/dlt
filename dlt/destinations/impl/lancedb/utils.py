@@ -93,13 +93,13 @@ def fill_empty_source_column_values_with_placeholder(
     return table
 
 
-def create_filter_condition(canonical_doc_id_field: str, id_column: pa.Array) -> str:
+def create_filter_condition(field_name: str, array: pa.Array) -> str:
     def format_value(element: Union[str, int, float, pa.Scalar]) -> str:
         if isinstance(element, pa.Scalar):
             element = element.as_py()
         return "'" + element.replace("'", "''") + "'" if isinstance(element, str) else str(element)
 
-    return f"{canonical_doc_id_field} IN ({', '.join(map(format_value, id_column))})"
+    return f"{field_name} IN ({', '.join(map(format_value, array))})"
 
 
 def add_missing_columns_to_arrow_table(
@@ -140,12 +140,3 @@ def add_missing_columns_to_arrow_table(
             )
 
     return payload_arrow_table
-
-
-def get_root_table_name(table: TTableSchema, schema: Schema) -> str:
-    """Identify a table's root table."""
-    if parent_name := table.get("parent"):
-        parent = schema.get_table(parent_name)
-        return get_root_table_name(parent, schema)
-    else:
-        return table["name"]
