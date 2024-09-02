@@ -326,7 +326,7 @@ def main() -> int:
     )
     init_cmd.add_argument(
         "--location",
-        default=None,
+        default=DEFAULT_VERIFIED_SOURCES_REPO,
         help="Advanced. Uses a specific url or local path to verified sources repository.",
     )
     init_cmd.add_argument(

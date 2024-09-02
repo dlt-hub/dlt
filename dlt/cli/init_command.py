@@ -184,6 +184,13 @@ def _welcome_message(
             % (fmt.bold(destination_type), fmt.bold(make_dlt_settings_path(SECRETS_TOML)))
         )
 
+    if destination_type == "destination":
+        fmt.echo(
+            "* You have selected the custom destination as your pipelines destination. Please refer"
+            " to our docs at https://dlthub.com/docs/dlt-ecosystem/destinations/destination on how"
+            " to add a destination function that will consume your data."
+        )
+
     if dependency_system:
         fmt.echo("* Add the required dependencies to %s:" % fmt.bold(dependency_system))
         compiled_requirements = source_configuration.requirements.compiled()
@@ -236,16 +243,12 @@ def init_command(
     source_name: str,
     destination_type: str,
     use_generic_template: bool,
-    repo_location: str = None,
+    repo_location: str,
     branch: str = None,
 ) -> None:
     # try to import the destination and get config spec
     destination_reference = Destination.from_reference(destination_type)
     destination_spec = destination_reference.spec
-
-    # set default repo
-    explicit_repo_location_provided = repo_location is not None
-    repo_location = repo_location or DEFAULT_VERIFIED_SOURCES_REPO
 
     # lookup core sources
     local_path = Path(os.path.dirname(os.path.realpath(__file__))).parent / SOURCES_MODULE_NAME
@@ -254,12 +257,10 @@ def init_command(
     # discover type of source
     source_type: files_ops.SOURCE_TYPE = "generic"
     if (
-        (
-            local_sources_storage.has_folder(source_name)
-            and source_name not in SKIP_CORE_SOURCES_FOLDERS
-        )
+        local_sources_storage.has_folder(source_name)
+        and source_name not in SKIP_CORE_SOURCES_FOLDERS
         # NOTE: if explicit repo was passed, we do not use any core sources
-        and not explicit_repo_location_provided
+        # and not explicit_repo_location_provided
     ):
         source_type = "core"
     else:
@@ -335,6 +336,7 @@ def init_command(
 
     else:
         pipeline_dest_script = source_name + "_pipeline.py"
+
         if source_type == "core":
             source_configuration = SourceConfiguration(
                 source_type,
