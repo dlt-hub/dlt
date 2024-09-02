@@ -3,6 +3,7 @@ from typing import Union, Dict, List
 
 import pyarrow as pa
 
+from dlt import Schema
 from dlt.common import logger
 from dlt.common.destination.exceptions import DestinationTerminalException
 from dlt.common.pendulum import __utcnow
@@ -139,3 +140,12 @@ def add_missing_columns_to_arrow_table(
             )
 
     return payload_arrow_table
+
+
+def get_root_table_name(table: TTableSchema, schema: Schema) -> str:
+    """Identify a table's root table."""
+    if parent_name := table.get("parent"):
+        parent = schema.get_table(parent_name)
+        return get_root_table_name(parent, schema)
+    else:
+        return table["name"]

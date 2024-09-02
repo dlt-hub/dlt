@@ -52,6 +52,8 @@ def test_lancedb_remove_nested_orphaned_records() -> None:
     ) -> Generator[List[DictStrAny], None, None]:
         yield data
 
+    # lancedb_adapter(identity_resource, no_remove_orphans=True)
+
     run_1 = [
         {
             "id": 1,

@@ -74,12 +74,12 @@ from dlt.destinations.impl.lancedb.schema import (
 )
 from dlt.destinations.impl.lancedb.utils import (
     set_non_standard_providers_environment_variables,
-    get_default_arrow_value,
     EMPTY_STRING_PLACEHOLDER,
     fill_empty_source_column_values_with_placeholder,
     get_canonical_vector_database_doc_id_merge_key,
     create_filter_condition,
     add_missing_columns_to_arrow_table,
+    get_root_table_name,
 )
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest
 from dlt.destinations.type_mapping import TypeMapper
@@ -814,21 +814,14 @@ class LanceDBRemoveOrphansJob(RunnableLoadJob):
 
             if target_is_root_table:
                 file_path = job.file_path
-            else:
-                file_path = self.get_parent_paths(table_lineage, job.table_schema.get("parent"))
+                with FileStorage.open_zipsafe_ro(file_path, mode="rb") as f:
+                    payload_arrow_table: pa.Table = pq.read_table(f)
+                    target_table_schema: pa.Schema = pq.read_schema(f)
 
-            with FileStorage.open_zipsafe_ro(file_path, mode="rb") as f:
-                payload_arrow_table: pa.Table = pq.read_table(f)
+                payload_arrow_table = add_missing_columns_to_arrow_table(
+                    payload_arrow_table, target_table_schema
+                )
 
-            # Get target table schema.
-            with FileStorage.open_zipsafe_ro(job.file_path, mode="rb") as f:
-                target_table_schema: pa.Schema = pq.read_schema(f)
-
-            payload_arrow_table = add_missing_columns_to_arrow_table(
-                payload_arrow_table, target_table_schema
-            )
-
-            if target_is_root_table:
                 canonical_doc_id_field = get_canonical_vector_database_doc_id_merge_key(
                     job.table_schema
                 )
@@ -845,16 +838,38 @@ class LanceDBRemoveOrphansJob(RunnableLoadJob):
                     remove_orphans=True,
                     filter_condition=filter_condition,
                 )
+
             else:
-                write_records(
-                    payload_arrow_table,
-                    db_client=db_client,
-                    table_name=fq_table_name,
-                    write_disposition="merge",
-                    merge_key=self._schema.data_item_normalizer.C_DLT_ROOT_ID,  # type: ignore[attr-defined]
-                    remove_orphans=True,
-                )
+                # Use root table load history to identify orphans.
+                root_table_name = get_root_table_name(job.table_schema, self._schema)
+                root_table_file_paths = self.get_table_paths(table_lineage, root_table_name)
+                for file_path in root_table_file_paths:
+                    with FileStorage.open_zipsafe_ro(file_path, mode="rb") as f:
+                        payload_arrow_table: pa.Table = pq.read_table(f)  # type: ignore[no-redef]
+                    with FileStorage.open_zipsafe_ro(job.file_path, mode="rb") as f:
+                        target_table_schema: pa.Schema = pq.read_schema(f)  # type: ignore[no-redef]
+
+                    # Merge key needs to be same for both parent and child.
+                    # Since we intend to merge on dlt_root_id, we rename the parent table dlt_id.
+                    payload_arrow_table_names: List[str] = payload_arrow_table.column_names
+                    payload_arrow_table_names[
+                        payload_arrow_table_names.index(self._schema.data_item_normalizer.C_DLT_ID)  # type: ignore[attr-defined]
+                    ] = self._schema.data_item_normalizer.C_DLT_ROOT_ID  # type: ignore[attr-defined]
+                    payload_arrow_table = payload_arrow_table.rename_columns(
+                        payload_arrow_table_names
+                    )
+                    payload_arrow_table = add_missing_columns_to_arrow_table(
+                        payload_arrow_table, target_table_schema
+                    )
+                    write_records(
+                        payload_arrow_table,
+                        db_client=db_client,
+                        table_name=fq_table_name,
+                        write_disposition="merge",
+                        merge_key=self._schema.data_item_normalizer.C_DLT_ROOT_ID,  # type: ignore[attr-defined]
+                        remove_orphans=True,
+                    )
 
     @staticmethod
-    def get_parent_paths(table_lineage: TTableLineage, table: str) -> List[str]:
-        return [entry.file_path for entry in table_lineage if entry.table_name == table][0]
+    def get_table_paths(table_lineage: TTableLineage, table: str) -> List[str]:
+        return [entry.file_path for entry in table_lineage if entry.table_name == table]
