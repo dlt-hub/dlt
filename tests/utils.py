@@ -40,6 +40,7 @@ IMPLEMENTED_DESTINATIONS = {
     "postgres",
     "snowflake",
     "filesystem",
+    "filesystem-sftp",
     "weaviate",
     "dummy",
     "motherduck",
@@ -54,6 +55,7 @@ IMPLEMENTED_DESTINATIONS = {
 }
 NON_SQL_DESTINATIONS = {
     "filesystem",
+    "filesystem-sftp",
     "weaviate",
     "dummy",
     "qdrant",

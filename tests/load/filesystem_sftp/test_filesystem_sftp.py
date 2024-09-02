@@ -1,18 +1,18 @@
 import pytest
 import os
 import fsspec
-from dlt.common.json import json
+import json
+import os
 import dlt
-from dlt.destinations import filesystem
-from tests.common.configuration.utils import environment
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
+import logging
 
 
 @pytest.fixture(scope="module")
 def sftp_filesystem():
     # Determine the path to the SSH key relative to this Python file
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    key_path = os.path.join(current_dir, "foo_rsa")
+    key_path = os.path.join(current_dir, "bootstrap/foo_rsa")
 
     # Set up the SFTP filesystem connection using the relative SSH key path
     fs = fsspec.filesystem(
@@ -31,6 +31,7 @@ def test_sftp_server(sftp_filesystem):
             {"name": "Mexico", "code": "MX"},
         ]
     }
+
     try:
         with fs.open(test_file, "w") as f:
             json.dump(json_data, f)
@@ -50,11 +51,11 @@ def test_sftp_server(sftp_filesystem):
         fs.rm(test_file)
 
 
-def test_pipeline_filesystem_sftp_destination(sftp_filesystem, environment):
-    environment["DESTINATION__FILESYSTEM__BUCKET_URL"] = "sftp://localhost/data"
-    environment["DESTINATION__FILESYSTEM__CREDENTIALS__SFTP_PORT"] = "2222"
-    environment["DESTINATION__FILESYSTEM__CREDENTIALS__SFTP_USERNAME"] = "foo"
-    environment["DESTINATION__FILESYSTEM__CREDENTIALS__SFTP_PASSWORD"] = "pass"
+def test_pipeline_filesystem_sftp_destination(sftp_filesystem):
+    os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = "sftp://localhost/data"
+    os.environ["DESTINATION__FILESYSTEM__CREDENTIALS__SFTP_PORT"] = "2222"
+    os.environ["DESTINATION__FILESYSTEM__CREDENTIALS__SFTP_USERNAME"] = "foo"
+    os.environ["DESTINATION__FILESYSTEM__CREDENTIALS__SFTP_PASSWORD"] = "pass"
 
     @dlt.resource()
     def states():

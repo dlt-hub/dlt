@@ -19,7 +19,7 @@ env:
   RUNTIME__LOG_LEVEL: ERROR
   RUNTIME__DLTHUB_TELEMETRY_ENDPOINT: ${{ secrets.RUNTIME__DLTHUB_TELEMETRY_ENDPOINT }}
 
-  ACTIVE_DESTINATIONS: "[\"filesystem\"]"
+  ACTIVE_DESTINATIONS: "[\"filesystem-sftp\"]"
   ALL_FILESYSTEM_DRIVERS: "[\"memory\"]"
 
 jobs:

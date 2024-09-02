@@ -4,8 +4,14 @@ services:
 
   sftpserver:
     build:
-      context: .
+      context: bootstrap
       dockerfile: Dockerfile
     image: sftpserver:latest
+    networks:
+      - sftpserver
     ports:
       - "2222:22"
+
+networks:
+  sftpserver:
+    name: sftpserver
