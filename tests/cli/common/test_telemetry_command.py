@@ -132,7 +132,7 @@ def test_command_instrumentation() -> None:
 def test_instrumentation_wrappers() -> None:
     from dlt.cli._dlt import (
         init_command_wrapper,
-        list_verified_sources_command_wrapper,
+        list_sources_command_wrapper,
         DEFAULT_VERIFIED_SOURCES_REPO,
         pipeline_command_wrapper,
         deploy_command_wrapper,
@@ -155,7 +155,7 @@ def test_instrumentation_wrappers() -> None:
         assert msg["properties"]["success"] is False
 
         SENT_ITEMS.clear()
-        list_verified_sources_command_wrapper(DEFAULT_VERIFIED_SOURCES_REPO, None)
+        list_sources_command_wrapper(DEFAULT_VERIFIED_SOURCES_REPO, None)
         msg = SENT_ITEMS[0]
         assert msg["event"] == "command_list_sources"
 

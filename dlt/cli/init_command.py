@@ -46,11 +46,6 @@ DLT_INIT_DOCS_URL = "https://dlthub.com/docs/reference/command-line-interface#dl
 DEFAULT_VERIFIED_SOURCES_REPO = "https://github.com/dlt-hub/verified-sources.git"
 INIT_MODULE_NAME = "init"
 SOURCES_MODULE_NAME = "sources"
-SKIP_CORE_SOURCES_FOLDERS = [
-    "helpers",
-    "init",
-    "rest_api",
-]  # TODO: remove rest api here once pipeline file is here
 
 
 def _get_template_files(
@@ -136,6 +131,18 @@ def _get_dependency_system(dest_storage: FileStorage) -> str:
         return None
 
 
+def _list_core_sources() -> Dict[str, SourceConfiguration]:
+    local_path = Path(os.path.dirname(os.path.realpath(__file__))).parent / SOURCES_MODULE_NAME
+    core_sources_storage = FileStorage(str(local_path))
+
+    sources: Dict[str, SourceConfiguration] = {}
+    for source_name in files_ops.get_sources_names(core_sources_storage, source_type="core"):
+        sources[source_name] = files_ops.get_core_source_configuration(
+            core_sources_storage, source_name
+        )
+    return sources
+
+
 def _list_verified_sources(
     repo_location: str, branch: str = None
 ) -> Dict[str, SourceConfiguration]:
@@ -143,9 +150,11 @@ def _list_verified_sources(
     sources_storage = FileStorage(clone_storage.make_full_path(SOURCES_MODULE_NAME))
 
     sources: Dict[str, SourceConfiguration] = {}
-    for source_name in files_ops.get_verified_source_names(sources_storage):
+    for source_name in files_ops.get_sources_names(sources_storage, source_type="verified"):
         try:
-            sources[source_name] = files_ops.get_verified_source_files(sources_storage, source_name)
+            sources[source_name] = files_ops.get_verified_source_configuration(
+                sources_storage, source_name
+            )
         except Exception as ex:
             fmt.warning(f"Verified source {source_name} not available: {ex}")
 
@@ -228,14 +237,29 @@ def _welcome_message(
         )
 
 
-def list_verified_sources_command(repo_location: str, branch: str = None) -> None:
-    fmt.echo("Looking up for verified sources in %s..." % fmt.bold(repo_location))
+def list_sources_command(repo_location: str, branch: str = None) -> None:
+    fmt.echo("---")
+    fmt.echo("Available dlt core sources:")
+    fmt.echo("---")
+    core_sources = _list_core_sources()
+    for source_name, source_configuration in core_sources.items():
+        msg = "%s: %s" % (fmt.bold(source_name), source_configuration.doc)
+        fmt.echo(msg)
+
+    fmt.echo("---")
+    fmt.echo("Looking up verified sources at %s..." % fmt.bold(repo_location))
+    fmt.echo("Available verified sources:")
+    fmt.echo("---")
     for source_name, source_configuration in _list_verified_sources(repo_location, branch).items():
         reqs = source_configuration.requirements
         dlt_req_string = str(reqs.dlt_requirement_base)
-        msg = "%s: %s" % (fmt.bold(source_name), source_configuration.doc)
+        msg = "%s:" % (fmt.bold(source_name))
+        if source_name in core_sources.keys():
+            msg += " (Deprecated since dlt 1.0.0 in favor of core source of the same name) "
+        msg += source_configuration.doc
         if not reqs.is_installed_dlt_compatible():
             msg += fmt.warning_style(" [needs update: %s]" % (dlt_req_string))
+
         fmt.echo(msg)
 
 
@@ -253,15 +277,13 @@ def init_command(
 
     # lookup core sources
     local_path = Path(os.path.dirname(os.path.realpath(__file__))).parent / SOURCES_MODULE_NAME
-    local_sources_storage = FileStorage(str(local_path))
+    core_sources_storage = FileStorage(str(local_path))
 
     # discover type of source
-    source_type: files_ops.SOURCE_TYPE = "generic"
+    source_type: files_ops.TSourceType = "generic"
     if (
-        local_sources_storage.has_folder(source_name)
-        and source_name not in SKIP_CORE_SOURCES_FOLDERS
-        and not omit_core_sources
-    ):
+        source_name in files_ops.get_sources_names(core_sources_storage, source_type="core")
+    ) and not omit_core_sources:
         source_type = "core"
     else:
         if omit_core_sources:
@@ -269,8 +291,10 @@ def init_command(
         fmt.echo("Looking up verified sources at %s..." % fmt.bold(repo_location))
         clone_storage = git.get_fresh_repo_files(repo_location, get_dlt_repos_dir(), branch=branch)
         # copy dlt source files from here
-        sources_storage = FileStorage(clone_storage.make_full_path(SOURCES_MODULE_NAME))
-        if sources_storage.has_folder(source_name):
+        verified_sources_storage = FileStorage(clone_storage.make_full_path(SOURCES_MODULE_NAME))
+        if source_name in files_ops.get_sources_names(
+            verified_sources_storage, source_type="verified"
+        ):
             source_type = "verified"
 
     # look up init storage in core
@@ -302,7 +326,9 @@ def init_command(
 
     if source_type == "verified":
         # get pipeline files
-        source_configuration = files_ops.get_verified_source_files(sources_storage, source_name)
+        source_configuration = files_ops.get_verified_source_configuration(
+            verified_sources_storage, source_name
+        )
         # get file index from remote verified source files being copied
         remote_index = files_ops.get_remote_source_index(
             source_configuration.storage.storage_path,
@@ -337,18 +363,9 @@ def init_command(
         source_configuration.files.extend(template_files)
 
     else:
-        pipeline_dest_script = source_name + "_pipeline.py"
-
         if source_type == "core":
-            source_configuration = SourceConfiguration(
-                source_type,
-                "dlt.sources." + source_name,
-                local_sources_storage,
-                source_name + "_pipeline.py",
-                pipeline_dest_script,
-                [".gitignore"],
-                SourceRequirements([]),
-                "",
+            source_configuration = files_ops.get_core_source_configuration(
+                core_sources_storage, source_name
             )
         else:
             if not is_valid_schema_name(source_name):
@@ -358,14 +375,17 @@ def init_command(
                 "pipeline",
                 init_storage,
                 pipeline_script,
-                pipeline_dest_script,
+                source_name + "_pipeline.py",
                 template_files,
                 SourceRequirements([]),
                 "",
             )
 
-        if dest_storage.has_file(pipeline_dest_script):
-            fmt.warning("Pipeline script %s already exists, exiting" % pipeline_dest_script)
+        if dest_storage.has_file(source_configuration.dest_pipeline_script):
+            fmt.warning(
+                "Pipeline script %s already exists, exiting"
+                % source_configuration.dest_pipeline_script
+            )
             return
 
     # add .dlt/*.toml files to be copied
@@ -516,6 +536,10 @@ def init_command(
             fmt.echo(
                 "A source with the name %s was not found. Using a template to create a new source"
                 " and pipeline with name %s." % (fmt.bold(source_name), fmt.bold(source_name))
+            )
+            fmt.echo(
+                "In case you did not want to use a template, run 'dlt init -l' to see a list of"
+                " available sources."
             )
 
         if use_generic_template and source_configuration.source_type != "generic":
