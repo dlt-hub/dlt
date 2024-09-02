@@ -57,7 +57,7 @@ CORE_SOURCES = ["filesystem"]
 def get_verified_source_candidates(repo_dir: str) -> List[str]:
     sources_storage = FileStorage(os.path.join(repo_dir, SOURCES_MODULE_NAME))
     # enumerate all candidate verified sources
-    return files_ops.get_verified_source_names(sources_storage)
+    return files_ops.get_sources_names(sources_storage, source_type="verified")
 
 
 def test_init_command_pipeline_template(repo_dir: str, project_files: FileStorage) -> None:
@@ -114,7 +114,18 @@ def test_init_command_chess_verified_source(repo_dir: str, project_files: FileSt
         raise
 
 
-def test_init_list_verified_pipelines(repo_dir: str, project_files: FileStorage) -> None:
+def test_list_helper_functions(repo_dir: str, project_files: FileStorage) -> None:
+    # see wether all core sources are found
+    sources = init_command._list_core_sources()
+    assert set(sources.keys()) == set(CORE_SOURCES)
+
+    sources = init_command._list_verified_sources(repo_dir)
+    assert len(sources.keys()) > 10
+    known_sources = ["chess", "sql_database", "google_sheets", "pipedrive"]
+    assert set(known_sources).issubset(set(sources.keys()))
+
+
+def test_init_list_sources(repo_dir: str, project_files: FileStorage) -> None:
     sources = init_command._list_verified_sources(repo_dir)
     # a few known sources must be there
     known_sources = ["chess", "sql_database", "google_sheets", "pipedrive"]
@@ -123,16 +134,14 @@ def test_init_list_verified_pipelines(repo_dir: str, project_files: FileStorage)
     for k_p in known_sources:
         assert sources[k_p].doc
     # run the command
-    init_command.list_verified_sources_command(repo_dir)
+    init_command.list_sources_command(repo_dir)
 
 
-def test_init_list_verified_pipelines_update_warning(
-    repo_dir: str, project_files: FileStorage
-) -> None:
+def test_init_list_sources_update_warning(repo_dir: str, project_files: FileStorage) -> None:
     """Sources listed include a warning if a different dlt version is required"""
     with mock.patch.object(SourceRequirements, "current_dlt_version", return_value="0.0.1"):
         with io.StringIO() as buf, contextlib.redirect_stdout(buf):
-            init_command.list_verified_sources_command(repo_dir)
+            init_command.list_sources_command(repo_dir)
             _out = buf.getvalue()
 
     # Check one listed source
@@ -241,7 +250,7 @@ def test_init_code_update_index_diff(repo_dir: str, project_files: FileStorage) 
     sources_storage.save(new_file_path, new_content)
     sources_storage.delete(del_file_path)
 
-    source_files = files_ops.get_verified_source_files(sources_storage, "pipedrive")
+    source_files = files_ops.get_verified_source_configuration(sources_storage, "pipedrive")
     remote_index = files_ops.get_remote_source_index(
         sources_storage.storage_path, source_files.files, ">=0.3.5"
     )
@@ -287,7 +296,7 @@ def test_init_code_update_index_diff(repo_dir: str, project_files: FileStorage) 
     mod_file_path_2 = os.path.join("pipedrive", "new_munger_X.py")
     sources_storage.save(mod_file_path_2, local_content)
     local_index = files_ops.load_verified_sources_local_index("pipedrive")
-    source_files = files_ops.get_verified_source_files(sources_storage, "pipedrive")
+    source_files = files_ops.get_verified_source_configuration(sources_storage, "pipedrive")
     remote_index = files_ops.get_remote_source_index(
         sources_storage.storage_path, source_files.files, ">=0.3.5"
     )
@@ -330,7 +339,7 @@ def test_init_code_update_index_diff(repo_dir: str, project_files: FileStorage) 
     sources_storage.save(new_file_path, local_content)
     sources_storage.save(mod_file_path, local_content)
     project_files.delete(del_file_path)
-    source_files = files_ops.get_verified_source_files(sources_storage, "pipedrive")
+    source_files = files_ops.get_verified_source_configuration(sources_storage, "pipedrive")
     remote_index = files_ops.get_remote_source_index(
         sources_storage.storage_path, source_files.files, ">=0.3.5"
     )
@@ -343,7 +352,7 @@ def test_init_code_update_index_diff(repo_dir: str, project_files: FileStorage) 
 
     # generate a conflict by deleting file locally that is modified on remote
     project_files.delete(mod_file_path)
-    source_files = files_ops.get_verified_source_files(sources_storage, "pipedrive")
+    source_files = files_ops.get_verified_source_configuration(sources_storage, "pipedrive")
     remote_index = files_ops.get_remote_source_index(
         sources_storage.storage_path, source_files.files, ">=0.3.5"
     )

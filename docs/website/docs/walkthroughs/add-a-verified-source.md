@@ -21,10 +21,10 @@ mkdir various_pipelines
 cd various_pipelines
 ```
 
-List available verified sources to see their names and descriptions:
+List available sources to see their names and descriptions:
 
 ```sh
-dlt init --list-verified-sources
+dlt init --list-sources
 ```
 
 Now pick one of the source names, for example `pipedrive` and a destination i.e. `bigquery`:

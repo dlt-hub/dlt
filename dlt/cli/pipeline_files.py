@@ -16,16 +16,23 @@ from dlt.common.reflection.utils import get_module_docstring
 from dlt.cli import utils
 from dlt.cli.requirements import SourceRequirements
 
+TSourceType = Literal["core", "verified", "generic"]
 
 SOURCES_INIT_INFO_ENGINE_VERSION = 1
 SOURCES_INIT_INFO_FILE = ".sources"
 IGNORE_FILES = ["*.py[cod]", "*$py.class", "__pycache__", "py.typed", "requirements.txt"]
-IGNORE_SOURCES = [".*", "_*"]
-SOURCE_TYPE = Literal["core", "verified", "generic"]
+IGNORE_VERIFIED_SOURCES = [".*", "_*"]
+IGNORE_CORE_SOURCES = [
+    ".*",
+    "_*",
+    "helpers",
+    "init",
+    "rest_api",
+]  # TODO: remove rest api here once pipeline file is here
 
 
 class SourceConfiguration(NamedTuple):
-    source_type: SOURCE_TYPE
+    source_type: TSourceType
     source_module_prefix: str
     storage: FileStorage
     pipeline_script: str
@@ -149,12 +156,13 @@ def get_remote_source_index(
         }
 
 
-def get_verified_source_names(sources_storage: FileStorage) -> List[str]:
+def get_sources_names(sources_storage: FileStorage, source_type: TSourceType) -> List[str]:
     candidates: List[str] = []
+    ignore_cases = IGNORE_VERIFIED_SOURCES if source_type == "verified" else IGNORE_CORE_SOURCES
     for name in [
         n
         for n in sources_storage.list_folder_dirs(".", to_root=False)
-        if not any(fnmatch.fnmatch(n, ignore) for ignore in IGNORE_SOURCES)
+        if not any(fnmatch.fnmatch(n, ignore) for ignore in ignore_cases)
     ]:
         # must contain at least one valid python script
         if any(f.endswith(".py") for f in sources_storage.list_folder_files(name, to_root=False)):
@@ -162,7 +170,35 @@ def get_verified_source_names(sources_storage: FileStorage) -> List[str]:
     return candidates
 
 
-def get_verified_source_files(
+def _get_docstring_for_module(sources_storage: FileStorage, source_name: str) -> str:
+    # read the docs
+    init_py = os.path.join(source_name, utils.MODULE_INIT)
+    docstring: str = ""
+    if sources_storage.has_file(init_py):
+        docstring = get_module_docstring(sources_storage.load(init_py))
+        if docstring:
+            docstring = docstring.splitlines()[0]
+    return docstring
+
+
+def get_core_source_configuration(
+    sources_storage: FileStorage, source_name: str
+) -> SourceConfiguration:
+    pipeline_file = source_name + "_pipeline.py"
+
+    return SourceConfiguration(
+        "core",
+        "dlt.sources." + source_name,
+        sources_storage,
+        pipeline_file,
+        pipeline_file,
+        [".gitignore"],
+        SourceRequirements([]),
+        _get_docstring_for_module(sources_storage, source_name),
+    )
+
+
+def get_verified_source_configuration(
     sources_storage: FileStorage, source_name: str
 ) -> SourceConfiguration:
     if not sources_storage.has_folder(source_name):
@@ -191,13 +227,6 @@ def get_verified_source_files(
                 if all(not fnmatch.fnmatch(file, ignore) for ignore in IGNORE_FILES)
             ]
         )
-    # read the docs
-    init_py = os.path.join(source_name, utils.MODULE_INIT)
-    docstring: str = ""
-    if sources_storage.has_file(init_py):
-        docstring = get_module_docstring(sources_storage.load(init_py))
-        if docstring:
-            docstring = docstring.splitlines()[0]
     # read requirements
     requirements_path = os.path.join(source_name, utils.REQUIREMENTS_TXT)
     if sources_storage.has_file(requirements_path):
@@ -213,7 +242,7 @@ def get_verified_source_files(
         example_script,
         files,
         requirements,
-        docstring,
+        _get_docstring_for_module(sources_storage, source_name),
     )
 
 
