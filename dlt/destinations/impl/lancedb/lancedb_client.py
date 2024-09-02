@@ -17,6 +17,7 @@ from typing import (
 import lancedb  # type: ignore
 import lancedb.table  # type: ignore
 import pyarrow as pa
+import pyarrow.compute as pc
 import pyarrow.parquet as pq
 from lancedb import DBConnection
 from lancedb.common import DATA  # type: ignore
@@ -75,9 +76,9 @@ from dlt.destinations.impl.lancedb.schema import (
 from dlt.destinations.impl.lancedb.utils import (
     set_non_standard_providers_environment_variables,
     get_default_arrow_value,
-    IterableWrapper,
     EMPTY_STRING_PLACEHOLDER,
     fill_empty_source_column_values_with_placeholder,
+    get_canonical_vector_database_doc_id_merge_key,
 )
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest
 from dlt.destinations.type_mapping import TypeMapper
@@ -171,8 +172,9 @@ def write_records(
     db_client: DBConnection,
     table_name: str,
     write_disposition: Optional[TWriteDisposition] = "append",
-    merge_key: Optional[Union[str, IterableWrapper[str]]] = None,
+    merge_key: Optional[str] = None,
     remove_orphans: Optional[bool] = False,
+    filter_condition: Optional[str] = None,
 ) -> None:
     """Inserts records into a LanceDB table with automatic embedding computation.
 
@@ -183,6 +185,8 @@ def write_records(
         merge_key: Keys for update/merge operations.
         write_disposition: The write disposition - one of 'skip', 'append', 'replace', 'merge'.
         remove_orphans (bool): Whether to remove orphans after insertion or not (only merge disposition).
+        filter_condition (str): If None, then all such rows will be deleted.
+            Otherwise, the condition will be used as an SQL filter to limit what rows are deleted.
 
     Raises:
         ValueError: If the write disposition is unsupported, or `id_field_name` is not
@@ -204,7 +208,9 @@ def write_records(
             tbl.add(records, mode="overwrite")
         elif write_disposition == "merge":
             if remove_orphans:
-                tbl.merge_insert(merge_key).when_not_matched_by_source_delete().execute(records)
+                tbl.merge_insert(merge_key).when_not_matched_by_source_delete(
+                    filter_condition
+                ).execute(records)
             else:
                 tbl.merge_insert(
                     merge_key
@@ -704,9 +710,9 @@ class LanceDBClient(JobClientBase, WithStateSync):
         )
         # Orphan removal is only supported for upsert strategy because we need a deterministic key hash.
         first_table_in_chain = table_chain[0]
-        if first_table_in_chain.get("write_disposition") == "merge" and not first_table_in_chain.get(
-            NO_REMOVE_ORPHANS_HINT
-        ):
+        if first_table_in_chain.get(
+            "write_disposition"
+        ) == "merge" and not first_table_in_chain.get(NO_REMOVE_ORPHANS_HINT):
             all_job_paths_ordered = [
                 job.file_path
                 for table in table_chain
@@ -837,14 +843,32 @@ class LanceDBRemoveOrphansJob(RunnableLoadJob):
                         field, pa.nulls(size=payload_arrow_table.num_rows, type=field.type)
                     )
 
-            write_records(
-                payload_arrow_table,
-                db_client=db_client,
-                merge_key=target_table_id_field_name,
-                table_name=fq_table_name,
-                write_disposition="merge",
-                remove_orphans=True,
-            )
+            if target_is_root_table:
+                canonical_doc_id_field = get_canonical_vector_database_doc_id_merge_key(
+                    job.table_schema
+                )
+                unique_doc_ids = pc.unique(payload_arrow_table[canonical_doc_id_field]).to_pylist()
+                filter_condition = (
+                    f"{canonical_doc_id_field} in (" + ",".join(map(str, unique_doc_ids)) + ")"
+                )
+                write_records(
+                    payload_arrow_table,
+                    db_client=db_client,
+                    table_name=fq_table_name,
+                    write_disposition="merge",
+                    merge_key=self._schema.data_item_normalizer.C_DLT_LOAD_ID,  # type: ignore[attr-defined]
+                    remove_orphans=True,
+                    filter_condition=filter_condition,
+                )
+            else:
+                write_records(
+                    payload_arrow_table,
+                    db_client=db_client,
+                    table_name=fq_table_name,
+                    write_disposition="merge",
+                    merge_key=target_table_id_field_name,
+                    remove_orphans=True,
+                )
 
     @staticmethod
     def get_parent_path(table_lineage: TTableLineage, table: str) -> Any:

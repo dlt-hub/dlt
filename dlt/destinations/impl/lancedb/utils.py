@@ -1,9 +1,10 @@
 import os
-from typing import Union, Dict, Optional, TypeVar, Generic, Iterable, Iterator, List
+from typing import Union, Dict, List
 
 import pyarrow as pa
 
 from dlt.common import logger
+from dlt.common.destination.exceptions import DestinationTerminalException
 from dlt.common.pendulum import __utcnow
 from dlt.common.schema import TTableSchema
 from dlt.common.schema.utils import get_columns_names_with_prop
@@ -43,41 +44,24 @@ def get_default_arrow_value(field_type: TArrowDataType) -> object:
         raise ValueError(f"Unsupported data type: {field_type}")
 
 
-ItemType = TypeVar("ItemType")
-
-
-# LanceDB `merge_insert` expects an 'iter()' method instead of using standard iteration.
-# https://github.com/lancedb/lancedb/blob/ae85008714792a6b724c75793b63273c51caba88/python/python/lancedb/table.py#L2264
-class IterableWrapper(Generic[ItemType]):
-    def __init__(self, iterable: Iterable[ItemType]) -> None:
-        self.iterable = iterable
-
-    def __iter__(self) -> Iterator[ItemType]:
-        return iter(self.iterable)
-
-    def iter(self) -> Iterator[ItemType]:  # noqa: A003
-        return iter(self.iterable)
-
-
-def get_lancedb_orphan_removal_merge_key(
+def get_canonical_vector_database_doc_id_merge_key(
     load_table: TTableSchema,
-) -> Optional[Union[str, IterableWrapper[str]]]:
+) -> str:
     if merge_key := get_columns_names_with_prop(load_table, "merge_key"):
-        return merge_key[0] if len(merge_key) == 1 else IterableWrapper(merge_key)
+        if len(merge_key) > 1:
+            raise DestinationTerminalException(f"You cannot specify multiple merge keys with LanceDB orphan remove enabled: {merge_key}")
+        else:
+            return merge_key[0]
     elif primary_key := get_columns_names_with_prop(load_table, "primary_key"):
-        # No merge key defined, warn and merge on the primary key.
+        # No merge key defined, warn and assume the first element of the primary key is `doc_id`.
         logger.warning(
-            "Merge strategy selected without defined merge key - using primary key as merge key."
+            f"Merge strategy selected without defined merge key - using the first element of the primary key ({primary_key}) as merge key."
         )
-        return primary_key[0] if len(primary_key) == 1 else IterableWrapper(merge_key)
-    elif unique_key := get_columns_names_with_prop(load_table, "unique"):
-        logger.warning(
-            "Merge strategy selected without defined merge key - using unique key as merge key."
-        )
-        return unique_key[0] if len(unique_key) == 1 else IterableWrapper(unique_key)
+        return primary_key[0]
     else:
-        return None
-
+        raise DestinationTerminalException(
+            "You must specify at least a primary key in order to perform orphan removal."
+        )
 
 def fill_empty_source_column_values_with_placeholder(
     table: pa.Table, source_columns: List[str], placeholder: str
