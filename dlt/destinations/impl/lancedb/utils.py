@@ -92,11 +92,10 @@ def fill_empty_source_column_values_with_placeholder(
     return table
 
 
-def create_filter_condition(
-    canonical_doc_id_field: str, unique_doc_ids: List[Union[str, int, float]]
-) -> str:
-    def format_value(x: Union[str, int, float]) -> str:
-        return f"'{x}'" if isinstance(x, str) else str(x)
+def create_filter_condition(canonical_doc_id_field: str, id_column: pa.Array) -> str:
+    def format_value(element: Union[str, int, float, pa.Scalar]) -> str:
+        if isinstance(element, pa.Scalar):
+            element = element.as_py()
+        return "'" + element.replace("'", "''") + "'" if isinstance(element, str) else str(element)
 
-    formatted_ids = ", ".join(map(format_value, unique_doc_ids))
-    return f"{canonical_doc_id_field} IN ({formatted_ids})"
+    return f"{canonical_doc_id_field} IN ({', '.join(map(format_value, id_column))})"

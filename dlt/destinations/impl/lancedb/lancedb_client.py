@@ -17,7 +17,6 @@ from typing import (
 import lancedb  # type: ignore
 import lancedb.table  # type: ignore
 import pyarrow as pa
-import pyarrow.compute as pc
 import pyarrow.parquet as pq
 from lancedb import DBConnection
 from lancedb.common import DATA  # type: ignore
@@ -848,8 +847,10 @@ class LanceDBRemoveOrphansJob(RunnableLoadJob):
                 canonical_doc_id_field = get_canonical_vector_database_doc_id_merge_key(
                     job.table_schema
                 )
-                unique_doc_ids = pc.unique(payload_arrow_table[canonical_doc_id_field]).to_pylist()
-                filter_condition = create_filter_condition(canonical_doc_id_field, unique_doc_ids)
+                # TODO: Guard against edge cases. For example, if `doc_id` field has escape characters in it.
+                filter_condition = create_filter_condition(
+                    canonical_doc_id_field, payload_arrow_table[canonical_doc_id_field]
+                )
                 write_records(
                     payload_arrow_table,
                     db_client=db_client,
