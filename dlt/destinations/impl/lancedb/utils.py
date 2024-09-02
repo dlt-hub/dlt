@@ -3,14 +3,11 @@ from typing import Union, Dict, List
 
 import pyarrow as pa
 
-from dlt import Schema
 from dlt.common import logger
 from dlt.common.destination.exceptions import DestinationTerminalException
-from dlt.common.pendulum import __utcnow
 from dlt.common.schema import TTableSchema
 from dlt.common.schema.utils import get_columns_names_with_prop
 from dlt.destinations.impl.lancedb.configuration import TEmbeddingProvider
-from dlt.destinations.impl.lancedb.schema import TArrowDataType
 
 EMPTY_STRING_PLACEHOLDER = "0uEoDNBpQUBwsxKbmxxB"
 PROVIDER_ENVIRONMENT_VARIABLES_MAP: Dict[TEmbeddingProvider, str] = {
@@ -26,23 +23,6 @@ def set_non_standard_providers_environment_variables(
 ) -> None:
     if embedding_model_provider in PROVIDER_ENVIRONMENT_VARIABLES_MAP:
         os.environ[PROVIDER_ENVIRONMENT_VARIABLES_MAP[embedding_model_provider]] = api_key or ""
-
-
-def get_default_arrow_value(field_type: TArrowDataType) -> object:
-    if pa.types.is_integer(field_type):
-        return 0
-    elif pa.types.is_floating(field_type):
-        return 0.0
-    elif pa.types.is_string(field_type):
-        return ""
-    elif pa.types.is_boolean(field_type):
-        return False
-    elif pa.types.is_date(field_type):
-        return __utcnow().today()
-    elif pa.types.is_timestamp(field_type):
-        return __utcnow()
-    else:
-        raise ValueError(f"Unsupported data type: {field_type}")
 
 
 def get_canonical_vector_database_doc_id_merge_key(
@@ -100,43 +80,3 @@ def create_filter_condition(field_name: str, array: pa.Array) -> str:
         return "'" + element.replace("'", "''") + "'" if isinstance(element, str) else str(element)
 
     return f"{field_name} IN ({', '.join(map(format_value, array))})"
-
-
-def add_missing_columns_to_arrow_table(
-    payload_arrow_table: pa.Table,
-    target_table_schema: pa.Schema,
-) -> pa.Table:
-    """Add missing columns from the target schema to the payload Arrow table.
-
-    LanceDB requires the payload to have all fields populated, even if we
-    don't intend to use them in our merge operation.
-
-    Unfortunately, we can't just create NULL fields; else LanceDB always truncates
-    the target using `when_not_matched_by_source_delete`.
-    This function identifies columns present in the target schema but missing from
-    the payload table and adds them with either default or null values.
-
-     Args:
-         payload_arrow_table: The input Arrow table.
-         target_table_schema: The schema of the target table.
-
-     Returns:
-         The modified Arrow table with added columns.
-
-    """
-    schema_difference = pa.schema(set(target_table_schema) - set(payload_arrow_table.schema))
-
-    for field in schema_difference:
-        try:
-            default_value = get_default_arrow_value(field.type)
-            default_array = pa.array(
-                [default_value] * payload_arrow_table.num_rows, type=field.type
-            )
-            payload_arrow_table = payload_arrow_table.append_column(field, default_array)
-        except ValueError as e:
-            logger.warning(f"{e}. Using null values for field '{field.name}'.")
-            payload_arrow_table = payload_arrow_table.append_column(
-                field, pa.nulls(size=payload_arrow_table.num_rows, type=field.type)
-            )
-
-    return payload_arrow_table

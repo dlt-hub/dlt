@@ -78,7 +78,6 @@ from dlt.destinations.impl.lancedb.utils import (
     fill_empty_source_column_values_with_placeholder,
     get_canonical_vector_database_doc_id_merge_key,
     create_filter_condition,
-    add_missing_columns_to_arrow_table,
 )
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest
 from dlt.destinations.type_mapping import TypeMapper
@@ -793,6 +792,10 @@ class LanceDBRemoveOrphansJob(RunnableLoadJob):
         self.references = ReferenceFollowupJobRequest.resolve_references(file_path)
 
     def run(self) -> None:
+        dlt_load_id = self._schema.data_item_normalizer.C_DLT_LOAD_ID  # type: ignore[attr-defined]
+        dlt_id = self._schema.data_item_normalizer.C_DLT_ID  # type: ignore[attr-defined]
+        dlt_root_id = self._schema.data_item_normalizer.C_DLT_ROOT_ID  # type: ignore[attr-defined]
+
         db_client: DBConnection = self._job_client.db_client
         table_lineage: TTableLineage = [
             TableJob(
@@ -811,28 +814,22 @@ class LanceDBRemoveOrphansJob(RunnableLoadJob):
             file_path = job.file_path
             with FileStorage.open_zipsafe_ro(file_path, mode="rb") as f:
                 payload_arrow_table: pa.Table = pq.read_table(f)
-                target_table_schema: pa.Schema = pq.read_schema(f)
-
-            payload_arrow_table = add_missing_columns_to_arrow_table(
-                payload_arrow_table, target_table_schema
-            )
 
             if target_is_root_table:
                 canonical_doc_id_field = get_canonical_vector_database_doc_id_merge_key(
                     job.table_schema
                 )
-                # TODO: Guard against edge cases. For example, if `doc_id` field has escape characters in it.
                 filter_condition = create_filter_condition(
                     canonical_doc_id_field, payload_arrow_table[canonical_doc_id_field]
                 )
-                merge_key = self._schema.data_item_normalizer.C_DLT_LOAD_ID  # type: ignore[attr-defined]
+                merge_key = dlt_load_id
 
             else:
                 filter_condition = create_filter_condition(
-                    self._schema.data_item_normalizer.C_DLT_ROOT_ID,  # type: ignore[attr-defined]
-                    payload_arrow_table[self._schema.data_item_normalizer.C_DLT_ROOT_ID],  # type: ignore[attr-defined]
+                    dlt_root_id,
+                    payload_arrow_table[dlt_root_id],
                 )
-                merge_key = self._schema.data_item_normalizer.C_DLT_ID  # type: ignore[attr-defined]
+                merge_key = dlt_id
 
             write_records(
                 payload_arrow_table,
