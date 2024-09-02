@@ -9,18 +9,24 @@ pytestmark = pytest.mark.essential
 
 
 def test_fill_empty_source_column_values_with_placeholder() -> None:
-    data = [pa.array(["", "hello", ""]), pa.array([1, 2, 3]), pa.array(["world", "", "arrow"])]
-    table = pa.Table.from_arrays(data, names=["A", "B", "C"])
+    data = [
+        pa.array(["", "hello", ""]),
+        pa.array(["hello", None, ""]),
+        pa.array([1, 2, 3]),
+        pa.array(["world", "", "arrow"]),
+    ]
+    table = pa.Table.from_arrays(data, names=["A", "B", "C", "D"])
 
-    source_columns = ["A"]
+    source_columns = ["A", "B"]
     placeholder = "placeholder"
 
     new_table = fill_empty_source_column_values_with_placeholder(table, source_columns, placeholder)
 
     expected_data = [
         pa.array(["placeholder", "hello", "placeholder"]),
+        pa.array(["hello", "placeholder", "placeholder"]),
         pa.array([1, 2, 3]),
         pa.array(["world", "", "arrow"]),
     ]
-    expected_table = pa.Table.from_arrays(expected_data, names=["A", "B", "C"])
+    expected_table = pa.Table.from_arrays(expected_data, names=["A", "B", "C", "D"])
     assert new_table.equals(expected_table)

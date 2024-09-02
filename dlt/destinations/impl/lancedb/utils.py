@@ -83,37 +83,40 @@ def fill_empty_source_column_values_with_placeholder(
     table: pa.Table, source_columns: List[str], placeholder: str
 ) -> pa.Table:
     """
-    Replaces empty strings in the specified source columns of an Arrow table with a placeholder string.
+    Replaces empty strings and null values in the specified source columns of an Arrow table with a placeholder string.
 
     Args:
         table (pa.Table): The input Arrow table.
-        source_columns (List[str]): A list of column names to replace empty strings in.
+        source_columns (List[str]): A list of column names to replace empty strings and null values in.
         placeholder (str): The placeholder string to use for replacement.
 
     Returns:
-        pa.Table: The modified Arrow table with empty strings replaced in the specified columns.
+        pa.Table: The modified Arrow table with empty strings and null values replaced in the specified columns.
     """
-    # Create a new table with the same schema as the input table.
-    new_table = table
+    new_columns = []
 
-    # Iterate over each column that needs to be modified
-    for column_name in source_columns:
-        # Get the column index
-        column_index = new_table.schema.get_field_index(column_name)
+    for col_name in table.column_names:
+        column = table[col_name]
+        if col_name in source_columns:
+            # Process each chunk separately
+            new_chunks = []
+            for chunk in column.chunks:
+                # Replace null values with the placeholder
+                filled_chunk = pa.compute.fill_null(chunk, fill_value=placeholder)
+                # Replace empty strings with the placeholder using regex
+                new_chunk = pa.compute.replace_substring_regex(
+                    filled_chunk, pattern=r"^$", replacement=placeholder
+                )
+                new_chunks.append(new_chunk)
 
-        # Get the column as an array
-        column_array = new_table.column(column_name).to_pandas()
+            # Combine the processed chunks into a new ChunkedArray
+            new_column = pa.chunked_array(new_chunks)
+        else:
+            new_column = column
 
-        # Replace empty strings with the placeholder
-        column_array = column_array.apply(lambda x: placeholder if x=="" else x)
+        new_columns.append(new_column)
 
-        # Create a new array with the modified values
-        new_array = pa.array(column_array)
-
-        # Replace the column in the new table with the modified array
-        new_table = new_table.set_column(column_index, column_name, new_array)
-
-    return new_table
+    return pa.Table.from_arrays(new_columns, names=table.column_names)
 
 
-
+1
