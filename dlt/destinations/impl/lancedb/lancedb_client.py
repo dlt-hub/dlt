@@ -833,8 +833,9 @@ class LanceDBRemoveOrphansJob(RunnableLoadJob):
                     payload_arrow_table = payload_arrow_table.append_column(field, default_array)
                 except ValueError as e:
                     logger.warn(f"{e}. Using null values for field '{field.name}'.")
-                    null_array = pa.array([None] * payload_arrow_table.num_rows, type=field.type)
-                    payload_arrow_table = payload_arrow_table.append_column(field, null_array)
+                    payload_arrow_table = payload_arrow_table.append_column(
+                        field, pa.nulls(size=payload_arrow_table.num_rows, type=field.type)
+                    )
 
             write_records(
                 payload_arrow_table,
