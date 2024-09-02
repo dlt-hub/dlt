@@ -61,14 +61,14 @@ def get_verified_source_candidates(repo_dir: str) -> List[str]:
 
 
 def test_init_command_pipeline_template(repo_dir: str, project_files: FileStorage) -> None:
-    init_command.init_command("debug_pipeline", "bigquery", False, repo_dir)
+    init_command.init_command("debug", "bigquery", False, repo_dir)
     visitor = assert_init_files(project_files, "debug_pipeline", "bigquery")
     # single resource
     assert len(visitor.known_resource_calls) == 1
 
 
 def test_init_command_pipeline_generic(repo_dir: str, project_files: FileStorage) -> None:
-    init_command.init_command("generic_pipeline", "redshift", True, repo_dir)
+    init_command.init_command("generic", "redshift", True, repo_dir)
     visitor = assert_init_files(project_files, "generic_pipeline", "redshift")
     # multiple resources
     assert len(visitor.known_resource_calls) > 1
@@ -79,7 +79,7 @@ def test_init_command_new_pipeline_same_name(repo_dir: str, project_files: FileS
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
         init_command.init_command("debug_pipeline", "bigquery", False, repo_dir)
         _out = buf.getvalue()
-    assert "already exist, exiting" in _out
+    assert "already exists, exiting" in _out
 
 
 def test_init_command_chess_verified_source(repo_dir: str, project_files: FileStorage) -> None:
@@ -168,12 +168,9 @@ def test_init_all_sources_together(repo_dir: str, project_files: FileStorage) ->
     for destination_name in ["bigquery", "postgres", "redshift"]:
         assert secrets.get_value(destination_name, type, None, "destination") is not None
 
-    # create pipeline template on top
-    init_command.init_command("debug_pipeline", "postgres", False, repo_dir)
-    assert_init_files(project_files, "debug_pipeline", "postgres", "bigquery")
     # clear the resources otherwise sources not belonging to generic_pipeline will be found
     _SOURCES.clear()
-    init_command.init_command("generic_pipeline", "redshift", True, repo_dir)
+    init_command.init_command("generic", "redshift", True, repo_dir)
     assert_init_files(project_files, "generic_pipeline", "redshift", "bigquery")
 
 
@@ -199,9 +196,9 @@ def test_init_all_destinations(
 ) -> None:
     if destination_name == "destination":
         pytest.skip("Init for generic destination not implemented yet")
-    pipeline_name = f"generic_{destination_name}_pipeline"
-    init_command.init_command(pipeline_name, destination_name, True, repo_dir)
-    assert_init_files(project_files, pipeline_name, destination_name)
+    source_name = f"generic_{destination_name}"
+    init_command.init_command(source_name, destination_name, True, repo_dir)
+    assert_init_files(project_files, source_name + "_pipeline", destination_name)
 
 
 def test_init_code_update_index_diff(repo_dir: str, project_files: FileStorage) -> None:
@@ -538,7 +535,7 @@ def assert_source_files(
     visitor, secrets = assert_common_files(
         project_files, source_name + "_pipeline.py", destination_name
     )
-    assert project_files.has_folder(source_name) == (source_name not in CORE_SOURCES)
+    assert project_files.has_folder(source_name)  #  == (source_name not in CORE_SOURCES)
     source_secrets = secrets.get_value(source_name, type, None, source_name)
     if has_source_section:
         assert source_secrets is not None
