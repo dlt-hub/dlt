@@ -272,7 +272,7 @@ def test_lancedb_root_table_remove_orphaned_records_with_real_embeddings() -> No
     @dlt.resource(
         write_disposition={"disposition": "merge", "strategy": "upsert"},
         table_name="document",
-        primary_key="doc_id",
+        primary_key=["doc_id", "chunk"],
         merge_key="doc_id",
     )
     def documents(docs: List[DictStrAny]) -> Generator[DictStrAny, None, None]:
