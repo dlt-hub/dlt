@@ -99,3 +99,43 @@ def create_filter_condition(canonical_doc_id_field: str, id_column: pa.Array) ->
         return "'" + element.replace("'", "''") + "'" if isinstance(element, str) else str(element)
 
     return f"{canonical_doc_id_field} IN ({', '.join(map(format_value, id_column))})"
+
+
+def add_missing_columns_to_arrow_table(
+    payload_arrow_table: pa.Table,
+    target_table_schema: pa.Schema,
+) -> pa.Table:
+    """Add missing columns from the target schema to the payload Arrow table.
+
+    LanceDB requires the payload to have all fields populated, even if we
+    don't intend to use them in our merge operation.
+
+    Unfortunately, we can't just create NULL fields; else LanceDB always truncates
+    the target using `when_not_matched_by_source_delete`.
+    This function identifies columns present in the target schema but missing from
+    the payload table and adds them with either default or null values.
+
+     Args:
+         payload_arrow_table: The input Arrow table.
+         target_table_schema: The schema of the target table.
+
+     Returns:
+         The modified Arrow table with added columns.
+
+    """
+    schema_difference = pa.schema(set(target_table_schema) - set(payload_arrow_table.schema))
+
+    for field in schema_difference:
+        try:
+            default_value = get_default_arrow_value(field.type)
+            default_array = pa.array(
+                [default_value] * payload_arrow_table.num_rows, type=field.type
+            )
+            payload_arrow_table = payload_arrow_table.append_column(field, default_array)
+        except ValueError as e:
+            logger.warning(f"{e}. Using null values for field '{field.name}'.")
+            payload_arrow_table = payload_arrow_table.append_column(
+                field, pa.nulls(size=payload_arrow_table.num_rows, type=field.type)
+            )
+
+    return payload_arrow_table

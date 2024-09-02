@@ -79,6 +79,7 @@ from dlt.destinations.impl.lancedb.utils import (
     fill_empty_source_column_values_with_placeholder,
     get_canonical_vector_database_doc_id_merge_key,
     create_filter_condition,
+    add_missing_columns_to_arrow_table,
 )
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest
 from dlt.destinations.type_mapping import TypeMapper
@@ -812,36 +813,20 @@ class LanceDBRemoveOrphansJob(RunnableLoadJob):
             fq_table_name = self._job_client.make_qualified_table_name(job.table_name)
 
             if target_is_root_table:
-                target_table_id_field_name = self._schema.data_item_normalizer.C_DLT_ID  # type: ignore[attr-defined]
                 file_path = job.file_path
             else:
-                target_table_id_field_name = self._schema.data_item_normalizer.C_DLT_ROOT_ID  # type: ignore[attr-defined]
-                file_path = self.get_parent_path(table_lineage, job.table_schema.get("parent"))
+                file_path = self.get_parent_paths(table_lineage, job.table_schema.get("parent"))
 
             with FileStorage.open_zipsafe_ro(file_path, mode="rb") as f:
                 payload_arrow_table: pa.Table = pq.read_table(f)
 
-            # Get target table schema
+            # Get target table schema.
             with FileStorage.open_zipsafe_ro(job.file_path, mode="rb") as f:
                 target_table_schema: pa.Schema = pq.read_schema(f)
 
-            # LanceDB requires the payload to have all fields populated, even if we don't intend to use them in our merge operation.
-            # Unfortunately, we can't just create NULL fields; else LanceDB always truncates the target using `when_not_matched_by_source_delete`.
-            schema_difference = pa.schema(
-                set(target_table_schema) - set(payload_arrow_table.schema)
+            payload_arrow_table = add_missing_columns_to_arrow_table(
+                payload_arrow_table, target_table_schema
             )
-            for field in schema_difference:
-                try:
-                    default_value = get_default_arrow_value(field.type)
-                    default_array = pa.array(
-                        [default_value] * payload_arrow_table.num_rows, type=field.type
-                    )
-                    payload_arrow_table = payload_arrow_table.append_column(field, default_array)
-                except ValueError as e:
-                    logger.warn(f"{e}. Using null values for field '{field.name}'.")
-                    payload_arrow_table = payload_arrow_table.append_column(
-                        field, pa.nulls(size=payload_arrow_table.num_rows, type=field.type)
-                    )
 
             if target_is_root_table:
                 canonical_doc_id_field = get_canonical_vector_database_doc_id_merge_key(
@@ -866,10 +851,10 @@ class LanceDBRemoveOrphansJob(RunnableLoadJob):
                     db_client=db_client,
                     table_name=fq_table_name,
                     write_disposition="merge",
-                    merge_key=target_table_id_field_name,
+                    merge_key=self._schema.data_item_normalizer.C_DLT_ROOT_ID,  # type: ignore[attr-defined]
                     remove_orphans=True,
                 )
 
     @staticmethod
-    def get_parent_path(table_lineage: TTableLineage, table: str) -> Any:
-        return next(entry.file_path for entry in table_lineage if entry.table_name == table)
+    def get_parent_paths(table_lineage: TTableLineage, table: str) -> List[str]:
+        return [entry.file_path for entry in table_lineage if entry.table_name == table][0]
