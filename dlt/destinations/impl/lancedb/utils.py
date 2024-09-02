@@ -49,19 +49,24 @@ def get_canonical_vector_database_doc_id_merge_key(
 ) -> str:
     if merge_key := get_columns_names_with_prop(load_table, "merge_key"):
         if len(merge_key) > 1:
-            raise DestinationTerminalException(f"You cannot specify multiple merge keys with LanceDB orphan remove enabled: {merge_key}")
+            raise DestinationTerminalException(
+                "You cannot specify multiple merge keys with LanceDB orphan remove enabled:"
+                f" {merge_key}"
+            )
         else:
             return merge_key[0]
     elif primary_key := get_columns_names_with_prop(load_table, "primary_key"):
         # No merge key defined, warn and assume the first element of the primary key is `doc_id`.
         logger.warning(
-            f"Merge strategy selected without defined merge key - using the first element of the primary key ({primary_key}) as merge key."
+            "Merge strategy selected without defined merge key - using the first element of the"
+            f" primary key ({primary_key}) as merge key."
         )
         return primary_key[0]
     else:
         raise DestinationTerminalException(
             "You must specify at least a primary key in order to perform orphan removal."
         )
+
 
 def fill_empty_source_column_values_with_placeholder(
     table: pa.Table, source_columns: List[str], placeholder: str
@@ -85,3 +90,13 @@ def fill_empty_source_column_values_with_placeholder(
         )
         table = table.set_column(table.column_names.index(col_name), col_name, new_column)
     return table
+
+
+def create_filter_condition(
+    canonical_doc_id_field: str, unique_doc_ids: List[Union[str, int, float]]
+) -> str:
+    def format_value(x: Union[str, int, float]) -> str:
+        return f"'{x}'" if isinstance(x, str) else str(x)
+
+    formatted_ids = ", ".join(map(format_value, unique_doc_ids))
+    return f"{canonical_doc_id_field} IN ({formatted_ids})"

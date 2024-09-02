@@ -79,6 +79,7 @@ from dlt.destinations.impl.lancedb.utils import (
     EMPTY_STRING_PLACEHOLDER,
     fill_empty_source_column_values_with_placeholder,
     get_canonical_vector_database_doc_id_merge_key,
+    create_filter_condition,
 )
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest
 from dlt.destinations.type_mapping import TypeMapper
@@ -848,9 +849,7 @@ class LanceDBRemoveOrphansJob(RunnableLoadJob):
                     job.table_schema
                 )
                 unique_doc_ids = pc.unique(payload_arrow_table[canonical_doc_id_field]).to_pylist()
-                filter_condition = (
-                    f"{canonical_doc_id_field} in (" + ",".join(map(str, unique_doc_ids)) + ")"
-                )
+                filter_condition = create_filter_condition(canonical_doc_id_field, unique_doc_ids)
                 write_records(
                     payload_arrow_table,
                     db_client=db_client,

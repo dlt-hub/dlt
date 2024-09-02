@@ -33,7 +33,7 @@ def drop_lancedb_data() -> Iterator[None]:
     drop_active_pipeline_data()
 
 
-def test_lancedb_remove_orphaned_records() -> None:
+def test_lancedb_remove_nested_orphaned_records() -> None:
     pipeline = dlt.pipeline(
         pipeline_name="test_lancedb_remove_orphaned_records",
         destination="lancedb",

@@ -427,7 +427,7 @@ def test_empty_dataset_allowed() -> None:
     assert_table(pipe, "content", expected_items_count=3)
 
 
-def test_merge_no_orphans() -> None:
+def test_lancedb_remove_nested_orphaned_records_with_chunks() -> None:
     @dlt.resource(
         write_disposition={"disposition": "merge", "strategy": "upsert"},
         table_name="document",
