@@ -84,7 +84,7 @@ jobs:
 
         # TODO: which deps should we enable? 
       - name: Install dependencies
-        run: poetry install --no-interaction -E postgres -E duckdb -E parquet -E filesystem -E cli -E weaviate -E qdrant --with sentry-sdk --with pipeline -E deltalake
+        run: poetry install --no-interaction -E postgres -E duckdb -E parquet -E filesystem -E cli -E sql_database --with sentry-sdk --with pipeline 
         
         # we need sqlalchemy 2 for the sql_database tests
       - name: Upgrade sql alchemy
