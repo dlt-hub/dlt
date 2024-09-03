@@ -35,7 +35,7 @@ Under the hood, `dlt` uses the [pyarrow parquet writer](https://arrow.apache.org
 - `flavor`: Sanitize schema or set other compatibility options to work with various target systems. Defaults to None which is **pyarrow** default.
 - `version`: Determine which Parquet logical types are available for use, whether the reduced set from the Parquet 1.x.x format or the expanded logical types added in later format versions. Defaults to "2.6".
 - `data_page_size`: Set a target threshold for the approximate encoded size of data pages within a column chunk (in bytes). Defaults to None which is **pyarrow** default.
-- `row_group_size`: Set the number of rows in a row group - see remarks below, because `pyarrow` does not handle this setting like you would expect.
+- `row_group_size`: Set the number of rows in a row group. [See here](#row-group-size) how this can optimize parallel processing of queries on your destination over the default setting of `pyarrow`.
 - `timestamp_timezone`: A string specifying timezone, default is UTC.
 - `coerce_timestamps`: resolution to which coerce timestamps, choose from **s**, **ms**, **us**, **ns**
 - `allow_truncated_timestamps` - will raise if precision is lost on truncated timestamp.
