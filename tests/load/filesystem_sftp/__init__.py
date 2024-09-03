@@ -1,3 +1,3 @@
 from tests.utils import skip_if_not_active
 
-skip_if_not_active("filesystem-sftp")
+skip_if_not_active("filesystem")
