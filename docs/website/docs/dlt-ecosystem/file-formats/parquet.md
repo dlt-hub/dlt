@@ -35,6 +35,7 @@ Under the hood, `dlt` uses the [pyarrow parquet writer](https://arrow.apache.org
 - `flavor`: Sanitize schema or set other compatibility options to work with various target systems. Defaults to None which is **pyarrow** default.
 - `version`: Determine which Parquet logical types are available for use, whether the reduced set from the Parquet 1.x.x format or the expanded logical types added in later format versions. Defaults to "2.6".
 - `data_page_size`: Set a target threshold for the approximate encoded size of data pages within a column chunk (in bytes). Defaults to None which is **pyarrow** default.
+- `row_group_size`: Set the number of rows in a row group - see remarks below, because `pyarrow` does not handle this setting like you would expect.
 - `timestamp_timezone`: A string specifying timezone, default is UTC.
 - `coerce_timestamps`: resolution to which coerce timestamps, choose from **s**, **ms**, **us**, **ns**
 - `allow_truncated_timestamps` - will raise if precision is lost on truncated timestamp.
@@ -76,3 +77,16 @@ You can generate parquet files without timezone adjustment information in two wa
 2. Set the **timestamp_timezone** to empty string (ie. `DATA_WRITER__TIMESTAMP_TIMEZONE=""`) to generate logical type without UTC adjustment.
 
 To our best knowledge, arrow will convert your timezone aware DateTime(s) to UTC and store them in parquet without timezone information.
+
+
+### Row group size
+`pyarrow` parquet writer writes each item (be it table or batch which is internally converted to table) in a separate row group. This may lead to many small row groups
+to be created which may not be optimal for certain query engines (ie. `duckdb` parallelizes on a row group). `dlt` allows to control the size of the row group by
+buffering and concatenating (0 copy) tables/batches before they are written. You can control the size by setting the buffer size
+```toml
+[extract.data_writer]
+buffer_max_items=1000000
+```
+Mind that we must hold the tables in memory. 1 000 000 rows in example above may take quite large amount of it.
+
+`row_group_size` has limited utility with `pyarrow` writer. It will split large tables into many groups if set below item buffer size.

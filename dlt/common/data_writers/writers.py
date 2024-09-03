@@ -474,17 +474,33 @@ class ArrowToParquetWriter(ParquetDataWriter):
     def write_data(self, rows: Sequence[Any]) -> None:
         from dlt.common.libs.pyarrow import pyarrow
 
+        if not rows:
+            return
+        # concat batches and tables into a single one, preserving order
+        # pyarrow writer starts a row group for each item it writes (even with 0 rows)
+        # it also converts batches into tables internally. by creating a single table
+        # we allow the user rudimentary control over row group size via max buffered items
+        batches = []
+        tables = []
         for row in rows:
-            if not self.writer:
-                self.writer = self._create_writer(row.schema)
-            if isinstance(row, pyarrow.Table):
-                self.writer.write_table(row, row_group_size=self.parquet_row_group_size)
-            elif isinstance(row, pyarrow.RecordBatch):
-                self.writer.write_batch(row, row_group_size=self.parquet_row_group_size)
+            self.items_count += row.num_rows
+            if isinstance(row, pyarrow.RecordBatch):
+                batches.append(row)
+            elif isinstance(row, pyarrow.Table):
+                if batches:
+                    tables.append(pyarrow.Table.from_batches(batches))
+                    batches = []
+                tables.append(row)
             else:
                 raise ValueError(f"Unsupported type {type(row)}")
-            # count rows that got written
-            self.items_count += row.num_rows
+        if batches:
+            tables.append(pyarrow.Table.from_batches(batches))
+
+        table = pyarrow.concat_tables(tables, promote_options="none")
+        if not self.writer:
+            self.writer = self._create_writer(table.schema)
+        # write concatenated tables, "none" options ensures 0 copy concat
+        self.writer.write_table(table, row_group_size=self.parquet_row_group_size)
 
     def write_footer(self) -> None:
         if not self.writer:
