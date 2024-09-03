@@ -1,4 +1,5 @@
 import threading
+import logging
 from typing import ClassVar, Dict, Optional
 
 from dlt.common.destination import DestinationCapabilitiesContext
@@ -92,10 +93,9 @@ class DuckDbTypeMapper(TypeMapper):
         precision = column.get("precision")
 
         if timezone and precision is not None:
-            raise TerminalValueError(
+            logging.warn(
                 f"DuckDB does not support both timezone and precision for column '{column_name}' in"
-                f" table '{table_name}'. To resolve this issue, either set timezone to False or"
-                " None, or use the default precision."
+                f" table '{table_name}'. Will default to timezone."
             )
 
         if timezone:
