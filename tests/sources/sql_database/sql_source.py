@@ -24,12 +24,12 @@ from sqlalchemy import (
     create_engine,
     func,
     text,
+    Uuid,
 )
 from sqlalchemy import (
     schema as sqla_schema,
 )
 
-# Uuid,  # requires sqlalchemy 2.0. Use String(length=36) for lower versions
 from sqlalchemy.dialects.postgresql import DATERANGE, JSONB
 
 from dlt.common.pendulum import pendulum, timedelta
@@ -160,7 +160,7 @@ class SQLAlchemySourceDB:
                 Column("float_col", Float, nullable=nullable),
                 Column("json_col", JSONB, nullable=nullable),
                 Column("bool_col", Boolean, nullable=nullable),
-                Column("uuid_col", String(length=36), nullable=nullable),
+                Column("uuid_col", Uuid, nullable=nullable),
             )
 
         _make_precision_table("has_precision", False)

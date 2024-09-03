@@ -1013,7 +1013,6 @@ def assert_no_precision_columns(
     columns: TTableSchemaColumns, backend: TableBackend, nullable: bool
 ) -> None:
     actual = list(columns.values())
-
     # we always infer and emit nullability
     expected = cast(
         List[TColumnSchema],
@@ -1131,16 +1130,8 @@ PRECISION_COLUMNS: List[TColumnSchema] = [
         "data_type": "text",
         "name": "string_default_col",
     },
-    {
-        "data_type": "timestamp",
-        "precision": 6,
-        "name": "datetime_tz_col",
-    },
-    {
-        "data_type": "timestamp",
-        "precision": 6,
-        "name": "datetime_ntz_col",
-    },
+    {"data_type": "timestamp", "precision": 6, "name": "datetime_tz_col", "timezone": True},
+    {"data_type": "timestamp", "precision": 6, "name": "datetime_ntz_col", "timezone": False},
     {
         "data_type": "date",
         "name": "date_col",
