@@ -87,6 +87,6 @@ buffering and concatenating (0 copy) tables/batches before they are written. You
 [extract.data_writer]
 buffer_max_items=1000000
 ```
-Mind that we must hold the tables in memory. 1 000 000 rows in example above may take quite large amount of it.
+Mind that `dlt` holds the tables in memory. Thus, 1,000,000 rows in the example above may consume a significant amount of RAM.
 
 `row_group_size` has limited utility with `pyarrow` writer. It will split large tables into many groups if set below item buffer size.
