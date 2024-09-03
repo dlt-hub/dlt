@@ -9,7 +9,7 @@ from typing import List, Tuple
 from dlt.common.exceptions import TerminalException, TerminalValueError
 from dlt.common.storages import FileStorage, PackageStorage, ParsedLoadJobFileName
 from dlt.common.storages.configuration import FilesystemConfiguration
-from dlt.common.storages.load_package import LoadJobInfo, TPackageJobState
+from dlt.common.storages.load_package import TPackageJobState
 from dlt.common.storages.load_storage import JobFileFormatUnsupported
 from dlt.common.destination.reference import RunnableLoadJob, TDestination
 from dlt.common.schema.utils import (
@@ -107,14 +107,11 @@ def test_unsupported_write_disposition() -> None:
     schema.get_table("event_user")["write_disposition"] = "skip"
     # write back schema
     load.load_storage.normalized_packages.save_schema(load_id, schema)
-    with ThreadPoolExecutor() as pool:
-        load.run(pool)
-    # job with unsupported write disp. is failed
-    failed_job = load.load_storage.loaded_packages.list_failed_jobs(load_id)[0]
-    failed_message = load.load_storage.loaded_packages.get_job_failed_message(
-        load_id, ParsedLoadJobFileName.parse(failed_job)
-    )
-    assert "LoadClientUnsupportedWriteDisposition" in failed_message
+    with pytest.raises(LoadClientJobFailed) as e:
+        with ThreadPoolExecutor() as pool:
+            load.run(pool)
+
+    assert "LoadClientUnsupportedWriteDisposition" in e.value.failed_message
 
 
 def test_big_loadpackages() -> None:
@@ -231,9 +228,12 @@ def test_spool_job_failed() -> None:
     # test the whole flow
     load = setup_loader(client_config=DummyClientConfiguration(fail_prob=1.0))
     load_id, schema = prepare_load_package(load.load_storage, NORMALIZED_FILES)
-    run_all(load)
+    with pytest.raises(LoadClientJobFailed) as e:
+        run_all(load)
+
+    assert "a random fail occurred" in e.value.failed_message
     package_info = load.load_storage.get_load_package_info(load_id)
-    assert package_info.state == "loaded"
+    assert package_info.state == "aborted"
     # all jobs failed
     assert len(package_info.jobs["failed_jobs"]) == 2
     # check metrics
@@ -520,7 +520,10 @@ def test_failed_loop() -> None:
         delete_completed_jobs=True, client_config=DummyClientConfiguration(fail_prob=1.0)
     )
     # actually not deleted because one of the jobs failed
-    assert_complete_job(load, should_delete_completed=False)
+    with pytest.raises(LoadClientJobFailed) as e:
+        assert_complete_job(load, should_delete_completed=False)
+
+    assert "a random fail occurred" in e.value.failed_message
     # two failed jobs
     assert len(dummy_impl.JOBS) == 2
     assert list(dummy_impl.JOBS.values())[0].state() == "failed"
@@ -535,7 +538,10 @@ def test_failed_loop_followup_jobs() -> None:
         client_config=DummyClientConfiguration(fail_prob=1.0, create_followup_jobs=True),
     )
     # actually not deleted because one of the jobs failed
-    assert_complete_job(load, should_delete_completed=False)
+    with pytest.raises(LoadClientJobFailed) as e:
+        assert_complete_job(load, should_delete_completed=False)
+
+    assert "a random fail occurred" in e.value.failed_message
     # followup jobs were not started
     assert len(dummy_impl.JOBS) == 2
     assert len(dummy_impl.CREATED_FOLLOWUP_JOBS) == 0
