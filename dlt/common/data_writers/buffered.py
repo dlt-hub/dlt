@@ -107,7 +107,7 @@ class BufferedDataWriter(Generic[TWriter]):
                 new_rows_count = sum(tbl.num_rows for tbl in item)
             else:
                 new_rows_count = len(item)
-            # items coming in single list will be written together, not matter how many are there
+            # items coming in a single list will be written together, no matter how many there are
             self._buffered_items.extend(item)
         else:
             self._buffered_items.append(item)
