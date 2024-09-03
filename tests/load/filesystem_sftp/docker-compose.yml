@@ -11,6 +11,8 @@ services:
       - sftpserver
     ports:
       - "2222:22"
+    volumes:
+      - ../../common/storages/samples:/home/foo/sftp/data/samples 
 
 networks:
   sftpserver:
