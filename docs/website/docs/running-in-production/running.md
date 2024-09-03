@@ -259,27 +259,27 @@ def check(ex: Exception):
 
 ### Failed jobs
 
-If any job in the package **fail terminally** it will be moved to `failed_jobs` folder and assigned
-such status. By default **no exception is raised** and other jobs will be processed and completed.
-You may inspect if the failed jobs are present by checking the load info as follows:
+If any job in the package **fails terminally** it will be moved to `failed_jobs` folder and assigned
+such status.
+By default, **an exceptions is raised** and on the first failed job, the load package will be aborted with `LoadClientJobFailed` (terminal exception).
+Such package  will be completed but its load id is not added to the `_dlt_loads` table.
+All the jobs that were running in parallel are completed before raising. The dlt state, if present, will not be visible to `dlt`.
+Here is an example `config.toml` to disable this behavior:
+
+```toml
+# you should really load just one job at a time to get the deterministic behavior
+load.workers=1
+# I hope you know what you are doing by setting this to false
+load.raise_on_failed_jobs=false
+```
+
+If you prefer dlt to to not raise a terminal exception on failed jobs then you can manually check for failed jobs and raise an exception by checking the load info as follows:
 
 ```py
 # returns True if there are failed jobs in any of the load packages
 print(load_info.has_failed_jobs)
 # raises terminal exception if there are any failed jobs
 load_info.raise_on_failed_jobs()
-```
-
-You may also abort the load package with `LoadClientJobFailed` (terminal exception) on a first
-failed job. Such package is will be completed but its load id is not added to the
-`_dlt_loads` table. All the jobs that were running in parallel are completed before raising. The dlt
-state, if present, will not be visible to `dlt`. Here's example `config.toml` to enable this option:
-
-```toml
-# you should really load just one job at a time to get the deterministic behavior
-load.workers=1
-# I hope you know what you are doing by setting this to true
-load.raise_on_failed_jobs=true
 ```
 
 :::caution
