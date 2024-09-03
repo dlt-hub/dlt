@@ -1126,9 +1126,6 @@ class Schema:
 
     def _configure_normalizers(self, explicit_normalizers: TNormalizersConfig) -> None:
         """Gets naming and item normalizer from schema yaml, config providers and destination capabilities and applies them to schema."""
-        # import desired modules
-        from dlt.common.schema.normalizers import import_normalizers
-
         normalizers_config, to_naming, item_normalizer_class = import_normalizers(
             explicit_normalizers, self._normalizers_config
         )

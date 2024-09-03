@@ -1,25 +1,9 @@
-from ast import List
-from typing import Optional
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
-from dlt.common.destination.utils import resolve_merge_strategy
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TTableSchema
-from dlt.common.schema.utils import find_incomplete_columns, get_validity_column_names
+from dlt.common.schema.utils import find_incomplete_columns
 from dlt.common.schema.exceptions import UnboundColumnException
 from dlt.common import logger
-
-
-# def validate_validity_column_names(
-#     schema_name: str, validity_column_names: List[Optional[str]]
-# ) -> None:
-#     """Raises exception if configured validity column name appears in data item."""
-#     for validity_column_name in validity_column_names:
-#         if validity_column_name in item.keys():
-#             raise ColumnNameConflictException(
-#                 schema_name,
-#                 "Found column in data item with same name as validity column"
-#                 f' "{validity_column_name}".',
-#             )
 
 
 def verify_normalized_table(
