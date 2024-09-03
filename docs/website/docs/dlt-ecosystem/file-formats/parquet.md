@@ -85,7 +85,7 @@ to be created which may not be optimal for certain query engines (ie. `duckdb` p
 buffering and concatenating (0 copy) tables/batches before they are written. You can control the size by setting the buffer size
 ```toml
 [extract.data_writer]
-buffer_max_items=1000000
+buffer_max_items=10e6
 ```
 Mind that `dlt` holds the tables in memory. Thus, 1,000,000 rows in the example above may consume a significant amount of RAM.
 
