@@ -57,6 +57,11 @@ FileSystemCredentials = Union[
 ]
 
 
+def _make_sftp_url(scheme: str, fs_path: str, bucket_url: str) -> str:
+    parsed_bucket_url = urlparse(bucket_url)
+    return f"{scheme}://{parsed_bucket_url.hostname}/{fs_path}"
+
+
 def _make_az_url(scheme: str, fs_path: str, bucket_url: str) -> str:
     parsed_bucket_url = urlparse(bucket_url)
     if parsed_bucket_url.username:
@@ -81,7 +86,7 @@ def _make_file_url(scheme: str, fs_path: str, bucket_url: str) -> str:
     return p_.as_uri()
 
 
-MAKE_URI_DISPATCH = {"az": _make_az_url, "file": _make_file_url}
+MAKE_URI_DISPATCH = {"az": _make_az_url, "file": _make_file_url, "sftp": _make_sftp_url}
 
 MAKE_URI_DISPATCH["adl"] = MAKE_URI_DISPATCH["az"]
 MAKE_URI_DISPATCH["abfs"] = MAKE_URI_DISPATCH["az"]
