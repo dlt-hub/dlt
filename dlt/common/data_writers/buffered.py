@@ -45,7 +45,7 @@ class BufferedDataWriter(Generic[TWriter]):
         file_max_items: int = None,
         file_max_bytes: int = None,
         disable_compression: bool = False,
-        _caps: DestinationCapabilitiesContext = None
+        _caps: DestinationCapabilitiesContext = None,
     ):
         self.writer_spec = writer_spec
         if self.writer_spec.requires_destination_capabilities and not _caps:
@@ -102,13 +102,13 @@ class BufferedDataWriter(Generic[TWriter]):
 
         new_rows_count: int
         if isinstance(item, List):
-            # items coming in single list will be written together, not matter how many are there
-            self._buffered_items.extend(item)
             # update row count, if item supports "num_rows" it will be used to count items
             if len(item) > 0 and hasattr(item[0], "num_rows"):
                 new_rows_count = sum(tbl.num_rows for tbl in item)
             else:
                 new_rows_count = len(item)
+            # items coming in single list will be written together, not matter how many are there
+            self._buffered_items.extend(item)
         else:
             self._buffered_items.append(item)
             # update row count, if item supports "num_rows" it will be used to count items
@@ -117,8 +117,11 @@ class BufferedDataWriter(Generic[TWriter]):
             else:
                 new_rows_count = 1
         self._buffered_items_count += new_rows_count
-        # flush if max buffer exceeded
-        if self._buffered_items_count >= self.buffer_max_items:
+        # flush if max buffer exceeded, the second path of the expression prevents empty data frames to pile up in the buffer
+        if (
+            self._buffered_items_count >= self.buffer_max_items
+            or len(self._buffered_items) >= self.buffer_max_items
+        ):
             self._flush_items()
         # set last modification date
         self._last_modified = time.time()
