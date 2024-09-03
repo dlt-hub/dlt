@@ -345,8 +345,7 @@ class ArrowIncremental(IncrementalTransform):
 
         if tbl.schema.field(cursor_path).nullable:
             tbl_without_null, tbl_with_null = self._process_null_at_cursor_path(tbl)
-
-        tbl = tbl_without_null
+            tbl = tbl_without_null
 
         # If end_value is provided, filter to include table rows that are "less" than end_value
         if self.end_value is not None:

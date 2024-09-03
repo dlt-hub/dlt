@@ -90,7 +90,6 @@ jobs:
       - name: Upgrade sql alchemy
         run: poetry run pip install sqlalchemy==2.0.32
 
-
         # run sources tests 
       - run: poetry run pytest tests/sources 
         name: Run tests Linux
