@@ -80,9 +80,11 @@ To our best knowledge, arrow will convert your timezone aware DateTime(s) to UTC
 
 
 ### Row group size
-`pyarrow` parquet writer writes each item (be it table or batch which is internally converted to table) in a separate row group. This may lead to many small row groups
-to be created which may not be optimal for certain query engines (ie. `duckdb` parallelizes on a row group). `dlt` allows to control the size of the row group by
-buffering and concatenating (0 copy) tables/batches before they are written. You can control the size by setting the buffer size
+The `pyarrow` parquet writer writes each item, i.e. table or record batch, in a separate row group. 
+This may lead to many small row groups which may not be optimal for certain query engines. For example, `duckdb` parallelizes on a row group.
+`dlt` allows controlling the size of the row group by
+buffering and concatenating tables and batches before they are written. The concatenation is done as a zero-copy to save memory.
+You can control the memory needed by setting the count of records to be buffered as follows:
 ```toml
 [extract.data_writer]
 buffer_max_items=10e6
