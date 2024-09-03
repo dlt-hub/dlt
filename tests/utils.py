@@ -3,7 +3,7 @@ import os
 import platform
 import sys
 from os import environ
-from typing import Any, Iterable, Iterator, Literal, Union, get_args
+from typing import Any, Iterable, Iterator, Literal, Union, get_args, List
 from unittest.mock import patch
 
 import pytest

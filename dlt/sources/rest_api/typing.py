@@ -19,11 +19,7 @@ from dlt.extract.incremental.typing import IncrementalArgs
 from dlt.extract.items import TTableHintTemplate
 from dlt.extract.hints import TResourceHintsBase
 from dlt.sources.helpers.rest_client.auth import AuthConfigBase, TApiKeyLocation
-from dlt.sources.helpers.rest_client.paginators import (
-    BasePaginator,
-    TypedDict,
-    Union,
-)
+
 from dataclasses import dataclass, field
 
 from dlt.common import jsonpath
@@ -39,12 +35,10 @@ from dlt.common.schema.typing import (
 from dlt.extract.items import TTableHintTemplate
 from dlt.extract.incremental.typing import LastValueFunc
 
-from dlt.sources.helpers.rest_client.paginators import BasePaginator
 from dlt.sources.helpers.rest_client.typing import HTTPMethodBasic
-from dlt.sources.helpers.rest_client.auth import AuthConfigBase, TApiKeyLocation
 
 from dlt.sources.helpers.rest_client.paginators import (
-    SinglePagePaginator,
+    BasePaginator,
     HeaderLinkPaginator,
     JSONResponseCursorPaginator,
     OffsetPaginator,
