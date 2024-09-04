@@ -1064,7 +1064,7 @@ def tweets():
     data = get_data(start_from=last_val)
     yield data
     # change the state to the new value
-    dlt.current.resource_state()["last_updated"]  = data["last_timestamp"]
+    dlt.current.resource_state()["last_updated"] = data["last_timestamp"]
 ```
 
 If we keep a list or a dictionary in the state, we can modify the underlying values in the objects,
