@@ -245,7 +245,7 @@ def test_load_sql_table_resource_select_columns(
         schema=sql_source_db.schema,
         table="chat_message",
         defer_table_reflect=defer_table_reflect,
-        table_adapter_callback=lambda table: table._columns.remove(table.columns["content"]),  # type: ignore[attr-defined]
+        table_adapter_callback=lambda table: table._columns.remove(table.columns["content"]),
         backend=backend,
     )
     pipeline = make_pipeline("duckdb")

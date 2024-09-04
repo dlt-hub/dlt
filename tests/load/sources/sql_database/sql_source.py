@@ -4,7 +4,7 @@ from typing import Dict, List, TypedDict
 from uuid import uuid4
 
 import mimesis
-from sqlalchemy import (
+from sqlalchemy import (  # type: ignore[attr-defined]
     ARRAY,
     BigInteger,
     Boolean,

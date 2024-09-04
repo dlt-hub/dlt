@@ -98,7 +98,7 @@ def test_row_tuples_to_arrow_detects_range_type() -> None:
         (IntRange(3, 30),),
     ]
     result = row_tuples_to_arrow(
-        rows=rows,  # type: ignore[arg-type]
+        rows=rows,
         columns={"range_col": {"name": "range_col", "nullable": False}},
         tz="UTC",
     )

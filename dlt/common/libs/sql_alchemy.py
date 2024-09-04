@@ -454,12 +454,8 @@ except ImportError:
     create_engine = Any
 
 else:
-    from sqlalchemy.engine import URL, make_url  # type: ignore[assignment]
-    from sqlalchemy import MetaData, Table, Column  # type: ignore[assignment]
-    from sqlalchemy.engine import Engine  # type: ignore[assignment]
-    from sqlalchemy import Table, Column  # type: ignore[assignment]
-    from sqlalchemy.engine import Row  # type: ignore[assignment]
-    from sqlalchemy.sql import sqltypes, Select  # type: ignore[assignment]
-    from sqlalchemy.sql.sqltypes import TypeEngine  # type: ignore[assignment]
-    from sqlalchemy.exc import CompileError  # type: ignore[assignment]
-    from sqlalchemy import create_engine  # type: ignore[assignment]
+    from sqlalchemy import MetaData, Table, Column, create_engine
+    from sqlalchemy.engine import Engine, URL, make_url, Row  # type: ignore[assignment]
+    from sqlalchemy.sql import sqltypes, Select
+    from sqlalchemy.sql.sqltypes import TypeEngine
+    from sqlalchemy.exc import CompileError

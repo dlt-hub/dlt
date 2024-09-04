@@ -1,3 +1,5 @@
+# flake8: noqa
+
 import sqlalchemy as sa
 import humanize
 from typing import Any
@@ -186,7 +188,7 @@ def my_sql_via_pyarrow() -> None:
     def _double_as_decimal_adapter(table: sa.Table) -> None:
         """Return double as double, not decimals"""
         for column in table.columns.values():
-            if isinstance(column.type, sa.Double):
+            if isinstance(column.type, sa.Double):  # type: ignore
                 column.type.asdecimal = False
 
     sql_alchemy_source = sql_database(
@@ -305,7 +307,7 @@ def use_type_adapter() -> None:
         dataset_name="dummy",
     )
 
-    def type_adapter(sql_type: TypeEngine[Any]) -> TypeEngine[Any]:
+    def type_adapter(sql_type: TypeEngine) -> TypeEngine:
         if isinstance(sql_type, sa.ARRAY):
             return sa.JSON()  # Load arrays as JSON
         return sql_type

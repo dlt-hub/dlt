@@ -8,7 +8,7 @@ from dlt.sources.credentials import ConnectionStringCredentials
 try:
     from tests.load.sources.sql_database.sql_source import SQLAlchemySourceDB
 except ModuleNotFoundError:
-    SQLAlchemySourceDB = Any
+    SQLAlchemySourceDB = Any  # type: ignore
 
 
 def _create_db(**kwargs) -> Iterator[SQLAlchemySourceDB]:
