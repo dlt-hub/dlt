@@ -1,10 +1,14 @@
-from typing import Iterator
+from typing import Iterator, Any
 
 import pytest
 
 import dlt
 from dlt.sources.credentials import ConnectionStringCredentials
-from tests.load.sources.sql_database.sql_source import SQLAlchemySourceDB
+
+try:
+    from tests.load.sources.sql_database.sql_source import SQLAlchemySourceDB
+except ModuleNotFoundError:
+    SQLAlchemySourceDB = Any
 
 
 def _create_db(**kwargs) -> Iterator[SQLAlchemySourceDB]:

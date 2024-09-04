@@ -6,7 +6,10 @@ from dlt.common.typing import TDataItem
 from dlt.sources.sql_database.helpers import TableLoader, TableBackend
 from dlt.sources.sql_database.schema_types import table_to_columns
 
-from tests.load.sources.sql_database.sql_source import SQLAlchemySourceDB
+try:
+    from tests.load.sources.sql_database.sql_source import SQLAlchemySourceDB
+except ImportError:
+    pytest.skip("Tests require sql alchemy", allow_module_level=True)
 
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])

@@ -32,9 +32,7 @@ from .schema_types import (
     TTypeAdapter,
 )
 
-from sqlalchemy import create_engine
-from sqlalchemy.engine import Engine
-from sqlalchemy.exc import CompileError
+from dlt.common.libs.sql_alchemy import Engine, CompileError, create_engine
 
 
 TableBackend = Literal["sqlalchemy", "pyarrow", "pandas", "connectorx"]

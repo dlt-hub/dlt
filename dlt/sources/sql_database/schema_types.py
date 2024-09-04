@@ -9,10 +9,8 @@ from typing import (
     Union,
 )
 from typing_extensions import TypeAlias
-from sqlalchemy import Table, Column
-from sqlalchemy.engine import Row
-from sqlalchemy.sql import sqltypes, Select
-from sqlalchemy.sql.sqltypes import TypeEngine
+from dlt.common.libs.sql_alchemy import Table, Column, Row, sqltypes, Select, TypeEngine
+
 
 from dlt.common import logger
 from dlt.common.schema.typing import TColumnSchema, TTableSchemaColumns

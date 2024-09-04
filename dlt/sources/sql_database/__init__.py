@@ -1,8 +1,8 @@
 """Source that loads tables form any SQLAlchemy supported database, supports batching requests and incremental loads."""
 
 from typing import Callable, Dict, List, Optional, Union, Iterable, Any
-from sqlalchemy import MetaData, Table
-from sqlalchemy.engine import Engine
+
+from dlt.common.libs.sql_alchemy import MetaData, Table, Engine
 
 import dlt
 from dlt.sources import DltResource

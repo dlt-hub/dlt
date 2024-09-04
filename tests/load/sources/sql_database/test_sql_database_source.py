@@ -5,7 +5,6 @@ from datetime import datetime  # noqa: I251
 from typing import Any, Callable, cast, List, Optional, Set
 
 import pytest
-import sqlalchemy as sa
 
 import dlt
 from dlt.common import json
@@ -26,9 +25,14 @@ from tests.pipeline.utils import (
     assert_schema_on_data,
     load_tables_to_dicts,
 )
-from tests.load.sources.sql_database.sql_source import SQLAlchemySourceDB
 from tests.load.sources.sql_database.test_helpers import mock_json_column
 from tests.utils import data_item_length
+
+try:
+    from tests.load.sources.sql_database.sql_source import SQLAlchemySourceDB
+    import sqlalchemy as sa
+except ImportError:
+    pytest.skip("Tests require sql alchemy", allow_module_level=True)
 
 
 @pytest.fixture(autouse=True)
