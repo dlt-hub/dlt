@@ -181,6 +181,56 @@ You can find the full example code in [this repository](https://github.com/dlt-h
 For a complete picture of Dagster's integration with dlt, please refer to their [documentation](https://docs.dagster.io/integrations/embedded-elt/dlt). This documentation offers a detailed overview and steps for ingesting GitHub data and storing it in Snowflake. You can use a similar approach to build your pipelines.
 :::
 
+### Frequently Asked Questions
+- **Can I remove the generated .dlt folder?**
+
+  Yes. Since dlt is compatible with .env files, you can use this for secrets required by both dagster and dlt.
+  
+- **I'm working with several sources – how can I best group these assets?**
+
+  To effectively group assets in Dagster when working with multiple sources, use the group_name parameter in your @dlt_assets decorator. This helps organize and visualize assets related to a particular source or theme in the Dagster UI. Here’s a simplified example:
+  
+  ``` py
+  from dagster_embedded_elt.dlt import dlt_assets
+  from dlt_sources.google_analytics import google_analytics
+  from dlt import pipeline
+  
+  # Define assets for the first Google Analytics source
+  @dlt_assets(
+      dlt_source=google_analytics(...),
+      dlt_pipeline=pipeline(...),
+      group_name='Google_Analytics'
+  )
+  def google_analytics_assets_1(context, dlt):
+      yield from dlt.run(context=context)
+  
+  # Define assets for the second Google Analytics source
+  @dlt_assets(
+      dlt_source=google_analytics(...),
+      dlt_pipeline=pipeline(...),
+      group_name='Google_Analytics'
+  )
+  def google_analytics_assets_2(context, dlt):
+      yield from dlt.run(context=context)
+  ```
+
+ 
+  
+- **How can I use bigquery_adapter with @dlt_assets in Dagster for partitioned tables?**
+   
+  To use bigquery_adapter with @dlt_assets in Dagster for partitioned tables, modify your resource setup to include bigquery_adapter with the partition parameter. Here's a quick example:  
+  
+  ``` py
+  from dlt import bigquery_adapter
+  
+  # Configure the resource with partitioning
+  resource = bigquery_adapter(
+      dlt.resource(...),
+      partition="date"  # Specify partitioning by date
+  )
+  ```
+
+
 ### Additional Resources
 
 - Check out the [Dagster Cloud Documentation](https://docs.dagster.cloud/) to learn more about deploying on Dagster Cloud.
