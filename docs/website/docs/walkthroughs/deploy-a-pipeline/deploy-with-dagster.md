@@ -190,7 +190,7 @@ For a complete picture of Dagster's integration with dlt, please refer to their 
 
   To effectively group assets in Dagster when working with multiple sources, use the group_name parameter in your @dlt_assets decorator. This helps organize and visualize assets related to a particular source or theme in the Dagster UI. Here’s a simplified example:
   
-  ``` py
+  ```py
   from dagster_embedded_elt.dlt import dlt_assets
   from dlt_sources.google_analytics import google_analytics
   from dlt import pipeline
@@ -220,7 +220,7 @@ For a complete picture of Dagster's integration with dlt, please refer to their 
    
   To use bigquery_adapter with @dlt_assets in Dagster for partitioned tables, modify your resource setup to include bigquery_adapter with the partition parameter. Here's a quick example:  
   
-  ``` py
+  ```py
   from dlt import bigquery_adapter
   
   # Configure the resource with partitioning
