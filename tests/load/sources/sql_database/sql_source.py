@@ -4,7 +4,9 @@ from typing import Dict, List, TypedDict
 from uuid import uuid4
 
 import mimesis
-from sqlalchemy import (  # type: ignore[attr-defined]
+
+
+from sqlalchemy import (
     ARRAY,
     BigInteger,
     Boolean,
@@ -24,8 +26,14 @@ from sqlalchemy import (  # type: ignore[attr-defined]
     create_engine,
     func,
     text,
-    Uuid,
 )
+
+try:
+    from sqlalchemy import Uuid  # type: ignore[attr-defined]
+except ImportError:
+    # sql alchemy 1.4
+    Uuid = String
+
 from sqlalchemy import (
     schema as sqla_schema,
 )
