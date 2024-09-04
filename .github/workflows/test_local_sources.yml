@@ -22,10 +22,6 @@ env:
   ACTIVE_DESTINATIONS: "[\"duckdb\", \"postgres\", \"filesystem\"]"
   ALL_FILESYSTEM_DRIVERS: "[\"memory\", \"file\"]"
 
-  # we need the secrets to inject the github token for the rest_api template tests
-  # we should not use it for anything else here 
-  DLT_SECRETS_TOML: ${{ secrets.DLT_SECRETS_TOML }}
-
 jobs:
   get_docs_changes:
     name: docs changes
@@ -84,9 +80,6 @@ jobs:
         with:
           path: .venv
           key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}-local-sources
-
-      - name: create secrets.toml
-        run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
 
         # TODO: which deps should we enable? 
       - name: Install dependencies
