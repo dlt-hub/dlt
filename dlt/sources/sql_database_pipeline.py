@@ -1,5 +1,4 @@
 # flake8: noqa
-
 import sqlalchemy as sa
 import humanize
 from typing import Any
@@ -127,7 +126,7 @@ def select_columns() -> None:
         if table.name == "family":
             # this is SqlAlchemy table. _columns are writable
             # let's drop updated column
-            table._columns.remove(table.columns["updated"])
+            table._columns.remove(table.columns["updated"])  # type: ignore
 
     family = sql_table(
         credentials="mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam",
@@ -307,7 +306,7 @@ def use_type_adapter() -> None:
         dataset_name="dummy",
     )
 
-    def type_adapter(sql_type: TypeEngine) -> TypeEngine:
+    def type_adapter(sql_type: Any) -> Any:
         if isinstance(sql_type, sa.ARRAY):
             return sa.JSON()  # Load arrays as JSON
         return sql_type
