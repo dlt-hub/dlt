@@ -126,11 +126,11 @@ jobs:
         run: poetry install --no-interaction -E duckdb -E cli -E parquet --with sentry-sdk --with pipeline -E deltalake
 
       - run: |
-          poetry run pytest tests/extract tests/pipeline tests/libs tests/cli/common tests/destinations
+          poetry run pytest tests/extract tests/pipeline tests/libs tests/cli/common tests/destinations tests/sources
         if: runner.os != 'Windows'
         name: Run extract and pipeline tests Linux/MAC
       - run: |
-          poetry run pytest tests/extract tests/pipeline tests/libs tests/cli/common tests/destinations  -m "not forked"
+          poetry run pytest tests/extract tests/pipeline tests/libs tests/cli/common tests/destinations tests/sources -m "not forked"
         if: runner.os == 'Windows'
         name: Run extract tests Windows
         shell: cmd

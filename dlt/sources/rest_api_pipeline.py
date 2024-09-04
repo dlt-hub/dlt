@@ -17,10 +17,10 @@ def github_source(access_token: str = dlt.secrets.value) -> Any:
     config: RESTAPIConfig = {
         "client": {
             "base_url": "https://api.github.com/repos/dlt-hub/dlt/",
-            "auth": {
-                "type": "bearer",
-                "token": access_token,
-            },
+            # "auth": {
+            #     "type": "bearer",
+            #     "token": access_token,
+            # },
         },
         # The default configuration for all resources and their endpoints
         "resource_defaults": {
