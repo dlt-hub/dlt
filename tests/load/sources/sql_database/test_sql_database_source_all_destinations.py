@@ -16,9 +16,9 @@ from tests.pipeline.utils import (
     assert_load_info,
     load_table_counts,
 )
-from tests.sources.sql_database.sql_source import SQLAlchemySourceDB
-from tests.sources.sql_database.test_helpers import mock_json_column
-from tests.sources.sql_database.test_sql_database_source import (
+from tests.load.sources.sql_database.sql_source import SQLAlchemySourceDB
+from tests.load.sources.sql_database.test_helpers import mock_json_column
+from tests.load.sources.sql_database.test_sql_database_source import (
     assert_row_counts,
     convert_time_to_us,
     default_test_callback,

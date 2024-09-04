@@ -26,8 +26,8 @@ from tests.pipeline.utils import (
     assert_schema_on_data,
     load_tables_to_dicts,
 )
-from tests.sources.sql_database.sql_source import SQLAlchemySourceDB
-from tests.sources.sql_database.test_helpers import mock_json_column
+from tests.load.sources.sql_database.sql_source import SQLAlchemySourceDB
+from tests.load.sources.sql_database.test_helpers import mock_json_column
 from tests.utils import data_item_length
 
 
