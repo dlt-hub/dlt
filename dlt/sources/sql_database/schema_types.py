@@ -63,6 +63,10 @@ def sqla_col_to_column_schema(
         "nullable": sql_col.nullable,
     }
     if reflection_level == "minimal":
+        # TODO: when we have a complex column, it should not be added to the schema as it will be
+        # normalized into subtables
+        if isinstance(sql_col.type, sqltypes.JSON):
+            return None
         return col
 
     sql_t = sql_col.type
@@ -131,7 +135,6 @@ def sqla_col_to_column_schema(
             " the normalizer. In case of `pyarrow` and `pandas` backend, data types are detected"
             " from numpy ndarrays. In case of other backends, the behavior is backend-specific."
         )
-
     return {key: value for key, value in col.items() if value is not None}  # type: ignore[return-value]
 
 
