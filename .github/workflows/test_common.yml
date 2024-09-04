@@ -132,6 +132,11 @@ jobs:
       - name: Install pipeline and sources dependencies
         run: poetry install --no-interaction -E duckdb -E cli -E parquet --with sentry-sdk --with pipeline -E deltalake -E sql_database
 
+
+      # TODO: this is needed for the filesystem tests, not sure if this should be in an extra?
+      - name: Install pipeline and sources dependencies
+        run: pip install openpyxl
+
       - run: |
           poetry run pytest tests/extract tests/pipeline tests/libs tests/cli/common tests/destinations tests/sources
         if: runner.os != 'Windows'
