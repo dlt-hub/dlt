@@ -7,7 +7,8 @@ import pytest
 import dlt
 from dlt.sources import DltResource
 from dlt.sources.credentials import ConnectionStringCredentials
-from dlt.sources.sql_database import TableBackend, sql_database, sql_table
+from dlt.common.exceptions import MissingDependencyException
+
 from tests.load.utils import (
     DestinationTestConfiguration,
     destinations_configs,
@@ -16,16 +17,17 @@ from tests.pipeline.utils import (
     assert_load_info,
     load_table_counts,
 )
-from tests.load.sources.sql_database.test_helpers import mock_json_column
-from tests.load.sources.sql_database.test_sql_database_source import (
-    assert_row_counts,
-    convert_time_to_us,
-    default_test_callback,
-)
 
 try:
+    from dlt.sources.sql_database import TableBackend, sql_database, sql_table
+    from tests.load.sources.sql_database.test_helpers import mock_json_column
+    from tests.load.sources.sql_database.test_sql_database_source import (
+        assert_row_counts,
+        convert_time_to_us,
+        default_test_callback,
+    )
     from tests.load.sources.sql_database.sql_source import SQLAlchemySourceDB
-except ImportError:
+except MissingDependencyException:
     pytest.skip("Tests require sql alchemy", allow_module_level=True)
 
 

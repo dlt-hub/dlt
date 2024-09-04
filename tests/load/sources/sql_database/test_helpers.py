@@ -3,12 +3,14 @@ import pytest
 import dlt
 from dlt.common.typing import TDataItem
 
-from dlt.sources.sql_database.helpers import TableLoader, TableBackend
-from dlt.sources.sql_database.schema_types import table_to_columns
+
+from dlt.common.exceptions import MissingDependencyException
 
 try:
+    from dlt.sources.sql_database.helpers import TableLoader, TableBackend
+    from dlt.sources.sql_database.schema_types import table_to_columns
     from tests.load.sources.sql_database.sql_source import SQLAlchemySourceDB
-except ImportError:
+except MissingDependencyException:
     pytest.skip("Tests require sql alchemy", allow_module_level=True)
 
 

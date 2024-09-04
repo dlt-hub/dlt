@@ -9,17 +9,14 @@ import pytest
 import dlt
 from dlt.common import json
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
+from dlt.common.exceptions import MissingDependencyException
+
 from dlt.common.schema.typing import TColumnSchema, TSortOrder, TTableSchemaColumns
 from dlt.common.utils import uniq_id
 from dlt.extract.exceptions import ResourceExtractionError
+
 from dlt.sources import DltResource
-from dlt.sources.sql_database import (
-    ReflectionLevel,
-    TableBackend,
-    sql_database,
-    sql_table,
-)
-from dlt.sources.sql_database.helpers import unwrap_json_connector_x
+
 from tests.pipeline.utils import (
     assert_load_info,
     assert_schema_on_data,
@@ -28,10 +25,18 @@ from tests.pipeline.utils import (
 from tests.load.sources.sql_database.test_helpers import mock_json_column
 from tests.utils import data_item_length
 
+
 try:
+    from dlt.sources.sql_database import (
+        ReflectionLevel,
+        TableBackend,
+        sql_database,
+        sql_table,
+    )
+    from dlt.sources.sql_database.helpers import unwrap_json_connector_x
     from tests.load.sources.sql_database.sql_source import SQLAlchemySourceDB
     import sqlalchemy as sa
-except ImportError:
+except MissingDependencyException:
     pytest.skip("Tests require sql alchemy", allow_module_level=True)
 
 
