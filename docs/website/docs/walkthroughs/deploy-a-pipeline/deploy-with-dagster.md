@@ -120,29 +120,28 @@ You can find the full example code in [this repository](https://github.com/dlt-h
           yield from dlt.run(context=context)
       ```
 
-      > For more information, please refer to
-      > [Dagster’s documentation.](https://docs.dagster.io/_apidocs/libraries/dagster-embedded-elt#dagster_embedded_elt.dlt.dlt_assets)
+    For more information, please refer to
+    [Dagster’s documentation.](https://docs.dagster.io/_apidocs/libraries/dagster-embedded-elt#dagster_embedded_elt.dlt.dlt_assets)
 
-1. Create the Definitions object.
+ 1. Create the Definitions object.
 
-   The last step is to include the assets and resource in a [Definitions](https://docs.dagster.io/_apidocs/definitions#dagster.Definitions) object (`github_source/definitions.py`). This enables Dagster tools to load everything we have defined:
+    The last step is to include the assets and resource in a [Definitions](https://docs.dagster.io/_apidocs/definitions#dagster.Definitions) object (`github_source/definitions.py`). This enables Dagster tools to load everything we have defined:
 
-   ```py
-   import assets
-   from dagster import Definitions, load_assets_from_modules
-   from dagster_embedded_elt.dlt import DagsterDltResource
+     ```py
+     import assets
+     from dagster import Definitions, load_assets_from_modules
+     from dagster_embedded_elt.dlt import DagsterDltResource
 
+     dlt_resource = DagsterDltResource()
+     all_assets = load_assets_from_modules([assets])
 
-   dlt_resource = DagsterDltResource()
-   all_assets = load_assets_from_modules([assets])
-
-   defs = Definitions(
-       assets=all_assets,
-       resources={
-           "dlt": dlt_resource,
-       },
-   )
-   ```
+     defs = Definitions(
+         assets=all_assets,
+         resources={
+             "dlt": dlt_resource,
+         },
+     )
+     ```
 
 1. Run the web server locally:
     1. Install the necessary dependencies using the following command:
