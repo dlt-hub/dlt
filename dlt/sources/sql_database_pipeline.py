@@ -185,9 +185,9 @@ def my_sql_via_pyarrow() -> None:
     )
 
     def _double_as_decimal_adapter(table: sa.Table) -> None:
-        """Return double as double, not decimals"""
+        """Return double as double, not decimals, only works if you are using sqlalchemy 2.0"""
         for column in table.columns.values():
-            if isinstance(column.type, sa.Double):  # type: ignore
+            if hasattr(sa, "Double") and isinstance(column.type, sa.Double):
                 column.type.asdecimal = False
 
     sql_alchemy_source = sql_database(
