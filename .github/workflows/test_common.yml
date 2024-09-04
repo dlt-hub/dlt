@@ -135,6 +135,20 @@ jobs:
         name: Run extract tests Windows
         shell: cmd
 
+      # here we upgrade sql alchemy to 2 an run the sql_database tests again
+      - name: Upgrade sql alchemy
+        run: poetry run pip install sqlalchemy==2.0.32
+
+      - run: |
+          poetry run tests/sources/sql_database
+        if: runner.os != 'Windows'
+        name: Run extract and pipeline tests Linux/MAC
+      - run: |
+          poetry run tests/sources/sql_database
+        if: runner.os == 'Windows'
+        name: Run extract tests Windows
+        shell: cmd
+
       # - name: Install Pydantic 1.0
       #   run: pip install "pydantic<2"
 

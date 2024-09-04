@@ -81,17 +81,21 @@ jobs:
           path: .venv
           key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}-local-sources
 
-        # TODO: which deps should we enable? 
+      # TODO: which deps should we enable? 
       - name: Install dependencies
         run: poetry install --no-interaction -E postgres -E duckdb -E parquet -E filesystem -E cli -E sql_database --with sentry-sdk --with pipeline 
 
-        # we need sqlalchemy 2 for the sql_database tests, TODO: make this all work with sqlalchemy 1.4
-      - name: Upgrade sql alchemy
-        run: poetry run pip install sqlalchemy==2.0.32
-
-        # run sources tests in load against configured destinations
+      # run sources tests in load against configured destinations
       - run: poetry run pytest tests/load/sources 
         name: Run tests Linux
         env:
           DESTINATION__POSTGRES__CREDENTIALS: postgresql://loader:loader@localhost:5432/dlt_data
 
+      # here we upgrade sql alchemy to 2 an run the sql_database tests again
+      - name: Upgrade sql alchemy
+        run: poetry run pip install sqlalchemy==2.0.32
+
+      - run: poetry run pytest tests/load/sources/sql_database
+        name: Run tests Linux
+        env:
+          DESTINATION__POSTGRES__CREDENTIALS: postgresql://loader:loader@localhost:5432/dlt_data
