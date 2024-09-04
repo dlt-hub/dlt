@@ -15,6 +15,10 @@ env:
   RUNTIME__LOG_LEVEL: ERROR
   RUNTIME__DLTHUB_TELEMETRY_ENDPOINT: ${{ secrets.RUNTIME__DLTHUB_TELEMETRY_ENDPOINT }}
 
+  # we need the secrets only for the rest_api_pipeline tests which are in tests/sources
+  # so we inject them only at the end
+  DLT_SECRETS_TOML: ${{ secrets.DLT_SECRETS_TOML }}
+
 jobs:
   get_docs_changes:
     name: docs changes
@@ -122,7 +126,10 @@ jobs:
         name: Run pipeline tests with pyarrow but no pandas installed Windows
         shell: cmd
 
-      - name: Install pipeline dependencies
+      - name: create secrets.toml for examples
+        run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
+
+      - name: Install pipeline and sources dependencies
         run: poetry install --no-interaction -E duckdb -E cli -E parquet --with sentry-sdk --with pipeline -E deltalake -E sql_database
 
       - run: |
