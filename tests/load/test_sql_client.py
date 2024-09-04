@@ -1,7 +1,7 @@
 import os
 import pytest
 import datetime  # noqa: I251
-from typing import Iterator, Any
+from typing import Iterator, Any, Tuple, Type, Union
 from threading import Thread, Event
 from time import sleep
 
@@ -218,9 +218,14 @@ def test_execute_sql(client: SqlJobClientBase) -> None:
     # print(rows[0][1])
     # print(type(rows[0][1]))
     # ensure datetime obj to make sure it is supported by dbapi
+    inserted_at = to_py_datetime(ensure_pendulum_datetime(rows[0][1]))
+    if client.config.destination_name == "sqlalchemy_sqlite":
+        # timezone aware datetime is not supported by sqlite
+        inserted_at = inserted_at.replace(tzinfo=None)
+
     rows = client.sql_client.execute_sql(
         f"SELECT schema_name, inserted_at FROM {version_table_name} WHERE inserted_at = %s",
-        to_py_datetime(ensure_pendulum_datetime(rows[0][1])),
+        inserted_at,
     )
     assert len(rows) == 1
     # use rows in subsequent test
@@ -246,20 +251,20 @@ def test_execute_sql(client: SqlJobClientBase) -> None:
 def test_execute_ddl(client: SqlJobClientBase) -> None:
     uniq_suffix = uniq_id()
     client.update_stored_schema()
-    table_name = prepare_temp_table(client)
+    table_name, py_type = prepare_temp_table(client)
     f_q_table_name = client.sql_client.make_qualified_table_name(table_name)
     client.sql_client.execute_sql(f"INSERT INTO {f_q_table_name} VALUES (1.0)")
     rows = client.sql_client.execute_sql(f"SELECT * FROM {f_q_table_name}")
-    assert rows[0][0] == Decimal("1.0")
+    assert rows[0][0] == py_type("1.0")
     if client.config.destination_type == "dremio":
         username = client.config.credentials["username"]
         view_name = f'"@{username}"."view_tmp_{uniq_suffix}"'
     else:
         # create view, note that bigquery will not let you execute a view that does not have fully qualified table names.
         view_name = client.sql_client.make_qualified_table_name(f"view_tmp_{uniq_suffix}")
-    client.sql_client.execute_sql(f"CREATE VIEW {view_name} AS (SELECT * FROM {f_q_table_name});")
+    client.sql_client.execute_sql(f"CREATE VIEW {view_name} AS SELECT * FROM {f_q_table_name};")
     rows = client.sql_client.execute_sql(f"SELECT * FROM {view_name}")
-    assert rows[0][0] == Decimal("1.0")
+    assert rows[0][0] == py_type("1.0")
 
 
 @pytest.mark.parametrize(
@@ -280,7 +285,7 @@ def test_execute_query(client: SqlJobClientBase) -> None:
         rows = curr.fetchall()
         assert len(rows) == 1
         assert rows[0][0] == "event"
-        assert isinstance(rows[0][1], datetime.datetime)
+        assert isinstance(ensure_pendulum_datetime(rows[0][1]), datetime.datetime)
     with client.sql_client.execute_query(
         f"SELECT schema_name, inserted_at FROM {version_table_name} WHERE inserted_at = %s",
         rows[0][1],
@@ -319,7 +324,7 @@ def test_execute_df(client: SqlJobClientBase) -> None:
         total_records = 3000
 
     client.update_stored_schema()
-    table_name = prepare_temp_table(client)
+    table_name, py_type = prepare_temp_table(client)
     f_q_table_name = client.sql_client.make_qualified_table_name(table_name)
 
     if client.capabilities.insert_values_writer_type == "default":
@@ -420,8 +425,7 @@ def test_database_exceptions(client: SqlJobClientBase) -> None:
         assert client.sql_client.is_dbapi_exception(term_ex.value.dbapi_exception)
         if client.config.destination_type not in ["dremio", "clickhouse"]:
             with pytest.raises(DatabaseUndefinedRelation) as term_ex:
-                with client.sql_client.execute_query("DROP SCHEMA UNKNOWN"):
-                    pass
+                client.sql_client.drop_dataset()
             assert client.sql_client.is_dbapi_exception(term_ex.value.dbapi_exception)
 
 
@@ -432,29 +436,29 @@ def test_database_exceptions(client: SqlJobClientBase) -> None:
     ids=lambda x: x.name,
 )
 def test_commit_transaction(client: SqlJobClientBase) -> None:
-    table_name = prepare_temp_table(client)
+    table_name, py_type = prepare_temp_table(client)
     f_q_table_name = client.sql_client.make_qualified_table_name(table_name)
     with client.sql_client.begin_transaction():
-        client.sql_client.execute_sql(f"INSERT INTO {f_q_table_name} VALUES (%s)", Decimal("1.0"))
+        client.sql_client.execute_sql(f"INSERT INTO {f_q_table_name} VALUES (%s)", py_type("1.0"))
         # check row still in transaction
         rows = client.sql_client.execute_sql(
-            f"SELECT col FROM {f_q_table_name} WHERE col = %s", Decimal("1.0")
+            f"SELECT col FROM {f_q_table_name} WHERE col = %s", py_type("1.0")
         )
         assert len(rows) == 1
     # check row after commit
     rows = client.sql_client.execute_sql(
-        f"SELECT col FROM {f_q_table_name} WHERE col = %s", Decimal("1.0")
+        f"SELECT col FROM {f_q_table_name} WHERE col = %s", py_type("1.0")
     )
     assert len(rows) == 1
     assert rows[0][0] == 1.0
     with client.sql_client.begin_transaction() as tx:
         client.sql_client.execute_sql(
-            f"DELETE FROM {f_q_table_name} WHERE col = %s", Decimal("1.0")
+            f"DELETE FROM {f_q_table_name} WHERE col = %s", py_type("1.0")
         )
         # explicit commit
         tx.commit_transaction()
     rows = client.sql_client.execute_sql(
-        f"SELECT col FROM {f_q_table_name} WHERE col = %s", Decimal("1.0")
+        f"SELECT col FROM {f_q_table_name} WHERE col = %s", py_type("1.0")
     )
     assert len(rows) == 0
 
@@ -468,22 +472,22 @@ def test_commit_transaction(client: SqlJobClientBase) -> None:
 def test_rollback_transaction(client: SqlJobClientBase) -> None:
     if client.capabilities.supports_transactions is False:
         pytest.skip("Destination does not support tx")
-    table_name = prepare_temp_table(client)
+    table_name, py_type = prepare_temp_table(client)
     f_q_table_name = client.sql_client.make_qualified_table_name(table_name)
     # test python exception
     with pytest.raises(RuntimeError):
         with client.sql_client.begin_transaction():
             client.sql_client.execute_sql(
-                f"INSERT INTO {f_q_table_name} VALUES (%s)", Decimal("1.0")
+                f"INSERT INTO {f_q_table_name} VALUES (%s)", py_type("1.0")
             )
             rows = client.sql_client.execute_sql(
-                f"SELECT col FROM {f_q_table_name} WHERE col = %s", Decimal("1.0")
+                f"SELECT col FROM {f_q_table_name} WHERE col = %s", py_type("1.0")
             )
             assert len(rows) == 1
             # python exception triggers rollback
             raise RuntimeError("ROLLBACK")
     rows = client.sql_client.execute_sql(
-        f"SELECT col FROM {f_q_table_name} WHERE col = %s", Decimal("1.0")
+        f"SELECT col FROM {f_q_table_name} WHERE col = %s", py_type("1.0")
     )
     assert len(rows) == 0
 
@@ -492,23 +496,23 @@ def test_rollback_transaction(client: SqlJobClientBase) -> None:
     with pytest.raises(DatabaseException):
         with client.sql_client.begin_transaction():
             client.sql_client.execute_sql(
-                f"INSERT INTO {f_q_table_name} VALUES (%s)", Decimal("1.0")
+                f"INSERT INTO {f_q_table_name} VALUES (%s)", py_type("1.0")
             )
             # table does not exist
             client.sql_client.execute_sql(
-                f"SELECT col FROM {f_q_wrong_table_name} WHERE col = %s", Decimal("1.0")
+                f"SELECT col FROM {f_q_wrong_table_name} WHERE col = %s", py_type("1.0")
             )
     rows = client.sql_client.execute_sql(
-        f"SELECT col FROM {f_q_table_name} WHERE col = %s", Decimal("1.0")
+        f"SELECT col FROM {f_q_table_name} WHERE col = %s", py_type("1.0")
     )
     assert len(rows) == 0
 
     # test explicit rollback
     with client.sql_client.begin_transaction() as tx:
-        client.sql_client.execute_sql(f"INSERT INTO {f_q_table_name} VALUES (%s)", Decimal("1.0"))
+        client.sql_client.execute_sql(f"INSERT INTO {f_q_table_name} VALUES (%s)", py_type("1.0"))
         tx.rollback_transaction()
         rows = client.sql_client.execute_sql(
-            f"SELECT col FROM {f_q_table_name} WHERE col = %s", Decimal("1.0")
+            f"SELECT col FROM {f_q_table_name} WHERE col = %s", py_type("1.0")
         )
         assert len(rows) == 0
 
@@ -529,12 +533,12 @@ def test_rollback_transaction(client: SqlJobClientBase) -> None:
 def test_transaction_isolation(client: SqlJobClientBase) -> None:
     if client.capabilities.supports_transactions is False:
         pytest.skip("Destination does not support tx")
-    table_name = prepare_temp_table(client)
+    table_name, py_type = prepare_temp_table(client)
     f_q_table_name = client.sql_client.make_qualified_table_name(table_name)
     event = Event()
     event.clear()
 
-    def test_thread(thread_id: Decimal) -> None:
+    def test_thread(thread_id: Union[Decimal, float]) -> None:
         # make a copy of the sql_client
         thread_client = client.sql_client.__class__(
             client.sql_client.dataset_name,
@@ -548,8 +552,8 @@ def test_transaction_isolation(client: SqlJobClientBase) -> None:
                 event.wait()
 
     with client.sql_client.begin_transaction() as tx:
-        client.sql_client.execute_sql(f"INSERT INTO {f_q_table_name} VALUES (%s)", Decimal("1.0"))
-        t = Thread(target=test_thread, daemon=True, args=(Decimal("2.0"),))
+        client.sql_client.execute_sql(f"INSERT INTO {f_q_table_name} VALUES (%s)", py_type("1.0"))
+        t = Thread(target=test_thread, daemon=True, args=(py_type("2.0"),))
         t.start()
         # thread 2.0 inserts
         sleep(3.0)
@@ -560,13 +564,16 @@ def test_transaction_isolation(client: SqlJobClientBase) -> None:
         t.join()
 
     # just in case close the connection
-    client.sql_client.close_connection()
-    # re open connection
-    client.sql_client.open_connection()
+    if (
+        client.config.destination_name != "sqlalchemy_sqlite"
+    ):  # keep sqlite connection to maintain attached datasets
+        client.sql_client.close_connection()
+        # re open connection
+        client.sql_client.open_connection()
     rows = client.sql_client.execute_sql(f"SELECT col FROM {f_q_table_name} ORDER BY col")
     assert len(rows) == 1
     # only thread 2 is left
-    assert rows[0][0] == Decimal("2.0")
+    assert rows[0][0] == py_type("2.0")
 
 
 @pytest.mark.parametrize(
@@ -679,11 +686,13 @@ def assert_load_id(sql_client: SqlClientBase[TNativeConn], load_id: str) -> None
     assert len(rows) == 1
 
 
-def prepare_temp_table(client: SqlJobClientBase) -> str:
+def prepare_temp_table(client: SqlJobClientBase) -> Tuple[str, Type[Union[Decimal, float]]]:
+    """Return the table name and py type of value to insert"""
     uniq_suffix = uniq_id()
     table_name = f"tmp_{uniq_suffix}"
     ddl_suffix = ""
     coltype = "numeric"
+    py_type = Decimal
     if client.config.destination_type == "athena":
         ddl_suffix = (
             f"LOCATION '{AWS_BUCKET}/ci/{table_name}' TBLPROPERTIES ('table_type'='ICEBERG',"
@@ -691,6 +700,10 @@ def prepare_temp_table(client: SqlJobClientBase) -> str:
         )
         coltype = "bigint"
         qualified_table_name = table_name
+    elif client.config.destination_name == "sqlalchemy_sqlite":
+        coltype = "float"
+        py_type = float
+        qualified_table_name = client.sql_client.make_qualified_table_name(table_name)
     elif client.config.destination_type == "clickhouse":
         ddl_suffix = "ENGINE = MergeTree() ORDER BY col"
         qualified_table_name = client.sql_client.make_qualified_table_name(table_name)
@@ -699,4 +712,4 @@ def prepare_temp_table(client: SqlJobClientBase) -> str:
     client.sql_client.execute_sql(
         f"CREATE TABLE {qualified_table_name} (col {coltype}) {ddl_suffix};"
     )
-    return table_name
+    return table_name, py_type

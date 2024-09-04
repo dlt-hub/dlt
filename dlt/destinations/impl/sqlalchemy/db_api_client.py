@@ -143,19 +143,27 @@ class SqlalchemyClient(SqlClientBase[Connection]):
             raise LoadClientNotConnected(type(self).__name__, self.dataset_name)
         return self._current_connection
 
+    def _in_transaction(self) -> bool:
+        return (
+            self._current_transaction is not None
+            and self._current_transaction.sqla_transaction.is_active
+        )
+
     @contextmanager
     @raise_database_error
     def begin_transaction(self) -> Iterator[DBTransaction]:
-        if self._current_transaction is not None:
+        if self._in_transaction():
             raise DatabaseTerminalException("Transaction already started")
         trans = self._current_transaction = SqlaTransactionWrapper(self._current_connection.begin())
         try:
             yield trans
         except Exception:
-            self.rollback_transaction()
+            if self._in_transaction():
+                self.rollback_transaction()
             raise
         else:
-            self.commit_transaction()
+            if self._in_transaction():  # Transaction could be committed/rolled back before __exit__
+                self.commit_transaction()
         finally:
             self._current_transaction = None
 
@@ -173,14 +181,15 @@ class SqlalchemyClient(SqlClientBase[Connection]):
         New transaction will be committed/rolled back on exit.
         If the transaction is already open, finalization is handled by the top level context manager.
         """
-        if self._current_transaction is not None:
+        if self._in_transaction():
             yield self._current_transaction
             return
         with self.begin_transaction() as tx:
             yield tx
 
     def has_dataset(self) -> bool:
-        schema_names = self.engine.dialect.get_schema_names(self._current_connection)
+        with self._transaction():
+            schema_names = self.engine.dialect.get_schema_names(self._current_connection)
         return self.dataset_name in schema_names
 
     def _sqlite_create_dataset(self, dataset_name: str) -> None:
@@ -208,9 +217,6 @@ class SqlalchemyClient(SqlClientBase[Connection]):
         # Get a list of attached databases and filenames
         rows = self.execute_sql("PRAGMA database_list")
         dbs = {row[1]: row[2] for row in rows}  # db_name: filename
-        if dataset_name not in dbs:
-            raise DatabaseUndefinedRelation(f"Database {dataset_name} does not exist")
-
         statement = "DETACH DATABASE :name"
         self.execute_sql(statement, name=dataset_name)
 
@@ -230,7 +236,7 @@ class SqlalchemyClient(SqlClientBase[Connection]):
             return self._sqlite_drop_dataset(self.dataset_name)
         try:
             self.execute_sql(sa.schema.DropSchema(self.dataset_name, cascade=True))
-        except DatabaseTransientException as e:
+        except DatabaseException as e:
             self.execute_sql(sa.schema.DropSchema(self.dataset_name))
 
     def truncate_tables(self, *tables: str) -> None:
@@ -256,14 +262,21 @@ class SqlalchemyClient(SqlClientBase[Connection]):
     def execute_query(
         self, query: Union[AnyStr, sa.sql.Executable], *args: Any, **kwargs: Any
     ) -> Iterator[DBApiCursor]:
+        if args and kwargs:
+            raise ValueError("Cannot use both positional and keyword arguments")
         if isinstance(query, str):
             if args:
                 # Sqlalchemy text supports :named paramstyle for all dialects
                 query, kwargs = self._to_named_paramstyle(query, args)  # type: ignore[assignment]
-                args = ()
+                args = [
+                    kwargs,
+                ]
             query = sa.text(query)
+        if kwargs:
+            # sqla2 takes either a dict or list of dicts
+            args = [kwargs]
         with self._transaction():
-            yield SqlaDbApiCursor(self._current_connection.execute(query, *args, **kwargs))  # type: ignore[abstract]
+            yield SqlaDbApiCursor(self._current_connection.execute(query, *args))  # type: ignore[abstract]
 
     def get_existing_table(self, table_name: str) -> Optional[sa.Table]:
         """Get a table object from metadata if it exists"""
@@ -271,7 +284,8 @@ class SqlalchemyClient(SqlClientBase[Connection]):
         return self.metadata.tables.get(key)  # type: ignore[no-any-return]
 
     def create_table(self, table_obj: sa.Table) -> None:
-        table_obj.create(self._current_connection)
+        with self._transaction():
+            table_obj.create(self._current_connection)
 
     def _make_qualified_table_name(self, table: sa.Table, escape: bool = True) -> str:
         if escape:
@@ -284,6 +298,11 @@ class SqlalchemyClient(SqlClientBase[Connection]):
             tmp_metadata = sa.MetaData()
             tbl = sa.Table(table_name, tmp_metadata, schema=self.dataset_name)
         return self._make_qualified_table_name(tbl, escape)
+
+    def fully_qualified_dataset_name(self, escape: bool = True, staging: bool = False) -> str:
+        if staging:
+            raise NotImplementedError("Staging not supported")
+        return self.dialect.identifier_preparer.format_schema(self.dataset_name)
 
     def alter_table_add_column(self, column: sa.Column) -> None:
         """Execute an ALTER TABLE ... ADD COLUMN ... statement for the given column.
@@ -318,15 +337,16 @@ class SqlalchemyClient(SqlClientBase[Connection]):
         if metadata is None:
             metadata = self.metadata
         try:
-            return sa.Table(
-                table_name,
-                metadata,
-                autoload_with=self._current_connection,
-                schema=self.dataset_name,
-                include_columns=include_columns,
-                extend_existing=True,
-            )
-        except sa.exc.NoSuchTableError:
+            with self._transaction():
+                return sa.Table(
+                    table_name,
+                    metadata,
+                    autoload_with=self._current_connection,
+                    schema=self.dataset_name,
+                    include_columns=include_columns,
+                    extend_existing=True,
+                )
+        except DatabaseUndefinedRelation:
             return None
 
     def compare_storage_table(self, table_name: str) -> Tuple[sa.Table, List[sa.Column], bool]:
@@ -358,14 +378,18 @@ class SqlalchemyClient(SqlClientBase[Connection]):
         if isinstance(e, (sa.exc.ProgrammingError, sa.exc.OperationalError)):
             if "exist" in msg:  # TODO: Hack
                 return DatabaseUndefinedRelation(e)
-            elif "no such" in msg:  # sqlite # TODO: Hack
-                return DatabaseUndefinedRelation(e)
             elif "unknown table" in msg:
                 return DatabaseUndefinedRelation(e)
             elif "unknown database" in msg:
                 return DatabaseUndefinedRelation(e)
+            elif "no such table" in msg:  # sqlite # TODO: Hack
+                return DatabaseUndefinedRelation(e)
+            elif "no such database" in msg:  # sqlite # TODO: Hack
+                return DatabaseUndefinedRelation(e)
+            elif "syntax" in msg:
+                return DatabaseTransientException(e)
             elif isinstance(e, (sa.exc.OperationalError, sa.exc.IntegrityError)):
-                raise DatabaseTerminalException(e)
+                return DatabaseTerminalException(e)
             return DatabaseTransientException(e)
         elif isinstance(e, sa.exc.SQLAlchemyError):
             return DatabaseTransientException(e)

@@ -437,7 +437,7 @@ class SqlalchemyJobClient(SqlJobClientBase):
         version_table = self.schema.tables[self.schema.version_table_name]
         table_obj = self._to_table_object(version_table)
         with suppress(DatabaseUndefinedRelation):
-            q = sa.select([table_obj])
+            q = sa.select(table_obj)
             if version_hash is not None:
                 version_hash_col = self.schema.naming.normalize_identifier("version_hash")
                 q = q.where(table_obj.c[version_hash_col] == version_hash)
