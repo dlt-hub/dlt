@@ -2732,7 +2732,7 @@ def assert_imported_file(
 
 
 def test_duckdb_column_invalid_timestamp() -> None:
-    # DuckDB does not have timestamps with timezone and precision
+    # DuckDB does not have timestamps with timezone and precision, will default to timezone
     @dlt.resource(
         columns={"event_tstamp": {"data_type": "timestamp", "timezone": True, "precision": 3}},
         primary_key="event_id",
@@ -2741,6 +2741,4 @@ def test_duckdb_column_invalid_timestamp() -> None:
         yield [{"event_id": 1, "event_tstamp": "2024-07-30T10:00:00.123+00:00"}]
 
     pipeline = dlt.pipeline(destination="duckdb")
-
-    with pytest.raises((TerminalValueError, PipelineStepFailed)):
-        pipeline.run(events())
+    pipeline.run(events())
