@@ -51,7 +51,7 @@ from tests.utils import IMPLEMENTED_DESTINATIONS, clean_test_storage
 
 # we hardcode the core sources here so we can check that the init script picks
 # up the right source
-CORE_SOURCES = ["filesystem"]
+CORE_SOURCES = ["filesystem", "rest_api", "sql_database"]
 
 
 def get_verified_source_candidates(repo_dir: str) -> List[str]:

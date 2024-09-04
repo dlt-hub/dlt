@@ -3,6 +3,7 @@ import pytest
 from dlt.common.typing import TSecretStrValue
 
 
+# NOTE: needs github secrets to work
 @pytest.mark.parametrize(
     "example_name",
     (

@@ -27,8 +27,7 @@ IGNORE_CORE_SOURCES = [
     "_*",
     "helpers",
     "init",
-    "rest_api",
-]  # TODO: remove rest api here once pipeline file is here
+]
 
 
 class SourceConfiguration(NamedTuple):
