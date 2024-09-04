@@ -85,7 +85,7 @@ deltalake = { version = ">=0.19.0", optional = true }
 graphlib-backport = {version = "*", python = "<3.9"}
 sqlalchemy = { version = ">=1.4", optional = true }
 pymysql = { version = "^1.0.3", optional = true }
-connectorx = { version = ">=0.3.1", optional = true } 
+connectorx = { version = ">=0.3.3", optional = true } 
 
 
 [tool.poetry.extras]
@@ -220,7 +220,6 @@ SQLAlchemy = ">=1.4.0"
 pymysql = "^1.1.0"
 pypdf2 = "^3.0.1"
 pydoc-markdown = "^4.8.2"
-connectorx = "0.3.2"
 dbt-core = ">=1.2.0"
 dbt-duckdb = ">=1.2.0"
 pymongo = ">=4.3.3"
@@ -230,6 +229,7 @@ pyarrow = ">=14.0.0"
 psycopg2-binary = ">=2.9"
 lancedb = { version = ">=0.8.2", markers = "python_version >= '3.9'", allow-prereleases = true }
 openai = ">=1.35"
+connectorx = { version = ">=0.3.3" } 
 
 [tool.black] # https://black.readthedocs.io/en/stable/usage_and_configuration/the_basics.html#configuration-via-a-file
 line-length = 100
