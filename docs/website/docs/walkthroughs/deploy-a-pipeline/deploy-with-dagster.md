@@ -182,7 +182,7 @@ For a complete picture of Dagster's integration with dlt, please refer to their 
 :::
 
 ### Frequently Asked Questions
-- **Can I remove the generated .dlt folder?**
+- **Can I remove the generated `.dlt` folder with `secrets.toml` and `config.toml` files?**
 
   Yes. Since dlt is compatible with .env files, you can use this for secrets required by both dagster and dlt.
   
