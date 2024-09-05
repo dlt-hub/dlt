@@ -54,9 +54,10 @@ class SqlaTypeMapper:
     def _create_date_time_type(self, sc_t: str, precision: Optional[int]) -> sa.types.TypeEngine:
         """Use the dialect specific datetime/time type if possible since the generic type doesn't accept precision argument"""
         precision = precision if precision is not None else self.capabilities.timestamp_precision
+        base_type: sa.types.TypeEngine
         if sc_t == "timestamp":
             base_type = sa.DateTime()
-            if self.dialect.name == "mysql":  # type: ignore[attr-defined]
+            if self.dialect.name == "mysql":
                 # Special case, type_descriptor does not return the specifc datetime type
                 from sqlalchemy.dialects.mysql import DATETIME
 
@@ -76,7 +77,7 @@ class SqlaTypeMapper:
             kwargs["fsp"] = precision  # MySQL uses fsp for fractional seconds
         elif "precision" in params:
             kwargs["precision"] = precision
-        return dialect_type(**kwargs)  # type: ignore[no-any-return]
+        return dialect_type(**kwargs)  # type: ignore[no-any-return,misc]
 
     def _create_double_type(self) -> sa.types.TypeEngine:
         if dbl := getattr(sa, "Double", None):
@@ -102,8 +103,8 @@ class SqlaTypeMapper:
             if length is None and column.get("unique"):
                 length = 128
             if length is None:
-                return sa.Text()  # type: ignore[no-any-return]
-            return sa.String(length=length)  # type: ignore[no-any-return]
+                return sa.Text()
+            return sa.String(length=length)
         elif sc_t == "double":
             return self._create_double_type()
         elif sc_t == "bool":
@@ -422,7 +423,7 @@ class SqlalchemyJobClient(SqlJobClientBase):
 
         schema_mapping = StorageSchemaInfo(
             version=schema.version,
-            engine_version=schema.ENGINE_VERSION,
+            engine_version=str(schema.ENGINE_VERSION),
             schema_name=schema.name,
             version_hash=schema.stored_version_hash,
             schema=schema_str,
@@ -452,7 +453,9 @@ class SqlalchemyJobClient(SqlJobClientBase):
                     return None
 
                 # TODO: Decode compressed schema str if needed
-                return StorageSchemaInfo.from_normalized_mapping(row._mapping, self.schema.naming)
+                return StorageSchemaInfo.from_normalized_mapping(
+                    row._mapping, self.schema.naming  # type: ignore[attr-defined]
+                )
 
     def get_stored_schema_by_hash(self, version_hash: str) -> Optional[StorageSchemaInfo]:
         return self._get_stored_schema(version_hash)
@@ -490,7 +493,7 @@ class SqlalchemyJobClient(SqlJobClientBase):
             row = cur.fetchone()
             if not row:
                 return None
-            mapping = dict(row._mapping)
+            mapping = dict(row._mapping)  # type: ignore[attr-defined]
 
         return StateInfo.from_normalized_mapping(mapping, self.schema.naming)
 
@@ -499,5 +502,5 @@ class SqlalchemyJobClient(SqlJobClientBase):
     ) -> TColumnType:
         raise NotImplementedError()
 
-    def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:
+    def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableSchema = None) -> str:
         raise NotImplementedError()

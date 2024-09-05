@@ -71,9 +71,9 @@ class SqlaDbApiCursor(DBApiCursorImpl):
         self.native_cursor = curr  # type: ignore[assignment]
         curr.columns
 
-        self.fetchall = curr.fetchall  # type: ignore[method-assign]
-        self.fetchone = curr.fetchone  # type: ignore[method-assign]
-        self.fetchmany = curr.fetchmany  # type: ignore[method-assign]
+        self.fetchall = curr.fetchall  # type: ignore[assignment]
+        self.fetchone = curr.fetchone  # type: ignore[assignment]
+        self.fetchmany = curr.fetchmany  # type: ignore[assignment]
 
     def _get_columns(self) -> List[str]:
         return list(self.native_cursor.keys())  # type: ignore[attr-defined]
@@ -122,7 +122,7 @@ class SqlalchemyClient(SqlClientBase[Connection]):
         self._current_transaction: Optional[SqlaTransactionWrapper] = None
         self.metadata = sa.MetaData()
         self.dialect = self.engine.dialect
-        self.dialect_name = self.dialect.name  # type: ignore[attr-defined]
+        self.dialect_name = self.dialect.name
 
     def open_connection(self) -> Connection:
         if self._current_connection is None:
@@ -154,8 +154,6 @@ class SqlalchemyClient(SqlClientBase[Connection]):
     @contextmanager
     @raise_database_error
     def begin_transaction(self) -> Iterator[DBTransaction]:
-        if self._in_transaction():
-            raise DatabaseTerminalException("Transaction already started")
         trans = self._current_transaction = SqlaTransactionWrapper(self._current_connection.begin())
         try:
             yield trans
@@ -191,7 +189,7 @@ class SqlalchemyClient(SqlClientBase[Connection]):
 
     def has_dataset(self) -> bool:
         with self._transaction():
-            schema_names = self.engine.dialect.get_schema_names(self._current_connection)
+            schema_names = self.engine.dialect.get_schema_names(self._current_connection)  # type: ignore[attr-defined]
         return self.dataset_name in schema_names
 
     def _sqlite_dataset_filename(self, dataset_name: str) -> str:
@@ -206,8 +204,7 @@ class SqlalchemyClient(SqlClientBase[Connection]):
         return self.engine.url.database == ":memory:"
 
     def _sqlite_reattach_dataset_if_exists(self, dataset_name: str) -> None:
-        """Re-attach previously created databases for a new sqlite connection
-        """
+        """Re-attach previously created databases for a new sqlite connection"""
         if self._sqlite_is_memory_db():
             return
         new_db_fn = self._sqlite_dataset_filename(dataset_name)
@@ -271,7 +268,7 @@ class SqlalchemyClient(SqlClientBase[Connection]):
         self, sql: Union[AnyStr, sa.sql.Executable], *args: Any, **kwargs: Any
     ) -> Optional[Sequence[Sequence[Any]]]:
         with self.execute_query(sql, *args, **kwargs) as cursor:
-            if cursor.returns_rows:
+            if cursor.returns_rows:  # type: ignore[attr-defined]
                 return cursor.fetchall()
             return None
 
@@ -285,15 +282,13 @@ class SqlalchemyClient(SqlClientBase[Connection]):
             if args:
                 # Sqlalchemy text supports :named paramstyle for all dialects
                 query, kwargs = self._to_named_paramstyle(query, args)  # type: ignore[assignment]
-                args = [
-                    kwargs,
-                ]
+                args = (kwargs,)
             query = sa.text(query)
         if kwargs:
             # sqla2 takes either a dict or list of dicts
-            args = [kwargs]
+            args = (kwargs,)
         with self._transaction():
-            yield SqlaDbApiCursor(self._current_connection.execute(query, *args))  # type: ignore[abstract]
+            yield SqlaDbApiCursor(self._current_connection.execute(query, *args))  # type: ignore[call-overload, abstract]
 
     def get_existing_table(self, table_name: str) -> Optional[sa.Table]:
         """Get a table object from metadata if it exists"""
@@ -319,7 +314,7 @@ class SqlalchemyClient(SqlClientBase[Connection]):
     def fully_qualified_dataset_name(self, escape: bool = True, staging: bool = False) -> str:
         if staging:
             raise NotImplementedError("Staging not supported")
-        return self.dialect.identifier_preparer.format_schema(self.dataset_name)
+        return self.dialect.identifier_preparer.format_schema(self.dataset_name)  # type: ignore[attr-defined, no-any-return]
 
     def alter_table_add_column(self, column: sa.Column) -> None:
         """Execute an ALTER TABLE ... ADD COLUMN ... statement for the given column.
@@ -328,14 +323,14 @@ class SqlalchemyClient(SqlClientBase[Connection]):
         # TODO: May need capability to override ALTER TABLE statement for different dialects
         alter_tmpl = "ALTER TABLE {table} ADD COLUMN {column};"
         statement = alter_tmpl.format(
-            table=self._make_qualified_table_name(self._make_qualified_table_name(column.table)),
+            table=self._make_qualified_table_name(self._make_qualified_table_name(column.table)),  # type: ignore[arg-type]
             column=self.compile_column_def(column),
         )
         self.execute_sql(statement)
 
     def escape_column_name(self, column_name: str, escape: bool = True) -> str:
-        if self.dialect.requires_name_normalize:
-            column_name = self.dialect.normalize_name(column_name)
+        if self.dialect.requires_name_normalize:  # type: ignore[attr-defined]
+            column_name = self.dialect.normalize_name(column_name)  # type: ignore[func-returns-value]
         if escape:
             return self.dialect.identifier_preparer.format_column(sa.Column(column_name))  # type: ignore[attr-defined,no-any-return]
         return column_name

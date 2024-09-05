@@ -91,7 +91,9 @@ def test_switch_from_merge(destination_config: DestinationTestConfiguration):
 
 
 @pytest.mark.parametrize(
-    "destination_config", destinations_configs(default_sql_configs=True, supports_merge=True), ids=lambda x: x.name
+    "destination_config",
+    destinations_configs(default_sql_configs=True, supports_merge=True),
+    ids=lambda x: x.name,
 )
 @pytest.mark.parametrize("with_root_key", [True, False])
 def test_switch_to_merge(destination_config: DestinationTestConfiguration, with_root_key: bool):
