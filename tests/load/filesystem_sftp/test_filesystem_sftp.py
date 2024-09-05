@@ -17,9 +17,9 @@ def get_config(config: FilesystemConfiguration = None) -> FilesystemConfiguratio
     return config
 
 
-def get_key_path() -> str:
+def get_key_path(user: str = "foo") -> str:
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    return os.path.join(current_dir, "bootstrap/foo_rsa")
+    return os.path.join(current_dir, f"bootstrap/{user}_rsa")
 
 
 @pytest.fixture(scope="module")
@@ -30,6 +30,7 @@ def sftp_filesystem():
     yield fs
 
 
+@pytest.mark.sftp
 def test_filesystem_sftp_server(sftp_filesystem):
     test_file = "/data/countries.json"
     input_data = {
@@ -59,6 +60,7 @@ def test_filesystem_sftp_server(sftp_filesystem):
         fs.rm(test_file)
 
 
+@pytest.mark.sftp
 def test_filesystem_sftp_write(sftp_filesystem):
     import posixpath
     import pyarrow.parquet as pq
@@ -89,6 +91,7 @@ def test_filesystem_sftp_write(sftp_filesystem):
         assert sorted(result_states) == sorted(expected_states)
 
 
+@pytest.mark.sftp
 @pytest.mark.parametrize("load_content", (True, False))
 @pytest.mark.parametrize("glob_filter", ("**", "**/*.csv", "*.txt", "met_csv/A803/*.csv"))
 def test_filesystem_sftp_read(load_content: bool, glob_filter: str) -> None:
@@ -109,3 +112,66 @@ def test_filesystem_sftp_read(load_content: bool, glob_filter: str) -> None:
 
     print(all_file_items)
     assert_sample_files(all_file_items, fs, config, load_content, glob_filter)
+
+
+@pytest.mark.sftp
+def test_filesystem_sftp_auth_useranme_password():
+    os.environ["SOURCES__FILESYSTEM__BUCKET_URL"] = "sftp://localhost/data/samples"
+    os.environ["SOURCES__FILESYSTEM__CREDENTIALS__SFTP_PORT"] = "2222"
+    os.environ["SOURCES__FILESYSTEM__CREDENTIALS__SFTP_USERNAME"] = "foo"
+    os.environ["SOURCES__FILESYSTEM__CREDENTIALS__SFTP_PASSWORD"] = "pass"
+
+    config = get_config()
+    fs, _ = fsspec_from_config(config)
+
+    files = fs.ls("/data/samples")
+    assert len(files) > 0
+
+
+@pytest.mark.sftp
+def test_filesystem_sftp_auth_private_key():
+    os.environ["SOURCES__FILESYSTEM__BUCKET_URL"] = "sftp://localhost/data/samples"
+    os.environ["SOURCES__FILESYSTEM__CREDENTIALS__SFTP_PORT"] = "2222"
+    os.environ["SOURCES__FILESYSTEM__CREDENTIALS__SFTP_USERNAME"] = "foo"
+    os.environ["SOURCES__FILESYSTEM__CREDENTIALS__SFTP_KEY_FILENAME"] = get_key_path()
+
+    config = get_config()
+    fs, _ = fsspec_from_config(config)
+
+    files = fs.ls("/data/samples")
+
+    assert len(files) > 0
+
+
+@pytest.mark.sftp
+def test_filesystem_sftp_auth_private_key_protected():
+    os.environ["SOURCES__FILESYSTEM__BUCKET_URL"] = "sftp://localhost/data/samples"
+    os.environ["SOURCES__FILESYSTEM__CREDENTIALS__SFTP_PORT"] = "2222"
+    os.environ["SOURCES__FILESYSTEM__CREDENTIALS__SFTP_USERNAME"] = "bobby"
+    os.environ["SOURCES__FILESYSTEM__CREDENTIALS__SFTP_KEY_FILENAME"] = get_key_path("bobby")
+    os.environ["SOURCES__FILESYSTEM__CREDENTIALS__SFTP_KEY_PASSPHRASE"] = "passphrase123"
+
+    config = get_config()
+    fs, _ = fsspec_from_config(config)
+
+    files = fs.ls("/data/samples")
+
+    assert len(files) > 0
+
+
+# Test requires - ssh_agent with user's bobby key loaded. The commands required are:
+# eval "$(ssh-agent -s)"
+# cp /path/to/tests/load/filesystem_sftp/bobby_rsa* ~/.ssh/id_rsa
+@pytest.mark.sftp
+def test_filesystem_sftp_auth_private_ssh_agent():
+    os.environ["SOURCES__FILESYSTEM__BUCKET_URL"] = "sftp://0.0.0.0/data/samples"
+    os.environ["SOURCES__FILESYSTEM__CREDENTIALS__SFTP_PORT"] = "2222"
+    os.environ["SOURCES__FILESYSTEM__CREDENTIALS__SFTP_USERNAME"] = "bobby"
+    os.environ["SOURCES__FILESYSTEM__CREDENTIALS__SFTP_PASSWORD"] = "passphrase123"
+
+    config = get_config()
+    fs, _ = fsspec_from_config(config)
+
+    files = fs.ls("/data/samples")
+
+    assert len(files) > 0
