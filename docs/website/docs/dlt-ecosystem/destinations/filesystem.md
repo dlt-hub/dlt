@@ -326,9 +326,9 @@ file_glob = "*"
 
 [destination.filesystem.credentials]
 sftp_username = "foo"
-sftp_allow_agent = true                   # Enable SSH agent usage
-sftp_look_for_keys = true                 # Allow searching for keys in ~/.ssh/
+sftp_key_passphrase = "your_passphrase"   # Optional: passphrase for your private key
 ```
+The loaded key must be one of the following types stored in ~/.ssh/: id_rsa, id_dsa, or id_ecdsa.
 
 #### 3. **Username/Password Authentication**
 
