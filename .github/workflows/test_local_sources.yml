@@ -20,7 +20,7 @@ env:
   RUNTIME__DLTHUB_TELEMETRY_ENDPOINT: ${{ secrets.RUNTIME__DLTHUB_TELEMETRY_ENDPOINT }}
 
   ACTIVE_DESTINATIONS: "[\"duckdb\", \"postgres\", \"filesystem\"]"
-  ALL_FILESYSTEM_DRIVERS: "[\"memory\", \"file\"]"
+  ALL_FILESYSTEM_DRIVERS: "[\"file\"]"
 
 jobs:
   get_docs_changes:
