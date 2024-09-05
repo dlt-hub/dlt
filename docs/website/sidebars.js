@@ -37,6 +37,8 @@ const sidebars = {
         'reference/explainers/how-dlt-works',
         'reference/installation',
         'reference/command-line-interface',
+        /**
+        to be added:
         {
           type: 'category',
           label: 'Core Sources',
@@ -49,6 +51,7 @@ const sidebars = {
             //'reference/core-sources',
           ]
         }
+      **/
       ]
     },
     {
