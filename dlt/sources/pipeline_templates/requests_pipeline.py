@@ -5,26 +5,22 @@
 from typing import Iterator, Any
 
 import dlt
+import requests
 
 from dlt.sources import TDataItems
-from dlt.sources.helpers import requests
 
 
 YEAR = 2022
 MONTH = 10
-
-
-@dlt.source(name="my_fruitshop")
-def source():
-    """A source function groups all resources into one schema."""
-    return players(), players_games()
+BASE_PATH = "https://api.chess.com/pub/player"
 
 
 @dlt.resource(name="players", primary_key="player_id")
 def players():
     """Load player profiles from the chess api."""
     for player_name in ["magnuscarlsen", "rpragchess"]:
-        yield requests.get(f"https://api.chess.com/pub/player/{player_name}").json()
+        path = f"{BASE_PATH}/{player_name}"
+        yield requests.get(path).json()
 
 
 # this resource takes data from players and returns games for the configured
@@ -32,17 +28,23 @@ def players():
 def players_games(player: Any) -> Iterator[TDataItems]:
     """Load all games for each player in october 2022"""
     player_name = player["username"]
-    path = f"https://api.chess.com/pub/player/{player_name}/games/{YEAR:04d}/{MONTH:02d}"
+    path = f"{BASE_PATH}/{player_name}/games/{YEAR:04d}/{MONTH:02d}"
     yield requests.get(path).json()["games"]
+
+
+@dlt.source(name="chess")
+def source():
+    """A source function groups all resources into one schema."""
+    return players(), players_games()
 
 
 def load_chess_data() -> None:
     # specify the pipeline name, destination and dataset name when configuring pipeline,
     # otherwise the defaults will be used that are derived from the current script name
     p = dlt.pipeline(
-        pipeline_name="fruitshop",
+        pipeline_name="chess",
         destination="duckdb",
-        dataset_name="fruitshop_data",
+        dataset_name="chess_data",
     )
 
     load_info = p.run(source())

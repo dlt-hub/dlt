@@ -60,7 +60,7 @@ from tests.utils import IMPLEMENTED_DESTINATIONS, clean_test_storage
 CORE_SOURCES = ["filesystem", "rest_api", "sql_database"]
 
 # we also hardcode all the templates here for testing
-TEMPLATES = ["debug", "default", "arrow"]
+TEMPLATES = ["debug", "default", "arrow", "requests"]
 
 # a few verified sources we know to exist
 SOME_KNOWN_VERIFIED_SOURCES = ["chess", "sql_database", "google_sheets", "pipedrive"]
@@ -208,11 +208,6 @@ def test_init_all_sources_together(repo_dir: str, project_files: FileStorage) ->
     # credentials for all destinations
     for destination_name in ["bigquery", "postgres", "redshift"]:
         assert secrets.get_value(destination_name, type, None, "destination") is not None
-
-    # clear the resources otherwise sources not belonging to generic_pipeline will be found
-    get_project_files(clear_all_sources=False)
-    init_command.init_command("generic", "redshift", repo_dir)
-    assert_init_files(project_files, "generic_pipeline", "redshift", "bigquery")
 
 
 def test_init_all_sources_isolated(cloned_init_repo: FileStorage) -> None:

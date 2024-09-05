@@ -6,15 +6,6 @@ import dlt
 import time
 import pyarrow as pa
 
-from dlt.common.typing import TDataItems
-from dlt.common import Decimal
-
-
-@dlt.source
-def source():
-    """A source function groups all resources into one schema."""
-    return resource()
-
 
 @dlt.resource(write_disposition="append", name="people")
 def resource():
@@ -30,8 +21,14 @@ def add_updated_at(item: pa.Table):
     return item.set_column(column_count, "updated_at", [[time.time()] * item.num_rows])
 
 
-# apply tranformer to source
-resource.add_map(add_updated_at)
+@dlt.source
+def source():
+    """A source function groups all resources into one schema."""
+
+    # apply tranformer to source
+    resource.add_map(add_updated_at)
+
+    return resource()
 
 
 def load_arrow_tables() -> None:
@@ -43,7 +40,7 @@ def load_arrow_tables() -> None:
         dataset_name="arrow_data",
     )
 
-    data = list(resource())
+    data = list(source().people)
 
     # print the data yielded from resource without loading it
     print(data)  # noqa: T201

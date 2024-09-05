@@ -6,12 +6,6 @@ import dlt
 from dlt.common import Decimal
 
 
-@dlt.source(name="my_fruitshop")
-def source():
-    """A source function groups all resources into one schema."""
-    return customers(), inventory()
-
-
 @dlt.resource(name="customers", primary_key="id")
 def customers():
     """Load customer data from a simple python list."""
@@ -30,6 +24,12 @@ def inventory():
         {"id": 2, "name": "banana", "price": Decimal("1.70")},
         {"id": 3, "name": "pear", "price": Decimal("2.50")},
     ]
+
+
+@dlt.source(name="my_fruitshop")
+def source():
+    """A source function groups all resources into one schema."""
+    return customers(), inventory()
 
 
 def load_stuff() -> None:

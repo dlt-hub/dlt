@@ -7,12 +7,6 @@ import dlt
 from dlt.common import Decimal
 
 
-@dlt.source
-def source():
-    """A source function groups all resources into one schema."""
-    return resource()
-
-
 @dlt.resource(write_disposition="append", name="all_datatypes")
 def resource():
     """this is the test data for loading validation, delete it once you yield actual data"""
@@ -39,6 +33,12 @@ def resource():
     ]
 
 
+@dlt.source
+def source():
+    """A source function groups all resources into one schema."""
+    return resource()
+
+
 def load_all_datatypes() -> None:
     # specify the pipeline name, destination and dataset name when configuring pipeline,
     # otherwise the defaults will be used that are derived from the current script name
@@ -48,7 +48,7 @@ def load_all_datatypes() -> None:
         dataset_name="debug_data",
     )
 
-    data = list(resource())
+    data = list(source().all_datatypes)
 
     # print the data yielded from resource without loading it
     print(data)  # noqa: T201

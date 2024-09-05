@@ -208,7 +208,7 @@ def get_template_configuration(
         docstring = docstring.splitlines()[0]
     return SourceConfiguration(
         "template",
-        source_pipeline_file_name.replace(PIPELINE_FILE_SUFFIX, ""),
+        source_pipeline_file_name.replace("pipeline.py", ""),
         sources_storage,
         source_pipeline_file_name,
         destination_pipeline_file_name,
