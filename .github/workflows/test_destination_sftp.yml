@@ -76,8 +76,12 @@ jobs:
       - name: create secrets.toml
         run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
 
-      - run: poetry run pytest tests/load/filesystem_sftp -m "sftp"
-        name: Run SFTP Linux tests
+      - name: Run SFTP Linux tests
+        run: |
+          eval "$(ssh-agent -s)" 
+          ls -lha /home/runner/.ssh
+          poetry run pytest tests/load/filesystem_sftp -m "sftp"
+        
 
       - name: Stop SFTP server
         if: always()
