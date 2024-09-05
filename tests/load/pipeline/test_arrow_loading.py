@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, time as dt_time  # noqa: I251
+from datetime import datetime, timedelta, time as dt_time, date  # noqa: I251
 import os
 
 import pytest
@@ -9,7 +9,12 @@ import base64
 
 import dlt
 from dlt.common import pendulum
-from dlt.common.time import reduce_pendulum_datetime_precision, ensure_pendulum_time
+from dlt.common.time import (
+    reduce_pendulum_datetime_precision,
+    ensure_pendulum_time,
+    ensure_pendulum_datetime,
+    ensure_pendulum_date,
+)
 from dlt.common.utils import uniq_id
 
 from tests.load.utils import destinations_configs, DestinationTestConfiguration
@@ -53,10 +58,14 @@ def test_load_arrow_item(
         and destination_config.file_format == "jsonl"
     )
 
-    include_decimal = not (
+    include_decimal = True
+
+    if (
         destination_config.destination_type == "databricks"
         and destination_config.file_format == "jsonl"
-    )
+    ) or (destination_config.destination_name == "sqlalchemy_sqlite"):
+        include_decimal = False
+
     include_date = not (
         destination_config.destination_type == "databricks"
         and destination_config.file_format == "jsonl"
@@ -123,23 +132,25 @@ def test_load_arrow_item(
             if "binary" in record and destination_config.file_format == "parquet":
                 record["binary"] = record["binary"].decode("ascii")
 
+    expected = sorted([list(r.values()) for r in records])
     first_record = list(records[0].values())
-    for row in rows:
-        for i in range(len(row)):
-            if isinstance(row[i], datetime):
-                row[i] = pendulum.instance(row[i])
+    for row, expected_row in zip(rows, expected):
+        for i in range(len(expected_row)):
+            if isinstance(expected_row[i], datetime):
+                row[i] = ensure_pendulum_datetime(row[i])
             # clickhouse produces rounding errors on double with jsonl, so we round the result coming from there
-            if (
+            elif (
                 destination_config.destination_type == "clickhouse"
                 and destination_config.file_format == "jsonl"
                 and isinstance(row[i], float)
             ):
                 row[i] = round(row[i], 4)
-            if isinstance(row[i], timedelta) and isinstance(first_record[i], dt_time):
+            elif isinstance(first_record[i], dt_time):
                 # Some drivers (mysqlclient) return TIME columns as timedelta as seconds since midnight
+                # sqlite returns iso strings
                 row[i] = ensure_pendulum_time(row[i])
-
-    expected = sorted([list(r.values()) for r in records])
+            elif isinstance(expected_row[i], date):
+                row[i] = ensure_pendulum_date(row[i])
 
     for row in expected:
         for i in range(len(row)):

@@ -542,13 +542,17 @@ def _get_shuffled_events(shuffle: bool = dlt.secrets.value):
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, exclude=["sqlalchemy"]),
+    destinations_configs(default_sql_configs=True),
     ids=lambda x: x.name,
 )
 @pytest.mark.parametrize("github_resource", [github_repo_events, github_repo_events_table_meta])
 def test_merge_with_dispatch_and_incremental(
     destination_config: DestinationTestConfiguration, github_resource: DltResource
 ) -> None:
+    if destination_config.destination_name == 'sqlalchemy_mysql':
+        # TODO: Github events have too many columns for MySQL
+        pytest.skip("MySQL can't handle too many columns")
+    
     newest_issues = list(
         sorted(_get_shuffled_events(True), key=lambda x: x["created_at"], reverse=True)
     )

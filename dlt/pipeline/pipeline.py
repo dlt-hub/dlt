@@ -578,7 +578,7 @@ class Pipeline(SupportsPipeline):
             step_info = self._get_step_info(load_step)
             raise PipelineStepFailed(
                 self, "load", load_step.current_load_id, l_ex, step_info
-            ) from l_ex
+            ) from l_ex 
 
     @with_runtime_trace()
     @with_config_section(("run",))

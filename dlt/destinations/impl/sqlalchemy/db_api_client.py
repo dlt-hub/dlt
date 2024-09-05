@@ -127,6 +127,8 @@ class SqlalchemyClient(SqlClientBase[Connection]):
     def open_connection(self) -> Connection:
         if self._current_connection is None:
             self._current_connection = self.engine.connect()
+            if self.dialect_name == "sqlite":
+                self._sqlite_reattach_dataset_if_exists(self.dataset_name)
         return self._current_connection
 
     def close_connection(self) -> None:
@@ -192,20 +194,34 @@ class SqlalchemyClient(SqlClientBase[Connection]):
             schema_names = self.engine.dialect.get_schema_names(self._current_connection)
         return self.dataset_name in schema_names
 
+    def _sqlite_dataset_filename(self, dataset_name: str) -> str:
+        db_name = self.engine.url.database
+        current_file_path = Path(db_name)
+        return str(
+            current_file_path.parent
+            / f"{current_file_path.stem}__{dataset_name}{current_file_path.suffix}"
+        )
+
+    def _sqlite_is_memory_db(self) -> bool:
+        return self.engine.url.database == ":memory:"
+
+    def _sqlite_reattach_dataset_if_exists(self, dataset_name: str) -> None:
+        """Re-attach previously created databases for a new sqlite connection
+        """
+        if self._sqlite_is_memory_db():
+            return
+        new_db_fn = self._sqlite_dataset_filename(dataset_name)
+        if Path(new_db_fn).exists():
+            self._sqlite_create_dataset(dataset_name)
+
     def _sqlite_create_dataset(self, dataset_name: str) -> None:
         """Mimic multiple schemas in sqlite using ATTACH DATABASE to
         attach a new database file to the current connection.
         """
-        db_name = self.engine.url.database
-        if db_name == ":memory:":
+        if self._sqlite_is_memory_db():
             new_db_fn = ":memory:"
         else:
-            current_file_path = Path(db_name)
-            # New filename e.g. ./results.db -> ./results__new_dataset_name.db
-            new_db_fn = str(
-                current_file_path.parent
-                / f"{current_file_path.stem}__{dataset_name}{current_file_path.suffix}"
-            )
+            new_db_fn = self._sqlite_dataset_filename(dataset_name)
 
         statement = "ATTACH DATABASE :fn AS :name"
         self.execute_sql(statement, fn=new_db_fn, name=dataset_name)
@@ -217,8 +233,9 @@ class SqlalchemyClient(SqlClientBase[Connection]):
         # Get a list of attached databases and filenames
         rows = self.execute_sql("PRAGMA database_list")
         dbs = {row[1]: row[2] for row in rows}  # db_name: filename
-        statement = "DETACH DATABASE :name"
-        self.execute_sql(statement, name=dataset_name)
+        if dataset_name != "main":  # main is the default database, it cannot be detached
+            statement = "DETACH DATABASE :name"
+            self.execute_sql(statement, name=dataset_name)
 
         fn = dbs[dataset_name]
         if not fn:  # It's a memory database, nothing to do
@@ -236,7 +253,7 @@ class SqlalchemyClient(SqlClientBase[Connection]):
             return self._sqlite_drop_dataset(self.dataset_name)
         try:
             self.execute_sql(sa.schema.DropSchema(self.dataset_name, cascade=True))
-        except DatabaseException as e:
+        except DatabaseException:  # Try again in case cascade is not supported
             self.execute_sql(sa.schema.DropSchema(self.dataset_name))
 
     def truncate_tables(self, *tables: str) -> None:

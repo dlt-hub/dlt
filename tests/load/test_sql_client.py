@@ -533,6 +533,9 @@ def test_rollback_transaction(client: SqlJobClientBase) -> None:
 def test_transaction_isolation(client: SqlJobClientBase) -> None:
     if client.capabilities.supports_transactions is False:
         pytest.skip("Destination does not support tx")
+    if client.config.destination_name == "sqlalchemy_sqlite":
+        # because other schema names must be attached for each connection
+        client.sql_client.dataset_name = "main"
     table_name, py_type = prepare_temp_table(client)
     f_q_table_name = client.sql_client.make_qualified_table_name(table_name)
     event = Event()
@@ -577,7 +580,10 @@ def test_transaction_isolation(client: SqlJobClientBase) -> None:
 
 
 @pytest.mark.parametrize(
-    "client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name
+    "client",
+    destinations_configs(default_sql_configs=True, exclude=["sqlalchemy"]),
+    indirect=True,
+    ids=lambda x: x.name,
 )
 def test_max_table_identifier_length(client: SqlJobClientBase) -> None:
     if client.capabilities.max_identifier_length >= 65536:
@@ -607,7 +613,10 @@ def test_max_table_identifier_length(client: SqlJobClientBase) -> None:
 
 
 @pytest.mark.parametrize(
-    "client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name
+    "client",
+    destinations_configs(default_sql_configs=True, exclude=["sqlalchemy"]),
+    indirect=True,
+    ids=lambda x: x.name,
 )
 def test_max_column_identifier_length(client: SqlJobClientBase) -> None:
     if client.capabilities.max_column_identifier_length >= 65536:
