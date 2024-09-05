@@ -53,6 +53,9 @@ from tests.utils import IMPLEMENTED_DESTINATIONS, clean_test_storage
 # up the right source
 CORE_SOURCES = ["filesystem", "rest_api", "sql_database"]
 
+# we also hardcode all the templates here for testing
+TEMPLATES = [""]
+
 
 def get_verified_source_candidates(repo_dir: str) -> List[str]:
     sources_storage = FileStorage(os.path.join(repo_dir, SOURCES_MODULE_NAME))
@@ -61,29 +64,29 @@ def get_verified_source_candidates(repo_dir: str) -> List[str]:
 
 
 def test_init_command_pipeline_template(repo_dir: str, project_files: FileStorage) -> None:
-    init_command.init_command("debug", "bigquery", False, repo_dir)
+    init_command.init_command("debug", "bigquery", repo_dir)
     visitor = assert_init_files(project_files, "debug_pipeline", "bigquery")
     # single resource
     assert len(visitor.known_resource_calls) == 1
 
 
 def test_init_command_pipeline_generic(repo_dir: str, project_files: FileStorage) -> None:
-    init_command.init_command("generic", "redshift", True, repo_dir)
+    init_command.init_command("generic", "redshift", repo_dir)
     visitor = assert_init_files(project_files, "generic_pipeline", "redshift")
     # multiple resources
     assert len(visitor.known_resource_calls) > 1
 
 
 def test_init_command_new_pipeline_same_name(repo_dir: str, project_files: FileStorage) -> None:
-    init_command.init_command("debug_pipeline", "bigquery", False, repo_dir)
+    init_command.init_command("debug_pipeline", "bigquery", repo_dir)
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
-        init_command.init_command("debug_pipeline", "bigquery", False, repo_dir)
+        init_command.init_command("debug_pipeline", "bigquery", repo_dir)
         _out = buf.getvalue()
     assert "already exists, exiting" in _out
 
 
 def test_init_command_chess_verified_source(repo_dir: str, project_files: FileStorage) -> None:
-    init_command.init_command("chess", "duckdb", False, repo_dir)
+    init_command.init_command("chess", "duckdb", repo_dir)
     assert_source_files(project_files, "chess", "duckdb", has_source_section=True)
     assert_requirements_txt(project_files, "duckdb")
     # check files hashes
@@ -162,7 +165,7 @@ def test_init_all_sources_together(repo_dir: str, project_files: FileStorage) ->
     # source_candidates = [source_name for source_name in source_candidates if source_name == "salesforce"]
     for source_name in source_candidates:
         # all must install correctly
-        init_command.init_command(source_name, "bigquery", False, repo_dir)
+        init_command.init_command(source_name, "bigquery", repo_dir)
         # verify files
         _, secrets = assert_source_files(project_files, source_name, "bigquery")
 
@@ -179,7 +182,7 @@ def test_init_all_sources_together(repo_dir: str, project_files: FileStorage) ->
 
     # clear the resources otherwise sources not belonging to generic_pipeline will be found
     _SOURCES.clear()
-    init_command.init_command("generic", "redshift", True, repo_dir)
+    init_command.init_command("generic", "redshift", repo_dir)
     assert_init_files(project_files, "generic_pipeline", "redshift", "bigquery")
 
 
@@ -192,7 +195,7 @@ def test_init_all_sources_isolated(cloned_init_repo: FileStorage) -> None:
         repo_dir = get_repo_dir(cloned_init_repo)
         files = get_project_files(clear_all_sources=False)
         with set_working_dir(files.storage_path):
-            init_command.init_command(candidate, "bigquery", False, repo_dir)
+            init_command.init_command(candidate, "bigquery", repo_dir)
             assert_source_files(files, candidate, "bigquery")
             assert_requirements_txt(files, "bigquery")
             if candidate not in CORE_SOURCES:
@@ -204,14 +207,14 @@ def test_init_all_destinations(
     destination_name: str, project_files: FileStorage, repo_dir: str
 ) -> None:
     source_name = "generic"
-    init_command.init_command(source_name, destination_name, True, repo_dir)
+    init_command.init_command(source_name, destination_name, repo_dir)
     assert_init_files(project_files, source_name + "_pipeline", destination_name)
 
 
 def test_custom_destination_note(repo_dir: str, project_files: FileStorage):
     source_name = "generic"
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
-        init_command.init_command(source_name, "destination", True, repo_dir)
+        init_command.init_command(source_name, "destination", repo_dir)
         _out = buf.getvalue()
     assert "to add a destination function that will consume your data" in _out
 
@@ -223,7 +226,7 @@ def test_omit_core_sources(
     source: str, omit: bool, project_files: FileStorage, repo_dir: str
 ) -> None:
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
-        init_command.init_command(source, "destination", True, repo_dir, omit_core_sources=omit)
+        init_command.init_command(source, "destination", repo_dir, omit_core_sources=omit)
         _out = buf.getvalue()
 
     # check messaging
@@ -239,7 +242,7 @@ def test_init_code_update_index_diff(repo_dir: str, project_files: FileStorage) 
     sources_storage = FileStorage(os.path.join(repo_dir, SOURCES_MODULE_NAME))
     new_content = '"""New docstrings"""'
     new_content_hash = hashlib.sha3_256(bytes(new_content, encoding="ascii")).hexdigest()
-    init_command.init_command("pipedrive", "duckdb", False, repo_dir)
+    init_command.init_command("pipedrive", "duckdb", repo_dir)
 
     # modify existing file, no commit
     mod_file_path = os.path.join("pipedrive", "__init__.py")
@@ -364,7 +367,7 @@ def test_init_code_update_index_diff(repo_dir: str, project_files: FileStorage) 
 
 
 def test_init_code_update_no_conflict(repo_dir: str, project_files: FileStorage) -> None:
-    init_command.init_command("pipedrive", "duckdb", False, repo_dir)
+    init_command.init_command("pipedrive", "duckdb", repo_dir)
     with git.get_repo(repo_dir) as repo:
         assert git.is_clean_and_synced(repo) is True
 
@@ -380,7 +383,7 @@ def test_init_code_update_no_conflict(repo_dir: str, project_files: FileStorage)
     assert project_files.has_file(mod_local_path)
     _, commit = modify_and_commit_file(repo_dir, mod_remote_path, content=new_content)
     # update without conflict
-    init_command.init_command("pipedrive", "duckdb", False, repo_dir)
+    init_command.init_command("pipedrive", "duckdb", repo_dir)
     # was file copied
     assert project_files.load(mod_local_path) == new_content
     with git.get_repo(repo_dir) as repo:
@@ -407,14 +410,14 @@ def test_init_code_update_no_conflict(repo_dir: str, project_files: FileStorage)
 
     # repeat the same: no files to update
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
-        init_command.init_command("pipedrive", "duckdb", False, repo_dir)
+        init_command.init_command("pipedrive", "duckdb", repo_dir)
         _out = buf.getvalue()
     assert "No files to update, exiting" in _out
 
     # delete file
     repo_storage = FileStorage(repo_dir)
     repo_storage.delete(mod_remote_path)
-    init_command.init_command("pipedrive", "duckdb", False, repo_dir)
+    init_command.init_command("pipedrive", "duckdb", repo_dir)
     # file should be deleted
     assert not project_files.has_file(mod_local_path)
 
@@ -422,14 +425,14 @@ def test_init_code_update_no_conflict(repo_dir: str, project_files: FileStorage)
     new_local_path = os.path.join("pipedrive", "__init__X.py")
     new_remote_path = os.path.join(SOURCES_MODULE_NAME, new_local_path)
     repo_storage.save(new_remote_path, new_content)
-    init_command.init_command("pipedrive", "duckdb", False, repo_dir)
+    init_command.init_command("pipedrive", "duckdb", repo_dir)
     # was file copied
     assert project_files.load(new_local_path) == new_content
 
     # deleting the source folder will fully reload
     project_files.delete_folder("pipedrive", recursively=True)
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
-        init_command.init_command("pipedrive", "duckdb", False, repo_dir)
+        init_command.init_command("pipedrive", "duckdb", repo_dir)
         _out = buf.getvalue()
     # source was added anew
     assert "was added to your project!" in _out
@@ -442,7 +445,7 @@ def test_init_code_update_no_conflict(repo_dir: str, project_files: FileStorage)
 def test_init_code_update_conflict(
     repo_dir: str, project_files: FileStorage, resolution: str
 ) -> None:
-    init_command.init_command("pipedrive", "duckdb", False, repo_dir)
+    init_command.init_command("pipedrive", "duckdb", repo_dir)
     repo_storage = FileStorage(repo_dir)
     mod_local_path = os.path.join("pipedrive", "__init__.py")
     mod_remote_path = os.path.join(SOURCES_MODULE_NAME, mod_local_path)
@@ -456,7 +459,7 @@ def test_init_code_update_conflict(
 
     with echo.always_choose(False, resolution):
         with io.StringIO() as buf, contextlib.redirect_stdout(buf):
-            init_command.init_command("pipedrive", "duckdb", False, repo_dir)
+            init_command.init_command("pipedrive", "duckdb", repo_dir)
             _out = buf.getvalue()
 
     if resolution == "s":
@@ -480,7 +483,7 @@ def test_init_pyproject_toml(repo_dir: str, project_files: FileStorage) -> None:
     # add pyproject.toml to trigger dependency system
     project_files.save(cli_utils.PYPROJECT_TOML, "# toml")
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
-        init_command.init_command("google_sheets", "bigquery", False, repo_dir)
+        init_command.init_command("google_sheets", "bigquery", repo_dir)
         _out = buf.getvalue()
     assert "pyproject.toml" in _out
     assert "google-api-python-client" in _out
@@ -491,7 +494,7 @@ def test_init_requirements_text(repo_dir: str, project_files: FileStorage) -> No
     # add pyproject.toml to trigger dependency system
     project_files.save(cli_utils.REQUIREMENTS_TXT, "# requirements")
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
-        init_command.init_command("google_sheets", "bigquery", False, repo_dir)
+        init_command.init_command("google_sheets", "bigquery", repo_dir)
         _out = buf.getvalue()
     assert "requirements.txt" in _out
     assert "google-api-python-client" in _out
@@ -501,10 +504,10 @@ def test_init_requirements_text(repo_dir: str, project_files: FileStorage) -> No
 def test_pipeline_template_sources_in_single_file(
     repo_dir: str, project_files: FileStorage
 ) -> None:
-    init_command.init_command("debug_pipeline", "bigquery", False, repo_dir)
+    init_command.init_command("debug", "bigquery", repo_dir)
     # _SOURCES now contains the sources from pipeline.py which simulates loading from two places
     with pytest.raises(CliCommandException) as cli_ex:
-        init_command.init_command("generic_pipeline", "redshift", True, repo_dir)
+        init_command.init_command("generic", "redshift", repo_dir)
     assert "In init scripts you must declare all sources and resources in single file." in str(
         cli_ex.value
     )
@@ -513,7 +516,7 @@ def test_pipeline_template_sources_in_single_file(
 def test_incompatible_dlt_version_warning(repo_dir: str, project_files: FileStorage) -> None:
     with mock.patch.object(SourceRequirements, "current_dlt_version", return_value="0.1.1"):
         with io.StringIO() as buf, contextlib.redirect_stdout(buf):
-            init_command.init_command("facebook_ads", "bigquery", False, repo_dir)
+            init_command.init_command("facebook_ads", "bigquery", repo_dir)
             _out = buf.getvalue()
 
     assert (

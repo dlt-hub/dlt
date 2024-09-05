@@ -145,7 +145,7 @@ def test_instrumentation_wrappers() -> None:
 
         SENT_ITEMS.clear()
         with io.StringIO() as buf, contextlib.redirect_stderr(buf):
-            init_command_wrapper("instrumented_source", "<UNK>", False, None, None)
+            init_command_wrapper("instrumented_source", "<UNK>", None, None)
             output = buf.getvalue()
             assert "is not one of the standard dlt destinations" in output
         msg = SENT_ITEMS[0]

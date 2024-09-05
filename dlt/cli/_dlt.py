@@ -54,7 +54,6 @@ def on_exception(ex: Exception, info: str) -> None:
 def init_command_wrapper(
     source_name: str,
     destination_type: str,
-    use_generic_template: bool,
     repo_location: str,
     branch: str,
     omit_core_sources: bool = False,
@@ -63,7 +62,6 @@ def init_command_wrapper(
         init_command(
             source_name,
             destination_type,
-            use_generic_template,
             repo_location,
             branch,
             omit_core_sources,
@@ -342,16 +340,6 @@ def main() -> int:
         default=None,
         help="Advanced. Uses specific branch of the init repository to fetch the template.",
     )
-    init_cmd.add_argument(
-        "--generic",
-        default=False,
-        action="store_true",
-        help=(
-            "When present uses a generic template with all the dlt loading code present will be"
-            " used. Otherwise a debug template is used that can be immediately run to get familiar"
-            " with the dlt sources."
-        ),
-    )
 
     init_cmd.add_argument(
         "--omit-core-sources",
@@ -616,7 +604,6 @@ def main() -> int:
                 return init_command_wrapper(
                     args.source,
                     args.destination,
-                    args.generic,
                     args.location,
                     args.branch,
                     args.omit_core_sources,

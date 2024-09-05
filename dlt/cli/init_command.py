@@ -25,7 +25,7 @@ from dlt.common.reflection.utils import rewrite_python_script
 from dlt.common.schema.utils import is_valid_schema_name
 from dlt.common.schema.exceptions import InvalidSchemaName
 from dlt.common.storages.file_storage import FileStorage
-from dlt.sources import init as init_module
+from dlt.sources import pipeline_templates as init_module
 
 import dlt.reflection.names as n
 from dlt.reflection.script_inspector import inspect_pipeline_script, load_script_module
@@ -44,19 +44,34 @@ from dlt.cli.requirements import SourceRequirements
 
 DLT_INIT_DOCS_URL = "https://dlthub.com/docs/reference/command-line-interface#dlt-init"
 DEFAULT_VERIFIED_SOURCES_REPO = "https://github.com/dlt-hub/verified-sources.git"
-INIT_MODULE_NAME = "init"
+TEMPLATES_MODULE_NAME = "pipeline_templates"
 SOURCES_MODULE_NAME = "sources"
 
 
-def _get_template_files(
-    command_module: ModuleType, use_generic_template: bool
-) -> Tuple[str, List[str]]:
-    template_files: List[str] = command_module.TEMPLATE_FILES
-    pipeline_script: str = command_module.PIPELINE_SCRIPT
-    if use_generic_template:
-        pipeline_script, py = os.path.splitext(pipeline_script)
-        pipeline_script = f"{pipeline_script}_generic{py}"
-    return pipeline_script, template_files
+def _get_core_sources_storage() -> FileStorage:
+    """Get FileStorage for core sources"""
+    local_path = Path(os.path.dirname(os.path.realpath(__file__))).parent / SOURCES_MODULE_NAME
+    return FileStorage(str(local_path))
+
+
+def _get_templates_storage() -> FileStorage:
+    """Get FileStorage for single file templates"""
+    # look up init storage in core
+    init_path = (
+        Path(os.path.dirname(os.path.realpath(__file__))).parent
+        / SOURCES_MODULE_NAME
+        / TEMPLATES_MODULE_NAME
+    )
+    return FileStorage(str(init_path))
+
+
+def _clone_and_get_verified_sources_storage(repo_location: str, branch: str = None) -> FileStorage:
+    """Clone and get FileStorage for verified sources templates"""
+
+    fmt.echo("Looking up verified sources at %s..." % fmt.bold(repo_location))
+    clone_storage = git.get_fresh_repo_files(repo_location, get_dlt_repos_dir(), branch=branch)
+    # copy dlt source files from here
+    return FileStorage(clone_storage.make_full_path(SOURCES_MODULE_NAME))
 
 
 def _select_source_files(
@@ -131,9 +146,16 @@ def _get_dependency_system(dest_storage: FileStorage) -> str:
         return None
 
 
+def _list_template_sources() -> Dict[str, SourceConfiguration]:
+    template_storage = _get_templates_storage()
+    sources: Dict[str, SourceConfiguration] = {}
+    for source_name in files_ops.get_sources_names(template_storage, source_type="template"):
+        sources[source_name] = files_ops.get_template_configuration(template_storage, source_name)
+    return sources
+
+
 def _list_core_sources() -> Dict[str, SourceConfiguration]:
-    local_path = Path(os.path.dirname(os.path.realpath(__file__))).parent / SOURCES_MODULE_NAME
-    core_sources_storage = FileStorage(str(local_path))
+    core_sources_storage = _get_core_sources_storage()
 
     sources: Dict[str, SourceConfiguration] = {}
     for source_name in files_ops.get_sources_names(core_sources_storage, source_type="core"):
@@ -146,14 +168,15 @@ def _list_core_sources() -> Dict[str, SourceConfiguration]:
 def _list_verified_sources(
     repo_location: str, branch: str = None
 ) -> Dict[str, SourceConfiguration]:
-    clone_storage = git.get_fresh_repo_files(repo_location, get_dlt_repos_dir(), branch=branch)
-    sources_storage = FileStorage(clone_storage.make_full_path(SOURCES_MODULE_NAME))
+    verified_sources_storage = _clone_and_get_verified_sources_storage(repo_location, branch)
 
     sources: Dict[str, SourceConfiguration] = {}
-    for source_name in files_ops.get_sources_names(sources_storage, source_type="verified"):
+    for source_name in files_ops.get_sources_names(
+        verified_sources_storage, source_type="verified"
+    ):
         try:
             sources[source_name] = files_ops.get_verified_source_configuration(
-                sources_storage, source_name
+                verified_sources_storage, source_name
             )
         except Exception as ex:
             fmt.warning(f"Verified source {source_name} not available: {ex}")
@@ -169,7 +192,7 @@ def _welcome_message(
     is_new_source: bool,
 ) -> None:
     fmt.echo()
-    if source_configuration.source_type in ["generic", "core"]:
+    if source_configuration.source_type in ["template", "core"]:
         fmt.echo("Your new pipeline %s is ready to be customized!" % fmt.bold(source_name))
         fmt.echo(
             "* Review and change how dlt loads your data in %s"
@@ -247,15 +270,22 @@ def list_sources_command(repo_location: str, branch: str = None) -> None:
         fmt.echo(msg)
 
     fmt.echo("---")
-    fmt.echo("Looking up verified sources at %s..." % fmt.bold(repo_location))
+    fmt.echo("Available dlt single file templates:")
+    fmt.echo("---")
+    template_sources = _list_template_sources()
+    for source_name, source_configuration in template_sources.items():
+        msg = "%s: %s" % (fmt.bold(source_name), source_configuration.doc)
+        fmt.echo(msg)
+
+    fmt.echo("---")
     fmt.echo("Available verified sources:")
     fmt.echo("---")
     for source_name, source_configuration in _list_verified_sources(repo_location, branch).items():
         reqs = source_configuration.requirements
         dlt_req_string = str(reqs.dlt_requirement_base)
-        msg = "%s:" % (fmt.bold(source_name))
+        msg = "%s: " % (fmt.bold(source_name))
         if source_name in core_sources.keys():
-            msg += " (Deprecated since dlt 1.0.0 in favor of core source of the same name) "
+            msg += "(Deprecated since dlt 1.0.0 in favor of core source of the same name) "
         msg += source_configuration.doc
         if not reqs.is_installed_dlt_compatible():
             msg += fmt.warning_style(" [needs update: %s]" % (dlt_req_string))
@@ -266,7 +296,6 @@ def list_sources_command(repo_location: str, branch: str = None) -> None:
 def init_command(
     source_name: str,
     destination_type: str,
-    use_generic_template: bool,
     repo_location: str,
     branch: str = None,
     omit_core_sources: bool = False,
@@ -275,12 +304,12 @@ def init_command(
     destination_reference = Destination.from_reference(destination_type)
     destination_spec = destination_reference.spec
 
-    # lookup core sources
-    local_path = Path(os.path.dirname(os.path.realpath(__file__))).parent / SOURCES_MODULE_NAME
-    core_sources_storage = FileStorage(str(local_path))
+    # lookup core storages
+    core_sources_storage = _get_core_sources_storage()
+    templates_storage = _get_templates_storage()
 
     # discover type of source
-    source_type: files_ops.TSourceType = "generic"
+    source_type: files_ops.TSourceType = "template"
     if (
         source_name in files_ops.get_sources_names(core_sources_storage, source_type="core")
     ) and not omit_core_sources:
@@ -288,24 +317,11 @@ def init_command(
     else:
         if omit_core_sources:
             fmt.echo("Omitting dlt core sources.")
-        fmt.echo("Looking up verified sources at %s..." % fmt.bold(repo_location))
-        clone_storage = git.get_fresh_repo_files(repo_location, get_dlt_repos_dir(), branch=branch)
-        # copy dlt source files from here
-        verified_sources_storage = FileStorage(clone_storage.make_full_path(SOURCES_MODULE_NAME))
+        verified_sources_storage = _clone_and_get_verified_sources_storage(repo_location, branch)
         if source_name in files_ops.get_sources_names(
             verified_sources_storage, source_type="verified"
         ):
             source_type = "verified"
-
-    # look up init storage in core
-    init_path = (
-        Path(os.path.dirname(os.path.realpath(__file__))).parent
-        / SOURCES_MODULE_NAME
-        / INIT_MODULE_NAME
-    )
-
-    pipeline_script, template_files = _get_template_files(init_module, use_generic_template)
-    init_storage = FileStorage(str(init_path))
 
     # prepare destination storage
     dest_storage = FileStorage(os.path.abspath("."))
@@ -360,7 +376,7 @@ def init_command(
                 " update correctly in the future."
             )
         # add template files
-        source_configuration.files.extend(template_files)
+        source_configuration.files.extend(files_ops.TEMPLATE_FILES)
 
     else:
         if source_type == "core":
@@ -370,15 +386,8 @@ def init_command(
         else:
             if not is_valid_schema_name(source_name):
                 raise InvalidSchemaName(source_name)
-            source_configuration = SourceConfiguration(
-                source_type,
-                "pipeline",
-                init_storage,
-                pipeline_script,
-                source_name + "_pipeline.py",
-                template_files,
-                SourceRequirements([]),
-                "",
+            source_configuration = files_ops.get_template_configuration(
+                templates_storage, source_name
             )
 
         if dest_storage.has_file(source_configuration.dest_pipeline_script):
@@ -453,7 +462,7 @@ def init_command(
     )
 
     # detect all the required secrets and configs that should go into tomls files
-    if source_configuration.source_type == "generic":
+    if source_configuration.source_type == "template":
         # replace destination, pipeline_name and dataset_name in templates
         transformed_nodes = source_detection.find_call_arguments_to_replace(
             visitor,
@@ -542,9 +551,6 @@ def init_command(
                 " available sources."
             )
 
-        if use_generic_template and source_configuration.source_type != "generic":
-            fmt.warning("The --generic parameter is discarded if a source is found.")
-
         if not fmt.confirm("Do you want to proceed?", default=True):
             raise CliCommandException("init", "Aborted")
 
@@ -557,11 +563,11 @@ def init_command(
     for file_name in source_configuration.files:
         dest_path = dest_storage.make_full_path(file_name)
         # get files from init section first
-        if init_storage.has_file(file_name):
+        if templates_storage.has_file(file_name):
             if dest_storage.has_file(dest_path):
                 # do not overwrite any init files
                 continue
-            src_path = init_storage.make_full_path(file_name)
+            src_path = templates_storage.make_full_path(file_name)
         else:
             # only those that were modified should be copied from verified sources
             if file_name in remote_modified:

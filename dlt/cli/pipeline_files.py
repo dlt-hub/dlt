@@ -16,7 +16,7 @@ from dlt.common.reflection.utils import get_module_docstring
 from dlt.cli import utils
 from dlt.cli.requirements import SourceRequirements
 
-TSourceType = Literal["core", "verified", "generic"]
+TSourceType = Literal["core", "verified", "template"]
 
 SOURCES_INIT_INFO_ENGINE_VERSION = 1
 SOURCES_INIT_INFO_FILE = ".sources"
@@ -26,8 +26,13 @@ IGNORE_CORE_SOURCES = [
     ".*",
     "_*",
     "helpers",
-    "init",
+    "pipeline_templates",
 ]
+PIPELINE_FILE_SUFFIX = "_pipeline.py"
+
+# hardcode default template files here
+TEMPLATE_FILES = [".gitignore", ".dlt/config.toml", ".dlt/secrets.toml"]
+DEFAULT_PIPELINE_TEMPLATE = "default_pipeline.py"
 
 
 class SourceConfiguration(NamedTuple):
@@ -157,6 +162,14 @@ def get_remote_source_index(
 
 def get_sources_names(sources_storage: FileStorage, source_type: TSourceType) -> List[str]:
     candidates: List[str] = []
+
+    # for the templates we just find all the filenames
+    if source_type == "template":
+        for name in sources_storage.list_folder_files(".", to_root=False):
+            if name.endswith(PIPELINE_FILE_SUFFIX):
+                candidates.append(name.replace(PIPELINE_FILE_SUFFIX, ""))
+        return candidates
+
     ignore_cases = IGNORE_VERIFIED_SOURCES if source_type == "verified" else IGNORE_CORE_SOURCES
     for name in [
         n
@@ -178,6 +191,30 @@ def _get_docstring_for_module(sources_storage: FileStorage, source_name: str) ->
         if docstring:
             docstring = docstring.splitlines()[0]
     return docstring
+
+
+def get_template_configuration(
+    sources_storage: FileStorage, source_name: str
+) -> SourceConfiguration:
+    destination_pipeline_file_name = source_name + PIPELINE_FILE_SUFFIX
+    source_pipeline_file_name = destination_pipeline_file_name
+
+    if not sources_storage.has_file(source_pipeline_file_name):
+        source_pipeline_file_name = DEFAULT_PIPELINE_TEMPLATE
+
+    docstring = get_module_docstring(sources_storage.load(source_pipeline_file_name))
+    if docstring:
+        docstring = docstring.splitlines()[0]
+    return SourceConfiguration(
+        "template",
+        "pipeline",
+        sources_storage,
+        source_pipeline_file_name,
+        destination_pipeline_file_name,
+        TEMPLATE_FILES,
+        SourceRequirements([]),
+        docstring,
+    )
 
 
 def get_core_source_configuration(

@@ -1,3 +1,5 @@
+"""Default Pipeline template for loading each datatype to your destination"""
+
 # mypy: disable-error-code="no-untyped-def,arg-type"
 
 import dlt

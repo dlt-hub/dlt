@@ -1,3 +1,5 @@
+"""Arrow Pipeline TODO"""
+
 # mypy: disable-error-code="no-untyped-def,arg-type"
 
 import dlt
@@ -18,11 +20,7 @@ def source(api_secret_key: str = dlt.secrets.value):
 
 
 @dlt.resource(write_disposition="append")
-def resource(
-    api_secret_key: str = dlt.secrets.value,
-    org: str = "dlt-hub",
-    repository: str = "dlt",
-):
+def resource():
     # this is the test data for loading validation, delete it once you yield actual data
     yield [
         {
@@ -43,18 +41,6 @@ def resource(
             },
         }
     ]
-
-    # paginate issues and yield every page
-    # api_url = f"https://api.github.com/repos/{org}/{repository}/issues"
-    # for page in paginate(
-    #     api_url,
-    #     auth=BearerTokenAuth(api_secret_key),
-    #     # Note: for more paginators please see:
-    #     # https://dlthub.com/devel/general-usage/http/rest-client#paginators
-    #     paginator=HeaderLinkPaginator(),
-    # ):
-    #     # print(page)
-    #     yield page
 
 
 if __name__ == "__main__":

@@ -134,7 +134,7 @@ jobs:
 
 
       # TODO: this is needed for the filesystem tests, not sure if this should be in an extra?
-      - name: Install pipeline and sources dependencies
+      - name: Install openpyxl for excel tests
         run: pip install openpyxl
 
       - run: |

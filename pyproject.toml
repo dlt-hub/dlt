@@ -18,7 +18,7 @@ classifiers = [
     "Operating System :: POSIX :: Linux",
     "Operating System :: Microsoft :: Windows",]
 keywords = [ "etl" ]
-include = [ "LICENSE.txt", "README.md", "dlt/sources/init/.gitignore", "dlt/sources/init/.dlt/config.toml" ]
+include = [ "LICENSE.txt", "README.md", "dlt/sources/pipeline_templates/.gitignore", "dlt/sources/pipeline_templates/.dlt/config.toml" ]
 packages = [
     { include = "dlt" },
 ]
