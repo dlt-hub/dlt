@@ -27,6 +27,7 @@ try:
         default_test_callback,
     )
     from tests.load.sources.sql_database.sql_source import SQLAlchemySourceDB
+    from dlt.common.libs.sql_alchemy import IS_SQL_ALCHEMY_20
 except MissingDependencyException:
     pytest.skip("Tests require sql alchemy", allow_module_level=True)
 
@@ -155,6 +156,9 @@ def test_load_sql_table_incremental(
     """
     os.environ["SOURCES__SQL_DATABASE__CHAT_MESSAGE__INCREMENTAL__CURSOR_PATH"] = "updated_at"
 
+    if not IS_SQL_ALCHEMY_20 and backend == "connectorx":
+        pytest.skip("Test will not run on sqlalchemy 1.4 with connectorx")
+
     pipeline = destination_config.setup_pipeline(request.node.name, dev_mode=True)
     tables = ["chat_message"]
 
@@ -280,6 +284,9 @@ def test_load_sql_table_resource_incremental(
     backend: TableBackend,
     request: Any,
 ) -> None:
+    if not IS_SQL_ALCHEMY_20 and backend == "connectorx":
+        pytest.skip("Test will not run on sqlalchemy 1.4 with connectorx")
+
     @dlt.source
     def sql_table_source() -> List[DltResource]:
         return [
@@ -315,6 +322,9 @@ def test_load_sql_table_resource_incremental_initial_value(
     backend: TableBackend,
     request: Any,
 ) -> None:
+    if not IS_SQL_ALCHEMY_20 and backend == "connectorx":
+        pytest.skip("Test will not run on sqlalchemy 1.4 with connectorx")
+
     @dlt.source
     def sql_table_source() -> List[DltResource]:
         return [

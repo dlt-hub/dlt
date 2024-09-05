@@ -9,9 +9,13 @@ try:
     from sqlalchemy.sql import sqltypes, Select
     from sqlalchemy.sql.sqltypes import TypeEngine
     from sqlalchemy.exc import CompileError
+    import sqlalchemy as sa
 except ModuleNotFoundError:
     raise MissingDependencyException(
         "dlt sql_database helpers ",
         [f"{version.DLT_PKG_NAME}[sql_database]"],
         "Install the sql_database helpers for loading from sql_database sources.",
     )
+
+# TODO: maybe use sa.__version__?
+IS_SQL_ALCHEMY_20 = hasattr(sa, "Double")

@@ -407,7 +407,7 @@ def test_type_adapter_callback(
     def conversion_callback(t):
         if isinstance(t, sa.JSON):
             return sa.Text
-        elif hasattr(sa, "Double") and isinstance(t, sa.Double):  # type: ignore[attr-defined]
+        elif hasattr(sa, "Double") and isinstance(t, sa.Double):
             return sa.BIGINT
         return t
 
