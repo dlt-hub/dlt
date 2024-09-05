@@ -119,7 +119,7 @@ class PyOdbcMsSqlClient(SqlClientBase[pyodbc.Connection], DBTransaction):
         table_names = [row[0] for row in rows]
         self.drop_tables(*table_names)
         # Drop schema
-        self._drop_schema()
+        # self._drop_schema()
 
     def _drop_views(self, *tables: str) -> None:
         if not tables:

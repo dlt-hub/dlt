@@ -192,11 +192,14 @@ def sql_table(
         if table_adapter_callback:
             table_adapter_callback(table_obj)
 
+    skip_complex_on_minimal = backend == "sqlalchemy"
     return dlt.resource(
         table_rows,
         name=table_obj.name,
         primary_key=get_primary_key(table_obj),
-        columns=table_to_columns(table_obj, reflection_level, type_adapter_callback),
+        columns=table_to_columns(
+            table_obj, reflection_level, type_adapter_callback, skip_complex_on_minimal
+        ),
     )(
         engine,
         table_obj,

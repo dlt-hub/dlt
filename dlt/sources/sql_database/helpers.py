@@ -263,7 +263,7 @@ def unwrap_json_connector_x(field: str) -> TDataItem:
     def _unwrap(table: TDataItem) -> TDataItem:
         col_index = table.column_names.index(field)
         # remove quotes
-        column = pc.replace_substring_regex(table[field], '"(.*)"', "\\1")
+        column = table[field]  # pc.replace_substring_regex(table[field], '"(.*)"', "\\1")
         # convert json null to null
         column = pc.replace_with_mask(
             column,
