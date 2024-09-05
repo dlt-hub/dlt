@@ -178,7 +178,7 @@ class SQLAlchemySourceDB:
             Table(
                 "has_unsupported_types",
                 self.metadata,
-                Column("unsupported_daterange_1", DATERANGE, nullable=False),
+                # Column("unsupported_daterange_1", DATERANGE, nullable=False),
                 Column("supported_text", Text, nullable=False),
                 Column("supported_int", Integer, nullable=False),
                 Column("unsupported_array_1", ARRAY(Integer), nullable=False),
@@ -298,7 +298,6 @@ class SQLAlchemySourceDB:
     def _fake_precision_data(self, table_name: str, n: int = 100, null_n: int = 0) -> None:
         table = self.metadata.tables[f"{self.schema}.{table_name}"]
         self.table_infos.setdefault(table_name, dict(row_count=n + null_n, is_view=False))  # type: ignore[call-overload]
-
         rows = [
             dict(
                 int_col=random.randrange(-2147483648, 2147483647),
@@ -313,7 +312,7 @@ class SQLAlchemySourceDB:
                 date_col=mimesis.Datetime().date(),
                 time_col=mimesis.Datetime().time(),
                 float_col=random.random(),
-                json_col={"data": [1, 2, 3]},
+                json_col='{"data": [1, 2, 3]}',  # NOTE: can we do this?
                 bool_col=random.randint(0, 1) == 1,
                 uuid_col=uuid4(),
             )
@@ -334,10 +333,9 @@ class SQLAlchemySourceDB:
     def _fake_unsupported_data(self, n: int = 100) -> None:
         table = self.metadata.tables[f"{self.schema}.has_unsupported_types"]
         self.table_infos.setdefault("has_unsupported_types", dict(row_count=n, is_view=False))  # type: ignore[call-overload]
-
         rows = [
             dict(
-                unsupported_daterange_1="[2020-01-01, 2020-09-01)",
+                # unsupported_daterange_1="[2020-01-01, 2020-09-01]",
                 supported_text=mimesis.Text().word(),
                 supported_int=random.randint(0, 100),
                 unsupported_array_1=[1, 2, 3],

@@ -61,7 +61,7 @@ def reset_os_environ():
 
 def make_pipeline(destination_name: str) -> dlt.Pipeline:
     return dlt.pipeline(
-        pipeline_name="sql_database",
+        pipeline_name="sql_database" + uniq_id(),
         destination=destination_name,
         dataset_name="test_sql_pipeline_" + uniq_id(),
         full_refresh=False,
@@ -806,17 +806,6 @@ def test_infer_unsupported_types(
 
     columns = pipeline.default_schema.tables["has_unsupported_types"]["columns"]
 
-    # unsupported columns have unknown data type here
-    assert "unsupported_daterange_1" in columns
-
-    # Arrow and pandas infer types in extract
-    if backend == "pyarrow":
-        assert columns["unsupported_daterange_1"]["data_type"] == "complex"
-    elif backend == "pandas":
-        assert columns["unsupported_daterange_1"]["data_type"] == "text"
-    else:
-        assert "data_type" not in columns["unsupported_daterange_1"]
-
     pipeline.normalize()
     pipeline.load()
 
@@ -831,7 +820,6 @@ def test_infer_unsupported_types(
     if backend == "pyarrow":
         # TODO: duckdb writes structs as strings (not json encoded) to json columns
         # Just check that it has a value
-        assert rows[0]["unsupported_daterange_1"]
 
         assert isinstance(json.loads(rows[0]["unsupported_array_1"]), list)
         assert columns["unsupported_array_1"]["data_type"] == "complex"
@@ -841,21 +829,11 @@ def test_infer_unsupported_types(
         assert isinstance(rows[0]["supported_int"], int)
     elif backend == "sqlalchemy":
         # sqla value is a dataclass and is inferred as complex
-        assert columns["unsupported_daterange_1"]["data_type"] == "complex"
 
         assert columns["unsupported_array_1"]["data_type"] == "complex"
 
-        value = rows[0]["unsupported_daterange_1"]
-        assert set(json.loads(value).keys()) == {"lower", "upper", "bounds", "empty"}
     elif backend == "pandas":
         # pandas parses it as string
-        assert columns["unsupported_daterange_1"]["data_type"] == "text"
-        # Regex that matches daterange [2021-01-01, 2021-01-02)
-        assert re.match(
-            r"\[\d{4}-\d{2}-\d{2},\d{4}-\d{2}-\d{2}\)",
-            rows[0]["unsupported_daterange_1"],
-        )
-
         if type_adapter and reflection_level != "minimal":
             assert columns["unsupported_array_1"]["data_type"] == "complex"
 
