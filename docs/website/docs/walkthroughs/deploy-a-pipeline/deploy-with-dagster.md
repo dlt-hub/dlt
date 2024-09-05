@@ -229,13 +229,52 @@ For a complete picture of Dagster's integration with dlt, please refer to their 
   To use `bigquery_adapter` with `@dlt_assets` in Dagster for partitioned tables, modify your resource setup to include `bigquery_adapter` with the partition parameter. Here's a quick example:  
   
   ```py
-  from dlt import bigquery_adapter
+  from google.analytics import BetaAnalyticsDataClient
+  import dlt
+  from dagster import dlt_asset
   
-  # Configure the resource with partitioning
-  resource = bigquery_adapter(
-      dlt.resource(),
-      partition="date"  # Specify partitioning by date
-  )
+  @dlt_asset
+  def google_analytics_asset(context):
+      # Configuration (replace with your actual values or parameters)
+      queries = [
+          {"dimensions": ["dimension1"], "metrics": ["metric1"], "resource_name": "resource1"}
+      ]
+      property_id = "your_property_id"
+      start_date = "2024-01-01"
+      rows_per_page = 1000
+      credentials = your_credentials
+  
+      # Initialize Google Analytics client
+      client = BetaAnalyticsDataClient(credentials=credentials.to_native_credentials())
+  
+      # Fetch metadata
+      metadata = get_metadata(client=client, property_id=property_id)
+      resource_list = [metadata | metrics_table, metadata | dimensions_table]
+  
+      # Configure and add resources to the list
+      for query in queries:
+          dimensions = query["dimensions"]
+          if "date" not in dimensions:
+              dimensions.append("date")
+  
+          resource_name = query["resource_name"]
+          resource_list.append(
+              dlt.bigquery_adapter(
+                  dlt.resource(basic_report, name=resource_name, write_disposition="append")(
+                      client=client,
+                      rows_per_page=rows_per_page,
+                      property_id=property_id,
+                      dimensions=dimensions,
+                      metrics=query["metrics"],
+                      resource_name=resource_name,
+                      start_date=start_date,
+                      last_date=dlt.sources.incremental("date"),
+                  ),
+                  partition="date"
+              )
+          )
+  
+      return resource_list
   ```
 
 
