@@ -8,7 +8,7 @@
 
  Create as many sidebars as you want.
  */
-
+ 
 // @ts-check
 const fs = require('fs');
 const path = require('path');
