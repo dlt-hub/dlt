@@ -191,14 +191,14 @@ For a complete picture of Dagster's integration with dlt, please refer to their 
   To effectively group assets in Dagster when working with multiple sources, use the group_name parameter in your @dlt_assets decorator. This helps organize and visualize assets related to a particular source or theme in the Dagster UI. Here’s a simplified example:
   
   ```py
+  import dlt
   from dagster_embedded_elt.dlt import dlt_assets
   from dlt_sources.google_analytics import google_analytics
-  from dlt import pipeline
   
   # Define assets for the first Google Analytics source
   @dlt_assets(
       dlt_source=google_analytics(...),
-      dlt_pipeline=pipeline(...),
+      dlt_pipeline=dlt.pipeline(...),
       group_name='Google_Analytics'
   )
   def google_analytics_assets_1(context, dlt):
@@ -207,7 +207,7 @@ For a complete picture of Dagster's integration with dlt, please refer to their 
   # Define assets for the second Google Analytics source
   @dlt_assets(
       dlt_source=google_analytics(...),
-      dlt_pipeline=pipeline(...),
+      dlt_pipeline=dlt.pipeline(...),
       group_name='Google_Analytics'
   )
   def google_analytics_assets_2(context, dlt):
