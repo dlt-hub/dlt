@@ -190,9 +190,13 @@ const sidebars = {
             'general-usage/customising-pipelines/removing_columns'
           ]
         },
-        {
+         {
           type: 'category',
-          label: 'Configuration & Secrets',
+          label: 'Configuration and secrets',
+           link: {
+            type: 'doc',
+            id: 'general-usage/credentials/index',
+          },
           items: [
             'general-usage/credentials/setup',
             'general-usage/credentials/advanced',
