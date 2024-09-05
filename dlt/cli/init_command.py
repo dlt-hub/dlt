@@ -338,6 +338,8 @@ def init_command(
     # look for existing source
     source_configuration: SourceConfiguration = None
     remote_index: TVerifiedSourceFileIndex = None
+    remote_modified: Dict[str, TVerifiedSourceFileEntry] = {}
+    remote_deleted: Dict[str, TVerifiedSourceFileEntry] = {}
 
     if source_type == "verified":
         # get pipeline files
