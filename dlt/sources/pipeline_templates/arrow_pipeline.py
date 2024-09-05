@@ -1,61 +1,59 @@
-"""Arrow Pipeline TODO"""
+"""The Arrow Pipeline Template will show how to load and transform arrow tables."""
 
 # mypy: disable-error-code="no-untyped-def,arg-type"
 
 import dlt
+import time
+import pyarrow as pa
 
-
-# This is a generic pipeline example and demonstrates
-# how to use the dlt REST client for extracting data from APIs.
-# It showcases the use of authentication via bearer tokens and pagination.
+from dlt.common.typing import TDataItems
+from dlt.common import Decimal
 
 
 @dlt.source
-def source(api_secret_key: str = dlt.secrets.value):
-    # print(f"api_secret_key={api_secret_key}")
-    return resource(api_secret_key)
+def source():
+    """A source function groups all resources into one schema."""
+    return resource()
 
 
-@dlt.resource(write_disposition="append")
+@dlt.resource(write_disposition="append", name="people")
 def resource():
-    # this is the test data for loading validation, delete it once you yield actual data
-    yield [
-        {
-            "id": 1,
-            "node_id": "MDU6SXNzdWUx",
-            "number": 1347,
-            "state": "open",
-            "title": "Found a bug",
-            "body": "I'm having a problem with this.",
-            "user": {"login": "octocat", "id": 1},
-            "created_at": "2011-04-22T13:33:48Z",
-            "updated_at": "2011-04-22T13:33:48Z",
-            "repository": {
-                "id": 1296269,
-                "node_id": "MDEwOlJlcG9zaXRvcnkxMjk2MjY5",
-                "name": "Hello-World",
-                "full_name": "octocat/Hello-World",
-            },
-        }
-    ]
+    # here we create an arrow table from a list of python objects for demonstration
+    # in the real world you will have a source that already has arrow tables
+    yield pa.Table.from_pylist([{"name": "tom", "age": 25}, {"name": "angela", "age": 23}])
 
 
-if __name__ == "__main__":
+def add_updated_at(item: pa.Table):
+    """Map function to add an updated at column to your incoming data."""
+    column_count = len(item.columns)
+    # you will receive and return and arrow table
+    return item.set_column(column_count, "updated_at", [[time.time()] * item.num_rows])
+
+
+# apply tranformer to source
+resource.add_map(add_updated_at)
+
+
+def load_arrow_tables() -> None:
     # specify the pipeline name, destination and dataset name when configuring pipeline,
     # otherwise the defaults will be used that are derived from the current script name
     pipeline = dlt.pipeline(
-        pipeline_name="pipeline",
+        pipeline_name="arrow",
         destination="duckdb",
-        dataset_name="pipeline_data",
+        dataset_name="arrow_data",
     )
 
     data = list(resource())
 
-    # print the data yielded from resource
+    # print the data yielded from resource without loading it
     print(data)  # noqa: T201
 
     # run the pipeline with your parameters
-    # load_info = pipeline.run(source())
+    load_info = pipeline.run(source())
 
     # pretty print the information on data that was loaded
-    # print(load_info)
+    print(load_info)  # noqa: T201
+
+
+if __name__ == "__main__":
+    load_arrow_tables()

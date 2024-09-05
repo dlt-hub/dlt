@@ -1,57 +1,51 @@
-"""Default Pipeline template for loading each datatype to your destination"""
+"""The Default Pipeline Template provides a simple starting point for your dlt pipeline"""
 
 # mypy: disable-error-code="no-untyped-def,arg-type"
 
 import dlt
-
-# This is a generic pipeline example and demonstrates
-# how to use the dlt REST client for extracting data from APIs.
-# It showcases the use of authentication via bearer tokens and pagination.
+from dlt.common import Decimal
 
 
-@dlt.source
-def source(
-    api_secret_key: str = dlt.secrets.value,
-    org: str = "dlt-hub",
-    repository: str = "dlt",
-):
-    """This source function aggregates data from two GitHub endpoints: issues and pull requests."""
-    # Ensure that secret key is provided for GitHub
-    # either via secrets.toml or via environment variables.
-    # print(f"api_secret_key={api_secret_key}")
+@dlt.source(name="my_fruitshop")
+def source():
+    """A source function groups all resources into one schema."""
+    return customers(), inventory()
 
-    api_url = f"https://api.github.com/repos/{org}/{repository}"
-    return [
-        resource_1(api_url, api_secret_key),
-        resource_2(api_url, api_secret_key),
+
+@dlt.resource(name="customers", primary_key="id")
+def customers():
+    """Load customer data from a simple python list."""
+    yield [
+        {"id": 1, "name": "simon", "city": "berlin"},
+        {"id": 2, "name": "violet", "city": "london"},
+        {"id": 3, "name": "tammo", "city": "new york"},
     ]
 
 
-@dlt.resource
-def resource_1(api_url: str, api_secret_key: str = dlt.secrets.value):
-    """
-    Fetches issues from a specified repository on GitHub using Bearer Token Authentication.
-    """
-    # paginate issues and yield every page
-    pass
+@dlt.resource(name="inventory", primary_key="id")
+def inventory():
+    """Load inventory data from a simple python list."""
+    yield [
+        {"id": 1, "name": "apple", "price": Decimal("1.50")},
+        {"id": 2, "name": "banana", "price": Decimal("1.70")},
+        {"id": 3, "name": "pear", "price": Decimal("2.50")},
+    ]
 
 
-@dlt.resource
-def resource_2(api_url: str, api_secret_key: str = dlt.secrets.value):
-    pass
-
-
-if __name__ == "__main__":
+def load_stuff() -> None:
     # specify the pipeline name, destination and dataset name when configuring pipeline,
     # otherwise the defaults will be used that are derived from the current script name
     p = dlt.pipeline(
-        pipeline_name="generic",
+        pipeline_name="fruitshop",
         destination="duckdb",
-        dataset_name="generic_data",
-        full_refresh=False,
+        dataset_name="fruitshop_data",
     )
 
     load_info = p.run(source())
 
     # pretty print the information on data that was loaded
     print(load_info)  # noqa: T201
+
+
+if __name__ == "__main__":
+    load_stuff()
