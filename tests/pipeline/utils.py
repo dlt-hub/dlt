@@ -462,8 +462,6 @@ def assert_schema_on_data(
             assert actual_dt == expected_dt
 
     if requires_nulls:
-        print(columns_with_nulls)
-        print(set(col["name"] for col in table_columns.values() if col["nullable"]))
         # make sure that all nullable columns in table received nulls
         assert (
             set(col["name"] for col in table_columns.values() if col["nullable"])
