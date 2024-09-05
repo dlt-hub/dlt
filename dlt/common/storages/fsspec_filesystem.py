@@ -139,6 +139,10 @@ def prepare_fsspec_args(config: FilesystemConfiguration) -> DictStrAny:
         register_implementation("gdrive", GoogleDriveFileSystem, "GoogleDriveFileSystem")
 
     fs_kwargs.update(DEFAULT_KWARGS.get(protocol, {}))
+
+    if protocol == "sftp":
+        fs_kwargs.clear()
+
     if config.kwargs is not None:
         fs_kwargs.update(config.kwargs)
     if config.client_kwargs is not None:
