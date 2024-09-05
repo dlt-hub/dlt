@@ -22,6 +22,34 @@ def get_key_path(user: str = "foo") -> str:
     return os.path.join(current_dir, f"bootstrap/{user}_rsa")
 
 
+def files_are_equal(file1_path, file2_path):
+    try:
+        with open(file1_path, "r", encoding="utf-8") as f1, open(
+            file2_path, "r", encoding="utf-8"
+        ) as f2:
+            return f1.read() == f2.read()
+    except FileNotFoundError:
+        return False
+
+
+def is_ssh_agent_ready():
+    try:
+        # Check if SSH agent is running
+        ssh_agent_pid = os.getenv("SSH_AGENT_PID")
+        if not ssh_agent_pid:
+            return False
+
+        # Check if the key is present and matches
+        id_rsa_pub_path = os.path.expanduser("~/.ssh/id_rsa")
+        bobby_rsa_pub_path = os.path.expanduser(get_key_path("bobby"))
+        if not os.path.isfile(id_rsa_pub_path) or not os.path.isfile(bobby_rsa_pub_path):
+            return False
+
+        return files_are_equal(id_rsa_pub_path, bobby_rsa_pub_path)
+    except Exception:
+        return False
+
+
 @pytest.fixture(scope="module")
 def sftp_filesystem():
     fs = fsspec.filesystem(
@@ -163,8 +191,12 @@ def test_filesystem_sftp_auth_private_key_protected():
 # eval "$(ssh-agent -s)"
 # cp /path/to/tests/load/filesystem_sftp/bobby_rsa* ~/.ssh/id_rsa
 @pytest.mark.sftp
+@pytest.mark.skipif(
+    not is_ssh_agent_ready(),
+    reason="SSH agent is not running or bobby's private key isn't stored in ~/.ssh/id_rsa",
+)
 def test_filesystem_sftp_auth_private_ssh_agent():
-    os.environ["SOURCES__FILESYSTEM__BUCKET_URL"] = "sftp://0.0.0.0/data/samples"
+    os.environ["SOURCES__FILESYSTEM__BUCKET_URL"] = "sftp://localhost/data/samples"
     os.environ["SOURCES__FILESYSTEM__CREDENTIALS__SFTP_PORT"] = "2222"
     os.environ["SOURCES__FILESYSTEM__CREDENTIALS__SFTP_USERNAME"] = "bobby"
     os.environ["SOURCES__FILESYSTEM__CREDENTIALS__SFTP_PASSWORD"] = "passphrase123"
