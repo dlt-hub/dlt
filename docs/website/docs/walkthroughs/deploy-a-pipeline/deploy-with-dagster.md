@@ -197,8 +197,12 @@ For a complete picture of Dagster's integration with dlt, please refer to their 
   
   # Define assets for the first Google Analytics source
   @dlt_assets(
-      dlt_source=google_analytics(...),
-      dlt_pipeline=dlt.pipeline(...),
+      dlt_source=google_analytics(),
+      dlt_pipeline=dlt.pipeline(
+        pipeline_name="google_analytics_pipeline_1",
+        destination="bigquery",
+        dataset_name="gaoogle_analytics_data_1"
+      ),
       group_name='Google_Analytics'
   )
   def google_analytics_assets_1(context, dlt):
@@ -206,8 +210,12 @@ For a complete picture of Dagster's integration with dlt, please refer to their 
   
   # Define assets for the second Google Analytics source
   @dlt_assets(
-      dlt_source=google_analytics(...),
-      dlt_pipeline=dlt.pipeline(...),
+      dlt_source=google_analytics(),
+      dlt_pipeline=dlt.pipeline(
+        pipeline_name="google_analytics_pipeline_2",
+        destination="bigquery",
+        dataset_name="gaoogle_analytics_data_2"
+      ),
       group_name='Google_Analytics'
   )
   def google_analytics_assets_2(context, dlt):
@@ -225,7 +233,7 @@ For a complete picture of Dagster's integration with dlt, please refer to their 
   
   # Configure the resource with partitioning
   resource = bigquery_adapter(
-      dlt.resource(...),
+      dlt.resource(),
       partition="date"  # Specify partitioning by date
   )
   ```
