@@ -29,17 +29,37 @@ function *walkSync(dir) {
 const sidebars = {
   tutorialSidebar: [
     'intro',
-    'getting-started',
     {
       type: 'category',
-      label: 'Tutorial',
-      link: {
-        type: 'doc',
-        id: 'tutorial/intro',
-      },
+      label: 'Getting Started',
       items: [
-        'tutorial/load-data-from-an-api',
-        'tutorial/grouping-resources',
+        'getting-started',
+        'reference/explainers/how-dlt-works',
+        'reference/installation',
+        'reference/command-line-interface',
+        {
+          type: 'category',
+          label: 'Core Sources',
+          items: [
+            //do these exist?
+            //'walkthroughs/load-data-from-rest-api',
+            //'walkthroughs/load-data-from-sql-database',
+            //'walkthroughs/load-data-from-filesystem-cloud',
+            // Unsure item
+            'reference/core-sources',
+          ]
+        }
+      ]
+    },
+    {
+      type: 'category',
+      label: 'Core Concepts',
+      items: [
+        'general-usage/source',
+        'general-usage/resource',
+        'general-usage/pipeline',
+        'general-usage/destination',
+        'general-usage/glossary'
       ]
     },
     {
@@ -92,7 +112,17 @@ const sidebars = {
         'dlt-ecosystem/verified-sources/strapi',
         'dlt-ecosystem/verified-sources/stripe',
         'dlt-ecosystem/verified-sources/workable',
-        'dlt-ecosystem/verified-sources/zendesk'
+        'dlt-ecosystem/verified-sources/zendesk',
+        //added
+        'walkthroughs/add-a-verified-source',
+        {
+          type: 'category',
+          label: 'REST API Helpers',
+          items: [
+            'general-usage/http/rest-client',
+            'general-usage/http/requests',
+          ]
+        }
       ]
     },
     {
@@ -119,9 +149,157 @@ const sidebars = {
         'dlt-ecosystem/destinations/qdrant',
         'dlt-ecosystem/destinations/dremio',
         'dlt-ecosystem/destinations/destination',
-        'dlt-ecosystem/destinations/motherduck'
+        'dlt-ecosystem/destinations/motherduck',
+        //added
+        'walkthroughs/create-new-destination'
       ]
     },
+    {
+      type: 'category',
+      label: 'Using dlt',
+      items: [
+        'walkthroughs/create-a-pipeline',
+        'walkthroughs/run-a-pipeline',
+        'dlt-ecosystem/visualizations/exploring-the-data',
+        {
+          type: 'category',
+          label: 'Transform the Data',
+          items: [
+            'general-usage/customising-pipelines/renaming_columns',
+            'general-usage/customising-pipelines/pseudonymizing_columns',
+            'general-usage/customising-pipelines/removing_columns'
+          ]
+        },
+        {
+          type: 'category',
+          label: 'Configuration & Secrets',
+          items: [
+            'general-usage/credentials/setup',
+            'general-usage/credentials/advanced',
+            'general-usage/credentials/complex_types',
+            // Unsure item
+            'walkthroughs/add_credentials',
+          ]
+        },
+        'general-usage/schema',
+        'general-usage/schema-evolution',
+        'walkthroughs/adjust-a-schema',
+        {
+          type: 'category',
+          label: 'Loading Data',
+          items: [
+            'general-usage/incremental-loading',
+            'walkthroughs/add-incremental-configuration-sql',
+            'general-usage/full-loading',
+          ]
+        }
+      ]
+    },
+    {
+      type: 'category',
+      label: 'Deploying dlt',
+      items: [
+        'walkthroughs/share-a-dataset',
+        {
+          type: 'category',
+          label: 'Deploy a pipeline',
+          link: {
+            type: 'generated-index',
+            title: 'Deploy a pipeline',
+            description: 'Deploy dlt pipelines with different methods.',
+            slug: 'walkthroughs/deploy-a-pipeline',
+          },
+          items: [
+            'walkthroughs/deploy-a-pipeline/deploy-with-github-actions',
+            'walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer',
+            'reference/explainers/airflow-gcp-cloud-composer',
+            'walkthroughs/deploy-a-pipeline/deploy-with-google-cloud-functions',
+            'walkthroughs/deploy-a-pipeline/deploy-gcp-cloud-function-as-webhook',
+            'walkthroughs/deploy-a-pipeline/deploy-with-kestra',
+            'walkthroughs/deploy-a-pipeline/deploy-with-dagster',
+            'walkthroughs/deploy-a-pipeline/deploy-with-prefect',
+          ]
+        },
+        'walkthroughs/run-in-production',
+      ]
+    },
+    {
+      type: 'category',
+      label: 'Optimizing dlt',
+      items: [
+        'reference/performance',
+        // Unsure item
+        'general-usage/state',
+      ]
+    },
+    {
+      type: 'category',
+      label: 'Code examples',
+      link: {
+        type: 'generated-index',
+        title: 'Code examples',
+        description: 'A list of comprehensive code examples that teach you how to solve real world problem.',
+        slug: 'examples',
+        keywords: ['examples'],
+      },
+      items: [
+        'walkthroughs/dispatch-to-multiple-tables',
+      ],
+    },
+
+    {
+      type: 'category',
+      label: 'Reference',
+      link: {
+        type: 'generated-index',
+        title: 'Reference',
+        description: 'The dlthub reference. Learn more about the dlt, CLI, and the telemetry.',
+        slug: 'reference',
+        keywords: ['reference'],
+      },
+      items: [
+        'reference/telemetry',
+        'reference/frequently-asked-questions',
+        // Unsure item
+        'reference/destination-tables',
+        'general-usage/naming-convention',
+        'general-usage/staging',
+        {
+          type: 'category',
+          label: 'File Formats',
+          items: [
+            'dlt-ecosystem/file-formats/jsonl',
+            'dlt-ecosystem/file-formats/parquet',
+            'dlt-ecosystem/file-formats/csv',
+            'dlt-ecosystem/file-formats/insert-format',
+          ]
+        }
+      ],
+    },
+  ]
+};
+
+
+
+
+
+
+    
+
+    {
+      type: 'category',
+      label: 'Tutorial',
+      link: {
+        type: 'doc',
+        id: 'tutorial/intro',
+      },
+      items: [
+        'tutorial/load-data-from-an-api',
+        'tutorial/grouping-resources',
+      ]
+    },
+
+    
     {
       type: 'category',
       label: 'Using dlt',
