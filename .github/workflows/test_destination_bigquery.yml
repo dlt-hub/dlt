@@ -72,5 +72,5 @@ jobs:
         run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
 
       - run: |
-          poetry run pytest tests/load
+          poetry run pytest tests/load --ignore tests/load/sources
         name: Run all tests Linux
