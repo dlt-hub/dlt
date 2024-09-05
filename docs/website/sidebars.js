@@ -46,7 +46,7 @@ const sidebars = {
             //'walkthroughs/load-data-from-sql-database',
             //'walkthroughs/load-data-from-filesystem-cloud',
             // Unsure item
-            'reference/core-sources',
+            //'reference/core-sources',
           ]
         }
       ]
@@ -206,7 +206,7 @@ const sidebars = {
           label: 'Loading Data',
           items: [
             'general-usage/incremental-loading',
-            'walkthroughs/add-incremental-configuration-sql',
+            'walkthroughs/add-incremental-configuration',
             'general-usage/full-loading',
           ]
         }
@@ -294,9 +294,9 @@ const sidebars = {
         'reference/telemetry',
         'reference/frequently-asked-questions',
         // Unsure item
-        'reference/destination-tables',
+        'general-usage/destination-tables',
         'general-usage/naming-convention',
-        'general-usage/staging',
+        'dlt-ecosystem/staging',
         {
           type: 'category',
           label: 'File Formats',
