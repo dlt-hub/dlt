@@ -407,7 +407,7 @@ def test_type_adapter_callback(
     def conversion_callback(t):
         if isinstance(t, sa.JSON):
             return sa.Text
-        elif isinstance(t, sa.Double):  # type: ignore[attr-defined]
+        elif hasattr(sa, "Double") and isinstance(t, sa.Double):  # type: ignore[attr-defined]
             return sa.BIGINT
         return t
 
@@ -436,7 +436,11 @@ def test_type_adapter_callback(
     schema = pipeline.default_schema
     table = schema.tables["has_precision"]
     assert table["columns"]["json_col"]["data_type"] == "text"
-    assert table["columns"]["float_col"]["data_type"] == "bigint"
+    assert (
+        table["columns"]["float_col"]["data_type"] == "bigint"
+        if hasattr(sa, "Double")
+        else "double"
+    )
 
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
