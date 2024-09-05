@@ -1,4 +1,5 @@
 import multiprocessing
+import os
 from typing import Iterator, Generator, Any, List
 from typing import Mapping
 from typing import Union, Dict
@@ -173,17 +174,14 @@ def test_explicit_append() -> None:
 
 
 def test_pipeline_replace() -> None:
-    generator_instance1 = sequence_generator()
-    generator_instance2 = sequence_generator()
+    os.environ["DATA_WRITER__BUFFER_MAX_ITEMS"] = "2"
+    os.environ["DATA_WRITER__FILE_MAX_ITEMS"] = "2"
+
+    generator_instance1, generator_instance2 = (sequence_generator(), sequence_generator())
 
     @dlt.resource
     def some_data() -> Generator[DictStrStr, Any, None]:
         yield from next(generator_instance1)
-
-    lancedb_adapter(
-        some_data,
-        embed=["content"],
-    )
 
     uid = uniq_id()
 
@@ -191,7 +189,7 @@ def test_pipeline_replace() -> None:
         pipeline_name="test_pipeline_replace",
         destination="lancedb",
         dataset_name="test_pipeline_replace_dataset"
-        + uid,  # lancedb doesn't mandate any name normalization
+        + uid,  # Lancedb doesn't mandate any name normalization.
     )
 
     info = pipeline.run(
