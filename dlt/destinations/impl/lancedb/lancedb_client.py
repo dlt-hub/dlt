@@ -201,10 +201,8 @@ def write_records(
         ) from e
 
     try:
-        if write_disposition in ("append", "skip"):
+        if write_disposition in ("append", "skip", "replace"):
             tbl.add(records)
-        elif write_disposition == "replace":
-            tbl.add(records, mode="overwrite")
         elif write_disposition == "merge":
             if remove_orphans:
                 tbl.merge_insert(merge_key).when_not_matched_by_source_delete(

@@ -40,7 +40,7 @@ def assert_table(
     exists = client.table_exists(qualified_table_name)
     assert exists
 
-    records = client.db_client.open_table(qualified_table_name).search().limit(50).to_list()
+    records = client.db_client.open_table(qualified_table_name).search().limit(0).to_list()
 
     if expected_items_count is not None:
         assert expected_items_count == len(records)
