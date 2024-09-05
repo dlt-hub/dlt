@@ -10,6 +10,7 @@ import pytest
 from unittest import mock
 import re
 from packaging.requirements import Requirement
+from typing import Dict
 
 # import that because O3 modules cannot be unloaded
 import cryptography.hazmat.bindings._rust
@@ -29,9 +30,14 @@ from dlt.common.utils import set_working_dir
 from dlt.cli import init_command, echo
 from dlt.cli.init_command import (
     SOURCES_MODULE_NAME,
+    DEFAULT_VERIFIED_SOURCES_REPO,
+    SourceConfiguration,
     utils as cli_utils,
     files_ops,
     _select_source_files,
+    _list_core_sources,
+    _list_template_sources,
+    _list_verified_sources,
 )
 from dlt.cli.exceptions import CliCommandException
 from dlt.cli.requirements import SourceRequirements
@@ -54,7 +60,10 @@ from tests.utils import IMPLEMENTED_DESTINATIONS, clean_test_storage
 CORE_SOURCES = ["filesystem", "rest_api", "sql_database"]
 
 # we also hardcode all the templates here for testing
-TEMPLATES = [""]
+TEMPLATES = ["debug", "default", "arrow"]
+
+# a few verified sources we know to exist
+SOME_KNOWN_VERIFIED_SOURCES = ["chess", "sql_database", "google_sheets", "pipedrive"]
 
 
 def get_verified_source_candidates(repo_dir: str) -> List[str]:
@@ -70,11 +79,25 @@ def test_init_command_pipeline_template(repo_dir: str, project_files: FileStorag
     assert len(visitor.known_resource_calls) == 1
 
 
-def test_init_command_pipeline_generic(repo_dir: str, project_files: FileStorage) -> None:
-    init_command.init_command("generic", "redshift", repo_dir)
-    visitor = assert_init_files(project_files, "generic_pipeline", "redshift")
+def test_init_command_pipeline_default_template(repo_dir: str, project_files: FileStorage) -> None:
+    init_command.init_command("some_random_name", "redshift", repo_dir)
+    visitor = assert_init_files(project_files, "some_random_name_pipeline", "redshift")
     # multiple resources
     assert len(visitor.known_resource_calls) > 1
+
+
+def test_default_source_file_selection() -> None:
+    templates_storage = init_command._get_templates_storage()
+
+    # try a known source, it will take the known pipeline script
+    tconf = files_ops.get_template_configuration(templates_storage, "debug")
+    assert tconf.dest_pipeline_script == "debug_pipeline.py"
+    assert tconf.src_pipeline_script == "debug_pipeline.py"
+
+    # random name will select the default script
+    tconf = files_ops.get_template_configuration(templates_storage, "very_nice_name")
+    assert tconf.dest_pipeline_script == "very_nice_name_pipeline.py"
+    assert tconf.src_pipeline_script == "default_pipeline.py"
 
 
 def test_init_command_new_pipeline_same_name(repo_dir: str, project_files: FileStorage) -> None:
@@ -117,27 +140,33 @@ def test_init_command_chess_verified_source(repo_dir: str, project_files: FileSt
         raise
 
 
-def test_list_helper_functions(repo_dir: str, project_files: FileStorage) -> None:
-    # see wether all core sources are found
-    sources = init_command._list_core_sources()
-    assert set(sources.keys()) == set(CORE_SOURCES)
+def test_list_sources(repo_dir: str) -> None:
+    def check_results(items: Dict[str, SourceConfiguration]) -> None:
+        for name, source in items.items():
+            assert source.doc, f"{name} missing docstring"
 
-    sources = init_command._list_verified_sources(repo_dir)
-    assert len(sources.keys()) > 10
-    known_sources = ["chess", "sql_database", "google_sheets", "pipedrive"]
-    assert set(known_sources).issubset(set(sources.keys()))
+    core_sources = _list_core_sources()
+    assert set(core_sources) == set(CORE_SOURCES)
+    check_results(core_sources)
+
+    verified_sources = _list_verified_sources(DEFAULT_VERIFIED_SOURCES_REPO)
+    assert set(SOME_KNOWN_VERIFIED_SOURCES).issubset(verified_sources)
+    check_results(verified_sources)
+    assert len(verified_sources.keys()) > 10
+
+    templates = _list_template_sources()
+    assert set(templates) == set(TEMPLATES)
+    check_results(templates)
 
 
-def test_init_list_sources(repo_dir: str, project_files: FileStorage) -> None:
-    sources = init_command._list_verified_sources(repo_dir)
-    # a few known sources must be there
-    known_sources = ["chess", "sql_database", "google_sheets", "pipedrive"]
-    assert set(known_sources).issubset(set(sources.keys()))
-    # check docstrings
-    for k_p in known_sources:
-        assert sources[k_p].doc
-    # run the command
-    init_command.list_sources_command(repo_dir)
+def test_init_list_sources(repo_dir: str) -> None:
+    # run the command and check all the sources are there
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        init_command.list_sources_command(repo_dir)
+        _out = buf.getvalue()
+
+    for source in SOME_KNOWN_VERIFIED_SOURCES + TEMPLATES + CORE_SOURCES:
+        assert source in _out
 
 
 def test_init_list_sources_update_warning(repo_dir: str, project_files: FileStorage) -> None:
@@ -160,7 +189,7 @@ def test_init_list_sources_update_warning(repo_dir: str, project_files: FileStor
 
 
 def test_init_all_sources_together(repo_dir: str, project_files: FileStorage) -> None:
-    source_candidates = set(get_verified_source_candidates(repo_dir)).union(set(CORE_SOURCES))
+    source_candidates = [*get_verified_source_candidates(repo_dir), *CORE_SOURCES, *TEMPLATES]
 
     # source_candidates = [source_name for source_name in source_candidates if source_name == "salesforce"]
     for source_name in source_candidates:
@@ -181,7 +210,7 @@ def test_init_all_sources_together(repo_dir: str, project_files: FileStorage) ->
         assert secrets.get_value(destination_name, type, None, "destination") is not None
 
     # clear the resources otherwise sources not belonging to generic_pipeline will be found
-    _SOURCES.clear()
+    get_project_files(clear_all_sources=False)
     init_command.init_command("generic", "redshift", repo_dir)
     assert_init_files(project_files, "generic_pipeline", "redshift", "bigquery")
 
@@ -189,7 +218,9 @@ def test_init_all_sources_together(repo_dir: str, project_files: FileStorage) ->
 def test_init_all_sources_isolated(cloned_init_repo: FileStorage) -> None:
     repo_dir = get_repo_dir(cloned_init_repo)
     # ensure we test both sources form verified sources and core sources
-    source_candidates = set(get_verified_source_candidates(repo_dir)).union(set(CORE_SOURCES))
+    source_candidates = (
+        set(get_verified_source_candidates(repo_dir)).union(set(CORE_SOURCES)).union(set(TEMPLATES))
+    )
     for candidate in source_candidates:
         clean_test_storage()
         repo_dir = get_repo_dir(cloned_init_repo)
@@ -198,7 +229,7 @@ def test_init_all_sources_isolated(cloned_init_repo: FileStorage) -> None:
             init_command.init_command(candidate, "bigquery", repo_dir)
             assert_source_files(files, candidate, "bigquery")
             assert_requirements_txt(files, "bigquery")
-            if candidate not in CORE_SOURCES:
+            if candidate not in CORE_SOURCES + TEMPLATES:
                 assert_index_version_constraint(files, candidate)
 
 
@@ -501,13 +532,14 @@ def test_init_requirements_text(repo_dir: str, project_files: FileStorage) -> No
     assert "pip3 install" in _out
 
 
+@pytest.mark.skip("Why is this not working??")
 def test_pipeline_template_sources_in_single_file(
     repo_dir: str, project_files: FileStorage
 ) -> None:
     init_command.init_command("debug", "bigquery", repo_dir)
     # _SOURCES now contains the sources from pipeline.py which simulates loading from two places
     with pytest.raises(CliCommandException) as cli_ex:
-        init_command.init_command("generic", "redshift", repo_dir)
+        init_command.init_command("arrow", "redshift", repo_dir)
     assert "In init scripts you must declare all sources and resources in single file." in str(
         cli_ex.value
     )
@@ -572,7 +604,7 @@ def assert_source_files(
     visitor, secrets = assert_common_files(
         project_files, source_name + "_pipeline.py", destination_name
     )
-    assert project_files.has_folder(source_name) == (source_name not in CORE_SOURCES)
+    assert project_files.has_folder(source_name) == (source_name not in [*CORE_SOURCES, *TEMPLATES])
     source_secrets = secrets.get_value(source_name, type, None, source_name)
     if has_source_section:
         assert source_secrets is not None

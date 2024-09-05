@@ -39,11 +39,12 @@ class SourceConfiguration(NamedTuple):
     source_type: TSourceType
     source_module_prefix: str
     storage: FileStorage
-    pipeline_script: str
+    src_pipeline_script: str
     dest_pipeline_script: str
     files: List[str]
     requirements: SourceRequirements
     doc: str
+    is_default_template: bool
 
 
 class TVerifiedSourceFileEntry(TypedDict):
@@ -207,13 +208,14 @@ def get_template_configuration(
         docstring = docstring.splitlines()[0]
     return SourceConfiguration(
         "template",
-        "pipeline",
+        source_pipeline_file_name.replace(PIPELINE_FILE_SUFFIX, ""),
         sources_storage,
         source_pipeline_file_name,
         destination_pipeline_file_name,
         TEMPLATE_FILES,
         SourceRequirements([]),
         docstring,
+        source_pipeline_file_name == DEFAULT_PIPELINE_TEMPLATE,
     )
 
 
@@ -231,6 +233,7 @@ def get_core_source_configuration(
         [".gitignore"],
         SourceRequirements([]),
         _get_docstring_for_module(sources_storage, source_name),
+        False,
     )
 
 
@@ -279,6 +282,7 @@ def get_verified_source_configuration(
         files,
         requirements,
         _get_docstring_for_module(sources_storage, source_name),
+        False,
     )
 
 

@@ -4,9 +4,6 @@
 
 import dlt
 
-from dlt.sources.helpers.rest_client import paginate
-from dlt.sources.helpers.rest_client.auth import BearerTokenAuth
-from dlt.sources.helpers.rest_client.paginators import HeaderLinkPaginator
 
 # This is a generic pipeline example and demonstrates
 # how to use the dlt REST client for extracting data from APIs.

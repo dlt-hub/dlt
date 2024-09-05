@@ -4,10 +4,6 @@
 
 import dlt
 
-from dlt.sources.helpers.rest_client import paginate
-from dlt.sources.helpers.rest_client.auth import BearerTokenAuth
-from dlt.sources.helpers.rest_client.paginators import HeaderLinkPaginator
-
 # This is a generic pipeline example and demonstrates
 # how to use the dlt REST client for extracting data from APIs.
 # It showcases the use of authentication via bearer tokens and pagination.
@@ -37,24 +33,12 @@ def resource_1(api_url: str, api_secret_key: str = dlt.secrets.value):
     Fetches issues from a specified repository on GitHub using Bearer Token Authentication.
     """
     # paginate issues and yield every page
-    for page in paginate(
-        f"{api_url}/issues",
-        auth=BearerTokenAuth(api_secret_key),
-        paginator=HeaderLinkPaginator(),
-    ):
-        # print(page)
-        yield page
+    pass
 
 
 @dlt.resource
 def resource_2(api_url: str, api_secret_key: str = dlt.secrets.value):
-    for page in paginate(
-        f"{api_url}/pulls",
-        auth=BearerTokenAuth(api_secret_key),
-        paginator=HeaderLinkPaginator(),
-    ):
-        # print(page)
-        yield page
+    pass
 
 
 if __name__ == "__main__":

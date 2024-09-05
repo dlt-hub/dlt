@@ -338,7 +338,6 @@ def init_command(
     # look for existing source
     source_configuration: SourceConfiguration = None
     remote_index: TVerifiedSourceFileIndex = None
-    sources_module_prefix: str = ""
 
     if source_type == "verified":
         # get pipeline files
@@ -425,20 +424,20 @@ def init_command(
     # read module source and parse it
     visitor = utils.parse_init_script(
         "init",
-        source_configuration.storage.load(source_configuration.pipeline_script),
-        source_configuration.pipeline_script,
+        source_configuration.storage.load(source_configuration.src_pipeline_script),
+        source_configuration.src_pipeline_script,
     )
     if visitor.is_destination_imported:
         raise CliCommandException(
             "init",
-            f"The pipeline script {source_configuration.pipeline_script} imports a destination from"
-            " dlt.destinations. You should specify destinations by name when calling dlt.pipeline"
-            " or dlt.run in init scripts.",
+            f"The pipeline script {source_configuration.src_pipeline_script} imports a destination"
+            " from dlt.destinations. You should specify destinations by name when calling"
+            " dlt.pipeline or dlt.run in init scripts.",
         )
     if n.PIPELINE not in visitor.known_calls:
         raise CliCommandException(
             "init",
-            f"The pipeline script {source_configuration.pipeline_script} does not seem to"
+            f"The pipeline script {source_configuration.src_pipeline_script} does not seem to"
             " initialize a pipeline with dlt.pipeline. Please initialize pipeline explicitly in"
             " your init scripts.",
         )
@@ -451,13 +450,13 @@ def init_command(
             ("pipeline_name", source_name),
             ("dataset_name", source_name + "_data"),
         ],
-        source_configuration.pipeline_script,
+        source_configuration.src_pipeline_script,
     )
 
     # inspect the script
     inspect_pipeline_script(
         source_configuration.storage.storage_path,
-        source_configuration.storage.to_relative_path(source_configuration.pipeline_script),
+        source_configuration.storage.to_relative_path(source_configuration.src_pipeline_script),
         ignore_missing_imports=True,
     )
 
@@ -471,19 +470,19 @@ def init_command(
                 ("pipeline_name", source_name),
                 ("dataset_name", source_name + "_data"),
             ],
-            source_configuration.pipeline_script,
+            source_configuration.src_pipeline_script,
         )
         # template sources are always in module starting with "pipeline"
         # for templates, place config and secrets into top level section
         required_secrets, required_config, checked_sources = source_detection.detect_source_configs(
-            _SOURCES, sources_module_prefix, ()
+            _SOURCES, source_configuration.source_module_prefix, ()
         )
         # template has a strict rules where sources are placed
         for source_q_name, source_config in checked_sources.items():
             if source_q_name not in visitor.known_sources_resources:
                 raise CliCommandException(
                     "init",
-                    f"The pipeline script {source_configuration.pipeline_script} imports a"
+                    f"The pipeline script {source_configuration.src_pipeline_script} imports a"
                     f" source/resource {source_config.f.__name__} from module"
                     f" {source_config.module.__name__}. In init scripts you must declare all"
                     " sources and resources in single file.",
@@ -495,18 +494,20 @@ def init_command(
     else:
         # replace only destination for existing pipelines
         transformed_nodes = source_detection.find_call_arguments_to_replace(
-            visitor, [("destination", destination_type)], source_configuration.pipeline_script
+            visitor, [("destination", destination_type)], source_configuration.src_pipeline_script
         )
         # pipeline sources are in module with name starting from {pipeline_name}
         # for verified pipelines place in the specific source section
         required_secrets, required_config, checked_sources = source_detection.detect_source_configs(
-            _SOURCES, sources_module_prefix, (known_sections.SOURCES, source_name)
+            _SOURCES,
+            source_configuration.source_module_prefix,
+            (known_sections.SOURCES, source_name),
         )
 
     if len(checked_sources) == 0:
         raise CliCommandException(
             "init",
-            f"The pipeline script {source_configuration.pipeline_script} is not creating or"
+            f"The pipeline script {source_configuration.src_pipeline_script} is not creating or"
             " importing any sources or resources. Exiting...",
         )
 
@@ -529,7 +530,8 @@ def init_command(
     if is_new_source:
         if source_configuration.source_type == "core":
             fmt.echo(
-                "Creating a new pipeline with the %s source in dlt core." % (fmt.bold(source_name))
+                "Creating a new pipeline with the dlt core source %s (%s)"
+                % (fmt.bold(source_name), source_configuration.doc)
             )
             fmt.echo(
                 "NOTE: Beginning with dlt 1.0.0, the source %s will no longer be copied from the"
@@ -538,17 +540,22 @@ def init_command(
             )
         elif source_configuration.source_type == "verified":
             fmt.echo(
-                "Cloning and configuring a verified source %s (%s)"
+                "Creating and configuring a new pipeline with the verified source %s (%s)"
                 % (fmt.bold(source_name), source_configuration.doc)
             )
         else:
+            if source_configuration.is_default_template:
+                fmt.echo(
+                    "NOTE: Could not find a dlt source or template wih the name %s. Selecting the"
+                    " default template." % (fmt.bold(source_name))
+                )
+                fmt.echo(
+                    "NOTE: In case you did not want to use the default template, run 'dlt init -l'"
+                    " to see all available sources and templates."
+                )
             fmt.echo(
-                "A source with the name %s was not found. Using a template to create a new source"
-                " and pipeline with name %s." % (fmt.bold(source_name), fmt.bold(source_name))
-            )
-            fmt.echo(
-                "In case you did not want to use a template, run 'dlt init -l' to see a list of"
-                " available sources."
+                "Creating and configuring a new pipeline with the dlt core template %s (%s)"
+                % (fmt.bold(source_configuration.src_pipeline_script), source_configuration.doc)
             )
 
         if not fmt.confirm("Do you want to proceed?", default=True):
