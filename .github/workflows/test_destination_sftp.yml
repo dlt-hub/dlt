@@ -46,9 +46,10 @@ jobs:
       
       - name: Configure local SSH agent for tests
         run: |
+          mkdir -p /home/runner/.ssh
+          cp tests/load/filesystem_sftp/bootstrap/bobby_rsa /home/runner/.ssh/id_rsa
+          cp tests/load/filesystem_sftp/bootstrap/bobby_rsa.pub /home/runner/.ssh/id_rsa.pub
           eval "$(ssh-agent -s)" 
-          cp tests/load/filesystem_sftp/bootstrap/bobby_rsa ~/.ssh/id_rsa
-          cp tests/load/filesystem_sftp/bootstrap/bobby_rsa.pub ~/.ssh/id_rsa.pub
 
       - name: Setup Python
         uses: actions/setup-python@v4
