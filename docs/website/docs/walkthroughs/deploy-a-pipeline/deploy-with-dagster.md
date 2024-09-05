@@ -224,7 +224,7 @@ For a complete picture of Dagster's integration with dlt, please refer to their 
 
  
   
-- **How can I use bigquery_adapter with @dlt_assets in Dagster for partitioned tables?**
+- **How can I use `bigquery_adapter` with `@dlt_assets` in Dagster for partitioned tables?**
    
   To use `bigquery_adapter` with `@dlt_assets` in Dagster for partitioned tables, modify your resource setup to include `bigquery_adapter` with the partition parameter. Here's a quick example:  
   
