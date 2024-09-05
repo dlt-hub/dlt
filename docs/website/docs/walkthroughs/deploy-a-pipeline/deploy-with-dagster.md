@@ -229,8 +229,9 @@ For a complete picture of Dagster's integration with dlt, please refer to their 
   To use `bigquery_adapter` with `@dlt_assets` in Dagster for partitioned tables, modify your resource setup to include `bigquery_adapter` with the partition parameter. Here's a quick example:  
   
   ```py
-  from google.analytics import BetaAnalyticsDataClient
   import dlt
+  from google.analytics import BetaAnalyticsDataClient
+  from dlt.destinations.adapters import bigquery_adapter
   from dagster import dlt_asset
   
   @dlt_asset
@@ -259,7 +260,7 @@ For a complete picture of Dagster's integration with dlt, please refer to their 
   
           resource_name = query["resource_name"]
           resource_list.append(
-              dlt.bigquery_adapter(
+              bigquery_adapter(
                   dlt.resource(basic_report, name=resource_name, write_disposition="append")(
                       client=client,
                       rows_per_page=rows_per_page,
