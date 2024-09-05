@@ -188,7 +188,7 @@ For a complete picture of Dagster's integration with dlt, please refer to their 
   
 - **I'm working with several sources – how can I best group these assets?**
 
-  To effectively group assets in Dagster when working with multiple sources, use the group_name parameter in your `@dlt_assets` decorator. This helps organize and visualize assets related to a particular source or theme in the Dagster UI. Here’s a simplified example:
+  To effectively group assets in Dagster when working with multiple sources, use the `group_name` parameter in your `@dlt_assets` decorator. This helps organize and visualize assets related to a particular source or theme in the Dagster UI. Here’s a simplified example:
   
   ```py
   import dlt
