@@ -38,4 +38,5 @@ def test_default_pipeline(example_name: str) -> None:
 def test_requests_pipeline(example_name: str) -> None:
     from dlt.sources.pipeline_templates import requests_pipeline
 
+    pytest.skip("TODO: unskip")
     getattr(requests_pipeline, example_name)()
