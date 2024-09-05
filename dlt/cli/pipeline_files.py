@@ -169,17 +169,20 @@ def get_sources_names(sources_storage: FileStorage, source_type: TSourceType) ->
         for name in sources_storage.list_folder_files(".", to_root=False):
             if name.endswith(PIPELINE_FILE_SUFFIX):
                 candidates.append(name.replace(PIPELINE_FILE_SUFFIX, ""))
-        return candidates
+    else:
+        ignore_cases = IGNORE_VERIFIED_SOURCES if source_type == "verified" else IGNORE_CORE_SOURCES
+        for name in [
+            n
+            for n in sources_storage.list_folder_dirs(".", to_root=False)
+            if not any(fnmatch.fnmatch(n, ignore) for ignore in ignore_cases)
+        ]:
+            # must contain at least one valid python script
+            if any(
+                f.endswith(".py") for f in sources_storage.list_folder_files(name, to_root=False)
+            ):
+                candidates.append(name)
 
-    ignore_cases = IGNORE_VERIFIED_SOURCES if source_type == "verified" else IGNORE_CORE_SOURCES
-    for name in [
-        n
-        for n in sources_storage.list_folder_dirs(".", to_root=False)
-        if not any(fnmatch.fnmatch(n, ignore) for ignore in ignore_cases)
-    ]:
-        # must contain at least one valid python script
-        if any(f.endswith(".py") for f in sources_storage.list_folder_files(name, to_root=False)):
-            candidates.append(name)
+    candidates.sort()
     return candidates
 
 
