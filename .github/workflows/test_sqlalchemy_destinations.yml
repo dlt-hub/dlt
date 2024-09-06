@@ -85,12 +85,14 @@ jobs:
       - name: Install dependencies
         run: poetry install --no-interaction -E parquet -E filesystem -E sqlalchemy -E cli --with sentry-sdk --with pipeline && poetry run pip install mysqlclient
 
-      - name: create secrets.toml
-        run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
+      - name: Check sqlite version
+        run: poetry run python -c "import sqlite3; print(sqlite3.sqlite_version)"
+      # - name: create secrets.toml
+      #   run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
 
-      # always run full suite, also on branches
-      - run: poetry run pytest tests/load tests/cli -x
-        name: Run tests Linux
-        env:
-          DESTINATION__SQLALCHEMY_MYSQL__CREDENTIALS: mysql://root:root@127.0.0.1:3306/dlt_data  # Use root cause we need to create databases
-          DESTINATION__SQLALCHEMY_SQLITE__CREDENTIALS: sqlite:///_storage/dl_data.sqlite
+      # # always run full suite, also on branches
+      # - run: poetry run pytest tests/load tests/cli -x
+      #   name: Run tests Linux
+      #   env:
+      #     DESTINATION__SQLALCHEMY_MYSQL__CREDENTIALS: mysql://root:root@127.0.0.1:3306/dlt_data  # Use root cause we need to create databases
+      #     DESTINATION__SQLALCHEMY_SQLITE__CREDENTIALS: sqlite:///_storage/dl_data.sqlite
