@@ -356,21 +356,4 @@ if (fs.existsSync('./docs_processed/api_reference/sidebar.json')) {
   }
 }
 
-// on the master branch link to devel and vice versa
-if (process.env.IS_MASTER_BRANCH) {
-  sidebars.tutorialSidebar.push(    {
-    type: 'link',
-    label: 'Switch to Devel Docs',
-    href: 'https://dlthub.com/devel/intro',
-    className: 'learn-more-link',
-  })
-} else {
-  sidebars.tutorialSidebar.push(    {
-    type: 'link',
-    label: 'Switch to Stable Docs',
-    href: 'https://dlthub.com/docs/intro',
-    className: 'learn-more-link',
-  })
-}
-
 module.exports = sidebars;
