@@ -1029,17 +1029,19 @@ def assert_no_precision_columns(
         # no precision, no nullability, all hints inferred
         # pandas destroys decimals
         expected = convert_non_pandas_types(expected)
-        # on one of the timestamps somehow there is timezone info...
-        actual = remove_timezone_info(actual)
+        # on one of the timestamps somehow there is timezone info..., we only remove values set to false
+        # to be sure no bad data is coming in
+        actual = remove_timezone_info(actual, only_falsy=True)
     elif backend == "connectorx":
         expected = cast(
             List[TColumnSchema],
             deepcopy(NULL_PRECISION_COLUMNS if nullable else NOT_NULL_PRECISION_COLUMNS),
         )
         expected = convert_connectorx_types(expected)
-        expected = remove_timezone_info(expected)
-        # on one of the timestamps somehow there is timezone info...
-        actual = remove_timezone_info(actual)
+        expected = remove_timezone_info(expected, only_falsy=False)
+        # on one of the timestamps somehow there is timezone info..., we only remove values set to false
+        # to be sure no bad data is coming in
+        actual = remove_timezone_info(actual, only_falsy=True)
 
     assert actual == expected
 
@@ -1061,12 +1063,15 @@ def remove_default_precision(columns: List[TColumnSchema]) -> List[TColumnSchema
             del column["precision"]
         if column["data_type"] == "text" and column.get("precision"):
             del column["precision"]
-    return remove_timezone_info(columns)
+    return remove_timezone_info(columns, only_falsy=False)
 
 
-def remove_timezone_info(columns: List[TColumnSchema]) -> List[TColumnSchema]:
+def remove_timezone_info(columns: List[TColumnSchema], only_falsy: bool) -> List[TColumnSchema]:
     for column in columns:
-        column.pop("timezone", None)
+        if not only_falsy:
+            column.pop("timezone", None)
+        elif column.get("timezone") is False:
+            column.pop("timezone", None)
     return columns
 
 
