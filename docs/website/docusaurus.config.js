@@ -205,7 +205,7 @@ const config = {
         indexName: 'dlthub',
 
         // Optional: see doc section below
-        contextualSearch: true,
+        contextualSearch: false,
       },
       colorMode: {
         defaultMode:'dark',
