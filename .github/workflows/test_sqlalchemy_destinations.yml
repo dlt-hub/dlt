@@ -86,7 +86,7 @@ jobs:
         run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
 
       # always run full suite, also on branches
-      - run: poetry run pytest tests/load && poetry run pytest tests/cli
+      - run: poetry run pytest tests/load tests/cli -x
         name: Run tests Linux
         env:
           DESTINATION__SQLALCHEMY_MYSQL__CREDENTIALS: mysql://root:root@localhost:3306/dlt_data  # Use root cause we need to create databases
