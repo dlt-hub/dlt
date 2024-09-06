@@ -50,9 +50,10 @@ dataset with the merge write disposition.
 ## Merge incremental loading
 
 The `merge` write disposition can be used with three different strategies:
-1) `delete-insert` (default strategy)
-2) `scd2`
-3) `upsert`
+
+1. `delete-insert` (default strategy)
+2. `scd2`
+3. `upsert`
 
 ### `delete-insert` strategy
 
