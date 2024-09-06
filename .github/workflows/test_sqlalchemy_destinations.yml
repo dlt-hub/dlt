@@ -52,6 +52,12 @@ jobs:
           MYSQL_PASSWORD: loader
         ports:
           - 3306:3306
+        # Wait for the service to be ready before completing the job
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -u root -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
 
     steps:
       - name: Check out
