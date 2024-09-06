@@ -23,6 +23,16 @@ def test_arrow_pipeline(example_name: str) -> None:
 
 @pytest.mark.parametrize(
     "example_name",
+    ("load_dataframe",),
+)
+def test_dataframe_pipeline(example_name: str) -> None:
+    from dlt.sources.pipeline_templates import dataframe_pipeline
+
+    getattr(dataframe_pipeline, example_name)()
+
+
+@pytest.mark.parametrize(
+    "example_name",
     ("load_stuff",),
 )
 def test_default_pipeline(example_name: str) -> None:
@@ -38,5 +48,4 @@ def test_default_pipeline(example_name: str) -> None:
 def test_requests_pipeline(example_name: str) -> None:
     from dlt.sources.pipeline_templates import requests_pipeline
 
-    pytest.skip("TODO: unskip")
     getattr(requests_pipeline, example_name)()

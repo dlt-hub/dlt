@@ -5,8 +5,8 @@
 from typing import Iterator, Any
 
 import dlt
-import requests
 
+from dlt.sources.helpers import requests
 from dlt.sources import TDataItems
 
 
@@ -20,7 +20,9 @@ def players():
     """Load player profiles from the chess api."""
     for player_name in ["magnuscarlsen", "rpragchess"]:
         path = f"{BASE_PATH}/{player_name}"
-        yield requests.get(path).json()
+        response = requests.get(path)
+        response.raise_for_status()
+        yield response.json()
 
 
 # this resource takes data from players and returns games for the configured
@@ -29,7 +31,9 @@ def players_games(player: Any) -> Iterator[TDataItems]:
     """Load all games for each player in october 2022"""
     player_name = player["username"]
     path = f"{BASE_PATH}/{player_name}/games/{YEAR:04d}/{MONTH:02d}"
-    yield requests.get(path).json()["games"]
+    response = requests.get(path)
+    response.raise_for_status()
+    yield response.json()["games"]
 
 
 @dlt.source(name="chess")

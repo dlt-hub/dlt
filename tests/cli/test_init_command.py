@@ -60,7 +60,7 @@ from tests.utils import IMPLEMENTED_DESTINATIONS, clean_test_storage
 CORE_SOURCES = ["filesystem", "rest_api", "sql_database"]
 
 # we also hardcode all the templates here for testing
-TEMPLATES = ["debug", "default", "arrow", "requests"]
+TEMPLATES = ["debug", "default", "arrow", "requests", "dataframe"]
 
 # a few verified sources we know to exist
 SOME_KNOWN_VERIFIED_SOURCES = ["chess", "sql_database", "google_sheets", "pipedrive"]

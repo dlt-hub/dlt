@@ -1,27 +1,28 @@
-"""The Arrow Pipeline Template will show how to load and transform arrow tables."""
+"""The DataFrame Pipeline Template will show how to load and transform pandas dataframes."""
 
 # mypy: disable-error-code="no-untyped-def,arg-type"
 
 import dlt
 import time
-import pyarrow as pa
+import pandas as pd
 
 
-def create_example_arrow_table() -> pa.Table:
-    return pa.Table.from_pylist([{"name": "tom", "age": 25}, {"name": "angela", "age": 23}])
+def create_example_dataframe() -> pd.DataFrame:
+    return pd.DataFrame({"name": ["tom", "angela"], "age": [25, 23]}, columns=["name", "age"])
 
 
 @dlt.resource(write_disposition="append", name="people")
 def resource():
     """One resource function will materialize as a table in the destination, wie yield example data here"""
-    yield create_example_arrow_table()
+    yield create_example_dataframe()
 
 
-def add_updated_at(item: pa.Table):
+def add_updated_at(item: pd.DataFrame):
     """Map function to add an updated at column to your incoming data."""
     column_count = len(item.columns)
     # you will receive and return and arrow table
-    return item.set_column(column_count, "updated_at", [[time.time()] * item.num_rows])
+    item.insert(column_count, "updated_at", [time.time()] * 2, True)
+    return item
 
 
 # apply tranformer to resource
@@ -31,17 +32,18 @@ resource.add_map(add_updated_at)
 @dlt.source
 def source():
     """A source function groups all resources into one schema."""
+
     # return resources
     return resource()
 
 
-def load_arrow_tables() -> None:
+def load_dataframe() -> None:
     # specify the pipeline name, destination and dataset name when configuring pipeline,
     # otherwise the defaults will be used that are derived from the current script name
     pipeline = dlt.pipeline(
-        pipeline_name="arrow",
+        pipeline_name="dataframe",
         destination="duckdb",
-        dataset_name="arrow_data",
+        dataset_name="dataframe_data",
     )
 
     data = list(source().people)
@@ -57,4 +59,4 @@ def load_arrow_tables() -> None:
 
 
 if __name__ == "__main__":
-    load_arrow_tables()
+    load_dataframe()
