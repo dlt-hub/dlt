@@ -100,7 +100,7 @@ def test_default_pipeline_names(
     # mock the correct destinations (never do that in normal code)
     with p.managed_state():
         p._set_destinations(
-            destination=Destination.from_reference(destination_config.destination_type),
+            destination=destination_config.destination_factory(),
             staging=(
                 Destination.from_reference(destination_config.staging)
                 if destination_config.staging
