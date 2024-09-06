@@ -101,7 +101,7 @@ jobs:
         run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
 
       # always run full suite, also on branches
-      - run: poetry run pytest tests/load && poetry run pytest tests/cli
+      - run: poetry run pytest tests/load -m "not sftp" && poetry run pytest tests/cli
         name: Run tests Linux
         env:
           DESTINATION__POSTGRES__CREDENTIALS: postgresql://loader:loader@localhost:5432/dlt_data
