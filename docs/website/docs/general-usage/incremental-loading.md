@@ -1064,7 +1064,7 @@ def tweets():
     data = get_data(start_from=last_val)
     yield data
     # change the state to the new value
-    dlt.current.state()["last_updated"]  = data["last_timestamp"]
+    dlt.current.resource_state()["last_updated"] = data["last_timestamp"]
 ```
 
 If we keep a list or a dictionary in the state, we can modify the underlying values in the objects,
@@ -1140,7 +1140,7 @@ def search_tweets(twitter_bearer_token=dlt.secrets.value, search_terms=None, sta
     headers = _headers(twitter_bearer_token)
     for search_term in search_terms:
         # make cache for each term
-        last_value_cache = dlt.current.state().setdefault(f"last_value_{search_term}", None)
+        last_value_cache = dlt.current.resource_state().setdefault(f"last_value_{search_term}", None)
         print(f'last_value_cache: {last_value_cache}')
         params = {...}
         url = "https://api.twitter.com/2/tweets/search/recent"
@@ -1149,7 +1149,7 @@ def search_tweets(twitter_bearer_token=dlt.secrets.value, search_terms=None, sta
             page['search_term'] = search_term
             last_id = page.get('meta', {}).get('newest_id', 0)
             #set it back - not needed if we
-            dlt.current.state()[f"last_value_{search_term}"] = max(last_value_cache or 0, int(last_id))
+            dlt.current.resource_state()[f"last_value_{search_term}"] = max(last_value_cache or 0, int(last_id))
             # print the value for each search term
             print(f'new_last_value_cache for term {search_term}: {last_value_cache}')
 
