@@ -160,7 +160,7 @@ const sidebars = {
         description: 'In this section you will find step-by-step instructions for the common tasks.',
         slug: 'walkthroughs',
         keywords: ['how-to'],
-      },
+      }, 
       items: [
       ]
     },
