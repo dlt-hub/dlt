@@ -8,7 +8,7 @@
 
  Create as many sidebars as you want.
  */
- 
+
 // @ts-check
 const fs = require('fs');
 const path = require('path');
@@ -37,12 +37,11 @@ const sidebars = {
         'reference/explainers/how-dlt-works',
         'reference/installation',
         'reference/command-line-interface',
-        /**
-        to be added:
         {
           type: 'category',
           label: 'Core Sources',
           items: [
+            'tutorial/load-data-from-an-api',
             //do these exist?
             //'walkthroughs/load-data-from-rest-api',
             //'walkthroughs/load-data-from-sql-database',
@@ -51,7 +50,6 @@ const sidebars = {
             //'reference/core-sources',
           ]
         }
-      **/
       ]
     },
     {
@@ -65,15 +63,6 @@ const sidebars = {
         'general-usage/glossary'
       ]
     },
-    {
-      type: 'category',
-      label: 'Integration',
-      link: {
-        type: 'doc',
-        id: 'dlt-ecosystem/index',
-      },
-      items: ['dlt-ecosystem/index'],
-      },
     {
       type: 'category',
       label: 'Sources',
@@ -120,12 +109,16 @@ const sidebars = {
         'walkthroughs/add-a-verified-source',
         {
           type: 'category',
-          label: 'REST API Helpers',
+          label: 'REST API helpers',
+          link: {
+            type: 'doc',
+            id: 'general-usage/http/overview',
+          },
           items: [
             'general-usage/http/rest-client',
             'general-usage/http/requests',
           ]
-        }
+        },
       ]
     },
     {
@@ -157,9 +150,15 @@ const sidebars = {
         'walkthroughs/create-new-destination'
       ]
     },
-    {
+     {
       type: 'category',
       label: 'Using dlt',
+      link: {
+        type: 'generated-index',
+        title: 'Using dlt',
+        slug: 'general-usage',
+        keywords: ['concepts', 'usage'],
+      },
       items: [
         'walkthroughs/create-a-pipeline',
         'walkthroughs/run-a-pipeline',
@@ -202,12 +201,22 @@ const sidebars = {
             'general-usage/credentials/advanced',
             'general-usage/credentials/complex_types',
             // Unsure item
-            'walkthroughs/add_credentials',
+            'walkthroughs/add_credentials'
           ]
         },
-        'general-usage/schema',
-        'general-usage/schema-evolution',
-        'walkthroughs/adjust-a-schema',
+        {
+          type: 'category',
+          label: 'Schema',
+          link: {
+            type: 'doc',
+            id: 'general-usage/schema',
+          },
+          items: [
+            'general-usage/schema-contracts',
+            'general-usage/schema-evolution',
+            'walkthroughs/adjust-a-schema',
+          ]
+        },
         {
           type: 'category',
           label: 'Loading Data',
@@ -286,7 +295,6 @@ const sidebars = {
         'walkthroughs/dispatch-to-multiple-tables',
       ],
     },
-
     {
       type: 'category',
       label: 'Reference',
@@ -306,20 +314,30 @@ const sidebars = {
         'dlt-ecosystem/staging',
         {
           type: 'category',
-          label: 'File Formats',
+          label: 'File formats',
+          link: {
+            type: 'generated-index',
+            title: 'File formats',
+            description: 'Overview of our loader file formats',
+            slug: 'dlt-ecosystem/file-formats',
+            keywords: ['destination'],
+          },
           items: [
             'dlt-ecosystem/file-formats/jsonl',
             'dlt-ecosystem/file-formats/parquet',
             'dlt-ecosystem/file-formats/csv',
             'dlt-ecosystem/file-formats/insert-format',
           ]
-        }
+        },
       ],
     },
+    // {
+    //   "API Documentation": [
+    //   require("./docs/api_reference/sidebar.json")
+    // ],
+    // }
   ]
 };
-
-
 
 // insert examples
 for (const item of sidebars.tutorialSidebar) {
@@ -360,3 +378,17 @@ if (process.env.IS_MASTER_BRANCH) {
 }
 
 module.exports = sidebars;
+    /*
+    blog:
+    'build-a-pipeline-tutorial',
+    'walkthroughs/zendesk-weaviate',
+    {
+      type: 'category',
+      label: 'Data enrichments',
+      items: [
+        'general-usage/data-enrichments/user_agent_device_data_enrichment',
+        'general-usage/data-enrichments/currency_conversion_data_enrichment',
+        'general-usage/data-enrichments/url-parser-data-enrichment'
+      ]
+    },
+    */
