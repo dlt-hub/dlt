@@ -49,3 +49,13 @@ def test_requests_pipeline(example_name: str) -> None:
     from dlt.sources.pipeline_templates import requests_pipeline
 
     getattr(requests_pipeline, example_name)()
+
+
+@pytest.mark.parametrize(
+    "example_name",
+    ("load_api_data", "load_sql_data", "load_pandas_data"),
+)
+def test_intro_pipeline(example_name: str) -> None:
+    from dlt.sources.pipeline_templates import intro_pipeline
+
+    getattr(intro_pipeline, example_name)()

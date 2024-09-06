@@ -506,7 +506,8 @@ def init_command(
             (known_sections.SOURCES, source_name),
         )
 
-    if len(checked_sources) == 0:
+    # the intro template does not use sources, for now allow it to pass here
+    if len(checked_sources) == 0 and source_name != "intro":
         raise CliCommandException(
             "init",
             f"The pipeline script {source_configuration.src_pipeline_script} is not creating or"
