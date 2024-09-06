@@ -150,6 +150,20 @@ const sidebars = {
         'walkthroughs/create-new-destination'
       ]
     },
+    {
+      //ignore: could not remove
+      type: 'category',
+      label: 'How-to guides',
+      link: {
+        type: 'generated-index',
+        title: 'How-to guides',
+        description: 'In this section you will find step-by-step instructions for the common tasks.',
+        slug: 'walkthroughs',
+        keywords: ['how-to'],
+      },
+      items: [
+      ]
+    },
      {
       type: 'category',
       label: 'Using dlt',
