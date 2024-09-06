@@ -9,7 +9,7 @@ if TYPE_CHECKING:
     from sqlalchemy.engine import Engine, Dialect
 
 
-@configspec
+@configspec(init=False)
 class SqlalchemyCredentials(ConnectionStringCredentials):
     if TYPE_CHECKING:
         _engine: Optional["Engine"] = None
