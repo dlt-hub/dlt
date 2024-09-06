@@ -63,9 +63,6 @@ jobs:
       - name: Check out
         uses: actions/checkout@master
 
-      - name: Start weaviate
-        run: docker compose -f ".github/weaviate-compose.yml" up -d
-
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
