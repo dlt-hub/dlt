@@ -17,4 +17,4 @@ if __name__ == "__main__":
                 with client.execute_query(sql):
                     pass  #
             except DatabaseUndefinedRelation:
-                pass
+                print("Could not delete schema")
