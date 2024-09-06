@@ -151,11 +151,11 @@ jobs:
         run: poetry run pip install sqlalchemy==2.0.32
 
       - run: |
-          poetry run tests/sources/sql_database
+          poetry run pytest tests/sources/sql_database
         if: runner.os != 'Windows'
         name: Run extract and pipeline tests Linux/MAC
       - run: |
-          poetry run tests/sources/sql_database
+          poetry run pytest tests/sources/sql_database
         if: runner.os == 'Windows'
         name: Run extract tests Windows
         shell: cmd
