@@ -38,7 +38,7 @@ jobs:
     defaults:
       run:
         shell: bash
-    runs-on: "ubuntu-latest"
+    runs-on: "ubuntu-22.04"
 
     # Service containers to run with `container-job`
     services:
