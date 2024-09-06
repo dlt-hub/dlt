@@ -44,7 +44,7 @@ jobs:
     services:
       # Label used to access the service container
       mysql:
-        image: mysql:5.7
+        image: mysql:8
         env:
           MYSQL_ROOT_PASSWORD: root
           MYSQL_DATABASE: dlt_data
