@@ -162,6 +162,7 @@ const sidebars = {
         keywords: ['how-to'],
       }, 
       items: [
+        'docs/walkthroughs'
       ]
     },
      {
