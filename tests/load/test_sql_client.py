@@ -295,7 +295,7 @@ def test_execute_query(client: SqlJobClientBase) -> None:
         assert rows[0][0] == "event"
     with client.sql_client.execute_query(
         f"SELECT schema_name, inserted_at FROM {version_table_name} WHERE inserted_at = %s",
-        pendulum.now().add(seconds=1),
+        to_py_datetime(pendulum.now().add(seconds=1)),
     ) as curr:
         rows = curr.fetchall()
         assert len(rows) == 0
@@ -303,7 +303,7 @@ def test_execute_query(client: SqlJobClientBase) -> None:
         with client.sql_client.execute_query(
             f"SELECT schema_name, inserted_at FROM {version_table_name} WHERE inserted_at ="
             " %(date)s",
-            date=pendulum.now().add(seconds=1),
+            date=to_py_datetime(pendulum.now().add(seconds=1)),
         ) as curr:
             rows = curr.fetchall()
             assert len(rows) == 0
