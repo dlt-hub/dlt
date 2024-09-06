@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Optional, Any, Final, Type, Dict
+from typing import TYPE_CHECKING, Optional, Any, Final, Type, Dict, Union
 import dataclasses
 
 from dlt.common.configuration import configspec
@@ -15,6 +15,11 @@ class SqlalchemyCredentials(ConnectionStringCredentials):
         _engine: Optional["Engine"] = None
 
     username: Optional[str] = None  # e.g. sqlite doesn't need username
+
+    def __init__(
+        self, connection_string: Optional[Union[str, Dict[str, Any], "Engine"]] = None
+    ) -> None:
+        super().__init__(connection_string)  # type: ignore[arg-type]
 
     def parse_native_representation(self, native_value: Any) -> None:
         from sqlalchemy.engine import Engine
