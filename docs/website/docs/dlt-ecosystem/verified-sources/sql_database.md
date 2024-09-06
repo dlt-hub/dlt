@@ -351,7 +351,7 @@ certain range.
    ```py
    source = sql_database().with_resources("family")
    #using the "updated" field as an incremental field using initial value of January 1, 2022, at midnight
-   source.family.apply_hints(incremental=dlt.sources.incremental("updated"),initial_value=pendulum.DateTime(2022, 1, 1, 0, 0, 0))
+   source.family.apply_hints(incremental=dlt.sources.incremental("updated", initial_value=pendulum.DateTime(2022, 1, 1, 0, 0, 0)))
    #running the pipeline
    info = pipeline.run(source, write_disposition="merge")
    print(info)
