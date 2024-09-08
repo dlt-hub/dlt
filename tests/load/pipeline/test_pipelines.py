@@ -853,7 +853,13 @@ def test_dest_column_invalid_timestamp_precision(
     invalid_precision = 10
 
     @dlt.resource(
-        columns={"event_tstamp": {"data_type": "timestamp", "precision": invalid_precision}},
+        columns={
+            "event_tstamp": {
+                "data_type": "timestamp",
+                "precision": invalid_precision,
+                "timezone": False,
+            }
+        },
         primary_key="event_id",
     )
     def events():

@@ -4,7 +4,9 @@ from typing import Iterator, Any
 
 import dlt, os
 from dlt.common import pendulum
+from dlt.common.destination.exceptions import UnsupportedDataType
 from dlt.common.utils import uniq_id
+from dlt.pipeline.exceptions import PipelineStepFailed
 from tests.cases import table_update_and_row, assert_all_data_types_row
 from tests.pipeline.utils import assert_load_info, load_table_counts
 from tests.pipeline.utils import load_table_counts
@@ -190,14 +192,10 @@ def test_athena_blocks_time_column(destination_config: DestinationTestConfigurat
     def my_source() -> Any:
         return my_resource
 
-    info = pipeline.run(my_source(), **destination_config.run_kwargs)
-
-    assert info.has_failed_jobs
-
-    assert (
-        "Athena cannot load TIME columns from parquet tables"
-        in info.load_packages[0].jobs["failed_jobs"][0].failed_message
-    )
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        pipeline.run(my_source(), **destination_config.run_kwargs)
+    assert isinstance(pip_ex.value.__cause__, UnsupportedDataType)
+    assert pip_ex.value.__cause__.data_type == "time"
 
 
 @pytest.mark.parametrize(
