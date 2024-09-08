@@ -969,11 +969,12 @@ def assert_row_counts(
     tables: Optional[List[str]] = None,
     include_views: bool = False,
 ) -> None:
-    tables = [
-        tbl_name
-        for tbl_name, info in sql_source_db.table_infos.items()
-        if include_views or not info["is_view"]
-    ]
+    if not tables:
+        tables = [
+            tbl_name
+            for tbl_name, info in sql_source_db.table_infos.items()
+            if include_views or not info["is_view"]
+        ]
     dest_counts = load_table_counts(pipeline, *tables)
     for table in tables:
         info = sql_source_db.table_infos[table]

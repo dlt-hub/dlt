@@ -17,7 +17,7 @@ env:
 
   # we need the secrets only for the rest_api_pipeline tests which are in tests/sources
   # so we inject them only at the end
-  DLT_SECRETS_TOML: ${{ secrets.DLT_SECRETS_TOML }}
+  SOURCES__GITHUB__ACCESS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
   get_docs_changes:
@@ -125,9 +125,6 @@ jobs:
         if: runner.os == 'Windows'
         name: Run pipeline tests with pyarrow but no pandas installed Windows
         shell: cmd
-
-      - name: create secrets.toml for examples
-        run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
 
       - name: Install pipeline and sources dependencies
         run: poetry install --no-interaction -E duckdb -E cli -E parquet -E deltalake -E sql_database --with sentry-sdk,pipeline,sources

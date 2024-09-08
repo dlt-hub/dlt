@@ -15,7 +15,7 @@ from dlt.common.schema.exceptions import (
     SchemaIdentifierNormalizationCollision,
 )
 from dlt.common.schema.typing import TColumnType, TLoaderMergeStrategy, TSchemaTables, TTableSchema
-from dlt.common.schema.utils import get_merge_strategy
+from dlt.common.schema.utils import get_merge_strategy, is_complete_column
 from dlt.common.storages import ParsedLoadJobFileName
 from dlt.common.typing import ConfigValue, DictStrStr, TLoaderFileFormat
 
@@ -156,6 +156,9 @@ def verify_supported_data_types(
     for table in prepared_tables:
         # map types
         for column in table["columns"].values():
+            # do not verify incomplete columns, those won't be created
+            if not is_complete_column(column):
+                continue
             try:
                 type_mapper.to_destination_type(column, table)
             except Exception as ex:

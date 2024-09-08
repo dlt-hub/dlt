@@ -77,7 +77,7 @@ class RedshiftTypeMapper(TypeMapperImpl):
                 raise TerminalValueError("", "binary")
         if loader_file_format == "parquet":
             # binary not supported on parquet if precision is set
-            if column.get("precision"):
+            if column.get("precision") and column["data_type"] == "binary":
                 raise TerminalValueError(
                     "Redshift cannot load fixed width VARBYTE columns from parquet files. Switch"
                     " to other file format or use binary columns without precision.",
