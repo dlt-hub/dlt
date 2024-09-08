@@ -1,4 +1,4 @@
-from copy import copy, deepcopy
+from copy import deepcopy
 from typing import TypedDict, cast, Any, Optional, Dict
 
 from dlt.common import logger
@@ -40,18 +40,21 @@ from dlt.extract.utils import ensure_table_schema_columns, ensure_table_schema_c
 from dlt.extract.validation import create_item_validator
 
 
-class TResourceHints(TypedDict, total=False):
+class TResourceHintsBase(TypedDict, total=False):
+    write_disposition: Optional[TTableHintTemplate[TWriteDispositionConfig]]
+    parent: Optional[TTableHintTemplate[str]]
+    primary_key: Optional[TTableHintTemplate[TColumnNames]]
+    schema_contract: Optional[TTableHintTemplate[TSchemaContract]]
+    table_format: Optional[TTableHintTemplate[TTableFormat]]
+    merge_key: Optional[TTableHintTemplate[TColumnNames]]
+
+
+class TResourceHints(TResourceHintsBase, total=False):
     name: TTableHintTemplate[str]
     # description: TTableHintTemplate[str]
-    write_disposition: TTableHintTemplate[TWriteDispositionConfig]
     # table_sealed: Optional[bool]
-    parent: TTableHintTemplate[str]
     columns: TTableHintTemplate[TTableSchemaColumns]
-    primary_key: TTableHintTemplate[TColumnNames]
-    merge_key: TTableHintTemplate[TColumnNames]
     incremental: Incremental[Any]
-    schema_contract: TTableHintTemplate[TSchemaContract]
-    table_format: TTableHintTemplate[TTableFormat]
     file_format: TTableHintTemplate[TFileFormat]
     validator: ValidateItem
     original_columns: TTableHintTemplate[TAnySchemaColumns]

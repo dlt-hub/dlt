@@ -132,7 +132,7 @@ def test_command_instrumentation() -> None:
 def test_instrumentation_wrappers() -> None:
     from dlt.cli._dlt import (
         init_command_wrapper,
-        list_verified_sources_command_wrapper,
+        list_sources_command_wrapper,
         DEFAULT_VERIFIED_SOURCES_REPO,
         pipeline_command_wrapper,
         deploy_command_wrapper,
@@ -145,7 +145,7 @@ def test_instrumentation_wrappers() -> None:
 
         SENT_ITEMS.clear()
         with io.StringIO() as buf, contextlib.redirect_stderr(buf):
-            init_command_wrapper("instrumented_source", "<UNK>", False, None, None)
+            init_command_wrapper("instrumented_source", "<UNK>", None, None)
             output = buf.getvalue()
             assert "is not one of the standard dlt destinations" in output
         msg = SENT_ITEMS[0]
@@ -155,7 +155,7 @@ def test_instrumentation_wrappers() -> None:
         assert msg["properties"]["success"] is False
 
         SENT_ITEMS.clear()
-        list_verified_sources_command_wrapper(DEFAULT_VERIFIED_SOURCES_REPO, None)
+        list_sources_command_wrapper(DEFAULT_VERIFIED_SOURCES_REPO, None)
         msg = SENT_ITEMS[0]
         assert msg["event"] == "command_list_sources"
 
