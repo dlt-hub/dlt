@@ -1,5 +1,4 @@
 # flake8: noqa
-import sqlalchemy as sa
 import humanize
 from typing import Any
 import os
@@ -8,9 +7,10 @@ import dlt
 from dlt.common import pendulum
 from dlt.sources.credentials import ConnectionStringCredentials
 
-from sqlalchemy.sql.sqltypes import TypeEngine
-
 from dlt.sources.sql_database import sql_database, sql_table, Table
+
+from sqlalchemy.sql.sqltypes import TypeEngine
+import sqlalchemy as sa
 
 
 def load_select_tables_from_database() -> None:
@@ -31,7 +31,7 @@ def load_select_tables_from_database() -> None:
 
     # Configure the source to load a few select tables incrementally
     source_1 = sql_database(credentials).with_resources("family", "clan")
-    return
+
     # Add incremental config to the resources. "updated" is a timestamp column in these tables that gets used as a cursor
     source_1.family.apply_hints(incremental=dlt.sources.incremental("updated"))
     source_1.clan.apply_hints(incremental=dlt.sources.incremental("updated"))
