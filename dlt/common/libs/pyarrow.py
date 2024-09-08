@@ -506,6 +506,30 @@ def cast_arrow_schema_types(
     return schema
 
 
+def concat_batches_and_tables_in_order(
+    tables_or_batches: Iterable[Union[pyarrow.Table, pyarrow.RecordBatch]]
+) -> pyarrow.Table:
+    """Concatenate iterable of tables and batches into a single table, preserving row order. Zero copy is used during
+    concatenation so schemas must be identical.
+    """
+    batches = []
+    tables = []
+    for item in tables_or_batches:
+        if isinstance(item, pyarrow.RecordBatch):
+            batches.append(item)
+        elif isinstance(item, pyarrow.Table):
+            if batches:
+                tables.append(pyarrow.Table.from_batches(batches))
+                batches = []
+            tables.append(item)
+        else:
+            raise ValueError(f"Unsupported type {type(item)}")
+    if batches:
+        tables.append(pyarrow.Table.from_batches(batches))
+    # "none" option ensures 0 copy concat
+    return pyarrow.concat_tables(tables, promote_options="none")
+
+
 class NameNormalizationCollision(ValueError):
     def __init__(self, reason: str) -> None:
         msg = f"Arrow column name collision after input data normalization. {reason}"

@@ -35,6 +35,7 @@ Under the hood, `dlt` uses the [pyarrow parquet writer](https://arrow.apache.org
 - `flavor`: Sanitize schema or set other compatibility options to work with various target systems. Defaults to None which is **pyarrow** default.
 - `version`: Determine which Parquet logical types are available for use, whether the reduced set from the Parquet 1.x.x format or the expanded logical types added in later format versions. Defaults to "2.6".
 - `data_page_size`: Set a target threshold for the approximate encoded size of data pages within a column chunk (in bytes). Defaults to None which is **pyarrow** default.
+- `row_group_size`: Set the number of rows in a row group. [See here](#row-group-size) how this can optimize parallel processing of queries on your destination over the default setting of `pyarrow`.
 - `timestamp_timezone`: A string specifying timezone, default is UTC.
 - `coerce_timestamps`: resolution to which coerce timestamps, choose from **s**, **ms**, **us**, **ns**
 - `allow_truncated_timestamps` - will raise if precision is lost on truncated timestamp.
@@ -76,3 +77,19 @@ You can generate parquet files without timezone adjustment information in two wa
 2. Set the **timestamp_timezone** to empty string (ie. `DATA_WRITER__TIMESTAMP_TIMEZONE=""`) to generate logical type without UTC adjustment.
 
 To our best knowledge, arrow will convert your timezone aware DateTime(s) to UTC and store them in parquet without timezone information.
+
+
+### Row group size
+The `pyarrow` parquet writer writes each item, i.e. table or record batch, in a separate row group.
+This may lead to many small row groups which may not be optimal for certain query engines. For example, `duckdb` parallelizes on a row group.
+`dlt` allows controlling the size of the row group by
+[buffering and concatenating tables](../../reference/performance.md#controlling-in-memory-buffers) and batches before they are written. The concatenation is done as a zero-copy to save memory.
+You can control the size of the row group by setting the maximum number of rows kept in the buffer.
+```toml
+[extract.data_writer]
+buffer_max_items=10e6
+```
+Mind that `dlt` holds the tables in memory. Thus, 1,000,000 rows in the example above may consume a significant amount of RAM.
+
+`row_group_size` configuration setting has limited utility with `pyarrow` writer. It may be useful when you write single very large pyarrow tables
+or when your in memory buffer is really large.
