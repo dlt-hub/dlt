@@ -80,15 +80,16 @@ To our best knowledge, arrow will convert your timezone aware DateTime(s) to UTC
 
 
 ### Row group size
-The `pyarrow` parquet writer writes each item, i.e. table or record batch, in a separate row group. 
+The `pyarrow` parquet writer writes each item, i.e. table or record batch, in a separate row group.
 This may lead to many small row groups which may not be optimal for certain query engines. For example, `duckdb` parallelizes on a row group.
 `dlt` allows controlling the size of the row group by
-buffering and concatenating tables and batches before they are written. The concatenation is done as a zero-copy to save memory.
-You can control the memory needed by setting the count of records to be buffered as follows:
+[buffering and concatenating tables](../../reference/performance.md#controlling-in-memory-buffers) and batches before they are written. The concatenation is done as a zero-copy to save memory.
+You can control the size of the row group by setting the maximum number of rows kept in the buffer.
 ```toml
 [extract.data_writer]
 buffer_max_items=10e6
 ```
 Mind that `dlt` holds the tables in memory. Thus, 1,000,000 rows in the example above may consume a significant amount of RAM.
 
-`row_group_size` has limited utility with `pyarrow` writer. It will split large tables into many groups if set below item buffer size.
+`row_group_size` configuration setting has limited utility with `pyarrow` writer. It may be useful when you write single very large pyarrow tables
+or when your in memory buffer is really large.

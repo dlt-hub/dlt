@@ -99,32 +99,17 @@ class BufferedDataWriter(Generic[TWriter]):
         # until the first chunk is written we can change the columns schema freely
         if columns is not None:
             self._current_columns = dict(columns)
-
-        new_rows_count: int
-        if isinstance(item, List):
-            # update row count, if item supports "num_rows" it will be used to count items
-            if len(item) > 0 and hasattr(item[0], "num_rows"):
-                new_rows_count = sum(tbl.num_rows for tbl in item)
-            else:
-                new_rows_count = len(item)
-            # items coming in a single list will be written together, no matter how many there are
-            self._buffered_items.extend(item)
-        else:
-            self._buffered_items.append(item)
-            # update row count, if item supports "num_rows" it will be used to count items
-            if hasattr(item, "num_rows"):
-                new_rows_count = item.num_rows
-            else:
-                new_rows_count = 1
+        # add item to buffer and count new rows
+        new_rows_count = self._buffer_items_with_row_count(item)
         self._buffered_items_count += new_rows_count
+        # set last modification date
+        self._last_modified = time.time()
         # flush if max buffer exceeded, the second path of the expression prevents empty data frames to pile up in the buffer
         if (
             self._buffered_items_count >= self.buffer_max_items
             or len(self._buffered_items) >= self.buffer_max_items
         ):
             self._flush_items()
-        # set last modification date
-        self._last_modified = time.time()
         # rotate the file if max_bytes exceeded
         if self._file:
             # rotate on max file size
@@ -220,6 +205,26 @@ class BufferedDataWriter(Generic[TWriter]):
             # raise the on close exception if we are not handling another exception
             if not in_exception:
                 raise
+
+    def _buffer_items_with_row_count(self, item: TDataItems) -> int:
+        """Adds `item` to in-memory buffer and counts new rows, depending in item type"""
+        new_rows_count: int
+        if isinstance(item, List):
+            # update row count, if item supports "num_rows" it will be used to count items
+            if len(item) > 0 and hasattr(item[0], "num_rows"):
+                new_rows_count = sum(tbl.num_rows for tbl in item)
+            else:
+                new_rows_count = len(item)
+            # items coming in a single list will be written together, no matter how many there are
+            self._buffered_items.extend(item)
+        else:
+            self._buffered_items.append(item)
+            # update row count, if item supports "num_rows" it will be used to count items
+            if hasattr(item, "num_rows"):
+                new_rows_count = item.num_rows
+            else:
+                new_rows_count = 1
+        return new_rows_count
 
     def _rotate_file(self, allow_empty_file: bool = False) -> DataWriterMetrics:
         metrics = self._flush_and_close_file(allow_empty_file)
