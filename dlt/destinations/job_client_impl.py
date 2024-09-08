@@ -28,12 +28,13 @@ from dlt.common.schema.typing import (
 )
 from dlt.common.schema.utils import (
     get_inherited_table_hint,
+    has_default_column_prop_value,
     loads_table,
     normalize_table_identifiers,
     version_table,
 )
 from dlt.common.storages import FileStorage
-from dlt.common.storages.load_package import LoadJobInfo
+from dlt.common.storages.load_package import LoadJobInfo, ParsedLoadJobFileName
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns, TSchemaTables
 from dlt.common.destination.reference import (
     PreparedTableSchema,
@@ -500,11 +501,11 @@ WHERE """
         ):
             # this will skip incomplete columns
             new_columns = self._create_table_update(table_name, storage_columns)
+            generate_alter = len(storage_columns) > 0
             if len(new_columns) > 0:
                 # build and add sql to execute
-                sql_statements = self._get_table_update_sql(
-                    table_name, new_columns, len(storage_columns) > 0
-                )
+                self._check_table_update_hints(table_name, new_columns, generate_alter)
+                sql_statements = self._get_table_update_sql(table_name, new_columns, generate_alter)
                 for sql in sql_statements:
                     if not sql.endswith(";"):
                         sql += ";"
@@ -556,38 +557,41 @@ WHERE """
                 sql_result.extend(
                     [sql_base + col_statement for col_statement in add_column_statements]
                 )
+        return sql_result
 
+    def _check_table_update_hints(
+        self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
+    ) -> None:
         # scan columns to get hints
         if generate_alter:
             # no hints may be specified on added columns
             for hint in COLUMN_HINTS:
-                if any(c.get(hint, False) is True for c in new_columns):
+                if any(not has_default_column_prop_value(hint, c.get(hint)) for c in new_columns):
                     hint_columns = [
                         self.sql_client.escape_column_name(c["name"])
                         for c in new_columns
                         if c.get(hint, False)
                     ]
-                    if hint == "not_null":
+                    if hint == "null":
                         logger.warning(
                             f"Column(s) {hint_columns} with NOT NULL are being added to existing"
-                            f" table {qualified_name}. If there's data in the table the operation"
+                            f" table {table_name}. If there's data in the table the operation"
                             " will fail."
                         )
                     else:
                         logger.warning(
                             f"Column(s) {hint_columns} with hint {hint} are being added to existing"
-                            f" table {qualified_name}. Several hint types may not be added to"
+                            f" table {table_name}. Several hint types may not be added to"
                             " existing tables."
                         )
-        return sql_result
 
     @abstractmethod
     def _get_column_def_sql(self, c: TColumnSchema, table: PreparedTableSchema = None) -> str:
         pass
 
     @staticmethod
-    def _gen_not_null(v: bool) -> str:
-        return "NOT NULL" if not v else ""
+    def _gen_not_null(nullable: bool) -> str:
+        return "NOT NULL" if not nullable else ""
 
     def _create_table_update(
         self, table_name: str, storage_columns: TTableSchemaColumns
@@ -658,8 +662,10 @@ WHERE """
             schema_str,
         )
 
-    def verify_schema(self, only_tables: Iterable[str] = None) -> List[PreparedTableSchema]:
-        loaded_tables = super().verify_schema(only_tables)
+    def verify_schema(
+        self, only_tables: Iterable[str] = None, new_jobs: Iterable[ParsedLoadJobFileName] = None
+    ) -> List[PreparedTableSchema]:
+        loaded_tables = super().verify_schema(only_tables, new_jobs)
         if exceptions := verify_schema_merge_disposition(
             self.schema, loaded_tables, self.capabilities, warnings=True
         ):

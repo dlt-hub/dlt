@@ -25,7 +25,8 @@ import inspect
 
 from dlt.common import logger, pendulum
 from dlt.common.configuration.specs.base_configuration import extract_inner_hint
-from dlt.common.destination.utils import verify_schema_capabilities
+from dlt.common.destination.typing import PreparedTableSchema
+from dlt.common.destination.utils import verify_schema_capabilities, verify_supported_data_types
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.metrics import LoadJobMetrics
 from dlt.common.normalizers.naming import NamingConvention
@@ -268,13 +269,6 @@ class DestinationClientDwhWithStagingConfiguration(DestinationClientDwhConfigura
     """If dlt should truncate the tables on staging destination before loading data."""
 
 
-class PreparedTableSchema(_TTableSchemaBase, total=False):
-    """Table schema with all hints prepared to be loaded"""
-
-    write_disposition: TWriteDisposition
-    _x_prepared: bool  # needed for the type checker
-
-
 TLoadJobState = Literal["ready", "running", "failed", "retry", "completed"]
 
 
@@ -459,7 +453,9 @@ class JobClientBase(ABC):
         """Brings storage back into not initialized state. Typically data in storage is destroyed."""
         pass
 
-    def verify_schema(self, only_tables: Iterable[str] = None) -> List[PreparedTableSchema]:
+    def verify_schema(
+        self, only_tables: Iterable[str] = None, new_jobs: Iterable[ParsedLoadJobFileName] = None
+    ) -> List[PreparedTableSchema]:
         """Verifies schema before loading, returns a list of verified loaded tables."""
         if exceptions := verify_schema_capabilities(
             self.schema,
@@ -470,13 +466,21 @@ class JobClientBase(ABC):
             for exception in exceptions:
                 logger.error(str(exception))
             raise exceptions[0]
-        # verify all tables with data
-        return [
+
+        prepared_tables = [
             self.prepare_load_table(table_name)
             for table_name in set(
                 list(only_tables or []) + self.schema.data_table_names(seen_data_only=True)
             )
         ]
+        verify_supported_data_types(
+            prepared_tables,
+            new_jobs,
+            self.capabilities,
+            self.config.destination_type,
+            warnings=False,
+        )
+        return prepared_tables
 
     def update_stored_schema(
         self,

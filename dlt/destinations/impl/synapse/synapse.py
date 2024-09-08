@@ -24,16 +24,15 @@ from dlt.common.configuration.specs import (
     AzureServicePrincipalCredentialsWithoutDefaults,
 )
 
+from dlt.destinations.impl.mssql.factory import MsSqlTypeMapper
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.job_client_impl import (
     SqlJobClientBase,
     CopyRemoteFileLoadJob,
 )
-from dlt.destinations.exceptions import LoadJobTerminalException
 
 from dlt.destinations.impl.mssql.mssql import (
-    MsSqlTypeMapper,
     MsSqlJobClient,
     VARCHAR_MAX_N,
     VARBINARY_MAX_N,
@@ -200,15 +199,6 @@ class SynapseCopyFileLoadJob(CopyRemoteFileLoadJob):
         # get format
         ext = os.path.splitext(self._bucket_path)[1][1:]
         if ext == "parquet":
-            if table_schema_has_type(self._load_table, "time"):
-                # Synapse interprets Parquet TIME columns as bigint, resulting in
-                # an incompatibility error.
-                raise LoadJobTerminalException(
-                    self.file_name(),
-                    "Synapse cannot load TIME columns from Parquet files. Switch to direct INSERT"
-                    " file format or convert `datetime.time` objects in your data to `str` or"
-                    " `datetime.datetime`",
-                )
             file_type = "PARQUET"
 
             # dlt-generated DDL statements will still create the table, but

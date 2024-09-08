@@ -1,5 +1,4 @@
 import re
-import inspect
 
 from typing import Any, List, Optional, Sequence, Tuple
 
@@ -8,7 +7,7 @@ from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.destination.utils import resolve_merge_strategy
 from dlt.common.schema import Schema
 from dlt.common.schema.exceptions import SchemaCorruptedException
-from dlt.common.schema.typing import MERGE_STRATEGIES, TTableSchema
+from dlt.common.schema.typing import MERGE_STRATEGIES, TColumnType, TTableSchema
 from dlt.common.schema.utils import (
     get_columns_names_with_prop,
     get_first_column_name_with_prop,

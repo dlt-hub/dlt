@@ -15,6 +15,7 @@ from typing import (
     TYPE_CHECKING,
 )
 
+from dlt.common.destination.capabilities import DataTypeMapper
 import lancedb  # type: ignore
 import pyarrow as pa
 from lancedb import DBConnection
@@ -42,10 +43,8 @@ from dlt.common.destination.reference import (
     LoadJob,
 )
 from dlt.common.pendulum import timedelta
-from dlt.common.schema import Schema, TSchemaTables, TColumnSchema
+from dlt.common.schema import Schema, TSchemaTables
 from dlt.common.schema.typing import (
-    TColumnType,
-    TTableFormat,
     TTableSchemaColumns,
     TWriteDisposition,
 )
@@ -71,91 +70,11 @@ from dlt.destinations.impl.lancedb.utils import (
     generate_uuid,
     set_non_standard_providers_environment_variables,
 )
-from dlt.destinations.job_impl import FinalizedLoadJobWithFollowupJobs
-from dlt.destinations.type_mapping import TypeMapper
 
 if TYPE_CHECKING:
     NDArray = ndarray[Any, Any]
 else:
     NDArray = ndarray
-
-
-TIMESTAMP_PRECISION_TO_UNIT: Dict[int, str] = {0: "s", 3: "ms", 6: "us", 9: "ns"}
-UNIT_TO_TIMESTAMP_PRECISION: Dict[str, int] = {v: k for k, v in TIMESTAMP_PRECISION_TO_UNIT.items()}
-
-
-class LanceDBTypeMapper(TypeMapper):
-    sct_to_unbound_dbt = {
-        "text": pa.string(),
-        "double": pa.float64(),
-        "bool": pa.bool_(),
-        "bigint": pa.int64(),
-        "binary": pa.binary(),
-        "date": pa.date32(),
-        "complex": pa.string(),
-    }
-
-    sct_to_dbt = {}
-
-    dbt_to_sct = {
-        pa.string(): "text",
-        pa.float64(): "double",
-        pa.bool_(): "bool",
-        pa.int64(): "bigint",
-        pa.binary(): "binary",
-        pa.date32(): "date",
-    }
-
-    def to_db_decimal_type(self, column: TColumnSchema) -> pa.Decimal128Type:
-        precision, scale = self.decimal_precision(column.get("precision"), column.get("scale"))
-        return pa.decimal128(precision, scale)
-
-    def to_db_datetime_type(
-        self,
-        column: TColumnSchema,
-        table: PreparedTableSchema = None,
-    ) -> pa.TimestampType:
-        column_name = column.get("name")
-        timezone = column.get("timezone")
-        precision = column.get("precision")
-        if timezone is not None or precision is not None:
-            logger.warning(
-                "LanceDB does not currently support column flags for timezone or precision."
-                f" These flags were used in column '{column_name}'."
-            )
-        unit: str = TIMESTAMP_PRECISION_TO_UNIT[self.capabilities.timestamp_precision]
-        return pa.timestamp(unit, "UTC")
-
-    def to_db_time_type(
-        self, column: TColumnSchema, table: PreparedTableSchema = None
-    ) -> pa.Time64Type:
-        unit: str = TIMESTAMP_PRECISION_TO_UNIT[self.capabilities.timestamp_precision]
-        return pa.time64(unit)
-
-    def from_db_type(
-        self,
-        db_type: pa.DataType,
-        precision: Optional[int] = None,
-        scale: Optional[int] = None,
-    ) -> TColumnType:
-        if isinstance(db_type, pa.TimestampType):
-            return dict(
-                data_type="timestamp",
-                precision=UNIT_TO_TIMESTAMP_PRECISION[db_type.unit],
-                scale=scale,
-            )
-        if isinstance(db_type, pa.Time64Type):
-            return dict(
-                data_type="time",
-                precision=UNIT_TO_TIMESTAMP_PRECISION[db_type.unit],
-                scale=scale,
-            )
-        if isinstance(db_type, pa.Decimal128Type):
-            precision, scale = db_type.precision, db_type.scale
-            if (precision, scale) == self.capabilities.wei_precision:
-                return cast(TColumnType, dict(data_type="wei"))
-            return dict(data_type="decimal", precision=precision, scale=scale)
-        return super().from_db_type(db_type, precision, scale)
 
 
 def upload_batch(
@@ -230,7 +149,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
             read_consistency_interval=timedelta(0),
         )
         self.registry = EmbeddingFunctionRegistry.get_instance()
-        self.type_mapper = LanceDBTypeMapper(self.capabilities)
+        self.type_mapper = self.capabilities.get_type_mapper()
         self.sentinel_table_name = config.sentinel_table_name
 
         embedding_model_provider = self.config.embedding_model_provider
@@ -425,7 +344,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
             name = self.schema.naming.normalize_identifier(field.name)
             table_schema[name] = {
                 "name": name,
-                **self.type_mapper.from_db_type(field.type),
+                **self.type_mapper.from_destination_type(field.type, None, None),
             }
         return True, table_schema
 
@@ -717,12 +636,12 @@ class LanceDBLoadJob(RunnableLoadJob):
     def __init__(
         self,
         file_path: str,
-        type_mapper: LanceDBTypeMapper,
+        type_mapper: DataTypeMapper,
         model_func: TextEmbeddingFunction,
         fq_table_name: str,
     ) -> None:
         super().__init__(file_path)
-        self._type_mapper: TypeMapper = type_mapper
+        self._type_mapper = type_mapper
         self._fq_table_name: str = fq_table_name
         self._model_func = model_func
         self._job_client: "LanceDBClient" = None

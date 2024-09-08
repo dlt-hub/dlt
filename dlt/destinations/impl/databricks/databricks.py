@@ -19,89 +19,17 @@ from dlt.common.exceptions import TerminalValueError
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.schema import TColumnSchema, Schema
 from dlt.common.schema.typing import TColumnType
-from dlt.common.schema.utils import table_schema_has_type
 from dlt.common.storages import FilesystemConfiguration, fsspec_from_config
 
 
 from dlt.destinations.insert_job_client import InsertValuesJobClient
-from dlt.destinations.job_impl import FinalizedLoadJobWithFollowupJobs
 from dlt.destinations.exceptions import LoadJobTerminalException
 from dlt.destinations.impl.databricks.configuration import DatabricksClientConfiguration
 from dlt.destinations.impl.databricks.sql_client import DatabricksSqlClient
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest
-from dlt.destinations.type_mapping import TypeMapper
-
 
 AZURE_BLOB_STORAGE_PROTOCOLS = ["az", "abfss", "abfs"]
-
-
-class DatabricksTypeMapper(TypeMapper):
-    sct_to_unbound_dbt = {
-        "complex": "STRING",  # Databricks supports complex types like ARRAY
-        "text": "STRING",
-        "double": "DOUBLE",
-        "bool": "BOOLEAN",
-        "date": "DATE",
-        "timestamp": "TIMESTAMP",  # TIMESTAMP for local timezone
-        "bigint": "BIGINT",
-        "binary": "BINARY",
-        "decimal": "DECIMAL",  # DECIMAL(p,s) format
-        "time": "STRING",
-    }
-
-    dbt_to_sct = {
-        "STRING": "text",
-        "DOUBLE": "double",
-        "BOOLEAN": "bool",
-        "DATE": "date",
-        "TIMESTAMP": "timestamp",
-        "BIGINT": "bigint",
-        "INT": "bigint",
-        "SMALLINT": "bigint",
-        "TINYINT": "bigint",
-        "BINARY": "binary",
-        "DECIMAL": "decimal",
-    }
-
-    sct_to_dbt = {
-        "decimal": "DECIMAL(%i,%i)",
-        "wei": "DECIMAL(%i,%i)",
-    }
-
-    def to_db_integer_type(self, column: TColumnSchema, table: PreparedTableSchema = None) -> str:
-        precision = column.get("precision")
-        if precision is None:
-            return "BIGINT"
-        if precision <= 8:
-            return "TINYINT"
-        if precision <= 16:
-            return "SMALLINT"
-        if precision <= 32:
-            return "INT"
-        if precision <= 64:
-            return "BIGINT"
-        raise TerminalValueError(
-            f"bigint with {precision} bits precision cannot be mapped into databricks integer type"
-        )
-
-    def from_db_type(
-        self, db_type: str, precision: Optional[int] = None, scale: Optional[int] = None
-    ) -> TColumnType:
-        # precision and scale arguments here are meaningless as they're not included separately in information schema
-        # We use full_data_type from databricks which is either in form "typename" or "typename(precision, scale)"
-        type_parts = db_type.split("(")
-        if len(type_parts) > 1:
-            db_type = type_parts[0]
-            scale_str = type_parts[1].strip(")")
-            precision, scale = [int(val) for val in scale_str.split(",")]
-        else:
-            scale = precision = None
-        db_type = db_type.upper()
-        if db_type == "DECIMAL":
-            if (precision, scale) == self.wei_precision():
-                return dict(data_type="wei", precision=precision, scale=scale)
-        return super().from_db_type(db_type, precision, scale)
 
 
 class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
@@ -200,31 +128,6 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
                     " compression in the data writer configuration:"
                     " https://dlthub.com/docs/reference/performance#disabling-and-enabling-file-compression",
                 )
-            if table_schema_has_type(self._load_table, "decimal"):
-                raise LoadJobTerminalException(
-                    self._file_path,
-                    "Databricks loader cannot load DECIMAL type columns from json files. Switch to"
-                    " parquet format to load decimals.",
-                )
-            if table_schema_has_type(self._load_table, "binary"):
-                raise LoadJobTerminalException(
-                    self._file_path,
-                    "Databricks loader cannot load BINARY type columns from json files. Switch to"
-                    " parquet format to load byte values.",
-                )
-            if table_schema_has_type(self._load_table, "complex"):
-                raise LoadJobTerminalException(
-                    self._file_path,
-                    "Databricks loader cannot load complex columns (lists and dicts) from json"
-                    " files. Switch to parquet format to load complex types.",
-                )
-            if table_schema_has_type(self._load_table, "date"):
-                raise LoadJobTerminalException(
-                    self._file_path,
-                    "Databricks loader cannot load DATE type columns from json files. Switch to"
-                    " parquet format to load dates.",
-                )
-
             source_format = "JSON"
             format_options_clause = "FORMAT_OPTIONS('inferTimestamp'='true')"
             # Databricks fails when trying to load empty json files, so we have to check the file size
@@ -303,7 +206,7 @@ class DatabricksClient(InsertValuesJobClient, SupportsStagingDestination):
         super().__init__(schema, config, sql_client)
         self.config: DatabricksClientConfiguration = config
         self.sql_client: DatabricksSqlClient = sql_client  # type: ignore[assignment]
-        self.type_mapper = DatabricksTypeMapper(self.capabilities)
+        self.type_mapper = self.capabilities.get_type_mapper()
 
     def create_load_job(
         self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
@@ -351,12 +254,12 @@ class DatabricksClient(InsertValuesJobClient, SupportsStagingDestination):
     def _from_db_type(
         self, bq_t: str, precision: Optional[int], scale: Optional[int]
     ) -> TColumnType:
-        return self.type_mapper.from_db_type(bq_t, precision, scale)
+        return self.type_mapper.from_destination_type(bq_t, precision, scale)
 
     def _get_column_def_sql(self, c: TColumnSchema, table: PreparedTableSchema = None) -> str:
         name = self.sql_client.escape_column_name(c["name"])
         return (
-            f"{name} {self.type_mapper.to_db_type(c,table)} {self._gen_not_null(c.get('nullable', True))}"
+            f"{name} {self.type_mapper.to_destination_type(c,table)} {self._gen_not_null(c.get('nullable', True))}"
         )
 
     def _get_storage_table_query_columns(self) -> List[str]:

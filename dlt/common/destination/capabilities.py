@@ -1,15 +1,20 @@
+from abc import ABC, abstractmethod
 from typing import (
     Any,
     Callable,
     ClassVar,
+    Iterable,
     Literal,
     Optional,
     Sequence,
     Tuple,
     Set,
     Protocol,
+    Type,
     get_args,
 )
+from dlt.common.data_types import TDataType
+from dlt.common.exceptions import TerminalValueError
 from dlt.common.normalizers.typing import TNamingConventionReferenceArg
 from dlt.common.typing import TLoaderFileFormat
 from dlt.common.configuration.utils import serialize_value
@@ -20,12 +25,19 @@ from dlt.common.destination.exceptions import (
     DestinationLoadingViaStagingNotSupported,
     DestinationLoadingWithoutStagingNotSupported,
 )
+from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
-from dlt.common.schema.typing import TTableSchema, TLoaderMergeStrategy, TTableFormat
+from dlt.common.schema.typing import (
+    TColumnSchema,
+    TColumnType,
+    TTableSchema,
+    TLoaderMergeStrategy,
+    TTableFormat,
+)
 from dlt.common.wei import EVM_DECIMAL_PRECISION
 
 TLoaderParallelismStrategy = Literal["parallel", "table-sequential", "sequential"]
-ALL_SUPPORTED_FILE_FORMATS: Set[TLoaderFileFormat] = set(get_args(TLoaderFileFormat))
+LOADER_FILE_FORMATS: Set[TLoaderFileFormat] = set(get_args(TLoaderFileFormat))
 
 
 class LoaderFileFormatSelector(Protocol):
@@ -53,6 +65,56 @@ class MergeStrategySelector(Protocol):
     ) -> Sequence["TLoaderMergeStrategy"]: ...
 
 
+class DataTypeMapper(ABC):
+    def __init__(self, capabilities: "DestinationCapabilitiesContext") -> None:
+        """Maps dlt data types into destination data types"""
+        self.capabilities = capabilities
+
+    @abstractmethod
+    def to_destination_type(self, column: TColumnSchema, table: PreparedTableSchema) -> str:
+        """Gets destination data type for a particular `column` in prepared `table`"""
+        pass
+
+    @abstractmethod
+    def from_destination_type(
+        self, db_type: str, precision: Optional[int], scale: Optional[int]
+    ) -> TColumnType:
+        """Gets column type from db type"""
+        pass
+
+    @abstractmethod
+    def ensure_supported_type(
+        self,
+        column: TColumnSchema,
+        table: PreparedTableSchema,
+        loader_file_format: TLoaderFileFormat,
+    ) -> None:
+        """Makes sure that dlt type in `column` in prepared `table`  is supported by the destination for a given file format"""
+        pass
+
+
+class UnsupportedTypeMapper(DataTypeMapper):
+    """Type Mapper that can't map any type"""
+
+    def to_destination_type(self, column: TColumnSchema, table: PreparedTableSchema) -> str:
+        raise NotImplementedError("No types are supported, use real type mapper")
+
+    def from_destination_type(
+        self, db_type: str, precision: Optional[int], scale: Optional[int]
+    ) -> TColumnType:
+        raise NotImplementedError("No types are supported, use real type mapper")
+
+    def ensure_supported_type(
+        self,
+        column: TColumnSchema,
+        table: PreparedTableSchema,
+        loader_file_format: TLoaderFileFormat,
+    ) -> None:
+        raise TerminalValueError(
+            "No types are supported, use real type mapper", column["data_type"]
+        )
+
+
 @configspec
 class DestinationCapabilitiesContext(ContainerInjectableContext):
     """Injectable destination capabilities required for many Pipeline stages ie. normalize"""
@@ -65,6 +127,7 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     loader_file_format_selector: LoaderFileFormatSelector = None
     """Callable that adapts `preferred_loader_file_format` and `supported_loader_file_formats` at runtime."""
     supported_table_formats: Sequence[TTableFormat] = None
+    type_mapper: Optional[Type[DataTypeMapper]] = None
     recommended_file_size: Optional[int] = None
     """Recommended file size in bytes when writing extract/load files"""
     preferred_staging_file_format: Optional[TLoaderFileFormat] = None
@@ -156,6 +219,9 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
         caps.supported_merge_strategies = supported_merge_strategies or []
         caps.merge_strategies_selector = merge_strategies_selector
         return caps
+
+    def get_type_mapper(self) -> DataTypeMapper:
+        return self.type_mapper(self)
 
 
 def merge_caps_file_formats(

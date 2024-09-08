@@ -50,6 +50,7 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, "Filesyst
         caps.supported_loader_file_formats = list(caps.supported_loader_file_formats) + [
             "reference",
         ]
+        caps.has_case_sensitive_identifiers = True
         return caps
 
     @property

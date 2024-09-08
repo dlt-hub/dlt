@@ -1,10 +1,9 @@
 from typing import Dict, Optional, Sequence, List, Any
 
-from dlt.common.exceptions import TerminalValueError
 from dlt.common.destination.reference import FollowupJobRequest, PreparedTableSchema
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.schema import TColumnSchema, TColumnHint, Schema
-from dlt.common.schema.typing import TColumnType, TTableFormat
+from dlt.common.schema.typing import TColumnType
 
 from dlt.destinations.sql_jobs import SqlStagingCopyFollowupJob, SqlMergeFollowupJob, SqlJobParams
 
@@ -13,75 +12,11 @@ from dlt.destinations.insert_job_client import InsertValuesJobClient
 from dlt.destinations.impl.mssql.sql_client import PyOdbcMsSqlClient
 from dlt.destinations.impl.mssql.configuration import MsSqlClientConfiguration
 from dlt.destinations.sql_client import SqlClientBase
-from dlt.destinations.type_mapping import TypeMapper
 
 
 HINT_TO_MSSQL_ATTR: Dict[TColumnHint, str] = {"unique": "UNIQUE"}
 VARCHAR_MAX_N: int = 4000
 VARBINARY_MAX_N: int = 8000
-
-
-class MsSqlTypeMapper(TypeMapper):
-    sct_to_unbound_dbt = {
-        "complex": "nvarchar(max)",
-        "text": "nvarchar(max)",
-        "double": "float",
-        "bool": "bit",
-        "bigint": "bigint",
-        "binary": "varbinary(max)",
-        "date": "date",
-        "timestamp": "datetimeoffset",
-        "time": "time",
-    }
-
-    sct_to_dbt = {
-        "complex": "nvarchar(%i)",
-        "text": "nvarchar(%i)",
-        "timestamp": "datetimeoffset(%i)",
-        "binary": "varbinary(%i)",
-        "decimal": "decimal(%i,%i)",
-        "time": "time(%i)",
-        "wei": "decimal(%i,%i)",
-    }
-
-    dbt_to_sct = {
-        "nvarchar": "text",
-        "float": "double",
-        "bit": "bool",
-        "datetimeoffset": "timestamp",
-        "date": "date",
-        "bigint": "bigint",
-        "varbinary": "binary",
-        "decimal": "decimal",
-        "time": "time",
-        "tinyint": "bigint",
-        "smallint": "bigint",
-        "int": "bigint",
-    }
-
-    def to_db_integer_type(self, column: TColumnSchema, table: PreparedTableSchema = None) -> str:
-        precision = column.get("precision")
-        if precision is None:
-            return "bigint"
-        if precision <= 8:
-            return "tinyint"
-        if precision <= 16:
-            return "smallint"
-        if precision <= 32:
-            return "int"
-        elif precision <= 64:
-            return "bigint"
-        raise TerminalValueError(
-            f"bigint with {precision} bits precision cannot be mapped into mssql integer type"
-        )
-
-    def from_db_type(
-        self, db_type: str, precision: Optional[int], scale: Optional[int]
-    ) -> TColumnType:
-        if db_type == "decimal":
-            if (precision, scale) == self.capabilities.wei_precision:
-                return dict(data_type="wei")
-        return super().from_db_type(db_type, precision, scale)
 
 
 class MsSqlStagingCopyJob(SqlStagingCopyFollowupJob):
@@ -156,7 +91,7 @@ class MsSqlJobClient(InsertValuesJobClient):
         self.config: MsSqlClientConfiguration = config
         self.sql_client = sql_client
         self.active_hints = HINT_TO_MSSQL_ATTR if self.config.create_indexes else {}
-        self.type_mapper = MsSqlTypeMapper(self.capabilities)
+        self.type_mapper = capabilities.get_type_mapper()
 
     def _create_merge_followup_jobs(
         self, table_chain: Sequence[PreparedTableSchema]
@@ -175,7 +110,7 @@ class MsSqlJobClient(InsertValuesJobClient):
             # MSSQL does not allow index on large TEXT columns
             db_type = "nvarchar(%i)" % (c.get("precision") or 900)
         else:
-            db_type = self.type_mapper.to_db_type(c, table)
+            db_type = self.type_mapper.to_destination_type(c, table)
 
         hints_str = " ".join(
             self.active_hints.get(h, "")
@@ -195,4 +130,4 @@ class MsSqlJobClient(InsertValuesJobClient):
     def _from_db_type(
         self, pq_t: str, precision: Optional[int], scale: Optional[int]
     ) -> TColumnType:
-        return self.type_mapper.from_db_type(pq_t, precision, scale)
+        return self.type_mapper.from_destination_type(pq_t, precision, scale)

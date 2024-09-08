@@ -19,6 +19,7 @@ from dlt.common.schema.utils import get_columns_names_with_prop
 from dlt.common.storages import FileStorage, fsspec_from_config
 from dlt.common.storages.load_package import (
     LoadJobInfo,
+    ParsedLoadJobFileName,
     TPipelineStateDoc,
     load_package as current_load_package,
 )
@@ -306,8 +307,10 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
             if self.fs_client.exists(file_path):
                 raise FileExistsError(file_path)
 
-    def verify_schema(self, only_tables: Iterable[str] = None) -> List[PreparedTableSchema]:
-        loaded_tables = super().verify_schema(only_tables)
+    def verify_schema(
+        self, only_tables: Iterable[str] = None, new_jobs: Iterable[ParsedLoadJobFileName] = None
+    ) -> List[PreparedTableSchema]:
+        loaded_tables = super().verify_schema(only_tables, new_jobs)
         # TODO: finetune verify_schema_merge_disposition ie. hard deletes are not supported
         if exceptions := verify_schema_merge_disposition(
             self.schema, loaded_tables, self.capabilities, warnings=True

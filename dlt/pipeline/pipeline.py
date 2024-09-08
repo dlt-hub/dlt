@@ -69,7 +69,7 @@ from dlt.common.destination import (
     DestinationCapabilitiesContext,
     merge_caps_file_formats,
     TDestination,
-    ALL_SUPPORTED_FILE_FORMATS,
+    LOADER_FILE_FORMATS,
     TLoaderFileFormat,
 )
 from dlt.common.destination.reference import (
@@ -485,7 +485,7 @@ class Pipeline(SupportsPipeline):
         if is_interactive():
             workers = 1
 
-        if loader_file_format and loader_file_format not in ALL_SUPPORTED_FILE_FORMATS:
+        if loader_file_format and loader_file_format not in LOADER_FILE_FORMATS:
             raise ValueError(f"{loader_file_format} is unknown.")
         # check if any schema is present, if not then no data was extracted
         if not self.default_schema_name:

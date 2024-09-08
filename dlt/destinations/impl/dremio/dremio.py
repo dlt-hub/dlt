@@ -21,53 +21,7 @@ from dlt.destinations.impl.dremio.sql_client import DremioSqlClient
 from dlt.destinations.job_client_impl import SqlJobClientWithStagingDataset
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
-from dlt.destinations.type_mapping import TypeMapper
 from dlt.destinations.sql_client import SqlClientBase
-
-
-class DremioTypeMapper(TypeMapper):
-    BIGINT_PRECISION = 19
-    sct_to_unbound_dbt = {
-        "complex": "VARCHAR",
-        "text": "VARCHAR",
-        "double": "DOUBLE",
-        "bool": "BOOLEAN",
-        "date": "DATE",
-        "timestamp": "TIMESTAMP",
-        "bigint": "BIGINT",
-        "binary": "VARBINARY",
-        "time": "TIME",
-    }
-
-    sct_to_dbt = {
-        "decimal": "DECIMAL(%i,%i)",
-        "wei": "DECIMAL(%i,%i)",
-    }
-
-    dbt_to_sct = {
-        "VARCHAR": "text",
-        "DOUBLE": "double",
-        "FLOAT": "double",
-        "BOOLEAN": "bool",
-        "DATE": "date",
-        "TIMESTAMP": "timestamp",
-        "VARBINARY": "binary",
-        "BINARY": "binary",
-        "BINARY VARYING": "binary",
-        "VARIANT": "complex",
-        "TIME": "time",
-        "BIGINT": "bigint",
-        "DECIMAL": "decimal",
-    }
-
-    def from_db_type(
-        self, db_type: str, precision: Optional[int] = None, scale: Optional[int] = None
-    ) -> TColumnType:
-        if db_type == "DECIMAL":
-            if (precision, scale) == self.capabilities.wei_precision:
-                return dict(data_type="wei")
-            return dict(data_type="decimal", precision=precision, scale=scale)
-        return super().from_db_type(db_type, precision, scale)
 
 
 class DremioMergeJob(SqlMergeFollowupJob):
@@ -152,7 +106,7 @@ class DremioClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
         super().__init__(schema, config, sql_client)
         self.config: DremioClientConfiguration = config
         self.sql_client: DremioSqlClient = sql_client  # type: ignore
-        self.type_mapper = DremioTypeMapper(self.capabilities)
+        self.type_mapper = self.capabilities.get_type_mapper()
 
     def create_load_job(
         self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
@@ -195,12 +149,12 @@ class DremioClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
     def _from_db_type(
         self, bq_t: str, precision: Optional[int], scale: Optional[int]
     ) -> TColumnType:
-        return self.type_mapper.from_db_type(bq_t, precision, scale)
+        return self.type_mapper.from_destination_type(bq_t, precision, scale)
 
     def _get_column_def_sql(self, c: TColumnSchema, table: PreparedTableSchema = None) -> str:
         name = self.sql_client.escape_column_name(c["name"])
         return (
-            f"{name} {self.type_mapper.to_db_type(c,table)} {self._gen_not_null(c.get('nullable', True))}"
+            f"{name} {self.type_mapper.to_destination_type(c,table)} {self._gen_not_null(c.get('nullable', True))}"
         )
 
     def _create_merge_followup_jobs(

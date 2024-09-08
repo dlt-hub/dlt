@@ -5,7 +5,7 @@ from dlt.common.data_writers.exceptions import DataWriterNotFound
 from dlt.common.json import json
 from dlt.common.configuration import known_sections
 from dlt.common.configuration.inject import with_config
-from dlt.common.destination import ALL_SUPPORTED_FILE_FORMATS, TLoaderFileFormat
+from dlt.common.destination import LOADER_FILE_FORMATS, TLoaderFileFormat
 from dlt.common.configuration.accessors import config
 from dlt.common.schema import TSchemaTables
 from dlt.common.storages.file_storage import FileStorage
@@ -46,7 +46,7 @@ class LoadStorage(VersionedStorage):
     LOADED_FOLDER = "loaded"  # folder to keep the loads that were completely processed
     NEW_PACKAGES_FOLDER = "new"  # folder where new packages are created
 
-    ALL_SUPPORTED_FILE_FORMATS = ALL_SUPPORTED_FILE_FORMATS
+    ALL_SUPPORTED_FILE_FORMATS = LOADER_FILE_FORMATS
 
     @with_config(spec=LoadStorageConfiguration, sections=(known_sections.LOAD,))
     def __init__(

@@ -32,18 +32,15 @@ from pyathena.formatter import (
 )
 
 from dlt.common import logger
-from dlt.common.exceptions import TerminalValueError
-from dlt.common.utils import uniq_id, without_none
+from dlt.common.utils import uniq_id
 from dlt.common.schema import TColumnSchema, Schema
 from dlt.common.schema.typing import (
     TColumnType,
     TTableFormat,
     TSortOrder,
 )
-from dlt.common.schema.utils import table_schema_has_type
-from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.reference import LoadJob, PreparedTableSchema
-from dlt.common.destination.reference import FollowupJobRequest, SupportsStagingDestination
+from dlt.common.destination import DestinationCapabilitiesContext, PreparedTableSchema
+from dlt.common.destination.reference import FollowupJobRequest, SupportsStagingDestination, LoadJob
 from dlt.common.data_writers.escape import escape_hive_identifier
 from dlt.destinations.sql_jobs import SqlStagingCopyFollowupJob, SqlMergeFollowupJob
 
@@ -52,7 +49,6 @@ from dlt.destinations.exceptions import (
     DatabaseTerminalException,
     DatabaseTransientException,
     DatabaseUndefinedRelation,
-    LoadJobTerminalException,
 )
 from dlt.destinations.sql_client import (
     SqlClientBase,
@@ -64,68 +60,8 @@ from dlt.destinations.typing import DBApiCursor
 from dlt.destinations.job_client_impl import SqlJobClientWithStagingDataset
 from dlt.destinations.job_impl import FinalizedLoadJobWithFollowupJobs, FinalizedLoadJob
 from dlt.destinations.impl.athena.configuration import AthenaClientConfiguration
-from dlt.destinations.type_mapping import TypeMapper
 from dlt.destinations import path_utils
 from dlt.destinations.impl.athena.athena_adapter import PARTITION_HINT
-
-
-class AthenaTypeMapper(TypeMapper):
-    sct_to_unbound_dbt = {
-        "complex": "string",
-        "text": "string",
-        "double": "double",
-        "bool": "boolean",
-        "date": "date",
-        "timestamp": "timestamp",
-        "bigint": "bigint",
-        "binary": "binary",
-        "time": "string",
-    }
-
-    sct_to_dbt = {"decimal": "decimal(%i,%i)", "wei": "decimal(%i,%i)"}
-
-    dbt_to_sct = {
-        "varchar": "text",
-        "double": "double",
-        "boolean": "bool",
-        "date": "date",
-        "timestamp": "timestamp",
-        "bigint": "bigint",
-        "binary": "binary",
-        "varbinary": "binary",
-        "decimal": "decimal",
-        "tinyint": "bigint",
-        "smallint": "bigint",
-        "int": "bigint",
-    }
-
-    def __init__(self, capabilities: DestinationCapabilitiesContext):
-        super().__init__(capabilities)
-
-    def to_db_integer_type(self, column: TColumnSchema, table: PreparedTableSchema = None) -> str:
-        precision = column.get("precision")
-        table_format = table.get("table_format")
-        if precision is None:
-            return "bigint"
-        if precision <= 8:
-            return "int" if table_format == "iceberg" else "tinyint"
-        elif precision <= 16:
-            return "int" if table_format == "iceberg" else "smallint"
-        elif precision <= 32:
-            return "int"
-        elif precision <= 64:
-            return "bigint"
-        raise TerminalValueError(
-            f"bigint with {precision} bits precision cannot be mapped into athena integer type"
-        )
-
-    def from_db_type(
-        self, db_type: str, precision: Optional[int], scale: Optional[int]
-    ) -> TColumnType:
-        for key, val in self.dbt_to_sct.items():
-            if db_type.startswith(key):
-                return without_none(dict(data_type=val, precision=precision, scale=scale))  # type: ignore[return-value]
-        return dict(data_type=None)
 
 
 # add a formatter for pendulum to be used by pyathen dbapi
@@ -391,7 +327,7 @@ class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
         super().__init__(schema, config, sql_client)
         self.sql_client: AthenaSQLClient = sql_client  # type: ignore
         self.config: AthenaClientConfiguration = config
-        self.type_mapper = AthenaTypeMapper(self.capabilities)
+        self.type_mapper = self.capabilities.get_type_mapper()
 
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
         # only truncate tables in iceberg mode
@@ -401,11 +337,11 @@ class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
     def _from_db_type(
         self, hive_t: str, precision: Optional[int], scale: Optional[int]
     ) -> TColumnType:
-        return self.type_mapper.from_db_type(hive_t, precision, scale)
+        return self.type_mapper.from_destination_type(hive_t, precision, scale)
 
     def _get_column_def_sql(self, c: TColumnSchema, table: PreparedTableSchema = None) -> str:
         return (
-            f"{self.sql_client.escape_ddl_identifier(c['name'])} {self.type_mapper.to_db_type(c, table)}"
+            f"{self.sql_client.escape_ddl_identifier(c['name'])} {self.type_mapper.to_destination_type(c, table)}"
         )
 
     def _iceberg_partition_clause(self, partition_hints: Optional[Dict[str, str]]) -> str:
@@ -472,12 +408,6 @@ class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
         self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
         """Starts SqlLoadJob for files ending with .sql or returns None to let derived classes to handle their specific jobs"""
-        if table_schema_has_type(table, "time"):
-            raise LoadJobTerminalException(
-                file_path,
-                "Athena cannot load TIME columns from parquet tables. Please convert"
-                " `datetime.time` objects in your data to `str` or `datetime.datetime`.",
-            )
         job = super().create_load_job(table, file_path, load_id, restore)
         if not job:
             job = (

@@ -49,11 +49,9 @@ from dlt.common.destination.reference import (
 from dlt.common.storages import FileStorage
 
 from dlt.destinations.impl.weaviate.weaviate_adapter import VECTORIZE_HINT, TOKENIZATION_HINT
-from dlt.destinations.job_impl import FinalizedLoadJobWithFollowupJobs
 from dlt.destinations.job_client_impl import StorageSchemaInfo, StateInfo
 from dlt.destinations.impl.weaviate.configuration import WeaviateClientConfiguration
 from dlt.destinations.impl.weaviate.exceptions import PropertyNameConflict, WeaviateGrpcError
-from dlt.destinations.type_mapping import TypeMapper
 from dlt.destinations.utils import get_pipeline_state_query_columns
 
 
@@ -63,33 +61,6 @@ NON_VECTORIZED_CLASS = {
         "skip": True,
     },
 }
-
-
-class WeaviateTypeMapper(TypeMapper):
-    sct_to_unbound_dbt = {
-        "text": "text",
-        "double": "number",
-        "bool": "boolean",
-        "timestamp": "date",
-        "date": "date",
-        "time": "text",
-        "bigint": "int",
-        "binary": "blob",
-        "decimal": "text",
-        "wei": "number",
-        "complex": "text",
-    }
-
-    sct_to_dbt = {}
-
-    dbt_to_sct = {
-        "text": "text",
-        "number": "double",
-        "boolean": "bool",
-        "date": "timestamp",
-        "int": "bigint",
-        "blob": "binary",
-    }
 
 
 def wrap_weaviate_error(f: TFun) -> TFun:
@@ -260,7 +231,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
             "vectorizer": config.vectorizer,
             "moduleConfig": config.module_config,
         }
-        self.type_mapper = WeaviateTypeMapper(self.capabilities)
+        self.type_mapper = self.capabilities.get_type_mapper()
 
     @property
     def dataset_name(self) -> str:
@@ -671,7 +642,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
 
         return {
             "name": column_name,
-            "dataType": [self.type_mapper.to_db_type(column)],
+            "dataType": [self.type_mapper.to_destination_type(column, None)],
             **extra_kv,
         }
 
@@ -728,4 +699,4 @@ class WeaviateClient(JobClientBase, WithStateSync):
     def _from_db_type(
         self, wt_t: str, precision: Optional[int], scale: Optional[int]
     ) -> TColumnType:
-        return self.type_mapper.from_db_type(wt_t, precision, scale)
+        return self.type_mapper.from_destination_type(wt_t, precision, scale)

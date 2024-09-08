@@ -1,4 +1,5 @@
-from typing import List, Optional, Sequence
+import contextlib
+from typing import Dict, Iterable, List, Optional, Set
 
 from dlt.common import logger
 from dlt.common.configuration.inject import with_config
@@ -6,15 +7,17 @@ from dlt.common.destination.exceptions import (
     DestinationCapabilitiesException,
     IdentifierTooLongException,
 )
+from dlt.common.destination.typing import PreparedTableSchema
+from dlt.common.destination.exceptions import UnsupportedDataType
+from dlt.common.destination.capabilities import DestinationCapabilitiesContext, LOADER_FILE_FORMATS
 from dlt.common.schema import Schema
 from dlt.common.schema.exceptions import (
     SchemaIdentifierNormalizationCollision,
 )
-from dlt.common.schema.typing import TLoaderMergeStrategy, TSchemaTables, TTableSchema
+from dlt.common.schema.typing import TColumnType, TLoaderMergeStrategy, TSchemaTables, TTableSchema
 from dlt.common.schema.utils import get_merge_strategy
-from dlt.common.typing import ConfigValue, DictStrStr
-
-from .capabilities import DestinationCapabilitiesContext
+from dlt.common.storages import ParsedLoadJobFileName
+from dlt.common.typing import ConfigValue, DictStrStr, TLoaderFileFormat
 
 
 def verify_schema_capabilities(
@@ -110,6 +113,75 @@ def verify_schema_capabilities(
                         capabilities.max_column_identifier_length,
                     )
                 )
+    return exception_log
+
+
+def column_type_to_str(column: TColumnType) -> str:
+    """Converts column type to db-like type string"""
+    data_type: str = column["data_type"]
+    if (precision := column.get("precision")) and (scale := column.get("scale")):
+        data_type += f"({precision},{scale})"
+    elif precision:
+        data_type += f"({precision})"
+    return data_type
+
+
+def verify_supported_data_types(
+    prepared_tables: Iterable[PreparedTableSchema],
+    new_jobs: Iterable[ParsedLoadJobFileName],
+    capabilities: DestinationCapabilitiesContext,
+    destination_type: str,
+    warnings: bool = True,
+) -> List[Exception]:
+    exception_log: List[Exception] = []
+    # can't check types without type mapper
+    if capabilities.type_mapper is None:
+        return exception_log
+
+    type_mapper = capabilities.get_type_mapper()
+
+    # index available file formats
+    table_file_formats: Dict[str, Set[TLoaderFileFormat]] = {}
+    for parsed_file in new_jobs:
+        formats = table_file_formats.setdefault(parsed_file.table_name, set())
+        if parsed_file.file_format in LOADER_FILE_FORMATS:
+            formats.add(parsed_file.file_format)  # type: ignore[arg-type]
+    # all file formats
+    all_file_formats = set(capabilities.supported_loader_file_formats or []) | set(
+        capabilities.supported_staging_file_formats or []
+    )
+
+    for table in prepared_tables:
+        # map types
+        for column in table["columns"].values():
+            try:
+                type_mapper.to_destination_type(column, table)
+            except Exception as ex:
+                # collect mapping exceptions
+                exception_log.append(ex)
+            # ensure if types can be loaded from file formats present in jobs
+            for format_ in table_file_formats.get(table["name"], []):
+                try:
+                    type_mapper.ensure_supported_type(column, table, format_)
+                except ValueError as err:
+                    # figure out where data type is supported
+                    available_in_formats: List[TLoaderFileFormat] = []
+                    for candidate_format in all_file_formats - set([format_]):
+                        with contextlib.suppress(Exception):
+                            type_mapper.ensure_supported_type(column, table, candidate_format)
+                            available_in_formats.append(candidate_format)
+                    exception_log.append(
+                        UnsupportedDataType(
+                            destination_type,
+                            table["name"],
+                            column["name"],
+                            column_type_to_str(column),
+                            format_,
+                            available_in_formats,
+                            err.args[0],
+                        )
+                    )
+
     return exception_log
 
 

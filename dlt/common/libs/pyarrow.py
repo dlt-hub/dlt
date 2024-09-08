@@ -21,6 +21,7 @@ from dlt.common.schema.typing import DLT_NAME_PREFIX, TTableSchemaColumns
 
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.schema.typing import TColumnType
+from dlt.common.schema.utils import is_nullable_column
 from dlt.common.typing import StrStr, TFileOrPath
 from dlt.common.normalizers.naming import NamingConvention
 
@@ -237,7 +238,7 @@ def should_normalize_arrow_schema(
 ) -> Tuple[bool, Mapping[str, str], Dict[str, str], Dict[str, bool], bool, TTableSchemaColumns]:
     rename_mapping = get_normalized_arrow_fields_mapping(schema, naming)
     rev_mapping = {v: k for k, v in rename_mapping.items()}
-    nullable_mapping = {k: v.get("nullable", True) for k, v in columns.items()}
+    nullable_mapping = {k: is_nullable_column(v) for k, v in columns.items()}
     # All fields from arrow schema that have nullable set to different value than in columns
     # Key is the renamed column name
     nullable_updates: Dict[str, bool] = {}
@@ -326,7 +327,7 @@ def normalize_py_arrow_item(
             new_field = pyarrow.field(
                 column_name,
                 get_py_arrow_datatype(column, caps, "UTC"),
-                nullable=column.get("nullable", True),
+                nullable=is_nullable_column(column),
             )
             new_fields.append(new_field)
             new_columns.append(pyarrow.nulls(item.num_rows, type=new_field.type))

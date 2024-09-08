@@ -113,7 +113,7 @@ def init_client(
 
     # get tables to drop
     drop_table_names = {table["name"] for table in drop_tables} if drop_tables else set()
-
+    job_client.verify_schema(only_tables=tables_with_jobs | dlt_tables, new_jobs=new_jobs)
     applied_update = _init_dataset_and_update_schema(
         job_client,
         expected_update,
@@ -176,8 +176,6 @@ def _init_dataset_and_update_schema(
         f"Client for {job_client.config.destination_type} will update schema to package schema"
         f" {staging_text}"
     )
-    if not staging_info:
-        job_client.verify_schema(only_tables=update_tables)
     applied_update = job_client.update_stored_schema(
         only_tables=update_tables, expected_update=expected_update
     )
