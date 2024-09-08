@@ -23,7 +23,7 @@ from tests.pipeline.utils import (
     load_tables_to_dicts,
 )
 from tests.load.sources.sql_database.test_helpers import mock_json_column
-from tests.utils import data_item_length
+from tests.utils import data_item_length, load_table_counts
 
 
 try:
@@ -959,7 +959,7 @@ def test_query_adapter_callback(
     channel_rows = load_tables_to_dicts(pipeline, "chat_channel")["chat_channel"]
     assert channel_rows and all(row["active"] for row in channel_rows)
 
-    # unfiltred table loads all rows
+    # unfiltered table loads all rows
     assert_row_counts(pipeline, sql_source_db, ["chat_message"])
 
 
@@ -969,18 +969,17 @@ def assert_row_counts(
     tables: Optional[List[str]] = None,
     include_views: bool = False,
 ) -> None:
-    with pipeline.sql_client() as c:
-        if not tables:
-            tables = [
-                tbl_name
-                for tbl_name, info in sql_source_db.table_infos.items()
-                if include_views or not info["is_view"]
-            ]
-        for table in tables:
-            info = sql_source_db.table_infos[table]
-            with c.execute_query(f"SELECT count(*) FROM {table}") as cur:
-                row = cur.fetchone()
-                assert row[0] == info["row_count"]
+    tables = [
+        tbl_name
+        for tbl_name, info in sql_source_db.table_infos.items()
+        if include_views or not info["is_view"]
+    ]
+    dest_counts = load_table_counts(pipeline, *tables)
+    for table in tables:
+        info = sql_source_db.table_infos[table]
+        assert (
+            dest_counts[table] == info["row_count"]
+        ), f"Table {table} counts do not match with the source"
 
 
 def assert_precision_columns(

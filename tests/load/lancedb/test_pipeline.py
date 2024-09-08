@@ -1,12 +1,10 @@
 import multiprocessing
 from typing import Iterator, Generator, Any, List, Mapping
 
-import lancedb  # type: ignore
 import pytest
+import lancedb  # type: ignore
 from lancedb import DBConnection
 from lancedb.embeddings import EmbeddingFunctionRegistry  # type: ignore
-
-pytest.importorskip("lancedb")
 
 import dlt
 from dlt.common import json

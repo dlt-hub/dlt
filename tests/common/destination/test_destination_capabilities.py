@@ -205,13 +205,13 @@ def test_verify_capabilities_data_types() -> None:
     except ImportError:
         assert len(exceptions) > 0
 
-    # provoke mapping error
+    # provoke mapping error, precision not supported on NTZ timestamp
     schema_timezone = Schema("tx")
     table = new_table(
         "table",
         write_disposition="merge",
         columns=[
-            {"name": "ts_1", "data_type": "timestamp", "precision": 9, "timezone": True},
+            {"name": "ts_1", "data_type": "timestamp", "precision": 12, "timezone": False},
         ],
     )
     schema_timezone.update_table(table, normalize_identifiers=False)

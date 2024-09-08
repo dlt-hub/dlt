@@ -135,7 +135,7 @@ def verify_supported_data_types(
 ) -> List[Exception]:
     exception_log: List[Exception] = []
     # can't check types without type mapper
-    if capabilities.type_mapper is None:
+    if capabilities.type_mapper is None or not new_jobs:
         return exception_log
 
     type_mapper = capabilities.get_type_mapper()
