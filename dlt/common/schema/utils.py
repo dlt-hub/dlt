@@ -17,12 +17,12 @@ from dlt.common.typing import DictStrAny, REPattern
 from dlt.common.validation import TCustomValidator, validate_dict_ignoring_xkeys
 from dlt.common.schema import detections
 from dlt.common.schema.typing import (
-    COLUMN_HINTS,
     SCHEMA_ENGINE_VERSION,
     LOADS_TABLE_NAME,
     SIMPLE_REGEX_PREFIX,
     VERSION_TABLE_NAME,
     PIPELINE_STATE_TABLE_NAME,
+    ColumnPropInfos,
     TColumnName,
     TFileFormat,
     TPartialTableSchema,
@@ -36,7 +36,7 @@ from dlt.common.schema.typing import (
     TColumnSchema,
     TColumnProp,
     TTableFormat,
-    TColumnHint,
+    TColumnDefaultHint,
     TTableSchemaColumns,
     TTypeDetectionFunc,
     TTypeDetections,
@@ -129,15 +129,9 @@ def remove_defaults(stored_schema: TStoredSchema) -> TStoredSchema:
 def has_default_column_prop_value(prop: str, value: Any) -> bool:
     """Checks if `value` is a default for `prop`."""
     # remove all boolean hints that are False, except "nullable" which is removed when it is True
-    # TODO: merge column props and hints
-    if prop in COLUMN_HINTS:
-        return value in (False, None)
-    # TODO: type all the hints including default value so those exceptions may be removed
-    if prop == "nullable":
-        return value in (True, None)
-    if prop == "x-active-record-timestamp":
-        # None is a valid value so it is not a default
-        return False
+    if prop in ColumnPropInfos:
+        return value in ColumnPropInfos[prop].defaults
+    # for any unknown hint ie. "x-" the defaults are
     return value in (None, False)
 
 
@@ -589,7 +583,7 @@ def get_processing_hints(tables: TSchemaTables) -> Dict[str, List[str]]:
     return hints
 
 
-def hint_to_column_prop(h: TColumnHint) -> TColumnProp:
+def hint_to_column_prop(h: TColumnDefaultHint) -> TColumnProp:
     if h == "not_null":
         return "nullable"
     return h
@@ -933,7 +927,7 @@ def new_column(
     return column
 
 
-def default_hints() -> Dict[TColumnHint, List[TSimpleRegex]]:
+def default_hints() -> Dict[TColumnDefaultHint, List[TSimpleRegex]]:
     return None
 
 

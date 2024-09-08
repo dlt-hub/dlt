@@ -8,7 +8,7 @@ from dlt.common.schema.typing import (
     TSimpleRegex,
     TStoredSchema,
     TTableSchemaColumns,
-    TColumnHint,
+    TColumnDefaultHint,
 )
 from dlt.common.schema.exceptions import SchemaEngineNoUpgradePathException
 from dlt.common.schema.utils import new_table, version_table, loads_table
@@ -34,7 +34,7 @@ def migrate_schema(schema_dict: DictStrAny, from_engine: int, to_engine: int) ->
             "propagation": {"root": {"_dlt_id": "_dlt_root_id"}}
         }
         # move settings, convert strings to simple regexes
-        d_h: Dict[TColumnHint, List[TSimpleRegex]] = schema_dict.pop("hints", {})
+        d_h: Dict[TColumnDefaultHint, List[TSimpleRegex]] = schema_dict.pop("hints", {})
         for h_k, h_l in d_h.items():
             d_h[h_k] = list(map(lambda r: TSimpleRegex("re:" + r), h_l))
         p_t: Dict[TSimpleRegex, TDataType] = schema_dict.pop("preferred_types", {})

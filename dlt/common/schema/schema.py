@@ -27,7 +27,6 @@ from dlt.common.normalizers.json import DataItemNormalizer, TNormalizedRowIterat
 from dlt.common.schema import utils
 from dlt.common.data_types import py_type_to_sc_type, coerce_value, TDataType
 from dlt.common.schema.typing import (
-    COLUMN_HINTS,
     DLT_NAME_PREFIX,
     SCHEMA_ENGINE_VERSION,
     LOADS_TABLE_NAME,
@@ -45,6 +44,7 @@ from dlt.common.schema.typing import (
     TColumnSchema,
     TColumnProp,
     TColumnHint,
+    TColumnDefaultHint,
     TTypeDetections,
     TSchemaContractDict,
     TSchemaContract,
@@ -99,7 +99,7 @@ class Schema:
     # list of preferred types: map regex on columns into types
     _compiled_preferred_types: List[Tuple[REPattern, TDataType]]
     # compiled default hints
-    _compiled_hints: Dict[TColumnHint, Sequence[REPattern]]
+    _compiled_hints: Dict[TColumnDefaultHint, Sequence[REPattern]]
     # compiled exclude filters per table
     _compiled_excludes: Dict[str, Sequence[REPattern]]
     # compiled include filters per table
@@ -456,7 +456,9 @@ class Schema:
                 result.append(self._schema_tables.pop(table_name))
         return result
 
-    def filter_row_with_hint(self, table_name: str, hint_type: TColumnHint, row: StrAny) -> StrAny:
+    def filter_row_with_hint(
+        self, table_name: str, hint_type: TColumnDefaultHint, row: StrAny
+    ) -> StrAny:
         rv_row: DictStrAny = {}
         column_prop: TColumnProp = utils.hint_to_column_prop(hint_type)
         try:
@@ -468,7 +470,7 @@ class Schema:
                         rv_row[column_name] = row[column_name]
         except KeyError:
             for k, v in row.items():
-                if self._infer_hint(hint_type, v, k):
+                if self._infer_hint(hint_type, k):
                     rv_row[k] = v
 
         # dicts are ordered and we will return the rows with hints in the same order as they appear in the columns
@@ -476,7 +478,7 @@ class Schema:
 
     def merge_hints(
         self,
-        new_hints: Mapping[TColumnHint, Sequence[TSimpleRegex]],
+        new_hints: Mapping[TColumnDefaultHint, Sequence[TSimpleRegex]],
         normalize_identifiers: bool = True,
     ) -> None:
         """Merges existing default hints with `new_hints`. Normalizes names in column regexes if possible. Compiles setting at the end
@@ -775,11 +777,16 @@ class Schema:
         column_schema = TColumnSchema(
             name=k,
             data_type=data_type or self._infer_column_type(v, k),
-            nullable=not self._infer_hint("not_null", v, k),
+            nullable=not self._infer_hint("not_null", k),
         )
-        for hint in COLUMN_HINTS:
+        # check other preferred hints that are available
+        for hint in self._compiled_hints:
+            # already processed
+            if hint == "not_null":
+                continue
             column_prop = utils.hint_to_column_prop(hint)
-            hint_value = self._infer_hint(hint, v, k)
+            hint_value = self._infer_hint(hint, k)
+            # set only non-default values
             if not utils.has_default_column_prop_value(column_prop, hint_value):
                 column_schema[column_prop] = hint_value
 
@@ -793,7 +800,7 @@ class Schema:
         """Raises when column is explicitly not nullable"""
         if col_name in table_columns:
             existing_column = table_columns[col_name]
-            if not existing_column.get("nullable", True):
+            if not utils.is_nullable_column(existing_column):
                 raise CannotCoerceNullException(self.name, table_name, col_name)
 
     def _coerce_non_null_value(
@@ -882,7 +889,7 @@ class Schema:
             preferred_type = self.get_preferred_type(col_name)
         return preferred_type or mapped_type
 
-    def _infer_hint(self, hint_type: TColumnHint, _: Any, col_name: str) -> bool:
+    def _infer_hint(self, hint_type: TColumnDefaultHint, col_name: str) -> bool:
         if hint_type in self._compiled_hints:
             return any(h.search(col_name) for h in self._compiled_hints[hint_type])
         else:
@@ -890,7 +897,7 @@ class Schema:
 
     def _merge_hints(
         self,
-        new_hints: Mapping[TColumnHint, Sequence[TSimpleRegex]],
+        new_hints: Mapping[TColumnDefaultHint, Sequence[TSimpleRegex]],
         normalize_identifiers: bool = True,
     ) -> None:
         """Used by `merge_hints method, does not compile settings at the end"""
@@ -978,8 +985,8 @@ class Schema:
             self._settings["detections"] = type_detections
 
     def _normalize_default_hints(
-        self, default_hints: Mapping[TColumnHint, Sequence[TSimpleRegex]]
-    ) -> Dict[TColumnHint, List[TSimpleRegex]]:
+        self, default_hints: Mapping[TColumnDefaultHint, Sequence[TSimpleRegex]]
+    ) -> Dict[TColumnDefaultHint, List[TSimpleRegex]]:
         """Normalizes the column names in default hints. In case of column names that are regexes, normalization is skipped"""
         return {
             hint: [utils.normalize_simple_regex_column(self.naming, regex) for regex in regexes]
@@ -1145,7 +1152,7 @@ class Schema:
 
         self._settings: TSchemaSettings = {}
         self._compiled_preferred_types: List[Tuple[REPattern, TDataType]] = []
-        self._compiled_hints: Dict[TColumnHint, Sequence[REPattern]] = {}
+        self._compiled_hints: Dict[TColumnDefaultHint, Sequence[REPattern]] = {}
         self._compiled_excludes: Dict[str, Sequence[REPattern]] = {}
         self._compiled_includes: Dict[str, Sequence[REPattern]] = {}
         self._type_detections: Sequence[TTypeDetections] = None
