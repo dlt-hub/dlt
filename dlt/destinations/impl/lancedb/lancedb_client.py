@@ -1,7 +1,6 @@
 import uuid
 from types import TracebackType
 from typing import (
-    ClassVar,
     List,
     Any,
     cast,
@@ -39,7 +38,6 @@ from dlt.common.destination.reference import (
     RunnableLoadJob,
     StorageSchemaInfo,
     StateInfo,
-    TLoadJobState,
     LoadJob,
 )
 from dlt.common.pendulum import timedelta
@@ -75,6 +73,8 @@ if TYPE_CHECKING:
     NDArray = ndarray[Any, Any]
 else:
     NDArray = ndarray
+
+EMPTY_STRING_PLACEHOLDER = "0uEoDNBpQUBwsxKbmxxB"
 
 
 def upload_batch(
@@ -161,20 +161,11 @@ class LanceDBClient(JobClientBase, WithStateSync):
             embedding_model_provider,
             self.config.credentials.embedding_model_provider_api_key,
         )
-        # Use the monkey-patched implementation if openai was chosen.
-        if embedding_model_provider == "openai":
-            from dlt.destinations.impl.lancedb.models import PatchedOpenAIEmbeddings
-
-            self.model_func = PatchedOpenAIEmbeddings(
-                max_retries=self.config.options.max_retries,
-                api_key=self.config.credentials.api_key,
-            )
-        else:
-            self.model_func = self.registry.get(embedding_model_provider).create(
-                name=self.config.embedding_model,
-                max_retries=self.config.options.max_retries,
-                api_key=self.config.credentials.api_key,
-            )
+        self.model_func = self.registry.get(embedding_model_provider).create(
+            name=self.config.embedding_model,
+            max_retries=self.config.options.max_retries,
+            api_key=self.config.credentials.api_key,
+        )
 
         self.vector_field_name = self.config.vector_field_name
         self.id_field_name = self.config.id_field_name
@@ -659,6 +650,19 @@ class LanceDBLoadJob(RunnableLoadJob):
 
         with FileStorage.open_zipsafe_ro(self._file_path) as f:
             records: List[DictStrAny] = [json.loads(line) for line in f]
+
+        # Replace empty strings with placeholder string if OpenAI is used.
+        # https://github.com/lancedb/lancedb/issues/1577#issuecomment-2318104218.
+        if (self._job_client.config.embedding_model_provider == "openai") and (
+            source_columns := get_columns_names_with_prop(self._load_table, VECTORIZE_HINT)
+        ):
+            records = [
+                {
+                    k: EMPTY_STRING_PLACEHOLDER if k in source_columns and v in ("", None) else v
+                    for k, v in record.items()
+                }
+                for record in records
+            ]
 
         if self._load_table not in self._schema.dlt_tables():
             for record in records:

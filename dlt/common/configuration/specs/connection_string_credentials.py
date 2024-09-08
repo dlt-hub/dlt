@@ -1,7 +1,7 @@
 import dataclasses
 from typing import Any, ClassVar, Dict, List, Optional, Union
 
-from dlt.common.libs.sql_alchemy import URL, make_url
+from dlt.common.libs.sql_alchemy_shims import URL, make_url
 from dlt.common.configuration.specs.exceptions import InvalidConnectionString
 from dlt.common.typing import TSecretValue
 from dlt.common.configuration.specs.base_configuration import CredentialsConfiguration, configspec

@@ -148,6 +148,7 @@ As before, **if you have just a single table with millions of records you should
 
 <!--@@@DLT_SNIPPET ./performance_snippets/toml-snippets.toml::normalize_workers_2_toml-->
 
+Since the normalize stage uses a process pool to create load package concurrently, adjusting the `file_max_items` and `file_max_bytes` settings can significantly impact load behavior. By setting a lower value for `file_max_items`, you reduce the size of each data chunk sent to the destination database, which can be particularly useful for managing memory constraints on the database server. Without explicit configuration `file_max_items`, `dlt` writes all data rows into one large intermediary file, attempting to insert all data from this single file. Configuring `file_max_items` ensures data is inserted in manageable chunks, enhancing performance and preventing potential memory issues.
 
 ### Parallel pipeline config example
 The example below simulates loading of a large database table with 1 000 000 records. The **config.toml** below sets the parallelization as follows:

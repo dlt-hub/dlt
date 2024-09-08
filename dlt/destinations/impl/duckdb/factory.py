@@ -1,9 +1,9 @@
 import typing as t
 
+from dlt.common import logger
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
 from dlt.common.data_writers.escape import escape_postgres_identifier, escape_duckdb_literal
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
-
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.schema.typing import TColumnSchema, TColumnType
@@ -87,10 +87,9 @@ class DuckDbTypeMapper(TypeMapperImpl):
         precision = column.get("precision")
 
         if timezone and precision is not None:
-            raise TerminalValueError(
+            logger.warn(
                 f"DuckDB does not support both timezone and precision for column '{column_name}' in"
-                f" table '{table_name}'. To resolve this issue, either set timezone to False or"
-                " None, or use the default precision."
+                f" table '{table_name}'. Will default to timezone."
             )
 
         if timezone:
