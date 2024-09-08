@@ -24,7 +24,6 @@ from dlt.common.utils import uniq_id, digest128, chunks
 from dlt.common.json import json
 
 from dlt.extract import DltSource
-from dlt.extract.exceptions import InvalidStepFunctionArguments
 from dlt.extract.items import ValidateItem
 from dlt.extract.resource import DltResource
 from dlt.sources.helpers.transform import take_first
@@ -914,6 +913,41 @@ def test_cursor_path_none_can_raise_on_column_missing(item_type: TestDataItemFor
         p.extract(some_data())
     assert pip_ex.value.__context__.json_path == "created_at"  # type: ignore[attr-defined]
     assert isinstance(pip_ex.value.__context__, IncrementalCursorPathMissing)
+
+
+# @pytest.mark.parametrize("item_type", ["arrow-table", "arrow-batch"])
+def test_cursor_path_not_nullable_arrow(
+    # item_type: TestDataItemFormat,
+) -> None:
+    data = [
+        {"id": 1, "created_at": 1},
+        {"id": 2, "created_at": 2},
+        {"id": 3, "created_at": 2},
+    ]
+    schema = pa.schema([
+        pa.field('id', pa.int32(), nullable=False),
+        pa.field('created_at', pa.int32(), nullable=False)
+    ])
+    id_array = pa.array([item['id'] for item in data], type=pa.int32())
+    created_at_array = pa.array([item['created_at'] for item in data], type=pa.int32())
+    source_items = pa.Table.from_arrays([id_array, created_at_array], schema=schema)
+
+    @dlt.resource
+    def some_data(
+        created_at=dlt.sources.incremental("created_at", on_cursor_value_missing="include")
+    ):
+        yield source_items
+
+    p = dlt.pipeline(pipeline_name=uniq_id())
+    p.run(some_data(), destination="duckdb")
+
+    assert_query_data(p, "select count(id) from some_data", [3])
+    assert_query_data(p, "select count(created_at) from some_data", [3])
+
+    s = p.state["sources"][p.default_schema_name]["resources"]["some_data"]["incremental"][
+        "created_at"
+    ]
+    assert s["last_value"] == 2
 
 
 def test_cursor_path_none_nested_can_raise_on_none_1() -> None:
