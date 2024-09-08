@@ -63,7 +63,7 @@ class DremioTypeMapper(TypeMapperImpl):
             return
         if loader_file_format == "parquet":
             # binary not supported on parquet if precision is set
-            if column.get("precision"):
+            if column.get("precision") is not None:
                 raise TerminalValueError(
                     "Dremio cannot load fixed width 'binary' columns from parquet files. Switch to"
                     " other file format or use binary columns without precision.",

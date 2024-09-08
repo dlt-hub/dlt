@@ -119,9 +119,11 @@ def verify_schema_capabilities(
 def column_type_to_str(column: TColumnType) -> str:
     """Converts column type to db-like type string"""
     data_type: str = column["data_type"]
-    if (precision := column.get("precision")) and (scale := column.get("scale")):
+    precision = column.get("precision")
+    scale = column.get("scale")
+    if precision is not None and scale is not None:
         data_type += f"({precision},{scale})"
-    elif precision:
+    elif precision is not None:
         data_type += f"({precision})"
     return data_type
 

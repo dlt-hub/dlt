@@ -89,7 +89,8 @@ class DuckDbTypeMapper(TypeMapperImpl):
         if timezone and precision is not None:
             logger.warn(
                 f"DuckDB does not support both timezone and precision for column '{column_name}' in"
-                f" table '{table_name}'. Will default to timezone."
+                f" table '{table_name}'. Will default to timezone. Please set timezone to False to"
+                " use precision types."
             )
 
         if timezone:
