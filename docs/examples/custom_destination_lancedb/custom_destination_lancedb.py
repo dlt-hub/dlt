@@ -1,6 +1,6 @@
 """
 ---
-title: Custom Destination with LanceDB
+title: Custom destination with LanceDB
 description: Learn how use the custom destination to load to LanceDB.
 keywords: [destination, credentials, example, lancedb, custom destination, vectorstore, AI, LLM]
 ---

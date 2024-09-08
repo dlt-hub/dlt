@@ -18,7 +18,7 @@ from dlt.common.configuration.specs import RunConfiguration
 from dlt.common.configuration.specs.config_providers_context import (
     ConfigProvidersContext,
 )
-from dlt.common.pipeline import LoadInfo, PipelineContext
+from dlt.common.pipeline import LoadInfo, PipelineContext, SupportsPipeline
 from dlt.common.runtime.init import init_logging
 from dlt.common.runtime.telemetry import start_telemetry, stop_telemetry
 from dlt.common.schema import Schema
@@ -26,7 +26,6 @@ from dlt.common.storages import FileStorage
 from dlt.common.storages.versioned_storage import VersionedStorage
 from dlt.common.typing import DictStrAny, StrAny, TDataItem
 from dlt.common.utils import custom_environ, uniq_id
-from dlt.common.pipeline import SupportsPipeline
 
 TEST_STORAGE_ROOT = "_storage"
 

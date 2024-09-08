@@ -65,3 +65,28 @@ npm run build:netlify
 ```
 
 It will place the build in `build/docs` folder. The `netlify.toml` redirects from root path `/` into `/docs`.
+
+## Docs versions
+
+We keep a few additional versions of our docs for the users to be able read about how former and future versions of dlt work. We use docusaurus versions for this but we do not check the historical versions into the repo but rather use a script to build the former versions on deployment. To locally build the versions run:
+
+```
+npm run update-versions
+```
+
+This will execute the script at tools/update_versions.js. This tool will do the following:
+
+* Find all the highest minor versions the tags of the repo (e.g. 0.4.13, 0.5.22, 1.1.3)
+* It will create a version for all of these tags that are larger than the minimum version defined in MINIMUM_SEMVER_VERSION in the script.
+* It will NOT create a version for the highest version, we assume the most up to date docs for the highest versions are the tip of master
+* It will NOT create any docs versions for pre-releases.
+* It will create a future version called "devel" from the current commit of this repo.
+* It will set up docusaurus to display all of these versions correctly.
+
+You can clear these versions with 
+
+```
+npm run clear-versions
+```
+
+The netflify deployment of these docs need to happen from the master branch so that the current version gets properly selected.

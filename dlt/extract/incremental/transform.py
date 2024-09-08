@@ -433,11 +433,12 @@ class ArrowIncremental(IncrementalTransform):
             tbl = pyarrow.remove_columns(tbl, ["_dlt_index"])
 
         if self.on_cursor_value_missing == "include":
-            if isinstance(tbl, pa.RecordBatch):
-                assert isinstance(tbl_with_null, pa.RecordBatch)
-                tbl = pa.Table.from_batches([tbl, tbl_with_null])
-            else:
-                tbl = pa.concat_tables([tbl, tbl_with_null])
+            if tbl.schema.field(cursor_path).nullable:
+                if isinstance(tbl, pa.RecordBatch):
+                    assert isinstance(tbl_with_null, pa.RecordBatch)
+                    tbl = pa.Table.from_batches([tbl, tbl_with_null])
+                else:
+                    tbl = pa.concat_tables([tbl, tbl_with_null])
 
         if len(tbl) == 0:
             return None, start_out_of_range, end_out_of_range
