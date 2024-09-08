@@ -3,7 +3,7 @@ import os
 import platform
 import sys
 from os import environ
-from typing import Any, Iterable, Iterator, List, Literal, Union, get_args
+from typing import Any, Iterable, Iterator, Literal, Union, get_args
 from unittest.mock import patch
 
 import pytest
@@ -18,7 +18,7 @@ from dlt.common.configuration.specs import RunConfiguration
 from dlt.common.configuration.specs.config_providers_context import (
     ConfigProvidersContext,
 )
-from dlt.common.pipeline import PipelineContext
+from dlt.common.pipeline import PipelineContext, SupportsPipeline
 from dlt.common.runtime.init import init_logging
 from dlt.common.runtime.telemetry import start_telemetry, stop_telemetry
 from dlt.common.schema import Schema
@@ -26,7 +26,6 @@ from dlt.common.storages import FileStorage
 from dlt.common.storages.versioned_storage import VersionedStorage
 from dlt.common.typing import StrAny, TDataItem
 from dlt.common.utils import custom_environ, uniq_id
-from dlt.common.pipeline import PipelineContext, SupportsPipeline
 
 TEST_STORAGE_ROOT = "_storage"
 
