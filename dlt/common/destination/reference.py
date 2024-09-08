@@ -473,13 +473,16 @@ class JobClientBase(ABC):
                 list(only_tables or []) + self.schema.data_table_names(seen_data_only=True)
             )
         ]
-        verify_supported_data_types(
+        if exceptions := verify_supported_data_types(
             prepared_tables,
             new_jobs,
             self.capabilities,
             self.config.destination_type,
             warnings=False,
-        )
+        ):
+            for exception in exceptions:
+                logger.error(str(exception))
+            raise exceptions[0]
         return prepared_tables
 
     def update_stored_schema(
