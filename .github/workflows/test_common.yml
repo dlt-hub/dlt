@@ -130,11 +130,7 @@ jobs:
         run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
 
       - name: Install pipeline and sources dependencies
-        run: poetry install --no-interaction -E duckdb -E cli -E parquet --with sentry-sdk --with pipeline -E deltalake -E sql_database
-
-      # TODO: this is needed for the filesystem tests, not sure if this should be in an extra?
-      - name: Install openpyxl for excel tests
-        run: poetry run pip install openpyxl
+        run: poetry install --no-interaction -E duckdb -E cli -E parquet -E deltalake -E sql_database --with sentry-sdk,pipeline,sources
 
       - run: |
           poetry run pytest tests/extract tests/pipeline tests/libs tests/cli/common tests/destinations tests/sources

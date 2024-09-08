@@ -168,6 +168,8 @@ connectorx = [
     {version = "0.3.2", python = "^3.8", optional = true},
     {version = ">=0.3.2", python = ">=3.9", optional = true}
 ]
+pymysql = "^1.1.0"
+openpyxl = "^3"
 
 [tool.poetry.group.pipeline]
 optional = true
