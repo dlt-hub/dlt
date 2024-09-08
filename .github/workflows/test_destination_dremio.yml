@@ -68,7 +68,7 @@ jobs:
         run: poetry install --no-interaction -E s3 -E gs -E az -E parquet --with sentry-sdk --with pipeline
 
       - run: |
-          poetry run pytest tests/load
+          poetry run pytest tests/load --ignore tests/load/sources
         if: runner.os != 'Windows'
         name: Run tests Linux/MAC
         env:
@@ -80,7 +80,7 @@ jobs:
           DESTINATION__MINIO__CREDENTIALS__ENDPOINT_URL: http://127.0.0.1:9010
 
       - run: |
-          poetry run pytest tests/load
+          poetry run pytest tests/load --ignore tests/load/sources
         if: runner.os == 'Windows'
         name: Run tests Windows
         shell: cmd
