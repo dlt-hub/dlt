@@ -832,7 +832,6 @@ def test_run_with_table_name_exceeding_path_length() -> None:
 
 def test_raise_on_failed_job() -> None:
     os.environ["FAIL_PROB"] = "1.0"
-    os.environ["RAISE_ON_FAILED_JOBS"] = "true"  # TODO: why is this necessary?
     pipeline_name = "pipe_" + uniq_id()
     p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
     with pytest.raises(PipelineStepFailed) as py_ex:
@@ -951,7 +950,6 @@ def test_retry_load() -> None:
     assert py_ex.value.step == "extract"
 
     os.environ["COMPLETED_PROB"] = "0.0"
-    os.environ["RAISE_ON_FAILED_JOBS"] = "true"  # TODO: why is this necessary?
     os.environ["FAIL_PROB"] = "1.0"
     with pytest.raises(PipelineStepFailed) as py_ex:
         for attempt in Retrying(
