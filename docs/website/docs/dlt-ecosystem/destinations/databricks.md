@@ -136,7 +136,7 @@ For more information on staging, see the [staging support](#staging-support) sec
 The `jsonl` format has some limitations when used with Databricks:
 
 1. Compression must be disabled to load jsonl files in Databricks. Set `data_writer.disable_compression` to `true` in dlt config when using this format.
-2. The following data types are not supported when using `jsonl` format with `databricks`: `decimal`, `complex`, `date`, `binary`. Use `parquet` if your data contains these types.
+2. The following data types are not supported when using `jsonl` format with `databricks`: `decimal`, `json`, `date`, `binary`. Use `parquet` if your data contains these types.
 3. `bigint` data type with precision is not supported with `jsonl` format
 
 

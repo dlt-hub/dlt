@@ -261,7 +261,7 @@ The `unique` hint for `_dlt_id` in the root table is set to `false`  when using 
 After this pattern, the `scd2` table in the destination has two records for surrogate key X: one for validity window `[t1, t2]`, and one for `[t3, NULL]`. A duplicate value exists in `_dlt_id` because both records have the same surrogate key.
 
 Note that:
-- the composite key `(_dlt_id, _dlt_valid_from)` is unique   
+- the composite key `(_dlt_id, _dlt_valid_from)` is unique
 - `_dlt_id` remains unique for child tables—`scd2` does not affect this
 :::
 
@@ -545,9 +545,9 @@ you add with `add_map` / `add_filter`. This means that you can manipulate the da
 * Another built-in `min` returns smaller value.
 
 You can pass your custom function as well. This lets you define
-`last_value` on complex types i.e. dictionaries and store indexes of last values, not just simple
+`last_value` on nested types i.e. dictionaries and store indexes of last values, not just simple
 types. The `last_value` argument is a [JSON Path](https://github.com/json-path/JsonPath#operators)
-and lets you select nested and complex data (including the whole data item when `$` is used).
+and lets you select nested data (including the whole data item when `$` is used).
 Example below creates last value which is a dictionary holding a max `created_at` value for each
 created table name:
 

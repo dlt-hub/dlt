@@ -190,7 +190,7 @@ Now go ahead and try to add a new record where `id` is float number, you should 
 | time          | `'14:01:02'`, `datetime.time(14, 1, 2)`             | Supports precision - see **timestamp**                  |
 | bigint        | `9876543210`                                        | Supports precision as number of bits                    |
 | binary        | `b'\x00\x01\x02\x03'`                               | Supports precision, like **text**                       |
-| complex       | `[4, 5, 6]`, `{'a': 1}`                             |                                                         |
+| json          | `[4, 5, 6]`, `{'a': 1}`                             |                                                         |
 | decimal       | `Decimal('4.56')`                                   | Supports precision and scale                            |
 | wei           | `2**56`                                             |                                                         |
 
@@ -198,8 +198,8 @@ Now go ahead and try to add a new record where `id` is float number, you should 
 decimals. It works correctly on Postgres and BigQuery. All the other destinations have insufficient
 precision.
 
-`complex` data type tells `dlt` to load that element as JSON or struct and do not attempt to flatten
-or create a child table out of it.
+`json` data type tells `dlt` to load that element as JSON or string and do not attempt to flatten
+or create a child table out of it. Note that structured types like arrays or maps are not supported by `dlt` at this point.
 
 `time` data type is saved in destination without timezone info, if timezone is included it is stripped. E.g. `'14:01:02+02:00` -> `'14:01:02'`.
 
@@ -334,14 +334,14 @@ This code snippet sets up a nullable boolean column named `my_column` directly i
 #### Using `apply_hints`
 When dealing with dynamically generated resources or needing to programmatically set hints, `apply_hints` is your tool. It's especially useful for applying hints across various collections or tables at once.
 
-For example, to apply a complex data type across all collections from a MongoDB source:
+For example, to apply a `json` data type across all collections from a MongoDB source:
 
 ```py
 all_collections = ["collection1", "collection2", "collection3"]  # replace with your actual collection names
 source_data = mongodb().with_resources(*all_collections)
 
 for col in all_collections:
-    source_data.resources[col].apply_hints(columns={"column_name": {"data_type": "complex"}})
+    source_data.resources[col].apply_hints(columns={"column_name": {"data_type": "json"}})
 
 pipeline = dlt.pipeline(
     pipeline_name="mongodb_pipeline",
@@ -350,7 +350,7 @@ pipeline = dlt.pipeline(
 )
 load_info = pipeline.run(source_data)
 ```
-This example iterates through MongoDB collections, applying the complex [data type](schema#data-types) to a specified column, and then processes the data with `pipeline.run`.
+This example iterates through MongoDB collections, applying the **json** [data type](schema#data-types) to a specified column, and then processes the data with `pipeline.run`.
 
 ## View and print the schema
 To view and print the default schema in a clear YAML format use the command:
@@ -363,8 +363,8 @@ This can be used in a pipeline as:
 ```py
 # Create a pipeline
 pipeline = dlt.pipeline(
-               pipeline_name="chess_pipeline", 
-               destination='duckdb', 
+               pipeline_name="chess_pipeline",
+               destination='duckdb',
                dataset_name="games_data")
 
 # Run the pipeline

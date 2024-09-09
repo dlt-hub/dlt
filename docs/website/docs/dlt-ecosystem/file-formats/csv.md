@@ -82,9 +82,9 @@ You'll need those setting when [importing external files](../../general-usage/re
 **arrow writer**
 
 * binary columns are supported only if they contain valid UTF-8 characters
-* complex (nested, struct) types are not supported
+* json (nested, struct) types are not supported
 
 **csv writer**
 * binary columns are supported only if they contain valid UTF-8 characters (easy to add more encodings)
-* complex columns dumped with json.dumps
+* json columns dumped with json.dumps
 * **None** values are always quoted
