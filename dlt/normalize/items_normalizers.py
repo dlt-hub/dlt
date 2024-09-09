@@ -1,4 +1,5 @@
-from typing import List, Dict, Set, Any
+import os
+from typing import List, Dict, Set, Any, Sequence
 from abc import abstractmethod
 
 from dlt.common import logger
@@ -13,7 +14,7 @@ from dlt.common.schema.utils import has_table_seen_data
 from dlt.common.storages import NormalizeStorage
 from dlt.common.storages.data_item_storage import DataItemStorage
 from dlt.common.storages.load_package import ParsedLoadJobFileName
-from dlt.common.typing import DictStrAny, TDataItem
+from dlt.common.typing import DictStrAny, TDataItem, TLoaderFileFormat
 from dlt.common.schema import TSchemaUpdate, Schema
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.normalizers.utils import generate_dlt_ids
@@ -183,6 +184,117 @@ class JsonLItemsNormalizer(ItemsNormalizer):
             signals.raise_if_signalled()
         return schema_update
 
+    def _normalize_polars(
+        self,
+        root_table_name: str,
+        extracted_items_file: str,
+        column_names: Sequence[str],
+    ) -> None:
+        import polars as pl
+        from dlt.common.normalizers.json.relational import DataItemNormalizer
+        from dlt.common.normalizers.utils import generate_dlt_id
+        from dlt.common.schema.typing import TColumnType
+        from dlt.common.schema.utils import get_child_tables
+
+        def get_polars_datatype(  # type: ignore[return]
+            column: TColumnType,
+        ) -> pl.DataType:
+            column_type = column["data_type"]
+            if column_type == "text":
+                return pl.String()
+            elif column_type == "bool":
+                return pl.Boolean()
+            elif column_type == "timestamp":
+                return pl.Datetime(time_zone="UTC")
+            elif column_type == "bigint":
+                return pl.Int64()
+
+        def write_file(df: pl.DataFrame, file_format: TLoaderFileFormat) -> None:
+            if file_format == "parquet":
+                df.write_parquet(path)
+            elif file_format == "jsonl":
+                df.write_ndjson(path)  # does not currently gzip compress
+
+        C_DLT_ID = DataItemNormalizer.C_DLT_ID
+        C_DLT_LOAD_ID = DataItemNormalizer.C_DLT_LOAD_ID
+        C_DLT_PARENT_ID = DataItemNormalizer.C_DLT_PARENT_ID
+        C_DLT_LIST_IDX = DataItemNormalizer.C_DLT_LIST_IDX
+        C_VALUE = DataItemNormalizer.C_VALUE
+
+        # get info from schema which we generated using original dlt normalizer
+        table_chain = get_child_tables(self.schema.tables, root_table_name)
+        unnested_cols = table_chain[0]["columns"]
+        child_tables = table_chain[1:]
+        nested_cols = {
+            table["name"].split("__")[1]: table["columns"][C_VALUE] for table in child_tables
+        }
+
+        # includes columns not present in extract -> leads to NULL columns
+        # (unnested columns should always exist in normalized root table file)
+        unnested_cols_schema = {
+            name: get_polars_datatype(col)
+            for name, col in unnested_cols.items()
+            if name not in (C_DLT_ID, C_DLT_LOAD_ID)
+        }
+
+        # excludes columns not present in extract
+        # (normalized child table files should not be created)
+        nested_cols_schema = {
+            name: pl.List(get_polars_datatype(col))
+            for name, col in nested_cols.items()
+            if name in column_names
+        }
+        schema = {**unnested_cols_schema, **nested_cols_schema}
+
+        # read extracted items file into dataframe
+        path = self.normalize_storage.extracted_packages.storage.make_full_path(
+            extracted_items_file
+        )
+        df = pl.read_ndjson(path, schema=schema)
+
+        # add system columns
+        df = df.with_columns(
+            pl.lit(self.load_id).alias(C_DLT_LOAD_ID),
+            pl.Series(
+                name=C_DLT_ID,
+                values=[generate_dlt_id() for _ in range(df.height)],
+                dtype=pl.String,
+            ),
+        )
+
+        file_format = self.item_storage.writer_spec.file_format
+
+        # write root table file
+        path = self.item_storage._get_writer(
+            self.load_id,
+            self.schema.name,
+            root_table_name,
+        )._file_name
+        root_df = df.select(unnested_cols.keys())
+        write_file(root_df, file_format)
+
+        # write child table files
+        for nested_col in nested_cols.keys():
+            child_df = df.select(
+                pl.col(nested_col).alias(C_VALUE), pl.col(C_DLT_ID).alias(C_DLT_PARENT_ID)
+            ).explode(C_VALUE)
+            child_df = child_df.select(
+                C_VALUE,
+                pl.Series(
+                    name=C_DLT_ID,
+                    values=[generate_dlt_id() for _ in range(child_df.height)],
+                    dtype=pl.String,
+                ),
+                C_DLT_PARENT_ID,
+                pl.int_range(pl.len()).over(C_DLT_PARENT_ID).alias(C_DLT_LIST_IDX),
+            )
+            path = self.item_storage._get_writer(
+                self.load_id,
+                self.schema.name,
+                f"{root_table_name}__{nested_col}",
+            )._file_name
+            write_file(child_df, file_format)
+
     def __call__(
         self,
         extracted_items_file: str,
@@ -194,13 +306,31 @@ class JsonLItemsNormalizer(ItemsNormalizer):
         ) as f:
             # enumerate jsonl file line by line
             line: bytes = None
-            for line_no, line in enumerate(f):
-                items: List[TDataItem] = json.loadb(line)
+            items: List[TDataItem]
+            if (
+                os.environ.get("NORMALIZER") == "polars"
+                and root_table_name != "_dlt_pipeline_state"
+            ):
+                # approach: process single JSON line with original normalizer to
+                # infer/create dlt schema, then process all JSON lines with
+                # Polars to create normalized files
+                line = f.readline()
+                items = [json.loadb(line)]
                 partial_update = self._normalize_chunk(
-                    root_table_name, items, may_have_pua(line), skip_write=False
+                    root_table_name, items, may_have_pua(line), skip_write=True
                 )
                 schema_updates.append(partial_update)
-                logger.debug(f"Processed {line_no+1} lines from file {extracted_items_file}")
+                self._normalize_polars(
+                    root_table_name, extracted_items_file, column_names=items[0].keys()
+                )
+            else:
+                for line_no, line in enumerate(f):
+                    items = json.loadb(line)
+                    partial_update = self._normalize_chunk(
+                        root_table_name, items, may_have_pua(line), skip_write=False
+                    )
+                    schema_updates.append(partial_update)
+                    logger.debug(f"Processed {line_no+1} lines from file {extracted_items_file}")
             # empty json files are when replace write disposition is used in order to truncate table(s)
             if line is None and root_table_name in self.schema.tables:
                 # TODO: we should push the truncate jobs via package state
@@ -222,7 +352,6 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                 logger.debug(
                     f"No lines in file {extracted_items_file}, written empty load job file"
                 )
-
         return schema_updates
 
 

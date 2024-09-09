@@ -174,6 +174,26 @@ class JsonlWriter(DataWriter):
         )
 
 
+class TypedJsonlWriter(JsonlWriter):
+    def write_data(self, rows: Sequence[Any]) -> None:
+        # skip JsonlWriter when calling super
+        super(JsonlWriter, self).write_data(rows)
+        for row in rows:
+            json.typed_dump(row, self._f)
+            self._f.write(b"\n")
+
+    @classmethod
+    def writer_spec(cls) -> FileWriterSpec:
+        return FileWriterSpec(
+            "typed-jsonl",
+            "object",
+            file_extension="typed-jsonl",
+            is_binary_format=True,
+            supports_schema_changes="True",
+            supports_compression=True,
+        )
+
+
 class TypedJsonlListWriter(JsonlWriter):
     def write_data(self, rows: Sequence[Any]) -> None:
         # skip JsonlWriter when calling super

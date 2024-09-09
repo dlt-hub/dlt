@@ -1,3 +1,4 @@
+import os
 import gzip
 import time
 import contextlib
@@ -11,7 +12,7 @@ from dlt.common.data_writers.exceptions import (
     FileImportNotFound,
     InvalidFileNameTemplateException,
 )
-from dlt.common.data_writers.writers import TWriter, DataWriter, FileWriterSpec
+from dlt.common.data_writers.writers import TWriter, DataWriter, FileWriterSpec, TypedJsonlWriter
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.configuration import with_config, known_sections, configspec
 from dlt.common.configuration.specs import BaseConfiguration
@@ -51,6 +52,13 @@ class BufferedDataWriter(Generic[TWriter]):
         if self.writer_spec.requires_destination_capabilities and not _caps:
             raise DestinationCapabilitiesRequired(self.writer_spec.file_format)
         self.writer_cls = DataWriter.writer_class_from_spec(writer_spec)
+        # hacky `writer_cls` override to extract into JSON lines instead of
+        # JSON when using `polars` normalizer
+        if (
+            os.environ.get("NORMALIZER") == "polars"
+            and "_dlt_pipeline_state" not in file_name_template  # table uses original normalizer
+        ):
+            self.writer_cls = TypedJsonlWriter
         self._supports_schema_changes = self.writer_spec.supports_schema_changes
         self._caps = _caps
         # validate if template has correct placeholders
