@@ -11,7 +11,7 @@ from dlt.common.schema.typing import (
     TColumnDefaultHint,
 )
 from dlt.common.schema.exceptions import SchemaEngineNoUpgradePathException
-from dlt.common.schema.utils import new_table, version_table, loads_table
+from dlt.common.schema.utils import new_table, version_table, loads_table, migrate_complex_types
 
 
 def migrate_schema(schema_dict: DictStrAny, from_engine: int, to_engine: int) -> TStoredSchema:
@@ -118,6 +118,19 @@ def migrate_schema(schema_dict: DictStrAny, from_engine: int, to_engine: int) ->
                 x_normalizer = table.setdefault("x-normalizer", {})
                 x_normalizer["seen-data"] = True
         from_engine = 9
+    if from_engine == 9 and to_engine > 9:
+        # migrate complex -> json
+        # current = cast(TStoredSchema, schema_dict)
+        for table in schema_dict["tables"].values():
+            print(table)
+            migrate_complex_types(table)
+        # migrate preferred types
+        if settings := schema_dict.get("settings"):
+            if p_t := settings.get("preferred_types"):
+                for re_ in list(p_t.keys()):
+                    if p_t[re_] == "complex":
+                        p_t[re_] = "json"
+        from_engine = 10
 
     schema_dict["engine_version"] = from_engine
     if from_engine != to_engine:
