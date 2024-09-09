@@ -1,6 +1,6 @@
 ---
 title: Load data from a REST API
-description: How to extract data from a REST API using dlt's generic REST API source
+description: How to extract data from a REST API using dlt's REST API source
 keywords: [tutorial, api, github, duckdb, rest api, source, pagination, authentication]
 ---
 
