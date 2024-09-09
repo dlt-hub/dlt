@@ -197,7 +197,7 @@ def test_create_table_case_insensitive(ci_gcp_client: BigQueryClient) -> None:
     )
     assert "Event_TEST_tablE" in ci_gcp_client.schema.tables
     with pytest.raises(SchemaIdentifierNormalizationCollision) as coll_ex:
-        ci_gcp_client.update_stored_schema([])
+        ci_gcp_client.verify_schema()
     assert coll_ex.value.conflict_identifier_name == "Event_test_tablE"
     assert coll_ex.value.table_name == "Event_TEST_tablE"
 
@@ -205,6 +205,7 @@ def test_create_table_case_insensitive(ci_gcp_client: BigQueryClient) -> None:
     ci_gcp_client.capabilities.has_case_sensitive_identifiers = True
     # now the check passes, we are stopped because it is not allowed to change schema in the loader
     with pytest.raises(DestinationSchemaTampered):
+        ci_gcp_client.verify_schema()
         ci_gcp_client.update_stored_schema([])
 
 

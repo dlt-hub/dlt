@@ -10,7 +10,7 @@ from dlt.common.runtime.signals import sleep
 from dlt.common.configuration import with_config, known_sections
 from dlt.common.configuration.accessors import config
 from dlt.common.pipeline import LoadInfo, LoadMetrics, SupportsPipeline, WithStepInfo
-from dlt.common.schema.utils import get_top_level_table
+from dlt.common.schema.utils import get_root_table
 from dlt.common.storages.load_storage import (
     LoadPackageInfo,
     ParsedLoadJobFileName,
@@ -167,20 +167,30 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 )
             logger.info(f"Will load file {file_path} with table name {job_info.table_name}")
 
-            # check write disposition
+            # determine which dataset to use
+            if is_staging_destination_job:
+                use_staging_dataset = isinstance(
+                    job_client, SupportsStagingDestination
+                ) and job_client.should_load_data_to_staging_dataset_on_staging_destination(
+                    job_info.table_name
+                )
+            else:
+                use_staging_dataset = isinstance(
+                    job_client, WithStagingDataset
+                ) and job_client.should_load_data_to_staging_dataset(job_info.table_name)
+
+            # prepare table to be loaded
             load_table = active_job_client.prepare_load_table(job_info.table_name)
             if load_table["write_disposition"] not in ["append", "replace", "merge"]:
                 raise LoadClientUnsupportedWriteDisposition(
                     job_info.table_name, load_table["write_disposition"], file_path
                 )
-
             job = active_job_client.create_load_job(
                 load_table,
                 self.load_storage.normalized_packages.storage.make_full_path(file_path),
                 load_id,
                 restore=restore,
             )
-
             if job is None:
                 raise DestinationTerminalException(
                     f"Destination could not create a job for file {file_path}. Typically the file"
@@ -204,21 +214,8 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
 
         # only start a thread if this job is runnable
         if isinstance(job, RunnableLoadJob):
-            # determine which dataset to use
-            if is_staging_destination_job:
-                use_staging_dataset = isinstance(
-                    job_client, SupportsStagingDestination
-                ) and job_client.should_load_data_to_staging_dataset_on_staging_destination(
-                    load_table
-                )
-            else:
-                use_staging_dataset = isinstance(
-                    job_client, WithStagingDataset
-                ) and job_client.should_load_data_to_staging_dataset(load_table)
-
             # set job vars
             job.set_run_vars(load_id=load_id, schema=schema, load_table=load_table)
-
             # submit to pool
             self.pool.submit(Load.w_run_job, *(id(self), job, is_staging_destination_job, use_staging_dataset, schema))  # type: ignore
 
@@ -321,7 +318,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
             starting_job_file_name = starting_job.file_name()
             if state == "completed" and not self.is_staging_destination_job(starting_job_file_name):
                 client = self.destination.client(schema, self.initial_client_config)
-                top_job_table = get_top_level_table(
+                root_job_table = get_root_table(
                     schema.tables, starting_job.job_file_info().table_name
                 )
                 # if all tables of chain completed, create follow up jobs
@@ -329,9 +326,13 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                     load_id
                 )
                 if table_chain := get_completed_table_chain(
-                    schema, all_jobs_states, top_job_table, starting_job.job_file_info().job_id()
+                    schema, all_jobs_states, root_job_table, starting_job.job_file_info().job_id()
                 ):
                     table_chain_names = [table["name"] for table in table_chain]
+                    # all tables will be prepared for main dataset
+                    prep_table_chain = [
+                        client.prepare_load_table(table_name) for table_name in table_chain_names
+                    ]
                     table_chain_jobs = [
                         # we mark all jobs as completed, as by the time the followup job runs the starting job will be in this
                         # folder too
@@ -345,12 +346,12 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                     ]
                     try:
                         if follow_up_jobs := client.create_table_chain_completed_followup_jobs(
-                            table_chain, table_chain_jobs
+                            prep_table_chain, table_chain_jobs
                         ):
                             jobs = jobs + follow_up_jobs
                     except Exception as e:
                         raise TableChainFollowupJobCreationFailedException(
-                            root_table_name=table_chain[0]["name"]
+                            root_table_name=prep_table_chain[0]["name"]
                         ) from e
 
             try:

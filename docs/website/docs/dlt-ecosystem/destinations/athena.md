@@ -131,13 +131,6 @@ def data() -> Iterable[TDataItem]:
     ...
 ```
 
-Alternatively, you can set all tables to use the iceberg format with a config variable:
-
-```toml
-[destination.athena]
-force_iceberg = "True"
-```
-
 For every table created as an iceberg table, the Athena destination will create a regular Athena table in the staging dataset of both the filesystem and the Athena glue catalog, and then copy all data into the final iceberg table that lives with the non-iceberg tables in the same dataset on both the filesystem and the glue catalog. Switching from iceberg to regular table or vice versa is not supported.
 
 #### `merge` support

@@ -316,7 +316,8 @@ class ArrowItemsNormalizer(ItemsNormalizer):
         new_cols: TTableSchemaColumns = {}
         for key, column in table["columns"].items():
             if column.get("data_type") in ("timestamp", "time"):
-                if prec := column.get("precision"):
+                prec = column.get("precision")
+                if prec is not None:
                     # apply the arrow schema precision to dlt column schema
                     data_type = pyarrow.get_column_type_from_py_arrow(arrow_schema.field(key).type)
                     if data_type["data_type"] in ("timestamp", "time"):

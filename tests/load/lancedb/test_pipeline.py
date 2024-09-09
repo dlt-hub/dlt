@@ -1,8 +1,8 @@
 import multiprocessing
 from typing import Iterator, Generator, Any, List, Mapping
 
-import lancedb  # type: ignore
 import pytest
+import lancedb  # type: ignore
 from lancedb import DBConnection
 from lancedb.embeddings import EmbeddingFunctionRegistry  # type: ignore
 
@@ -18,7 +18,6 @@ from dlt.destinations.impl.lancedb.lancedb_client import LanceDBClient
 from tests.load.lancedb.utils import assert_table
 from tests.load.utils import sequence_generator, drop_active_pipeline_data
 from tests.pipeline.utils import assert_load_info
-
 
 # Mark all tests as essential, do not remove.
 pytestmark = pytest.mark.essential

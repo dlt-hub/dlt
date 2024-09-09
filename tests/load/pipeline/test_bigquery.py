@@ -33,7 +33,7 @@ def test_bigquery_numeric_types(destination_config: DestinationTestConfiguration
         },
     ]
 
-    info = pipeline.run(iter(data), table_name="big_numeric", columns=columns)  # type: ignore[arg-type]
+    info = pipeline.run(iter(data), table_name="big_numeric", columns=columns, **destination_config.run_kwargs)  # type: ignore[arg-type]
     assert_load_info(info)
 
     with pipeline.sql_client() as client:

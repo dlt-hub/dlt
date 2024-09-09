@@ -32,7 +32,7 @@ def test_clickhouse_destination_append(destination_config: DestinationTestConfig
 
         pipeline.run(
             items,
-            loader_file_format=destination_config.file_format,
+            **destination_config.run_kwargs,
             staging=destination_config.staging,
         )
 
@@ -64,7 +64,7 @@ def test_clickhouse_destination_append(destination_config: DestinationTestConfig
                 ],
             }
 
-        pipeline.run(items2)
+        pipeline.run(items2, **destination_config.run_kwargs)
         table_counts = load_table_counts(
             pipeline, *[t["name"] for t in pipeline.default_schema._schema_tables.values()]
         )

@@ -119,7 +119,7 @@ def test_create_table_with_column_hint(
 
     # Case: table with hint, but client does not have indexes enabled.
     mod_update = deepcopy(TABLE_UPDATE)
-    mod_update[0][hint] = True  # type: ignore[typeddict-unknown-key]
+    mod_update[0][hint] = True
     sql = client._get_table_update_sql("event_test_table", mod_update, False)[0]
     sqlfluff.parse(sql, dialect="tsql")
     assert f" {attr} " not in sql

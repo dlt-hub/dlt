@@ -22,7 +22,7 @@ def test_dremio(destination_config: DestinationTestConfiguration) -> None:
             "sub_items": [{"id": 101, "name": "sub item 101"}, {"id": 101, "name": "sub item 102"}],
         }
 
-    print(pipeline.run([items]))
+    print(pipeline.run([items], **destination_config.run_kwargs))
 
     table_counts = load_table_counts(
         pipeline, *[t["name"] for t in pipeline.default_schema._schema_tables.values()]

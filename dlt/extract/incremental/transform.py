@@ -345,8 +345,7 @@ class ArrowIncremental(IncrementalTransform):
 
         if tbl.schema.field(cursor_path).nullable:
             tbl_without_null, tbl_with_null = self._process_null_at_cursor_path(tbl)
-
-        tbl = tbl_without_null
+            tbl = tbl_without_null
 
         # If end_value is provided, filter to include table rows that are "less" than end_value
         if self.end_value is not None:
@@ -434,11 +433,12 @@ class ArrowIncremental(IncrementalTransform):
             tbl = pyarrow.remove_columns(tbl, ["_dlt_index"])
 
         if self.on_cursor_value_missing == "include":
-            if isinstance(tbl, pa.RecordBatch):
-                assert isinstance(tbl_with_null, pa.RecordBatch)
-                tbl = pa.Table.from_batches([tbl, tbl_with_null])
-            else:
-                tbl = pa.concat_tables([tbl, tbl_with_null])
+            if tbl.schema.field(cursor_path).nullable:
+                if isinstance(tbl, pa.RecordBatch):
+                    assert isinstance(tbl_with_null, pa.RecordBatch)
+                    tbl = pa.Table.from_batches([tbl, tbl_with_null])
+                else:
+                    tbl = pa.concat_tables([tbl, tbl_with_null])
 
         if len(tbl) == 0:
             return None, start_out_of_range, end_out_of_range

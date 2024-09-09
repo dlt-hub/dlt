@@ -1,7 +1,7 @@
 from typing import Any
 
 from dlt.common.schema.typing import TColumnNames, TTableSchemaColumns
-from dlt.extract import DltResource, resource as make_resource
+from dlt.extract import DltResource
 from dlt.destinations.utils import get_resource_for_adapter
 
 VECTORIZE_HINT = "x-qdrant-embed"

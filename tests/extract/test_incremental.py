@@ -1,53 +1,51 @@
-import os
 import asyncio
 import inspect
+import os
 import random
-from time import sleep
-from typing import Optional, Any
-from unittest import mock
 from datetime import datetime  # noqa: I251
 from itertools import chain, count
+from time import sleep
+from typing import Any, Optional
+from unittest import mock
 
 import duckdb
+import pyarrow as pa
 import pytest
 
 import dlt
+from dlt.common import Decimal
+from dlt.common.configuration import ConfigurationValueError
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import InvalidNativeValue
-from dlt.common.configuration.specs.base_configuration import configspec, BaseConfiguration
-from dlt.common.configuration import ConfigurationValueError
+from dlt.common.configuration.specs.base_configuration import (
+    BaseConfiguration,
+    configspec,
+)
+from dlt.common.json import json
 from dlt.common.pendulum import pendulum, timedelta
-from dlt.common import Decimal
 from dlt.common.pipeline import NormalizeInfo, StateInjectableContext, resource_state
 from dlt.common.schema.schema import Schema
-from dlt.common.utils import uniq_id, digest128, chunks
-from dlt.common.json import json
-
+from dlt.common.utils import chunks, digest128, uniq_id
 from dlt.extract import DltSource
-from dlt.extract.exceptions import InvalidStepFunctionArguments
-from dlt.extract.items import ValidateItem
-from dlt.extract.resource import DltResource
-from dlt.sources.helpers.transform import take_first
-from dlt.extract.incremental import IncrementalResourceWrapper, Incremental
+from dlt.extract.incremental import Incremental, IncrementalResourceWrapper
 from dlt.extract.incremental.exceptions import (
     IncrementalCursorInvalidCoercion,
+    IncrementalCursorPathHasValueNone,
     IncrementalCursorPathMissing,
     IncrementalPrimaryKeyMissing,
-    IncrementalCursorPathHasValueNone,
 )
+from dlt.extract.items import ValidateItem
+from dlt.extract.resource import DltResource
 from dlt.pipeline.exceptions import PipelineStepFailed
-
+from dlt.sources.helpers.transform import take_first
 from tests.extract.utils import AssertItems, data_item_to_list
+from tests.pipeline.utils import assert_query_data
 from tests.utils import (
+    ALL_TEST_DATA_ITEM_FORMATS,
+    TestDataItemFormat,
     data_item_length,
     data_to_item_format,
-    TestDataItemFormat,
-    ALL_TEST_DATA_ITEM_FORMATS,
 )
-
-from tests.pipeline.utils import assert_query_data
-
-import pyarrow as pa
 
 
 @pytest.fixture(autouse=True)
@@ -914,6 +912,56 @@ def test_cursor_path_none_can_raise_on_column_missing(item_type: TestDataItemFor
         p.extract(some_data())
     assert pip_ex.value.__context__.json_path == "created_at"  # type: ignore[attr-defined]
     assert isinstance(pip_ex.value.__context__, IncrementalCursorPathMissing)
+
+
+@pytest.mark.parametrize("item_type", ["arrow-table", "arrow-batch"])
+def test_cursor_path_not_nullable_arrow(
+    item_type: TestDataItemFormat,
+) -> None:
+    @dlt.resource
+    def some_data(
+        invocation: int,
+        created_at=dlt.sources.incremental("created_at", on_cursor_value_missing="include"),
+    ):
+        if invocation == 1:
+            data = [
+                {"id": 1, "created_at": 1},
+                {"id": 2, "created_at": 1},
+                {"id": 3, "created_at": 2},
+            ]
+        elif invocation == 2:
+            data = [
+                {"id": 4, "created_at": 1},
+                {"id": 5, "created_at": 2},
+                {"id": 6, "created_at": 3},
+            ]
+
+        schema = pa.schema(
+            [
+                pa.field("id", pa.int32(), nullable=False),
+                pa.field("created_at", pa.int32(), nullable=False),
+            ]
+        )
+        id_array = pa.array([item["id"] for item in data], type=pa.int32())
+        created_at_array = pa.array([item["created_at"] for item in data], type=pa.int32())
+        if item_type == "arrow-table":
+            source_items = [pa.Table.from_arrays([id_array, created_at_array], schema=schema)]
+        elif item_type == "arrow-batch":
+            source_items = [pa.RecordBatch.from_arrays([id_array, created_at_array], schema=schema)]
+
+        yield source_items
+
+    p = dlt.pipeline(pipeline_name=uniq_id())
+    p.run(some_data(1), destination="duckdb")
+    p.run(some_data(2), destination="duckdb")
+
+    assert_query_data(p, "select id from some_data order by id", [1, 2, 3, 5, 6])
+    assert_query_data(p, "select created_at from some_data order by id", [1, 1, 2, 2, 3])
+
+    s = p.state["sources"][p.default_schema_name]["resources"]["some_data"]["incremental"][
+        "created_at"
+    ]
+    assert s["last_value"] == 3
 
 
 def test_cursor_path_none_nested_can_raise_on_none_1() -> None:
@@ -2474,7 +2522,7 @@ def test_allow_external_schedulers(item_type: TestDataItemFormat) -> None:
 
 @pytest.mark.parametrize("yield_pydantic", (True, False))
 def test_pydantic_columns_validator(yield_pydantic: bool) -> None:
-    from pydantic import BaseModel, Field, ConfigDict
+    from pydantic import BaseModel, ConfigDict, Field
 
     # forbid extra fields so "id" in json is not a valid field BUT
     # add alias for id_ that will serde "id" correctly

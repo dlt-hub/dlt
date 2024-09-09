@@ -23,7 +23,10 @@ from dlt.common.destination.reference import RunnableLoadJob
 from dlt.destinations.impl.bigquery.bigquery import BigQueryClient, BigQueryClientConfiguration
 from dlt.destinations.exceptions import LoadJobNotExistsException, LoadJobTerminalException
 
-from dlt.destinations.impl.bigquery.bigquery_adapter import AUTODETECT_SCHEMA_HINT
+from dlt.destinations.impl.bigquery.bigquery_adapter import (
+    AUTODETECT_SCHEMA_HINT,
+    should_autodetect_schema,
+)
 from tests.utils import TEST_STORAGE_ROOT, delete_test_storage
 from tests.common.utils import json_case_path as common_json_case_path
 from tests.common.configuration.utils import environment
@@ -277,23 +280,35 @@ def test_bigquery_different_project_id(bigquery_project_id) -> None:
 
 def test_bigquery_autodetect_configuration(client: BigQueryClient) -> None:
     # no schema autodetect
-    assert client._should_autodetect_schema("event_slot") is False
-    assert client._should_autodetect_schema("_dlt_loads") is False
+    event_slot = client.prepare_load_table("event_slot")
+    _dlt_loads = client.prepare_load_table("_dlt_loads")
+    assert should_autodetect_schema(event_slot) is False
+    assert should_autodetect_schema(_dlt_loads) is False
     # add parent table
     child = new_table("event_slot__values", "event_slot")
-    client.schema.update_table(child)
-    assert client._should_autodetect_schema("event_slot__values") is False
+    client.schema.update_table(child, normalize_identifiers=False)
+    event_slot__values = client.prepare_load_table("event_slot__values")
+    assert should_autodetect_schema(event_slot__values) is False
+
     # enable global config
     client.config.autodetect_schema = True
-    assert client._should_autodetect_schema("event_slot") is True
-    assert client._should_autodetect_schema("_dlt_loads") is False
-    assert client._should_autodetect_schema("event_slot__values") is True
+    # prepare again
+    event_slot = client.prepare_load_table("event_slot")
+    _dlt_loads = client.prepare_load_table("_dlt_loads")
+    event_slot__values = client.prepare_load_table("event_slot__values")
+    assert should_autodetect_schema(event_slot) is True
+    assert should_autodetect_schema(_dlt_loads) is False
+    assert should_autodetect_schema(event_slot__values) is True
+
     # enable hint per table
     client.config.autodetect_schema = False
     client.schema.get_table("event_slot")[AUTODETECT_SCHEMA_HINT] = True  # type: ignore[typeddict-unknown-key]
-    assert client._should_autodetect_schema("event_slot") is True
-    assert client._should_autodetect_schema("_dlt_loads") is False
-    assert client._should_autodetect_schema("event_slot__values") is True
+    event_slot = client.prepare_load_table("event_slot")
+    _dlt_loads = client.prepare_load_table("_dlt_loads")
+    event_slot__values = client.prepare_load_table("event_slot__values")
+    assert should_autodetect_schema(event_slot) is True
+    assert should_autodetect_schema(_dlt_loads) is False
+    assert should_autodetect_schema(event_slot__values) is True
 
 
 def test_bigquery_job_resuming(client: BigQueryClient, file_storage: FileStorage) -> None:
@@ -311,14 +326,14 @@ def test_bigquery_job_resuming(client: BigQueryClient, file_storage: FileStorage
     r_job = cast(
         RunnableLoadJob,
         client.create_load_job(
-            client.schema.get_table(user_table_name),
+            client.prepare_load_table(user_table_name),
             file_storage.make_full_path(job.file_name()),
             uniq_id(),
         ),
     )
 
     # job will be automatically found and resumed
-    r_job.set_run_vars(uniq_id(), client.schema, client.schema.tables[user_table_name])
+    r_job.set_run_vars(uniq_id(), client.schema, client.prepare_load_table(user_table_name))
     r_job.run_managed(client)
     assert r_job.state() == "completed"
     assert r_job._resumed_job  # type: ignore

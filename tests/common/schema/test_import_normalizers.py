@@ -4,13 +4,6 @@ import pytest
 from dlt.common.configuration.container import Container
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.normalizers.typing import TNormalizersConfig
-from dlt.common.normalizers.utils import (
-    DEFAULT_NAMING_NAMESPACE,
-    explicit_normalizers,
-    import_normalizers,
-    naming_from_reference,
-    serialize_reference,
-)
 from dlt.common.normalizers.json.relational import DataItemNormalizer as RelationalNormalizer
 from dlt.common.normalizers.naming import snake_case, direct
 from dlt.common.normalizers.naming.exceptions import (
@@ -18,10 +11,17 @@ from dlt.common.normalizers.naming.exceptions import (
     NamingTypeNotFound,
     UnknownNamingModule,
 )
-
 from tests.common.normalizers.custom_normalizers import (
     DataItemNormalizer as CustomRelationalNormalizer,
 )
+from dlt.common.schema.normalizers import (
+    DEFAULT_NAMING_NAMESPACE,
+    explicit_normalizers,
+    import_normalizers,
+    naming_from_reference,
+    serialize_reference,
+)
+
 from tests.utils import preserve_environ
 
 
@@ -87,7 +87,9 @@ def test_naming_from_reference() -> None:
     import sys
 
     try:
-        sys.path.insert(0, os.path.dirname(__file__))
+        from tests.common.normalizers import custom_normalizers
+
+        sys.path.insert(0, os.path.dirname(custom_normalizers.__file__))
         assert naming_from_reference("custom_normalizers").name() == "custom_normalizers"
         assert (
             naming_from_reference("custom_normalizers.NamingConvention").name()
@@ -113,10 +115,8 @@ def test_naming_from_reference() -> None:
     with pytest.raises(ValueError):
         naming_from_reference(snake_case.NamingConvention())  # type: ignore[arg-type]
 
-    # with capabilities
-    caps = DestinationCapabilitiesContext.generic_capabilities()
-    caps.max_identifier_length = 120
-    naming = naming_from_reference(snake_case.NamingConvention, caps)
+    # with max length
+    naming = naming_from_reference(snake_case.NamingConvention, 120)
     assert naming.max_length == 120
 
 

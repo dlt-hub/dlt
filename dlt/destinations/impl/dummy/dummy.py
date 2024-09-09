@@ -16,7 +16,7 @@ import os
 import time
 from dlt.common.metrics import LoadJobMetrics
 from dlt.common.pendulum import pendulum
-from dlt.common.schema import Schema, TTableSchema, TSchemaTables
+from dlt.common.schema import Schema, TSchemaTables
 from dlt.common.storages import FileStorage
 from dlt.common.storages.load_package import LoadJobInfo
 from dlt.common.destination import DestinationCapabilitiesContext
@@ -27,6 +27,7 @@ from dlt.common.destination.exceptions import (
 from dlt.common.destination.reference import (
     HasFollowupJobs,
     FollowupJobRequest,
+    PreparedTableSchema,
     SupportsStagingDestination,
     TLoadJobState,
     RunnableLoadJob,
@@ -160,7 +161,7 @@ class DummyClient(JobClientBase, SupportsStagingDestination, WithStagingDataset)
         return applied_update
 
     def create_load_job(
-        self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
+        self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
         job_id = FileStorage.get_file_name_from_file_path(file_path)
         if restore and job_id not in JOBS:
@@ -178,7 +179,7 @@ class DummyClient(JobClientBase, SupportsStagingDestination, WithStagingDataset)
 
     def create_table_chain_completed_followup_jobs(
         self,
-        table_chain: Sequence[TTableSchema],
+        table_chain: Sequence[PreparedTableSchema],
         completed_table_chain_jobs: Optional[Sequence[LoadJobInfo]] = None,
     ) -> List[FollowupJobRequest]:
         """Creates a list of followup jobs that should be executed after a table chain is completed"""
@@ -199,10 +200,10 @@ class DummyClient(JobClientBase, SupportsStagingDestination, WithStagingDataset)
     def complete_load(self, load_id: str) -> None:
         pass
 
-    def should_load_data_to_staging_dataset(self, table: TTableSchema) -> bool:
-        return super().should_load_data_to_staging_dataset(table)
+    def should_load_data_to_staging_dataset(self, table_name: str) -> bool:
+        return super().should_load_data_to_staging_dataset(table_name)
 
-    def should_truncate_table_before_load_on_staging_destination(self, table: TTableSchema) -> bool:
+    def should_truncate_table_before_load_on_staging_destination(self, table_name: str) -> bool:
         return self.config.truncate_tables_on_staging_destination_before_load
 
     @contextmanager
