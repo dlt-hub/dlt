@@ -21,6 +21,7 @@ from dlt.common.schema.utils import (
     DEFAULT_WRITE_DISPOSITION,
     merge_column,
     merge_columns,
+    migrate_complex_types,
     new_column,
     new_table,
 )
@@ -86,17 +87,11 @@ def make_hints(
     This method accepts the same table hints arguments as `dlt.resource` decorator.
     """
     validator, schema_contract = create_item_validator(columns, schema_contract)
-    clean_columns = columns
-    if columns is not None:
-        clean_columns = ensure_table_schema_columns_hint(columns)
-        if not callable(clean_columns):
-            clean_columns = clean_columns.values()  # type: ignore
     # create a table schema template where hints can be functions taking TDataItem
     new_template: TResourceHints = new_table(
         table_name,  # type: ignore
         parent_table_name,  # type: ignore
         write_disposition=write_disposition,  # type: ignore
-        columns=clean_columns,  # type: ignore
         schema_contract=schema_contract,  # type: ignore
         table_format=table_format,  # type: ignore
         file_format=file_format,  # type: ignore
@@ -105,9 +100,10 @@ def make_hints(
         new_template.pop("name")
     if not write_disposition and "write_disposition" in new_template:
         new_template.pop("write_disposition")
-    # remember original columns
+    # remember original columns and set template columns
     if columns is not None:
         new_template["original_columns"] = columns
+        new_template["columns"] = ensure_table_schema_columns_hint(columns)
     # always remove resource
     new_template.pop("resource", None)  # type: ignore
     if primary_key is not None:
@@ -203,6 +199,7 @@ class DltResourceHints:
             if k not in NATURAL_CALLABLES
         }  # type: ignore
         table_schema = self._create_table_schema(resolved_template, self.name)
+        migrate_complex_types(table_schema, warn=True)
         validate_dict_ignoring_xkeys(
             spec=TTableSchema,
             doc=table_schema,
