@@ -147,6 +147,3 @@ if __name__ == "__main__":
     # check that stuff was loaded
     row_counts = pipeline.last_trace.last_normalize_info.row_counts
     assert row_counts["ticket_events"] == 17
-
-    # make sure nothing failed
-    load_info.raise_on_failed_jobs()

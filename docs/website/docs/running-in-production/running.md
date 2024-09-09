@@ -267,8 +267,6 @@ All the jobs that were running in parallel are completed before raising. The dlt
 Here is an example `config.toml` to disable this behavior:
 
 ```toml
-# you should really load just one job at a time to get the deterministic behavior
-load.workers=1
 # I hope you know what you are doing by setting this to false
 load.raise_on_failed_jobs=false
 ```

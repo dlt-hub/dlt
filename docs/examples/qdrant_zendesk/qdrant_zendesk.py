@@ -175,9 +175,6 @@ if __name__ == "__main__":
 
     print(load_info)
 
-    # make sure nothing failed
-    load_info.raise_on_failed_jobs()
-
     # getting the authenticated Qdrant client to connect to your Qdrant database
     with pipeline.destination_client() as destination_client:
         from qdrant_client import QdrantClient
@@ -194,6 +191,3 @@ if __name__ == "__main__":
         )
 
         assert len(response) <= 3 and len(response) > 0
-
-        # make sure nothing failed
-        load_info.raise_on_failed_jobs()

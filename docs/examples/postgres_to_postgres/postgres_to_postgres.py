@@ -214,9 +214,6 @@ if __name__ == "__main__":
     assert row_counts["table_1"] == 9
     assert row_counts["table_2"] == 9
 
-    # make sure nothing failed
-    load_info.raise_on_failed_jobs()
-
     if load_type == "replace":
         # 4. Load DuckDB local database into Postgres
         print("##################################### START DUCKDB LOAD ########")

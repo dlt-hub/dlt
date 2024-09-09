@@ -179,9 +179,7 @@ def parallel_pipelines_asyncio_snippet() -> None:
                 loop.run_in_executor(executor, _run_pipeline, pipeline_1, async_table),
                 loop.run_in_executor(executor, _run_pipeline, pipeline_2, defer_table),
             )
-        # result contains two LoadInfo instances
-        results[0].raise_on_failed_jobs()
-        results[1].raise_on_failed_jobs()
+        # results contains two LoadInfo instances
 
     # load data
     asyncio.run(_run_async())
