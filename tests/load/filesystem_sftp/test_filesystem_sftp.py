@@ -212,3 +212,20 @@ def test_filesystem_sftp_auth_private_ssh_agent():
     files = fs.ls("/data/samples")
 
     assert len(files) > 0
+
+
+@pytest.mark.sftp
+def test_filesystem_sftp_auth_ca_signed_pub_key():
+    os.environ["SOURCES__FILESYSTEM__BUCKET_URL"] = "sftp://localhost/data/samples"
+    os.environ["SOURCES__FILESYSTEM__CREDENTIALS__SFTP_PORT"] = "2222"
+    os.environ["SOURCES__FILESYSTEM__CREDENTIALS__SFTP_USERNAME"] = "billy"
+    os.environ["SOURCES__FILESYSTEM__CREDENTIALS__SFTP_KEY_FILENAME"] = get_key_path(
+        "billy"
+    )  # billy_rsa-cert.pub is automatically loaded too
+
+    config = get_config()
+    fs, _ = fsspec_from_config(config)
+
+    files = fs.ls("/data/samples")
+
+    assert len(files) > 0

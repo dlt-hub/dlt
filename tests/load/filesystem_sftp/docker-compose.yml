@@ -14,6 +14,7 @@ services:
     volumes:
       - ../../common/storages/samples:/home/foo/sftp/data/samples
       - ../../common/storages/samples:/home/bobby/sftp/data/samples  
+      - ../../common/storages/samples:/home/billy/sftp/data/samples  
 
 networks:
   sftpserver:

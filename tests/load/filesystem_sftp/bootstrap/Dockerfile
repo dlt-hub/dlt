@@ -6,6 +6,19 @@ RUN apt-get update && \
     apt-get install -y openssh-server && \
     rm -rf /var/lib/apt/lists/*
 
+# Certificate Authority (CA): public key
+COPY ca_rsa.pub /etc/ssh/ca_rsa.pub
+RUN chmod 600 /etc/ssh/ca_rsa.pub
+
+RUN mkdir -p /etc/ssh/auth_principals && \
+    echo "billy" >> /etc/ssh/auth_principals/billy
+
+RUN mkdir -p /run/sshd && \
+    echo "SyslogFacility AUTH" >> /etc/ssh/sshd_config && \
+    echo "LogLevel INFO" >> /etc/ssh/sshd_config && \
+    echo "TrustedUserCAKeys /etc/ssh/ca_rsa.pub" >> /etc/ssh/sshd_config && \
+    echo "AuthorizedPrincipalsFile /etc/ssh/auth_principals/billy" >> /etc/ssh/sshd_config
+
 # USER foo: set up user for SFTP with no shell login
 RUN useradd -m -d /home/foo -s /usr/sbin/nologin foo && \
     mkdir -p /home/foo/.ssh && \
@@ -27,9 +40,9 @@ RUN mkdir -p /home/foo/sftp/data && \
     chown foo:foo /home/foo/sftp/data && \
     chmod 755 /home/foo/sftp/data
 
+
 # USER foo: configure SSH for SFTP: allow password and pubkey authentication
-RUN mkdir -p /run/sshd && \
-    echo "Match User foo" >> /etc/ssh/sshd_config && \
+RUN echo "Match User foo" >> /etc/ssh/sshd_config && \
     echo "    ChrootDirectory /home/foo/sftp" >> /etc/ssh/sshd_config && \
     echo "    ForceCommand internal-sftp" >> /etc/ssh/sshd_config && \
     echo "    PasswordAuthentication yes" >> /etc/ssh/sshd_config && \
@@ -58,8 +71,7 @@ RUN mkdir -p /home/bobby/sftp/data && \
     chmod 755 /home/bobby/sftp/data
 
 # USER bobby: configure SSH for SFTP: allow password and pubkey authentication
-RUN mkdir -p /run/sshd && \
-    echo "Match User bobby" >> /etc/ssh/sshd_config && \
+RUN echo "Match User bobby" >> /etc/ssh/sshd_config && \
     echo "    ChrootDirectory /home/bobby/sftp" >> /etc/ssh/sshd_config && \
     echo "    ForceCommand internal-sftp" >> /etc/ssh/sshd_config && \
     echo "    PasswordAuthentication no" >> /etc/ssh/sshd_config && \
@@ -68,6 +80,39 @@ RUN mkdir -p /run/sshd && \
     echo "    AllowAgentForwarding no" >> /etc/ssh/sshd_config && \
     echo "    AllowTcpForwarding no" >> /etc/ssh/sshd_config && \
     echo "    X11Forwarding no" >> /etc/ssh/sshd_config   
+
+# USER billy: set up user for SFTP with no shell login
+RUN useradd -m -d /home/billy -s /usr/sbin/nologin billy && \
+    mkdir -p /home/billy/.ssh && \
+    chown billy:billy /home/billy/.ssh && \
+    chmod 700 /home/billy/.ssh
+
+# USER billy: create a directory for SFTP that the user will have access to
+RUN mkdir -p /home/billy/sftp/data && \
+    chown root:root /home/billy /home/billy/sftp && \
+    chmod 755 /home/billy /home/billy/sftp && \
+    chown billy:billy /home/billy/sftp/data && \
+    chmod 755 /home/billy/sftp/data
+
+# USER billy: certificated signed with CA key
+COPY billy_rsa-cert.pub /home/billy/.ssh/billy_rsa-cert.pub
+
+RUN chown billy:billy /home/billy/.ssh/billy_rsa-cert.pub && \
+    chmod 600 /home/billy/.ssh/billy_rsa-cert.pub
+
+# USER billy: configure SSH for SFTP with certificate authentication
+RUN echo "Match User billy" >> /etc/ssh/sshd_config && \
+    echo "    ChrootDirectory /home/billy/sftp" >> /etc/ssh/sshd_config && \
+    echo "    ForceCommand internal-sftp" >> /etc/ssh/sshd_config && \
+    echo "    PasswordAuthentication no" >> /etc/ssh/sshd_config && \
+    echo "    PubkeyAuthentication yes" >> /etc/ssh/sshd_config && \
+    echo "    PermitTunnel no" >> /etc/ssh/sshd_config && \
+    echo "    AllowAgentForwarding no" >> /etc/ssh/sshd_config && \
+    echo "    AllowTcpForwarding no" >> /etc/ssh/sshd_config && \
+    echo "    X11Forwarding no" >> /etc/ssh/sshd_config
+
+
+
 
 EXPOSE 22
 
