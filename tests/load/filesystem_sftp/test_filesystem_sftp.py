@@ -34,6 +34,10 @@ def files_are_equal(file1_path, file2_path):
 
 def is_ssh_agent_ready():
     try:
+        # Never skip tests when running in CI
+        if os.getenv("CI"):
+            return True
+
         # Check if SSH agent is running
         ssh_agent_pid = os.getenv("SSH_AGENT_PID")
         if not ssh_agent_pid:
@@ -190,6 +194,7 @@ def test_filesystem_sftp_auth_private_key_protected():
 # Test requires - ssh_agent with user's bobby key loaded. The commands required are:
 # eval "$(ssh-agent -s)"
 # cp /path/to/tests/load/filesystem_sftp/bobby_rsa* ~/.ssh/id_rsa
+# cp /path/to/tests/load/filesystem_sftp/bobby_rsa.pub ~/.ssh/id_rsa.pub
 @pytest.mark.sftp
 @pytest.mark.skipif(
     not is_ssh_agent_ready(),
