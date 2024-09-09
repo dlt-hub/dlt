@@ -398,7 +398,7 @@ def test_destination_staging_config(environment: Any) -> None:
     staging_config = fs_dest.configuration(initial_config)  # type: ignore[arg-type]
 
     # Ensure that as_staging flag is set in the final resolved conifg
-    assert staging_config.as_staging is True
+    assert staging_config.as_staging_destination is True
 
 
 def test_destination_factory_defaults_resolve_from_config(environment: Any) -> None:

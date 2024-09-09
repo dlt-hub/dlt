@@ -32,7 +32,7 @@ def test_redshift_blocks_time_column(destination_config: DestinationTestConfigur
     def my_source() -> Any:
         return my_resource
 
-    info = pipeline.run(my_source(), loader_file_format=destination_config.file_format)
+    info = pipeline.run(my_source(), **destination_config.run_kwargs)
 
     assert info.has_failed_jobs
 

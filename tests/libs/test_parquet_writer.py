@@ -296,7 +296,7 @@ def test_parquet_writer_timestamp_precision(tz: str) -> None:
             else:
                 assert column_type.tz is None
 
-        _assert_arrow_field(0, "us")
+        _assert_arrow_field(0, "s")
         _assert_arrow_field(1, "ms")
         _assert_arrow_field(2, "us")
         _assert_arrow_field(3, "ns")
@@ -306,10 +306,12 @@ def test_parquet_writer_timestamp_precision(tz: str) -> None:
 
         def _assert_pq_column(col: int, prec: str) -> None:
             info = json.loads(reader.metadata.schema.column(col).logical_type.to_json())
+            print(info)
             assert info["isAdjustedToUTC"] is adjusted
             assert info["timeUnit"] == prec
 
-        _assert_pq_column(0, "microseconds")
+        # apparently storting seconds is not supported
+        _assert_pq_column(0, "milliseconds")
         _assert_pq_column(1, "milliseconds")
         _assert_pq_column(2, "microseconds")
         _assert_pq_column(3, "nanoseconds")

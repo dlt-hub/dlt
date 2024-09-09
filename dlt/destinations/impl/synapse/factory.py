@@ -1,10 +1,15 @@
 import typing as t
 
-from dlt.common.destination import Destination, DestinationCapabilitiesContext
+from dlt.common.data_types.typing import TDataType
+from dlt.common.destination import Destination, DestinationCapabilitiesContext, PreparedTableSchema
+from dlt.common.exceptions import TerminalValueError
 from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.data_writers.escape import escape_postgres_identifier, escape_mssql_literal
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
+from dlt.common.schema.typing import TColumnSchema
+from dlt.common.typing import TLoaderFileFormat
 
+from dlt.destinations.impl.mssql.factory import MsSqlTypeMapper
 from dlt.destinations.impl.synapse.configuration import (
     SynapseCredentials,
     SynapseClientConfiguration,
@@ -13,6 +18,22 @@ from dlt.destinations.impl.synapse.synapse_adapter import TTableIndexType
 
 if t.TYPE_CHECKING:
     from dlt.destinations.impl.synapse.synapse import SynapseClient
+
+
+class SynapseTypeMapper(MsSqlTypeMapper):
+    def ensure_supported_type(
+        self,
+        column: TColumnSchema,
+        table: PreparedTableSchema,
+        loader_file_format: TLoaderFileFormat,
+    ) -> None:
+        # TIME is not supported for parquet
+        if loader_file_format == "parquet" and column["data_type"] == "time":
+            raise TerminalValueError(
+                "Please convert `datetime.time` objects in your data to `str` or"
+                " `datetime.datetime`.",
+                "time",
+            )
 
 
 class synapse(Destination[SynapseClientConfiguration, "SynapseClient"]):
@@ -30,6 +51,7 @@ class synapse(Destination[SynapseClientConfiguration, "SynapseClient"]):
         caps.supported_loader_file_formats = ["insert_values"]
         caps.preferred_staging_file_format = "parquet"
         caps.supported_staging_file_formats = ["parquet"]
+        caps.type_mapper = SynapseTypeMapper
 
         caps.insert_values_writer_type = "select_union"  # https://stackoverflow.com/a/77014299
 

@@ -7,7 +7,7 @@ from dlt.common.typing import DictStrAny
 
 
 @configspec
-class NormalizersConfiguration(BaseConfiguration):
+class SchemaConfiguration(BaseConfiguration):
     # always in section
     __section__: ClassVar[str] = known_sections.SCHEMA
 

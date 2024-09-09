@@ -2,9 +2,10 @@ from typing import Any, Dict, List, Sequence, Tuple, cast, TypedDict, Optional, 
 
 import yaml
 from dlt.common.time import ensure_pendulum_datetime
+from dlt.common.destination.reference import PreparedTableSchema
+from dlt.common.destination.utils import resolve_merge_strategy
 
 from dlt.common.schema.typing import (
-    TTableSchema,
     TSortOrder,
     TColumnProp,
 )
@@ -14,7 +15,7 @@ from dlt.common.schema.utils import (
     get_dedup_sort_tuple,
     get_validity_column_names,
     get_active_record_timestamp,
-    DEFAULT_MERGE_STRATEGY,
+    is_nested_table,
 )
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.common.storages.load_package import load_package as current_load_package
@@ -35,7 +36,9 @@ DEFAULTS: SqlJobParams = {"replace": False}
 
 
 class SqlJobCreationException(DestinationTransientException):
-    def __init__(self, original_exception: Exception, table_chain: Sequence[TTableSchema]) -> None:
+    def __init__(
+        self, original_exception: Exception, table_chain: Sequence[PreparedTableSchema]
+    ) -> None:
         tables_str = yaml.dump(
             table_chain, allow_unicode=True, default_flow_style=False, sort_keys=False
         )
@@ -51,18 +54,18 @@ class SqlFollowupJob(FollowupJobRequestImpl):
     @classmethod
     def from_table_chain(
         cls,
-        table_chain: Sequence[TTableSchema],
+        table_chain: Sequence[PreparedTableSchema],
         sql_client: SqlClientBase[Any],
         params: Optional[SqlJobParams] = None,
     ) -> FollowupJobRequestImpl:
         """Generates a list of sql statements, that will be executed by the sql client when the job is executed in the loader.
 
-        The `table_chain` contains a list schemas of a tables with parent-child relationship, ordered by the ancestry (the root of the tree is first on the list).
+        The `table_chain` contains a list of schemas of nested tables, ordered by the ancestry (the root of the tree is first on the list).
         """
         params = cast(SqlJobParams, {**DEFAULTS, **(params or {})})
-        top_table = table_chain[0]
+        root_table = table_chain[0]
         file_info = ParsedLoadJobFileName(
-            top_table["name"], ParsedLoadJobFileName.new_file_id(), 0, "sql"
+            root_table["name"], ParsedLoadJobFileName.new_file_id(), 0, "sql"
         )
 
         try:
@@ -83,7 +86,7 @@ class SqlFollowupJob(FollowupJobRequestImpl):
     @classmethod
     def generate_sql(
         cls,
-        table_chain: Sequence[TTableSchema],
+        table_chain: Sequence[PreparedTableSchema],
         sql_client: SqlClientBase[Any],
         params: Optional[SqlJobParams] = None,
     ) -> List[str]:
@@ -96,7 +99,7 @@ class SqlStagingCopyFollowupJob(SqlFollowupJob):
     @classmethod
     def _generate_clone_sql(
         cls,
-        table_chain: Sequence[TTableSchema],
+        table_chain: Sequence[PreparedTableSchema],
         sql_client: SqlClientBase[Any],
     ) -> List[str]:
         """Drop and clone the table for supported destinations"""
@@ -113,7 +116,7 @@ class SqlStagingCopyFollowupJob(SqlFollowupJob):
     @classmethod
     def _generate_insert_sql(
         cls,
-        table_chain: Sequence[TTableSchema],
+        table_chain: Sequence[PreparedTableSchema],
         sql_client: SqlClientBase[Any],
         params: SqlJobParams = None,
     ) -> List[str]:
@@ -138,7 +141,7 @@ class SqlStagingCopyFollowupJob(SqlFollowupJob):
     @classmethod
     def generate_sql(
         cls,
-        table_chain: Sequence[TTableSchema],
+        table_chain: Sequence[PreparedTableSchema],
         sql_client: SqlClientBase[Any],
         params: SqlJobParams = None,
     ) -> List[str]:
@@ -154,13 +157,17 @@ class SqlMergeFollowupJob(SqlFollowupJob):
     """
 
     @classmethod
-    def generate_sql(  # type: ignore[return]
+    def generate_sql(
         cls,
-        table_chain: Sequence[TTableSchema],
+        table_chain: Sequence[PreparedTableSchema],
         sql_client: SqlClientBase[Any],
         params: Optional[SqlJobParams] = None,
     ) -> List[str]:
-        merge_strategy = table_chain[0].get("x-merge-strategy", DEFAULT_MERGE_STRATEGY)
+        # resolve only root table
+        root_table = table_chain[0]
+        merge_strategy = resolve_merge_strategy(
+            {root_table["name"]: root_table}, root_table, sql_client.capabilities
+        )
         if merge_strategy == "delete-insert":
             return cls.gen_merge_sql(table_chain, sql_client)
         elif merge_strategy == "upsert":
@@ -333,8 +340,17 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         """
 
     @classmethod
+    def _shorten_table_name(cls, ident: str, sql_client: SqlClientBase[Any]) -> str:
+        """Trims identifier to max length supported by sql_client. Used for dynamically constructed table names"""
+        from dlt.common.normalizers.naming import NamingConvention
+
+        return NamingConvention.shorten_identifier(
+            ident, ident, sql_client.capabilities.max_identifier_length
+        )
+
+    @classmethod
     def _new_temp_table_name(cls, name_prefix: str, sql_client: SqlClientBase[Any]) -> str:
-        return f"{name_prefix}_{uniq_id()}"
+        return cls._shorten_table_name(f"{name_prefix}_{uniq_id()}", sql_client)
 
     @classmethod
     def _to_temp_table(cls, select_sql: str, temp_table_name: str) -> str:
@@ -368,7 +384,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
     @classmethod
     def _get_hard_delete_col_and_cond(
         cls,
-        table: TTableSchema,
+        table: PreparedTableSchema,
         escape_id: Callable[[str], str],
         escape_lit: Callable[[Any], Any],
         invert: bool = False,
@@ -396,9 +412,9 @@ class SqlMergeFollowupJob(SqlFollowupJob):
     @classmethod
     def _get_unique_col(
         cls,
-        table_chain: Sequence[TTableSchema],
+        table_chain: Sequence[PreparedTableSchema],
         sql_client: SqlClientBase[Any],
-        table: TTableSchema,
+        table: PreparedTableSchema,
     ) -> str:
         """Returns name of first column in `table` with `unique` property.
 
@@ -418,9 +434,9 @@ class SqlMergeFollowupJob(SqlFollowupJob):
     @classmethod
     def _get_root_key_col(
         cls,
-        table_chain: Sequence[TTableSchema],
+        table_chain: Sequence[PreparedTableSchema],
         sql_client: SqlClientBase[Any],
-        table: TTableSchema,
+        table: PreparedTableSchema,
     ) -> str:
         """Returns name of first column in `table` with `root_key` property.
 
@@ -439,7 +455,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
 
     @classmethod
     def _get_prop_col_or_raise(
-        cls, table: TTableSchema, prop: Union[TColumnProp, str], exception: Exception
+        cls, table: PreparedTableSchema, prop: Union[TColumnProp, str], exception: Exception
     ) -> str:
         """Returns name of first column in `table` with `prop` property.
 
@@ -452,15 +468,15 @@ class SqlMergeFollowupJob(SqlFollowupJob):
 
     @classmethod
     def gen_merge_sql(
-        cls, table_chain: Sequence[TTableSchema], sql_client: SqlClientBase[Any]
+        cls, table_chain: Sequence[PreparedTableSchema], sql_client: SqlClientBase[Any]
     ) -> List[str]:
         """Generates a list of sql statements that merge the data in staging dataset with the data in destination dataset.
 
-        The `table_chain` contains a list schemas of a tables with parent-child relationship, ordered by the ancestry (the root of the tree is first on the list).
+        The `table_chain` contains a list schemas of a tables with row_key - parent_key nested reference, ordered by the ancestry (the root of the tree is first on the list).
         The root table is merged using primary_key and merge_key hints which can be compound and be both specified. In that case the OR clause is generated.
-        The child tables are merged based on propagated `root_key` which is a type of foreign key but always leading to a root table.
+        The nested tables are merged based on propagated `root_key` which is a type of foreign key but always leading to a root table.
 
-        First we store the root_keys of root table elements to be deleted in the temp table. Then we use the temp table to delete records from root and all child tables in the destination dataset.
+        First we store the root_keys of root table elements to be deleted in the temp table. Then we use the temp table to delete records from root and all netsed tables in the destination dataset.
         At the end we copy the data from the staging dataset into destination dataset.
 
         If a hard_delete column is specified, records flagged as deleted will be excluded from the copy into the destination dataset.
@@ -503,7 +519,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                 key_table_clauses = cls.gen_key_table_clauses(
                     root_table_name, staging_root_table_name, key_clauses, for_delete=True
                 )
-                # if no child tables, just delete data from top table
+                # if no nested tables, just delete data from root table
                 for clause in key_table_clauses:
                     sql.append(f"DELETE {clause};")
             else:
@@ -511,6 +527,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                     root_table_name, staging_root_table_name, key_clauses, for_delete=False
                 )
                 # use unique hint to create temp table with all identifiers to delete
+                # TODO: use row_key hint, not unique when implemented to correctly handle to nested tables
                 unique_column = escape_column_id(
                     cls._get_unique_col(table_chain, sql_client, root_table)
                 )
@@ -521,7 +538,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                 )
                 sql.extend(create_delete_temp_table_sql)
 
-                # delete from child tables first. This is important for databricks which does not support temporary tables,
+                # delete from nested tables first. This is important for databricks which does not support temporary tables,
                 # but uses temporary views instead
                 for table in table_chain[1:]:
                     table_name = sql_client.make_qualified_table_name(table["name"])
@@ -534,7 +551,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                         )
                     )
 
-                # delete from top table now that child tables have been processed
+                # delete from root table now that nested tables have been processed
                 sql.append(
                     cls.gen_delete_from_sql(
                         root_table_name, unique_column, delete_temp_table_name, unique_column
@@ -579,17 +596,17 @@ class SqlMergeFollowupJob(SqlFollowupJob):
             insert_cond = not_deleted_cond if hard_delete_col is not None else "1 = 1"
             if (len(primary_keys) > 0 and len(table_chain) > 1) or (
                 len(primary_keys) == 0
-                and table.get("parent") is not None  # child table
+                and is_nested_table(table)  # nested table
                 and hard_delete_col is not None
             ):
-                uniq_column = unique_column if table.get("parent") is None else root_key_column
+                uniq_column = root_key_column if is_nested_table(table) else unique_column
                 insert_cond = f"{uniq_column} IN (SELECT * FROM {insert_temp_table_name})"
 
             columns = list(map(escape_column_id, get_columns_names_with_prop(table, "name")))
             col_str = ", ".join(columns)
             select_sql = f"SELECT {col_str} FROM {staging_table_name} WHERE {insert_cond}"
             if len(primary_keys) > 0 and len(table_chain) == 1:
-                # without child tables we deduplicate inside the query instead of using a temp table
+                # without nested tables we deduplicate inside the query instead of using a temp table
                 select_sql = cls.gen_select_from_dedup_sql(
                     staging_table_name, primary_keys, columns, dedup_sort, insert_cond
                 )
@@ -599,7 +616,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
 
     @classmethod
     def gen_upsert_sql(
-        cls, table_chain: Sequence[TTableSchema], sql_client: SqlClientBase[Any]
+        cls, table_chain: Sequence[PreparedTableSchema], sql_client: SqlClientBase[Any]
     ) -> List[str]:
         sql: List[str] = []
         root_table = table_chain[0]
@@ -641,13 +658,13 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                 THEN INSERT ({col_str.format(alias="")}) VALUES ({col_str.format(alias="s.")});
         """)
 
-        # generate statements for child tables if they exist
-        child_tables = table_chain[1:]
-        if child_tables:
+        # generate statements for nested tables if they exist
+        nested_tables = table_chain[1:]
+        if nested_tables:
             root_unique_column = escape_column_id(
                 cls._get_unique_col(table_chain, sql_client, root_table)
             )
-            for table in child_tables:
+            for table in nested_tables:
                 unique_column = escape_column_id(
                     cls._get_unique_col(table_chain, sql_client, table)
                 )
@@ -690,14 +707,14 @@ class SqlMergeFollowupJob(SqlFollowupJob):
 
     @classmethod
     def gen_scd2_sql(
-        cls, table_chain: Sequence[TTableSchema], sql_client: SqlClientBase[Any]
+        cls, table_chain: Sequence[PreparedTableSchema], sql_client: SqlClientBase[Any]
     ) -> List[str]:
         """Generates SQL statements for the `scd2` merge strategy.
 
         The root table can be inserted into and updated.
         Updates only take place when a record retires (because there is a new version
         or it is deleted) and only affect the "valid to" column.
-        Child tables are insert-only.
+        Nested tables are insert-only.
         """
         sql: List[str] = []
         root_table = table_chain[0]
@@ -760,14 +777,14 @@ class SqlMergeFollowupJob(SqlFollowupJob):
             WHERE {hash_} NOT IN (SELECT {hash_} FROM {root_table_name} WHERE {is_active_clause});
         """)
 
-        # insert list elements for new active records in child tables
-        child_tables = table_chain[1:]
-        if child_tables:
+        # insert list elements for new active records in nested tables
+        nested_tables = table_chain[1:]
+        if nested_tables:
             # TODO: - based on deterministic child hashes (OK)
             # - if row hash changes all is right
             # - if it does not we only capture new records, while we should replace existing with those in stage
             # - this write disposition is way more similar to regular merge (how root tables are handled is different, other tables handled same)
-            for table in child_tables:
+            for table in nested_tables:
                 unique_column = escape_column_id(
                     cls._get_unique_col(table_chain, sql_client, table)
                 )

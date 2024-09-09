@@ -576,7 +576,7 @@ def test_load_with_all_types(
     client.schema._bump_version()
     client.update_stored_schema()
 
-    should_load_to_staging = client.should_load_data_to_staging_dataset(client.schema.tables[table_name])  # type: ignore[attr-defined]
+    should_load_to_staging = client.should_load_data_to_staging_dataset(table_name)  # type: ignore[attr-defined]
     if should_load_to_staging:
         with client.with_staging_dataset():  # type: ignore[attr-defined]
             # create staging for merge dataset
@@ -665,7 +665,7 @@ def test_write_dispositions(
             with io.BytesIO() as f:
                 write_dataset(client, f, [data_row], column_schemas)
                 query = f.getvalue()
-            if client.should_load_data_to_staging_dataset(client.schema.tables[table_name]):  # type: ignore[attr-defined]
+            if client.should_load_data_to_staging_dataset(table_name):  # type: ignore[attr-defined]
                 # load to staging dataset on merge
                 with client.with_staging_dataset():  # type: ignore[attr-defined]
                     expect_load_file(client, file_storage, query, t)
@@ -722,7 +722,7 @@ def test_get_resumed_job(client: SqlJobClientBase, file_storage: FileStorage) ->
     # now try to retrieve the job
     # TODO: we should re-create client instance as this call is intended to be run after some disruption ie. stopped loader process
     r_job = client.create_load_job(
-        client.schema.get_table(user_table_name),
+        client.prepare_load_table(user_table_name),
         file_storage.make_full_path(job.file_name()),
         uniq_id(),
         restore=True,

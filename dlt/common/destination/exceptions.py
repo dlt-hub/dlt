@@ -1,4 +1,4 @@
-from typing import Any, Iterable, List
+from typing import Any, Iterable, List, Sequence
 
 from dlt.common.exceptions import DltException, TerminalException, TransientException
 
@@ -100,6 +100,37 @@ class IdentifierTooLongException(DestinationTerminalException):
             f"The length of {identifier_type} {identifier_name} exceeds"
             f" {max_identifier_length} allowed for {destination_name}"
         )
+
+
+class UnsupportedDataType(DestinationTerminalException):
+    def __init__(
+        self,
+        destination_type: str,
+        table_name: str,
+        column: str,
+        data_type: str,
+        file_format: str,
+        available_in_formats: Sequence[str],
+        more_info: str,
+    ) -> None:
+        self.destination_type = destination_type
+        self.table_name = table_name
+        self.column = column
+        self.data_type = data_type
+        self.file_format = file_format
+        self.available_in_formats = available_in_formats
+        self.more_info = more_info
+        msg = (
+            f"Destination {destination_type} cannot load data type '{data_type}' from"
+            f" '{file_format}' files. The affected table is '{table_name}' column '{column}'."
+        )
+        if available_in_formats:
+            msg += f" Note: '{data_type}' can be loaded from {available_in_formats} formats(s)."
+        else:
+            msg += f" None of available file formats support '{data_type}' for this destination."
+        if more_info:
+            msg += " More info: " + more_info
+        super().__init__(msg)
 
 
 class DestinationHasFailedJobs(DestinationTerminalException):
