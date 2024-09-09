@@ -24,6 +24,7 @@ from dlt.destinations.impl.dummy import dummy as dummy_impl
 from dlt.destinations.impl.dummy.configuration import DummyClientConfiguration
 
 from dlt.load import Load
+from dlt.load.configuration import LoaderConfiguration
 from dlt.load.exceptions import (
     LoadClientJobFailed,
     LoadClientJobRetry,
@@ -225,15 +226,14 @@ def test_spool_job_failed() -> None:
     started_files = load.load_storage.normalized_packages.list_started_jobs(load_id)
     assert len(started_files) == 0
 
-    # test the whole flow
-    load = setup_loader(client_config=DummyClientConfiguration(fail_prob=1.0))
+    # test the whole
+    loader_config = LoaderConfiguration(raise_on_failed_jobs = False, workers=1, pool_type="none")
+    load = setup_loader(client_config=DummyClientConfiguration(fail_prob=1.0), loader_config=loader_config)
     load_id, schema = prepare_load_package(load.load_storage, NORMALIZED_FILES)
-    with pytest.raises(LoadClientJobFailed) as e:
-        run_all(load)
+    run_all(load)
 
-    assert "a random fail occurred" in e.value.failed_message
     package_info = load.load_storage.get_load_package_info(load_id)
-    assert package_info.state == "aborted"
+    assert package_info.state == "loaded"
     # all jobs failed
     assert len(package_info.jobs["failed_jobs"]) == 2
     # check metrics
@@ -1045,6 +1045,7 @@ def run_all(load: Load) -> None:
 def setup_loader(
     delete_completed_jobs: bool = False,
     client_config: DummyClientConfiguration = None,
+    loader_config: LoaderConfiguration = None,
     filesystem_staging: bool = False,
 ) -> Load:
     # reset jobs for a test
@@ -1078,6 +1079,7 @@ def setup_loader(
         return Load(
             destination,
             initial_client_config=client_config,
+            config=loader_config,
             staging_destination=staging,  # type: ignore[arg-type]
             initial_staging_client_config=staging_system_config,
         )
