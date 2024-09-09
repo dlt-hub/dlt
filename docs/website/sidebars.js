@@ -86,7 +86,21 @@ const sidebars = {
             'dlt-ecosystem/verified-sources/salesforce',
             'dlt-ecosystem/verified-sources/scrapy',
             'dlt-ecosystem/verified-sources/shopify',
-            'dlt-ecosystem/verified-sources/sql_database',
+            {
+              type: 'category',
+              label: '30+ SQL Databases',
+               link: {
+                type: 'doc',
+                id: 'dlt-ecosystem/verified-sources/sql_database/index',
+              },
+              items: [
+                'dlt-ecosystem/verified-sources/sql_database/setup',
+                'dlt-ecosystem/verified-sources/sql_database/configuration',
+                'dlt-ecosystem/verified-sources/sql_database/usage',
+                'dlt-ecosystem/verified-sources/sql_database/troubleshooting',
+                'dlt-ecosystem/verified-sources/sql_database/advanced'
+              ]
+            },
             'dlt-ecosystem/verified-sources/slack',
             'dlt-ecosystem/verified-sources/strapi',
             'dlt-ecosystem/verified-sources/stripe',
