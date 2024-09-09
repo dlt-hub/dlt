@@ -78,7 +78,7 @@ Enter the following command in your terminal:
 dlt init rest_api duckdb
 ```
 
-[dlt init](../../reference/command-line-interface) will initialize the pipeline examples for REST API as the [source](../../general-usage/source) and [duckdb](../destinations/duckdb.md) as the [destination](../destinations).
+[dlt init](../../../reference/command-line-interface) will initialize the pipeline examples for REST API as the [source](../../../general-usage/source) and [duckdb](../../destinations/duckdb.md) as the [destination](../../destinations).
 
 Running `dlt init` creates the following in the current folder:
 - `rest_api_pipeline.py` file with a sample pipelines definition:
@@ -95,7 +95,7 @@ Change the REST API source to your needs by modifying the `rest_api_pipeline.py`
 For the rest of the guide, we will use the [GitHub API](https://docs.github.com/en/rest?apiVersion=2022-11-28) and [Pokemon API](https://pokeapi.co/) as example sources.
 :::
 
-This source is based on the [RESTClient class](../../general-usage/http/rest-client.md).
+This source is based on the [RESTClient class](../../../general-usage/http/rest-client.md).
 
 ### Add credentials
 
@@ -209,8 +209,8 @@ The declarative resource configuration is defined in the `config` dictionary. It
 1. `client`: Defines the base URL and authentication method for the API. In this case it uses token-based authentication. The token is stored in the `secrets.toml` file.
 
 2. `resource_defaults`: Contains default settings for all [resources](#resource-configuration). In this example, we define that all resources:
-    - Have `id` as the [primary key](../../general-usage/resource#define-schema)
-    - Use the `merge` [write disposition](../../general-usage/incremental-loading#choosing-a-write-disposition) to merge the data with the existing data in the destination.
+    - Have `id` as the [primary key](../../../general-usage/resource#define-schema)
+    - Use the `merge` [write disposition](../../../general-usage/incremental-loading#choosing-a-write-disposition) to merge the data with the existing data in the destination.
     - Send a `per_page` query parameter with each request to 100 to get more results per page.
 
 3. `resources`: A list of [resources](#resource-configuration) to be loaded. Here, we have two resources: `issues` and `issue_comments`, which correspond to the GitHub API endpoints for [repository issues](https://docs.github.com/en/rest/issues/issues?apiVersion=2022-11-28#list-repository-issues) and [issue comments](https://docs.github.com/en/rest/issues/comments?apiVersion=2022-11-28#list-issue-comments). Note that we need a in issue number to fetch comments for each issue. This number is taken from the `issues` resource. More on this in the [resource relationships](#define-resource-relationships) section.
@@ -301,7 +301,7 @@ This is a list of resource configurations that define the API endpoints to be lo
 
 ### Resource configuration
 
-A resource configuration is used to define a [dlt resource](../../general-usage/resource.md) for the data to be loaded from an API endpoint. It contains the following key fields:
+A resource configuration is used to define a [dlt resource](../../../general-usage/resource.md) for the data to be loaded from an API endpoint. It contains the following key fields:
 
 - `endpoint`: The endpoint configuration for the resource. It can be a string or a dict representing the endpoint settings. See the [endpoint configuration](#endpoint-configuration) section for more details.
 - `write_disposition`: The write disposition for the resource.
@@ -309,7 +309,7 @@ A resource configuration is used to define a [dlt resource](../../general-usage/
 - `include_from_parent`: A list of fields from the parent resource to be included in the resource output. See the [resource relationships](#include-fields-from-the-parent-resource) section for more details.
 - `selected`: A flag to indicate if the resource is selected for loading. This could be useful when you want to load data only from child resources and not from the parent resource.
 
-You can also pass additional resource parameters that will be used to configure the dlt resource. See [dlt resource API reference](../../api_reference/extract/decorators.md#resource) for more details.
+You can also pass additional resource parameters that will be used to configure the dlt resource. See [dlt resource API reference](../../../api_reference/extract/decorators.md#resource) for more details.
 
 ### Endpoint configuration
 
@@ -350,7 +350,7 @@ The REST API source will try to automatically handle pagination for you. This wo
 
 In some special cases, you may need to specify the pagination configuration explicitly.
 
-To specify the pagination configuration, use the `paginator` field in the [client](#client) or [endpoint](#endpoint-configuration) configurations. You may either use a dictionary with a string alias in the `type` field along with the required parameters, or use a [paginator class instance](../../general-usage/http/rest-client.md#paginators).
+To specify the pagination configuration, use the `paginator` field in the [client](#client) or [endpoint](#endpoint-configuration) configurations. You may either use a dictionary with a string alias in the `type` field along with the required parameters, or use a [paginator class instance](../../../general-usage/http/rest-client.md#paginators).
 
 #### Example
 
@@ -397,22 +397,22 @@ from dlt.sources.helpers.rest_client.paginators import JSONLinkPaginator
 ```
 
 :::note
-Currently pagination is supported only for GET requests. To handle POST requests with pagination, you need to implement a [custom paginator](../../general-usage/http/rest-client.md#custom-paginator).
+Currently pagination is supported only for GET requests. To handle POST requests with pagination, you need to implement a [custom paginator](../../../general-usage/http/rest-client.md#custom-paginator).
 :::
 
 These are the available paginators:
 
 | `type` | Paginator class | Description |
 | ------------ | -------------- | ----------- |
-| `json_link` | [JSONLinkPaginator](../../general-usage/http/rest-client.md#jsonresponsepaginator) | The link to the next page is in the body (JSON) of the response.<br/>*Parameters:*<ul><li>`next_url_path` (str) - the JSONPath to the next page URL</li></ul> |
-| `header_link` | [HeaderLinkPaginator](../../general-usage/http/rest-client.md#headerlinkpaginator) | The links to the next page are in the response headers.<br/>*Parameters:*<ul><li>`link_header` (str) - the name of the header containing the links. Default is "next".</li></ul> |
-| `offset` | [OffsetPaginator](../../general-usage/http/rest-client.md#offsetpaginator) | The pagination is based on an offset parameter. With total items count either in the response body or explicitly provided.<br/>*Parameters:*<ul><li>`limit` (int) - the maximum number of items to retrieve in each request</li><li>`offset` (int) - the initial offset for the first request. Defaults to `0`</li><li>`offset_param` (str) - the name of the query parameter used to specify the offset. Defaults to "offset"</li><li>`limit_param` (str) - the name of the query parameter used to specify the limit. Defaults to "limit"</li><li>`total_path` (str) - a JSONPath expression for the total number of items. If not provided, pagination is controlled by `maximum_offset` and `stop_after_empty_page`</li><li>`maximum_offset` (int) - optional maximum offset value. Limits pagination even without total count</li><li>`stop_after_empty_page` (bool) - Whether pagination should stop when a page contains no result items. Defaults to `True`</li></ul> |
-| `page_number` | [PageNumberPaginator](../../general-usage/http/rest-client.md#pagenumberpaginator) | The pagination is based on a page number parameter. With total pages count either in the response body or explicitly provided.<br/>*Parameters:*<ul><li>`base_page` (int) - the starting page number. Defaults to `0`</li><li>`page_param` (str) - the query parameter name for the page number. Defaults to "page"</li><li>`total_path` (str) - a JSONPath expression for the total number of pages. If not provided, pagination is controlled by `maximum_page` and `stop_after_empty_page`</li><li>`maximum_page` (int) - optional maximum page number. Stops pagination once this page is reached</li><li>`stop_after_empty_page` (bool) - Whether pagination should stop when a page contains no result items. Defaults to `True`</li></ul> |
-| `cursor` | [JSONResponseCursorPaginator](../../general-usage/http/rest-client.md#jsonresponsecursorpaginator) | The pagination is based on a cursor parameter. The value of the cursor is in the response body (JSON).<br/>*Parameters:*<ul><li>`cursor_path` (str) - the JSONPath to the cursor value. Defaults to "cursors.next"</li><li>`cursor_param` (str) - the query parameter name for the cursor. Defaults to "after"</li></ul> |
+| `json_link` | [JSONLinkPaginator](../../../general-usage/http/rest-client.md#jsonresponsepaginator) | The link to the next page is in the body (JSON) of the response.<br/>*Parameters:*<ul><li>`next_url_path` (str) - the JSONPath to the next page URL</li></ul> |
+| `header_link` | [HeaderLinkPaginator](../../../general-usage/http/rest-client.md#headerlinkpaginator) | The links to the next page are in the response headers.<br/>*Parameters:*<ul><li>`link_header` (str) - the name of the header containing the links. Default is "next".</li></ul> |
+| `offset` | [OffsetPaginator](../../../general-usage/http/rest-client.md#offsetpaginator) | The pagination is based on an offset parameter. With total items count either in the response body or explicitly provided.<br/>*Parameters:*<ul><li>`limit` (int) - the maximum number of items to retrieve in each request</li><li>`offset` (int) - the initial offset for the first request. Defaults to `0`</li><li>`offset_param` (str) - the name of the query parameter used to specify the offset. Defaults to "offset"</li><li>`limit_param` (str) - the name of the query parameter used to specify the limit. Defaults to "limit"</li><li>`total_path` (str) - a JSONPath expression for the total number of items. If not provided, pagination is controlled by `maximum_offset` and `stop_after_empty_page`</li><li>`maximum_offset` (int) - optional maximum offset value. Limits pagination even without total count</li><li>`stop_after_empty_page` (bool) - Whether pagination should stop when a page contains no result items. Defaults to `True`</li></ul> |
+| `page_number` | [PageNumberPaginator](../../../general-usage/http/rest-client.md#pagenumberpaginator) | The pagination is based on a page number parameter. With total pages count either in the response body or explicitly provided.<br/>*Parameters:*<ul><li>`base_page` (int) - the starting page number. Defaults to `0`</li><li>`page_param` (str) - the query parameter name for the page number. Defaults to "page"</li><li>`total_path` (str) - a JSONPath expression for the total number of pages. If not provided, pagination is controlled by `maximum_page` and `stop_after_empty_page`</li><li>`maximum_page` (int) - optional maximum page number. Stops pagination once this page is reached</li><li>`stop_after_empty_page` (bool) - Whether pagination should stop when a page contains no result items. Defaults to `True`</li></ul> |
+| `cursor` | [JSONResponseCursorPaginator](../../../general-usage/http/rest-client.md#jsonresponsecursorpaginator) | The pagination is based on a cursor parameter. The value of the cursor is in the response body (JSON).<br/>*Parameters:*<ul><li>`cursor_path` (str) - the JSONPath to the cursor value. Defaults to "cursors.next"</li><li>`cursor_param` (str) - the query parameter name for the cursor. Defaults to "after"</li></ul> |
 | `single_page` | SinglePagePaginator | The response will be interpreted as a single-page response, ignoring possible pagination metadata. |
 | `auto` | `None` | Explicitly specify that the source should automatically detect the pagination method. |
 
-For more complex pagination methods, you can implement a [custom paginator](../../general-usage/http/rest-client.md#implementing-a-custom-paginator), instantiate it, and use it in the configuration.
+For more complex pagination methods, you can implement a [custom paginator](../../../general-usage/http/rest-client.md#implementing-a-custom-paginator), instantiate it, and use it in the configuration.
 
 Alternatively, you can use the dictionary configuration syntax also for custom paginators. For this, you need to register your custom paginator:
 
@@ -483,7 +483,7 @@ Read more about [JSONPath syntax](https://github.com/h2non/jsonpath-ng?tab=readm
 
 ### Authentication
 
-For APIs that require authentication to access their endpoints, the REST API source supports various authentication methods, including token-based authentication, query parameters, basic authentication, and custom authentication. The authentication configuration is specified in the `auth` field of the [client](#client) either as a dictionary or as an instance of the [authentication class](../../general-usage/http/rest-client.md#authentication).
+For APIs that require authentication to access their endpoints, the REST API source supports various authentication methods, including token-based authentication, query parameters, basic authentication, and custom authentication. The authentication configuration is specified in the `auth` field of the [client](#client) either as a dictionary or as an instance of the [authentication class](../../../general-usage/http/rest-client.md#authentication).
 
 #### Quick example
 
@@ -509,10 +509,10 @@ Available authentication types:
 
 | Authentication class | String Alias (`type`) | Description |
 | ------------------- | ----------- | ----------- |
-| [BearTokenAuth](../../general-usage/http/rest-client.md#bearer-token-authentication) | `bearer` | Bearer token authentication. |
-| [HTTPBasicAuth](../../general-usage/http/rest-client.md#http-basic-authentication) | `http_basic` | Basic HTTP authentication. |
-| [APIKeyAuth](../../general-usage/http/rest-client.md#api-key-authentication) | `api_key` | API key authentication with key defined in the query parameters or in the headers. |
-| [OAuth2ClientCredentials](../../general-usage/http/rest-client.md#oauth20-authorization) | N/A | OAuth 2.0 authorization with a temporary access token obtained from the authorization server. |
+| [BearTokenAuth](../../../general-usage/http/rest-client.md#bearer-token-authentication) | `bearer` | Bearer token authentication. |
+| [HTTPBasicAuth](../../../general-usage/http/rest-client.md#http-basic-authentication) | `http_basic` | Basic HTTP authentication. |
+| [APIKeyAuth](../../../general-usage/http/rest-client.md#api-key-authentication) | `api_key` | API key authentication with key defined in the query parameters or in the headers. |
+| [OAuth2ClientCredentials](../../../general-usage/http/rest-client.md#oauth20-authorization) | N/A | OAuth 2.0 authorization with a temporary access token obtained from the authorization server. |
 
 To specify the authentication configuration, use the `auth` field in the [client](#client) configuration:
 
@@ -550,12 +550,12 @@ Available authentication types:
 
 | `type` | Authentication class | Description |
 | ----------- | ------------------- | ----------- |
-| `bearer` | [BearTokenAuth](../../general-usage/http/rest-client.md#bearer-token-authentication) | Bearer token authentication.<br/>Parameters:<ul><li>`token` (str)</li></ul> |
-| `http_basic` | [HTTPBasicAuth](../../general-usage/http/rest-client.md#http-basic-authentication) | Basic HTTP authentication.<br/>Parameters:<ul><li>`username` (str)</li><li>`password` (str)</li></ul> |
-| `api_key` | [APIKeyAuth](../../general-usage/http/rest-client.md#api-key-authentication) | API key authentication with key defined in the query parameters or in the headers. <br/>Parameters:<ul><li>`name` (str) - the name of the query parameter or header</li><li>`api_key` (str) - the API key value</li><li>`location` (str, optional) - the location of the API key in the request. Can be `query` or `header`. Default is `header`</li></ul> |
+| `bearer` | [BearTokenAuth](../../../general-usage/http/rest-client.md#bearer-token-authentication) | Bearer token authentication.<br/>Parameters:<ul><li>`token` (str)</li></ul> |
+| `http_basic` | [HTTPBasicAuth](../../../general-usage/http/rest-client.md#http-basic-authentication) | Basic HTTP authentication.<br/>Parameters:<ul><li>`username` (str)</li><li>`password` (str)</li></ul> |
+| `api_key` | [APIKeyAuth](../../../general-usage/http/rest-client.md#api-key-authentication) | API key authentication with key defined in the query parameters or in the headers. <br/>Parameters:<ul><li>`name` (str) - the name of the query parameter or header</li><li>`api_key` (str) - the API key value</li><li>`location` (str, optional) - the location of the API key in the request. Can be `query` or `header`. Default is `header`</li></ul> |
 
 
-For more complex authentication methods, you can implement a [custom authentication class](../../general-usage/http/rest-client.md#implementing-custom-authentication) and use it in the configuration.
+For more complex authentication methods, you can implement a [custom authentication class](../../../general-usage/http/rest-client.md#implementing-custom-authentication) and use it in the configuration.
 
 You can use the dictionary configuration syntax also for custom authentication classes after registering them as follows:
 
@@ -636,7 +636,7 @@ The syntax for the `resolve` field in parameter configuration is:
 
 The `field` value can be specified as a [JSONPath](https://github.com/h2non/jsonpath-ng?tab=readme-ov-file#jsonpath-syntax) to select a nested field in the parent resource data. For example: `"field": "items[0].id"`.
 
-Under the hood, dlt handles this by using a [transformer resource](../../general-usage/resource.md#process-resources-with-dlttransformer).
+Under the hood, dlt handles this by using a [transformer resource](../../../general-usage/resource.md#process-resources-with-dlttransformer).
 
 #### Include fields from the parent resource
 
@@ -657,7 +657,7 @@ This will include the `id`, `title`, and `created_at` fields from the `issues` r
 ## Incremental loading
 
 Some APIs provide a way to fetch only new or changed data (most often by using a timestamp field like `updated_at`, `created_at`, or incremental IDs).
-This is called [incremental loading](../../general-usage/incremental-loading.md) and is very useful as it allows you to reduce the load time and the amount of data transferred.
+This is called [incremental loading](../../../general-usage/incremental-loading.md) and is very useful as it allows you to reduce the load time and the amount of data transferred.
 
 When the API endpoint supports incremental loading, you can configure dlt to load only the new or changed data using these two methods:
 
@@ -766,9 +766,9 @@ The fields are:
 - `end_value` (str): The end value for the cursor to stop the incremental loading. This is optional and can be omitted if you only need to track the start condition. If you set this field, `initial_value` needs to be set as well.
 - `convert` (callable): A callable that converts the cursor value into the format that the query parameter requires. For example, a UNIX timestamp can be converted into an ISO 8601 date or a date can be converted into `created_at+gt+{date}`.
 
-See the [incremental loading](../../general-usage/incremental-loading.md#incremental-loading-with-a-cursor-field) guide for more details.
+See the [incremental loading](../../../general-usage/incremental-loading.md#incremental-loading-with-a-cursor-field) guide for more details.
 
-If you encounter issues with incremental loading, see the [troubleshooting section](../../general-usage/incremental-loading.md#troubleshooting) in the incremental loading guide.
+If you encounter issues with incremental loading, see the [troubleshooting section](../../../general-usage/incremental-loading.md#troubleshooting) in the incremental loading guide.
 
 ### Convert the incremental value before calling the API
 
@@ -805,7 +805,7 @@ Incremental loading using the `incremental` field:
 
 ## Troubleshooting
 
-If you encounter issues while running the pipeline, enable [logging](../../running-in-production/running.md#set-the-log-level-and-format) for detailed information about the execution:
+If you encounter issues while running the pipeline, enable [logging](../../../running-in-production/running.md#set-the-log-level-and-format) for detailed information about the execution:
 
 ```sh
 RUNTIME__LOG_LEVEL=INFO python my_script.py
@@ -869,11 +869,11 @@ If incorrect data is received from an endpoint, check the `data_selector` field 
 
 #### Getting insufficient data or incorrect pagination
 
-Check the `paginator` field in the configuration. When not explicitly specified, the source tries to auto-detect the pagination method. If auto-detection fails, or the system is unsure, a warning is logged. For production environments, we recommend to specify an explicit paginator in the configuration. See the [pagination](#pagination) section for more details. Some APIs may have non-standard pagination methods, and you may need to implement a [custom paginator](../../general-usage/http/rest-client.md#implementing-a-custom-paginator).
+Check the `paginator` field in the configuration. When not explicitly specified, the source tries to auto-detect the pagination method. If auto-detection fails, or the system is unsure, a warning is logged. For production environments, we recommend to specify an explicit paginator in the configuration. See the [pagination](#pagination) section for more details. Some APIs may have non-standard pagination methods, and you may need to implement a [custom paginator](../../../general-usage/http/rest-client.md#implementing-a-custom-paginator).
 
 #### Incremental loading not working
 
-See the [troubleshooting guide](../../general-usage/incremental-loading.md#troubleshooting) for incremental loading issues.
+See the [troubleshooting guide](../../../general-usage/incremental-loading.md#troubleshooting) for incremental loading issues.
 
 #### Getting HTTP 404 errors
 
@@ -884,10 +884,10 @@ Some API may return 404 errors for resources that do not exist or have no data. 
 If experiencing 401 (Unauthorized) errors, this could indicate:
 
 - Incorrect authorization credentials. Verify credentials in the `secrets.toml`. Refer to [Secret and configs](../../general-usage/credentials/setup#understanding-the-exceptions) for more information.
-- An incorrect authentication type. Consult the API documentation for the proper method. See the [authentication](#authentication) section for details. For some APIs, a [custom authentication method](../../general-usage/http/rest-client.md#custom-authentication) may be required.
+- An incorrect authentication type. Consult the API documentation for the proper method. See the [authentication](#authentication) section for details. For some APIs, a [custom authentication method](../../../general-usage/http/rest-client.md#custom-authentication) may be required.
 
 ### General guidelines
 
-The `rest_api` source uses the [RESTClient](../../general-usage/http/rest-client.md) class for HTTP requests. Refer to the RESTClient [troubleshooting guide](../../general-usage/http/rest-client.md#troubleshooting) for debugging tips.
+The `rest_api` source uses the [RESTClient](../../../general-usage/http/rest-client.md) class for HTTP requests. Refer to the RESTClient [troubleshooting guide](../../../general-usage/http/rest-client.md#troubleshooting) for debugging tips.
 
 For further assistance, join our [Slack community](https://dlthub.com/community). We're here to help!
