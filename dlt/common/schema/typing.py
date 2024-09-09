@@ -4,9 +4,11 @@ from typing import (
     Dict,
     List,
     Literal,
+    NamedTuple,
     Optional,
     Sequence,
     Set,
+    Tuple,
     Type,
     TypedDict,
     NewType,
@@ -36,7 +38,29 @@ DLT_NAME_PREFIX = "_dlt"
 
 TColumnProp = Literal[
     "name",
+    # data type
     "data_type",
+    "precision",
+    "scale",
+    "timezone",
+    "nullable",
+    "variant",
+    # hints
+    "partition",
+    "cluster",
+    "primary_key",
+    "foreign_key",
+    "sort",
+    "unique",
+    "merge_key",
+    "root_key",
+    "hard_delete",
+    "dedup_sort",
+]
+"""All known properties of the column, including name, data type info and hints"""
+COLUMN_PROPS: Set[TColumnProp] = set(get_args(TColumnProp))
+
+TColumnHint = Literal[
     "nullable",
     "partition",
     "cluster",
@@ -49,24 +73,51 @@ TColumnProp = Literal[
     "hard_delete",
     "dedup_sort",
 ]
-"""Known properties and hints of the column"""
-# TODO: merge TColumnHint with TColumnProp
-TColumnHint = Literal[
-    "not_null",
-    "partition",
-    "cluster",
-    "primary_key",
-    "foreign_key",
-    "sort",
-    "unique",
-    "merge_key",
-    "root_key",
-    "hard_delete",
-    "dedup_sort",
-]
-"""Known hints of a column used to declare hint regexes."""
+"""Known hints of a column"""
+COLUMN_HINTS: Set[TColumnHint] = set(get_args(TColumnHint))
 
-TTableFormat = Literal["iceberg", "delta"]
+
+class TColumnPropInfo(NamedTuple):
+    name: Union[TColumnProp, str]
+    defaults: Tuple[Any, ...] = (None,)
+    is_hint: bool = False
+
+
+_ColumnPropInfos = [
+    TColumnPropInfo("name"),
+    TColumnPropInfo("data_type"),
+    TColumnPropInfo("precision"),
+    TColumnPropInfo("scale"),
+    TColumnPropInfo("timezone", (True, None)),
+    TColumnPropInfo("nullable", (True, None)),
+    TColumnPropInfo("variant", (False, None)),
+    TColumnPropInfo("partition", (False, None)),
+    TColumnPropInfo("cluster", (False, None)),
+    TColumnPropInfo("primary_key", (False, None)),
+    TColumnPropInfo("foreign_key", (False, None)),
+    TColumnPropInfo("sort", (False, None)),
+    TColumnPropInfo("unique", (False, None)),
+    TColumnPropInfo("merge_key", (False, None)),
+    TColumnPropInfo("root_key", (False, None)),
+    TColumnPropInfo("hard_delete", (False, None)),
+    TColumnPropInfo("dedup_sort", (False, None)),
+    # any x- hint with special settings ie. defaults
+    TColumnPropInfo("x-active-record-timestamp", (), is_hint=True),  # no default values
+]
+
+ColumnPropInfos: Dict[Union[TColumnProp, str], TColumnPropInfo] = {
+    info.name: info for info in _ColumnPropInfos
+}
+# verify column props and column hints infos
+for hint in COLUMN_HINTS:
+    assert hint in COLUMN_PROPS, f"Hint {hint} must be a column prop"
+
+for prop in COLUMN_PROPS:
+    assert prop in ColumnPropInfos, f"Column {prop} has no info, please define"
+    if prop in COLUMN_HINTS:
+        ColumnPropInfos[prop] = ColumnPropInfos[prop]._replace(is_hint=True)
+
+TTableFormat = Literal["iceberg", "delta", "hive"]
 TFileFormat = Literal[Literal["preferred"], TLoaderFileFormat]
 TTypeDetections = Literal[
     "timestamp", "iso_timestamp", "iso_date", "large_integer", "hexbytes_to_text", "wei_to_double"
@@ -74,20 +125,6 @@ TTypeDetections = Literal[
 TTypeDetectionFunc = Callable[[Type[Any], Any], Optional[TDataType]]
 TColumnNames = Union[str, Sequence[str]]
 """A string representing a column name or a list of"""
-
-# COLUMN_PROPS: Set[TColumnProp] = set(get_args(TColumnProp))
-COLUMN_HINTS: Set[TColumnHint] = set(
-    [
-        "partition",
-        "cluster",
-        "primary_key",
-        "foreign_key",
-        "sort",
-        "unique",
-        "merge_key",
-        "root_key",
-    ]
-)
 
 
 class TColumnType(TypedDict, total=False):
@@ -195,13 +232,9 @@ class TMergeDispositionDict(TWriteDispositionDict, total=False):
 TWriteDispositionConfig = Union[TWriteDisposition, TWriteDispositionDict, TMergeDispositionDict]
 
 
-# TypedDict that defines properties of a table
-class TTableSchema(TTableProcessingHints, total=False):
-    """TypedDict that defines properties of a table"""
-
+class _TTableSchemaBase(TTableProcessingHints, total=False):
     name: Optional[str]
     description: Optional[str]
-    write_disposition: Optional[TWriteDisposition]
     schema_contract: Optional[TSchemaContract]
     table_sealed: Optional[bool]
     parent: Optional[str]
@@ -212,18 +245,26 @@ class TTableSchema(TTableProcessingHints, total=False):
     file_format: Optional[TFileFormat]
 
 
+class TTableSchema(_TTableSchemaBase, total=False):
+    """TypedDict that defines properties of a table"""
+
+    write_disposition: Optional[TWriteDisposition]
+
+
 class TPartialTableSchema(TTableSchema):
     pass
 
 
 TSchemaTables = Dict[str, TTableSchema]
 TSchemaUpdate = Dict[str, List[TPartialTableSchema]]
+TColumnDefaultHint = Literal["not_null", TColumnHint]
+"""Allows using not_null in default hints setting section"""
 
 
 class TSchemaSettings(TypedDict, total=False):
     schema_contract: Optional[TSchemaContract]
     detections: Optional[List[TTypeDetections]]
-    default_hints: Optional[Dict[TColumnHint, List[TSimpleRegex]]]
+    default_hints: Optional[Dict[TColumnDefaultHint, List[TSimpleRegex]]]
     preferred_types: Optional[Dict[TSimpleRegex, TDataType]]
 
 

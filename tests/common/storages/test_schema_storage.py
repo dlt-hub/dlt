@@ -3,7 +3,7 @@ import pytest
 import yaml
 from dlt.common import json
 
-from dlt.common.normalizers.utils import explicit_normalizers
+from dlt.common.schema.normalizers import explicit_normalizers
 from dlt.common.schema.schema import Schema
 from dlt.common.storages.exceptions import (
     InStorageSchemaModified,

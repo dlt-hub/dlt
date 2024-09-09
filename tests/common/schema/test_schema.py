@@ -726,7 +726,7 @@ def test_compare_columns() -> None:
     )
     # any of the hints may differ
     for hint in COLUMN_HINTS:
-        table["columns"]["col3"][hint] = True  # type: ignore[typeddict-unknown-key]
+        table["columns"]["col3"][hint] = True
     # name may not differ
     assert (
         utils.compare_complete_columns(table["columns"]["col3"], table["columns"]["col4"]) is False

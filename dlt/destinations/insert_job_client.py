@@ -1,15 +1,15 @@
-import os
-import abc
 from typing import Any, Iterator, List
 
-from dlt.common.destination.reference import RunnableLoadJob, HasFollowupJobs, LoadJob
-from dlt.common.schema.typing import TTableSchema
+from dlt.common.destination.reference import (
+    PreparedTableSchema,
+    RunnableLoadJob,
+    HasFollowupJobs,
+    LoadJob,
+)
 from dlt.common.storages import FileStorage
 from dlt.common.utils import chunks
 
-from dlt.destinations.sql_client import SqlClientBase
-from dlt.destinations.job_impl import FinalizedLoadJobWithFollowupJobs
-from dlt.destinations.job_client_impl import SqlJobClientWithStaging, SqlJobClientBase
+from dlt.destinations.job_client_impl import SqlJobClientWithStagingDataset, SqlJobClientBase
 
 
 class InsertValuesLoadJob(RunnableLoadJob, HasFollowupJobs):
@@ -96,9 +96,9 @@ class InsertValuesLoadJob(RunnableLoadJob, HasFollowupJobs):
             yield insert_sql
 
 
-class InsertValuesJobClient(SqlJobClientWithStaging):
+class InsertValuesJobClient(SqlJobClientWithStagingDataset):
     def create_load_job(
-        self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
+        self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
         job = super().create_load_job(table, file_path, load_id, restore)
         if not job:

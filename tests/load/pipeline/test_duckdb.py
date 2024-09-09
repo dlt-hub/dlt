@@ -13,6 +13,7 @@ from dlt.destinations import duckdb
 from dlt.pipeline.exceptions import PipelineStepFailed
 
 from tests.cases import TABLE_UPDATE_ALL_INT_PRECISIONS, TABLE_UPDATE_ALL_TIMESTAMP_PRECISIONS
+from tests.load.duckdb.test_duckdb_table_builder import add_timezone_false_on_precision
 from tests.load.utils import destinations_configs, DestinationTestConfiguration
 from tests.pipeline.utils import airtable_emojis, assert_data_table_counts, load_table_counts
 
@@ -32,12 +33,12 @@ def test_duck_case_names(destination_config: DestinationTestConfiguration) -> No
     # create tables and columns with emojis and other special characters
     pipeline.run(
         airtable_emojis().with_resources("📆 Schedule", "🦚Peacock", "🦚WidePeacock"),
-        loader_file_format=destination_config.file_format,
+        **destination_config.run_kwargs,
     )
     pipeline.run(
         [{"🐾Feet": 2, "1+1": "two", "\nhey": "value"}],
         table_name="🦚Peacocks🦚",
-        loader_file_format=destination_config.file_format,
+        **destination_config.run_kwargs,
     )
     table_counts = load_table_counts(
         pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()]
@@ -56,7 +57,7 @@ def test_duck_case_names(destination_config: DestinationTestConfiguration) -> No
         pipeline.run(
             [{"🐾Feet": 2, "1+1": "two", "🐾feet": "value"}],
             table_name="🦚peacocks🦚",
-            loader_file_format=destination_config.file_format,
+            **destination_config.run_kwargs,
         )
     assert isinstance(pip_ex.value.__context__, SchemaIdentifierNormalizationCollision)
     assert pip_ex.value.__context__.conflict_identifier_name == "🦚Peacocks🦚"
@@ -104,8 +105,10 @@ def test_duck_precision_types(destination_config: DestinationTestConfiguration) 
     pipeline.run(
         row,
         table_name="row",
-        loader_file_format=destination_config.file_format,
-        columns=TABLE_UPDATE_ALL_TIMESTAMP_PRECISIONS + TABLE_UPDATE_ALL_INT_PRECISIONS,
+        **destination_config.run_kwargs,
+        columns=add_timezone_false_on_precision(
+            TABLE_UPDATE_ALL_TIMESTAMP_PRECISIONS + TABLE_UPDATE_ALL_INT_PRECISIONS
+        ),
     )
 
     with pipeline.sql_client() as client:
@@ -114,7 +117,7 @@ def test_duck_precision_types(destination_config: DestinationTestConfiguration) 
     # only us has TZ aware timestamp in duckdb, also we have UTC here
     assert table.schema.field(0).type == pa.timestamp("s")
     assert table.schema.field(1).type == pa.timestamp("ms")
-    assert table.schema.field(2).type == pa.timestamp("us", tz="UTC")
+    assert table.schema.field(2).type == pa.timestamp("us")
     assert table.schema.field(3).type == pa.timestamp("ns")
 
     assert table.schema.field(4).type == pa.int8()
@@ -126,6 +129,7 @@ def test_duck_precision_types(destination_config: DestinationTestConfiguration) 
     table_row = table.to_pylist()[0]
     table_row["col1_ts"] = ensure_pendulum_datetime(table_row["col1_ts"])
     table_row["col2_ts"] = ensure_pendulum_datetime(table_row["col2_ts"])
+    table_row["col3_ts"] = ensure_pendulum_datetime(table_row["col3_ts"])
     table_row["col4_ts"] = ensure_pendulum_datetime(table_row["col4_ts"])
     table_row.pop("_dlt_id")
     table_row.pop("_dlt_load_id")
@@ -235,8 +239,7 @@ def test_provoke_parallel_parquet_same_table(
     os.environ["DATA_WRITER__FILE_MAX_ITEMS"] = "200"
 
     pipeline = destination_config.setup_pipeline("test_provoke_parallel_parquet_same_table")
-
-    pipeline.run(_get_shuffled_events(50))
+    pipeline.run(_get_shuffled_events(50), **destination_config.run_kwargs)
 
     assert_data_table_counts(
         pipeline,

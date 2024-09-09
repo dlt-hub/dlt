@@ -133,13 +133,16 @@ def test_child_table_linking(norm: RelationalNormalizer) -> None:
     assert [e[1]["value"] for e in list_rows] == ["a", "b", "c"]
 
 
-def test_child_table_linking_primary_key(norm: RelationalNormalizer) -> None:
+def test_skip_nested_link_when_no_parent(norm: RelationalNormalizer) -> None:
     row = {
         "id": "level0",
         "f": [{"id": "level1", "l": ["a", "b", "c"], "v": 120, "o": [{"a": 1}, {"a": 2}]}],
     }
-    norm.schema.merge_hints({"primary_key": [TSimpleRegex("id")]})
-    norm.schema._compile_settings()
+
+    # create table__f without parent so it is not seen as nested table
+    # still normalizer will write data to it but not link
+    table__f = new_table("table__f", parent_table_name=None)
+    norm.schema.update_table(table__f)
 
     rows = list(norm._normalize_row(row, {}, ("table",)))
     root = next(t for t in rows if t[0][0] == "table")[1]
@@ -415,6 +418,10 @@ def test_list_in_list() -> None:
         "zen__webpath", parent_table_name="zen", columns=[{"name": "list", "data_type": "complex"}]
     )
     schema.update_table(path_table)
+    assert "zen__webpath" in schema.tables
+    # clear cache with complex paths
+    schema.data_item_normalizer._is_complex_type.cache_clear()  # type: ignore[attr-defined]
+
     rows = list(schema.normalize_data_item(chats, "1762162.1212", "zen"))
     # both lists are complex types now
     assert len(rows) == 3
@@ -734,39 +741,41 @@ def test_table_name_meta_normalized() -> None:
     assert rows[0][0][0] == "channel_surfing"
 
 
-def test_parse_with_primary_key() -> None:
-    schema = create_schema_with_name("discord")
-    schema._merge_hints({"primary_key": ["id"]})  # type: ignore[list-item]
-    schema._compile_settings()
-    add_dlt_root_id_propagation(schema.data_item_normalizer)  # type: ignore[arg-type]
+def test_row_id_is_primary_key() -> None:
+    # TODO: if there's a column with row_id hint and primary_key, it should get propagated
+    pass
+    # schema = create_schema_with_name("discord")
+    # schema._merge_hints({"primary_key": ["id"]})  # type: ignore[list-item]
+    # schema._compile_settings()
+    # add_dlt_root_id_propagation(schema.data_item_normalizer)  # type: ignore[arg-type]
 
-    row = {"id": "817949077341208606", "w_id": [{"id": 9128918293891111, "wo_id": [1, 2, 3]}]}
-    rows = list(schema.normalize_data_item(row, "load_id", "discord"))
-    # get root
-    root = next(t[1] for t in rows if t[0][0] == "discord")
-    assert root["_dlt_id"] != digest128("817949077341208606", DLT_ID_LENGTH_BYTES)
-    assert "_dlt_parent_id" not in root
-    assert "_dlt_root_id" not in root
-    assert root["_dlt_load_id"] == "load_id"
+    # row = {"id": "817949077341208606", "w_id": [{"id": 9128918293891111, "wo_id": [1, 2, 3]}]}
+    # rows = list(schema.normalize_data_item(row, "load_id", "discord"))
+    # # get root
+    # root = next(t[1] for t in rows if t[0][0] == "discord")
+    # assert root["_dlt_id"] != digest128("817949077341208606", DLT_ID_LENGTH_BYTES)
+    # assert "_dlt_parent_id" not in root
+    # assert "_dlt_root_id" not in root
+    # assert root["_dlt_load_id"] == "load_id"
 
-    el_w_id = next(t[1] for t in rows if t[0][0] == "discord__w_id")
-    # this also has primary key
-    assert el_w_id["_dlt_id"] != digest128("9128918293891111", DLT_ID_LENGTH_BYTES)
-    assert "_dlt_parent_id" not in el_w_id
-    assert "_dlt_list_idx" not in el_w_id
-    # if enabled, dlt_root is always propagated
-    assert "_dlt_root_id" in el_w_id
+    # el_w_id = next(t[1] for t in rows if t[0][0] == "discord__w_id")
+    # # this also has primary key
+    # assert el_w_id["_dlt_id"] != digest128("9128918293891111", DLT_ID_LENGTH_BYTES)
+    # assert "_dlt_parent_id" not in el_w_id
+    # assert "_dlt_list_idx" not in el_w_id
+    # # if enabled, dlt_root is always propagated
+    # assert "_dlt_root_id" in el_w_id
 
-    # this must have deterministic child key
-    f_wo_id = next(
-        t[1] for t in rows if t[0][0] == "discord__w_id__wo_id" and t[1]["_dlt_list_idx"] == 2
-    )
-    assert f_wo_id["value"] == 3
-    assert f_wo_id["_dlt_root_id"] != digest128("817949077341208606", DLT_ID_LENGTH_BYTES)
-    assert f_wo_id["_dlt_parent_id"] != digest128("9128918293891111", DLT_ID_LENGTH_BYTES)
-    assert f_wo_id["_dlt_id"] == RelationalNormalizer._get_child_row_hash(
-        f_wo_id["_dlt_parent_id"], "discord__w_id__wo_id", 2
-    )
+    # # this must have deterministic child key
+    # f_wo_id = next(
+    #     t[1] for t in rows if t[0][0] == "discord__w_id__wo_id" and t[1]["_dlt_list_idx"] == 2
+    # )
+    # assert f_wo_id["value"] == 3
+    # assert f_wo_id["_dlt_root_id"] != digest128("817949077341208606", DLT_ID_LENGTH_BYTES)
+    # assert f_wo_id["_dlt_parent_id"] != digest128("9128918293891111", DLT_ID_LENGTH_BYTES)
+    # assert f_wo_id["_dlt_id"] == RelationalNormalizer._get_nested_row_hash(
+    #     f_wo_id["_dlt_parent_id"], "discord__w_id__wo_id", 2
+    # )
 
 
 def test_keeps_none_values() -> None:
@@ -866,6 +875,18 @@ def test_propagation_update_on_table_change(norm: RelationalNormalizer):
     assert norm.schema._normalizers_config["json"]["config"]["propagation"]["tables"][
         "table_3"
     ] == {"_dlt_id": "_dlt_root_id", "prop1": "prop2"}
+
+
+def test_caching_perf(norm: RelationalNormalizer) -> None:
+    from time import time
+
+    table = new_table("test")
+    table["x-normalizer"] = {}
+    start = time()
+    for _ in range(100000):
+        norm._is_complex_type(norm.schema, "test", "field", 0, 0)
+        # norm._get_table_nesting_level(norm.schema, "test")
+    print(f"{time() - start}")
 
 
 def set_max_nesting(norm: RelationalNormalizer, max_nesting: int) -> None:

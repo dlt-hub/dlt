@@ -42,7 +42,7 @@ def test_simulate_default_naming_convention_change() -> None:
     # mock the mod
     # from dlt.common.normalizers import utils
 
-    with patch("dlt.common.normalizers.utils.DEFAULT_NAMING_MODULE", "duck_case"):
+    with patch("dlt.common.schema.normalizers.DEFAULT_NAMING_MODULE", "duck_case"):
         duck_pipeline = dlt.pipeline("simulated_duck_case", destination="duckdb")
         assert duck_pipeline.naming.name() == "duck_case"
         print(airtable_emojis().schema.naming.name())

@@ -304,12 +304,15 @@ def test_diff_tables() -> None:
     changed = deepcopy(table)
     changed["description"] = "new description"
     changed["name"] = "new name"
-    partial = utils.diff_table("schema", deepcopy(table), changed)
+    # names must be identical
+    renamed_table = deepcopy(table)
+    renamed_table["name"] = "new name"
+    partial = utils.diff_table("schema", renamed_table, changed)
     print(partial)
     assert partial == {"name": "new name", "description": "new description", "columns": {}}
 
     # ignore identical table props
-    existing = deepcopy(table)
+    existing = deepcopy(renamed_table)
     changed["write_disposition"] = "append"
     changed["schema_contract"] = "freeze"
     partial = utils.diff_table("schema", deepcopy(existing), changed)
@@ -360,11 +363,18 @@ def test_diff_tables_conflicts() -> None:
         "columns": {"test": COL_1_HINTS, "test_2": COL_2_HINTS},
     }
 
-    other = utils.new_table("table_2")
+    other = utils.new_table("table")
     with pytest.raises(TablePropertiesConflictException) as cf_ex:
         utils.diff_table("schema", table, other)
     assert cf_ex.value.table_name == "table"
     assert cf_ex.value.prop_name == "parent"
+
+    # conflict on name
+    other = utils.new_table("other_name")
+    with pytest.raises(TablePropertiesConflictException) as cf_ex:
+        utils.diff_table("schema", table, other)
+    assert cf_ex.value.table_name == "table"
+    assert cf_ex.value.prop_name == "name"
 
     # conflict on data types in columns
     changed = deepcopy(table)

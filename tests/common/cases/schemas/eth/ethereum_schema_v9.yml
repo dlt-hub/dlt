@@ -1,5 +1,5 @@
 version: 17
-version_hash: PgEHvn5+BHV1jNzNYpx9aDpq6Pq1PSSetufj/h0hKg4=
+version_hash: oHfYGTI2GHOxuzwVz6+yvMilXUvHYhxrxkanC2T6MAI=
 engine_version: 9
 name: ethereum
 tables:
@@ -166,7 +166,6 @@ tables:
     x-normalizer:
       seen-data: true
   blocks__transactions:
-    parent: blocks
     columns:
       _dlt_id:
         nullable: false
@@ -178,6 +177,7 @@ tables:
         primary_key: true
         foreign_key: true
         data_type: bigint
+        merge_key: true
         name: block_number
       transaction_index:
         nullable: false
@@ -267,7 +267,6 @@ tables:
     x-normalizer:
       seen-data: true
   blocks__transactions__logs:
-    parent: blocks__transactions
     columns:
       _dlt_id:
         nullable: false
@@ -291,13 +290,13 @@ tables:
       block_number:
         nullable: false
         primary_key: true
-        foreign_key: true
+        merge_key: true
         data_type: bigint
         name: block_number
       transaction_index:
         nullable: false
         primary_key: true
-        foreign_key: true
+        merge_key: true
         data_type: bigint
         name: transaction_index
       log_index:

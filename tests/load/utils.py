@@ -53,6 +53,7 @@ from dlt.destinations.exceptions import CantExtractTablePrefix
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.job_client_impl import SqlJobClientBase
 
+from dlt.pipeline.exceptions import SqlClientNotAvailable
 from tests.utils import (
     ACTIVE_DESTINATIONS,
     IMPLEMENTED_DESTINATIONS,
@@ -153,7 +154,7 @@ class DestinationTestConfiguration:
     staging_use_msi: bool = False
     extra_info: Optional[str] = None
     supports_merge: bool = True  # TODO: take it from client base class
-    force_iceberg: bool = False
+    force_iceberg: bool = None  # used only to test deprecation
     supports_dbt: bool = True
     disable_compression: bool = False
     dev_mode: bool = False
@@ -228,6 +229,19 @@ class DestinationTestConfiguration:
         pipeline = dlt.attach(pipeline_name, **kwargs)
         return pipeline
 
+    def supports_sql_client(self, pipeline: dlt.Pipeline) -> bool:
+        """Checks if destination supports SQL queries"""
+        try:
+            pipeline.sql_client()
+            return True
+        except SqlClientNotAvailable:
+            return False
+
+    @property
+    def run_kwargs(self):
+        """Returns a dict of kwargs to be passed to pipeline.run method: currently file and table format"""
+        return dict(loader_file_format=self.file_format, table_format=self.table_format)
+
 
 def destinations_configs(
     default_sql_configs: bool = False,
@@ -241,11 +255,10 @@ def destinations_configs(
     bucket_subset: Sequence[str] = (),
     exclude: Sequence[str] = (),
     bucket_exclude: Sequence[str] = (),
-    file_format: Union[TLoaderFileFormat, Sequence[TLoaderFileFormat]] = None,
-    table_format: Union[TTableFormat, Sequence[TTableFormat]] = None,
+    with_file_format: Union[TLoaderFileFormat, Sequence[TLoaderFileFormat]] = None,
+    with_table_format: Union[TTableFormat, Sequence[TTableFormat]] = None,
     supports_merge: Optional[bool] = None,
     supports_dbt: Optional[bool] = None,
-    force_iceberg: Optional[bool] = None,
 ) -> List[DestinationTestConfiguration]:
     # sanity check
     for item in subset:
@@ -270,7 +283,6 @@ def destinations_configs(
             destination="athena",
             file_format="parquet",
             bucket_url=AWS_BUCKET,
-            force_iceberg=True,
             supports_merge=True,
             supports_dbt=False,
             table_format="iceberg",
@@ -587,21 +599,21 @@ def destinations_configs(
             for conf in destination_configs
             if conf.destination != "filesystem" or conf.bucket_url not in bucket_exclude
         ]
-    if file_format:
-        if not isinstance(file_format, Sequence):
-            file_format = [file_format]
+    if with_file_format:
+        if not isinstance(with_file_format, Sequence):
+            with_file_format = [with_file_format]
         destination_configs = [
             conf
             for conf in destination_configs
-            if conf.file_format and conf.file_format in file_format
+            if conf.file_format and conf.file_format in with_file_format
         ]
-    if table_format:
-        if not isinstance(table_format, Sequence):
-            table_format = [table_format]
+    if with_table_format:
+        if not isinstance(with_table_format, Sequence):
+            with_table_format = [with_table_format]
         destination_configs = [
             conf
             for conf in destination_configs
-            if conf.table_format and conf.table_format in table_format
+            if conf.table_format and conf.table_format in with_table_format
         ]
     if supports_merge is not None:
         destination_configs = [
@@ -616,11 +628,6 @@ def destinations_configs(
     destination_configs = [
         conf for conf in destination_configs if conf.name not in EXCLUDED_DESTINATION_CONFIGURATIONS
     ]
-
-    if force_iceberg is not None:
-        destination_configs = [
-            conf for conf in destination_configs if conf.force_iceberg is force_iceberg
-        ]
 
     # add marks
     destination_configs = [
@@ -759,6 +766,8 @@ def prepare_table(
     else:
         user_table_name = table_name
     client.schema.update_table(new_table(user_table_name, columns=list(user_table.values())))
+    print(client.schema.to_pretty_yaml())
+    client.verify_schema([user_table_name])
     client.schema._bump_version()
     client.update_stored_schema()
     return user_table_name

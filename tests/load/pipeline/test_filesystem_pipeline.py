@@ -253,7 +253,7 @@ def test_delta_table_pyarrow_version_check() -> None:
     "destination_config",
     destinations_configs(
         table_format_filesystem_configs=True,
-        table_format="delta",
+        with_table_format="delta",
         bucket_exclude=(MEMORY_BUCKET),
     ),
     ids=lambda x: x.name,
@@ -326,7 +326,7 @@ def test_delta_table_core(
     "destination_config",
     destinations_configs(
         table_format_filesystem_configs=True,
-        table_format="delta",
+        with_table_format="delta",
         bucket_subset=(FILE_BUCKET),
     ),
     ids=lambda x: x.name,
@@ -371,7 +371,7 @@ def test_delta_table_does_not_contain_job_files(
     "destination_config",
     destinations_configs(
         table_format_filesystem_configs=True,
-        table_format="delta",
+        with_table_format="delta",
         bucket_subset=(FILE_BUCKET),
     ),
     ids=lambda x: x.name,
@@ -417,7 +417,7 @@ def test_delta_table_multiple_files(
     "destination_config",
     destinations_configs(
         table_format_filesystem_configs=True,
-        table_format="delta",
+        with_table_format="delta",
         bucket_subset=(FILE_BUCKET),
     ),
     ids=lambda x: x.name,
@@ -494,7 +494,7 @@ def test_delta_table_child_tables(
     "destination_config",
     destinations_configs(
         table_format_filesystem_configs=True,
-        table_format="delta",
+        with_table_format="delta",
         bucket_subset=(FILE_BUCKET),
     ),
     ids=lambda x: x.name,
@@ -580,7 +580,7 @@ def test_delta_table_partitioning(
     "destination_config",
     destinations_configs(
         table_format_filesystem_configs=True,
-        table_format="delta",
+        with_table_format="delta",
         bucket_subset=(FILE_BUCKET),
     ),
     ids=lambda x: x.name,
@@ -677,7 +677,7 @@ def test_delta_table_schema_evolution(
     "destination_config",
     destinations_configs(
         table_format_filesystem_configs=True,
-        table_format="delta",
+        with_table_format="delta",
         bucket_subset=(FILE_BUCKET, AZ_BUCKET),
     ),
     ids=lambda x: x.name,
@@ -750,7 +750,7 @@ def test_delta_table_empty_source(
     "destination_config",
     destinations_configs(
         table_format_filesystem_configs=True,
-        table_format="delta",
+        with_table_format="delta",
         bucket_subset=(FILE_BUCKET),
     ),
     ids=lambda x: x.name,
@@ -799,7 +799,7 @@ def test_delta_table_mixed_source(
     "destination_config",
     destinations_configs(
         table_format_filesystem_configs=True,
-        table_format="delta",
+        with_table_format="delta",
         bucket_subset=(FILE_BUCKET),
     ),
     ids=lambda x: x.name,
@@ -827,7 +827,7 @@ def test_delta_table_dynamic_dispatch(
     "destination_config",
     destinations_configs(
         table_format_filesystem_configs=True,
-        table_format="delta",
+        with_table_format="delta",
         bucket_subset=(FILE_BUCKET, AZ_BUCKET),
     ),
     ids=lambda x: x.name,
@@ -907,7 +907,7 @@ def test_delta_table_get_delta_tables_helper(
     "destination_config",
     destinations_configs(
         table_format_filesystem_configs=True,
-        table_format="delta",
+        with_table_format="delta",
         bucket_subset=(FILE_BUCKET,),
     ),
     ids=lambda x: x.name,

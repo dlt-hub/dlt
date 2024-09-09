@@ -121,6 +121,7 @@ def test_case_sensitive_properties_create(client: WeaviateClient) -> None:
     )
     client.schema._bump_version()
     with pytest.raises(SchemaIdentifierNormalizationCollision) as clash_ex:
+        client.verify_schema()
         client.update_stored_schema()
     assert clash_ex.value.identifier_type == "column"
     assert clash_ex.value.identifier_name == "coL1"
@@ -170,6 +171,7 @@ def test_case_sensitive_properties_add(client: WeaviateClient) -> None:
     )
     client.schema._bump_version()
     with pytest.raises(SchemaIdentifierNormalizationCollision):
+        client.verify_schema()
         client.update_stored_schema()
 
     # _, table_columns = client.get_storage_table("ColClass")

@@ -32,10 +32,11 @@ from dlt.common.data_writers.configuration import (
 from dlt.common.destination import (
     DestinationCapabilitiesContext,
     TLoaderFileFormat,
-    ALL_SUPPORTED_FILE_FORMATS,
+    LOADER_FILE_FORMATS,
 )
 from dlt.common.metrics import DataWriterMetrics
 from dlt.common.schema.typing import TTableSchemaColumns
+from dlt.common.schema.utils import is_nullable_column
 from dlt.common.typing import StrAny, TDataItem
 
 
@@ -115,7 +116,7 @@ class DataWriter(abc.ABC):
         elif extension == "parquet":
             return "arrow"
         # those files may be imported by normalizer as is
-        elif extension in ALL_SUPPORTED_FILE_FORMATS:
+        elif extension in LOADER_FILE_FORMATS:
             return "file"
         else:
             raise ValueError(f"Cannot figure out data item format for extension {extension}")
@@ -331,7 +332,7 @@ class ParquetDataWriter(DataWriter):
                         self._caps,
                         self.timestamp_timezone,
                     ),
-                    nullable=schema_item.get("nullable", True),
+                    nullable=is_nullable_column(schema_item),
                 )
                 for name, schema_item in columns_schema.items()
             ]

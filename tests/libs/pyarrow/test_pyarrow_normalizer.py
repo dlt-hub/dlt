@@ -4,8 +4,8 @@ import pyarrow as pa
 import pytest
 
 from dlt.common.libs.pyarrow import normalize_py_arrow_item, NameNormalizationCollision
-from dlt.common.normalizers.utils import explicit_normalizers, import_normalizers
 from dlt.common.schema.utils import new_column, TColumnSchema
+from dlt.common.schema.normalizers import explicit_normalizers, import_normalizers
 from dlt.common.destination import DestinationCapabilitiesContext
 
 

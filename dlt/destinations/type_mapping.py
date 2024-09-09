@@ -1,20 +1,18 @@
-from typing import Tuple, ClassVar, Dict, Optional
+from typing import Tuple, Dict, Optional
 
 from dlt.common import logger
+from dlt.common.destination.reference import PreparedTableSchema
 from dlt.common.schema.typing import (
     TColumnSchema,
     TDataType,
     TColumnType,
-    TTableFormat,
-    TTableSchema,
 )
-from dlt.common.destination.capabilities import DestinationCapabilitiesContext
+from dlt.common.destination.capabilities import DataTypeMapper
+from dlt.common.typing import TLoaderFileFormat
 from dlt.common.utils import without_none
 
 
-class TypeMapper:
-    capabilities: DestinationCapabilitiesContext
-
+class TypeMapperImpl(DataTypeMapper):
     sct_to_unbound_dbt: Dict[TDataType, str]
     """Data types without precision or scale specified (e.g. `"text": "varchar"` in postgres)"""
     sct_to_dbt: Dict[TDataType, str]
@@ -24,17 +22,22 @@ class TypeMapper:
 
     dbt_to_sct: Dict[str, TDataType]
 
-    def __init__(self, capabilities: DestinationCapabilitiesContext) -> None:
-        self.capabilities = capabilities
+    def ensure_supported_type(
+        self,
+        column: TColumnSchema,
+        table: PreparedTableSchema,
+        loader_file_format: TLoaderFileFormat,
+    ) -> None:
+        pass
 
-    def to_db_integer_type(self, column: TColumnSchema, table: TTableSchema = None) -> str:
+    def to_db_integer_type(self, column: TColumnSchema, table: PreparedTableSchema = None) -> str:
         # Override in subclass if db supports other integer types (e.g. smallint, integer, tinyint, etc.)
         return self.sct_to_unbound_dbt["bigint"]
 
     def to_db_datetime_type(
         self,
         column: TColumnSchema,
-        table: TTableSchema = None,
+        table: PreparedTableSchema = None,
     ) -> str:
         # Override in subclass if db supports other timestamp types (e.g. with different time resolutions)
         timezone = column.get("timezone")
@@ -54,7 +57,7 @@ class TypeMapper:
 
         return None
 
-    def to_db_time_type(self, column: TColumnSchema, table: TTableSchema = None) -> str:
+    def to_db_time_type(self, column: TColumnSchema, table: PreparedTableSchema = None) -> str:
         # Override in subclass if db supports other time types (e.g. with different time resolutions)
         return None
 
@@ -64,8 +67,8 @@ class TypeMapper:
             return self.sct_to_unbound_dbt["decimal"]
         return self.sct_to_dbt["decimal"] % (precision_tup[0], precision_tup[1])
 
-    # TODO: refactor lancedb and wevavite to make table object required
-    def to_db_type(self, column: TColumnSchema, table: TTableSchema = None) -> str:
+    # TODO: refactor lancedb and weaviate to make table object required
+    def to_destination_type(self, column: TColumnSchema, table: PreparedTableSchema) -> str:
         sc_t = column["data_type"]
         if sc_t == "bigint":
             db_t = self.to_db_integer_type(column, table)
@@ -131,7 +134,7 @@ class TypeMapper:
             scale if scale is not None else default_scale,
         )
 
-    def from_db_type(
+    def from_destination_type(
         self, db_type: str, precision: Optional[int], scale: Optional[int]
     ) -> TColumnType:
         return without_none(

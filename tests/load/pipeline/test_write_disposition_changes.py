@@ -34,7 +34,7 @@ def test_switch_from_merge(destination_config: DestinationTestConfiguration):
         data_with_subtables(10),
         table_name="items",
         write_disposition="merge",
-        loader_file_format=destination_config.file_format,
+        **destination_config.run_kwargs,
     )
     assert_data_table_counts(pipeline, {"items": 100, "items__sub_items": 100})
     assert pipeline.default_schema._normalizers_config["json"]["config"]["propagation"]["tables"][
@@ -45,7 +45,7 @@ def test_switch_from_merge(destination_config: DestinationTestConfiguration):
         data_with_subtables(10),
         table_name="items",
         write_disposition="merge",
-        loader_file_format=destination_config.file_format,
+        **destination_config.run_kwargs,
     )
     assert_load_info(info)
     assert_data_table_counts(
@@ -63,7 +63,7 @@ def test_switch_from_merge(destination_config: DestinationTestConfiguration):
         data_with_subtables(10),
         table_name="items",
         write_disposition="append",
-        loader_file_format=destination_config.file_format,
+        **destination_config.run_kwargs,
     )
     assert_load_info(info)
     assert_data_table_counts(
@@ -81,7 +81,7 @@ def test_switch_from_merge(destination_config: DestinationTestConfiguration):
         data_with_subtables(10),
         table_name="items",
         write_disposition="replace",
-        loader_file_format=destination_config.file_format,
+        **destination_config.run_kwargs,
     )
     assert_load_info(info)
     assert_data_table_counts(pipeline, {"items": 100, "items__sub_items": 100})
@@ -110,7 +110,7 @@ def test_switch_to_merge(destination_config: DestinationTestConfiguration, with_
         s,
         table_name="items",
         write_disposition="append",
-        loader_file_format=destination_config.file_format,
+        **destination_config.run_kwargs,
     )
     assert_data_table_counts(pipeline, {"items": 100, "items__sub_items": 100})
 
@@ -137,7 +137,7 @@ def test_switch_to_merge(destination_config: DestinationTestConfiguration, with_
             s,
             table_name="items",
             write_disposition="merge",
-            loader_file_format=destination_config.file_format,
+            **destination_config.run_kwargs,
         )
         return
 
@@ -148,7 +148,7 @@ def test_switch_to_merge(destination_config: DestinationTestConfiguration, with_
                 s,
                 table_name="items",
                 write_disposition="merge",
-                loader_file_format=destination_config.file_format,
+                **destination_config.run_kwargs,
             )
         return
 
@@ -156,7 +156,7 @@ def test_switch_to_merge(destination_config: DestinationTestConfiguration, with_
         s,
         table_name="items",
         write_disposition="merge",
-        loader_file_format=destination_config.file_format,
+        **destination_config.run_kwargs,
     )
     assert_load_info(info)
     assert_data_table_counts(

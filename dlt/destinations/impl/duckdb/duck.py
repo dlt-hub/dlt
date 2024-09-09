@@ -1,131 +1,24 @@
-import threading
-import logging
-from typing import ClassVar, Dict, Optional
+from typing import Dict, Optional
 
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.data_types import TDataType
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.schema import TColumnSchema, TColumnHint, Schema
-from dlt.common.destination.reference import RunnableLoadJob, HasFollowupJobs, LoadJob
-from dlt.common.schema.typing import TTableSchema, TColumnType, TTableFormat
+from dlt.common.destination.reference import (
+    PreparedTableSchema,
+    RunnableLoadJob,
+    HasFollowupJobs,
+    LoadJob,
+)
+from dlt.common.schema.typing import TColumnType, TTableFormat
 from dlt.common.storages.file_storage import FileStorage
-from dlt.common.utils import maybe_context
 
 from dlt.destinations.insert_job_client import InsertValuesJobClient
 
 from dlt.destinations.impl.duckdb.sql_client import DuckDbSqlClient
 from dlt.destinations.impl.duckdb.configuration import DuckDbClientConfiguration
-from dlt.destinations.type_mapping import TypeMapper
 
 
 HINT_TO_POSTGRES_ATTR: Dict[TColumnHint, str] = {"unique": "UNIQUE"}
-
-
-class DuckDbTypeMapper(TypeMapper):
-    sct_to_unbound_dbt = {
-        "complex": "JSON",
-        "text": "VARCHAR",
-        "double": "DOUBLE",
-        "bool": "BOOLEAN",
-        "date": "DATE",
-        # Duck does not allow specifying precision on timestamp with tz
-        "timestamp": "TIMESTAMP WITH TIME ZONE",
-        "bigint": "BIGINT",
-        "binary": "BLOB",
-        "time": "TIME",
-    }
-
-    sct_to_dbt = {
-        # VARCHAR(n) is alias for VARCHAR in duckdb
-        # "text": "VARCHAR(%i)",
-        "decimal": "DECIMAL(%i,%i)",
-        "wei": "DECIMAL(%i,%i)",
-    }
-
-    dbt_to_sct = {
-        "VARCHAR": "text",
-        "JSON": "complex",
-        "DOUBLE": "double",
-        "BOOLEAN": "bool",
-        "DATE": "date",
-        "TIMESTAMP WITH TIME ZONE": "timestamp",
-        "BLOB": "binary",
-        "DECIMAL": "decimal",
-        "TIME": "time",
-        # Int types
-        "TINYINT": "bigint",
-        "SMALLINT": "bigint",
-        "INTEGER": "bigint",
-        "BIGINT": "bigint",
-        "HUGEINT": "bigint",
-        "TIMESTAMP_S": "timestamp",
-        "TIMESTAMP_MS": "timestamp",
-        "TIMESTAMP_NS": "timestamp",
-    }
-
-    def to_db_integer_type(self, column: TColumnSchema, table: TTableSchema = None) -> str:
-        precision = column.get("precision")
-        if precision is None:
-            return "BIGINT"
-        # Precision is number of bits
-        if precision <= 8:
-            return "TINYINT"
-        elif precision <= 16:
-            return "SMALLINT"
-        elif precision <= 32:
-            return "INTEGER"
-        elif precision <= 64:
-            return "BIGINT"
-        elif precision <= 128:
-            return "HUGEINT"
-        raise TerminalValueError(
-            f"bigint with {precision} bits precision cannot be mapped into duckdb integer type"
-        )
-
-    def to_db_datetime_type(
-        self,
-        column: TColumnSchema,
-        table: TTableSchema = None,
-    ) -> str:
-        column_name = column.get("name")
-        table_name = table.get("name")
-        timezone = column.get("timezone")
-        precision = column.get("precision")
-
-        if timezone and precision is not None:
-            logging.warn(
-                f"DuckDB does not support both timezone and precision for column '{column_name}' in"
-                f" table '{table_name}'. Will default to timezone."
-            )
-
-        if timezone:
-            return "TIMESTAMP WITH TIME ZONE"
-        elif timezone is not None:  # condition for when timezone is False given that none is falsy
-            return "TIMESTAMP"
-
-        if precision is None or precision == 6:
-            return None
-        elif precision == 0:
-            return "TIMESTAMP_S"
-        elif precision == 3:
-            return "TIMESTAMP_MS"
-        elif precision == 9:
-            return "TIMESTAMP_NS"
-
-        raise TerminalValueError(
-            f"DuckDB does not support precision '{precision}' for '{column_name}' in table"
-            f" '{table_name}'"
-        )
-
-    def from_db_type(
-        self, db_type: str, precision: Optional[int], scale: Optional[int]
-    ) -> TColumnType:
-        # duckdb provides the types with scale and precision
-        db_type = db_type.split("(")[0].upper()
-        if db_type == "DECIMAL":
-            if precision == 38 and scale == 0:
-                return dict(data_type="wei", precision=precision, scale=scale)
-        return super().from_db_type(db_type, precision, scale)
 
 
 class DuckDbCopyJob(RunnableLoadJob, HasFollowupJobs):
@@ -171,17 +64,17 @@ class DuckDbClient(InsertValuesJobClient):
         self.config: DuckDbClientConfiguration = config
         self.sql_client: DuckDbSqlClient = sql_client  # type: ignore
         self.active_hints = HINT_TO_POSTGRES_ATTR if self.config.create_indexes else {}
-        self.type_mapper = DuckDbTypeMapper(self.capabilities)
+        self.type_mapper = self.capabilities.get_type_mapper()
 
     def create_load_job(
-        self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
+        self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
         job = super().create_load_job(table, file_path, load_id, restore)
         if not job:
             job = DuckDbCopyJob(file_path)
         return job
 
-    def _get_column_def_sql(self, c: TColumnSchema, table: TTableSchema = None) -> str:
+    def _get_column_def_sql(self, c: TColumnSchema, table: PreparedTableSchema = None) -> str:
         hints_str = " ".join(
             self.active_hints.get(h, "")
             for h in self.active_hints.keys()
@@ -189,10 +82,10 @@ class DuckDbClient(InsertValuesJobClient):
         )
         column_name = self.sql_client.escape_column_name(c["name"])
         return (
-            f"{column_name} {self.type_mapper.to_db_type(c,table)} {hints_str} {self._gen_not_null(c.get('nullable', True))}"
+            f"{column_name} {self.type_mapper.to_destination_type(c,table)} {hints_str} {self._gen_not_null(c.get('nullable', True))}"
         )
 
     def _from_db_type(
         self, pq_t: str, precision: Optional[int], scale: Optional[int]
     ) -> TColumnType:
-        return self.type_mapper.from_db_type(pq_t, precision, scale)
+        return self.type_mapper.from_destination_type(pq_t, precision, scale)

@@ -39,7 +39,8 @@ class DltDeprecationWarning(DeprecationWarning):
                 if isinstance(expected_due, semver.VersionInfo)
                 else semver.parse_version_info(expected_due)
             )
-        self.expected_due = expected_due if expected_due is not None else self.since.bump_minor()
+        # we deprecate across major version since 1.0.0
+        self.expected_due = expected_due if expected_due is not None else self.since.bump_major()
 
     def __str__(self) -> str:
         message = (
@@ -54,6 +55,15 @@ class Dlt04DeprecationWarning(DltDeprecationWarning):
     def __init__(self, message: str, *args: typing.Any, expected_due: VersionString = None) -> None:
         super().__init__(
             message, *args, since=Dlt04DeprecationWarning.V04, expected_due=expected_due
+        )
+
+
+class Dlt100DeprecationWarning(DltDeprecationWarning):
+    V100 = semver.parse_version_info("1.0.0")
+
+    def __init__(self, message: str, *args: typing.Any, expected_due: VersionString = None) -> None:
+        super().__init__(
+            message, *args, since=Dlt100DeprecationWarning.V100, expected_due=expected_due
         )
 
 
