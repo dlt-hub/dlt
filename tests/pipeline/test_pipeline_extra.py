@@ -34,12 +34,16 @@ from dlt.common.storages import FileStorage
 from dlt.extract.storage import ExtractStorage
 from dlt.extract.validation import PydanticValidator
 
+from dlt.destinations import dummy
+
 from dlt.pipeline import TCollectorArg
 
 from tests.utils import TEST_STORAGE_ROOT
 from tests.extract.utils import expect_extracted_file
 from tests.load.utils import DestinationTestConfiguration, destinations_configs
 from tests.pipeline.utils import assert_load_info, load_data_table_counts, many_delayed
+
+DUMMY_COMPLETE = dummy(completed_prob=1)  # factory set up to complete jobs
 
 
 @pytest.mark.parametrize(
@@ -76,6 +80,8 @@ def test_create_pipeline_all_destinations(destination_config: DestinationTestCon
 
 @pytest.mark.parametrize("progress", ["tqdm", "enlighten", "log", "alive_progress"])
 def test_pipeline_progress(progress: TCollectorArg) -> None:
+    # do not raise on failed jobs
+    os.environ["RAISE_ON_FAILED_JOBS"] = "false"
     os.environ["TIMEOUT"] = "3.0"
 
     p = dlt.pipeline(destination="dummy", progress=progress)

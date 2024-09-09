@@ -113,6 +113,8 @@ def test_custom_csv_no_header(
     ids=lambda x: x.name,
 )
 def test_custom_wrong_header(destination_config: DestinationTestConfiguration) -> None:
+    # do not raise on failed jobs
+    os.environ["RAISE_ON_FAILED_JOBS"] = "false"
     csv_format = CsvFormatConfiguration(delimiter="|", include_header=True)
     # apply to collected config
     pipeline = destination_config.setup_pipeline("postgres_" + uniq_id(), dev_mode=True)

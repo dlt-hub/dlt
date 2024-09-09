@@ -180,6 +180,8 @@ def parallel_pipelines_asyncio_snippet() -> None:
                 loop.run_in_executor(executor, _run_pipeline, pipeline_2, defer_table),
             )
         # results contains two LoadInfo instances
+        print("pipeline_1", results[0])
+        print("pipeline_2", results[1])
 
     # load data
     asyncio.run(_run_async())

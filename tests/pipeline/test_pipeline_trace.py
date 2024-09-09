@@ -513,6 +513,8 @@ def test_trace_telemetry() -> None:
         SENTRY_SENT_ITEMS.clear()
         # make dummy fail all files
         os.environ["FAIL_PROB"] = "1.0"
+        # but do not raise exceptions
+        os.environ["RAISE_ON_FAILED_JOBS"] = "false"
         load_info = dlt.pipeline().run(
             [1, 2, 3], table_name="data", destination="dummy", dataset_name="data_data"
         )

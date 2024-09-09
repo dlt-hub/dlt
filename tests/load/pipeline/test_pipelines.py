@@ -381,6 +381,8 @@ def test_evolve_schema(destination_config: DestinationTestConfiguration) -> None
 
     # lets violate unique constraint on postgres, redshift and BQ ignore unique indexes
     if destination_config.destination == "postgres":
+        # let it complete even with PK violation (which is a teminal error)
+        os.environ["RAISE_ON_FAILED_JOBS"] = "false"
         assert p.dataset_name == dataset_name
         err_info = p.run(
             source(1).with_resources("simple_rows"),

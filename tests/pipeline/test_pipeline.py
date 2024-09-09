@@ -64,6 +64,8 @@ from tests.pipeline.utils import (
     many_delayed,
 )
 
+DUMMY_COMPLETE = dummy(completed_prob=1)  # factory set up to complete jobs
+
 
 def test_default_pipeline() -> None:
     p = dlt.pipeline()
@@ -634,10 +636,8 @@ def test_mark_hints_variant_dynamic_name() -> None:
 
 
 def test_restore_state_on_dummy() -> None:
-    os.environ["COMPLETED_PROB"] = "1.0"  # make it complete immediately
-
     pipeline_name = "pipe_" + uniq_id()
-    p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination=DUMMY_COMPLETE)
     p.config.restore_from_destination = True
     info = p.run([1, 2, 3], table_name="dummy_table")
     print(info)
@@ -648,7 +648,7 @@ def test_restore_state_on_dummy() -> None:
 
     # wipe out storage
     p._wipe_working_folder()
-    p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination=DUMMY_COMPLETE)
     assert p.first_run is True
     p.sync_destination()
     assert p.first_run is True
@@ -656,10 +656,8 @@ def test_restore_state_on_dummy() -> None:
 
 
 def test_first_run_flag() -> None:
-    os.environ["COMPLETED_PROB"] = "1.0"  # make it complete immediately
-
     pipeline_name = "pipe_" + uniq_id()
-    p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination=DUMMY_COMPLETE)
     assert p.first_run is True
     # attach
     p = dlt.attach(pipeline_name=pipeline_name)
@@ -667,7 +665,7 @@ def test_first_run_flag() -> None:
     p.extract([1, 2, 3], table_name="dummy_table")
     assert p.first_run is True
     # attach again
-    p = dlt.attach(pipeline_name=pipeline_name)
+    p = dlt.attach(pipeline_name=pipeline_name, destination=DUMMY_COMPLETE)
     assert p.first_run is True
     assert len(p.list_extracted_load_packages()) > 0
     p.normalize()
@@ -688,7 +686,7 @@ def test_first_run_flag() -> None:
 
 
 def test_has_pending_data_flag() -> None:
-    p = dlt.pipeline(pipeline_name="pipe_" + uniq_id(), destination="dummy")
+    p = dlt.pipeline(pipeline_name="pipe_" + uniq_id(), destination=DUMMY_COMPLETE)
     assert p.has_pending_data is False
     p.extract([1, 2, 3], table_name="dummy_table")
     assert p.has_pending_data is True
@@ -701,11 +699,10 @@ def test_has_pending_data_flag() -> None:
 def test_sentry_tracing() -> None:
     import sentry_sdk
 
-    os.environ["COMPLETED_PROB"] = "1.0"  # make it complete immediately
     os.environ["RUNTIME__SENTRY_DSN"] = TEST_SENTRY_DSN
 
     pipeline_name = "pipe_" + uniq_id()
-    p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination=DUMMY_COMPLETE)
 
     # def inspect_transaction(ctx):
     #     print(ctx)
@@ -802,7 +799,7 @@ def test_pipeline_state_on_extract_exception() -> None:
 
     # new pipeline
     pipeline_name = "pipe_" + uniq_id()
-    p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination=DUMMY_COMPLETE)
 
     with pytest.raises(PipelineStepFailed):
         p.run([data_schema_1(), data_schema_2(), data_schema_3()], write_disposition="replace")
@@ -814,14 +811,12 @@ def test_pipeline_state_on_extract_exception() -> None:
     assert len(p._schema_storage.list_schemas()) == 0
     assert p.default_schema_name is None
 
-    os.environ["COMPLETED_PROB"] = "1.0"  # make it complete immediately
     p.run([data_schema_1(), data_schema_2()], write_disposition="replace")
     assert set(p.schema_names) == set(p._schema_storage.list_schemas())
 
 
 def test_run_with_table_name_exceeding_path_length() -> None:
     pipeline_name = "pipe_" + uniq_id()
-    # os.environ["COMPLETED_PROB"] = "1.0"  # make it complete immediately
     p = dlt.pipeline(pipeline_name=pipeline_name)
 
     # we must fix that
@@ -880,9 +875,8 @@ def test_load_info_raise_on_failed_jobs() -> None:
 
 def test_run_load_pending() -> None:
     # prepare some data and complete load with run
-    os.environ["COMPLETED_PROB"] = "1.0"
     pipeline_name = "pipe_" + uniq_id()
-    p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination=DUMMY_COMPLETE)
 
     def some_data():
         yield from [1, 2, 3]
@@ -911,9 +905,9 @@ def test_run_load_pending() -> None:
 
 
 def test_retry_load() -> None:
+    os.environ["COMPLETED_PROB"] = "1.0"
     retry_count = 2
 
-    os.environ["COMPLETED_PROB"] = "1.0"
     pipeline_name = "pipe_" + uniq_id()
     p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
 
@@ -999,9 +993,8 @@ def test_set_get_local_value() -> None:
 
 
 def test_changed_write_disposition() -> None:
-    os.environ["COMPLETED_PROB"] = "1.0"
     pipeline_name = "pipe_" + uniq_id()
-    p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination=DUMMY_COMPLETE)
 
     @dlt.resource
     def resource_1():
@@ -1048,9 +1041,8 @@ def _get_shuffled_events(repeat: int = 1):
 
 @pytest.mark.parametrize("github_resource", (github_repo_events_table_meta, github_repo_events))
 def test_dispatch_rows_to_tables(github_resource: DltResource):
-    os.environ["COMPLETED_PROB"] = "1.0"
     pipeline_name = "pipe_" + uniq_id()
-    p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination=DUMMY_COMPLETE)
 
     info = p.run(_get_shuffled_events | github_resource)
     assert_load_info(info)
@@ -1096,7 +1088,7 @@ def test_resource_name_in_schema() -> None:
         return [static_data(), dynamic_func_data(), dynamic_mark_data(), nested_data()]
 
     source = some_source()
-    p = dlt.pipeline(pipeline_name=uniq_id(), destination="dummy")
+    p = dlt.pipeline(pipeline_name=uniq_id(), destination=DUMMY_COMPLETE)
     p.run(source)
 
     schema = p.default_schema
@@ -1378,8 +1370,6 @@ def test_emojis_resource_names() -> None:
 
 
 def test_apply_hints_infer_hints() -> None:
-    os.environ["COMPLETED_PROB"] = "1.0"
-
     @dlt.source
     def infer():
         yield dlt.resource(
@@ -1391,7 +1381,7 @@ def test_apply_hints_infer_hints() -> None:
     new_new_hints = {"not_null": ["timestamp"], "primary_key": ["id"]}
     s = infer()
     s.schema.merge_hints(new_new_hints)  # type: ignore[arg-type]
-    pipeline = dlt.pipeline(pipeline_name="inf", destination="dummy")
+    pipeline = dlt.pipeline(pipeline_name="inf", destination=DUMMY_COMPLETE)
     pipeline.run(s)
     # check schema
     table = pipeline.default_schema.get_table("table1")
@@ -1440,7 +1430,7 @@ def test_invalid_data_edge_cases() -> None:
     def my_source():
         return dlt.resource(itertools.count(start=1), name="infinity").add_limit(5)
 
-    pipeline = dlt.pipeline(pipeline_name="invalid", destination="dummy")
+    pipeline = dlt.pipeline(pipeline_name="invalid", destination=DUMMY_COMPLETE)
     with pytest.raises(PipelineStepFailed) as pip_ex:
         pipeline.run(my_source)
     assert isinstance(pip_ex.value.__context__, PipeGenInvalid)
@@ -1463,7 +1453,7 @@ def test_invalid_data_edge_cases() -> None:
     def my_source_yield():
         yield dlt.resource(itertools.count(start=1), name="infinity").add_limit(5)
 
-    pipeline = dlt.pipeline(pipeline_name="invalid", destination="dummy")
+    pipeline = dlt.pipeline(pipeline_name="invalid", destination=DUMMY_COMPLETE)
     with pytest.raises(PipelineStepFailed) as pip_ex:
         pipeline.run(my_source_yield)
     assert isinstance(pip_ex.value.__context__, PipeGenInvalid)
@@ -1736,6 +1726,7 @@ def test_pipeline_list_packages() -> None:
     assert normalized_package.state == "normalized"
     assert len(normalized_package.jobs["new_jobs"]) == len(extracted_package.jobs["new_jobs"])
     # load all 3 packages and fail all jobs in them
+    os.environ["RAISE_ON_FAILED_JOBS"] = "false"  # do not raise, complete package till the end
     os.environ["FAIL_PROB"] = "1.0"
     pipeline.load()
     load_ids_l = pipeline.list_completed_load_packages()
@@ -1748,7 +1739,7 @@ def test_pipeline_list_packages() -> None:
 
 
 def test_remove_pending_packages() -> None:
-    pipeline = dlt.pipeline(pipeline_name="emojis", destination="dummy")
+    pipeline = dlt.pipeline(pipeline_name="emojis", destination=DUMMY_COMPLETE)
     pipeline.extract(airtable_emojis())
     assert pipeline.has_pending_data
     pipeline.drop_pending_packages()
@@ -2490,11 +2481,15 @@ def test_import_jsonl_file() -> None:
 
 
 def test_import_file_without_sniff_schema() -> None:
+    os.environ["RAISE_ON_FAILED_JOBS"] = "false"
+
     pipeline = dlt.pipeline(
         pipeline_name="test_jsonl_import",
         destination="duckdb",
         dev_mode=True,
     )
+
+    # table will not be found which is terminal exception
     import_file = "tests/load/cases/loading/header.jsonl"
     info = pipeline.run(
         [dlt.mark.with_file_import(import_file, "jsonl", 2)],
