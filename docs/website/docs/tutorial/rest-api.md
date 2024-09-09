@@ -12,7 +12,6 @@ As a practical example, we'll build a data pipelines that loads data from the [P
 
 - How to set up a REST API source
 - Configuration basics for API endpoints
-- Handling pagination, authentication
 - Configuring the destination database
 - Relationships between different resources
 - How to append, replace, and merge data in the destination
