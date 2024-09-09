@@ -432,7 +432,7 @@ def test_delta_table_child_tables(
     """Tests child table handling for `delta` table format."""
 
     @dlt.resource(table_format="delta")
-    def complex_table():
+    def nested_table():
         yield [
             {
                 "foo": 1,
@@ -448,50 +448,50 @@ def test_delta_table_child_tables(
 
     pipeline = destination_config.setup_pipeline("fs_pipe", dev_mode=True)
 
-    info = pipeline.run(complex_table())
+    info = pipeline.run(nested_table())
     assert_load_info(info)
     rows_dict = load_tables_to_dicts(
         pipeline,
-        "complex_table",
-        "complex_table__child",
-        "complex_table__child__grandchild",
+        "nested_table",
+        "nested_table__child",
+        "nested_table__child__grandchild",
         exclude_system_cols=True,
     )
     # assert row counts
-    assert len(rows_dict["complex_table"]) == 2
-    assert len(rows_dict["complex_table__child"]) == 3
-    assert len(rows_dict["complex_table__child__grandchild"]) == 5
+    assert len(rows_dict["nested_table"]) == 2
+    assert len(rows_dict["nested_table__child"]) == 3
+    assert len(rows_dict["nested_table__child__grandchild"]) == 5
     # assert column names
-    assert rows_dict["complex_table"][0].keys() == {"foo"}
-    assert rows_dict["complex_table__child"][0].keys() == {"bar"}
-    assert rows_dict["complex_table__child__grandchild"][0].keys() == {"value"}
+    assert rows_dict["nested_table"][0].keys() == {"foo"}
+    assert rows_dict["nested_table__child"][0].keys() == {"bar"}
+    assert rows_dict["nested_table__child__grandchild"][0].keys() == {"value"}
 
     # test write disposition handling with child tables
-    info = pipeline.run(complex_table())
+    info = pipeline.run(nested_table())
     assert_load_info(info)
     rows_dict = load_tables_to_dicts(
         pipeline,
-        "complex_table",
-        "complex_table__child",
-        "complex_table__child__grandchild",
+        "nested_table",
+        "nested_table__child",
+        "nested_table__child__grandchild",
         exclude_system_cols=True,
     )
-    assert len(rows_dict["complex_table"]) == 2 * 2
-    assert len(rows_dict["complex_table__child"]) == 3 * 2
-    assert len(rows_dict["complex_table__child__grandchild"]) == 5 * 2
+    assert len(rows_dict["nested_table"]) == 2 * 2
+    assert len(rows_dict["nested_table__child"]) == 3 * 2
+    assert len(rows_dict["nested_table__child__grandchild"]) == 5 * 2
 
-    info = pipeline.run(complex_table(), write_disposition="replace")
+    info = pipeline.run(nested_table(), write_disposition="replace")
     assert_load_info(info)
     rows_dict = load_tables_to_dicts(
         pipeline,
-        "complex_table",
-        "complex_table__child",
-        "complex_table__child__grandchild",
+        "nested_table",
+        "nested_table__child",
+        "nested_table__child__grandchild",
         exclude_system_cols=True,
     )
-    assert len(rows_dict["complex_table"]) == 2
-    assert len(rows_dict["complex_table__child"]) == 3
-    assert len(rows_dict["complex_table__child__grandchild"]) == 5
+    assert len(rows_dict["nested_table"]) == 2
+    assert len(rows_dict["nested_table__child"]) == 3
+    assert len(rows_dict["nested_table__child__grandchild"]) == 5
 
 
 @pytest.mark.parametrize(

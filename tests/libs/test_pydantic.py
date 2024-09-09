@@ -229,18 +229,18 @@ def test_pydantic_model_to_columns(instance: bool) -> None:
     assert result["decimal_field"]["data_type"] == "decimal"
     assert result["double_field"]["data_type"] == "double"
     assert result["time_field"]["data_type"] == "time"
-    assert result["nested_field"]["data_type"] == "complex"
-    assert result["list_field"]["data_type"] == "complex"
+    assert result["nested_field"]["data_type"] == "json"
+    assert result["list_field"]["data_type"] == "json"
     assert result["union_field"]["data_type"] == "bigint"
     assert result["optional_field"]["data_type"] == "double"
     assert result["optional_field"]["nullable"] is True
-    assert result["blank_dict_field"]["data_type"] == "complex"
-    assert result["parametrized_dict_field"]["data_type"] == "complex"
+    assert result["blank_dict_field"]["data_type"] == "json"
+    assert result["parametrized_dict_field"]["data_type"] == "json"
     assert result["str_enum_field"]["data_type"] == "text"
     assert result["int_enum_field"]["data_type"] == "bigint"
     assert result["mixed_enum_int_field"]["data_type"] == "text"
     assert result["mixed_enum_str_field"]["data_type"] == "text"
-    assert result["json_field"]["data_type"] == "complex"
+    assert result["json_field"]["data_type"] == "json"
     assert result["url_field"]["data_type"] == "text"
 
     # Any type fields are excluded from schema
@@ -681,8 +681,8 @@ def test_considers_model_as_complex_when_skip_complex_types_is_false():
     schema = pydantic_to_table_schema_columns(MyParent)
 
     assert schema == {
-        "child": {"data_type": "complex", "name": "child", "nullable": False},
-        "data_dictionary": {"data_type": "complex", "name": "data_dictionary", "nullable": False},
+        "child": {"data_type": "json", "name": "child", "nullable": False},
+        "data_dictionary": {"data_type": "json", "name": "data_dictionary", "nullable": False},
         "optional_parent_attribute": {
             "data_type": "text",
             "name": "optional_parent_attribute",

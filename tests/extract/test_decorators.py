@@ -237,7 +237,7 @@ def test_resource_name_is_invalid_table_name_and_columns() -> None:
 
 
 def test_columns_argument() -> None:
-    @dlt.resource(name="user", columns={"tags": {"data_type": "complex", "x-extra": "x-annotation"}})  # type: ignore[typeddict-unknown-key]
+    @dlt.resource(name="user", columns={"tags": {"data_type": "json", "x-extra": "x-annotation"}})  # type: ignore[typeddict-unknown-key]
     def get_users():
         yield {"u": "u", "tags": [1, 2, 3]}
 
@@ -262,7 +262,7 @@ def test_columns_argument() -> None:
 
 
 def test_apply_hints_columns() -> None:
-    @dlt.resource(name="user", columns={"tags": {"data_type": "complex", "primary_key": True}})
+    @dlt.resource(name="user", columns={"tags": {"data_type": "json", "primary_key": True}})
     def get_users():
         yield {"u": "u", "tags": [1, 2, 3]}
 

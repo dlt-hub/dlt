@@ -374,7 +374,7 @@ def test_considers_model_as_complex_when_skip_complex_types_is_not_set():
                 if col[0] not in ("_dlt_id", "_dlt_load_id")
             }
 
-            # Check if complex fields preserved
+            # Check if nested fields preserved
             # their contents and were not flattened
             assert loaded_values == {
                 "child": '{"child_attribute":"any string","optional_child_attribute":null}',
@@ -401,7 +401,7 @@ def test_considers_model_as_complex_when_skip_complex_types_is_not_set():
 
     assert columns["data_dictionary"] == {
         "name": "data_dictionary",
-        "data_type": "complex",
+        "data_type": "json",
         "nullable": False,
     }
 

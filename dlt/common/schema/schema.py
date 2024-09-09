@@ -849,8 +849,9 @@ class Schema:
                 old_complex_col_name = self.naming.shorten_fragments(
                     col_name, VARIANT_FIELD_FORMAT % "complex"
                 )
-                if table_columns.get(old_complex_col_name):
-                    variant_col_name = old_complex_col_name
+                if old_column := table_columns.get(old_complex_col_name):
+                    if old_column.get("variant"):
+                        variant_col_name = old_complex_col_name
             # pass final=True so no more auto-variants can be created recursively
             return self._coerce_non_null_value(
                 table_columns, table_name, variant_col_name, v, is_variant=True

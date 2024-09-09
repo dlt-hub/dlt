@@ -113,7 +113,7 @@ TABLE_ROW_ALL_DATA_TYPES = {
     "col7": b"binary data \n \r ",
     "col8": 2**56 + 92093890840,
     "col9": {
-        "complex": [1, 2, 3, "a"],
+        "nested": [1, 2, 3, "a"],
         "link": (
             "?commen\ntU\nrn=urn%3Ali%3Acomment%3A%28acti\012 \6"
             " \\vity%3A69'08444473\n\n551163392%2C6n \r 9085"
@@ -193,7 +193,7 @@ def table_update_and_row(
 def assert_all_data_types_row(
     db_row: Union[List[Any], TDataItems],
     expected_row: Dict[str, Any] = None,
-    parse_complex_strings: bool = False,
+    parse_json_strings: bool = False,
     allow_base64_binary: bool = False,
     timestamp_precision: int = 6,
     schema: TTableSchemaColumns = None,
@@ -270,7 +270,7 @@ def assert_all_data_types_row(
             # then it must be json
             db_mapping["col9"] = json.loads(db_mapping["col9"])
         # parse again
-        if parse_complex_strings and isinstance(db_mapping["col9"], str):
+        if parse_json_strings and isinstance(db_mapping["col9"], str):
             # then it must be json
             db_mapping["col9"] = json.loads(db_mapping["col9"])
 

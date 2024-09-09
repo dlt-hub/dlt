@@ -792,9 +792,10 @@ def migrate_complex_types(table: TTableSchema, warn: bool = False) -> None:
             if data_type == "complex":
                 if warn:
                     warnings.warn(
-                        f"`complex` data type found on column {col_name} table {table_name} is deprecated. Please use `json` type instead.",
+                        f"`complex` data type found on column {col_name} table {table_name} is"
+                        " deprecated. Please use `json` type instead.",
                         Dlt100DeprecationWarning,
-                        stacklevel=1,
+                        stacklevel=3,
                     )
                 column["data_type"] = "json"
 

@@ -122,7 +122,6 @@ def migrate_schema(schema_dict: DictStrAny, from_engine: int, to_engine: int) ->
         # migrate complex -> json
         # current = cast(TStoredSchema, schema_dict)
         for table in schema_dict["tables"].values():
-            print(table)
             migrate_complex_types(table)
         # migrate preferred types
         if settings := schema_dict.get("settings"):
