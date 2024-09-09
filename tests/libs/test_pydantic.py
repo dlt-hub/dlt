@@ -700,19 +700,19 @@ def test_considers_dictionary_as_complex_when_skip_complex_types_is_false():
     schema = pydantic_to_table_schema_columns(MyParent)
 
     assert schema["data_dictionary"] == {
-        "data_type": "complex",
+        "data_type": "json",
         "name": "data_dictionary",
         "nullable": False,
     }
 
     assert schema["data_list"] == {
-        "data_type": "complex",
+        "data_type": "json",
         "name": "data_list",
         "nullable": False,
     }
 
 
-def test_skip_complex_types_when_skip_complex_types_is_true_and_field_is_not_pydantic_model():
+def test_skip_json_types_when_skip_complex_types_is_true_and_field_is_not_pydantic_model():
     class MyParent(Parent):
         data_list: List[str] = []
         data_dictionary: Dict[str, Any] = None

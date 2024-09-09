@@ -1,6 +1,7 @@
 import re
 import base64
 import hashlib
+import warnings
 import yaml
 from copy import deepcopy, copy
 from typing import Dict, List, Sequence, Tuple, Type, Any, cast, Iterable, Optional, Union
@@ -51,6 +52,7 @@ from dlt.common.schema.exceptions import (
     TablePropertiesConflictException,
     InvalidSchemaName,
 )
+from dlt.common.warnings import Dlt100DeprecationWarning
 
 
 RE_NON_ALPHANUMERIC_UNDERSCORE = re.compile(r"[^a-zA-Z\d_]")
@@ -781,6 +783,22 @@ def group_tables_by_resource(
     return result
 
 
+def migrate_complex_types(table: TTableSchema, warn: bool = False) -> None:
+    if "columns" not in table:
+        return
+    table_name = table.get("name")
+    for col_name, column in table["columns"].items():
+        if data_type := column.get("data_type"):
+            if data_type == "complex":
+                if warn:
+                    warnings.warn(
+                        f"`complex` data type found on column {col_name} table {table_name} is deprecated. Please use `json` type instead.",
+                        Dlt100DeprecationWarning,
+                        stacklevel=1,
+                    )
+                column["data_type"] = "json"
+
+
 def version_table() -> TTableSchema:
     # NOTE: always add new columns at the end of the table so we have identical layout
     # after an update of existing tables (always at the end)
@@ -892,6 +910,9 @@ def new_table(
             table["write_disposition"] = DEFAULT_WRITE_DISPOSITION
         if not resource:
             table["resource"] = table_name
+
+    # migrate complex types to json
+    migrate_complex_types(table, warn=True)
 
     if validate_schema:
         validate_dict_ignoring_xkeys(

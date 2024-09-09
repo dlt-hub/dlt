@@ -60,7 +60,7 @@ def test_map_column_preferred_type(schema: Schema) -> None:
 def test_map_column_type(schema: Schema) -> None:
     # default mappings
     assert schema._infer_column_type("18271.11", "_column_name") == "text"
-    assert schema._infer_column_type(["city"], "_column_name") == "complex"
+    assert schema._infer_column_type(["city"], "_column_name") == "json"
     assert schema._infer_column_type(0x72, "_column_name") == "bigint"
     assert schema._infer_column_type(0x72, "_column_name") == "bigint"
     assert schema._infer_column_type(b"bytes str", "_column_name") == "binary"
@@ -68,13 +68,13 @@ def test_map_column_type(schema: Schema) -> None:
     assert schema._infer_column_type(HexBytes(b"bytes str"), "_column_name") == "binary"
 
 
-def test_map_column_type_complex(schema: Schema) -> None:
-    # complex type mappings
-    v_list = [1, 2, "3", {"complex": True}]
-    v_dict = {"list": [1, 2], "str": "complex"}
-    # complex types must be cast to text
-    assert schema._infer_column_type(v_list, "cx_value") == "complex"
-    assert schema._infer_column_type(v_dict, "cx_value") == "complex"
+def test_map_column_type_json(schema: Schema) -> None:
+    # json type mappings
+    v_list = [1, 2, "3", {"json": True}]
+    v_dict = {"list": [1, 2], "str": "json"}
+    # json types must be cast to text
+    assert schema._infer_column_type(v_list, "cx_value") == "json"
+    assert schema._infer_column_type(v_dict, "cx_value") == "json"
 
 
 def test_coerce_row(schema: Schema) -> None:
@@ -214,27 +214,27 @@ def test_shorten_variant_column(schema: Schema) -> None:
     assert len(new_row_2_keys[0]) == 9
 
 
-def test_coerce_complex_variant(schema: Schema) -> None:
+def test_coerce_json_variant(schema: Schema) -> None:
     # for this test use case sensitive naming convention
     os.environ["SCHEMA__NAMING"] = "direct"
     schema.update_normalizers()
-    # create two columns to which complex type cannot be coerced
+    # create two columns to which json type cannot be coerced
     row = {"floatX": 78172.128, "confidenceX": 1.2, "strX": "STR"}
     new_row, new_table = schema.coerce_row("event_user", None, row)
     assert new_row == row
     schema.update_table(new_table)
 
-    # add two more complex columns that should be coerced to text
-    v_list = [1, 2, "3", {"complex": True}]
-    v_dict = {"list": [1, 2], "str": "complex"}
+    # add two more json columns that should be coerced to text
+    v_list = [1, 2, "3", {"json": True}]
+    v_dict = {"list": [1, 2], "str": "json"}
     c_row = {"c_list": v_list, "c_dict": v_dict}
     c_new_row, c_new_table = schema.coerce_row("event_user", None, c_row)
     c_new_columns = list(c_new_table["columns"].values())
     assert c_new_columns[0]["name"] == "c_list"
-    assert c_new_columns[0]["data_type"] == "complex"
+    assert c_new_columns[0]["data_type"] == "json"
     assert "variant" not in c_new_columns[0]
     assert c_new_columns[1]["name"] == "c_dict"
-    assert c_new_columns[1]["data_type"] == "complex"
+    assert c_new_columns[1]["data_type"] == "json"
     assert "variant" not in c_new_columns[1]
     assert c_new_row["c_list"] == v_list
     schema.update_table(c_new_table)
@@ -244,19 +244,19 @@ def test_coerce_complex_variant(schema: Schema) -> None:
     assert c_new_table is None
     assert c_new_row["c_dict"] == v_dict
 
-    # add complex types on the same columns
+    # add json types on the same columns
     c_row_v = {"floatX": v_list, "confidenceX": v_dict, "strX": v_dict}
     # expect two new variant columns to be created
     c_new_row_v, c_new_table_v = schema.coerce_row("event_user", None, c_row_v)
     c_new_columns_v = list(c_new_table_v["columns"].values())
     # two new variant columns added
     assert len(c_new_columns_v) == 2
-    assert c_new_columns_v[0]["name"] == "floatX▶v_complex"
-    assert c_new_columns_v[1]["name"] == "confidenceX▶v_complex"
+    assert c_new_columns_v[0]["name"] == "floatX▶v_json"
+    assert c_new_columns_v[1]["name"] == "confidenceX▶v_json"
     assert c_new_columns_v[0]["variant"] is True
     assert c_new_columns_v[1]["variant"] is True
-    assert c_new_row_v["floatX▶v_complex"] == v_list
-    assert c_new_row_v["confidenceX▶v_complex"] == v_dict
+    assert c_new_row_v["floatX▶v_json"] == v_list
+    assert c_new_row_v["confidenceX▶v_json"] == v_dict
     assert c_new_row_v["strX"] == json.dumps(v_dict)
     schema.update_table(c_new_table_v)
 
@@ -264,8 +264,8 @@ def test_coerce_complex_variant(schema: Schema) -> None:
     c_row_v = {"floatX": v_list, "confidenceX": v_dict, "strX": v_dict}
     c_new_row_v, c_new_table_v = schema.coerce_row("event_user", None, c_row_v)
     assert c_new_table_v is None
-    assert c_new_row_v["floatX▶v_complex"] == v_list
-    assert c_new_row_v["confidenceX▶v_complex"] == v_dict
+    assert c_new_row_v["floatX▶v_json"] == v_list
+    assert c_new_row_v["confidenceX▶v_json"] == v_dict
     assert c_new_row_v["strX"] == json.dumps(v_dict)
 
 
@@ -604,7 +604,7 @@ def test_get_new_columns(schema: Schema) -> None:
     # no new columns
     assert schema.get_new_table_columns("events", existing_columns, case_sensitive=True) == []
     # one new column
-    address_column = utils.new_column("address", "complex")
+    address_column = utils.new_column("address", "json")
     schema.update_table(utils.new_table("events", columns=[address_column]))
     assert schema.get_new_table_columns("events", existing_columns, case_sensitive=True) == [
         address_column

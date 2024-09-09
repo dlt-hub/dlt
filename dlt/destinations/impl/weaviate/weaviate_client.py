@@ -135,10 +135,10 @@ class LoadWeaviateJob(RunnableLoadJob):
         self._db_client = self._job_client.db_client
         self._client_config = self._job_client.config
         self.unique_identifiers = self.list_unique_identifiers(self._load_table)
-        self.complex_indices = [
+        self.nested_indices = [
             i
             for i, field in self._schema.get_table_columns(self.load_table_name).items()
-            if field["data_type"] == "complex"
+            if field["data_type"] == "json"
         ]
         self.date_indices = [
             i
@@ -176,8 +176,8 @@ class LoadWeaviateJob(RunnableLoadJob):
         ) as batch:
             for line in f:
                 data = json.loads(line)
-                # make complex to strings
-                for key in self.complex_indices:
+                # serialize json types
+                for key in self.nested_indices:
                     if key in data:
                         data[key] = json.dumps(data[key])
                 for key in self.date_indices:

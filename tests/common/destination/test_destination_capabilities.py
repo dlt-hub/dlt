@@ -163,29 +163,29 @@ def test_verify_capabilities_data_types() -> None:
     assert exceptions[0].column == "binary_2"
     assert exceptions[0].available_in_formats == ["insert_values"]
 
-    # check complex type on bigquery
+    # check nested type on bigquery
     from dlt.destinations import bigquery
 
-    schema_complex = Schema("complex")
+    schema_nested = Schema("nested")
     table = new_table(
         "table",
         write_disposition="merge",
         columns=[
-            {"name": "complex_1", "data_type": "complex"},
+            {"name": "nested_1", "data_type": "json"},
         ],
     )
-    schema_complex.update_table(table, normalize_identifiers=False)
+    schema_nested.update_table(table, normalize_identifiers=False)
     exceptions = verify_supported_data_types(
-        schema_complex.tables.values(), new_jobs_parquet, bigquery().capabilities(), "bigquery"  # type: ignore[arg-type]
+        schema_nested.tables.values(), new_jobs_parquet, bigquery().capabilities(), "bigquery"  # type: ignore[arg-type]
     )
     assert len(exceptions) == 1
     assert isinstance(exceptions[0], UnsupportedDataType)
-    assert exceptions[0].data_type == "complex"
+    assert exceptions[0].data_type == "json"
 
     # enable schema autodetect
     table[AUTODETECT_SCHEMA_HINT] = True  # type: ignore[typeddict-unknown-key]
     exceptions = verify_supported_data_types(
-        schema_complex.tables.values(), new_jobs_parquet, bigquery().capabilities(), "bigquery"  # type: ignore[arg-type]
+        schema_nested.tables.values(), new_jobs_parquet, bigquery().capabilities(), "bigquery"  # type: ignore[arg-type]
     )
     assert len(exceptions) == 0
 

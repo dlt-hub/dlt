@@ -23,7 +23,7 @@ if t.TYPE_CHECKING:
 
 class RedshiftTypeMapper(TypeMapperImpl):
     sct_to_unbound_dbt = {
-        "complex": "super",
+        "json": "super",
         "text": "varchar(max)",
         "double": "double precision",
         "bool": "boolean",
@@ -42,7 +42,7 @@ class RedshiftTypeMapper(TypeMapperImpl):
     }
 
     dbt_to_sct = {
-        "super": "complex",
+        "super": "json",
         "varchar(max)": "text",
         "double precision": "double",
         "boolean": "bool",

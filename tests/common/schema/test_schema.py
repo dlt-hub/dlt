@@ -6,7 +6,6 @@ from copy import deepcopy
 from dlt.common import pendulum
 from dlt.common.json import json
 from dlt.common.data_types.typing import TDataType
-from dlt.common.schema.migrations import migrate_schema
 from dlt.common.exceptions import DictValidationException
 from dlt.common.normalizers.naming import snake_case
 from dlt.common.typing import DictStrAny, StrAny
@@ -15,7 +14,6 @@ from dlt.common.schema import TColumnSchema, Schema, TStoredSchema, utils
 from dlt.common.schema.exceptions import (
     InvalidSchemaName,
     ParentTableNotFoundException,
-    SchemaEngineNoUpgradePathException,
 )
 from dlt.common.schema.typing import (
     LOADS_TABLE_NAME,
@@ -320,61 +318,6 @@ def test_save_store_schema(schema: Schema, schema_storage: SchemaStorage) -> Non
     assert schema.name == schema_copy.name
     assert schema.version == schema_copy.version
     assert_new_schema_props(schema_copy)
-
-
-def test_upgrade_engine_v1_schema() -> None:
-    schema_dict: DictStrAny = load_json_case("schemas/ev1/event.schema")
-    # ensure engine v1
-    assert schema_dict["engine_version"] == 1
-    # schema_dict will be updated to new engine version
-    migrate_schema(schema_dict, from_engine=1, to_engine=2)
-    assert schema_dict["engine_version"] == 2
-    # we have 27 tables
-    assert len(schema_dict["tables"]) == 27
-
-    # upgrade schema eng 2 -> 4
-    schema_dict = load_json_case("schemas/ev2/event.schema")
-    assert schema_dict["engine_version"] == 2
-    upgraded = migrate_schema(schema_dict, from_engine=2, to_engine=4)
-    assert upgraded["engine_version"] == 4
-
-    # upgrade 1 -> 4
-    schema_dict = load_json_case("schemas/ev1/event.schema")
-    assert schema_dict["engine_version"] == 1
-    upgraded = migrate_schema(schema_dict, from_engine=1, to_engine=4)
-    assert upgraded["engine_version"] == 4
-
-    # upgrade 1 -> 6
-    schema_dict = load_json_case("schemas/ev1/event.schema")
-    assert schema_dict["engine_version"] == 1
-    upgraded = migrate_schema(schema_dict, from_engine=1, to_engine=6)
-    assert upgraded["engine_version"] == 6
-
-    # upgrade 1 -> 7
-    schema_dict = load_json_case("schemas/ev1/event.schema")
-    assert schema_dict["engine_version"] == 1
-    upgraded = migrate_schema(schema_dict, from_engine=1, to_engine=7)
-    assert upgraded["engine_version"] == 7
-
-    # upgrade 1 -> 8
-    schema_dict = load_json_case("schemas/ev1/event.schema")
-    assert schema_dict["engine_version"] == 1
-    upgraded = migrate_schema(schema_dict, from_engine=1, to_engine=8)
-    assert upgraded["engine_version"] == 8
-
-    # upgrade 1 -> 9
-    schema_dict = load_json_case("schemas/ev1/event.schema")
-    assert schema_dict["engine_version"] == 1
-    upgraded = migrate_schema(schema_dict, from_engine=1, to_engine=9)
-    assert upgraded["engine_version"] == 9
-
-
-def test_unknown_engine_upgrade() -> None:
-    schema_dict: TStoredSchema = load_json_case("schemas/ev1/event.schema")
-    # there's no path to migrate 3 -> 2
-    schema_dict["engine_version"] = 3
-    with pytest.raises(SchemaEngineNoUpgradePathException):
-        migrate_schema(schema_dict, 3, 2)  # type: ignore[arg-type]
 
 
 def test_preserve_column_order(schema: Schema, schema_storage: SchemaStorage) -> None:

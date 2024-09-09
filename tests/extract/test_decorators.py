@@ -244,7 +244,7 @@ def test_columns_argument() -> None:
     t = get_users().compute_table_schema()
 
     assert "nullable" not in t["columns"]["tags"]
-    assert t["columns"]["tags"]["data_type"] == "complex"
+    assert t["columns"]["tags"]["data_type"] == "json"
     assert t["columns"]["tags"]["x-extra"] == "x-annotation"  # type: ignore[typeddict-item]
 
     r = get_users()
@@ -267,7 +267,7 @@ def test_apply_hints_columns() -> None:
         yield {"u": "u", "tags": [1, 2, 3]}
 
     users = get_users()
-    assert users.columns == {"tags": {"data_type": "complex", "name": "tags", "primary_key": True}}
+    assert users.columns == {"tags": {"data_type": "json", "name": "tags", "primary_key": True}}
     assert (
         cast(TTableSchemaColumns, users.columns)["tags"]
         == users.compute_table_schema()["columns"]["tags"]
@@ -311,7 +311,7 @@ def test_columns_from_pydantic() -> None:
     t = get_users().compute_table_schema()
 
     assert t["columns"]["tags"]["nullable"] is False
-    assert t["columns"]["tags"]["data_type"] == "complex"
+    assert t["columns"]["tags"]["data_type"] == "json"
     assert t["columns"]["name"]["nullable"] is True
     assert t["columns"]["name"]["data_type"] == "text"
 
@@ -339,7 +339,7 @@ def test_columns_from_pydantic() -> None:
     t = r.compute_table_schema({})
 
     assert t["columns"]["a"]["nullable"] is False
-    assert t["columns"]["a"]["data_type"] == "complex"
+    assert t["columns"]["a"]["data_type"] == "json"
     assert t["columns"]["b"]["nullable"] is False
     assert t["columns"]["b"]["data_type"] == "double"
 

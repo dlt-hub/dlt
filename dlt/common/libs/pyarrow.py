@@ -65,7 +65,7 @@ def get_py_arrow_datatype(
         return get_pyarrow_int(column.get("precision"))
     elif column_type == "binary":
         return pyarrow.binary(column.get("precision") or -1)
-    elif column_type == "complex":
+    elif column_type == "json":
         # return pyarrow.struct([pyarrow.field('json', pyarrow.string())])
         return pyarrow.string()
     elif column_type == "decimal":
@@ -178,7 +178,7 @@ def get_column_type_from_py_arrow(dtype: pyarrow.DataType) -> TColumnType:
     elif pyarrow.types.is_decimal(dtype):
         return dict(data_type="decimal", precision=dtype.precision, scale=dtype.scale)
     elif pyarrow.types.is_nested(dtype):
-        return dict(data_type="complex")
+        return dict(data_type="json")
     else:
         raise ValueError(dtype)
 

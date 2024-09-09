@@ -130,7 +130,7 @@ def pydantic_to_table_schema_columns(
             data_type = py_type_to_sc_type(inner_type)
         except TypeError:
             if is_subclass(inner_type, BaseModel):
-                data_type = "complex"
+                data_type = "json"
                 is_inner_type_pydantic_model = True
             else:
                 # try to coerce unknown type to text
@@ -139,7 +139,7 @@ def pydantic_to_table_schema_columns(
         if is_inner_type_pydantic_model and not skip_complex_types:
             result[name] = {
                 "name": name,
-                "data_type": "complex",
+                "data_type": "json",
                 "nullable": nullable,
             }
         elif is_inner_type_pydantic_model:
@@ -154,7 +154,7 @@ def pydantic_to_table_schema_columns(
                     **hints,
                     "name": snake_case_naming_convention.make_path(name, hints["name"]),
                 }
-        elif data_type == "complex" and skip_complex_types:
+        elif data_type == "json" and skip_complex_types:
             continue
         else:
             result[name] = {
