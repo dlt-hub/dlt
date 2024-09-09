@@ -91,6 +91,3 @@ if __name__ == "__main__":
     load_info = pipeline.run(resource(url=OWID_DISASTERS_URL))
 
     print(load_info)
-
-    # make sure nothing failed
-    load_info.raise_on_failed_jobs()

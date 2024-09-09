@@ -507,7 +507,6 @@ def test_destination_with_spec() -> None:
         [1, 2, 3], table_name="items"
     )
 
-
     # check destination with additional config params
     @dlt.destination(spec=MyDestinationSpec)
     def sink_func_with_spec_and_additional_params(

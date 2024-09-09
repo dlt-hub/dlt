@@ -262,7 +262,7 @@ def check(ex: Exception):
 If any job in the package **fails terminally** it will be moved to `failed_jobs` folder and assigned
 such status.
 By default, **an exceptions is raised** and on the first failed job, the load package will be aborted with `LoadClientJobFailed` (terminal exception).
-Such package  will be completed but its load id is not added to the `_dlt_loads` table.
+Such package will be completed but its load id is not added to the `_dlt_loads` table.
 All the jobs that were running in parallel are completed before raising. The dlt state, if present, will not be visible to `dlt`.
 Here is an example `config.toml` to disable this behavior:
 

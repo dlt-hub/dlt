@@ -44,7 +44,6 @@ def test_pipeline_merge_write_disposition(default_buckets_env: str) -> None:
     """Run pipeline twice with merge write disposition
     Regardless wether primary key is set or not, filesystem appends
     """
-    import pyarrow.parquet as pq  # Module is evaluated by other tests
 
     os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "True"
 
@@ -102,7 +101,6 @@ def test_pipeline_csv_filesystem_destination(item_type: TestDataItemFormat) -> N
 
     item, rows, _ = arrow_table_all_data_types(item_type, include_json=False, include_time=True)
     info = pipeline.run(item, table_name="table", loader_file_format="csv")
-    info.raise_on_failed_jobs()
     job = info.load_packages[0].jobs["completed_jobs"][0].file_path
     assert job.endswith("csv")
     with open(job, "r", encoding="utf-8", newline="") as f:
@@ -128,7 +126,6 @@ def test_csv_options(item_type: TestDataItemFormat) -> None:
 
     item, rows, _ = arrow_table_all_data_types(item_type, include_json=False, include_time=True)
     info = pipeline.run(item, table_name="table", loader_file_format="csv")
-    info.raise_on_failed_jobs()
     job = info.load_packages[0].jobs["completed_jobs"][0].file_path
     assert job.endswith("csv")
     with open(job, "r", encoding="utf-8", newline="") as f:
@@ -157,7 +154,6 @@ def test_csv_quoting_style(item_type: TestDataItemFormat) -> None:
 
     item, _, _ = arrow_table_all_data_types(item_type, include_json=False, include_time=True)
     info = pipeline.run(item, table_name="table", loader_file_format="csv")
-    info.raise_on_failed_jobs()
     job = info.load_packages[0].jobs["completed_jobs"][0].file_path
     assert job.endswith("csv")
     with open(job, "r", encoding="utf-8", newline="") as f:
@@ -693,7 +689,6 @@ def test_delta_table_empty_source(
 
     Tests both empty Arrow table and `dlt.mark.materialize_table_schema()`.
     """
-    from dlt.common.libs.pyarrow import pyarrow as pa
     from dlt.common.libs.deltalake import ensure_delta_compatible_arrow_data, get_delta_tables
     from tests.pipeline.utils import users_materialize_table_schema
 

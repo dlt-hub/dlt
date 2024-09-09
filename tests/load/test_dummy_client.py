@@ -227,8 +227,15 @@ def test_spool_job_failed() -> None:
     assert len(started_files) == 0
 
     # test the whole
-    loader_config = LoaderConfiguration(raise_on_failed_jobs = False, workers=1, pool_type="none")
-    load = setup_loader(client_config=DummyClientConfiguration(fail_prob=1.0), loader_config=loader_config)
+    loader_config = LoaderConfiguration(
+        raise_on_failed_jobs=False,
+        workers=1,
+        pool_type="none",
+    )
+    load = setup_loader(
+        client_config=DummyClientConfiguration(fail_prob=1.0),
+        loader_config=loader_config,
+    )
     load_id, schema = prepare_load_package(load.load_storage, NORMALIZED_FILES)
     run_all(load)
 

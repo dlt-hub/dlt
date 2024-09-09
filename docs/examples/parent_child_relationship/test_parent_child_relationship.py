@@ -10,9 +10,8 @@ description: Learn how to integrate custom parent keys into child records
 keywords: [parent child relationship, parent key]
 ---
 
-This example demonstrates handling data with parent-child relationships using
-the `dlt` library. You learn how to integrate specific fields (e.g., primary,
-foreign keys) from a parent record into each child record.
+This example demonstrates handling data with parent-child relationships using the `dlt` library.
+You learn how to integrate specific fields (e.g., primary, foreign keys) from a parent record into each child record.
 
 In this example, we'll explore how to:
 

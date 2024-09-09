@@ -9,7 +9,6 @@ import dlt
 from dlt.common import json, sleep
 from dlt.common.pipeline import SupportsPipeline
 from dlt.common.destination import Destination
-from dlt.common.destination.exceptions import DestinationHasFailedJobs
 from dlt.common.destination.reference import WithStagingDataset
 from dlt.common.schema.exceptions import CannotCoerceColumnException
 from dlt.common.schema.schema import Schema
@@ -24,6 +23,7 @@ from dlt.destinations import filesystem, redshift
 from dlt.destinations.job_client_impl import SqlJobClientBase
 from dlt.extract.exceptions import ResourceNameMissing
 from dlt.extract.source import DltSource
+from dlt.load.exceptions import LoadClientJobFailed
 from dlt.pipeline.exceptions import (
     CannotRestorePipelineException,
     PipelineConfigMissing,
@@ -767,10 +767,10 @@ def test_snowflake_custom_stage(destination_config: DestinationTestConfiguration
     """Using custom stage name instead of the table stage"""
     os.environ["DESTINATION__SNOWFLAKE__STAGE_NAME"] = "my_non_existing_stage"
     pipeline, data = simple_nested_pipeline(destination_config, f"custom_stage_{uniq_id()}", False)
-    info = pipeline.run(data(), loader_file_format=destination_config.file_format)
-    with pytest.raises(DestinationHasFailedJobs) as f_jobs:
-        info.raise_on_failed_jobs()
-    assert "MY_NON_EXISTING_STAGE" in f_jobs.value.failed_jobs[0].failed_message
+    with pytest.raises(LoadClientJobFailed) as f_jobs:
+        pipeline.run(data(), loader_file_format=destination_config.file_format)
+
+    assert "MY_NON_EXISTING_STAGE" in f_jobs.value.failed_message
 
     drop_active_pipeline_data()
 

@@ -92,7 +92,6 @@ def test_custom_csv_no_header(
         table_name="no_header",
         loader_file_format=file_format,
     )
-    info.raise_on_failed_jobs()
     print(info)
     assert_only_table_columns(pipeline, "no_header", [col["name"] for col in columns])
     rows = load_tables_to_dicts(pipeline, "no_header")
