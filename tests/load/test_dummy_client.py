@@ -246,8 +246,6 @@ def test_spool_job_failed() -> None:
 
 
 def test_spool_job_failed_terminally_exception_init() -> None:
-    # this config fails job on start
-    os.environ["LOAD__RAISE_ON_FAILED_JOBS"] = "true"
     load = setup_loader(client_config=DummyClientConfiguration(fail_terminally_in_init=True))
     load_id, _ = prepare_load_package(load.load_storage, NORMALIZED_FILES)
     with patch.object(dummy_impl.DummyClient, "complete_load") as complete_load:
@@ -269,8 +267,6 @@ def test_spool_job_failed_terminally_exception_init() -> None:
 
 
 def test_spool_job_failed_transiently_exception_init() -> None:
-    # this config fails job on start
-    os.environ["LOAD__RAISE_ON_FAILED_JOBS"] = "true"
     load = setup_loader(client_config=DummyClientConfiguration(fail_transiently_in_init=True))
     load_id, _ = prepare_load_package(load.load_storage, NORMALIZED_FILES)
     with patch.object(dummy_impl.DummyClient, "complete_load") as complete_load:
@@ -293,8 +289,6 @@ def test_spool_job_failed_transiently_exception_init() -> None:
 
 
 def test_spool_job_failed_exception_complete() -> None:
-    # this config fails job on start
-    os.environ["LOAD__RAISE_ON_FAILED_JOBS"] = "true"
     load = setup_loader(client_config=DummyClientConfiguration(fail_prob=1.0))
     load_id, _ = prepare_load_package(load.load_storage, NORMALIZED_FILES)
     with pytest.raises(LoadClientJobFailed) as py_ex:
