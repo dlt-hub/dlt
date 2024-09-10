@@ -123,10 +123,10 @@ pipeline.run(orders)
 Look at the [Connector X + Arrow Example](../../examples/connector_x_arrow/) to see how to load data from production databases fast.
 :::
 
-## Loading `json` documents
-If you want to skip default `dlt` JSON normalizer, you can use any available method to convert json documents into tabular data.
+## Loading JSON documents
+If you want to skip default `dlt` JSON normalizer, you can use any available method to convert JSON documents into tabular data.
 * **pandas** has `read_json` and `json_normalize` methods
-* **pyarrow** can infer table schema and convert json files into tables with `read_json`
+* **pyarrow** can infer table schema and convert JSON files into tables with `read_json`
 * **duckdb** can do the same with `read_json_auto`
 
 ```py
