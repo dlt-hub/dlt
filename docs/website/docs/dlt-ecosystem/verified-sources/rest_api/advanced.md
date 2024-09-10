@@ -1,5 +1,5 @@
 ---
-title: Advanced REST API configuration
+title: Advanced configuration
 description: Learn custom response processing
 keywords: [rest api, restful api]
 ---
