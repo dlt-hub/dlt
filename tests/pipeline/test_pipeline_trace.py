@@ -28,6 +28,7 @@ from dlt.pipeline.trace import (
     PipelineTrace,
     SerializableResolvedValueTrace,
     load_trace,
+    MASKED_SECRET,
 )
 from dlt.pipeline.track import slack_notify_load_success
 from dlt.extract import DltResource, DltSource
@@ -115,16 +116,19 @@ def test_create_trace(toml_providers: ConfigProvidersContext, environment: Any) 
     assert resolved.is_secret_hint is False
     assert resolved.default_value is None
     assert resolved.provider_name == "config.toml"
-    # dictionaries are not returned anymore
+    # dictionaries are not returned anymore, secrets are masked
     resolved = _find_resolved_value(trace.resolved_config_values, "credentials", [])
     assert resolved is None or isinstance(resolved.value, str)
     resolved = _find_resolved_value(trace.resolved_config_values, "secret_value", [])
     assert resolved.is_secret_hint is True
-    assert resolved.value == "2137"
-    assert resolved.default_value == "123"
+    assert resolved.value != "2137"
+    assert resolved.value == MASKED_SECRET, "credential is not masked"
+    assert resolved.default_value != "123"
+    assert resolved.default_value == MASKED_SECRET, "credential is not masked"
     resolved = _find_resolved_value(trace.resolved_config_values, "credentials", ["databricks"])
     assert resolved.is_secret_hint is True
-    assert resolved.value == databricks_creds
+    assert resolved.value != databricks_creds
+    assert resolved.value == MASKED_SECRET, "credential is not masked"
     assert_trace_serializable(trace)
     # activate pipeline because other was running in assert trace
     p.activate()
