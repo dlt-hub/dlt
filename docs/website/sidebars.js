@@ -28,6 +28,7 @@ function *walkSync(dir) {
 /** @type {import('@docusaurus/plugin-content-docs').SidebarsConfig} */
 const sidebars = {
   tutorialSidebar: [
+    'intro',
     {
       type: 'category',
       label: 'Getting Started',
@@ -342,49 +343,6 @@ const sidebars = {
         'dlt-ecosystem/visualizations/exploring-the-data',
         {
           type: 'category',
-          label: 'Transform the data',
-          link: {
-            type: 'generated-index',
-            title: 'Transform the data',
-            description: 'If you want to transform the data after loading, you can use one of the following methods: dbt, SQL, Pandas.',
-            slug: 'dlt-ecosystem/transformations',
-            keywords: ['transformations'],
-          },
-          items: [
-            {
-              type: 'category',
-              label: 'Transforming data with dbt',
-              items: [
-                'dlt-ecosystem/transformations/dbt/dbt',
-                'dlt-ecosystem/transformations/dbt/dbt_cloud',
-              ]
-            },
-            'dlt-ecosystem/transformations/sql',
-            'dlt-ecosystem/transformations/pandas',
-          ]
-        },
-        {
-          type: 'category',
-          label: 'Deploy a pipeline',
-          link: {
-            type: 'generated-index',
-            title: 'Deploy a pipeline',
-            description: 'Deploy dlt pipelines with different methods.',
-            slug: 'walkthroughs/deploy-a-pipeline',
-          },
-          items: [
-            'walkthroughs/deploy-a-pipeline/deploy-with-github-actions',
-            'walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer',
-            'reference/explainers/airflow-gcp-cloud-composer',
-            'walkthroughs/deploy-a-pipeline/deploy-with-google-cloud-functions',
-            'walkthroughs/deploy-a-pipeline/deploy-gcp-cloud-function-as-webhook',
-            'walkthroughs/deploy-a-pipeline/deploy-with-kestra',
-            'walkthroughs/deploy-a-pipeline/deploy-with-dagster',
-            'walkthroughs/deploy-a-pipeline/deploy-with-prefect',
-          ]
-        },
-        {
-          type: 'category',
           label: 'Customise pipelines',
           items: [
             'general-usage/customising-pipelines/renaming_columns',
@@ -400,31 +358,9 @@ const sidebars = {
             'general-usage/data-enrichments/currency_conversion_data_enrichment',
             'general-usage/data-enrichments/url-parser-data-enrichment'
           ]
-        },
-        {
-          type: 'category',
-          label: 'Run in production',
-          link: {
-            type: 'generated-index',
-            title: 'Run in production',
-            description: 'How to run dlt in production.',
-            slug: 'running-in-production',
-            keywords: ['production'],
-          },
-          items: [
-            'running-in-production/running',
-            'running-in-production/monitoring',
-            'running-in-production/alerting',
-            'running-in-production/tracing',
-          ],
-        },
-        'walkthroughs/dispatch-to-multiple-tables',
-        'walkthroughs/create-new-destination',
-        'walkthroughs/zendesk-weaviate',
-      ],
-    },
-
-    
+        } 
+      ]
+    }  
   ]
 };
 
