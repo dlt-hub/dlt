@@ -34,12 +34,16 @@ from dlt.common.storages import FileStorage
 from dlt.extract.storage import ExtractStorage
 from dlt.extract.validation import PydanticValidator
 
+from dlt.destinations import dummy
+
 from dlt.pipeline import TCollectorArg
 
-from tests.utils import TEST_STORAGE_ROOT, test_storage
+from tests.utils import TEST_STORAGE_ROOT
 from tests.extract.utils import expect_extracted_file
 from tests.load.utils import DestinationTestConfiguration, destinations_configs
 from tests.pipeline.utils import assert_load_info, load_data_table_counts, many_delayed
+
+DUMMY_COMPLETE = dummy(completed_prob=1)  # factory set up to complete jobs
 
 
 @pytest.mark.parametrize(
@@ -76,6 +80,8 @@ def test_create_pipeline_all_destinations(destination_config: DestinationTestCon
 
 @pytest.mark.parametrize("progress", ["tqdm", "enlighten", "log", "alive_progress"])
 def test_pipeline_progress(progress: TCollectorArg) -> None:
+    # do not raise on failed jobs
+    os.environ["RAISE_ON_FAILED_JOBS"] = "false"
     os.environ["TIMEOUT"] = "3.0"
 
     p = dlt.pipeline(destination="dummy", progress=progress)
@@ -528,7 +534,6 @@ def test_resource_file_format() -> None:
     assert jsonl_pq.compute_table_schema()["file_format"] == "parquet"
 
     info = dlt.pipeline("example", destination="duckdb").run([jsonl_preferred, jsonl_r, jsonl_pq])
-    info.raise_on_failed_jobs()
     # check file types on load jobs
     load_jobs = {
         job.job_file_info.table_name: job.job_file_info
@@ -542,7 +547,6 @@ def test_resource_file_format() -> None:
     csv_r = dlt.resource(jsonl_data, file_format="csv", name="csv_r")
     assert csv_r.compute_table_schema()["file_format"] == "csv"
     info = dlt.pipeline("example", destination="duckdb").run(csv_r)
-    info.raise_on_failed_jobs()
     # fallback to preferred
     load_jobs = {
         job.job_file_info.table_name: job.job_file_info

@@ -207,8 +207,8 @@ def test_unique_keys_are_deduplicated(item_type: TestDataItemFormat) -> None:
         pipeline_name=uniq_id(),
         destination=dlt.destinations.duckdb(credentials=duckdb.connect(":memory:")),
     )
-    p.run(some_data()).raise_on_failed_jobs()
-    p.run(some_data()).raise_on_failed_jobs()
+    p.run(some_data())
+    p.run(some_data())
 
     with p.sql_client() as c:
         with c.execute_query("SELECT created_at, id FROM some_data order by created_at, id") as cur:
@@ -248,8 +248,8 @@ def test_unique_rows_by_hash_are_deduplicated(item_type: TestDataItemFormat) -> 
         pipeline_name=uniq_id(),
         destination=dlt.destinations.duckdb(credentials=duckdb.connect(":memory:")),
     )
-    p.run(some_data()).raise_on_failed_jobs()
-    p.run(some_data()).raise_on_failed_jobs()
+    p.run(some_data())
+    p.run(some_data())
 
     with p.sql_client() as c:
         with c.execute_query("SELECT created_at, id FROM some_data order by created_at, id") as cur:
@@ -455,7 +455,7 @@ def test_composite_primary_key(item_type: TestDataItemFormat) -> None:
         pipeline_name=uniq_id(),
         destination=dlt.destinations.duckdb(credentials=duckdb.connect(":memory:")),
     )
-    p.run(some_data()).raise_on_failed_jobs()
+    p.run(some_data())
 
     with p.sql_client() as c:
         with c.execute_query(
@@ -1325,12 +1325,11 @@ def test_primary_key_types(item_type: TestDataItemFormat, id_value: Any) -> None
     ):
         yield from source_items
 
-    info = p.run(some_data())
-    info.raise_on_failed_jobs()
+    p.run(some_data())
     norm_info = p.last_trace.last_normalize_info
     assert norm_info.row_counts["some_data"] == 20
     # load incrementally
-    info = p.run(some_data())
+    p.run(some_data())
     norm_info = p.last_trace.last_normalize_info
     assert "some_data" not in norm_info.row_counts
 
@@ -2560,11 +2559,8 @@ def test_pydantic_columns_validator(yield_pydantic: bool) -> None:
     pip_1_name = "test_pydantic_columns_validator_" + uniq_id()
     pipeline = dlt.pipeline(pipeline_name=pip_1_name, destination="duckdb")
 
-    info = pipeline.run(test_source())
-    info.raise_on_failed_jobs()
-
-    info = pipeline.run(test_source_incremental())
-    info.raise_on_failed_jobs()
+    pipeline.run(test_source())
+    pipeline.run(test_source_incremental())
 
     # verify that right steps are at right place
     steps = test_source().table_name._pipe._steps

@@ -9,6 +9,8 @@ from dlt.common.destination.exceptions import DestinationHasFailedJobs
 from dlt.common.utils import uniq_id
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
 
+from dlt.load.exceptions import LoadClientJobFailed
+from dlt.pipeline.exceptions import PipelineStepFailed
 from tests.cases import assert_all_data_types_row
 from tests.load.pipeline.test_pipelines import simple_nested_pipeline
 from tests.load.snowflake.test_snowflake_client import QUERY_TAG
@@ -101,10 +103,10 @@ def test_snowflake_custom_stage(destination_config: DestinationTestConfiguration
     """Using custom stage name instead of the table stage"""
     os.environ["DESTINATION__SNOWFLAKE__STAGE_NAME"] = "my_non_existing_stage"
     pipeline, data = simple_nested_pipeline(destination_config, f"custom_stage_{uniq_id()}", False)
-    info = pipeline.run(data(), **destination_config.run_kwargs)
-    with pytest.raises(DestinationHasFailedJobs) as f_jobs:
-        info.raise_on_failed_jobs()
-    assert "MY_NON_EXISTING_STAGE" in f_jobs.value.failed_jobs[0].failed_message
+    with pytest.raises(PipelineStepFailed) as f_jobs:
+        pipeline.run(data(), **destination_config.run_kwargs)
+    assert isinstance(f_jobs.value.__cause__, LoadClientJobFailed)
+    assert "MY_NON_EXISTING_STAGE" in f_jobs.value.__cause__.failed_message
 
     drop_active_pipeline_data()
 

@@ -1,7 +1,10 @@
 import pytest
 
 import dlt
+from dlt.common.pipeline import LoadInfo
 from dlt.destinations.adapters import bigquery_adapter
+from dlt.load.exceptions import LoadClientJobFailed
+from dlt.pipeline.exceptions import PipelineStepFailed
 from tests.pipeline.utils import assert_load_info
 
 
@@ -40,13 +43,16 @@ def test_bigquery_streaming_wrong_disposition():
     test_resource.apply_hints(additional_table_hints={"x-insert-api": "streaming"})
 
     pipe = dlt.pipeline(pipeline_name="insert_test", destination="bigquery")
-    info = pipe.run(test_resource)
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        pipe.run(test_resource)
+    assert isinstance(pip_ex.value.step_info, LoadInfo)
+    assert pip_ex.value.step_info.has_failed_jobs
     # pick the failed job
-    failed_job = info.load_packages[0].jobs["failed_jobs"][0]
+    assert isinstance(pip_ex.value.__cause__, LoadClientJobFailed)
     assert (
         """BigQuery streaming insert can only be used with `append`"""
         """ write_disposition, while the given resource has `merge`."""
-    ) in failed_job.failed_message
+    ) in pip_ex.value.__cause__.failed_message
 
 
 def test_bigquery_streaming_nested_data():

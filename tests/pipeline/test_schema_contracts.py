@@ -733,7 +733,8 @@ def test_pydantic_contract_implementation(contract_setting: str, as_list: bool) 
     from pydantic import BaseModel
 
     class Items(BaseModel):
-        id: int  # noqa: A003
+        # for variant test below we must allow allow id to be nullable
+        id: Optional[int]  # noqa: A003
         name: str
 
     def get_items(as_list: bool = False):

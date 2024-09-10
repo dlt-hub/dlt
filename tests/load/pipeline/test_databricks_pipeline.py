@@ -20,6 +20,9 @@ pytestmark = pytest.mark.essential
 def test_databricks_external_location(destination_config: DestinationTestConfiguration) -> None:
     # do not interfere with state
     os.environ["RESTORE_FROM_DESTINATION"] = "False"
+    # let the package complete even with failed jobs
+    os.environ["RAISE_ON_FAILED_JOBS"] = "false"
+
     dataset_name = "test_databricks_external_location" + uniq_id()
 
     from dlt.destinations import databricks, filesystem

@@ -78,6 +78,3 @@ if __name__ == "__main__":
     assert row_counts["pokemon"] == 20
     assert row_counts["species"] == 20
     assert "pokemon_list" not in row_counts
-
-    # make sure nothing failed
-    load_info.raise_on_failed_jobs()
