@@ -44,15 +44,6 @@ const sidebars = {
     },
     {
       type: 'category',
-      label: 'Integration',
-      link: {
-        type: 'doc',
-        id: 'dlt-ecosystem/index',
-      },
-      items: ['dlt-ecosystem/index'],
-      },
-    {
-      type: 'category',
       label: 'Sources',
       link: {
         type: 'doc',
