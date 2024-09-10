@@ -581,26 +581,6 @@ html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(3)>div>[
   background-image: url(../../static/img/Pipelines-Active-1.svg);
 }
 
-/* Integrations */
-
-.theme-doc-sidebar-menu.menu__list>li:nth-child(4)>div>a::before {
-  background-image: url(../../static/img/UsingLoadedData-Inactive.svg);
-}
-
-.theme-doc-sidebar-menu.menu__list>li:hover:nth-child(4)>div>a::before,
-.theme-doc-sidebar-menu.menu__list>li:nth-child(4)>div>[aria-expanded="true"]::before {
-  background-image: url(../../static/img/UsingLoadedData-Active.svg);
-}
-
-html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(4)>div>a::before {
-  background-image: url(../../static/img/UsingLoadedData-Inactive-1.svg);
-}
-
-html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(4)>div>a::before,
-html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(4)>div>[aria-expanded="true"]::before {
-  background-image: url(../../static/img/UsingLoadedData-Active-1.svg);
-}
-
 /* Sources */
 
 .theme-doc-sidebar-menu.menu__list>li:nth-child(5)>div>a::before {
