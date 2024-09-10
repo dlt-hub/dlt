@@ -130,6 +130,13 @@ def test_create_trace(toml_providers: ConfigProvidersContext, environment: Any) 
     assert resolved.value != databricks_creds
     assert resolved.value == MASKED_SECRET, "credential is not masked"
     assert_trace_serializable(trace)
+
+    trace_string = trace.asstr(verbosity=1)
+    assert "2137" not in trace_string
+    assert databricks_creds not in trace_string
+    assert f"credentials->{MASKED_SECRET}" in trace_string
+    assert f"secret_value->{MASKED_SECRET}" in trace_string
+
     # activate pipeline because other was running in assert trace
     p.activate()
 
