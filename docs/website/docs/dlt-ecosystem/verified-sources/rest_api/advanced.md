@@ -4,8 +4,6 @@ description: Learn custom response processing
 keywords: [rest api, restful api]
 ---
 
-## Advanced configuration
-
 `rest_api_source()` function creates the [dlt source](../../../general-usage/source.md) and lets you configure the following parameters:
 
 - `config`: The REST API configuration dictionary.
