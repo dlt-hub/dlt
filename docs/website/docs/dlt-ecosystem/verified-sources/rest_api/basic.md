@@ -3,7 +3,7 @@ title: REST API source
 description: Learn how to set up and configure
 keywords: [rest api, restful api]
 ---
-import Header from './_source-info-header.md';
+import Header from '../_source-info-header.md';
 
 <Header/>
 
