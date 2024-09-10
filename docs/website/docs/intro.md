@@ -12,7 +12,7 @@ import snippets from '!!raw-loader!./intro-snippets.py';
 
 ## What is dlt?
 
-dlt is a Python library that simplifies how you move data between various sources and destinations. It offers a lightweight interface for extracting data from [REST APIs](./tutorial/rest-api), [SQL databases](./tutorial/sql-database), [cloud storages](./tutorial/filesystem), [Python data structures](getting-started), and more.
+dlt is an open-source Python library that loads data from various, often messy data sources into well-structured, live datasets. It offers a lightweight interface for extracting data from [REST APIs](./tutorial/rest-api), [SQL databases](./tutorial/sql-database), [cloud storage](./tutorial/filesystem), [Python data structures](getting-started), and [many more](./sources).
 
 dlt is designed to be easy to use, flexible, and scalable:
 
