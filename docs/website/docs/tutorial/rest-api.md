@@ -302,7 +302,7 @@ load_info = pipeline.run(github_source())
 print(load_info)
 ```
 
-In this configuration, the `since` parameter is defined as an special incremental parameter. The `cursor_path` field specifies the JSON path to the field that will be used to fetch the updated data and we use the `initial_value` for the initial value for the incremental parameter. This value will be used in the first request to fetch the data.
+In this configuration, the `since` parameter is defined as a special incremental parameter. The `cursor_path` field specifies the JSON path to the field that will be used to fetch the updated data and we use the `initial_value` for the initial value for the incremental parameter. This value will be used in the first request to fetch the data.
 
 When the pipeline runs, dlt will automatically update the `since` parameter with the latest value from the response data. This way, you can fetch only the new or updated data from the API.
 
