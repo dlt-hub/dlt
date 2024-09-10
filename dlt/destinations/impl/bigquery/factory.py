@@ -22,7 +22,7 @@ if t.TYPE_CHECKING:
 
 class BigQueryTypeMapper(TypeMapperImpl):
     sct_to_unbound_dbt = {
-        "complex": "JSON",
+        "json": "JSON",
         "text": "STRING",
         "double": "FLOAT64",
         "bool": "BOOL",
@@ -49,7 +49,7 @@ class BigQueryTypeMapper(TypeMapperImpl):
         "BYTES": "binary",
         "NUMERIC": "decimal",
         "BIGNUMERIC": "decimal",
-        "JSON": "complex",
+        "JSON": "json",
         "TIME": "time",
     }
 
@@ -59,10 +59,10 @@ class BigQueryTypeMapper(TypeMapperImpl):
         table: PreparedTableSchema,
         loader_file_format: TLoaderFileFormat,
     ) -> None:
-        # if table contains complex types, we cannot load with parquet
+        # if table contains json types, we cannot load with parquet
         if (
             loader_file_format == "parquet"
-            and column["data_type"] == "complex"
+            and column["data_type"] == "json"
             and not should_autodetect_schema(table)
         ):
             raise TerminalValueError(

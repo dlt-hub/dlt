@@ -86,10 +86,10 @@ def test_infer_column_bumps_version() -> None:
 
 
 def test_preserve_version_on_load() -> None:
-    eth_v9: TStoredSchema = load_yml_case("schemas/eth/ethereum_schema_v9")
-    version = eth_v9["version"]
-    version_hash = eth_v9["version_hash"]
-    schema = Schema.from_dict(eth_v9)  # type: ignore[arg-type]
+    eth_v10: TStoredSchema = load_yml_case("schemas/eth/ethereum_schema_v10")
+    version = eth_v10["version"]
+    version_hash = eth_v10["version_hash"]
+    schema = Schema.from_dict(eth_v10)  # type: ignore[arg-type]
     # version should not be bumped
     assert version_hash == schema._stored_version_hash
     assert version_hash == schema.version_hash
@@ -132,6 +132,7 @@ def test_create_ancestry() -> None:
     schema = Schema.from_dict(eth_v9)  # type: ignore[arg-type]
 
     expected_previous_hashes = [
+        "oHfYGTI2GHOxuzwVz6+yvMilXUvHYhxrxkanC2T6MAI=",
         "C5An8WClbavalXDdNSqXbdI7Swqh/mTWMcwWKCF//EE=",
         "yjMtV4Zv0IJlfR5DPMwuXxGg8BRhy7E79L26XAHWEGE=",
     ]

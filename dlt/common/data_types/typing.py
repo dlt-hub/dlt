@@ -8,7 +8,7 @@ TDataType = Literal[
     "timestamp",
     "bigint",
     "binary",
-    "complex",
+    "json",
     "decimal",
     "wei",
     "date",

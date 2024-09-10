@@ -30,7 +30,7 @@ from dlt.common.pendulum import pendulum
 from dlt.common.typing import StrAny, TFun
 from dlt.common.time import ensure_pendulum_datetime
 from dlt.common.schema import Schema, TSchemaTables, TTableSchemaColumns
-from dlt.common.schema.typing import TColumnSchema, TColumnType
+from dlt.common.schema.typing import C_DLT_LOAD_ID, TColumnSchema, TColumnType
 from dlt.common.schema.utils import (
     get_columns_names_with_prop,
     loads_table,
@@ -135,10 +135,10 @@ class LoadWeaviateJob(RunnableLoadJob):
         self._db_client = self._job_client.db_client
         self._client_config = self._job_client.config
         self.unique_identifiers = self.list_unique_identifiers(self._load_table)
-        self.complex_indices = [
+        self.nested_indices = [
             i
             for i, field in self._schema.get_table_columns(self.load_table_name).items()
-            if field["data_type"] == "complex"
+            if field["data_type"] == "json"
         ]
         self.date_indices = [
             i
@@ -176,8 +176,8 @@ class LoadWeaviateJob(RunnableLoadJob):
         ) as batch:
             for line in f:
                 data = json.loads(line)
-                # make complex to strings
-                for key in self.complex_indices:
+                # serialize json types
+                for key in self.nested_indices:
                     if key in data:
                         data[key] = json.dumps(data[key])
                 for key in self.date_indices:
@@ -475,7 +475,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
         """Loads compressed state from destination storage"""
         # normalize properties
         p_load_id = self.schema.naming.normalize_identifier("load_id")
-        p_dlt_load_id = self.schema.naming.normalize_identifier("_dlt_load_id")
+        p_dlt_load_id = self.schema.naming.normalize_identifier(C_DLT_LOAD_ID)
         p_pipeline_name = self.schema.naming.normalize_identifier("pipeline_name")
         p_status = self.schema.naming.normalize_identifier("status")
 

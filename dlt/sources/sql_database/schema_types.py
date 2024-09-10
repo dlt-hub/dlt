@@ -52,7 +52,7 @@ def sqla_col_to_column_schema(
     sql_col: ColumnAny,
     reflection_level: ReflectionLevel,
     type_adapter_callback: Optional[TTypeAdapter] = None,
-    skip_complex_columns_on_minimal: bool = False,
+    skip_nested_columns_on_minimal: bool = False,
 ) -> Optional[TColumnSchema]:
     """Infer dlt schema column type from an sqlalchemy type.
 
@@ -64,9 +64,8 @@ def sqla_col_to_column_schema(
         "nullable": sql_col.nullable,
     }
     if reflection_level == "minimal":
-        # TODO: when we have a complex column, it should not be added to the schema as it will be
         # normalized into subtables
-        if isinstance(sql_col.type, sqltypes.JSON) and skip_complex_columns_on_minimal:
+        if isinstance(sql_col.type, sqltypes.JSON) and skip_nested_columns_on_minimal:
             return None
         return col
 
@@ -126,7 +125,7 @@ def sqla_col_to_column_schema(
     elif isinstance(sql_t, sqltypes.Time):
         col["data_type"] = "time"
     elif isinstance(sql_t, sqltypes.JSON):
-        col["data_type"] = "complex"
+        col["data_type"] = "json"
     elif isinstance(sql_t, sqltypes.Boolean):
         col["data_type"] = "bool"
     else:
@@ -149,14 +148,14 @@ def table_to_columns(
     table: Table,
     reflection_level: ReflectionLevel = "full",
     type_conversion_fallback: Optional[TTypeAdapter] = None,
-    skip_complex_columns_on_minimal: bool = False,
+    skip_nested_columns_on_minimal: bool = False,
 ) -> TTableSchemaColumns:
     """Convert an sqlalchemy table to a dlt table schema."""
     return {
         col["name"]: col
         for col in (
             sqla_col_to_column_schema(
-                c, reflection_level, type_conversion_fallback, skip_complex_columns_on_minimal
+                c, reflection_level, type_conversion_fallback, skip_nested_columns_on_minimal
             )
             for c in table.columns
         )

@@ -277,7 +277,7 @@ def test_child_table(destination_config: DestinationTestConfiguration, simple: b
         {"_dlt_root_id": get_row_hash(l1_2), cname: 3},
     ]
 
-    # load 2 — update a record — change not in complex column
+    # load 2 — update a record — change not in nested column
     dim_snap = [
         l2_1 := {"nk": 1, "c1": "foo_updated", "c2": [1] if simple else [{"cc1": 1}]},
         {"nk": 2, "c1": "bar", "c2": [2, 3] if simple else [{"cc1": 2}, {"cc1": 3}]},
@@ -300,7 +300,7 @@ def test_child_table(destination_config: DestinationTestConfiguration, simple: b
         ],
     )
 
-    # load 3 — update a record — change in complex column
+    # load 3 — update a record — change in nested column
     dim_snap = [
         l3_1 := {
             "nk": 1,
@@ -414,7 +414,7 @@ def test_grandchild_table(destination_config: DestinationTestConfiguration) -> N
         ],
     )
 
-    # load 2 — update a record — change not in complex column
+    # load 2 — update a record — change not in nested column
     dim_snap = [
         l2_1 := {"nk": 1, "c1": "foo_updated", "c2": [{"cc1": [1]}]},
         l1_2 := {"nk": 2, "c1": "bar", "c2": [{"cc1": [1, 2]}]},
@@ -431,7 +431,7 @@ def test_grandchild_table(destination_config: DestinationTestConfiguration) -> N
         ],
     )
 
-    # load 3 — update a record — change in complex column
+    # load 3 — update a record — change in nested column
     dim_snap = [
         l3_1 := {"nk": 1, "c1": "foo_updated", "c2": [{"cc1": [1, 2]}]},
         {"nk": 2, "c1": "bar", "c2": [{"cc1": [1, 2]}]},

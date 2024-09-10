@@ -11,7 +11,7 @@ import dlt
 from dlt.common import logger, time, json, pendulum
 from dlt.common.destination.utils import resolve_merge_strategy
 from dlt.common.metrics import LoadJobMetrics
-from dlt.common.schema.typing import TTableSchemaColumns
+from dlt.common.schema.typing import C_DLT_LOAD_ID, TTableSchemaColumns
 from dlt.common.storages.fsspec_filesystem import glob_files
 from dlt.common.typing import DictStrAny
 from dlt.common.schema import Schema, TSchemaTables
@@ -548,7 +548,7 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
             # we had dlt_load_id stored until version 0.5 and since we do not have any version control
             # we always migrate
             if load_id := state_json.pop("dlt_load_id", None):  # type: ignore[typeddict-item]
-                state_json["_dlt_load_id"] = load_id
+                state_json[C_DLT_LOAD_ID] = load_id  # type: ignore[literal-required]
             return StateInfo(**state_json)
 
         return None

@@ -12,7 +12,6 @@ TTableEngineType = Literal[
 HINT_TO_CLICKHOUSE_ATTR: Dict[TColumnHint, str] = {
     "primary_key": "PRIMARY KEY",
     "unique": "",  # No unique constraints available in ClickHouse.
-    "foreign_key": "",  # No foreign key constraints support in ClickHouse.
 }
 
 TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR: Dict[TTableEngineType, str] = {

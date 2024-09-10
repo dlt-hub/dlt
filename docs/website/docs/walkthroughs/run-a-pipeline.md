@@ -230,8 +230,8 @@ Failed due to: connection to server at "localhost" (127.0.0.1), port 5432 failed
 
 In rare cases some jobs in a load package will fail in such a way that `dlt` will not be able
 to load it, even if it retries the process. In that case the job is marked as failed and additional
-information is available. Please note that (if not otherwise configured), `dlt` **will not raise
-exception on failed jobs**.
+information is available. Please note that ([if not otherwise configured](../running-in-production//running.md#failed-jobs)), `dlt` **will raise
+exception on failed jobs and abort the package**. Aborted packages cannot be retried.
 
 ```text
 Step run COMPLETED in 14.21 seconds.

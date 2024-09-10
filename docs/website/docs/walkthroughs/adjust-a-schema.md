@@ -137,8 +137,8 @@ These steps ensure that the column order in your dataset matches your specificat
 ```py
 # Define the data source and reorder columns using add_map
 data_source = resource().add_map(lambda row: {
-    'column3': row['column3'], 
-    'column1': row['column1'], 
+    'column3': row['column3'],
+    'column1': row['column1'],
     'column2': row['column2']
 })
 
@@ -165,7 +165,7 @@ white__aid:
 ```
 
 For some reason, you'd rather deal with a single JSON (or struct) column. Just declare the `white`
-column as `complex`, which will instruct `dlt` not to flatten it (or not convert into child table in
+column as `json`, which will instruct `dlt` not to flatten it (or not convert into child table in
 case of a list). Do the same with `black` column:
 
 ```yaml
@@ -176,10 +176,10 @@ players_games:
       data_type: timestamp
     white:
       nullable: false
-      data_type: complex
+      data_type: json
     black:
       nullable: false
-      data_type: complex
+      data_type: json
 ```
 
 Run the pipeline script again, and now you can query `black` and `white` columns with JSON
@@ -200,10 +200,10 @@ players_games:
       partition: true
     white:
       nullable: false
-      data_type: complex
+      data_type: json
     black:
       nullable: false
-      data_type: complex
+      data_type: json
 ```
 
 ## 4. Keep your import schema

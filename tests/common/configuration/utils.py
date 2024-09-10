@@ -51,7 +51,7 @@ class CoercionTestConfiguration(BaseConfiguration):
     tuple_val: Tuple[int, int, StrAny] = None
     any_val: Any = None
     none_val: str = None
-    COMPLEX_VAL: Dict[str, Tuple[int, List[str], List[str]]] = None
+    NESTED_VAL: Dict[str, Tuple[int, List[str], List[str]]] = None
     date_val: datetime.datetime = None
     dec_val: Decimal = None
     sequence_val: Sequence[str] = None
@@ -181,7 +181,7 @@ COERCIONS = {
     "tuple_val": (1, 2, {"1": "complicated dicts allowed in literal eval"}),
     "any_val": "function() {}",
     "none_val": "none",
-    "COMPLEX_VAL": {"_": [1440, ["*"], []], "change-email": [560, ["*"], []]},
+    "NESTED_VAL": {"_": [1440, ["*"], []], "change-email": [560, ["*"], []]},
     "date_val": pendulum.now(),
     "dec_val": Decimal("22.38"),
     "sequence_val": ["A", "B", "KAPPA"],

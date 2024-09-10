@@ -17,7 +17,7 @@ from typing import (
 from dlt import version
 from dlt.common.pendulum import pendulum
 from dlt.common.exceptions import MissingDependencyException
-from dlt.common.schema.typing import DLT_NAME_PREFIX, TTableSchemaColumns
+from dlt.common.schema.typing import C_DLT_ID, C_DLT_LOAD_ID, TTableSchemaColumns
 
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.schema.typing import TColumnType
@@ -65,7 +65,7 @@ def get_py_arrow_datatype(
         return get_pyarrow_int(column.get("precision"))
     elif column_type == "binary":
         return pyarrow.binary(column.get("precision") or -1)
-    elif column_type == "complex":
+    elif column_type == "json":
         # return pyarrow.struct([pyarrow.field('json', pyarrow.string())])
         return pyarrow.string()
     elif column_type == "decimal":
@@ -178,7 +178,7 @@ def get_column_type_from_py_arrow(dtype: pyarrow.DataType) -> TColumnType:
     elif pyarrow.types.is_decimal(dtype):
         return dict(data_type="decimal", precision=dtype.precision, scale=dtype.scale)
     elif pyarrow.types.is_nested(dtype):
-        return dict(data_type="complex")
+        return dict(data_type="json")
     else:
         raise ValueError(dtype)
 
@@ -252,8 +252,8 @@ def should_normalize_arrow_schema(
         if norm_name in nullable_mapping and field.nullable != nullable_mapping[norm_name]:
             nullable_updates[norm_name] = nullable_mapping[norm_name]
 
-    dlt_load_id_col = naming.normalize_identifier("_dlt_load_id")
-    dlt_id_col = naming.normalize_identifier("_dlt_id")
+    dlt_load_id_col = naming.normalize_identifier(C_DLT_LOAD_ID)
+    dlt_id_col = naming.normalize_identifier(C_DLT_ID)
     dlt_columns = {dlt_load_id_col, dlt_id_col}
 
     # Do we need to add a load id column?
@@ -349,7 +349,7 @@ def normalize_py_arrow_item(
         load_id_type = pyarrow.dictionary(pyarrow.int8(), pyarrow.string())
         new_fields.append(
             pyarrow.field(
-                naming.normalize_identifier("_dlt_load_id"),
+                naming.normalize_identifier(C_DLT_LOAD_ID),
                 load_id_type,
                 nullable=False,
             )

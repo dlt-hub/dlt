@@ -9,6 +9,8 @@ from dlt.common.normalizers.utils import generate_dlt_id, DLT_ID_LENGTH_BYTES
 from dlt.common.typing import DictStrAny, TDataItem, StrAny
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import (
+    C_DLT_ID,
+    C_DLT_LOAD_ID,
     TColumnSchema,
     TColumnName,
     TSimpleRegex,
@@ -37,17 +39,12 @@ class RelationalNormalizerConfigPropagation(TypedDict, total=False):
 
 
 class RelationalNormalizerConfig(TypedDict, total=False):
-    generate_dlt_id: Optional[bool]
     max_nesting: Optional[int]
     propagation: Optional[RelationalNormalizerConfigPropagation]
 
 
 class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
     # known normalizer props
-    C_DLT_ID = "_dlt_id"
-    """unique id of current row"""
-    C_DLT_LOAD_ID = "_dlt_load_id"
-    """load id to identify records loaded together that ie. need to be processed"""
     C_DLT_ROOT_ID = "_dlt_root_id"
     """unique id of top level parent"""
     C_DLT_PARENT_ID = "_dlt_parent_id"
@@ -74,9 +71,9 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
 
     def _reset(self) -> None:
         # normalize known normalizer column identifiers
-        self.c_dlt_id: TColumnName = TColumnName(self.naming.normalize_identifier(self.C_DLT_ID))
+        self.c_dlt_id: TColumnName = TColumnName(self.naming.normalize_identifier(C_DLT_ID))
         self.c_dlt_load_id: TColumnName = TColumnName(
-            self.naming.normalize_identifier(self.C_DLT_LOAD_ID)
+            self.naming.normalize_identifier(C_DLT_LOAD_ID)
         )
         self.c_dlt_root_id: TColumnName = TColumnName(
             self.naming.normalize_identifier(self.C_DLT_ROOT_ID)
@@ -117,9 +114,9 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
                 nested_name = (
                     norm_k if path == () else schema_naming.shorten_fragments(*path, norm_k)
                 )
-                # for lists and dicts we must check if type is possibly complex
+                # for lists and dicts we must check if type is possibly nested
                 if isinstance(v, (dict, list)):
-                    if not self._is_complex_type(
+                    if not self._is_nested_type(
                         self.schema, table, nested_name, self.max_nesting, __r_lvl
                     ):
                         # TODO: if schema contains table {table}__{nested_name} then convert v into single element list
@@ -131,7 +128,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
                             out_rec_list[path + (schema_naming.normalize_table_identifier(k),)] = v
                         continue
                     else:
-                        # pass the complex value to out_rec_row
+                        # pass the nested value to out_rec_row
                         pass
 
                 out_rec_row[nested_name] = v
@@ -322,9 +319,10 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
                     TSimpleRegex(self.c_dlt_list_idx),
                     TSimpleRegex(self.c_dlt_load_id),
                 ],
-                "foreign_key": [TSimpleRegex(self.c_dlt_parent_id)],
+                "parent_key": [TSimpleRegex(self.c_dlt_parent_id)],
                 "root_key": [TSimpleRegex(self.c_dlt_root_id)],
                 "unique": [TSimpleRegex(self.c_dlt_id)],
+                "row_key": [TSimpleRegex(self.c_dlt_id)],
             },
             normalize_identifiers=False,  # already normalized
         )
@@ -441,13 +439,13 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
 
     @staticmethod
     @lru_cache(maxsize=None)
-    def _is_complex_type(
+    def _is_nested_type(
         schema: Schema, table_name: str, field_name: str, max_nesting: int, _r_lvl: int
     ) -> bool:
-        """For those paths the complex nested objects should be left in place.
+        """For those paths the nested objects should be left in place.
         Cache perf: max_nesting < _r_lvl: ~2x faster, full check 10x faster
         """
-        # turn everything at the recursion level into complex type
+        # turn everything at the recursion level into nested type
         max_table_nesting = DataItemNormalizer._get_table_nesting_level(schema, table_name)
         if max_table_nesting is not None:
             max_nesting = max_table_nesting
@@ -465,7 +463,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         else:
             data_type = column["data_type"]
 
-        return data_type == "complex"
+        return data_type == "json"
 
     @staticmethod
     @lru_cache(maxsize=None)
@@ -493,8 +491,6 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
                     "x-row-version",
                     include_incomplete=True,
                 )
-                if x_row_version_col == schema.naming.normalize_identifier(
-                    DataItemNormalizer.C_DLT_ID
-                ):
+                if x_row_version_col == schema.naming.normalize_identifier(C_DLT_ID):
                     return "row_hash"
         return "random"

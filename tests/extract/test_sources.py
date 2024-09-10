@@ -1354,15 +1354,15 @@ def test_apply_hints() -> None:
     # combine columns with primary key
     empty_r = empty()
     empty_r.apply_hints(
-        columns={"tags": {"data_type": "complex", "primary_key": False}},
+        columns={"tags": {"data_type": "json", "primary_key": False}},
         primary_key="tags",
         merge_key="tags",
     )
     # primary key not set here
-    assert empty_r.columns["tags"] == {"data_type": "complex", "name": "tags", "primary_key": False}
+    assert empty_r.columns["tags"] == {"data_type": "json", "name": "tags", "primary_key": False}
     # only in the computed table
     assert empty_r.compute_table_schema()["columns"]["tags"] == {
-        "data_type": "complex",
+        "data_type": "json",
         "name": "tags",
         "nullable": False,  # NOT NULL because `tags` do not define it
         "primary_key": True,
@@ -1434,6 +1434,36 @@ def test_apply_dynamic_hints() -> None:
         {"t": "table", "p": "parent", "pk": ["a", "b"], "wd": "skip", "c": [{"name": "tags"}]}
     )
     assert table["columns"]["tags"] == {"name": "tags"}
+
+
+def test_apply_hints_complex_migration() -> None:
+    def empty_gen():
+        yield [1, 2, 3]
+
+    empty = DltResource.from_data(empty_gen)
+    empty_r = empty()
+
+    def dyn_type(ev):
+        # must return columns in one of the known formats
+        return [{"name": "dyn_col", "data_type": ev["dt"]}]
+
+    # start with static columns, update to dynamic
+    empty_r.apply_hints(
+        table_name=lambda ev: ev["t"], columns=[{"name": "dyn_col", "data_type": "json"}]
+    )
+
+    table = empty_r.compute_table_schema({"t": "table"})
+    assert table["columns"]["dyn_col"]["data_type"] == "json"
+
+    empty_r.apply_hints(table_name=lambda ev: ev["t"], columns=dyn_type)
+    table = empty_r.compute_table_schema({"t": "table", "dt": "complex"})
+    assert table["columns"]["dyn_col"]["data_type"] == "json"
+
+    # start with dynamic
+    empty_r = empty()
+    empty_r.apply_hints(table_name=lambda ev: ev["t"], columns=dyn_type)
+    table = empty_r.compute_table_schema({"t": "table", "dt": "complex"})
+    assert table["columns"]["dyn_col"]["data_type"] == "json"
 
 
 def test_apply_hints_table_variants() -> None:

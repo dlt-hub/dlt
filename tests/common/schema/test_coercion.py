@@ -70,7 +70,7 @@ def test_coerce_type_to_bool() -> None:
 
     # no coercions
     with pytest.raises(ValueError):
-        coerce_value("bool", "complex", {"a": True})
+        coerce_value("bool", "json", {"a": True})
     with pytest.raises(ValueError):
         coerce_value("bool", "binary", b"True")
     with pytest.raises(ValueError):
@@ -340,13 +340,13 @@ def test_py_type_to_sc_type() -> None:
     # none type raises TypeException
     with pytest.raises(TypeError):
         py_type_to_sc_type(type(None))
-    # complex types
-    assert py_type_to_sc_type(list) == "complex"
-    # assert py_type_to_sc_type(set) == "complex"
-    assert py_type_to_sc_type(dict) == "complex"
-    assert py_type_to_sc_type(tuple) == "complex"
-    assert py_type_to_sc_type(Mapping) == "complex"
-    assert py_type_to_sc_type(MutableSequence) == "complex"
+    # nested types
+    assert py_type_to_sc_type(list) == "json"
+    # assert py_type_to_sc_type(set) == "json"
+    assert py_type_to_sc_type(dict) == "json"
+    assert py_type_to_sc_type(tuple) == "json"
+    assert py_type_to_sc_type(Mapping) == "json"
+    assert py_type_to_sc_type(MutableSequence) == "json"
 
     class IntEnum(int, Enum):
         a = 1
@@ -365,45 +365,45 @@ def test_py_type_to_sc_type() -> None:
     assert py_type_to_sc_type(MixedEnum) == "text"
 
 
-def test_coerce_type_complex() -> None:
+def test_coerce_type_json() -> None:
     # dicts and lists should be coerced into strings automatically
-    v_list = [1, 2, "3", {"complex": True}]
-    v_dict = {"list": [1, 2], "str": "complex"}
-    assert py_type_to_sc_type(type(v_list)) == "complex"
-    assert py_type_to_sc_type(type(v_dict)) == "complex"
-    assert type(coerce_value("complex", "complex", v_dict)) is dict
-    assert type(coerce_value("complex", "complex", v_list)) is list
-    assert coerce_value("complex", "complex", v_dict) == v_dict
-    assert coerce_value("complex", "complex", v_list) == v_list
-    assert coerce_value("text", "complex", v_dict) == json.dumps(v_dict)
-    assert coerce_value("text", "complex", v_list) == json.dumps(v_list)
-    assert coerce_value("complex", "text", json.dumps(v_dict)) == v_dict
-    assert coerce_value("complex", "text", json.dumps(v_list)) == v_list
+    v_list = [1, 2, "3", {"json": True}]
+    v_dict = {"list": [1, 2], "str": "json"}
+    assert py_type_to_sc_type(type(v_list)) == "json"
+    assert py_type_to_sc_type(type(v_dict)) == "json"
+    assert type(coerce_value("json", "json", v_dict)) is dict
+    assert type(coerce_value("json", "json", v_list)) is list
+    assert coerce_value("json", "json", v_dict) == v_dict
+    assert coerce_value("json", "json", v_list) == v_list
+    assert coerce_value("text", "json", v_dict) == json.dumps(v_dict)
+    assert coerce_value("text", "json", v_list) == json.dumps(v_list)
+    assert coerce_value("json", "text", json.dumps(v_dict)) == v_dict
+    assert coerce_value("json", "text", json.dumps(v_list)) == v_list
 
     # all other coercions fail
     with pytest.raises(ValueError):
-        coerce_value("binary", "complex", v_list)
+        coerce_value("binary", "json", v_list)
 
     with pytest.raises(ValueError):
-        coerce_value("complex", "text", "not a json string")
+        coerce_value("json", "text", "not a json string")
 
 
-def test_coerce_type_complex_with_pua() -> None:
+def test_coerce_type_json_with_pua() -> None:
     v_dict = {
         "list": [1, Wei.from_int256(10**18), f"{_DATETIME}2022-05-10T01:41:31.466Z"],
-        "str": "complex",
+        "str": "json",
         "pua_date": f"{_DATETIME}2022-05-10T01:41:31.466Z",
     }
     exp_v = {
         "list": [1, Wei.from_int256(10**18), "2022-05-10T01:41:31.466Z"],
-        "str": "complex",
+        "str": "json",
         "pua_date": "2022-05-10T01:41:31.466Z",
     }
-    assert coerce_value("complex", "complex", copy(v_dict)) == exp_v
-    assert coerce_value("text", "complex", copy(v_dict)) == json.dumps(exp_v)
+    assert coerce_value("json", "json", copy(v_dict)) == exp_v
+    assert coerce_value("text", "json", copy(v_dict)) == json.dumps(exp_v)
 
     # TODO: what to test for this case if at all?
-    # assert coerce_value("complex", "text", json.dumps(v_dict)) == exp_v
+    # assert coerce_value("json", "text", json.dumps(v_dict)) == exp_v
 
     # also decode recursively
     custom_pua_decode_nested(v_dict)

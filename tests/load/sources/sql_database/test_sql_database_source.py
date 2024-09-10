@@ -828,19 +828,19 @@ def test_infer_unsupported_types(
         # Just check that it has a value
 
         assert isinstance(json.loads(rows[0]["unsupported_array_1"]), list)
-        assert columns["unsupported_array_1"]["data_type"] == "complex"
+        assert columns["unsupported_array_1"]["data_type"] == "json"
         # Other columns are loaded
         assert isinstance(rows[0]["supported_text"], str)
         assert isinstance(rows[0]["supported_int"], int)
     elif backend == "sqlalchemy":
-        # sqla value is a dataclass and is inferred as complex
+        # sqla value is a dataclass and is inferred as json
 
-        assert columns["unsupported_array_1"]["data_type"] == "complex"
+        assert columns["unsupported_array_1"]["data_type"] == "json"
 
     elif backend == "pandas":
         # pandas parses it as string
         if type_adapter and reflection_level != "minimal":
-            assert columns["unsupported_array_1"]["data_type"] == "complex"
+            assert columns["unsupported_array_1"]["data_type"] == "json"
 
             assert isinstance(json.loads(rows[0]["unsupported_array_1"]), list)
 
@@ -1154,7 +1154,7 @@ PRECISION_COLUMNS: List[TColumnSchema] = [
         "name": "float_col",
     },
     {
-        "data_type": "complex",
+        "data_type": "json",
         "name": "json_col",
     },
     {

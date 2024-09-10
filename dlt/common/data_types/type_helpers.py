@@ -31,7 +31,7 @@ def py_type_to_sc_type(t: Type[Any]) -> TDataType:
     if t is int:
         return "bigint"
     if issubclass(t, (dict, list)):
-        return "complex"
+        return "json"
 
     # those are special types that will not be present in json loaded dict
     # wei is subclass of decimal and must be checked first
@@ -56,7 +56,7 @@ def py_type_to_sc_type(t: Type[Any]) -> TDataType:
     if issubclass(t, bytes):
         return "binary"
     if dataclasses.is_dataclass(t) or issubclass(t, (C_Mapping, C_Sequence)):
-        return "complex"
+        return "json"
     # Enum is coerced to str or int respectively
     if issubclass(t, Enum):
         if issubclass(t, int):
@@ -68,7 +68,7 @@ def py_type_to_sc_type(t: Type[Any]) -> TDataType:
     raise TypeError(t)
 
 
-def complex_to_str(value: Any) -> str:
+def json_to_str(value: Any) -> str:
     return json.dumps(map_nested_in_place(custom_pua_remove, value))
 
 
@@ -93,8 +93,8 @@ def coerce_from_date_types(
 
 def coerce_value(to_type: TDataType, from_type: TDataType, value: Any) -> Any:
     if to_type == from_type:
-        if to_type == "complex":
-            # complex types need custom encoding to be removed
+        if to_type == "json":
+            # nested types need custom encoding to be removed
             return map_nested_in_place(custom_pua_remove, value)
         # Make sure we use enum value instead of the object itself
         # This check is faster than `isinstance(value, Enum)` for non-enum types
@@ -105,7 +105,7 @@ def coerce_value(to_type: TDataType, from_type: TDataType, value: Any) -> Any:
                 return int(value.value)
         return value
 
-    if to_type == "complex":
+    if to_type == "json":
         # try to coerce from text
         if from_type == "text":
             try:
@@ -114,8 +114,8 @@ def coerce_value(to_type: TDataType, from_type: TDataType, value: Any) -> Any:
                 raise ValueError(value)
 
     if to_type == "text":
-        if from_type == "complex":
-            return complex_to_str(value)
+        if from_type == "json":
+            return json_to_str(value)
         else:
             # use the same string encoding as in json
             try:
@@ -194,7 +194,7 @@ def coerce_value(to_type: TDataType, from_type: TDataType, value: Any) -> Any:
     if to_type == "bool":
         if from_type == "text":
             return str2bool(value)
-        if from_type not in ["complex", "binary", "timestamp"]:
+        if from_type not in ["json", "binary", "timestamp"]:
             # all the numeric types will convert to bool on 0 - False, 1 - True
             return bool(value)
 

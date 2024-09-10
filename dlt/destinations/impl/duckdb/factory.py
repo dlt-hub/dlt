@@ -17,7 +17,7 @@ if t.TYPE_CHECKING:
 
 class DuckDbTypeMapper(TypeMapperImpl):
     sct_to_unbound_dbt = {
-        "complex": "JSON",
+        "json": "JSON",
         "text": "VARCHAR",
         "double": "DOUBLE",
         "bool": "BOOLEAN",
@@ -38,7 +38,7 @@ class DuckDbTypeMapper(TypeMapperImpl):
 
     dbt_to_sct = {
         "VARCHAR": "text",
-        "JSON": "complex",
+        "JSON": "json",
         "DOUBLE": "double",
         "BOOLEAN": "bool",
         "DATE": "date",

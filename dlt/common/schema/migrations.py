@@ -11,7 +11,13 @@ from dlt.common.schema.typing import (
     TColumnDefaultHint,
 )
 from dlt.common.schema.exceptions import SchemaEngineNoUpgradePathException
-from dlt.common.schema.utils import new_table, version_table, loads_table
+from dlt.common.schema.utils import (
+    get_columns_names_with_prop,
+    new_table,
+    version_table,
+    loads_table,
+    migrate_complex_types,
+)
 
 
 def migrate_schema(schema_dict: DictStrAny, from_engine: int, to_engine: int) -> TStoredSchema:
@@ -118,6 +124,50 @@ def migrate_schema(schema_dict: DictStrAny, from_engine: int, to_engine: int) ->
                 x_normalizer = table.setdefault("x-normalizer", {})
                 x_normalizer["seen-data"] = True
         from_engine = 9
+    if from_engine == 9 and to_engine > 9:
+        from dlt.common.schema.normalizers import import_normalizers
+
+        # current = cast(TStoredSchema, schema_dict)
+
+        normalizers = schema_dict["normalizers"]
+        _, naming, _ = import_normalizers(normalizers)
+        c_dlt_id = naming.normalize_identifier("_dlt_id")
+        c_dlt_parent_id = naming.normalize_identifier("_dlt_parent_id")
+
+        for table in schema_dict["tables"].values():
+            # migrate complex -> json
+            migrate_complex_types(table)
+            # modify hints
+            if dlt_id_col := table["columns"].get(c_dlt_id):
+                # add row key only if unique is set
+                dlt_id_col["row_key"] = dlt_id_col.get("unique", False)
+            if parent_dlt_id_col := table["columns"].get(c_dlt_parent_id):
+                # add parent key
+                parent_dlt_id_col["parent_key"] = parent_dlt_id_col.get("foreign_key", False)
+            # drop all foreign keys
+            for column in table["columns"].values():
+                column.pop("foreign_key", None)
+
+        # migrate preferred types
+        if settings := schema_dict.get("settings"):
+            if p_t := settings.get("preferred_types"):
+                for re_ in list(p_t.keys()):
+                    if p_t[re_] == "complex":
+                        p_t[re_] = "json"
+        # migrate default hints
+        if default_hints := schema_dict["settings"].get("default_hints"):
+            # drop foreign key
+            default_hints.pop("foreign_key", None)
+            # add row and parent key
+            default_hints["row_key"] = [TSimpleRegex(c_dlt_id)]
+            default_hints["parent_key"] = [TSimpleRegex(c_dlt_parent_id)]
+
+        # remove `generate_dlt_id` from normalizer
+        if json_norm := normalizers.get("json"):
+            if json_config := json_norm.get("config"):
+                json_config.pop("generate_dlt_id", None)
+
+        from_engine = 10
 
     schema_dict["engine_version"] = from_engine
     if from_engine != to_engine:

@@ -300,7 +300,7 @@ def test_all_data_types(destination_config: DestinationTestConfiguration) -> Non
         # Redshift can't load fixed width binary columns from parquet
         exclude_columns.append("col7_precision")
     if destination_config.destination == "databricks" and destination_config.file_format == "jsonl":
-        exclude_types.extend(["decimal", "binary", "wei", "complex", "date"])
+        exclude_types.extend(["decimal", "binary", "wei", "json", "date"])
         exclude_columns.append("col1_precision")
 
     column_schemas, data_types = table_update_and_row(
@@ -310,7 +310,7 @@ def test_all_data_types(destination_config: DestinationTestConfiguration) -> Non
     # bigquery and clickhouse cannot load into JSON fields from parquet
     if destination_config.file_format == "parquet":
         if destination_config.destination in ["bigquery"]:
-            # change datatype to text and then allow for it in the assert (parse_complex_strings)
+            # change datatype to text and then allow for it in the assert (parse_json_strings)
             column_schemas["col9_null"]["data_type"] = column_schemas["col9"]["data_type"] = "text"
     # redshift cannot load from json into VARBYTE
     if destination_config.file_format == "jsonl":
@@ -320,7 +320,7 @@ def test_all_data_types(destination_config: DestinationTestConfiguration) -> Non
             for col in binary_cols:
                 column_schemas[col]["data_type"] = "text"
 
-    # apply the exact columns definitions so we process complex and wei types correctly!
+    # apply the exact columns definitions so we process nested and wei types correctly!
     @dlt.resource(table_name="data_types", write_disposition="merge", columns=column_schemas)
     def my_resource():
         nonlocal data_types
@@ -342,7 +342,7 @@ def test_all_data_types(destination_config: DestinationTestConfiguration) -> Non
         assert len(db_rows) == 10
         db_row = list(db_rows[0])
         # parquet is not really good at inserting json, best we get are strings in JSON columns
-        parse_complex_strings = (
+        parse_json_strings = (
             destination_config.file_format == "parquet"
             and destination_config.destination in ["redshift", "bigquery", "snowflake"]
         )
@@ -357,7 +357,7 @@ def test_all_data_types(destination_config: DestinationTestConfiguration) -> Non
         # content must equal
         assert_all_data_types_row(
             db_row[:-2],
-            parse_complex_strings=parse_complex_strings,
+            parse_json_strings=parse_json_strings,
             allow_base64_binary=allow_base64_binary,
             allow_string_binary=allow_string_binary,
             timestamp_precision=sql_client.capabilities.timestamp_precision,

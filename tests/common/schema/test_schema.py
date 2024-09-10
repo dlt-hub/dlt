@@ -6,7 +6,6 @@ from copy import deepcopy
 from dlt.common import pendulum
 from dlt.common.json import json
 from dlt.common.data_types.typing import TDataType
-from dlt.common.schema.migrations import migrate_schema
 from dlt.common.exceptions import DictValidationException
 from dlt.common.normalizers.naming import snake_case
 from dlt.common.typing import DictStrAny, StrAny
@@ -15,7 +14,6 @@ from dlt.common.schema import TColumnSchema, Schema, TStoredSchema, utils
 from dlt.common.schema.exceptions import (
     InvalidSchemaName,
     ParentTableNotFoundException,
-    SchemaEngineNoUpgradePathException,
 )
 from dlt.common.schema.typing import (
     LOADS_TABLE_NAME,
@@ -84,10 +82,10 @@ def test_simple_regex_validator() -> None:
 
 
 def test_load_corrupted_schema() -> None:
-    eth_v8: TStoredSchema = load_yml_case("schemas/eth/ethereum_schema_v8")
-    del eth_v8["tables"]["blocks"]
+    eth_v10: TStoredSchema = load_yml_case("schemas/eth/ethereum_schema_v10")
+    del eth_v10["tables"]["blocks"]
     with pytest.raises(ParentTableNotFoundException):
-        utils.validate_stored_schema(eth_v8)
+        utils.validate_stored_schema(eth_v10)
 
 
 def test_column_name_validator(schema: Schema) -> None:
@@ -289,8 +287,9 @@ def test_clone(schema: Schema) -> None:
             "nullable",
             False,
         ),
+        (["_dlt_id"], "row_key", True),
         (["_dlt_id"], "unique", True),
-        (["_dlt_parent_id"], "foreign_key", True),
+        (["_dlt_parent_id"], "parent_key", True),
     ],
 )
 def test_relational_normalizer_schema_hints(
@@ -320,61 +319,6 @@ def test_save_store_schema(schema: Schema, schema_storage: SchemaStorage) -> Non
     assert schema.name == schema_copy.name
     assert schema.version == schema_copy.version
     assert_new_schema_props(schema_copy)
-
-
-def test_upgrade_engine_v1_schema() -> None:
-    schema_dict: DictStrAny = load_json_case("schemas/ev1/event.schema")
-    # ensure engine v1
-    assert schema_dict["engine_version"] == 1
-    # schema_dict will be updated to new engine version
-    migrate_schema(schema_dict, from_engine=1, to_engine=2)
-    assert schema_dict["engine_version"] == 2
-    # we have 27 tables
-    assert len(schema_dict["tables"]) == 27
-
-    # upgrade schema eng 2 -> 4
-    schema_dict = load_json_case("schemas/ev2/event.schema")
-    assert schema_dict["engine_version"] == 2
-    upgraded = migrate_schema(schema_dict, from_engine=2, to_engine=4)
-    assert upgraded["engine_version"] == 4
-
-    # upgrade 1 -> 4
-    schema_dict = load_json_case("schemas/ev1/event.schema")
-    assert schema_dict["engine_version"] == 1
-    upgraded = migrate_schema(schema_dict, from_engine=1, to_engine=4)
-    assert upgraded["engine_version"] == 4
-
-    # upgrade 1 -> 6
-    schema_dict = load_json_case("schemas/ev1/event.schema")
-    assert schema_dict["engine_version"] == 1
-    upgraded = migrate_schema(schema_dict, from_engine=1, to_engine=6)
-    assert upgraded["engine_version"] == 6
-
-    # upgrade 1 -> 7
-    schema_dict = load_json_case("schemas/ev1/event.schema")
-    assert schema_dict["engine_version"] == 1
-    upgraded = migrate_schema(schema_dict, from_engine=1, to_engine=7)
-    assert upgraded["engine_version"] == 7
-
-    # upgrade 1 -> 8
-    schema_dict = load_json_case("schemas/ev1/event.schema")
-    assert schema_dict["engine_version"] == 1
-    upgraded = migrate_schema(schema_dict, from_engine=1, to_engine=8)
-    assert upgraded["engine_version"] == 8
-
-    # upgrade 1 -> 9
-    schema_dict = load_json_case("schemas/ev1/event.schema")
-    assert schema_dict["engine_version"] == 1
-    upgraded = migrate_schema(schema_dict, from_engine=1, to_engine=9)
-    assert upgraded["engine_version"] == 9
-
-
-def test_unknown_engine_upgrade() -> None:
-    schema_dict: TStoredSchema = load_json_case("schemas/ev1/event.schema")
-    # there's no path to migrate 3 -> 2
-    schema_dict["engine_version"] = 3
-    with pytest.raises(SchemaEngineNoUpgradePathException):
-        migrate_schema(schema_dict, 3, 2)  # type: ignore[arg-type]
 
 
 def test_preserve_column_order(schema: Schema, schema_storage: SchemaStorage) -> None:
@@ -435,8 +379,9 @@ def test_get_schema_new_exist(schema_storage: SchemaStorage) -> None:
         (["confidence", "_sender_id"], "nullable", True),
         (["timestamp", "_timestamp"], "partition", True),
         (["_dist_key", "sender_id"], "cluster", True),
+        (["_dlt_id"], "row_key", True),
         (["_dlt_id"], "unique", True),
-        (["_dlt_parent_id"], "foreign_key", True),
+        (["_dlt_parent_id"], "parent_key", True),
         (["timestamp", "_timestamp"], "sort", True),
     ],
 )
@@ -517,7 +462,7 @@ def test_merge_hints(schema: Schema) -> None:
             "_dlt_list_idx",
             "re:^_dlt_load_id$",
         ],
-        "foreign_key": ["re:^_dlt_parent_id$"],
+        "parent_key": ["re:^_dlt_parent_id$"],
         "unique": ["re:^_dlt_id$"],
     }
     schema.merge_hints(new_hints)  # type: ignore[arg-type]
@@ -541,7 +486,7 @@ def test_merge_hints(schema: Schema) -> None:
             "re:^_dlt_load_id$",
             "timestamp",
         ],
-        "foreign_key": ["re:^_dlt_parent_id$"],
+        "parent_key": ["re:^_dlt_parent_id$"],
         "unique": ["re:^_dlt_id$"],
         "primary_key": ["id"],
     }
@@ -552,7 +497,7 @@ def test_merge_hints(schema: Schema) -> None:
     # make sure that re:^_dlt_id$ and _dlt_id are equivalent when merging so we can use both forms
     alt_form_hints = {
         "not_null": ["re:^_dlt_id$"],
-        "foreign_key": ["_dlt_parent_id"],
+        "parent_key": ["_dlt_parent_id"],
     }
     schema.merge_hints(alt_form_hints)  # type: ignore[arg-type]
     # we keep the older forms so nothing changed
@@ -565,7 +510,7 @@ def test_merge_hints(schema: Schema) -> None:
         "not_null": [
             "_DLT_ID",
         ],
-        "foreign_key": ["re:^_DLT_PARENT_ID$"],
+        "parent_key": ["re:^_DLT_PARENT_ID$"],
     }
     schema.merge_hints(upper_hints)  # type: ignore[arg-type]
     # all upper form hints can be automatically converted to lower form
@@ -792,7 +737,7 @@ def assert_new_schema_props_custom_normalizers(schema: Schema) -> None:
 def assert_is_new_schema(schema: Schema) -> None:
     assert schema.stored_version is None
     assert schema.stored_version_hash is None
-    assert schema.ENGINE_VERSION == 9
+    assert schema.ENGINE_VERSION == 10
     assert schema._stored_previous_hashes == []
     assert schema.is_modified
     assert schema.is_new

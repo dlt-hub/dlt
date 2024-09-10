@@ -153,12 +153,12 @@ The Arrow data types are translated to dlt data types as follows:
 | `int<bit_width>`  | `bigint`    | Precision is determined by the bit width.                  |
 | `binary`          | `binary`    |                                                            |
 | `decimal`         | `decimal`   | Precision and scale are determined by the type properties. |
-| `struct`          | `complex`   |                                                            |
+| `struct`          | `json`   |                                                            |
 |                   |             |                                                            |
 
 
 ## Loading nested types
-All struct types are represented as `complex` and will be loaded as JSON (if destination permits) or a string. Currently we do not support **struct** types,
+All struct types are represented as `json` and will be loaded as JSON (if destination permits) or a string. Currently we do not support **struct** types,
 even if they are present in the destination (except **BigQuery** which can be [configured to handle them](../destinations/bigquery.md#use-bigquery-schema-autodetect-for-nested-fields))
 
 If you want to represent nested data as separated tables, you must yield panda frames and arrow tables as records. In the examples above:

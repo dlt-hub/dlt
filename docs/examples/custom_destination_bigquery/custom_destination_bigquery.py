@@ -10,7 +10,7 @@ In this example, you'll find a Python script that demonstrates how to load to Bi
 We'll learn how to:
 - Use [built-in credentials.](../general-usage/credentials/complex_types#gcp-credentials)
 - Use the [custom destination.](../dlt-ecosystem/destinations/destination.md)
-- Use pyarrow tables to create complex column types on BigQuery.
+- Use pyarrow tables to create nested column types on BigQuery.
 - Use BigQuery `autodetect=True` for schema inference from parquet files.
 
 """

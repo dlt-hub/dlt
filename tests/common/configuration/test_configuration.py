@@ -182,7 +182,7 @@ class EmbeddedSecretConfiguration(BaseConfiguration):
 
 
 @configspec
-class NonTemplatedComplexTypesConfiguration(BaseConfiguration):
+class NonTemplatedNestedTypesConfiguration(BaseConfiguration):
     list_val: list = None  # type: ignore[type-arg]
     tuple_val: tuple = None  # type: ignore[type-arg]
     dict_val: dict = None  # type: ignore[type-arg]
@@ -919,11 +919,11 @@ def test_config_with_no_hints(environment: Any) -> None:
         NoHintConfiguration()
 
 
-def test_config_with_non_templated_complex_hints(environment: Any) -> None:
+def test_config_with_non_templated_nested_hints(environment: Any) -> None:
     environment["LIST_VAL"] = "[1,2,3]"
     environment["TUPLE_VAL"] = "(1,2,3)"
     environment["DICT_VAL"] = '{"a": 1}'
-    c = resolve.resolve_configuration(NonTemplatedComplexTypesConfiguration())
+    c = resolve.resolve_configuration(NonTemplatedNestedTypesConfiguration())
     assert c.list_val == [1, 2, 3]
     assert c.tuple_val == (1, 2, 3)
     assert c.dict_val == {"a": 1}

@@ -6,6 +6,7 @@ from dlt.common import logger
 from dlt.common.json import json
 from dlt.common.pendulum import pendulum
 from dlt.common.schema import Schema, TSchemaTables
+from dlt.common.schema.typing import C_DLT_LOAD_ID
 from dlt.common.schema.utils import (
     get_columns_names_with_prop,
     loads_table,
@@ -316,7 +317,7 @@ class QdrantClient(JobClientBase, WithStateSync):
         """
         # normalize property names
         p_load_id = self.schema.naming.normalize_identifier("load_id")
-        p_dlt_load_id = self.schema.naming.normalize_identifier("_dlt_load_id")
+        p_dlt_load_id = self.schema.naming.normalize_identifier(C_DLT_LOAD_ID)
         p_pipeline_name = self.schema.naming.normalize_identifier("pipeline_name")
         p_created_at = self.schema.naming.normalize_identifier("created_at")
 
