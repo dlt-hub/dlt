@@ -24,7 +24,7 @@ To make it easy to reproduce, we will be loading data from the [public MySQL RFa
 
 Initialize a new `dlt` project in your current working directory using the `dlt init` command:
 
-```
+```sh
 dlt init sql_database duckdb
 ```
 
@@ -32,7 +32,7 @@ This is a handy CLI command that creates files and folders required for a SQL Da
 
 After running this command, your project will have the following structure:
 
-```txt
+```text
 sql_database_pipeline.py
 requirements.txt
 .dlt/
