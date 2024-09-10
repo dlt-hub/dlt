@@ -10,7 +10,7 @@ Note: All paths in this guide are relative to the `dlt` repository directory.
 - Update the doc string which will compromise the generated markdown file, check the other examples how it is done
 - If your example requires any secrets, add the vars to the example.secrects.toml but do not enter the values.
 - Add your example code, make sure you have a `if __name__ = "__main__"` clause in which you run the example script, this will be used for testing
-- You should add one or two assertions after running your example and maybe also `load_info.raise_on_failed_jobs()`, this will help greatly with testing
+- You should add one or two assertions after running your example
 
 ## Testing
 - You can test your example simply by running your example script from your example folder. On CI a test will be automatically generated.

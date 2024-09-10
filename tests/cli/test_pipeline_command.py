@@ -170,6 +170,8 @@ def test_pipeline_command_failed_jobs(repo_dir: str, project_files: FileStorage)
 
     # now run the pipeline
     os.environ["FAIL_PROB"] = "1.0"
+    # let it fail without an exception
+    os.environ["RAISE_ON_FAILED_JOBS"] = "false"
     venv = Venv.restore_current()
     try:
         print(venv.run_script("chess_pipeline.py"))

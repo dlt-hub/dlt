@@ -27,17 +27,14 @@ from dlt.destinations.impl.duckdb.configuration import DuckDbClientConfiguration
 from dlt.destinations.impl.duckdb.sql_client import DuckDbSqlClient
 
 from tests.pipeline.utils import airtable_emojis, load_table_counts
-from tests.utils import TEST_STORAGE_ROOT, test_storage
+from tests.utils import TEST_STORAGE_ROOT
 
 
 def test_simulate_default_naming_convention_change() -> None:
     # checks that (future) change in the naming convention won't affect existing pipelines
     pipeline = dlt.pipeline("simulated_snake_case", destination="duckdb")
     assert pipeline.naming.name() == "snake_case"
-    info = pipeline.run(
-        airtable_emojis().with_resources("📆 Schedule", "🦚Peacock", "🦚WidePeacock")
-    )
-    info.raise_on_failed_jobs()
+    pipeline.run(airtable_emojis().with_resources("📆 Schedule", "🦚Peacock", "🦚WidePeacock"))
     # normalized names
     assert pipeline.last_trace.last_normalize_info.row_counts["_schedule"] == 3
     assert "_schedule" in pipeline.default_schema.tables
@@ -51,19 +48,15 @@ def test_simulate_default_naming_convention_change() -> None:
         print(airtable_emojis().schema.naming.name())
 
         # run new and old pipelines
-        info = duck_pipeline.run(
+        duck_pipeline.run(
             airtable_emojis().with_resources("📆 Schedule", "🦚Peacock", "🦚WidePeacock")
         )
-        info.raise_on_failed_jobs()
         print(duck_pipeline.last_trace.last_normalize_info.row_counts)
         assert duck_pipeline.last_trace.last_normalize_info.row_counts["📆 Schedule"] == 3
         assert "📆 Schedule" in duck_pipeline.default_schema.tables
 
         # old pipeline should keep its naming convention
-        info = pipeline.run(
-            airtable_emojis().with_resources("📆 Schedule", "🦚Peacock", "🦚WidePeacock")
-        )
-        info.raise_on_failed_jobs()
+        pipeline.run(airtable_emojis().with_resources("📆 Schedule", "🦚Peacock", "🦚WidePeacock"))
         # normalized names
         assert pipeline.last_trace.last_normalize_info.row_counts["_schedule"] == 3
         assert pipeline.naming.name() == "snake_case"
