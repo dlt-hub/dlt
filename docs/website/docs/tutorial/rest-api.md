@@ -178,8 +178,7 @@ You may have noticed that we didn't specify any pagination configuration in the 
 
 ## Appending, replacing, and merging loaded data
 
-Try running the pipeline again with `python rest_api_pipeline.py`. You will notice that
-all the tables have data duplicated. This happens because by default, dlt appends the data to the destination table. It is very useful, for example, when you have daily data updates and you want to ingest them. In dlt you can control how the data is loaded into the destination table by setting the `write_disposition` parameter in the resource configuration. The possible values are:
+Try running the pipeline again with `python rest_api_pipeline.py`. You will notice that all the tables have data duplicated. This happens because by default, dlt appends the data to the destination table. In dlt you can control how the data is loaded into the destination table by setting the `write_disposition` parameter in the resource configuration. The possible values are:
 - `append`: Appends the data to the destination table. This is the default.
 - `replace`: Replaces the data in the destination table with the new data.
 - `merge`: Merges the new data with the existing data in the destination table based on the primary key.
