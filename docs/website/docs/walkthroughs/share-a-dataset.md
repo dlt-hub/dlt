@@ -1,5 +1,5 @@
 ---
-title: 'Share a dataset: DuckDB -> BigQuery'
+title: 'Moving from local to production'
 description: Share a local dataset by moving it to BigQuery
 keywords: [how to, share a dataset]
 ---

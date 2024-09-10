@@ -28,15 +28,12 @@ function *walkSync(dir) {
 /** @type {import('@docusaurus/plugin-content-docs').SidebarsConfig} */
 const sidebars = {
   tutorialSidebar: [
-    'intro',
     {
       type: 'category',
       label: 'Getting Started',
       items: [
         'getting-started',
-        'reference/explainers/how-dlt-works',
         'reference/installation',
-        'reference/command-line-interface',
         {
           type: 'category',
           label: 'Core Sources',
@@ -46,8 +43,6 @@ const sidebars = {
             //'walkthroughs/load-data-from-rest-api',
             //'walkthroughs/load-data-from-sql-database',
             //'walkthroughs/load-data-from-filesystem-cloud',
-            // Unsure item
-            //'reference/core-sources',
           ]
         }
       ]
@@ -56,10 +51,12 @@ const sidebars = {
       type: 'category',
       label: 'Core Concepts',
       items: [
+        'reference/explainers/how-dlt-works',
         'general-usage/source',
         'general-usage/resource',
         'general-usage/pipeline',
         'general-usage/destination',
+        'general-usage/state',
         'general-usage/glossary'
       ]
     },
@@ -219,7 +216,7 @@ const sidebars = {
         },
         {
           type: 'category',
-          label: 'Loading Data',
+          label: 'Loading Behavior',
           items: [
             'general-usage/incremental-loading',
             'walkthroughs/add-incremental-configuration',
@@ -272,15 +269,7 @@ const sidebars = {
         },
       ]
     },
-    {
-      type: 'category',
-      label: 'Optimizing dlt',
-      items: [
-        'reference/performance',
-        // Unsure item
-        'general-usage/state',
-      ]
-    },
+    'reference/performance',
     {
       type: 'category',
       label: 'Code examples',
@@ -306,6 +295,7 @@ const sidebars = {
         keywords: ['reference'],
       },
       items: [
+        'reference/command-line-interface',
         'reference/telemetry',
         'reference/frequently-asked-questions',
         // Unsure item
@@ -331,12 +321,6 @@ const sidebars = {
         },
       ],
     },
-    // {
-    //   "API Documentation": [
-    //   require("./docs/api_reference/sidebar.json")
-    // ],
-    // }
-
     {
       type: 'category',
       label: 'How-to guides',

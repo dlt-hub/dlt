@@ -1,5 +1,5 @@
 ---
-title: Performance
+title: Optimizing dlt
 description: Scale-up, parallelize and finetune dlt pipelines
 keywords: [scaling, parallelism, finetuning]
 ---
