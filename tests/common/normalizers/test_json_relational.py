@@ -88,7 +88,7 @@ def test_preserve_json_value_with_hint(norm: RelationalNormalizer) -> None:
     assert "value__json" not in flattened_row
 
 
-def test_child_table_linking(norm: RelationalNormalizer) -> None:
+def test_nested_table_linking(norm: RelationalNormalizer) -> None:
     row = {"f": [{"l": ["a", "b", "c"], "v": 120, "o": [{"a": 1}, {"a": 2}]}]}
     # request _dlt_root_id propagation
     add_dlt_root_id_propagation(norm)

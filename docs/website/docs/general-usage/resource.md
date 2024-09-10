@@ -125,14 +125,14 @@ from typing import ClassVar
 from dlt.common.libs.pydantic import DltConfig
 
 class UserWithNesting(User):
-  dlt_config: ClassVar[DltConfig] = {"skip_complex_types": True}
+  dlt_config: ClassVar[DltConfig] = {"skip_nested_types": True}
 
 @dlt.resource(name="user", columns=UserWithNesting)
 def get_users():
     ...
 ```
 
-`"skip_complex_types"` omits any `dict`/`list`/`BaseModel` type fields from the schema, so dlt will fall back on the default
+`"skip_nested_types"` omits any `dict`/`list`/`BaseModel` type fields from the schema, so dlt will fall back on the default
 behavior of creating child tables for these fields.
 
 We do not support `RootModel` that validate simple types. You can add such a validator yourself, see [data filtering section](#filter-transform-and-pivot-data).

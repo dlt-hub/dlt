@@ -636,7 +636,19 @@ tables:
       data_type:
         data_type: text
         nullable: true
+      precision:
+        data_type: bigint
+        nullable: true
+      scale:
+        data_type: bigint
+        nullable: true
+      timezone:
+        data_type: bool
+        nullable: true
       nullable:
+        data_type: bool
+        nullable: true
+      variant:
         data_type: bool
         nullable: true
       primary_key:
@@ -666,7 +678,25 @@ tables:
       unique:
         data_type: bool
         nullable: true
-      foreign_key:
+      row_key:
+        data_type: bool
+        nullable: true
+      parent_key:
+        data_type: bool
+        nullable: true
+      root_key:
+        data_type: bool
+        nullable: true
+      merge_key:
+        data_type: bool
+        nullable: true
+      partition:
+        data_type: bool
+        nullable: true
+      cluster:
+        data_type: bool
+        nullable: true
+      sort:
         data_type: bool
         nullable: true
     parent: trace__steps__step_info__load_packages__tables

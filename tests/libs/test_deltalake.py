@@ -143,7 +143,7 @@ def test_write_delta_table(
     assert dt.to_pyarrow_table().shape == (arrow_table.num_rows, arrow_table.num_columns)
 
     # the previous table version should still exist
-    dt.load_version(1)
+    dt.load_as_version(1)
     assert dt.to_pyarrow_table().shape == (arrow_table.num_rows * 2, arrow_table.num_columns)
 
     # `merge` should resolve to `append` bevavior
