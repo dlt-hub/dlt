@@ -14,7 +14,7 @@ import cron_descriptor
 import dlt
 
 from dlt.common import git
-from dlt.common.configuration.exceptions import LookupTrace
+from dlt.common.configuration.exceptions import LookupTrace, ConfigFieldMissingException
 from dlt.common.configuration.providers import ConfigTomlProvider, EnvironProvider
 from dlt.common.git import get_origin, get_repo, Repo
 from dlt.common.configuration.specs.run_configuration import get_default_pipeline_name
@@ -201,8 +201,14 @@ class BaseDeployment(abc.ABC):
         for s_v in self.secret_envs:
             fmt.secho("Name:", fg="green")
             fmt.echo(fmt.bold(self.env_prov.get_key_name(s_v.key, *s_v.sections)))
-            fmt.secho("Secret:", fg="green")
-            fmt.echo(s_v.value)
+            try:
+                secret_value = dlt.secrets[self.env_prov.get_key_name(s_v.key, *s_v.sections)]
+                fmt.secho("Secret:", fg="green")
+                fmt.echo(secret_value)
+            except ConfigFieldMissingException:
+                fmt.secho(
+                    "Not found. See https://dlthub.com/docs/general-usage/credentials", fg="red"
+                )
             fmt.echo()
 
     def _echo_envs(self) -> None:
