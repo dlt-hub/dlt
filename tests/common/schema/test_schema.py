@@ -82,10 +82,10 @@ def test_simple_regex_validator() -> None:
 
 
 def test_load_corrupted_schema() -> None:
-    eth_v8: TStoredSchema = load_yml_case("schemas/eth/ethereum_schema_v8")
-    del eth_v8["tables"]["blocks"]
+    eth_v10: TStoredSchema = load_yml_case("schemas/eth/ethereum_schema_v10")
+    del eth_v10["tables"]["blocks"]
     with pytest.raises(ParentTableNotFoundException):
-        utils.validate_stored_schema(eth_v8)
+        utils.validate_stored_schema(eth_v10)
 
 
 def test_column_name_validator(schema: Schema) -> None:
@@ -287,8 +287,9 @@ def test_clone(schema: Schema) -> None:
             "nullable",
             False,
         ),
+        (["_dlt_id"], "row_key", True),
         (["_dlt_id"], "unique", True),
-        (["_dlt_parent_id"], "foreign_key", True),
+        (["_dlt_parent_id"], "parent_key", True),
     ],
 )
 def test_relational_normalizer_schema_hints(
@@ -378,8 +379,9 @@ def test_get_schema_new_exist(schema_storage: SchemaStorage) -> None:
         (["confidence", "_sender_id"], "nullable", True),
         (["timestamp", "_timestamp"], "partition", True),
         (["_dist_key", "sender_id"], "cluster", True),
+        (["_dlt_id"], "row_key", True),
         (["_dlt_id"], "unique", True),
-        (["_dlt_parent_id"], "foreign_key", True),
+        (["_dlt_parent_id"], "parent_key", True),
         (["timestamp", "_timestamp"], "sort", True),
     ],
 )
@@ -460,7 +462,7 @@ def test_merge_hints(schema: Schema) -> None:
             "_dlt_list_idx",
             "re:^_dlt_load_id$",
         ],
-        "foreign_key": ["re:^_dlt_parent_id$"],
+        "parent_key": ["re:^_dlt_parent_id$"],
         "unique": ["re:^_dlt_id$"],
     }
     schema.merge_hints(new_hints)  # type: ignore[arg-type]
@@ -484,7 +486,7 @@ def test_merge_hints(schema: Schema) -> None:
             "re:^_dlt_load_id$",
             "timestamp",
         ],
-        "foreign_key": ["re:^_dlt_parent_id$"],
+        "parent_key": ["re:^_dlt_parent_id$"],
         "unique": ["re:^_dlt_id$"],
         "primary_key": ["id"],
     }
@@ -495,7 +497,7 @@ def test_merge_hints(schema: Schema) -> None:
     # make sure that re:^_dlt_id$ and _dlt_id are equivalent when merging so we can use both forms
     alt_form_hints = {
         "not_null": ["re:^_dlt_id$"],
-        "foreign_key": ["_dlt_parent_id"],
+        "parent_key": ["_dlt_parent_id"],
     }
     schema.merge_hints(alt_form_hints)  # type: ignore[arg-type]
     # we keep the older forms so nothing changed
@@ -508,7 +510,7 @@ def test_merge_hints(schema: Schema) -> None:
         "not_null": [
             "_DLT_ID",
         ],
-        "foreign_key": ["re:^_DLT_PARENT_ID$"],
+        "parent_key": ["re:^_DLT_PARENT_ID$"],
     }
     schema.merge_hints(upper_hints)  # type: ignore[arg-type]
     # all upper form hints can be automatically converted to lower form

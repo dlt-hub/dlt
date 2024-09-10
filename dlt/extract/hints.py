@@ -3,6 +3,7 @@ from typing import TypedDict, cast, Any, Optional, Dict
 
 from dlt.common import logger
 from dlt.common.schema.typing import (
+    C_DLT_ID,
     TColumnNames,
     TColumnProp,
     TFileFormat,
@@ -472,7 +473,7 @@ class DltResourceHints:
             }
             # unique constraint is dropped for C_DLT_ID when used to store
             # SCD2 row hash (only applies to root table)
-            hash_ = md_dict.get("row_version_column_name", DataItemNormalizer.C_DLT_ID)
+            hash_ = md_dict.get("row_version_column_name", C_DLT_ID)
             dict_["columns"][hash_] = {
                 "name": hash_,
                 "nullable": False,
@@ -480,6 +481,7 @@ class DltResourceHints:
                 # duplicate value in row hash column is possible in case
                 # of insert-delete-reinsert pattern
                 "unique": False,
+                "row_key": False,
             }
 
     @staticmethod

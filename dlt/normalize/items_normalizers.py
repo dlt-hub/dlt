@@ -8,8 +8,13 @@ from dlt.common.json import custom_pua_decode, may_have_pua
 from dlt.common.metrics import DataWriterMetrics
 from dlt.common.normalizers.json.relational import DataItemNormalizer as RelationalNormalizer
 from dlt.common.runtime import signals
-from dlt.common.schema.typing import TSchemaEvolutionMode, TTableSchemaColumns, TSchemaContractDict
-from dlt.common.schema.utils import has_table_seen_data
+from dlt.common.schema.typing import (
+    C_DLT_ID,
+    TSchemaEvolutionMode,
+    TTableSchemaColumns,
+    TSchemaContractDict,
+)
+from dlt.common.schema.utils import dlt_id_column, has_table_seen_data
 from dlt.common.storages import NormalizeStorage
 from dlt.common.storages.data_item_storage import DataItemStorage
 from dlt.common.storages.load_package import ParsedLoadJobFileName
@@ -242,10 +247,9 @@ class ArrowItemsNormalizer(ItemsNormalizer):
             table_update = schema.update_table(
                 {
                     "name": root_table_name,
-                    "columns": {
-                        "_dlt_id": {"name": "_dlt_id", "data_type": "text", "nullable": False}
-                    },
-                }
+                    "columns": {C_DLT_ID: dlt_id_column()},
+                },
+                normalize_identifiers=True,
             )
             table_updates = schema_update.setdefault(root_table_name, [])
             table_updates.append(table_update)

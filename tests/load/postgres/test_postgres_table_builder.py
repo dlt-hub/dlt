@@ -128,7 +128,7 @@ def test_create_table_with_hints(client: PostgresClient, empty_schema: Schema) -
     mod_update[0]["primary_key"] = True
     mod_update[0]["sort"] = True
     mod_update[1]["unique"] = True
-    mod_update[4]["foreign_key"] = True
+    mod_update[4]["parent_key"] = True
     sql = client._get_table_update_sql("event_test_table", mod_update, False)[0]
     sqlfluff.parse(sql, dialect="postgres")
     assert '"col1" bigint  NOT NULL' in sql

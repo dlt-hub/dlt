@@ -105,21 +105,24 @@ Table schema is extended by data normalizer. Standard data normalizer adds propa
 A column schema contains following properties:
 
 1. `name` and `description` of a column in a table.
+
 1. `data_type` with a column data type.
 1. `precision` a precision for **text**, **timestamp**, **time**, **bigint**, **binary**, and **decimal** types
 1. `scale` a scale for **decimal** type
+1. `timezone` a flag indicating TZ aware or NTZ **timestamp** and **time**. Default value is **true**
+1. `nullable` tells if column is nullable or not.
 1. `is_variant` telling that column was generated as variant of another column.
 
 A column schema contains following basic hints:
 
-1. `nullable` tells if column is nullable or not.
 1. `primary_key` marks a column as a part of primary key.
-1. `merge_key` marks a column as a part of merge key used by
-   [incremental load](./incremental-loading.md#merge-incremental_loading).
-1. `foreign_key` marks a column as a part of foreign key.
+1. `row_key` a special for of primary key created by `dlt` to identify particular rows and link nested tables
+1. `parent_key` a special form of foreign key used by nested tables to refer to parent tables
 1. `root_key` marks a column as a part of root key which is a type of foreign key always referring to the
    root table.
 1. `unique` tells that column is unique. on some destination that generates unique index.
+1. `merge_key` marks a column as a part of merge key used by
+   [incremental load](./incremental-loading.md#merge-incremental_loading).
 
 `dlt` lets you define additional performance hints:
 
@@ -260,7 +263,9 @@ of columns added by normalizer:
 ```yaml
 settings:
   default_hints:
-    foreign_key:
+    row_key:
+      - _dlt_id
+    parent_key:
       - _dlt_parent_id
     not_null:
       - _dlt_id
