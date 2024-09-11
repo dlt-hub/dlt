@@ -4,7 +4,9 @@ description: How to extract data from a REST API using dlt's REST API source
 keywords: [tutorial, api, github, duckdb, rest api, source, pagination, authentication]
 ---
 
-This tutorial demonstrates how to extract data from a REST API using dlt's REST API source and load it into a destination. You will learn how to build a data pipeline that loads data from the [GitHub API](https://docs.github.com/en/) into a local DuckDB database.
+This tutorial demonstrates how to extract data from a REST API using dlt's REST API source and load it into a destination. You will learn how to build a data pipeline that loads data from the [Pokemon](https://pokeapi.co/) and the [GitHub API](https://docs.github.com/en/) into a local DuckDB database.
+
+Extracting data from an API is straightforward with dlt: provide the base URL, define the resources you want to fetch, and dlt will handle the pagination, authentication, and data loading.
 
 ## What you will learn
 
@@ -233,22 +235,28 @@ pokemon_source = rest_api_source(
                     "limit": 1000,
                 },
             },
-            # For the `berry` and `location` resources, we set
-            # the write disposition to `replace`
+            # For the `berry` and `location` resources, we keep
+            # the`replace` write disposition
             "write_disposition": "replace",
         },
         "resources": [
+            # We create a specific configuration for the `pokemon` resource
+            # using a dictionary instead of a string to configure
+            # the primary key and write disposition
             {
                 "name": "pokemon",
-                "primary_key": "id", # Setting the primary key for the `pokemon` resource
+                "primary_key": "id",
                 "write_disposition": "merge",
             },
+            # The `berry` and `location` resources will use the default
             "berry",
             "location",
         ],
     }
 )
 ```
+
+Run the pipeline with `python rest_api_pipeline.py`, the data for the `pokemon` resource will be merged with the existing data in the destination table based on the `id` field.
 
 ## Loading data incrementally
 
