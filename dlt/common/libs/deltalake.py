@@ -35,6 +35,7 @@ def ensure_delta_compatible_arrow_schema(schema: pa.Schema) -> pa.Schema:
         pa.types.is_time: pa.string(),
         pa.types.is_decimal256: pa.string(),  # pyarrow does not allow downcasting to decimal128
     }
+    # NOTE: also consider calling _convert_pa_schema_to_delta() from delta.schema which casts unsigned types
     return cast_arrow_schema_types(schema, ARROW_TO_DELTA_COMPATIBLE_ARROW_TYPE_MAP)
 
 
@@ -192,14 +193,20 @@ def _deltalake_storage_options(config: FilesystemConfiguration) -> Dict[str, str
     return {**creds, **extra_options}
 
 
-def _evolve_delta_table_schema(delta_table: DeltaTable, arrow_schema: pa.Schema) -> None:
+def _evolve_delta_table_schema(delta_table: DeltaTable, arrow_schema: pa.Schema) -> DeltaTable:
     """Evolves `delta_table` schema if different from `arrow_schema`.
+
+    We compare fields via names. Actual types and nullability are ignored. This is
+    how schemas are evolved for other destinations. Existing columns are never modified.
+    Variant columns are created.
 
     Adds column(s) to `delta_table` present in `arrow_schema` but not in `delta_table`.
     """
     new_fields = [
         deltalake.Field.from_pyarrow(field)
         for field in ensure_delta_compatible_arrow_schema(arrow_schema)
-        if field not in delta_table.to_pyarrow_dataset().schema
+        if field.name not in delta_table.schema().to_pyarrow().names
     ]
-    delta_table.alter.add_columns(new_fields)
+    if new_fields:
+        delta_table.alter.add_columns(new_fields)
+    return delta_table
