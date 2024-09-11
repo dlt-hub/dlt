@@ -126,7 +126,7 @@ def test_staging_load(destination_config: DestinationTestConfiguration) -> None:
     # check item of first row in db
     with pipeline.sql_client() as sql_client:
         qual_name = sql_client.make_qualified_table_name
-        if destination_config.destination in ["mssql", "synapse"]:
+        if destination_config.destination_type in ["mssql", "synapse"]:
             rows = sql_client.execute_sql(
                 f"SELECT TOP 1 url FROM {qual_name('issues')} WHERE id = 388089021"
             )
@@ -148,7 +148,7 @@ def test_staging_load(destination_config: DestinationTestConfiguration) -> None:
 
         # check changes where merged in
         with pipeline.sql_client() as sql_client:
-            if destination_config.destination in ["mssql", "synapse"]:
+            if destination_config.destination_type in ["mssql", "synapse"]:
                 qual_name = sql_client.make_qualified_table_name
                 rows_1 = sql_client.execute_sql(
                     f"SELECT TOP 1 number FROM {qual_name('issues')} WHERE id = 1232152492"
@@ -279,7 +279,7 @@ def test_all_data_types(destination_config: DestinationTestConfiguration) -> Non
     # redshift and athena, parquet and jsonl, exclude time types
     exclude_types: List[TDataType] = []
     exclude_columns: List[str] = []
-    if destination_config.destination in (
+    if destination_config.destination_type in (
         "redshift",
         "athena",
         "databricks",
@@ -287,10 +287,10 @@ def test_all_data_types(destination_config: DestinationTestConfiguration) -> Non
     ) and destination_config.file_format in ("parquet", "jsonl"):
         # Redshift copy doesn't support TIME column
         exclude_types.append("time")
-    if destination_config.destination == "synapse" and destination_config.file_format == "parquet":
+    if destination_config.destination_type == "synapse" and destination_config.file_format == "parquet":
         # TIME columns are not supported for staged parquet loads into Synapse
         exclude_types.append("time")
-    if destination_config.destination in (
+    if destination_config.destination_type in (
         "redshift",
         "dremio",
     ) and destination_config.file_format in (
@@ -299,7 +299,7 @@ def test_all_data_types(destination_config: DestinationTestConfiguration) -> Non
     ):
         # Redshift can't load fixed width binary columns from parquet
         exclude_columns.append("col7_precision")
-    if destination_config.destination == "databricks" and destination_config.file_format == "jsonl":
+    if destination_config.destination_type == "databricks" and destination_config.file_format == "jsonl":
         exclude_types.extend(["decimal", "binary", "wei", "json", "date"])
         exclude_columns.append("col1_precision")
 
@@ -309,12 +309,12 @@ def test_all_data_types(destination_config: DestinationTestConfiguration) -> Non
 
     # bigquery and clickhouse cannot load into JSON fields from parquet
     if destination_config.file_format == "parquet":
-        if destination_config.destination in ["bigquery"]:
+        if destination_config.destination_type in ["bigquery"]:
             # change datatype to text and then allow for it in the assert (parse_json_strings)
             column_schemas["col9_null"]["data_type"] = column_schemas["col9"]["data_type"] = "text"
     # redshift cannot load from json into VARBYTE
     if destination_config.file_format == "jsonl":
-        if destination_config.destination == "redshift":
+        if destination_config.destination_type == "redshift":
             # change the datatype to text which will result in inserting base64 (allow_base64_binary)
             binary_cols = ["col7", "col7_null"]
             for col in binary_cols:
@@ -344,15 +344,15 @@ def test_all_data_types(destination_config: DestinationTestConfiguration) -> Non
         # parquet is not really good at inserting json, best we get are strings in JSON columns
         parse_json_strings = (
             destination_config.file_format == "parquet"
-            and destination_config.destination in ["redshift", "bigquery", "snowflake"]
+            and destination_config.destination_type in ["redshift", "bigquery", "snowflake"]
         )
         allow_base64_binary = (
             destination_config.file_format == "jsonl"
-            and destination_config.destination in ["redshift", "clickhouse"]
+            and destination_config.destination_type in ["redshift", "clickhouse"]
         )
         allow_string_binary = (
             destination_config.file_format == "parquet"
-            and destination_config.destination in ["clickhouse"]
+            and destination_config.destination_type in ["clickhouse"]
         )
         # content must equal
         assert_all_data_types_row(

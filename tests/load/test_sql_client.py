@@ -28,6 +28,7 @@ from tests.load.utils import (
     prepare_table,
     AWS_BUCKET,
     destinations_configs,
+    DestinationTestConfiguration,
 )
 
 # mark all tests as essential, do not remove
@@ -46,7 +47,8 @@ def file_storage() -> FileStorage:
 
 @pytest.fixture(scope="function")
 def client(request, naming) -> Iterator[SqlJobClientBase]:
-    yield from yield_client_with_storage(request.param.destination)
+    param: DestinationTestConfiguration = request.param
+    yield from yield_client_with_storage(param.destination_factory())
 
 
 @pytest.fixture(scope="function")

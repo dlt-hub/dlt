@@ -1120,7 +1120,7 @@ def test_dedup_sort_hint(destination_config: DestinationTestConfiguration) -> No
     assert sorted(observed, key=lambda d: d["id"]) == expected
 
     # additional tests with two records, run only on duckdb to limit test load
-    if destination_config.destination == "duckdb":
+    if destination_config.destination_type == "duckdb":
         # two records with same primary key
         # record with highest value in sort column is a delete
         # existing record is deleted and no record will be inserted
@@ -1201,7 +1201,7 @@ def test_merge_strategy_config() -> None:
     ids=lambda x: x.name,
 )
 def test_upsert_merge_strategy_config(destination_config: DestinationTestConfiguration) -> None:
-    if destination_config.destination == "filesystem":
+    if destination_config.destination_type == "filesystem":
         # TODO: implement validation and remove this test exception
         pytest.skip(
             "`upsert` merge strategy configuration validation has not yet been"

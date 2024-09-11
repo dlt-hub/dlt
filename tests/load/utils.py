@@ -144,7 +144,7 @@ ALL_BUCKETS = DEFAULT_BUCKETS + EXTRA_BUCKETS
 class DestinationTestConfiguration:
     """Class for defining test setup for one destination."""
 
-    destination: str
+    destination_type: str
     staging: Optional[TDestinationReferenceArg] = None
     file_format: Optional[TLoaderFileFormat] = None
     table_format: Optional[TTableFormat] = None
@@ -160,10 +160,17 @@ class DestinationTestConfiguration:
     dev_mode: bool = False
     credentials: Optional[Union[CredentialsConfiguration, Dict[str, Any]]] = None
     env_vars: Optional[Dict[str, str]] = None
+    destination_name: Optional[str] = None
+
+    def destination_factory(self, **kwargs) -> Destination[Any, Any]:
+        dest_type = kwargs.pop("destination", self.destination_type)
+        dest_name = kwargs.pop("destination_name", self.destination_name)
+        self.setup()
+        return Destination.from_reference(dest_type, destination_name=dest_name, **kwargs)
 
     @property
     def name(self) -> str:
-        name: str = self.destination
+        name: str = self.destination_name or self.destination_type
         if self.file_format:
             name += f"-{self.file_format}"
         if self.table_format:
@@ -196,7 +203,7 @@ class DestinationTestConfiguration:
             os.environ[f"DESTINATION__{k.upper()}"] = str(v)
 
         # For the filesystem destinations we disable compression to make analyzing the result easier
-        if self.destination == "filesystem" or self.disable_compression:
+        if self.destination_type == "filesystem" or self.disable_compression:
             os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "True"
 
         if self.credentials is not None:
@@ -211,11 +218,12 @@ class DestinationTestConfiguration:
         self, pipeline_name: str, dataset_name: str = None, dev_mode: bool = False, **kwargs
     ) -> dlt.Pipeline:
         """Convenience method to setup pipeline with this configuration"""
+
         self.dev_mode = dev_mode
-        self.setup()
+        factory = self.destination_factory(**kwargs)
         pipeline = dlt.pipeline(
             pipeline_name=pipeline_name,
-            destination=kwargs.pop("destination", self.destination),
+            destination=factory,
             staging=kwargs.pop("staging", self.staging),
             dataset_name=dataset_name or pipeline_name,
             dev_mode=dev_mode,
@@ -274,13 +282,13 @@ def destinations_configs(
     default_sql_configs_with_staging = [
         # Athena needs filesystem staging, which will be automatically set; we have to supply a bucket url though.
         DestinationTestConfiguration(
-            destination="athena",
+            destination_type="athena",
             file_format="parquet",
             supports_merge=False,
             bucket_url=AWS_BUCKET,
         ),
         DestinationTestConfiguration(
-            destination="athena",
+            destination_type="athena",
             file_format="parquet",
             bucket_url=AWS_BUCKET,
             supports_merge=True,
@@ -293,14 +301,16 @@ def destinations_configs(
     # default non staging sql based configs, one per destination
     if default_sql_configs:
         destination_configs += [
-            DestinationTestConfiguration(destination=destination)
+            DestinationTestConfiguration(destination_type=destination)
             for destination in SQL_DESTINATIONS
             if destination
             not in ("athena", "synapse", "databricks", "dremio", "clickhouse", "sqlalchemy")
         ]
         destination_configs += [
-            DestinationTestConfiguration(destination="duckdb", file_format="parquet"),
-            DestinationTestConfiguration(destination="motherduck", file_format="insert_values"),
+            DestinationTestConfiguration(destination_type="duckdb", file_format="parquet"),
+            DestinationTestConfiguration(
+                destination_type="motherduck", file_format="insert_values"
+            ),
         ]
 
         # add Athena staging configs
@@ -308,17 +318,21 @@ def destinations_configs(
 
         destination_configs += [
             DestinationTestConfiguration(
-                destination="sqlalchemy", supports_merge=False, supports_dbt=False
+                destination_type="sqlalchemy",
+                supports_merge=False,
+                supports_dbt=False,
+                destination_name="mysql_driver",
+            )
+        ]
+
+        destination_configs += [
+            DestinationTestConfiguration(
+                destination_type="clickhouse", file_format="jsonl", supports_dbt=False
             )
         ]
         destination_configs += [
             DestinationTestConfiguration(
-                destination="clickhouse", file_format="jsonl", supports_dbt=False
-            )
-        ]
-        destination_configs += [
-            DestinationTestConfiguration(
-                destination="databricks",
+                destination_type="databricks",
                 file_format="parquet",
                 bucket_url=AZ_BUCKET,
                 extra_info="az-authorization",
@@ -327,7 +341,7 @@ def destinations_configs(
 
         destination_configs += [
             DestinationTestConfiguration(
-                destination="dremio",
+                destination_type="dremio",
                 staging=filesystem(destination_name="minio"),
                 file_format="parquet",
                 bucket_url=AWS_BUCKET,
@@ -335,24 +349,24 @@ def destinations_configs(
             )
         ]
         destination_configs += [
-            # DestinationTestConfiguration(destination="mssql", supports_dbt=False),
-            DestinationTestConfiguration(destination="synapse", supports_dbt=False),
+            # DestinationTestConfiguration(destination_type="mssql", supports_dbt=False),
+            DestinationTestConfiguration(destination_type="synapse", supports_dbt=False),
         ]
 
         # sanity check that when selecting default destinations, one of each sql destination is actually
         # provided
-        assert set(SQL_DESTINATIONS) == {d.destination for d in destination_configs}
+        assert set(SQL_DESTINATIONS) == {d.destination_type for d in destination_configs}
 
     if default_vector_configs:
         destination_configs += [
-            DestinationTestConfiguration(destination="weaviate"),
-            DestinationTestConfiguration(destination="lancedb"),
+            DestinationTestConfiguration(destination_type="weaviate"),
+            DestinationTestConfiguration(destination_type="lancedb"),
             DestinationTestConfiguration(
-                destination="qdrant",
+                destination_type="qdrant",
                 credentials=dict(path=str(Path(FILE_BUCKET) / "qdrant_data")),
                 extra_info="local-file",
             ),
-            DestinationTestConfiguration(destination="qdrant", extra_info="server"),
+            DestinationTestConfiguration(destination_type="qdrant", extra_info="server"),
         ]
 
     if (default_sql_configs or all_staging_configs) and not default_sql_configs:
@@ -362,7 +376,7 @@ def destinations_configs(
     if default_staging_configs or all_staging_configs:
         destination_configs += [
             DestinationTestConfiguration(
-                destination="redshift",
+                destination_type="redshift",
                 staging="filesystem",
                 file_format="parquet",
                 bucket_url=AWS_BUCKET,
@@ -370,14 +384,14 @@ def destinations_configs(
                 extra_info="s3-role",
             ),
             DestinationTestConfiguration(
-                destination="bigquery",
+                destination_type="bigquery",
                 staging="filesystem",
                 file_format="parquet",
                 bucket_url=GCS_BUCKET,
                 extra_info="gcs-authorization",
             ),
             DestinationTestConfiguration(
-                destination="snowflake",
+                destination_type="snowflake",
                 staging="filesystem",
                 file_format="jsonl",
                 bucket_url=GCS_BUCKET,
@@ -385,14 +399,14 @@ def destinations_configs(
                 extra_info="gcs-integration",
             ),
             DestinationTestConfiguration(
-                destination="snowflake",
+                destination_type="snowflake",
                 staging="filesystem",
                 file_format="jsonl",
                 bucket_url=AWS_BUCKET,
                 extra_info="s3-integration",
             ),
             DestinationTestConfiguration(
-                destination="snowflake",
+                destination_type="snowflake",
                 staging="filesystem",
                 file_format="jsonl",
                 bucket_url=AWS_BUCKET,
@@ -400,7 +414,7 @@ def destinations_configs(
                 extra_info="s3-integration",
             ),
             DestinationTestConfiguration(
-                destination="snowflake",
+                destination_type="snowflake",
                 staging="filesystem",
                 file_format="jsonl",
                 bucket_url=AZ_BUCKET,
@@ -408,14 +422,14 @@ def destinations_configs(
                 extra_info="az-integration",
             ),
             DestinationTestConfiguration(
-                destination="snowflake",
+                destination_type="snowflake",
                 staging="filesystem",
                 file_format="jsonl",
                 bucket_url=AZ_BUCKET,
                 extra_info="az-authorization",
             ),
             DestinationTestConfiguration(
-                destination="databricks",
+                destination_type="databricks",
                 staging="filesystem",
                 file_format="jsonl",
                 bucket_url=AWS_BUCKET,
@@ -423,7 +437,7 @@ def destinations_configs(
                 disable_compression=True,
             ),
             DestinationTestConfiguration(
-                destination="databricks",
+                destination_type="databricks",
                 staging="filesystem",
                 file_format="jsonl",
                 bucket_url=AZ_BUCKET,
@@ -431,14 +445,14 @@ def destinations_configs(
                 disable_compression=True,
             ),
             DestinationTestConfiguration(
-                destination="databricks",
+                destination_type="databricks",
                 staging="filesystem",
                 file_format="parquet",
                 bucket_url=AWS_BUCKET,
                 extra_info="s3-authorization",
             ),
             DestinationTestConfiguration(
-                destination="synapse",
+                destination_type="synapse",
                 staging="filesystem",
                 file_format="parquet",
                 bucket_url=AZ_BUCKET,
@@ -446,35 +460,35 @@ def destinations_configs(
                 disable_compression=True,
             ),
             DestinationTestConfiguration(
-                destination="clickhouse",
+                destination_type="clickhouse",
                 staging="filesystem",
                 file_format="parquet",
                 bucket_url=AWS_BUCKET,
                 extra_info="s3-authorization",
             ),
             DestinationTestConfiguration(
-                destination="clickhouse",
+                destination_type="clickhouse",
                 staging="filesystem",
                 file_format="parquet",
                 bucket_url=AZ_BUCKET,
                 extra_info="az-authorization",
             ),
             DestinationTestConfiguration(
-                destination="clickhouse",
+                destination_type="clickhouse",
                 staging="filesystem",
                 file_format="jsonl",
                 bucket_url=AZ_BUCKET,
                 extra_info="az-authorization",
             ),
             DestinationTestConfiguration(
-                destination="clickhouse",
+                destination_type="clickhouse",
                 staging="filesystem",
                 file_format="jsonl",
                 bucket_url=AWS_BUCKET,
                 extra_info="s3-authorization",
             ),
             DestinationTestConfiguration(
-                destination="dremio",
+                destination_type="dremio",
                 staging=filesystem(destination_name="minio"),
                 file_format="parquet",
                 bucket_url=AWS_BUCKET,
@@ -485,35 +499,35 @@ def destinations_configs(
     if all_staging_configs:
         destination_configs += [
             DestinationTestConfiguration(
-                destination="redshift",
+                destination_type="redshift",
                 staging="filesystem",
                 file_format="parquet",
                 bucket_url=AWS_BUCKET,
                 extra_info="credential-forwarding",
             ),
             DestinationTestConfiguration(
-                destination="snowflake",
+                destination_type="snowflake",
                 staging="filesystem",
                 file_format="parquet",
                 bucket_url=AWS_BUCKET,
                 extra_info="credential-forwarding",
             ),
             DestinationTestConfiguration(
-                destination="redshift",
+                destination_type="redshift",
                 staging="filesystem",
                 file_format="jsonl",
                 bucket_url=AWS_BUCKET,
                 extra_info="credential-forwarding",
             ),
             DestinationTestConfiguration(
-                destination="bigquery",
+                destination_type="bigquery",
                 staging="filesystem",
                 file_format="jsonl",
                 bucket_url=GCS_BUCKET,
                 extra_info="gcs-authorization",
             ),
             DestinationTestConfiguration(
-                destination="synapse",
+                destination_type="synapse",
                 staging="filesystem",
                 file_format="parquet",
                 bucket_url=AZ_BUCKET,
@@ -526,7 +540,7 @@ def destinations_configs(
     if local_filesystem_configs:
         destination_configs += [
             DestinationTestConfiguration(
-                destination="filesystem",
+                destination_type="filesystem",
                 bucket_url=FILE_BUCKET,
                 file_format="insert_values",
                 supports_merge=False,
@@ -534,7 +548,7 @@ def destinations_configs(
         ]
         destination_configs += [
             DestinationTestConfiguration(
-                destination="filesystem",
+                destination_type="filesystem",
                 bucket_url=FILE_BUCKET,
                 file_format="parquet",
                 supports_merge=False,
@@ -542,7 +556,7 @@ def destinations_configs(
         ]
         destination_configs += [
             DestinationTestConfiguration(
-                destination="filesystem",
+                destination_type="filesystem",
                 bucket_url=FILE_BUCKET,
                 file_format="jsonl",
                 supports_merge=False,
@@ -553,7 +567,7 @@ def destinations_configs(
         for bucket in DEFAULT_BUCKETS:
             destination_configs += [
                 DestinationTestConfiguration(
-                    destination="filesystem",
+                    destination_type="filesystem",
                     bucket_url=bucket,
                     extra_info=bucket,
                     supports_merge=False,
@@ -564,7 +578,7 @@ def destinations_configs(
         for bucket in DEFAULT_BUCKETS:
             destination_configs += [
                 DestinationTestConfiguration(
-                    destination="filesystem",
+                    destination_type="filesystem",
                     bucket_url=bucket,
                     extra_info=bucket,
                     table_format="delta",
@@ -583,27 +597,29 @@ def destinations_configs(
 
     # filter out non active destinations
     destination_configs = [
-        conf for conf in destination_configs if conf.destination in ACTIVE_DESTINATIONS
+        conf for conf in destination_configs if conf.destination_type in ACTIVE_DESTINATIONS
     ]
 
     # filter out destinations not in subset
     if subset:
-        destination_configs = [conf for conf in destination_configs if conf.destination in subset]
+        destination_configs = [
+            conf for conf in destination_configs if conf.destination_type in subset
+        ]
     if bucket_subset:
         destination_configs = [
             conf
             for conf in destination_configs
-            if conf.destination != "filesystem" or conf.bucket_url in bucket_subset
+            if conf.destination_type != "filesystem" or conf.bucket_url in bucket_subset
         ]
     if exclude:
         destination_configs = [
-            conf for conf in destination_configs if conf.destination not in exclude
+            conf for conf in destination_configs if conf.destination_type not in exclude
         ]
     if bucket_exclude:
         destination_configs = [
             conf
             for conf in destination_configs
-            if conf.destination != "filesystem" or conf.bucket_url not in bucket_exclude
+            if conf.destination_type != "filesystem" or conf.bucket_url not in bucket_exclude
         ]
     if with_file_format:
         if not isinstance(with_file_format, Sequence):
@@ -780,14 +796,14 @@ def prepare_table(
 
 
 def yield_client(
-    destination_type: str,
+    destination_ref: TDestinationReferenceArg,
     dataset_name: str = None,
     default_config_values: StrAny = None,
     schema_name: str = "event",
 ) -> Iterator[SqlJobClientBase]:
     os.environ.pop("DATASET_NAME", None)
     # import destination reference by name
-    destination = Destination.from_reference(destination_type)
+    destination = Destination.from_reference(destination_ref)
     # create initial config
     dest_config: DestinationClientDwhConfiguration = None
     dest_config = destination.spec()  # type: ignore
@@ -812,7 +828,7 @@ def yield_client(
     client: SqlJobClientBase = None
 
     # athena requires staging config to be present, so stick this in there here
-    if destination_type == "athena":
+    if destination.destination_type == "athena":
         staging_config = DestinationClientStagingConfiguration(
             bucket_url=AWS_BUCKET,
         )._bind_dataset_name(dataset_name=dest_config.dataset_name)
@@ -825,7 +841,7 @@ def yield_client(
         ConfigSectionContext(
             sections=(
                 "destination",
-                destination_type,
+                destination.destination_name,
             )
         )
     ):
@@ -835,23 +851,23 @@ def yield_client(
 
 @contextlib.contextmanager
 def cm_yield_client(
-    destination_type: str,
+    destination: TDestinationReferenceArg,
     dataset_name: str,
     default_config_values: StrAny = None,
     schema_name: str = "event",
 ) -> Iterator[SqlJobClientBase]:
-    return yield_client(destination_type, dataset_name, default_config_values, schema_name)
+    return yield_client(destination, dataset_name, default_config_values, schema_name)
 
 
 def yield_client_with_storage(
-    destination_type: str, default_config_values: StrAny = None, schema_name: str = "event"
+    destination: TDestinationReferenceArg,
+    default_config_values: StrAny = None,
+    schema_name: str = "event",
 ) -> Iterator[SqlJobClientBase]:
     # create dataset with random name
     dataset_name = "test_" + uniq_id()
 
-    with cm_yield_client(
-        destination_type, dataset_name, default_config_values, schema_name
-    ) as client:
+    with cm_yield_client(destination, dataset_name, default_config_values, schema_name) as client:
         client.initialize_storage()
         yield client
         if client.is_storage_initialized():
@@ -872,9 +888,11 @@ def delete_dataset(client: SqlClientBase[Any], normalized_dataset_name: str) -> 
 
 @contextlib.contextmanager
 def cm_yield_client_with_storage(
-    destination_type: str, default_config_values: StrAny = None, schema_name: str = "event"
+    destination: TDestinationReferenceArg,
+    default_config_values: StrAny = None,
+    schema_name: str = "event",
 ) -> Iterator[SqlJobClientBase]:
-    return yield_client_with_storage(destination_type, default_config_values, schema_name)
+    return yield_client_with_storage(destination, default_config_values, schema_name)
 
 
 def write_dataset(

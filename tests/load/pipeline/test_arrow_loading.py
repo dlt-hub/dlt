@@ -41,7 +41,7 @@ def test_load_arrow_item(
     # os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "True"
     os.environ["NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_LOAD_ID"] = "True"
     os.environ["NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_ID"] = "True"
-    include_time = destination_config.destination not in (
+    include_time = destination_config.destination_type not in (
         "athena",
         "redshift",
         "databricks",
@@ -49,15 +49,15 @@ def test_load_arrow_item(
         "clickhouse",
     )  # athena/redshift can't load TIME columns
     include_binary = not (
-        destination_config.destination in ("redshift", "databricks")
+        destination_config.destination_type in ("redshift", "databricks")
         and destination_config.file_format == "jsonl"
     )
 
     include_decimal = not (
-        destination_config.destination == "databricks" and destination_config.file_format == "jsonl"
+        destination_config.destination_type == "databricks" and destination_config.file_format == "jsonl"
     )
     include_date = not (
-        destination_config.destination == "databricks" and destination_config.file_format == "jsonl"
+        destination_config.destination_type == "databricks" and destination_config.file_format == "jsonl"
     )
 
     item, records, _ = arrow_table_all_data_types(
@@ -77,7 +77,7 @@ def test_load_arrow_item(
 
     # use csv for postgres to get native arrow processing
     destination_config.file_format = (
-        destination_config.file_format if destination_config.destination != "postgres" else "csv"
+        destination_config.file_format if destination_config.destination_type != "postgres" else "csv"
     )
 
     load_info = pipeline.run(some_data(), **destination_config.run_kwargs)
@@ -107,13 +107,13 @@ def test_load_arrow_item(
             if isinstance(row[i], memoryview):
                 row[i] = row[i].tobytes()
 
-    if destination_config.destination == "redshift":
+    if destination_config.destination_type == "redshift":
         # Redshift needs hex string
         for record in records:
             if "binary" in record:
                 record["binary"] = record["binary"].hex()
 
-    if destination_config.destination == "clickhouse":
+    if destination_config.destination_type == "clickhouse":
         for record in records:
             # Clickhouse needs base64 string for jsonl
             if "binary" in record and destination_config.file_format == "jsonl":
@@ -128,7 +128,7 @@ def test_load_arrow_item(
                 row[i] = pendulum.instance(row[i])
             # clickhouse produces rounding errors on double with jsonl, so we round the result coming from there
             if (
-                destination_config.destination == "clickhouse"
+                destination_config.destination_type == "clickhouse"
                 and destination_config.file_format == "jsonl"
                 and isinstance(row[i], float)
             ):

@@ -62,7 +62,7 @@ def file_storage() -> FileStorage:
 
 @pytest.fixture(scope="function")
 def client(request, naming) -> Iterator[SqlJobClientBase]:
-    yield from yield_client_with_storage(request.param.destination)
+    yield from yield_client_with_storage(request.param.destination_factory())
 
 
 @pytest.fixture(scope="function")
@@ -754,7 +754,7 @@ def test_get_resumed_job(client: SqlJobClientBase, file_storage: FileStorage) ->
 )
 def test_default_schema_name_init_storage(destination_config: DestinationTestConfiguration) -> None:
     with cm_yield_client_with_storage(
-        destination_config.destination,
+        destination_config.destination_factory(),
         default_config_values={
             "default_schema_name": (  # pass the schema that is a default schema. that should create dataset with the name `dataset_name`
                 "event"
@@ -765,7 +765,7 @@ def test_default_schema_name_init_storage(destination_config: DestinationTestCon
         assert client.sql_client.has_dataset()
 
     with cm_yield_client_with_storage(
-        destination_config.destination,
+        destination_config.destination_factory(),
         default_config_values={
             "default_schema_name": (
                 None  # no default_schema. that should create dataset with the name `dataset_name`
@@ -776,7 +776,7 @@ def test_default_schema_name_init_storage(destination_config: DestinationTestCon
         assert client.sql_client.has_dataset()
 
     with cm_yield_client_with_storage(
-        destination_config.destination,
+        destination_config.destination_factory(),
         default_config_values={
             "default_schema_name": (  # the default schema is not event schema . that should create dataset with the name `dataset_name` with schema suffix
                 "event_2"
@@ -805,7 +805,7 @@ def test_get_stored_state(
     os.environ["SCHEMA__NAMING"] = naming_convention
 
     with cm_yield_client_with_storage(
-        destination_config.destination, default_config_values={"default_schema_name": None}
+        destination_config.destination_factory(), default_config_values={"default_schema_name": None}
     ) as client:
         # event schema with event table
         if not client.capabilities.preferred_loader_file_format:
@@ -869,7 +869,7 @@ def test_many_schemas_single_dataset(
         assert len(db_rows) == expected_rows
 
     with cm_yield_client_with_storage(
-        destination_config.destination, default_config_values={"default_schema_name": None}
+        destination_config.destination_factory(), default_config_values={"default_schema_name": None}
     ) as client:
         # event schema with event table
         if not client.capabilities.preferred_loader_file_format:
@@ -928,9 +928,9 @@ def test_many_schemas_single_dataset(
             "mandatory_column", "text", nullable=False
         )
         client.schema._bump_version()
-        if destination_config.destination == "clickhouse" or (
+        if destination_config.destination_type == "clickhouse" or (
             # mysql allows adding not-null columns (they have an implicit default)
-            destination_config.destination == "sqlalchemy"
+            destination_config.destination_type == "sqlalchemy"
             and client.sql_client.dialect_name == "mysql"
         ):
             client.update_stored_schema()

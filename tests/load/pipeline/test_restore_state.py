@@ -219,13 +219,13 @@ def test_get_schemas_from_destination(
     use_single_dataset: bool,
     naming_convention: str,
 ) -> None:
-    set_naming_env(destination_config.destination, naming_convention)
+    set_naming_env(destination_config.destination_type, naming_convention)
 
     pipeline_name = "pipe_" + uniq_id()
     dataset_name = "state_test_" + uniq_id()
 
     p = destination_config.setup_pipeline(pipeline_name=pipeline_name, dataset_name=dataset_name)
-    assert_naming_to_caps(destination_config.destination, p.destination.capabilities())
+    assert_naming_to_caps(destination_config.destination_type, p.destination.capabilities())
     p.config.use_single_dataset = use_single_dataset
 
     def _make_dn_name(schema_name: str) -> str:
@@ -318,13 +318,13 @@ def test_get_schemas_from_destination(
 def test_restore_state_pipeline(
     destination_config: DestinationTestConfiguration, naming_convention: str
 ) -> None:
-    set_naming_env(destination_config.destination, naming_convention)
+    set_naming_env(destination_config.destination_type, naming_convention)
     # enable restoring from destination
     os.environ["RESTORE_FROM_DESTINATION"] = "True"
     pipeline_name = "pipe_" + uniq_id()
     dataset_name = "state_test_" + uniq_id()
     p = destination_config.setup_pipeline(pipeline_name=pipeline_name, dataset_name=dataset_name)
-    assert_naming_to_caps(destination_config.destination, p.destination.capabilities())
+    assert_naming_to_caps(destination_config.destination_type, p.destination.capabilities())
 
     def some_data_gen(param: str) -> Any:
         dlt.current.source_state()[param] = param
@@ -550,7 +550,7 @@ def test_restore_schemas_while_import_schemas_exist(
     )
     # use run to get changes
     p.run(
-        destination=destination_config.destination,
+        destination=destination_config.destination_factory(),
         staging=destination_config.staging,
         dataset_name=dataset_name,
         **destination_config.run_kwargs,
@@ -601,7 +601,7 @@ def test_restore_state_parallel_changes(destination_config: DestinationTestConfi
     p.run(
         [data1, some_data("state2")],
         schema=Schema("default"),
-        destination=destination_config.destination,
+        destination=destination_config.destination_factory(),
         staging=destination_config.staging,
         dataset_name=dataset_name,
         **destination_config.run_kwargs,
@@ -611,7 +611,7 @@ def test_restore_state_parallel_changes(destination_config: DestinationTestConfi
     # create a production pipeline in separate pipelines_dir
     production_p = dlt.pipeline(pipeline_name=pipeline_name, pipelines_dir=TEST_STORAGE_ROOT)
     production_p.run(
-        destination=destination_config.destination,
+        destination=destination_config.destination_factory(),
         staging=destination_config.staging,
         dataset_name=dataset_name,
         **destination_config.run_kwargs,
@@ -691,7 +691,9 @@ def test_restore_state_parallel_changes(destination_config: DestinationTestConfi
             [5, 4, 4, 3, 2],
         )
     except SqlClientNotAvailable:
-        pytest.skip(f"destination {destination_config.destination} does not support sql client")
+        pytest.skip(
+            f"destination {destination_config.destination_type} does not support sql client"
+        )
 
 
 @pytest.mark.parametrize(
@@ -719,7 +721,7 @@ def test_reset_pipeline_on_deleted_dataset(
     p.run(
         data4,
         schema=Schema("sch1"),
-        destination=destination_config.destination,
+        destination=destination_config.destination_factory(),
         staging=destination_config.staging,
         dataset_name=dataset_name,
         **destination_config.run_kwargs,
@@ -749,7 +751,7 @@ def test_reset_pipeline_on_deleted_dataset(
     p.run(
         data4,
         schema=Schema("sch1"),
-        destination=destination_config.destination,
+        destination=destination_config.destination_factory(),
         staging=destination_config.staging,
         dataset_name=dataset_name,
         **destination_config.run_kwargs,
