@@ -1,3 +1,4 @@
+import datetime
 import hashlib
 from typing import Dict, List, Any, Sequence, Tuple, Literal, Union
 import base64
@@ -5,6 +6,7 @@ from hexbytes import HexBytes
 from copy import deepcopy
 from string import ascii_lowercase
 import random
+import secrets
 
 from dlt.common import Decimal, pendulum, json
 from dlt.common.data_types import TDataType
@@ -315,7 +317,7 @@ def arrow_table_all_data_types(
     import numpy as np
 
     data = {
-        "string": [random.choice(ascii_lowercase) + "\"'\\🦆\n\r" for _ in range(num_rows)],
+        "string": [secrets.token_urlsafe(8) + "\"'\\🦆\n\r" for _ in range(num_rows)],
         "float": [round(random.uniform(0, 100), 4) for _ in range(num_rows)],
         "int": [random.randrange(0, 100) for _ in range(num_rows)],
         "datetime": pd.date_range("2021-01-01T01:02:03.1234", periods=num_rows, tz=tz, unit="us"),
@@ -340,7 +342,18 @@ def arrow_table_all_data_types(
         data["json"] = [{"a": random.randrange(0, 100)} for _ in range(num_rows)]
 
     if include_time:
-        data["time"] = pd.date_range("2021-01-01", periods=num_rows, tz="UTC").time
+        # data["time"] = pd.date_range("2021-01-01", periods=num_rows, tz="UTC").time
+        # data["time"] = pd.date_range("2021-01-01T01:02:03.1234", periods=num_rows, tz=tz, unit="us").time
+        # random time objects with different hours/minutes/seconds/microseconds
+        data["time"] = [
+            datetime.time(
+                random.randrange(0, 24),
+                random.randrange(0, 60),
+                random.randrange(0, 60),
+                random.randrange(0, 1000000),
+            )
+            for _ in range(num_rows)
+        ]
 
     if include_binary:
         # "binary": [hashlib.sha3_256(random.choice(ascii_lowercase).encode()).digest() for _ in range(num_rows)],

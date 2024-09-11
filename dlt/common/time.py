@@ -143,6 +143,14 @@ def ensure_pendulum_time(value: Union[str, datetime.time]) -> pendulum.Time:
             return result
         else:
             raise ValueError(f"{value} is not a valid ISO time string.")
+    elif isinstance(value, timedelta):
+        # Assume timedelta is seconds passed since midnight. Some drivers (mysqlclient) return time in this format
+        return pendulum.time(
+            value.seconds // 3600,
+            (value.seconds // 60) % 60,
+            value.seconds % 60,
+            value.microseconds,
+        )
     raise TypeError(f"Cannot coerce {value} to a pendulum.Time object.")
 
 

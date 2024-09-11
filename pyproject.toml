@@ -111,6 +111,7 @@ dremio = ["pyarrow"]
 lancedb = ["lancedb", "pyarrow", "tantivy"]
 deltalake = ["deltalake", "pyarrow"]
 sql_database = ["sqlalchemy"]
+sqlalchemy = ["sqlalchemy"]
 
 
 [tool.poetry.scripts]

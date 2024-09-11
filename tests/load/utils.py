@@ -295,7 +295,8 @@ def destinations_configs(
         destination_configs += [
             DestinationTestConfiguration(destination=destination)
             for destination in SQL_DESTINATIONS
-            if destination not in ("athena", "synapse", "databricks", "dremio", "clickhouse")
+            if destination
+            not in ("athena", "synapse", "databricks", "dremio", "clickhouse", "sqlalchemy")
         ]
         destination_configs += [
             DestinationTestConfiguration(destination="duckdb", file_format="parquet"),
@@ -305,6 +306,11 @@ def destinations_configs(
         # add Athena staging configs
         destination_configs += default_sql_configs_with_staging
 
+        destination_configs += [
+            DestinationTestConfiguration(
+                destination="sqlalchemy", supports_merge=False, supports_dbt=False
+            )
+        ]
         destination_configs += [
             DestinationTestConfiguration(
                 destination="clickhouse", file_format="jsonl", supports_dbt=False

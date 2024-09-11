@@ -541,7 +541,9 @@ def _get_shuffled_events(shuffle: bool = dlt.secrets.value):
 
 
 @pytest.mark.parametrize(
-    "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
+    "destination_config",
+    destinations_configs(default_sql_configs=True, exclude=["sqlalchemy"]),
+    ids=lambda x: x.name,
 )
 @pytest.mark.parametrize("github_resource", [github_repo_events, github_repo_events_table_meta])
 def test_merge_with_dispatch_and_incremental(

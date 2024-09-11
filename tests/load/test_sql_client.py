@@ -20,7 +20,7 @@ from dlt.destinations.exceptions import (
 from dlt.destinations.sql_client import DBApiCursor, SqlClientBase
 from dlt.destinations.job_client_impl import SqlJobClientBase
 from dlt.destinations.typing import TNativeConn
-from dlt.common.time import ensure_pendulum_datetime
+from dlt.common.time import ensure_pendulum_datetime, to_py_datetime
 
 from tests.utils import TEST_STORAGE_ROOT, autouse_test_storage
 from tests.load.utils import (
@@ -62,7 +62,9 @@ def naming(request) -> str:
 @pytest.mark.parametrize(
     "client",
     destinations_configs(
-        default_sql_configs=True, exclude=["mssql", "synapse", "dremio", "clickhouse"]
+        # Only databases that support search path or equivalent
+        default_sql_configs=True,
+        exclude=["mssql", "synapse", "dremio", "clickhouse", "sqlalchemy"],
     ),
     indirect=True,
     ids=lambda x: x.name,
@@ -212,10 +214,10 @@ def test_execute_sql(client: SqlJobClientBase) -> None:
     assert rows[0][0] == "event"
     # print(rows[0][1])
     # print(type(rows[0][1]))
-    # convert to pendulum to make sure it is supported by dbapi
+    # ensure datetime obj to make sure it is supported by dbapi
     rows = client.sql_client.execute_sql(
         f"SELECT schema_name, inserted_at FROM {version_table_name} WHERE inserted_at = %s",
-        ensure_pendulum_datetime(rows[0][1]),
+        to_py_datetime(ensure_pendulum_datetime(rows[0][1])),
     )
     assert len(rows) == 1
     # use rows in subsequent test
@@ -620,7 +622,7 @@ def test_max_column_identifier_length(client: SqlJobClientBase) -> None:
 
 @pytest.mark.parametrize(
     "client",
-    destinations_configs(default_sql_configs=True, exclude=["databricks"]),
+    destinations_configs(default_sql_configs=True, exclude=["databricks", "sqlalchemy"]),
     indirect=True,
     ids=lambda x: x.name,
 )

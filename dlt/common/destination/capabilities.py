@@ -176,6 +176,12 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     loader_parallelism_strategy: Optional[TLoaderParallelismStrategy] = None
     """The destination can override the parallelism strategy"""
 
+    max_query_parameters: Optional[int] = None
+    """The maximum number of parameters that can be supplied in a single parametrized query"""
+
+    supports_native_boolean: bool = True
+    """The destination supports a native boolean type, otherwise bool columns are usually stored as integers"""
+
     def generates_case_sensitive_identifiers(self) -> bool:
         """Tells if capabilities as currently adjusted, will generate case sensitive identifiers"""
         # must have case sensitive support and folding function must preserve casing

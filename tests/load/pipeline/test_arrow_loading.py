@@ -1,4 +1,4 @@
-from datetime import datetime  # noqa: I251
+from datetime import datetime, timedelta, time as dt_time  # noqa: I251
 import os
 
 import pytest
@@ -9,7 +9,7 @@ import base64
 
 import dlt
 from dlt.common import pendulum
-from dlt.common.time import reduce_pendulum_datetime_precision
+from dlt.common.time import reduce_pendulum_datetime_precision, ensure_pendulum_time
 from dlt.common.utils import uniq_id
 
 from tests.load.utils import destinations_configs, DestinationTestConfiguration
@@ -121,6 +121,7 @@ def test_load_arrow_item(
             if "binary" in record and destination_config.file_format == "parquet":
                 record["binary"] = record["binary"].decode("ascii")
 
+    first_record = list(records[0].values())
     for row in rows:
         for i in range(len(row)):
             if isinstance(row[i], datetime):
@@ -132,6 +133,9 @@ def test_load_arrow_item(
                 and isinstance(row[i], float)
             ):
                 row[i] = round(row[i], 4)
+            if isinstance(row[i], timedelta) and isinstance(first_record[i], dt_time):
+                # Some drivers (mysqlclient) return TIME columns as timedelta as seconds since midnight
+                row[i] = ensure_pendulum_time(row[i])
 
     expected = sorted([list(r.values()) for r in records])
 

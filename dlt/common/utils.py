@@ -282,8 +282,10 @@ def clone_dict_nested(src: TDict) -> TDict:
     return update_dict_nested({}, src, copy_src_dicts=True)  # type: ignore[return-value]
 
 
-def map_nested_in_place(func: AnyFun, _nested: TAny) -> TAny:
-    """Applies `func` to all elements in `_dict` recursively, replacing elements in nested dictionaries and lists in place."""
+def map_nested_in_place(func: AnyFun, _nested: TAny, *args: Any, **kwargs: Any) -> TAny:
+    """Applies `func` to all elements in `_dict` recursively, replacing elements in nested dictionaries and lists in place.
+    Additional `*args` and `**kwargs` are passed to `func`.
+    """
     if isinstance(_nested, tuple):
         if hasattr(_nested, "_asdict"):
             _nested = _nested._asdict()
@@ -293,15 +295,15 @@ def map_nested_in_place(func: AnyFun, _nested: TAny) -> TAny:
     if isinstance(_nested, dict):
         for k, v in _nested.items():
             if isinstance(v, (dict, list, tuple)):
-                _nested[k] = map_nested_in_place(func, v)
+                _nested[k] = map_nested_in_place(func, v, *args, **kwargs)
             else:
-                _nested[k] = func(v)
+                _nested[k] = func(v, *args, **kwargs)
     elif isinstance(_nested, list):
         for idx, _l in enumerate(_nested):
             if isinstance(_l, (dict, list, tuple)):
-                _nested[idx] = map_nested_in_place(func, _l)
+                _nested[idx] = map_nested_in_place(func, _l, *args, **kwargs)
             else:
-                _nested[idx] = func(_l)
+                _nested[idx] = func(_l, *args, **kwargs)
     else:
         raise ValueError(_nested, "Not a nested type")
     return _nested

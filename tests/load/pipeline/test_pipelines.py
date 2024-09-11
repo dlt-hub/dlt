@@ -755,7 +755,9 @@ def test_pipeline_upfront_tables_two_loads(
 
 
 @pytest.mark.parametrize(
-    "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
+    "destination_config",
+    destinations_configs(default_sql_configs=True, exclude=["sqlalchemy"]),
+    ids=lambda x: x.name,
 )
 def test_query_all_info_tables_fallback(destination_config: DestinationTestConfiguration) -> None:
     pipeline = destination_config.setup_pipeline(
