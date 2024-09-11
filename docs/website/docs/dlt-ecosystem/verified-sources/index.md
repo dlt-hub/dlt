@@ -20,7 +20,7 @@ item => item.label === '30+ SQL Databases' || item.label === 'REST API generic s
 Choose from our collection of verified sources, developed and maintained by the `dlt` team and community. Each source is rigorously tested against a real API and provided as Python code for easy customization.
 
 :::tip
-If you couldn't find a source implementation, you can easily create your own, check our [tutorial](../../tutorial/grouping-resources) to learn how!
+If you couldn't find a source implementation, you can easily create your own, check out the [resource page](../../general-usage/resource) to learn how!
 :::
 
 <DocCardList items={useCurrentSidebarCategory().items.filter(
