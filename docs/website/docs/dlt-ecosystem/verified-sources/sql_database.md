@@ -559,10 +559,21 @@ sources.sql_database.credentials="mssql+pyodbc://loader:loader@localhost/dlt_dat
 sources.sql_database.credentials="mssql+pyodbc://loader:loader@localhost/dlt_data?TrustServerCertificate=yes&driver=ODBC+Driver+17+for+SQL+Server"
 ```
 
-***To use long strings (>8k) and avoid collation errors**:
+**To use long strings (>8k) and avoid collation errors**:
 ```toml
 sources.sql_database.credentials="mssql+pyodbc://loader:loader@localhost/dlt_data?LongAsMax=yes&driver=ODBC+Driver+17+for+SQL+Server"
 ```
+
+**To fix MS SQL Server connection issues with ConnectorX**:
+
+Some users have reported issues with MS SQL Server and Connector X. The problems are not caused by `dlt`, but by how connections are made. A big thanks 
+to [Mark-James M](https://github.com/markjamesm) for suggesting a solution.
+
+To fix connection issues with ConnectorX and MS SQL Server, include both `Encrypt=yes` and `encrypt=true` in your connection string:
+```py
+sources.sql_database.credentials="mssql://user:password@server:1433/database?driver=ODBC+Driver+17+for+SQL+Server&Encrypt=yes&encrypt=true"
+```
+This approach can help resolve connection-related issues.
 
 ## Customizations
 ### Transform the data in Python before it is loaded
