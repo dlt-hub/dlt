@@ -4,9 +4,7 @@ description: How to extract data from a REST API using dlt's REST API source
 keywords: [tutorial, api, github, duckdb, rest api, source, pagination, authentication]
 ---
 
-This tutorial shows how to extract data from a REST API using dlt's generic REST API source. The tutorial will guide you through the basics of setting up and configuring the source to load data from the API into a destination.
-
-As a practical example, we'll build a data pipelines that loads data from the [Pokemon](https://pokeapi.co/) and [GitHub](https://docs.github.com/en/rest) APIs into a [DuckDB](https://duckdb.org) database.
+This tutorial demonstrates how to extract data from a REST API using dlt's REST API source and load it into a destination. You will learn how to build a data pipeline that loads data from the [GitHub API](https://docs.github.com/en/) into a local DuckDB database.
 
 ## What you will learn
 
