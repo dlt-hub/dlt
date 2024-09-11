@@ -35,7 +35,6 @@ from dlt.pipeline.exceptions import PipelineStepFailed
 
 TRACE_ENGINE_VERSION = 1
 TRACE_FILE_NAME = "trace.pickle"
-MASKED_SECRET = "*****"
 
 
 # @dataclasses.dataclass(init=True)
@@ -55,10 +54,7 @@ class SerializableResolvedValueTrace(NamedTuple):
         return {k: v for k, v in self._asdict().items() if k not in ("value", "default_value")}
 
     def asstr(self, verbosity: int = 0) -> str:
-        return (
-            f"{self.key}->{_mask_secret(self.value) if self.is_secret_hint else self.value } in"
-            f" {'.'.join(self.sections)} by {self.provider_name}"
-        )
+        return f"{self.key}->{self.value} in {'.'.join(self.sections)} by {self.provider_name}"
 
     def __str__(self) -> str:
         return self.asstr(verbosity=0)
@@ -284,8 +280,8 @@ def end_trace_step(
     resolved_values = map(
         lambda v: SerializableResolvedValueTrace(
             v.key,
-            _mask_secret(v.value) if is_secret_hint(v.hint) else v.value,
-            _mask_secret(v.default_value) if is_secret_hint(v.hint) else v.default_value,
+            None if is_secret_hint(v.hint) else v.value,
+            None if is_secret_hint(v.hint) else v.default_value,
             is_secret_hint(v.hint),
             v.sections,
             v.provider_name,
@@ -300,13 +296,6 @@ def end_trace_step(
         with suppress_and_warn(f"end_trace_step on module {module} failed"):
             module.on_end_trace_step(trace, step, pipeline, step_info, send_state)
     return trace
-
-
-def _mask_secret(trace_item_value: Any) -> Any:
-    if isinstance(trace_item_value, dict):
-        return {k: MASKED_SECRET for k in trace_item_value}
-    else:
-        return MASKED_SECRET
 
 
 def end_trace(

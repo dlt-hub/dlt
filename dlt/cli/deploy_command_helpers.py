@@ -16,6 +16,7 @@ import dlt
 from dlt.common import git
 from dlt.common.configuration.exceptions import LookupTrace, ConfigFieldMissingException
 from dlt.common.configuration.providers import ConfigTomlProvider, EnvironProvider
+from dlt.common.configuration.providers.toml import BaseDocProvider
 from dlt.common.git import get_origin, get_repo, Repo
 from dlt.common.configuration.specs.run_configuration import get_default_pipeline_name
 from dlt.common.typing import StrAny
@@ -200,7 +201,7 @@ class BaseDeployment(abc.ABC):
     def _echo_secrets(self) -> None:
         for s_v in self.secret_envs:
             fmt.secho("Name:", fg="green")
-            fmt.echo(fmt.bold(self.env_prov.get_key_name(s_v.key, *s_v.sections)))
+            fmt.echo(fmt.bold(BaseDocProvider.get_key_name(s_v.key, *s_v.sections)))
             try:
                 fmt.secho("Secret:", fg="green")
                 fmt.echo(self._lookup_secret_value(s_v))
@@ -211,7 +212,7 @@ class BaseDeployment(abc.ABC):
             fmt.echo()
 
     def _lookup_secret_value(self, trace: LookupTrace) -> Any:
-        return dlt.secrets[self.env_prov.get_secret_key_name(trace.key, *trace.sections)]
+        return dlt.secrets[BaseDocProvider.get_key_name(trace.key, *trace.sections)]
 
     def _echo_envs(self) -> None:
         for v in self.envs:
