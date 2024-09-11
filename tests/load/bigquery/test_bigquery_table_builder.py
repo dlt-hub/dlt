@@ -1,12 +1,6 @@
 import os
 from copy import deepcopy
 from typing import Iterator, Dict, Any, List
-from dlt.common.destination.exceptions import DestinationSchemaTampered
-from dlt.common.schema.exceptions import SchemaIdentifierNormalizationCollision
-from dlt.destinations.impl.bigquery.bigquery_adapter import (
-    PARTITION_HINT,
-    CLUSTER_HINT,
-)
 
 import google
 import pytest
@@ -19,19 +13,22 @@ from dlt.common.configuration.specs import (
     GcpServiceAccountCredentialsWithoutDefaults,
     GcpServiceAccountCredentials,
 )
+from dlt.common.destination.exceptions import DestinationSchemaTampered
 from dlt.common.pendulum import pendulum
 from dlt.common.schema import Schema, utils
+from dlt.common.schema.exceptions import SchemaIdentifierNormalizationCollision
 from dlt.common.utils import custom_environ
 from dlt.common.utils import uniq_id
-
-from dlt.destinations.exceptions import DestinationSchemaWillNotUpdate
 from dlt.destinations import bigquery
-from dlt.destinations.impl.bigquery.bigquery import BigQueryClient
 from dlt.destinations.adapters import bigquery_adapter
+from dlt.destinations.exceptions import DestinationSchemaWillNotUpdate
+from dlt.destinations.impl.bigquery.bigquery import BigQueryClient
+from dlt.destinations.impl.bigquery.bigquery_adapter import (
+    PARTITION_HINT,
+    CLUSTER_HINT,
+)
 from dlt.destinations.impl.bigquery.configuration import BigQueryClientConfiguration
-
 from dlt.extract import DltResource
-
 from tests.load.utils import (
     destinations_configs,
     DestinationTestConfiguration,
@@ -1108,6 +1105,62 @@ def test_adapter_merge_behaviour(
         hints,
         table_description="A small table somewhere in the cosmos...",
         partition="col2",
+    )
+
+    pipeline = destination_config.setup_pipeline(
+        f"bigquery_{uniq_id()}",
+        dev_mode=True,
+    )
+
+    pipeline.run(hints)
+
+    with pipeline.sql_client() as c:
+        nc: google.cloud.bigquery.client.Client = c.native_connection
+
+        table_fqtn = c.make_qualified_table_name("hints", escape=False)
+
+        table: Table = nc.get_table(table_fqtn)
+
+        table_cluster_fields = [] if table.clustering_fields is None else table.clustering_fields
+
+        # Test merging behaviour.
+        assert table.expires == pendulum.datetime(2030, 1, 1, 0)
+        assert ["col1"] == table_cluster_fields, "`hints` table IS NOT clustered by `col1`."
+        assert table.description == "A small table somewhere in the cosmos..."
+
+        if not table.range_partitioning:
+            raise ValueError("`hints` table IS NOT clustered on a column.")
+        else:
+            assert (
+                table.range_partitioning.field == "col2"
+            ), "`hints` table IS NOT clustered on column `col2`."
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["bigquery"]),
+    ids=lambda x: x.name,
+)
+def test_adapter_autodetect_schema_with_hints(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    @dlt.resource(
+        columns=[
+            {"name": "col1", "data_type": "text"},
+            {"name": "col2", "data_type": "bigint"},
+            {"name": "col3", "data_type": "double"},
+        ]
+    )
+    def hints() -> Iterator[Dict[str, Any]]:
+        yield from [{"col1": str(i), "col2": i, "col3": float(i)} for i in range(10)]
+
+    bigquery_adapter(
+        hints,
+        table_description="A small table somewhere in the cosmos...",
+        partition="col2",
+        table_expiration_datetime="2030-01-01",
+        cluster=["col1"],
+        autodetect_schema=True,
     )
 
     pipeline = destination_config.setup_pipeline(
