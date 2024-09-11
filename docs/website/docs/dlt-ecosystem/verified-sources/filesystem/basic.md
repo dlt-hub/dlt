@@ -239,10 +239,15 @@ The filesystem source is quite unique since it provides you with building blocks
 First, it iterates over files in the storage and then processes each file to yield the records.
 Usually, you need two resources:
 
-1. The `filesystem` resource enumerates files in a selected bucket using a glob pattern, returning details as `FileInfo` in customizable page sizes.
+1. The `filesystem` resource enumerates files in a selected bucket using a glob pattern, returning details as `FileItem` in customizable page sizes.
 2. One of the available transformer resources to process each file in a specific transforming function and yield the records.
 
 ### 1. Initialize a `filesystem` resource
+
+:::note
+If you use just the `filesystem` resource, it will only list files in the storage based on glob parameters and yield the
+files [metadata](advanced#fileitem-fields). The `filesystem` resource itself does not read or copy files.
+:::
 
 All parameters of the resource can be specified directly in code:
 ```py
