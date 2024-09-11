@@ -287,7 +287,10 @@ def test_all_data_types(destination_config: DestinationTestConfiguration) -> Non
     ) and destination_config.file_format in ("parquet", "jsonl"):
         # Redshift copy doesn't support TIME column
         exclude_types.append("time")
-    if destination_config.destination_type == "synapse" and destination_config.file_format == "parquet":
+    if (
+        destination_config.destination_type == "synapse"
+        and destination_config.file_format == "parquet"
+    ):
         # TIME columns are not supported for staged parquet loads into Synapse
         exclude_types.append("time")
     if destination_config.destination_type in (

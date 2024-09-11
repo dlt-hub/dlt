@@ -321,8 +321,14 @@ def destinations_configs(
                 destination_type="sqlalchemy",
                 supports_merge=False,
                 supports_dbt=False,
-                destination_name="mysql_driver",
-            )
+                destination_name="sqlalchemy_mysql",
+            ),
+            DestinationTestConfiguration(
+                destination_type="sqlalchemy",
+                supports_merge=False,
+                supports_dbt=False,
+                destination_name="sqlalchemy_sqlite",
+            ),
         ]
 
         destination_configs += [

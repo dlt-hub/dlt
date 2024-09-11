@@ -27,7 +27,12 @@ from dlt.destinations.exceptions import (
 )
 
 from dlt.destinations.job_client_impl import SqlJobClientBase
-from dlt.common.destination.reference import StateInfo, WithStagingDataset
+from dlt.common.destination.reference import (
+    StateInfo,
+    WithStagingDataset,
+    DestinationClientConfiguration,
+)
+from dlt.common.time import ensure_pendulum_datetime
 
 from tests.cases import table_update_and_row, assert_all_data_types_row
 from tests.utils import TEST_STORAGE_ROOT, autouse_test_storage
@@ -202,7 +207,7 @@ def test_complete_load(naming: str, client: SqlJobClientBase) -> None:
     assert load_rows[0][2] == 0
     import datetime  # noqa: I251
 
-    assert type(load_rows[0][3]) is datetime.datetime
+    assert isinstance(ensure_pendulum_datetime(load_rows[0][3]), datetime.datetime)
     assert load_rows[0][4] == client.schema.version_hash
     # make sure that hash in loads exists in schema versions table
     versions_table = client.sql_client.make_qualified_table_name(version_table_name)
@@ -571,7 +576,7 @@ def test_load_with_all_types(
     if not client.capabilities.preferred_loader_file_format:
         pytest.skip("preferred loader file format not set, destination will only work with staging")
     table_name = "event_test_table" + uniq_id()
-    column_schemas, data_row = get_columns_and_row_all_types(client.config.destination_type)
+    column_schemas, data_row = get_columns_and_row_all_types(client.config)
 
     # we should have identical content with all disposition types
     partial = client.schema.update_table(
@@ -646,7 +651,7 @@ def test_write_dispositions(
     os.environ["DESTINATION__REPLACE_STRATEGY"] = replace_strategy
 
     table_name = "event_test_table" + uniq_id()
-    column_schemas, data_row = get_columns_and_row_all_types(client.config.destination_type)
+    column_schemas, data_row = get_columns_and_row_all_types(client.config)
     client.schema.update_table(
         new_table(table_name, write_disposition=write_disposition, columns=column_schemas.values())
     )
@@ -805,7 +810,8 @@ def test_get_stored_state(
     os.environ["SCHEMA__NAMING"] = naming_convention
 
     with cm_yield_client_with_storage(
-        destination_config.destination_factory(), default_config_values={"default_schema_name": None}
+        destination_config.destination_factory(),
+        default_config_values={"default_schema_name": None},
     ) as client:
         # event schema with event table
         if not client.capabilities.preferred_loader_file_format:
@@ -869,7 +875,8 @@ def test_many_schemas_single_dataset(
         assert len(db_rows) == expected_rows
 
     with cm_yield_client_with_storage(
-        destination_config.destination_factory(), default_config_values={"default_schema_name": None}
+        destination_config.destination_factory(),
+        default_config_values={"default_schema_name": None},
     ) as client:
         # event schema with event table
         if not client.capabilities.preferred_loader_file_format:
@@ -965,11 +972,16 @@ def normalize_rows(rows: List[Dict[str, Any]], naming: NamingConvention) -> None
             row[naming.normalize_identifier(k)] = row.pop(k)
 
 
-def get_columns_and_row_all_types(destination_type: str):
+def get_columns_and_row_all_types(destination_config: DestinationClientConfiguration):
+    exclude_types = []
+    if destination_config.destination_type in ["databricks", "clickhouse", "motherduck"]:
+        exclude_types.append("time")
+    if destination_config.destination_name == "sqlalchemy_sqlite":
+        exclude_types.extend(["decimal", "wei"])
     return table_update_and_row(
         # TIME + parquet is actually a duckdb problem: https://github.com/duckdb/duckdb/pull/13283
-        exclude_types=(
-            ["time"] if destination_type in ["databricks", "clickhouse", "motherduck"] else None
+        exclude_types=exclude_types,  # type: ignore[arg-type]
+        exclude_columns=(
+            ["col4_precision"] if destination_config.destination_type in ["motherduck"] else None
         ),
-        exclude_columns=["col4_precision"] if destination_type in ["motherduck"] else None,
     )

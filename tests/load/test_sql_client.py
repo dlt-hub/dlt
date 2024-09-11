@@ -149,6 +149,7 @@ def test_has_dataset(naming: str, client: SqlJobClientBase) -> None:
 )
 def test_create_drop_dataset(naming: str, client: SqlJobClientBase) -> None:
     # client.sql_client.create_dataset()
+    # Dataset is already create in fixture, so next time it fails
     with pytest.raises(DatabaseException):
         client.sql_client.create_dataset()
     client.sql_client.drop_dataset()
@@ -212,7 +213,7 @@ def test_execute_sql(client: SqlJobClientBase) -> None:
     assert len(rows) == 1
     # print(rows)
     assert rows[0][0] == "event"
-    assert isinstance(rows[0][1], datetime.datetime)
+    assert isinstance(ensure_pendulum_datetime(rows[0][1]), datetime.datetime)
     assert rows[0][0] == "event"
     # print(rows[0][1])
     # print(type(rows[0][1]))

@@ -216,18 +216,21 @@ def assert_all_data_types_row(
     expected_rows = {key: value for key, value in expected_row.items() if key in schema}
     # prepare date to be compared: convert into pendulum instance, adjust microsecond precision
     if "col4" in expected_rows:
-        parsed_date = pendulum.instance(db_mapping["col4"])
+        parsed_date = ensure_pendulum_datetime((db_mapping["col4"]))
         db_mapping["col4"] = reduce_pendulum_datetime_precision(parsed_date, timestamp_precision)
         expected_rows["col4"] = reduce_pendulum_datetime_precision(
             ensure_pendulum_datetime(expected_rows["col4"]),  # type: ignore[arg-type]
             timestamp_precision,
         )
     if "col4_precision" in expected_rows:
-        parsed_date = pendulum.instance(db_mapping["col4_precision"])
+        parsed_date = ensure_pendulum_datetime((db_mapping["col4_precision"]))
         db_mapping["col4_precision"] = reduce_pendulum_datetime_precision(parsed_date, 3)
         expected_rows["col4_precision"] = reduce_pendulum_datetime_precision(
             ensure_pendulum_datetime(expected_rows["col4_precision"]), 3  # type: ignore[arg-type]
         )
+
+    if "col10" in expected_rows:
+        db_mapping["col10"] = ensure_pendulum_date(db_mapping["col10"])
 
     if "col11" in expected_rows:
         expected_rows["col11"] = reduce_pendulum_datetime_precision(

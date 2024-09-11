@@ -114,7 +114,8 @@ class SqlalchemyClient(SqlClientBase[Connection]):
             self.external_engine = True
         else:
             self.engine = sa.create_engine(
-                credentials.to_url().render_as_string(hide_password=False), **(engine_args or {})
+                credentials.to_url().render_as_string(hide_password=False),
+                **(engine_args or {}),
             )
 
         self._current_connection: Optional[Connection] = None
@@ -198,7 +199,7 @@ class SqlalchemyClient(SqlClientBase[Connection]):
             )
 
         statement = "ATTACH DATABASE :fn AS :name"
-        self.execute(statement, fn=new_db_fn, name=dataset_name)
+        self.execute_sql(statement, fn=new_db_fn, name=dataset_name)
 
     def _sqlite_drop_dataset(self, dataset_name: str) -> None:
         """Drop a dataset in sqlite by detaching the database file
@@ -208,10 +209,10 @@ class SqlalchemyClient(SqlClientBase[Connection]):
         rows = self.execute_sql("PRAGMA database_list")
         dbs = {row[1]: row[2] for row in rows}  # db_name: filename
         if dataset_name not in dbs:
-            return
+            raise DatabaseUndefinedRelation(f"Database {dataset_name} does not exist")
 
         statement = "DETACH DATABASE :name"
-        self.execute(statement, name=dataset_name)
+        self.execute_sql(statement, name=dataset_name)
 
         fn = dbs[dataset_name]
         if not fn:  # It's a memory database, nothing to do
@@ -230,11 +231,7 @@ class SqlalchemyClient(SqlClientBase[Connection]):
         try:
             self.execute_sql(sa.schema.DropSchema(self.dataset_name, cascade=True))
         except DatabaseTransientException as e:
-            if isinstance(e.__cause__, sa.exc.ProgrammingError):
-                # May not support CASCADE
-                self.execute_sql(sa.schema.DropSchema(self.dataset_name))
-            else:
-                raise
+            self.execute_sql(sa.schema.DropSchema(self.dataset_name))
 
     def truncate_tables(self, *tables: str) -> None:
         # TODO: alchemy doesn't have a construct for TRUNCATE TABLE

@@ -585,7 +585,9 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
             parse_json_strings=destination_config.destination_type
             in ["snowflake", "bigquery", "redshift"],
             allow_string_binary=destination_config.destination_type == "clickhouse",
-            timestamp_precision=3 if destination_config.destination_type in ("athena", "dremio") else 6,
+            timestamp_precision=(
+                3 if destination_config.destination_type in ("athena", "dremio") else 6
+            ),
         )
 
 

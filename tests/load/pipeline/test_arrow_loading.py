@@ -54,10 +54,12 @@ def test_load_arrow_item(
     )
 
     include_decimal = not (
-        destination_config.destination_type == "databricks" and destination_config.file_format == "jsonl"
+        destination_config.destination_type == "databricks"
+        and destination_config.file_format == "jsonl"
     )
     include_date = not (
-        destination_config.destination_type == "databricks" and destination_config.file_format == "jsonl"
+        destination_config.destination_type == "databricks"
+        and destination_config.file_format == "jsonl"
     )
 
     item, records, _ = arrow_table_all_data_types(
