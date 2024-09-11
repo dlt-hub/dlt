@@ -11,6 +11,7 @@ from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
 from dlt.common.typing import TDataItems, TDataItem, TLoaderFileFormat
 from dlt.common.schema import Schema, utils
 from dlt.common.schema.typing import (
+    C_DLT_LOAD_ID,
     TSchemaContractDict,
     TSchemaEvolutionMode,
     TTableSchema,
@@ -413,16 +414,10 @@ class ArrowExtractor(Extractor):
             arrow_table["columns"] = pyarrow.py_arrow_to_table_schema_columns(item.schema)
 
             # Add load_id column if needed
-            dlt_load_id_col = self.naming.normalize_identifier("_dlt_load_id")
-            if (
-                self._normalize_config.add_dlt_load_id
-                and dlt_load_id_col not in arrow_table["columns"]
-            ):
-                arrow_table["columns"][dlt_load_id_col] = {
-                    "name": dlt_load_id_col,
-                    "data_type": "text",
-                    "nullable": False,
-                }
+            dlt_load_id = self.naming.normalize_identifier(C_DLT_LOAD_ID)
+            if self._normalize_config.add_dlt_load_id and dlt_load_id not in arrow_table["columns"]:
+                # will be normalized line below
+                arrow_table["columns"][C_DLT_LOAD_ID] = utils.dlt_load_id_column()
 
             # normalize arrow table before merging
             arrow_table = utils.normalize_table_identifiers(arrow_table, self.schema.naming)

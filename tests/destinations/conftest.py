@@ -5,3 +5,4 @@ from tests.utils import (
     wipe_pipeline,
     duckdb_pipeline_location,
 )
+from tests.common.configuration.utils import environment

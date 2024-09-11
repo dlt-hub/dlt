@@ -147,7 +147,7 @@ keep_staged_files = false
 `snowflake` supports various timestamp types, which can be configured using the column flags `timezone` and `precision` in the `dlt.resource` decorator or the `pipeline.run` method.
 
 - **Precision**: allows you to specify the number of decimal places for fractional seconds, ranging from 0 to 9. It can be used in combination with the `timezone` flag.
-- **Timezone**: 
+- **Timezone**:
   - Setting `timezone=False` maps to `TIMESTAMP_NTZ`.
   - Setting `timezone=True` (or omitting the flag, which defaults to `True`) maps to `TIMESTAMP_TZ`.
 
@@ -176,7 +176,7 @@ When staging is enabled:
 * [csv](../file-formats/csv.md) is supported
 
 :::caution
-When loading from `parquet`, Snowflake will store `complex` types (JSON) in `VARIANT` as a string. Use the `jsonl` format instead or use `PARSE_JSON` to update the `VARIANT` field after loading.
+When loading from `parquet`, Snowflake will store `json` types (JSON) in `VARIANT` as a string. Use the `jsonl` format instead or use `PARSE_JSON` to update the `VARIANT` field after loading.
 :::
 
 ### Custom csv formats

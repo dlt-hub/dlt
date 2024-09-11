@@ -18,7 +18,7 @@ list_val=[1, "2", [3]]
 dict_val={'a'=1, "b"="2"}
 float_val=1.18927
 tuple_val=[1, 2, {1="complicated dicts allowed in literal eval"}]
-COMPLEX_VAL={"_"= [1440, ["*"], []], "change-email"= [560, ["*"], []]}
+NESTED_VAL={"_"= [1440, ["*"], []], "change-email"= [560, ["*"], []]}
 date_val=1979-05-27T07:32:00-08:00
 dec_val="22.38"  # always use text to pass decimals
 bytes_val="0x48656c6c6f20576f726c6421"  # always use text to pass hex value that should be converted to bytes

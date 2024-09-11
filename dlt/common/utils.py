@@ -282,29 +282,29 @@ def clone_dict_nested(src: TDict) -> TDict:
     return update_dict_nested({}, src, copy_src_dicts=True)  # type: ignore[return-value]
 
 
-def map_nested_in_place(func: AnyFun, _complex: TAny) -> TAny:
+def map_nested_in_place(func: AnyFun, _nested: TAny) -> TAny:
     """Applies `func` to all elements in `_dict` recursively, replacing elements in nested dictionaries and lists in place."""
-    if isinstance(_complex, tuple):
-        if hasattr(_complex, "_asdict"):
-            _complex = _complex._asdict()
+    if isinstance(_nested, tuple):
+        if hasattr(_nested, "_asdict"):
+            _nested = _nested._asdict()
         else:
-            _complex = list(_complex)  # type: ignore
+            _nested = list(_nested)  # type: ignore
 
-    if isinstance(_complex, dict):
-        for k, v in _complex.items():
+    if isinstance(_nested, dict):
+        for k, v in _nested.items():
             if isinstance(v, (dict, list, tuple)):
-                _complex[k] = map_nested_in_place(func, v)
+                _nested[k] = map_nested_in_place(func, v)
             else:
-                _complex[k] = func(v)
-    elif isinstance(_complex, list):
-        for idx, _l in enumerate(_complex):
+                _nested[k] = func(v)
+    elif isinstance(_nested, list):
+        for idx, _l in enumerate(_nested):
             if isinstance(_l, (dict, list, tuple)):
-                _complex[idx] = map_nested_in_place(func, _l)
+                _nested[idx] = map_nested_in_place(func, _l)
             else:
-                _complex[idx] = func(_l)
+                _nested[idx] = func(_l)
     else:
-        raise ValueError(_complex, "Not a complex type")
-    return _complex
+        raise ValueError(_nested, "Not a nested type")
+    return _nested
 
 
 def is_interactive() -> bool:

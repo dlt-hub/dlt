@@ -21,7 +21,7 @@ def resource():
             "col7": b"binary data \n \r ",
             "col8": 2**56 + 92093890840,
             "col9": {
-                "complex": [1, 2, 3, "a"],
+                "json": [1, 2, 3, "a"],
                 "link": (
                     "?commen\ntU\nrn=urn%3Ali%3Acomment%3A%28acti\012 \6"
                     " \\vity%3A69'08444473\n\n551163392%2C6n \r 9085"

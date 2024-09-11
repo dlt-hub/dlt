@@ -410,26 +410,29 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         return (col, cond)
 
     @classmethod
-    def _get_unique_col(
+    def _get_row_key_col(
         cls,
         table_chain: Sequence[PreparedTableSchema],
         sql_client: SqlClientBase[Any],
         table: PreparedTableSchema,
     ) -> str:
-        """Returns name of first column in `table` with `unique` property.
+        """Returns name of first column in `table` with `row_key` property. If not found first `unique` hint will be used
 
         Raises `MergeDispositionException` if no such column exists.
         """
-        return cls._get_prop_col_or_raise(
-            table,
-            "unique",
-            MergeDispositionException(
-                sql_client.fully_qualified_dataset_name(),
-                sql_client.fully_qualified_dataset_name(staging=True),
-                [t["name"] for t in table_chain],
-                f"No `unique` column (e.g. `_dlt_id`) in table `{table['name']}`.",
-            ),
-        )
+        col = get_first_column_name_with_prop(table, "row_key")
+        if col is None:
+            col = cls._get_prop_col_or_raise(
+                table,
+                "unique",
+                MergeDispositionException(
+                    sql_client.fully_qualified_dataset_name(),
+                    sql_client.fully_qualified_dataset_name(staging=True),
+                    [t["name"] for t in table_chain],
+                    f"No `row_key` or `unique` column (e.g. `_dlt_id`) in table `{table['name']}`.",
+                ),
+            )
+        return col
 
     @classmethod
     def _get_root_key_col(
@@ -512,7 +515,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         if not append_fallback:
             key_clauses = cls._gen_key_table_clauses(primary_keys, merge_keys)
 
-            unique_column: str = None
+            row_key_column: str = None
             root_key_column: str = None
 
             if len(table_chain) == 1 and not cls.requires_temp_table_for_delete():
@@ -526,14 +529,13 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                 key_table_clauses = cls.gen_key_table_clauses(
                     root_table_name, staging_root_table_name, key_clauses, for_delete=False
                 )
-                # use unique hint to create temp table with all identifiers to delete
-                # TODO: use row_key hint, not unique when implemented to correctly handle to nested tables
-                unique_column = escape_column_id(
-                    cls._get_unique_col(table_chain, sql_client, root_table)
+                # use row_key or unique hint to create temp table with all identifiers to delete
+                row_key_column = escape_column_id(
+                    cls._get_row_key_col(table_chain, sql_client, root_table)
                 )
                 create_delete_temp_table_sql, delete_temp_table_name = (
                     cls.gen_delete_temp_table_sql(
-                        root_table["name"], unique_column, key_table_clauses, sql_client
+                        root_table["name"], row_key_column, key_table_clauses, sql_client
                     )
                 )
                 sql.extend(create_delete_temp_table_sql)
@@ -547,14 +549,14 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                     )
                     sql.append(
                         cls.gen_delete_from_sql(
-                            table_name, root_key_column, delete_temp_table_name, unique_column
+                            table_name, root_key_column, delete_temp_table_name, row_key_column
                         )
                     )
 
                 # delete from root table now that nested tables have been processed
                 sql.append(
                     cls.gen_delete_from_sql(
-                        root_table_name, unique_column, delete_temp_table_name, unique_column
+                        root_table_name, row_key_column, delete_temp_table_name, row_key_column
                     )
                 )
 
@@ -582,7 +584,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                     staging_root_table_name,
                     sql_client,
                     primary_keys,
-                    unique_column,
+                    row_key_column,
                     dedup_sort,
                     not_deleted_cond,
                     condition_columns,
@@ -599,7 +601,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                 and is_nested_table(table)  # nested table
                 and hard_delete_col is not None
             ):
-                uniq_column = root_key_column if is_nested_table(table) else unique_column
+                uniq_column = root_key_column if is_nested_table(table) else row_key_column
                 insert_cond = f"{uniq_column} IN (SELECT * FROM {insert_temp_table_name})"
 
             columns = list(map(escape_column_id, get_columns_names_with_prop(table, "name")))
@@ -661,12 +663,12 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         # generate statements for nested tables if they exist
         nested_tables = table_chain[1:]
         if nested_tables:
-            root_unique_column = escape_column_id(
-                cls._get_unique_col(table_chain, sql_client, root_table)
+            root_row_key_column = escape_column_id(
+                cls._get_row_key_col(table_chain, sql_client, root_table)
             )
             for table in nested_tables:
-                unique_column = escape_column_id(
-                    cls._get_unique_col(table_chain, sql_client, table)
+                nested_row_key_column = escape_column_id(
+                    cls._get_row_key_col(table_chain, sql_client, table)
                 )
                 root_key_column = escape_column_id(
                     cls._get_root_key_col(table_chain, sql_client, table)
@@ -676,8 +678,8 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                 # delete records for elements no longer in the list
                 sql.append(f"""
                     DELETE FROM {table_name}
-                    WHERE {root_key_column} IN (SELECT {root_unique_column} FROM {staging_root_table_name})
-                    AND {unique_column} NOT IN (SELECT {unique_column} FROM {staging_table_name});
+                    WHERE {root_key_column} IN (SELECT {root_row_key_column} FROM {staging_root_table_name})
+                    AND {nested_row_key_column} NOT IN (SELECT {nested_row_key_column} FROM {staging_table_name});
                 """)
 
                 # insert records for new elements in the list
@@ -686,7 +688,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                 col_str = ", ".join(["{alias}" + c for c in table_column_names])
                 sql.append(f"""
                     MERGE INTO {table_name} d USING {staging_table_name} s
-                    ON d.{unique_column} = s.{unique_column}
+                    ON d.{nested_row_key_column} = s.{nested_row_key_column}
                     WHEN MATCHED
                         THEN UPDATE SET {update_str}
                     WHEN NOT MATCHED
@@ -698,7 +700,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                     sql.append(f"""
                         DELETE FROM {table_name}
                         WHERE {root_key_column} IN (
-                            SELECT {root_unique_column}
+                            SELECT {root_row_key_column}
                             FROM {staging_root_table_name}
                             WHERE {deleted_cond}
                         );
@@ -785,15 +787,15 @@ class SqlMergeFollowupJob(SqlFollowupJob):
             # - if it does not we only capture new records, while we should replace existing with those in stage
             # - this write disposition is way more similar to regular merge (how root tables are handled is different, other tables handled same)
             for table in nested_tables:
-                unique_column = escape_column_id(
-                    cls._get_unique_col(table_chain, sql_client, table)
+                row_key_column = escape_column_id(
+                    cls._get_row_key_col(table_chain, sql_client, table)
                 )
                 table_name, staging_table_name = sql_client.get_qualified_table_names(table["name"])
                 sql.append(f"""
                     INSERT INTO {table_name}
                     SELECT *
                     FROM {staging_table_name}
-                    WHERE {unique_column} NOT IN (SELECT {unique_column} FROM {table_name});
+                    WHERE {row_key_column} NOT IN (SELECT {row_key_column} FROM {table_name});
                 """)
 
         return sql

@@ -31,7 +31,7 @@ from dlt.common.exceptions import TerminalValueError
 from dlt.common.metrics import LoadJobMetrics
 from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.schema import Schema, TSchemaTables
-from dlt.common.schema.typing import _TTableSchemaBase, TWriteDisposition
+from dlt.common.schema.typing import C_DLT_LOAD_ID, _TTableSchemaBase, TWriteDisposition
 from dlt.common.schema.utils import fill_hints_from_parent_and_clone_table
 from dlt.common.configuration import configspec, resolve_configuration, known_sections, NotResolved
 from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration
@@ -100,7 +100,7 @@ class StateInfo:
     def as_doc(self) -> TPipelineStateDoc:
         doc: TPipelineStateDoc = dataclasses.asdict(self)  # type: ignore[assignment]
         if self._dlt_load_id is None:
-            doc.pop("_dlt_load_id")
+            doc.pop(C_DLT_LOAD_ID)  # type: ignore[misc]
         if self.version_hash is None:
             doc.pop("version_hash")
         return doc
@@ -125,7 +125,7 @@ class StateInfo:
             state=normalized_doc[naming_convention.normalize_identifier("state")],
             created_at=normalized_doc[naming_convention.normalize_identifier("created_at")],
             version_hash=normalized_doc.get(naming_convention.normalize_identifier("version_hash")),
-            _dlt_load_id=normalized_doc.get(naming_convention.normalize_identifier("_dlt_load_id")),
+            _dlt_load_id=normalized_doc.get(naming_convention.normalize_identifier(C_DLT_LOAD_ID)),
         )
 
 

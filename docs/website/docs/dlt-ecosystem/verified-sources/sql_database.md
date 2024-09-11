@@ -1,6 +1,6 @@
 ---
 title: 30+ SQL Databases
-description: dlt pipeline for SQL Database
+description: PostgreSQL, MySQL, MS SQL Server, BigQuery, Redshift, and more
 keywords: [sql connector, sql database pipeline, sql database]
 ---
 import Header from './_source-info-header.md';
@@ -405,7 +405,7 @@ The `reflection_level` argument controls how much information is reflected:
 
 If the SQL type is unknown or not supported by `dlt` the column is skipped when using the `pyarrow` backend.
 In other backend the type is inferred from data regardless of `reflection_level`, this often works, some types are coerced to strings
-and `dataclass` based values from sqlalchemy are inferred as `complex` (JSON in most destinations).
+and `dataclass` based values from sqlalchemy are inferred as `json` (JSON in most destinations).
 
 :::tip
 If you use **full** (and above) reflection level you may encounter a situation where the data returned by sql alchemy or pyarrow backend

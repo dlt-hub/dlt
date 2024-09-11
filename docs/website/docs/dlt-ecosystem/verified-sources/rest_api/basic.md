@@ -1,6 +1,11 @@
 ---
+<<<<<<< HEAD:docs/website/docs/dlt-ecosystem/verified-sources/rest_api/basic.md
 title: REST API source
 description: Learn how to set up and configure
+=======
+title: REST API generic source
+description: Loads data from REST APIs using declarative configuration
+>>>>>>> devel:docs/website/docs/dlt-ecosystem/verified-sources/rest_api.md
 keywords: [rest api, restful api]
 ---
 import Header from '../_source-info-header.md';

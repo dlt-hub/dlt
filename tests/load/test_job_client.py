@@ -423,24 +423,24 @@ def test_get_storage_table_with_all_types(client: SqlJobClientBase) -> None:
         # athena does not know wei data type and has no JSON type, time is not supported with parquet tables
         if client.config.destination_type == "athena" and c["data_type"] in (
             "wei",
-            "complex",
+            "json",
             "time",
         ):
             continue
-        # mssql, clickhouse and synapse have no native data type for the complex type.
+        # mssql, clickhouse and synapse have no native data type for the nested type.
         if client.config.destination_type in ("mssql", "synapse", "clickhouse") and c[
             "data_type"
-        ] in ("complex"):
+        ] in ("json"):
             continue
-        if client.config.destination_type == "databricks" and c["data_type"] in ("complex", "time"):
+        if client.config.destination_type == "databricks" and c["data_type"] in ("json", "time"):
             continue
         # ClickHouse has no active data type for binary or time type.
         if client.config.destination_type == "clickhouse":
             if c["data_type"] in ("binary", "time"):
                 continue
-            elif c["data_type"] == "complex" and c["nullable"]:
+            elif c["data_type"] == "json" and c["nullable"]:
                 continue
-        if client.config.destination_type == "dremio" and c["data_type"] == "complex":
+        if client.config.destination_type == "dremio" and c["data_type"] == "json":
             continue
         assert c["data_type"] == expected_c["data_type"]
 

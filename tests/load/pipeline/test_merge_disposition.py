@@ -460,7 +460,7 @@ def test_pipeline_load_parquet(destination_config: DestinationTestConfiguration)
     # do not save state to destination so jobs counting is easier
     p.config.restore_from_destination = False
     github_data = github()
-    # generate some complex types
+    # generate some nested types
     github_data.max_table_nesting = 2
     github_data_copy = github()
     github_data_copy.max_table_nesting = 2
@@ -486,7 +486,7 @@ def test_pipeline_load_parquet(destination_config: DestinationTestConfiguration)
 
     # now retry with replace
     github_data = github()
-    # generate some complex types
+    # generate some nested types
     github_data.max_table_nesting = 2
     info = p.run(
         github_data,
@@ -719,17 +719,17 @@ def test_no_deduplicate_only_merge_key(destination_config: DestinationTestConfig
     ids=lambda x: x.name,
 )
 @pytest.mark.parametrize("merge_strategy", ("delete-insert", "upsert"))
-def test_complex_column_missing(
+def test_nested_column_missing(
     destination_config: DestinationTestConfiguration,
     merge_strategy: TLoaderMergeStrategy,
 ) -> None:
     if destination_config.table_format == "delta":
         pytest.skip(
-            "Record updates that involve removing elements from a complex"
+            "Record updates that involve removing elements from a nested"
             " column is not supported for `delta` table format."
         )
 
-    table_name = "test_complex_column_missing"
+    table_name = "test_nested_column_missing"
 
     @dlt.resource(
         name=table_name,
@@ -744,22 +744,22 @@ def test_complex_column_missing(
     skip_if_not_supported(merge_strategy, p.destination)
 
     data = [
-        {"id": 1, "simple": "foo", "complex": [1, 2, 3]},
-        {"id": 2, "simple": "foo", "complex": [1, 2]},
+        {"id": 1, "simple": "foo", "nested": [1, 2, 3]},
+        {"id": 2, "simple": "foo", "nested": [1, 2]},
     ]
     info = p.run(r(data), **destination_config.run_kwargs)
     assert_load_info(info)
     assert load_table_counts(p, table_name)[table_name] == 2
-    assert load_table_counts(p, table_name + "__complex")[table_name + "__complex"] == 5
+    assert load_table_counts(p, table_name + "__nested")[table_name + "__nested"] == 5
 
-    # complex column is missing, previously inserted records should be deleted from child table
+    # nested column is missing, previously inserted records should be deleted from child table
     data = [
         {"id": 1, "simple": "bar"},
     ]
     info = p.run(r(data), **destination_config.run_kwargs)
     assert_load_info(info)
     assert load_table_counts(p, table_name)[table_name] == 2
-    assert load_table_counts(p, table_name + "__complex")[table_name + "__complex"] == 2
+    assert load_table_counts(p, table_name + "__nested")[table_name + "__nested"] == 2
 
 
 @pytest.mark.parametrize(
@@ -864,7 +864,7 @@ def test_hard_delete_hint(
     counts = load_table_counts(p, table_name)[table_name]
     assert load_table_counts(p, table_name)[table_name] == 1
 
-    table_name = "test_hard_delete_hint_complex"
+    table_name = "test_hard_delete_hint_nested"
     data_resource.apply_hints(table_name=table_name)
 
     # insert two records with childs and grandchilds
@@ -1053,7 +1053,7 @@ def test_dedup_sort_hint(destination_config: DestinationTestConfiguration) -> No
     expected = [{"id": 1, "val": "foo", "sequence": 1}]
     assert sorted(observed, key=lambda d: d["id"]) == expected
 
-    table_name = "test_dedup_sort_hint_complex"
+    table_name = "test_dedup_sort_hint_nested"
     data_resource.apply_hints(
         table_name=table_name,
         columns={"sequence": {"dedup_sort": "desc", "nullable": False}},

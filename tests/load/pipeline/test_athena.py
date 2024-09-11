@@ -95,7 +95,7 @@ def test_athena_all_datatypes_and_timestamps(
     # TIME is not supported
     column_schemas, data_types = table_update_and_row(exclude_types=["time"])
 
-    # apply the exact columns definitions so we process complex and wei types correctly!
+    # apply the exact columns definitions so we process json and wei types correctly!
     @dlt.resource(table_name="data_types", write_disposition="append", columns=column_schemas)
     def my_resource() -> Iterator[Any]:
         nonlocal data_types
@@ -115,7 +115,7 @@ def test_athena_all_datatypes_and_timestamps(
         # content must equal
         assert_all_data_types_row(
             db_row[:-2],
-            parse_complex_strings=True,
+            parse_json_strings=True,
             timestamp_precision=sql_client.capabilities.timestamp_precision,
             schema=column_schemas,
         )
@@ -182,7 +182,7 @@ def test_athena_blocks_time_column(destination_config: DestinationTestConfigurat
 
     column_schemas, data_types = table_update_and_row()
 
-    # apply the exact columns definitions so we process complex and wei types correctly!
+    # apply the exact columns definitions so we process json and wei types correctly!
     @dlt.resource(table_name="data_types", write_disposition="append", columns=column_schemas)
     def my_resource() -> Iterator[Any]:
         nonlocal data_types

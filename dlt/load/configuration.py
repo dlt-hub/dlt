@@ -13,7 +13,7 @@ class LoaderConfiguration(PoolRunnerConfiguration):
     parallelism_strategy: Optional[TLoaderParallelismStrategy] = None
     """Which parallelism strategy to use at load time"""
     pool_type: TPoolType = "thread"  # mostly i/o (upload) so may be thread pool
-    raise_on_failed_jobs: bool = False
+    raise_on_failed_jobs: bool = True
     """when True, raises on terminally failed jobs immediately"""
     raise_on_max_retries: int = 5
     """When gt 0 will raise when job reaches raise_on_max_retries"""

@@ -21,6 +21,7 @@ import re
 from dlt.common import pendulum, logger
 from dlt.common.json import json
 from dlt.common.schema.typing import (
+    C_DLT_LOAD_ID,
     COLUMN_HINTS,
     TColumnType,
     TColumnSchemaBase,
@@ -396,7 +397,7 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
         state_table = self.sql_client.make_qualified_table_name(self.schema.state_table_name)
         loads_table = self.sql_client.make_qualified_table_name(self.schema.loads_table_name)
         c_load_id, c_dlt_load_id, c_pipeline_name, c_status = self._norm_and_escape_columns(
-            "load_id", "_dlt_load_id", "pipeline_name", "status"
+            "load_id", C_DLT_LOAD_ID, "pipeline_name", "status"
         )
         query = (
             f"SELECT {self.state_table_columns} FROM {state_table} AS s JOIN {loads_table} AS l ON"

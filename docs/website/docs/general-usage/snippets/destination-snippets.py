@@ -94,7 +94,7 @@ def destination_instantiation_snippet() -> None:
     # here dependencies dependencies will be imported, secrets pulled and destination accessed
     # we pass bucket_url explicitly and expect credentials passed by config provider
     load_info = pipeline.load(destination=filesystem(bucket_url=bucket_url))
-    load_info.raise_on_failed_jobs()
+    print(load_info)
     # @@@DLT_SNIPPET_END late_destination_access
 
 

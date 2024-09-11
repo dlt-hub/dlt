@@ -1,5 +1,5 @@
 import os
-from typing import Any, Iterator, Dict, Any, List
+from typing import Iterator, Dict, Any, List
 from unittest import mock
 from itertools import chain
 
@@ -415,7 +415,7 @@ def test_run_pipeline_after_partial_drop(destination_config: DestinationTestConf
 
     attached.extract(droppable_source())  # TODO: individual steps cause pipeline.run() never raises
     attached.normalize()
-    attached.load(raise_on_failed_jobs=True)
+    attached.load()
 
 
 @pytest.mark.parametrize(

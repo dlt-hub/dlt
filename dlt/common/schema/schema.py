@@ -841,11 +841,18 @@ class Schema:
                     v,
                 )
             # otherwise we must create variant extension to the table
-            # pass final=True so no more auto-variants can be created recursively
-            # TODO: generate callback so dlt user can decide what to do
+            # backward compatibility for complex types: if such column exists then use it
             variant_col_name = self.naming.shorten_fragments(
                 col_name, VARIANT_FIELD_FORMAT % py_type
             )
+            if py_type == "json":
+                old_complex_col_name = self.naming.shorten_fragments(
+                    col_name, VARIANT_FIELD_FORMAT % "complex"
+                )
+                if old_column := table_columns.get(old_complex_col_name):
+                    if old_column.get("variant"):
+                        variant_col_name = old_complex_col_name
+            # pass final=True so no more auto-variants can be created recursively
             return self._coerce_non_null_value(
                 table_columns, table_name, variant_col_name, v, is_variant=True
             )
