@@ -1,7 +1,7 @@
 import typing as t
 
-from dlt.common.data_writers.configuration import CsvFormatConfiguration
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
+from dlt.common.destination.capabilities import DataTypeMapper
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 from dlt.common.normalizers import NamingConvention
 
@@ -9,6 +9,14 @@ from dlt.destinations.impl.sqlalchemy.configuration import (
     SqlalchemyCredentials,
     SqlalchemyClientConfiguration,
 )
+
+SqlalchemyTypeMapper: t.Type[DataTypeMapper]
+
+try:
+    from dlt.destinations.impl.sqlalchemy.type_mapper import SqlalchemyTypeMapper
+except ModuleNotFoundError:
+    # assign mock type mapper if no sqlalchemy
+    from dlt.common.destination.capabilities import UnsupportedTypeMapper as SqlalchemyTypeMapper
 
 if t.TYPE_CHECKING:
     # from dlt.destinations.impl.sqlalchemy.sqlalchemy_client import SqlalchemyJobClient
@@ -37,6 +45,7 @@ class sqlalchemy(Destination[SqlalchemyClientConfiguration, "SqlalchemyJobClient
         caps.supports_ddl_transactions = True
         caps.max_query_parameters = 20_0000
         caps.max_rows_per_insert = 10_000  # Set a default to avoid OOM on large datasets
+        caps.type_mapper = SqlalchemyTypeMapper
 
         return caps
 

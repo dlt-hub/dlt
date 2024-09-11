@@ -1,26 +1,23 @@
-from typing import Iterable, Optional, Type, Dict, Any, Iterator, Sequence, List, Tuple, IO
-from types import TracebackType
+from typing import Iterable, Optional, Dict, Any, Iterator, Sequence, List, Tuple, IO
 from contextlib import suppress
-import inspect
 import math
 
 import sqlalchemy as sa
-from sqlalchemy.sql import sqltypes
 
 from dlt.common import logger
 from dlt.common import pendulum
-from dlt.common.exceptions import TerminalValueError
 from dlt.common.destination.reference import (
     JobClientBase,
     LoadJob,
     RunnableLoadJob,
     StorageSchemaInfo,
     StateInfo,
+    PreparedTableSchema,
 )
 from dlt.destinations.job_client_impl import SqlJobClientBase
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.schema import Schema, TTableSchema, TColumnSchema, TSchemaTables
-from dlt.common.schema.typing import TColumnType, TTableFormat, TTableSchemaColumns
+from dlt.common.schema.typing import TColumnType, TTableSchemaColumns
 from dlt.common.schema.utils import pipeline_state_table, normalize_table_identifiers
 from dlt.common.storages import FileStorage
 from dlt.common.json import json, PY_DATETIME_DECODERS
@@ -30,147 +27,6 @@ from dlt.destinations.exceptions import DatabaseUndefinedRelation
 # from dlt.destinations.impl.sqlalchemy.sql_client import SqlalchemyClient
 from dlt.destinations.impl.sqlalchemy.db_api_client import SqlalchemyClient
 from dlt.destinations.impl.sqlalchemy.configuration import SqlalchemyClientConfiguration
-
-
-class SqlaTypeMapper:
-    # TODO: May be merged with TypeMapper as a generic
-    def __init__(
-        self, capabilities: DestinationCapabilitiesContext, dialect: sa.engine.Dialect
-    ) -> None:
-        self.capabilities = capabilities
-        self.dialect = dialect
-
-    def _db_integer_type(self, precision: Optional[int]) -> sa.types.TypeEngine:
-        if precision is None:
-            return sa.BigInteger()
-        elif precision <= 16:
-            return sa.SmallInteger()
-        elif precision <= 32:
-            return sa.Integer()
-        elif precision <= 64:
-            return sa.BigInteger()
-        raise TerminalValueError(f"Unsupported precision for integer type: {precision}")
-
-    def _create_date_time_type(
-        self, sc_t: str, precision: Optional[int], timezone: Optional[bool]
-    ) -> sa.types.TypeEngine:
-        """Use the dialect specific datetime/time type if possible since the generic type doesn't accept precision argument"""
-        precision = precision if precision is not None else self.capabilities.timestamp_precision
-        base_type: sa.types.TypeEngine
-        timezone = timezone is None or bool(timezone)
-        if sc_t == "timestamp":
-            base_type = sa.DateTime()
-            if self.dialect.name == "mysql":
-                # Special case, type_descriptor does not return the specifc datetime type
-                from sqlalchemy.dialects.mysql import DATETIME
-
-                return DATETIME(fsp=precision)
-        elif sc_t == "time":
-            base_type = sa.Time()
-
-        dialect_type = type(
-            self.dialect.type_descriptor(base_type)
-        )  # Get the dialect specific subtype
-        precision = precision if precision is not None else self.capabilities.timestamp_precision
-
-        # Find out whether the dialect type accepts precision or fsp argument
-        params = inspect.signature(dialect_type).parameters
-        kwargs: Dict[str, Any] = dict(timezone=timezone)
-        if "fsp" in params:
-            kwargs["fsp"] = precision  # MySQL uses fsp for fractional seconds
-        elif "precision" in params:
-            kwargs["precision"] = precision
-        return dialect_type(**kwargs)  # type: ignore[no-any-return,misc]
-
-    def _create_double_type(self) -> sa.types.TypeEngine:
-        if dbl := getattr(sa, "Double", None):
-            # Sqlalchemy 2 has generic double type
-            return dbl()  # type: ignore[no-any-return]
-        elif self.dialect.name == "mysql":
-            # MySQL has a specific double type
-            from sqlalchemy.dialects.mysql import DOUBLE
-        return sa.Float(precision=53)  # Otherwise use float
-
-    def _to_db_decimal_type(self, column: TColumnSchema) -> sa.types.TypeEngine:
-        precision, scale = column.get("precision"), column.get("scale")
-        if precision is None and scale is None:
-            precision, scale = self.capabilities.decimal_precision
-        return sa.Numeric(precision, scale)
-
-    def to_db_type(self, column: TColumnSchema, table_format: TTableSchema) -> sa.types.TypeEngine:
-        sc_t = column["data_type"]
-        precision = column.get("precision")
-        # TODO: Precision and scale for supported types
-        if sc_t == "text":
-            length = precision
-            if length is None and column.get("unique"):
-                length = 128
-            if length is None:
-                return sa.Text()
-            return sa.String(length=length)
-        elif sc_t == "double":
-            return self._create_double_type()
-        elif sc_t == "bool":
-            return sa.Boolean()
-        elif sc_t == "timestamp":
-            return self._create_date_time_type(sc_t, precision, column.get("timezone"))
-        elif sc_t == "bigint":
-            return self._db_integer_type(precision)
-        elif sc_t == "binary":
-            return sa.LargeBinary(length=precision)
-        elif sc_t == "json":
-            return sa.JSON(none_as_null=True)
-        elif sc_t == "decimal":
-            return self._to_db_decimal_type(column)
-        elif sc_t == "wei":
-            wei_precision, wei_scale = self.capabilities.wei_precision
-            return sa.Numeric(precision=wei_precision, scale=wei_scale)
-        elif sc_t == "date":
-            return sa.Date()
-        elif sc_t == "time":
-            return self._create_date_time_type(sc_t, precision, column.get("timezone"))
-        raise TerminalValueError(f"Unsupported data type: {sc_t}")
-
-    def _from_db_integer_type(self, db_type: sa.Integer) -> TColumnType:
-        if isinstance(db_type, sa.SmallInteger):
-            return dict(data_type="bigint", precision=16)
-        elif isinstance(db_type, sa.Integer):
-            return dict(data_type="bigint", precision=32)
-        elif isinstance(db_type, sa.BigInteger):
-            return dict(data_type="bigint")
-        return dict(data_type="bigint")
-
-    def _from_db_decimal_type(self, db_type: sa.Numeric) -> TColumnType:
-        precision, scale = db_type.precision, db_type.scale
-        if (precision, scale) == self.capabilities.wei_precision:
-            return dict(data_type="wei")
-
-        return dict(data_type="decimal", precision=precision, scale=scale)
-
-    def from_db_type(self, db_type: sa.types.TypeEngine) -> TColumnType:
-        # TODO: pass the sqla type through dialect.type_descriptor before instance check
-        # Possibly need to check both dialect specific and generic types
-        if isinstance(db_type, sa.String):
-            return dict(data_type="text")
-        elif isinstance(db_type, sa.Float):
-            return dict(data_type="double")
-        elif isinstance(db_type, sa.Boolean):
-            return dict(data_type="bool")
-        elif isinstance(db_type, sa.DateTime):
-            return dict(data_type="timestamp", timezone=db_type.timezone)
-        elif isinstance(db_type, sa.Integer):
-            return self._from_db_integer_type(db_type)
-        elif isinstance(db_type, sqltypes._Binary):
-            return dict(data_type="binary", precision=db_type.length)
-        elif isinstance(db_type, sa.JSON):
-            return dict(data_type="json")
-        elif isinstance(db_type, sa.Numeric):
-            return self._from_db_decimal_type(db_type)
-        elif isinstance(db_type, sa.Date):
-            return dict(data_type="date")
-        elif isinstance(db_type, sa.Time):
-            return dict(data_type="time")
-        raise TerminalValueError(f"Unsupported db type: {db_type}")
 
 
 class SqlalchemyJsonLInsertJob(RunnableLoadJob):
@@ -270,9 +126,9 @@ class SqlalchemyJobClient(SqlJobClientBase):
         self.schema = schema
         self.capabilities = capabilities
         self.config = config
-        self.type_mapper = SqlaTypeMapper(capabilities, self.sql_client.dialect)
+        self.type_mapper = self.capabilities.get_type_mapper(self.sql_client.dialect)
 
-    def _to_table_object(self, schema_table: TTableSchema) -> sa.Table:
+    def _to_table_object(self, schema_table: PreparedTableSchema) -> sa.Table:
         existing = self.sql_client.get_existing_table(schema_table["name"])
         if existing is not None:
             existing_col_names = set(col.name for col in existing.columns)
@@ -292,17 +148,17 @@ class SqlalchemyJobClient(SqlJobClientBase):
         )
 
     def _to_column_object(
-        self, schema_column: TColumnSchema, table_format: TTableSchema
+        self, schema_column: TColumnSchema, table: PreparedTableSchema
     ) -> sa.Column:
         return sa.Column(
             schema_column["name"],
-            self.type_mapper.to_db_type(schema_column, table_format),
+            self.type_mapper.to_destination_type(schema_column, table),
             nullable=schema_column.get("nullable", True),
             unique=schema_column.get("unique", False),
         )
 
     def create_load_job(
-        self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
+        self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
         if file_path.endswith(".typed-jsonl"):
             table_obj = self._to_table_object(table)
@@ -313,7 +169,7 @@ class SqlalchemyJobClient(SqlJobClientBase):
         return None
 
     def complete_load(self, load_id: str) -> None:
-        loads_table = self._to_table_object(self.schema.tables[self.schema.loads_table_name])
+        loads_table = self._to_table_object(self.schema.tables[self.schema.loads_table_name])  # type: ignore[arg-type]
         now_ts = pendulum.now()
         self.sql_client.execute_sql(
             loads_table.insert().values(
@@ -346,7 +202,7 @@ class SqlalchemyJobClient(SqlJobClientBase):
                 col.name: {
                     "name": col.name,
                     "nullable": col.nullable,
-                    **self.type_mapper.from_db_type(col.type),
+                    **self.type_mapper.from_destination_type(col.type, None, None),
                 }
                 for col in table_obj.columns
             }
@@ -373,7 +229,7 @@ class SqlalchemyJobClient(SqlJobClientBase):
 
         # Create all schema tables in metadata
         for table_name in only_tables or self.schema.tables:
-            self._to_table_object(self.schema.tables[table_name])
+            self._to_table_object(self.schema.tables[table_name])  # type: ignore[arg-type]
 
         schema_update: TSchemaTables = {}
         tables_to_create: List[sa.Table] = []
@@ -407,7 +263,7 @@ class SqlalchemyJobClient(SqlJobClientBase):
 
     def _delete_schema_in_storage(self, schema: Schema) -> None:
         version_table = schema.tables[schema.version_table_name]
-        table_obj = self._to_table_object(version_table)
+        table_obj = self._to_table_object(version_table)  # type: ignore[arg-type]
         schema_name_col = schema.naming.normalize_identifier("schema_name")
         self.sql_client.execute_sql(
             table_obj.delete().where(table_obj.c[schema_name_col] == schema.name)
@@ -415,7 +271,7 @@ class SqlalchemyJobClient(SqlJobClientBase):
 
     def _update_schema_in_storage(self, schema: Schema) -> None:
         version_table = schema.tables[schema.version_table_name]
-        table_obj = self._to_table_object(version_table)
+        table_obj = self._to_table_object(version_table)  # type: ignore[arg-type]
         schema_str = json.dumps(schema.to_dict())
 
         schema_mapping = StorageSchemaInfo(
@@ -433,7 +289,7 @@ class SqlalchemyJobClient(SqlJobClientBase):
         self, version_hash: Optional[str] = None, schema_name: Optional[str] = None
     ) -> Optional[StorageSchemaInfo]:
         version_table = self.schema.tables[self.schema.version_table_name]
-        table_obj = self._to_table_object(version_table)
+        table_obj = self._to_table_object(version_table)  # type: ignore[arg-type]
         with suppress(DatabaseUndefinedRelation):
             q = sa.select(table_obj)
             if version_hash is not None:
@@ -465,9 +321,9 @@ class SqlalchemyJobClient(SqlJobClientBase):
         state_table = self.schema.tables.get(
             self.schema.state_table_name
         ) or normalize_table_identifiers(pipeline_state_table(), self.schema.naming)
-        state_table_obj = self._to_table_object(state_table)
+        state_table_obj = self._to_table_object(state_table)  # type: ignore[arg-type]
         loads_table = self.schema.tables[self.schema.loads_table_name]
-        loads_table_obj = self._to_table_object(loads_table)
+        loads_table_obj = self._to_table_object(loads_table)  # type: ignore[arg-type]
 
         c_load_id, c_dlt_load_id, c_pipeline_name, c_status = map(
             self.schema.naming.normalize_identifier,

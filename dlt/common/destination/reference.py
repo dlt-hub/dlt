@@ -393,7 +393,6 @@ class RunnableLoadJob(LoadJob, ABC):
             self.run()
             self._state = "completed"
         except (DestinationTerminalException, TerminalValueError) as e:
-            logger.exception(f"Job {self.job_id()} failed terminally")
             self._state = "failed"
             self._exception = e
             logger.exception(f"Terminal exception in job {self.job_id()} in file {self._file_path}")

@@ -226,8 +226,8 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
         caps.merge_strategies_selector = merge_strategies_selector
         return caps
 
-    def get_type_mapper(self) -> DataTypeMapper:
-        return self.type_mapper(self)
+    def get_type_mapper(self, *args: Any, **kwargs: Any) -> DataTypeMapper:
+        return self.type_mapper(self, *args, **kwargs)
 
 
 def merge_caps_file_formats(
