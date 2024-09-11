@@ -496,7 +496,10 @@ def test_pipeline_load_parquet(destination_config: DestinationTestConfiguration)
     assert_load_info(info)
     # make sure it was parquet or sql inserts
     files = p.get_load_package_info(p.list_completed_load_packages()[1]).jobs["completed_jobs"]
-    if destination_config.destination == "athena" and destination_config.table_format == "iceberg":
+    if (
+        destination_config.destination_type == "athena"
+        and destination_config.table_format == "iceberg"
+    ):
         # iceberg uses sql to copy tables
         expected_formats.append("sql")
     assert all(f.job_file_info.file_format in expected_formats for f in files)

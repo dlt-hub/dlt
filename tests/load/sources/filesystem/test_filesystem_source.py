@@ -126,7 +126,7 @@ def test_csv_transformers(
 
     # print(pipeline.last_trace.last_normalize_info)
     # must contain 24 rows of A881
-    if not destination_config.destination == "filesystem":
+    if not destination_config.destination_type == "filesystem":
         # TODO: comment out when filesystem destination supports queries (data pond PR)
         assert_query_data(pipeline, "SELECT code FROM met_csv", ["A881"] * 24)
 
@@ -138,7 +138,7 @@ def test_csv_transformers(
     assert_load_info(load_info)
     # print(pipeline.last_trace.last_normalize_info)
     # must contain 48 rows of A803
-    if not destination_config.destination == "filesystem":
+    if not destination_config.destination_type == "filesystem":
         # TODO: comment out when filesystem destination supports queries (data pond PR)
         assert_query_data(pipeline, "SELECT code FROM met_csv", ["A803"] * 48)
         # and 48 rows in total -> A881 got replaced

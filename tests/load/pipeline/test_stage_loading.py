@@ -231,7 +231,7 @@ def test_truncate_staging_dataset(destination_config: DestinationTestConfigurati
     with staging_client:
         # except Athena + Iceberg which does not store tables in staging dataset
         if (
-            destination_config.destination == "athena"
+            destination_config.destination_type == "athena"
             and destination_config.table_format == "iceberg"
         ):
             table_count = 0
@@ -257,7 +257,7 @@ def test_truncate_staging_dataset(destination_config: DestinationTestConfigurati
     _, staging_client = pipeline._get_destination_clients(pipeline.default_schema)
     with staging_client:
         # except for Athena which does not delete staging destination tables
-        if destination_config.destination == "athena":
+        if destination_config.destination_type == "athena":
             if destination_config.table_format == "iceberg":
                 table_count = 0
             else:
@@ -302,7 +302,10 @@ def test_all_data_types(destination_config: DestinationTestConfiguration) -> Non
     ):
         # Redshift can't load fixed width binary columns from parquet
         exclude_columns.append("col7_precision")
-    if destination_config.destination_type == "databricks" and destination_config.file_format == "jsonl":
+    if (
+        destination_config.destination_type == "databricks"
+        and destination_config.file_format == "jsonl"
+    ):
         exclude_types.extend(["decimal", "binary", "wei", "json", "date"])
         exclude_columns.append("col1_precision")
 

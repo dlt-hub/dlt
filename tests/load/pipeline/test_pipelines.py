@@ -561,7 +561,7 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
     if destination_config.supports_merge:
         expected_completed_jobs += 1
         # add iceberg copy jobs
-        if destination_config.destination == "athena":
+        if destination_config.destination_type == "athena":
             expected_completed_jobs += 2  # if destination_config.supports_merge else 4
     assert len(package_info.jobs["completed_jobs"]) == expected_completed_jobs
 

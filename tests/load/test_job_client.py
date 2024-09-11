@@ -592,9 +592,9 @@ def test_load_with_all_types(
     client.update_stored_schema()
 
     if isinstance(client, WithStagingDataset):
-        should_load_to_staging = client.should_load_data_to_staging_dataset(table_name)  # type: ignore[attr-defined]
+        should_load_to_staging = client.should_load_data_to_staging_dataset(table_name)
         if should_load_to_staging:
-            with client.with_staging_dataset():  # type: ignore[attr-defined]
+            with client.with_staging_dataset():
                 # create staging for merge dataset
                 client.initialize_storage()
                 client.update_stored_schema()

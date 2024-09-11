@@ -88,7 +88,9 @@ def test_load_arrow_item(
 
     # use csv for postgres to get native arrow processing
     destination_config.file_format = (
-        destination_config.file_format if destination_config.destination_type != "postgres" else "csv"
+        destination_config.file_format
+        if destination_config.destination_type != "postgres"
+        else "csv"
     )
 
     load_info = pipeline.run(some_data(), **destination_config.run_kwargs)
