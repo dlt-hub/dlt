@@ -202,14 +202,16 @@ class BaseDeployment(abc.ABC):
             fmt.secho("Name:", fg="green")
             fmt.echo(fmt.bold(self.env_prov.get_key_name(s_v.key, *s_v.sections)))
             try:
-                secret_value = dlt.secrets[self.env_prov.get_key_name(s_v.key, *s_v.sections)]
                 fmt.secho("Secret:", fg="green")
-                fmt.echo(secret_value)
+                fmt.echo(self._lookup_secret_value(s_v))
             except ConfigFieldMissingException:
                 fmt.secho(
                     "Not found. See https://dlthub.com/docs/general-usage/credentials", fg="red"
                 )
             fmt.echo()
+
+    def _lookup_secret_value(self, trace: LookupTrace) -> Any:
+        return dlt.secrets[self.env_prov.get_secret_key_name(trace.key, *trace.sections)]
 
     def _echo_envs(self) -> None:
         for v in self.envs:

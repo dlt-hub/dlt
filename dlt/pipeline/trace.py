@@ -3,14 +3,14 @@ from copy import copy
 import os
 import pickle
 import datetime  # noqa: 251
-from typing import Any, List, NamedTuple, Optional, Protocol, Sequence
+from typing import Any, List, NamedTuple, Optional, Protocol, Sequence, Union
 import humanize
 
 from dlt.common.pendulum import pendulum
 from dlt.common.configuration import is_secret_hint
 from dlt.common.configuration.exceptions import ContextDefaultCannotBeCreated
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
-from dlt.common.configuration.utils import _RESOLVED_TRACES
+from dlt.common.configuration.utils import _RESOLVED_TRACES, ResolvedValueTrace
 from dlt.common.configuration.container import Container
 from dlt.common.exceptions import ExceptionTrace, ResourceNameNotAvailable
 from dlt.common.logger import suppress_and_warn
@@ -56,7 +56,7 @@ class SerializableResolvedValueTrace(NamedTuple):
 
     def asstr(self, verbosity: int = 0) -> str:
         return (
-            f"{self.key}->{MASKED_SECRET if self.is_secret_hint else self.value } in"
+            f"{self.key}->{_mask_secret(self.value) if self.is_secret_hint else self.value } in"
             f" {'.'.join(self.sections)} by {self.provider_name}"
         )
 
@@ -284,8 +284,8 @@ def end_trace_step(
     resolved_values = map(
         lambda v: SerializableResolvedValueTrace(
             v.key,
-            MASKED_SECRET if is_secret_hint(v.hint) else v.value,
-            MASKED_SECRET if is_secret_hint(v.hint) else v.default_value,
+            _mask_secret(v.value) if is_secret_hint(v.hint) else v.value,
+            _mask_secret(v.default_value) if is_secret_hint(v.hint) else v.default_value,
             is_secret_hint(v.hint),
             v.sections,
             v.provider_name,
@@ -300,6 +300,13 @@ def end_trace_step(
         with suppress_and_warn(f"end_trace_step on module {module} failed"):
             module.on_end_trace_step(trace, step, pipeline, step_info, send_state)
     return trace
+
+
+def _mask_secret(trace_item_value: Any) -> Any:
+    if isinstance(trace_item_value, dict):
+        return {k: MASKED_SECRET for k in trace_item_value}
+    else:
+        return MASKED_SECRET
 
 
 def end_trace(

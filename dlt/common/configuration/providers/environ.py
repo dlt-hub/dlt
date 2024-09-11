@@ -14,6 +14,10 @@ class EnvironProvider(ConfigProvider):
     def get_key_name(key: str, *sections: str) -> str:
         return get_key_name(key, "__", *sections).upper()
 
+    @staticmethod
+    def get_secret_key_name(key: str, *sections: str) -> str:
+        return get_key_name(key, ".", *sections)
+
     @property
     def name(self) -> str:
         return "Environment Variables"
