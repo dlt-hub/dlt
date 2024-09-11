@@ -380,7 +380,8 @@ from dlt.sources.filesystem import filesystem, read_csv
 all_files = filesystem(bucket_url="s3://bucket_name", file_glob="directory/*.csv")
 
 # But filter out only updated records
-filesystem_pipe = (all_files | read_csv()).apply_hints(incremental=dlt.sources.incremental("updated_at"))
+filesystem_pipe = (all_files | read_csv())
+filesystem_pipe.apply_hints(incremental=dlt.sources.incremental("updated_at"))
 pipeline = dlt.pipeline(pipeline_name="my_pipeline", destination="duckdb")
 load_info = pipeline.run(filesystem_pipe)
 print(load_info)
@@ -397,7 +398,8 @@ new_files = filesystem(bucket_url="s3://bucket_name", file_glob="directory/*.csv
 new_files.apply_hints(incremental=dlt.sources.incremental("modification_date"))
 
 # And in each modified file we filter out only updated records
-filesystem_pipe = (new_files | read_csv()).apply_hints(incremental=dlt.sources.incremental("updated_at"))
+filesystem_pipe = (new_files | read_csv())
+filesystem_pipe.apply_hints(incremental=dlt.sources.incremental("updated_at"))
 pipeline = dlt.pipeline(pipeline_name="my_pipeline", destination="duckdb")
 load_info = pipeline.run(filesystem_pipe)
 print(load_info)

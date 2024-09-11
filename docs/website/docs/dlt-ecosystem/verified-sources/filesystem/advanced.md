@@ -140,7 +140,8 @@ print(load_info)
 You can get an fsspec client from the filesystem resource after it was extracted, i.e., in order to delete processed files, etc. The filesystem module contains a convenient method `fsspec_from_resource` that can be used as follows:
 
 ```py
-from dlt.sources.filesystem import filesystem, fsspec_from_resource, read_csv
+from dlt.sources.filesystem import filesystem, read_csv
+from dlt.sources.filesystem.helpers import fsspec_from_resource
 
 # get filesystem source
 gs_resource = filesystem("gs://ci-test-bucket/")
