@@ -118,7 +118,7 @@ class SqlaTypeMapper:
             return self._db_integer_type(precision)
         elif sc_t == "binary":
             return sa.LargeBinary(length=precision)
-        elif sc_t == "complex":
+        elif sc_t == "json":
             return sa.JSON(none_as_null=True)
         elif sc_t == "decimal":
             return self._to_db_decimal_type(column)
@@ -163,7 +163,7 @@ class SqlaTypeMapper:
         elif isinstance(db_type, sqltypes._Binary):
             return dict(data_type="binary", precision=db_type.length)
         elif isinstance(db_type, sa.JSON):
-            return dict(data_type="complex")
+            return dict(data_type="json")
         elif isinstance(db_type, sa.Numeric):
             return self._from_db_decimal_type(db_type)
         elif isinstance(db_type, sa.Date):

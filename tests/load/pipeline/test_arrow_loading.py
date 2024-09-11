@@ -252,7 +252,7 @@ def test_load_arrow_with_not_null_columns(
 ) -> None:
     """Resource schema contains non-nullable columns. Arrow schema should be written accordingly"""
     if (
-        destination_config.destination in ("databricks", "redshift")
+        destination_config.destination_type in ("databricks", "redshift")
         and destination_config.file_format == "jsonl"
     ):
         pytest.skip(
