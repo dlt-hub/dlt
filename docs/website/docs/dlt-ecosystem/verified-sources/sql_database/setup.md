@@ -18,11 +18,11 @@ To connect to your SQL database using `dlt` follow these steps:
     dlt init sql_database duckdb
     ```
 
-    This will add necessary files and configurations for a `dlt` pipeline with SQL database as the [source](../../general-usage/source) and
-   [DuckDB](../../destinations/duckdb.md) as the [destination](../../destinations).
+    This will add necessary files and configurations for a `dlt` pipeline with SQL database as the source and
+   [DuckDB](../../destinations/duckdb.md) as the destination.
 
 :::tip
-If you'd like to use a different destination, simply replace `duckdb` with the name of your preferred [destination](../destinations).
+If you'd like to use a different destination, simply replace `duckdb` with the name of your preferred [destination](../../destinations).
 :::
 
 2. Add credentials for your SQL database
