@@ -418,7 +418,7 @@ from dlt.sources.filesystem import filesystem, read_csv
 
 # Filter files accessing file_name field
 filtered_files = filesystem(bucket_url="s3://bucket_name", file_glob="directory/*.csv")
-filtered_files.add_filter(lambda item: ("London" in item.file_name) or ("Berlin" in item.file_name))
+filtered_files.add_filter(lambda item: ("London" in item["file_name"]) or ("Berlin" in item["file_name"]))
 
 filesystem_pipe = (filtered_files | read_csv())
 pipeline = dlt.pipeline(pipeline_name="my_pipeline", destination="duckdb")
@@ -447,7 +447,7 @@ MAX_SIZE_IN_BYTES = 10
 
 # Filter files accessing size_in_bytes field
 filtered_files = filesystem(bucket_url="s3://bucket_name", file_glob="directory/*.csv")
-filtered_files.add_filter(lambda item: item.size_in_bytes < MAX_SIZE_IN_BYTES)
+filtered_files.add_filter(lambda item: item["size_in_bytes"] < MAX_SIZE_IN_BYTES)
 
 filesystem_pipe = (filtered_files | read_csv())
 pipeline = dlt.pipeline(pipeline_name="my_pipeline", destination="duckdb")
