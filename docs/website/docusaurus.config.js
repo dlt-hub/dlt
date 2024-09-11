@@ -9,7 +9,7 @@ const darkCodeTheme = require('prism-react-renderer/themes/dracula');
 
 // create versions config
 const versions = {"current": {
-  label: 'devel', 
+  label: 'devel',
   path: 'devel',
   noIndex: true
 }}
@@ -84,9 +84,6 @@ const config = {
           showLastUpdateAuthor: true,
           showLastUpdateTime: true,
         },
-        blog: {
-          showReadingTime: true
-        },
         theme: {
           customCss: require.resolve('./src/css/custom.css'),
         },
@@ -117,7 +114,7 @@ const config = {
             position: 'left',
             label: 'Docs',
           },
-          { to: 'blog', label: 'Blog', position: 'left' },
+          { to: 'https://dlthub.com/blog', label: 'Blog', position: 'left' },
           {
             href: 'https://dlthub.com/community',
             label: 'Join community',
@@ -141,21 +138,6 @@ const config = {
       footer: {
         style: 'dark',
         links: [
-          {
-            title: 'Docs',
-            items: [
-              {
-                label: 'Docs',
-                to: '/intro',
-                className: 'footer-link'
-              },
-              {
-                label: 'Blog',
-                to: '/blog',
-                className: 'footer-link'
-              }
-            ],
-          },
           {
             title: 'Community',
             items: [
