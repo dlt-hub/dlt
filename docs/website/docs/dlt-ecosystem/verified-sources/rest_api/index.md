@@ -1,6 +1,6 @@
 ---
-title: REST API
-description: dlt core source for REST APIs
+title: REST APIs
+description: Loads data from REST APIs using a declarative configuration
 keywords: [rest api, restful api]
 ---
 

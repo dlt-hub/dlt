@@ -76,6 +76,7 @@ const sidebars = {
         {
           type: 'category',
           label: 'REST APIs',
+          description:'Load data from any REST API',
            link: {
             type: 'doc',
             id: 'dlt-ecosystem/verified-sources/rest_api/index',
