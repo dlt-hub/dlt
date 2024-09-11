@@ -27,7 +27,7 @@ certain range.
 
 #### Examples
 
-1. Incremental loading with the resource `sql_table`  
+**1. Incremental loading with the resource `sql_table`**  
     Consider a table "family" with a timestamp column `last_modified` that indicates when a row was last modified. To ensure that only rows modified after midnight (00:00:00) on January 1, 2024, are loaded, you would set `last_modified` timestamp as the cursor as follows:
    ```py
    from sql_database import sql_table
@@ -48,7 +48,7 @@ certain range.
     Behind the scene, the loader generates a SQL query filtering rows with `last_modified` values greater than the incremental value. In the first run, this is the initial value (midnight (00:00:00) January 1, 2024). 
     In subsequent runs, it is the latest value of `last_modified` that `dlt` stores in [state](https://dlthub.com/docs/general-usage/state).
 
-2. Incremental loading with the source `sql_database`  
+**2. Incremental loading with the source `sql_database`**  
     To achieve the same using the `sql_database` source, you would specify your cursor as follows:
 
     ```py
@@ -61,7 +61,7 @@ certain range.
     ```  
 
    :::info
-   * For merge write disposition, the source table needs a primary key, which `dlt` automatically sets up. 
+   * When using "merge" write disposition, the source table needs a primary key, which `dlt` automatically sets up. 
    * `apply_hints` is a powerful method that enables schema modifications after resource creation, like adjusting write disposition and primary keys. You can choose from various tables and use `apply_hints` multiple times to create pipelines with merged, appended, or replaced resources.
    :::
 
@@ -74,7 +74,7 @@ table = sql_table().parallelize()
 ```
 
 ## Column reflection
-Columns and their data types are reflected with SQLAlchemy. The SQL types are then mapped to `dlt` types.
+Column reflection is the automatic detection and retrieval of column metadata like column names, constraints, data types etc. Columns and their data types are reflected with SQLAlchemy. The SQL types are then mapped to `dlt` types.
 Depending on the selected backend, some of the types might require additional processing.
 
 The `reflection_level` argument controls how much information is reflected:
