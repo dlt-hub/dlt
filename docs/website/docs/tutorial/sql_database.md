@@ -4,14 +4,14 @@ description: How to extract data from a SQL Database using dlt's SQL Database co
 keywords: [sql connector, sql database pipeline, sql database]
 ---
 
-This tutorial will show how you can use `dlt` to connect data from a SQL Database (PostgreSQL, MySQL, Microsoft SQL Server, Oracle, IBM DB2 etc.) into any `dlt`-compatible destination (Postgres, BigQuery, Snowflake, DuckDB etc.).  
+This tutorial will show how you can use `dlt` to load data from a SQL Database (PostgreSQL, MySQL, Microsoft SQL Server, Oracle, IBM DB2, etc.) into any `dlt`-compatible destination (Postgres, BigQuery, Snowflake, DuckDB, etc.).  
   
 To make it easy to reproduce, we will be loading data from the [public MySQL RFam database](https://docs.rfam.org/en/latest/database.html) into a local DuckDB instance.  
 
 ## What you will learn
 
 - How to set up and configure a basic SQL database pipeline
-- How to implement "append", "replace", and "merge" loading strategies
+- How to implement "append," "replace," and "merge" loading strategies
 - How to load data incrementally
 
 ## 0. Prerequisites
@@ -33,11 +33,11 @@ This is a handy CLI command that creates files and folders required for a SQL Da
 After running this command, your project will have the following structure:
 
 ```text
-sql_database_pipeline.py
-requirements.txt
-.dlt/
-    config.toml
-    secrets.toml
+├── .dlt
+│   ├── config.toml
+│   └── secrets.toml
+├── sql_database_pipeline.py
+└── requirements.txt
 ```
 
 Here’s what each file does:
@@ -158,7 +158,7 @@ You can explore the loaded data, run queries and see some pipeline execution det
   
 ![streamlit-screenshot](https://storage.googleapis.com/dlt-blog-images/docs-sql-database-tutorial-streamlit-screenshot.png)
 
-## 7. Append, replace, or mrege loaded data
+## 7. Append, replace, or merge loaded data
 
 Try running the pipeline again with `python sql_database_pipeline.py`. You will notice that
 all the tables have the data duplicated. This happens as `dlt`, by default, appends data to the destination tables in every load. This behavior can be adjusted by setting the `write_disposition` parameter inside the `pipeline.run()` method. The possible settings are:
