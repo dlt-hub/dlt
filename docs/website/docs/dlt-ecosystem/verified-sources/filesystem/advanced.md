@@ -1,12 +1,12 @@
 ---
-title: Advanced filesystem usage
+title: Advanced Filesystem Usage
 description: Use filesystem source as a building block
 keywords: [readers source and filesystem, files, filesystem, readers source, cloud storage]
 ---
 
 The filesystem source provides the building blocks to load data from files. This section explains how you can customize the filesystem source for your use case.
 
-## Standalone Filesystem Resource
+## Standalone filesystem resource
 
 You can use the [standalone filesystem](../../../general-usage/resource#declare-a-standalone-resource) resource to list files in cloud storage or a local filesystem. This allows you to customize file readers or manage files using [fsspec](https://filesystem-spec.readthedocs.io/en/latest/index.html).
 
@@ -30,7 +30,7 @@ The filesystem ensures consistent file representation across bucket types and of
 - File content is typically not loaded (you can control it with the `extract_content` parameter of the filesystem resource). Instead, full file info and methods to access content are available.
 - Users can request an authenticated [fsspec AbstractFileSystem](https://filesystem-spec.readthedocs.io/en/latest/_modules/fsspec/spec.html#AbstractFileSystem) instance.
 
-#### `FileItem` fields:
+#### `FileItem` fields
 
 - `file_url` - complete URL of the file (e.g. `s3://bucket-name/path/file`). This field serves as a primary key.
 - `file_name` - name of the file from the bucket URL.
@@ -52,13 +52,13 @@ When using a nested or recursive glob pattern, `relative_path` will include the 
 - `open()` - method which provides a file object when opened.
 - `filesystem` - field, which gives access to authorized `AbstractFilesystem` with standard fsspec methods.
 
-## Create Your Own Transformer
+## Create your own transformer
 
 Although the `filesystem` resource yields the files from cloud storage or a local filesystem, you need to apply a transformer resource to retrieve the records from files. `dlt` natively supports three file types: `csv`, `parquet`, and `jsonl` (more details in [filesystem transformer resource](../filesystem/basic#2-choose-the-right-transformer-resource)).
 
 But you can easily create your own. In order to do this, you just need a function that takes as input a `FileItemDict` iterator and yields a list of records (recommended for performance) or individual records.
 
-### Example: Read Data from Excel Files
+### Example: read data from Excel files
 
 The code below sets up a pipeline that reads from an Excel file using a standalone transformer:
 
@@ -97,7 +97,7 @@ load_info = pipeline.run(example_xls.with_name("example_xls_data"))
 print(load_info)
 ```
 
-### Example: Read Data from XML Files
+### Example: read data from XML files
 
 You can use any third-party library to parse an `xml` file (e.g., [BeautifulSoup](https://pypi.org/project/beautifulsoup4/), [pandas](https://pandas.pydata.org/docs/reference/api/pandas.read_xml.html)). In the following example, we will be using the [xmltodict](https://pypi.org/project/xmltodict/) Python library.
 
@@ -135,7 +135,7 @@ load_info = pipeline.run(example_xml.with_name("example_xml_data"))
 print(load_info)
 ```
 
-## Clean Files After Loading
+## Clean files after loading
 
 You can get an fsspec client from the filesystem resource after it was extracted, i.e., in order to delete processed files, etc. The filesystem module contains a convenient method `fsspec_from_resource` that can be used as follows:
 
@@ -153,7 +153,7 @@ fs_client = fsspec_from_resource(gs_resource)
 fs_client.ls("ci-test-bucket/standard_source/samples")
 ```
 
-## Copy Files Locally
+## Copy files locally
 
 To copy files locally, add a step in the filesystem resource and then load the listing to the database:
 
@@ -162,7 +162,6 @@ import os
 
 import dlt
 from dlt.common.storages.fsspec_filesystem import FileItemDict
-from dlt.common.typing import TDataItems
 from dlt.sources.filesystem import filesystem
 
 def _copy(item: FileItemDict) -> FileItemDict:

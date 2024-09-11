@@ -59,6 +59,7 @@ const sidebars = {
         {
               type: 'category',
               label: 'Filesystem & buckets',
+              description: 'AWS S3, GCP, Azure, local files',
                link: {
                 type: 'doc',
                 id: 'dlt-ecosystem/verified-sources/filesystem/index',
