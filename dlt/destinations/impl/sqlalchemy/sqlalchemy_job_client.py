@@ -51,10 +51,13 @@ class SqlaTypeMapper:
             return sa.BigInteger()
         raise TerminalValueError(f"Unsupported precision for integer type: {precision}")
 
-    def _create_date_time_type(self, sc_t: str, precision: Optional[int]) -> sa.types.TypeEngine:
+    def _create_date_time_type(
+        self, sc_t: str, precision: Optional[int], timezone: Optional[bool]
+    ) -> sa.types.TypeEngine:
         """Use the dialect specific datetime/time type if possible since the generic type doesn't accept precision argument"""
         precision = precision if precision is not None else self.capabilities.timestamp_precision
         base_type: sa.types.TypeEngine
+        timezone = timezone is None or bool(timezone)
         if sc_t == "timestamp":
             base_type = sa.DateTime()
             if self.dialect.name == "mysql":
@@ -72,7 +75,7 @@ class SqlaTypeMapper:
 
         # Find out whether the dialect type accepts precision or fsp argument
         params = inspect.signature(dialect_type).parameters
-        kwargs: Dict[str, Any] = dict(timezone=True)
+        kwargs: Dict[str, Any] = dict(timezone=timezone)
         if "fsp" in params:
             kwargs["fsp"] = precision  # MySQL uses fsp for fractional seconds
         elif "precision" in params:
@@ -154,7 +157,7 @@ class SqlaTypeMapper:
         elif isinstance(db_type, sa.Boolean):
             return dict(data_type="bool")
         elif isinstance(db_type, sa.DateTime):
-            return dict(data_type="timestamp")
+            return dict(data_type="timestamp", timezone=db_type.timezone)
         elif isinstance(db_type, sa.Integer):
             return self._from_db_integer_type(db_type)
         elif isinstance(db_type, sqltypes._Binary):

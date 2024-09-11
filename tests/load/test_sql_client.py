@@ -701,7 +701,7 @@ def prepare_temp_table(client: SqlJobClientBase) -> Tuple[str, Type[Union[Decima
     table_name = f"tmp_{uniq_suffix}"
     ddl_suffix = ""
     coltype = "numeric"
-    py_type = Decimal
+    py_type: Union[Type[Decimal], Type[float]] = Decimal
     if client.config.destination_type == "athena":
         ddl_suffix = (
             f"LOCATION '{AWS_BUCKET}/ci/{table_name}' TBLPROPERTIES ('table_type'='ICEBERG',"

@@ -882,7 +882,7 @@ def test_dest_column_invalid_timestamp_precision(
     ids=lambda x: x.name,
 )
 def test_dest_column_hint_timezone(destination_config: DestinationTestConfiguration) -> None:
-    destination = destination_config.destination
+    destination = destination_config.destination_type
 
     input_data = [
         {"event_id": 1, "event_tstamp": "2024-07-30T10:00:00.123+00:00"},
