@@ -113,7 +113,7 @@ class SqlaTypeMapper:
         elif sc_t == "bool":
             return sa.Boolean()
         elif sc_t == "timestamp":
-            return self._create_date_time_type(sc_t, precision)
+            return self._create_date_time_type(sc_t, precision, column.get("timezone"))
         elif sc_t == "bigint":
             return self._db_integer_type(precision)
         elif sc_t == "binary":
@@ -128,7 +128,7 @@ class SqlaTypeMapper:
         elif sc_t == "date":
             return sa.Date()
         elif sc_t == "time":
-            return self._create_date_time_type(sc_t, precision)
+            return self._create_date_time_type(sc_t, precision, column.get("timezone"))
         raise TerminalValueError(f"Unsupported data type: {sc_t}")
 
     def _from_db_integer_type(self, db_type: sa.Integer) -> TColumnType:
@@ -400,13 +400,7 @@ class SqlalchemyJobClient(SqlJobClientBase):
         with self.sql_client.begin_transaction():
             for table_obj in tables_to_create:
                 self.sql_client.create_table(table_obj)
-            for col in columns_to_add:
-                alter = "ALTER TABLE {} ADD COLUMN {}".format(
-                    self.sql_client.make_qualified_table_name(col.table.name),
-                    self.sql_client.compile_column_def(col),
-                )
-                self.sql_client.execute_sql(alter)
-
+            self.sql_client.alter_table_add_columns(columns_to_add)
             self._update_schema_in_storage(self.schema)
 
         return schema_update

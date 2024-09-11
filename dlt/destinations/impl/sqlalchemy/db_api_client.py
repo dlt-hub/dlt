@@ -29,6 +29,7 @@ from dlt.destinations.exceptions import (
 from dlt.destinations.typing import DBTransaction, DBApiCursor
 from dlt.destinations.sql_client import SqlClientBase, DBApiCursorImpl
 from dlt.destinations.impl.sqlalchemy.configuration import SqlalchemyCredentials
+from dlt.destinations.impl.sqlalchemy.alter_table import MigrationMaker
 from dlt.common.typing import TFun
 
 
@@ -97,6 +98,7 @@ class SqlalchemyClient(SqlClientBase[Connection]):
     dialect: sa.engine.interfaces.Dialect
     dialect_name: str
     dbapi = DbApiProps  # type: ignore[assignment]
+    migrations: Optional[MigrationMaker] = None  # lazy init as needed
 
     def __init__(
         self,
@@ -316,17 +318,16 @@ class SqlalchemyClient(SqlClientBase[Connection]):
             raise NotImplementedError("Staging not supported")
         return self.dialect.identifier_preparer.format_schema(self.dataset_name)  # type: ignore[attr-defined, no-any-return]
 
-    def alter_table_add_column(self, column: sa.Column) -> None:
-        """Execute an ALTER TABLE ... ADD COLUMN ... statement for the given column.
-        The column must be fully defined and attached to a table.
-        """
-        # TODO: May need capability to override ALTER TABLE statement for different dialects
-        alter_tmpl = "ALTER TABLE {table} ADD COLUMN {column};"
-        statement = alter_tmpl.format(
-            table=self._make_qualified_table_name(self._make_qualified_table_name(column.table)),  # type: ignore[arg-type]
-            column=self.compile_column_def(column),
-        )
-        self.execute_sql(statement)
+    def alter_table_add_columns(self, columns: Sequence[sa.Column]) -> None:
+        if not columns:
+            return
+        if self.migrations is None:
+            self.migrations = MigrationMaker(self.dialect)
+        for column in columns:
+            self.migrations.add_column(column.table.name, column, self.dataset_name)
+        statements = self.migrations.consume_statements()
+        for statement in statements:
+            self.execute_sql(statement)
 
     def escape_column_name(self, column_name: str, escape: bool = True) -> str:
         if self.dialect.requires_name_normalize:  # type: ignore[attr-defined]
