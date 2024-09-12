@@ -173,7 +173,7 @@ config: RESTAPIConfig = {
 
 :::note
 ### Pagination
-You may have noticed that we didn't specify any pagination configuration in the `rest_api_source()` function. That's because for REST APIs that follow best practices, dlt can automatically detect and handle pagination. Read more about [configuring pagination](../dlt-ecosystem/verified-sources/rest_api.md#pagination) in the REST API source documentation.
+You may have noticed that we didn't specify any pagination configuration in the `rest_api_source()` function. That's because for REST APIs that follow best practices, dlt can automatically detect and handle pagination. Read more about [configuring pagination](../dlt-ecosystem/verified-sources/rest_api/basic#pagination) in the REST API source documentation.
 :::
 
 ## Appending, replacing, and merging loaded data
@@ -312,7 +312,7 @@ In this configuration, the `since` parameter is defined as a special incremental
 
 When the pipeline runs, dlt will automatically update the `since` parameter with the latest value from the response data. This way, you can fetch only the new or updated data from the API.
 
-Read more about [incremental loading](../dlt-ecosystem/verified-sources/rest_api.md#incremental-loading) in the REST API source documentation.
+Read more about [incremental loading](../dlt-ecosystem/verified-sources/rest_api/basic#incremental-loading) in the REST API source documentation.
 
 ## What's next?
 
