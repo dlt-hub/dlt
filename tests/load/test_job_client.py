@@ -35,7 +35,6 @@ from tests.common.utils import load_json_case
 from tests.load.utils import (
     TABLE_UPDATE,
     TABLE_UPDATE_COLUMNS_SCHEMA,
-    TABLE_ROW_ALL_DATA_TYPES,
     expect_load_file,
     load_table,
     yield_client_with_storage,
@@ -424,24 +423,24 @@ def test_get_storage_table_with_all_types(client: SqlJobClientBase) -> None:
         # athena does not know wei data type and has no JSON type, time is not supported with parquet tables
         if client.config.destination_type == "athena" and c["data_type"] in (
             "wei",
-            "complex",
+            "json",
             "time",
         ):
             continue
-        # mssql, clickhouse and synapse have no native data type for the complex type.
+        # mssql, clickhouse and synapse have no native data type for the nested type.
         if client.config.destination_type in ("mssql", "synapse", "clickhouse") and c[
             "data_type"
-        ] in ("complex"):
+        ] in ("json"):
             continue
-        if client.config.destination_type == "databricks" and c["data_type"] in ("complex", "time"):
+        if client.config.destination_type == "databricks" and c["data_type"] in ("json", "time"):
             continue
         # ClickHouse has no active data type for binary or time type.
         if client.config.destination_type == "clickhouse":
             if c["data_type"] in ("binary", "time"):
                 continue
-            elif c["data_type"] == "complex" and c["nullable"]:
+            elif c["data_type"] == "json" and c["nullable"]:
                 continue
-        if client.config.destination_type == "dremio" and c["data_type"] == "complex":
+        if client.config.destination_type == "dremio" and c["data_type"] == "json":
             continue
         assert c["data_type"] == expected_c["data_type"]
 
@@ -489,7 +488,7 @@ def test_data_writer_load(naming: str, client: SqlJobClientBase, file_storage: F
     # write only first row
     with io.BytesIO() as f:
         write_dataset(client, f, [rows[0]], client.schema.get_table(table_name)["columns"])
-        query = f.getvalue().decode()
+        query = f.getvalue()
     expect_load_file(client, file_storage, query, table_name)
     db_row = client.sql_client.execute_sql(f"SELECT * FROM {canonical_name}")[0]
     # content must equal
@@ -497,7 +496,7 @@ def test_data_writer_load(naming: str, client: SqlJobClientBase, file_storage: F
     # write second row that contains two nulls
     with io.BytesIO() as f:
         write_dataset(client, f, [rows[1]], client.schema.get_table(table_name)["columns"])
-        query = f.getvalue().decode()
+        query = f.getvalue()
     expect_load_file(client, file_storage, query, table_name)
     f_int_name = client.schema.naming.normalize_identifier("f_int")
     f_int_name_quoted = client.sql_client.escape_column_name(f_int_name)
@@ -522,7 +521,7 @@ def test_data_writer_string_escape(client: SqlJobClientBase, file_storage: FileS
     row["f_str"] = inj_str
     with io.BytesIO() as f:
         write_dataset(client, f, [rows[0]], client.schema.get_table(table_name)["columns"])
-        query = f.getvalue().decode()
+        query = f.getvalue()
     expect_load_file(client, file_storage, query, table_name)
     db_row = client.sql_client.execute_sql(f"SELECT * FROM {canonical_name}")[0]
     assert list(db_row) == list(row.values())
@@ -540,7 +539,7 @@ def test_data_writer_string_escape_edge(
     canonical_name = client.sql_client.make_qualified_table_name(table_name)
     with io.BytesIO() as f:
         write_dataset(client, f, rows, client.schema.get_table(table_name)["columns"])
-        query = f.getvalue().decode()
+        query = f.getvalue()
     expect_load_file(client, file_storage, query, table_name)
     for i in range(1, len(rows) + 1):
         db_row = client.sql_client.execute_sql(f"SELECT str FROM {canonical_name} WHERE idx = {i}")
@@ -562,11 +561,7 @@ def test_load_with_all_types(
     if not client.capabilities.preferred_loader_file_format:
         pytest.skip("preferred loader file format not set, destination will only work with staging")
     table_name = "event_test_table" + uniq_id()
-    column_schemas, data_row = table_update_and_row(
-        exclude_types=(
-            ["time"] if client.config.destination_type in ["databricks", "clickhouse"] else None
-        ),
-    )
+    column_schemas, data_row = get_columns_and_row_all_types(client.config.destination_type)
 
     # we should have identical content with all disposition types
     partial = client.schema.update_table(
@@ -581,7 +576,7 @@ def test_load_with_all_types(
     client.schema._bump_version()
     client.update_stored_schema()
 
-    should_load_to_staging = client.should_load_data_to_staging_dataset(client.schema.tables[table_name])  # type: ignore[attr-defined]
+    should_load_to_staging = client.should_load_data_to_staging_dataset(table_name)  # type: ignore[attr-defined]
     if should_load_to_staging:
         with client.with_staging_dataset():  # type: ignore[attr-defined]
             # create staging for merge dataset
@@ -595,9 +590,11 @@ def test_load_with_all_types(
     ):
         canonical_name = client.sql_client.make_qualified_table_name(table_name)
     # write row
+    print(data_row)
     with io.BytesIO() as f:
         write_dataset(client, f, [data_row], column_schemas)
-        query = f.getvalue().decode()
+        query = f.getvalue()
+    print(client.schema.to_pretty_yaml())
     expect_load_file(client, file_storage, query, table_name)
     db_row = list(client.sql_client.execute_sql(f"SELECT * FROM {canonical_name}")[0])
     assert len(db_row) == len(data_row)
@@ -636,13 +633,14 @@ def test_write_dispositions(
     os.environ["DESTINATION__REPLACE_STRATEGY"] = replace_strategy
 
     table_name = "event_test_table" + uniq_id()
+    column_schemas, data_row = get_columns_and_row_all_types(client.config.destination_type)
     client.schema.update_table(
-        new_table(table_name, write_disposition=write_disposition, columns=TABLE_UPDATE)
+        new_table(table_name, write_disposition=write_disposition, columns=column_schemas.values())
     )
     child_table = client.schema.naming.make_path(table_name, "child")
     # add child table without write disposition so it will be inferred from the parent
     client.schema.update_table(
-        new_table(child_table, columns=TABLE_UPDATE, parent_table_name=table_name)
+        new_table(child_table, columns=column_schemas.values(), parent_table_name=table_name)
     )
     client.schema._bump_version()
     client.update_stored_schema()
@@ -663,12 +661,11 @@ def test_write_dispositions(
 
         for t in [table_name, child_table]:
             # write row, use col1 (INT) as row number
-            table_row = deepcopy(TABLE_ROW_ALL_DATA_TYPES)
-            table_row["col1"] = idx
+            data_row["col1"] = idx
             with io.BytesIO() as f:
-                write_dataset(client, f, [table_row], TABLE_UPDATE_COLUMNS_SCHEMA)
-                query = f.getvalue().decode()
-            if client.should_load_data_to_staging_dataset(client.schema.tables[table_name]):  # type: ignore[attr-defined]
+                write_dataset(client, f, [data_row], column_schemas)
+                query = f.getvalue()
+            if client.should_load_data_to_staging_dataset(table_name):  # type: ignore[attr-defined]
                 # load to staging dataset on merge
                 with client.with_staging_dataset():  # type: ignore[attr-defined]
                     expect_load_file(client, file_storage, query, t)
@@ -707,7 +704,7 @@ def test_write_dispositions(
 @pytest.mark.parametrize(
     "client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name
 )
-def test_retrieve_job(client: SqlJobClientBase, file_storage: FileStorage) -> None:
+def test_get_resumed_job(client: SqlJobClientBase, file_storage: FileStorage) -> None:
     if not client.capabilities.preferred_loader_file_format:
         pytest.skip("preferred loader file format not set, destination will only work with staging")
     user_table_name = prepare_table(client)
@@ -715,19 +712,22 @@ def test_retrieve_job(client: SqlJobClientBase, file_storage: FileStorage) -> No
         "_dlt_id": uniq_id(),
         "_dlt_root_id": uniq_id(),
         "sender_id": "90238094809sajlkjxoiewjhduuiuehd",
-        "timestamp": str(pendulum.now()),
+        "timestamp": pendulum.now(),
     }
+    print(client.schema.get_table(user_table_name)["columns"])
     with io.BytesIO() as f:
         write_dataset(client, f, [load_json], client.schema.get_table(user_table_name)["columns"])
-        dataset = f.getvalue().decode()
+        dataset = f.getvalue()
     job = expect_load_file(client, file_storage, dataset, user_table_name)
     # now try to retrieve the job
     # TODO: we should re-create client instance as this call is intended to be run after some disruption ie. stopped loader process
-    r_job = client.restore_file_load(file_storage.make_full_path(job.file_name()))
-    assert r_job.state() == "completed"
-    # use just file name to restore
-    r_job = client.restore_file_load(job.file_name())
-    assert r_job.state() == "completed"
+    r_job = client.create_load_job(
+        client.prepare_load_table(user_table_name),
+        file_storage.make_full_path(job.file_name()),
+        uniq_id(),
+        restore=True,
+    )
+    assert r_job.state() == "ready"
 
 
 @pytest.mark.parametrize(
@@ -808,7 +808,7 @@ def test_get_stored_state(
         with io.BytesIO() as f:
             # use normalized columns
             write_dataset(client, f, [norm_doc], partial["columns"])
-            query = f.getvalue().decode()
+            query = f.getvalue()
         expect_load_file(client, file_storage, query, partial["name"])
         client.complete_load("_load_id")
 
@@ -831,12 +831,20 @@ def test_many_schemas_single_dataset(
             # "_dlt_load_id": "load_id",
             "event": "user",
             "sender_id": "sender_id",
-            "timestamp": str(pendulum.now()),
+            "timestamp": pendulum.now(),
         }
         with io.BytesIO() as f:
-            write_dataset(_client, f, [user_row], _client.schema.tables["event_user"]["columns"])
-            query = f.getvalue().decode()
-        expect_load_file(_client, file_storage, query, "event_user")
+            write_dataset(
+                _client,
+                f,
+                [user_row],
+                _client.schema.tables["event_user"]["columns"],
+                file_format=destination_config.file_format,
+            )
+            query = f.getvalue()
+        expect_load_file(
+            _client, file_storage, query, "event_user", file_format=destination_config.file_format
+        )
         qual_table_name = _client.sql_client.make_qualified_table_name("event_user")
         db_rows = list(_client.sql_client.execute_sql(f"SELECT * FROM {qual_table_name}"))
         assert len(db_rows) == expected_rows
@@ -889,6 +897,11 @@ def test_many_schemas_single_dataset(
         # no were detected - even if the schema is new. all the tables overlap and change in nullability does not do any updates
         assert schema_update == {}
         # 3 rows because we load to the same table
+        if (
+            destination_config.file_format == "parquet"
+            or client.capabilities.preferred_loader_file_format == "parquet"
+        ):
+            event_3_schema.tables["event_user"]["columns"]["input_channel"]["nullable"] = True
         _load_something(client, 3)
 
         # adding new non null column will generate sync error, except for clickhouse, there it will work
@@ -927,3 +940,13 @@ def normalize_rows(rows: List[Dict[str, Any]], naming: NamingConvention) -> None
     for row in rows:
         for k in list(row.keys()):
             row[naming.normalize_identifier(k)] = row.pop(k)
+
+
+def get_columns_and_row_all_types(destination_type: str):
+    return table_update_and_row(
+        # TIME + parquet is actually a duckdb problem: https://github.com/duckdb/duckdb/pull/13283
+        exclude_types=(
+            ["time"] if destination_type in ["databricks", "clickhouse", "motherduck"] else None
+        ),
+        exclude_columns=["col4_precision"] if destination_type in ["motherduck"] else None,
+    )

@@ -1,7 +1,6 @@
 import uuid
 from types import TracebackType
 from typing import (
-    ClassVar,
     List,
     Any,
     cast,
@@ -15,6 +14,7 @@ from typing import (
     TYPE_CHECKING,
 )
 
+from dlt.common.destination.capabilities import DataTypeMapper
 import lancedb  # type: ignore
 import pyarrow as pa
 from lancedb import DBConnection
@@ -33,17 +33,17 @@ from dlt.common.destination.exceptions import (
 )
 from dlt.common.destination.reference import (
     JobClientBase,
+    PreparedTableSchema,
     WithStateSync,
-    LoadJob,
+    RunnableLoadJob,
     StorageSchemaInfo,
     StateInfo,
-    TLoadJobState,
+    LoadJob,
 )
 from dlt.common.pendulum import timedelta
-from dlt.common.schema import Schema, TTableSchema, TSchemaTables
+from dlt.common.schema import Schema, TSchemaTables
 from dlt.common.schema.typing import (
-    TColumnType,
-    TTableFormat,
+    C_DLT_LOAD_ID,
     TTableSchemaColumns,
     TWriteDisposition,
 )
@@ -69,83 +69,13 @@ from dlt.destinations.impl.lancedb.utils import (
     generate_uuid,
     set_non_standard_providers_environment_variables,
 )
-from dlt.destinations.job_impl import EmptyLoadJob
-from dlt.destinations.type_mapping import TypeMapper
 
 if TYPE_CHECKING:
     NDArray = ndarray[Any, Any]
 else:
     NDArray = ndarray
 
-
-TIMESTAMP_PRECISION_TO_UNIT: Dict[int, str] = {0: "s", 3: "ms", 6: "us", 9: "ns"}
-UNIT_TO_TIMESTAMP_PRECISION: Dict[str, int] = {v: k for k, v in TIMESTAMP_PRECISION_TO_UNIT.items()}
-
-
-class LanceDBTypeMapper(TypeMapper):
-    sct_to_unbound_dbt = {
-        "text": pa.string(),
-        "double": pa.float64(),
-        "bool": pa.bool_(),
-        "bigint": pa.int64(),
-        "binary": pa.binary(),
-        "date": pa.date32(),
-        "complex": pa.string(),
-    }
-
-    sct_to_dbt = {}
-
-    dbt_to_sct = {
-        pa.string(): "text",
-        pa.float64(): "double",
-        pa.bool_(): "bool",
-        pa.int64(): "bigint",
-        pa.binary(): "binary",
-        pa.date32(): "date",
-    }
-
-    def to_db_decimal_type(
-        self, precision: Optional[int], scale: Optional[int]
-    ) -> pa.Decimal128Type:
-        precision, scale = self.decimal_precision(precision, scale)
-        return pa.decimal128(precision, scale)
-
-    def to_db_datetime_type(
-        self, precision: Optional[int], table_format: TTableFormat = None
-    ) -> pa.TimestampType:
-        unit: str = TIMESTAMP_PRECISION_TO_UNIT[self.capabilities.timestamp_precision]
-        return pa.timestamp(unit, "UTC")
-
-    def to_db_time_type(
-        self, precision: Optional[int], table_format: TTableFormat = None
-    ) -> pa.Time64Type:
-        unit: str = TIMESTAMP_PRECISION_TO_UNIT[self.capabilities.timestamp_precision]
-        return pa.time64(unit)
-
-    def from_db_type(
-        self,
-        db_type: pa.DataType,
-        precision: Optional[int] = None,
-        scale: Optional[int] = None,
-    ) -> TColumnType:
-        if isinstance(db_type, pa.TimestampType):
-            return dict(
-                data_type="timestamp",
-                precision=UNIT_TO_TIMESTAMP_PRECISION[db_type.unit],
-                scale=scale,
-            )
-        if isinstance(db_type, pa.Time64Type):
-            return dict(
-                data_type="time",
-                precision=UNIT_TO_TIMESTAMP_PRECISION[db_type.unit],
-                scale=scale,
-            )
-        if isinstance(db_type, pa.Decimal128Type):
-            precision, scale = db_type.precision, db_type.scale
-            if (precision, scale) == self.capabilities.wei_precision:
-                return cast(TColumnType, dict(data_type="wei"))
-            return dict(data_type="decimal", precision=precision, scale=scale)
-        return super().from_db_type(db_type, precision, scale)
+EMPTY_STRING_PLACEHOLDER = "0uEoDNBpQUBwsxKbmxxB"
 
 
 def upload_batch(
@@ -220,7 +150,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
             read_consistency_interval=timedelta(0),
         )
         self.registry = EmbeddingFunctionRegistry.get_instance()
-        self.type_mapper = LanceDBTypeMapper(self.capabilities)
+        self.type_mapper = self.capabilities.get_type_mapper()
         self.sentinel_table_name = config.sentinel_table_name
 
         embedding_model_provider = self.config.embedding_model_provider
@@ -232,20 +162,11 @@ class LanceDBClient(JobClientBase, WithStateSync):
             embedding_model_provider,
             self.config.credentials.embedding_model_provider_api_key,
         )
-        # Use the monkey-patched implementation if openai was chosen.
-        if embedding_model_provider == "openai":
-            from dlt.destinations.impl.lancedb.models import PatchedOpenAIEmbeddings
-
-            self.model_func = PatchedOpenAIEmbeddings(
-                max_retries=self.config.options.max_retries,
-                api_key=self.config.credentials.api_key,
-            )
-        else:
-            self.model_func = self.registry.get(embedding_model_provider).create(
-                name=self.config.embedding_model,
-                max_retries=self.config.options.max_retries,
-                api_key=self.config.credentials.api_key,
-            )
+        self.model_func = self.registry.get(embedding_model_provider).create(
+            name=self.config.embedding_model,
+            max_retries=self.config.options.max_retries,
+            api_key=self.config.credentials.api_key,
+        )
 
         self.vector_field_name = self.config.vector_field_name
         self.id_field_name = self.config.id_field_name
@@ -375,9 +296,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
         only_tables: Iterable[str] = None,
         expected_update: TSchemaTables = None,
     ) -> Optional[TSchemaTables]:
-        super().update_stored_schema(only_tables, expected_update)
-        applied_update: TSchemaTables = {}
-
+        applied_update = super().update_stored_schema(only_tables, expected_update)
         try:
             schema_info = self.get_stored_schema_by_hash(self.schema.stored_version_hash)
         except DestinationUndefinedEntity:
@@ -388,6 +307,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
                 f"Schema with hash {self.schema.stored_version_hash} "
                 "not found in the storage. upgrading"
             )
+            # TODO: return a real updated table schema (like in SQL job client)
             self._execute_schema_update(only_tables)
         else:
             logger.info(
@@ -395,6 +315,8 @@ class LanceDBClient(JobClientBase, WithStateSync):
                 f"inserted at {schema_info.inserted_at} found "
                 "in storage, no upgrade required"
             )
+        # we assume that expected_update == applied_update so table schemas in dest were not
+        # externally changed
         return applied_update
 
     def get_storage_table(self, table_name: str) -> Tuple[bool, TTableSchemaColumns]:
@@ -414,7 +336,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
             name = self.schema.naming.normalize_identifier(field.name)
             table_schema[name] = {
                 "name": name,
-                **self.type_mapper.from_db_type(field.type),
+                **self.type_mapper.from_destination_type(field.type, None, None),
             }
         return True, table_schema
 
@@ -545,7 +467,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
 
         # normalize property names
         p_load_id = self.schema.naming.normalize_identifier("load_id")
-        p_dlt_load_id = self.schema.naming.normalize_identifier("_dlt_load_id")
+        p_dlt_load_id = self.schema.naming.normalize_identifier(C_DLT_LOAD_ID)
         p_pipeline_name = self.schema.naming.normalize_identifier("pipeline_name")
         p_status = self.schema.naming.normalize_identifier("status")
         p_version = self.schema.naming.normalize_identifier("version")
@@ -686,17 +608,12 @@ class LanceDBClient(JobClientBase, WithStateSync):
             write_disposition=write_disposition,
         )
 
-    def restore_file_load(self, file_path: str) -> LoadJob:
-        return EmptyLoadJob.from_file_path(file_path, "completed")
-
-    def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
-        return LoadLanceDBJob(
-            self.schema,
-            table,
-            file_path,
+    def create_load_job(
+        self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
+    ) -> LoadJob:
+        return LanceDBLoadJob(
+            file_path=file_path,
             type_mapper=self.type_mapper,
-            db_client=self.db_client,
-            client_config=self.config,
             model_func=self.model_func,
             fq_table_name=self.make_qualified_table_name(table["name"]),
         )
@@ -705,66 +622,69 @@ class LanceDBClient(JobClientBase, WithStateSync):
         return table_name in self.db_client.table_names()
 
 
-class LoadLanceDBJob(LoadJob):
+class LanceDBLoadJob(RunnableLoadJob):
     arrow_schema: TArrowSchema
 
     def __init__(
         self,
-        schema: Schema,
-        table_schema: TTableSchema,
-        local_path: str,
-        type_mapper: LanceDBTypeMapper,
-        db_client: DBConnection,
-        client_config: LanceDBClientConfiguration,
+        file_path: str,
+        type_mapper: DataTypeMapper,
         model_func: TextEmbeddingFunction,
         fq_table_name: str,
     ) -> None:
-        file_name = FileStorage.get_file_name_from_file_path(local_path)
-        super().__init__(file_name)
-        self.schema: Schema = schema
-        self.table_schema: TTableSchema = table_schema
-        self.db_client: DBConnection = db_client
-        self.type_mapper: TypeMapper = type_mapper
-        self.table_name: str = table_schema["name"]
-        self.fq_table_name: str = fq_table_name
-        self.unique_identifiers: Sequence[str] = list_merge_identifiers(table_schema)
-        self.embedding_fields: List[str] = get_columns_names_with_prop(table_schema, VECTORIZE_HINT)
-        self.embedding_model_func: TextEmbeddingFunction = model_func
-        self.embedding_model_dimensions: int = client_config.embedding_model_dimensions
-        self.id_field_name: str = client_config.id_field_name
-        self.write_disposition: TWriteDisposition = cast(
-            TWriteDisposition, self.table_schema.get("write_disposition", "append")
+        super().__init__(file_path)
+        self._type_mapper = type_mapper
+        self._fq_table_name: str = fq_table_name
+        self._model_func = model_func
+        self._job_client: "LanceDBClient" = None
+
+    def run(self) -> None:
+        self._db_client: DBConnection = self._job_client.db_client
+        self._embedding_model_func: TextEmbeddingFunction = self._model_func
+        self._embedding_model_dimensions: int = self._job_client.config.embedding_model_dimensions
+        self._id_field_name: str = self._job_client.config.id_field_name
+
+        unique_identifiers: Sequence[str] = list_merge_identifiers(self._load_table)
+        write_disposition: TWriteDisposition = cast(
+            TWriteDisposition, self._load_table.get("write_disposition", "append")
         )
 
-        with FileStorage.open_zipsafe_ro(local_path) as f:
+        with FileStorage.open_zipsafe_ro(self._file_path) as f:
             records: List[DictStrAny] = [json.loads(line) for line in f]
 
-        if self.table_schema not in self.schema.dlt_tables():
+        # Replace empty strings with placeholder string if OpenAI is used.
+        # https://github.com/lancedb/lancedb/issues/1577#issuecomment-2318104218.
+        if (self._job_client.config.embedding_model_provider == "openai") and (
+            source_columns := get_columns_names_with_prop(self._load_table, VECTORIZE_HINT)
+        ):
+            records = [
+                {
+                    k: EMPTY_STRING_PLACEHOLDER if k in source_columns and v in ("", None) else v
+                    for k, v in record.items()
+                }
+                for record in records
+            ]
+
+        if self._load_table not in self._schema.dlt_tables():
             for record in records:
                 # Add reserved ID fields.
                 uuid_id = (
-                    generate_uuid(record, self.unique_identifiers, self.fq_table_name)
-                    if self.unique_identifiers
+                    generate_uuid(record, unique_identifiers, self._fq_table_name)
+                    if unique_identifiers
                     else str(uuid.uuid4())
                 )
-                record.update({self.id_field_name: uuid_id})
+                record.update({self._id_field_name: uuid_id})
 
                 # LanceDB expects all fields in the target arrow table to be present in the data payload.
                 # We add and set these missing fields, that are fields not present in the target schema, to NULL.
-                missing_fields = set(self.table_schema["columns"]) - set(record)
+                missing_fields = set(self._load_table["columns"]) - set(record)
                 for field in missing_fields:
                     record[field] = None
 
         upload_batch(
             records,
-            db_client=db_client,
-            table_name=self.fq_table_name,
-            write_disposition=self.write_disposition,
-            id_field_name=self.id_field_name,
+            db_client=self._db_client,
+            table_name=self._fq_table_name,
+            write_disposition=write_disposition,
+            id_field_name=self._id_field_name,
         )
-
-    def state(self) -> TLoadJobState:
-        return "completed"
-
-    def exception(self) -> str:
-        raise NotImplementedError()

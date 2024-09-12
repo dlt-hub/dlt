@@ -4,8 +4,12 @@ from dlt.common.data_writers.configuration import CsvFormatConfiguration
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
 from dlt.common.data_writers.escape import escape_postgres_identifier, escape_postgres_literal
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
+from dlt.common.destination.typing import PreparedTableSchema
+from dlt.common.exceptions import TerminalValueError
+from dlt.common.schema.typing import TColumnSchema, TColumnType
 from dlt.common.wei import EVM_DECIMAL_PRECISION
 
+from dlt.destinations.type_mapping import TypeMapperImpl
 from dlt.destinations.impl.postgres.configuration import (
     PostgresCredentials,
     PostgresClientConfiguration,
@@ -13,6 +17,101 @@ from dlt.destinations.impl.postgres.configuration import (
 
 if t.TYPE_CHECKING:
     from dlt.destinations.impl.postgres.postgres import PostgresClient
+
+
+class PostgresTypeMapper(TypeMapperImpl):
+    sct_to_unbound_dbt = {
+        "json": "jsonb",
+        "text": "varchar",
+        "double": "double precision",
+        "bool": "boolean",
+        "date": "date",
+        "bigint": "bigint",
+        "binary": "bytea",
+        "timestamp": "timestamp with time zone",
+        "time": "time without time zone",
+    }
+
+    sct_to_dbt = {
+        "text": "varchar(%i)",
+        "timestamp": "timestamp (%i) with time zone",
+        "decimal": "numeric(%i,%i)",
+        "time": "time (%i) without time zone",
+        "wei": "numeric(%i,%i)",
+    }
+
+    dbt_to_sct = {
+        "varchar": "text",
+        "jsonb": "json",
+        "double precision": "double",
+        "boolean": "bool",
+        "timestamp with time zone": "timestamp",
+        "timestamp without time zone": "timestamp",
+        "date": "date",
+        "bigint": "bigint",
+        "bytea": "binary",
+        "numeric": "decimal",
+        "time without time zone": "time",
+        "character varying": "text",
+        "smallint": "bigint",
+        "integer": "bigint",
+    }
+
+    def to_db_integer_type(self, column: TColumnSchema, table: PreparedTableSchema = None) -> str:
+        precision = column.get("precision")
+        if precision is None:
+            return "bigint"
+        # Precision is number of bits
+        if precision <= 16:
+            return "smallint"
+        elif precision <= 32:
+            return "integer"
+        elif precision <= 64:
+            return "bigint"
+        raise TerminalValueError(
+            f"bigint with {precision} bits precision cannot be mapped into postgres integer type"
+        )
+
+    def to_db_datetime_type(
+        self,
+        column: TColumnSchema,
+        table: PreparedTableSchema = None,
+    ) -> str:
+        column_name = column.get("name")
+        table_name = table.get("name")
+        timezone = column.get("timezone")
+        precision = column.get("precision")
+
+        if timezone is None and precision is None:
+            return None
+
+        timestamp = "timestamp"
+
+        # append precision if specified and valid
+        if precision is not None:
+            if 0 <= precision <= 6:
+                timestamp += f" ({precision})"
+            else:
+                raise TerminalValueError(
+                    f"Postgres does not support precision '{precision}' for '{column_name}' in"
+                    f" table '{table_name}'"
+                )
+
+        # append timezone part
+        if timezone is None or timezone:  # timezone True and None
+            timestamp += " with time zone"
+        else:  # timezone is explicitly False
+            timestamp += " without time zone"
+
+        return timestamp
+
+    def from_destination_type(
+        self, db_type: str, precision: t.Optional[int] = None, scale: t.Optional[int] = None
+    ) -> TColumnType:
+        if db_type == "numeric":
+            if (precision, scale) == self.capabilities.wei_precision:
+                return dict(data_type="wei")
+        return super().from_destination_type(db_type, precision, scale)
 
 
 class postgres(Destination[PostgresClientConfiguration, "PostgresClient"]):
@@ -25,6 +124,7 @@ class postgres(Destination[PostgresClientConfiguration, "PostgresClient"]):
         caps.supported_loader_file_formats = ["insert_values", "csv"]
         caps.preferred_staging_file_format = None
         caps.supported_staging_file_formats = []
+        caps.type_mapper = PostgresTypeMapper
         caps.escape_identifier = escape_postgres_identifier
         # postgres has case sensitive identifiers but by default
         # it folds them to lower case which makes them case insensitive

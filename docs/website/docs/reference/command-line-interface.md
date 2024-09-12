@@ -23,9 +23,9 @@ version if run again with existing `source` name. You are warned if files will b
 ### Specify your own "verified sources" repository.
 You can use `--location <repo_url or local folder>` option to specify your own repository with sources. Typically you would [fork ours](https://github.com/dlt-hub/verified-sources) and start customizing and adding sources ie. to use them for your team or organization. You can also specify a branch with `--branch <name>` ie. to test a version being developed.
 
-### List all verified sources
+### List all sources
 ```sh
-dlt init --list-verified-sources
+dlt init --list-sources
 ```
 Shows all available verified sources and their short descriptions. For each source, checks if your local `dlt` version requires update
 and prints the relevant warning.

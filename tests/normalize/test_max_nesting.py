@@ -8,7 +8,7 @@ from dlt.destinations import dummy
 from tests.common.utils import json_case_path
 
 
-TOP_LEVEL_TABLES = ["bot_events"]
+ROOT_TABLES = ["bot_events"]
 
 ALL_TABLES_FOR_RASA_EVENT = [
     "bot_events",
@@ -37,8 +37,8 @@ def rasa_event_bot_metadata():
 @pytest.mark.parametrize(
     "nesting_level,expected_num_tables,expected_table_names",
     (
-        (0, 1, TOP_LEVEL_TABLES),
-        (1, 1, TOP_LEVEL_TABLES),
+        (0, 1, ROOT_TABLES),
+        (1, 1, ROOT_TABLES),
         (2, 3, ALL_TABLES_FOR_RASA_EVENT_NESTING_LEVEL_2),
         (5, 8, ALL_TABLES_FOR_RASA_EVENT),
         (15, 8, ALL_TABLES_FOR_RASA_EVENT),
@@ -61,7 +61,7 @@ def test_resource_max_nesting(
     pipeline_name = f"test_max_table_nesting_{nesting_level}_{expected_num_tables}"
     pipeline = dlt.pipeline(
         pipeline_name=pipeline_name,
-        destination=dummy(timeout=0.1),
+        destination=dummy(timeout=0.1, completed_prob=1),
         dev_mode=True,
     )
 
@@ -168,7 +168,7 @@ def test_with_multiple_resources_with_max_table_nesting_levels(
     pipeline_name = "test_different_table_nesting_levels"
     pipeline = dlt.pipeline(
         pipeline_name=pipeline_name,
-        destination=dummy(timeout=0.1),
+        destination=dummy(timeout=0.1, completed_prob=1),
         dev_mode=True,
     )
 

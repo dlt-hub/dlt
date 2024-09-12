@@ -1,5 +1,5 @@
-from datetime import datetime, date  # noqa: I251
-from typing import Any, Optional, Set, Tuple, List
+from datetime import datetime  # noqa: I251
+from typing import Any, Optional, Set, Tuple, List, Type
 
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.utils import digest128
@@ -8,10 +8,12 @@ from dlt.common.pendulum import pendulum
 from dlt.common.typing import TDataItem
 from dlt.common.jsonpath import find_values, JSONPathFields, compile_path
 from dlt.extract.incremental.exceptions import (
+    IncrementalCursorInvalidCoercion,
     IncrementalCursorPathMissing,
     IncrementalPrimaryKeyMissing,
+    IncrementalCursorPathHasValueNone,
 )
-from dlt.extract.incremental.typing import TCursorValue, LastValueFunc
+from dlt.extract.incremental.typing import TCursorValue, LastValueFunc, OnCursorValueMissing
 from dlt.extract.utils import resolve_column_value
 from dlt.extract.items import TTableHintTemplate
 from dlt.common.schema.typing import TColumnNames
@@ -54,6 +56,7 @@ class IncrementalTransform:
         last_value_func: LastValueFunc[TCursorValue],
         primary_key: Optional[TTableHintTemplate[TColumnNames]],
         unique_hashes: Set[str],
+        on_cursor_value_missing: OnCursorValueMissing = "raise",
     ) -> None:
         self.resource_name = resource_name
         self.cursor_path = cursor_path
@@ -66,6 +69,7 @@ class IncrementalTransform:
         self.primary_key = primary_key
         self.unique_hashes = unique_hashes
         self.start_unique_hashes = set(unique_hashes)
+        self.on_cursor_value_missing = on_cursor_value_missing
 
         # compile jsonpath
         self._compiled_cursor_path = compile_path(cursor_path)
@@ -115,21 +119,39 @@ class JsonIncremental(IncrementalTransform):
     def find_cursor_value(self, row: TDataItem) -> Any:
         """Finds value in row at cursor defined by self.cursor_path.
 
-        Will use compiled JSONPath if present, otherwise it reverts to column search if row is dict
+        Will use compiled JSONPath if present.
+        Otherwise, reverts to field access if row is dict, Pydantic model, or of other class.
         """
-        row_value: Any = None
+        key_exc: Type[Exception] = IncrementalCursorPathHasValueNone
         if self._compiled_cursor_path:
-            row_values = find_values(self._compiled_cursor_path, row)
-            if row_values:
-                row_value = row_values[0]
+            # ignores the other found values, e.g. when the path is $data.items[*].created_at
+            try:
+                row_value = find_values(self._compiled_cursor_path, row)[0]
+            except IndexError:
+                # empty list so raise a proper exception
+                row_value = None
+                key_exc = IncrementalCursorPathMissing
         else:
             try:
-                row_value = row[self.cursor_path]
-            except Exception:
-                pass
-        if row_value is None:
-            raise IncrementalCursorPathMissing(self.resource_name, self.cursor_path, row)
-        return row_value
+                try:
+                    row_value = row[self.cursor_path]
+                except TypeError:
+                    # supports Pydantic models and other classes
+                    row_value = getattr(row, self.cursor_path)
+            except (KeyError, AttributeError):
+                # attr not found so raise a proper exception
+                row_value = None
+                key_exc = IncrementalCursorPathMissing
+
+        # if we have a value - return it
+        if row_value is not None:
+            return row_value
+
+        if self.on_cursor_value_missing == "raise":
+            # raise missing path or None value exception
+            raise key_exc(self.resource_name, self.cursor_path, row)
+        elif self.on_cursor_value_missing == "exclude":
+            return None
 
     def __call__(
         self,
@@ -143,6 +165,12 @@ class JsonIncremental(IncrementalTransform):
             return row, False, False
 
         row_value = self.find_cursor_value(row)
+        if row_value is None:
+            if self.on_cursor_value_missing == "exclude":
+                return None, False, False
+            else:
+                return row, False, False
+
         last_value = self.last_value
         last_value_func = self.last_value_func
 
@@ -158,14 +186,36 @@ class JsonIncremental(IncrementalTransform):
 
         # Check whether end_value has been reached
         # Filter end value ranges exclusively, so in case of "max" function we remove values >= end_value
-        if self.end_value is not None and (
-            last_value_func((row_value, self.end_value)) != self.end_value
-            or last_value_func((row_value,)) == self.end_value
-        ):
-            return None, False, True
-
+        if self.end_value is not None:
+            try:
+                if (
+                    last_value_func((row_value, self.end_value)) != self.end_value
+                    or last_value_func((row_value,)) == self.end_value
+                ):
+                    return None, False, True
+            except Exception as ex:
+                raise IncrementalCursorInvalidCoercion(
+                    self.resource_name,
+                    self.cursor_path,
+                    self.end_value,
+                    "end_value",
+                    row_value,
+                    type(row_value).__name__,
+                    str(ex),
+                ) from ex
         check_values = (row_value,) + ((last_value,) if last_value is not None else ())
-        new_value = last_value_func(check_values)
+        try:
+            new_value = last_value_func(check_values)
+        except Exception as ex:
+            raise IncrementalCursorInvalidCoercion(
+                self.resource_name,
+                self.cursor_path,
+                last_value,
+                "start_value/initial_value",
+                row_value,
+                type(row_value).__name__,
+                str(ex),
+            ) from ex
         # new_value is "less" or equal to last_value (the actual max)
         if last_value == new_value:
             # use func to compute row_value into last_value compatible
@@ -276,6 +326,7 @@ class ArrowIncremental(IncrementalTransform):
 
         # TODO: Json path support. For now assume the cursor_path is a column name
         cursor_path = self.cursor_path
+
         # The new max/min value
         try:
             # NOTE: datetimes are always pendulum in UTC
@@ -287,21 +338,47 @@ class ArrowIncremental(IncrementalTransform):
                 self.resource_name,
                 cursor_path,
                 tbl,
-                f"Column name {cursor_path} was not found in the arrow table. Not nested JSON paths"
+                f"Column name `{cursor_path}` was not found in the arrow table. Nested JSON paths"
                 " are not supported for arrow tables and dataframes, the incremental cursor_path"
                 " must be a column name.",
             ) from e
 
+        if tbl.schema.field(cursor_path).nullable:
+            tbl_without_null, tbl_with_null = self._process_null_at_cursor_path(tbl)
+            tbl = tbl_without_null
+
         # If end_value is provided, filter to include table rows that are "less" than end_value
         if self.end_value is not None:
-            end_value_scalar = to_arrow_scalar(self.end_value, cursor_data_type)
+            try:
+                end_value_scalar = to_arrow_scalar(self.end_value, cursor_data_type)
+            except Exception as ex:
+                raise IncrementalCursorInvalidCoercion(
+                    self.resource_name,
+                    cursor_path,
+                    self.end_value,
+                    "end_value",
+                    "<arrow column>",
+                    cursor_data_type,
+                    str(ex),
+                ) from ex
             tbl = tbl.filter(end_compare(tbl[cursor_path], end_value_scalar))
             # Is max row value higher than end value?
             # NOTE: pyarrow bool *always* evaluates to python True. `as_py()` is necessary
             end_out_of_range = not end_compare(row_value_scalar, end_value_scalar).as_py()
 
         if self.start_value is not None:
-            start_value_scalar = to_arrow_scalar(self.start_value, cursor_data_type)
+            try:
+                start_value_scalar = to_arrow_scalar(self.start_value, cursor_data_type)
+            except Exception as ex:
+                raise IncrementalCursorInvalidCoercion(
+                    self.resource_name,
+                    cursor_path,
+                    self.start_value,
+                    "start_value/initial_value",
+                    "<arrow column>",
+                    cursor_data_type,
+                    str(ex),
+                ) from ex
             # Remove rows lower or equal than the last start value
             keep_filter = last_value_compare(tbl[cursor_path], start_value_scalar)
             start_out_of_range = bool(pa.compute.any(pa.compute.invert(keep_filter)).as_py())
@@ -351,12 +428,29 @@ class ArrowIncremental(IncrementalTransform):
                 )
             )
 
+        # drop the temp unique index before concat and returning
+        if "_dlt_index" in tbl.schema.names:
+            tbl = pyarrow.remove_columns(tbl, ["_dlt_index"])
+
+        if self.on_cursor_value_missing == "include":
+            if tbl.schema.field(cursor_path).nullable:
+                if isinstance(tbl, pa.RecordBatch):
+                    assert isinstance(tbl_with_null, pa.RecordBatch)
+                    tbl = pa.Table.from_batches([tbl, tbl_with_null])
+                else:
+                    tbl = pa.concat_tables([tbl, tbl_with_null])
+
         if len(tbl) == 0:
             return None, start_out_of_range, end_out_of_range
-        try:
-            tbl = pyarrow.remove_columns(tbl, ["_dlt_index"])
-        except KeyError:
-            pass
         if is_pandas:
-            return tbl.to_pandas(), start_out_of_range, end_out_of_range
+            tbl = tbl.to_pandas()
         return tbl, start_out_of_range, end_out_of_range
+
+    def _process_null_at_cursor_path(self, tbl: "pa.Table") -> Tuple["pa.Table", "pa.Table"]:
+        mask = pa.compute.is_valid(tbl[self.cursor_path])
+        rows_without_null = tbl.filter(mask)
+        rows_with_null = tbl.filter(pa.compute.invert(mask))
+        if self.on_cursor_value_missing == "raise":
+            if rows_with_null.num_rows > 0:
+                raise IncrementalCursorPathHasValueNone(self.resource_name, self.cursor_path)
+        return rows_without_null, rows_with_null

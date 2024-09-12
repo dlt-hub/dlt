@@ -1,7 +1,7 @@
 from contextlib import contextmanager, nullcontext, AbstractContextManager
 import re
 import threading
-from typing import ClassVar, Dict, Iterator, Tuple, Type, TypeVar, Any
+from typing import ClassVar, Dict, Iterator, Optional, Tuple, Type, TypeVar, Any
 
 from dlt.common.configuration.specs.base_configuration import ContainerInjectableContext
 from dlt.common.configuration.exceptions import (
@@ -170,6 +170,12 @@ class Container:
                 else:
                     # value was modified in the meantime and not restored
                     raise ContainerInjectableContextMangled(spec, context[spec], config)
+
+    def get(self, spec: Type[TConfiguration]) -> Optional[TConfiguration]:
+        try:
+            return self[spec]
+        except KeyError:
+            return None
 
     @staticmethod
     def thread_pool_prefix() -> str:

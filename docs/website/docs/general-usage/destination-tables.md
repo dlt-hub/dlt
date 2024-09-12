@@ -84,7 +84,7 @@ connecting to the database directly.
 
 :::
 
-## Child and parent tables
+## Nested and root tables
 
 Now let's look at a more complex example:
 
@@ -117,7 +117,7 @@ pipeline = dlt.pipeline(
 load_info = pipeline.run(data, table_name="users")
 ```
 
-Running this pipeline will create two tables in the destination, `users` and `users__pets`. The `users` table will contain the top-level data, and the `users__pets` table will contain the child data. Here is what the tables may look like:
+Running this pipeline will create two tables in the destination, `users` and `users__pets`. The `users` table will contain the top-level data, and the `users__pets` table will contain the nested data. Here is what the tables may look like:
 
 **mydata.users**
 
@@ -139,7 +139,7 @@ creating and linking children and parent tables.
 
 This is how it works:
 
-1. Each row in all (top level and child) data tables created by `dlt` contains a `UNIQUE` column named `_dlt_id`.
+1. Each row in all (root and nested) data tables created by `dlt` contains a `UNIQUE` column named `_dlt_id`.
 1. Each child table contains a `FOREIGN KEY` column `_dlt_parent_id` linking to a particular row (`_dlt_id`) of a parent table.
 1. Rows in child tables come from the lists: `dlt` stores the position of each item in the list in `_dlt_list_idx`.
 1. For tables that are loaded with the `merge` write disposition, we add a root key column `_dlt_root_id`, which links the child table to a row in the top-level table.
@@ -307,7 +307,7 @@ For example, the first time you run the pipeline, the schema will be named
 
 ## Loading data into existing tables not created by dlt
 
-You can also load data from `dlt` into tables that already exist in the destination dataset and were not created by `dlt`. 
+You can also load data from `dlt` into tables that already exist in the destination dataset and were not created by `dlt`.
 There are a few things to keep in mind when you are doing this:
 
 If you load data to a table that exists but does not contain any data, in most cases your load will succeed without problems.
@@ -319,22 +319,22 @@ If your destination table already exists and contains columns that have the same
 do not have matching datatypes, your load will fail and you will have to fix the column on the destination table first,
 or change the column name in your incoming data to something else to avoid a collission.
 
-If your destination table exists and already contains data, your load might also initially fail, since `dlt` creates 
+If your destination table exists and already contains data, your load might also initially fail, since `dlt` creates
 special `non-nullable` columns that contains required mandatory metadata. Some databases will not allow you to create
-`non-nullable` columns on tables that have data, since the initial value for these columns of the existing rows can 
+`non-nullable` columns on tables that have data, since the initial value for these columns of the existing rows can
 not be inferred. You will have to manually create these columns with the correct type on your existing tables and
 make them `nullable`, then fill in values for the existing rows. Some databases may allow you to create a new column
-that is `non-nullable` and take a default value for existing rows in the same command. The columns you will need to 
+that is `non-nullable` and take a default value for existing rows in the same command. The columns you will need to
 create are:
 
 | name | type |
 | --- | --- |
-| _dlt_load_id | text/string/varchar | 
+| _dlt_load_id | text/string/varchar |
 | _dlt_id | text/string/varchar |
 
 For child-tables you may also need to create:
 
 | name | type |
 | --- | --- |
-| _dlt_parent_id | text/string/varchar | 
+| _dlt_parent_id | text/string/varchar |
 | _dlt_root_id | text/string/varchar |

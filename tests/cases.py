@@ -74,7 +74,7 @@ TABLE_UPDATE: List[TColumnSchema] = [
     {"name": "col6", "data_type": "decimal", "nullable": False},
     {"name": "col7", "data_type": "binary", "nullable": False},
     {"name": "col8", "data_type": "wei", "nullable": False},
-    {"name": "col9", "data_type": "complex", "nullable": False, "variant": True},
+    {"name": "col9", "data_type": "json", "nullable": False, "variant": True},
     {"name": "col10", "data_type": "date", "nullable": False},
     {"name": "col11", "data_type": "time", "nullable": False},
     {"name": "col1_null", "data_type": "bigint", "nullable": True},
@@ -85,7 +85,7 @@ TABLE_UPDATE: List[TColumnSchema] = [
     {"name": "col6_null", "data_type": "decimal", "nullable": True},
     {"name": "col7_null", "data_type": "binary", "nullable": True},
     {"name": "col8_null", "data_type": "wei", "nullable": True},
-    {"name": "col9_null", "data_type": "complex", "nullable": True, "variant": True},
+    {"name": "col9_null", "data_type": "json", "nullable": True, "variant": True},
     {"name": "col10_null", "data_type": "date", "nullable": True},
     {"name": "col11_null", "data_type": "time", "nullable": True},
     {"name": "col1_precision", "data_type": "bigint", "precision": 16, "nullable": False},
@@ -113,7 +113,7 @@ TABLE_ROW_ALL_DATA_TYPES = {
     "col7": b"binary data \n \r ",
     "col8": 2**56 + 92093890840,
     "col9": {
-        "complex": [1, 2, 3, "a"],
+        "nested": [1, 2, 3, "a"],
         "link": (
             "?commen\ntU\nrn=urn%3Ali%3Acomment%3A%28acti\012 \6"
             " \\vity%3A69'08444473\n\n551163392%2C6n \r 9085"
@@ -178,7 +178,7 @@ def table_update_and_row(
     Optionally exclude some data types from the schema and row.
     """
     column_schemas = deepcopy(TABLE_UPDATE_COLUMNS_SCHEMA)
-    data_row = deepcopy(TABLE_ROW_ALL_DATA_TYPES)
+    data_row = deepcopy(TABLE_ROW_ALL_DATA_TYPES_DATETIMES)
     exclude_col_names = list(exclude_columns or [])
     if exclude_types:
         exclude_col_names.extend(
@@ -193,7 +193,7 @@ def table_update_and_row(
 def assert_all_data_types_row(
     db_row: Union[List[Any], TDataItems],
     expected_row: Dict[str, Any] = None,
-    parse_complex_strings: bool = False,
+    parse_json_strings: bool = False,
     allow_base64_binary: bool = False,
     timestamp_precision: int = 6,
     schema: TTableSchemaColumns = None,
@@ -203,7 +203,7 @@ def assert_all_data_types_row(
     # content must equal
     # print(db_row)
     schema = schema or TABLE_UPDATE_COLUMNS_SCHEMA
-    expected_row = expected_row or TABLE_ROW_ALL_DATA_TYPES
+    expected_row = expected_row or TABLE_ROW_ALL_DATA_TYPES_DATETIMES
 
     # Include only columns requested in schema
     if isinstance(db_row, dict):
@@ -270,12 +270,12 @@ def assert_all_data_types_row(
             # then it must be json
             db_mapping["col9"] = json.loads(db_mapping["col9"])
         # parse again
-        if parse_complex_strings and isinstance(db_mapping["col9"], str):
+        if parse_json_strings and isinstance(db_mapping["col9"], str):
             # then it must be json
             db_mapping["col9"] = json.loads(db_mapping["col9"])
 
-    if "col10" in db_mapping:
-        db_mapping["col10"] = db_mapping["col10"].isoformat()
+    # if "col10" in db_mapping:
+    #     db_mapping["col10"] = db_mapping["col10"].isoformat()
     if "col11" in db_mapping:
         db_mapping["col11"] = ensure_pendulum_time(db_mapping["col11"]).isoformat()
 
@@ -303,6 +303,7 @@ def arrow_table_all_data_types(
     include_date: bool = True,
     include_not_normalized_name: bool = True,
     include_name_clash: bool = False,
+    include_null: bool = True,
     num_rows: int = 3,
     tz="UTC",
 ) -> Tuple[Any, List[Dict[str, Any]], Dict[str, List[Any]]]:
@@ -323,8 +324,10 @@ def arrow_table_all_data_types(
         "float_null": [round(random.uniform(0, 100), 4) for _ in range(num_rows - 1)] + [
             None
         ],  # decrease precision
-        "null": pd.Series([None for _ in range(num_rows)]),
     }
+
+    if include_null:
+        data["null"] = pd.Series([None for _ in range(num_rows)])
 
     if include_name_clash:
         data["pre Normalized Column"] = [random.choice(ascii_lowercase) for _ in range(num_rows)]
@@ -373,7 +376,7 @@ def arrow_table_all_data_types(
                 "Pre Normalized Column": "pre_normalized_column",
             }
         )
-        .drop(columns=["null"])
+        .drop(columns=(["null"] if include_null else []))
         .to_dict("records")
     )
     if object_format == "object":

@@ -2,7 +2,7 @@ from typing import Dict, Any, Literal, Set, get_args
 
 from dlt.common.schema.typing import TColumnNames, TTableSchemaColumns
 from dlt.extract import DltResource, resource as make_resource
-from dlt.destinations.utils import ensure_resource
+from dlt.destinations.utils import get_resource_for_adapter
 
 TTokenizationTMethod = Literal["word", "lowercase", "whitespace", "field"]
 TOKENIZATION_METHODS: Set[TTokenizationTMethod] = set(get_args(TTokenizationTMethod))
@@ -54,7 +54,7 @@ def weaviate_adapter(
         >>> weaviate_adapter(data, vectorize="description", tokenization={"description": "word"})
         [DltResource with hints applied]
     """
-    resource = ensure_resource(data)
+    resource = get_resource_for_adapter(data)
 
     column_hints: TTableSchemaColumns = {}
     if vectorize:

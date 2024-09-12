@@ -129,8 +129,8 @@ You must map `dlt` data types to destination data types. For this you can implem
 * the database types must be exactly those as used in `INFORMATION_SCHEMA.COLUMNS`
 * decimal precision and scale are filled from the capabilities (in all our implementations)
 * until now all destinations could handle binary types
-* we always try to map the `complex` type into `JSON` type in the destination. if that does not work you can try mapping into a string. See how we do that for various destinations.
-* the reverse mapping of types is sometimes tricky ie. you may not able to detect complex types (your destination lacks JSON support). this is not really needed during schema updates and loading (just for testing) so in general you should be fine.
+* we always try to map the `json` type into `JSON` type in the destination. if that does not work you can try mapping into a string. See how we do that for various destinations.
+* the reverse mapping of types is sometimes tricky ie. you may not able to detect nested types (your destination lacks JSON support). this is not really needed during schema updates and loading (just for testing) so in general you should be fine.
 
 ### Table and column hints
 You can map hints present for tables and columns (ie. `cluster`, `sort`, `partition`) to generate specific DDL for columns and tables. See `_get_column_def_sql` in various destinations.

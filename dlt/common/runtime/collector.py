@@ -170,6 +170,7 @@ class LogCollector(Collector):
                 total=total,
             )
             self.messages[counter_key] = None
+            self.last_log_time = None
 
         self.counters[counter_key] += inc
         if message is not None:

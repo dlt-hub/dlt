@@ -29,8 +29,8 @@ from dlt.common.libs.pydantic import (
     DltConfig,
     pydantic_to_table_schema_columns,
     apply_schema_contract_to_model,
-    validate_item,
-    validate_items,
+    validate_and_filter_item,
+    validate_and_filter_items,
     create_list_model,
 )
 from pydantic import UUID4, BaseModel, Json, AnyHttpUrl, ConfigDict, ValidationError
@@ -168,7 +168,7 @@ class User(BaseModel):
     final_location: Final[Annotated[Union[str, int], None]]  # type: ignore[misc]
     final_optional: Final[Annotated[Optional[str], None]]  # type: ignore[misc]
 
-    dlt_config: ClassVar[DltConfig] = {"skip_complex_types": True}
+    dlt_config: ClassVar[DltConfig] = {"skip_nested_types": True}
 
 
 USER_INSTANCE_DATA = dict(
@@ -229,18 +229,18 @@ def test_pydantic_model_to_columns(instance: bool) -> None:
     assert result["decimal_field"]["data_type"] == "decimal"
     assert result["double_field"]["data_type"] == "double"
     assert result["time_field"]["data_type"] == "time"
-    assert result["nested_field"]["data_type"] == "complex"
-    assert result["list_field"]["data_type"] == "complex"
+    assert result["nested_field"]["data_type"] == "json"
+    assert result["list_field"]["data_type"] == "json"
     assert result["union_field"]["data_type"] == "bigint"
     assert result["optional_field"]["data_type"] == "double"
     assert result["optional_field"]["nullable"] is True
-    assert result["blank_dict_field"]["data_type"] == "complex"
-    assert result["parametrized_dict_field"]["data_type"] == "complex"
+    assert result["blank_dict_field"]["data_type"] == "json"
+    assert result["parametrized_dict_field"]["data_type"] == "json"
     assert result["str_enum_field"]["data_type"] == "text"
     assert result["int_enum_field"]["data_type"] == "bigint"
     assert result["mixed_enum_int_field"]["data_type"] == "text"
     assert result["mixed_enum_str_field"]["data_type"] == "text"
-    assert result["json_field"]["data_type"] == "complex"
+    assert result["json_field"]["data_type"] == "json"
     assert result["url_field"]["data_type"] == "text"
 
     # Any type fields are excluded from schema
@@ -260,9 +260,9 @@ def test_pydantic_model_to_columns_annotated() -> None:
     assert schema_from_user_class["final_optional"]["nullable"] is True
 
 
-def test_pydantic_model_skip_complex_types() -> None:
+def test_pydantic_model_skip_nested_types() -> None:
     class SkipNestedModel(Model):
-        dlt_config: ClassVar[DltConfig] = {"skip_complex_types": True}
+        dlt_config: ClassVar[DltConfig] = {"skip_nested_types": True}
 
     result = pydantic_to_table_schema_columns(SkipNestedModel)
 
@@ -393,7 +393,7 @@ def test_nested_model_config_propagation_optional_with_pipe():
         final_location: Final[Annotated[Union[str, int], None]]  # type: ignore[misc, syntax, unused-ignore]
         final_optional: Final[Annotated[str | None, None]]  # type: ignore[misc, syntax, unused-ignore]
 
-        dlt_config: ClassVar[DltConfig] = {"skip_complex_types": True}
+        dlt_config: ClassVar[DltConfig] = {"skip_nested_types": True}
 
     # TODO: move to separate test
     model_freeze = apply_schema_contract_to_model(UserPipe, "evolve", "freeze")
@@ -426,13 +426,13 @@ def test_item_list_validation() -> None:
     class ItemModel(BaseModel):
         b: bool
         opt: Optional[int] = None
-        dlt_config: ClassVar[DltConfig] = {"skip_complex_types": False}
+        dlt_config: ClassVar[DltConfig] = {"skip_nested_types": False}
 
     # non validating items removed from the list (both extra and declared)
     discard_model = apply_schema_contract_to_model(ItemModel, "discard_row", "discard_row")
     discard_list_model = create_list_model(discard_model)
     # violate data type
-    items = validate_items(
+    items = validate_and_filter_items(
         "items",
         discard_list_model,
         [{"b": True}, {"b": 2, "opt": "not int", "extra": 1.2}, {"b": 3}, {"b": False}],
@@ -445,7 +445,7 @@ def test_item_list_validation() -> None:
     assert items[0].b is True
     assert items[1].b is False
     # violate extra field
-    items = validate_items(
+    items = validate_and_filter_items(
         "items",
         discard_list_model,
         [{"b": True}, {"b": 2}, {"b": 3}, {"b": False, "a": False}],
@@ -460,7 +460,7 @@ def test_item_list_validation() -> None:
     freeze_list_model = create_list_model(freeze_model)
     # violate data type
     with pytest.raises(DataValidationError) as val_ex:
-        validate_items(
+        validate_and_filter_items(
             "items",
             freeze_list_model,
             [{"b": True}, {"b": 2}, {"b": 3}, {"b": False}],
@@ -476,7 +476,7 @@ def test_item_list_validation() -> None:
     assert val_ex.value.data_item == {"b": 2}
     # extra type
     with pytest.raises(DataValidationError) as val_ex:
-        validate_items(
+        validate_and_filter_items(
             "items",
             freeze_list_model,
             [{"b": True}, {"a": 2, "b": False}, {"b": 3}, {"b": False}],
@@ -495,7 +495,7 @@ def test_item_list_validation() -> None:
     discard_value_model = apply_schema_contract_to_model(ItemModel, "discard_value", "freeze")
     discard_list_model = create_list_model(discard_value_model)
     # violate extra field
-    items = validate_items(
+    items = validate_and_filter_items(
         "items",
         discard_list_model,
         [{"b": True}, {"b": False, "a": False}],
@@ -513,7 +513,7 @@ def test_item_list_validation() -> None:
     evolve_model = apply_schema_contract_to_model(ItemModel, "evolve", "evolve")
     evolve_list_model = create_list_model(evolve_model)
     # for data types a lenient model will be created that accepts any type
-    items = validate_items(
+    items = validate_and_filter_items(
         "items",
         evolve_list_model,
         [{"b": True}, {"b": 2}, {"b": 3}, {"b": False}],
@@ -524,7 +524,7 @@ def test_item_list_validation() -> None:
     assert items[0].b is True
     assert items[1].b == 2
     # extra fields allowed
-    items = validate_items(
+    items = validate_and_filter_items(
         "items",
         evolve_list_model,
         [{"b": True}, {"b": 2}, {"b": 3}, {"b": False, "a": False}],
@@ -539,7 +539,7 @@ def test_item_list_validation() -> None:
     mixed_model = apply_schema_contract_to_model(ItemModel, "discard_row", "evolve")
     mixed_list_model = create_list_model(mixed_model)
     # for data types a lenient model will be created that accepts any type
-    items = validate_items(
+    items = validate_and_filter_items(
         "items",
         mixed_list_model,
         [{"b": True}, {"b": 2}, {"b": 3}, {"b": False}],
@@ -550,7 +550,7 @@ def test_item_list_validation() -> None:
     assert items[0].b is True
     assert items[1].b == 2
     # extra fields forbidden - full rows discarded
-    items = validate_items(
+    items = validate_and_filter_items(
         "items",
         mixed_list_model,
         [{"b": True}, {"b": 2}, {"b": 3}, {"b": False, "a": False}],
@@ -563,15 +563,18 @@ def test_item_list_validation() -> None:
 def test_item_validation() -> None:
     class ItemModel(BaseModel):
         b: bool
-        dlt_config: ClassVar[DltConfig] = {"skip_complex_types": False}
+        dlt_config: ClassVar[DltConfig] = {"skip_nested_types": False}
 
     # non validating items removed from the list (both extra and declared)
     discard_model = apply_schema_contract_to_model(ItemModel, "discard_row", "discard_row")
     # violate data type
-    assert validate_item("items", discard_model, {"b": 2}, "discard_row", "discard_row") is None
+    assert (
+        validate_and_filter_item("items", discard_model, {"b": 2}, "discard_row", "discard_row")
+        is None
+    )
     # violate extra field
     assert (
-        validate_item(
+        validate_and_filter_item(
             "items", discard_model, {"b": False, "a": False}, "discard_row", "discard_row"
         )
         is None
@@ -581,7 +584,7 @@ def test_item_validation() -> None:
     freeze_model = apply_schema_contract_to_model(ItemModel, "freeze", "freeze")
     # violate data type
     with pytest.raises(DataValidationError) as val_ex:
-        validate_item("items", freeze_model, {"b": 2}, "freeze", "freeze")
+        validate_and_filter_item("items", freeze_model, {"b": 2}, "freeze", "freeze")
     assert val_ex.value.schema_name is None
     assert val_ex.value.table_name == "items"
     assert val_ex.value.column_name == str(("b",))  # pydantic location
@@ -591,7 +594,7 @@ def test_item_validation() -> None:
     assert val_ex.value.data_item == {"b": 2}
     # extra type
     with pytest.raises(DataValidationError) as val_ex:
-        validate_item("items", freeze_model, {"a": 2, "b": False}, "freeze", "freeze")
+        validate_and_filter_item("items", freeze_model, {"a": 2, "b": False}, "freeze", "freeze")
     assert val_ex.value.schema_name is None
     assert val_ex.value.table_name == "items"
     assert val_ex.value.column_name == str(("a",))  # pydantic location
@@ -603,7 +606,7 @@ def test_item_validation() -> None:
     # discard values
     discard_value_model = apply_schema_contract_to_model(ItemModel, "discard_value", "freeze")
     # violate extra field
-    item = validate_item(
+    item = validate_and_filter_item(
         "items", discard_value_model, {"b": False, "a": False}, "discard_value", "freeze"
     )
     # "a" extra got removed
@@ -612,21 +615,25 @@ def test_item_validation() -> None:
     # evolve data types and extras
     evolve_model = apply_schema_contract_to_model(ItemModel, "evolve", "evolve")
     # for data types a lenient model will be created that accepts any type
-    item = validate_item("items", evolve_model, {"b": 2}, "evolve", "evolve")
+    item = validate_and_filter_item("items", evolve_model, {"b": 2}, "evolve", "evolve")
     assert item.b == 2
     # extra fields allowed
-    item = validate_item("items", evolve_model, {"b": False, "a": False}, "evolve", "evolve")
+    item = validate_and_filter_item(
+        "items", evolve_model, {"b": False, "a": False}, "evolve", "evolve"
+    )
     assert item.b is False
     assert item.a is False  # type: ignore[attr-defined]
 
     # accept new types but discard new columns
     mixed_model = apply_schema_contract_to_model(ItemModel, "discard_row", "evolve")
     # for data types a lenient model will be created that accepts any type
-    item = validate_item("items", mixed_model, {"b": 3}, "discard_row", "evolve")
+    item = validate_and_filter_item("items", mixed_model, {"b": 3}, "discard_row", "evolve")
     assert item.b == 3
     # extra fields forbidden - full rows discarded
     assert (
-        validate_item("items", mixed_model, {"b": False, "a": False}, "discard_row", "evolve")
+        validate_and_filter_item(
+            "items", mixed_model, {"b": False, "a": False}, "discard_row", "evolve"
+        )
         is None
     )
 
@@ -641,9 +648,10 @@ class Parent(BaseModel):
     optional_parent_attribute: Optional[str] = None
 
 
-def test_pydantic_model_flattened_when_skip_complex_types_is_true():
+@pytest.mark.parametrize("config_attr", ("skip_nested_types", "skip_complex_types"))
+def test_pydantic_model_flattened_when_skip_nested_types_is_true(config_attr: str):
     class MyParent(Parent):
-        dlt_config: ClassVar[DltConfig] = {"skip_complex_types": True}
+        dlt_config: ClassVar[DltConfig] = {config_attr: True}  # type: ignore
 
     schema = pydantic_to_table_schema_columns(MyParent)
 
@@ -666,16 +674,17 @@ def test_pydantic_model_flattened_when_skip_complex_types_is_true():
     }
 
 
-def test_considers_model_as_complex_when_skip_complex_types_is_false():
+@pytest.mark.parametrize("config_attr", ("skip_nested_types", "skip_complex_types"))
+def test_considers_model_as_complex_when_skip_nested_types_is_false(config_attr: str):
     class MyParent(Parent):
         data_dictionary: Dict[str, Any] = None
-        dlt_config: ClassVar[DltConfig] = {"skip_complex_types": False}
+        dlt_config: ClassVar[DltConfig] = {config_attr: False}  # type: ignore
 
     schema = pydantic_to_table_schema_columns(MyParent)
 
     assert schema == {
-        "child": {"data_type": "complex", "name": "child", "nullable": False},
-        "data_dictionary": {"data_type": "complex", "name": "data_dictionary", "nullable": False},
+        "child": {"data_type": "json", "name": "child", "nullable": False},
+        "data_dictionary": {"data_type": "json", "name": "data_dictionary", "nullable": False},
         "optional_parent_attribute": {
             "data_type": "text",
             "name": "optional_parent_attribute",
@@ -684,32 +693,32 @@ def test_considers_model_as_complex_when_skip_complex_types_is_false():
     }
 
 
-def test_considers_dictionary_as_complex_when_skip_complex_types_is_false():
+def test_considers_dictionary_as_complex_when_skip_nested_types_is_false():
     class MyParent(Parent):
         data_list: List[str] = []
         data_dictionary: Dict[str, Any] = None
-        dlt_config: ClassVar[DltConfig] = {"skip_complex_types": False}
+        dlt_config: ClassVar[DltConfig] = {"skip_nested_types": False}
 
     schema = pydantic_to_table_schema_columns(MyParent)
 
     assert schema["data_dictionary"] == {
-        "data_type": "complex",
+        "data_type": "json",
         "name": "data_dictionary",
         "nullable": False,
     }
 
     assert schema["data_list"] == {
-        "data_type": "complex",
+        "data_type": "json",
         "name": "data_list",
         "nullable": False,
     }
 
 
-def test_skip_complex_types_when_skip_complex_types_is_true_and_field_is_not_pydantic_model():
+def test_skip_json_types_when_skip_nested_types_is_true_and_field_is_not_pydantic_model():
     class MyParent(Parent):
         data_list: List[str] = []
         data_dictionary: Dict[str, Any] = None
-        dlt_config: ClassVar[DltConfig] = {"skip_complex_types": True}
+        dlt_config: ClassVar[DltConfig] = {"skip_nested_types": True}
 
     schema = pydantic_to_table_schema_columns(MyParent)
 

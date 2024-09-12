@@ -4,11 +4,17 @@ import tempfile  # noqa: 251
 from typing import Dict, Iterable, List, Optional
 
 from dlt.common.json import json
-from dlt.common.destination.reference import NewLoadJob, FollowupJob, TLoadJobState, LoadJob
+from dlt.common.destination.reference import (
+    HasFollowupJobs,
+    TLoadJobState,
+    RunnableLoadJob,
+    FollowupJobRequest,
+    LoadJob,
+)
 from dlt.common.storages.load_package import commit_load_package_state
-from dlt.common.schema import Schema, TTableSchema
 from dlt.common.storages import FileStorage
 from dlt.common.typing import TDataItems
+from dlt.common.storages.load_storage import ParsedLoadJobFileName
 
 from dlt.destinations.impl.destination.configuration import (
     CustomDestinationClientConfiguration,
@@ -16,17 +22,26 @@ from dlt.destinations.impl.destination.configuration import (
 )
 
 
-class EmptyLoadJobWithoutFollowup(LoadJob):
-    def __init__(self, file_name: str, status: TLoadJobState, exception: str = None) -> None:
+class FinalizedLoadJob(LoadJob):
+    """
+    Special Load Job that should never get started and just indicates a job being in a final state.
+    May also be used to indicate that nothing needs to be done.
+    """
+
+    def __init__(
+        self, file_path: str, status: TLoadJobState = "completed", exception: str = None
+    ) -> None:
         self._status = status
         self._exception = exception
-        super().__init__(file_name)
+        self._file_path = file_path
+        assert self._status in ("completed", "failed", "retry")
+        super().__init__(file_path)
 
     @classmethod
     def from_file_path(
-        cls, file_path: str, status: TLoadJobState, message: str = None
-    ) -> "EmptyLoadJobWithoutFollowup":
-        return cls(FileStorage.get_file_name_from_file_path(file_path), status, exception=message)
+        cls, file_path: str, status: TLoadJobState = "completed", message: str = None
+    ) -> "FinalizedLoadJob":
+        return cls(file_path, status, exception=message)
 
     def state(self) -> TLoadJobState:
         return self._status
@@ -35,101 +50,107 @@ class EmptyLoadJobWithoutFollowup(LoadJob):
         return self._exception
 
 
-class EmptyLoadJob(EmptyLoadJobWithoutFollowup, FollowupJob):
+class FinalizedLoadJobWithFollowupJobs(FinalizedLoadJob, HasFollowupJobs):
     pass
 
 
-class NewLoadJobImpl(EmptyLoadJobWithoutFollowup, NewLoadJob):
+class FollowupJobRequestImpl(FollowupJobRequest):
+    """
+    Class to create a new loadjob, not stateful and not runnable
+    """
+
+    def __init__(self, file_name: str) -> None:
+        self._file_path = os.path.join(tempfile.gettempdir(), file_name)
+        self._parsed_file_name = ParsedLoadJobFileName.parse(file_name)
+        # we only accept jobs that we can scheduleas new or mark as failed..
+
     def _save_text_file(self, data: str) -> None:
-        temp_file = os.path.join(tempfile.gettempdir(), self._file_name)
-        with open(temp_file, "w", encoding="utf-8") as f:
+        with open(self._file_path, "w", encoding="utf-8") as f:
             f.write(data)
-        self._new_file_path = temp_file
 
     def new_file_path(self) -> str:
         """Path to a newly created temporary job file"""
-        return self._new_file_path
+        return self._file_path
+
+    def job_id(self) -> str:
+        """The job id that is derived from the file name and does not changes during job lifecycle"""
+        return self._parsed_file_name.job_id()
 
 
-class NewReferenceJob(NewLoadJobImpl):
-    def __init__(
-        self, file_name: str, status: TLoadJobState, exception: str = None, remote_path: str = None
-    ) -> None:
-        file_name = os.path.splitext(file_name)[0] + ".reference"
-        super().__init__(file_name, status, exception)
-        self._remote_path = remote_path
-        self._save_text_file(remote_path)
+class ReferenceFollowupJobRequest(FollowupJobRequestImpl):
+    def __init__(self, original_file_name: str, remote_paths: List[str]) -> None:
+        file_name = os.path.splitext(original_file_name)[0] + "." + "reference"
+        self._remote_paths = remote_paths
+        super().__init__(file_name)
+        self._save_text_file("\n".join(remote_paths))
 
     @staticmethod
     def is_reference_job(file_path: str) -> bool:
         return os.path.splitext(file_path)[1][1:] == "reference"
 
     @staticmethod
-    def resolve_reference(file_path: str) -> str:
+    def resolve_references(file_path: str) -> List[str]:
         with open(file_path, "r+", encoding="utf-8") as f:
             # Reading from a file
-            return f.read()
+            return f.read().split("\n")
+
+    @staticmethod
+    def resolve_reference(file_path: str) -> str:
+        refs = ReferenceFollowupJobRequest.resolve_references(file_path)
+        assert len(refs) == 1
+        return refs[0]
 
 
-class DestinationLoadJob(LoadJob, ABC):
+class DestinationLoadJob(RunnableLoadJob, ABC):
     def __init__(
         self,
-        table: TTableSchema,
         file_path: str,
         config: CustomDestinationClientConfiguration,
-        schema: Schema,
         destination_state: Dict[str, int],
         destination_callable: TDestinationCallable,
         skipped_columns: List[str],
+        callable_requires_job_client_args: bool = False,
     ) -> None:
-        super().__init__(FileStorage.get_file_name_from_file_path(file_path))
-        self._file_path = file_path
+        super().__init__(file_path)
         self._config = config
-        self._table = table
-        self._schema = schema
-        # we create pre_resolved callable here
         self._callable = destination_callable
-        self._state: TLoadJobState = "running"
         self._storage_id = f"{self._parsed_file_name.table_name}.{self._parsed_file_name.file_id}"
-        self.skipped_columns = skipped_columns
+        self._skipped_columns = skipped_columns
+        self._destination_state = destination_state
+        self._callable_requires_job_client_args = callable_requires_job_client_args
+
+    def run(self) -> None:
+        # update filepath, it will be in running jobs now
         try:
             if self._config.batch_size == 0:
                 # on batch size zero we only call the callable with the filename
                 self.call_callable_with_items(self._file_path)
             else:
-                current_index = destination_state.get(self._storage_id, 0)
-                for batch in self.run(current_index):
+                current_index = self._destination_state.get(self._storage_id, 0)
+                for batch in self.get_batches(current_index):
                     self.call_callable_with_items(batch)
                     current_index += len(batch)
-                    destination_state[self._storage_id] = current_index
-
-            self._state = "completed"
-        except Exception as e:
-            self._state = "retry"
-            raise e
+                    self._destination_state[self._storage_id] = current_index
         finally:
             # save progress
             commit_load_package_state()
-
-    @abstractmethod
-    def run(self, start_index: int) -> Iterable[TDataItems]:
-        pass
 
     def call_callable_with_items(self, items: TDataItems) -> None:
         if not items:
             return
         # call callable
-        self._callable(items, self._table)
+        if self._callable_requires_job_client_args:
+            self._callable(items, self._load_table, job_client=self._job_client)  # type: ignore
+        else:
+            self._callable(items, self._load_table)
 
-    def state(self) -> TLoadJobState:
-        return self._state
-
-    def exception(self) -> str:
-        raise NotImplementedError()
+    @abstractmethod
+    def get_batches(self, start_index: int) -> Iterable[TDataItems]:
+        pass
 
 
 class DestinationParquetLoadJob(DestinationLoadJob):
-    def run(self, start_index: int) -> Iterable[TDataItems]:
+    def get_batches(self, start_index: int) -> Iterable[TDataItems]:
         # stream items
         from dlt.common.libs.pyarrow import pyarrow
 
@@ -140,7 +161,7 @@ class DestinationParquetLoadJob(DestinationLoadJob):
 
         # on record batches we cannot drop columns, we need to
         # select the ones we want to keep
-        keep_columns = list(self._table["columns"].keys())
+        keep_columns = list(self._load_table["columns"].keys())
         start_batch = start_index / self._config.batch_size
         with pyarrow.parquet.ParquetFile(self._file_path) as reader:
             for record_batch in reader.iter_batches(
@@ -153,7 +174,7 @@ class DestinationParquetLoadJob(DestinationLoadJob):
 
 
 class DestinationJsonlLoadJob(DestinationLoadJob):
-    def run(self, start_index: int) -> Iterable[TDataItems]:
+    def get_batches(self, start_index: int) -> Iterable[TDataItems]:
         current_batch: TDataItems = []
 
         # stream items
@@ -168,7 +189,7 @@ class DestinationJsonlLoadJob(DestinationLoadJob):
                     start_index -= 1
                     continue
                 # skip internal columns
-                for column in self.skipped_columns:
+                for column in self._skipped_columns:
                     item.pop(column, None)
                 current_batch.append(item)
                 if len(current_batch) == self._config.batch_size:

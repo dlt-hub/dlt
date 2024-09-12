@@ -73,7 +73,7 @@ jobs:
         uses: actions/checkout@master
 
       - name: Start weaviate
-        run: docker-compose -f ".github/weaviate-compose.yml" up -d
+        run: docker compose -f ".github/weaviate-compose.yml" up -d
 
       - name: Setup Python
         uses: actions/setup-python@v4
@@ -97,11 +97,8 @@ jobs:
       - name: Install dependencies
         run: poetry install --no-interaction -E postgres -E duckdb -E parquet -E filesystem -E cli -E weaviate -E qdrant --with sentry-sdk --with pipeline -E deltalake
 
-      - name: create secrets.toml
-        run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
-
       # always run full suite, also on branches
-      - run: poetry run pytest tests/load && poetry run pytest tests/cli
+      - run: poetry run pytest tests/load --ignore tests/load/sources && poetry run pytest tests/cli
         name: Run tests Linux
         env:
           DESTINATION__POSTGRES__CREDENTIALS: postgresql://loader:loader@localhost:5432/dlt_data
@@ -109,4 +106,4 @@ jobs:
 
       - name: Stop weaviate
         if: always()
-        run: docker-compose -f ".github/weaviate-compose.yml" down -v
+        run: docker compose -f ".github/weaviate-compose.yml" down -v

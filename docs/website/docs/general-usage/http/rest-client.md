@@ -183,8 +183,9 @@ need to specify the paginator when the API uses a different relation type.
 - `offset`: The initial offset for the first request. Defaults to `0`.
 - `offset_param`: The name of the query parameter used to specify the offset. Defaults to `"offset"`.
 - `limit_param`: The name of the query parameter used to specify the limit. Defaults to `"limit"`.
-- `total_path`: A JSONPath expression for the total number of items. If not provided, pagination is controlled by `maximum_offset`.
+- `total_path`: A JSONPath expression for the total number of items. If not provided, pagination is controlled by `maximum_offset` and `stop_after_empty_page`.
 - `maximum_offset`: Optional maximum offset value. Limits pagination even without total count.
+- `stop_after_empty_page`: Whether pagination should stop when a page contains no result items. Defaults to `True`.
 
 **Example:**
 
@@ -198,7 +199,7 @@ E.g. `https://api.example.com/items?offset=0&limit=100`, `https://api.example.co
 }
 ```
 
-You can paginate through responses from this API using `OffsetPaginator`:
+You can paginate through responses from this API using the `OffsetPaginator`:
 
 ```py
 client = RESTClient(
@@ -210,20 +211,34 @@ client = RESTClient(
 )
 ```
 
-In a different scenario where the API does not provide the total count, you can use `maximum_offset` to limit the pagination:
+Pagination stops by default when a page contains no records. This is especially useful when the API does not provide the total item count.
+Here, the `total_path` parameter is set to `None` because the API does not provide the total count.
 
 ```py
 client = RESTClient(
     base_url="https://api.example.com",
     paginator=OffsetPaginator(
         limit=100,
-        maximum_offset=1000,
-        total_path=None
+        total_path=None,
     )
 )
 ```
 
-Note, that in this case, the `total_path` parameter is set explicitly to `None` to indicate that the API does not provide the total count.
+Additionally, you can limit pagination with `maximum_offset`, for example during development. If `maximum_offset` is reached before the first empty page then pagination stops:
+
+```py
+client = RESTClient(
+    base_url="https://api.example.com",
+    paginator=OffsetPaginator(
+        limit=10,
+        maximum_offset=20,  # limits response to 20 records
+        total_path=None,
+    )
+)
+```
+
+You can disable automatic stoppage of pagination by setting `stop_after_stop_after_empty_page = False`. In this case, you must provide either `total_path` or `maximum_offset` to guarantee that the paginator terminates.
+
 
 #### PageNumberPaginator
 
@@ -234,8 +249,9 @@ Note, that in this case, the `total_path` parameter is set explicitly to `None` 
 - `base_page`: The index of the initial page from the API perspective. Normally, it's 0-based or 1-based (e.g., 1, 2, 3, ...) indexing for the pages. Defaults to 0.
 - `page`: The page number for the first request. If not provided, the initial value will be set to `base_page`.
 - `page_param`: The query parameter name for the page number. Defaults to `"page"`.
-- `total_path`: A JSONPath expression for the total number of pages. If not provided, pagination is controlled by `maximum_page`.
+- `total_path`: A JSONPath expression for the total number of pages. If not provided, pagination is controlled by `maximum_page` and `stop_after_empty_page`.
 - `maximum_page`: Optional maximum page number. Stops pagination once this page is reached.
+- `stop_after_empty_page`: Whether pagination should stop when a page contains no result items. Defaults to `True`.
 
 **Example:**
 
@@ -248,7 +264,7 @@ Assuming an API endpoint `https://api.example.com/items` paginates by page numbe
 }
 ```
 
-You can paginate through responses from this API using `PageNumberPaginator`:
+You can paginate through responses from this API using the `PageNumberPaginator`:
 
 ```py
 client = RESTClient(
@@ -259,19 +275,32 @@ client = RESTClient(
 )
 ```
 
-If the API does not provide the total number of pages:
+Pagination stops by default when a page contains no records. This is especially useful when the API does not provide the total item count.
+Here, the `total_path` parameter is set to `None` because the API does not provide the total count.
 
 ```py
 client = RESTClient(
     base_url="https://api.example.com",
     paginator=PageNumberPaginator(
-        maximum_page=5,  # Stops after fetching 5 pages
         total_path=None
     )
 )
 ```
 
-Note, that in the case above, the `total_path` parameter is set explicitly to `None` to indicate that the API does not provide the total count.
+Additionally, you can limit pagination with `maximum_offset`, for example during development. If `maximum_page` is reached before the first empty page then pagination stops:
+
+```py
+client = RESTClient(
+    base_url="https://api.example.com",
+    paginator=OffsetPaginator(
+        maximum_page=2,  # limits response to 2 pages
+        total_path=None,
+    )
+)
+```
+
+You can disable automatic stoppage of pagination by setting `stop_after_stop_after_empty_page = False`. In this case, you must provide either `total_path` or `maximum_page` to guarantee that the paginator terminates.
+
 
 #### JSONResponseCursorPaginator
 
@@ -306,11 +335,11 @@ client = RESTClient(
 
 ### Implementing a custom paginator
 
-When working with APIs that use non-standard pagination schemes, or when you need more control over the pagination process, you can implement a custom paginator by subclassing the `BasePaginator` class and implementing `init_request`, `update_state` and `update_request` methods:
+When working with APIs that use non-standard pagination schemes, or when you need more control over the pagination process, you can implement a custom paginator by subclassing the `BasePaginator` class and implementing the methods  `init_request`, `update_state` and `update_request`.
 
 - `init_request(request: Request) -> None`: This method is called before making the first API call in the `RESTClient.paginate` method. You can use this method to set up the initial request query parameters, headers, etc. For example, you can set the initial page number or cursor value.
 
-- `update_state(response: Response) -> None`: This method updates the paginator's state based on the response of the API call. Typically, you extract pagination details (like the next page reference) from the response and store them in the paginator instance.
+- `update_state(response: Response, data: Optional[List[Any]]) -> None`: This method updates the paginator's state based on the response of the API call. Typically, you extract pagination details (like the next page reference) from the response and store them in the paginator instance.
 
 - `update_request(request: Request) -> None`: Before making the next API call in `RESTClient.paginate` method, `update_request` is used to modify the request with the necessary parameters to fetch the next page (based on the current state of the paginator). For example, you can add query parameters to the request, or modify the URL.
 
@@ -319,6 +348,7 @@ When working with APIs that use non-standard pagination schemes, or when you nee
 Suppose an API uses query parameters for pagination, incrementing an page parameter for each subsequent page, without providing direct links to next pages in its responses. E.g. `https://api.example.com/posts?page=1`, `https://api.example.com/posts?page=2`, etc. Here's how you could implement a paginator for this scheme:
 
 ```py
+from typing import Any, List, Optional
 from dlt.sources.helpers.rest_client.paginators import BasePaginator
 from dlt.sources.helpers.requests import Response, Request
 
@@ -332,7 +362,7 @@ class QueryParamPaginator(BasePaginator):
         # This will set the initial page number (e.g. page=1)
         self.update_request(request)
 
-    def update_state(self, response: Response) -> None:
+    def update_state(self, response: Response, data: Optional[List[Any]] = None) -> None:
         # Assuming the API returns an empty list when no more data is available
         if not response.json():
             self._has_next_page = False
@@ -370,6 +400,7 @@ def get_data():
 Some APIs use POST requests for pagination, where the next page is fetched by sending a POST request with a cursor or other parameters in the request body. This is frequently used in "search" API endpoints or other endpoints with big payloads. Here's how you could implement a paginator for a case like this:
 
 ```py
+from typing import Any, List, Optional
 from dlt.sources.helpers.rest_client.paginators import BasePaginator
 from dlt.sources.helpers.rest_client import RESTClient
 from dlt.sources.helpers.requests import Response, Request
@@ -379,7 +410,7 @@ class PostBodyPaginator(BasePaginator):
         super().__init__()
         self.cursor = None
 
-    def update_state(self, response: Response) -> None:
+    def update_state(self, response: Response, data: Optional[List[Any]] = None) -> None:
         # Assuming the API returns an empty list when no more data is available
         if not response.json():
             self._has_next_page = False

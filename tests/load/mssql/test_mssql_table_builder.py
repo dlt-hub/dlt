@@ -55,8 +55,8 @@ def test_alter_table(client: MsSqlJobClient) -> None:
     # existing table has no columns
     sql = client._get_table_update_sql("event_test_table", TABLE_UPDATE, True)[0]
     sqlfluff.parse(sql, dialect="tsql")
-    canonical_name = client.sql_client.make_qualified_table_name("event_test_table")
-    assert sql.count(f"ALTER TABLE {canonical_name}\nADD") == 1
+    qualified_name = client.sql_client.make_qualified_table_name("event_test_table")
+    assert sql.count(f"ALTER TABLE {qualified_name}\nADD") == 1
     assert "event_test_table" in sql
     assert '"col1" bigint  NOT NULL' in sql
     assert '"col2" float  NOT NULL' in sql
@@ -75,3 +75,11 @@ def test_alter_table(client: MsSqlJobClient) -> None:
     assert '"col6_precision" decimal(6,2)  NOT NULL' in sql
     assert '"col7_precision" varbinary(19)' in sql
     assert '"col11_precision" time(3)  NOT NULL' in sql
+
+
+def test_create_dlt_table(client: MsSqlJobClient) -> None:
+    # non existing table
+    sql = client._get_table_update_sql("_dlt_version", TABLE_UPDATE, False)[0]
+    sqlfluff.parse(sql, dialect="tsql")
+    qualified_name = client.sql_client.make_qualified_table_name("_dlt_version")
+    assert f"CREATE TABLE {qualified_name}" in sql

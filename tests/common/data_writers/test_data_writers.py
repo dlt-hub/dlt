@@ -5,6 +5,7 @@ from typing import Iterator
 
 from dlt.common import pendulum, json
 from dlt.common.data_writers.exceptions import DataWriterNotFound, SpecLookupFailed
+from dlt.common.metrics import DataWriterMetrics
 from dlt.common.typing import AnyFun
 
 from dlt.common.data_writers.escape import (
@@ -25,7 +26,6 @@ from dlt.common.data_writers.writers import (
     ArrowToTypedJsonlListWriter,
     CsvWriter,
     DataWriter,
-    DataWriterMetrics,
     EMPTY_DATA_WRITER_METRICS,
     ImportFileWriter,
     InsertValuesWriter,
@@ -131,9 +131,9 @@ def test_string_literal_escape() -> None:
 
 
 @pytest.mark.parametrize("escaper", ALL_LITERAL_ESCAPE)
-def test_string_complex_escape(escaper: AnyFun) -> None:
+def test_string_nested_escape(escaper: AnyFun) -> None:
     doc = {
-        "complex": [1, 2, 3, "a"],
+        "nested": [1, 2, 3, "a"],
         "link": (
             "?commen\ntU\nrn=urn%3Ali%3Acomment%3A%28acti\0xA \0x0"
             " \\vity%3A69'08444473\n\n551163392%2C6n \r \x8e9085"
@@ -180,12 +180,13 @@ def test_data_writer_metrics_add() -> None:
     metrics = DataWriterMetrics("file", 10, 100, now, now + 10)
     add_m: DataWriterMetrics = metrics + EMPTY_DATA_WRITER_METRICS  # type: ignore[assignment]
     assert add_m == DataWriterMetrics("", 10, 100, now, now + 10)
-    assert metrics + metrics == DataWriterMetrics("", 20, 200, now, now + 10)
+    # will keep "file" because it is in both
+    assert metrics + metrics == DataWriterMetrics("file", 20, 200, now, now + 10)
     assert sum((metrics, metrics, metrics), EMPTY_DATA_WRITER_METRICS) == DataWriterMetrics(
         "", 30, 300, now, now + 10
     )
     # time range extends when added
-    add_m = metrics + DataWriterMetrics("file", 99, 120, now - 10, now + 20)  # type: ignore[assignment]
+    add_m = metrics + DataWriterMetrics("fileX", 99, 120, now - 10, now + 20)  # type: ignore[assignment]
     assert add_m == DataWriterMetrics("", 109, 220, now - 10, now + 20)
 
 

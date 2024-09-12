@@ -8,8 +8,8 @@ keywords: [google sheets, credentials, example]
 In this example, you'll find a Python script that demonstrates how to load Google Sheets data using the `dlt` library.
 
 We'll learn how to:
-- use [built-in credentials](../general-usage/credentials/config_specs#gcp-credentials);
-- use [union of credentials](../general-usage/credentials/config_specs#working-with-alternatives-of-credentials-union-types);
+- use [built-in credentials](../general-usage/credentials/complex_types#gcp-credentials);
+- use [union of credentials](../general-usage/credentials/complex_types#working-with-alternatives-of-credentials-union-types);
 - create [dynamically generated resources](../general-usage/source#create-resources-dynamically).
 
 :::tip
@@ -100,6 +100,3 @@ if __name__ == "__main__":
     print(row_counts.keys())
     assert row_counts["hidden_columns_merged_cells"] == 7
     assert row_counts["blank_columns"] == 21
-
-    # make sure nothing failed
-    load_info.raise_on_failed_jobs()

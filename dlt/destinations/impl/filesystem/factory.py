@@ -2,7 +2,7 @@ import typing as t
 
 from dlt.common.destination import Destination, DestinationCapabilitiesContext, TLoaderFileFormat
 from dlt.common.destination.reference import DEFAULT_FILE_LAYOUT
-from dlt.common.schema.typing import TTableSchema
+from dlt.common.schema.typing import TLoaderMergeStrategy, TTableSchema
 from dlt.common.storages.configuration import FileSystemCredentials
 
 from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
@@ -12,7 +12,7 @@ if t.TYPE_CHECKING:
     from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 
 
-def loader_file_format_adapter(
+def filesystem_loader_file_format_selector(
     preferred_loader_file_format: TLoaderFileFormat,
     supported_loader_file_formats: t.Sequence[TLoaderFileFormat],
     /,
@@ -24,19 +24,34 @@ def loader_file_format_adapter(
     return (preferred_loader_file_format, supported_loader_file_formats)
 
 
+def filesystem_merge_strategies_selector(
+    supported_merge_strategies: t.Sequence[TLoaderMergeStrategy],
+    /,
+    *,
+    table_schema: TTableSchema,
+) -> t.Sequence[TLoaderMergeStrategy]:
+    if table_schema.get("table_format") == "delta":
+        return supported_merge_strategies
+    else:
+        return []
+
+
 class filesystem(Destination[FilesystemDestinationClientConfiguration, "FilesystemClient"]):
     spec = FilesystemDestinationClientConfiguration
 
     def _raw_capabilities(self) -> DestinationCapabilitiesContext:
-        return DestinationCapabilitiesContext.generic_capabilities(
+        caps = DestinationCapabilitiesContext.generic_capabilities(
             preferred_loader_file_format="jsonl",
-            loader_file_format_adapter=loader_file_format_adapter,
+            loader_file_format_selector=filesystem_loader_file_format_selector,
             supported_table_formats=["delta"],
-            # TODO: make `supported_merge_strategies` depend on configured
-            # `table_format` (perhaps with adapter similar to how we handle
-            # loader file format)
             supported_merge_strategies=["upsert"],
+            merge_strategies_selector=filesystem_merge_strategies_selector,
         )
+        caps.supported_loader_file_formats = list(caps.supported_loader_file_formats) + [
+            "reference",
+        ]
+        caps.has_case_sensitive_identifiers = True
+        return caps
 
     @property
     def client_class(self) -> t.Type["FilesystemClient"]:

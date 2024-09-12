@@ -19,11 +19,14 @@ from dlt.common.configuration.specs.exceptions import InvalidGoogleNativeCredent
 from dlt.common.schema.utils import new_table
 from dlt.common.storages import FileStorage
 from dlt.common.utils import digest128, uniq_id, custom_environ
-
+from dlt.common.destination.reference import RunnableLoadJob
 from dlt.destinations.impl.bigquery.bigquery import BigQueryClient, BigQueryClientConfiguration
 from dlt.destinations.exceptions import LoadJobNotExistsException, LoadJobTerminalException
 
-from dlt.destinations.impl.bigquery.bigquery_adapter import AUTODETECT_SCHEMA_HINT
+from dlt.destinations.impl.bigquery.bigquery_adapter import (
+    AUTODETECT_SCHEMA_HINT,
+    should_autodetect_schema,
+)
 from tests.utils import TEST_STORAGE_ROOT, delete_test_storage
 from tests.common.utils import json_case_path as common_json_case_path
 from tests.common.configuration.utils import environment
@@ -32,6 +35,7 @@ from tests.load.utils import (
     prepare_table,
     yield_client_with_storage,
     cm_yield_client_with_storage,
+    cm_yield_client,
 )
 
 # mark all tests as essential, do not remove
@@ -51,6 +55,18 @@ def file_storage() -> FileStorage:
 @pytest.fixture(autouse=True)
 def auto_delete_storage() -> None:
     delete_test_storage()
+
+
+@pytest.fixture
+def bigquery_project_id() -> Iterator[str]:
+    project_id = "different_project_id"
+    project_id_key = "DESTINATION__BIGQUERY__PROJECT_ID"
+    saved_project_id = os.environ.get(project_id_key)
+    os.environ[project_id_key] = project_id
+    yield project_id
+    del os.environ[project_id_key]
+    if saved_project_id:
+        os.environ[project_id_key] = saved_project_id
 
 
 def test_service_credentials_with_default(environment: Any) -> None:
@@ -247,51 +263,55 @@ def test_bigquery_configuration() -> None:
     )
 
 
+def test_bigquery_different_project_id(bigquery_project_id) -> None:
+    """Test scenario when bigquery project_id different from gcp credentials project_id."""
+    config = resolve_configuration(
+        BigQueryClientConfiguration()._bind_dataset_name(dataset_name="dataset"),
+        sections=("destination", "bigquery"),
+    )
+    assert config.project_id == bigquery_project_id
+    with cm_yield_client(
+        "bigquery",
+        dataset_name="dataset",
+        default_config_values={"project_id": bigquery_project_id},
+    ) as client:
+        assert bigquery_project_id in client.sql_client.catalog_name()
+
+
 def test_bigquery_autodetect_configuration(client: BigQueryClient) -> None:
     # no schema autodetect
-    assert client._should_autodetect_schema("event_slot") is False
-    assert client._should_autodetect_schema("_dlt_loads") is False
+    event_slot = client.prepare_load_table("event_slot")
+    _dlt_loads = client.prepare_load_table("_dlt_loads")
+    assert should_autodetect_schema(event_slot) is False
+    assert should_autodetect_schema(_dlt_loads) is False
     # add parent table
     child = new_table("event_slot__values", "event_slot")
-    client.schema.update_table(child)
-    assert client._should_autodetect_schema("event_slot__values") is False
+    client.schema.update_table(child, normalize_identifiers=False)
+    event_slot__values = client.prepare_load_table("event_slot__values")
+    assert should_autodetect_schema(event_slot__values) is False
+
     # enable global config
     client.config.autodetect_schema = True
-    assert client._should_autodetect_schema("event_slot") is True
-    assert client._should_autodetect_schema("_dlt_loads") is False
-    assert client._should_autodetect_schema("event_slot__values") is True
+    # prepare again
+    event_slot = client.prepare_load_table("event_slot")
+    _dlt_loads = client.prepare_load_table("_dlt_loads")
+    event_slot__values = client.prepare_load_table("event_slot__values")
+    assert should_autodetect_schema(event_slot) is True
+    assert should_autodetect_schema(_dlt_loads) is False
+    assert should_autodetect_schema(event_slot__values) is True
+
     # enable hint per table
     client.config.autodetect_schema = False
     client.schema.get_table("event_slot")[AUTODETECT_SCHEMA_HINT] = True  # type: ignore[typeddict-unknown-key]
-    assert client._should_autodetect_schema("event_slot") is True
-    assert client._should_autodetect_schema("_dlt_loads") is False
-    assert client._should_autodetect_schema("event_slot__values") is True
+    event_slot = client.prepare_load_table("event_slot")
+    _dlt_loads = client.prepare_load_table("_dlt_loads")
+    event_slot__values = client.prepare_load_table("event_slot__values")
+    assert should_autodetect_schema(event_slot) is True
+    assert should_autodetect_schema(_dlt_loads) is False
+    assert should_autodetect_schema(event_slot__values) is True
 
 
-def test_bigquery_job_errors(client: BigQueryClient, file_storage: FileStorage) -> None:
-    # non existing job
-    with pytest.raises(LoadJobNotExistsException):
-        client.restore_file_load(f"{uniq_id()}.")
-
-    # bad name
-    with pytest.raises(LoadJobTerminalException):
-        client.restore_file_load("!!&*aaa")
-
-    user_table_name = prepare_table(client)
-
-    # start a job with non-existing file
-    with pytest.raises(FileNotFoundError):
-        client.start_file_load(
-            client.schema.get_table(user_table_name),
-            f"{uniq_id()}.",
-            uniq_id(),
-        )
-
-    # start a job with invalid name
-    dest_path = file_storage.save("!!aaaa", b"data")
-    with pytest.raises(LoadJobTerminalException):
-        client.start_file_load(client.schema.get_table(user_table_name), dest_path, uniq_id())
-
+def test_bigquery_job_resuming(client: BigQueryClient, file_storage: FileStorage) -> None:
     user_table_name = prepare_table(client)
     load_json = {
         "_dlt_id": uniq_id(),
@@ -300,14 +320,23 @@ def test_bigquery_job_errors(client: BigQueryClient, file_storage: FileStorage) 
         "timestamp": str(pendulum.now()),
     }
     job = expect_load_file(client, file_storage, json.dumps(load_json), user_table_name)
+    assert job._created_job  # type: ignore
 
     # start a job from the same file. it should be a fallback to retrieve a job silently
-    r_job = client.start_file_load(
-        client.schema.get_table(user_table_name),
-        file_storage.make_full_path(job.file_name()),
-        uniq_id(),
+    r_job = cast(
+        RunnableLoadJob,
+        client.create_load_job(
+            client.prepare_load_table(user_table_name),
+            file_storage.make_full_path(job.file_name()),
+            uniq_id(),
+        ),
     )
+
+    # job will be automatically found and resumed
+    r_job.set_run_vars(uniq_id(), client.schema, client.prepare_load_table(user_table_name))
+    r_job.run_managed(client)
     assert r_job.state() == "completed"
+    assert r_job._resumed_job  # type: ignore
 
 
 @pytest.mark.parametrize("location", ["US", "EU"])
@@ -325,7 +354,7 @@ def test_bigquery_location(location: str, file_storage: FileStorage, client) -> 
         job = expect_load_file(client, file_storage, json.dumps(load_json), user_table_name)
 
         # start a job from the same file. it should be a fallback to retrieve a job silently
-        client.start_file_load(
+        client.create_load_job(
             client.schema.get_table(user_table_name),
             file_storage.make_full_path(job.file_name()),
             uniq_id(),

@@ -1,6 +1,5 @@
 import os
 import pytest
-import posixpath
 
 import dlt
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
@@ -9,7 +8,6 @@ from dlt.common.utils import uniq_id
 from dlt.common.storages import FilesystemConfiguration
 from dlt.destinations import duckdb, dummy, filesystem
 
-from tests.common.configuration.utils import environment
 from tests.utils import TEST_STORAGE_ROOT
 
 
@@ -60,7 +58,7 @@ def test_set_name_and_environment() -> None:
 def test_preserve_destination_instance() -> None:
     dummy1 = dummy(destination_name="dummy1", environment="dev/null/1")
     filesystem1 = filesystem(
-        FilesystemConfiguration.make_file_uri(TEST_STORAGE_ROOT),
+        FilesystemConfiguration.make_file_url(TEST_STORAGE_ROOT),
         destination_name="local_fs",
         environment="devel",
     )
@@ -71,7 +69,6 @@ def test_preserve_destination_instance() -> None:
 
     os.environ["COMPLETED_PROB"] = "1.0"
     load_info = p.run([1, 2, 3], table_name="table", dataset_name="dataset")
-    load_info.raise_on_failed_jobs()
     # destination and staging stay the same
     assert destination_id == id(p.destination)
     assert staging_id == id(p.staging)
@@ -210,7 +207,7 @@ def test_destination_config_in_name(environment: DictStrStr) -> None:
     with pytest.raises(ConfigFieldMissingException):
         p.destination_client()
 
-    environment["DESTINATION__FILESYSTEM-PROD__BUCKET_URL"] = FilesystemConfiguration.make_file_uri(
+    environment["DESTINATION__FILESYSTEM-PROD__BUCKET_URL"] = FilesystemConfiguration.make_file_url(
         "_storage"
     )
     assert p._fs_client().dataset_path.endswith(p.dataset_name)

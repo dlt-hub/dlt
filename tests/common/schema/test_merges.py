@@ -12,7 +12,7 @@ from dlt.common.schema.typing import TColumnSchemaBase, TStoredSchema, TTableSch
 
 COL_1_HINTS: TColumnSchema = {  # type: ignore[typeddict-unknown-key]
     "cluster": False,
-    "foreign_key": True,
+    "parent_key": True,
     "data_type": "text",
     "name": "test",
     "x-special": "value",
@@ -24,7 +24,7 @@ COL_1_HINTS: TColumnSchema = {  # type: ignore[typeddict-unknown-key]
 }
 
 COL_1_HINTS_NO_DEFAULTS: TColumnSchema = {  # type: ignore[typeddict-unknown-key]
-    "foreign_key": True,
+    "parent_key": True,
     "data_type": "text",
     "name": "test",
     "x-special": "value",
@@ -141,7 +141,7 @@ def test_remove_defaults_stored_schema() -> None:
     # resource present
     assert default_stored["tables"]["table"]["resource"] == "🦚Table"
     # resource removed because identical to table name
-    assert "resource" not in default_stored["tables"]["table_copy"]
+    assert "resource" in default_stored["tables"]["table_copy"]
 
     # apply defaults
     restored_schema = utils.apply_defaults(deepcopy(default_stored))
@@ -179,7 +179,7 @@ def test_merge_column() -> None:
         "name": "test_2",
         "nullable": False,
         "cluster": False,
-        "foreign_key": True,
+        "parent_key": True,
         "data_type": "text",
         "x-special": "value",
         "x-special-int": 100,
@@ -194,7 +194,7 @@ def test_merge_column() -> None:
         "name": "test_2",
         "nullable": True,
         "cluster": False,
-        "foreign_key": True,
+        "parent_key": True,
         "data_type": "text",
         "x-special": "value",
         "x-special-int": 100,
@@ -304,12 +304,15 @@ def test_diff_tables() -> None:
     changed = deepcopy(table)
     changed["description"] = "new description"
     changed["name"] = "new name"
-    partial = utils.diff_table("schema", deepcopy(table), changed)
+    # names must be identical
+    renamed_table = deepcopy(table)
+    renamed_table["name"] = "new name"
+    partial = utils.diff_table("schema", renamed_table, changed)
     print(partial)
     assert partial == {"name": "new name", "description": "new description", "columns": {}}
 
     # ignore identical table props
-    existing = deepcopy(table)
+    existing = deepcopy(renamed_table)
     changed["write_disposition"] = "append"
     changed["schema_contract"] = "freeze"
     partial = utils.diff_table("schema", deepcopy(existing), changed)
@@ -337,15 +340,15 @@ def test_diff_tables() -> None:
     # defaults are not ignored
     existing = deepcopy(table)
     changed = deepcopy(table)
-    changed["columns"]["test"]["foreign_key"] = False
+    changed["columns"]["test"]["parent_key"] = False
     partial = utils.diff_table("schema", existing, changed)
     assert "test" in partial["columns"]
 
     # even if not present in tab_a at all
     existing = deepcopy(table)
     changed = deepcopy(table)
-    changed["columns"]["test"]["foreign_key"] = False
-    del existing["columns"]["test"]["foreign_key"]
+    changed["columns"]["test"]["parent_key"] = False
+    del existing["columns"]["test"]["parent_key"]
     partial = utils.diff_table("schema", existing, changed)
     assert "test" in partial["columns"]
 
@@ -360,11 +363,18 @@ def test_diff_tables_conflicts() -> None:
         "columns": {"test": COL_1_HINTS, "test_2": COL_2_HINTS},
     }
 
-    other = utils.new_table("table_2")
+    other = utils.new_table("table")
     with pytest.raises(TablePropertiesConflictException) as cf_ex:
         utils.diff_table("schema", table, other)
     assert cf_ex.value.table_name == "table"
     assert cf_ex.value.prop_name == "parent"
+
+    # conflict on name
+    other = utils.new_table("other_name")
+    with pytest.raises(TablePropertiesConflictException) as cf_ex:
+        utils.diff_table("schema", table, other)
+    assert cf_ex.value.table_name == "table"
+    assert cf_ex.value.prop_name == "name"
 
     # conflict on data types in columns
     changed = deepcopy(table)
@@ -450,7 +460,7 @@ def test_merge_tables_incomplete_columns() -> None:
 #             "unique": False,
 #             "sort": False,
 #             "primary_key": False,
-#             "foreign_key": False,
+#             "parent_key": False,
 #             "root_key": False,
 #             "merge_key": False,
 #         },

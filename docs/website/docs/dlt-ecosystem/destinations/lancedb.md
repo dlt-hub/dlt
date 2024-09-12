@@ -144,7 +144,22 @@ lancedb_adapter(
 )
 ```
 
-Bear in mind that you can't use an adapter on a [dlt source](../../general-usage/source.md), only a [dlt resource](../../general-usage/resource.md).
+When using the `lancedb_adapter`, it's important to apply it directly to resources, not to the whole source. Here's an example:
+
+```py
+products_tables = sql_database().with_resources("products", "customers")
+
+pipeline = dlt.pipeline(
+        pipeline_name="postgres_to_lancedb_pipeline",
+        destination="lancedb",
+    )
+
+# apply adapter to the needed resources
+lancedb_adapter(products_tables.products, embed="description")
+lancedb_adapter(products_tables.customers, embed="bio")
+
+info = pipeline.run(products_tables)
+```
 
 ## Write disposition
 
@@ -186,7 +201,7 @@ This is the default disposition. It will append the data to the existing data in
 ## Additional Destination Options
 
 - `dataset_separator`: The character used to separate the dataset name from table names. Defaults to "___".
-- `vector_field_name`: The name of the special field to store vector embeddings. Defaults to "vector__".
+- `vector_field_name`: The name of the special field to store vector embeddings. Defaults to "vector".
 - `id_field_name`: The name of the special field used for deduplication and merging. Defaults to "id__".
 - `max_retries`: The maximum number of retries for embedding operations. Set to 0 to disable retries. Defaults to 3.
 
@@ -201,11 +216,21 @@ The LanceDB destination supports syncing of the `dlt` state.
 
 ## Current Limitations
 
+### In-Memory Tables
+
 Adding new fields to an existing LanceDB table requires loading the entire table data into memory as a PyArrow table.
 This is because PyArrow tables are immutable, so adding fields requires creating a new table with the updated schema.
 
 For huge tables, this may impact performance and memory usage since the full table must be loaded into memory to add the new fields.
 Keep these considerations in mind when working with large datasets and monitor memory usage if adding fields to sizable existing tables.
+
+### Null string handling for OpenAI embeddings
+
+OpenAI embedding service doesn't accept empty string bodies. We deal with this by replacing empty strings with a placeholder that should be very semantically dissimilar to 99.9% of queries.
+
+If your source column (column which is embedded) has empty values, it is important to consider the impact of this. There might be a _slight_ change that semantic queries can hit these empty strings.
+
+We reported this issue to LanceDB: https://github.com/lancedb/lancedb/issues/1577.
 
 <!--@@@DLT_TUBA lancedb-->
 

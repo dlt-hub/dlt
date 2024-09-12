@@ -77,7 +77,7 @@ class TestRESTClient:
     def test_get_single_resource(self, rest_client):
         response = rest_client.get("/posts/1")
         assert response.status_code == 200
-        assert response.json() == {"id": "1", "body": "Post body 1"}
+        assert response.json() == {"id": 1, "body": "Post body 1"}
 
     def test_pagination(self, rest_client: RESTClient):
         pages_iter = rest_client.paginate(
@@ -400,7 +400,7 @@ class TestRESTClient:
         posts_skip = (DEFAULT_TOTAL_PAGES - 3) * DEFAULT_PAGE_SIZE
 
         class JSONBodyPageCursorPaginator(BaseReferencePaginator):
-            def update_state(self, response):
+            def update_state(self, response, data):
                 self._next_reference = response.json().get("next_page")
 
             def update_request(self, request):
@@ -412,7 +412,7 @@ class TestRESTClient:
         page_generator = rest_client.paginate(
             path="/posts/search",
             method="POST",
-            json={"ids_greater_than": posts_skip - 1},
+            json={"ids_greater_than": posts_skip - 1, "page_size": 5, "page_count": 5},
             paginator=JSONBodyPageCursorPaginator(),
         )
         result = [post for page in list(page_generator) for post in page]
@@ -444,6 +444,7 @@ class TestRESTClient:
 
         import requests
 
+        original_send = requests.Session.send
         requests.Session.send = mocker.Mock()  # type: ignore[method-assign]
         rest_client.get("/posts/1")
         assert requests.Session.send.call_args[1] == {  # type: ignore[attr-defined]
@@ -452,4 +453,69 @@ class TestRESTClient:
             "stream": ANY,
             "verify": ANY,
             "cert": ANY,
+        }
+        # restore, otherwise side-effect on subsequent tests
+        requests.Session.send = original_send  # type: ignore[method-assign]
+
+    def test_request_kwargs(self, mocker) -> None:
+        def send_spy(*args, **kwargs):
+            return original_send(*args, **kwargs)
+
+        rest_client = RESTClient(
+            base_url="https://api.example.com",
+            session=Client().session,
+        )
+        original_send = rest_client.session.send
+        mocked_send = mocker.patch.object(rest_client.session, "send", side_effect=send_spy)
+
+        rest_client.get(
+            path="/posts/1",
+            proxies={
+                "http": "http://10.10.1.10:1111",
+                "https": "http://10.10.1.10:2222",
+            },
+            stream=True,
+            verify=False,
+            cert=("/path/client.cert", "/path/client.key"),
+            timeout=321,
+            allow_redirects=False,
+        )
+
+        assert mocked_send.call_args[1] == {
+            "proxies": {
+                "http": "http://10.10.1.10:1111",
+                "https": "http://10.10.1.10:2222",
+            },
+            "stream": True,
+            "verify": False,
+            "cert": ("/path/client.cert", "/path/client.key"),
+            "timeout": 321,
+            "allow_redirects": False,
+        }
+
+        next(
+            rest_client.paginate(
+                path="posts",
+                proxies={
+                    "http": "http://10.10.1.10:1234",
+                    "https": "http://10.10.1.10:4321",
+                },
+                stream=True,
+                verify=False,
+                cert=("/path/client_2.cert", "/path/client_2.key"),
+                timeout=432,
+                allow_redirects=False,
+            )
+        )
+
+        assert mocked_send.call_args[1] == {
+            "proxies": {
+                "http": "http://10.10.1.10:1234",
+                "https": "http://10.10.1.10:4321",
+            },
+            "stream": True,
+            "verify": False,
+            "cert": ("/path/client_2.cert", "/path/client_2.key"),
+            "timeout": 432,
+            "allow_redirects": False,
         }

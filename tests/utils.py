@@ -3,7 +3,7 @@ import os
 import platform
 import sys
 from os import environ
-from typing import Any, Iterable, Iterator, List, Literal, Union, get_args
+from typing import Any, Iterable, Iterator, Literal, Union, get_args, List
 from unittest.mock import patch
 
 import pytest
@@ -18,17 +18,20 @@ from dlt.common.configuration.specs import RunConfiguration
 from dlt.common.configuration.specs.config_providers_context import (
     ConfigProvidersContext,
 )
-from dlt.common.pipeline import PipelineContext
+from dlt.common.pipeline import LoadInfo, PipelineContext, SupportsPipeline
 from dlt.common.runtime.init import init_logging
 from dlt.common.runtime.telemetry import start_telemetry, stop_telemetry
 from dlt.common.schema import Schema
 from dlt.common.storages import FileStorage
 from dlt.common.storages.versioned_storage import VersionedStorage
-from dlt.common.typing import StrAny, TDataItem
+from dlt.common.typing import DictStrAny, StrAny, TDataItem
 from dlt.common.utils import custom_environ, uniq_id
-from dlt.common.pipeline import PipelineContext, SupportsPipeline
 
 TEST_STORAGE_ROOT = "_storage"
+
+ALL_DESTINATIONS = dlt.config.get("ALL_DESTINATIONS", list) or [
+    "duckdb",
+]
 
 
 # destination constants
@@ -56,7 +59,6 @@ NON_SQL_DESTINATIONS = {
     "filesystem",
     "weaviate",
     "dummy",
-    "motherduck",
     "qdrant",
     "lancedb",
     "destination",
@@ -190,8 +192,9 @@ def wipe_pipeline(preserve_environ) -> Iterator[None]:
     yield
     if container[PipelineContext].is_active():
         # take existing pipeline
-        p = dlt.pipeline()
-        p._wipe_working_folder()
+        # NOTE: no more needed. test storage is wiped fully when test starts
+        # p = dlt.pipeline()
+        # p._wipe_working_folder()
         # deactivate context
         container[PipelineContext].deactivate()
 
@@ -334,3 +337,47 @@ skipifwindows = pytest.mark.skipif(
 skipifgithubfork = pytest.mark.skipif(
     is_running_in_github_fork(), reason="Skipping test because it runs on a PR coming from fork"
 )
+
+
+def assert_load_info(info: LoadInfo, expected_load_packages: int = 1) -> None:
+    """Asserts that expected number of packages was loaded and there are no failed jobs"""
+    assert len(info.loads_ids) == expected_load_packages
+    # all packages loaded
+    assert all(package.state == "loaded" for package in info.load_packages) is True
+    # Explicitly check for no failed job in any load package. In case a terminal exception was disabled by raise_on_failed_jobs=False
+    info.raise_on_failed_jobs()
+
+
+def load_table_counts(p: dlt.Pipeline, *table_names: str) -> DictStrAny:
+    """Returns row counts for `table_names` as dict"""
+    with p.sql_client() as c:
+        query = "\nUNION ALL\n".join(
+            [
+                f"SELECT '{name}' as name, COUNT(1) as c FROM {c.make_qualified_table_name(name)}"
+                for name in table_names
+            ]
+        )
+        with c.execute_query(query) as cur:
+            rows = list(cur.fetchall())
+            return {r[0]: r[1] for r in rows}
+
+
+def assert_query_data(
+    p: dlt.Pipeline,
+    sql: str,
+    table_data: List[Any],
+    schema_name: str = None,
+    info: LoadInfo = None,
+) -> None:
+    """Asserts that query selecting single column of values matches `table_data`. If `info` is provided, second column must contain one of load_ids in `info`"""
+    with p.sql_client(schema_name=schema_name) as c:
+        with c.execute_query(sql) as cur:
+            rows = list(cur.fetchall())
+            assert len(rows) == len(table_data)
+            for r, d in zip(rows, table_data):
+                row = list(r)
+                # first element comes from the data
+                assert row[0] == d
+                # the second is load id
+                if info:
+                    assert row[1] in info.loads_ids

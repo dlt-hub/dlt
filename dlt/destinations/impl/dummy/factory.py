@@ -60,7 +60,9 @@ class dummy(Destination[DummyClientConfiguration, "DummyClient"]):
     ) -> DestinationCapabilitiesContext:
         caps = super().adjust_capabilities(caps, config, naming)
         additional_formats: t.List[TLoaderFileFormat] = (
-            ["reference"] if config.create_followup_jobs else []  # type:ignore[list-item]
+            ["reference"]
+            if (config.create_followup_jobs or config.create_followup_table_chain_reference_jobs)
+            else []
         )
         caps.preferred_loader_file_format = config.loader_file_format
         caps.supported_loader_file_formats = additional_formats + [config.loader_file_format]

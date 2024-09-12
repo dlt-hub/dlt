@@ -4,6 +4,7 @@ from copy import copy
 from typing import (
     Dict,
     Generic,
+    Optional,
     Set,
     TypedDict,
     List,
@@ -31,6 +32,7 @@ from dlt.common.typing import (
     is_subclass,
     is_union_type,
 )
+from dlt.common.warnings import Dlt100DeprecationWarning
 
 try:
     from pydantic import BaseModel, ValidationError, Json, create_model
@@ -68,11 +70,12 @@ class DltConfig(TypedDict, total=False):
     >>> class ItemModel(BaseModel):
     >>>     b: bool
     >>>     nested: Dict[str, Any]
-    >>>     dlt_config: ClassVar[DltConfig] = {"skip_complex_types": True}
+    >>>     dlt_config: ClassVar[DltConfig] = {"skip_nested_types": True}
     """
 
-    skip_complex_types: bool
+    skip_nested_types: bool
     """If True, columns of complex types (`dict`, `list`, `BaseModel`) will be excluded from dlt schema generated from the model"""
+    skip_complex_types: bool  # deprecated
 
 
 def pydantic_to_table_schema_columns(
@@ -89,9 +92,17 @@ def pydantic_to_table_schema_columns(
     Returns:
         TTableSchemaColumns: table schema columns dict
     """
-    skip_complex_types = False
+    skip_nested_types = False
     if hasattr(model, "dlt_config"):
-        skip_complex_types = model.dlt_config.get("skip_complex_types", False)
+        if "skip_complex_types" in model.dlt_config:
+            warnings.warn(
+                "`skip_complex_types` is deprecated, use `skip_nested_types` instead.",
+                Dlt100DeprecationWarning,
+                stacklevel=2,
+            )
+            skip_nested_types = model.dlt_config["skip_complex_types"]
+        else:
+            skip_nested_types = model.dlt_config.get("skip_nested_types", False)
 
     result: TTableSchemaColumns = {}
 
@@ -129,16 +140,16 @@ def pydantic_to_table_schema_columns(
             data_type = py_type_to_sc_type(inner_type)
         except TypeError:
             if is_subclass(inner_type, BaseModel):
-                data_type = "complex"
+                data_type = "json"
                 is_inner_type_pydantic_model = True
             else:
                 # try to coerce unknown type to text
                 data_type = "text"
 
-        if is_inner_type_pydantic_model and not skip_complex_types:
+        if is_inner_type_pydantic_model and not skip_nested_types:
             result[name] = {
                 "name": name,
-                "data_type": "complex",
+                "data_type": "json",
                 "nullable": nullable,
             }
         elif is_inner_type_pydantic_model:
@@ -153,7 +164,7 @@ def pydantic_to_table_schema_columns(
                     **hints,
                     "name": snake_case_naming_convention.make_path(name, hints["name"]),
                 }
-        elif data_type == "complex" and skip_complex_types:
+        elif data_type == "json" and skip_nested_types:
             continue
         else:
             result[name] = {
@@ -298,14 +309,16 @@ def create_list_model(
     )
 
 
-def validate_items(
+def validate_and_filter_items(
     table_name: str,
     list_model: Type[ListModel[_TPydanticModel]],
     items: List[TDataItem],
     column_mode: TSchemaEvolutionMode,
     data_mode: TSchemaEvolutionMode,
 ) -> List[_TPydanticModel]:
-    """Validates list of `item` with `list_model` and returns parsed Pydantic models
+    """Validates list of `item` with `list_model` and returns parsed Pydantic models. If `column_mode` and `data_mode` are set
+    this function will remove non validating items (`discard_row`) or raise on the first non-validating items (`freeze`). Note
+    that the model itself may be configured to remove non validating or extra items as well.
 
     `list_model` should be created with `create_list_model` and have `items` field which this function returns.
     """
@@ -379,17 +392,19 @@ def validate_items(
                     )
 
         # validate again with error items removed
-        return validate_items(table_name, list_model, items, column_mode, data_mode)
+        return validate_and_filter_items(table_name, list_model, items, column_mode, data_mode)
 
 
-def validate_item(
+def validate_and_filter_item(
     table_name: str,
     model: Type[_TPydanticModel],
     item: TDataItems,
     column_mode: TSchemaEvolutionMode,
     data_mode: TSchemaEvolutionMode,
-) -> _TPydanticModel:
-    """Validates `item` against model `model` and returns an instance of it"""
+) -> Optional[_TPydanticModel]:
+    """Validates `item` against model `model` and returns an instance of it. If `column_mode` and `data_mode` are set
+    this function will return None (`discard_row`) or raise on non-validating items (`freeze`). Note
+    that the model itself may be configured to remove non validating or extra items as well."""
     try:
         return model.parse_obj(item)
     except ValidationError as e:

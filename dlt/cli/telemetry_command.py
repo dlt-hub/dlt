@@ -1,6 +1,6 @@
 import os
+import tomlkit
 
-from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.providers.toml import ConfigTomlProvider
 from dlt.common.configuration.specs import RunConfiguration
@@ -29,15 +29,21 @@ def change_telemetry_status_command(enabled: bool) -> None:
     ]
     # write local config
     config = ConfigTomlProvider(add_global_config=False)
+    config_toml = tomlkit.document()
     if not config.is_empty:
-        write_values(config._toml, telemetry_value, overwrite_existing=True)
+        write_values(config_toml, telemetry_value, overwrite_existing=True)
+        config._config_doc = config_toml
         config.write_toml()
+
     # write global config
     global_path = ConfigTomlProvider.global_config_path()
     os.makedirs(global_path, exist_ok=True)
     config = ConfigTomlProvider(project_dir=global_path, add_global_config=False)
-    write_values(config._toml, telemetry_value, overwrite_existing=True)
+    config_toml = tomlkit.document()
+    write_values(config_toml, telemetry_value, overwrite_existing=True)
+    config._config_doc = config_toml
     config.write_toml()
+
     if enabled:
         fmt.echo("Telemetry switched %s" % fmt.bold("ON"))
     else:

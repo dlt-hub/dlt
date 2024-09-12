@@ -1,0 +1,12 @@
+prod:
+  sources:
+    github_api:  # source level
+      github:  # resource level
+        url: https://github.com/api
+        api_key: "{{GITHUB_API_KEY}}"
+
+dev:
+  sources:
+    github_api:
+      url: https://github.com/api
+      api_key: ""  # no keys in dev env

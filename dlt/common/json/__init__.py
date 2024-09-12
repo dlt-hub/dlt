@@ -144,7 +144,7 @@ def custom_pua_encode(obj: Any) -> str:
     elif dataclasses.is_dataclass(obj):
         return dataclasses.asdict(obj)  # type: ignore
     elif PydanticBaseModel and isinstance(obj, PydanticBaseModel):
-        return obj.dict()  # type: ignore[return-value]
+        return obj.dict(by_alias=True)  # type: ignore[return-value]
     elif isinstance(obj, Enum):
         # Enum value is just int or str
         return obj.value  # type: ignore[no-any-return]

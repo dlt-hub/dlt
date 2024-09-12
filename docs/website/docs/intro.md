@@ -17,6 +17,10 @@ from various and often messy data sources into well-structured, live datasets. T
 ```sh
 pip install dlt
 ```
+:::tip
+We recommend using a clean virtual environment for your experiments! Here are [detailed instructions](/reference/installation).
+:::
+
 Unlike other solutions, with dlt, there's no need to use any backends or containers. Simply import `dlt` in a Python file or a Jupyter Notebook cell, and create a pipeline to load data into any of the [supported destinations](dlt-ecosystem/destinations/). You can load data from any source that produces Python data structures, including APIs, files, databases, and more. `dlt` also supports building a [custom destination](dlt-ecosystem/destinations/destination.md), which you can use as reverse ETL.
 
 The library will create or update tables, infer data types, and handle nested data automatically. Here are a few example pipelines:

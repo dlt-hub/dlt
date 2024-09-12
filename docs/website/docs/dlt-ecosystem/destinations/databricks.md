@@ -117,6 +117,8 @@ access_token = "MY_ACCESS_TOKEN"
 catalog = "my_catalog"
 ```
 
+See [staging support](#staging-support) for authentication options when `dlt` copies files from buckets.
+
 ## Write disposition
 All write dispositions are supported
 
@@ -134,7 +136,7 @@ For more information on staging, see the [staging support](#staging-support) sec
 The `jsonl` format has some limitations when used with Databricks:
 
 1. Compression must be disabled to load jsonl files in Databricks. Set `data_writer.disable_compression` to `true` in dlt config when using this format.
-2. The following data types are not supported when using `jsonl` format with `databricks`: `decimal`, `complex`, `date`, `binary`. Use `parquet` if your data contains these types.
+2. The following data types are not supported when using `jsonl` format with `databricks`: `decimal`, `json`, `date`, `binary`. Use `parquet` if your data contains these types.
 3. `bigint` data type with precision is not supported with `jsonl` format
 
 
@@ -166,6 +168,11 @@ pipeline = dlt.pipeline(
 
 Refer to the [Azure Blob Storage filesystem documentation](./filesystem.md#azure-blob-storage) for details on connecting your Azure Blob Storage container with the bucket_url and credentials.
 
+Databricks requires that you use ABFS urls in following format:
+**abfss://container_name@storage_account_name.dfs.core.windows.net/path**
+
+`dlt` is able to adapt the other representation (ie **az://container-name/path**') still we recommend that you use the correct form.
+
 Example to set up Databricks with Azure as a staging destination:
 
 ```py
@@ -175,10 +182,34 @@ Example to set up Databricks with Azure as a staging destination:
 pipeline = dlt.pipeline(
     pipeline_name='chess_pipeline',
     destination='databricks',
-    staging=dlt.destinations.filesystem('az://your-container-name'), # add this to activate the staging location
+    staging=dlt.destinations.filesystem('abfss://dlt-ci-data@dltdata.dfs.core.windows.net'), # add this to activate the staging location
     dataset_name='player_data'
 )
+
 ```
+
+### Use external locations and stored credentials
+`dlt` forwards bucket credentials to `COPY INTO` SQL command by default. You may prefer to use [external locations or stored credentials instead](https://docs.databricks.com/en/sql/language-manual/sql-ref-external-locations.html#external-location) that are stored on the Databricks side.
+
+If you set up external location for your staging path, you can tell `dlt` to use it:
+```toml
+[destination.databricks]
+is_staging_external_location=true
+```
+
+If you set up Databricks credential named ie. **credential_x**, you can tell `dlt` to use it:
+```toml
+[destination.databricks]
+staging_credentials_name="credential_x"
+```
+
+Both options are available from code:
+```py
+import dlt
+
+bricks = dlt.destinations.databricks(staging_credentials_name="credential_x")
+```
+
 ### dbt support
 This destination [integrates with dbt](../transformations/dbt/dbt.md) via [dbt-databricks](https://github.com/databricks/dbt-databricks)
 

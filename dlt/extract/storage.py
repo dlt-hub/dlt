@@ -1,7 +1,8 @@
 import os
 from typing import Dict, List
 
-from dlt.common.data_writers import TDataItemFormat, DataWriterMetrics, DataWriter, FileWriterSpec
+from dlt.common.data_writers import TDataItemFormat, DataWriter, FileWriterSpec
+from dlt.common.metrics import DataWriterMetrics
 from dlt.common.schema import Schema
 from dlt.common.storages import (
     NormalizeStorageConfiguration,

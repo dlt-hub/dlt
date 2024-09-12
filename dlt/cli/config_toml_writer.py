@@ -34,7 +34,7 @@ def generate_typed_example(name: str, hint: AnyType) -> Any:
             return 1.0
         if sc_type == "bool":
             return True
-        if sc_type == "complex":
+        if sc_type == "json":
             if is_subclass(inner_hint, C_Sequence):
                 return ["a", "b", "c"]
             else:

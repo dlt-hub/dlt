@@ -7,18 +7,18 @@ from dlt.common.configuration.specs.config_providers_context import _google_secr
 from dlt.common.configuration.specs.run_configuration import RunConfiguration
 from dlt.common.configuration.specs import GcpServiceAccountCredentials, known_sections
 from dlt.common.typing import AnyType
-from dlt.common.utils import custom_environ
 from dlt.common.configuration.resolve import resolve_configuration
 
 
 DLT_SECRETS_TOML_CONTENT = """
-secret_value=2137
-api.secret_key="ABCD"
+secret_value = 2137
 
+[api]
+secret_key = "ABCD"
 
 [credentials]
-secret_value="2138"
-project_id="mock-credentials"
+secret_value = "2138"
+project_id = "mock-credentials"
 """
 
 
@@ -32,7 +32,7 @@ def test_regular_keys() -> None:
     # c = secrets.get("destination.credentials", GcpServiceAccountCredentials)
     # print(c)
     provider: GoogleSecretsProvider = _google_secrets_provider()  # type: ignore[assignment]
-    assert provider._toml.as_string().strip() == DLT_SECRETS_TOML_CONTENT.strip()
+    assert provider.to_toml().strip() == DLT_SECRETS_TOML_CONTENT.strip()
     assert provider.get_value("secret_value", AnyType, "pipeline x !!") == (
         None,
         "pipelinex-secret_value",
@@ -83,11 +83,18 @@ def test_regular_keys() -> None:
         "pipeline-destination-filesystem-url",
     )
 
-    # try a single secret value
+    # try a single secret value - not found until single values enabled
     assert provider.get_value("secret", TSecretValue, "pipeline") == (None, "pipeline-secret")
 
     # enable the single secrets
     provider.only_toml_fragments = False
+    assert provider.get_value("secret", TSecretValue, "pipeline") == (
+        "THIS IS SECRET VALUE",
+        "pipeline-secret",
+    )
+    del provider._config_doc["pipeline"]["secret"]
+    provider.clear_lookup_cache()
+
     # but request as not secret value -> still not found
     assert provider.get_value("secret", str, "pipeline") == (None, "pipeline-secret")
     provider.only_secrets = False
@@ -99,8 +106,8 @@ def test_regular_keys() -> None:
 
     # request json
     # print(provider._toml.as_string())
-    assert provider.get_value("halo", str, None, "halo") == ({"halo": True}, "halo-halo")
-    assert provider.get_value("halo", str, None, "halo", "halo") == (True, "halo-halo-halo")
+    assert provider.get_value("halo", str, "halo") == ({"halo": True}, "halo-halo")
+    assert provider.get_value("halo", bool, "halo", "halo") == (True, "halo-halo-halo")
 
 
 # def test_special_sections() -> None:

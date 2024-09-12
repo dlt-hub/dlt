@@ -93,7 +93,7 @@ def test_all_data_types(
     assert len(table_columns) == len(TABLE_UPDATE_COLUMNS_SCHEMA)
     for col_name in table_columns:
         assert col_name in TABLE_UPDATE_COLUMNS_SCHEMA
-        if TABLE_UPDATE_COLUMNS_SCHEMA[col_name]["data_type"] in ["decimal", "complex", "time"]:
+        if TABLE_UPDATE_COLUMNS_SCHEMA[col_name]["data_type"] in ["decimal", "json", "time"]:
             # no native representation
             assert table_columns[col_name]["data_type"] == "text"
         elif TABLE_UPDATE_COLUMNS_SCHEMA[col_name]["data_type"] == "wei":
@@ -121,6 +121,7 @@ def test_case_sensitive_properties_create(client: WeaviateClient) -> None:
     )
     client.schema._bump_version()
     with pytest.raises(SchemaIdentifierNormalizationCollision) as clash_ex:
+        client.verify_schema()
         client.update_stored_schema()
     assert clash_ex.value.identifier_type == "column"
     assert clash_ex.value.identifier_name == "coL1"
@@ -170,6 +171,7 @@ def test_case_sensitive_properties_add(client: WeaviateClient) -> None:
     )
     client.schema._bump_version()
     with pytest.raises(SchemaIdentifierNormalizationCollision):
+        client.verify_schema()
         client.update_stored_schema()
 
     # _, table_columns = client.get_storage_table("ColClass")
@@ -192,8 +194,8 @@ def test_load_case_sensitive_data(client: WeaviateClient, file_storage: FileStor
         write_dataset(client, f, [data_clash], table_create)
         query = f.getvalue().decode()
     class_name = client.schema.naming.normalize_table_identifier(class_name)
-    with pytest.raises(PropertyNameConflict):
-        expect_load_file(client, file_storage, query, class_name)
+    job = expect_load_file(client, file_storage, query, class_name, "failed")
+    assert type(job._exception) is PropertyNameConflict  # type: ignore
 
 
 def test_load_case_sensitive_data_ci(ci_client: WeaviateClient, file_storage: FileStorage) -> None:

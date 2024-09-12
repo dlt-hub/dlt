@@ -5,12 +5,14 @@ import itertools
 import logging
 import os
 import random
+import shutil
 import threading
 from time import sleep
 from typing import Any, List, Tuple, cast
 from tenacity import retry_if_exception, Retrying, stop_after_attempt
 
 import pytest
+from dlt.common.storages import FileStorage
 
 import dlt
 from dlt.common import json, pendulum
@@ -37,7 +39,7 @@ from dlt.common.typing import DictStrAny
 from dlt.common.utils import uniq_id
 from dlt.common.schema import Schema
 
-from dlt.destinations import filesystem, redshift, dummy
+from dlt.destinations import filesystem, redshift, dummy, duckdb
 from dlt.destinations.impl.filesystem.filesystem import INIT_FILE_NAME
 from dlt.extract.exceptions import InvalidResourceDataTypeBasic, PipeGenInvalid, SourceExhausted
 from dlt.extract.extract import ExtractStorage
@@ -50,8 +52,7 @@ from dlt.pipeline.helpers import retry_load
 
 from dlt.pipeline.pipeline import Pipeline
 from tests.common.utils import TEST_SENTRY_DSN
-from tests.common.configuration.utils import environment
-from tests.utils import TEST_STORAGE_ROOT, skipifnotwindows
+from tests.utils import TEST_STORAGE_ROOT
 from tests.extract.utils import expect_extracted_file
 from tests.pipeline.utils import (
     assert_data_table_counts,
@@ -62,6 +63,8 @@ from tests.pipeline.utils import (
     load_tables_to_dicts,
     many_delayed,
 )
+
+DUMMY_COMPLETE = dummy(completed_prob=1)  # factory set up to complete jobs
 
 
 def test_default_pipeline() -> None:
@@ -396,7 +399,7 @@ def test_destination_staging_config(environment: Any) -> None:
     staging_config = fs_dest.configuration(initial_config)  # type: ignore[arg-type]
 
     # Ensure that as_staging flag is set in the final resolved conifg
-    assert staging_config.as_staging is True
+    assert staging_config.as_staging_destination is True
 
 
 def test_destination_factory_defaults_resolve_from_config(environment: Any) -> None:
@@ -633,10 +636,8 @@ def test_mark_hints_variant_dynamic_name() -> None:
 
 
 def test_restore_state_on_dummy() -> None:
-    os.environ["COMPLETED_PROB"] = "1.0"  # make it complete immediately
-
     pipeline_name = "pipe_" + uniq_id()
-    p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination=DUMMY_COMPLETE)
     p.config.restore_from_destination = True
     info = p.run([1, 2, 3], table_name="dummy_table")
     print(info)
@@ -647,7 +648,7 @@ def test_restore_state_on_dummy() -> None:
 
     # wipe out storage
     p._wipe_working_folder()
-    p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination=DUMMY_COMPLETE)
     assert p.first_run is True
     p.sync_destination()
     assert p.first_run is True
@@ -655,10 +656,8 @@ def test_restore_state_on_dummy() -> None:
 
 
 def test_first_run_flag() -> None:
-    os.environ["COMPLETED_PROB"] = "1.0"  # make it complete immediately
-
     pipeline_name = "pipe_" + uniq_id()
-    p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination=DUMMY_COMPLETE)
     assert p.first_run is True
     # attach
     p = dlt.attach(pipeline_name=pipeline_name)
@@ -666,7 +665,7 @@ def test_first_run_flag() -> None:
     p.extract([1, 2, 3], table_name="dummy_table")
     assert p.first_run is True
     # attach again
-    p = dlt.attach(pipeline_name=pipeline_name)
+    p = dlt.attach(pipeline_name=pipeline_name, destination=DUMMY_COMPLETE)
     assert p.first_run is True
     assert len(p.list_extracted_load_packages()) > 0
     p.normalize()
@@ -687,7 +686,7 @@ def test_first_run_flag() -> None:
 
 
 def test_has_pending_data_flag() -> None:
-    p = dlt.pipeline(pipeline_name="pipe_" + uniq_id(), destination="dummy")
+    p = dlt.pipeline(pipeline_name="pipe_" + uniq_id(), destination=DUMMY_COMPLETE)
     assert p.has_pending_data is False
     p.extract([1, 2, 3], table_name="dummy_table")
     assert p.has_pending_data is True
@@ -700,11 +699,10 @@ def test_has_pending_data_flag() -> None:
 def test_sentry_tracing() -> None:
     import sentry_sdk
 
-    os.environ["COMPLETED_PROB"] = "1.0"  # make it complete immediately
     os.environ["RUNTIME__SENTRY_DSN"] = TEST_SENTRY_DSN
 
     pipeline_name = "pipe_" + uniq_id()
-    p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination=DUMMY_COMPLETE)
 
     # def inspect_transaction(ctx):
     #     print(ctx)
@@ -801,7 +799,7 @@ def test_pipeline_state_on_extract_exception() -> None:
 
     # new pipeline
     pipeline_name = "pipe_" + uniq_id()
-    p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination=DUMMY_COMPLETE)
 
     with pytest.raises(PipelineStepFailed):
         p.run([data_schema_1(), data_schema_2(), data_schema_3()], write_disposition="replace")
@@ -813,14 +811,12 @@ def test_pipeline_state_on_extract_exception() -> None:
     assert len(p._schema_storage.list_schemas()) == 0
     assert p.default_schema_name is None
 
-    os.environ["COMPLETED_PROB"] = "1.0"  # make it complete immediately
     p.run([data_schema_1(), data_schema_2()], write_disposition="replace")
     assert set(p.schema_names) == set(p._schema_storage.list_schemas())
 
 
 def test_run_with_table_name_exceeding_path_length() -> None:
     pipeline_name = "pipe_" + uniq_id()
-    # os.environ["COMPLETED_PROB"] = "1.0"  # make it complete immediately
     p = dlt.pipeline(pipeline_name=pipeline_name)
 
     # we must fix that
@@ -831,7 +827,6 @@ def test_run_with_table_name_exceeding_path_length() -> None:
 
 def test_raise_on_failed_job() -> None:
     os.environ["FAIL_PROB"] = "1.0"
-    os.environ["RAISE_ON_FAILED_JOBS"] = "true"
     pipeline_name = "pipe_" + uniq_id()
     p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
     with pytest.raises(PipelineStepFailed) as py_ex:
@@ -848,15 +843,17 @@ def test_raise_on_failed_job() -> None:
 
 
 def test_load_info_raise_on_failed_jobs() -> None:
+    # By default, raises terminal error on a failed job and aborts load. This pipeline does not fail
     os.environ["COMPLETED_PROB"] = "1.0"
     pipeline_name = "pipe_" + uniq_id()
     p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
     load_info = p.run([1, 2, 3], table_name="numbers")
     assert load_info.has_failed_jobs is False
-    load_info.raise_on_failed_jobs()
+
+    # Test explicit raising on a failed job after the load is completed. Let pipeline fail
     os.environ["COMPLETED_PROB"] = "0.0"
     os.environ["FAIL_PROB"] = "1.0"
-
+    os.environ["RAISE_ON_FAILED_JOBS"] = "false"
     load_info = p.run([1, 2, 3], table_name="numbers")
     assert load_info.has_failed_jobs is True
     with pytest.raises(DestinationHasFailedJobs) as py_ex:
@@ -864,6 +861,7 @@ def test_load_info_raise_on_failed_jobs() -> None:
     assert py_ex.value.destination_name == "dummy"
     assert py_ex.value.load_id == load_info.loads_ids[0]
 
+    # Test automatic raising on a failed job which aborts the load. Let pipeline fail
     os.environ["RAISE_ON_FAILED_JOBS"] = "true"
     with pytest.raises(PipelineStepFailed) as py_ex_2:
         p.run([1, 2, 3], table_name="numbers")
@@ -877,9 +875,8 @@ def test_load_info_raise_on_failed_jobs() -> None:
 
 def test_run_load_pending() -> None:
     # prepare some data and complete load with run
-    os.environ["COMPLETED_PROB"] = "1.0"
     pipeline_name = "pipe_" + uniq_id()
-    p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination=DUMMY_COMPLETE)
 
     def some_data():
         yield from [1, 2, 3]
@@ -908,9 +905,9 @@ def test_run_load_pending() -> None:
 
 
 def test_retry_load() -> None:
+    os.environ["COMPLETED_PROB"] = "1.0"
     retry_count = 2
 
-    os.environ["COMPLETED_PROB"] = "1.0"
     pipeline_name = "pipe_" + uniq_id()
     p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
 
@@ -947,7 +944,6 @@ def test_retry_load() -> None:
     assert py_ex.value.step == "extract"
 
     os.environ["COMPLETED_PROB"] = "0.0"
-    os.environ["RAISE_ON_FAILED_JOBS"] = "true"
     os.environ["FAIL_PROB"] = "1.0"
     with pytest.raises(PipelineStepFailed) as py_ex:
         for attempt in Retrying(
@@ -997,9 +993,8 @@ def test_set_get_local_value() -> None:
 
 
 def test_changed_write_disposition() -> None:
-    os.environ["COMPLETED_PROB"] = "1.0"
     pipeline_name = "pipe_" + uniq_id()
-    p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination=DUMMY_COMPLETE)
 
     @dlt.resource
     def resource_1():
@@ -1046,9 +1041,8 @@ def _get_shuffled_events(repeat: int = 1):
 
 @pytest.mark.parametrize("github_resource", (github_repo_events_table_meta, github_repo_events))
 def test_dispatch_rows_to_tables(github_resource: DltResource):
-    os.environ["COMPLETED_PROB"] = "1.0"
     pipeline_name = "pipe_" + uniq_id()
-    p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination=DUMMY_COMPLETE)
 
     info = p.run(_get_shuffled_events | github_resource)
     assert_load_info(info)
@@ -1094,7 +1088,7 @@ def test_resource_name_in_schema() -> None:
         return [static_data(), dynamic_func_data(), dynamic_mark_data(), nested_data()]
 
     source = some_source()
-    p = dlt.pipeline(pipeline_name=uniq_id(), destination="dummy")
+    p = dlt.pipeline(pipeline_name=uniq_id(), destination=DUMMY_COMPLETE)
     p.run(source)
 
     schema = p.default_schema
@@ -1376,8 +1370,6 @@ def test_emojis_resource_names() -> None:
 
 
 def test_apply_hints_infer_hints() -> None:
-    os.environ["COMPLETED_PROB"] = "1.0"
-
     @dlt.source
     def infer():
         yield dlt.resource(
@@ -1389,7 +1381,7 @@ def test_apply_hints_infer_hints() -> None:
     new_new_hints = {"not_null": ["timestamp"], "primary_key": ["id"]}
     s = infer()
     s.schema.merge_hints(new_new_hints)  # type: ignore[arg-type]
-    pipeline = dlt.pipeline(pipeline_name="inf", destination="dummy")
+    pipeline = dlt.pipeline(pipeline_name="inf", destination=DUMMY_COMPLETE)
     pipeline.run(s)
     # check schema
     table = pipeline.default_schema.get_table("table1")
@@ -1438,7 +1430,7 @@ def test_invalid_data_edge_cases() -> None:
     def my_source():
         return dlt.resource(itertools.count(start=1), name="infinity").add_limit(5)
 
-    pipeline = dlt.pipeline(pipeline_name="invalid", destination="dummy")
+    pipeline = dlt.pipeline(pipeline_name="invalid", destination=DUMMY_COMPLETE)
     with pytest.raises(PipelineStepFailed) as pip_ex:
         pipeline.run(my_source)
     assert isinstance(pip_ex.value.__context__, PipeGenInvalid)
@@ -1461,7 +1453,7 @@ def test_invalid_data_edge_cases() -> None:
     def my_source_yield():
         yield dlt.resource(itertools.count(start=1), name="infinity").add_limit(5)
 
-    pipeline = dlt.pipeline(pipeline_name="invalid", destination="dummy")
+    pipeline = dlt.pipeline(pipeline_name="invalid", destination=DUMMY_COMPLETE)
     with pytest.raises(PipelineStepFailed) as pip_ex:
         pipeline.run(my_source_yield)
     assert isinstance(pip_ex.value.__context__, PipeGenInvalid)
@@ -1734,6 +1726,7 @@ def test_pipeline_list_packages() -> None:
     assert normalized_package.state == "normalized"
     assert len(normalized_package.jobs["new_jobs"]) == len(extracted_package.jobs["new_jobs"])
     # load all 3 packages and fail all jobs in them
+    os.environ["RAISE_ON_FAILED_JOBS"] = "false"  # do not raise, complete package till the end
     os.environ["FAIL_PROB"] = "1.0"
     pipeline.load()
     load_ids_l = pipeline.list_completed_load_packages()
@@ -1746,7 +1739,7 @@ def test_pipeline_list_packages() -> None:
 
 
 def test_remove_pending_packages() -> None:
-    pipeline = dlt.pipeline(pipeline_name="emojis", destination="dummy")
+    pipeline = dlt.pipeline(pipeline_name="emojis", destination=DUMMY_COMPLETE)
     pipeline.extract(airtable_emojis())
     assert pipeline.has_pending_data
     pipeline.drop_pending_packages()
@@ -1759,11 +1752,24 @@ def test_remove_pending_packages() -> None:
     assert pipeline.has_pending_data is False
     # partial load
     os.environ["EXCEPTION_PROB"] = "1.0"
-    os.environ["FAIL_IN_INIT"] = "False"
     os.environ["TIMEOUT"] = "1.0"
-    # should produce partial loads
+    # will make job go into retry state
     with pytest.raises(PipelineStepFailed):
         pipeline.run(airtable_emojis())
+    # move job into completed folder manually to simulate partial package
+    load_storage = pipeline._get_load_storage()
+    load_id = load_storage.normalized_packages.list_packages()[0]
+    job = load_storage.normalized_packages.list_new_jobs(load_id)[0]
+    started_path = load_storage.normalized_packages.start_job(
+        load_id, FileStorage.get_file_name_from_file_path(job)
+    )
+    completed_path = load_storage.normalized_packages.complete_job(
+        load_id, FileStorage.get_file_name_from_file_path(job)
+    )
+    # to test partial loads we need two jobs one completed an one in another state
+    # to simulate this, we just duplicate the completed job into the started path
+    shutil.copyfile(completed_path, started_path)
+    # now "with partial loads" can be tested
     assert pipeline.has_pending_data
     pipeline.drop_pending_packages(with_partial_loads=False)
     assert pipeline.has_pending_data
@@ -2462,26 +2468,28 @@ def test_import_jsonl_file() -> None:
         loader_file_format="jsonl",
         columns=columns,
     )
-    info.raise_on_failed_jobs()
     print(info)
     assert_imported_file(pipeline, "no_header", columns, 2)
 
     # use hints to infer
     hints = dlt.mark.make_hints(columns=columns)
-    info = pipeline.run(
+    pipeline.run(
         [dlt.mark.with_file_import(import_file, "jsonl", 2, hints=hints)],
         table_name="no_header_2",
     )
-    info.raise_on_failed_jobs()
     assert_imported_file(pipeline, "no_header_2", columns, 2, expects_state=False)
 
 
 def test_import_file_without_sniff_schema() -> None:
+    os.environ["RAISE_ON_FAILED_JOBS"] = "false"
+
     pipeline = dlt.pipeline(
         pipeline_name="test_jsonl_import",
         destination="duckdb",
         dev_mode=True,
     )
+
+    # table will not be found which is terminal exception
     import_file = "tests/load/cases/loading/header.jsonl"
     info = pipeline.run(
         [dlt.mark.with_file_import(import_file, "jsonl", 2)],
@@ -2585,6 +2593,20 @@ def test_underscore_tables_and_columns() -> None:
     assert pipeline.last_trace.last_normalize_info.row_counts["_ids"] == 2
 
 
+def test_dlt_columns_nested_table_collisions() -> None:
+    # we generate all identifiers in upper case to test for a bug where dlt columns for nested tables were hardcoded to
+    # small caps. they got normalized to upper case after the first run and then added again as small caps
+    # generating duplicate columns and raising collision exception as duckdb is ci destination
+    duck = duckdb(naming_convention="tests.common.cases.normalizers.sql_upper")
+    pipeline = dlt.pipeline("test_dlt_columns_child_table_collisions", destination=duck)
+    customers = [
+        {"id": 1, "name": "dave", "orders": [1, 2, 3]},
+    ]
+    assert_load_info(pipeline.run(customers, table_name="CUSTOMERS"))
+    # this one would fail without bugfix
+    assert_load_info(pipeline.run(customers, table_name="CUSTOMERS"))
+
+
 def test_access_pipeline_in_resource() -> None:
     pipeline = dlt.pipeline("test_access_pipeline_in_resource", destination="duckdb")
 
@@ -2622,6 +2644,57 @@ def test_access_pipeline_in_resource() -> None:
     assert pipeline.last_trace.last_normalize_info.row_counts["user_comments"] == 3
 
 
+def test_exceed_job_file_name_length() -> None:
+    # use very long table name both for parent and for a child
+    data = {
+        "id": 1,
+        "child use very long table name both for parent and for a child use very long table name both for parent and for a child use very long table name both for parent and for a child use very long table name both for parent and for a child use very long table name both for parent and for a child": [
+            1,
+            2,
+            3,
+        ],
+        "col use very long table name both for parent and for a child use very long table name both for parent and for a child use very long table name both for parent and for a child use very long table name both for parent and for a child use very long table name both for parent and for a child": (
+            "data"
+        ),
+    }
+
+    table_name = (
+        "parent use very long table name both for parent and for a child use very long table name"
+        " both for parent and for a child use very long table name both for parent and for a child"
+        " use very long table name both for parent and for a child use very long table name both"
+        " for parent and for a child use very long table name both for parent and for a child "
+    )
+
+    pipeline = dlt.pipeline(
+        pipeline_name="test_exceed_job_file_name_length",
+        destination="duckdb",
+    )
+    # path too long
+    with pytest.raises(PipelineStepFailed) as os_err:
+        pipeline.run([data], table_name=table_name)
+    assert isinstance(os_err.value.__cause__, OSError)
+
+    # fit into 255 + 1
+    suffix_len = len(".b61d3af76c.0.insert-values")
+    pipeline = dlt.pipeline(
+        pipeline_name="test_exceed_job_file_name_length",
+        destination=duckdb(
+            max_identifier_length=255 - suffix_len + 1,
+        ),
+    )
+    # path too long
+    with pytest.raises(PipelineStepFailed):
+        pipeline.run([data], table_name=table_name)
+
+    pipeline = dlt.pipeline(
+        pipeline_name="test_exceed_job_file_name_length",
+        destination=duckdb(
+            max_identifier_length=255 - suffix_len,
+        ),
+    )
+    pipeline.run([data], table_name=table_name)
+
+
 def assert_imported_file(
     pipeline: Pipeline,
     table_name: str,
@@ -2649,3 +2722,16 @@ def assert_imported_file(
         extract_info.metrics[extract_info.loads_ids[0]][0]["table_metrics"][table_name].items_count
         == expected_rows
     )
+
+
+def test_duckdb_column_invalid_timestamp() -> None:
+    # DuckDB does not have timestamps with timezone and precision, will default to timezone
+    @dlt.resource(
+        columns={"event_tstamp": {"data_type": "timestamp", "timezone": True, "precision": 3}},
+        primary_key="event_id",
+    )
+    def events():
+        yield [{"event_id": 1, "event_tstamp": "2024-07-30T10:00:00.123+00:00"}]
+
+    pipeline = dlt.pipeline(destination="duckdb")
+    pipeline.run(events())

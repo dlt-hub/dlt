@@ -10,7 +10,7 @@ import dlt
 from dlt.common import pendulum
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
-from dlt.common.configuration.providers.toml import SECRETS_TOML_KEY
+from dlt.common.configuration.providers.vault import SECRETS_TOML_KEY
 
 DEFAULT_DATE = pendulum.datetime(2023, 4, 18, tz="Europe/Berlin")
 # Test data
@@ -212,7 +212,7 @@ def test_airflow_secrets_toml_provider_missing_variable():
             provider for provider in providers if isinstance(provider, AirflowSecretsTomlProvider)
         )
         return {
-            "airflow_secrets_toml": provider._toml.as_string(),
+            "airflow_secrets_toml": provider.to_toml(),
         }
 
     task = PythonOperator(task_id="test_task", python_callable=test_task, dag=dag)

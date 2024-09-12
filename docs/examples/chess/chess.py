@@ -56,6 +56,3 @@ if __name__ == "__main__":
     ).run(chess(max_players=5, month=9))
     # display where the data went
     print(load_info)
-
-    # make sure nothing failed
-    load_info.raise_on_failed_jobs()

@@ -5,7 +5,8 @@ import threading
 from dlt.common import logger
 from dlt.common.json import json
 from dlt.common.pendulum import pendulum
-from dlt.common.schema import Schema, TTableSchema, TSchemaTables
+from dlt.common.schema import Schema, TSchemaTables
+from dlt.common.schema.typing import C_DLT_LOAD_ID
 from dlt.common.schema.utils import (
     get_columns_names_with_prop,
     loads_table,
@@ -13,12 +14,20 @@ from dlt.common.schema.utils import (
     version_table,
 )
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.reference import TLoadJobState, LoadJob, JobClientBase, WithStateSync
+from dlt.common.destination.reference import (
+    PreparedTableSchema,
+    TLoadJobState,
+    RunnableLoadJob,
+    JobClientBase,
+    WithStateSync,
+    LoadJob,
+)
 from dlt.common.destination.exceptions import DestinationUndefinedEntity
+
 from dlt.common.storages import FileStorage
 from dlt.common.time import precise_time
 
-from dlt.destinations.job_impl import EmptyLoadJob
+from dlt.destinations.job_impl import FinalizedLoadJobWithFollowupJobs
 from dlt.destinations.job_client_impl import StorageSchemaInfo, StateInfo
 
 from dlt.destinations.utils import get_pipeline_state_query_columns
@@ -30,49 +39,49 @@ from qdrant_client.qdrant_fastembed import uuid
 from qdrant_client.http.exceptions import UnexpectedResponse
 
 
-class LoadQdrantJob(LoadJob):
+class QDrantLoadJob(RunnableLoadJob):
     def __init__(
         self,
-        table_schema: TTableSchema,
-        local_path: str,
-        db_client: QC,
+        file_path: str,
         client_config: QdrantClientConfiguration,
         collection_name: str,
     ) -> None:
-        file_name = FileStorage.get_file_name_from_file_path(local_path)
-        super().__init__(file_name)
-        self.db_client = db_client
-        self.collection_name = collection_name
-        self.embedding_fields = get_columns_names_with_prop(table_schema, VECTORIZE_HINT)
-        self.unique_identifiers = self._list_unique_identifiers(table_schema)
-        self.config = client_config
+        super().__init__(file_path)
+        self._collection_name = collection_name
+        self._config = client_config
+        self._job_client: "QdrantClient" = None
 
-        with FileStorage.open_zipsafe_ro(local_path) as f:
+    def run(self) -> None:
+        embedding_fields = get_columns_names_with_prop(self._load_table, VECTORIZE_HINT)
+        unique_identifiers = self._list_unique_identifiers(self._load_table)
+        with FileStorage.open_zipsafe_ro(self._file_path) as f:
             ids: List[str]
             docs, payloads, ids = [], [], []
 
             for line in f:
                 data = json.loads(line)
                 point_id = (
-                    self._generate_uuid(data, self.unique_identifiers, self.collection_name)
-                    if self.unique_identifiers
+                    self._generate_uuid(data, unique_identifiers, self._collection_name)
+                    if unique_identifiers
                     else str(uuid.uuid4())
                 )
                 payloads.append(data)
                 ids.append(point_id)
-                if len(self.embedding_fields) > 0:
-                    docs.append(self._get_embedding_doc(data))
+                if len(embedding_fields) > 0:
+                    docs.append(self._get_embedding_doc(data, embedding_fields))
 
-            if len(self.embedding_fields) > 0:
-                embedding_model = db_client._get_or_init_model(db_client.embedding_model_name)
+            if len(embedding_fields) > 0:
+                embedding_model = self._job_client.db_client._get_or_init_model(
+                    self._job_client.db_client.embedding_model_name
+                )
                 embeddings = list(
                     embedding_model.embed(
                         docs,
-                        batch_size=self.config.embedding_batch_size,
-                        parallel=self.config.embedding_parallelism,
+                        batch_size=self._config.embedding_batch_size,
+                        parallel=self._config.embedding_parallelism,
                     )
                 )
-                vector_name = db_client.get_vector_field_name()
+                vector_name = self._job_client.db_client.get_vector_field_name()
                 embeddings = [{vector_name: embedding.tolist()} for embedding in embeddings]
             else:
                 embeddings = [{}] * len(ids)
@@ -80,7 +89,7 @@ class LoadQdrantJob(LoadJob):
 
             self._upload_data(vectors=embeddings, ids=ids, payloads=payloads)
 
-    def _get_embedding_doc(self, data: Dict[str, Any]) -> str:
+    def _get_embedding_doc(self, data: Dict[str, Any], embedding_fields: List[str]) -> str:
         """Returns a document to generate embeddings for.
 
         Args:
@@ -89,14 +98,14 @@ class LoadQdrantJob(LoadJob):
         Returns:
             str: A concatenated string of all the fields intended for embedding.
         """
-        doc = "\n".join(str(data[key]) for key in self.embedding_fields)
+        doc = "\n".join(str(data[key]) for key in embedding_fields)
         return doc
 
-    def _list_unique_identifiers(self, table_schema: TTableSchema) -> Sequence[str]:
+    def _list_unique_identifiers(self, table_schema: PreparedTableSchema) -> Sequence[str]:
         """Returns a list of unique identifiers for a table.
 
         Args:
-            table_schema (TTableSchema): a dlt table schema.
+            table_schema (PreparedTableSchema): a dlt table schema.
 
         Returns:
             Sequence[str]: A list of unique column identifiers.
@@ -117,14 +126,14 @@ class LoadQdrantJob(LoadJob):
             vectors (Iterable[Any]): Embeddings to be uploaded to the collection
             payloads (Iterable[Any]): Payloads to be uploaded to the collection
         """
-        self.db_client.upload_collection(
-            self.collection_name,
+        self._job_client.db_client.upload_collection(
+            self._collection_name,
             ids=ids,
             payload=payloads,
             vectors=vectors,
-            parallel=self.config.upload_parallelism,
-            batch_size=self.config.upload_batch_size,
-            max_retries=self.config.upload_max_retries,
+            parallel=self._config.upload_parallelism,
+            batch_size=self._config.upload_batch_size,
+            max_retries=self._config.upload_max_retries,
         )
 
     def _generate_uuid(
@@ -142,12 +151,6 @@ class LoadQdrantJob(LoadJob):
         """
         data_id = "_".join(str(data[key]) for key in unique_identifiers)
         return str(uuid.uuid5(uuid.NAMESPACE_DNS, collection_name + data_id))
-
-    def state(self) -> TLoadJobState:
-        return "completed"
-
-    def exception(self) -> str:
-        raise NotImplementedError()
 
 
 class QdrantClient(JobClientBase, WithStateSync):
@@ -290,8 +293,7 @@ class QdrantClient(JobClientBase, WithStateSync):
         only_tables: Iterable[str] = None,
         expected_update: TSchemaTables = None,
     ) -> Optional[TSchemaTables]:
-        super().update_stored_schema(only_tables, expected_update)
-        applied_update: TSchemaTables = {}
+        applied_update = super().update_stored_schema(only_tables, expected_update)
         schema_info = self.get_stored_schema_by_hash(self.schema.stored_version_hash)
         if schema_info is None:
             logger.info(
@@ -305,6 +307,8 @@ class QdrantClient(JobClientBase, WithStateSync):
                 f"inserted at {schema_info.inserted_at} found "
                 "in storage, no upgrade required"
             )
+        # we assume that expected_update == applied_update so table schemas in dest were not
+        # externally changed
         return applied_update
 
     def get_stored_state(self, pipeline_name: str) -> Optional[StateInfo]:
@@ -313,7 +317,7 @@ class QdrantClient(JobClientBase, WithStateSync):
         """
         # normalize property names
         p_load_id = self.schema.naming.normalize_identifier("load_id")
-        p_dlt_load_id = self.schema.naming.normalize_identifier("_dlt_load_id")
+        p_dlt_load_id = self.schema.naming.normalize_identifier(C_DLT_LOAD_ID)
         p_pipeline_name = self.schema.naming.normalize_identifier("pipeline_name")
         p_created_at = self.schema.naming.normalize_identifier("created_at")
 
@@ -438,17 +442,14 @@ class QdrantClient(JobClientBase, WithStateSync):
                 return None
             raise
 
-    def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
-        return LoadQdrantJob(
-            table,
+    def create_load_job(
+        self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
+    ) -> LoadJob:
+        return QDrantLoadJob(
             file_path,
-            db_client=self.db_client,
             client_config=self.config,
             collection_name=self._make_qualified_collection_name(table["name"]),
         )
-
-    def restore_file_load(self, file_path: str) -> LoadJob:
-        return EmptyLoadJob.from_file_path(file_path, "completed")
 
     def complete_load(self, load_id: str) -> None:
         values = [load_id, self.schema.name, 0, str(pendulum.now()), self.schema.version_hash]

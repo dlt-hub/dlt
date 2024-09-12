@@ -1,21 +1,19 @@
-from copy import deepcopy
 from types import TracebackType
 from typing import ClassVar, Optional, Type, Iterable, cast, List
 
-from dlt.common.destination.reference import LoadJob
+from dlt.destinations.job_impl import FinalizedLoadJob
+from dlt.common.destination.reference import LoadJob, PreparedTableSchema
 from dlt.common.typing import AnyFun
 from dlt.common.storages.load_package import destination_state
 from dlt.common.configuration import create_resolved_partial
 
-from dlt.common.schema import Schema, TTableSchema, TSchemaTables
+from dlt.common.schema import Schema, TSchemaTables
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
-    LoadJob,
-    DoNothingJob,
     JobClientBase,
+    LoadJob,
 )
 
-from dlt.destinations.job_impl import EmptyLoadJob
 from dlt.destinations.impl.destination.configuration import CustomDestinationClientConfiguration
 from dlt.destinations.job_impl import (
     DestinationJsonlLoadJob,
@@ -56,44 +54,47 @@ class DestinationClient(JobClientBase):
     ) -> Optional[TSchemaTables]:
         return super().update_stored_schema(only_tables, expected_update)
 
-    def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
+    def create_load_job(
+        self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
+    ) -> LoadJob:
         # skip internal tables and remove columns from schema if so configured
-        skipped_columns: List[str] = []
         if self.config.skip_dlt_columns_and_tables:
             if table["name"].startswith(self.schema._dlt_tables_prefix):
-                return DoNothingJob(file_path)
-            table = deepcopy(table)
-            for column in list(table["columns"].keys()):
+                return FinalizedLoadJob(file_path)
+
+        skipped_columns: List[str] = []
+        if self.config.skip_dlt_columns_and_tables:
+            for column in list(self.schema.tables[table["name"]]["columns"].keys()):
                 if column.startswith(self.schema._dlt_tables_prefix):
-                    table["columns"].pop(column)
                     skipped_columns.append(column)
 
         # save our state in destination name scope
         load_state = destination_state()
         if file_path.endswith("parquet"):
             return DestinationParquetLoadJob(
-                table,
                 file_path,
                 self.config,
-                self.schema,
                 load_state,
                 self.destination_callable,
                 skipped_columns,
             )
         if file_path.endswith("jsonl"):
             return DestinationJsonlLoadJob(
-                table,
                 file_path,
                 self.config,
-                self.schema,
                 load_state,
                 self.destination_callable,
                 skipped_columns,
             )
         return None
 
-    def restore_file_load(self, file_path: str) -> LoadJob:
-        return EmptyLoadJob.from_file_path(file_path, "completed")
+    def prepare_load_table(self, table_name: str) -> PreparedTableSchema:
+        table = super().prepare_load_table(table_name)
+        if self.config.skip_dlt_columns_and_tables:
+            for column in list(table["columns"].keys()):
+                if column.startswith(self.schema._dlt_tables_prefix):
+                    table["columns"].pop(column)
+        return table
 
     def complete_load(self, load_id: str) -> None: ...
 

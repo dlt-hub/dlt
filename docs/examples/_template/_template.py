@@ -25,6 +25,3 @@ if __name__ == "__main__":
     # Extract, normalize, and load the data
     load_info = pipeline.run([1, 2, 3], table_name="player")
     print(load_info)
-
-    # make sure nothing failed
-    load_info.raise_on_failed_jobs()

@@ -21,81 +21,81 @@ import re
 from dlt.common import pendulum, logger
 from dlt.common.json import json
 from dlt.common.schema.typing import (
+    C_DLT_LOAD_ID,
     COLUMN_HINTS,
     TColumnType,
     TColumnSchemaBase,
-    TTableSchema,
     TTableFormat,
 )
 from dlt.common.schema.utils import (
     get_inherited_table_hint,
+    has_default_column_prop_value,
     loads_table,
     normalize_table_identifiers,
     version_table,
 )
 from dlt.common.storages import FileStorage
-from dlt.common.storages.load_package import LoadJobInfo
+from dlt.common.storages.load_package import LoadJobInfo, ParsedLoadJobFileName
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns, TSchemaTables
 from dlt.common.destination.reference import (
+    PreparedTableSchema,
     StateInfo,
     StorageSchemaInfo,
     WithStateSync,
     DestinationClientConfiguration,
     DestinationClientDwhConfiguration,
-    NewLoadJob,
+    FollowupJobRequest,
     WithStagingDataset,
-    TLoadJobState,
+    RunnableLoadJob,
     LoadJob,
     JobClientBase,
-    FollowupJob,
+    HasFollowupJobs,
     CredentialsConfiguration,
 )
 
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
-from dlt.destinations.job_impl import EmptyLoadJobWithoutFollowup, NewReferenceJob
-from dlt.destinations.sql_jobs import SqlMergeJob, SqlStagingCopyJob
+from dlt.destinations.job_impl import (
+    ReferenceFollowupJobRequest,
+)
+from dlt.destinations.sql_jobs import SqlMergeFollowupJob, SqlStagingCopyFollowupJob
 from dlt.destinations.typing import TNativeConn
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.utils import (
     get_pipeline_state_query_columns,
     info_schema_null_to_bool,
-    verify_sql_job_client_schema,
+    verify_schema_merge_disposition,
 )
 
 # this should suffice for now
 DDL_COMMANDS = ["ALTER", "CREATE", "DROP"]
 
 
-class SqlLoadJob(LoadJob):
+class SqlLoadJob(RunnableLoadJob):
     """A job executing sql statement, without followup trait"""
 
-    def __init__(self, file_path: str, sql_client: SqlClientBase[Any]) -> None:
-        super().__init__(FileStorage.get_file_name_from_file_path(file_path))
+    def __init__(self, file_path: str) -> None:
+        super().__init__(file_path)
+        self._job_client: "SqlJobClientBase" = None
+
+    def run(self) -> None:
+        self._sql_client = self._job_client.sql_client
         # execute immediately if client present
-        with FileStorage.open_zipsafe_ro(file_path, "r", encoding="utf-8") as f:
+        with FileStorage.open_zipsafe_ro(self._file_path, "r", encoding="utf-8") as f:
             sql = f.read()
 
         # Some clients (e.g. databricks) do not support multiple statements in one execute call
-        if not sql_client.capabilities.supports_multiple_statements:
-            sql_client.execute_many(self._split_fragments(sql))
+        if not self._sql_client.capabilities.supports_multiple_statements:
+            self._sql_client.execute_many(self._split_fragments(sql))
         # if we detect ddl transactions, only execute transaction if supported by client
         elif (
             not self._string_contains_ddl_queries(sql)
-            or sql_client.capabilities.supports_ddl_transactions
+            or self._sql_client.capabilities.supports_ddl_transactions
         ):
             # with sql_client.begin_transaction():
-            sql_client.execute_sql(sql)
+            self._sql_client.execute_sql(sql)
         else:
             # sql_client.execute_sql(sql)
-            sql_client.execute_many(self._split_fragments(sql))
-
-    def state(self) -> TLoadJobState:
-        # this job is always done
-        return "completed"
-
-    def exception(self) -> str:
-        # this part of code should be never reached
-        raise NotImplementedError()
+            self._sql_client.execute_many(self._split_fragments(sql))
 
     def _string_contains_ddl_queries(self, sql: str) -> bool:
         for cmd in DDL_COMMANDS:
@@ -111,27 +111,16 @@ class SqlLoadJob(LoadJob):
         return os.path.splitext(file_path)[1][1:] == "sql"
 
 
-class CopyRemoteFileLoadJob(LoadJob, FollowupJob):
+class CopyRemoteFileLoadJob(RunnableLoadJob, HasFollowupJobs):
     def __init__(
         self,
-        table: TTableSchema,
         file_path: str,
-        sql_client: SqlClientBase[Any],
         staging_credentials: Optional[CredentialsConfiguration] = None,
     ) -> None:
-        super().__init__(FileStorage.get_file_name_from_file_path(file_path))
-        self._sql_client = sql_client
+        super().__init__(file_path)
+        self._job_client: "SqlJobClientBase" = None
         self._staging_credentials = staging_credentials
-
-        self.execute(table, NewReferenceJob.resolve_reference(file_path))
-
-    def execute(self, table: TTableSchema, bucket_path: str) -> None:
-        # implement in child implementations
-        raise NotImplementedError()
-
-    def state(self) -> TLoadJobState:
-        # this job is always done
-        return "completed"
+        self._bucket_path = ReferenceFollowupJobRequest.resolve_reference(file_path)
 
 
 class SqlJobClientBase(JobClientBase, WithStateSync):
@@ -221,33 +210,40 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
         else:
             yield
 
-    def should_truncate_table_before_load(self, table: TTableSchema) -> bool:
+    def should_truncate_table_before_load(self, table_name: str) -> bool:
+        table = self.prepare_load_table(table_name)
         return (
             table["write_disposition"] == "replace"
             and self.config.replace_strategy == "truncate-and-insert"
         )
 
-    def _create_append_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
+    def _create_append_followup_jobs(
+        self, table_chain: Sequence[PreparedTableSchema]
+    ) -> List[FollowupJobRequest]:
         return []
 
-    def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
-        return [SqlMergeJob.from_table_chain(table_chain, self.sql_client)]
+    def _create_merge_followup_jobs(
+        self, table_chain: Sequence[PreparedTableSchema]
+    ) -> List[FollowupJobRequest]:
+        return [SqlMergeFollowupJob.from_table_chain(table_chain, self.sql_client)]
 
     def _create_replace_followup_jobs(
-        self, table_chain: Sequence[TTableSchema]
-    ) -> List[NewLoadJob]:
-        jobs: List[NewLoadJob] = []
+        self, table_chain: Sequence[PreparedTableSchema]
+    ) -> List[FollowupJobRequest]:
+        jobs: List[FollowupJobRequest] = []
         if self.config.replace_strategy in ["insert-from-staging", "staging-optimized"]:
             jobs.append(
-                SqlStagingCopyJob.from_table_chain(table_chain, self.sql_client, {"replace": True})
+                SqlStagingCopyFollowupJob.from_table_chain(
+                    table_chain, self.sql_client, {"replace": True}
+                )
             )
         return jobs
 
     def create_table_chain_completed_followup_jobs(
         self,
-        table_chain: Sequence[TTableSchema],
+        table_chain: Sequence[PreparedTableSchema],
         completed_table_chain_jobs: Optional[Sequence[LoadJobInfo]] = None,
-    ) -> List[NewLoadJob]:
+    ) -> List[FollowupJobRequest]:
         """Creates a list of followup jobs for merge write disposition and staging replace strategies"""
         jobs = super().create_table_chain_completed_followup_jobs(
             table_chain, completed_table_chain_jobs
@@ -261,28 +257,13 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
             jobs.extend(self._create_replace_followup_jobs(table_chain))
         return jobs
 
-    def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
+    def create_load_job(
+        self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
+    ) -> LoadJob:
         """Starts SqlLoadJob for files ending with .sql or returns None to let derived classes to handle their specific jobs"""
-        self._set_query_tags_for_job(load_id, table)
         if SqlLoadJob.is_sql_job(file_path):
-            # execute sql load job
-            return SqlLoadJob(file_path, self.sql_client)
-        return None
-
-    def restore_file_load(self, file_path: str) -> LoadJob:
-        """Returns a completed SqlLoadJob or None to let derived classes to handle their specific jobs
-
-        Returns completed jobs as SqlLoadJob is executed atomically in start_file_load so any jobs that should be recreated are already completed.
-        Obviously the case of asking for jobs that were never created will not be handled. With correctly implemented loader that cannot happen.
-
-        Args:
-            file_path (str): a path to a job file
-
-        Returns:
-            LoadJob: A restored job or none
-        """
-        if SqlLoadJob.is_sql_job(file_path):
-            return EmptyLoadJobWithoutFollowup.from_file_path(file_path, "completed")
+            # create sql load job
+            return SqlLoadJob(file_path)
         return None
 
     def complete_load(self, load_id: str) -> None:
@@ -416,7 +397,7 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
         state_table = self.sql_client.make_qualified_table_name(self.schema.state_table_name)
         loads_table = self.sql_client.make_qualified_table_name(self.schema.loads_table_name)
         c_load_id, c_dlt_load_id, c_pipeline_name, c_status = self._norm_and_escape_columns(
-            "load_id", "_dlt_load_id", "pipeline_name", "status"
+            "load_id", C_DLT_LOAD_ID, "pipeline_name", "status"
         )
         query = (
             f"SELECT {self.state_table_columns} FROM {state_table} AS s JOIN {loads_table} AS l ON"
@@ -521,11 +502,11 @@ WHERE """
         ):
             # this will skip incomplete columns
             new_columns = self._create_table_update(table_name, storage_columns)
+            generate_alter = len(storage_columns) > 0
             if len(new_columns) > 0:
                 # build and add sql to execute
-                sql_statements = self._get_table_update_sql(
-                    table_name, new_columns, len(storage_columns) > 0
-                )
+                self._check_table_update_hints(table_name, new_columns, generate_alter)
+                sql_statements = self._get_table_update_sql(table_name, new_columns, generate_alter)
                 for sql in sql_statements:
                     if not sql.endswith(";"):
                         sql += ";"
@@ -539,28 +520,36 @@ WHERE """
         return sql_updates, schema_update
 
     def _make_add_column_sql(
-        self, new_columns: Sequence[TColumnSchema], table_format: TTableFormat = None
+        self, new_columns: Sequence[TColumnSchema], table: PreparedTableSchema = None
     ) -> List[str]:
         """Make one or more ADD COLUMN sql clauses to be joined in ALTER TABLE statement(s)"""
-        return [f"ADD COLUMN {self._get_column_def_sql(c, table_format)}" for c in new_columns]
+        return [f"ADD COLUMN {self._get_column_def_sql(c, table)}" for c in new_columns]
+
+    def _make_create_table(self, qualified_name: str, table: PreparedTableSchema) -> str:
+        not_exists_clause = " "
+        if (
+            table["name"] in self.schema.dlt_table_names()
+            and self.capabilities.supports_create_table_if_not_exists
+        ):
+            not_exists_clause = " IF NOT EXISTS "
+        return f"CREATE TABLE{not_exists_clause}{qualified_name}"
 
     def _get_table_update_sql(
         self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
     ) -> List[str]:
         # build sql
-        canonical_name = self.sql_client.make_qualified_table_name(table_name)
+        qualified_name = self.sql_client.make_qualified_table_name(table_name)
         table = self.prepare_load_table(table_name)
-        table_format = table.get("table_format")
         sql_result: List[str] = []
         if not generate_alter:
             # build CREATE
-            sql = f"CREATE TABLE {canonical_name} (\n"
-            sql += ",\n".join([self._get_column_def_sql(c, table_format) for c in new_columns])
+            sql = self._make_create_table(qualified_name, table) + " (\n"
+            sql += ",\n".join([self._get_column_def_sql(c, table) for c in new_columns])
             sql += ")"
             sql_result.append(sql)
         else:
-            sql_base = f"ALTER TABLE {canonical_name}\n"
-            add_column_statements = self._make_add_column_sql(new_columns, table_format)
+            sql_base = f"ALTER TABLE {qualified_name}\n"
+            add_column_statements = self._make_add_column_sql(new_columns, table)
             if self.capabilities.alter_add_multi_column:
                 column_sql = ",\n"
                 sql_result.append(sql_base + column_sql.join(add_column_statements))
@@ -569,38 +558,41 @@ WHERE """
                 sql_result.extend(
                     [sql_base + col_statement for col_statement in add_column_statements]
                 )
+        return sql_result
 
+    def _check_table_update_hints(
+        self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
+    ) -> None:
         # scan columns to get hints
         if generate_alter:
             # no hints may be specified on added columns
             for hint in COLUMN_HINTS:
-                if any(c.get(hint, False) is True for c in new_columns):
+                if any(not has_default_column_prop_value(hint, c.get(hint)) for c in new_columns):
                     hint_columns = [
                         self.sql_client.escape_column_name(c["name"])
                         for c in new_columns
                         if c.get(hint, False)
                     ]
-                    if hint == "not_null":
+                    if hint == "null":
                         logger.warning(
                             f"Column(s) {hint_columns} with NOT NULL are being added to existing"
-                            f" table {canonical_name}. If there's data in the table the operation"
+                            f" table {table_name}. If there's data in the table the operation"
                             " will fail."
                         )
                     else:
                         logger.warning(
                             f"Column(s) {hint_columns} with hint {hint} are being added to existing"
-                            f" table {canonical_name}. Several hint types may not be added to"
+                            f" table {table_name}. Several hint types may not be added to"
                             " existing tables."
                         )
-        return sql_result
 
     @abstractmethod
-    def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:
+    def _get_column_def_sql(self, c: TColumnSchema, table: PreparedTableSchema = None) -> str:
         pass
 
     @staticmethod
-    def _gen_not_null(v: bool) -> str:
-        return "NOT NULL" if not v else ""
+    def _gen_not_null(nullable: bool) -> str:
+        return "NOT NULL" if not nullable else ""
 
     def _create_table_update(
         self, table_name: str, storage_columns: TTableSchemaColumns
@@ -671,14 +663,22 @@ WHERE """
             schema_str,
         )
 
-    def _verify_schema(self) -> None:
-        super()._verify_schema()
-        if exceptions := verify_sql_job_client_schema(self.schema, warnings=True):
+    def verify_schema(
+        self, only_tables: Iterable[str] = None, new_jobs: Iterable[ParsedLoadJobFileName] = None
+    ) -> List[PreparedTableSchema]:
+        loaded_tables = super().verify_schema(only_tables, new_jobs)
+        if exceptions := verify_schema_merge_disposition(
+            self.schema, loaded_tables, self.capabilities, warnings=True
+        ):
             for exception in exceptions:
                 logger.error(str(exception))
             raise exceptions[0]
+        return loaded_tables
 
-    def _set_query_tags_for_job(self, load_id: str, table: TTableSchema) -> None:
+    def prepare_load_job_execution(self, job: RunnableLoadJob) -> None:
+        self._set_query_tags_for_job(load_id=job._load_id, table=job._load_table)
+
+    def _set_query_tags_for_job(self, load_id: str, table: PreparedTableSchema) -> None:
         """Sets query tags in sql_client for a job in package `load_id`, starting for a particular `table`"""
         from dlt.common.pipeline import current_pipeline
 
@@ -689,7 +689,7 @@ WHERE """
                 "source": self.schema.name,
                 "resource": (
                     get_inherited_table_hint(
-                        self.schema._schema_tables, table["name"], "resource", allow_none=True
+                        self.schema.tables, table["name"], "resource", allow_none=True
                     )
                     or ""
                 ),
@@ -700,19 +700,20 @@ WHERE """
         )
 
 
-class SqlJobClientWithStaging(SqlJobClientBase, WithStagingDataset):
-    in_staging_mode: bool = False
+class SqlJobClientWithStagingDataset(SqlJobClientBase, WithStagingDataset):
+    in_staging_dataset_mode: bool = False
 
     @contextlib.contextmanager
     def with_staging_dataset(self) -> Iterator["SqlJobClientBase"]:
         try:
             with self.sql_client.with_staging_dataset():
-                self.in_staging_mode = True
+                self.in_staging_dataset_mode = True
                 yield self
         finally:
-            self.in_staging_mode = False
+            self.in_staging_dataset_mode = False
 
-    def should_load_data_to_staging_dataset(self, table: TTableSchema) -> bool:
+    def should_load_data_to_staging_dataset(self, table_name: str) -> bool:
+        table = self.prepare_load_table(table_name)
         if table["write_disposition"] == "merge":
             return True
         elif table["write_disposition"] == "replace" and (

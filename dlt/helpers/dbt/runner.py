@@ -156,11 +156,13 @@ with exec_to_stdout(f):
             i = iter_stdout_with_result(self.venv, "python", "-c", script)
             while True:
                 sys.stdout.write(next(i).strip())
+                sys.stdout.write("\n")
         except StopIteration as si:
             # return result from generator
             return si.value  # type: ignore
         except CalledProcessError as cpe:
             sys.stderr.write(cpe.stderr)
+            sys.stdout.write("\n")
             raise
 
     def run(

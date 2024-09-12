@@ -143,6 +143,25 @@ You must install additional dependencies to run {self.caller}. If you use pip yo
         return "\n".join([f'pip install "{d}"' for d in self.dependencies])
 
 
+class DependencyVersionException(DltException):
+    def __init__(
+        self, pkg_name: str, version_found: str, version_required: str, appendix: str = ""
+    ) -> None:
+        self.pkg_name = pkg_name
+        self.version_found = version_found
+        self.version_required = version_required
+        super().__init__(self._get_msg(appendix))
+
+    def _get_msg(self, appendix: str) -> str:
+        msg = (
+            f"Found `{self.pkg_name}=={self.version_found}`, while"
+            f" `{self.pkg_name}{self.version_required}` is required."
+        )
+        if appendix:
+            msg = msg + "\n" + appendix
+        return msg
+
+
 class SystemConfigurationException(DltException):
     pass
 

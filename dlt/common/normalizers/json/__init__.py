@@ -54,9 +54,9 @@ class SupportsDataItemNormalizer(Protocol):
     """A class with a name DataItemNormalizer deriving from normalizers.json.DataItemNormalizer"""
 
 
-def wrap_in_dict(item: Any) -> DictStrAny:
+def wrap_in_dict(label: str, item: Any) -> DictStrAny:
     """Wraps `item` that is not a dictionary into dictionary that can be json normalized"""
-    return {"value": item}
+    return {label: item}
 
 
 __all__ = [

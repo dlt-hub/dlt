@@ -96,7 +96,7 @@ For more information, read the guide on
    ```toml
    # put your secret values and credentials here. do not share this file and do not push it to github
    [sources.salesforce]
-   username = "please set me up!" # Salesforce user name
+   user_name = "please set me up!" # Salesforce user name
    password = "please set me up!" # Salesforce password
    security_token = "please set me up!" # Salesforce security token
    ```

@@ -68,14 +68,14 @@ jobs:
 
       # OSS ClickHouse
       - run: |
-          docker-compose -f "tests/load/clickhouse/clickhouse-compose.yml" up -d
+          docker compose -f "tests/load/clickhouse/clickhouse-compose.yml" up -d
           echo "Waiting for ClickHouse to be healthy..."
-          timeout 30s bash -c 'until docker-compose -f "tests/load/clickhouse/clickhouse-compose.yml" ps | grep -q "healthy"; do sleep 1; done'
+          timeout 30s bash -c 'until docker compose -f "tests/load/clickhouse/clickhouse-compose.yml" ps | grep -q "healthy"; do sleep 1; done'
           echo "ClickHouse is up and running"
         name: Start ClickHouse OSS
 
 
-      - run: poetry run pytest tests/load -m "essential"
+      - run: poetry run pytest tests/load --ignore tests/load/sources -m "essential"
         name: Run essential tests Linux (ClickHouse OSS)
         if: ${{ ! (contains(github.event.pull_request.labels.*.name, 'ci full') || github.event_name == 'schedule')}}
         env:
@@ -87,7 +87,7 @@ jobs:
           DESTINATION__CLICKHOUSE__CREDENTIALS__HTTP_PORT: 8123
           DESTINATION__CLICKHOUSE__CREDENTIALS__SECURE: 0
 
-      - run: poetry run pytest tests/load
+      - run: poetry run pytest tests/load --ignore tests/load/sources
         name: Run all tests Linux (ClickHouse OSS)
         if: ${{ contains(github.event.pull_request.labels.*.name, 'ci full') || github.event_name == 'schedule'}}
         env:
@@ -101,16 +101,16 @@ jobs:
 
       - name: Stop ClickHouse OSS
         if: always()
-        run: docker-compose -f "tests/load/clickhouse/clickhouse-compose.yml" down -v
+        run: docker compose -f "tests/load/clickhouse/clickhouse-compose.yml" down -v
 
       # ClickHouse Cloud
       - run: |
-          poetry run pytest tests/load -m "essential"
+          poetry run pytest tests/load --ignore tests/load/sources -m "essential"
         name: Run essential tests Linux (ClickHouse Cloud)
         if: ${{ ! (contains(github.event.pull_request.labels.*.name, 'ci full') || github.event_name == 'schedule')}}
 
       - run: |
-          poetry run pytest tests/load
+          poetry run pytest tests/load --ignore tests/load/sources
         name: Run all tests Linux (ClickHouse Cloud)
         if: ${{ contains(github.event.pull_request.labels.*.name, 'ci full') || github.event_name == 'schedule'}}
 
