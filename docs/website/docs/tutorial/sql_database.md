@@ -258,7 +258,7 @@ In the first run of the pipeline `python sql_database_pipeline.py`, the entire t
 
 Congratulations on completing the tutorial! You learned how to set up a SQL Database source in dlt and run a data pipeline to load the data into DuckDB.  
   
-Interested in learning more about `dlt`? Here are some suggestions:
+Interested in learning more about dlt? Here are some suggestions:
 - Learn more about the SQL Database source configuration in [the SQL Database source reference](../dlt-ecosystem/verified-sources/sql_database)
 - Learn more about different credential types in [Built-in credentials](../general-usage/credentials/complex_types#built-in-credentials)
 - Learn how to [create a custom source](./load-data-from-an-api.md) in the advanced tutorial  
