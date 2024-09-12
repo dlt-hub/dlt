@@ -305,7 +305,7 @@ After executing this code, you'll see a new column in the `encounters` table:
 
 ## 9. Load any other type of files
 
-`dlt` natively supports three file types: `csv`, `parquet`, and `jsonl` (more details in [filesystem transformer resource](../dlt-ecosystem/filesystem/basic#2-choose-the-right-transformer-resource)). But you can easily create your own. In order to do this, you just need a function that takes as input a `FileItemDict` iterator and yields a list of records (recommended for performance) or individual records.
+`dlt` natively supports three file types: `csv`, `parquet`, and `jsonl` (more details in [filesystem transformer resource](../dlt-ecosystem/verified-sources/filesystem/basic#2-choose-the-right-transformer-resource)). But you can easily create your own. In order to do this, you just need a function that takes as input a `FileItemDict` iterator and yields a list of records (recommended for performance) or individual records.
 
 Let's create and apply a transformer that reads `json` files instead of `csv` (the implementation for `json` is a little bit different from `jsonl`).
 
