@@ -1,5 +1,5 @@
-from copy import deepcopy
 from typing import TypedDict, cast, Any, Optional, Dict
+from typing_extensions import Self
 
 from dlt.common import logger
 from dlt.common.schema.typing import (
@@ -222,7 +222,7 @@ class DltResourceHints:
         table_format: TTableHintTemplate[TTableFormat] = None,
         file_format: TTableHintTemplate[TFileFormat] = None,
         create_table_variant: bool = False,
-    ) -> None:
+    ) -> Self:
         """Creates or modifies existing table schema by setting provided hints. Accepts both static and dynamic hints based on data.
 
         If `create_table_variant` is specified, the `table_name` must be a string and hints will be used to create a separate set of hints
@@ -238,6 +238,8 @@ class DltResourceHints:
 
         Please note that for efficient incremental loading, the resource must be aware of the Incremental by accepting it as one if its arguments and then using are to skip already loaded data.
         In non-aware resources, `dlt` will filter out the loaded values, however, the resource will yield all the values again.
+
+        Returns: self for chaining
         """
         if create_table_variant:
             if not isinstance(table_name, str):
@@ -344,6 +346,7 @@ class DltResourceHints:
             t["incremental"] = incremental
 
         self._set_hints(t, create_table_variant)
+        return self
 
     def _set_hints(
         self, hints_template: TResourceHints, create_table_variant: bool = False
@@ -403,7 +406,6 @@ class DltResourceHints:
         if hints_template is None:
             return None
         # creates a deep copy of dict structure without actually copying the objects
-        # deepcopy(hints_template) #
         return clone_dict_nested(hints_template)  # type: ignore[type-var]
 
     @staticmethod
