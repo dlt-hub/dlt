@@ -53,7 +53,7 @@ When deploying your pipeline in a production environment, managing all configura
 
 ## 2. Creating the pipeline
 
-Filesystem source provides users with building blocks for loading data from any type of files. You can break down the data extraction into two steps:
+The filesystem source provides users with building blocks for loading data from any type of files. You can break down the data extraction into two steps:
 
 1. Accessing files in the bucket / directory.
 2. Reading the files and yielding records.
@@ -69,8 +69,8 @@ Let's initialize a source and create a pipeline for loading `csv` files from Goo
 import dlt
 from dlt.sources.filesystem import filesystem, read_csv
 
-files = filesystem(bucket_url="generic_hospital_data", file_glob="encounters*.csv")
-reader = (files | read_csv()).with_name(encounters)
+files = filesystem(bucket_url="gs://filesystem-tutorial", file_glob="encounters*.csv")
+reader = (files | read_csv()).with_name("encounters")
 pipeline = dlt.pipeline(pipeline_name="hospital_data_pipeline", dataset_name="hospital_data", destination="duckdb")
 info = pipeline.run(reader)
 print(info)
@@ -88,6 +88,15 @@ A **transformer** in `dlt` is a special type of resource that processes each rec
 3. We create the `dlt` pipeline with the name `hospital_data_pipeline` and DuckDB destination and run this pipeline.
 
 ## 3. Configuring filesystem source
+
+:::note
+In this tutorial we will work with publicly accessed dataset [Hospital Patient Records](https://mavenanalytics.io/data-playground?order=date_added%2Cdesc&search=Hospital%20Patient%20Records)
+synthetic electronic health care records. You can use the exact credentials from this tutorial to load this dataset from GCP.
+<details>
+<summary>Citation</summary>
+Jason Walonoski, Mark Kramer, Joseph Nichols, Andre Quina, Chris Moesel, Dylan Hall, Carlton Duffett, Kudakwashe Dube, Thomas Gallagher, Scott McLachlan, Synthea: An approach, method, and software mechanism for generating synthetic patients and the synthetic electronic health care record, Journal of the American Medical Informatics Association, Volume 25, Issue 3, March 2018, Pages 230–238, https://doi.org/10.1093/jamia/ocx079
+</details>
+:::
 
 Next, we need to configure the connection. Specifically, we’ll set the bucket URL and credentials. This example focuses on Google Cloud Storage. For other Cloud Storage services, see the [Filesystem configuration section](../dlt-ecosystem/verified-sources/filesystem/basic#configuration).
 
@@ -107,23 +116,23 @@ Let's specify the bucket URL and credentials:
 ```toml
 # secrets.toml
 [sources.filesystem.credentials]
-client_email = "vio-test@dlthub-sandbox.iam.gserviceaccount.com"
+client_email = "public-access@dlthub-sandbox.iam.gserviceaccount.com"
 project_id = "dlthub-sandbox"
-private_key = "-----BEGIN PRIVATE"
+private_key = "-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQDGWsVHJRjliojx\nTo+j1qu+x8PzC5ZHZrMx6e8OD6tO8uxMyl65ByW/4FZkVXkS4SF/UYPigGN+rel4\nFmySTbP9orva4t3Pk1B9YSvQMB7V5IktmTIW9Wmdmn5Al8Owb1RehgIidm1EX/Z9\nLr09oLpO6+jUu9RIP2Lf2mVQ6tvkgl7UOdpdGACSNGzRiZgVZDOaDIgH0Tl4UWmK\n6iPxhwZy9YC2B1beLB/NU+F6DUykrEpBzCFQTqFoTUcuDAEvuvpU9JrU2iBMiOGw\nuP3TYSiudhBjmauEUWaMiqWAgFeX5ft1vc7/QWLdI//SAjaiTAu6pTer29Q0b6/5\niGh0jRXpAgMBAAECggEAL8G9C9MXunRvYkH6/YR7F1T7jbH1fb1xWYwsXWNSaJC+\nagKzabMZ2KfHxSJ7IxuHOCNFMKyex+pRcvNbMqJ4upGKzzmeFBMw5u8VYGulkPQU\nPyFKWRK/Wg3PZffkSr+TPargKrH+vt6n9x3gvEzNbqEIDugmRTrVsHXhvOi/BrYc\nWhppHSVQidWZi5KVwDEPJjDQiHEcYI/vfIy1WhZ8VuPAaE5nMZ1m7gTdeaWWKIAj\n/p2ZkLgRdCY8vNkfaNDAxDbvH+CMuTtOw55GydzsYYiofANS6xZ8CedGkYaGi82f\nqGdLghX61Sg3UAb5SI36T/9XbuCpTf3B/SMV20ew8QKBgQDm2yUxL71UqI/xK9LS\nHWnqfHpKmHZ+U9yLvp3v79tM8XueSRKBTJJ4H+UvVQrXlypT7cUEE+sGpTrCcDGL\nm8irtdUmMvdi7AnRBgmWdYKig/kgajLOUrjXqFt/BcFgqMyTfzqPt3xdp6F3rSEK\nHE6PQ8I3pJ0BJOSJRa6Iw2VH1QKBgQDb9WbVFjYwTIKJOV4J2plTK581H8PI9FSt\nUASXcoMTixybegk8beGdwfm2TkyF/UMzCvHfuaUhf+S0GS5Zk31Wkmh1YbmFU4Q9\nm9K/3eoaqF7CohpigB0wJw4HfqNh6Qt+nICOMCv++gw7+/UwfV72dCqr0lpzfX5F\nAsez8igTxQKBgDsq/axOnQr+rO3WGpGJwmS8BKfrzarxGXyjnV0qr51X4yQdfGWx\nV3T8T8RC2qWI8+tQ7IbwB/PLE3VURg6PHe6MixXgSDGNZ7KwBnMOqS23/3kEXwMs\nhn2Xg+PZeMeqW8yN9ldxYqmqViMTN32c5bGoXzXdtfPeHcjlGCerVOEFAoGADVPi\nRjkRUX3hTvVF6Gzxa2OyQuLI1y1O0C2QCakrngyI0Dblxl6WFBwDyHMYGepNnxMj\nsr2p7sy0C+GWuGDCcHNwluQz/Ish8SW28F8+5xyamUp/NMa0fg1vwS6AMdeQFbzf\n4T2z/MAj66KJqcV+8on5Z+3YAzVwaDgR56pdmU0CgYBo2KWcNWAhZ1Qa6sNrITLV\nGlxg6tWP3OredZrmKb1kj5Tk0V+EwVN+HnKzMalv6yyyK7SWq1Z6rvCye37vy27q\nD7xfuz0c0H+48uWJpdLcsxpTioopsRPayiVDKlHSe/Qa+MEjAG3ded5TJiC+5iSw\nxWJ51y0wpme0LWgzzoLbRw==\n-----END PRIVATE KEY-----\n"
 
 # config.toml
 [sources.filesystem]
-bucket_url="gc://generic_hospital_data"
+bucket_url="gs://filesystem-tutorial"
 ```
   </TabItem>
 
 <TabItem value="env">
 
 ```sh
-export SOURCES__FILESYSTEM__CREDENTIALS__CLIENT_EMAIL="vio-test@dlthub-sandbox.iam.gserviceaccount.com"
+export SOURCES__FILESYSTEM__CREDENTIALS__CLIENT_EMAIL="public-access@dlthub-sandbox.iam.gserviceaccount.com"
 export SOURCES__FILESYSTEM__CREDENTIALS__PROJECT_ID="dlthub-sandbox"
-export SOURCES__FILESYSTEM__CREDENTIALS__PRIVATE_KEY="-----BEGIN PRIVATE"
-export SOURCES__FILESYSTEM__BUCKET_URL="gc://generic_hospital_data"
+export SOURCES__FILESYSTEM__CREDENTIALS__PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQDGWsVHJRjliojx\nTo+j1qu+x8PzC5ZHZrMx6e8OD6tO8uxMyl65ByW/4FZkVXkS4SF/UYPigGN+rel4\nFmySTbP9orva4t3Pk1B9YSvQMB7V5IktmTIW9Wmdmn5Al8Owb1RehgIidm1EX/Z9\nLr09oLpO6+jUu9RIP2Lf2mVQ6tvkgl7UOdpdGACSNGzRiZgVZDOaDIgH0Tl4UWmK\n6iPxhwZy9YC2B1beLB/NU+F6DUykrEpBzCFQTqFoTUcuDAEvuvpU9JrU2iBMiOGw\nuP3TYSiudhBjmauEUWaMiqWAgFeX5ft1vc7/QWLdI//SAjaiTAu6pTer29Q0b6/5\niGh0jRXpAgMBAAECggEAL8G9C9MXunRvYkH6/YR7F1T7jbH1fb1xWYwsXWNSaJC+\nagKzabMZ2KfHxSJ7IxuHOCNFMKyex+pRcvNbMqJ4upGKzzmeFBMw5u8VYGulkPQU\nPyFKWRK/Wg3PZffkSr+TPargKrH+vt6n9x3gvEzNbqEIDugmRTrVsHXhvOi/BrYc\nWhppHSVQidWZi5KVwDEPJjDQiHEcYI/vfIy1WhZ8VuPAaE5nMZ1m7gTdeaWWKIAj\n/p2ZkLgRdCY8vNkfaNDAxDbvH+CMuTtOw55GydzsYYiofANS6xZ8CedGkYaGi82f\nqGdLghX61Sg3UAb5SI36T/9XbuCpTf3B/SMV20ew8QKBgQDm2yUxL71UqI/xK9LS\nHWnqfHpKmHZ+U9yLvp3v79tM8XueSRKBTJJ4H+UvVQrXlypT7cUEE+sGpTrCcDGL\nm8irtdUmMvdi7AnRBgmWdYKig/kgajLOUrjXqFt/BcFgqMyTfzqPt3xdp6F3rSEK\nHE6PQ8I3pJ0BJOSJRa6Iw2VH1QKBgQDb9WbVFjYwTIKJOV4J2plTK581H8PI9FSt\nUASXcoMTixybegk8beGdwfm2TkyF/UMzCvHfuaUhf+S0GS5Zk31Wkmh1YbmFU4Q9\nm9K/3eoaqF7CohpigB0wJw4HfqNh6Qt+nICOMCv++gw7+/UwfV72dCqr0lpzfX5F\nAsez8igTxQKBgDsq/axOnQr+rO3WGpGJwmS8BKfrzarxGXyjnV0qr51X4yQdfGWx\nV3T8T8RC2qWI8+tQ7IbwB/PLE3VURg6PHe6MixXgSDGNZ7KwBnMOqS23/3kEXwMs\nhn2Xg+PZeMeqW8yN9ldxYqmqViMTN32c5bGoXzXdtfPeHcjlGCerVOEFAoGADVPi\nRjkRUX3hTvVF6Gzxa2OyQuLI1y1O0C2QCakrngyI0Dblxl6WFBwDyHMYGepNnxMj\nsr2p7sy0C+GWuGDCcHNwluQz/Ish8SW28F8+5xyamUp/NMa0fg1vwS6AMdeQFbzf\n4T2z/MAj66KJqcV+8on5Z+3YAzVwaDgR56pdmU0CgYBo2KWcNWAhZ1Qa6sNrITLV\nGlxg6tWP3OredZrmKb1kj5Tk0V+EwVN+HnKzMalv6yyyK7SWq1Z6rvCye37vy27q\nD7xfuz0c0H+48uWJpdLcsxpTioopsRPayiVDKlHSe/Qa+MEjAG3ded5TJiC+5iSw\nxWJ51y0wpme0LWgzzoLbRw==\n-----END PRIVATE KEY-----\n"
+export SOURCES__FILESYSTEM__BUCKET_URL="gs://filesystem-tutorial"
 ```
   </TabItem>
 
@@ -136,11 +145,11 @@ from dlt.common.configuration.specs import GcpClientCredentials
 from dlt.sources.filesystem import filesystem, read_csv
 
 files = filesystem(
-    bucket_url="gc://generic_hospital_data",
+    bucket_url="gs://filesystem-tutorial",
     # please, do not specify sensitive information directly in the code,
     # instead, you can use env variables to get the credentials
     credentials=GcpClientCredentials(
-        client_email="vio-test@dlthub-sandbox.iam.gserviceaccount.com",
+        client_email="public-access@dlthub-sandbox.iam.gserviceaccount.com",
         project_id="dlthub-sandbox",
         private_key=os.environ["GCP_PRIVATE_KEY"]
     ),
@@ -207,7 +216,7 @@ To enable data deduplication, we also should specify a `primary_key` or `merge_k
 import dlt
 from dlt.sources.filesystem import filesystem, read_csv
 
-files = filesystem(bucket_url="generic_hospital_data", file_glob="encounters*.csv")
+files = filesystem(file_glob="encounters*.csv")
 reader = (files | read_csv()).with_name("encounters")
 reader.apply_hints(primary_key="id")
 pipeline = dlt.pipeline(pipeline_name="hospital_data_pipeline", dataset_name="hospital_data", destination="duckdb")
@@ -228,7 +237,7 @@ When loading data from files, you often only want to load files that have been m
 import dlt
 from dlt.sources.filesystem import filesystem, read_csv
 
-files = filesystem(bucket_url="generic_hospital_data", file_glob="encounters*.csv")
+files = filesystem(file_glob="encounters*.csv")
 files.apply_hints(incremental=dlt.sources.incremental("modification_date"))
 reader = (files | read_csv()).with_name("encounters")
 reader.apply_hints(primary_key="id")
@@ -245,7 +254,7 @@ But what if we not only want to process modified files, but we also want to load
 import dlt
 from dlt.sources.filesystem import filesystem, read_csv
 
-files = filesystem(bucket_url="generic_hospital_data", file_glob="encounters*.csv")
+files = filesystem(file_glob="encounters*.csv")
 files.apply_hints(incremental=dlt.sources.incremental("modification_date"))
 reader = (files | read_csv()).with_name("encounters")
 reader.apply_hints(primary_key="id", incremental=dlt.sources.incremental("STOP"))
@@ -290,7 +299,7 @@ def read_csv_custom(items: Iterator[FileItemDict], chunksize: int = 10000, **pan
                 df["file_name"] = file_obj["file_name"]
                 yield df.to_dict(orient="records")
 
-files = filesystem(bucket_url="generic_hospital_data", file_glob="encounters*.csv")
+files = filesystem(file_glob="encounters*.csv")
 files.apply_hints(incremental=dlt.sources.incremental("modification_date"))
 reader = (files | read_csv_custom()).with_name("encounters")
 reader.apply_hints(primary_key="id", incremental=dlt.sources.incremental("STOP"))
@@ -337,10 +346,10 @@ Check out [other examples](../dlt-ecosystem/verified-sources/filesystem/advanced
 
 ## What's next?
 
-Congratulations on completing the tutorial! You've learned how to set up a Filesystem source in `dlt` and run a data pipeline to load the data into DuckDB.
+Congratulations on completing the tutorial! You've learned how to set up a filesystem source in `dlt` and run a data pipeline to load the data into DuckDB.
 
 Interested in learning more about `dlt`? Here are some suggestions:
 
-- Learn more about the Filesystem source configuration in [Filesystem source](../dlt-ecosystem/verified-sources/filesystem)
+- Learn more about the filesystem source configuration in [filesystem source](../dlt-ecosystem/verified-sources/filesystem)
 - Learn more about different credential types in [Built-in credentials](../general-usage/credentials/complex_types#built-in-credentials)
 - Learn how to [create a custom source](./load-data-from-an-api.md) in the advanced tutorial
