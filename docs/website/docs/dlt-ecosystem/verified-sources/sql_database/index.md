@@ -1,6 +1,6 @@
 ---
 title: 30+ SQL Databases
-description: dlt pipeline for SQL Database
+description: PostgreSQL, MySQL, MS SQL Server, BigQuery, Redshift, and more
 keywords: [sql connector, sql database pipeline, sql database]
 ---
 import Header from '../_source-info-header.md';

@@ -54,7 +54,7 @@ certain range.
     ```py
     source = sql_database().with_resources("family")
     #using the "last_modified" field as an incremental field using initial value of midnight January 1, 2024
-    source.family.apply_hints(incremental=dlt.sources.incremental("updated"),initial_value=pendulum.DateTime(2024, 1, 1, 0, 0, 0))
+    source.family.apply_hints(incremental=dlt.sources.incremental("updated", initial_value=pendulum.DateTime(2022, 1, 1, 0, 0, 0)))
     #running the pipeline
     info = pipeline.run(source, write_disposition="merge")
     print(info)
@@ -83,7 +83,7 @@ The `reflection_level` argument controls how much information is reflected:
 - `reflection_level = "full"`: Column names, nullability, and data types are detected. For decimal types we always add precision and scale. **This is the default.**
 - `reflection_level = "full_with_precision"`: Column names, nullability, data types, and precision/scale are detected, also for types like text and binary. Integer sizes are set to bigint and to int for all other types.
 
-If the SQL type is unknown or not supported by `dlt`, then, in the pyarrow backend, the column will be skipped, whereas in the other backends the type will be inferred directly from the data irrespective of the `reflection_level` specified. In the latter case, this often means that some types are coerced to strings and  `dataclass` based values from sqlalchemy are inferred as `complex` (JSON in most destinations).  
+If the SQL type is unknown or not supported by `dlt`, then, in the pyarrow backend, the column will be skipped, whereas in the other backends the type will be inferred directly from the data irrespective of the `reflection_level` specified. In the latter case, this often means that some types are coerced to strings and  `dataclass` based values from sqlalchemy are inferred as `json` (JSON in most destinations).  
 :::tip
 If you use reflection level **full** / **full_with_precision** you may encounter a situation where the data returned by sqlalchemy or pyarrow backend does not match the reflected data types. Most common symptoms are:
 1. The destination complains that it cannot cast one type to another for a certain column. For example `connector-x` returns TIME in nanoseconds
