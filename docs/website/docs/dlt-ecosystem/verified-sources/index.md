@@ -12,7 +12,7 @@ Planning to use `dlt` in production and need a source that isn't listed? We're h
 ### Core sources
 
 <DocCardList items={useCurrentSidebarCategory().items.filter(
-item => item.label === '30+ SQL Databases' || item.label === 'REST API generic source' || item.label === 'Filesystem & buckets'
+item => item.label === '30+ SQL Databases' || item.label === 'REST APIs' || item.label === 'Filesystem & buckets'
 )} />
 
 ### Verified sources

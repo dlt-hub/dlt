@@ -85,7 +85,19 @@ const sidebars = {
         'dlt-ecosystem/verified-sources/personio',
         'dlt-ecosystem/verified-sources/pg_replication',
         'dlt-ecosystem/verified-sources/pipedrive',
-        'dlt-ecosystem/verified-sources/rest_api',
+        {
+          type: 'category',
+          label: 'REST APIs',
+          description:'Load data from any REST API',
+           link: {
+            type: 'doc',
+            id: 'dlt-ecosystem/verified-sources/rest_api/index',
+          },
+          items: [
+            'dlt-ecosystem/verified-sources/rest_api/basic',
+            'dlt-ecosystem/verified-sources/rest_api/advanced',
+          ]
+        },
         'dlt-ecosystem/verified-sources/openapi-generator',
         'dlt-ecosystem/verified-sources/salesforce',
         'dlt-ecosystem/verified-sources/scrapy',
