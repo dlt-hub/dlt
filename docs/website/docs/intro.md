@@ -18,7 +18,7 @@ dlt is designed to be easy to use, flexible, and scalable:
 
 - dlt infers [schemas](./general-usage/schema) and [data types](./general-usage/schema/#data-types), [normalizes the data](./general-usage/schema/#data-normalizer), and handles nested data structures.
 - dlt supports a variety of [popular destinations](./dlt-ecosystem/destinations/) and has an interface to add [custom destinations](./dlt-ecosystem/destinations/destination) to create reverse ETL pipelines.
-- Use dlt locally or [in the cloud](./walkthroughs/deploy-a-pipeline) to build data pipelines, data lakes, and data warehouses. Run it on [Airflow](./walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer), [serverless functions](./walkthroughs/deploy-a-pipeline/deploy-with-google-cloud-functions), or [Jupyter notebooks and colabs](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing). No external APIs, backends, or containers are required.
+- dlt can be deployed anywhere Python runs, be it on [Airflow](./walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer, [serverless functions](./walkthroughs/deploy-a-pipeline/deploy-with-google-cloud-functions) or any other cloud deployment of your choice.
 - dlt automates pipeline maintenance with [schema evolution](./general-usage/schema-evolution) and [schema and data contracts](./general-usage/schema-contracts).
 
 To get started with dlt, install the library using pip:
