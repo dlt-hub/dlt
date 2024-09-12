@@ -22,7 +22,7 @@ To make it easy to reproduce, we will be loading data from the [public MySQL RFa
 
 ## 1. Create a new dlt project
 
-Initialize a new `dlt` project in your current working directory using the `dlt init` command:
+Initialize a new dlt project in your current working directory using the `dlt init` command:
 
 ```sh
 dlt init sql_database duckdb
