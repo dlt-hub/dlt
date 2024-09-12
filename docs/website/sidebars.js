@@ -40,6 +40,7 @@ const sidebars = {
       items: [
         'tutorial/load-data-from-an-api',
         'tutorial/grouping-resources',
+        'tutorial/sql_database'
       ]
     },
     {
