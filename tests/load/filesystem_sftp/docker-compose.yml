@@ -12,9 +12,9 @@ services:
     ports:
       - "2222:22"
     volumes:
-      - ../../common/storages/samples:/home/foo/sftp/data/samples
-      - ../../common/storages/samples:/home/bobby/sftp/data/samples  
-      - ../../common/storages/samples:/home/billy/sftp/data/samples  
+      - ../../common/storages/samples:/home/foo/sftp/data/standard_source/samples
+      - ../../common/storages/samples:/home/bobby/sftp/data/standard_source/samples  
+      - ../../common/storages/samples:/home/billy/sftp/data/standard_source/samples  
 
 networks:
   sftpserver:

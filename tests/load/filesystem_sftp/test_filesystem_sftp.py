@@ -6,10 +6,7 @@ import dlt
 from dlt.common.json import json
 from dlt.common.configuration.inject import with_config
 from dlt.common.storages import FilesystemConfiguration, fsspec_from_config
-from dlt.common.storages.fsspec_filesystem import glob_files
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
-
-from tests.common.storages.utils import assert_sample_files
 
 
 @with_config(spec=FilesystemConfiguration, sections=("sources", "filesystem"))
@@ -121,30 +118,8 @@ def test_filesystem_sftp_write(sftp_filesystem):
         assert sorted(result_states) == sorted(expected_states)
 
 
-@pytest.mark.parametrize("load_content", (True, False))
-@pytest.mark.parametrize("glob_filter", ("**", "**/*.csv", "*.txt", "met_csv/A803/*.csv"))
-def test_filesystem_sftp_read(load_content: bool, glob_filter: str) -> None:
-    # docker volume mount on: /home/foo/sftp/data/samples but /data/samples is the path in the SFTP server
-    os.environ["SOURCES__FILESYSTEM__BUCKET_URL"] = "sftp://localhost/data/samples"
-    os.environ["SOURCES__FILESYSTEM__CREDENTIALS__SFTP_PORT"] = "2222"
-    os.environ["SOURCES__FILESYSTEM__CREDENTIALS__SFTP_USERNAME"] = "foo"
-    os.environ["SOURCES__FILESYSTEM__CREDENTIALS__SFTP_KEY_FILENAME"] = get_key_path()
-
-    config = get_config()
-    fs, _ = fsspec_from_config(config)
-
-    files = fs.ls("/data/samples")
-
-    assert len(files) > 0
-    # use glob to get data
-    all_file_items = list(glob_files(fs, config.bucket_url, file_glob=glob_filter))
-
-    print(all_file_items)
-    assert_sample_files(all_file_items, fs, config, load_content, glob_filter)
-
-
 def test_filesystem_sftp_auth_useranme_password():
-    os.environ["SOURCES__FILESYSTEM__BUCKET_URL"] = "sftp://localhost/data/samples"
+    os.environ["SOURCES__FILESYSTEM__BUCKET_URL"] = "sftp://localhost/data/standard_source/samples"
     os.environ["SOURCES__FILESYSTEM__CREDENTIALS__SFTP_PORT"] = "2222"
     os.environ["SOURCES__FILESYSTEM__CREDENTIALS__SFTP_USERNAME"] = "foo"
     os.environ["SOURCES__FILESYSTEM__CREDENTIALS__SFTP_PASSWORD"] = "pass"
@@ -152,12 +127,12 @@ def test_filesystem_sftp_auth_useranme_password():
     config = get_config()
     fs, _ = fsspec_from_config(config)
 
-    files = fs.ls("/data/samples")
+    files = fs.ls("/data/standard_source/samples")
     assert len(files) > 0
 
 
 def test_filesystem_sftp_auth_private_key():
-    os.environ["SOURCES__FILESYSTEM__BUCKET_URL"] = "sftp://localhost/data/samples"
+    os.environ["SOURCES__FILESYSTEM__BUCKET_URL"] = "sftp://localhost"
     os.environ["SOURCES__FILESYSTEM__CREDENTIALS__SFTP_PORT"] = "2222"
     os.environ["SOURCES__FILESYSTEM__CREDENTIALS__SFTP_USERNAME"] = "foo"
     os.environ["SOURCES__FILESYSTEM__CREDENTIALS__SFTP_KEY_FILENAME"] = get_key_path()
@@ -165,13 +140,12 @@ def test_filesystem_sftp_auth_private_key():
     config = get_config()
     fs, _ = fsspec_from_config(config)
 
-    files = fs.ls("/data/samples")
-
+    files = fs.ls("/data/standard_source/samples")
     assert len(files) > 0
 
 
 def test_filesystem_sftp_auth_private_key_protected():
-    os.environ["SOURCES__FILESYSTEM__BUCKET_URL"] = "sftp://localhost/data/samples"
+    os.environ["SOURCES__FILESYSTEM__BUCKET_URL"] = "sftp://localhost"
     os.environ["SOURCES__FILESYSTEM__CREDENTIALS__SFTP_PORT"] = "2222"
     os.environ["SOURCES__FILESYSTEM__CREDENTIALS__SFTP_USERNAME"] = "bobby"
     os.environ["SOURCES__FILESYSTEM__CREDENTIALS__SFTP_KEY_FILENAME"] = get_key_path("bobby")
@@ -180,7 +154,7 @@ def test_filesystem_sftp_auth_private_key_protected():
     config = get_config()
     fs, _ = fsspec_from_config(config)
 
-    files = fs.ls("/data/samples")
+    files = fs.ls("/data/standard_source/samples")
 
     assert len(files) > 0
 
@@ -195,7 +169,7 @@ def test_filesystem_sftp_auth_private_key_protected():
     reason="SSH agent is not running or bobby's private key isn't stored in ~/.ssh/id_rsa",
 )
 def test_filesystem_sftp_auth_private_ssh_agent():
-    os.environ["SOURCES__FILESYSTEM__BUCKET_URL"] = "sftp://localhost/data/samples"
+    os.environ["SOURCES__FILESYSTEM__BUCKET_URL"] = "sftp://localhost"
     os.environ["SOURCES__FILESYSTEM__CREDENTIALS__SFTP_PORT"] = "2222"
     os.environ["SOURCES__FILESYSTEM__CREDENTIALS__SFTP_USERNAME"] = "bobby"
     os.environ["SOURCES__FILESYSTEM__CREDENTIALS__SFTP_PASSWORD"] = "passphrase123"
@@ -203,13 +177,13 @@ def test_filesystem_sftp_auth_private_ssh_agent():
     config = get_config()
     fs, _ = fsspec_from_config(config)
 
-    files = fs.ls("/data/samples")
+    files = fs.ls("/data/standard_source/samples")
 
     assert len(files) > 0
 
 
 def test_filesystem_sftp_auth_ca_signed_pub_key():
-    os.environ["SOURCES__FILESYSTEM__BUCKET_URL"] = "sftp://localhost/data/samples"
+    os.environ["SOURCES__FILESYSTEM__BUCKET_URL"] = "sftp://localhost"
     os.environ["SOURCES__FILESYSTEM__CREDENTIALS__SFTP_PORT"] = "2222"
     os.environ["SOURCES__FILESYSTEM__CREDENTIALS__SFTP_USERNAME"] = "billy"
     os.environ["SOURCES__FILESYSTEM__CREDENTIALS__SFTP_KEY_FILENAME"] = get_key_path(
@@ -219,6 +193,6 @@ def test_filesystem_sftp_auth_ca_signed_pub_key():
     config = get_config()
     fs, _ = fsspec_from_config(config)
 
-    files = fs.ls("/data/samples")
+    files = fs.ls("/data/standard_source/samples")
 
     assert len(files) > 0

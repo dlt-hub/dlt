@@ -59,7 +59,7 @@ FileSystemCredentials = Union[
 
 def _make_sftp_url(scheme: str, fs_path: str, bucket_url: str) -> str:
     parsed_bucket_url = urlparse(bucket_url)
-    return f"{scheme}://{parsed_bucket_url.hostname}/{fs_path}"
+    return f"{scheme}://{parsed_bucket_url.hostname}{fs_path}"
 
 
 def _make_az_url(scheme: str, fs_path: str, bucket_url: str) -> str:
