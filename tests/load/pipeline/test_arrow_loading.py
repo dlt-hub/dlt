@@ -156,7 +156,7 @@ def test_load_arrow_item(
 
     for row in expected:
         for i in range(len(row)):
-            if isinstance(row[i], datetime):
+            if isinstance(row[i], (datetime, dt_time)):
                 row[i] = reduce_pendulum_datetime_precision(
                     row[i], pipeline.destination.capabilities().timestamp_precision
                 )
