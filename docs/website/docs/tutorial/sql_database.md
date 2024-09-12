@@ -49,7 +49,7 @@ Here’s what each file does:
     - `config.toml`: This file contains the configuration settings for your `dlt` project.
 
 :::note
-When deploying your pipeline in a production environment, managing all configurations with the `.toml` files might not be convenient. In this case, we highly recommend using environment variables or other [configuration providers](../general-usage/credentials/setup#available-config-providers) available in `dlt` to store secrets and configs instead.
+When deploying your pipeline in a production environment, managing all configurations with the TOML files might not be convenient. In this case, we highly recommend using environment variables or other [configuration providers](../general-usage/credentials/setup#available-config-providers) available in dlt to store secrets and configs instead.
 :::  
   
 ## 2. Configure the pipeline script
