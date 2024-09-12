@@ -143,11 +143,15 @@ pipeline = dlt.pipeline(
 load_info = pipeline.run(foo)
 ```
 
-Check out the [build a dlt pipeline](tutorial/load-data-from-an-api) tutorial to learn more about working with Python data.
+Check out the [Python data structures tutorial](tutorial/load-data-from-an-api) to learn more about working with Python data.
 
   </TabItem>
 
 </Tabs>
+
+:::tip
+If you'd like to try out dlt without installing it on your machine, check out the [Google Colab demo](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing).
+:::
 
 ## Join the dlt community
 
