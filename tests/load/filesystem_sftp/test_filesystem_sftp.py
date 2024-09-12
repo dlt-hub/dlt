@@ -89,32 +89,6 @@ def test_filesystem_sftp_server(sftp_filesystem):
 
 
 def test_filesystem_sftp_pipeline(sftp_filesystem):
-    os.environ.update(
-        {
-            "DESTINATION__FILESYSTEM__BUCKET_URL": "sftp://localhost/data",
-            "DESTINATION__FILESYSTEM__CREDENTIALS__SFTP_PORT": "2222",
-            "DESTINATION__FILESYSTEM__CREDENTIALS__SFTP_USERNAME": "foo",
-            "DESTINATION__FILESYSTEM__CREDENTIALS__SFTP_PASSWORD": "pass",
-        }
-    )
-    pipeline = dlt.pipeline(destination="filesystem", dataset_name="test")
-    pipeline.run(
-        [
-            dlt.resource(
-                lambda: [{"id": 1, "name": "DE"}, {"id": 2, "name": "AK"}, {"id": 3, "name": "CA"}]
-            )
-        ],
-        loader_file_format="parquet",
-    )
-    client = pipeline.destination_client()  # type: ignore[assignment]
-    data_files = client.fs_client.glob(posixpath.join(client.dataset_path, "states/*"))
-    assert len(data_files) > 0
-    assert sorted(
-        [r["name"] for r in pq.read_table(sftp_filesystem.open(data_files[0], "rb")).to_pylist()]
-    ) == ["AK", "CA", "DE"]
-
-
-def test_filesystem_sftp_pipeline(sftp_filesystem):
     import posixpath
     import pyarrow.parquet as pq
 
