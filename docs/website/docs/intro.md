@@ -18,7 +18,8 @@ dlt is designed to be easy to use, flexible, and scalable:
 
 - dlt infers [schemas](./general-usage/schema) and [data types](./general-usage/schema/#data-types), [normalizes the data](./general-usage/schema/#data-normalizer), and handles nested data structures.
 - dlt supports variety of [popular destinations](./dlt-ecosystem/destinations/) and has an interface to add [custom destinations](./dlt-ecosystem/destinations/destination) to create reverse ETL pipelines.
-- Use dlt locally or [in the cloud](./walkthroughs/deploy-a-pipeline) to build data pipelines, data lakes, and data warehouses.
+- Use dlt locally or [in the cloud](./walkthroughs/deploy-a-pipeline) to build data pipelines, data lakes, and data warehouses. Run it on [Airflow](./walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer), [serverless functions](./walkthroughs/deploy-a-pipeline/deploy-with-google-cloud-functions), or [Jupyter notebooks and colabs](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing). No external APIs, backends, or containers are required.
+- dlt automates pipeline maintenance with [schema evolution](./general-usage/schema-evolution) and [schema and data contracts](./general-usage/schema-contracts).
 
 To get started with dlt, install the library using pip:
 
@@ -148,30 +149,8 @@ Check out the [build a dlt pipeline](tutorial/load-data-from-an-api) tutorial to
 
 </Tabs>
 
-
-## Why use dlt?
-
-- Automated maintenance - with schema inference and evolution and alerts, and with short declarative
-code, maintenance becomes simple.
-- Run it where Python runs - on Airflow, serverless functions, notebooks. No
-external APIs, backends, or containers, scales on micro and large infra alike.
-- User-friendly, declarative interface that removes knowledge obstacles for beginners
-while empowering senior professionals.
-
-## Getting started with dlt
-1. Dive into our [Getting started guide](getting-started.md) for a quick intro to the essentials of dlt.
-2. Play with the
-[Google Colab demo](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing).
-This is the simplest way to see dlt in action.
-3. Read the [Tutorial](tutorial/intro) to learn how to build a pipeline that loads data from an API.
-4. Check out the [How-to guides](walkthroughs/) for recipes on common use cases for creating, running, and deploying pipelines.
-5. Ask us on
-[Slack](https://dlthub.com/community)
-if you have any questions about use cases or the library.
-
 ## Join the dlt community
 
 1. Give the library a ⭐ and check out the code on [GitHub](https://github.com/dlt-hub/dlt).
-1. Ask questions and share how you use the library on
-[Slack](https://dlthub.com/community).
+1. Ask questions and share how you use the library on [Slack](https://dlthub.com/community).
 1. Report problems and make feature requests [here](https://github.com/dlt-hub/dlt/issues/new/choose).
