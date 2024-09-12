@@ -56,7 +56,19 @@ const sidebars = {
         'dlt-ecosystem/verified-sources/asana',
         'dlt-ecosystem/verified-sources/chess',
         'dlt-ecosystem/verified-sources/facebook_ads',
-        'dlt-ecosystem/verified-sources/filesystem',
+        {
+              type: 'category',
+              label: 'Filesystem & buckets',
+              description: 'AWS S3, GCP, Azure, local files',
+               link: {
+                type: 'doc',
+                id: 'dlt-ecosystem/verified-sources/filesystem/index',
+              },
+              items: [
+                'dlt-ecosystem/verified-sources/filesystem/basic',
+                'dlt-ecosystem/verified-sources/filesystem/advanced',
+              ]
+            },
         'dlt-ecosystem/verified-sources/freshdesk',
         'dlt-ecosystem/verified-sources/github',
         'dlt-ecosystem/verified-sources/google_ads',
