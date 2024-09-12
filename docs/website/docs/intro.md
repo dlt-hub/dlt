@@ -12,7 +12,7 @@ import snippets from '!!raw-loader!./intro-snippets.py';
 
 ## What is dlt?
 
-dlt is an open-source Python library that loads data from various, often messy data sources into well-structured, live datasets. It offers a lightweight interface for extracting data from [REST APIs](./tutorial/rest-api), [SQL databases](./tutorial/sql-database), [cloud storage](./tutorial/filesystem), [Python data structures](getting-started), and [many more](./dlt-ecosystem/verified-sources).
+dlt is an open-source Python library that loads data from various, often messy data sources into well-structured, live datasets. It offers a lightweight interface for extracting data from [REST APIs](./tutorial/rest-api), [SQL databases](./tutorial/sql-database), [cloud storage](./tutorial/filesystem), [Python data structures](./tutorial/load-data-from-an-api), and [many more](./dlt-ecosystem/verified-sources).
 
 dlt is designed to be easy to use, flexible, and scalable:
 
@@ -27,7 +27,7 @@ To get started with dlt, install the library using pip:
 pip install dlt
 ```
 :::tip
-We recommend using a clean virtual environment for your experiments! Here are [detailed instructions](/reference/installation) on how to set up one.
+We recommend using a clean virtual environment for your experiments! Here are [detailed instructions](./reference/installation) on how to set up one.
 :::
 
 ## Load data with dlt from …
@@ -43,7 +43,7 @@ We recommend using a clean virtual environment for your experiments! Here are [d
 ]}>
   <TabItem value="rest-api">
 
-Use dlt's [REST API source](tutorial/rest-api) to extract data from any REST API. Define API endpoints you’d like to fetch data from, pagination method and authentication and dlt will handle the rest:
+Use dlt's [REST API source](./tutorial/rest-api) to extract data from any REST API. Define API endpoints you’d like to fetch data from, pagination method and authentication and dlt will handle the rest:
 
 ```py
 # from dlt.sources import rest_api
@@ -74,11 +74,11 @@ pipeline = dlt.pipeline(
 load_info = pipeline.run(source)
 ```
 
-Follow the [REST API source tutorial](tutorial/rest-api) to learn more about the source configuration and pagination methods.
+Follow the [REST API source tutorial](./tutorial/rest-api) to learn more about the source configuration and pagination methods.
   </TabItem>
   <TabItem value="sql-database">
 
-Use the [SQL source](tutorial/sql-database) to extract data from the database like PostgreSQL, MySQL, SQLite, Oracle and more.
+Use the [SQL source](./tutorial/sql-database) to extract data from the database like PostgreSQL, MySQL, SQLite, Oracle and more.
 
 ```py
 # from dlt.sources.sql import sql_database
@@ -96,7 +96,7 @@ pipeline = dlt.pipeline(
 load_info = pipeline.run(source)
 ```
 
-Follow the [SQL source tutorial](tutorial/sql-database) to learn more about the source configuration and supported databases.
+Follow the [SQL source tutorial](./tutorial/sql-database) to learn more about the source configuration and supported databases.
 
   </TabItem>
   <TabItem value="filesystem">
@@ -143,7 +143,7 @@ pipeline = dlt.pipeline(
 load_info = pipeline.run(foo)
 ```
 
-Check out the [Python data structures tutorial](tutorial/load-data-from-an-api) to learn more about working with Python data.
+Check out the [Python data structures tutorial](./tutorial/load-data-from-an-api) to learn more about working with Python data.
 
   </TabItem>
 
