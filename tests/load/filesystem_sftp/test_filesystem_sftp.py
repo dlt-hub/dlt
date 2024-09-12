@@ -62,7 +62,6 @@ def sftp_filesystem():
     yield fs
 
 
-@pytest.mark.sftp
 def test_filesystem_sftp_server(sftp_filesystem):
     test_file = "/data/countries.json"
     input_data = {
@@ -92,7 +91,6 @@ def test_filesystem_sftp_server(sftp_filesystem):
         fs.rm(test_file)
 
 
-@pytest.mark.sftp
 def test_filesystem_sftp_write(sftp_filesystem):
     import posixpath
     import pyarrow.parquet as pq
@@ -123,7 +121,6 @@ def test_filesystem_sftp_write(sftp_filesystem):
         assert sorted(result_states) == sorted(expected_states)
 
 
-@pytest.mark.sftp
 @pytest.mark.parametrize("load_content", (True, False))
 @pytest.mark.parametrize("glob_filter", ("**", "**/*.csv", "*.txt", "met_csv/A803/*.csv"))
 def test_filesystem_sftp_read(load_content: bool, glob_filter: str) -> None:
@@ -146,7 +143,6 @@ def test_filesystem_sftp_read(load_content: bool, glob_filter: str) -> None:
     assert_sample_files(all_file_items, fs, config, load_content, glob_filter)
 
 
-@pytest.mark.sftp
 def test_filesystem_sftp_auth_useranme_password():
     os.environ["SOURCES__FILESYSTEM__BUCKET_URL"] = "sftp://localhost/data/samples"
     os.environ["SOURCES__FILESYSTEM__CREDENTIALS__SFTP_PORT"] = "2222"
@@ -160,7 +156,6 @@ def test_filesystem_sftp_auth_useranme_password():
     assert len(files) > 0
 
 
-@pytest.mark.sftp
 def test_filesystem_sftp_auth_private_key():
     os.environ["SOURCES__FILESYSTEM__BUCKET_URL"] = "sftp://localhost/data/samples"
     os.environ["SOURCES__FILESYSTEM__CREDENTIALS__SFTP_PORT"] = "2222"
@@ -175,7 +170,6 @@ def test_filesystem_sftp_auth_private_key():
     assert len(files) > 0
 
 
-@pytest.mark.sftp
 def test_filesystem_sftp_auth_private_key_protected():
     os.environ["SOURCES__FILESYSTEM__BUCKET_URL"] = "sftp://localhost/data/samples"
     os.environ["SOURCES__FILESYSTEM__CREDENTIALS__SFTP_PORT"] = "2222"
@@ -191,11 +185,11 @@ def test_filesystem_sftp_auth_private_key_protected():
     assert len(files) > 0
 
 
-# Test requires - ssh_agent with user's bobby key loaded. The commands required are:
+# Test requires - ssh_agent with user's bobby key loaded. The commands and file names required are:
 # eval "$(ssh-agent -s)"
 # cp /path/to/tests/load/filesystem_sftp/bobby_rsa* ~/.ssh/id_rsa
 # cp /path/to/tests/load/filesystem_sftp/bobby_rsa.pub ~/.ssh/id_rsa.pub
-@pytest.mark.sftp
+# ssh-add ~/.ssh/id_rsa
 @pytest.mark.skipif(
     not is_ssh_agent_ready(),
     reason="SSH agent is not running or bobby's private key isn't stored in ~/.ssh/id_rsa",
@@ -214,7 +208,6 @@ def test_filesystem_sftp_auth_private_ssh_agent():
     assert len(files) > 0
 
 
-@pytest.mark.sftp
 def test_filesystem_sftp_auth_ca_signed_pub_key():
     os.environ["SOURCES__FILESYSTEM__BUCKET_URL"] = "sftp://localhost/data/samples"
     os.environ["SOURCES__FILESYSTEM__CREDENTIALS__SFTP_PORT"] = "2222"

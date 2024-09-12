@@ -87,6 +87,6 @@ jobs:
         if: ${{ ! (contains(github.event.pull_request.labels.*.name, 'ci full') || github.event_name == 'schedule')}}
 
       - run: |
-          poetry run pytest tests/load --ignore tests/load/sources -m "not sftp" 
+          poetry run pytest tests/load --ignore tests/load/sources
         name: Run all tests Linux
         if: ${{ contains(github.event.pull_request.labels.*.name, 'ci full') || github.event_name == 'schedule'}}
