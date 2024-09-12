@@ -18,7 +18,7 @@ To make it easy to reproduce, we will be loading data from the [public MySQL RFa
 
 - Python 3.9 or higher installed
 - Virtual environment set up
-- `dlt` installed. Follow the instructions in the [installation guide](../reference/installation) to create a new virtual environment and install `dlt`.
+- dlt installed. Follow the instructions in the [installation guide](../reference/installation) to create a new virtual environment and install the `dlt` package.
 
 ## 1. Create a new dlt project
 
