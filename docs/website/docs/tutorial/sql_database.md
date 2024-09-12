@@ -20,7 +20,7 @@ To make it easy to reproduce, we will be loading data from the [public MySQL RFa
 - Virtual environment set up
 - `dlt` installed. Follow the instructions in the [installation guide](../reference/installation) to create a new virtual environment and install `dlt`.
 
-## 1. Create a new `dlt` project
+## 1. Create a new dlt project
 
 Initialize a new `dlt` project in your current working directory using the `dlt init` command:
 
