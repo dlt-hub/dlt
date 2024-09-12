@@ -224,7 +224,7 @@ if __name__ == '__main__':
 
 ## 8. Load data incrementally
 
-Often you don't want to load the whole data in each load, but rather only the new or modified data. `dlt` makes this easy with [incremental loading](../general-usage/incremental-loading).  
+Often you don't want to load the whole data in each load, but rather only the new or modified data.  dlt makes this easy with [incremental loading](../general-usage/incremental-loading).  
   
 In the example below, we configure the table `"family"` to load incrementally based on the column `"updated"`:
 
