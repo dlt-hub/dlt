@@ -320,5 +320,5 @@ Congratulations on completing the tutorial! You've learned how to set up a REST 
 
 Interested in learning more about dlt? Here are some suggestions:
 
-- Learn more about the REST API source configuration in [REST API source documentation](../dlt-ecosystem/verified-sources/rest_api.md)
+- Learn more about the REST API source configuration in [REST API source documentation](../dlt-ecosystem/verified-sources/rest_api/)
 - Learn how to [create a custom source](./load-data-from-an-api.md) in the advanced tutorial
