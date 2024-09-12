@@ -8,6 +8,11 @@ from dlt.common.configuration.inject import with_config
 from dlt.common.storages import FilesystemConfiguration, fsspec_from_config
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 
+from tests.load.utils import ALL_FILESYSTEM_DRIVERS
+
+if "sftp" not in ALL_FILESYSTEM_DRIVERS:
+    pytest.skip("sftp filesystem driver not configured", allow_module_level=True)
+
 
 @with_config(spec=FilesystemConfiguration, sections=("sources", "filesystem"))
 def get_config(config: FilesystemConfiguration = None) -> FilesystemConfiguration:
