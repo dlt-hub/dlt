@@ -23,3 +23,9 @@ jaffle_shop
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# ignore all versions, there are generated dynamically
+versions.json
+versioned_docs
+versioned_sidebars
+.dlt-repo

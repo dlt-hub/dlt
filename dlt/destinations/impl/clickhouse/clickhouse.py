@@ -16,6 +16,7 @@ from dlt.common.configuration.specs import (
 )
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
+    PreparedTableSchema,
     SupportsStagingDestination,
     TLoadJobState,
     HasFollowupJobs,
@@ -26,9 +27,9 @@ from dlt.common.destination.reference import (
 from dlt.common.schema import Schema, TColumnSchema
 from dlt.common.schema.typing import (
     TTableFormat,
-    TTableSchema,
     TColumnType,
 )
+from dlt.common.schema.utils import is_nullable_column
 from dlt.common.storages import FileStorage
 from dlt.destinations.exceptions import LoadJobTerminalException
 from dlt.destinations.impl.clickhouse.configuration import (
@@ -50,78 +51,10 @@ from dlt.destinations.impl.clickhouse.utils import (
 )
 from dlt.destinations.job_client_impl import (
     SqlJobClientBase,
-    SqlJobClientWithStaging,
+    SqlJobClientWithStagingDataset,
 )
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest, FinalizedLoadJobWithFollowupJobs
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
-from dlt.destinations.type_mapping import TypeMapper
-
-
-class ClickHouseTypeMapper(TypeMapper):
-    sct_to_unbound_dbt = {
-        "complex": "String",
-        "text": "String",
-        "double": "Float64",
-        "bool": "Boolean",
-        "date": "Date",
-        "timestamp": "DateTime64(6,'UTC')",
-        "time": "String",
-        "bigint": "Int64",
-        "binary": "String",
-        "wei": "Decimal",
-    }
-
-    sct_to_dbt = {
-        "decimal": "Decimal(%i,%i)",
-        "wei": "Decimal(%i,%i)",
-        "timestamp": "DateTime64(%i,'UTC')",
-    }
-
-    dbt_to_sct = {
-        "String": "text",
-        "Float64": "double",
-        "Bool": "bool",
-        "Date": "date",
-        "DateTime": "timestamp",
-        "DateTime64": "timestamp",
-        "Time": "timestamp",
-        "Int64": "bigint",
-        "Object('json')": "complex",
-        "Decimal": "decimal",
-    }
-
-    def from_db_type(
-        self, db_type: str, precision: Optional[int] = None, scale: Optional[int] = None
-    ) -> TColumnType:
-        # Remove "Nullable" wrapper.
-        db_type = re.sub(r"^Nullable\((?P<type>.+)\)$", r"\g<type>", db_type)
-
-        # Remove timezone details.
-        if db_type == "DateTime('UTC')":
-            db_type = "DateTime"
-        if datetime_match := re.match(
-            r"DateTime64(?:\((?P<precision>\d+)(?:,?\s*'(?P<timezone>UTC)')?\))?",
-            db_type,
-        ):
-            if datetime_match["precision"]:
-                precision = int(datetime_match["precision"])
-            else:
-                precision = None
-            db_type = "DateTime64"
-
-        # Extract precision and scale, parameters and remove from string.
-        if decimal_match := re.match(
-            r"Decimal\((?P<precision>\d+)\s*(?:,\s*(?P<scale>\d+))?\)", db_type
-        ):
-            precision, scale = decimal_match.groups()  # type: ignore[assignment]
-            precision = int(precision)
-            scale = int(scale) if scale else 0
-            db_type = "Decimal"
-
-        if db_type == "Decimal" and (precision, scale) == self.capabilities.wei_precision:
-            return cast(TColumnType, dict(data_type="wei"))
-
-        return super().from_db_type(db_type, precision, scale)
 
 
 class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
@@ -255,7 +188,7 @@ class ClickHouseMergeJob(SqlMergeFollowupJob):
         key_clauses: Sequence[str],
         for_delete: bool,
     ) -> List[str]:
-        join_conditions = " AND ".join([c.format(d="d", s="s") for c in key_clauses])
+        join_conditions = " OR ".join([c.format(d="d", s="s") for c in key_clauses])
         return [
             f"FROM {root_table_name} AS d JOIN {staging_root_table_name} AS s ON {join_conditions}"
         ]
@@ -269,7 +202,7 @@ class ClickHouseMergeJob(SqlMergeFollowupJob):
         return True
 
 
-class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
+class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
     def __init__(
         self,
         schema: Schema,
@@ -286,14 +219,14 @@ class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
         super().__init__(schema, config, self.sql_client)
         self.config: ClickHouseClientConfiguration = config
         self.active_hints = deepcopy(HINT_TO_CLICKHOUSE_ATTR)
-        self.type_mapper = ClickHouseTypeMapper(self.capabilities)
+        self.type_mapper = self.capabilities.get_type_mapper()
 
     def _create_merge_followup_jobs(
-        self, table_chain: Sequence[TTableSchema]
+        self, table_chain: Sequence[PreparedTableSchema]
     ) -> List[FollowupJobRequest]:
         return [ClickHouseMergeJob.from_table_chain(table_chain, self.sql_client)]
 
-    def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:
+    def _get_column_def_sql(self, c: TColumnSchema, table: PreparedTableSchema = None) -> str:
         # Build column definition.
         # The primary key and sort order definition is defined outside column specification.
         hints_ = " ".join(
@@ -307,9 +240,9 @@ class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
         # Alter table statements only accept `Nullable` modifiers.
         # JSON type isn't nullable in ClickHouse.
         type_with_nullability_modifier = (
-            f"Nullable({self.type_mapper.to_db_type(c)})"
-            if c.get("nullable", True)
-            else self.type_mapper.to_db_type(c)
+            f"Nullable({self.type_mapper.to_destination_type(c,table)})"
+            if is_nullable_column(c)
+            else self.type_mapper.to_destination_type(c, table)
         )
 
         return (
@@ -318,7 +251,7 @@ class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
         )
 
     def create_load_job(
-        self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
+        self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
         return super().create_load_job(table, file_path, load_id, restore) or ClickHouseLoadJob(
             file_path,
@@ -333,7 +266,7 @@ class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
         new_columns: Sequence[TColumnSchema],
         generate_alter: bool,
     ) -> List[str]:
-        table: TTableSchema = self.prepare_load_table(table_name, self.in_staging_mode)
+        table = self.prepare_load_table(table_name)
         sql = SqlJobClientBase._get_table_update_sql(self, table_name, new_columns, generate_alter)
 
         if generate_alter:
@@ -371,4 +304,7 @@ class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
     def _from_db_type(
         self, ch_t: str, precision: Optional[int], scale: Optional[int]
     ) -> TColumnType:
-        return self.type_mapper.from_db_type(ch_t, precision, scale)
+        return self.type_mapper.from_destination_type(ch_t, precision, scale)
+
+    def should_truncate_table_before_load_on_staging_destination(self, table_name: str) -> bool:
+        return self.config.truncate_tables_on_staging_destination_before_load

@@ -8,6 +8,7 @@ from dlt.common.destination.exceptions import (
 )
 from dlt.common.destination.reference import (
     HasFollowupJobs,
+    PreparedTableSchema,
     RunnableLoadJob,
     FollowupJobRequest,
     LoadJob,
@@ -16,7 +17,8 @@ from dlt.common.destination.reference import (
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.schema import TColumnSchema, TColumnHint, Schema
-from dlt.common.schema.typing import TTableSchema, TColumnType, TTableFormat
+from dlt.common.schema.typing import TColumnType, TTableFormat
+from dlt.common.schema.utils import is_nullable_column
 from dlt.common.storages.file_storage import FileStorage
 
 from dlt.destinations.sql_jobs import SqlStagingCopyFollowupJob, SqlJobParams
@@ -24,78 +26,15 @@ from dlt.destinations.insert_job_client import InsertValuesJobClient
 from dlt.destinations.impl.postgres.sql_client import Psycopg2SqlClient
 from dlt.destinations.impl.postgres.configuration import PostgresClientConfiguration
 from dlt.destinations.sql_client import SqlClientBase
-from dlt.destinations.type_mapping import TypeMapper
 
 HINT_TO_POSTGRES_ATTR: Dict[TColumnHint, str] = {"unique": "UNIQUE"}
-
-
-class PostgresTypeMapper(TypeMapper):
-    sct_to_unbound_dbt = {
-        "complex": "jsonb",
-        "text": "varchar",
-        "double": "double precision",
-        "bool": "boolean",
-        "date": "date",
-        "bigint": "bigint",
-        "binary": "bytea",
-        "timestamp": "timestamp with time zone",
-        "time": "time without time zone",
-    }
-
-    sct_to_dbt = {
-        "text": "varchar(%i)",
-        "timestamp": "timestamp (%i) with time zone",
-        "decimal": "numeric(%i,%i)",
-        "time": "time (%i) without time zone",
-        "wei": "numeric(%i,%i)",
-    }
-
-    dbt_to_sct = {
-        "varchar": "text",
-        "jsonb": "complex",
-        "double precision": "double",
-        "boolean": "bool",
-        "timestamp with time zone": "timestamp",
-        "date": "date",
-        "bigint": "bigint",
-        "bytea": "binary",
-        "numeric": "decimal",
-        "time without time zone": "time",
-        "character varying": "text",
-        "smallint": "bigint",
-        "integer": "bigint",
-    }
-
-    def to_db_integer_type(
-        self, precision: Optional[int], table_format: TTableFormat = None
-    ) -> str:
-        if precision is None:
-            return "bigint"
-        # Precision is number of bits
-        if precision <= 16:
-            return "smallint"
-        elif precision <= 32:
-            return "integer"
-        elif precision <= 64:
-            return "bigint"
-        raise TerminalValueError(
-            f"bigint with {precision} bits precision cannot be mapped into postgres integer type"
-        )
-
-    def from_db_type(
-        self, db_type: str, precision: Optional[int] = None, scale: Optional[int] = None
-    ) -> TColumnType:
-        if db_type == "numeric":
-            if (precision, scale) == self.capabilities.wei_precision:
-                return dict(data_type="wei")
-        return super().from_db_type(db_type, precision, scale)
 
 
 class PostgresStagingCopyJob(SqlStagingCopyFollowupJob):
     @classmethod
     def generate_sql(
         cls,
-        table_chain: Sequence[TTableSchema],
+        table_chain: Sequence[PreparedTableSchema],
         sql_client: SqlClientBase[Any],
         params: Optional[SqlJobParams] = None,
     ) -> List[str]:
@@ -170,7 +109,7 @@ class PostgresCsvCopyJob(RunnableLoadJob, HasFollowupJobs):
             for col in self._job_client.schema.get_table_columns(table_name).values():
                 norm_col = sql_client.escape_column_name(col["name"], escape=True)
                 split_columns.append(norm_col)
-                if norm_col in split_headers and col.get("nullable", True):
+                if norm_col in split_headers and is_nullable_column(col):
                     split_null_headers.append(norm_col)
             split_unknown_headers = set(split_headers).difference(split_columns)
             if split_unknown_headers:
@@ -223,17 +162,17 @@ class PostgresClient(InsertValuesJobClient):
         self.config: PostgresClientConfiguration = config
         self.sql_client: Psycopg2SqlClient = sql_client
         self.active_hints = HINT_TO_POSTGRES_ATTR if self.config.create_indexes else {}
-        self.type_mapper = PostgresTypeMapper(self.capabilities)
+        self.type_mapper = self.capabilities.get_type_mapper()
 
     def create_load_job(
-        self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
+        self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
         job = super().create_load_job(table, file_path, load_id, restore)
         if not job and file_path.endswith("csv"):
             job = PostgresCsvCopyJob(file_path)
         return job
 
-    def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:
+    def _get_column_def_sql(self, c: TColumnSchema, table: PreparedTableSchema = None) -> str:
         hints_str = " ".join(
             self.active_hints.get(h, "")
             for h in self.active_hints.keys()
@@ -241,11 +180,11 @@ class PostgresClient(InsertValuesJobClient):
         )
         column_name = self.sql_client.escape_column_name(c["name"])
         return (
-            f"{column_name} {self.type_mapper.to_db_type(c)} {hints_str} {self._gen_not_null(c.get('nullable', True))}"
+            f"{column_name} {self.type_mapper.to_destination_type(c,table)} {hints_str} {self._gen_not_null(c.get('nullable', True))}"
         )
 
     def _create_replace_followup_jobs(
-        self, table_chain: Sequence[TTableSchema]
+        self, table_chain: Sequence[PreparedTableSchema]
     ) -> List[FollowupJobRequest]:
         if self.config.replace_strategy == "staging-optimized":
             return [PostgresStagingCopyJob.from_table_chain(table_chain, self.sql_client)]
@@ -254,4 +193,4 @@ class PostgresClient(InsertValuesJobClient):
     def _from_db_type(
         self, pq_t: str, precision: Optional[int], scale: Optional[int]
     ) -> TColumnType:
-        return self.type_mapper.from_db_type(pq_t, precision, scale)
+        return self.type_mapper.from_destination_type(pq_t, precision, scale)

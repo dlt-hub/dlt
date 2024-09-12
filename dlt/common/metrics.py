@@ -64,7 +64,7 @@ class LoadJobMetrics(NamedTuple):
     started_at: datetime.datetime
     finished_at: datetime.datetime
     state: Optional[str]
-    remote_uri: Optional[str]
+    remote_url: Optional[str]
 
 
 class LoadMetrics(StepMetrics):

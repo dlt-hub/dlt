@@ -1,6 +1,6 @@
-version: 4
-version_hash: JE62zVwqT2T/qHTi2Qdnn2d1A/JzCzyGtDwc+qUmbTs=
-engine_version: 9
+version: 5
+version_hash: zsNXwXS2tlD1Or0sGgLOMI7clOz978WoyDuzVx+KU1s=
+engine_version: 10
 name: trace
 tables:
   _dlt_version:
@@ -25,6 +25,7 @@ tables:
         nullable: false
     write_disposition: skip
     description: Created by DLT. Tracks schema updates
+    resource: _dlt_version
   _dlt_loads:
     columns:
       load_id:
@@ -44,6 +45,7 @@ tables:
         nullable: true
     write_disposition: skip
     description: Created by DLT. Tracks completed loads
+    resource: _dlt_loads
   trace:
     columns:
       transaction_id:
@@ -89,7 +91,9 @@ tables:
         data_type: text
         nullable: false
         unique: true
+        row_key: true
     write_disposition: append
+    resource: trace
   trace__execution_context__exec_info:
     columns:
       value:
@@ -99,10 +103,11 @@ tables:
         data_type: text
         nullable: false
         unique: true
+        row_key: true
       _dlt_parent_id:
         data_type: text
         nullable: false
-        foreign_key: true
+        parent_key: true
       _dlt_list_idx:
         data_type: bigint
         nullable: false
@@ -136,7 +141,7 @@ tables:
       _dlt_parent_id:
         data_type: text
         nullable: false
-        foreign_key: true
+        parent_key: true
       _dlt_list_idx:
         data_type: bigint
         nullable: false
@@ -144,6 +149,7 @@ tables:
         data_type: text
         nullable: false
         unique: true
+        row_key: true
       load_info__destination_type:
         data_type: text
         nullable: true
@@ -201,7 +207,7 @@ tables:
       _dlt_parent_id:
         data_type: text
         nullable: false
-        foreign_key: true
+        parent_key: true
       _dlt_list_idx:
         data_type: bigint
         nullable: false
@@ -209,6 +215,7 @@ tables:
         data_type: text
         nullable: false
         unique: true
+        row_key: true
     parent: trace__steps
   trace__steps__extract_info__table_metrics:
     columns:
@@ -239,7 +246,7 @@ tables:
       _dlt_parent_id:
         data_type: text
         nullable: false
-        foreign_key: true
+        parent_key: true
       _dlt_list_idx:
         data_type: bigint
         nullable: false
@@ -247,6 +254,7 @@ tables:
         data_type: text
         nullable: false
         unique: true
+        row_key: true
     parent: trace__steps
   trace__steps__extract_info__resource_metrics:
     columns:
@@ -277,7 +285,7 @@ tables:
       _dlt_parent_id:
         data_type: text
         nullable: false
-        foreign_key: true
+        parent_key: true
       _dlt_list_idx:
         data_type: bigint
         nullable: false
@@ -285,6 +293,7 @@ tables:
         data_type: text
         nullable: false
         unique: true
+        row_key: true
     parent: trace__steps
   trace__steps__extract_info__dag:
     columns:
@@ -303,7 +312,7 @@ tables:
       _dlt_parent_id:
         data_type: text
         nullable: false
-        foreign_key: true
+        parent_key: true
       _dlt_list_idx:
         data_type: bigint
         nullable: false
@@ -311,6 +320,7 @@ tables:
         data_type: text
         nullable: false
         unique: true
+        row_key: true
     parent: trace__steps
   trace__steps__extract_info__hints:
     columns:
@@ -347,7 +357,7 @@ tables:
       _dlt_parent_id:
         data_type: text
         nullable: false
-        foreign_key: true
+        parent_key: true
       _dlt_list_idx:
         data_type: bigint
         nullable: false
@@ -355,6 +365,7 @@ tables:
         data_type: text
         nullable: false
         unique: true
+        row_key: true
     parent: trace__steps
   trace__steps__step_info__loads_ids:
     columns:
@@ -365,10 +376,11 @@ tables:
         data_type: text
         nullable: false
         unique: true
+        row_key: true
       _dlt_parent_id:
         data_type: text
         nullable: false
-        foreign_key: true
+        parent_key: true
       _dlt_list_idx:
         data_type: bigint
         nullable: false
@@ -393,7 +405,7 @@ tables:
       _dlt_parent_id:
         data_type: text
         nullable: false
-        foreign_key: true
+        parent_key: true
       _dlt_list_idx:
         data_type: bigint
         nullable: false
@@ -401,6 +413,7 @@ tables:
         data_type: text
         nullable: false
         unique: true
+        row_key: true
       completed_at:
         data_type: timestamp
         nullable: true
@@ -440,7 +453,7 @@ tables:
       _dlt_parent_id:
         data_type: text
         nullable: false
-        foreign_key: true
+        parent_key: true
       _dlt_list_idx:
         data_type: bigint
         nullable: false
@@ -448,6 +461,7 @@ tables:
         data_type: text
         nullable: false
         unique: true
+        row_key: true
     parent: trace__steps__step_info__load_packages
   trace__steps__normalize_info__job_metrics:
     columns:
@@ -481,7 +495,7 @@ tables:
       _dlt_parent_id:
         data_type: text
         nullable: false
-        foreign_key: true
+        parent_key: true
       _dlt_list_idx:
         data_type: bigint
         nullable: false
@@ -489,6 +503,7 @@ tables:
         data_type: text
         nullable: false
         unique: true
+        row_key: true
     parent: trace__steps
   trace__steps__normalize_info__table_metrics:
     columns:
@@ -519,7 +534,7 @@ tables:
       _dlt_parent_id:
         data_type: text
         nullable: false
-        foreign_key: true
+        parent_key: true
       _dlt_list_idx:
         data_type: bigint
         nullable: false
@@ -527,6 +542,7 @@ tables:
         data_type: text
         nullable: false
         unique: true
+        row_key: true
     parent: trace__steps
   trace__steps__load_info__job_metrics:
     columns:
@@ -548,7 +564,7 @@ tables:
       _dlt_parent_id:
         data_type: text
         nullable: false
-        foreign_key: true
+        parent_key: true
       _dlt_list_idx:
         data_type: bigint
         nullable: false
@@ -556,13 +572,14 @@ tables:
         data_type: text
         nullable: false
         unique: true
+        row_key: true
       started_at:
         data_type: timestamp
         nullable: true
       finished_at:
         data_type: timestamp
         nullable: true
-      remote_uri:
+      remote_url:
         data_type: text
         nullable: true
     parent: trace__steps
@@ -595,7 +612,7 @@ tables:
       _dlt_parent_id:
         data_type: text
         nullable: false
-        foreign_key: true
+        parent_key: true
       _dlt_list_idx:
         data_type: bigint
         nullable: false
@@ -603,6 +620,7 @@ tables:
         data_type: text
         nullable: false
         unique: true
+        row_key: true
       parent:
         data_type: text
         nullable: true
@@ -618,7 +636,19 @@ tables:
       data_type:
         data_type: text
         nullable: true
+      precision:
+        data_type: bigint
+        nullable: true
+      scale:
+        data_type: bigint
+        nullable: true
+      timezone:
+        data_type: bool
+        nullable: true
       nullable:
+        data_type: bool
+        nullable: true
+      variant:
         data_type: bool
         nullable: true
       primary_key:
@@ -636,7 +666,7 @@ tables:
       _dlt_parent_id:
         data_type: text
         nullable: false
-        foreign_key: true
+        parent_key: true
       _dlt_list_idx:
         data_type: bigint
         nullable: false
@@ -644,10 +674,29 @@ tables:
         data_type: text
         nullable: false
         unique: true
+        row_key: true
       unique:
         data_type: bool
         nullable: true
-      foreign_key:
+      row_key:
+        data_type: bool
+        nullable: true
+      parent_key:
+        data_type: bool
+        nullable: true
+      root_key:
+        data_type: bool
+        nullable: true
+      merge_key:
+        data_type: bool
+        nullable: true
+      partition:
+        data_type: bool
+        nullable: true
+      cluster:
+        data_type: bool
+        nullable: true
+      sort:
         data_type: bool
         nullable: true
     parent: trace__steps__step_info__load_packages__tables
@@ -668,7 +717,7 @@ tables:
       _dlt_parent_id:
         data_type: text
         nullable: false
-        foreign_key: true
+        parent_key: true
       _dlt_list_idx:
         data_type: bigint
         nullable: false
@@ -676,6 +725,7 @@ tables:
         data_type: text
         nullable: false
         unique: true
+        row_key: true
     parent: trace
   trace__resolved_config_values__sections:
     columns:
@@ -686,10 +736,11 @@ tables:
         data_type: text
         nullable: false
         unique: true
+        row_key: true
       _dlt_parent_id:
         data_type: text
         nullable: false
-        foreign_key: true
+        parent_key: true
       _dlt_list_idx:
         data_type: bigint
         nullable: false
@@ -720,7 +771,7 @@ tables:
       _dlt_parent_id:
         data_type: text
         nullable: false
-        foreign_key: true
+        parent_key: true
       _dlt_list_idx:
         data_type: bigint
         nullable: false
@@ -728,6 +779,7 @@ tables:
         data_type: text
         nullable: false
         unique: true
+        row_key: true
     parent: trace__steps
   trace__steps__exception_traces__stack_trace:
     columns:
@@ -738,10 +790,11 @@ tables:
         data_type: text
         nullable: false
         unique: true
+        row_key: true
       _dlt_parent_id:
         data_type: text
         nullable: false
-        foreign_key: true
+        parent_key: true
       _dlt_list_idx:
         data_type: bigint
         nullable: false
@@ -756,17 +809,21 @@ settings:
     - _dlt_parent_id
     - _dlt_list_idx
     - _dlt_load_id
-    foreign_key:
-    - _dlt_parent_id
     root_key:
     - _dlt_root_id
     unique:
     - _dlt_id
+    row_key:
+    - _dlt_id
+    parent_key:
+    - _dlt_parent_id
 normalizers:
   names: snake_case
   json:
     module: dlt.common.normalizers.json.relational
 previous_hashes:
+- JE62zVwqT2T/qHTi2Qdnn2d1A/JzCzyGtDwc+qUmbTs=
 - 9Ysjq/W0xpxkI/vBiYm8Qbr2nDP3JMt6KvGKUS/FCyI=
 - NYeAxJ2r+T+dKFnXFhBEPzBP6SO+ORdhOfgQRo/XqBU=
 - RV9jvZSD5dM+ZGjEL3HqokLvtf22K4zMNc3zWRahEw4=
+

@@ -142,7 +142,7 @@ Data is loaded via `INSERT` statements by default.
 
 ## Data type limitations
 * **Synapse cannot load `TIME` columns from `parquet` files**. `dlt` will fail such jobs permanently. Use the `insert_values` file format instead, or convert `datetime.time` objects to `str` or `datetime.datetime`, to load `TIME` columns.
-* **Synapse does not have a complex/JSON/struct data type**. The `dlt` `complex` data type is mapped to the `nvarchar` type in Synapse.
+* **Synapse does not have a nested/JSON/struct data type**. The `dlt` `json` data type is mapped to the `nvarchar` type in Synapse.
 
 ## Table index type
 The [table index type](https://learn.microsoft.com/en-us/azure/synapse-analytics/sql-data-warehouse/sql-data-warehouse-tables-index) of the created tables can be configured at the resource level with the `synapse_adapter`:

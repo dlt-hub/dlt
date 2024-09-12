@@ -88,8 +88,6 @@ def load_data_with_retry(pipeline, data):
                 load_info = pipeline.run(data)
                 logger.info(str(load_info))
 
-                # raise on failed jobs
-                load_info.raise_on_failed_jobs()
                 # send notification
                 send_slack_message(
                     pipeline.runtime_config.slack_incoming_hook, "Data was successfully loaded!"
@@ -169,7 +167,4 @@ if __name__ == "__main__":
     )
     # get data for a few famous players
     data = chess(max_players=MAX_PLAYERS)
-    load_info = load_data_with_retry(pipeline, data)
-
-    # make sure nothing failed
-    load_info.raise_on_failed_jobs()
+    load_data_with_retry(pipeline, data)

@@ -13,7 +13,8 @@ from typing_extensions import TypeAlias
 
 from dlt.common.schema import Schema, TColumnSchema
 from dlt.common.typing import DictStrAny
-from dlt.destinations.type_mapping import TypeMapper
+
+from dlt.common.destination.capabilities import DataTypeMapper
 
 
 TArrowSchema: TypeAlias = pa.Schema
@@ -30,17 +31,17 @@ def arrow_schema_to_dict(schema: TArrowSchema) -> DictStrAny:
 def make_arrow_field_schema(
     column_name: str,
     column: TColumnSchema,
-    type_mapper: TypeMapper,
+    type_mapper: DataTypeMapper,
 ) -> TArrowField:
     """Creates a PyArrow field from a dlt column schema."""
-    dtype = cast(TArrowDataType, type_mapper.to_db_type(column))
+    dtype = cast(TArrowDataType, type_mapper.to_destination_type(column, None))
     return pa.field(column_name, dtype)
 
 
 def make_arrow_table_schema(
     table_name: str,
     schema: Schema,
-    type_mapper: TypeMapper,
+    type_mapper: DataTypeMapper,
     id_field_name: Optional[str] = None,
     vector_field_name: Optional[str] = None,
     embedding_fields: Optional[List[str]] = None,

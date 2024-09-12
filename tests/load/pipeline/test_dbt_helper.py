@@ -93,7 +93,7 @@ def test_run_chess_dbt(destination_config: DestinationTestConfiguration, dbt_ven
     with pytest.raises(PrerequisitesException):
         transforms.run_all(source_tests_selector="source:*")
     # load data
-    info = pipeline.run(chess(max_players=5, month=9))
+    info = pipeline.run(chess(max_players=5, month=9), **destination_config.run_kwargs)
     print(info)
     assert pipeline.schema_names == ["chess"]
     # run all the steps (deps -> seed -> source tests -> run)
@@ -150,7 +150,7 @@ def test_run_chess_dbt_to_other_dataset(
     transforms = dlt.dbt.package(pipeline, "docs/examples/chess/dbt_transform", venv=dbt_venv)
     # assert pipeline.default_schema_name is None
     # load data
-    info = pipeline.run(chess(max_players=5, month=9))
+    info = pipeline.run(chess(max_players=5, month=9), **destination_config.run_kwargs)
     print(info)
     assert pipeline.schema_names == ["chess"]
     # store transformations in alternative dataset

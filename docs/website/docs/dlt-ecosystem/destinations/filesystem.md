@@ -186,6 +186,15 @@ azure_client_secret = "client_secret"
 azure_tenant_id = "tenant_id" # please set me up!
 ```
 
+:::caution
+**Concurrent blob uploads**
+`dlt` limits the number of concurrent connections for a single uploaded blob to 1. By default `adlfs` that we use, splits blobs into 4 MB chunks and uploads them concurrently which leads to gigabytes of used memory and thousands of connections for a larger load packages. You can increase the maximum concurrency as follows:
+```toml
+[destination.filesystem.kwargs]
+max_concurrency=3
+```
+:::
+
 ### Local file system
 If for any reason you want to have those files in a local folder, set up the `bucket_url` as follows (you are free to use `config.toml` for that as there are no secrets required)
 
@@ -286,7 +295,7 @@ def my_upsert_resource():
 #### Known limitations
 - `hard_delete` hint not supported
 - deleting records from child tables not supported
-  - This means updates to complex columns that involve element removals are not propagated. For example, if you first load `{"key": 1, "complex": [1, 2]}` and then load `{"key": 1, "complex": [1]}`, then the record for element `2` will not be deleted from the child table.
+  - This means updates to json columns that involve element removals are not propagated. For example, if you first load `{"key": 1, "nested": [1, 2]}` and then load `{"key": 1, "nested": [1]}`, then the record for element `2` will not be deleted from the child table.
 
 ## File Compression
 

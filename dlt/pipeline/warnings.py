@@ -2,7 +2,6 @@ import typing as t
 import warnings
 
 from dlt.common.warnings import Dlt04DeprecationWarning
-from dlt.common.destination import Destination, TDestinationReferenceArg
 
 
 def full_refresh_argument_deprecated(caller_name: str, full_refresh: t.Optional[bool]) -> None:

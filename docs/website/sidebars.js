@@ -35,17 +35,9 @@ const sidebars = {
       items: [
         'getting-started',
         'reference/installation',
-        {
-          type: 'category',
-          label: 'Core Sources',
-          items: [
-            'tutorial/load-data-from-an-api',
-            //do these exist?
-            //'walkthroughs/load-data-from-rest-api',
-            //'walkthroughs/load-data-from-sql-database',
-            //'walkthroughs/load-data-from-filesystem-cloud',
-          ]
-        }
+        'tutorial/load-data-from-an-api',
+        'tutorial/grouping-resources',
+        'tutorial/sql_database'
       ]
     },
     {
@@ -75,7 +67,19 @@ const sidebars = {
         'dlt-ecosystem/verified-sources/asana',
         'dlt-ecosystem/verified-sources/chess',
         'dlt-ecosystem/verified-sources/facebook_ads',
-        'dlt-ecosystem/verified-sources/filesystem',
+        {
+              type: 'category',
+              label: 'Filesystem & buckets',
+              description: 'AWS S3, GCP, Azure, local files',
+               link: {
+                type: 'doc',
+                id: 'dlt-ecosystem/verified-sources/filesystem/index',
+              },
+              items: [
+                'dlt-ecosystem/verified-sources/filesystem/basic',
+                'dlt-ecosystem/verified-sources/filesystem/advanced',
+              ]
+            },
         'dlt-ecosystem/verified-sources/freshdesk',
         'dlt-ecosystem/verified-sources/github',
         'dlt-ecosystem/verified-sources/google_ads',
@@ -92,31 +96,44 @@ const sidebars = {
         'dlt-ecosystem/verified-sources/personio',
         'dlt-ecosystem/verified-sources/pg_replication',
         'dlt-ecosystem/verified-sources/pipedrive',
-        'dlt-ecosystem/verified-sources/rest_api',
+        {
+          type: 'category',
+          label: 'REST APIs',
+          description:'Load data from any REST API',
+           link: {
+            type: 'doc',
+            id: 'dlt-ecosystem/verified-sources/rest_api/index',
+          },
+          items: [
+            'dlt-ecosystem/verified-sources/rest_api/basic',
+            'dlt-ecosystem/verified-sources/rest_api/advanced',
+          ]
+        },
         'dlt-ecosystem/verified-sources/openapi-generator',
         'dlt-ecosystem/verified-sources/salesforce',
         'dlt-ecosystem/verified-sources/scrapy',
         'dlt-ecosystem/verified-sources/shopify',
-        'dlt-ecosystem/verified-sources/sql_database',
+        {
+          type: 'category',
+          label: '30+ SQL Databases',
+          description: 'PostgreSQL, MySQL, MS SQL, BigQuery, Redshift, and more',
+           link: {
+            type: 'doc',
+            id: 'dlt-ecosystem/verified-sources/sql_database/index',
+          },
+          items: [
+            'dlt-ecosystem/verified-sources/sql_database/setup',
+            'dlt-ecosystem/verified-sources/sql_database/configuration',
+            'dlt-ecosystem/verified-sources/sql_database/usage',
+            'dlt-ecosystem/verified-sources/sql_database/troubleshooting',
+            'dlt-ecosystem/verified-sources/sql_database/advanced'
+          ]
+        },
         'dlt-ecosystem/verified-sources/slack',
         'dlt-ecosystem/verified-sources/strapi',
         'dlt-ecosystem/verified-sources/stripe',
         'dlt-ecosystem/verified-sources/workable',
-        'dlt-ecosystem/verified-sources/zendesk',
-        //added
-        'walkthroughs/add-a-verified-source',
-        {
-          type: 'category',
-          label: 'REST API helpers',
-          link: {
-            type: 'doc',
-            id: 'general-usage/http/overview',
-          },
-          items: [
-            'general-usage/http/rest-client',
-            'general-usage/http/requests',
-          ]
-        },
+        'dlt-ecosystem/verified-sources/zendesk'
       ]
     },
     {
@@ -383,23 +400,6 @@ if (fs.existsSync('./docs_processed/api_reference/sidebar.json')) {
       item.items.splice(0,0,require("./docs_processed/api_reference/sidebar.json"));
     }
   }
-}
-
-// on the master branch link to devel and vice versa
-if (process.env.IS_MASTER_BRANCH) {
-  sidebars.tutorialSidebar.push(    {
-    type: 'link',
-    label: 'Switch to Devel Docs',
-    href: 'https://dlthub.com/devel/intro',
-    className: 'learn-more-link',
-  })
-} else {
-  sidebars.tutorialSidebar.push(    {
-    type: 'link',
-    label: 'Switch to Stable Docs',
-    href: 'https://dlthub.com/docs/intro',
-    className: 'learn-more-link',
-  })
 }
 
 module.exports = sidebars;

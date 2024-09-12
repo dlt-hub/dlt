@@ -4,15 +4,12 @@ from typing import (
     Sequence,
     Iterable,
     Optional,
-    Any,
-    Dict,
     Union,
     TYPE_CHECKING,
 )
 
 from dlt.common.jsonpath import TAnyJsonPath
 from dlt.common.exceptions import TerminalException
-from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import TSimpleRegex
 from dlt.common.pipeline import pipeline_state as current_pipeline_state, TRefreshMode
 from dlt.common.storages.load_package import TLoadPackageDropTablesState
@@ -139,7 +136,7 @@ class DropCommand:
 
         self.pipeline.normalize()
         try:
-            self.pipeline.load(raise_on_failed_jobs=True)
+            self.pipeline.load()
         except Exception:
             # Clear extracted state on failure so command can run again
             self.pipeline.drop_pending_packages()

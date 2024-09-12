@@ -7,27 +7,27 @@ import Link from '../../_book-onboarding-call.md';
 import DocCardList from '@theme/DocCardList';
 import {useCurrentSidebarCategory} from '@docusaurus/theme-common';
 
-Planning to use dlt in production and need a source that isn't listed? We're happy to help you build it: <Link/>.
+Planning to use `dlt` in production and need a source that isn't listed? We're happy to help you build it: <Link/>.
 
 ### Core sources
 
 <DocCardList items={useCurrentSidebarCategory().items.filter(
-item => item.label === '30+ SQL Databases' || item.label === 'REST API generic source' || item.label === 'Filesystem'
+item => item.label === '30+ SQL Databases' || item.label === 'REST APIs' || item.label === 'Filesystem & buckets'
 )} />
 
 ### Verified sources
 
-Choose from our collection of verified sources, developed and maintained by the dlt team and community. Each source is rigorously tested against a real API and provided as Python code for easy customization.
+Choose from our collection of verified sources, developed and maintained by the `dlt` team and community. Each source is rigorously tested against a real API and provided as Python code for easy customization.
 
 :::tip
-If you couldn't find a source implementation, you can easily create your own, check our [tutorial](../../tutorial/grouping-resources) to learn how!
+If you couldn't find a source implementation, you can easily create your own, check out the [resource page](../../general-usage/resource) to learn how!
 :::
 
 <DocCardList items={useCurrentSidebarCategory().items.filter(
-item => item.label !== '30+ SQL Databases' && item.label !== 'REST API generic source'&& item.label !== 'Filesystem'
+item => item.label !== '30+ SQL Databases' && item.label !== 'REST API generic source'&& item.label !== 'Filesystem & buckets'
 )} />
 
-### What's the difference?
+### What's the difference between core and verified sources?
 
 The main difference between the [core sources](#core-sources) and [verified sources](#verified-sources) lies in their structure.
 Core sources are generic collections, meaning they can connect to a variety of systems. For example, the [SQL Database source](sql_database) can connect to any
@@ -37,7 +37,7 @@ According to our telemetry, core sources are the most widely used among our user
 
 It's also important to note that core sources are integrated into the `dlt` core library,
 whereas verified sources are maintained in a separate [repository](https://github.com/dlt-hub/verified-sources).
-To use a verified source, you need to run the dlt init command, which will download the verified source code to
+To use a verified source, you need to run the `dlt` init command, which will download the verified source code to
 your working directory.
 
 

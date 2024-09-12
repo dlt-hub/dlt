@@ -9,13 +9,13 @@ from typing import List, Tuple
 from dlt.common.exceptions import TerminalException, TerminalValueError
 from dlt.common.storages import FileStorage, PackageStorage, ParsedLoadJobFileName
 from dlt.common.storages.configuration import FilesystemConfiguration
-from dlt.common.storages.load_package import LoadJobInfo, TPackageJobState
+from dlt.common.storages.load_package import TPackageJobState
 from dlt.common.storages.load_storage import JobFileFormatUnsupported
 from dlt.common.destination.reference import RunnableLoadJob, TDestination
 from dlt.common.schema.utils import (
     fill_hints_from_parent_and_clone_table,
-    get_child_tables,
-    get_top_level_table,
+    get_nested_tables,
+    get_root_table,
 )
 
 from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
@@ -24,6 +24,7 @@ from dlt.destinations.impl.dummy import dummy as dummy_impl
 from dlt.destinations.impl.dummy.configuration import DummyClientConfiguration
 
 from dlt.load import Load
+from dlt.load.configuration import LoaderConfiguration
 from dlt.load.exceptions import (
     LoadClientJobFailed,
     LoadClientJobRetry,
@@ -107,14 +108,11 @@ def test_unsupported_write_disposition() -> None:
     schema.get_table("event_user")["write_disposition"] = "skip"
     # write back schema
     load.load_storage.normalized_packages.save_schema(load_id, schema)
-    with ThreadPoolExecutor() as pool:
-        load.run(pool)
-    # job with unsupported write disp. is failed
-    failed_job = load.load_storage.loaded_packages.list_failed_jobs(load_id)[0]
-    failed_message = load.load_storage.loaded_packages.get_job_failed_message(
-        load_id, ParsedLoadJobFileName.parse(failed_job)
-    )
-    assert "LoadClientUnsupportedWriteDisposition" in failed_message
+    with pytest.raises(LoadClientJobFailed) as e:
+        with ThreadPoolExecutor() as pool:
+            load.run(pool)
+
+    assert "LoadClientUnsupportedWriteDisposition" in e.value.failed_message
 
 
 def test_big_loadpackages() -> None:
@@ -156,7 +154,7 @@ def test_get_completed_table_chain_single_job_per_table() -> None:
     for table_name, table in schema.tables.items():
         schema.tables[table_name] = fill_hints_from_parent_and_clone_table(schema.tables, table)
 
-    top_job_table = get_top_level_table(schema.tables, "event_user")
+    top_job_table = get_root_table(schema.tables, "event_user")
     all_jobs = load.load_storage.normalized_packages.list_all_jobs_with_states(load_id)
     assert get_completed_table_chain(schema, all_jobs, top_job_table) is None
     # fake being completed
@@ -172,7 +170,7 @@ def test_get_completed_table_chain_single_job_per_table() -> None:
         == 1
     )
     # actually complete
-    loop_top_job_table = get_top_level_table(schema.tables, "event_loop_interrupted")
+    loop_top_job_table = get_root_table(schema.tables, "event_loop_interrupted")
     load.load_storage.normalized_packages.start_job(
         load_id, "event_loop_interrupted.839c6e6b514e427687586ccc65bf133f.0.jsonl"
     )
@@ -228,10 +226,19 @@ def test_spool_job_failed() -> None:
     started_files = load.load_storage.normalized_packages.list_started_jobs(load_id)
     assert len(started_files) == 0
 
-    # test the whole flow
-    load = setup_loader(client_config=DummyClientConfiguration(fail_prob=1.0))
+    # test the whole
+    loader_config = LoaderConfiguration(
+        raise_on_failed_jobs=False,
+        workers=1,
+        pool_type="none",
+    )
+    load = setup_loader(
+        client_config=DummyClientConfiguration(fail_prob=1.0),
+        loader_config=loader_config,
+    )
     load_id, schema = prepare_load_package(load.load_storage, NORMALIZED_FILES)
     run_all(load)
+
     package_info = load.load_storage.get_load_package_info(load_id)
     assert package_info.state == "loaded"
     # all jobs failed
@@ -246,8 +253,6 @@ def test_spool_job_failed() -> None:
 
 
 def test_spool_job_failed_terminally_exception_init() -> None:
-    # this config fails job on start
-    os.environ["LOAD__RAISE_ON_FAILED_JOBS"] = "true"
     load = setup_loader(client_config=DummyClientConfiguration(fail_terminally_in_init=True))
     load_id, _ = prepare_load_package(load.load_storage, NORMALIZED_FILES)
     with patch.object(dummy_impl.DummyClient, "complete_load") as complete_load:
@@ -269,8 +274,6 @@ def test_spool_job_failed_terminally_exception_init() -> None:
 
 
 def test_spool_job_failed_transiently_exception_init() -> None:
-    # this config fails job on start
-    os.environ["LOAD__RAISE_ON_FAILED_JOBS"] = "true"
     load = setup_loader(client_config=DummyClientConfiguration(fail_transiently_in_init=True))
     load_id, _ = prepare_load_package(load.load_storage, NORMALIZED_FILES)
     with patch.object(dummy_impl.DummyClient, "complete_load") as complete_load:
@@ -293,8 +296,6 @@ def test_spool_job_failed_transiently_exception_init() -> None:
 
 
 def test_spool_job_failed_exception_complete() -> None:
-    # this config fails job on start
-    os.environ["LOAD__RAISE_ON_FAILED_JOBS"] = "true"
     load = setup_loader(client_config=DummyClientConfiguration(fail_prob=1.0))
     load_id, _ = prepare_load_package(load.load_storage, NORMALIZED_FILES)
     with pytest.raises(LoadClientJobFailed) as py_ex:
@@ -520,7 +521,10 @@ def test_failed_loop() -> None:
         delete_completed_jobs=True, client_config=DummyClientConfiguration(fail_prob=1.0)
     )
     # actually not deleted because one of the jobs failed
-    assert_complete_job(load, should_delete_completed=False)
+    with pytest.raises(LoadClientJobFailed) as e:
+        assert_complete_job(load, should_delete_completed=False)
+
+    assert "a random fail occurred" in e.value.failed_message
     # two failed jobs
     assert len(dummy_impl.JOBS) == 2
     assert list(dummy_impl.JOBS.values())[0].state() == "failed"
@@ -535,7 +539,10 @@ def test_failed_loop_followup_jobs() -> None:
         client_config=DummyClientConfiguration(fail_prob=1.0, create_followup_jobs=True),
     )
     # actually not deleted because one of the jobs failed
-    assert_complete_job(load, should_delete_completed=False)
+    with pytest.raises(LoadClientJobFailed) as e:
+        assert_complete_job(load, should_delete_completed=False)
+
+    assert "a random fail occurred" in e.value.failed_message
     # followup jobs were not started
     assert len(dummy_impl.JOBS) == 2
     assert len(dummy_impl.CREATED_FOLLOWUP_JOBS) == 0
@@ -546,6 +553,23 @@ def test_completed_loop_with_delete_completed() -> None:
     load.load_storage = load.create_storage(is_storage_owner=False)
     load.load_storage.config.delete_completed_jobs = True
     assert_complete_job(load, should_delete_completed=True)
+
+
+@pytest.mark.parametrize("to_truncate", [True, False])
+def test_truncate_table_before_load_on_staging(to_truncate) -> None:
+    load = setup_loader(
+        client_config=DummyClientConfiguration(
+            truncate_tables_on_staging_destination_before_load=to_truncate
+        )
+    )
+    load_id, schema = prepare_load_package(load.load_storage, NORMALIZED_FILES)
+    destination_client = load.get_destination_client(schema)
+    assert (
+        destination_client.should_truncate_table_before_load_on_staging_destination(  # type: ignore
+            schema.tables["_dlt_version"]["name"]
+        )
+        == to_truncate
+    )
 
 
 def test_retry_on_new_loop() -> None:
@@ -662,7 +686,7 @@ def test_extend_table_chain() -> None:
     assert tables == user_chain - {"event_user__parse_data__entities"}
     # exclude the whole chain
     tables = _extend_tables_with_table_chain(
-        schema, ["event_user"], ["event_user"], lambda table: table["name"] not in entities_chain
+        schema, ["event_user"], ["event_user"], lambda table_name: table_name not in entities_chain
     )
     assert tables == user_chain - entities_chain
     # ask for tables that are not top
@@ -736,7 +760,7 @@ def test_get_completed_table_chain_cases() -> None:
     assert chain == [event_user, event_user_entities]
 
     # merge and replace do not require whole chain to be in jobs
-    user_chain = get_child_tables(schema.tables, "event_user")
+    user_chain = get_nested_tables(schema.tables, "event_user")
     for w_d in ["merge", "replace"]:
         event_user["write_disposition"] = w_d  # type:ignore[typeddict-item]
 
@@ -831,11 +855,17 @@ def test_init_client_truncate_tables() -> None:
                 "event_bot",
             }
 
-            replace_ = lambda table: table["write_disposition"] == "replace"
-            merge_ = lambda table: table["write_disposition"] == "merge"
+            replace_ = (
+                lambda table_name: client.prepare_load_table(table_name)["write_disposition"]
+                == "replace"
+            )
+            merge_ = (
+                lambda table_name: client.prepare_load_table(table_name)["write_disposition"]
+                == "merge"
+            )
 
             # set event_bot chain to merge
-            bot_chain = get_child_tables(schema.tables, "event_bot")
+            bot_chain = get_nested_tables(schema.tables, "event_bot")
             for w_d in ["merge", "replace"]:
                 initialize_storage.reset_mock()
                 update_stored_schema.reset_mock()
@@ -995,17 +1025,17 @@ def assert_complete_job(
                             if state == "failed_jobs"
                             else "completed"
                         )
-                        remote_uri = job_metrics.remote_uri
+                        remote_url = job_metrics.remote_url
                         if load.initial_client_config.create_followup_jobs:  # type: ignore
-                            assert remote_uri.endswith(job.file_name())
+                            assert remote_url.endswith(job.file_name())
                         elif load.is_staging_destination_job(job.file_name()):
                             # staging destination should contain reference to remote filesystem
                             assert (
-                                FilesystemConfiguration.make_file_uri(REMOTE_FILESYSTEM)
-                                in remote_uri
+                                FilesystemConfiguration.make_file_url(REMOTE_FILESYSTEM)
+                                in remote_url
                             )
                         else:
-                            assert remote_uri is None
+                            assert remote_url is None
                     else:
                         assert job_metrics is None
 
@@ -1022,6 +1052,7 @@ def run_all(load: Load) -> None:
 def setup_loader(
     delete_completed_jobs: bool = False,
     client_config: DummyClientConfiguration = None,
+    loader_config: LoaderConfiguration = None,
     filesystem_staging: bool = False,
 ) -> Load:
     # reset jobs for a test
@@ -1045,7 +1076,7 @@ def setup_loader(
         staging_system_config = FilesystemDestinationClientConfiguration()._bind_dataset_name(
             dataset_name="dummy"
         )
-        staging_system_config.as_staging = True
+        staging_system_config.as_staging_destination = True
         os.makedirs(REMOTE_FILESYSTEM)
         staging = filesystem(bucket_url=REMOTE_FILESYSTEM)
     # patch destination to provide client_config
@@ -1055,6 +1086,7 @@ def setup_loader(
         return Load(
             destination,
             initial_client_config=client_config,
+            config=loader_config,
             staging_destination=staging,  # type: ignore[arg-type]
             initial_staging_client_config=staging_system_config,
         )

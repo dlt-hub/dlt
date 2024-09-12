@@ -1,14 +1,13 @@
-from copy import deepcopy
 from types import TracebackType
 from typing import ClassVar, Optional, Type, Iterable, cast, List
 
-from dlt.destinations.job_impl import FinalizedLoadJobWithFollowupJobs, FinalizedLoadJob
-from dlt.common.destination.reference import LoadJob
+from dlt.destinations.job_impl import FinalizedLoadJob
+from dlt.common.destination.reference import LoadJob, PreparedTableSchema
 from dlt.common.typing import AnyFun
 from dlt.common.storages.load_package import destination_state
 from dlt.common.configuration import create_resolved_partial
 
-from dlt.common.schema import Schema, TTableSchema, TSchemaTables
+from dlt.common.schema import Schema, TSchemaTables
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
     JobClientBase,
@@ -56,7 +55,7 @@ class DestinationClient(JobClientBase):
         return super().update_stored_schema(only_tables, expected_update)
 
     def create_load_job(
-        self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
+        self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
         # skip internal tables and remove columns from schema if so configured
         if self.config.skip_dlt_columns_and_tables:
@@ -89,10 +88,8 @@ class DestinationClient(JobClientBase):
             )
         return None
 
-    def prepare_load_table(
-        self, table_name: str, prepare_for_staging: bool = False
-    ) -> TTableSchema:
-        table = super().prepare_load_table(table_name, prepare_for_staging)
+    def prepare_load_table(self, table_name: str) -> PreparedTableSchema:
+        table = super().prepare_load_table(table_name)
         if self.config.skip_dlt_columns_and_tables:
             for column in list(table["columns"].keys()):
                 if column.startswith(self.schema._dlt_tables_prefix):

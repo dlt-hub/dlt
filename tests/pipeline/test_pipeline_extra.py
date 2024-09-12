@@ -22,6 +22,7 @@ import dlt
 from dlt.common import json, pendulum
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.capabilities import TLoaderFileFormat
+from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 from dlt.common.runtime.collector import (
     AliveCollector,
     EnlightenCollector,
@@ -33,12 +34,16 @@ from dlt.common.storages import FileStorage
 from dlt.extract.storage import ExtractStorage
 from dlt.extract.validation import PydanticValidator
 
+from dlt.destinations import dummy
+
 from dlt.pipeline import TCollectorArg
 
-from tests.utils import TEST_STORAGE_ROOT, test_storage
+from tests.utils import TEST_STORAGE_ROOT
 from tests.extract.utils import expect_extracted_file
 from tests.load.utils import DestinationTestConfiguration, destinations_configs
 from tests.pipeline.utils import assert_load_info, load_data_table_counts, many_delayed
+
+DUMMY_COMPLETE = dummy(completed_prob=1)  # factory set up to complete jobs
 
 
 @pytest.mark.parametrize(
@@ -75,6 +80,8 @@ def test_create_pipeline_all_destinations(destination_config: DestinationTestCon
 
 @pytest.mark.parametrize("progress", ["tqdm", "enlighten", "log", "alive_progress"])
 def test_pipeline_progress(progress: TCollectorArg) -> None:
+    # do not raise on failed jobs
+    os.environ["RAISE_ON_FAILED_JOBS"] = "false"
     os.environ["TIMEOUT"] = "3.0"
 
     p = dlt.pipeline(destination="dummy", progress=progress)
@@ -140,7 +147,7 @@ def test_pydantic_columns_with_contracts(yield_list: bool) -> None:
         user_label: UserLabel
         user_labels: List[UserLabel]
 
-        dlt_config: ClassVar[DltConfig] = {"skip_complex_types": True}
+        dlt_config: ClassVar[DltConfig] = {"skip_nested_types": True}
 
     user = User(
         user_id=1,
@@ -245,7 +252,6 @@ def test_dump_trace_freeze_exception() -> None:
         example_string: str
 
     # yield model in resource so incremental fails when looking for "id"
-    # TODO: support pydantic models in incremental
 
     @dlt.resource(name="table_name", primary_key="id", write_disposition="replace")
     def generate_rows_incremental(
@@ -283,11 +289,11 @@ class Child(BaseModel):
     optional_child_attribute: Optional[str] = None
 
 
-def test_flattens_model_when_skip_complex_types_is_set() -> None:
+def test_flattens_model_when_skip_nested_types_is_set() -> None:
     class Parent(BaseModel):
         child: Child
         optional_parent_attribute: Optional[str] = None
-        dlt_config: ClassVar[DltConfig] = {"skip_complex_types": True}
+        dlt_config: ClassVar[DltConfig] = {"skip_nested_types": True}
 
     example_data = {
         "optional_parent_attribute": None,
@@ -345,12 +351,12 @@ def test_flattens_model_when_skip_complex_types_is_set() -> None:
     }
 
 
-def test_considers_model_as_complex_when_skip_complex_types_is_not_set():
+def test_considers_model_as_complex_when_skip_nested_types_is_not_set():
     class Parent(BaseModel):
         child: Child
         optional_parent_attribute: Optional[str] = None
         data_dictionary: Dict[str, Any] = None
-        dlt_config: ClassVar[DltConfig] = {"skip_complex_types": False}
+        dlt_config: ClassVar[DltConfig] = {"skip_nested_types": False}
 
     example_data = {
         "optional_parent_attribute": None,
@@ -374,7 +380,7 @@ def test_considers_model_as_complex_when_skip_complex_types_is_not_set():
                 if col[0] not in ("_dlt_id", "_dlt_load_id")
             }
 
-            # Check if complex fields preserved
+            # Check if nested fields preserved
             # their contents and were not flattened
             assert loaded_values == {
                 "child": '{"child_attribute":"any string","optional_child_attribute":null}',
@@ -401,16 +407,16 @@ def test_considers_model_as_complex_when_skip_complex_types_is_not_set():
 
     assert columns["data_dictionary"] == {
         "name": "data_dictionary",
-        "data_type": "complex",
+        "data_type": "json",
         "nullable": False,
     }
 
 
-def test_skips_complex_fields_when_skip_complex_types_is_true_and_field_is_not_a_pydantic_model():
+def test_skips_complex_fields_when_skip_nested_types_is_true_and_field_is_not_a_pydantic_model():
     class Parent(BaseModel):
         data_list: List[int] = []
         data_dictionary: Dict[str, Any] = None
-        dlt_config: ClassVar[DltConfig] = {"skip_complex_types": True}
+        dlt_config: ClassVar[DltConfig] = {"skip_nested_types": True}
 
     example_data = {
         "optional_parent_attribute": None,
@@ -528,7 +534,6 @@ def test_resource_file_format() -> None:
     assert jsonl_pq.compute_table_schema()["file_format"] == "parquet"
 
     info = dlt.pipeline("example", destination="duckdb").run([jsonl_preferred, jsonl_r, jsonl_pq])
-    info.raise_on_failed_jobs()
     # check file types on load jobs
     load_jobs = {
         job.job_file_info.table_name: job.job_file_info
@@ -542,7 +547,6 @@ def test_resource_file_format() -> None:
     csv_r = dlt.resource(jsonl_data, file_format="csv", name="csv_r")
     assert csv_r.compute_table_schema()["file_format"] == "csv"
     info = dlt.pipeline("example", destination="duckdb").run(csv_r)
-    info.raise_on_failed_jobs()
     # fallback to preferred
     load_jobs = {
         job.job_file_info.table_name: job.job_file_info
@@ -599,3 +603,82 @@ def test_pick_matching_file_format(test_storage: FileStorage) -> None:
     files = test_storage.list_folder_files("user_data_csv/object")
     assert len(files) == 1
     assert files[0].endswith("csv")
+
+
+def test_filesystem_column_hint_timezone() -> None:
+    import pyarrow.parquet as pq
+    import posixpath
+
+    os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = "_storage"
+
+    # talbe: events_timezone_off
+    @dlt.resource(
+        columns={"event_tstamp": {"data_type": "timestamp", "timezone": False}},
+        primary_key="event_id",
+    )
+    def events_timezone_off():
+        yield [
+            {"event_id": 1, "event_tstamp": "2024-07-30T10:00:00.123+00:00"},
+            {"event_id": 2, "event_tstamp": "2024-07-30T10:00:00.123456+02:00"},
+            {"event_id": 3, "event_tstamp": "2024-07-30T10:00:00.123456"},
+        ]
+
+    # talbe: events_timezone_on
+    @dlt.resource(
+        columns={"event_tstamp": {"data_type": "timestamp", "timezone": True}},
+        primary_key="event_id",
+    )
+    def events_timezone_on():
+        yield [
+            {"event_id": 1, "event_tstamp": "2024-07-30T10:00:00.123+00:00"},
+            {"event_id": 2, "event_tstamp": "2024-07-30T10:00:00.123456+02:00"},
+            {"event_id": 3, "event_tstamp": "2024-07-30T10:00:00.123456"},
+        ]
+
+    # talbe: events_timezone_unset
+    @dlt.resource(
+        primary_key="event_id",
+    )
+    def events_timezone_unset():
+        yield [
+            {"event_id": 1, "event_tstamp": "2024-07-30T10:00:00.123+00:00"},
+            {"event_id": 2, "event_tstamp": "2024-07-30T10:00:00.123456+02:00"},
+            {"event_id": 3, "event_tstamp": "2024-07-30T10:00:00.123456"},
+        ]
+
+    pipeline = dlt.pipeline(destination="filesystem")
+
+    pipeline.run(
+        [events_timezone_off(), events_timezone_on(), events_timezone_unset()],
+        loader_file_format="parquet",
+    )
+
+    client: FilesystemClient = pipeline.destination_client()  # type: ignore[assignment]
+
+    expected_results = {
+        "events_timezone_off": None,
+        "events_timezone_on": "UTC",
+        "events_timezone_unset": "UTC",
+    }
+
+    for t in expected_results.keys():
+        events_glob = posixpath.join(client.dataset_path, f"{t}/*")
+        events_files = client.fs_client.glob(events_glob)
+
+        with open(events_files[0], "rb") as f:
+            table = pq.read_table(f)
+
+            # convert the timestamps to strings
+            timestamps = [
+                ts.as_py().strftime("%Y-%m-%dT%H:%M:%S.%f") for ts in table.column("event_tstamp")
+            ]
+            assert timestamps == [
+                "2024-07-30T10:00:00.123000",
+                "2024-07-30T08:00:00.123456",
+                "2024-07-30T10:00:00.123456",
+            ]
+
+            # check if the Parquet file contains timezone information
+            schema = table.schema
+            field = schema.field("event_tstamp")
+            assert field.type.tz == expected_results[t]

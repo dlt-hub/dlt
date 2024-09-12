@@ -8,13 +8,10 @@ from dlt.common.destination.reference import (
     HasFollowupJobs,
     TLoadJobState,
     RunnableLoadJob,
-    JobClientBase,
     FollowupJobRequest,
     LoadJob,
 )
-from dlt.common.metrics import LoadJobMetrics
 from dlt.common.storages.load_package import commit_load_package_state
-from dlt.common.schema import Schema, TTableSchema
 from dlt.common.storages import FileStorage
 from dlt.common.typing import TDataItems
 from dlt.common.storages.load_storage import ParsedLoadJobFileName

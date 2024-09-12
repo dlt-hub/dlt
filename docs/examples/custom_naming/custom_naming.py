@@ -46,8 +46,6 @@ if __name__ == "__main__":
     # Extract, normalize, and load the data
     load_info = pipeline.run([{"StückId": 1}], table_name="Ausrüstung")
     print(load_info)
-    # make sure nothing failed
-    load_info.raise_on_failed_jobs()
     with pipeline.sql_client() as client:
         # NOTE: we quote case sensitive identifers
         with client.execute_query('SELECT "StückId" FROM "Ausrüstung"') as cur:
@@ -66,12 +64,10 @@ if __name__ == "__main__":
     # duckdb is case insensitive so tables and columns below would clash but sql_ci_no_collision prevents that
     data_1 = {"ItemID": 1, "itemid": "collides"}
     load_info = pipeline.run([data_1], table_name="BigData")
-    load_info.raise_on_failed_jobs()
 
     data_2 = {"1Data": 1, "_1data": "collides"}
     # use colliding table
     load_info = pipeline.run([data_2], table_name="bigdata")
-    load_info.raise_on_failed_jobs()
 
     with pipeline.sql_client() as client:
         from duckdb import DuckDBPyConnection

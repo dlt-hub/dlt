@@ -1,5 +1,3 @@
-from typing import Any, Sequence
-
 from dlt.common.normalizers.naming.naming import NamingConvention as BaseNamingConvention
 
 
