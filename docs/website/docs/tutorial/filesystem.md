@@ -151,7 +151,7 @@ files = filesystem(
     credentials=GcpClientCredentials(
         client_email="public-access@dlthub-sandbox.iam.gserviceaccount.com",
         project_id="dlthub-sandbox",
-        private_key=os.environ["GCP_PRIVATE_KEY"]
+        private_key=os.environ["GCP_PRIVATE_KEY"]  # type: ignore
     ),
     file_glob="encounters*.csv") | read_csv()
 ```
@@ -322,7 +322,7 @@ Let's create and apply a transformer that reads `json` files instead of `csv` (t
 from typing import Iterator
 
 import dlt
-import json
+from dlt.common import json
 from dlt.common.storages.fsspec_filesystem import FileItemDict
 from dlt.common.typing import TDataItems
 from dlt.sources.filesystem import filesystem
