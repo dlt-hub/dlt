@@ -96,7 +96,7 @@ Explanation:
 
 ## 3. Add credentials  
   
-To sucessfully connect to your SQL database, you will need to pass credentials into your pipeline. `dlt` automatically looks for this information inside the generated `.toml` files.  
+To sucessfully connect to your SQL database, you will need to pass credentials into your pipeline. dlt automatically looks for this information inside the generated TOML files.  
   
 Simply paste the [connection details](https://docs.rfam.org/en/latest/database.html) inside `secrets.toml` as follows:
 ```toml
@@ -129,7 +129,7 @@ Before running the pipeline, make sure to install all the necessary dependencies
     pip install pymysql
     ```
 
-    Explanation: `dlt` uses SQLAlchemy to connect to the source database and hence, also requires the database-specific SQLAlchemy dialect, such as `pymysql` (MySQL), `psycopg2` (Postgres), `pymssql` (MSSQL), `snowflake-sqlalchemy` (Snowflake), etc. See the [SQLAlchemy docs](https://docs.sqlalchemy.org/en/20/dialects/#external-dialects) for a full list of available dialects.
+    Explanation: dlt uses SQLAlchemy to connect to the source database and hence, also requires the database-specific SQLAlchemy dialect, such as `pymysql` (MySQL), `psycopg2` (Postgres), `pymssql` (MSSQL), `snowflake-sqlalchemy` (Snowflake), etc. See the [SQLAlchemy docs](https://docs.sqlalchemy.org/en/20/dialects/#external-dialects) for a full list of available dialects.
 
 ## 5. Run the pipeline  
   
@@ -138,11 +138,11 @@ After performing steps 1-4, you should now be able to successfully run the pipel
 ```sh
 python sql_database_pipeline.py
 ```
-This will create the file `sql_to_duckdb_pipeline.duckdb` in your `dlt` project directory which contains the loaded data. 
+This will create the file `sql_to_duckdb_pipeline.duckdb` in your dlt project directory which contains the loaded data. 
 
 ## 6. Explore the data
 
-`dlt` comes with a built-in browser application that allows you to interact with the loaded data. To enable it, run the following command:
+dlt comes with a built-in browser application that allows you to interact with the loaded data. To enable it, run the following command:
 
 ```sh
 pip install streamlit
@@ -161,7 +161,7 @@ You can explore the loaded data, run queries and see some pipeline execution det
 ## 7. Append, replace, or merge loaded data
 
 Try running the pipeline again with `python sql_database_pipeline.py`. You will notice that
-all the tables have the data duplicated. This happens as `dlt`, by default, appends data to the destination tables in every load. This behavior can be adjusted by setting the `write_disposition` parameter inside the `pipeline.run()` method. The possible settings are:
+all the tables have the data duplicated. This happens as dlt, by default, appends data to the destination tables in every load. This behavior can be adjusted by setting the `write_disposition` parameter inside the `pipeline.run()` method. The possible settings are:
 
 - `append`: Appends the data to the destination table. This is the default.
 - `replace`: Replaces the data in the destination table with the new data.
@@ -256,7 +256,7 @@ In the first run of the pipeline `python sql_database_pipeline.py`, the entire t
 
 ## What's next?
 
-Congratulations on completing the tutorial! You've learned how to set up a SQL Database source in `dlt` and run a data pipeline to load the data into DuckDB.  
+Congratulations on completing the tutorial! You learned how to set up a SQL Database source in `dlt` and run a data pipeline to load the data into DuckDB.  
   
 Interested in learning more about `dlt`? Here are some suggestions:
 - Learn more about the SQL Database source configuration in [the SQL Database source reference](../dlt-ecosystem/verified-sources/sql_database)
