@@ -834,7 +834,7 @@ def yield_client(
     client: SqlJobClientBase = None
 
     # athena requires staging config to be present, so stick this in there here
-    if destination.destination_type == "athena":
+    if destination.destination_name == "athena":
         staging_config = DestinationClientStagingConfiguration(
             bucket_url=AWS_BUCKET,
         )._bind_dataset_name(dataset_name=dest_config.dataset_name)
