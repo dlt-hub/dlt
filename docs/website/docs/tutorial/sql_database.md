@@ -4,7 +4,7 @@ description: How to extract data from a SQL Database using dlt's SQL Database co
 keywords: [sql connector, sql database pipeline, sql database]
 ---
 
-This tutorial will show you how you can use `dlt` to load data from a SQL Database (PostgreSQL, MySQL, Microsoft SQL Server, Oracle, IBM DB2, etc.) into any `dlt`-compatible destination (Postgres, BigQuery, Snowflake, DuckDB, etc.).  
+This tutorial will show you how you can use dlt to load data from a SQL Database (PostgreSQL, MySQL, Microsoft SQL Server, Oracle, IBM DB2, etc.) into any dlt-compatible destination (Postgres, BigQuery, Snowflake, DuckDB, etc.).  
   
 To make it easy to reproduce, we will be loading data from the [public MySQL RFam database](https://docs.rfam.org/en/latest/database.html) into a local DuckDB instance.  
 
