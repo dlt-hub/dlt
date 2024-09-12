@@ -1,4 +1,4 @@
-FROM ubuntu:latest
+FROM ubuntu:noble
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -110,9 +110,6 @@ RUN echo "Match User billy" >> /etc/ssh/sshd_config && \
     echo "    AllowAgentForwarding no" >> /etc/ssh/sshd_config && \
     echo "    AllowTcpForwarding no" >> /etc/ssh/sshd_config && \
     echo "    X11Forwarding no" >> /etc/ssh/sshd_config
-
-
-
 
 EXPOSE 22
 
