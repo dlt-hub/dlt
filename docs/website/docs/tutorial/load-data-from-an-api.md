@@ -273,14 +273,14 @@ Let's zoom in on the changes:
 
 ## Next steps
 
-Continue your journey with the [Resource Grouping and Secrets](grouping-resources) tutorial.
+Continue your journey with the [Resource Grouping and Secrets](./grouping-resources) tutorial.
 
-If you want to take full advantage of the `dlt` library, then we strongly suggest that you build your sources out of existing **building blocks:**
+If you want to take full advantage of the `dlt` library, then we strongly suggest that you build your sources out of existing building blocks:
+To make most of `dlt`, consider the following:
 
-- Pick your [destinations](../dlt-ecosystem/destinations/).
-- Check [verified sources](../dlt-ecosystem/verified-sources/) provided by us and community.
-- Access your data with [SQL](../dlt-ecosystem/transformations/sql) or [Pandas](../dlt-ecosystem/transformations/sql).
-- [Append, replace and merge your tables](../general-usage/incremental-loading).
+- Explore [destinations](../dlt-ecosystem/destinations/).
+- Use [verified sources](../dlt-ecosystem/verified-sources/) provided by us and community.
+- Employ data transformations using [SQL](../dlt-ecosystem/transformations/sql) or [Pandas](../dlt-ecosystem/transformations/sql).
+- Learn about data loading strategies: [append, replace and merge](../general-usage/incremental-loading).
 - [Set up "last value" incremental loading](../general-usage/incremental-loading#incremental_loading-with-last-value).
-- [Set primary and merge keys, define the columns nullability and data types](../general-usage/resource#define-schema).
-- [Use built-in requests client](../reference/performance#using-the-built-in-requests-client).
+- [Customize your data schema—set primary and merge keys, define column nullability, and specify data types](../general-usage/resource#define-schema).
