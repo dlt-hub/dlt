@@ -1,20 +1,94 @@
 ---
-title: "Building a custom dlt pipeline"
+title: "Build a dlt pipeline"
 description: quick start with dlt
 keywords: [getting started, quick start, basic examples]
 ---
 
-In this section, we will retrieve and load data from the GitHub API into [DuckDB](https://duckdb.org). Specifically, we will load issues from our [dlt-hub/dlt](https://github.com/dlt-hub/dlt) repository. We picked DuckDB as our destination because it is a lightweight, in-process database that is easy to set up and use.
+This guide explores core dlt concepts and shows how to build a custom pipeline that loads data from pure Python data structures into DuckDB. We're start with a simple example and then dive into more advanced topics using data from the GitHub API.
 
-Before we start, make sure you have installed `dlt` with the DuckDB dependency:
+## Prerequisites
+
+- Python 3.9 or higher installed
+- Virtual environment set up
+
+## Installing dlt
+
+Before we start, make sure you have a Python virtual environment set up. Follow the instructions in the [installation guide](../reference/installation) to create a new virtual environment and install dlt.
+
+Verify that dlt is installed by running the following command in your terminal:
 
 ```sh
-pip install "dlt[duckdb]"
+dlt --version
 ```
 
+## Quick start
+
+For starters, let's load a list of Python dictionaries into DuckDB and inspect the created dataset. Here is the code:
+
+```py
+import dlt
+
+data = [{"id": 1, "name": "Alice"}, {"id": 2, "name": "Bob"}]
+
+pipeline = dlt.pipeline(
+    pipeline_name="quick_start", destination="duckdb", dataset_name="mydata"
+)
+load_info = pipeline.run(data, table_name="users")
+
+print(load_info)
+```
+
+
+When you look at the code above, you can see that we:
+1. Import the `dlt` library.
+2. Define our data to load.
+3. Create a pipeline that loads data into DuckDB. Here we also specify the `pipeline_name` and `dataset_name`. We'll use both in a moment.
+4. Run the pipeline.
+
+Save this Python script with the name `quick_start_pipeline.py` and run the following command:
+
+```sh
+python quick_start_pipeline.py
+```
+
+The output should look like:
+
+```sh
+Pipeline quick_start completed in 0.59 seconds
+1 load package(s) were loaded to destination duckdb and into dataset mydata
+The duckdb destination used duckdb:////home/user-name/quick_start/quick_start.duckdb location to store data
+Load package 1692364844.460054 is LOADED and contains no failed jobs
+```
+
+`dlt` just created a database schema called **mydata** (the `dataset_name`) with a table **users** in it.
+
+### Explore the data
+
+To allow sneak peek and basic discovery you can take advantage of [built-in integration with Strealmit](reference/command-line-interface#show-tables-and-data-in-the-destination):
+
+```sh
+dlt pipeline quick_start show
+```
+
+**quick_start** is the name of the pipeline from the script above. If you do not have Streamlit installed yet do:
+
+```sh
+pip install streamlit
+```
+
+Now you should see the **users** table:
+
+![Streamlit Explore data](/img/streamlit-new.png)
+Streamlit Explore data. Schema and data for a test pipeline “quick_start”.
+
 :::tip
-Need help with this tutorial? Join our [Slack community](https://dlthub.com/community) for quick support.
+`dlt` works in Jupyter Notebook and Google Colab! See our [Quickstart Colab Demo.](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing)
+
+Looking for source code of all the snippets? You can find and run them [from this repository](https://github.com/dlt-hub/dlt/blob/devel/docs/website/docs/getting-started-snippets.py).
 :::
+
+
+Now that you have a basic understanding of how to get started with dlt, you might be eager to dive deeper. For that we need to switch to a more advanced data source - the GitHub API. We will load issues from our [dlt-hub/dlt](https://github.com/dlt-hub/dlt) repository.
 
 ## Create a pipeline
 

@@ -6,7 +6,7 @@ keywords: [introduction, who, what, how]
 
 import snippets from '!!raw-loader!./intro-snippets.py';
 
-# Introduction
+# Getting started
 
 ![dlt pacman](/img/dlt-pacman.gif)
 
@@ -142,7 +142,7 @@ pipeline = dlt.pipeline(
 load_info = pipeline.run(foo)
 ```
 
-Check out the [getting started guide](getting-started) to learn more about working with Python data.
+Check out the [build a dlt pipeline](tutorial/load-data-from-an-api) tutorial to learn more about working with Python data.
 
   </TabItem>
 
