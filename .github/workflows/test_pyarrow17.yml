@@ -72,6 +72,7 @@ jobs:
       - name: create secrets.toml
         run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
 
-      - run: |
-          poetry run pytest tests/libs tests/load -m needspyarrow17
-        name: Run needspyarrow17 tests Linux
+      - name: Run needspyarrow17 tests Linux
+        run: |
+          poetry run pytest tests/libs -m "needspyarrow17"
+          poetry run pytest tests/load -m "needspyarrow17"
