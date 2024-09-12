@@ -24,14 +24,14 @@ This tutorial is for you if you need to load data files like `jsonl`, `csv`, `pa
 
 To help you get started quickly, `dlt` provides some handy CLI commands. One of these commands will help you set up a new `dlt` project:
 
-```
+```sh
 dlt init filesystem duckdb
 ```
 
 This command creates a project that loads data from a filesystem into a DuckDB database. You can easily switch out duckdb for any other [supported destinations](../dlt-ecosystem/destinations).
 After running this command, your project will have the following structure:
 
-```txt
+```text
 filesystem_pipeline.py
 requirements.txt
 .dlt/
