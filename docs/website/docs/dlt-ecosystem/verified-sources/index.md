@@ -12,7 +12,7 @@ Planning to use `dlt` in production and need a source that isn't listed? We're h
 ### Core sources
 
 <DocCardList items={useCurrentSidebarCategory().items.filter(
-item => item.label === '30+ SQL Databases' || item.label === 'REST API generic source' || item.label === 'Filesystem'
+item => item.label === '30+ SQL Databases' || item.label === 'REST API generic source' || item.label === 'Filesystem & buckets'
 )} />
 
 ### Verified sources
@@ -24,7 +24,7 @@ If you couldn't find a source implementation, you can easily create your own, ch
 :::
 
 <DocCardList items={useCurrentSidebarCategory().items.filter(
-item => item.label !== '30+ SQL Databases' && item.label !== 'REST API generic source'&& item.label !== 'Filesystem'
+item => item.label !== '30+ SQL Databases' && item.label !== 'REST API generic source'&& item.label !== 'Filesystem & buckets'
 )} />
 
 ### What's the difference between core and verified sources?
