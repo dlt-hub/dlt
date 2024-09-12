@@ -1168,6 +1168,7 @@ def test_adapter_autodetect_schema_with_hints(
         dev_mode=True,
     )
 
+
     pipeline.run(hints)
 
     with pipeline.sql_client() as c:
