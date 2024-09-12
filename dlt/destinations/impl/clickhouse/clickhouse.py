@@ -188,7 +188,7 @@ class ClickHouseMergeJob(SqlMergeFollowupJob):
         key_clauses: Sequence[str],
         for_delete: bool,
     ) -> List[str]:
-        join_conditions = " AND ".join([c.format(d="d", s="s") for c in key_clauses])
+        join_conditions = " OR ".join([c.format(d="d", s="s") for c in key_clauses])
         return [
             f"FROM {root_table_name} AS d JOIN {staging_root_table_name} AS s ON {join_conditions}"
         ]
