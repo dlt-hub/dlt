@@ -21,6 +21,7 @@ except ModuleNotFoundError:
 if t.TYPE_CHECKING:
     # from dlt.destinations.impl.sqlalchemy.sqlalchemy_client import SqlalchemyJobClient
     from dlt.destinations.impl.sqlalchemy.sqlalchemy_job_client import SqlalchemyJobClient
+    from sqlalchemy.engine import Engine
 
 
 class sqlalchemy(Destination[SqlalchemyClientConfiguration, "SqlalchemyJobClient"]):
@@ -45,6 +46,8 @@ class sqlalchemy(Destination[SqlalchemyClientConfiguration, "SqlalchemyJobClient
         caps.supports_ddl_transactions = True
         caps.max_query_parameters = 20_0000
         caps.max_rows_per_insert = 10_000  # Set a default to avoid OOM on large datasets
+        # Multiple concatenated statements are not supported by all engines, so leave them off by default
+        caps.supports_multiple_statements = False
         caps.type_mapper = SqlalchemyTypeMapper
 
         return caps
@@ -74,7 +77,7 @@ class sqlalchemy(Destination[SqlalchemyClientConfiguration, "SqlalchemyJobClient
 
     def __init__(
         self,
-        credentials: t.Union[SqlalchemyCredentials, t.Dict[str, t.Any], str] = None,
+        credentials: t.Union[SqlalchemyCredentials, t.Dict[str, t.Any], str, "Engine"] = None,
         destination_name: t.Optional[str] = None,
         environment: t.Optional[str] = None,
         engine_args: t.Optional[t.Dict[str, t.Any]] = None,
