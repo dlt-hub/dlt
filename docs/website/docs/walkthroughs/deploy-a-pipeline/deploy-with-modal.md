@@ -9,9 +9,9 @@ canonical: https://modal.com/blog/analytics-stack
 
 ## Introduction to Modal
 
-[Modal](https://modal.com/blog/analytics-stack) is a high-performance serverless platform designed for developers, particularly those working in data, AI, and machine learning (ML). It allows you to run and deploy code in the cloud without managing infrastructure.
+[Modal](https://modal.com/blog/analytics-stack) is a serverless platform designed for developers. It allows you to run and deploy code in the cloud without managing infrastructure.
 
-With Modal, you can perform tasks like running generative AI models, large-scale batch jobs, and job queues, all while easily scaling compute resources.
+With Modal, you can perform tasks like running generative models, large-scale batch jobs, and job queues, all while easily scaling compute resources.
 
 ### Modal features
 
@@ -21,7 +21,7 @@ With Modal, you can perform tasks like running generative AI models, large-scale
 - Web Endpoints: Expose any function as an HTTPS API endpoint quickly.
 - Scheduled Jobs: Convert Python functions into scheduled tasks effortlessly.
 
-To know more, please refer to [Kestra's documentation.](https://modal.com/docs)
+To know more, please refer to [Modals's documentation.](https://modal.com/docs)
 
 ## Building Data Pipelines with `dlt`
 
