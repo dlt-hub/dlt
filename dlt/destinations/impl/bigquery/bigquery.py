@@ -408,36 +408,7 @@ SELECT {",".join(self._get_storage_table_query_columns())}
         )
         if should_autodetect_schema(table):
             # Allow BigQuery to infer and evolve the schema, note that dlt is not creating such tables at all.
-            job_config.autodetect = True
-            job_config.schema_update_options = bigquery.SchemaUpdateOption.ALLOW_FIELD_ADDITION
-            job_config.create_disposition = bigquery.CreateDisposition.CREATE_IF_NEEDED
-            if partition_column_ := get_columns_names_with_prop(table, PARTITION_HINT):
-                partition_column = partition_column_[0]
-                col_dtype = table["columns"][partition_column]["data_type"]
-                if col_dtype == "date":
-                    job_config.time_partitioning = bigquery.TimePartitioning(field=partition_column)
-                elif col_dtype == "timestamp":
-                    job_config.time_partitioning = bigquery.TimePartitioning(
-                        type_=bigquery.TimePartitioningType.DAY, field=partition_column
-                    )
-                elif col_dtype == "bigint":
-                    job_config.range_partitioning = bigquery.RangePartitioning(
-                        field=partition_column,
-                        range_=bigquery.PartitionRange(
-                            start=-172800000, end=691200000, interval=86400
-                        ),
-                    )
-
-            if clustering_columns := get_columns_names_with_prop(table, CLUSTER_HINT):
-                job_config.clustering_fields = clustering_columns
-
-            if table_description := table.get(TABLE_DESCRIPTION_HINT, False):
-                job_config.destination_table_description = table_description
-            if table_expiration := table.get(TABLE_EXPIRATION_HINT, False):
-                raise ValueError(
-                    f"Table expiration time ({table_expiration}) can't be set with BigQuery type"
-                    " auto-detection enabled!"
-                )
+            job_config = self._set_user_hints_with_schema_autodetection(table, job_config)
 
         if bucket_path:
             return self.sql_client.native_connection.load_table_from_uri(
@@ -456,6 +427,37 @@ SELECT {",".join(self._get_storage_table_query_columns())}
                 job_config=job_config,
                 timeout=self.config.file_upload_timeout,
             )
+
+    def _set_user_hints_with_schema_autodetection(
+        self, table: PreparedTableSchema, job_config: bigquery.LoadJobConfig
+    ) -> bigquery.LoadJobConfig:
+        job_config.autodetect = True
+        job_config.schema_update_options = bigquery.SchemaUpdateOption.ALLOW_FIELD_ADDITION
+        job_config.create_disposition = bigquery.CreateDisposition.CREATE_IF_NEEDED
+        if partition_column_ := get_columns_names_with_prop(table, PARTITION_HINT):
+            partition_column = partition_column_[0]
+            col_dtype = table["columns"][partition_column]["data_type"]
+            if col_dtype == "date":
+                job_config.time_partitioning = bigquery.TimePartitioning(field=partition_column)
+            elif col_dtype == "timestamp":
+                job_config.time_partitioning = bigquery.TimePartitioning(
+                    type_=bigquery.TimePartitioningType.DAY, field=partition_column
+                )
+            elif col_dtype == "bigint":
+                job_config.range_partitioning = bigquery.RangePartitioning(
+                    field=partition_column,
+                    range_=bigquery.PartitionRange(start=-172800000, end=691200000, interval=86400),
+                )
+        if clustering_columns := get_columns_names_with_prop(table, CLUSTER_HINT):
+            job_config.clustering_fields = clustering_columns
+        if table_description := table.get(TABLE_DESCRIPTION_HINT, False):
+            job_config.destination_table_description = table_description
+        if table_expiration := table.get(TABLE_EXPIRATION_HINT, False):
+            raise ValueError(
+                f"Table expiration time ({table_expiration}) can't be set with BigQuery type"
+                " auto-detection enabled!"
+            )
+        return job_config
 
     def _retrieve_load_job(self, file_path: str) -> bigquery.LoadJob:
         job_id = BigQueryLoadJob.get_job_id_from_file_path(file_path)
