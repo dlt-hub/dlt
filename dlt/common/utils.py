@@ -566,6 +566,27 @@ def get_exception_trace_chain(
     return traces
 
 
+def group_dict_of_lists(input_dict: Dict[str, List[Any]]) -> List[Dict[str, Any]]:
+    """Decomposes a dictionary with list values into a list of dictionaries with unique keys.
+
+    This function takes an input dictionary where each key maps to a list of objects.
+    It returns a list of dictionaries, each containing at most one object per key.
+    The goal is to ensure that no two objects with the same key appear in the same dictionary.
+
+    Parameters:
+        input_dict (Dict[str, List[Any]]): A dictionary with string keys and list of objects as values.
+
+    Returns:
+        List[Dict[str, Any]]: A list of dictionaries, each with unique keys and single objects.
+    """
+    max_length = max(len(v) for v in input_dict.values())
+    list_of_dicts: List[Dict[str, Any]] = [{} for _ in range(max_length)]
+    for name, value_list in input_dict.items():
+        for idx, obj in enumerate(value_list):
+            list_of_dicts[idx][name] = obj
+    return list_of_dicts
+
+
 def order_deduped(lst: List[Any]) -> List[Any]:
     """Returns deduplicated list preserving order of input elements.
 

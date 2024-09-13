@@ -2555,6 +2555,7 @@ def test_import_unknown_file_format() -> None:
 
 
 def test_resource_transformer_standalone() -> None:
+    # requires that standalone resources are executes in a single source
     page = 1
 
     @dlt.resource(name="pages")
@@ -2594,6 +2595,34 @@ def test_resource_transformer_standalone() -> None:
     assert_load_info(info, 2)
     # ten subpages because only 1 page is extracted in the second source (see gen_pages exit condition)
     assert load_data_table_counts(pipeline) == {"subpages": 10, "pages": 10}
+
+
+def test_resources_same_name_in_single_source() -> None:
+    source_ids: List[int] = []
+
+    @dlt.resource(name="pages")
+    def gen_pages():
+        page = 0
+        # also store id of current source instance
+        source_ids.append(id(dlt.current.source()))
+        while True:
+            yield {"page": page}
+            if page == 10:
+                return
+            page += 1
+
+    pipeline = dlt.pipeline("test_resources_same_name_in_single_source", destination="duckdb")
+    info = pipeline.run([gen_pages(), gen_pages()])
+    assert_load_info(info)
+    # two separate sources
+    assert len(set(source_ids)) == 2
+
+    # check against different names
+    source_ids.clear()
+    info = pipeline.run([gen_pages().with_name("page_1"), gen_pages().with_name("page_2")])
+    assert_load_info(info)
+    # one source
+    assert len(set(source_ids)) == 1
 
 
 def test_static_staging_dataset() -> None:
