@@ -33,8 +33,8 @@ const sidebars = {
       type: 'category',
       label: 'Getting Started',
       items: [
-        'getting-started',
         'reference/installation',
+        'tutorial/filesystem',
         'tutorial/load-data-from-an-api',
         'tutorial/grouping-resources',
         'tutorial/sql_database'
