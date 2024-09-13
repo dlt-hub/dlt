@@ -27,7 +27,7 @@ To get started with dlt, install the library using pip:
 pip install dlt
 ```
 :::tip
-We recommend using a clean virtual environment for your experiments! Here are [detailed instructions](./reference/installation) on how to set up one.
+We recommend using a clean virtual environment for your experiments! Read the [detailed instructions](./reference/installation) on how to set up one.
 :::
 
 ## Load data with dlt from …
@@ -46,6 +46,7 @@ We recommend using a clean virtual environment for your experiments! Here are [d
 Use dlt's [REST API source](./tutorial/rest-api) to extract data from any REST API. Define API endpoints you’d like to fetch data from, pagination method and authentication and dlt will handle the rest:
 
 ```py
+import dlt
 from dlt.sources.rest_api import rest_api_source
 
 source = rest_api_source({
@@ -59,10 +60,7 @@ source = rest_api_source({
             "next_url_path": "paging.next",
         },
     },
-    "resources": [
-	      "posts",
-	      "comments"
-    ]
+    "resources": ["posts", "comments"],
 })
 
 pipeline = dlt.pipeline(
