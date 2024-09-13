@@ -220,7 +220,11 @@ class DestinationTestConfiguration:
         """Convenience method to setup pipeline with this configuration"""
 
         self.dev_mode = dev_mode
-        destination = kwargs.pop("destination", None) or self.destination_factory(**kwargs)
+        destination = kwargs.pop("destination")
+        if destination is None:
+            destination = self.destination_factory(**kwargs)
+        else:
+            self.setup()
         pipeline = dlt.pipeline(
             pipeline_name=pipeline_name,
             destination=destination,
