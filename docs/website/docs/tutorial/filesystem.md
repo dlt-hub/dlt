@@ -55,12 +55,12 @@ When deploying your pipeline in a production environment, managing all configura
 
 The filesystem source provides users with building blocks for loading data from any type of files. You can break down the data extraction into two steps:
 
-1. Accessing the files in the bucket / directory.
+1. Listing the files in the bucket / directory.
 2. Reading the files and yielding records.
 
 `dlt`'s filesystem source includes several resources:
 
-- the `filesystem` resource accesses files in the directory or bucket
+- the `filesystem` resource lists files in the directory or bucket
 - several readers resources (`read_csv`, `read_parquet`, `read_jsonl`) read files and yield the records. These resources have a
 special type, they called [transformers](../general-usage/resource#process-resources-with-dlttransformer). Transformers expect items from another resource.
 In this particular case transformers expect `FileItem` object and transform it into multiple records.
@@ -74,20 +74,27 @@ from dlt.sources.filesystem import filesystem, read_csv
 files = filesystem(bucket_url="gs://filesystem-tutorial", file_glob="encounters*.csv")
 reader = (files | read_csv()).with_name("encounters")
 pipeline = dlt.pipeline(pipeline_name="hospital_data_pipeline", dataset_name="hospital_data", destination="duckdb")
+
 info = pipeline.run(reader)
 print(info)
 ```
 
-What's happening in this snippet?
+What's happening in the snippet above?
 
-1. We initialize the filesystem resource and pass the `file_glob` parameter. Based on this parameter, `dlt` will filter all files in the bucket.
-2. We pipe the transformer `read_csv` to read the files yielded by the filesystem resource and iterate over records from the file.
+1. We import the `filesystem` resource and initialize it with a bucket URL (`gs://filesystem-tutorial`) and the `file_glob` parameter. dlt uses `file_glob` to filter files names in the bucket. `filesystem` returns a generator object.
+2. We pipe the files names yielded by the filesystem resource to the transformer resource `read_csv` to read each file and iterate over records from the file. We name this transformer resource `"encounters"` using the `with_name()`. dlt will use the resource name `"encounters"` as a table name when loading the data.
 
 :::note
-A **transformer** in `dlt` is a special type of resource that processes each record from another resource. This lets you chain multiple resources together. To learn more, check out the [transformer section](../general-usage/resource#process-resources-with-dlttransformer).
+A [transformer](../general-usage/resource#process-resources-with-dlttransformer) in `dlt` is a special type of resource that processes each record from another resource. This lets you chain multiple resources together.
 :::
 
-3. We create the `dlt` pipeline with the name `hospital_data_pipeline` and DuckDB destination and run this pipeline.
+3. We create the `dlt` pipeline configuring with the name `hospital_data_pipeline` and DuckDB destination.
+4. We call `pipeline.run()`. This is where the underlying generators are iterated:
+ - dlt retrieves remote data,
+ - normalizes data,
+ - creates or updates the table in the destination,
+ - loads the extracted data into the destination.
+ 5. `print(info)` outputs pipeline running stats we get from `pipeline.run()`
 
 ## 3. Configuring the filesystem source
 
@@ -100,9 +107,9 @@ Jason Walonoski, Mark Kramer, Joseph Nichols, Andre Quina, Chris Moesel, Dylan H
 </details>
 :::
 
-Next, we need to configure the connection. Specifically, we’ll set the bucket URL and credentials. This example focuses on Google Cloud Storage. For other Cloud Storage services, see the [Filesystem configuration section](../dlt-ecosystem/verified-sources/filesystem/basic#configuration).
+Next, we need to configure the connection. Specifically, we’ll set the bucket URL and credentials. This example uses Google Cloud Storage. For other cloud storage services, see the [Filesystem configuration section](../dlt-ecosystem/verified-sources/filesystem/basic#configuration).
 
-Let's specify the bucket URL and credentials:
+Let's specify the bucket URL and credentials. We can do this using the following methods:
 
 <Tabs
   groupId="config-provider-type"
@@ -212,7 +219,7 @@ If you try running the pipeline again with `python filesystem_pipeline.py`, you 
 
 To specify the `write_disposition`, you can set it in the `pipeline.run` command. Let's change the write disposition to `merge`. In this case, `dlt` will deduplicate the data before loading them into the destination.
 
-To enable data deduplication, we also should specify a `primary_key` or `merge_key`, which will be used by `dlt` to define if two records are different. Both keys could consist of several columns. `dlt` will try to use `merge_key` and fallback to `primary_key` if it's not specified. To specify any hints about the data, including column types, primary keys, you can use the [`apply_hints` function](../general-usage/resource#set-table-name-and-adjust-schema).
+To enable data deduplication, we also should specify a `primary_key` or `merge_key`, which will be used by `dlt` to define if two records are different. Both keys could consist of several columns. `dlt` will try to use `merge_key` and fallback to `primary_key` if it's not specified. To specify any hints about the data, including column types, primary keys, you can use the [`apply_hints`](../general-usage/resource#set-table-name-and-adjust-schema) method.
 
 ```py
 import dlt
@@ -222,6 +229,7 @@ files = filesystem(file_glob="encounters*.csv")
 reader = (files | read_csv()).with_name("encounters")
 reader.apply_hints(primary_key="id")
 pipeline = dlt.pipeline(pipeline_name="hospital_data_pipeline", dataset_name="hospital_data", destination="duckdb")
+
 info = pipeline.run(reader, write_disposition="merge")
 print(info)
 ```
@@ -229,11 +237,11 @@ print(info)
 You may need to drop the previously loaded data if you loaded data several times with `append` write disposition to make sure the primary key column has unique values.
 :::
 
-You can learn more about `write_disposition` in the [Write dispositions section](../general-usage/incremental-loading#the-3-write-dispositions).
+You can learn more about `write_disposition` in the [write dispositions section](../general-usage/incremental-loading#the-3-write-dispositions) of the incremental loading page.
 
 ## 7. Loading data incrementally
 
-When loading data from files, you often only want to load files that have been modified. `dlt` makes this easy with [incremental loading](../general-usage/incremental-loading). To load only modified files, you can use the `apply_hint` function:
+When loading data from files, you often only want to load files that have been modified. `dlt` makes this easy with [incremental loading](../general-usage/incremental-loading). To load only modified files, you can use the `apply_hint` method:
 
 ```py
 import dlt
@@ -244,6 +252,7 @@ files.apply_hints(incremental=dlt.sources.incremental("modification_date"))
 reader = (files | read_csv()).with_name("encounters")
 reader.apply_hints(primary_key="id")
 pipeline = dlt.pipeline(pipeline_name="hospital_data_pipeline", dataset_name="hospital_data", destination="duckdb")
+
 info = pipeline.run(reader, write_disposition="merge")
 print(info)
 ```
@@ -261,6 +270,7 @@ files.apply_hints(incremental=dlt.sources.incremental("modification_date"))
 reader = (files | read_csv()).with_name("encounters")
 reader.apply_hints(primary_key="id", incremental=dlt.sources.incremental("STOP"))
 pipeline = dlt.pipeline(pipeline_name="hospital_data_pipeline", dataset_name="hospital_data", destination="duckdb")
+
 info = pipeline.run(reader, write_disposition="merge")
 print(info)
 ```
@@ -306,6 +316,7 @@ files.apply_hints(incremental=dlt.sources.incremental("modification_date"))
 reader = (files | read_csv_custom()).with_name("encounters")
 reader.apply_hints(primary_key="id", incremental=dlt.sources.incremental("STOP"))
 pipeline = dlt.pipeline(pipeline_name="hospital_data_pipeline", dataset_name="hospital_data", destination="duckdb")
+
 info = pipeline.run(reader, write_disposition="merge")
 print(info)
 ```
@@ -340,6 +351,7 @@ files_resource = filesystem(file_glob="**/*.json")
 files_resource.apply_hints(incremental=dlt.sources.incremental("modification_date"))
 json_resource = files_resource | read_json()
 pipeline = dlt.pipeline(pipeline_name="s3_to_duckdb", dataset_name="json_data", destination="duckdb")
+
 info = pipeline.run(json_resource, write_disposition="replace")
 print(info)
 ```
