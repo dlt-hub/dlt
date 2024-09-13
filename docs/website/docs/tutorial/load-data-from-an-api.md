@@ -1,10 +1,21 @@
 ---
 title: "Build a dlt pipeline"
-description: quick start with dlt
+description: Build a data pipeline with dlt
 keywords: [getting started, quick start, basic examples]
 ---
 
-This guide explores core dlt concepts and shows how to build a custom pipeline that loads data from pure Python data structures into DuckDB. We're start with a simple example and then dive into more advanced topics using data from the GitHub API.
+This tutorial introduces you to foundational dlt concepts, demonstrating how to build a custom data pipeline that loads data from pure Python data structures to DuckDB. It starts with a simple example and progresses to more advanced topics and usage scenarios.
+
+## What you will learn
+
+- Loading data from a list of Python dictionaries into DuckDB.
+- Low level API usage with built-in HTTP client.
+- Understand and manage data loading behaviors.
+- Incrementally load new data and deduplicate existing data.
+- Dynamic resource creation and reducing code redundancy.
+- Group resources into sources.
+- Securely handle secrets.
+- Make reusable data sources.
 
 ## Prerequisites
 
