@@ -415,13 +415,10 @@ SELECT {",".join(self._get_storage_table_query_columns())}
                 partition_column = partition_column_[0]
                 col_dtype = table["columns"][partition_column]["data_type"]
                 if col_dtype == "date":
-                    job_config.time_partitioning = bigquery.TimePartitioning(
-                        field=partition_column
-                    )
+                    job_config.time_partitioning = bigquery.TimePartitioning(field=partition_column)
                 elif col_dtype == "timestamp":
                     job_config.time_partitioning = bigquery.TimePartitioning(
-                        type_=bigquery.TimePartitioningType.DAY,
-                        field=partition_column
+                        type_=bigquery.TimePartitioningType.DAY, field=partition_column
                     )
                 elif col_dtype == "bigint":
                     job_config.range_partitioning = bigquery.RangePartitioning(
@@ -434,8 +431,13 @@ SELECT {",".join(self._get_storage_table_query_columns())}
             if clustering_columns := get_columns_names_with_prop(table, CLUSTER_HINT):
                 job_config.clustering_fields = clustering_columns
 
-            # TODO: Write tests to cover all partitioning types above as well as clustering
-            # TODO: Table description, expiration
+            if table_description := table.get(TABLE_DESCRIPTION_HINT, False):
+                job_config.destination_table_description = table_description
+            if table_expiration := table.get(TABLE_EXPIRATION_HINT, False):
+                raise ValueError(
+                    f"Table expiration time ({table_expiration}) can't be set with BigQuery type"
+                    " auto-detection enabled!"
+                )
 
         if bucket_path:
             return self.sql_client.native_connection.load_table_from_uri(

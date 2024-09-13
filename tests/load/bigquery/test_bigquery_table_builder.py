@@ -1151,14 +1151,35 @@ def test_adapter_autodetect_schema_with_hints(
             {"name": "col3", "data_type": "double"},
         ]
     )
-    def hints() -> Iterator[Dict[str, Any]]:
+    def general_types() -> Iterator[Dict[str, Any]]:
         yield from [{"col1": str(i), "col2": i, "col3": float(i)} for i in range(10)]
 
+    @dlt.resource(
+        columns=[
+            {"name": "my_time_column", "data_type": "timestamp"},
+        ]
+    )
+    def partition_time() -> Iterator[Dict[str, Any]]:
+        for i in range(10):
+            yield {
+                "my_time_column": pendulum.from_timestamp(1700784000 + i * 50_000),
+            }
+
+    @dlt.resource(
+        columns=[
+            {"name": "my_date_column", "data_type": "date"},
+        ]
+    )
+    def partition_date() -> Iterator[Dict[str, Any]]:
+        for i in range(10):
+            yield {
+                "my_date_column": pendulum.from_timestamp(1700784000 + i * 50_000).date(),
+            }
+
     bigquery_adapter(
-        hints,
+        general_types,
         table_description="A small table somewhere in the cosmos...",
         partition="col2",
-        table_expiration_datetime="2030-01-01",
         cluster=["col1"],
         autodetect_schema=True,
     )
@@ -1168,26 +1189,88 @@ def test_adapter_autodetect_schema_with_hints(
         dev_mode=True,
     )
 
+    pipeline.run(general_types)
 
-    pipeline.run(hints)
+    bigquery_adapter(
+        partition_time,
+        partition="my_time_column",
+        autodetect_schema=True,
+    )
+
+    pipeline_time = destination_config.setup_pipeline(
+        f"bigquery_{uniq_id()}",
+        dev_mode=True,
+    )
+
+    pipeline_time.run(partition_time)
+
+    bigquery_adapter(
+        partition_date,
+        partition="my_date_column",
+        autodetect_schema=True,
+    )
+
+    pipeline_date = destination_config.setup_pipeline(
+        f"bigquery_{uniq_id()}",
+        dev_mode=True,
+    )
+
+    pipeline_date.run(partition_date)
 
     with pipeline.sql_client() as c:
         nc: google.cloud.bigquery.client.Client = c.native_connection
 
-        table_fqtn = c.make_qualified_table_name("hints", escape=False)
+        table_fqtn = c.make_qualified_table_name("general_types", escape=False)
 
         table: Table = nc.get_table(table_fqtn)
 
         table_cluster_fields = [] if table.clustering_fields is None else table.clustering_fields
+        assert ["col1"] == table_cluster_fields, "NOT clustered by `col1`."
 
-        # Test merging behaviour.
-        assert table.expires == pendulum.datetime(2030, 1, 1, 0)
-        assert ["col1"] == table_cluster_fields, "`hints` table IS NOT clustered by `col1`."
         assert table.description == "A small table somewhere in the cosmos..."
+        assert table.range_partitioning.field == "col2", "NOT partitioned on column `col2`."
 
-        if not table.range_partitioning:
-            raise ValueError("`hints` table IS NOT clustered on a column.")
-        else:
-            assert (
-                table.range_partitioning.field == "col2"
-            ), "`hints` table IS NOT clustered on column `col2`."
+    with pipeline_time.sql_client() as c:
+        nc: google.cloud.bigquery.client.Client = c.native_connection  # type: ignore[no-redef]
+        table_fqtn = c.make_qualified_table_name("partition_time", escape=False)
+        table: Table = nc.get_table(table_fqtn)  # type: ignore[no-redef]
+        assert table.time_partitioning.field == "my_time_column"
+
+    with pipeline_date.sql_client() as c:
+        nc: google.cloud.bigquery.client.Client = c.native_connection  # type: ignore[no-redef]
+        table_fqtn = c.make_qualified_table_name("partition_date", escape=False)
+        table: Table = nc.get_table(table_fqtn)  # type: ignore[no-redef]
+        assert table.time_partitioning.field == "my_date_column"
+        assert table.time_partitioning.type_ == "DAY"
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["bigquery"]),
+    ids=lambda x: x.name,
+)
+def test_adapter_no_expiration_with_autodetection_allowed(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    @dlt.resource(
+        columns=[
+            {"name": "col1", "data_type": "text"},
+            {"name": "col2", "data_type": "bigint"},
+            {"name": "col3", "data_type": "double"},
+        ]
+    )
+    def data() -> Iterator[Dict[str, Any]]:
+        yield from [{"col1": str(i), "col2": i, "col3": float(i)} for i in range(10)]
+
+    bigquery_adapter(
+        data,
+        table_expiration_datetime="2030-01-01",
+        autodetect_schema=True,
+    )
+
+    pipeline = destination_config.setup_pipeline(
+        f"bigquery_{uniq_id()}",
+        dev_mode=True,
+    )
+
+    pipeline.run(data)
