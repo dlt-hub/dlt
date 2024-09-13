@@ -46,9 +46,9 @@ We recommend using a clean virtual environment for your experiments! Here are [d
 Use dlt's [REST API source](./tutorial/rest-api) to extract data from any REST API. Define API endpoints you’d like to fetch data from, pagination method and authentication and dlt will handle the rest:
 
 ```py
-# from dlt.sources import rest_api
+from dlt.sources.rest_api import rest_api_source
 
-source = rest_api({
+source = rest_api_source({
     "client": {
         "base_url": "https://api.example.com/",
         "auth": {
@@ -81,7 +81,7 @@ Follow the [REST API source tutorial](./tutorial/rest-api) to learn more about t
 Use the [SQL source](./tutorial/sql-database) to extract data from the database like PostgreSQL, MySQL, SQLite, Oracle and more.
 
 ```py
-# from dlt.sources.sql import sql_database
+from dlt.sources.sql_database import sql_database
 
 source = sql_database(
     "mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam"
@@ -104,7 +104,7 @@ Follow the [SQL source tutorial](./tutorial/sql-database) to learn more about th
 [Filesystem](./tutorial/filesystem) source extracts data from AWS S3, Google Cloud Storage, Google Drive, Azure, or a local file system.
 
 ```py
-# from dlt.sources.filesystem import filesystem
+from dlt.sources.filesystem import filesystem
 
 source = filesystem(
     bucket_url="s3://example-bucket",
