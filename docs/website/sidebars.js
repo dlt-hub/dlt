@@ -38,10 +38,9 @@ const sidebars = {
       items: [
         'reference/installation',
         'tutorial/rest-api',
-        'tutorial/sql_database',
+        'tutorial/sql-database',
         'tutorial/filesystem',
         'tutorial/load-data-from-an-api',
-        // 'tutorial/grouping-resources',
       ]
     },
     {
