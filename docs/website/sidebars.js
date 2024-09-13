@@ -38,6 +38,7 @@ const sidebars = {
         id: 'tutorial/intro',
       },
       items: [
+        'tutorial/filesystem',
         'tutorial/load-data-from-an-api',
         'tutorial/grouping-resources',
         'tutorial/sql_database'
