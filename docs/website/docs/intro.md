@@ -143,7 +143,7 @@ pipeline = dlt.pipeline(
 load_info = pipeline.run(foo)
 ```
 
-Check out the [Python data structures tutorial](./tutorial/load-data-from-an-api) to learn more about working with Python data.
+Check out the [Python data structures tutorial](./tutorial/load-data-from-an-api) to learn about dlt fundamentals and advanced usage scenarios.
 
   </TabItem>
 
