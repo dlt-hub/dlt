@@ -41,7 +41,7 @@ requirements.txt
 
 Here’s what each file does:
 
-- `filesystem_pipeline.py`: This is the main script where you'll define your data pipeline. It contains several different examples of loading data from filesystem source.
+- `filesystem_pipeline.py`: This is the main script where you'll define your data pipeline. It contains several different examples of loading data from a filesystem source.
 - `requirements.txt`: This file lists all the Python dependencies required for your project.
 - `.dlt/`: This directory contains the [configuration files](../general-usage/credentials/) for your project:
     - `secrets.toml`: This file stores your API keys, tokens, and other sensitive information.
@@ -55,13 +55,15 @@ When deploying your pipeline in a production environment, managing all configura
 
 The filesystem source provides users with building blocks for loading data from any type of files. You can break down the data extraction into two steps:
 
-1. Accessing files in the bucket / directory.
+1. Accessing the files in the bucket / directory.
 2. Reading the files and yielding records.
 
-`dlt`'s filesystem source includes several resources that you can use together or individually:
+`dlt`'s filesystem source includes several resources:
 
-- `filesystem` resource accesses files in the directory or bucket
-- several readers resources (`read_csv`, `read_parquet`, `read_jsonl`) read files and yield the records
+- the `filesystem` resource accesses files in the directory or bucket
+- several readers resources (`read_csv`, `read_parquet`, `read_jsonl`) read files and yield the records. These resources have a
+special type, they called [transformers](../general-usage/resource#process-resources-with-dlttransformer). Transformers expect items from another resource.
+In this particular case transformers expect `FileItem` object and transform it into multiple records.
 
 Let's initialize a source and create a pipeline for loading `csv` files from Google Cloud Storage to DuckDB. You can replace code from `filesystem_pipeline.py` with the following:
 
@@ -87,7 +89,7 @@ A **transformer** in `dlt` is a special type of resource that processes each rec
 
 3. We create the `dlt` pipeline with the name `hospital_data_pipeline` and DuckDB destination and run this pipeline.
 
-## 3. Configuring filesystem source
+## 3. Configuring the filesystem source
 
 :::note
 In this tutorial we will work with publicly accessed dataset [Hospital Patient Records](https://mavenanalytics.io/data-playground?order=date_added%2Cdesc&search=Hospital%20Patient%20Records)
