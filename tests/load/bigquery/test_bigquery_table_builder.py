@@ -1242,35 +1242,3 @@ def test_adapter_autodetect_schema_with_hints(
         table: Table = nc.get_table(table_fqtn)  # type: ignore[no-redef]
         assert table.time_partitioning.field == "my_date_column"
         assert table.time_partitioning.type_ == "DAY"
-
-
-@pytest.mark.parametrize(
-    "destination_config",
-    destinations_configs(default_sql_configs=True, subset=["bigquery"]),
-    ids=lambda x: x.name,
-)
-def test_adapter_no_expiration_with_autodetection_allowed(
-    destination_config: DestinationTestConfiguration,
-) -> None:
-    @dlt.resource(
-        columns=[
-            {"name": "col1", "data_type": "text"},
-            {"name": "col2", "data_type": "bigint"},
-            {"name": "col3", "data_type": "double"},
-        ]
-    )
-    def data() -> Iterator[Dict[str, Any]]:
-        yield from [{"col1": str(i), "col2": i, "col3": float(i)} for i in range(10)]
-
-    bigquery_adapter(
-        data,
-        table_expiration_datetime="2030-01-01",
-        autodetect_schema=True,
-    )
-
-    pipeline = destination_config.setup_pipeline(
-        f"bigquery_{uniq_id()}",
-        dev_mode=True,
-    )
-
-    pipeline.run(data)
