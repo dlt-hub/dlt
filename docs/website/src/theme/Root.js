@@ -1,20 +1,8 @@
 import React, {useState, useEffect} from 'react';
 import {useLocation} from '@docusaurus/router';
-import { useActiveDocContext } from '@docusaurus/plugin-content-docs/client';
 
 // inject overlay content in root element
 export default function Root({children}) {
-  const { activeVersion } = useActiveDocContext();
-
-  useEffect(() => {
-    if (activeVersion) {
-      // Remove all version classes
-      document.body.className = document.body.className.replace(/\bversion-\S+/g, '');
-      // Add the active version class
-      document.body.classList.add(`version-${activeVersion.name}`);
-    }
-  }, [activeVersion]);
-
   return <>{children}<Overlay /></>;
 }
 
