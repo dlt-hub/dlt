@@ -21,7 +21,7 @@ if t.TYPE_CHECKING:
 class DremioTypeMapper(TypeMapperImpl):
     BIGINT_PRECISION = 19
     sct_to_unbound_dbt = {
-        "complex": "VARCHAR",
+        "json": "VARCHAR",
         "text": "VARCHAR",
         "double": "DOUBLE",
         "bool": "BOOLEAN",
@@ -47,7 +47,7 @@ class DremioTypeMapper(TypeMapperImpl):
         "VARBINARY": "binary",
         "BINARY": "binary",
         "BINARY VARYING": "binary",
-        "VARIANT": "complex",
+        "VARIANT": "json",
         "TIME": "time",
         "BIGINT": "bigint",
         "DECIMAL": "decimal",

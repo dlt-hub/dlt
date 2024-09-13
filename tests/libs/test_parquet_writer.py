@@ -76,7 +76,7 @@ def test_parquet_writer_schema_evolution_with_small_buffer() -> None:
 def test_parquet_writer_json_serialization() -> None:
     c1 = new_column("col1", "bigint")
     c2 = new_column("col2", "bigint")
-    c3 = new_column("col3", "complex")
+    c3 = new_column("col3", "json")
 
     with get_writer(ParquetDataWriter) as writer:
         writer.write_data_item(

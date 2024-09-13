@@ -25,7 +25,7 @@ if t.TYPE_CHECKING:
 
 class ClickHouseTypeMapper(TypeMapperImpl):
     sct_to_unbound_dbt = {
-        "complex": "String",
+        "json": "String",
         "text": "String",
         "double": "Float64",
         "bool": "Boolean",
@@ -52,7 +52,7 @@ class ClickHouseTypeMapper(TypeMapperImpl):
         "DateTime64": "timestamp",
         "Time": "timestamp",
         "Int64": "bigint",
-        "Object('json')": "complex",
+        "Object('json')": "json",
         "Decimal": "decimal",
     }
 

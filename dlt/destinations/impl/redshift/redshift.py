@@ -96,9 +96,9 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
             compression = "GZIP"
         elif ext == "parquet":
             file_type = "PARQUET"
-            # if table contains complex types then SUPER field will be used.
+            # if table contains json types then SUPER field will be used.
             # https://docs.aws.amazon.com/redshift/latest/dg/ingest-super.html
-            if table_schema_has_type(self._load_table, "complex"):
+            if table_schema_has_type(self._load_table, "json"):
                 file_type += " SERIALIZETOJSON"
         else:
             raise ValueError(f"Unsupported file type {ext} for Redshift.")

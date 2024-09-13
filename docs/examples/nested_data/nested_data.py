@@ -148,7 +148,7 @@ if __name__ == "__main__":
 
     # The third method involves applying data type hints to specific columns in the data.
     # In this case, we tell dlt that column 'cast' (containing a list of actors)
-    # in 'movies' table should have type complex which means
+    # in 'movies' table should have type 'json' which means
     # that it will be loaded as JSON/struct and not as child table.
     pipeline = dlt.pipeline(
         pipeline_name="mongodb_pipeline",
@@ -156,7 +156,7 @@ if __name__ == "__main__":
         dataset_name="unpacked_data_without_cast",
     )
     source_data = mongodb_collection(collection="movies", write_disposition="replace")
-    source_data.movies.apply_hints(columns={"cast": {"data_type": "complex"}})
+    source_data.movies.apply_hints(columns={"cast": {"data_type": "json"}})
     load_info = pipeline.run(source_data)
     print(load_info)
     tables = pipeline.last_trace.last_normalize_info.row_counts

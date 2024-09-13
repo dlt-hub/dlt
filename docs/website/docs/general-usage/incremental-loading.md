@@ -67,8 +67,8 @@ The default `delete-insert` strategy is used in two scenarios:
 
 The `delete-insert` strategy loads data to a `staging` dataset, deduplicates the staging data if a
 `primary_key` is provided, deletes the data from the destination using `merge_key` and `primary_key`,
-and then inserts the new records. All of this happens in a single atomic transaction for a parent and all
-child tables.
+and then inserts the new records. All of this happens in a single atomic transaction for a root and all
+nested tables.
 
 Example below loads all the GitHub events and updates them in the destination using "id" as primary
 key, making sure that only a single copy of event is present in `github_repo_events` table:
@@ -148,7 +148,7 @@ The `hard_delete` column hint can be used to delete records from the destination
 
 Each record in the destination table with the same `primary_key` or `merge_key` as a record in the source dataset that's marked as a delete will be deleted.
 
-Deletes are propagated to any child table that might exist. For each record that gets deleted in the root table, all corresponding records in the child table(s) will also be deleted. Records in parent and child tables are linked through the `root key` that is explained in the next section.
+Deletes are propagated to any nested table that might exist. For each record that gets deleted in the root table, all corresponding records in the nested table(s) will also be deleted. Records in parent and nested tables are linked through the `root key` that is explained in the next section.
 
 ##### Example: with primary key and boolean delete column
 ```py
@@ -219,9 +219,9 @@ Indexing is important for doing lookups by column value, especially for merge wr
 
 #### Forcing root key propagation
 
-Merge write disposition requires that the `_dlt_id` of top level table is propagated to child
-tables. This concept is similar to foreign key which references a parent table, and we call it a
-`root key`. Root key is automatically propagated for all tables that have `merge` write disposition
+Merge write disposition requires that the `_dlt_id` (`row_key`) of root table is propagated to nested
+tables. This concept is similar to foreign key but it always references the root (top level) table, skipping any intermediate parents
+We call it `root key`. Root key is automatically propagated for all tables that have `merge` write disposition
 set. We do not enable it everywhere because it takes storage space. Nevertheless, is some cases you
 may want to permanently enable root key propagation.
 
@@ -261,8 +261,8 @@ The `unique` hint for `_dlt_id` in the root table is set to `false`  when using 
 After this pattern, the `scd2` table in the destination has two records for surrogate key X: one for validity window `[t1, t2]`, and one for `[t3, NULL]`. A duplicate value exists in `_dlt_id` because both records have the same surrogate key.
 
 Note that:
-- the composite key `(_dlt_id, _dlt_valid_from)` is unique   
-- `_dlt_id` remains unique for child tables—`scd2` does not affect this
+- the composite key `(_dlt_id, _dlt_valid_from)` is unique
+- `_dlt_id` remains unique for nested tables—`scd2` does not affect this
 :::
 
 #### Example: `scd2` merge strategy
@@ -411,14 +411,14 @@ You can modify existing resources that yield data in tabular form by calling `ap
 adding the transform with `add_map`.
 :::
 
-#### Child tables
-Child tables, if any, do not contain validity columns. Validity columns are only added to the root table. Validity column values for records in child tables can be obtained by joining the root table using `_dlt_root_id`.
+#### Nested tables
+Nested tables, if any, do not contain validity columns. Validity columns are only added to the root table. Validity column values for records in nested tables can be obtained by joining the root table using `_dlt_root_id` (`root_key`).
 
 #### Limitations
 
 * You cannot use columns like `updated_at` or integer `version` of a record that are unique within a `primary_key` (even if it is defined). Hash column
 must be unique for a root table. We are working to allow `updated_at` style tracking
-* We do not detect changes in child tables (except new records) if row hash of the corresponding parent row does not change. Use `updated_at` or similar
+* We do not detect changes in nested tables (except new records) if row hash of the corresponding parent row does not change. Use `updated_at` or similar
 column in the root table to stamp changes in nested data.
 * `merge_key(s)` are (for now) ignored.
 
@@ -545,9 +545,9 @@ you add with `add_map` / `add_filter`. This means that you can manipulate the da
 * Another built-in `min` returns smaller value.
 
 You can pass your custom function as well. This lets you define
-`last_value` on complex types i.e. dictionaries and store indexes of last values, not just simple
+`last_value` on nested types i.e. dictionaries and store indexes of last values, not just simple
 types. The `last_value` argument is a [JSON Path](https://github.com/json-path/JsonPath#operators)
-and lets you select nested and complex data (including the whole data item when `$` is used).
+and lets you select nested data (including the whole data item when `$` is used).
 Example below creates last value which is a dictionary holding a max `created_at` value for each
 created table name:
 

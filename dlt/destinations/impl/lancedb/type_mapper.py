@@ -19,7 +19,7 @@ class LanceDBTypeMapper(TypeMapperImpl):
         "bigint": pa.int64(),
         "binary": pa.binary(),
         "date": pa.date32(),
-        "complex": pa.string(),
+        "json": pa.string(),
     }
 
     sct_to_dbt = {}

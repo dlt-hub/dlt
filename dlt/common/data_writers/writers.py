@@ -289,7 +289,7 @@ class ParquetDataWriter(DataWriter):
 
         self.writer: Optional[pyarrow.parquet.ParquetWriter] = None
         self.schema: Optional[pyarrow.Schema] = None
-        self.complex_indices: List[str] = None
+        self.nested_indices: List[str] = None
         self.parquet_flavor = flavor
         self.parquet_version = version
         self.parquet_data_page_size = data_page_size
@@ -337,9 +337,9 @@ class ParquetDataWriter(DataWriter):
                 for name, schema_item in columns_schema.items()
             ]
         )
-        # find row items that are of the complex type (could be abstracted out for use in other writers?)
-        self.complex_indices = [
-            i for i, field in columns_schema.items() if field["data_type"] == "complex"
+        # find row items that are of the json type (could be abstracted out for use in other writers?)
+        self.nested_indices = [
+            i for i, field in columns_schema.items() if field["data_type"] == "json"
         ]
         self.writer = self._create_writer(self.schema)
 
@@ -347,8 +347,8 @@ class ParquetDataWriter(DataWriter):
         super().write_data(items)
         from dlt.common.libs.pyarrow import pyarrow
 
-        # replace complex types with json
-        for key in self.complex_indices:
+        # serialize json types and replace with strings
+        for key in self.nested_indices:
             for row in items:
                 if (value := row.get(key)) is not None:
                     # TODO: make this configurable
@@ -415,20 +415,20 @@ class CsvWriter(DataWriter):
         )
         if self.include_header:
             self.writer.writeheader()
-        # find row items that are of the complex type (could be abstracted out for use in other writers?)
-        self.complex_indices = [
-            i for i, field in columns_schema.items() if field["data_type"] == "complex"
+        # find row items that are of the json type
+        self.nested_indices = [
+            i for i, field in columns_schema.items() if field["data_type"] == "json"
         ]
-        # find row items that are of the complex type (could be abstracted out for use in other writers?)
+        # find row items that are of the binary type
         self.bytes_indices = [
             i for i, field in columns_schema.items() if field["data_type"] == "binary"
         ]
 
     def write_data(self, items: Sequence[TDataItem]) -> None:
         # convert bytes and json
-        if self.complex_indices or self.bytes_indices:
+        if self.nested_indices or self.bytes_indices:
             for row in items:
-                for key in self.complex_indices:
+                for key in self.nested_indices:
                     if (value := row.get(key)) is not None:
                         row[key] = json.dumps(value)
                 for key in self.bytes_indices:

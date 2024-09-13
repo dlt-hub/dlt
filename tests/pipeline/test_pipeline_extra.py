@@ -147,7 +147,7 @@ def test_pydantic_columns_with_contracts(yield_list: bool) -> None:
         user_label: UserLabel
         user_labels: List[UserLabel]
 
-        dlt_config: ClassVar[DltConfig] = {"skip_complex_types": True}
+        dlt_config: ClassVar[DltConfig] = {"skip_nested_types": True}
 
     user = User(
         user_id=1,
@@ -289,11 +289,11 @@ class Child(BaseModel):
     optional_child_attribute: Optional[str] = None
 
 
-def test_flattens_model_when_skip_complex_types_is_set() -> None:
+def test_flattens_model_when_skip_nested_types_is_set() -> None:
     class Parent(BaseModel):
         child: Child
         optional_parent_attribute: Optional[str] = None
-        dlt_config: ClassVar[DltConfig] = {"skip_complex_types": True}
+        dlt_config: ClassVar[DltConfig] = {"skip_nested_types": True}
 
     example_data = {
         "optional_parent_attribute": None,
@@ -351,12 +351,12 @@ def test_flattens_model_when_skip_complex_types_is_set() -> None:
     }
 
 
-def test_considers_model_as_complex_when_skip_complex_types_is_not_set():
+def test_considers_model_as_complex_when_skip_nested_types_is_not_set():
     class Parent(BaseModel):
         child: Child
         optional_parent_attribute: Optional[str] = None
         data_dictionary: Dict[str, Any] = None
-        dlt_config: ClassVar[DltConfig] = {"skip_complex_types": False}
+        dlt_config: ClassVar[DltConfig] = {"skip_nested_types": False}
 
     example_data = {
         "optional_parent_attribute": None,
@@ -380,7 +380,7 @@ def test_considers_model_as_complex_when_skip_complex_types_is_not_set():
                 if col[0] not in ("_dlt_id", "_dlt_load_id")
             }
 
-            # Check if complex fields preserved
+            # Check if nested fields preserved
             # their contents and were not flattened
             assert loaded_values == {
                 "child": '{"child_attribute":"any string","optional_child_attribute":null}',
@@ -407,16 +407,16 @@ def test_considers_model_as_complex_when_skip_complex_types_is_not_set():
 
     assert columns["data_dictionary"] == {
         "name": "data_dictionary",
-        "data_type": "complex",
+        "data_type": "json",
         "nullable": False,
     }
 
 
-def test_skips_complex_fields_when_skip_complex_types_is_true_and_field_is_not_a_pydantic_model():
+def test_skips_complex_fields_when_skip_nested_types_is_true_and_field_is_not_a_pydantic_model():
     class Parent(BaseModel):
         data_list: List[int] = []
         data_dictionary: Dict[str, Any] = None
-        dlt_config: ClassVar[DltConfig] = {"skip_complex_types": True}
+        dlt_config: ClassVar[DltConfig] = {"skip_nested_types": True}
 
     example_data = {
         "optional_parent_attribute": None,

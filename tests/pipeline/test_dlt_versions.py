@@ -18,6 +18,7 @@ from dlt.common.storages import FileStorage
 from dlt.common.schema.typing import (
     LOADS_TABLE_NAME,
     PIPELINE_STATE_TABLE_NAME,
+    SCHEMA_ENGINE_VERSION,
     VERSION_TABLE_NAME,
     TStoredSchema,
 )
@@ -161,7 +162,7 @@ def test_pipeline_with_dlt_update(test_storage: FileStorage) -> None:
                         f".dlt/pipelines/{GITHUB_PIPELINE_NAME}/schemas/github.schema.json"
                     )
                 )
-                assert github_schema["engine_version"] == 9
+                assert github_schema["engine_version"] == SCHEMA_ENGINE_VERSION
                 assert "schema_version_hash" in github_schema["tables"][LOADS_TABLE_NAME]["columns"]
                 # print(github_schema["tables"][PIPELINE_STATE_TABLE_NAME])
                 # load state
@@ -274,7 +275,7 @@ def assert_github_pipeline_end_state(
     pipeline.sync_destination()
     # print(pipeline.working_dir)
     # we have updated schema
-    assert pipeline.default_schema.ENGINE_VERSION == 9
+    assert pipeline.default_schema.ENGINE_VERSION == SCHEMA_ENGINE_VERSION
     # make sure that schema hash retrieved from the destination is exactly the same as the schema hash that was in storage before the schema was wiped
     assert pipeline.default_schema.stored_version_hash == orig_schema["version_hash"]
 
@@ -333,7 +334,7 @@ def test_load_package_with_dlt_update(test_storage: FileStorage) -> None:
                 )
                 pipeline = pipeline.drop()
                 pipeline.sync_destination()
-                assert pipeline.default_schema.ENGINE_VERSION == 9
+                assert pipeline.default_schema.ENGINE_VERSION == SCHEMA_ENGINE_VERSION
                 # schema version does not match `dlt.attach` does not update to the right schema by itself
                 assert pipeline.default_schema.stored_version_hash != github_schema["version_hash"]
                 # state has hash

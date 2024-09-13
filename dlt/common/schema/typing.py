@@ -28,13 +28,19 @@ except ImportError:
 
 
 # current version of schema engine
-SCHEMA_ENGINE_VERSION = 9
+SCHEMA_ENGINE_VERSION = 10
 
 # dlt tables
 VERSION_TABLE_NAME = "_dlt_version"
 LOADS_TABLE_NAME = "_dlt_loads"
 PIPELINE_STATE_TABLE_NAME = "_dlt_pipeline_state"
 DLT_NAME_PREFIX = "_dlt"
+
+# default dlt columns
+C_DLT_ID = "_dlt_id"
+"""unique id of current row"""
+C_DLT_LOAD_ID = "_dlt_load_id"
+"""load id to identify records loaded in a single load package"""
 
 TColumnProp = Literal[
     "name",
@@ -49,10 +55,11 @@ TColumnProp = Literal[
     "partition",
     "cluster",
     "primary_key",
-    "foreign_key",
     "sort",
     "unique",
     "merge_key",
+    "row_key",
+    "parent_key",
     "root_key",
     "hard_delete",
     "dedup_sort",
@@ -65,10 +72,11 @@ TColumnHint = Literal[
     "partition",
     "cluster",
     "primary_key",
-    "foreign_key",
     "sort",
     "unique",
     "merge_key",
+    "row_key",
+    "parent_key",
     "root_key",
     "hard_delete",
     "dedup_sort",
@@ -94,10 +102,11 @@ _ColumnPropInfos = [
     TColumnPropInfo("partition", (False, None)),
     TColumnPropInfo("cluster", (False, None)),
     TColumnPropInfo("primary_key", (False, None)),
-    TColumnPropInfo("foreign_key", (False, None)),
     TColumnPropInfo("sort", (False, None)),
     TColumnPropInfo("unique", (False, None)),
     TColumnPropInfo("merge_key", (False, None)),
+    TColumnPropInfo("row_key", (False, None)),
+    TColumnPropInfo("parent_key", (False, None)),
     TColumnPropInfo("root_key", (False, None)),
     TColumnPropInfo("hard_delete", (False, None)),
     TColumnPropInfo("dedup_sort", (False, None)),
@@ -150,7 +159,8 @@ class TColumnSchema(TColumnSchemaBase, total=False):
     unique: Optional[bool]
     sort: Optional[bool]
     primary_key: Optional[bool]
-    foreign_key: Optional[bool]
+    row_key: Optional[bool]
+    parent_key: Optional[bool]
     root_key: Optional[bool]
     merge_key: Optional[bool]
     variant: Optional[bool]

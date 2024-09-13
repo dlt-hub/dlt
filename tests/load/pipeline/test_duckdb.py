@@ -149,7 +149,7 @@ def test_new_nested_prop_parquet(destination_config: DestinationTestConfiguratio
         is_complete: bool
 
     class EventV1(BaseModel):
-        dlt_config: ClassVar[DltConfig] = {"skip_complex_types": True}
+        dlt_config: ClassVar[DltConfig] = {"skip_nested_types": True}
 
         ver: int
         id: str  # noqa
@@ -184,7 +184,7 @@ def test_new_nested_prop_parquet(destination_config: DestinationTestConfiguratio
         time: Optional[datetime]
 
     class EventV2(BaseModel):
-        dlt_config: ClassVar[DltConfig] = {"skip_complex_types": True}
+        dlt_config: ClassVar[DltConfig] = {"skip_nested_types": True}
 
         ver: int
         id: str  # noqa

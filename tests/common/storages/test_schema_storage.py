@@ -22,7 +22,7 @@ from tests.common.storages.utils import prepare_eth_import_folder
 from tests.common.utils import (
     load_yml_case,
     COMMON_TEST_CASES_PATH,
-    IMPORTED_VERSION_HASH_ETH_V9,
+    IMPORTED_VERSION_HASH_ETH_V10,
 )
 
 
@@ -265,10 +265,10 @@ def test_save_store_schema_over_import(ie_storage: SchemaStorage) -> None:
     ie_storage.save_schema(schema)
     assert schema.version_hash == schema_hash
     # we linked schema to import schema
-    assert schema._imported_version_hash == IMPORTED_VERSION_HASH_ETH_V9()
+    assert schema._imported_version_hash == IMPORTED_VERSION_HASH_ETH_V10()
     # load schema and make sure our new schema is here
     schema = ie_storage.load_schema("ethereum")
-    assert schema._imported_version_hash == IMPORTED_VERSION_HASH_ETH_V9()
+    assert schema._imported_version_hash == IMPORTED_VERSION_HASH_ETH_V10()
     assert schema._stored_version_hash == schema_hash
     assert schema.version_hash == schema_hash
     assert schema.previous_hashes == []
@@ -285,7 +285,7 @@ def test_save_store_schema_over_import_sync(synced_storage: SchemaStorage) -> No
     schema = Schema("ethereum")
     schema_hash = schema.version_hash
     synced_storage.save_schema(schema)
-    assert schema._imported_version_hash == IMPORTED_VERSION_HASH_ETH_V9()
+    assert schema._imported_version_hash == IMPORTED_VERSION_HASH_ETH_V10()
     # import schema is overwritten
     fs = FileStorage(synced_storage.config.import_schema_path)
     exported_name = synced_storage._file_name_in_store("ethereum", "yaml")
@@ -498,10 +498,10 @@ def assert_schema_imported(synced_storage: SchemaStorage, storage: SchemaStorage
     prepare_eth_import_folder(synced_storage)
     schema = synced_storage.load_schema("ethereum")
     # is linked to imported schema
-    schema._imported_version_hash = IMPORTED_VERSION_HASH_ETH_V9()
+    schema._imported_version_hash = IMPORTED_VERSION_HASH_ETH_V10()
     # also was saved in storage
     assert synced_storage.has_schema("ethereum")
     # and has link to imported schema as well (load without import)
     schema = storage.load_schema("ethereum")
-    assert schema._imported_version_hash == IMPORTED_VERSION_HASH_ETH_V9()
+    assert schema._imported_version_hash == IMPORTED_VERSION_HASH_ETH_V10()
     return schema

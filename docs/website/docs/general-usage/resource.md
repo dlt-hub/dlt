@@ -54,11 +54,11 @@ accepts the following arguments:
    receive those hints. Used in [incremental loading](incremental-loading.md).
 1. `columns` let's you define one or more columns, including the data types, nullability, and other
    hints. The column definition is a `TypedDict`: `TTableSchemaColumns`. In the example below, we tell
-   `dlt` that column `tags` (containing a list of tags) in the `user` table should have type `complex`,
+   `dlt` that column `tags` (containing a list of tags) in the `user` table should have type `json`,
    which means that it will be loaded as JSON/struct and not as a child table.
 
   ```py
-  @dlt.resource(name="user", columns={"tags": {"data_type": "complex"}})
+  @dlt.resource(name="user", columns={"tags": {"data_type": "json"}})
   def get_users():
     ...
 
@@ -116,7 +116,7 @@ Things to note:
 
 - Fields with an `Optional` type are marked as `nullable`
 - Fields with a `Union` type are converted to the first (not `None`) type listed in the union. For example, `status: Union[int, str]` results in a `bigint` column.
-- `list`, `dict`, and nested Pydantic model fields will use the `complex` type which means they'll be stored as a JSON object in the database instead of creating child tables.
+- `list`, `dict`, and nested Pydantic model fields will use the `json` type which means they'll be stored as a JSON object in the database instead of creating child tables.
 
 You can override this by configuring the Pydantic model
 
@@ -125,14 +125,14 @@ from typing import ClassVar
 from dlt.common.libs.pydantic import DltConfig
 
 class UserWithNesting(User):
-  dlt_config: ClassVar[DltConfig] = {"skip_complex_types": True}
+  dlt_config: ClassVar[DltConfig] = {"skip_nested_types": True}
 
 @dlt.resource(name="user", columns=UserWithNesting)
 def get_users():
     ...
 ```
 
-`"skip_complex_types"` omits any `dict`/`list`/`BaseModel` type fields from the schema, so dlt will fall back on the default
+`"skip_nested_types"` omits any `dict`/`list`/`BaseModel` type fields from the schema, so dlt will fall back on the default
 behavior of creating child tables for these fields.
 
 We do not support `RootModel` that validate simple types. You can add such a validator yourself, see [data filtering section](#filter-transform-and-pivot-data).

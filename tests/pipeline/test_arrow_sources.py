@@ -109,7 +109,7 @@ def test_extract_and_normalize(item_type: TPythonTableFormat, is_list: bool):
     assert schema_columns["time"]["data_type"] == "time"
     assert schema_columns["binary"]["data_type"] == "binary"
     assert schema_columns["string"]["data_type"] == "text"
-    assert schema_columns["json"]["data_type"] == "complex"
+    assert schema_columns["json"]["data_type"] == "json"
 
 
 @pytest.mark.parametrize(

@@ -24,7 +24,7 @@ class WeaviateTypeMapper(TypeMapperImpl):
         "binary": "blob",
         "decimal": "text",
         "wei": "number",
-        "complex": "text",
+        "json": "text",
     }
 
     sct_to_dbt = {}

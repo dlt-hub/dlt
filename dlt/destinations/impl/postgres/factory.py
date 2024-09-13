@@ -21,7 +21,7 @@ if t.TYPE_CHECKING:
 
 class PostgresTypeMapper(TypeMapperImpl):
     sct_to_unbound_dbt = {
-        "complex": "jsonb",
+        "json": "jsonb",
         "text": "varchar",
         "double": "double precision",
         "bool": "boolean",
@@ -42,7 +42,7 @@ class PostgresTypeMapper(TypeMapperImpl):
 
     dbt_to_sct = {
         "varchar": "text",
-        "jsonb": "complex",
+        "jsonb": "json",
         "double precision": "double",
         "boolean": "bool",
         "timestamp with time zone": "timestamp",

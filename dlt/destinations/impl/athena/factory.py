@@ -35,7 +35,7 @@ def athena_merge_strategies_selector(
 
 class AthenaTypeMapper(TypeMapperImpl):
     sct_to_unbound_dbt = {
-        "complex": "string",
+        "json": "string",
         "text": "string",
         "double": "double",
         "bool": "boolean",

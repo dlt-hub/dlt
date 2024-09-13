@@ -24,7 +24,7 @@ def test_redshift_blocks_time_column(destination_config: DestinationTestConfigur
 
     column_schemas, data_types = table_update_and_row()
 
-    # apply the exact columns definitions so we process complex and wei types correctly!
+    # apply the exact columns definitions so we process nested and wei types correctly!
     @dlt.resource(table_name="data_types", write_disposition="append", columns=column_schemas)
     def my_resource() -> Iterator[Any]:
         nonlocal data_types

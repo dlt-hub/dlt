@@ -17,7 +17,7 @@ if t.TYPE_CHECKING:
 
 class MsSqlTypeMapper(TypeMapperImpl):
     sct_to_unbound_dbt = {
-        "complex": "nvarchar(max)",
+        "json": "nvarchar(max)",
         "text": "nvarchar(max)",
         "double": "float",
         "bool": "bit",
@@ -29,7 +29,7 @@ class MsSqlTypeMapper(TypeMapperImpl):
     }
 
     sct_to_dbt = {
-        "complex": "nvarchar(%i)",
+        "json": "nvarchar(%i)",
         "text": "nvarchar(%i)",
         "timestamp": "datetimeoffset(%i)",
         "binary": "varbinary(%i)",

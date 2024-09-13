@@ -131,9 +131,9 @@ def test_string_literal_escape() -> None:
 
 
 @pytest.mark.parametrize("escaper", ALL_LITERAL_ESCAPE)
-def test_string_complex_escape(escaper: AnyFun) -> None:
+def test_string_nested_escape(escaper: AnyFun) -> None:
     doc = {
-        "complex": [1, 2, 3, "a"],
+        "nested": [1, 2, 3, "a"],
         "link": (
             "?commen\ntU\nrn=urn%3Ali%3Acomment%3A%28acti\0xA \0x0"
             " \\vity%3A69'08444473\n\n551163392%2C6n \r \x8e9085"
