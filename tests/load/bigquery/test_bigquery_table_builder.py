@@ -1,6 +1,8 @@
 import os
 from copy import deepcopy
 from typing import Iterator, Dict, Any, List
+from dlt.common.destination.exceptions import DestinationSchemaTampered
+from dlt.common.schema.exceptions import SchemaIdentifierNormalizationCollision
 from dlt.destinations.impl.bigquery.bigquery_adapter import (
     PARTITION_HINT,
     CLUSTER_HINT,
@@ -18,7 +20,7 @@ from dlt.common.configuration.specs import (
     GcpServiceAccountCredentials,
 )
 from dlt.common.pendulum import pendulum
-from dlt.common.schema import Schema
+from dlt.common.schema import Schema, utils
 from dlt.common.utils import custom_environ
 from dlt.common.utils import uniq_id
 
@@ -36,7 +38,6 @@ from tests.load.utils import (
     drop_active_pipeline_data,
     TABLE_UPDATE,
     sequence_generator,
-    empty_schema,
 )
 
 # mark all tests as essential, do not remove
@@ -60,15 +61,30 @@ def test_configuration() -> None:
 
 @pytest.fixture
 def gcp_client(empty_schema: Schema) -> BigQueryClient:
+    return create_client(empty_schema)
+
+
+@pytest.fixture
+def ci_gcp_client(empty_schema: Schema) -> BigQueryClient:
+    empty_schema._normalizers_config["names"] = "tests.common.cases.normalizers.title_case"
+    empty_schema.update_normalizers()
+    # make the destination case insensitive
+    return create_client(empty_schema, has_case_sensitive_identifiers=False)
+
+
+def create_client(schema: Schema, has_case_sensitive_identifiers: bool = True) -> BigQueryClient:
     # return a client without opening connection
     creds = GcpServiceAccountCredentials()
     creds.project_id = "test_project_id"
     # noinspection PydanticTypeChecker
     return bigquery().client(
-        empty_schema,
-        BigQueryClientConfiguration(credentials=creds)._bind_dataset_name(
-            dataset_name=f"test_{uniq_id()}"
-        ),
+        schema,
+        BigQueryClientConfiguration(
+            credentials=creds,
+            has_case_sensitive_identifiers=has_case_sensitive_identifiers,
+            # let modify destination caps
+            should_set_case_sensitivity_on_new_dataset=True,
+        )._bind_dataset_name(dataset_name=f"test_{uniq_id()}"),
     )
 
 
@@ -148,6 +164,48 @@ def test_alter_table(gcp_client: BigQueryClient) -> None:
     sql = gcp_client._get_table_update_sql("event_test_table", mod_table, True)[0]
     assert "ADD COLUMN `col1` INTEGER NOT NULL" not in sql
     assert "ADD COLUMN `col2` FLOAT64 NOT NULL" in sql
+
+
+def test_create_table_case_insensitive(ci_gcp_client: BigQueryClient) -> None:
+    # in case insensitive mode
+    assert ci_gcp_client.capabilities.has_case_sensitive_identifiers is False
+    # case sensitive naming convention
+    assert ci_gcp_client.sql_client.dataset_name.startswith("Test")
+    with ci_gcp_client.with_staging_dataset():
+        assert ci_gcp_client.sql_client.dataset_name.endswith("staginG")
+    assert ci_gcp_client.sql_client.staging_dataset_name.endswith("staginG")
+
+    ci_gcp_client.schema.update_table(
+        utils.new_table("event_test_table", columns=deepcopy(TABLE_UPDATE))
+    )
+    sql = ci_gcp_client._get_table_update_sql(
+        "Event_test_tablE",
+        list(ci_gcp_client.schema.get_table_columns("Event_test_tablE").values()),
+        False,
+    )[0]
+    sqlfluff.parse(sql, dialect="bigquery")
+    # everything capitalized
+
+    # every line starts with "Col"
+    for line in sql.split("\n")[1:]:
+        assert line.startswith("`Col")
+
+    # generate collision
+    ci_gcp_client.schema.update_table(
+        utils.new_table("event_TEST_table", columns=deepcopy(TABLE_UPDATE))
+    )
+    assert "Event_TEST_tablE" in ci_gcp_client.schema.tables
+    with pytest.raises(SchemaIdentifierNormalizationCollision) as coll_ex:
+        ci_gcp_client.verify_schema()
+    assert coll_ex.value.conflict_identifier_name == "Event_test_tablE"
+    assert coll_ex.value.table_name == "Event_TEST_tablE"
+
+    # make it case sensitive
+    ci_gcp_client.capabilities.has_case_sensitive_identifiers = True
+    # now the check passes, we are stopped because it is not allowed to change schema in the loader
+    with pytest.raises(DestinationSchemaTampered):
+        ci_gcp_client.verify_schema()
+        ci_gcp_client.update_stored_schema([])
 
 
 def test_create_table_with_partition_and_cluster(gcp_client: BigQueryClient) -> None:
@@ -961,8 +1019,7 @@ def test_adapter_additional_table_hints_table_description_with_alter_table(
         dlt.resource([{"col2": "ABC"}], name="hints"),
         table_description="Once upon a time a small table got hinted twice.",
     )
-    info = pipeline.run(mod_hints)
-    info.raise_on_failed_jobs()
+    pipeline.run(mod_hints)
     assert pipeline.last_trace.last_normalize_info.row_counts["hints"] == 1
 
     with pipeline.sql_client() as c:

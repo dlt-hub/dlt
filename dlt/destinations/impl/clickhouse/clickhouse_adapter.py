@@ -1,11 +1,14 @@
-from typing import Any, Literal, Set, get_args, Dict
+from typing import Any, Dict
 
-from dlt.destinations.utils import ensure_resource
+from dlt.destinations.impl.clickhouse.configuration import TTableEngineType
+from dlt.destinations.impl.clickhouse.typing import (
+    TABLE_ENGINE_TYPES,
+    TABLE_ENGINE_TYPE_HINT,
+)
+from dlt.destinations.utils import get_resource_for_adapter
 from dlt.extract import DltResource
 from dlt.extract.items import TTableHintTemplate
 
-
-TTableEngineType = Literal["merge_tree", "replicated_merge_tree"]
 
 """
 The table engine (type of table) determines:
@@ -19,8 +22,6 @@ The table engine (type of table) determines:
 
 See https://clickhouse.com/docs/en/engines/table-engines.
 """
-TABLE_ENGINE_TYPES: Set[TTableEngineType] = set(get_args(TTableEngineType))
-TABLE_ENGINE_TYPE_HINT: Literal["x-table-engine-type"] = "x-table-engine-type"
 
 
 def clickhouse_adapter(data: Any, table_engine_type: TTableEngineType = None) -> DltResource:
@@ -45,7 +46,7 @@ def clickhouse_adapter(data: Any, table_engine_type: TTableEngineType = None) ->
         >>> clickhouse_adapter(data, table_engine_type="merge_tree")
         [DltResource with hints applied]
     """
-    resource = ensure_resource(data)
+    resource = get_resource_for_adapter(data)
 
     additional_table_hints: Dict[str, TTableHintTemplate[Any]] = {}
     if table_engine_type is not None:

@@ -7,7 +7,7 @@ authors:
   title: Data Engineer & ML Engineer
   url: https://github.com/dlt-hub/dlt
   image_url: https://avatars.githubusercontent.com/u/89419010?s=48&v=4
-tags: [data observability, data pipeline observability]
+tags: [data observability, data pipeline observability, openapi]
 ---
 
 At dltHub, we have been pioneering the future of data pipeline generation, [making complex processes simple and scalable.](https://dlthub.com/product/#multiply-don't-add-to-our-productivity) We have not only been building dlt for humans, but also LLMs.

@@ -215,7 +215,7 @@ class DltSource(Iterable[TDataItem]):
     def name(self) -> str:
         return self._schema.name
 
-    # TODO: 4 properties below must go somewhere else ie. into RelationalSchema which is Schema + Relational normalizer.
+    # TODO: max_table_nesting/root_key below must go somewhere else ie. into RelationalSchema which is Schema + Relational normalizer.
     @property
     def max_table_nesting(self) -> int:
         """A schema hint that sets the maximum depth of nested table above which the remaining nodes are loaded as structs or JSON."""
@@ -223,25 +223,12 @@ class DltSource(Iterable[TDataItem]):
 
     @max_table_nesting.setter
     def max_table_nesting(self, value: int) -> None:
-        RelationalNormalizer.update_normalizer_config(self._schema, {"max_nesting": value})
-
-    @property
-    def schema_contract(self) -> TSchemaContract:
-        return self.schema.settings["schema_contract"]
-
-    @schema_contract.setter
-    def schema_contract(self, settings: TSchemaContract) -> None:
-        self.schema.set_schema_contract(settings)
-
-    @property
-    def exhausted(self) -> bool:
-        """check all selected pipes wether one of them has started. if so, the source is exhausted."""
-        for resource in self._resources.extracted.values():
-            item = resource._pipe.gen
-            if inspect.isgenerator(item):
-                if inspect.getgeneratorstate(item) != "GEN_CREATED":
-                    return True
-        return False
+        if value is None:
+            # this also check the normalizer type
+            config = RelationalNormalizer.get_normalizer_config(self._schema)
+            config.pop("max_nesting", None)
+        else:
+            RelationalNormalizer.update_normalizer_config(self._schema, {"max_nesting": value})
 
     @property
     def root_key(self) -> bool:
@@ -279,6 +266,24 @@ class DltSource(Iterable[TDataItem]):
             if self.root_key:
                 propagation_config = config["propagation"]
                 propagation_config["root"].pop(data_normalizer.c_dlt_id)
+
+    @property
+    def schema_contract(self) -> TSchemaContract:
+        return self.schema.settings.get("schema_contract")
+
+    @schema_contract.setter
+    def schema_contract(self, settings: TSchemaContract) -> None:
+        self.schema.set_schema_contract(settings)
+
+    @property
+    def exhausted(self) -> bool:
+        """Check all selected pipes whether one of them has started. if so, the source is exhausted."""
+        for resource in self._resources.extracted.values():
+            item = resource._pipe.gen
+            if inspect.isgenerator(item):
+                if inspect.getgeneratorstate(item) != "GEN_CREATED":
+                    return True
+        return False
 
     @property
     def resources(self) -> DltResourceDict:
@@ -339,6 +344,10 @@ class DltSource(Iterable[TDataItem]):
 
         This is useful for testing, debugging and generating sample datasets for experimentation. You can easily get your test dataset in a few minutes, when otherwise
         you'd need to wait hours for the full loading to complete.
+
+        Notes:
+            1. Transformers resources won't be limited. They should process all the data they receive fully to avoid inconsistencies in generated datasets.
+            2. Each yielded item may contain several records. `add_limit` only limits the "number of yields", not the total number of records.
 
         Args:
             max_items (int): The maximum number of items to yield

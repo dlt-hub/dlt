@@ -292,8 +292,7 @@ def test_scheduler_pipeline_state() -> None:
     pipeline = dlt.pipeline(
         pipeline_name="pipeline_dag_regular",
         dataset_name="mock_data_" + uniq_id(),
-        destination="duckdb",
-        credentials=":pipeline:",
+        destination=dlt.destinations.duckdb(credentials=":pipeline:"),
     )
     now = pendulum.now()
 

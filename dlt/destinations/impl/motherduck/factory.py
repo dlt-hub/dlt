@@ -4,6 +4,7 @@ from dlt.common.destination import Destination, DestinationCapabilitiesContext
 from dlt.common.data_writers.escape import escape_postgres_identifier, escape_duckdb_literal
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 
+from dlt.destinations.impl.duckdb.factory import DuckDbTypeMapper
 from dlt.destinations.impl.motherduck.configuration import (
     MotherDuckCredentials,
     MotherDuckClientConfiguration,
@@ -21,6 +22,7 @@ class motherduck(Destination[MotherDuckClientConfiguration, "MotherDuckClient"])
         caps = DestinationCapabilitiesContext()
         caps.preferred_loader_file_format = "parquet"
         caps.supported_loader_file_formats = ["parquet", "insert_values", "jsonl"]
+        caps.type_mapper = DuckDbTypeMapper
         caps.escape_identifier = escape_postgres_identifier
         # all identifiers are case insensitive but are stored as is
         caps.escape_literal = escape_duckdb_literal
@@ -33,9 +35,11 @@ class motherduck(Destination[MotherDuckClientConfiguration, "MotherDuckClient"])
         caps.is_max_query_length_in_bytes = True
         caps.max_text_data_type_length = 1024 * 1024 * 1024
         caps.is_max_text_data_type_length_in_bytes = True
-        caps.supports_ddl_transactions = False
+        caps.supports_ddl_transactions = True
         caps.alter_add_multi_column = False
         caps.supports_truncate_command = False
+        caps.supported_merge_strategies = ["delete-insert", "scd2"]
+        caps.max_parallel_load_jobs = 8
 
         return caps
 

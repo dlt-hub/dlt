@@ -38,92 +38,121 @@ const sidebars = {
         id: 'tutorial/intro',
       },
       items: [
+        'tutorial/filesystem',
         'tutorial/load-data-from-an-api',
         'tutorial/grouping-resources',
+        'tutorial/sql_database'
       ]
     },
     {
       type: 'category',
-      label: 'Integrations',
+      label: 'Sources',
       link: {
-        type: 'generated-index',
-        title: 'Integrations',
-        description: 'dlt fits everywhere where the data flows. check out our curated data sources, destinations and unexpected places where dlt runs',
-        slug: 'dlt-ecosystem',
-        keywords: ['getting started'],
+        type: 'doc',
+        id: 'dlt-ecosystem/verified-sources/index',
       },
       items: [
+        'dlt-ecosystem/verified-sources/airtable',
+        'dlt-ecosystem/verified-sources/amazon_kinesis',
+        'dlt-ecosystem/verified-sources/arrow-pandas',
+        'dlt-ecosystem/verified-sources/asana',
+        'dlt-ecosystem/verified-sources/chess',
+        'dlt-ecosystem/verified-sources/facebook_ads',
+        {
+              type: 'category',
+              label: 'Filesystem & buckets',
+              description: 'AWS S3, GCP, Azure, local files',
+               link: {
+                type: 'doc',
+                id: 'dlt-ecosystem/verified-sources/filesystem/index',
+              },
+              items: [
+                'dlt-ecosystem/verified-sources/filesystem/basic',
+                'dlt-ecosystem/verified-sources/filesystem/advanced',
+              ]
+            },
+        'dlt-ecosystem/verified-sources/freshdesk',
+        'dlt-ecosystem/verified-sources/github',
+        'dlt-ecosystem/verified-sources/google_ads',
+        'dlt-ecosystem/verified-sources/google_analytics',
+        'dlt-ecosystem/verified-sources/google_sheets',
+        'dlt-ecosystem/verified-sources/hubspot',
+        'dlt-ecosystem/verified-sources/inbox',
+        'dlt-ecosystem/verified-sources/jira',
+        'dlt-ecosystem/verified-sources/kafka',
+        'dlt-ecosystem/verified-sources/matomo',
+        'dlt-ecosystem/verified-sources/mongodb',
+        'dlt-ecosystem/verified-sources/mux',
+        'dlt-ecosystem/verified-sources/notion',
+        'dlt-ecosystem/verified-sources/personio',
+        'dlt-ecosystem/verified-sources/pg_replication',
+        'dlt-ecosystem/verified-sources/pipedrive',
         {
           type: 'category',
-          label: 'Sources',
-          link: {
+          label: 'REST APIs',
+          description:'Load data from any REST API',
+           link: {
             type: 'doc',
-            id: 'dlt-ecosystem/verified-sources/index',
+            id: 'dlt-ecosystem/verified-sources/rest_api/index',
           },
           items: [
-            'dlt-ecosystem/verified-sources/airtable',
-            'dlt-ecosystem/verified-sources/amazon_kinesis',
-            'dlt-ecosystem/verified-sources/arrow-pandas',
-            'dlt-ecosystem/verified-sources/asana',
-            'dlt-ecosystem/verified-sources/chess',
-            'dlt-ecosystem/verified-sources/facebook_ads',
-            'dlt-ecosystem/verified-sources/filesystem',
-            'dlt-ecosystem/verified-sources/freshdesk',
-            'dlt-ecosystem/verified-sources/github',
-            'dlt-ecosystem/verified-sources/google_ads',
-            'dlt-ecosystem/verified-sources/google_analytics',
-            'dlt-ecosystem/verified-sources/google_sheets',
-            'dlt-ecosystem/verified-sources/hubspot',
-            'dlt-ecosystem/verified-sources/inbox',
-            'dlt-ecosystem/verified-sources/jira',
-            'dlt-ecosystem/verified-sources/kafka',
-            'dlt-ecosystem/verified-sources/matomo',
-            'dlt-ecosystem/verified-sources/mongodb',
-            'dlt-ecosystem/verified-sources/mux',
-            'dlt-ecosystem/verified-sources/notion',
-            'dlt-ecosystem/verified-sources/personio',
-            'dlt-ecosystem/verified-sources/pipedrive',
-            'dlt-ecosystem/verified-sources/rest_api',
-            'dlt-ecosystem/verified-sources/openapi-generator',
-            'dlt-ecosystem/verified-sources/salesforce',
-            'dlt-ecosystem/verified-sources/scrapy',
-            'dlt-ecosystem/verified-sources/shopify',
-            'dlt-ecosystem/verified-sources/sql_database',
-            'dlt-ecosystem/verified-sources/slack',
-            'dlt-ecosystem/verified-sources/strapi',
-            'dlt-ecosystem/verified-sources/stripe',
-            'dlt-ecosystem/verified-sources/workable',
-            'dlt-ecosystem/verified-sources/zendesk'
+            'dlt-ecosystem/verified-sources/rest_api/basic',
+            'dlt-ecosystem/verified-sources/rest_api/advanced',
           ]
         },
+        'dlt-ecosystem/verified-sources/openapi-generator',
+        'dlt-ecosystem/verified-sources/salesforce',
+        'dlt-ecosystem/verified-sources/scrapy',
+        'dlt-ecosystem/verified-sources/shopify',
         {
           type: 'category',
-          label: 'Destinations',
-          link: {
+          label: '30+ SQL Databases',
+          description: 'PostgreSQL, MySQL, MS SQL, BigQuery, Redshift, and more',
+           link: {
             type: 'doc',
-            id: 'dlt-ecosystem/destinations/index',
+            id: 'dlt-ecosystem/verified-sources/sql_database/index',
           },
           items: [
-            'dlt-ecosystem/destinations/bigquery',
-            'dlt-ecosystem/destinations/databricks',
-            'dlt-ecosystem/destinations/duckdb',
-            'dlt-ecosystem/destinations/mssql',
-            'dlt-ecosystem/destinations/synapse',
-            'dlt-ecosystem/destinations/clickhouse',
-            'dlt-ecosystem/destinations/filesystem',
-            'dlt-ecosystem/destinations/postgres',
-            'dlt-ecosystem/destinations/redshift',
-            'dlt-ecosystem/destinations/snowflake',
-            'dlt-ecosystem/destinations/athena',
-            'dlt-ecosystem/destinations/weaviate',
-            'dlt-ecosystem/destinations/lancedb',
-            'dlt-ecosystem/destinations/qdrant',
-            'dlt-ecosystem/destinations/dremio',
-            'dlt-ecosystem/destinations/destination',
-            'dlt-ecosystem/destinations/motherduck'
+            'dlt-ecosystem/verified-sources/sql_database/setup',
+            'dlt-ecosystem/verified-sources/sql_database/configuration',
+            'dlt-ecosystem/verified-sources/sql_database/usage',
+            'dlt-ecosystem/verified-sources/sql_database/troubleshooting',
+            'dlt-ecosystem/verified-sources/sql_database/advanced'
           ]
         },
-      ],
+        'dlt-ecosystem/verified-sources/slack',
+        'dlt-ecosystem/verified-sources/strapi',
+        'dlt-ecosystem/verified-sources/stripe',
+        'dlt-ecosystem/verified-sources/workable',
+        'dlt-ecosystem/verified-sources/zendesk'
+      ]
+    },
+    {
+      type: 'category',
+      label: 'Destinations',
+      link: {
+        type: 'doc',
+        id: 'dlt-ecosystem/destinations/index',
+      },
+      items: [
+        'dlt-ecosystem/destinations/bigquery',
+        'dlt-ecosystem/destinations/databricks',
+        'dlt-ecosystem/destinations/duckdb',
+        'dlt-ecosystem/destinations/mssql',
+        'dlt-ecosystem/destinations/synapse',
+        'dlt-ecosystem/destinations/clickhouse',
+        'dlt-ecosystem/destinations/filesystem',
+        'dlt-ecosystem/destinations/postgres',
+        'dlt-ecosystem/destinations/redshift',
+        'dlt-ecosystem/destinations/snowflake',
+        'dlt-ecosystem/destinations/athena',
+        'dlt-ecosystem/destinations/weaviate',
+        'dlt-ecosystem/destinations/lancedb',
+        'dlt-ecosystem/destinations/qdrant',
+        'dlt-ecosystem/destinations/dremio',
+        'dlt-ecosystem/destinations/destination',
+        'dlt-ecosystem/destinations/motherduck'
+      ]
     },
     {
       type: 'category',
@@ -138,6 +167,19 @@ const sidebars = {
         'reference/explainers/how-dlt-works',
         'general-usage/resource',
         'general-usage/source',
+        {
+          type: 'category',
+          label: 'Configuration and secrets',
+           link: {
+            type: 'doc',
+            id: 'general-usage/credentials/index',
+          },
+          items: [
+            'general-usage/credentials/setup',
+            'general-usage/credentials/advanced',
+            'general-usage/credentials/complex_types',
+          ]
+        },
         'general-usage/pipeline',
         'general-usage/destination',
         'general-usage/destination-tables',
@@ -161,20 +203,6 @@ const sidebars = {
         'general-usage/naming-convention',
         'general-usage/schema-contracts',
         'general-usage/schema-evolution',
-        {
-          type: 'category',
-          label: 'Configuration',
-          link: {
-            type: 'generated-index',
-            title: 'Configuration',
-            slug: 'general-usage/credentials',
-          },
-          items: [
-            'general-usage/credentials/configuration',
-            'general-usage/credentials/config_providers',
-            'general-usage/credentials/config_specs',
-          ]
-        },
         'build-a-pipeline-tutorial',
         'reference/performance',
         {
@@ -209,6 +237,7 @@ const sidebars = {
       items: [
         'walkthroughs/create-a-pipeline',
         'walkthroughs/add-a-verified-source',
+        'walkthroughs/add-incremental-configuration',
         'walkthroughs/add_credentials',
         'walkthroughs/run-a-pipeline',
         'walkthroughs/adjust-a-schema',
@@ -356,23 +385,6 @@ if (fs.existsSync('./docs_processed/api_reference/sidebar.json')) {
       item.items.splice(0,0,require("./docs_processed/api_reference/sidebar.json"));
     }
   }
-}
-
-// on the master branch link to devel and vice versa
-if (process.env.IS_MASTER_BRANCH) {
-  sidebars.tutorialSidebar.push(    {
-    type: 'link',
-    label: 'Switch to Devel Docs',
-    href: 'https://dlthub.com/devel/intro',
-    className: 'learn-more-link',
-  })
-} else {
-  sidebars.tutorialSidebar.push(    {
-    type: 'link',
-    label: 'Switch to Stable Docs',
-    href: 'https://dlthub.com/docs/intro',
-    className: 'learn-more-link',
-  })
 }
 
 module.exports = sidebars;

@@ -4,12 +4,12 @@ from dlt.common import logger
 from dlt.common.configuration.container import Container
 from dlt.common.data_writers import (
     DataWriter,
-    DataWriterMetrics,
     create_import_spec,
     resolve_best_writer_spec,
     get_best_writer_spec,
     is_native_writer,
 )
+from dlt.common.metrics import DataWriterMetrics
 from dlt.common.utils import chunks
 from dlt.common.schema.typing import TStoredSchema, TTableSchema
 from dlt.common.storages import (
@@ -46,6 +46,7 @@ def group_worker_files(files: Sequence[str], no_groups: int) -> List[Sequence[st
     remainder_l = len(chunk_files) - no_groups
     l_idx = 0
     while remainder_l > 0:
+        idx = 0
         for idx, file in enumerate(reversed(chunk_files.pop())):
             chunk_files[-l_idx - idx - remainder_l].append(file)  # type: ignore
         remainder_l -= 1
@@ -72,7 +73,6 @@ def w_normalize_files(
     )
     # TODO: capabilities.supported_*_formats can be None, it should have defaults
     supported_file_formats = destination_caps.supported_loader_file_formats or []
-    supported_table_formats = destination_caps.supported_table_formats or []
 
     # process all files with data items and write to buffered item storage
     with Container().injectable_context(destination_caps):
@@ -89,21 +89,11 @@ def w_normalize_files(
             if table_name in item_normalizers:
                 return item_normalizers[table_name]
 
-            if (
-                "table_format" in table_schema
-                and table_schema["table_format"] not in supported_table_formats
-            ):
-                logger.warning(
-                    "Destination does not support the configured `table_format` value "
-                    f"`{table_schema['table_format']}` for table `{table_schema['name']}`. "
-                    "The setting will probably be ignored."
-                )
-
             items_preferred_file_format = preferred_file_format
             items_supported_file_formats = supported_file_formats
-            if destination_caps.loader_file_format_adapter is not None:
+            if destination_caps.loader_file_format_selector is not None:
                 items_preferred_file_format, items_supported_file_formats = (
-                    destination_caps.loader_file_format_adapter(
+                    destination_caps.loader_file_format_selector(
                         preferred_file_format,
                         (
                             supported_file_formats.copy()
@@ -164,7 +154,7 @@ def w_normalize_files(
             item_storage = load_storage.create_item_storage(best_writer_spec)
             if not is_native_writer(item_storage.writer_cls):
                 logger.warning(
-                    f"For data items yielded as {item_format} and job file format"
+                    f"For data items in `{table_name}` yielded as {item_format} and job file format"
                     f" {best_writer_spec.file_format} native writer could not be found. A"
                     f" {item_storage.writer_cls.__name__} writer is used that internally"
                     f" converts {item_format}. This will degrade performance."
@@ -232,9 +222,10 @@ def w_normalize_files(
                     parsed_file_name.table_name
                 )
                 root_tables.add(root_table_name)
+                root_table = stored_schema["tables"].get(root_table_name, {"name": root_table_name})
                 normalizer = _get_items_normalizer(
                     parsed_file_name,
-                    stored_schema["tables"].get(root_table_name, {"name": root_table_name}),
+                    root_table,
                 )
                 logger.debug(
                     f"Processing extracted items in {extracted_items_file} in load_id"

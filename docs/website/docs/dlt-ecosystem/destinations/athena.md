@@ -102,8 +102,11 @@ Athena does not support JSON fields, so JSON is stored as a string.
 
 > ❗**Athena does not support TIME columns in parquet files**. `dlt` will fail such jobs permanently. Convert `datetime.time` objects to `str` or `datetime.datetime` to load them.
 
-### Naming Convention
-We follow our snake_case name convention. Keep the following in mind:
+### Table and column identifiers
+Athena uses case insensitive identifiers and **will lower case all the identifiers** that are stored in the INFORMATION SCHEMA. Do not use
+[case sensitive naming conventions](../../general-usage/naming-convention.md#case-sensitive-and-insensitive-destinations). Letter casing will be removed anyway and you risk to generate identifier collisions, which are detected by `dlt` and will fail the load process.
+
+Under the hood Athena uses different SQL engines for DDL (catalog) and DML/Queries:
 * DDL uses HIVE escaping with ``````
 * Other queries use PRESTO and regular SQL escaping.
 
@@ -126,13 +129,6 @@ You can save your tables as Iceberg tables to Athena. This will enable you, for 
 @dlt.resource(table_format="iceberg")
 def data() -> Iterable[TDataItem]:
     ...
-```
-
-Alternatively, you can set all tables to use the iceberg format with a config variable:
-
-```toml
-[destination.athena]
-force_iceberg = "True"
 ```
 
 For every table created as an iceberg table, the Athena destination will create a regular Athena table in the staging dataset of both the filesystem and the Athena glue catalog, and then copy all data into the final iceberg table that lives with the non-iceberg tables in the same dataset on both the filesystem and the glue catalog. Switching from iceberg to regular table or vice versa is not supported.

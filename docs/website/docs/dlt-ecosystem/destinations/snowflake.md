@@ -82,6 +82,7 @@ You can also pass credentials as a database connection string. For example:
 ```toml
 # keep it at the top of your toml file! before any section starts
 destination.snowflake.credentials="snowflake://loader:<password>@kgiotue-wn98412/dlt_data?warehouse=COMPUTE_WH&role=DLT_LOADER_ROLE"
+
 ```
 
 In **key pair authentication**, you replace the password with a private key string that should be in Base64-encoded DER format ([DBT also recommends](https://docs.getdbt.com/docs/core/connect-data-platform/snowflake-setup#key-pair-authentication) base64-encoded private keys for Snowflake connections). The private key may also be encrypted. In that case, you must provide a passphrase alongside the private key.
@@ -135,7 +136,33 @@ If you set the [`replace` strategy](../../general-usage/full-loading.md) to `sta
 recreated with a [clone command](https://docs.snowflake.com/en/sql-reference/sql/create-clone) from the staging tables.
 
 ## Data loading
-The data is loaded using an internal Snowflake stage. We use the `PUT` command and per-table built-in stages by default. Stage files are immediately removed (if not specified otherwise).
+The data is loaded using an internal Snowflake stage. We use the `PUT` command and per-table built-in stages by default. Stage files are kept by default, unless specified otherwise via the `keep_staged_files` parameter:
+
+```toml
+[destination.snowflake]
+keep_staged_files = false
+```
+
+### Data types
+`snowflake` supports various timestamp types, which can be configured using the column flags `timezone` and `precision` in the `dlt.resource` decorator or the `pipeline.run` method.
+
+- **Precision**: allows you to specify the number of decimal places for fractional seconds, ranging from 0 to 9. It can be used in combination with the `timezone` flag.
+- **Timezone**:
+  - Setting `timezone=False` maps to `TIMESTAMP_NTZ`.
+  - Setting `timezone=True` (or omitting the flag, which defaults to `True`) maps to `TIMESTAMP_TZ`.
+
+#### Example precision and timezone: TIMESTAMP_NTZ(3)
+```py
+@dlt.resource(
+    columns={"event_tstamp": {"data_type": "timestamp", "precision": 3, "timezone": False}},
+    primary_key="event_id",
+)
+def events():
+    yield [{"event_id": 1, "event_tstamp": "2024-07-30T10:00:00.123"}]
+
+pipeline = dlt.pipeline(destination="snowflake")
+pipeline.run(events())
+```
 
 ## Supported file formats
 * [insert-values](../file-formats/insert-format.md) is used by default
@@ -149,7 +176,7 @@ When staging is enabled:
 * [csv](../file-formats/csv.md) is supported
 
 :::caution
-When loading from `parquet`, Snowflake will store `complex` types (JSON) in `VARIANT` as a string. Use the `jsonl` format instead or use `PARSE_JSON` to update the `VARIANT` field after loading.
+When loading from `parquet`, Snowflake will store `json` types (JSON) in `VARIANT` as a string. Use the `jsonl` format instead or use `PARSE_JSON` to update the `VARIANT` field after loading.
 :::
 
 ### Custom csv formats
@@ -170,10 +197,13 @@ Note that we ignore missing columns `ERROR_ON_COLUMN_COUNT_MISMATCH = FALSE` and
 Snowflake supports the following [column hints](https://dlthub.com/docs/general-usage/schema#tables-and-columns):
 * `cluster` - creates a cluster column(s). Many columns per table are supported and only when a new table is created.
 
-### Table and column identifiers
-Snowflake makes all unquoted identifiers uppercase and then resolves them case-insensitively in SQL statements. `dlt` (effectively) does not quote identifiers in DDL, preserving default behavior.
+## Table and column identifiers
+Snowflake supports both case sensitive and case insensitive identifiers. All unquoted and uppercase identifiers resolve case-insensitively in SQL statements. Case insensitive [naming conventions](../../general-usage/naming-convention.md#case-sensitive-and-insensitive-destinations) like the default **snake_case** will generate case insensitive identifiers. Case sensitive (like **sql_cs_v1**) will generate
+case sensitive identifiers that must be quoted in SQL statements.
 
+:::note
 Names of tables and columns in [schemas](../../general-usage/schema.md) are kept in lower case like for all other destinations. This is the pattern we observed in other tools, i.e., `dbt`. In the case of `dlt`, it is, however, trivial to define your own uppercase [naming convention](../../general-usage/schema.md#naming-convention)
+:::
 
 ## Staging support
 
@@ -304,6 +334,27 @@ Above we set `csv` file without header, with **|** as a separator and we request
 
 :::tip
 You'll need those setting when [importing external files](../../general-usage/resource.md#import-external-files)
+:::
+
+### Query Tagging
+`dlt` [tags sessions](https://docs.snowflake.com/en/sql-reference/parameters#query-tag) that execute loading jobs with following job properties:
+* **source** - name of the source (identical with the name of `dlt` schema)
+* **resource** - name of the resource (if known, else empty string)
+* **table** - name of the table loaded by the job
+* **load_id** - load id of the job
+* **pipeline_name** - name of the active pipeline (or empty string if not found)
+
+You can define query tag by defining a query tag placeholder in snowflake credentials:
+```toml
+[destination.snowflake]
+query_tag='{{"source":"{source}", "resource":"{resource}", "table": "{table}", "load_id":"{load_id}", "pipeline_name":"{pipeline_name}"}}'
+```
+which contains Python named formatters corresponding to tag names ie. `{source}` will assume the name of the dlt source.
+
+:::note
+1. query tagging is off by default. `query_tag` configuration field is `None` by default and must be set to enable tagging.
+2. only sessions associated with a job are tagged. sessions that migrate schemas remain untagged
+3. jobs processing table chains (ie. sql merge jobs) will use top level table as **table**
 :::
 
 ### dbt support

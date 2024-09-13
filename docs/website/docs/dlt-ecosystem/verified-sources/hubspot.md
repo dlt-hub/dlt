@@ -283,5 +283,25 @@ verified source.
     1. This function loads data incrementally and tracks the `occurred_at.last_value` parameter from
     the previous pipeline run. Refer to our official documentation for more information on [incremental loading](../../general-usage/incremental-loading.md).
 
+### Additional info
+If you encounter the following error while processing your request:
+:::warning ERROR
+Your request to HubSpot is too long to process. Maximum allowed query length is 2000 symbols, ... while your list is
+2125 symbols long.
+:::
+
+Please note that by default, HubSpot requests all default properties and all custom properties (which are
+user-created properties in HubSpot). Therefore, you need to request specific properties for each entity (contacts,
+companies, tickets, etc.).
+
+Default properties are defined in `settings.py`, and you can change them.
+
+The custom properties could cause the error as there might be too many of them available in your HubSpot.
+To change this, you can pass `include_custom_props=False` when initializing the source:
+
+```py
+info = p.run(hubspot(include_custom_props=False))
+```
+Or, if you wish to include them, you can modify `settings.py`.
 
 <!--@@@DLT_TUBA hubspot-->

@@ -90,9 +90,10 @@ def test_text_too_long(client: RedshiftClient, file_storage: FileStorage) -> Non
     # print(len(max_len_str_b))
     row_id = uniq_id()
     insert_values = f"('{row_id}', '{uniq_id()}', '{max_len_str}' , '{str(pendulum.now())}');"
-    with pytest.raises(DatabaseTerminalException) as exv:
-        expect_load_file(client, file_storage, insert_sql + insert_values, user_table_name)
-    assert type(exv.value.dbapi_exception) is psycopg2.errors.StringDataRightTruncation
+    job = expect_load_file(
+        client, file_storage, insert_sql + insert_values, user_table_name, "failed"
+    )
+    assert type(job._exception.dbapi_exception) is psycopg2.errors.StringDataRightTruncation  # type: ignore
 
 
 def test_wei_value(client: RedshiftClient, file_storage: FileStorage) -> None:
@@ -107,9 +108,10 @@ def test_wei_value(client: RedshiftClient, file_storage: FileStorage) -> None:
         f"('{uniq_id()}', '{uniq_id()}', '90238094809sajlkjxoiewjhduuiuehd',"
         f" '{str(pendulum.now())}', {10**38});"
     )
-    with pytest.raises(DatabaseTerminalException) as exv:
-        expect_load_file(client, file_storage, insert_sql + insert_values, user_table_name)
-    assert type(exv.value.dbapi_exception) is psycopg2.errors.InternalError_
+    job = expect_load_file(
+        client, file_storage, insert_sql + insert_values, user_table_name, "failed"
+    )
+    assert type(job._exception.dbapi_exception) is psycopg2.errors.InternalError_  # type: ignore
 
 
 def test_schema_string_exceeds_max_text_length(client: RedshiftClient) -> None:

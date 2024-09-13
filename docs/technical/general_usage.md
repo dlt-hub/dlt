@@ -47,7 +47,7 @@ Pipeline can be explicitly created and configured via `dlt.pipeline()` that retu
 4. dataset_name - name of the dataset where the data goes (see later the default names)
 5. import_schema_path - default is None
 6. export_schema_path - default is None
-7. full_refresh - if set to True the pipeline working dir will be erased and the dataset name will get the unique suffix (current timestamp). ie the `my_data` becomes `my_data_20221107164856`.
+7. dev_mode - if set to True the pipeline working dir will be erased and the dataset name will get the unique suffix (current timestamp). ie the `my_data` becomes `my_data_20221107164856`.
 
 > **Achtung** as per `secrets_and_config.md` the arguments passed to `dlt.pipeline` are configurable and if skipped will be injected by the config providers. **the values provided explicitly in the code have a full precedence over all config providers**
 
@@ -101,7 +101,7 @@ In case **there are more schemas in the pipeline**, the data will be loaded into
 1. `spotify` tables and `labels` will load into `spotify_data_1`
 2. `mel` resource will load into `spotify_data_1_echonest`
 
-The `full_refresh` option: dataset name receives a prefix with the current timestamp: ie the `my_data` becomes `my_data_20221107164856`. This allows a non destructive full refresh. Nothing is being deleted/dropped from the destination.
+The `dev_mode` option: dataset name receives a prefix with the current timestamp: ie the `my_data` becomes `my_data_20221107164856`. This allows a non destructive full refresh. Nothing is being deleted/dropped from the destination.
 
 ## pipeline working directory and state
 Another fundamental concept is the pipeline working directory. This directory keeps the following information:
@@ -117,7 +117,7 @@ The `restore_from_destination` argument to `dlt.pipeline` let's the user restore
 
 The state is being stored in the destination together with other data. So only when all pipeline stages are completed the state is available for restoration.
 
-The pipeline cannot be restored if `full_refresh` flag is set.
+The pipeline cannot be restored if `dev_mode` flag is set.
 
 The other way to trigger full refresh is to drop destination dataset. `dlt` detects that and resets the pipeline local working folder.
 
@@ -155,8 +155,8 @@ The default json normalizer will convert json documents into tables. All the key
 
 ❗ [more here](working_with_schemas.md)
 
-### Full refresh mode
-If `full_refresh` flag is passed to `dlt.pipeline` then
+### Dev mode mode
+If `dev_mode` flag is passed to `dlt.pipeline` then
 1. the pipeline working dir is fully wiped out (state, schemas, temp files)
 2. dataset name receives a prefix with the current timestamp: ie the `my_data` becomes `my_data_20221107164856`.
 3. pipeline will not be restored from the destination

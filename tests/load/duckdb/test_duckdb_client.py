@@ -67,7 +67,9 @@ def test_duckdb_in_memory_mode_via_factory():
 
         # Check if passing :memory: to factory fails
         with pytest.raises(PipelineStepFailed) as exc:
-            p = dlt.pipeline(pipeline_name="booboo", destination="duckdb", credentials=":memory:")
+            p = dlt.pipeline(
+                pipeline_name="booboo", destination=dlt.destinations.duckdb(credentials=":memory:")
+            )
             p.run([1, 2, 3])
 
         assert isinstance(exc.value.exception, InvalidInMemoryDuckdbCredentials)
@@ -85,7 +87,7 @@ def test_duckdb_in_memory_mode_via_factory():
         with pytest.raises(PipelineStepFailed) as exc:
             p = dlt.pipeline(
                 pipeline_name="booboo",
-                destination=Destination.from_reference("duckdb", credentials=":memory:"),  # type: ignore[arg-type]
+                destination=Destination.from_reference("duckdb", credentials=":memory:"),
             )
             p.run([1, 2, 3], table_name="numbers")
 
@@ -203,7 +205,9 @@ def test_duckdb_database_path() -> None:
 
 def test_keeps_initial_db_path() -> None:
     db_path = "_storage/path_test_quack.duckdb"
-    p = dlt.pipeline(pipeline_name="quack_pipeline", credentials=db_path, destination="duckdb")
+    p = dlt.pipeline(
+        pipeline_name="quack_pipeline", destination=dlt.destinations.duckdb(credentials=db_path)
+    )
     print(p.pipelines_dir)
     with p.sql_client() as conn:
         # still cwd
@@ -251,7 +255,7 @@ def test_duck_database_path_delete() -> None:
     db_folder = "_storage/db_path"
     os.makedirs(db_folder)
     db_path = f"{db_folder}/path_test_quack.duckdb"
-    p = dlt.pipeline(pipeline_name="deep_quack_pipeline", credentials=db_path, destination="duckdb")
+    p = dlt.pipeline(pipeline_name="deep_quack_pipeline", destination=duckdb(credentials=db_path))
     p.run([1, 2, 3], table_name="table", dataset_name="dataset")
     # attach the pipeline
     p = dlt.attach(pipeline_name="deep_quack_pipeline")
@@ -272,7 +276,7 @@ def test_case_sensitive_database_name() -> None:
     cs_quack = os.path.join(TEST_STORAGE_ROOT, "QuAcK")
     os.makedirs(cs_quack, exist_ok=True)
     db_path = os.path.join(cs_quack, "path_TEST_quack.duckdb")
-    p = dlt.pipeline(pipeline_name="NOT_QUAck", credentials=db_path, destination="duckdb")
+    p = dlt.pipeline(pipeline_name="NOT_QUAck", destination=duckdb(credentials=db_path))
     with p.sql_client() as conn:
         conn.execute_sql("DESCRIBE;")
 

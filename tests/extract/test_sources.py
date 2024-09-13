@@ -39,6 +39,39 @@ def switch_to_fifo():
     del os.environ["EXTRACT__NEXT_ITEM_MODE"]
 
 
+def test_basic_source() -> None:
+    def basic_gen():
+        yield 1
+
+    schema = Schema("test")
+    s = DltSource.from_data(schema, "section", basic_gen)
+    assert s.name == "test"
+    assert s.section == "section"
+    assert s.max_table_nesting is None
+    assert s.root_key is False
+    assert s.schema_contract is None
+    assert s.exhausted is False
+    assert s.schema is schema
+    assert len(s.resources) == 1
+    assert s.resources == s.selected_resources
+
+    # set some props
+    s.max_table_nesting = 10
+    assert s.max_table_nesting == 10
+    s.root_key = True
+    assert s.root_key is True
+    s.schema_contract = "evolve"
+    assert s.schema_contract == "evolve"
+
+    s.max_table_nesting = None
+    s.root_key = False
+    s.schema_contract = None
+
+    assert s.max_table_nesting is None
+    assert s.root_key is False
+    assert s.schema_contract is None
+
+
 def test_call_data_resource() -> None:
     with pytest.raises(TypeError):
         DltResource.from_data([1], name="t")()
@@ -1321,15 +1354,15 @@ def test_apply_hints() -> None:
     # combine columns with primary key
     empty_r = empty()
     empty_r.apply_hints(
-        columns={"tags": {"data_type": "complex", "primary_key": False}},
+        columns={"tags": {"data_type": "json", "primary_key": False}},
         primary_key="tags",
         merge_key="tags",
     )
     # primary key not set here
-    assert empty_r.columns["tags"] == {"data_type": "complex", "name": "tags", "primary_key": False}
+    assert empty_r.columns["tags"] == {"data_type": "json", "name": "tags", "primary_key": False}
     # only in the computed table
     assert empty_r.compute_table_schema()["columns"]["tags"] == {
-        "data_type": "complex",
+        "data_type": "json",
         "name": "tags",
         "nullable": False,  # NOT NULL because `tags` do not define it
         "primary_key": True,
@@ -1401,6 +1434,36 @@ def test_apply_dynamic_hints() -> None:
         {"t": "table", "p": "parent", "pk": ["a", "b"], "wd": "skip", "c": [{"name": "tags"}]}
     )
     assert table["columns"]["tags"] == {"name": "tags"}
+
+
+def test_apply_hints_complex_migration() -> None:
+    def empty_gen():
+        yield [1, 2, 3]
+
+    empty = DltResource.from_data(empty_gen)
+    empty_r = empty()
+
+    def dyn_type(ev):
+        # must return columns in one of the known formats
+        return [{"name": "dyn_col", "data_type": ev["dt"]}]
+
+    # start with static columns, update to dynamic
+    empty_r.apply_hints(
+        table_name=lambda ev: ev["t"], columns=[{"name": "dyn_col", "data_type": "json"}]
+    )
+
+    table = empty_r.compute_table_schema({"t": "table"})
+    assert table["columns"]["dyn_col"]["data_type"] == "json"
+
+    empty_r.apply_hints(table_name=lambda ev: ev["t"], columns=dyn_type)
+    table = empty_r.compute_table_schema({"t": "table", "dt": "complex"})
+    assert table["columns"]["dyn_col"]["data_type"] == "json"
+
+    # start with dynamic
+    empty_r = empty()
+    empty_r.apply_hints(table_name=lambda ev: ev["t"], columns=dyn_type)
+    table = empty_r.compute_table_schema({"t": "table", "dt": "complex"})
+    assert table["columns"]["dyn_col"]["data_type"] == "json"
 
 
 def test_apply_hints_table_variants() -> None:

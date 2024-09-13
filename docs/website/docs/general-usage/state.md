@@ -96,7 +96,7 @@ about the pipeline, pipeline run (that the state belongs to) and state blob.
   if you are not able to implement it with the standard incremental construct.
 - Store the custom fields dictionaries, dynamic configurations and other source-scoped state.
 
-## When not to use pipeline state
+## Do not use pipeline state if it can grow to millions of records
 
 Do not use dlt state when it may grow to millions of elements. Do you plan to store modification
 timestamps of all of your millions of user records? This is probably a bad idea! In that case you
@@ -108,6 +108,39 @@ could:
   from which you can obtain
   [sqlclient](../dlt-ecosystem/transformations/sql.md)
   and load the data of interest. In that case try at least to process your user records in batches.
+
+### Access data in the destination instead of pipeline state
+In the example below, we load recent comments made by given `user_id`. We access `user_comments` table to select
+maximum comment id for a given user.
+```py
+import dlt
+
+@dlt.resource(name="user_comments")
+def comments(user_id: str):
+    current_pipeline = dlt.current.pipeline()
+    # find last comment id for given user_id by looking in destination
+    max_id: int = 0
+    # on first pipeline run, user_comments table does not yet exist so do not check at all
+    # alternatively catch DatabaseUndefinedRelation which is raised when unknown table is selected
+    if not current_pipeline.first_run:
+        with current_pipeline.sql_client() as client:
+            # we may get last user comment or None which we replace with 0
+            max_id = (
+                client.execute_sql(
+                    "SELECT MAX(_id) FROM user_comments WHERE user_id=?", user_id
+                )[0][0]
+                or 0
+            )
+    # use max_id to filter our results (we simulate API query)
+    yield from [
+        {"_id": i, "value": letter, "user_id": user_id}
+        for i, letter in zip([1, 2, 3], ["A", "B", "C"])
+        if i > max_id
+    ]
+```
+When pipeline is first run, the destination dataset and `user_comments` table do not yet exist. We skip the destination
+query by using `first_run` property of the pipeline. We also handle a situation where there are no comments for a user_id
+by replacing None with 0 as `max_id`.
 
 ## Inspect the pipeline state
 

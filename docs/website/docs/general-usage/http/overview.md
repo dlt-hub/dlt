@@ -8,6 +8,10 @@ dlt has built-in support for fetching data from APIs:
 - [RESTClient](./rest-client.md) for interacting with RESTful APIs and paginating the results
 - [Requests wrapper](./requests.md) for making simple HTTP requests with automatic retries and timeouts
 
+Additionally, dlt provides tools to simplify working with APIs:
+- [REST API generic source](../../dlt-ecosystem/verified-sources/rest_api) integrates APIs using a [declarative configuration](../../dlt-ecosystem/verified-sources/rest_api#source-configuration) to minimize custom code.
+- [OpenAPI source generator](../../dlt-ecosystem/verified-sources/openapi-generator) automatically creates declarative API configurations from [OpenAPI specifications](https://swagger.io/specification/).
+
 ## Quick example
 
 Here's a simple pipeline that reads issues from the [dlt GitHub repository](https://github.com/dlt-hub/dlt/issues). The API endpoint is https://api.github.com/repos/dlt-hub/dlt/issues. The result is "paginated", meaning that the API returns a limited number of issues per page. The `paginate()` method iterates over all pages and yields the results which are then processed by the pipeline.
@@ -54,12 +58,12 @@ Note that we do not explicitly specify the pagination parameters in the example.
 ```py
 import dlt
 from dlt.sources.helpers.rest_client import RESTClient
-from dlt.sources.helpers.rest_client.paginators import JSONResponsePaginator
+from dlt.sources.helpers.rest_client.paginators import JSONLinkPaginator
 
 github_client = RESTClient(
     base_url="https://pokeapi.co/api/v2",
-    paginator=JSONResponsePaginator(next_url_path="next"),   # (1)
-    data_selector="results",                                 # (2)
+    paginator=JSONLinkPaginator(next_url_path="next"),   # (1)
+    data_selector="results",                             # (2)
 )
 
 @dlt.resource
@@ -82,6 +86,6 @@ print(load_info)
 ```
 
 In the example above:
-1. We create a `RESTClient` instance with the base URL of the API: in this case, the [PokéAPI](https://pokeapi.co/). We also specify the paginator to use explicitly: `JSONResponsePaginator` with the `next_url_path` set to `"next"`. This tells the paginator to look for the next page URL in the `next` key of the JSON response.
+1. We create a `RESTClient` instance with the base URL of the API: in this case, the [PokéAPI](https://pokeapi.co/). We also specify the paginator to use explicitly: `JSONLinkPaginator` with the `next_url_path` set to `"next"`. This tells the paginator to look for the next page URL in the `next` key of the JSON response.
 2. In `data_selector` we specify the JSON path to extract the data from the response. This is used to extract the data from the response JSON.
 3. By default the number of items per page is limited to 20. We override this by specifying the `limit` parameter in the API call.

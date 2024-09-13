@@ -4,8 +4,6 @@ from typing import (
     Sequence,
     Iterable,
     Optional,
-    Any,
-    Dict,
     Union,
     TYPE_CHECKING,
 )
@@ -14,6 +12,7 @@ from dlt.common.jsonpath import TAnyJsonPath
 from dlt.common.exceptions import TerminalException
 from dlt.common.schema.typing import TSimpleRegex
 from dlt.common.pipeline import pipeline_state as current_pipeline_state, TRefreshMode
+from dlt.common.storages.load_package import TLoadPackageDropTablesState
 from dlt.pipeline.exceptions import (
     PipelineNeverRan,
     PipelineStepFailed,
@@ -83,24 +82,24 @@ class DropCommand:
 
         if not pipeline.default_schema_name:
             raise PipelineNeverRan(pipeline.pipeline_name, pipeline.pipelines_dir)
+        # clone schema to keep it as original in case we need to restore pipeline schema
         self.schema = pipeline.schemas[schema_name or pipeline.default_schema_name].clone()
 
         drop_result = drop_resources(
-            # self._drop_schema, self._new_state, self.info = drop_resources(
-            self.schema,
-            pipeline.state,
+            # create clones to have separate schemas and state
+            self.schema.clone(),
+            deepcopy(pipeline.state),
             resources,
             state_paths,
             drop_all,
             state_only,
         )
-
+        # get modified schema and state
         self._new_state = drop_result.state
-        self.info = drop_result.info
         self._new_schema = drop_result.schema
-        self._dropped_tables = drop_result.dropped_tables
-        self.drop_tables = not state_only and bool(self._dropped_tables)
-
+        self.info = drop_result.info
+        self._modified_tables = drop_result.modified_tables
+        self.drop_tables = not state_only and bool(self._modified_tables)
         self.drop_state = bool(drop_all or resources or state_paths)
 
     @property
@@ -130,12 +129,14 @@ class DropCommand:
         self.pipeline._save_and_extract_state_and_schema(
             new_state,
             schema=self._new_schema,
-            load_package_state_update={"dropped_tables": self._dropped_tables},
+            load_package_state_update=(
+                {"dropped_tables": self._modified_tables} if self.drop_tables else None
+            ),
         )
 
         self.pipeline.normalize()
         try:
-            self.pipeline.load(raise_on_failed_jobs=True)
+            self.pipeline.load()
         except Exception:
             # Clear extracted state on failure so command can run again
             self.pipeline.drop_pending_packages()
@@ -159,30 +160,33 @@ def drop(
 
 def refresh_source(
     pipeline: "Pipeline", source: DltSource, refresh: TRefreshMode
-) -> Dict[str, Any]:
-    """Run the pipeline's refresh mode on the given source, updating the source's schema and state.
+) -> TLoadPackageDropTablesState:
+    """Run the pipeline's refresh mode on the given source, updating the provided `schema` and pipeline state.
 
     Returns:
         The new load package state containing tables that need to be dropped/truncated.
     """
-    if pipeline.first_run:
-        return {}
     pipeline_state, _ = current_pipeline_state(pipeline._container)
     _resources_to_drop = list(source.resources.extracted) if refresh != "drop_sources" else []
+    only_truncate = refresh == "drop_data"
+
     drop_result = drop_resources(
+        # do not cline the schema, change in place
         source.schema,
+        # do not clone the state, change in place
         pipeline_state,
         resources=_resources_to_drop,
         drop_all=refresh == "drop_sources",
         state_paths="*" if refresh == "drop_sources" else [],
+        state_only=only_truncate,
         sources=source.name,
     )
-    load_package_state = {}
-    if drop_result.dropped_tables:
-        key = "dropped_tables" if refresh != "drop_data" else "truncated_tables"
-        load_package_state[key] = drop_result.dropped_tables
-    if refresh != "drop_data":  # drop_data is only data wipe, keep original schema
-        source.schema = drop_result.schema
-    if "sources" in drop_result.state:
-        pipeline_state["sources"] = drop_result.state["sources"]
+    load_package_state: TLoadPackageDropTablesState = {}
+    if drop_result.modified_tables:
+        if only_truncate:
+            load_package_state["truncated_tables"] = drop_result.modified_tables
+        else:
+            load_package_state["dropped_tables"] = drop_result.modified_tables
+            # if any tables should be dropped, we force state to extract
+            force_state_extract(pipeline_state)
     return load_package_state

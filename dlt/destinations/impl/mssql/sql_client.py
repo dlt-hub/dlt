@@ -45,10 +45,11 @@ class PyOdbcMsSqlClient(SqlClientBase[pyodbc.Connection], DBTransaction):
     def __init__(
         self,
         dataset_name: str,
+        staging_dataset_name: str,
         credentials: MsSqlCredentials,
         capabilities: DestinationCapabilitiesContext,
     ) -> None:
-        super().__init__(credentials.database, dataset_name, capabilities)
+        super().__init__(credentials.database, dataset_name, staging_dataset_name, capabilities)
         self._conn: pyodbc.Connection = None
         self.credentials = credentials
 
@@ -129,7 +130,7 @@ class PyOdbcMsSqlClient(SqlClientBase[pyodbc.Connection], DBTransaction):
         self.execute_many(statements)
 
     def _drop_schema(self) -> None:
-        self.execute_sql("DROP SCHEMA IF EXISTS %s;" % self.fully_qualified_dataset_name())
+        self.execute_sql("DROP SCHEMA %s;" % self.fully_qualified_dataset_name())
 
     def execute_sql(
         self, sql: AnyStr, *args: Any, **kwargs: Any

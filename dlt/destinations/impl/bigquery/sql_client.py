@@ -78,17 +78,20 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
     def __init__(
         self,
         dataset_name: str,
+        staging_dataset_name: str,
         credentials: GcpServiceAccountCredentialsWithoutDefaults,
         capabilities: DestinationCapabilitiesContext,
         location: str = "US",
+        project_id: Optional[str] = None,
         http_timeout: float = 15.0,
         retry_deadline: float = 60.0,
     ) -> None:
         self._client: bigquery.Client = None
         self.credentials: GcpServiceAccountCredentialsWithoutDefaults = credentials
         self.location = location
+        self.project_id = project_id or self.credentials.project_id
         self.http_timeout = http_timeout
-        super().__init__(credentials.project_id, dataset_name, capabilities)
+        super().__init__(self.project_id, dataset_name, staging_dataset_name, capabilities)
 
         self._default_retry = bigquery.DEFAULT_RETRY.with_deadline(retry_deadline)
         self._default_query = bigquery.QueryJobConfig(
@@ -99,7 +102,7 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
     @raise_open_connection_error
     def open_connection(self) -> bigquery.Client:
         self._client = bigquery.Client(
-            self.credentials.project_id,
+            self.project_id,
             credentials=self.credentials.to_native_credentials(),
             location=self.location,
         )
@@ -193,20 +196,21 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
         dataset = bigquery.Dataset(self.fully_qualified_dataset_name(escape=False))
         dataset.location = self.location
         dataset.is_case_insensitive = not self.capabilities.has_case_sensitive_identifiers
-        self._client.create_dataset(
-            dataset,
-            retry=self._default_retry,
-            timeout=self.http_timeout,
-        )
-
-    def drop_dataset(self) -> None:
-        self._client.delete_dataset(
-            self.fully_qualified_dataset_name(escape=False),
-            not_found_ok=True,
-            delete_contents=True,
-            retry=self._default_retry,
-            timeout=self.http_timeout,
-        )
+        try:
+            self._client.create_dataset(
+                dataset,
+                retry=self._default_retry,
+                timeout=self.http_timeout,
+            )
+        except api_core_exceptions.GoogleAPICallError as gace:
+            reason = BigQuerySqlClient._get_reason_from_errors(gace)
+            if reason == "notFound":
+                # google.api_core.exceptions.NotFound: 404 – table not found
+                raise DatabaseUndefinedRelation(gace) from gace
+            elif reason in BQ_TERMINAL_REASONS:
+                raise DatabaseTerminalException(gace) from gace
+            else:
+                raise DatabaseTransientException(gace) from gace
 
     def execute_sql(
         self, sql: AnyStr, *args: Any, **kwargs: Any
@@ -238,7 +242,7 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
                 conn.close()
 
     def catalog_name(self, escape: bool = True) -> Optional[str]:
-        project_id = self.capabilities.casefold_identifier(self.credentials.project_id)
+        project_id = self.capabilities.casefold_identifier(self.project_id)
         if escape:
             project_id = self.capabilities.escape_identifier(project_id)
         return project_id

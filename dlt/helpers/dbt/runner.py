@@ -1,3 +1,4 @@
+import sys
 import os
 from subprocess import CalledProcessError
 import giturlparse
@@ -154,12 +155,14 @@ with exec_to_stdout(f):
         try:
             i = iter_stdout_with_result(self.venv, "python", "-c", script)
             while True:
-                print(next(i).strip())
+                sys.stdout.write(next(i).strip())
+                sys.stdout.write("\n")
         except StopIteration as si:
             # return result from generator
             return si.value  # type: ignore
         except CalledProcessError as cpe:
-            print(cpe.stderr)
+            sys.stderr.write(cpe.stderr)
+            sys.stdout.write("\n")
             raise
 
     def run(

@@ -23,12 +23,10 @@ from dlt.common.typing import (
     TDataItem,
 )
 from dlt.common.normalizers import TNormalizersConfig, NamingConvention
-from dlt.common.normalizers.utils import explicit_normalizers, import_normalizers
 from dlt.common.normalizers.json import DataItemNormalizer, TNormalizedRowIterator
 from dlt.common.schema import utils
 from dlt.common.data_types import py_type_to_sc_type, coerce_value, TDataType
 from dlt.common.schema.typing import (
-    COLUMN_HINTS,
     DLT_NAME_PREFIX,
     SCHEMA_ENGINE_VERSION,
     LOADS_TABLE_NAME,
@@ -46,6 +44,7 @@ from dlt.common.schema.typing import (
     TColumnSchema,
     TColumnProp,
     TColumnHint,
+    TColumnDefaultHint,
     TTypeDetections,
     TSchemaContractDict,
     TSchemaContract,
@@ -58,8 +57,9 @@ from dlt.common.schema.exceptions import (
     SchemaCorruptedException,
     TableIdentifiersFrozen,
 )
-from dlt.common.validation import validate_dict
+from dlt.common.schema.normalizers import import_normalizers, explicit_normalizers
 from dlt.common.schema.exceptions import DataValidationError
+from dlt.common.validation import validate_dict
 
 
 DEFAULT_SCHEMA_CONTRACT_MODE: TSchemaContractDict = {
@@ -99,7 +99,7 @@ class Schema:
     # list of preferred types: map regex on columns into types
     _compiled_preferred_types: List[Tuple[REPattern, TDataType]]
     # compiled default hints
-    _compiled_hints: Dict[TColumnHint, Sequence[REPattern]]
+    _compiled_hints: Dict[TColumnDefaultHint, Sequence[REPattern]]
     # compiled exclude filters per table
     _compiled_excludes: Dict[str, Sequence[REPattern]]
     # compiled include filters per table
@@ -387,7 +387,7 @@ class Schema:
                 tables = self._schema_tables
             # find root table
             try:
-                table = utils.get_top_level_table(tables, table_name)
+                table = utils.get_root_table(tables, table_name)
                 settings = table["schema_contract"]
             except KeyError:
                 settings = self._settings.get("schema_contract", {})
@@ -396,14 +396,19 @@ class Schema:
         return Schema.expand_schema_contract_settings(settings)
 
     def update_table(
-        self, partial_table: TPartialTableSchema, normalize_identifiers: bool = True
+        self,
+        partial_table: TPartialTableSchema,
+        normalize_identifiers: bool = True,
+        from_diff: bool = False,
     ) -> TPartialTableSchema:
-        """Adds or merges `partial_table` into the schema. Identifiers are normalized by default"""
+        """Adds or merges `partial_table` into the schema. Identifiers are normalized by default.
+        `from_diff`
+        """
+        parent_table_name = partial_table.get("parent")
         if normalize_identifiers:
             partial_table = utils.normalize_table_identifiers(partial_table, self.naming)
 
         table_name = partial_table["name"]
-        parent_table_name = partial_table.get("parent")
         # check if parent table present
         if parent_table_name is not None:
             if self._schema_tables.get(parent_table_name) is None:
@@ -418,10 +423,14 @@ class Schema:
         table = self._schema_tables.get(table_name)
         if table is None:
             # add the whole new table to SchemaTables
+            assert not from_diff, "Cannot update the whole table from diff"
             self._schema_tables[table_name] = partial_table
         else:
-            # merge tables performing additional checks
-            partial_table = utils.merge_table(self.name, table, partial_table)
+            if from_diff:
+                partial_table = utils.merge_diff(table, partial_table)
+            else:
+                # merge tables performing additional checks
+                partial_table = utils.merge_table(self.name, table, partial_table)
 
         self.data_item_normalizer.extend_table(table_name)
         return partial_table
@@ -442,12 +451,14 @@ class Schema:
         """Drops tables from the schema and returns the dropped tables"""
         result = []
         for table_name in table_names:
-            table = self.tables.get(table_name)
+            table = self.get_table(table_name)
             if table and (not seen_data_only or utils.has_table_seen_data(table)):
                 result.append(self._schema_tables.pop(table_name))
         return result
 
-    def filter_row_with_hint(self, table_name: str, hint_type: TColumnHint, row: StrAny) -> StrAny:
+    def filter_row_with_hint(
+        self, table_name: str, hint_type: TColumnDefaultHint, row: StrAny
+    ) -> StrAny:
         rv_row: DictStrAny = {}
         column_prop: TColumnProp = utils.hint_to_column_prop(hint_type)
         try:
@@ -459,7 +470,7 @@ class Schema:
                         rv_row[column_name] = row[column_name]
         except KeyError:
             for k, v in row.items():
-                if self._infer_hint(hint_type, v, k):
+                if self._infer_hint(hint_type, k):
                     rv_row[k] = v
 
         # dicts are ordered and we will return the rows with hints in the same order as they appear in the columns
@@ -467,7 +478,7 @@ class Schema:
 
     def merge_hints(
         self,
-        new_hints: Mapping[TColumnHint, Sequence[TSimpleRegex]],
+        new_hints: Mapping[TColumnDefaultHint, Sequence[TSimpleRegex]],
         normalize_identifiers: bool = True,
     ) -> None:
         """Merges existing default hints with `new_hints`. Normalizes names in column regexes if possible. Compiles setting at the end
@@ -505,19 +516,29 @@ class Schema:
         self,
         table_name: str,
         existing_columns: TTableSchemaColumns,
-        case_sensitive: bool = True,
+        case_sensitive: bool,
         include_incomplete: bool = False,
     ) -> List[TColumnSchema]:
         """Gets new columns to be added to `existing_columns` to bring them up to date with `table_name` schema.
-        Columns names are compared case sensitive by default.
+        Columns names are compared case sensitive by default. `existing_column` names are expected to be normalized.
+        Typically they come from the destination schema. Columns that are in `existing_columns` and not in `table_name` columns are ignored.
+
         Optionally includes incomplete columns (without data type)"""
         casefold_f: Callable[[str], str] = str.casefold if not case_sensitive else str  # type: ignore[assignment]
         casefold_existing = {
             casefold_f(col_name): col for col_name, col in existing_columns.items()
         }
+        if len(existing_columns) != len(casefold_existing):
+            raise SchemaCorruptedException(
+                self.name,
+                f"A set of existing columns passed to get_new_table_columns table {table_name} has"
+                " colliding names when case insensitive comparison is used. Original names:"
+                f" {list(existing_columns.keys())}. Case-folded names:"
+                f" {list(casefold_existing.keys())}",
+            )
         diff_c: List[TColumnSchema] = []
-        s_t = self.get_table_columns(table_name, include_incomplete=include_incomplete)
-        for c in s_t.values():
+        updated_columns = self.get_table_columns(table_name, include_incomplete=include_incomplete)
+        for c in updated_columns.values():
             if casefold_f(c["name"]) not in casefold_existing:
                 diff_c.append(c)
         return diff_c
@@ -555,9 +576,16 @@ class Schema:
             )
         ]
 
-    def data_table_names(self) -> List[str]:
-        """Returns list of table table names. Excludes dlt table names."""
-        return [t["name"] for t in self.data_tables()]
+    def data_table_names(
+        self, seen_data_only: bool = False, include_incomplete: bool = False
+    ) -> List[str]:
+        """Returns list of table names. Excludes dlt table names."""
+        return [
+            t["name"]
+            for t in self.data_tables(
+                seen_data_only=seen_data_only, include_incomplete=include_incomplete
+            )
+        ]
 
     def dlt_tables(self) -> List[TTableSchema]:
         """Gets dlt tables"""
@@ -728,6 +756,15 @@ class Schema:
         self._configure_normalizers(explicit_normalizers(schema_name=self._schema_name))
         self._compile_settings()
 
+    def will_update_normalizers(self) -> bool:
+        """Checks if schema has any pending normalizer updates due to configuration or destination capabilities"""
+
+        # import desired modules
+        _, to_naming, _ = import_normalizers(
+            explicit_normalizers(schema_name=self._schema_name), self._normalizers_config
+        )
+        return type(to_naming) is not type(self.naming)  # noqa
+
     def set_schema_contract(self, settings: TSchemaContract) -> None:
         if not settings:
             self._settings.pop("schema_contract", None)
@@ -740,11 +777,16 @@ class Schema:
         column_schema = TColumnSchema(
             name=k,
             data_type=data_type or self._infer_column_type(v, k),
-            nullable=not self._infer_hint("not_null", v, k),
+            nullable=not self._infer_hint("not_null", k),
         )
-        for hint in COLUMN_HINTS:
+        # check other preferred hints that are available
+        for hint in self._compiled_hints:
+            # already processed
+            if hint == "not_null":
+                continue
             column_prop = utils.hint_to_column_prop(hint)
-            hint_value = self._infer_hint(hint, v, k)
+            hint_value = self._infer_hint(hint, k)
+            # set only non-default values
             if not utils.has_default_column_prop_value(column_prop, hint_value):
                 column_schema[column_prop] = hint_value
 
@@ -758,7 +800,7 @@ class Schema:
         """Raises when column is explicitly not nullable"""
         if col_name in table_columns:
             existing_column = table_columns[col_name]
-            if not existing_column.get("nullable", True):
+            if not utils.is_nullable_column(existing_column):
                 raise CannotCoerceNullException(self.name, table_name, col_name)
 
     def _coerce_non_null_value(
@@ -799,11 +841,18 @@ class Schema:
                     v,
                 )
             # otherwise we must create variant extension to the table
-            # pass final=True so no more auto-variants can be created recursively
-            # TODO: generate callback so dlt user can decide what to do
+            # backward compatibility for complex types: if such column exists then use it
             variant_col_name = self.naming.shorten_fragments(
                 col_name, VARIANT_FIELD_FORMAT % py_type
             )
+            if py_type == "json":
+                old_complex_col_name = self.naming.shorten_fragments(
+                    col_name, VARIANT_FIELD_FORMAT % "complex"
+                )
+                if old_column := table_columns.get(old_complex_col_name):
+                    if old_column.get("variant"):
+                        variant_col_name = old_complex_col_name
+            # pass final=True so no more auto-variants can be created recursively
             return self._coerce_non_null_value(
                 table_columns, table_name, variant_col_name, v, is_variant=True
             )
@@ -847,7 +896,7 @@ class Schema:
             preferred_type = self.get_preferred_type(col_name)
         return preferred_type or mapped_type
 
-    def _infer_hint(self, hint_type: TColumnHint, _: Any, col_name: str) -> bool:
+    def _infer_hint(self, hint_type: TColumnDefaultHint, col_name: str) -> bool:
         if hint_type in self._compiled_hints:
             return any(h.search(col_name) for h in self._compiled_hints[hint_type])
         else:
@@ -855,7 +904,7 @@ class Schema:
 
     def _merge_hints(
         self,
-        new_hints: Mapping[TColumnHint, Sequence[TSimpleRegex]],
+        new_hints: Mapping[TColumnDefaultHint, Sequence[TSimpleRegex]],
         normalize_identifiers: bool = True,
     ) -> None:
         """Used by `merge_hints method, does not compile settings at the end"""
@@ -943,8 +992,8 @@ class Schema:
             self._settings["detections"] = type_detections
 
     def _normalize_default_hints(
-        self, default_hints: Mapping[TColumnHint, Sequence[TSimpleRegex]]
-    ) -> Dict[TColumnHint, List[TSimpleRegex]]:
+        self, default_hints: Mapping[TColumnDefaultHint, Sequence[TSimpleRegex]]
+    ) -> Dict[TColumnDefaultHint, List[TSimpleRegex]]:
         """Normalizes the column names in default hints. In case of column names that are regexes, normalization is skipped"""
         return {
             hint: [utils.normalize_simple_regex_column(self.naming, regex) for regex in regexes]
@@ -967,42 +1016,91 @@ class Schema:
         from_naming: NamingConvention,
     ) -> TSchemaTables:
         """Verifies if normalizers can be updated before schema is changed"""
-        # print(f"{self.name}: {type(to_naming)} {type(naming_module)}")
-        if from_naming and type(from_naming) is not type(to_naming):
+        allow_ident_change = normalizers_config.get(
+            "allow_identifier_change_on_table_with_data", False
+        )
+
+        def _verify_identifiers(table: TTableSchema, norm_table: TTableSchema) -> None:
+            if not allow_ident_change:
+                # make sure no identifier got changed in table
+                if norm_table["name"] != table["name"]:
+                    raise TableIdentifiersFrozen(
+                        self.name,
+                        table["name"],
+                        to_naming,
+                        from_naming,
+                        f"Attempt to rename table name to {norm_table['name']}.",
+                    )
+                # if len(norm_table["columns"]) != len(table["columns"]):
+                #     print(norm_table["columns"])
+                #     raise TableIdentifiersFrozen(
+                #         self.name,
+                #         table["name"],
+                #         to_naming,
+                #         from_naming,
+                #         "Number of columns changed after normalization. Some columns must have"
+                #         " merged.",
+                #     )
+                col_diff = set(norm_table["columns"].keys()).symmetric_difference(
+                    table["columns"].keys()
+                )
+                if len(col_diff) > 0:
+                    raise TableIdentifiersFrozen(
+                        self.name,
+                        table["name"],
+                        to_naming,
+                        from_naming,
+                        f"Some columns got renamed to {col_diff}.",
+                    )
+
+        naming_changed = from_naming and type(from_naming) is not type(to_naming)
+        if naming_changed:
             schema_tables = {}
-            for table in self._schema_tables.values():
+            # check dlt tables
+            schema_seen_data = any(
+                utils.has_table_seen_data(t) for t in self._schema_tables.values()
+            )
+            # modify dlt tables using original naming
+            orig_dlt_tables = [
+                (self.version_table_name, utils.version_table()),
+                (self.loads_table_name, utils.loads_table()),
+                (self.state_table_name, utils.pipeline_state_table(add_dlt_id=True)),
+            ]
+            for existing_table_name, original_table in orig_dlt_tables:
+                table = self._schema_tables.get(existing_table_name)
+                # state table is optional
+                if table:
+                    table = copy(table)
+                    # keep all attributes of the schema table, copy only what we need to normalize
+                    table["columns"] = original_table["columns"]
+                    norm_table = utils.normalize_table_identifiers(table, to_naming)
+                    table_seen_data = utils.has_table_seen_data(norm_table)
+                    if schema_seen_data:
+                        _verify_identifiers(table, norm_table)
+                    schema_tables[norm_table["name"]] = norm_table
+
+            schema_seen_data = False
+            for table in self.data_tables(include_incomplete=True):
+                # TODO: when lineage is fully implemented we should use source identifiers
+                # not `table` which was already normalized
                 norm_table = utils.normalize_table_identifiers(table, to_naming)
-                if utils.has_table_seen_data(norm_table) and not normalizers_config.get(
-                    "allow_identifier_change_on_table_with_data", False
-                ):
-                    # make sure no identifier got changed in table
-                    if norm_table["name"] != table["name"]:
-                        raise TableIdentifiersFrozen(
-                            self.name,
-                            table["name"],
-                            to_naming,
-                            from_naming,
-                            f"Attempt to rename table name to {norm_table['name']}.",
-                        )
-                    if len(norm_table["columns"]) != len(table["columns"]):
-                        raise TableIdentifiersFrozen(
-                            self.name,
-                            table["name"],
-                            to_naming,
-                            from_naming,
-                            "Number of columns changed after normalization. Some columns must have"
-                            " merged.",
-                        )
-                    col_diff = set(norm_table["columns"].keys()).difference(table["columns"].keys())
-                    if len(col_diff) > 0:
-                        raise TableIdentifiersFrozen(
-                            self.name,
-                            table["name"],
-                            to_naming,
-                            from_naming,
-                            f"Some columns got renamed to {col_diff}.",
-                        )
+                table_seen_data = utils.has_table_seen_data(norm_table)
+                if table_seen_data:
+                    _verify_identifiers(table, norm_table)
                 schema_tables[norm_table["name"]] = norm_table
+                schema_seen_data |= table_seen_data
+            if schema_seen_data and not allow_ident_change:
+                # if any of the tables has seen data, fail naming convention change
+                # NOTE: this will be dropped with full identifier lineage. currently we cannot detect
+                # strict schemas being changed to lax
+                raise TableIdentifiersFrozen(
+                    self.name,
+                    "-",
+                    to_naming,
+                    from_naming,
+                    "Schema contains tables that received data. As a precaution changing naming"
+                    " conventions is disallowed until full identifier lineage is implemented.",
+                )
             # re-index the table names
             return schema_tables
         else:
@@ -1042,7 +1140,6 @@ class Schema:
 
     def _configure_normalizers(self, explicit_normalizers: TNormalizersConfig) -> None:
         """Gets naming and item normalizer from schema yaml, config providers and destination capabilities and applies them to schema."""
-        # import desired modules
         normalizers_config, to_naming, item_normalizer_class = import_normalizers(
             explicit_normalizers, self._normalizers_config
         )
@@ -1062,7 +1159,7 @@ class Schema:
 
         self._settings: TSchemaSettings = {}
         self._compiled_preferred_types: List[Tuple[REPattern, TDataType]] = []
-        self._compiled_hints: Dict[TColumnHint, Sequence[REPattern]] = {}
+        self._compiled_hints: Dict[TColumnDefaultHint, Sequence[REPattern]] = {}
         self._compiled_excludes: Dict[str, Sequence[REPattern]] = {}
         self._compiled_includes: Dict[str, Sequence[REPattern]] = {}
         self._type_detections: Sequence[TTypeDetections] = None

@@ -25,13 +25,14 @@ from dlt.common.schema.typing import (
     TAnySchemaColumns,
     TColumnNames,
     TSchemaContract,
+    TTableFormat,
     TWriteDispositionConfig,
 )
 from dlt.common.storages import NormalizeStorageConfiguration, LoadPackageInfo, SchemaStorage
 from dlt.common.storages.load_package import (
     ParsedLoadJobFileName,
     LoadPackageStateInjectableContext,
-    TPipelineStateDoc,
+    TLoadPackageState,
     commit_load_package_state,
 )
 from dlt.common.utils import get_callable_name, get_full_class_name
@@ -45,18 +46,19 @@ from dlt.extract.resource import DltResource
 from dlt.extract.storage import ExtractStorage
 from dlt.extract.extractors import ObjectExtractor, ArrowExtractor, Extractor
 from dlt.extract.utils import get_data_item_format
-from dlt.pipeline.drop import drop_resources
 
 
 def data_to_sources(
     data: Any,
     pipeline: SupportsPipeline,
+    *,
     schema: Schema = None,
     table_name: str = None,
     parent_table_name: str = None,
     write_disposition: TWriteDispositionConfig = None,
     columns: TAnySchemaColumns = None,
     primary_key: TColumnNames = None,
+    table_format: TTableFormat = None,
     schema_contract: TSchemaContract = None,
 ) -> List[DltSource]:
     """Creates a list of sources for data items present in `data` and applies specified hints to all resources.
@@ -66,12 +68,13 @@ def data_to_sources(
 
     def apply_hint_args(resource: DltResource) -> None:
         resource.apply_hints(
-            table_name,
-            parent_table_name,
-            write_disposition,
-            columns,
-            primary_key,
+            table_name=table_name,
+            parent_table_name=parent_table_name,
+            write_disposition=write_disposition,
+            columns=columns,
+            primary_key=primary_key,
             schema_contract=schema_contract,
+            table_format=table_format,
         )
 
     def apply_settings(source_: DltSource) -> None:
@@ -275,8 +278,8 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
             if resource.name not in tables_by_resources:
                 continue
             for table in tables_by_resources[resource.name]:
-                # we only need to write empty files for the top tables
-                if not table.get("parent", None):
+                # we only need to write empty files for the root tables
+                if not utils.is_nested_table(table):
                     json_extractor.write_empty_items_file(table["name"])
 
         # collect resources that received empty materialized lists and had no items
@@ -293,8 +296,8 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                 if tables := tables_by_resources.get("resource_name"):
                     # write empty tables
                     for table in tables:
-                        # we only need to write empty files for the top tables
-                        if not table.get("parent", None):
+                        # we only need to write empty files for the root tables
+                        if not utils.is_nested_table(table):
                             json_extractor.write_empty_items_file(table["name"])
                 else:
                     table_name = json_extractor._get_static_table_name(resource, None)
@@ -376,11 +379,11 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
         source: DltSource,
         max_parallel_items: int,
         workers: int,
-        load_package_state_update: Optional[Dict[str, Any]] = None,
+        load_package_state_update: Optional[TLoadPackageState] = None,
     ) -> str:
         # generate load package to be able to commit all the sources together later
         load_id = self.extract_storage.create_load_package(
-            source.discover_schema(), reuse_exiting_package=True
+            source.schema, reuse_exiting_package=True
         )
         with Container().injectable_context(
             SourceSchemaInjectableContext(source.schema)
@@ -399,7 +402,7 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                 )
             ):
                 if load_package_state_update:
-                    load_package.state.update(load_package_state_update)  # type: ignore[typeddict-item]
+                    load_package.state.update(load_package_state_update)
 
                 # reset resource states, the `extracted` list contains all the explicit resources and all their parents
                 for resource in source.resources.extracted.values():

@@ -46,10 +46,11 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
     def __init__(
         self,
         dataset_name: str,
+        staging_dataset_name: str,
         credentials: DuckDbBaseCredentials,
         capabilities: DestinationCapabilitiesContext,
     ) -> None:
-        super().__init__(None, dataset_name, capabilities)
+        super().__init__(None, dataset_name, staging_dataset_name, capabilities)
         self._conn: duckdb.DuckDBPyConnection = None
         self.credentials = credentials
 

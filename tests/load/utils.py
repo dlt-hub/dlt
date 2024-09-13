@@ -2,7 +2,20 @@ import pytest
 import contextlib
 import codecs
 import os
-from typing import Any, Iterator, List, Sequence, IO, Tuple, Optional, Dict, Union, Generator
+from typing import (
+    Any,
+    AnyStr,
+    Iterator,
+    List,
+    Sequence,
+    IO,
+    Tuple,
+    Optional,
+    Dict,
+    Union,
+    Generator,
+    cast,
+)
 import shutil
 from pathlib import Path
 from urllib.parse import urlparse
@@ -13,9 +26,11 @@ from dlt.common import json, sleep
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
+from dlt.common.configuration.specs import CredentialsConfiguration
 from dlt.common.destination.reference import (
     DestinationClientDwhConfiguration,
     JobClientBase,
+    RunnableLoadJob,
     LoadJob,
     DestinationClientStagingConfiguration,
     TDestinationReferenceArg,
@@ -26,9 +41,11 @@ from dlt.common.destination.reference import DEFAULT_FILE_LAYOUT
 from dlt.common.data_writers import DataWriter
 from dlt.common.pipeline import PipelineContext
 from dlt.common.schema import TTableSchemaColumns, Schema
+from dlt.common.schema.typing import TTableFormat
 from dlt.common.storages import SchemaStorage, FileStorage, SchemaStorageConfiguration
 from dlt.common.schema.utils import new_table, normalize_table_identifiers
 from dlt.common.storages import ParsedLoadJobFileName, LoadStorage, PackageStorage
+from dlt.common.storages.load_package import create_load_id
 from dlt.common.typing import StrAny
 from dlt.common.utils import uniq_id
 
@@ -36,6 +53,7 @@ from dlt.destinations.exceptions import CantExtractTablePrefix
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.job_client_impl import SqlJobClientBase
 
+from dlt.pipeline.exceptions import SqlClientNotAvailable
 from tests.utils import (
     ACTIVE_DESTINATIONS,
     IMPLEMENTED_DESTINATIONS,
@@ -53,6 +71,7 @@ from tests.cases import (
 AWS_BUCKET = dlt.config.get("tests.bucket_url_s3", str)
 GCS_BUCKET = dlt.config.get("tests.bucket_url_gs", str)
 AZ_BUCKET = dlt.config.get("tests.bucket_url_az", str)
+ABFS_BUCKET = dlt.config.get("tests.bucket_url_abfss", str)
 GDRIVE_BUCKET = dlt.config.get("tests.bucket_url_gdrive", str)
 FILE_BUCKET = dlt.config.get("tests.bucket_url_file", str)
 R2_BUCKET = dlt.config.get("tests.bucket_url_r2", str)
@@ -62,6 +81,7 @@ ALL_FILESYSTEM_DRIVERS = dlt.config.get("ALL_FILESYSTEM_DRIVERS", list) or [
     "s3",
     "gs",
     "az",
+    "abfss",
     "gdrive",
     "file",
     "memory",
@@ -69,7 +89,15 @@ ALL_FILESYSTEM_DRIVERS = dlt.config.get("ALL_FILESYSTEM_DRIVERS", list) or [
 ]
 
 # Filter out buckets not in all filesystem drivers
-WITH_GDRIVE_BUCKETS = [GCS_BUCKET, AWS_BUCKET, FILE_BUCKET, MEMORY_BUCKET, AZ_BUCKET, GDRIVE_BUCKET]
+WITH_GDRIVE_BUCKETS = [
+    GCS_BUCKET,
+    AWS_BUCKET,
+    FILE_BUCKET,
+    MEMORY_BUCKET,
+    ABFS_BUCKET,
+    AZ_BUCKET,
+    GDRIVE_BUCKET,
+]
 WITH_GDRIVE_BUCKETS = [
     bucket
     for bucket in WITH_GDRIVE_BUCKETS
@@ -119,22 +147,27 @@ class DestinationTestConfiguration:
     destination: str
     staging: Optional[TDestinationReferenceArg] = None
     file_format: Optional[TLoaderFileFormat] = None
+    table_format: Optional[TTableFormat] = None
     bucket_url: Optional[str] = None
     stage_name: Optional[str] = None
     staging_iam_role: Optional[str] = None
     staging_use_msi: bool = False
     extra_info: Optional[str] = None
     supports_merge: bool = True  # TODO: take it from client base class
-    force_iceberg: bool = False
+    force_iceberg: bool = None  # used only to test deprecation
     supports_dbt: bool = True
     disable_compression: bool = False
     dev_mode: bool = False
+    credentials: Optional[Union[CredentialsConfiguration, Dict[str, Any]]] = None
+    env_vars: Optional[Dict[str, str]] = None
 
     @property
     def name(self) -> str:
         name: str = self.destination
         if self.file_format:
             name += f"-{self.file_format}"
+        if self.table_format:
+            name += f"-{self.table_format}"
         if not self.staging:
             name += "-no-staging"
         else:
@@ -166,6 +199,14 @@ class DestinationTestConfiguration:
         if self.destination == "filesystem" or self.disable_compression:
             os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "True"
 
+        if self.credentials is not None:
+            for key, value in dict(self.credentials).items():
+                os.environ[f"DESTINATION__CREDENTIALS__{key.upper()}"] = str(value)
+
+        if self.env_vars is not None:
+            for k, v in self.env_vars.items():
+                os.environ[k] = v
+
     def setup_pipeline(
         self, pipeline_name: str, dataset_name: str = None, dev_mode: bool = False, **kwargs
     ) -> dlt.Pipeline:
@@ -188,6 +229,19 @@ class DestinationTestConfiguration:
         pipeline = dlt.attach(pipeline_name, **kwargs)
         return pipeline
 
+    def supports_sql_client(self, pipeline: dlt.Pipeline) -> bool:
+        """Checks if destination supports SQL queries"""
+        try:
+            pipeline.sql_client()
+            return True
+        except SqlClientNotAvailable:
+            return False
+
+    @property
+    def run_kwargs(self):
+        """Returns a dict of kwargs to be passed to pipeline.run method: currently file and table format"""
+        return dict(loader_file_format=self.file_format, table_format=self.table_format)
+
 
 def destinations_configs(
     default_sql_configs: bool = False,
@@ -196,12 +250,15 @@ def destinations_configs(
     all_staging_configs: bool = False,
     local_filesystem_configs: bool = False,
     all_buckets_filesystem_configs: bool = False,
+    table_format_filesystem_configs: bool = False,
     subset: Sequence[str] = (),
+    bucket_subset: Sequence[str] = (),
     exclude: Sequence[str] = (),
-    file_format: Union[TLoaderFileFormat, Sequence[TLoaderFileFormat]] = None,
+    bucket_exclude: Sequence[str] = (),
+    with_file_format: Union[TLoaderFileFormat, Sequence[TLoaderFileFormat]] = None,
+    with_table_format: Union[TTableFormat, Sequence[TTableFormat]] = None,
     supports_merge: Optional[bool] = None,
     supports_dbt: Optional[bool] = None,
-    force_iceberg: Optional[bool] = None,
 ) -> List[DestinationTestConfiguration]:
     # sanity check
     for item in subset:
@@ -213,6 +270,26 @@ def destinations_configs(
     # build destination configs
     destination_configs: List[DestinationTestConfiguration] = []
 
+    # default sql configs that are also default staging configs
+    default_sql_configs_with_staging = [
+        # Athena needs filesystem staging, which will be automatically set; we have to supply a bucket url though.
+        DestinationTestConfiguration(
+            destination="athena",
+            file_format="parquet",
+            supports_merge=False,
+            bucket_url=AWS_BUCKET,
+        ),
+        DestinationTestConfiguration(
+            destination="athena",
+            file_format="parquet",
+            bucket_url=AWS_BUCKET,
+            supports_merge=True,
+            supports_dbt=False,
+            table_format="iceberg",
+            extra_info="iceberg",
+        ),
+    ]
+
     # default non staging sql based configs, one per destination
     if default_sql_configs:
         destination_configs += [
@@ -221,28 +298,13 @@ def destinations_configs(
             if destination not in ("athena", "synapse", "databricks", "dremio", "clickhouse")
         ]
         destination_configs += [
-            DestinationTestConfiguration(destination="duckdb", file_format="parquet")
+            DestinationTestConfiguration(destination="duckdb", file_format="parquet"),
+            DestinationTestConfiguration(destination="motherduck", file_format="insert_values"),
         ]
-        # Athena needs filesystem staging, which will be automatically set; we have to supply a bucket url though.
-        destination_configs += [
-            DestinationTestConfiguration(
-                destination="athena",
-                file_format="parquet",
-                supports_merge=False,
-                bucket_url=AWS_BUCKET,
-            )
-        ]
-        destination_configs += [
-            DestinationTestConfiguration(
-                destination="athena",
-                file_format="parquet",
-                bucket_url=AWS_BUCKET,
-                force_iceberg=True,
-                supports_merge=True,
-                supports_dbt=False,
-                extra_info="iceberg",
-            )
-        ]
+
+        # add Athena staging configs
+        destination_configs += default_sql_configs_with_staging
+
         destination_configs += [
             DestinationTestConfiguration(
                 destination="clickhouse", file_format="jsonl", supports_dbt=False
@@ -279,7 +341,17 @@ def destinations_configs(
         destination_configs += [
             DestinationTestConfiguration(destination="weaviate"),
             DestinationTestConfiguration(destination="lancedb"),
+            DestinationTestConfiguration(
+                destination="qdrant",
+                credentials=dict(path=str(Path(FILE_BUCKET) / "qdrant_data")),
+                extra_info="local-file",
+            ),
+            DestinationTestConfiguration(destination="qdrant", extra_info="server"),
         ]
+
+    if (default_sql_configs or all_staging_configs) and not default_sql_configs:
+        # athena default configs not added yet
+        destination_configs += default_sql_configs_with_staging
 
     if default_staging_configs or all_staging_configs:
         destination_configs += [
@@ -448,17 +520,26 @@ def destinations_configs(
     if local_filesystem_configs:
         destination_configs += [
             DestinationTestConfiguration(
-                destination="filesystem", bucket_url=FILE_BUCKET, file_format="insert_values"
+                destination="filesystem",
+                bucket_url=FILE_BUCKET,
+                file_format="insert_values",
+                supports_merge=False,
             )
         ]
         destination_configs += [
             DestinationTestConfiguration(
-                destination="filesystem", bucket_url=FILE_BUCKET, file_format="parquet"
+                destination="filesystem",
+                bucket_url=FILE_BUCKET,
+                file_format="parquet",
+                supports_merge=False,
             )
         ]
         destination_configs += [
             DestinationTestConfiguration(
-                destination="filesystem", bucket_url=FILE_BUCKET, file_format="jsonl"
+                destination="filesystem",
+                bucket_url=FILE_BUCKET,
+                file_format="jsonl",
+                supports_merge=False,
             )
         ]
 
@@ -466,7 +547,31 @@ def destinations_configs(
         for bucket in DEFAULT_BUCKETS:
             destination_configs += [
                 DestinationTestConfiguration(
-                    destination="filesystem", bucket_url=bucket, extra_info=bucket
+                    destination="filesystem",
+                    bucket_url=bucket,
+                    extra_info=bucket,
+                    supports_merge=False,
+                )
+            ]
+
+    if table_format_filesystem_configs:
+        for bucket in DEFAULT_BUCKETS:
+            destination_configs += [
+                DestinationTestConfiguration(
+                    destination="filesystem",
+                    bucket_url=bucket,
+                    extra_info=bucket,
+                    table_format="delta",
+                    supports_merge=True,
+                    env_vars=(
+                        {
+                            "DESTINATION__FILESYSTEM__DELTALAKE_STORAGE_OPTIONS": (
+                                '{"AWS_S3_ALLOW_UNSAFE_RENAME": "true"}'
+                            )
+                        }
+                        if bucket == AWS_BUCKET
+                        else None
+                    ),
                 )
             ]
 
@@ -478,17 +583,37 @@ def destinations_configs(
     # filter out destinations not in subset
     if subset:
         destination_configs = [conf for conf in destination_configs if conf.destination in subset]
+    if bucket_subset:
+        destination_configs = [
+            conf
+            for conf in destination_configs
+            if conf.destination != "filesystem" or conf.bucket_url in bucket_subset
+        ]
     if exclude:
         destination_configs = [
             conf for conf in destination_configs if conf.destination not in exclude
         ]
-    if file_format:
-        if not isinstance(file_format, Sequence):
-            file_format = [file_format]
+    if bucket_exclude:
         destination_configs = [
             conf
             for conf in destination_configs
-            if conf.file_format and conf.file_format in file_format
+            if conf.destination != "filesystem" or conf.bucket_url not in bucket_exclude
+        ]
+    if with_file_format:
+        if not isinstance(with_file_format, Sequence):
+            with_file_format = [with_file_format]
+        destination_configs = [
+            conf
+            for conf in destination_configs
+            if conf.file_format and conf.file_format in with_file_format
+        ]
+    if with_table_format:
+        if not isinstance(with_table_format, Sequence):
+            with_table_format = [with_table_format]
+        destination_configs = [
+            conf
+            for conf in destination_configs
+            if conf.table_format and conf.table_format in with_table_format
         ]
     if supports_merge is not None:
         destination_configs = [
@@ -504,10 +629,17 @@ def destinations_configs(
         conf for conf in destination_configs if conf.name not in EXCLUDED_DESTINATION_CONFIGURATIONS
     ]
 
-    if force_iceberg is not None:
-        destination_configs = [
-            conf for conf in destination_configs if conf.force_iceberg is force_iceberg
-        ]
+    # add marks
+    destination_configs = [
+        cast(
+            DestinationTestConfiguration,
+            pytest.param(
+                conf,
+                marks=pytest.mark.needspyarrow17 if conf.table_format == "delta" else [],
+            ),
+        )
+        for conf in destination_configs
+    ]
 
     return destination_configs
 
@@ -592,23 +724,31 @@ def load_table(name: str) -> Dict[str, TTableSchemaColumns]:
 def expect_load_file(
     client: JobClientBase,
     file_storage: FileStorage,
-    query: str,
+    query: AnyStr,
     table_name: str,
     status="completed",
+    file_format: TLoaderFileFormat = None,
 ) -> LoadJob:
     file_name = ParsedLoadJobFileName(
         table_name,
         ParsedLoadJobFileName.new_file_id(),
         0,
-        client.capabilities.preferred_loader_file_format,
+        file_format or client.capabilities.preferred_loader_file_format,
     ).file_name()
-    file_storage.save(file_name, query.encode("utf-8"))
+    if isinstance(query, str):
+        query = query.encode("utf-8")  # type: ignore[assignment]
+    file_storage.save(file_name, query)
     table = client.prepare_load_table(table_name)
-    job = client.start_file_load(table, file_storage.make_full_path(file_name), uniq_id())
+    load_id = create_load_id()
+    job = client.create_load_job(table, file_storage.make_full_path(file_name), load_id)
+
+    if isinstance(job, RunnableLoadJob):
+        job.set_run_vars(load_id=load_id, schema=client.schema, load_table=table)
+        job.run_managed(client)
     while job.state() == "running":
         sleep(0.5)
     assert job.file_name() == file_name
-    assert job.state() == status
+    assert job.state() == status, f"Got {job.state()} with ({job.exception()})"
     return job
 
 
@@ -626,6 +766,8 @@ def prepare_table(
     else:
         user_table_name = table_name
     client.schema.update_table(new_table(user_table_name, columns=list(user_table.values())))
+    print(client.schema.to_pretty_yaml())
+    client.verify_schema([user_table_name])
     client.schema._bump_version()
     client.update_stored_schema()
     return user_table_name
@@ -706,7 +848,8 @@ def yield_client_with_storage(
     ) as client:
         client.initialize_storage()
         yield client
-        client.sql_client.drop_dataset()
+        if client.is_storage_initialized():
+            client.sql_client.drop_dataset()
         if isinstance(client, WithStagingDataset):
             with client.with_staging_dataset():
                 if client.is_storage_initialized():
@@ -733,16 +876,15 @@ def write_dataset(
     f: IO[bytes],
     rows: Union[List[Dict[str, Any]], List[StrAny]],
     columns_schema: TTableSchemaColumns,
+    file_format: TLoaderFileFormat = None,
 ) -> None:
     spec = DataWriter.writer_spec_from_file_format(
-        client.capabilities.preferred_loader_file_format, "object"
+        file_format or client.capabilities.preferred_loader_file_format, "object"
     )
     # adapt bytes stream to text file format
     if not spec.is_binary_format and isinstance(f.read(0), bytes):
         f = codecs.getwriter("utf-8")(f)  # type: ignore[assignment]
-    writer = DataWriter.from_file_format(
-        client.capabilities.preferred_loader_file_format, "object", f, client.capabilities
-    )
+    writer = DataWriter.from_file_format(spec.file_format, "object", f, client.capabilities)
     # remove None values
     for idx, row in enumerate(rows):
         rows[idx] = {k: v for k, v in row.items() if v is not None}
@@ -751,18 +893,37 @@ def write_dataset(
 
 
 def prepare_load_package(
-    load_storage: LoadStorage, cases: Sequence[str], write_disposition: str = "append"
+    load_storage: LoadStorage,
+    cases: Sequence[str],
+    write_disposition: str = "append",
+    jobs_per_case: int = 1,
 ) -> Tuple[str, Schema]:
-    load_id = uniq_id()
+    """
+    Create a load package with explicitely provided files
+    job_per_case multiplies the amount of load jobs, for big packages use small files
+    """
+    load_id = create_load_id()
     load_storage.new_packages.create_package(load_id)
     for case in cases:
         path = f"./tests/load/cases/loading/{case}"
-        shutil.copy(
-            path,
-            load_storage.new_packages.storage.make_full_path(
+        for _ in range(jobs_per_case):
+            new_path = load_storage.new_packages.storage.make_full_path(
                 load_storage.new_packages.get_job_state_folder_path(load_id, "new_jobs")
-            ),
-        )
+            )
+            shutil.copy(
+                path,
+                new_path,
+            )
+            if jobs_per_case > 1:
+                parsed_name = ParsedLoadJobFileName.parse(case)
+                new_file_name = ParsedLoadJobFileName(
+                    parsed_name.table_name,
+                    ParsedLoadJobFileName.new_file_id(),
+                    0,
+                    parsed_name.file_format,
+                ).file_name()
+                shutil.move(new_path + "/" + case, new_path + "/" + new_file_name)
+
     schema_path = Path("./tests/load/cases/loading/schema.json")
     # load without migration
     data = json.loads(schema_path.read_text(encoding="utf8"))

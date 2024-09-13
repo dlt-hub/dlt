@@ -6,6 +6,7 @@ from pytest_console_scripts import ScriptRunner
 from unittest.mock import patch
 
 import dlt
+from dlt.common.known_env import DLT_DATA_DIR
 from dlt.common.configuration.paths import get_dlt_data_dir
 from dlt.common.runners.venv import Venv
 from dlt.common.utils import custom_environ, set_working_dir
@@ -62,7 +63,7 @@ def test_invoke_pipeline(script_runner: ScriptRunner) -> None:
     shutil.copytree("tests/cli/cases/deploy_pipeline", TEST_STORAGE_ROOT, dirs_exist_ok=True)
 
     with set_working_dir(TEST_STORAGE_ROOT):
-        with custom_environ({"COMPETED_PROB": "1.0", "DLT_DATA_DIR": get_dlt_data_dir()}):
+        with custom_environ({"COMPLETED_PROB": "1.0", DLT_DATA_DIR: get_dlt_data_dir()}):
             venv = Venv.restore_current()
             venv.run_script("dummy_pipeline.py")
     # we check output test_pipeline_command else
@@ -96,7 +97,7 @@ def test_invoke_pipeline(script_runner: ScriptRunner) -> None:
 def test_invoke_init_chess_and_template(script_runner: ScriptRunner) -> None:
     with set_working_dir(TEST_STORAGE_ROOT):
         # store dlt data in test storage (like patch_home_dir)
-        with custom_environ({"DLT_DATA_DIR": get_dlt_data_dir()}):
+        with custom_environ({DLT_DATA_DIR: get_dlt_data_dir()}):
             result = script_runner.run(["dlt", "init", "chess", "dummy"])
             assert "Verified source chess was added to your project!" in result.stdout
             assert result.returncode == 0
@@ -105,9 +106,9 @@ def test_invoke_init_chess_and_template(script_runner: ScriptRunner) -> None:
             assert result.returncode == 0
 
 
-def test_invoke_list_verified_sources(script_runner: ScriptRunner) -> None:
+def test_invoke_list_sources(script_runner: ScriptRunner) -> None:
     known_sources = ["chess", "sql_database", "google_sheets", "pipedrive"]
-    result = script_runner.run(["dlt", "init", "--list-verified-sources"])
+    result = script_runner.run(["dlt", "init", "--list-sources"])
     assert result.returncode == 0
     for known_source in known_sources:
         assert known_source in result.stdout
@@ -116,7 +117,7 @@ def test_invoke_list_verified_sources(script_runner: ScriptRunner) -> None:
 def test_invoke_deploy_project(script_runner: ScriptRunner) -> None:
     with set_working_dir(TEST_STORAGE_ROOT):
         # store dlt data in test storage (like patch_home_dir)
-        with custom_environ({"DLT_DATA_DIR": get_dlt_data_dir()}):
+        with custom_environ({DLT_DATA_DIR: get_dlt_data_dir()}):
             result = script_runner.run(
                 ["dlt", "deploy", "debug_pipeline.py", "github-action", "--schedule", "@daily"]
             )

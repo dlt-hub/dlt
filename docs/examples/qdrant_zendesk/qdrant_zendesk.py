@@ -38,8 +38,6 @@ from dlt.sources.helpers.requests import client
 from dlt.destinations.adapters import qdrant_adapter
 from qdrant_client import QdrantClient
 
-from dlt.common.configuration.inject import with_config
-
 
 # function from: https://github.com/dlt-hub/verified-sources/tree/master/sources/zendesk
 @dlt.source(max_table_nesting=2)
@@ -167,43 +165,29 @@ if __name__ == "__main__":
         dataset_name="zendesk_data",
     )
 
-    # run the dlt pipeline and save info about the load process
-    load_info = pipeline.run(
-        # here we use a special function to tell Qdrant which fields to embed
-        qdrant_adapter(
-            zendesk_support(),  # retrieve tickets data
-            embed=["subject", "description"],
-        )
-    )
+    # here we instantiate the source
+    source = zendesk_support()
+    # ...and apply special hints on the ticket resource to tell qdrant which fields to embed
+    qdrant_adapter(source.tickets_data, embed=["subject", "description"])
+
+    # run the dlt pipeline and print info about the load process
+    load_info = pipeline.run(source)
 
     print(load_info)
 
-    # make sure nothing failed
-    load_info.raise_on_failed_jobs()
+    # getting the authenticated Qdrant client to connect to your Qdrant database
+    with pipeline.destination_client() as destination_client:
+        from qdrant_client import QdrantClient
 
-    # running the Qdrant client to connect to your Qdrant database
+        qdrant_client: QdrantClient = destination_client.db_client  # type: ignore
+        # view Qdrant collections you'll find your dataset here:
+        print(qdrant_client.get_collections())
 
-    @with_config(sections=("destination", "qdrant", "credentials"))
-    def get_qdrant_client(location=dlt.secrets.value, api_key=dlt.secrets.value):
-        return QdrantClient(
-            url=location,
-            api_key=api_key,
+        # query Qdrant with prompt: getting tickets info close to "cancellation"
+        response = qdrant_client.query(
+            "zendesk_data_tickets_data",  # tickets_data collection
+            query_text="cancel subscription",  # prompt to search
+            limit=3,  # limit the number of results to the nearest 3 embeddings
         )
 
-    # running the Qdrant client to connect to your Qdrant database
-    qdrant_client = get_qdrant_client()
-
-    # view Qdrant collections you'll find your dataset here:
-    print(qdrant_client.get_collections())
-
-    # query Qdrant with prompt: getting tickets info close to "cancellation"
-    response = qdrant_client.query(
-        "zendesk_data_content",  # collection/dataset name with the 'content' suffix -> tickets content table
-        query_text=["cancel", "cancel subscription"],  # prompt to search
-        limit=3,  # limit the number of results to the nearest 3 embeddings
-    )
-
-    assert len(response) <= 3 and len(response) > 0
-
-    # make sure nothing failed
-    load_info.raise_on_failed_jobs()
+        assert len(response) <= 3 and len(response) > 0

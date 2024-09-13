@@ -45,7 +45,7 @@ UNC_WSL_PATH = r"\\wsl.localhost\Ubuntu-18.04\home\rudolfix\ .dlt"
 )
 def test_local_path_win_configuration(bucket_url: str, file_url: str) -> None:
     assert FilesystemConfiguration.is_local_path(bucket_url) is True
-    assert FilesystemConfiguration.make_file_uri(bucket_url) == file_url
+    assert FilesystemConfiguration.make_file_url(bucket_url) == file_url
 
     c = resolve_configuration(FilesystemConfiguration(bucket_url))
     assert c.protocol == "file"
@@ -66,7 +66,7 @@ def test_local_path_win_configuration(bucket_url: str, file_url: str) -> None:
 def test_local_user_win_path_configuration(bucket_url: str) -> None:
     file_url = "file:///" + pathlib.Path(bucket_url).expanduser().as_posix().lstrip("/")
     assert FilesystemConfiguration.is_local_path(bucket_url) is True
-    assert FilesystemConfiguration.make_file_uri(bucket_url) == file_url
+    assert FilesystemConfiguration.make_file_url(bucket_url) == file_url
 
     c = resolve_configuration(FilesystemConfiguration(bucket_url))
     assert c.protocol == "file"
@@ -99,7 +99,7 @@ def test_file_win_configuration() -> None:
 )
 def test_file_posix_configuration(bucket_url: str, file_url: str) -> None:
     assert FilesystemConfiguration.is_local_path(bucket_url) is True
-    assert FilesystemConfiguration.make_file_uri(bucket_url) == file_url
+    assert FilesystemConfiguration.make_file_url(bucket_url) == file_url
 
     c = resolve_configuration(FilesystemConfiguration(bucket_url))
     assert c.protocol == "file"
@@ -117,7 +117,7 @@ def test_file_posix_configuration(bucket_url: str, file_url: str) -> None:
 def test_local_user_posix_path_configuration(bucket_url: str) -> None:
     file_url = "file:///" + pathlib.Path(bucket_url).expanduser().as_posix().lstrip("/")
     assert FilesystemConfiguration.is_local_path(bucket_url) is True
-    assert FilesystemConfiguration.make_file_uri(bucket_url) == file_url
+    assert FilesystemConfiguration.make_file_url(bucket_url) == file_url
 
     c = resolve_configuration(FilesystemConfiguration(bucket_url))
     assert c.protocol == "file"
@@ -166,7 +166,7 @@ def test_file_filesystem_configuration(
         assert FilesystemConfiguration.make_local_path(bucket_url) == str(
             pathlib.Path(local_path).resolve()
         )
-        assert FilesystemConfiguration.make_file_uri(local_path) == norm_bucket_url
+        assert FilesystemConfiguration.make_file_url(local_path) == norm_bucket_url
 
     if local_path == "":
         with pytest.raises(ConfigurationValueError):

@@ -11,7 +11,7 @@ from dlt.sources.helpers.rest_client.detector import (
 from dlt.sources.helpers.rest_client.paginators import (
     OffsetPaginator,
     PageNumberPaginator,
-    JSONResponsePaginator,
+    JSONLinkPaginator,
     HeaderLinkPaginator,
     SinglePagePaginator,
     JSONResponseCursorPaginator,
@@ -106,7 +106,7 @@ TEST_RESPONSES = [
             "results": [{"id": 1, "name": "Account 1"}, {"id": 2, "name": "Account 2"}],
         },
         "expected": {
-            "type": JSONResponsePaginator,
+            "type": JSONLinkPaginator,
             "records_path": "results",
             "next_path": ("next",),
         },
@@ -123,7 +123,7 @@ TEST_RESPONSES = [
             "page": {"size": 2, "totalElements": 100, "totalPages": 50, "number": 1},
         },
         "expected": {
-            "type": JSONResponsePaginator,
+            "type": JSONLinkPaginator,
             "records_path": "_embedded.items",
             "next_path": ("_links", "next", "href"),
         },
@@ -145,7 +145,7 @@ TEST_RESPONSES = [
             },
         },
         "expected": {
-            "type": JSONResponsePaginator,
+            "type": JSONLinkPaginator,
             "records_path": "items",
             "next_path": ("links", "nextPage"),
         },
@@ -197,7 +197,7 @@ TEST_RESPONSES = [
             },
         },
         "expected": {
-            "type": JSONResponsePaginator,
+            "type": JSONLinkPaginator,
             "records_path": "data",
             "next_path": ("links", "next"),
         },
@@ -395,7 +395,7 @@ def test_find_paginator(test_case) -> None:
     assert type(paginator) is expected_paginator
     if isinstance(paginator, PageNumberPaginator):
         assert str(paginator.total_path) == ".".join(test_case["expected"]["total_path"])
-    if isinstance(paginator, JSONResponsePaginator):
+    if isinstance(paginator, JSONLinkPaginator):
         assert str(paginator.next_url_path) == ".".join(test_case["expected"]["next_path"])
     if isinstance(paginator, JSONResponseCursorPaginator):
         assert str(paginator.cursor_path) == ".".join(test_case["expected"]["next_path"])

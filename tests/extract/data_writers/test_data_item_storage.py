@@ -3,8 +3,9 @@ from typing import Type
 import pytest
 
 from dlt.common.configuration.container import Container
-from dlt.common.data_writers.writers import DataWriterMetrics, DataWriter
+from dlt.common.data_writers.writers import DataWriter
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
+from dlt.common.metrics import DataWriterMetrics
 from dlt.common.schema.utils import new_column
 from dlt.common.storages.data_item_storage import DataItemStorage
 

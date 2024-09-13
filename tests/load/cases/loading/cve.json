@@ -1,0 +1,397 @@
+{
+    "CVE_data_meta": {
+        "ASSIGNER": "security@apache.org",
+        "ID": "CVE-2021-44228",
+        "STATE": "PUBLIC",
+        "TITLE": "Apache Log4j2 JNDI features do not protect against attacker controlled LDAP and other JNDI related endpoints"
+    },
+    "affects": {
+        "vendor": {
+            "vendor_data": [
+                {
+                    "product": {
+                        "product_data": [
+                            {
+                                "product_name": "Apache Log4j2",
+                                "version": {
+                                    "version_data": [
+                                        {
+                                            "version_affected": ">=",
+                                            "version_name": "log4j-core",
+                                            "version_value": "2.0-beta9"
+                                        },
+                                        {
+                                            "version_affected": "<",
+                                            "version_name": "log4j-core",
+                                            "version_value": "2.3.1"
+                                        },
+                                        {
+                                            "version_affected": ">=",
+                                            "version_name": "log4j-core",
+                                            "version_value": "2.4"
+                                        },
+                                        {
+                                            "version_affected": "<",
+                                            "version_name": "log4j-core"
+                                        },
+                                        {
+                                            "version_affected": ">=",
+                                            "version_name": "log4j-core",
+                                            "version_value": "2.13.0"
+                                        },
+                                        {
+                                            "version_affected": "<",
+                                            "version_name": "log4j-core",
+                                            "version_value": "2.15.0"
+                                        }
+                                    ]
+                                }
+                            }
+                        ]
+                    },
+                    "vendor_name": "Apache Software Foundation"
+                }
+            ]
+        }
+    },
+    "credit": [
+        {
+            "lang": "eng",
+            "value": "This issue was discovered by Chen Zhaojun of Alibaba Cloud Security Team."
+        }
+    ],
+    "data_format": "MITRE",
+    "data_type": "CVE",
+    "data_version": "4.0",
+    "description": {
+        "description_data": [
+            {
+                "lang": "eng",
+                "value": "Apache Log4j2 2.0-beta9 through 2.15.0 (excluding security releases 2.12.2, 2.12.3, and 2.3.1) JNDI features used in configuration, log messages, and parameters do not protect against attacker controlled LDAP and other JNDI related endpoints. An attacker who can control log messages or log message parameters can execute arbitrary code loaded from LDAP servers when message lookup substitution is enabled. From log4j 2.15.0, this behavior has been disabled by default. From version 2.16.0 (along with 2.12.2, 2.12.3, and 2.3.1), this functionality has been completely removed. Note that this vulnerability is specific to log4j-core and does not affect log4net, log4cxx, or other Apache Logging Services projects."
+            }
+        ]
+    },
+    "generator": {
+        "engine": "Vulnogram 0.0.9"
+    },
+    "impact": [
+        {
+            "other": "critical"
+        }
+    ],
+    "problemtype": {
+        "problemtype_data": [
+            {
+                "description": [
+                    {
+                        "lang": "eng",
+                        "value": "CWE-502 Deserialization of Untrusted Data"
+                    }
+                ]
+            },
+            {
+                "description": [
+                    {
+                        "lang": "eng",
+                        "value": "CWE-400 Uncontrolled Resource Consumption"
+                    }
+                ]
+            },
+            {
+                "description": [
+                    {
+                        "lang": "eng",
+                        "value": "CWE-20 Improper Input Validation"
+                    }
+                ]
+            }
+        ]
+    },
+    "references": {
+        "reference_data": [
+            {
+                "refsource": "MISC",
+                "url": "https://logging.apache.org/log4j/2.x/security.html",
+                "name": "https://logging.apache.org/log4j/2.x/security.html"
+            },
+            {
+                "refsource": "MLIST",
+                "name": "[oss-security] 20211210 CVE-2021-44228: Apache Log4j2 JNDI features do not protect against attacker controlled LDAP and other JNDI related endpoints",
+                "url": "http://www.openwall.com/lists/oss-security/2021/12/10/1"
+            },
+            {
+                "refsource": "MLIST",
+                "name": "[oss-security] 20211210 Re: CVE-2021-44228: Apache Log4j2 JNDI features do not protect against attacker controlled LDAP and other JNDI related endpoints",
+                "url": "http://www.openwall.com/lists/oss-security/2021/12/10/2"
+            },
+            {
+                "refsource": "CISCO",
+                "name": "20211210 Vulnerability in Apache Log4j Library Affecting Cisco Products: December 2021",
+                "url": "https://tools.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-apache-log4j-qRuKNEbd"
+            },
+            {
+                "refsource": "MLIST",
+                "name": "[oss-security] 20211210 Re: CVE-2021-44228: Apache Log4j2 JNDI features do not protect against attacker controlled LDAP and other JNDI related endpoints",
+                "url": "http://www.openwall.com/lists/oss-security/2021/12/10/3"
+            },
+            {
+                "refsource": "CONFIRM",
+                "name": "https://security.netapp.com/advisory/ntap-20211210-0007/",
+                "url": "https://security.netapp.com/advisory/ntap-20211210-0007/"
+            },
+            {
+                "refsource": "CONFIRM",
+                "name": "https://security.netapp.com/advisory/ntap-20211210-0007/",
+                "url": "https://security.netapp.com/advisory/ntap-20211210-0007/"
+            },
+            {
+                "refsource": "MISC",
+                "name": "http://packetstormsecurity.com/files/165225/Apache-Log4j2-2.14.1-Remote-Code-Execution.html",
+                "url": "http://packetstormsecurity.com/files/165225/Apache-Log4j2-2.14.1-Remote-Code-Execution.html"
+            },
+            {
+                "refsource": "MISC",
+                "name": "http://packetstormsecurity.com/files/165225/Apache-Log4j2-2.14.1-Remote-Code-Execution.html",
+                "url": "http://packetstormsecurity.com/files/165225/Apache-Log4j2-2.14.1-Remote-Code-Execution.html"
+            },
+            {
+                "refsource": "CONFIRM",
+                "name": "https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2021-0032",
+                "url": "https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2021-0032"
+            },
+            {
+                "refsource": "CONFIRM",
+                "name": "https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2021-0032",
+                "url": "https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2021-0032"
+            },
+            {
+                "refsource": "CONFIRM",
+                "name": "https://www.oracle.com/security-alerts/alert-cve-2021-44228.html",
+                "url": "https://www.oracle.com/security-alerts/alert-cve-2021-44228.html"
+            },
+            {
+                "refsource": "DEBIAN",
+                "name": "DSA-5020",
+                "url": "https://www.debian.org/security/2021/dsa-5020"
+            },
+            {
+                "refsource": "MLIST",
+                "name": "[debian-lts-announce] 20211212 [SECURITY] [DLA 2842-1] apache-log4j2 security update",
+                "url": "https://lists.debian.org/debian-lts-announce/2021/12/msg00007.html"
+            },
+            {
+                "refsource": "FEDORA",
+                "name": "FEDORA-2021-f0f501d01f",
+                "url": "https://lists.fedoraproject.org/archives/list/package-announce@lists.fedoraproject.org/message/VU57UJDCFIASIO35GC55JMKSRXJMCDFM/"
+            },
+            {
+                "refsource": "MS",
+                "name": "Microsoft\u2019s Response to CVE-2021-44228 Apache Log4j 2",
+                "url": "https://msrc-blog.microsoft.com/2021/12/11/microsofts-response-to-cve-2021-44228-apache-log4j2/"
+            },
+            {
+                "refsource": "MLIST",
+                "name": "[oss-security] 20211213 Re: CVE-2021-4104: Deserialization of untrusted data in JMSAppender in Apache Log4j 1.2",
+                "url": "http://www.openwall.com/lists/oss-security/2021/12/13/2"
+            },
+            {
+                "refsource": "MLIST",
+                "name": "[oss-security] 20211213 CVE-2021-4104: Deserialization of untrusted data in JMSAppender in Apache Log4j 1.2",
+                "url": "http://www.openwall.com/lists/oss-security/2021/12/13/1"
+            },
+            {
+                "refsource": "MLIST",
+                "name": "[oss-security] 20211214 CVE-2021-45046: Apache Log4j2 Thread Context Message Pattern and Context Lookup Pattern vulnerable to a denial of service attack",
+                "url": "http://www.openwall.com/lists/oss-security/2021/12/14/4"
+            },
+            {
+                "refsource": "CISCO",
+                "name": "20211210 A Vulnerability in Apache Log4j Library Affecting Cisco Products: December 2021",
+                "url": "https://tools.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-apache-log4j-qRuKNEbd"
+            },
+            {
+                "refsource": "CERT-VN",
+                "name": "VU#930724",
+                "url": "https://www.kb.cert.org/vuls/id/930724"
+            },
+            {
+                "refsource": "MISC",
+                "name": "https://twitter.com/kurtseifried/status/1469345530182455296",
+                "url": "https://twitter.com/kurtseifried/status/1469345530182455296"
+            },
+            {
+                "refsource": "CONFIRM",
+                "name": "https://cert-portal.siemens.com/productcert/pdf/ssa-661247.pdf",
+                "url": "https://cert-portal.siemens.com/productcert/pdf/ssa-661247.pdf"
+            },
+            {
+                "refsource": "MISC",
+                "name": "http://packetstormsecurity.com/files/165260/VMware-Security-Advisory-2021-0028.html",
+                "url": "http://packetstormsecurity.com/files/165260/VMware-Security-Advisory-2021-0028.html"
+            },
+            {
+                "refsource": "MISC",
+                "name": "http://packetstormsecurity.com/files/165270/Apache-Log4j2-2.14.1-Remote-Code-Execution.html",
+                "url": "http://packetstormsecurity.com/files/165270/Apache-Log4j2-2.14.1-Remote-Code-Execution.html"
+            },
+            {
+                "refsource": "MISC",
+                "name": "http://packetstormsecurity.com/files/165261/Apache-Log4j2-2.14.1-Information-Disclosure.html",
+                "url": "http://packetstormsecurity.com/files/165261/Apache-Log4j2-2.14.1-Information-Disclosure.html"
+            },
+            {
+                "refsource": "CONFIRM",
+                "name": "https://www.intel.com/content/www/us/en/security-center/advisory/intel-sa-00646.html",
+                "url": "https://www.intel.com/content/www/us/en/security-center/advisory/intel-sa-00646.html"
+            },
+            {
+                "refsource": "CISCO",
+                "name": "20211210 Vulnerabilities in Apache Log4j Library Affecting Cisco Products: December 2021",
+                "url": "https://tools.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-apache-log4j-qRuKNEbd"
+            },
+            {
+                "refsource": "MLIST",
+                "name": "[oss-security] 20211215 Re: CVE-2021-45046: Apache Log4j2 Thread Context Message Pattern and Context Lookup Pattern vulnerable to a denial of service attack",
+                "url": "http://www.openwall.com/lists/oss-security/2021/12/15/3"
+            },
+            {
+                "refsource": "MISC",
+                "name": "http://packetstormsecurity.com/files/165282/Log4j-Payload-Generator.html",
+                "url": "http://packetstormsecurity.com/files/165282/Log4j-Payload-Generator.html"
+            },
+            {
+                "refsource": "MISC",
+                "name": "http://packetstormsecurity.com/files/165281/Log4j2-Log4Shell-Regexes.html",
+                "url": "http://packetstormsecurity.com/files/165281/Log4j2-Log4Shell-Regexes.html"
+            },
+            {
+                "refsource": "MISC",
+                "name": "http://packetstormsecurity.com/files/165307/Log4j-Remote-Code-Execution-Word-Bypassing.html",
+                "url": "http://packetstormsecurity.com/files/165307/Log4j-Remote-Code-Execution-Word-Bypassing.html"
+            },
+            {
+                "refsource": "MISC",
+                "name": "http://packetstormsecurity.com/files/165311/log4j-scan-Extensive-Scanner.html",
+                "url": "http://packetstormsecurity.com/files/165311/log4j-scan-Extensive-Scanner.html"
+            },
+            {
+                "refsource": "MISC",
+                "name": "http://packetstormsecurity.com/files/165306/L4sh-Log4j-Remote-Code-Execution.html",
+                "url": "http://packetstormsecurity.com/files/165306/L4sh-Log4j-Remote-Code-Execution.html"
+            },
+            {
+                "refsource": "CONFIRM",
+                "name": "https://cert-portal.siemens.com/productcert/pdf/ssa-714170.pdf",
+                "url": "https://cert-portal.siemens.com/productcert/pdf/ssa-714170.pdf"
+            },
+            {
+                "refsource": "FEDORA",
+                "name": "FEDORA-2021-66d6c484f3",
+                "url": "https://lists.fedoraproject.org/archives/list/package-announce@lists.fedoraproject.org/message/M5CSVUNV4HWZZXGOKNSK6L7RPM7BOKIB/"
+            },
+            {
+                "refsource": "MISC",
+                "name": "http://packetstormsecurity.com/files/165371/VMware-Security-Advisory-2021-0028.4.html",
+                "url": "http://packetstormsecurity.com/files/165371/VMware-Security-Advisory-2021-0028.4.html"
+            },
+            {
+                "refsource": "CONFIRM",
+                "name": "https://cert-portal.siemens.com/productcert/pdf/ssa-397453.pdf",
+                "url": "https://cert-portal.siemens.com/productcert/pdf/ssa-397453.pdf"
+            },
+            {
+                "refsource": "CONFIRM",
+                "name": "https://cert-portal.siemens.com/productcert/pdf/ssa-479842.pdf",
+                "url": "https://cert-portal.siemens.com/productcert/pdf/ssa-479842.pdf"
+            },
+            {
+                "url": "https://www.oracle.com/security-alerts/cpujan2022.html",
+                "refsource": "MISC",
+                "name": "https://www.oracle.com/security-alerts/cpujan2022.html"
+            },
+            {
+                "refsource": "MISC",
+                "name": "http://packetstormsecurity.com/files/165532/Log4Shell-HTTP-Header-Injection.html",
+                "url": "http://packetstormsecurity.com/files/165532/Log4Shell-HTTP-Header-Injection.html"
+            },
+            {
+                "refsource": "MISC",
+                "name": "https://github.com/cisagov/log4j-affected-db/blob/develop/SOFTWARE-LIST.md",
+                "url": "https://github.com/cisagov/log4j-affected-db/blob/develop/SOFTWARE-LIST.md"
+            },
+            {
+                "refsource": "MISC",
+                "name": "http://packetstormsecurity.com/files/165642/VMware-vCenter-Server-Unauthenticated-Log4Shell-JNDI-Injection-Remote-Code-Execution.html",
+                "url": "http://packetstormsecurity.com/files/165642/VMware-vCenter-Server-Unauthenticated-Log4Shell-JNDI-Injection-Remote-Code-Execution.html"
+            },
+            {
+                "refsource": "MISC",
+                "name": "http://packetstormsecurity.com/files/165673/UniFi-Network-Application-Unauthenticated-Log4Shell-Remote-Code-Execution.html",
+                "url": "http://packetstormsecurity.com/files/165673/UniFi-Network-Application-Unauthenticated-Log4Shell-Remote-Code-Execution.html"
+            },
+            {
+                "refsource": "FULLDISC",
+                "name": "20220314 APPLE-SA-2022-03-14-7 Xcode 13.3",
+                "url": "http://seclists.org/fulldisclosure/2022/Mar/23"
+            },
+            {
+                "refsource": "MISC",
+                "name": "https://www.bentley.com/en/common-vulnerability-exposure/be-2022-0001",
+                "url": "https://www.bentley.com/en/common-vulnerability-exposure/be-2022-0001"
+            },
+            {
+                "refsource": "MISC",
+                "name": "https://github.com/cisagov/log4j-affected-db",
+                "url": "https://github.com/cisagov/log4j-affected-db"
+            },
+            {
+                "refsource": "CONFIRM",
+                "name": "https://support.apple.com/kb/HT213189",
+                "url": "https://support.apple.com/kb/HT213189"
+            },
+            {
+                "url": "https://www.oracle.com/security-alerts/cpuapr2022.html",
+                "refsource": "MISC",
+                "name": "https://www.oracle.com/security-alerts/cpuapr2022.html"
+            },
+            {
+                "refsource": "MISC",
+                "name": "https://github.com/nu11secur1ty/CVE-mitre/tree/main/CVE-2021-44228",
+                "url": "https://github.com/nu11secur1ty/CVE-mitre/tree/main/CVE-2021-44228"
+            },
+            {
+                "refsource": "MISC",
+                "name": "https://www.nu11secur1ty.com/2021/12/cve-2021-44228.html",
+                "url": "https://www.nu11secur1ty.com/2021/12/cve-2021-44228.html"
+            },
+            {
+                "refsource": "FULLDISC",
+                "name": "20220721 Open-Xchange Security Advisory 2022-07-21",
+                "url": "http://seclists.org/fulldisclosure/2022/Jul/11"
+            },
+            {
+                "refsource": "MISC",
+                "name": "http://packetstormsecurity.com/files/167794/Open-Xchange-App-Suite-7.10.x-Cross-Site-Scripting-Command-Injection.html",
+                "url": "http://packetstormsecurity.com/files/167794/Open-Xchange-App-Suite-7.10.x-Cross-Site-Scripting-Command-Injection.html"
+            },
+            {
+                "refsource": "MISC",
+                "name": "http://packetstormsecurity.com/files/167917/MobileIron-Log4Shell-Remote-Command-Execution.html",
+                "url": "http://packetstormsecurity.com/files/167917/MobileIron-Log4Shell-Remote-Command-Execution.html"
+            },
+            {
+                "refsource": "FULLDISC",
+                "name": "20221208 Intel Data Center Manager <= 5.1 Local Privileges Escalation",
+                "url": "http://seclists.org/fulldisclosure/2022/Dec/2"
+            },
+            {
+                "refsource": "MISC",
+                "name": "http://packetstormsecurity.com/files/171626/AD-Manager-Plus-7122-Remote-Code-Execution.html",
+                "url": "http://packetstormsecurity.com/files/171626/AD-Manager-Plus-7122-Remote-Code-Execution.html"
+            }
+        ]
+    },
+    "source": {
+        "discovery": "UNKNOWN"
+    }
+}

@@ -1,6 +1,5 @@
 from requests import Session as BaseSession
-from tenacity import Retrying, retry_if_exception_type
-from typing import Optional, TYPE_CHECKING, Sequence, Union, Tuple, Type, TypeVar
+from typing import Optional, TYPE_CHECKING, Union, Tuple, TypeVar
 
 from dlt.sources.helpers.requests.typing import TRequestTimeout
 from dlt.common.typing import TimedeltaSeconds
@@ -56,3 +55,7 @@ class Session(BaseSession):
         if self.raise_for_status:
             resp.raise_for_status()
         return resp
+
+    def send(self, request, **kwargs):  # type: ignore[no-untyped-def]
+        kwargs.setdefault("timeout", self.timeout)
+        return super().send(request, **kwargs)

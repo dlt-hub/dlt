@@ -1,3 +1,4 @@
+import os
 import pytest
 import datetime  # noqa: I251
 from typing import Iterator, Any
@@ -31,6 +32,11 @@ from tests.load.utils import (
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential
+TEST_NAMING_CONVENTIONS = (
+    "snake_case",
+    "tests.common.cases.normalizers.sql_upper",
+    "tests.common.cases.normalizers.title_case",
+)
 
 
 @pytest.fixture
@@ -39,8 +45,18 @@ def file_storage() -> FileStorage:
 
 
 @pytest.fixture(scope="function")
-def client(request) -> Iterator[SqlJobClientBase]:
+def client(request, naming) -> Iterator[SqlJobClientBase]:
     yield from yield_client_with_storage(request.param.destination)
+
+
+@pytest.fixture(scope="function")
+def naming(request) -> str:
+    # NOTE: this fixture is forced by `client` fixture which requires it goes first
+    # so sometimes there's no request available
+    if hasattr(request, "param"):
+        os.environ["SCHEMA__NAMING"] = request.param
+        return request.param
+    return None
 
 
 @pytest.mark.parametrize(
@@ -110,6 +126,30 @@ def test_malformed_query_parameters(client: SqlJobClientBase) -> None:
             ):
                 pass
         assert client.sql_client.is_dbapi_exception(term_ex.value.dbapi_exception)
+
+
+@pytest.mark.parametrize("naming", TEST_NAMING_CONVENTIONS, indirect=True)
+@pytest.mark.parametrize(
+    "client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name
+)
+def test_has_dataset(naming: str, client: SqlJobClientBase) -> None:
+    with client.sql_client.with_alternative_dataset_name("not_existing"):
+        assert not client.sql_client.has_dataset()
+    client.update_stored_schema()
+    assert client.sql_client.has_dataset()
+
+
+@pytest.mark.parametrize("naming", TEST_NAMING_CONVENTIONS, indirect=True)
+@pytest.mark.parametrize(
+    "client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name
+)
+def test_create_drop_dataset(naming: str, client: SqlJobClientBase) -> None:
+    # client.sql_client.create_dataset()
+    with pytest.raises(DatabaseException):
+        client.sql_client.create_dataset()
+    client.sql_client.drop_dataset()
+    with pytest.raises(DatabaseUndefinedRelation):
+        client.sql_client.drop_dataset()
 
 
 @pytest.mark.parametrize(
@@ -492,7 +532,10 @@ def test_transaction_isolation(client: SqlJobClientBase) -> None:
     def test_thread(thread_id: Decimal) -> None:
         # make a copy of the sql_client
         thread_client = client.sql_client.__class__(
-            client.sql_client.dataset_name, client.sql_client.credentials, client.capabilities
+            client.sql_client.dataset_name,
+            client.sql_client.staging_dataset_name,
+            client.sql_client.credentials,
+            client.capabilities,
         )
         with thread_client:
             with thread_client.begin_transaction():

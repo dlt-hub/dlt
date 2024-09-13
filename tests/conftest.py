@@ -1,7 +1,11 @@
 import os
 import dataclasses
 import logging
-from typing import List
+import sys
+import pytest
+from typing import List, Iterator
+from importlib.metadata import version as pkg_version
+from packaging.version import Version
 
 # patch which providers to enable
 from dlt.common.configuration.providers import (
@@ -111,3 +115,42 @@ def pytest_configure(config):
     # disable databricks logging
     for log in ["databricks.sql.client"]:
         logging.getLogger(log).setLevel("WARNING")
+
+    # disable httpx request logging (too verbose when testing qdrant)
+    logging.getLogger("httpx").setLevel("WARNING")
+
+    # reset and init airflow db
+    import warnings
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+        try:
+            from airflow.utils import db
+            import contextlib
+            import io
+
+            for log in [
+                "airflow.models.crypto",
+                "airflow.models.variable",
+                "airflow",
+                "alembic",
+                "alembic.runtime.migration",
+            ]:
+                logging.getLogger(log).setLevel("ERROR")
+
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(
+                io.StringIO()
+            ):
+                db.resetdb()
+
+        except Exception:
+            pass
+
+
+@pytest.fixture(autouse=True)
+def pyarrow17_check(request) -> Iterator[None]:
+    if "needspyarrow17" in request.keywords:
+        if "pyarrow" not in sys.modules or Version(pkg_version("pyarrow")) < Version("17.0.0"):
+            pytest.skip("test needs `pyarrow>=17.0.0`")
+    yield

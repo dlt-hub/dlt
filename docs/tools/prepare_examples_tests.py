@@ -3,6 +3,7 @@ Creates the pytest files for our examples tests. These will not be committed
 """
 import os
 import argparse
+from typing import List
 
 import dlt.cli.echo as fmt
 
@@ -10,7 +11,7 @@ EXAMPLES_DIR = "../examples"
 
 # settings
 SKIP_FOLDERS = ["archive", ".", "_", "local_cache"]
-SKIP_EXAMPLES = ["qdrant_zendesk"]
+SKIP_EXAMPLES: List[str] = []
 
 # the entry point for the script
 MAIN_CLAUSE = 'if __name__ == "__main__":'

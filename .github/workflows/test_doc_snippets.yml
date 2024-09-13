@@ -21,6 +21,8 @@ env:
 
   # Slack hook for chess in production example
   RUNTIME__SLACK_INCOMING_HOOK: ${{ secrets.RUNTIME__SLACK_INCOMING_HOOK }}
+  # Path to local qdrant database
+  DESTINATION__QDRANT__CREDENTIALS__PATH: zendesk.qdb
   # detect if the workflow is executed in a repo fork
   IS_FORK: ${{ github.event.pull_request.head.repo.fork }}
 
@@ -58,7 +60,7 @@ jobs:
         uses: actions/checkout@master
 
       - name: Start weaviate
-        run: docker-compose -f ".github/weaviate-compose.yml" up -d
+        run: docker compose -f ".github/weaviate-compose.yml" up -d
 
       - name: Setup Python
         uses: actions/setup-python@v4

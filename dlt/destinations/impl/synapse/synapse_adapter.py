@@ -3,7 +3,7 @@ from typing import Any, Literal, Set, get_args, Final, Dict
 from dlt.extract import DltResource, resource as make_resource
 from dlt.extract.items import TTableHintTemplate
 from dlt.extract.hints import TResourceHints
-from dlt.destinations.utils import ensure_resource
+from dlt.destinations.utils import get_resource_for_adapter
 
 TTableIndexType = Literal["heap", "clustered_columnstore_index"]
 """
@@ -37,7 +37,7 @@ def synapse_adapter(data: Any, table_index_type: TTableIndexType = None) -> DltR
         >>> synapse_adapter(data, table_index_type="clustered_columnstore_index")
         [DltResource with hints applied]
     """
-    resource = ensure_resource(data)
+    resource = get_resource_for_adapter(data)
 
     additional_table_hints: Dict[str, TTableHintTemplate[Any]] = {}
     if table_index_type is not None:

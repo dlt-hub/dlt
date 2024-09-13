@@ -236,11 +236,9 @@ def test_gcp_service_credentials_native_representation(environment) -> None:
     assert gcpc.private_key == "-----BEGIN PRIVATE KEY-----\n\n-----END PRIVATE KEY-----\n"
     assert gcpc.project_id == "chat-analytics"
     assert gcpc.client_email == "loader@iam.gserviceaccount.com"
-    # location is present but deprecated
-    assert gcpc.location == "US"
     # get native representation, it will also location
     _repr = gcpc.to_native_representation()
-    assert "location" in _repr
+    assert "project_id" in _repr
     # parse again
     gcpc_2 = GcpServiceAccountCredentials()
     gcpc_2.parse_native_representation(_repr)

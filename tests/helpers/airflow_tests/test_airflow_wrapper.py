@@ -150,8 +150,7 @@ def test_regular_run() -> None:
     pipeline_standalone = dlt.pipeline(
         pipeline_name="pipeline_standalone",
         dataset_name="mock_data_" + uniq_id(),
-        destination="duckdb",
-        credentials=":pipeline:",
+        destination=dlt.destinations.duckdb(credentials=":pipeline:"),
     )
     pipeline_standalone.run(mock_data_source())
     pipeline_standalone_counts = load_table_counts(
@@ -170,8 +169,7 @@ def test_regular_run() -> None:
         pipeline_dag_regular = dlt.pipeline(
             pipeline_name="pipeline_dag_regular",
             dataset_name="mock_data_" + uniq_id(),
-            destination="duckdb",
-            credentials=":pipeline:",
+            destination=dlt.destinations.duckdb(credentials=":pipeline:"),
         )
         tasks_list = tasks.add_run(
             pipeline_dag_regular,
@@ -214,8 +212,7 @@ def test_regular_run() -> None:
         pipeline_dag_decomposed = dlt.pipeline(
             pipeline_name="pipeline_dag_decomposed",
             dataset_name="mock_data_" + uniq_id(),
-            destination="duckdb",
-            credentials=quackdb_path,
+            destination=dlt.destinations.duckdb(credentials=quackdb_path),
         )
         tasks_list = tasks.add_run(
             pipeline_dag_decomposed,
@@ -247,8 +244,7 @@ def test_run() -> None:
     pipeline_standalone = dlt.pipeline(
         pipeline_name="pipeline_standalone",
         dataset_name="mock_data_" + uniq_id(),
-        destination="duckdb",
-        credentials=":pipeline:",
+        destination=dlt.destinations.duckdb(credentials=":pipeline:"),
     )
     pipeline_standalone.run(mock_data_source())
     pipeline_standalone_counts = load_table_counts(
@@ -268,8 +264,7 @@ def test_run() -> None:
         pipeline_dag_regular = dlt.pipeline(
             pipeline_name="pipeline_dag_regular",
             dataset_name="mock_data_" + uniq_id(),
-            destination="duckdb",
-            credentials=quackdb_path,
+            destination=dlt.destinations.duckdb(credentials=quackdb_path),
         )
         task = tasks.run(pipeline_dag_regular, mock_data_source())
 
@@ -292,8 +287,7 @@ def test_parallel_run():
     pipeline_standalone = dlt.pipeline(
         pipeline_name="pipeline_parallel",
         dataset_name="mock_data_" + uniq_id(),
-        destination="duckdb",
-        credentials=":pipeline:",
+        destination=dlt.destinations.duckdb(credentials=":pipeline:"),
     )
     pipeline_standalone.run(mock_data_source())
     pipeline_standalone_counts = load_table_counts(
@@ -315,8 +309,7 @@ def test_parallel_run():
         pipeline_dag_parallel = dlt.pipeline(
             pipeline_name="pipeline_dag_parallel",
             dataset_name="mock_data_" + uniq_id(),
-            destination="duckdb",
-            credentials=quackdb_path,
+            destination=dlt.destinations.duckdb(credentials=quackdb_path),
         )
         tasks_list = tasks.add_run(
             pipeline_dag_parallel,
@@ -349,8 +342,7 @@ def test_parallel_incremental():
     pipeline_standalone = dlt.pipeline(
         pipeline_name="pipeline_parallel",
         dataset_name="mock_data_" + uniq_id(),
-        destination="duckdb",
-        credentials=":pipeline:",
+        destination=dlt.destinations.duckdb(credentials=":pipeline:"),
     )
     pipeline_standalone.run(mock_data_incremental_source())
 
@@ -369,8 +361,7 @@ def test_parallel_incremental():
         pipeline_dag_parallel = dlt.pipeline(
             pipeline_name="pipeline_dag_parallel",
             dataset_name="mock_data_" + uniq_id(),
-            destination="duckdb",
-            credentials=quackdb_path,
+            destination=dlt.destinations.duckdb(credentials=quackdb_path),
         )
         tasks.add_run(
             pipeline_dag_parallel,
@@ -401,8 +392,7 @@ def test_parallel_isolated_run():
     pipeline_standalone = dlt.pipeline(
         pipeline_name="pipeline_parallel",
         dataset_name="mock_data_" + uniq_id(),
-        destination="duckdb",
-        credentials=":pipeline:",
+        destination=dlt.destinations.duckdb(credentials=":pipeline:"),
     )
     pipeline_standalone.run(mock_data_source())
     pipeline_standalone_counts = load_table_counts(
@@ -424,8 +414,7 @@ def test_parallel_isolated_run():
         pipeline_dag_parallel = dlt.pipeline(
             pipeline_name="pipeline_dag_parallel",
             dataset_name="mock_data_" + uniq_id(),
-            destination="duckdb",
-            credentials=quackdb_path,
+            destination=dlt.destinations.duckdb(credentials=quackdb_path),
         )
         tasks_list = tasks.add_run(
             pipeline_dag_parallel,
@@ -466,8 +455,7 @@ def test_parallel_run_single_resource():
     pipeline_standalone = dlt.pipeline(
         pipeline_name="pipeline_parallel",
         dataset_name="mock_data_" + uniq_id(),
-        destination="duckdb",
-        credentials=":pipeline:",
+        destination=dlt.destinations.duckdb(credentials=":pipeline:"),
     )
     pipeline_standalone.run(mock_data_single_resource())
     pipeline_standalone_counts = load_table_counts(
@@ -489,8 +477,7 @@ def test_parallel_run_single_resource():
         pipeline_dag_parallel = dlt.pipeline(
             pipeline_name="pipeline_dag_parallel",
             dataset_name="mock_data_" + uniq_id(),
-            destination="duckdb",
-            credentials=quackdb_path,
+            destination=dlt.destinations.duckdb(credentials=quackdb_path),
         )
         tasks_list = tasks.add_run(
             pipeline_dag_parallel,
@@ -555,8 +542,7 @@ def test_run_with_retry() -> None:
         pipeline_fail_3 = dlt.pipeline(
             pipeline_name="pipeline_fail_3",
             dataset_name="mock_data_" + uniq_id(),
-            destination="duckdb",
-            credentials=":pipeline:",
+            destination=dlt.destinations.duckdb(credentials=":pipeline:"),
         )
         tasks.add_run(
             pipeline_fail_3, _fail_3, trigger_rule="all_done", retries=0, provide_context=True
@@ -582,8 +568,7 @@ def test_run_with_retry() -> None:
         pipeline_fail_3 = dlt.pipeline(
             pipeline_name="pipeline_fail_3",
             dataset_name="mock_data_" + uniq_id(),
-            destination="duckdb",
-            credentials=":pipeline:",
+            destination=dlt.destinations.duckdb(credentials=":pipeline:"),
         )
         tasks.add_run(
             pipeline_fail_3, _fail_3, trigger_rule="all_done", retries=0, provide_context=True
@@ -611,8 +596,7 @@ def test_run_with_retry() -> None:
         pipeline_fail_3 = dlt.pipeline(
             pipeline_name="pipeline_fail_3",
             dataset_name="mock_data_" + uniq_id(),
-            destination="duckdb",
-            credentials=":pipeline:",
+            destination=dlt.destinations.duckdb(credentials=":pipeline:"),
         )
         tasks.add_run(
             pipeline_fail_3, _fail_3, trigger_rule="all_done", retries=0, provide_context=True
@@ -886,8 +870,9 @@ def test_task_already_added():
         pipe = dlt.pipeline(
             pipeline_name="test_pipeline",
             dataset_name="mock_data",
-            destination="duckdb",
-            credentials=os.path.join("_storage", "test_pipeline.duckdb"),
+            destination=dlt.destinations.duckdb(
+                credentials=os.path.join("_storage", "test_pipeline.duckdb")
+            ),
         )
         task = tasks.add_run(
             pipe,
@@ -954,8 +939,7 @@ def test_run_callable() -> None:
         call_dag = dlt.pipeline(
             pipeline_name="callable_dag",
             dataset_name="mock_data_" + uniq_id(),
-            destination="duckdb",
-            credentials=quackdb_path,
+            destination=dlt.destinations.duckdb(credentials=quackdb_path),
         )
         tasks.run(call_dag, callable_source)
 
@@ -991,8 +975,7 @@ def test_on_before_run() -> None:
         call_dag = dlt.pipeline(
             pipeline_name="callable_dag",
             dataset_name="mock_data_" + uniq_id(),
-            destination="duckdb",
-            credentials=quackdb_path,
+            destination=dlt.destinations.duckdb(credentials=quackdb_path),
         )
         tasks.run(call_dag, mock_data_source, on_before_run=on_before_run)
 

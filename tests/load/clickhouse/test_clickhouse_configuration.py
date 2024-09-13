@@ -1,21 +1,15 @@
-from typing import Any, Iterator
+from typing import Iterator
 
 import pytest
 
-import dlt
 from dlt.common.configuration.resolve import resolve_configuration
-from dlt.common.libs.sql_alchemy import make_url
+from dlt.common.libs.sql_alchemy_shims import make_url
 from dlt.common.utils import digest128
 from dlt.destinations.impl.clickhouse.clickhouse import ClickHouseClient
 from dlt.destinations.impl.clickhouse.configuration import (
     ClickHouseCredentials,
     ClickHouseClientConfiguration,
 )
-from dlt.destinations.impl.snowflake.configuration import (
-    SnowflakeClientConfiguration,
-    SnowflakeCredentials,
-)
-from tests.common.configuration.utils import environment
 from tests.load.utils import yield_client_with_storage
 
 
@@ -27,8 +21,8 @@ def client() -> Iterator[ClickHouseClient]:
 def test_clickhouse_connection_string_with_all_params() -> None:
     url = (
         "clickhouse://user1:pass1@host1:9000/testdb?allow_experimental_lightweight_delete=1&"
-        "allow_experimental_object_type=1&connect_timeout=230&enable_http_compression=1&secure=0"
-        "&send_receive_timeout=1000"
+        "allow_experimental_object_type=1&connect_timeout=230&date_time_input_format=best_effort&"
+        "enable_http_compression=1&secure=0&send_receive_timeout=1000"
     )
 
     creds = ClickHouseCredentials()
@@ -53,15 +47,15 @@ def test_clickhouse_configuration() -> None:
     # def empty fingerprint
     assert ClickHouseClientConfiguration().fingerprint() == ""
     # based on host
-    c = resolve_configuration(
-        SnowflakeCredentials(),
+    config = resolve_configuration(
+        ClickHouseCredentials(),
         explicit_value="clickhouse://user1:pass1@host1:9000/db1",
     )
-    assert SnowflakeClientConfiguration(credentials=c).fingerprint() == digest128("host1")
+    assert ClickHouseClientConfiguration(credentials=config).fingerprint() == digest128("host1")
 
 
 def test_clickhouse_connection_settings(client: ClickHouseClient) -> None:
-    """Test experimental settings are set correctly for session."""
+    """Test experimental settings are set correctly for the session."""
     conn = client.sql_client.open_connection()
     cursor1 = conn.cursor()
     cursor2 = conn.cursor()
@@ -74,3 +68,4 @@ def test_clickhouse_connection_settings(client: ClickHouseClient) -> None:
 
         assert ("allow_experimental_lightweight_delete", "1") in res
         assert ("enable_http_compression", "1") in res
+        assert ("date_time_input_format", "best_effort") in res

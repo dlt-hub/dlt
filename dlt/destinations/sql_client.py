@@ -7,6 +7,7 @@ from typing import (
     Any,
     ClassVar,
     ContextManager,
+    Dict,
     Generic,
     Iterator,
     Optional,
@@ -15,6 +16,7 @@ from typing import (
     Type,
     AnyStr,
     List,
+    TypedDict,
 )
 
 from dlt.common.typing import TFun
@@ -28,17 +30,42 @@ from dlt.destinations.exceptions import (
 from dlt.destinations.typing import DBApi, TNativeConn, DBApiCursor, DataFrame, DBTransaction
 
 
+class TJobQueryTags(TypedDict):
+    """Applied to sql client when a job using it starts. Using to tag queries"""
+
+    source: str
+    resource: str
+    table: str
+    load_id: str
+    pipeline_name: str
+
+
 class SqlClientBase(ABC, Generic[TNativeConn]):
     dbapi: ClassVar[DBApi] = None
 
+    database_name: Optional[str]
+    """Database or catalog name, optional"""
+    dataset_name: str
+    """Normalized dataset name"""
+    staging_dataset_name: str
+    """Normalized staging dataset name"""
+    capabilities: DestinationCapabilitiesContext
+    """Instance of adjusted destination capabilities"""
+
     def __init__(
-        self, database_name: str, dataset_name: str, capabilities: DestinationCapabilitiesContext
+        self,
+        database_name: str,
+        dataset_name: str,
+        staging_dataset_name: str,
+        capabilities: DestinationCapabilitiesContext,
     ) -> None:
         if not dataset_name:
             raise ValueError(dataset_name)
         self.dataset_name = dataset_name
+        self.staging_dataset_name = staging_dataset_name
         self.database_name = database_name
         self.capabilities = capabilities
+        self._query_tags: TJobQueryTags = None
 
     @abstractmethod
     def open_connection(self) -> TNativeConn:
@@ -98,6 +125,7 @@ SELECT 1
         self.execute_many(statements)
 
     def drop_tables(self, *tables: str) -> None:
+        """Drops a set of tables if they exist"""
         if not tables:
             return
         statements = [
@@ -147,8 +175,13 @@ SELECT 1
         # connection is scoped to a current database
         return None
 
-    def fully_qualified_dataset_name(self, escape: bool = True) -> str:
-        return ".".join(self.make_qualified_table_name_path(None, escape=escape))
+    def fully_qualified_dataset_name(self, escape: bool = True, staging: bool = False) -> str:
+        if staging:
+            with self.with_staging_dataset():
+                path = self.make_qualified_table_name_path(None, escape=escape)
+        else:
+            path = self.make_qualified_table_name_path(None, escape=escape)
+        return ".".join(path)
 
     def make_qualified_table_name(self, table_name: str, escape: bool = True) -> str:
         return ".".join(self.make_qualified_table_name_path(table_name, escape=escape))
@@ -173,6 +206,12 @@ SELECT 1
             path.append(table_name)
         return path
 
+    def get_qualified_table_names(self, table_name: str, escape: bool = True) -> Tuple[str, str]:
+        """Returns qualified names for table and corresponding staging table as tuple."""
+        with self.with_staging_dataset():
+            staging_table_name = self.make_qualified_table_name(table_name, escape)
+        return self.make_qualified_table_name(table_name, escape), staging_table_name
+
     def escape_column_name(self, column_name: str, escape: bool = True) -> str:
         column_name = self.capabilities.casefold_identifier(column_name)
         if escape:
@@ -192,13 +231,12 @@ SELECT 1
             # restore previous dataset name
             self.dataset_name = current_dataset_name
 
-    def with_staging_dataset(
-        self, staging: bool = False
-    ) -> ContextManager["SqlClientBase[TNativeConn]"]:
-        dataset_name = self.dataset_name
-        if staging:
-            dataset_name = SqlClientBase.make_staging_dataset_name(dataset_name)
-        return self.with_alternative_dataset_name(dataset_name)
+    def with_staging_dataset(self) -> ContextManager["SqlClientBase[TNativeConn]"]:
+        return self.with_alternative_dataset_name(self.staging_dataset_name)
+
+    def set_query_tags(self, tags: TJobQueryTags) -> None:
+        """Sets current schema (source), resource, load_id and table name when a job starts"""
+        self._query_tags = tags
 
     def _ensure_native_conn(self) -> None:
         if not self.native_connection:
@@ -214,10 +252,6 @@ SELECT 1
         # crude way to detect dbapi DatabaseError: there's no common set of exceptions, each module must reimplement
         mro = type.mro(type(ex))
         return any(t.__name__ in ("DatabaseError", "DataError") for t in mro)
-
-    @staticmethod
-    def make_staging_dataset_name(dataset_name: str) -> str:
-        return dataset_name + "_staging"
 
     def _get_information_schema_components(self, *tables: str) -> Tuple[str, str, List[str]]:
         """Gets catalog name, schema name and name of the tables in format that can be directly

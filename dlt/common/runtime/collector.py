@@ -170,6 +170,7 @@ class LogCollector(Collector):
                 total=total,
             )
             self.messages[counter_key] = None
+            self.last_log_time = None
 
         self.counters[counter_key] += inc
         if message is not None:
@@ -230,7 +231,7 @@ class LogCollector(Collector):
         if isinstance(self.logger, (logging.Logger, logging.LoggerAdapter)):
             self.logger.log(log_level, log_message)
         else:
-            print(log_message, file=self.logger or sys.stdout)
+            print(log_message, file=self.logger or sys.stdout)  # noqa
 
     def _start(self, step: str) -> None:
         self.counters = defaultdict(int)

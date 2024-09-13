@@ -1,9 +1,12 @@
 import os
 import ast
 import shutil
+import tomlkit
 from types import ModuleType
 from typing import Dict, List, Sequence, Tuple
 from importlib.metadata import version as pkg_version
+from pathlib import Path
+from importlib import import_module
 
 from dlt.common import git
 from dlt.common.configuration.paths import get_dlt_settings_dir, make_dlt_settings_path
@@ -22,6 +25,7 @@ from dlt.common.reflection.utils import rewrite_python_script
 from dlt.common.schema.utils import is_valid_schema_name
 from dlt.common.schema.exceptions import InvalidSchemaName
 from dlt.common.storages.file_storage import FileStorage
+from dlt.sources import pipeline_templates as init_module
 
 import dlt.reflection.names as n
 from dlt.reflection.script_inspector import inspect_pipeline_script, load_script_module
@@ -30,28 +34,44 @@ from dlt.cli import echo as fmt, pipeline_files as files_ops, source_detection
 from dlt.cli import utils
 from dlt.cli.config_toml_writer import WritableConfigValue, write_values
 from dlt.cli.pipeline_files import (
-    VerifiedSourceFiles,
+    SourceConfiguration,
     TVerifiedSourceFileEntry,
     TVerifiedSourceFileIndex,
 )
 from dlt.cli.exceptions import CliCommandException
 from dlt.cli.requirements import SourceRequirements
 
+
 DLT_INIT_DOCS_URL = "https://dlthub.com/docs/reference/command-line-interface#dlt-init"
 DEFAULT_VERIFIED_SOURCES_REPO = "https://github.com/dlt-hub/verified-sources.git"
-INIT_MODULE_NAME = "init"
+TEMPLATES_MODULE_NAME = "pipeline_templates"
 SOURCES_MODULE_NAME = "sources"
 
 
-def _get_template_files(
-    command_module: ModuleType, use_generic_template: bool
-) -> Tuple[str, List[str]]:
-    template_files: List[str] = command_module.TEMPLATE_FILES
-    pipeline_script: str = command_module.PIPELINE_SCRIPT
-    if use_generic_template:
-        pipeline_script, py = os.path.splitext(pipeline_script)
-        pipeline_script = f"{pipeline_script}_generic{py}"
-    return pipeline_script, template_files
+def _get_core_sources_storage() -> FileStorage:
+    """Get FileStorage for core sources"""
+    local_path = Path(os.path.dirname(os.path.realpath(__file__))).parent / SOURCES_MODULE_NAME
+    return FileStorage(str(local_path))
+
+
+def _get_templates_storage() -> FileStorage:
+    """Get FileStorage for single file templates"""
+    # look up init storage in core
+    init_path = (
+        Path(os.path.dirname(os.path.realpath(__file__))).parent
+        / SOURCES_MODULE_NAME
+        / TEMPLATES_MODULE_NAME
+    )
+    return FileStorage(str(init_path))
+
+
+def _clone_and_get_verified_sources_storage(repo_location: str, branch: str = None) -> FileStorage:
+    """Clone and get FileStorage for verified sources templates"""
+
+    fmt.echo("Looking up verified sources at %s..." % fmt.bold(repo_location))
+    clone_storage = git.get_fresh_repo_files(repo_location, get_dlt_repos_dir(), branch=branch)
+    # copy dlt source files from here
+    return FileStorage(clone_storage.make_full_path(SOURCES_MODULE_NAME))
 
 
 def _select_source_files(
@@ -126,16 +146,38 @@ def _get_dependency_system(dest_storage: FileStorage) -> str:
         return None
 
 
+def _list_template_sources() -> Dict[str, SourceConfiguration]:
+    template_storage = _get_templates_storage()
+    sources: Dict[str, SourceConfiguration] = {}
+    for source_name in files_ops.get_sources_names(template_storage, source_type="template"):
+        sources[source_name] = files_ops.get_template_configuration(template_storage, source_name)
+    return sources
+
+
+def _list_core_sources() -> Dict[str, SourceConfiguration]:
+    core_sources_storage = _get_core_sources_storage()
+
+    sources: Dict[str, SourceConfiguration] = {}
+    for source_name in files_ops.get_sources_names(core_sources_storage, source_type="core"):
+        sources[source_name] = files_ops.get_core_source_configuration(
+            core_sources_storage, source_name
+        )
+    return sources
+
+
 def _list_verified_sources(
     repo_location: str, branch: str = None
-) -> Dict[str, VerifiedSourceFiles]:
-    clone_storage = git.get_fresh_repo_files(repo_location, get_dlt_repos_dir(), branch=branch)
-    sources_storage = FileStorage(clone_storage.make_full_path(SOURCES_MODULE_NAME))
+) -> Dict[str, SourceConfiguration]:
+    verified_sources_storage = _clone_and_get_verified_sources_storage(repo_location, branch)
 
-    sources: Dict[str, VerifiedSourceFiles] = {}
-    for source_name in files_ops.get_verified_source_names(sources_storage):
+    sources: Dict[str, SourceConfiguration] = {}
+    for source_name in files_ops.get_sources_names(
+        verified_sources_storage, source_type="verified"
+    ):
         try:
-            sources[source_name] = files_ops.get_verified_source_files(sources_storage, source_name)
+            sources[source_name] = files_ops.get_verified_source_configuration(
+                verified_sources_storage, source_name
+            )
         except Exception as ex:
             fmt.warning(f"Verified source {source_name} not available: {ex}")
 
@@ -145,23 +187,23 @@ def _list_verified_sources(
 def _welcome_message(
     source_name: str,
     destination_type: str,
-    source_files: VerifiedSourceFiles,
+    source_configuration: SourceConfiguration,
     dependency_system: str,
     is_new_source: bool,
 ) -> None:
     fmt.echo()
-    if source_files.is_template:
+    if source_configuration.source_type in ["template", "core"]:
         fmt.echo("Your new pipeline %s is ready to be customized!" % fmt.bold(source_name))
         fmt.echo(
             "* Review and change how dlt loads your data in %s"
-            % fmt.bold(source_files.dest_pipeline_script)
+            % fmt.bold(source_configuration.dest_pipeline_script)
         )
     else:
         if is_new_source:
             fmt.echo("Verified source %s was added to your project!" % fmt.bold(source_name))
             fmt.echo(
                 "* See the usage examples and code snippets to copy from %s"
-                % fmt.bold(source_files.dest_pipeline_script)
+                % fmt.bold(source_configuration.dest_pipeline_script)
             )
         else:
             fmt.echo(
@@ -174,9 +216,16 @@ def _welcome_message(
             % (fmt.bold(destination_type), fmt.bold(make_dlt_settings_path(SECRETS_TOML)))
         )
 
+    if destination_type == "destination":
+        fmt.echo(
+            "* You have selected the custom destination as your pipelines destination. Please refer"
+            " to our docs at https://dlthub.com/docs/dlt-ecosystem/destinations/destination on how"
+            " to add a destination function that will consume your data."
+        )
+
     if dependency_system:
         fmt.echo("* Add the required dependencies to %s:" % fmt.bold(dependency_system))
-        compiled_requirements = source_files.requirements.compiled()
+        compiled_requirements = source_configuration.requirements.compiled()
         for dep in compiled_requirements:
             fmt.echo("  " + fmt.bold(dep))
         fmt.echo(
@@ -211,37 +260,69 @@ def _welcome_message(
         )
 
 
-def list_verified_sources_command(repo_location: str, branch: str = None) -> None:
-    fmt.echo("Looking up for verified sources in %s..." % fmt.bold(repo_location))
-    for source_name, source_files in _list_verified_sources(repo_location, branch).items():
-        reqs = source_files.requirements
+def list_sources_command(repo_location: str, branch: str = None) -> None:
+    fmt.echo("---")
+    fmt.echo("Available dlt core sources:")
+    fmt.echo("---")
+    core_sources = _list_core_sources()
+    for source_name, source_configuration in core_sources.items():
+        msg = "%s: %s" % (fmt.bold(source_name), source_configuration.doc)
+        fmt.echo(msg)
+
+    fmt.echo("---")
+    fmt.echo("Available dlt single file templates:")
+    fmt.echo("---")
+    template_sources = _list_template_sources()
+    for source_name, source_configuration in template_sources.items():
+        msg = "%s: %s" % (fmt.bold(source_name), source_configuration.doc)
+        fmt.echo(msg)
+
+    fmt.echo("---")
+    fmt.echo("Available verified sources:")
+    fmt.echo("---")
+    for source_name, source_configuration in _list_verified_sources(repo_location, branch).items():
+        reqs = source_configuration.requirements
         dlt_req_string = str(reqs.dlt_requirement_base)
-        msg = "%s: %s" % (fmt.bold(source_name), source_files.doc)
+        msg = "%s: " % (fmt.bold(source_name))
+        if source_name in core_sources.keys():
+            msg += "(Deprecated since dlt 1.0.0 in favor of core source of the same name) "
+        msg += source_configuration.doc
         if not reqs.is_installed_dlt_compatible():
             msg += fmt.warning_style(" [needs update: %s]" % (dlt_req_string))
+
         fmt.echo(msg)
 
 
 def init_command(
     source_name: str,
     destination_type: str,
-    use_generic_template: bool,
     repo_location: str,
     branch: str = None,
+    omit_core_sources: bool = False,
 ) -> None:
     # try to import the destination and get config spec
     destination_reference = Destination.from_reference(destination_type)
     destination_spec = destination_reference.spec
 
-    fmt.echo("Looking up the init scripts in %s..." % fmt.bold(repo_location))
-    clone_storage = git.get_fresh_repo_files(repo_location, get_dlt_repos_dir(), branch=branch)
-    # copy init files from here
-    init_storage = FileStorage(clone_storage.make_full_path(INIT_MODULE_NAME))
-    # copy dlt source files from here
-    sources_storage = FileStorage(clone_storage.make_full_path(SOURCES_MODULE_NAME))
-    # load init module and get init files and script
-    init_module = load_script_module(clone_storage.storage_path, INIT_MODULE_NAME)
-    pipeline_script, template_files = _get_template_files(init_module, use_generic_template)
+    # lookup core storages
+    core_sources_storage = _get_core_sources_storage()
+    templates_storage = _get_templates_storage()
+
+    # discover type of source
+    source_type: files_ops.TSourceType = "template"
+    if (
+        source_name in files_ops.get_sources_names(core_sources_storage, source_type="core")
+    ) and not omit_core_sources:
+        source_type = "core"
+    else:
+        if omit_core_sources:
+            fmt.echo("Omitting dlt core sources.")
+        verified_sources_storage = _clone_and_get_verified_sources_storage(repo_location, branch)
+        if source_name in files_ops.get_sources_names(
+            verified_sources_storage, source_type="verified"
+        ):
+            source_type = "verified"
+
     # prepare destination storage
     dest_storage = FileStorage(os.path.abspath("."))
     if not dest_storage.has_folder(get_dlt_settings_dir()):
@@ -255,16 +336,21 @@ def init_command(
     is_new_source = len(local_index["files"]) == 0
 
     # look for existing source
-    source_files: VerifiedSourceFiles = None
+    source_configuration: SourceConfiguration = None
     remote_index: TVerifiedSourceFileIndex = None
-    if sources_storage.has_folder(source_name):
+    remote_modified: Dict[str, TVerifiedSourceFileEntry] = {}
+    remote_deleted: Dict[str, TVerifiedSourceFileEntry] = {}
+
+    if source_type == "verified":
         # get pipeline files
-        source_files = files_ops.get_verified_source_files(sources_storage, source_name)
+        source_configuration = files_ops.get_verified_source_configuration(
+            verified_sources_storage, source_name
+        )
         # get file index from remote verified source files being copied
         remote_index = files_ops.get_remote_source_index(
-            source_files.storage.storage_path,
-            source_files.files,
-            source_files.requirements.dlt_version_constraint(),
+            source_configuration.storage.storage_path,
+            source_configuration.files,
+            source_configuration.requirements.dlt_version_constraint(),
         )
         # diff local and remote index to get modified and deleted files
         remote_new, remote_modified, remote_deleted = files_ops.gen_index_diff(
@@ -291,39 +377,41 @@ def init_command(
                 " update correctly in the future."
             )
         # add template files
-        source_files.files.extend(template_files)
+        source_configuration.files.extend(files_ops.TEMPLATE_FILES)
 
     else:
-        if not is_valid_schema_name(source_name):
-            raise InvalidSchemaName(source_name)
-        dest_pipeline_script = source_name + ".py"
-        source_files = VerifiedSourceFiles(
-            True,
-            init_storage,
-            pipeline_script,
-            dest_pipeline_script,
-            template_files,
-            SourceRequirements([]),
-            "",
-        )
-        if dest_storage.has_file(dest_pipeline_script):
-            fmt.warning("Pipeline script %s already exist, exiting" % dest_pipeline_script)
+        if source_type == "core":
+            source_configuration = files_ops.get_core_source_configuration(
+                core_sources_storage, source_name
+            )
+        else:
+            if not is_valid_schema_name(source_name):
+                raise InvalidSchemaName(source_name)
+            source_configuration = files_ops.get_template_configuration(
+                templates_storage, source_name
+            )
+
+        if dest_storage.has_file(source_configuration.dest_pipeline_script):
+            fmt.warning(
+                "Pipeline script %s already exists, exiting"
+                % source_configuration.dest_pipeline_script
+            )
             return
 
     # add .dlt/*.toml files to be copied
-    source_files.files.extend(
+    source_configuration.files.extend(
         [make_dlt_settings_path(CONFIG_TOML), make_dlt_settings_path(SECRETS_TOML)]
     )
 
     # add dlt extras line to requirements
-    source_files.requirements.update_dlt_extras(destination_type)
+    source_configuration.requirements.update_dlt_extras(destination_type)
 
     # Check compatibility with installed dlt
-    if not source_files.requirements.is_installed_dlt_compatible():
+    if not source_configuration.requirements.is_installed_dlt_compatible():
         msg = (
             "This pipeline requires a newer version of dlt than your installed version"
-            f" ({source_files.requirements.current_dlt_version()}). Pipeline requires"
-            f" '{source_files.requirements.dlt_requirement_base}'"
+            f" ({source_configuration.requirements.current_dlt_version()}). Pipeline requires"
+            f" '{source_configuration.requirements.dlt_requirement_base}'"
         )
         fmt.warning(msg)
         if not fmt.confirm(
@@ -331,28 +419,29 @@ def init_command(
         ):
             fmt.echo(
                 "You can update dlt with: pip3 install -U"
-                f' "{source_files.requirements.dlt_requirement_base}"'
+                f' "{source_configuration.requirements.dlt_requirement_base}"'
             )
             return
 
     # read module source and parse it
     visitor = utils.parse_init_script(
         "init",
-        source_files.storage.load(source_files.pipeline_script),
-        source_files.pipeline_script,
+        source_configuration.storage.load(source_configuration.src_pipeline_script),
+        source_configuration.src_pipeline_script,
     )
     if visitor.is_destination_imported:
         raise CliCommandException(
             "init",
-            f"The pipeline script {source_files.pipeline_script} import a destination from"
-            " dlt.destinations. You should specify destinations by name when calling dlt.pipeline"
-            " or dlt.run in init scripts.",
+            f"The pipeline script {source_configuration.src_pipeline_script} imports a destination"
+            " from dlt.destinations. You should specify destinations by name when calling"
+            " dlt.pipeline or dlt.run in init scripts.",
         )
     if n.PIPELINE not in visitor.known_calls:
         raise CliCommandException(
             "init",
-            f"The pipeline script {source_files.pipeline_script} does not seem to initialize"
-            " pipeline with dlt.pipeline. Please initialize pipeline explicitly in init scripts.",
+            f"The pipeline script {source_configuration.src_pipeline_script} does not seem to"
+            " initialize a pipeline with dlt.pipeline. Please initialize pipeline explicitly in"
+            " your init scripts.",
         )
 
     # find all arguments in all calls to replace
@@ -363,18 +452,18 @@ def init_command(
             ("pipeline_name", source_name),
             ("dataset_name", source_name + "_data"),
         ],
-        source_files.pipeline_script,
+        source_configuration.src_pipeline_script,
     )
 
     # inspect the script
     inspect_pipeline_script(
-        source_files.storage.storage_path,
-        source_files.storage.to_relative_path(source_files.pipeline_script),
+        source_configuration.storage.storage_path,
+        source_configuration.storage.to_relative_path(source_configuration.src_pipeline_script),
         ignore_missing_imports=True,
     )
 
     # detect all the required secrets and configs that should go into tomls files
-    if source_files.is_template:
+    if source_configuration.source_type == "template":
         # replace destination, pipeline_name and dataset_name in templates
         transformed_nodes = source_detection.find_call_arguments_to_replace(
             visitor,
@@ -383,21 +472,22 @@ def init_command(
                 ("pipeline_name", source_name),
                 ("dataset_name", source_name + "_data"),
             ],
-            source_files.pipeline_script,
+            source_configuration.src_pipeline_script,
         )
         # template sources are always in module starting with "pipeline"
         # for templates, place config and secrets into top level section
         required_secrets, required_config, checked_sources = source_detection.detect_source_configs(
-            _SOURCES, "pipeline", ()
+            _SOURCES, source_configuration.source_module_prefix, ()
         )
         # template has a strict rules where sources are placed
         for source_q_name, source_config in checked_sources.items():
             if source_q_name not in visitor.known_sources_resources:
                 raise CliCommandException(
                     "init",
-                    f"The pipeline script {source_files.pipeline_script} imports a source/resource"
-                    f" {source_config.f.__name__} from module {source_config.module.__name__}. In"
-                    " init scripts you must declare all sources and resources in single file.",
+                    f"The pipeline script {source_configuration.src_pipeline_script} imports a"
+                    f" source/resource {source_config.f.__name__} from module"
+                    f" {source_config.module.__name__}. In init scripts you must declare all"
+                    " sources and resources in single file.",
                 )
         # rename sources and resources
         transformed_nodes.extend(
@@ -406,19 +496,22 @@ def init_command(
     else:
         # replace only destination for existing pipelines
         transformed_nodes = source_detection.find_call_arguments_to_replace(
-            visitor, [("destination", destination_type)], source_files.pipeline_script
+            visitor, [("destination", destination_type)], source_configuration.src_pipeline_script
         )
         # pipeline sources are in module with name starting from {pipeline_name}
         # for verified pipelines place in the specific source section
         required_secrets, required_config, checked_sources = source_detection.detect_source_configs(
-            _SOURCES, source_name, (known_sections.SOURCES, source_name)
+            _SOURCES,
+            source_configuration.source_module_prefix,
+            (known_sections.SOURCES, source_name),
         )
 
-    if len(checked_sources) == 0:
+    # the intro template does not use sources, for now allow it to pass here
+    if len(checked_sources) == 0 and source_name != "intro":
         raise CliCommandException(
             "init",
-            f"The pipeline script {source_files.pipeline_script} is not creating or importing any"
-            " sources or resources",
+            f"The pipeline script {source_configuration.src_pipeline_script} is not creating or"
+            " importing any sources or resources. Exiting...",
         )
 
     # add destination spec to required secrets
@@ -438,37 +531,57 @@ def init_command(
 
     # ask for confirmation
     if is_new_source:
-        if source_files.is_template:
+        if source_configuration.source_type == "core":
             fmt.echo(
-                "A verified source %s was not found. Using a template to create a new source and"
-                " pipeline with name %s." % (fmt.bold(source_name), fmt.bold(source_name))
+                "Creating a new pipeline with the dlt core source %s (%s)"
+                % (fmt.bold(source_name), source_configuration.doc)
+            )
+            fmt.echo(
+                "NOTE: Beginning with dlt 1.0.0, the source %s will no longer be copied from the"
+                " verified sources repo but imported from dlt.sources. You can provide the"
+                " --omit-core-sources flag to revert to the old behavior." % (fmt.bold(source_name))
+            )
+        elif source_configuration.source_type == "verified":
+            fmt.echo(
+                "Creating and configuring a new pipeline with the verified source %s (%s)"
+                % (fmt.bold(source_name), source_configuration.doc)
             )
         else:
+            if source_configuration.is_default_template:
+                fmt.echo(
+                    "NOTE: Could not find a dlt source or template wih the name %s. Selecting the"
+                    " default template." % (fmt.bold(source_name))
+                )
+                fmt.echo(
+                    "NOTE: In case you did not want to use the default template, run 'dlt init -l'"
+                    " to see all available sources and templates."
+                )
             fmt.echo(
-                "Cloning and configuring a verified source %s (%s)"
-                % (fmt.bold(source_name), source_files.doc)
+                "Creating and configuring a new pipeline with the dlt core template %s (%s)"
+                % (fmt.bold(source_configuration.src_pipeline_script), source_configuration.doc)
             )
-            if use_generic_template:
-                fmt.warning("--generic parameter is meaningless if verified source is found")
+
         if not fmt.confirm("Do you want to proceed?", default=True):
             raise CliCommandException("init", "Aborted")
 
     dependency_system = _get_dependency_system(dest_storage)
-    _welcome_message(source_name, destination_type, source_files, dependency_system, is_new_source)
+    _welcome_message(
+        source_name, destination_type, source_configuration, dependency_system, is_new_source
+    )
 
     # copy files at the very end
-    for file_name in source_files.files:
+    for file_name in source_configuration.files:
         dest_path = dest_storage.make_full_path(file_name)
         # get files from init section first
-        if init_storage.has_file(file_name):
+        if templates_storage.has_file(file_name):
             if dest_storage.has_file(dest_path):
                 # do not overwrite any init files
                 continue
-            src_path = init_storage.make_full_path(file_name)
+            src_path = templates_storage.make_full_path(file_name)
         else:
             # only those that were modified should be copied from verified sources
             if file_name in remote_modified:
-                src_path = source_files.storage.make_full_path(file_name)
+                src_path = source_configuration.storage.make_full_path(file_name)
             else:
                 continue
         os.makedirs(os.path.dirname(dest_path), exist_ok=True)
@@ -483,22 +596,25 @@ def init_command(
             source_name, remote_index, remote_modified, remote_deleted
         )
     # create script
-    if not dest_storage.has_file(source_files.dest_pipeline_script):
-        dest_storage.save(source_files.dest_pipeline_script, dest_script_source)
+    if not dest_storage.has_file(source_configuration.dest_pipeline_script):
+        dest_storage.save(source_configuration.dest_pipeline_script, dest_script_source)
 
     # generate tomls with comments
     secrets_prov = SecretsTomlProvider()
-    # print(secrets_prov._toml)
-    write_values(secrets_prov._toml, required_secrets.values(), overwrite_existing=False)
+    secrets_toml = tomlkit.document()
+    write_values(secrets_toml, required_secrets.values(), overwrite_existing=False)
+    secrets_prov._config_doc = secrets_toml
+
     config_prov = ConfigTomlProvider()
-    write_values(config_prov._toml, required_config.values(), overwrite_existing=False)
+    config_toml = tomlkit.document()
+    write_values(config_toml, required_config.values(), overwrite_existing=False)
+    config_prov._config_doc = config_toml
+
     # write toml files
     secrets_prov.write_toml()
     config_prov.write_toml()
 
-    # telemetry_status_command()
-
     # if there's no dependency system write the requirements file
     if dependency_system is None:
-        requirements_txt = "\n".join(source_files.requirements.compiled())
+        requirements_txt = "\n".join(source_configuration.requirements.compiled())
         dest_storage.save(utils.REQUIREMENTS_TXT, requirements_txt)

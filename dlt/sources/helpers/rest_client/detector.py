@@ -8,7 +8,7 @@ from requests import Response
 from .paginators import (
     BasePaginator,
     HeaderLinkPaginator,
-    JSONResponsePaginator,
+    JSONLinkPaginator,
     JSONResponseCursorPaginator,
     SinglePagePaginator,
     PageNumberPaginator,
@@ -156,7 +156,7 @@ def header_links_detector(response: Response) -> Tuple[HeaderLinkPaginator, floa
     return None, None
 
 
-def json_links_detector(response: Response) -> Tuple[JSONResponsePaginator, float]:
+def json_links_detector(response: Response) -> Tuple[JSONLinkPaginator, float]:
     dictionary = response.json()
     next_path_parts, next_href = find_next_page_path(dictionary)
 
@@ -166,7 +166,7 @@ def json_links_detector(response: Response) -> Tuple[JSONResponsePaginator, floa
     try:
         urlparse(next_href)
         if next_href.startswith("http") or next_href.startswith("/"):
-            return JSONResponsePaginator(next_url_path=".".join(next_path_parts)), 1.0
+            return JSONLinkPaginator(next_url_path=".".join(next_path_parts)), 1.0
     except Exception:
         pass
 

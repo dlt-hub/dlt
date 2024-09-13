@@ -160,7 +160,7 @@ def source(
 
         max_table_nesting (int, optional): A schema hint that sets the maximum depth of nested table above which the remaining nodes are loaded as structs or JSON.
 
-        root_key (bool): Enables merging on all resources by propagating root foreign key to child tables. This option is most useful if you plan to change write disposition of a resource to disable/enable merge. Defaults to False.
+        root_key (bool): Enables merging on all resources by propagating row key from root to all nested tables. This option is most useful if you plan to change write disposition of a resource to disable/enable merge. Defaults to False.
 
         schema (Schema, optional): An explicit `Schema` instance to be associated with the source. If not present, `dlt` creates a new `Schema` object with provided `name`. If such `Schema` already exists in the same folder as the module containing the decorated function, such schema will be loaded from file.
 
@@ -192,11 +192,7 @@ def source(
         # source name is passed directly or taken from decorated function name
         effective_name = name or get_callable_name(f)
 
-        if not schema:
-            # load the schema from file with name_schema.yaml/json from the same directory, the callable resides OR create new default schema
-            schema = _maybe_load_schema_for_callable(f, effective_name) or Schema(effective_name)
-
-        if name and name != schema.name:
+        if schema and name and name != schema.name:
             raise ExplicitSourceNameInvalid(name, schema.name)
 
         # wrap source extraction function in configuration with section
@@ -224,12 +220,19 @@ def source(
             s.root_key = root_key
             return s
 
+        def _make_schema() -> Schema:
+            if not schema:
+                # load the schema from file with name_schema.yaml/json from the same directory, the callable resides OR create new default schema
+                return _maybe_load_schema_for_callable(f, effective_name) or Schema(effective_name)
+            else:
+                # clone the schema passed to decorator, update normalizers, remove processing hints
+                # NOTE: source may be called several times in many different settings
+                return schema.clone(update_normalizers=True, remove_processing_hints=True)
+
         @wraps(conf_f)
         def _wrap(*args: Any, **kwargs: Any) -> TDltSourceImpl:
             """Wrap a regular function, injection context must be a part of the wrap"""
-            # clone the schema passed to decorator, update normalizers, remove processing hints
-            # NOTE: source may be called several times in many different settings
-            schema_copy = schema.clone(update_normalizers=True, remove_processing_hints=True)
+            schema_copy = _make_schema()
             with Container().injectable_context(SourceSchemaInjectableContext(schema_copy)):
                 # configurations will be accessed in this section in the source
                 proxy = Container()[PipelineContext]
@@ -249,9 +252,7 @@ def source(
             """In case of co-routine we must wrap the whole injection context in awaitable,
             there's no easy way to avoid some code duplication
             """
-            # clone the schema passed to decorator, update normalizers, remove processing hints
-            # NOTE: source may be called several times in many different settings
-            schema_copy = schema.clone(update_normalizers=True, remove_processing_hints=True)
+            schema_copy = _make_schema()
             with Container().injectable_context(SourceSchemaInjectableContext(schema_copy)):
                 # configurations will be accessed in this section in the source
                 proxy = Container()[PipelineContext]

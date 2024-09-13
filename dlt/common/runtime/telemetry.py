@@ -14,7 +14,6 @@ from dlt.common.runtime.anon_tracker import (
     disable_anon_tracker,
     track,
 )
-from dlt.pipeline.platform import disable_platform_tracker, init_platform_tracker
 
 _TELEMETRY_STARTED = False
 
@@ -36,6 +35,10 @@ def start_telemetry(config: RunConfiguration) -> None:
         init_anon_tracker(config)
 
     if config.dlthub_dsn:
+        # TODO: we need pluggable modules for tracing so import into
+        # concrete modules is not needed
+        from dlt.pipeline.platform import init_platform_tracker
+
         init_platform_tracker()
 
     _TELEMETRY_STARTED = True
@@ -55,6 +58,9 @@ def stop_telemetry() -> None:
         pass
 
     disable_anon_tracker()
+
+    from dlt.pipeline.platform import disable_platform_tracker
+
     disable_platform_tracker()
 
     _TELEMETRY_STARTED = False

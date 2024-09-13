@@ -1,10 +1,6 @@
-from typing import Any, Optional, Dict, Protocol, Sequence, Union, Final
+from typing import Any, Dict, Sequence, Union, Final
 
-from dateutil import parser
-
-from dlt.common.pendulum import timezone
-from dlt.common.schema.typing import TColumnNames, TTableSchemaColumns, TColumnSchema
-from dlt.destinations.utils import ensure_resource
+from dlt.destinations.utils import get_resource_for_adapter
 from dlt.extract import DltResource
 from dlt.extract.items import TTableHintTemplate
 
@@ -89,7 +85,7 @@ def athena_adapter(
         >>> athena_adapter(data, partition=["department", athena_partition.year("date_hired"), athena_partition.bucket(8, "name")])
         [DltResource with hints applied]
     """
-    resource = ensure_resource(data)
+    resource = get_resource_for_adapter(data)
     additional_table_hints: Dict[str, TTableHintTemplate[Any]] = {}
 
     if partition:

@@ -16,7 +16,7 @@ from dlt.pipeline.exceptions import CannotRestorePipelineException
 
 from dlt.cli.init_command import (
     init_command,
-    list_verified_sources_command,
+    list_sources_command,
     DLT_INIT_DOCS_URL,
     DEFAULT_VERIFIED_SOURCES_REPO,
 )
@@ -54,12 +54,18 @@ def on_exception(ex: Exception, info: str) -> None:
 def init_command_wrapper(
     source_name: str,
     destination_type: str,
-    use_generic_template: bool,
     repo_location: str,
     branch: str,
+    omit_core_sources: bool = False,
 ) -> int:
     try:
-        init_command(source_name, destination_type, use_generic_template, repo_location, branch)
+        init_command(
+            source_name,
+            destination_type,
+            repo_location,
+            branch,
+            omit_core_sources,
+        )
     except Exception as ex:
         on_exception(ex, DLT_INIT_DOCS_URL)
         return -1
@@ -67,9 +73,9 @@ def init_command_wrapper(
 
 
 @utils.track_command("list_sources", False)
-def list_verified_sources_command_wrapper(repo_location: str, branch: str) -> int:
+def list_sources_command_wrapper(repo_location: str, branch: str) -> int:
     try:
-        list_verified_sources_command(repo_location, branch)
+        list_sources_command(repo_location, branch)
     except Exception as ex:
         on_exception(ex, DLT_INIT_DOCS_URL)
         return -1
@@ -164,7 +170,7 @@ def schema_command_wrapper(file_path: str, format_: str, remove_defaults: bool) 
         schema_str = json.dumps(s.to_dict(remove_defaults=remove_defaults), pretty=True)
     else:
         schema_str = s.to_pretty_yaml(remove_defaults=remove_defaults)
-    print(schema_str)
+    fmt.echo(schema_str)
     return 0
 
 
@@ -306,11 +312,11 @@ def main() -> int:
         ),
     )
     init_cmd.add_argument(
-        "--list-verified-sources",
+        "--list-sources",
         "-l",
         default=False,
         action="store_true",
-        help="List available verified sources",
+        help="List available sources",
     )
     init_cmd.add_argument(
         "source",
@@ -334,14 +340,14 @@ def main() -> int:
         default=None,
         help="Advanced. Uses specific branch of the init repository to fetch the template.",
     )
+
     init_cmd.add_argument(
-        "--generic",
+        "--omit-core-sources",
         default=False,
         action="store_true",
         help=(
-            "When present uses a generic template with all the dlt loading code present will be"
-            " used. Otherwise a debug template is used that can be immediately run to get familiar"
-            " with the dlt sources."
+            "When present, will not create the new pipeline with a core source of the given name"
+            " but will take a source of this name from the default or provided location."
         ),
     )
 
@@ -434,7 +440,10 @@ def main() -> int:
         "--format", choices=["json", "yaml"], default="yaml", help="Display schema in this format"
     )
     schema.add_argument(
-        "--remove-defaults", action="store_true", help="Does not show default hint values"
+        "--remove-defaults",
+        action="store_true",
+        help="Does not show default hint values",
+        default=True,
     )
 
     pipe_cmd = subparsers.add_parser(
@@ -510,7 +519,10 @@ def main() -> int:
         help="Display schema in this format",
     )
     pipe_cmd_schema.add_argument(
-        "--remove-defaults", action="store_true", help="Does not show default hint values"
+        "--remove-defaults",
+        action="store_true",
+        help="Does not show default hint values",
+        default=True,
     )
 
     pipe_cmd_drop = pipeline_subparsers.add_parser(
@@ -588,15 +600,19 @@ def main() -> int:
             del command_kwargs["list_pipelines"]
             return pipeline_command_wrapper(**command_kwargs)
     elif args.command == "init":
-        if args.list_verified_sources:
-            return list_verified_sources_command_wrapper(args.location, args.branch)
+        if args.list_sources:
+            return list_sources_command_wrapper(args.location, args.branch)
         else:
             if not args.source or not args.destination:
                 init_cmd.print_usage()
                 return -1
             else:
                 return init_command_wrapper(
-                    args.source, args.destination, args.generic, args.location, args.branch
+                    args.source,
+                    args.destination,
+                    args.location,
+                    args.branch,
+                    args.omit_core_sources,
                 )
     elif args.command == "deploy":
         try:

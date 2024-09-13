@@ -34,10 +34,11 @@ class Psycopg2SqlClient(SqlClientBase["psycopg2.connection"], DBTransaction):
     def __init__(
         self,
         dataset_name: str,
+        staging_dataset_name: str,
         credentials: PostgresCredentials,
         capabilities: DestinationCapabilitiesContext,
     ) -> None:
-        super().__init__(credentials.database, dataset_name, capabilities)
+        super().__init__(credentials.database, dataset_name, staging_dataset_name, capabilities)
         self._conn: psycopg2.connection = None
         self.credentials = credentials
 

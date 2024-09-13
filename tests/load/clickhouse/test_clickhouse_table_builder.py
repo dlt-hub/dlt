@@ -6,7 +6,6 @@ from dlt.common.configuration import resolve_configuration
 from dlt.common.schema import Schema
 from dlt.common.utils import custom_environ, digest128
 from dlt.common.utils import uniq_id
-
 from dlt.destinations import clickhouse
 from dlt.destinations.impl.clickhouse.clickhouse import ClickHouseClient
 from dlt.destinations.impl.clickhouse.configuration import (
@@ -140,7 +139,9 @@ def test_clickhouse_alter_table(clickhouse_client: ClickHouseClient) -> None:
 
 
 @pytest.mark.usefixtures("empty_schema")
-def test_clickhouse_create_table_with_primary_keys(clickhouse_client: ClickHouseClient) -> None:
+def test_clickhouse_create_table_with_primary_keys(
+    clickhouse_client: ClickHouseClient,
+) -> None:
     mod_update = deepcopy(TABLE_UPDATE)
 
     mod_update[1]["primary_key"] = True
@@ -172,3 +173,28 @@ def test_clickhouse_create_table_with_hints(client: ClickHouseClient) -> None:
     # No hints.
     assert "`col3` boolean  NOT NULL" in sql
     assert "`col4` timestamp with time zone  NOT NULL" in sql
+
+
+def test_clickhouse_table_engine_configuration() -> None:
+    with custom_environ(
+        {
+            "DESTINATION__CLICKHOUSE__CREDENTIALS__HOST": "localhost",
+            "DESTINATION__CLICKHOUSE__DATASET_NAME": f"test_{uniq_id()}",
+        }
+    ):
+        config = resolve_configuration(
+            ClickHouseClientConfiguration(), sections=("destination", "clickhouse")
+        )
+        assert config.table_engine_type == "merge_tree"
+
+    with custom_environ(
+        {
+            "DESTINATION__CLICKHOUSE__CREDENTIALS__HOST": "localhost",
+            "DESTINATION__CLICKHOUSE__TABLE_ENGINE_TYPE": "replicated_merge_tree",
+            "DESTINATION__CLICKHOUSE__DATASET_NAME": f"test_{uniq_id()}",
+        }
+    ):
+        config = resolve_configuration(
+            ClickHouseClientConfiguration(), sections=("destination", "clickhouse")
+        )
+        assert config.table_engine_type == "replicated_merge_tree"

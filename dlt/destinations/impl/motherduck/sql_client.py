@@ -9,10 +9,11 @@ class MotherDuckSqlClient(DuckDbSqlClient):
     def __init__(
         self,
         dataset_name: str,
+        staging_dataset_name: str,
         credentials: MotherDuckCredentials,
         capabilities: DestinationCapabilitiesContext,
     ) -> None:
-        super().__init__(dataset_name, credentials, capabilities)
+        super().__init__(dataset_name, staging_dataset_name, credentials, capabilities)
         self.database_name = credentials.database
 
     def catalog_name(self, escape: bool = True) -> Optional[str]:

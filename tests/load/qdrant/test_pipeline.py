@@ -1,16 +1,20 @@
 import pytest
 from typing import Iterator
+from tempfile import TemporaryDirectory
+import os
 
 import dlt
 from dlt.common import json
 from dlt.common.utils import uniq_id
+from dlt.common.typing import DictStrStr
 
 from dlt.destinations.adapters import qdrant_adapter
 from dlt.destinations.impl.qdrant.qdrant_adapter import qdrant_adapter, VECTORIZE_HINT
-from dlt.destinations.impl.qdrant.qdrant_client import QdrantClient
+from dlt.destinations.impl.qdrant.qdrant_job_client import QdrantClient
 from tests.pipeline.utils import assert_load_info
 from tests.load.qdrant.utils import drop_active_pipeline_data, assert_collection
 from tests.load.utils import sequence_generator
+from tests.utils import preserve_environ
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential
@@ -361,3 +365,20 @@ def test_empty_dataset_allowed() -> None:
     assert client.dataset_name is None
     assert client.sentinel_collection == "DltSentinelCollection"
     assert_collection(p, "content", expected_items_count=3)
+
+
+def test_qdrant_local_parallelism_disabled(preserve_environ) -> None:
+    os.environ["DATA_WRITER__FILE_MAX_ITEMS"] = "20"
+
+    with TemporaryDirectory() as tmpdir:
+        p = dlt.pipeline(destination=dlt.destinations.qdrant(path=tmpdir))
+
+        # Data writer limit ensures that we create multiple load files to the same table
+        @dlt.resource
+        def q_data():
+            for i in range(222):
+                yield {"doc_id": i, "content": f"content {i}"}
+
+        info = p.run(q_data)
+
+        assert_load_info(info)

@@ -14,6 +14,8 @@ const DOCS_EXTENSIONS = [".md", ".mdx"];
 
 const SNIPPETS_FILE_SUFFIX = "-snippets.py"
 
+const NUM_TUBA_LINKS = 10;
+
 // examples settings
 const EXAMPLES_DESTINATION_DIR = `./${MD_TARGET_DIR}examples/`;
 const EXAMPLES_SOURCE_DIR = "../examples/";
@@ -175,11 +177,18 @@ function insertTubaLinks(lines) {
   for (let line of lines) {
     if (line.includes(TUBA_MARKER)) {
       const tubaTag = extractMarkerContent(TUBA_MARKER, line);
-      const links = tubaConfig.filter((link) => link.tags.includes(tubaTag));
+      let links = tubaConfig.filter((link) => link.tags.includes(tubaTag));
       if (links.length > 0) {
         result.push("## Additional Setup guides")
-        for (const link of links) {
+        // shuffle links
+        links = links.sort(() => 0.5 - Math.random());
+        let count = 0;
+        for (const link of links) {          
           result.push(`- [${link.title}](${link.public_url})`)
+          count += 1;
+          if (count >= NUM_TUBA_LINKS) {
+            break;
+          }
         }
       } else {
         // we could warn here, but it is a bit too verbose

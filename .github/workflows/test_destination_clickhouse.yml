@@ -1,4 +1,3 @@
-
 name: test | clickhouse
 
 on:
@@ -8,7 +7,7 @@ on:
       - devel
   workflow_dispatch:
   schedule:
-    - cron:  '0 2 * * *'
+    - cron: '0 2 * * *'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -20,7 +19,7 @@ env:
   DLT_SECRETS_TOML: ${{ secrets.DLT_SECRETS_TOML }}
 
   ACTIVE_DESTINATIONS: "[\"clickhouse\"]"
-  ALL_FILESYSTEM_DRIVERS: "[\"memory\"]"
+  ALL_FILESYSTEM_DRIVERS: "[\"memory\", \"file\"]"
 
 jobs:
   get_docs_changes:
@@ -67,12 +66,51 @@ jobs:
       - name: create secrets.toml
         run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
 
+      # OSS ClickHouse
       - run: |
-          poetry run pytest tests/load -m "essential"
-        name: Run essential tests Linux
+          docker compose -f "tests/load/clickhouse/clickhouse-compose.yml" up -d
+          echo "Waiting for ClickHouse to be healthy..."
+          timeout 30s bash -c 'until docker compose -f "tests/load/clickhouse/clickhouse-compose.yml" ps | grep -q "healthy"; do sleep 1; done'
+          echo "ClickHouse is up and running"
+        name: Start ClickHouse OSS
+
+
+      - run: poetry run pytest tests/load --ignore tests/load/sources -m "essential"
+        name: Run essential tests Linux (ClickHouse OSS)
+        if: ${{ ! (contains(github.event.pull_request.labels.*.name, 'ci full') || github.event_name == 'schedule')}}
+        env:
+          DESTINATION__CLICKHOUSE__CREDENTIALS__HOST: localhost
+          DESTINATION__CLICKHOUSE__CREDENTIALS__DATABASE: dlt_data
+          DESTINATION__CLICKHOUSE__CREDENTIALS__USERNAME: loader
+          DESTINATION__CLICKHOUSE__CREDENTIALS__PASSWORD: loader
+          DESTINATION__CLICKHOUSE__CREDENTIALS__PORT: 9000
+          DESTINATION__CLICKHOUSE__CREDENTIALS__HTTP_PORT: 8123
+          DESTINATION__CLICKHOUSE__CREDENTIALS__SECURE: 0
+
+      - run: poetry run pytest tests/load --ignore tests/load/sources
+        name: Run all tests Linux (ClickHouse OSS)
+        if: ${{ contains(github.event.pull_request.labels.*.name, 'ci full') || github.event_name == 'schedule'}}
+        env:
+          DESTINATION__CLICKHOUSE__CREDENTIALS__HOST: localhost
+          DESTINATION__CLICKHOUSE__CREDENTIALS__DATABASE: dlt_data
+          DESTINATION__CLICKHOUSE__CREDENTIALS__USERNAME: loader
+          DESTINATION__CLICKHOUSE__CREDENTIALS__PASSWORD: loader
+          DESTINATION__CLICKHOUSE__CREDENTIALS__PORT: 9000
+          DESTINATION__CLICKHOUSE__CREDENTIALS__HTTP_PORT: 8123
+          DESTINATION__CLICKHOUSE__CREDENTIALS__SECURE: 0
+
+      - name: Stop ClickHouse OSS
+        if: always()
+        run: docker compose -f "tests/load/clickhouse/clickhouse-compose.yml" down -v
+
+      # ClickHouse Cloud
+      - run: |
+          poetry run pytest tests/load --ignore tests/load/sources -m "essential"
+        name: Run essential tests Linux (ClickHouse Cloud)
         if: ${{ ! (contains(github.event.pull_request.labels.*.name, 'ci full') || github.event_name == 'schedule')}}
 
       - run: |
-          poetry run pytest tests/load
-        name: Run all tests Linux
+          poetry run pytest tests/load --ignore tests/load/sources
+        name: Run all tests Linux (ClickHouse Cloud)
         if: ${{ contains(github.event.pull_request.labels.*.name, 'ci full') || github.event_name == 'schedule'}}
+

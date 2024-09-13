@@ -1,29 +1,52 @@
 import re
-from typing import Any, List, Optional, Tuple
+
+from typing import Any, List, Optional, Sequence, Tuple
 
 from dlt.common import logger
+from dlt.common.destination.capabilities import DestinationCapabilitiesContext
+from dlt.common.destination.utils import resolve_merge_strategy
 from dlt.common.schema import Schema
 from dlt.common.schema.exceptions import SchemaCorruptedException
-from dlt.common.schema.typing import MERGE_STRATEGIES, TTableSchema
+from dlt.common.schema.typing import MERGE_STRATEGIES, TColumnType, TTableSchema
 from dlt.common.schema.utils import (
     get_columns_names_with_prop,
     get_first_column_name_with_prop,
     has_column_with_prop,
+    is_nested_table,
     pipeline_state_table,
 )
 from typing import Any, cast, Tuple, Dict, Type
 
 from dlt.destinations.exceptions import DatabaseTransientException
-from dlt.extract import DltResource, resource as make_resource
+from dlt.extract import DltResource, resource as make_resource, DltSource
 
 RE_DATA_TYPE = re.compile(r"([A-Z]+)\((\d+)(?:,\s?(\d+))?\)")
 
 
-def ensure_resource(data: Any) -> DltResource:
-    """Wraps `data` in a DltResource if it's not a DltResource already."""
+def get_resource_for_adapter(data: Any) -> DltResource:
+    """
+    Helper function for adapters. Wraps `data` in a DltResource if it's not a DltResource already.
+    Alternatively if `data` is a DltSource, throws an error if there are multiple resource in the source
+    or returns the single resource if available.
+    """
     if isinstance(data, DltResource):
         return data
-    resource_name = None if hasattr(data, "__name__") else "content"
+    # prevent accidentally wrapping sources with adapters
+    if isinstance(data, DltSource):
+        if len(data.selected_resources.keys()) == 1:
+            return list(data.selected_resources.values())[0]
+        else:
+            raise ValueError(
+                "You are trying to use an adapter on a DltSource with multiple resources. You can"
+                " only use adapters on pure data, direclty on a DltResouce or a DltSource"
+                " containing a single DltResource."
+            )
+
+    resource_name = None
+    if not hasattr(data, "__name__"):
+        logger.info("Setting default resource name to `content` for adapted resource.")
+        resource_name = "content"
+
     return cast(DltResource, make_resource(data, name=resource_name))
 
 
@@ -60,13 +83,22 @@ def get_pipeline_state_query_columns() -> TTableSchema:
     return state_table
 
 
-def verify_sql_job_client_schema(schema: Schema, warnings: bool = True) -> List[Exception]:
+def verify_schema_merge_disposition(
+    schema: Schema,
+    load_tables: Sequence[TTableSchema],
+    capabilities: DestinationCapabilitiesContext,
+    warnings: bool = True,
+) -> List[Exception]:
     log = logger.warning if warnings else logger.info
     # collect all exceptions to show all problems in the schema
     exception_log: List[Exception] = []
 
     # verifies schema settings specific to sql job client
-    for table in schema.data_tables():
+    for table in load_tables:
+        # from now on validate only top level tables
+        if is_nested_table(table):
+            continue
+
         table_name = table["name"]
         if table.get("write_disposition") == "merge":
             if "x-merge-strategy" in table and table["x-merge-strategy"] not in MERGE_STRATEGIES:  # type: ignore[typeddict-item]
@@ -77,17 +109,34 @@ def verify_sql_job_client_schema(schema: Schema, warnings: bool = True) -> List[
                         f"""Allowed values: {', '.join(['"' + s + '"' for s in MERGE_STRATEGIES])}.""",
                     )
                 )
-            if (
-                table.get("x-merge-strategy") == "delete-insert"
-                and not has_column_with_prop(table, "primary_key")
-                and not has_column_with_prop(table, "merge_key")
-            ):
-                log(
-                    f"Table {table_name} has `write_disposition` set to `merge`"
-                    " and `merge_strategy` set to `delete-insert`, but no primary or"
-                    " merge keys defined."
-                    " dlt will fall back to `append` for this table."
-                )
+
+            merge_strategy = resolve_merge_strategy(schema.tables, table, capabilities)
+            if merge_strategy == "delete-insert":
+                if not has_column_with_prop(table, "primary_key") and not has_column_with_prop(
+                    table, "merge_key"
+                ):
+                    log(
+                        f"Table {table_name} has `write_disposition` set to `merge`"
+                        " and `merge_strategy` set to `delete-insert`, but no primary or"
+                        " merge keys defined."
+                        " dlt will fall back to `append` for this table."
+                    )
+            elif merge_strategy == "upsert":
+                if not has_column_with_prop(table, "primary_key"):
+                    exception_log.append(
+                        SchemaCorruptedException(
+                            schema.name,
+                            f"No primary key defined for table `{table['name']}`."
+                            " `primary_key` needs to be set when using the `upsert`"
+                            " merge strategy.",
+                        )
+                    )
+                if has_column_with_prop(table, "merge_key"):
+                    log(
+                        f"Found `merge_key` for table `{table['name']}` with"
+                        " `upsert` merge strategy. Merge key is not supported"
+                        " for this strategy and will be ignored."
+                    )
         if has_column_with_prop(table, "hard_delete"):
             if len(get_columns_names_with_prop(table, "hard_delete")) > 1:
                 exception_log.append(

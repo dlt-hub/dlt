@@ -1,11 +1,13 @@
 import typing as t
 
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
+from dlt.common.destination.reference import TDestinationConfig
+from dlt.common.normalizers.naming import NamingConvention
 
 from dlt.destinations.impl.qdrant.configuration import QdrantCredentials, QdrantClientConfiguration
 
 if t.TYPE_CHECKING:
-    from dlt.destinations.impl.qdrant.qdrant_client import QdrantClient
+    from dlt.destinations.impl.qdrant.qdrant_job_client import QdrantClient
 
 
 class qdrant(Destination[QdrantClientConfiguration, "QdrantClient"]):
@@ -26,9 +28,23 @@ class qdrant(Destination[QdrantClientConfiguration, "QdrantClient"]):
 
         return caps
 
+    @classmethod
+    def adjust_capabilities(
+        cls,
+        caps: DestinationCapabilitiesContext,
+        config: QdrantClientConfiguration,
+        naming: t.Optional[NamingConvention],
+    ) -> DestinationCapabilitiesContext:
+        caps = super(qdrant, cls).adjust_capabilities(caps, config, naming)
+        if config.credentials.is_local():
+            # Local qdrant can not load in parallel
+            caps.loader_parallelism_strategy = "sequential"
+            caps.max_parallel_load_jobs = 1
+        return caps
+
     @property
     def client_class(self) -> t.Type["QdrantClient"]:
-        from dlt.destinations.impl.qdrant.qdrant_client import QdrantClient
+        from dlt.destinations.impl.qdrant.qdrant_job_client import QdrantClient
 
         return QdrantClient
 

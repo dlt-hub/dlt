@@ -1,0 +1,28 @@
+destination:
+  postgres:
+    credentials: postgresql://dlt-loader:loader@localhost:5432/dlt_data
+  athena:
+    query_result_bucket: s3://dlt-ci-test-bucket
+    credentials:
+      aws_access_key_id: AK
+      aws_secret_access_key: b+secret
+  snowflake:
+    stage_name: PUBLIC.my_s3_stage
+    connection_timeout: 60.4
+    csv_format:
+      delimiter: '|'
+      include_header: false
+      on_error_continue: true
+    credentials:
+      query_tag: '{{"source":"{source}", "resource":"{resource}", "table": "{table}",
+        "load_id":"{load_id}", "pipeline_name":"{pipeline_name}"}}'
+sources:
+  zendesk:
+    credentials:
+      subdomain: subdomain
+      email: set me up
+      password: set me up
+      token: set me up
+      oauth_token: set me up
+data_types:
+  datetime: 1979-05-27 07:32:00-08:00

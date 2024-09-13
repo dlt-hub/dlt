@@ -80,6 +80,13 @@ class _Accessor(abc.ABC):
                 break
         return value, traces
 
+    @staticmethod
+    def register_provider(provider: ConfigProvider) -> None:
+        """Registers `provider` to participate in the configuration resolution. `provider`
+        is added after all existing providers and will be used if all others do not resolve.
+        """
+        Container()[ConfigProvidersContext].add_provider(provider)
+
 
 class _ConfigAccessor(_Accessor):
     """Provides direct access to configured values that are not secrets."""

@@ -1,10 +1,42 @@
 // @ts-check
 // Note: type annotations allow type checking and IDEs autocompletion
+const fs = require("fs")
 require('dotenv').config()
 
 const lightCodeTheme = require('prism-react-renderer/themes/dracula');
 // const lightCodeTheme = require('prism-react-renderer/themes/github');
 const darkCodeTheme = require('prism-react-renderer/themes/dracula');
+
+// create versions config
+const versions = {"current": {
+  label: 'devel',
+  path: 'devel',
+  noIndex: true
+}}
+
+// inject master version renaming only if versions present
+if (fs.existsSync("versions.json")) {
+  let latestLabel = "latest"
+  if (process.env.DOCUSAURUS_DLT_VERSION) {
+    latestLabel = `${process.env.DOCUSAURUS_DLT_VERSION} (latest)`
+  }
+
+
+  versions["master"] = {
+    label: latestLabel,
+    path: '/'
+  }
+  // disable indexing for all known versions
+  for (let v of JSON.parse(fs.readFileSync("versions.json"))) {
+    if (v == "master") {
+      continue;
+    }
+    versions[v] = {
+      noIndex: true
+    }
+  }
+
+}
 
 /** @type {import('@docusaurus/types').Config} */
 const config = {
@@ -30,8 +62,6 @@ const config = {
     locales: ['en'],
   },
 
-
-
   presets: [
     [
       '@docusaurus/preset-classic',
@@ -50,17 +80,9 @@ const config = {
           editUrl: (params) => {
             return "https://github.com/dlt-hub/dlt/tree/devel/docs/website/docs/" + params.docPath;
           },
-          versions: {
-            current: {
-              label: 'current',
-            },
-          },
-          lastVersion: 'current',
+          versions: versions,
           showLastUpdateAuthor: true,
           showLastUpdateTime: true,
-        },
-        blog: {
-          showReadingTime: true
         },
         theme: {
           customCss: require.resolve('./src/css/custom.css'),
@@ -83,14 +105,16 @@ const config = {
           href: 'https://dlthub.com'
         },
         items: [
-          { label: 'dlt ' + (process.env.IS_MASTER_BRANCH ? "stable ": "devel ") + (process.env.DOCUSAURUS_DLT_VERSION || "0.0.1"), position: 'left', href: 'https://github.com/dlt-hub/dlt', className: 'version-navbar'  },
+          {
+            type: 'docsVersionDropdown',
+          },
           {
             type: 'doc',
             docId: 'intro',
             position: 'left',
             label: 'Docs',
           },
-          { to: 'blog', label: 'Blog', position: 'left' },
+          { to: 'https://dlthub.com/blog', label: 'Blog', position: 'left' },
           {
             href: 'https://dlthub.com/community',
             label: 'Join community',
@@ -114,21 +138,6 @@ const config = {
       footer: {
         style: 'dark',
         links: [
-          {
-            title: 'Docs',
-            items: [
-              {
-                label: 'Docs',
-                to: '/intro',
-                className: 'footer-link'
-              },
-              {
-                label: 'Blog',
-                to: '/blog',
-                className: 'footer-link'
-              }
-            ],
-          },
           {
             title: 'Community',
             items: [
@@ -178,7 +187,7 @@ const config = {
         indexName: 'dlthub',
 
         // Optional: see doc section below
-        contextualSearch: true,
+        contextualSearch: false,
       },
       colorMode: {
         defaultMode:'dark',
@@ -195,16 +204,5 @@ const config = {
     },
   ],
 };
-
-if (!process.env.IS_MASTER_BRANCH && config.themeConfig) {
-  config.themeConfig.announcementBar = {
-    id: 'devel docs',
-    content:
-      'This is the development version of the dlt docs. <a target="_blank" rel="noopener noreferrer" href="https://dlthub.com/docs/intro">Go to the stable docs.</a>',
-    backgroundColor: '#4c4898',
-    textColor: '#fff',
-    isCloseable: false,
-  }
-}
 
 module.exports = config;

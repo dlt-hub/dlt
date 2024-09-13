@@ -1,6 +1,5 @@
 from dlt.common.data_writers.writers import (
     DataWriter,
-    DataWriterMetrics,
     TDataItemFormat,
     FileWriterSpec,
     create_import_spec,
@@ -22,7 +21,6 @@ __all__ = [
     "resolve_best_writer_spec",
     "get_best_writer_spec",
     "is_native_writer",
-    "DataWriterMetrics",
     "TDataItemFormat",
     "BufferedDataWriter",
     "new_file_id",

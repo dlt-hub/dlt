@@ -33,7 +33,7 @@ Be aware that you need to define the database credentials in `.dlt/secrets.toml`
 Install `dlt` with `duckdb` as extra, also `connectorx`, Postgres adapter and progress bar tool:
 
 ```sh
-pip install dlt[duckdb] connectorx pyarrow psycopg2-binary alive-progress
+pip install "dlt[duckdb]" connectorx pyarrow psycopg2-binary alive-progress
 ```
 
 Run the example:
@@ -213,9 +213,6 @@ if __name__ == "__main__":
     row_counts = pipeline.last_trace.last_normalize_info.row_counts
     assert row_counts["table_1"] == 9
     assert row_counts["table_2"] == 9
-
-    # make sure nothing failed
-    load_info.raise_on_failed_jobs()
 
     if load_type == "replace":
         # 4. Load DuckDB local database into Postgres

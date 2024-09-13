@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 from typing import (
     Any,
     Callable,
+    ClassVar,
     Generic,
     Iterator,
     Iterable,
@@ -135,6 +136,9 @@ class ItemTransform(ABC, Generic[TAny]):
     _f_meta: ItemTransformFunctionWithMeta[TAny] = None
     _f: ItemTransformFunctionNoMeta[TAny] = None
 
+    placement_affinity: ClassVar[float] = 0
+    """Tell how strongly an item sticks to start (-1) or end (+1) of pipe."""
+
     def __init__(self, transform_f: ItemTransformFunc[TAny]) -> None:
         # inspect the signature
         sig = inspect.signature(transform_f)
@@ -222,6 +226,8 @@ class ValidateItem(ItemTransform[TDataItem]):
     Subclass should implement the `__call__` method to either return the data item(s) or raise `extract.exceptions.ValidationError`.
     See `PydanticValidator` for possible implementation.
     """
+
+    placement_affinity: ClassVar[float] = 0.9  # stick to end but less than incremental
 
     table_name: str
 

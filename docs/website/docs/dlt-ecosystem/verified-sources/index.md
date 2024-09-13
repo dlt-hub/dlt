@@ -1,19 +1,48 @@
 ---
-title: Verified sources
-description: List of verified sources
-keywords: ['verified source']
+title: Sources
+description: Available sources
+keywords: ['source']
 ---
-import DocCardList from '@theme/DocCardList';
 import Link from '../../_book-onboarding-call.md';
+import DocCardList from '@theme/DocCardList';
+import {useCurrentSidebarCategory} from '@docusaurus/theme-common';
 
-Pick one of our verified sources that we wrote or maintain ourselves. All of them are constantly tested on real data and distributed as simple Python code so they can be easily customized or hacked.
+Planning to use `dlt` in production and need a source that isn't listed? We're happy to help you build it: <Link/>.
 
-* Need more info? [Join our Slack community](https://dlthub.com/community) and ask in the tech help channel or <Link/>.
+### Core sources
 
-Do you plan to run dlt in production and source is missing? We are happy to build it.
-* Source missing? [Request a new verified source](https://github.com/dlt-hub/verified-sources/issues/new?template=source-request.md)
+<DocCardList items={useCurrentSidebarCategory().items.filter(
+item => item.label === '30+ SQL Databases' || item.label === 'REST APIs' || item.label === 'Filesystem & buckets'
+)} />
+
+### Verified sources
+
+Choose from our collection of verified sources, developed and maintained by the `dlt` team and community. Each source is rigorously tested against a real API and provided as Python code for easy customization.
+
+:::tip
+If you couldn't find a source implementation, you can easily create your own, check out the [resource page](../../general-usage/resource) to learn how!
+:::
+
+<DocCardList items={useCurrentSidebarCategory().items.filter(
+item => item.label !== '30+ SQL Databases' && item.label !== 'REST API generic source'&& item.label !== 'Filesystem & buckets'
+)} />
+
+### What's the difference between core and verified sources?
+
+The main difference between the [core sources](#core-sources) and [verified sources](#verified-sources) lies in their structure.
+Core sources are generic collections, meaning they can connect to a variety of systems. For example, the [SQL Database source](sql_database) can connect to any
+database which supports SQLAlchemy.
+
+According to our telemetry, core sources are the most widely used among our users!
+
+It's also important to note that core sources are integrated into the `dlt` core library,
+whereas verified sources are maintained in a separate [repository](https://github.com/dlt-hub/verified-sources).
+To use a verified source, you need to run the `dlt` init command, which will download the verified source code to
+your working directory.
+
+
+### Get help
+
+* Source missing? [Request a new verified source.](https://github.com/dlt-hub/verified-sources/issues/new?template=source-request.md)
 * Missing endpoint or a feature? [Request or contribute](https://github.com/dlt-hub/verified-sources/issues/new?template=extend-a-source.md)
-
-Otherwise pick a source below:
-
-<DocCardList />
+* [Join our Slack community](https://dlthub.com/community) and ask in the technical-help channel.

@@ -1,7 +1,7 @@
 import os
 from base64 import b64encode
 from typing import Any, Dict, cast
-from unittest.mock import patch
+from unittest.mock import patch, ANY
 
 import pytest
 from requests import PreparedRequest, Request, Response
@@ -22,9 +22,9 @@ from dlt.sources.helpers.rest_client.auth import (
 )
 from dlt.sources.helpers.rest_client.client import Hooks
 from dlt.sources.helpers.rest_client.exceptions import IgnoreResponseException
-from dlt.sources.helpers.rest_client.paginators import JSONResponsePaginator
+from dlt.sources.helpers.rest_client.paginators import JSONLinkPaginator, BaseReferencePaginator
 
-from .conftest import assert_pagination
+from .conftest import DEFAULT_PAGE_SIZE, DEFAULT_TOTAL_PAGES, assert_pagination
 
 
 def load_private_key(name="private_key.pem"):
@@ -77,12 +77,12 @@ class TestRESTClient:
     def test_get_single_resource(self, rest_client):
         response = rest_client.get("/posts/1")
         assert response.status_code == 200
-        assert response.json() == {"id": "1", "body": "Post body 1"}
+        assert response.json() == {"id": 1, "body": "Post body 1"}
 
     def test_pagination(self, rest_client: RESTClient):
         pages_iter = rest_client.paginate(
             "/posts",
-            paginator=JSONResponsePaginator(next_url_path="next_page"),
+            paginator=JSONLinkPaginator(next_url_path="next_page"),
         )
 
         pages = list(pages_iter)
@@ -92,7 +92,7 @@ class TestRESTClient:
     def test_page_context(self, rest_client: RESTClient) -> None:
         for page in rest_client.paginate(
             "/posts",
-            paginator=JSONResponsePaginator(next_url_path="next_page"),
+            paginator=JSONLinkPaginator(next_url_path="next_page"),
         ):
             # response that produced data
             assert isinstance(page.response, Response)
@@ -100,7 +100,7 @@ class TestRESTClient:
             assert isinstance(page.request, Request)
             # make request url should be same as next link in paginator
             if page.paginator.has_next_page:
-                paginator = cast(JSONResponsePaginator, page.paginator)
+                paginator = cast(JSONLinkPaginator, page.paginator)
                 assert paginator._next_reference == page.request.url
 
     def test_default_paginator(self, rest_client: RESTClient):
@@ -112,7 +112,7 @@ class TestRESTClient:
 
     def test_excplicit_paginator(self, rest_client: RESTClient):
         pages_iter = rest_client.paginate(
-            "/posts", paginator=JSONResponsePaginator(next_url_path="next_page")
+            "/posts", paginator=JSONLinkPaginator(next_url_path="next_page")
         )
         pages = list(pages_iter)
 
@@ -121,7 +121,7 @@ class TestRESTClient:
     def test_excplicit_paginator_relative_next_url(self, rest_client: RESTClient):
         pages_iter = rest_client.paginate(
             "/posts_relative_next_url",
-            paginator=JSONResponsePaginator(next_url_path="next_page"),
+            paginator=JSONLinkPaginator(next_url_path="next_page"),
         )
         pages = list(pages_iter)
 
@@ -138,7 +138,7 @@ class TestRESTClient:
 
         pages_iter = rest_client.paginate(
             "/posts",
-            paginator=JSONResponsePaginator(next_url_path="next_page"),
+            paginator=JSONLinkPaginator(next_url_path="next_page"),
             hooks=hooks,
         )
 
@@ -148,7 +148,7 @@ class TestRESTClient:
 
         pages_iter = rest_client.paginate(
             "/posts/1/some_details_404",
-            paginator=JSONResponsePaginator(),
+            paginator=JSONLinkPaginator(),
             hooks=hooks,
         )
 
@@ -394,3 +394,128 @@ class TestRESTClient:
 
         result = rest_client.get("/posts/1")
         assert result.status_code == 200
+
+    def test_paginate_json_body_without_params(self, rest_client) -> None:
+        # leave 3 pages of data
+        posts_skip = (DEFAULT_TOTAL_PAGES - 3) * DEFAULT_PAGE_SIZE
+
+        class JSONBodyPageCursorPaginator(BaseReferencePaginator):
+            def update_state(self, response, data):
+                self._next_reference = response.json().get("next_page")
+
+            def update_request(self, request):
+                if request.json is None:
+                    request.json = {}
+
+                request.json["page"] = self._next_reference
+
+        page_generator = rest_client.paginate(
+            path="/posts/search",
+            method="POST",
+            json={"ids_greater_than": posts_skip - 1, "page_size": 5, "page_count": 5},
+            paginator=JSONBodyPageCursorPaginator(),
+        )
+        result = [post for page in list(page_generator) for post in page]
+        for i in range(3 * DEFAULT_PAGE_SIZE):
+            assert result[i] == {"id": posts_skip + i, "title": f"Post {posts_skip + i}"}
+
+    def test_post_json_body_without_params(self, rest_client) -> None:
+        # leave two pages of data
+        posts_skip = (DEFAULT_TOTAL_PAGES - 2) * DEFAULT_PAGE_SIZE
+        result = rest_client.post(
+            path="/posts/search",
+            json={"ids_greater_than": posts_skip - 1},
+        )
+        returned_posts = result.json()["data"]
+        assert len(returned_posts) == DEFAULT_PAGE_SIZE  # only one page is returned
+        for i in range(DEFAULT_PAGE_SIZE):
+            assert returned_posts[i] == {"id": posts_skip + i, "title": f"Post {posts_skip + i}"}
+
+    def test_configurable_timeout(self, mocker) -> None:
+        cfg = {
+            "RUNTIME__REQUEST_TIMEOUT": 42,
+        }
+        os.environ.update({key: str(value) for key, value in cfg.items()})
+
+        rest_client = RESTClient(
+            base_url="https://api.example.com",
+            session=Client().session,
+        )
+
+        import requests
+
+        original_send = requests.Session.send
+        requests.Session.send = mocker.Mock()  # type: ignore[method-assign]
+        rest_client.get("/posts/1")
+        assert requests.Session.send.call_args[1] == {  # type: ignore[attr-defined]
+            "timeout": 42,
+            "proxies": ANY,
+            "stream": ANY,
+            "verify": ANY,
+            "cert": ANY,
+        }
+        # restore, otherwise side-effect on subsequent tests
+        requests.Session.send = original_send  # type: ignore[method-assign]
+
+    def test_request_kwargs(self, mocker) -> None:
+        def send_spy(*args, **kwargs):
+            return original_send(*args, **kwargs)
+
+        rest_client = RESTClient(
+            base_url="https://api.example.com",
+            session=Client().session,
+        )
+        original_send = rest_client.session.send
+        mocked_send = mocker.patch.object(rest_client.session, "send", side_effect=send_spy)
+
+        rest_client.get(
+            path="/posts/1",
+            proxies={
+                "http": "http://10.10.1.10:1111",
+                "https": "http://10.10.1.10:2222",
+            },
+            stream=True,
+            verify=False,
+            cert=("/path/client.cert", "/path/client.key"),
+            timeout=321,
+            allow_redirects=False,
+        )
+
+        assert mocked_send.call_args[1] == {
+            "proxies": {
+                "http": "http://10.10.1.10:1111",
+                "https": "http://10.10.1.10:2222",
+            },
+            "stream": True,
+            "verify": False,
+            "cert": ("/path/client.cert", "/path/client.key"),
+            "timeout": 321,
+            "allow_redirects": False,
+        }
+
+        next(
+            rest_client.paginate(
+                path="posts",
+                proxies={
+                    "http": "http://10.10.1.10:1234",
+                    "https": "http://10.10.1.10:4321",
+                },
+                stream=True,
+                verify=False,
+                cert=("/path/client_2.cert", "/path/client_2.key"),
+                timeout=432,
+                allow_redirects=False,
+            )
+        )
+
+        assert mocked_send.call_args[1] == {
+            "proxies": {
+                "http": "http://10.10.1.10:1234",
+                "https": "http://10.10.1.10:4321",
+            },
+            "stream": True,
+            "verify": False,
+            "cert": ("/path/client_2.cert", "/path/client_2.key"),
+            "timeout": 432,
+            "allow_redirects": False,
+        }

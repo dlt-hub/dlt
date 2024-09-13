@@ -21,11 +21,11 @@ def exec_to_stdout(f: AnyFun) -> Iterator[Any]:
         rv = f()
         yield rv
     except Exception as ex:
-        print(encode_obj(ex), file=sys.stderr, flush=True)
+        print(encode_obj(ex), file=sys.stderr, flush=True)  # noqa
         raise
     finally:
         if rv is not None:
-            print(encode_obj(rv), flush=True)
+            print(encode_obj(rv), flush=True)  # noqa
 
 
 def iter_std(
@@ -126,6 +126,6 @@ def iter_stdout_with_result(
             if isinstance(exception, Exception):
                 raise exception from cpe
             else:
-                print(cpe.stderr, file=sys.stderr)
+                sys.stderr.write(cpe.stderr)
         # otherwise reraise cpe
         raise

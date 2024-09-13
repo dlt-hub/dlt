@@ -3,7 +3,6 @@ from copy import copy
 import os
 import pickle
 import datetime  # noqa: 251
-import dataclasses
 from typing import Any, List, NamedTuple, Optional, Protocol, Sequence
 import humanize
 
@@ -26,6 +25,7 @@ from dlt.common.pipeline import (
     SupportsPipeline,
 )
 from dlt.common.source import get_current_pipe_name
+from dlt.common.storages.file_storage import FileStorage
 from dlt.common.typing import DictStrAny, StrAny, SupportsHumanize
 from dlt.common.utils import uniq_id, get_exception_trace_chain
 
@@ -103,7 +103,8 @@ class PipelineStepTrace(SupportsHumanize, _PipelineStepTrace):
             d["step_info"] = {}
             # take only the base keys
             for prop in self.step_info._astuple()._asdict():
-                d["step_info"][prop] = step_info_dict.pop(prop)
+                if prop in step_info_dict:
+                    d["step_info"][prop] = step_info_dict.pop(prop)
         # replace the attributes in exception traces with json dumps
         if self.exception_traces:
             # do not modify original traces
@@ -167,7 +168,7 @@ class PipelineTrace(SupportsHumanize, _PipelineTrace):
         """A dictionary representation of PipelineTrace that can be loaded with `dlt`"""
         d = self._asdict()
         # run step is the same as load step
-        d["steps"] = [step.asdict() for step in self.steps]  # if step.step != "run"
+        d["steps"] = [step.asdict() for step in self.steps if step.step != "run"]
         return d
 
     @property
@@ -232,7 +233,7 @@ def start_trace(step: TPipelineStep, pipeline: SupportsPipeline) -> PipelineTrac
         resolved_config_values=[],
     )
     for module in TRACKING_MODULES:
-        with suppress_and_warn():
+        with suppress_and_warn(f"on_start_trace on module {module} failed"):
             module.on_start_trace(trace, step, pipeline)
     return trace
 
@@ -242,7 +243,7 @@ def start_trace_step(
 ) -> PipelineStepTrace:
     trace_step = PipelineStepTrace(uniq_id(), step, pendulum.now())
     for module in TRACKING_MODULES:
-        with suppress_and_warn():
+        with suppress_and_warn(f"start_trace_step on module {module} failed"):
             module.on_start_trace_step(trace, step, pipeline)
     return trace_step
 
@@ -292,7 +293,7 @@ def end_trace_step(
     trace.resolved_config_values[:] = list(resolved_values)
     trace.steps.append(step)
     for module in TRACKING_MODULES:
-        with suppress_and_warn():
+        with suppress_and_warn(f"end_trace_step on module {module} failed"):
             module.on_end_trace_step(trace, step, pipeline, step_info, send_state)
     return trace
 
@@ -304,7 +305,7 @@ def end_trace(
     if trace_path:
         save_trace(trace_path, trace)
     for module in TRACKING_MODULES:
-        with suppress_and_warn():
+        with suppress_and_warn(f"end_trace on module {module} failed"):
             module.on_end_trace(trace, pipeline, send_state)
     return trace
 
@@ -324,8 +325,13 @@ def merge_traces(last_trace: PipelineTrace, new_trace: PipelineTrace) -> Pipelin
 
 
 def save_trace(trace_path: str, trace: PipelineTrace) -> None:
-    with open(os.path.join(trace_path, TRACE_FILE_NAME), mode="bw") as f:
-        f.write(pickle.dumps(trace))
+    # remove previous file, we do not want to keep old trace even if we fail later
+    trace_dump_path = os.path.join(trace_path, TRACE_FILE_NAME)
+    if os.path.isfile(trace_dump_path):
+        os.unlink(trace_dump_path)
+    with suppress_and_warn("Failed to create trace dump via pickle"):
+        trace_dump = pickle.dumps(trace)
+        FileStorage.save_atomic(trace_path, TRACE_FILE_NAME, trace_dump, file_type="b")
 
 
 def load_trace(trace_path: str) -> PipelineTrace:

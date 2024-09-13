@@ -3,6 +3,7 @@ title: csv
 description: The csv file format
 keywords: [csv, file formats]
 ---
+import SetTheFormat from './_set_the_format.mdx';
 
 # CSV file format
 
@@ -13,16 +14,13 @@ Internally we use two implementations:
 - **pyarrow** csv writer - very fast, multithreaded writer for the [arrow tables](../verified-sources/arrow-pandas.md)
 - **python stdlib writer** - a csv writer included in the Python standard library for Python objects
 
-
 ## Supported Destinations
 
-Supported by: **Postgres**, **Filesystem**, **snowflake**
+The `csv` format is supported by the following destinations: **Postgres**, **Filesystem**, **Snowflake**
 
-By setting the `loader_file_format` argument to `csv` in the run command, the pipeline will store your data in the csv format at the destination:
+## How to configure
 
-```py
-info = pipeline.run(some_source(), loader_file_format="csv")
-```
+<SetTheFormat file_type="csv"/>
 
 ## Default Settings
 `dlt` attempts to make both writers to generate similarly looking files
@@ -84,9 +82,9 @@ You'll need those setting when [importing external files](../../general-usage/re
 **arrow writer**
 
 * binary columns are supported only if they contain valid UTF-8 characters
-* complex (nested, struct) types are not supported
+* json (nested, struct) types are not supported
 
 **csv writer**
 * binary columns are supported only if they contain valid UTF-8 characters (easy to add more encodings)
-* complex columns dumped with json.dumps
+* json columns dumped with json.dumps
 * **None** values are always quoted

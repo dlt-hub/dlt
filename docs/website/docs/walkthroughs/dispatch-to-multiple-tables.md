@@ -12,7 +12,7 @@ We'll use the [GitHub API](https://docs.github.com/en/rest) to fetch the events 
 1. Install dlt with duckdb support:
 
 ```sh
-pip install dlt[duckdb]
+pip install "dlt[duckdb]"
 ```
 
 2. Create a new a new file `github_events_dispatch.py` and paste the following code:

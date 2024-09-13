@@ -8,7 +8,12 @@ from dlt.common.pipeline import resource_state, get_dlt_pipelines_dir, TSourceSt
 from dlt.common.destination.reference import TDestinationReferenceArg
 from dlt.common.runners import Venv
 from dlt.common.runners.stdout import iter_stdout
-from dlt.common.schema.utils import group_tables_by_resource, remove_defaults
+from dlt.common.schema.utils import (
+    group_tables_by_resource,
+    has_table_seen_data,
+    is_complete_column,
+    remove_defaults,
+)
 from dlt.common.storages import FileStorage, PackageStorage
 from dlt.pipeline.helpers import DropCommand
 from dlt.pipeline.exceptions import CannotRestorePipelineException
@@ -180,6 +185,35 @@ def pipeline_command(
                             fmt.bold(str(res_state_slots)),
                         )
                     )
+                    if verbosity > 0:
+                        for table in tables:
+                            incomplete_columns = len(
+                                [
+                                    col
+                                    for col in table["columns"].values()
+                                    if not is_complete_column(col)
+                                ]
+                            )
+                            fmt.echo(
+                                "\t%s table %s column(s) %s %s"
+                                % (
+                                    fmt.bold(table["name"]),
+                                    fmt.bold(str(len(table["columns"]))),
+                                    (
+                                        fmt.style("received data", fg="green")
+                                        if has_table_seen_data(table)
+                                        else fmt.style("not yet received data", fg="yellow")
+                                    ),
+                                    (
+                                        fmt.style(
+                                            f"{incomplete_columns} incomplete column(s)",
+                                            fg="yellow",
+                                        )
+                                        if incomplete_columns > 0
+                                        else ""
+                                    ),
+                                )
+                            )
         fmt.echo()
         fmt.echo("Working dir content:")
         _display_pending_packages()
@@ -272,7 +306,7 @@ def pipeline_command(
         fmt.echo(package_info.asstr(verbosity))
         if len(package_info.schema_update) > 0:
             if verbosity == 0:
-                print("Add -v option to see schema update. Note that it could be large.")
+                fmt.echo("Add -v option to see schema update. Note that it could be large.")
             else:
                 tables = remove_defaults({"tables": package_info.schema_update})  # type: ignore
                 fmt.echo(fmt.bold("Schema update:"))
@@ -316,7 +350,7 @@ def pipeline_command(
         fmt.echo(
             "About to drop the following data in dataset %s in destination %s:"
             % (
-                fmt.bold(drop.info["dataset_name"]),
+                fmt.bold(p.dataset_name),
                 fmt.bold(p.destination.destination_name),
             )
         )
@@ -329,6 +363,10 @@ def pipeline_command(
             )
         )
         fmt.echo("%s: %s" % (fmt.style("Table(s) to drop", fg="green"), drop.info["tables"]))
+        fmt.echo(
+            "%s: %s"
+            % (fmt.style("\twith data in destination", fg="green"), drop.info["tables_with_data"])
+        )
         fmt.echo(
             "%s: %s"
             % (

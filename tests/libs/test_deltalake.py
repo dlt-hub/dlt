@@ -1,12 +1,12 @@
 import os
-from typing import Iterator, Tuple, cast
+from typing import Iterator, Tuple, Union, cast
 
 import pytest
-from deltalake import DeltaTable
 
 import dlt
 from dlt.common.libs.pyarrow import pyarrow as pa
 from dlt.common.libs.deltalake import (
+    DeltaTable,
     write_delta_table,
     _deltalake_storage_options,
 )
@@ -76,33 +76,38 @@ def test_deltalake_storage_options() -> None:
     assert _deltalake_storage_options(config)["aws_access_key_id"] == "i_will_overwrite"
 
 
-def test_write_delta_table(filesystem_client) -> None:
+@pytest.mark.needspyarrow17
+@pytest.mark.parametrize("arrow_data_type", (pa.Table, pa.RecordBatchReader))
+def test_write_delta_table(
+    filesystem_client,
+    arrow_data_type: Union[pa.Table, pa.RecordBatchReader],
+) -> None:
+    def arrow_data(  # type: ignore[return]
+        arrow_table: pa.Table,
+        return_type: Union[pa.Table, pa.RecordBatchReader],
+    ) -> Union[pa.Table, pa.RecordBatchReader]:
+        if return_type == pa.Table:
+            return arrow_table
+        elif return_type == pa.RecordBatchReader:
+            return arrow_table.to_reader()
+
     client, remote_dir = filesystem_client
     client = cast(FilesystemClient, client)
     storage_options = _deltalake_storage_options(client.config)
 
-    with pytest.raises(Exception):
-        # bug in `delta-rs` causes error when writing big decimal values
-        # https://github.com/delta-io/delta-rs/issues/2510
-        # if this test fails, the bug has been fixed and we should remove this
-        # note from the docs:
-        write_delta_table(
-            remote_dir + "/corrupt_delta_table",
-            arrow_table_all_data_types("arrow-table", include_decimal_default_precision=True)[0],
-            write_disposition="append",
-            storage_options=storage_options,
-        )
-
     arrow_table = arrow_table_all_data_types(
         "arrow-table",
-        include_decimal_default_precision=False,
+        include_decimal_default_precision=True,
         include_decimal_arrow_max_precision=True,
         num_rows=2,
     )[0]
 
     # first write should create Delta table with same shape as input Arrow table
     write_delta_table(
-        remote_dir, arrow_table, write_disposition="append", storage_options=storage_options
+        remote_dir,
+        arrow_data(arrow_table, arrow_data_type),
+        write_disposition="append",
+        storage_options=storage_options,
     )
     dt = DeltaTable(remote_dir, storage_options=storage_options)
     assert dt.version() == 0
@@ -117,7 +122,10 @@ def test_write_delta_table(filesystem_client) -> None:
 
     # another `append` should create a new table version with twice the number of rows
     write_delta_table(
-        remote_dir, arrow_table, write_disposition="append", storage_options=storage_options
+        remote_dir,
+        arrow_data(arrow_table, arrow_data_type),
+        write_disposition="append",
+        storage_options=storage_options,
     )
     dt = DeltaTable(remote_dir, storage_options=storage_options)
     assert dt.version() == 1
@@ -125,19 +133,25 @@ def test_write_delta_table(filesystem_client) -> None:
 
     # the `replace` write disposition should trigger a "logical delete"
     write_delta_table(
-        remote_dir, arrow_table, write_disposition="replace", storage_options=storage_options
+        remote_dir,
+        arrow_data(arrow_table, arrow_data_type),
+        write_disposition="replace",
+        storage_options=storage_options,
     )
     dt = DeltaTable(remote_dir, storage_options=storage_options)
     assert dt.version() == 2
     assert dt.to_pyarrow_table().shape == (arrow_table.num_rows, arrow_table.num_columns)
 
     # the previous table version should still exist
-    dt.load_version(1)
+    dt.load_as_version(1)
     assert dt.to_pyarrow_table().shape == (arrow_table.num_rows * 2, arrow_table.num_columns)
 
     # `merge` should resolve to `append` bevavior
     write_delta_table(
-        remote_dir, arrow_table, write_disposition="merge", storage_options=storage_options
+        remote_dir,
+        arrow_data(arrow_table, arrow_data_type),
+        write_disposition="merge",
+        storage_options=storage_options,
     )
     dt = DeltaTable(remote_dir, storage_options=storage_options)
     assert dt.version() == 3
@@ -153,7 +167,10 @@ def test_write_delta_table(filesystem_client) -> None:
 
     # new column should be propagated to Delta table (schema evolution is supported)
     write_delta_table(
-        remote_dir, evolved_arrow_table, write_disposition="append", storage_options=storage_options
+        remote_dir,
+        arrow_data(evolved_arrow_table, arrow_data_type),
+        write_disposition="append",
+        storage_options=storage_options,
     )
     dt = DeltaTable(remote_dir, storage_options=storage_options)
     assert dt.version() == 4
@@ -164,7 +181,10 @@ def test_write_delta_table(filesystem_client) -> None:
 
     # providing a subset of columns should lead to missing columns being null-filled
     write_delta_table(
-        remote_dir, arrow_table, write_disposition="append", storage_options=storage_options
+        remote_dir,
+        arrow_data(arrow_table, arrow_data_type),
+        write_disposition="append",
+        storage_options=storage_options,
     )
     dt = DeltaTable(remote_dir, storage_options=storage_options)
     assert dt.version() == 5
@@ -176,7 +196,7 @@ def test_write_delta_table(filesystem_client) -> None:
         # unsupported value for `write_disposition` should raise ValueError
         write_delta_table(
             remote_dir,
-            arrow_table,
+            arrow_data(arrow_table, arrow_data_type),
             write_disposition="foo",  # type:ignore[arg-type]
             storage_options=storage_options,
         )

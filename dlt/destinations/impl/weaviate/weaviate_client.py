@@ -29,8 +29,8 @@ from dlt.common.json import json
 from dlt.common.pendulum import pendulum
 from dlt.common.typing import StrAny, TFun
 from dlt.common.time import ensure_pendulum_datetime
-from dlt.common.schema import Schema, TTableSchema, TSchemaTables, TTableSchemaColumns
-from dlt.common.schema.typing import TColumnSchema, TColumnType
+from dlt.common.schema import Schema, TSchemaTables, TTableSchemaColumns
+from dlt.common.schema.typing import C_DLT_LOAD_ID, TColumnSchema, TColumnType
 from dlt.common.schema.utils import (
     get_columns_names_with_prop,
     loads_table,
@@ -38,15 +38,20 @@ from dlt.common.schema.utils import (
     version_table,
 )
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.reference import TLoadJobState, LoadJob, JobClientBase, WithStateSync
+from dlt.common.destination.reference import (
+    PreparedTableSchema,
+    TLoadJobState,
+    RunnableLoadJob,
+    JobClientBase,
+    WithStateSync,
+    LoadJob,
+)
 from dlt.common.storages import FileStorage
 
 from dlt.destinations.impl.weaviate.weaviate_adapter import VECTORIZE_HINT, TOKENIZATION_HINT
-from dlt.destinations.job_impl import EmptyLoadJob
 from dlt.destinations.job_client_impl import StorageSchemaInfo, StateInfo
 from dlt.destinations.impl.weaviate.configuration import WeaviateClientConfiguration
 from dlt.destinations.impl.weaviate.exceptions import PropertyNameConflict, WeaviateGrpcError
-from dlt.destinations.type_mapping import TypeMapper
 from dlt.destinations.utils import get_pipeline_state_query_columns
 
 
@@ -56,33 +61,6 @@ NON_VECTORIZED_CLASS = {
         "skip": True,
     },
 }
-
-
-class WeaviateTypeMapper(TypeMapper):
-    sct_to_unbound_dbt = {
-        "text": "text",
-        "double": "number",
-        "bool": "boolean",
-        "timestamp": "date",
-        "date": "date",
-        "time": "text",
-        "bigint": "int",
-        "binary": "blob",
-        "decimal": "text",
-        "wei": "number",
-        "complex": "text",
-    }
-
-    sct_to_dbt = {}
-
-    dbt_to_sct = {
-        "text": "text",
-        "number": "double",
-        "boolean": "bool",
-        "date": "timestamp",
-        "int": "bigint",
-        "blob": "binary",
-    }
 
 
 def wrap_weaviate_error(f: TFun) -> TFun:
@@ -143,34 +121,31 @@ def wrap_grpc_error(f: TFun) -> TFun:
     return _wrap  # type: ignore
 
 
-class LoadWeaviateJob(LoadJob):
+class LoadWeaviateJob(RunnableLoadJob):
     def __init__(
         self,
-        schema: Schema,
-        table_schema: TTableSchema,
-        local_path: str,
-        db_client: weaviate.Client,
-        client_config: WeaviateClientConfiguration,
+        file_path: str,
         class_name: str,
     ) -> None:
-        file_name = FileStorage.get_file_name_from_file_path(local_path)
-        super().__init__(file_name)
-        self.client_config = client_config
-        self.db_client = db_client
-        self.table_name = table_schema["name"]
-        self.class_name = class_name
-        self.unique_identifiers = self.list_unique_identifiers(table_schema)
-        self.complex_indices = [
+        super().__init__(file_path)
+        self._job_client: WeaviateClient = None
+        self._class_name = class_name
+
+    def run(self) -> None:
+        self._db_client = self._job_client.db_client
+        self._client_config = self._job_client.config
+        self.unique_identifiers = self.list_unique_identifiers(self._load_table)
+        self.nested_indices = [
             i
-            for i, field in schema.get_table_columns(self.table_name).items()
-            if field["data_type"] == "complex"
+            for i, field in self._schema.get_table_columns(self.load_table_name).items()
+            if field["data_type"] == "json"
         ]
         self.date_indices = [
             i
-            for i, field in schema.get_table_columns(self.table_name).items()
+            for i, field in self._schema.get_table_columns(self.load_table_name).items()
             if field["data_type"] == "date"
         ]
-        with FileStorage.open_zipsafe_ro(local_path) as f:
+        with FileStorage.open_zipsafe_ro(self._file_path) as f:
             self.load_batch(f)
 
     @wrap_weaviate_error
@@ -188,34 +163,34 @@ class LoadWeaviateJob(LoadJob):
                         if "error" in result["result"]["errors"]:
                             raise WeaviateGrpcError(result["result"]["errors"])
 
-        with self.db_client.batch(
-            batch_size=self.client_config.batch_size,
-            timeout_retries=self.client_config.batch_retries,
-            connection_error_retries=self.client_config.batch_retries,
+        with self._db_client.batch(
+            batch_size=self._client_config.batch_size,
+            timeout_retries=self._client_config.batch_retries,
+            connection_error_retries=self._client_config.batch_retries,
             weaviate_error_retries=weaviate.WeaviateErrorRetryConf(
-                self.client_config.batch_retries
+                self._client_config.batch_retries
             ),
-            consistency_level=weaviate.ConsistencyLevel[self.client_config.batch_consistency],
-            num_workers=self.client_config.batch_workers,
+            consistency_level=weaviate.ConsistencyLevel[self._client_config.batch_consistency],
+            num_workers=self._client_config.batch_workers,
             callback=check_batch_result,
         ) as batch:
             for line in f:
                 data = json.loads(line)
-                # make complex to strings
-                for key in self.complex_indices:
+                # serialize json types
+                for key in self.nested_indices:
                     if key in data:
                         data[key] = json.dumps(data[key])
                 for key in self.date_indices:
                     if key in data:
                         data[key] = ensure_pendulum_datetime(data[key]).isoformat()
                 if self.unique_identifiers:
-                    uuid = self.generate_uuid(data, self.unique_identifiers, self.class_name)
+                    uuid = self.generate_uuid(data, self.unique_identifiers, self._class_name)
                 else:
                     uuid = None
 
-                batch.add_data_object(data, self.class_name, uuid=uuid)
+                batch.add_data_object(data, self._class_name, uuid=uuid)
 
-    def list_unique_identifiers(self, table_schema: TTableSchema) -> Sequence[str]:
+    def list_unique_identifiers(self, table_schema: PreparedTableSchema) -> Sequence[str]:
         if table_schema.get("write_disposition") == "merge":
             primary_keys = get_columns_names_with_prop(table_schema, "primary_key")
             if primary_keys:
@@ -227,12 +202,6 @@ class LoadWeaviateJob(LoadJob):
     ) -> str:
         data_id = "_".join([str(data[key]) for key in unique_identifiers])
         return generate_uuid5(data_id, class_name)  # type: ignore
-
-    def state(self) -> TLoadJobState:
-        return "completed"
-
-    def exception(self) -> str:
-        raise NotImplementedError()
 
 
 class WeaviateClient(JobClientBase, WithStateSync):
@@ -262,7 +231,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
             "vectorizer": config.vectorizer,
             "moduleConfig": config.module_config,
         }
-        self.type_mapper = WeaviateTypeMapper(self.capabilities)
+        self.type_mapper = self.capabilities.get_type_mapper()
 
     @property
     def dataset_name(self) -> str:
@@ -438,9 +407,8 @@ class WeaviateClient(JobClientBase, WithStateSync):
         only_tables: Iterable[str] = None,
         expected_update: TSchemaTables = None,
     ) -> Optional[TSchemaTables]:
-        super().update_stored_schema(only_tables, expected_update)
+        applied_update = super().update_stored_schema(only_tables, expected_update)
         # Retrieve the schema from Weaviate
-        applied_update: TSchemaTables = {}
         try:
             schema_info = self.get_stored_schema_by_hash(self.schema.stored_version_hash)
         except DestinationUndefinedEntity:
@@ -450,6 +418,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
                 f"Schema with hash {self.schema.stored_version_hash} "
                 "not found in the storage. upgrading"
             )
+            # TODO: return a real updated table schema (like in SQL job client)
             self._execute_schema_update(only_tables)
         else:
             logger.info(
@@ -467,8 +436,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
             new_columns = self.schema.get_new_table_columns(
                 table_name,
                 existing_columns,
-                case_sensitive=self.capabilities.has_case_sensitive_identifiers
-                and self.capabilities.casefold_identifier is str,
+                case_sensitive=self.capabilities.generates_case_sensitive_identifiers(),
             )
             logger.info(f"Found {len(new_columns)} updates for {table_name} in {self.schema.name}")
             if len(new_columns) > 0:
@@ -507,7 +475,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
         """Loads compressed state from destination storage"""
         # normalize properties
         p_load_id = self.schema.naming.normalize_identifier("load_id")
-        p_dlt_load_id = self.schema.naming.normalize_identifier("_dlt_load_id")
+        p_dlt_load_id = self.schema.naming.normalize_identifier(C_DLT_LOAD_ID)
         p_pipeline_name = self.schema.naming.normalize_identifier("pipeline_name")
         p_status = self.schema.naming.normalize_identifier("status")
 
@@ -674,22 +642,17 @@ class WeaviateClient(JobClientBase, WithStateSync):
 
         return {
             "name": column_name,
-            "dataType": [self.type_mapper.to_db_type(column)],
+            "dataType": [self.type_mapper.to_destination_type(column, None)],
             **extra_kv,
         }
 
-    def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
+    def create_load_job(
+        self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
+    ) -> LoadJob:
         return LoadWeaviateJob(
-            self.schema,
-            table,
             file_path,
-            db_client=self.db_client,
-            client_config=self.config,
             class_name=self.make_qualified_class_name(table["name"]),
         )
-
-    def restore_file_load(self, file_path: str) -> LoadJob:
-        return EmptyLoadJob.from_file_path(file_path, "completed")
 
     @wrap_weaviate_error
     def complete_load(self, load_id: str) -> None:
@@ -736,4 +699,4 @@ class WeaviateClient(JobClientBase, WithStateSync):
     def _from_db_type(
         self, wt_t: str, precision: Optional[int], scale: Optional[int]
     ) -> TColumnType:
-        return self.type_mapper.from_db_type(wt_t, precision, scale)
+        return self.type_mapper.from_destination_type(wt_t, precision, scale)

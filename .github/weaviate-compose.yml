@@ -11,8 +11,6 @@ services:
     image: semitechnologies/weaviate:1.21.1
     ports:
     - 8080:8080
-    volumes:
-    - weaviate_data
     restart: on-failure:0
     environment:
       QUERY_DEFAULTS_LIMIT: 25

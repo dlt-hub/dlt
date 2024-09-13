@@ -8,7 +8,12 @@ from dlt.common.storages.exceptions import LoadPackageNotFound, NoMigrationPathE
 
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.storages.load_package import create_load_id
-from tests.common.storages.utils import start_loading_file, assert_package_info, load_storage
+from tests.common.storages.utils import (
+    start_loading_file,
+    assert_package_info,
+    load_storage,
+    start_loading_files,
+)
 from tests.utils import write_version, autouse_test_storage
 
 

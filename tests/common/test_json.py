@@ -6,6 +6,7 @@ import pytest
 
 from dlt.common import json, Decimal, pendulum
 from dlt.common.arithmetics import numeric_default_context
+from dlt.common import known_env
 from dlt.common.json import (
     _DECIMAL,
     _WEI,
@@ -216,6 +217,15 @@ def test_json_pendulum(json_impl: SupportsJson) -> None:
     assert s_r == pendulum.parse(dt_str_z)
 
 
+# @pytest.mark.parametrize("json_impl", _JSON_IMPL)
+# def test_json_timedelta(json_impl: SupportsJson) -> None:
+#     from datetime import timedelta
+#     start_date = pendulum.parse("2005-04-02T20:37:37.358236Z")
+#     delta = pendulum.interval(start_date, pendulum.now())
+#     assert isinstance(delta, timedelta)
+#     print(str(delta.as_timedelta()))
+
+
 @pytest.mark.parametrize("json_impl", _JSON_IMPL)
 def test_json_named_tuple(json_impl: SupportsJson) -> None:
     assert (
@@ -306,7 +316,7 @@ def test_garbage_pua_string(json_impl: SupportsJson) -> None:
 def test_change_pua_start() -> None:
     import inspect
 
-    os.environ["DLT_JSON_TYPED_PUA_START"] = "0x0FA179"
+    os.environ[known_env.DLT_JSON_TYPED_PUA_START] = "0x0FA179"
     from importlib import reload
 
     try:
@@ -316,7 +326,7 @@ def test_change_pua_start() -> None:
         assert MOD_PUA_START == int("0x0FA179", 16)
     finally:
         # restore old start
-        os.environ["DLT_JSON_TYPED_PUA_START"] = hex(PUA_START)
+        os.environ[known_env.DLT_JSON_TYPED_PUA_START] = hex(PUA_START)
         from importlib import reload
 
         reload(inspect.getmodule(SupportsJson))

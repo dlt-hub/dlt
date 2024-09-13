@@ -177,8 +177,7 @@ def get_pipeline():
 
     return dlt.pipeline(
         pipeline_name="contracts_" + uniq_id(),
-        destination="duckdb",
-        credentials=duckdb.connect(":memory:"),
+        destination=dlt.destinations.duckdb(credentials=duckdb.connect(":memory:")),
         dev_mode=True,
     )
 
@@ -734,7 +733,8 @@ def test_pydantic_contract_implementation(contract_setting: str, as_list: bool) 
     from pydantic import BaseModel
 
     class Items(BaseModel):
-        id: int  # noqa: A003
+        # for variant test below we must allow allow id to be nullable
+        id: Optional[int]  # noqa: A003
         name: str
 
     def get_items(as_list: bool = False):

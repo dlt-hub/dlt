@@ -100,7 +100,7 @@ Find more on transforms [here](resource.md#filter-transform-and-pivot-data).
 You can limit the number of items produced by each resource by calling a `add_limit` method on a
 source. This is useful for testing, debugging and generating sample datasets for experimentation.
 You can easily get your test dataset in a few minutes, when otherwise you'd need to wait hours for
-the full loading to complete. Below we limit the `pipedrive` source to just get 10 pages of data
+the full loading to complete. Below we limit the `pipedrive` source to just get **10 pages** of data
 from each endpoint. Mind that the transformers will be evaluated fully:
 
 ```py
@@ -110,6 +110,10 @@ pipeline = dlt.pipeline(pipeline_name='pipedrive', destination='duckdb', dataset
 load_info = pipeline.run(pipedrive_source().add_limit(10))
 print(load_info)
 ```
+
+:::note
+Note that `add_limit` **does not limit the number of records** but rather the "number of yields". `dlt` will close the iterator/generator that produces data after the limit is reached.
+:::
 
 Find more on sampling data [here](resource.md#sample-from-large-data).
 
@@ -182,6 +186,26 @@ source.max_table_nesting = 0
 Several data sources are prone to contain semi-structured documents with very deep nesting i.e.
 MongoDB databases. Our practical experience is that setting the `max_nesting_level` to 2 or 3
 produces the clearest and human-readable schemas.
+
+:::tip
+The `max_table_nesting` parameter at the source level doesn't automatically apply to individual 
+resources when accessed directly (e.g., using `source.resources["resource_1"])`. To make sure it 
+works, either use `source.with_resources("resource_1")` or set the parameter directly on the resource.
+:::
+
+
+You can directly configure the `max_table_nesting` parameter on the resource level as:
+
+```py
+@dlt.resource(max_table_nesting=0)
+def my_resource():
+    ...
+```
+or
+```py
+my_source = source()
+my_source.my_resource.max_table_nesting = 0
+```
 
 ### Modify schema
 
