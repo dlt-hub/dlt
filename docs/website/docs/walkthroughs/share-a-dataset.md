@@ -1,10 +1,10 @@
 ---
-title: 'Share a dataset: DuckDB -> BigQuery'
+title: 'Moving from local to production'
 description: Share a local dataset by moving it to BigQuery
 keywords: [how to, share a dataset]
 ---
 
-# Share a dataset: DuckDB -> BigQuery
+# Moving from local to production
 
 In previous how-to guides you used the local stack to create and run your pipeline. This saved you
 the headache of setting up cloud account, credentials and often also money. Our choice for local

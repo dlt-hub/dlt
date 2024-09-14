@@ -1,10 +1,10 @@
 ---
-title: Performance
+title: Optimizing dlt
 description: Scale-up, parallelize and finetune dlt pipelines
 keywords: [scaling, parallelism, finetuning]
 ---
 
-# Performance
+# Optimizing dlt
 
 ## Yield pages instead of rows
 

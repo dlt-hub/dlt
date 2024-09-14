@@ -45,6 +45,19 @@ const sidebars = {
     },
     {
       type: 'category',
+      label: 'Core concepts',
+      items: [
+        'reference/explainers/how-dlt-works',
+        'general-usage/source',
+        'general-usage/resource',
+        'general-usage/pipeline',
+        'general-usage/destination',
+        'general-usage/state',
+        'general-usage/glossary'
+      ]
+    },
+    {
+      type: 'category',
       label: 'Sources',
       link: {
         type: 'doc',
@@ -58,18 +71,18 @@ const sidebars = {
         'dlt-ecosystem/verified-sources/chess',
         'dlt-ecosystem/verified-sources/facebook_ads',
         {
-              type: 'category',
-              label: 'Filesystem & buckets',
-              description: 'AWS S3, GCP, Azure, local files',
-               link: {
-                type: 'doc',
-                id: 'dlt-ecosystem/verified-sources/filesystem/index',
-              },
-              items: [
-                'dlt-ecosystem/verified-sources/filesystem/basic',
-                'dlt-ecosystem/verified-sources/filesystem/advanced',
-              ]
-            },
+          type: 'category',
+          label: 'Filesystem & cloud storage',
+          description: 'AWS S3, Google Cloud Storage, Azure Blob Storage, local file system',
+            link: {
+            type: 'doc',
+            id: 'dlt-ecosystem/verified-sources/filesystem/index',
+          },
+          items: [
+            'dlt-ecosystem/verified-sources/filesystem/basic',
+            'dlt-ecosystem/verified-sources/filesystem/advanced',
+          ]
+        },
         'dlt-ecosystem/verified-sources/freshdesk',
         'dlt-ecosystem/verified-sources/github',
         'dlt-ecosystem/verified-sources/google_ads',
@@ -123,7 +136,20 @@ const sidebars = {
         'dlt-ecosystem/verified-sources/strapi',
         'dlt-ecosystem/verified-sources/stripe',
         'dlt-ecosystem/verified-sources/workable',
-        'dlt-ecosystem/verified-sources/zendesk'
+        'dlt-ecosystem/verified-sources/zendesk',
+        {
+          type: 'category',
+          label: 'REST API helpers',
+          link: {
+            type: 'doc',
+            id: 'general-usage/http/overview',
+          },
+          items: [
+            'general-usage/http/rest-client',
+            'general-usage/http/requests',
+          ]
+        },
+        'walkthroughs/add-a-verified-source',
       ]
     },
     {
@@ -150,97 +176,22 @@ const sidebars = {
         'dlt-ecosystem/destinations/qdrant',
         'dlt-ecosystem/destinations/dremio',
         'dlt-ecosystem/destinations/destination',
-        'dlt-ecosystem/destinations/motherduck'
+        'dlt-ecosystem/destinations/motherduck',
+        'walkthroughs/create-new-destination'
       ]
     },
     {
       type: 'category',
-      label: 'Core concepts',
+      label: 'Using dlt',
       link: {
         type: 'generated-index',
-        title: 'Core concepts',
+        title: 'Using dlt',
         slug: 'general-usage',
         keywords: ['concepts', 'usage'],
       },
       items: [
-        'reference/explainers/how-dlt-works',
-        'general-usage/resource',
-        'general-usage/source',
-        {
-          type: 'category',
-          label: 'Configuration and secrets',
-           link: {
-            type: 'doc',
-            id: 'general-usage/credentials/index',
-          },
-          items: [
-            'general-usage/credentials/setup',
-            'general-usage/credentials/advanced',
-            'general-usage/credentials/complex_types',
-          ]
-        },
-        'general-usage/pipeline',
-        'general-usage/destination',
-        'general-usage/destination-tables',
-        {
-          type: 'category',
-          label: 'REST API helpers',
-          link: {
-            type: 'doc',
-            id: 'general-usage/http/overview',
-          },
-          items: [
-            'general-usage/http/rest-client',
-            'general-usage/http/requests',
-          ]
-        },
-        'dlt-ecosystem/staging',
-        'general-usage/state',
-        'general-usage/incremental-loading',
-        'general-usage/full-loading',
-        'general-usage/schema',
-        'general-usage/naming-convention',
-        'general-usage/schema-contracts',
-        'general-usage/schema-evolution',
-        'build-a-pipeline-tutorial',
-        'reference/performance',
-        {
-          type: 'category',
-          label: 'File formats',
-          link: {
-            type: 'generated-index',
-            title: 'File formats',
-            description: 'Overview of our loader file formats',
-            slug: 'dlt-ecosystem/file-formats',
-            keywords: ['destination'],
-          },
-          items: [
-            'dlt-ecosystem/file-formats/jsonl',
-            'dlt-ecosystem/file-formats/parquet',
-            'dlt-ecosystem/file-formats/csv',
-            'dlt-ecosystem/file-formats/insert-format',
-          ]
-        },
-      ],
-    },
-    {
-      type: 'category',
-      label: 'How-to guides',
-      link: {
-        type: 'generated-index',
-        title: 'How-to guides',
-        description: 'In this section you will find step-by-step instructions for the common tasks.',
-        slug: 'walkthroughs',
-        keywords: ['how-to'],
-      },
-      items: [
         'walkthroughs/create-a-pipeline',
-        'walkthroughs/add-a-verified-source',
-        'walkthroughs/add-incremental-configuration',
-        'walkthroughs/add_credentials',
         'walkthroughs/run-a-pipeline',
-        'walkthroughs/adjust-a-schema',
-        'walkthroughs/share-a-dataset',
         'dlt-ecosystem/visualizations/exploring-the-data',
         {
           type: 'category',
@@ -263,8 +214,55 @@ const sidebars = {
             },
             'dlt-ecosystem/transformations/sql',
             'dlt-ecosystem/transformations/pandas',
+            'general-usage/customising-pipelines/renaming_columns',
+            'general-usage/customising-pipelines/pseudonymizing_columns',
+            'general-usage/customising-pipelines/removing_columns'
           ]
         },
+        {
+          type: 'category',
+          label: 'Configuration and secrets',
+           link: {
+            type: 'doc',
+            id: 'general-usage/credentials/index',
+          },
+          items: [
+            'general-usage/credentials/setup',
+            'general-usage/credentials/advanced',
+            'general-usage/credentials/complex_types',
+            // Unsure item
+            'walkthroughs/add_credentials'
+          ]
+        },
+        {
+          type: 'category',
+          label: 'Schema',
+          link: {
+            type: 'doc',
+            id: 'general-usage/schema',
+          },
+          items: [
+            'general-usage/schema-contracts',
+            'general-usage/schema-evolution',
+            'walkthroughs/adjust-a-schema',
+          ]
+        },
+        {
+          type: 'category',
+          label: 'Loading Behavior',
+          items: [
+            'general-usage/incremental-loading',
+            'walkthroughs/add-incremental-configuration',
+            'general-usage/full-loading',
+          ]
+        }
+      ]
+    },
+    {
+      type: 'category',
+      label: 'Deploying dlt',
+      items: [
+        'walkthroughs/share-a-dataset',
         {
           type: 'category',
           label: 'Deploy a pipeline',
@@ -287,24 +285,6 @@ const sidebars = {
         },
         {
           type: 'category',
-          label: 'Customise pipelines',
-          items: [
-            'general-usage/customising-pipelines/renaming_columns',
-            'general-usage/customising-pipelines/pseudonymizing_columns',
-            'general-usage/customising-pipelines/removing_columns',
-          ]
-        },
-        {
-          type: 'category',
-          label: 'Data enrichments',
-          items: [
-            'general-usage/data-enrichments/user_agent_device_data_enrichment',
-            'general-usage/data-enrichments/currency_conversion_data_enrichment',
-            'general-usage/data-enrichments/url-parser-data-enrichment'
-          ]
-        },
-        {
-          type: 'category',
           label: 'Run in production',
           link: {
             type: 'generated-index',
@@ -320,11 +300,9 @@ const sidebars = {
             'running-in-production/tracing',
           ],
         },
-        'walkthroughs/dispatch-to-multiple-tables',
-        'walkthroughs/create-new-destination',
-        'walkthroughs/zendesk-weaviate',
-      ],
+      ]
     },
+    'reference/performance',
     {
       type: 'category',
       label: 'Code examples',
@@ -336,6 +314,7 @@ const sidebars = {
         keywords: ['examples'],
       },
       items: [
+        'walkthroughs/dispatch-to-multiple-tables',
       ],
     },
     {
@@ -344,25 +323,63 @@ const sidebars = {
       link: {
         type: 'generated-index',
         title: 'Reference',
-        description: 'The dlthub reference. Learn more about the dlt, CLI, and the telemetry.',
+        description: 'Learn more about the dlt, CLI, and the telemetry.',
         slug: 'reference',
         keywords: ['reference'],
       },
       items: [
         'reference/command-line-interface',
         'reference/telemetry',
+        // Unsure item
+        'general-usage/destination-tables',
+        'general-usage/naming-convention',
+        'dlt-ecosystem/staging',
+        {
+          type: 'category',
+          label: 'File formats',
+          link: {
+            type: 'generated-index',
+            title: 'File formats',
+            description: 'Overview of our loader file formats',
+            slug: 'dlt-ecosystem/file-formats',
+            keywords: ['destination'],
+          },
+          items: [
+            'dlt-ecosystem/file-formats/jsonl',
+            'dlt-ecosystem/file-formats/parquet',
+            'dlt-ecosystem/file-formats/csv',
+            'dlt-ecosystem/file-formats/insert-format',
+          ]
+        },
         'reference/frequently-asked-questions',
-        'general-usage/glossary',
       ],
     },
-    // {
-    //   "API Documentation": [
-    //   require("./docs/api_reference/sidebar.json")
-    // ],
-    // }
+    /*
+    {
+      type: 'category',
+      label: 'How-to guides',
+      link: {
+        type: 'generated-index',
+        title: 'How-to guides',
+        description: 'In this section you will find step-by-step instructions for the common tasks.',
+        slug: 'walkthroughs',
+        keywords: ['how-to'],
+      },
+      items: [
+        {
+          type: 'category',
+          label: 'Data enrichments',
+          items: [
+            'general-usage/data-enrichments/user_agent_device_data_enrichment',
+            'general-usage/data-enrichments/currency_conversion_data_enrichment',
+            'general-usage/data-enrichments/url-parser-data-enrichment'
+          ]
+        }
+      ]
+    }
+    */
   ]
 };
-
 
 // insert examples
 for (const item of sidebars.tutorialSidebar) {
@@ -386,3 +403,19 @@ if (fs.existsSync('./docs_processed/api_reference/sidebar.json')) {
 }
 
 module.exports = sidebars;
+
+
+/*
+blog:
+'build-a-pipeline-tutorial',
+'walkthroughs/zendesk-weaviate',
+{
+  type: 'category',
+  label: 'Data enrichments',
+  items: [
+    'general-usage/data-enrichments/user_agent_device_data_enrichment',
+    'general-usage/data-enrichments/currency_conversion_data_enrichment',
+    'general-usage/data-enrichments/url-parser-data-enrichment'
+  ]
+},
+*/

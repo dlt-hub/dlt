@@ -574,9 +574,8 @@ Interested in learning more? Here are some suggestions:
     - [Run in production: inspecting, tracing, retry policies and cleaning up](../running-in-production/running).
     - [Run resources in parallel, optimize buffers and local storage](../reference/performance.md)
     - [Use REST API client helpers](../general-usage/http/rest-client.md) to simplify working with REST APIs.
-3. Check out our [how-to guides](../walkthroughs) to get answers to some common questions.
-4. Explore [destinations](../dlt-ecosystem/destinations/) and [sources](../dlt-ecosystem/verified-sources/) provided by us and community.
-5. Explore the [Examples](../examples) section to see how dlt can be used in real-world scenarios
+3. Explore [destinations](../dlt-ecosystem/destinations/) and [sources](../dlt-ecosystem/verified-sources/) provided by us and community.
+4. Explore the [Examples](../examples) section to see how dlt can be used in real-world scenarios
 
 
 
