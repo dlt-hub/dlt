@@ -199,16 +199,26 @@ class BaseDeployment(abc.ABC):
                     # fmt.echo(f"{resolved_value.key} in {resolved_value.sections} moved to CONFIG")
 
     def _echo_secrets(self) -> None:
+        display_info = False
         for s_v in self.secret_envs:
             fmt.secho("Name:", fg="green")
-            fmt.echo(fmt.bold(BaseDocProvider.get_key_name(s_v.key, *s_v.sections)))
+            fmt.echo(fmt.bold(self.env_prov.get_key_name(s_v.key, *s_v.sections)))
             try:
                 fmt.secho("Secret:", fg="green")
                 fmt.echo(self._lookup_secret_value(s_v))
             except ConfigFieldMissingException:
-                fmt.secho(
-                    "Not found. See https://dlthub.com/docs/general-usage/credentials", fg="red"
-                )
+                fmt.secho("Not found in the available secrets.", fg="red")
+                display_info = True
+            fmt.echo()
+        if display_info:
+            fmt.warning(
+                "We could not read and display some secrets. Starting from 1.0 version of dlt,"
+                " those are not stored in the traces. Instead we are trying to read them from the"
+                " available configuration ie. secrets.toml file. Please run the deploy command from"
+                " the same working directory you ran your pipeline script. If you pass the"
+                " credentials in code we will not be able to display them here. See"
+                " https://dlthub.com/docs/general-usage/credentials"
+            )
             fmt.echo()
 
     def _lookup_secret_value(self, trace: LookupTrace) -> Any:
