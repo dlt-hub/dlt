@@ -28,20 +28,19 @@ function *walkSync(dir) {
 /** @type {import('@docusaurus/plugin-content-docs').SidebarsConfig} */
 const sidebars = {
   tutorialSidebar: [
-    'intro',
-    'getting-started',
     {
       type: 'category',
-      label: 'Tutorial',
+      label: 'Getting started',
       link: {
         type: 'doc',
-        id: 'tutorial/intro',
+        id: 'intro',
       },
       items: [
+        'reference/installation',
+        'tutorial/rest-api',
+        'tutorial/sql-database',
         'tutorial/filesystem',
         'tutorial/load-data-from-an-api',
-        'tutorial/grouping-resources',
-        'tutorial/sql_database'
       ]
     },
     {
@@ -156,10 +155,10 @@ const sidebars = {
     },
     {
       type: 'category',
-      label: 'Using dlt',
+      label: 'Core concepts',
       link: {
         type: 'generated-index',
-        title: 'Using dlt',
+        title: 'Core concepts',
         slug: 'general-usage',
         keywords: ['concepts', 'usage'],
       },
@@ -350,7 +349,6 @@ const sidebars = {
         keywords: ['reference'],
       },
       items: [
-        'reference/installation',
         'reference/command-line-interface',
         'reference/telemetry',
         'reference/frequently-asked-questions',
