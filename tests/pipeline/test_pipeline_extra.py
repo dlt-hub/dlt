@@ -56,8 +56,8 @@ DUMMY_COMPLETE = dummy(completed_prob=1)  # factory set up to complete jobs
 def test_create_pipeline_all_destinations(destination_config: DestinationTestConfiguration) -> None:
     # create pipelines, extract and normalize. that should be possible without installing any dependencies
     p = dlt.pipeline(
-        pipeline_name=destination_config.destination + "_pipeline",
-        destination=destination_config.destination,
+        pipeline_name=destination_config.destination_type + "_pipeline",
+        destination=destination_config.destination_type,
         staging=destination_config.staging,
     )
     # are capabilities injected
