@@ -137,7 +137,7 @@ def test_deploy_command(
             # reset toml providers to (1) CWD (2) non existing dir so API_KEY is not found
             for project_dir, api_key in [
                 (None, "api_key_9x3ehash"),
-                (".", "Not found in the available secrets"),
+                (".", "please set me up!"),
             ]:
                 with reset_providers(project_dir=project_dir):
                     # this time script will run
