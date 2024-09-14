@@ -536,7 +536,7 @@ class Pipeline(SupportsPipeline):
         credentials: Any = None,
         *,
         workers: int = 20,
-        raise_on_failed_jobs: bool = False,
+        raise_on_failed_jobs: bool = ConfigValue,
     ) -> LoadInfo:
         """Loads the packages prepared by `normalize` method into the `dataset_name` at `destination`, optionally using provided `credentials`"""
         # set destination and default dataset if provided (this is the reason we have state sync here)

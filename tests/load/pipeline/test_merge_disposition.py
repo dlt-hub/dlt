@@ -9,6 +9,7 @@ import dlt
 
 from dlt.common import json, pendulum
 from dlt.common.configuration.container import Container
+from dlt.common.destination.utils import resolve_merge_strategy
 from dlt.common.pipeline import StateInjectableContext
 from dlt.common.schema.utils import has_table_seen_data
 from dlt.common.schema.exceptions import (
@@ -46,6 +47,7 @@ def skip_if_not_supported(
     merge_strategy: TLoaderMergeStrategy,
     destination: TDestination,
 ) -> None:
+    # resolve_merge_strategy
     if merge_strategy not in destination.capabilities().supported_merge_strategies:
         pytest.skip(
             f"`{merge_strategy}` merge strategy not supported for `{destination.destination_name}`"
@@ -70,6 +72,7 @@ def test_merge_on_keys_in_schema(
     destination_config: DestinationTestConfiguration,
     merge_strategy: TLoaderMergeStrategy,
 ) -> None:
+    """Tests merge disposition on an annotated schema, no annotations on resource"""
     p = destination_config.setup_pipeline("eth_2", dev_mode=True)
 
     skip_if_not_supported(merge_strategy, p.destination)
@@ -257,6 +260,143 @@ def test_merge_record_updates(
         [
             {"baz": 2},
             {"baz": 1},
+        ],
+    )
+
+
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True,
+        local_filesystem_configs=True,
+        table_format_filesystem_configs=True,
+        supports_merge=True,
+        bucket_subset=(FILE_BUCKET),
+    ),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize("merge_strategy", ("delete-insert", "upsert"))
+def test_merge_nested_records_inserted_deleted(
+    destination_config: DestinationTestConfiguration,
+    merge_strategy: TLoaderMergeStrategy,
+) -> None:
+    p = destination_config.setup_pipeline(
+        "test_merge_nested_records_inserted_deleted", dev_mode=True
+    )
+
+    skip_if_not_supported(merge_strategy, p.destination)
+
+    @dlt.resource(
+        table_name="parent",
+        write_disposition={"disposition": "merge", "strategy": merge_strategy},
+        primary_key="id",
+        merge_key="foo",
+    )
+    def r(data):
+        yield data
+
+    # initial load
+    run_1 = [
+        {"id": 1, "foo": 1, "child": [{"bar": 1, "grandchild": [{"baz": 1}]}]},
+        {"id": 2, "foo": 1, "child": [{"bar": 1, "grandchild": [{"baz": 1}]}]},
+        {"id": 3, "foo": 1, "child": [{"bar": 3, "grandchild": [{"baz": 1}]}]},
+    ]
+    info = p.run(r(run_1), **destination_config.run_kwargs)
+    assert_load_info(info)
+    assert load_table_counts(p, "parent", "parent__child", "parent__child__grandchild") == {
+        "parent": 3,
+        "parent__child": 3,
+        "parent__child__grandchild": 3,
+    }
+    tables = load_tables_to_dicts(p, "parent", exclude_system_cols=True)
+    assert_records_as_set(
+        tables["parent"],
+        [
+            {"id": 1, "foo": 1},
+            {"id": 2, "foo": 1},
+            {"id": 3, "foo": 1},
+        ],
+    )
+
+    # delete records — delete parent (id 3), child (id 2) and grandchild (id 1)
+    # foo is merge key, should delete id = 3
+    run_3 = [
+        {"id": 1, "foo": 1, "child": [{"bar": 2}]},
+        {"id": 2, "foo": 1},
+    ]
+    info = p.run(r(run_3), **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    table_counts = load_table_counts(p, "parent", "parent__child", "parent__child__grandchild")
+    table_data = load_tables_to_dicts(p, "parent", "parent__child", exclude_system_cols=True)
+    if merge_strategy == "upsert":
+        # merge keys will not apply and parent will not be deleted
+        if destination_config.table_format == "delta":
+            # delta merges cannot delete from nested tables
+            assert table_counts == {
+                "parent": 3,  # id == 3 not deleted (not present in the data)
+                "parent__child": 3,  # child not deleted
+                "parent__child__grandchild": 3,  # grand child not deleted,
+            }
+        else:
+            assert table_counts == {
+                "parent": 3,  # id == 3 not deleted (not present in the data)
+                "parent__child": 2,
+                "parent__child__grandchild": 1,
+            }
+            assert_records_as_set(
+                table_data["parent__child"],
+                [
+                    {"bar": 2},  # id 1 updated to bar
+                    {"bar": 3},  # id 3 not deleted
+                ],
+            )
+    else:
+        assert table_counts == {
+            "parent": 2,
+            "parent__child": 1,
+            "parent__child__grandchild": 0,
+        }
+        assert_records_as_set(
+            table_data["parent__child"],
+            [
+                {"bar": 2},
+            ],
+        )
+
+    # insert records id 3 inserted back, id 2 added child, id 1 added grandchild
+    run_3 = [
+        {"id": 1, "foo": 1, "child": [{"bar": 1, "grandchild": [{"baz": 1}, {"baz": 4}]}]},
+        {"id": 2, "foo": 1, "child": [{"bar": 2, "grandchild": [{"baz": 2}]}, {"bar": 4}]},
+        {"id": 3, "foo": 1, "child": [{"bar": 3, "grandchild": [{"baz": 3}]}]},
+    ]
+    info = p.run(r(run_3), **destination_config.run_kwargs)
+    assert_load_info(info)
+    assert load_table_counts(p, "parent", "parent__child", "parent__child__grandchild") == {
+        "parent": 3,
+        "parent__child": 4,
+        "parent__child__grandchild": 4,
+    }
+    tables = load_tables_to_dicts(
+        p, "parent__child", "parent__child__grandchild", exclude_system_cols=True
+    )
+    assert_records_as_set(
+        tables["parent__child__grandchild"],
+        [
+            {"baz": 2},
+            {"baz": 1},
+            {"baz": 3},
+            {"baz": 4},
+        ],
+    )
+    assert_records_as_set(
+        tables["parent__child"],
+        [
+            {"bar": 2},
+            {"bar": 1},
+            {"bar": 3},
+            {"bar": 4},
         ],
     )
 
@@ -460,7 +600,7 @@ def test_pipeline_load_parquet(destination_config: DestinationTestConfiguration)
     # do not save state to destination so jobs counting is easier
     p.config.restore_from_destination = False
     github_data = github()
-    # generate some complex types
+    # generate some nested types
     github_data.max_table_nesting = 2
     github_data_copy = github()
     github_data_copy.max_table_nesting = 2
@@ -486,7 +626,7 @@ def test_pipeline_load_parquet(destination_config: DestinationTestConfiguration)
 
     # now retry with replace
     github_data = github()
-    # generate some complex types
+    # generate some nested types
     github_data.max_table_nesting = 2
     info = p.run(
         github_data,
@@ -719,17 +859,17 @@ def test_no_deduplicate_only_merge_key(destination_config: DestinationTestConfig
     ids=lambda x: x.name,
 )
 @pytest.mark.parametrize("merge_strategy", ("delete-insert", "upsert"))
-def test_complex_column_missing(
+def test_nested_column_missing(
     destination_config: DestinationTestConfiguration,
     merge_strategy: TLoaderMergeStrategy,
 ) -> None:
     if destination_config.table_format == "delta":
         pytest.skip(
-            "Record updates that involve removing elements from a complex"
+            "Record updates that involve removing elements from a nested"
             " column is not supported for `delta` table format."
         )
 
-    table_name = "test_complex_column_missing"
+    table_name = "test_nested_column_missing"
 
     @dlt.resource(
         name=table_name,
@@ -744,22 +884,22 @@ def test_complex_column_missing(
     skip_if_not_supported(merge_strategy, p.destination)
 
     data = [
-        {"id": 1, "simple": "foo", "complex": [1, 2, 3]},
-        {"id": 2, "simple": "foo", "complex": [1, 2]},
+        {"id": 1, "simple": "foo", "nested": [1, 2, 3]},
+        {"id": 2, "simple": "foo", "nested": [1, 2]},
     ]
     info = p.run(r(data), **destination_config.run_kwargs)
     assert_load_info(info)
     assert load_table_counts(p, table_name)[table_name] == 2
-    assert load_table_counts(p, table_name + "__complex")[table_name + "__complex"] == 5
+    assert load_table_counts(p, table_name + "__nested")[table_name + "__nested"] == 5
 
-    # complex column is missing, previously inserted records should be deleted from child table
+    # nested column is missing, previously inserted records should be deleted from child table
     data = [
         {"id": 1, "simple": "bar"},
     ]
     info = p.run(r(data), **destination_config.run_kwargs)
     assert_load_info(info)
     assert load_table_counts(p, table_name)[table_name] == 2
-    assert load_table_counts(p, table_name + "__complex")[table_name + "__complex"] == 2
+    assert load_table_counts(p, table_name + "__nested")[table_name + "__nested"] == 2
 
 
 @pytest.mark.parametrize(
@@ -864,7 +1004,7 @@ def test_hard_delete_hint(
     counts = load_table_counts(p, table_name)[table_name]
     assert load_table_counts(p, table_name)[table_name] == 1
 
-    table_name = "test_hard_delete_hint_complex"
+    table_name = "test_hard_delete_hint_nested"
     data_resource.apply_hints(table_name=table_name)
 
     # insert two records with childs and grandchilds
@@ -1053,7 +1193,7 @@ def test_dedup_sort_hint(destination_config: DestinationTestConfiguration) -> No
     expected = [{"id": 1, "val": "foo", "sequence": 1}]
     assert sorted(observed, key=lambda d: d["id"]) == expected
 
-    table_name = "test_dedup_sort_hint_complex"
+    table_name = "test_dedup_sort_hint_nested"
     data_resource.apply_hints(
         table_name=table_name,
         columns={"sequence": {"dedup_sort": "desc", "nullable": False}},

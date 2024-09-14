@@ -43,6 +43,7 @@ from dlt.common.destination.reference import (
 from dlt.common.pendulum import timedelta
 from dlt.common.schema import Schema, TSchemaTables
 from dlt.common.schema.typing import (
+    C_DLT_LOAD_ID,
     TTableSchemaColumns,
     TWriteDisposition,
 )
@@ -466,7 +467,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
 
         # normalize property names
         p_load_id = self.schema.naming.normalize_identifier("load_id")
-        p_dlt_load_id = self.schema.naming.normalize_identifier("_dlt_load_id")
+        p_dlt_load_id = self.schema.naming.normalize_identifier(C_DLT_LOAD_ID)
         p_pipeline_name = self.schema.naming.normalize_identifier("pipeline_name")
         p_status = self.schema.naming.normalize_identifier("status")
         p_version = self.schema.naming.normalize_identifier("version")

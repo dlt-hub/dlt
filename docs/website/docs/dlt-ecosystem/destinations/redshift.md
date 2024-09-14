@@ -84,7 +84,7 @@ When staging is enabled:
 
 > ❗ **Redshift cannot detect compression type from `json` files**. `dlt` assumes that `jsonl` files are gzip compressed, which is the default.
 
-> ❗ **Redshift loads `complex` types as strings into SUPER with `parquet`**. Use `jsonl` format to store JSON in SUPER natively or transform your SUPER columns with `PARSE_JSON`.
+> ❗ **Redshift loads `json` types as strings into SUPER with `parquet`**. Use `jsonl` format to store JSON in SUPER natively or transform your SUPER columns with `PARSE_JSON`.
 
 ## Supported column hints
 

@@ -1,7 +1,5 @@
 import os
-import re
 from copy import deepcopy
-from datetime import datetime  # noqa: I251
 from typing import Any, Callable, cast, List, Optional, Set
 
 import pytest
@@ -505,7 +503,7 @@ def test_all_types_no_precision_hints(
         source.resources[table_name].add_map(unwrap_json_connector_x("json_col"))
     pipeline.extract(source)
     pipeline.normalize(loader_file_format="parquet")
-    pipeline.load().raise_on_failed_jobs()
+    pipeline.load()
 
     schema = pipeline.default_schema
     # print(pipeline.default_schema.to_pretty_yaml())
@@ -605,7 +603,7 @@ def test_deferred_reflect_in_source(
     pipeline.extract(source)
     # use insert values to convert parquet into INSERT
     pipeline.normalize(loader_file_format="insert_values")
-    pipeline.load().raise_on_failed_jobs()
+    pipeline.load()
     precision_table = pipeline.default_schema.get_table("has_precision")
     assert_precision_columns(
         precision_table["columns"],
@@ -661,7 +659,7 @@ def test_deferred_reflect_in_resource(
     pipeline.extract(table)
     # use insert values to convert parquet into INSERT
     pipeline.normalize(loader_file_format="insert_values")
-    pipeline.load().raise_on_failed_jobs()
+    pipeline.load()
     precision_table = pipeline.default_schema.get_table("has_precision")
     assert_precision_columns(
         precision_table["columns"],
@@ -830,19 +828,19 @@ def test_infer_unsupported_types(
         # Just check that it has a value
 
         assert isinstance(json.loads(rows[0]["unsupported_array_1"]), list)
-        assert columns["unsupported_array_1"]["data_type"] == "complex"
+        assert columns["unsupported_array_1"]["data_type"] == "json"
         # Other columns are loaded
         assert isinstance(rows[0]["supported_text"], str)
         assert isinstance(rows[0]["supported_int"], int)
     elif backend == "sqlalchemy":
-        # sqla value is a dataclass and is inferred as complex
+        # sqla value is a dataclass and is inferred as json
 
-        assert columns["unsupported_array_1"]["data_type"] == "complex"
+        assert columns["unsupported_array_1"]["data_type"] == "json"
 
     elif backend == "pandas":
         # pandas parses it as string
         if type_adapter and reflection_level != "minimal":
-            assert columns["unsupported_array_1"]["data_type"] == "complex"
+            assert columns["unsupported_array_1"]["data_type"] == "json"
 
             assert isinstance(json.loads(rows[0]["unsupported_array_1"]), list)
 
@@ -954,7 +952,7 @@ def test_query_adapter_callback(
     pipeline.extract(source)
 
     pipeline.normalize()
-    pipeline.load().raise_on_failed_jobs()
+    pipeline.load()
 
     channel_rows = load_tables_to_dicts(pipeline, "chat_channel")["chat_channel"]
     assert channel_rows and all(row["active"] for row in channel_rows)
@@ -1156,7 +1154,7 @@ PRECISION_COLUMNS: List[TColumnSchema] = [
         "name": "float_col",
     },
     {
-        "data_type": "complex",
+        "data_type": "json",
         "name": "json_col",
     },
     {

@@ -9,7 +9,6 @@ import dlt
 from dlt.common import json, sleep
 from dlt.common.pipeline import SupportsPipeline
 from dlt.common.destination import Destination
-from dlt.common.destination.exceptions import DestinationHasFailedJobs
 from dlt.common.destination.reference import WithStagingDataset
 from dlt.common.schema.exceptions import CannotCoerceColumnException
 from dlt.common.schema.schema import Schema
@@ -24,6 +23,7 @@ from dlt.destinations import filesystem, redshift
 from dlt.destinations.job_client_impl import SqlJobClientBase
 from dlt.extract.exceptions import ResourceNameMissing
 from dlt.extract.source import DltSource
+from dlt.load.exceptions import LoadClientJobFailed
 from dlt.pipeline.exceptions import (
     CannotRestorePipelineException,
     PipelineConfigMissing,
@@ -381,6 +381,8 @@ def test_evolve_schema(destination_config: DestinationTestConfiguration) -> None
 
     # lets violate unique constraint on postgres, redshift and BQ ignore unique indexes
     if destination_config.destination == "postgres":
+        # let it complete even with PK violation (which is a teminal error)
+        os.environ["RAISE_ON_FAILED_JOBS"] = "false"
         assert p.dataset_name == dataset_name
         err_info = p.run(
             source(1).with_resources("simple_rows"),
@@ -456,14 +458,14 @@ def test_pipeline_data_writer_compression(
 def test_source_max_nesting(destination_config: DestinationTestConfiguration) -> None:
     destination_config.setup()
 
-    complex_part = {"l": [1, 2, 3], "c": {"a": 1, "b": 12.3}}
+    nested_part = {"l": [1, 2, 3], "c": {"a": 1, "b": 12.3}}
 
-    @dlt.source(name="complex", max_table_nesting=0)
-    def complex_data():
-        return dlt.resource([{"idx": 1, "cn": complex_part}], name="complex_cn")
+    @dlt.source(name="nested", max_table_nesting=0)
+    def nested_data():
+        return dlt.resource([{"idx": 1, "cn": nested_part}], name="nested_cn")
 
     info = dlt.run(
-        complex_data(),
+        nested_data(),
         destination=destination_config.destination,
         staging=destination_config.staging,
         dataset_name="ds_" + uniq_id(),
@@ -471,13 +473,13 @@ def test_source_max_nesting(destination_config: DestinationTestConfiguration) ->
     )
     print(info)
     with dlt.pipeline().sql_client() as client:
-        complex_cn_table = client.make_qualified_table_name("complex_cn")
-    rows = select_data(dlt.pipeline(), f"SELECT cn FROM {complex_cn_table}")
+        nested_cn_table = client.make_qualified_table_name("nested_cn")
+    rows = select_data(dlt.pipeline(), f"SELECT cn FROM {nested_cn_table}")
     assert len(rows) == 1
     cn_val = rows[0][0]
     if isinstance(cn_val, str):
         cn_val = json.loads(cn_val)
-    assert cn_val == complex_part
+    assert cn_val == nested_part
 
 
 @pytest.mark.parametrize(
@@ -538,7 +540,7 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
         data_types.pop("col7_precision")
         column_schemas.pop("col7_precision")
 
-    # apply the exact columns definitions so we process complex and wei types correctly!
+    # apply the exact columns definitions so we process nested and wei types correctly!
     @dlt.resource(table_name="data_types", write_disposition="merge", columns=column_schemas)
     def my_resource():
         nonlocal data_types
@@ -581,7 +583,7 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
         assert_all_data_types_row(
             db_row,
             schema=column_schemas,
-            parse_complex_strings=destination_config.destination
+            parse_json_strings=destination_config.destination
             in ["snowflake", "bigquery", "redshift"],
             allow_string_binary=destination_config.destination == "clickhouse",
             timestamp_precision=3 if destination_config.destination in ("athena", "dremio") else 6,

@@ -93,7 +93,7 @@ def test_all_data_types(
     assert len(table_columns) == len(TABLE_UPDATE_COLUMNS_SCHEMA)
     for col_name in table_columns:
         assert col_name in TABLE_UPDATE_COLUMNS_SCHEMA
-        if TABLE_UPDATE_COLUMNS_SCHEMA[col_name]["data_type"] in ["decimal", "complex", "time"]:
+        if TABLE_UPDATE_COLUMNS_SCHEMA[col_name]["data_type"] in ["decimal", "json", "time"]:
             # no native representation
             assert table_columns[col_name]["data_type"] == "text"
         elif TABLE_UPDATE_COLUMNS_SCHEMA[col_name]["data_type"] == "wei":

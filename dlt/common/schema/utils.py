@@ -1,6 +1,7 @@
 import re
 import base64
 import hashlib
+import warnings
 import yaml
 from copy import deepcopy, copy
 from typing import Dict, List, Sequence, Tuple, Type, Any, cast, Iterable, Optional, Union
@@ -17,6 +18,7 @@ from dlt.common.typing import DictStrAny, REPattern
 from dlt.common.validation import TCustomValidator, validate_dict_ignoring_xkeys
 from dlt.common.schema import detections
 from dlt.common.schema.typing import (
+    C_DLT_ID,
     SCHEMA_ENGINE_VERSION,
     LOADS_TABLE_NAME,
     SIMPLE_REGEX_PREFIX,
@@ -51,6 +53,7 @@ from dlt.common.schema.exceptions import (
     TablePropertiesConflictException,
     InvalidSchemaName,
 )
+from dlt.common.warnings import Dlt100DeprecationWarning
 
 
 RE_NON_ALPHANUMERIC_UNDERSCORE = re.compile(r"[^a-zA-Z\d_]")
@@ -109,11 +112,11 @@ def remove_defaults(stored_schema: TStoredSchema) -> TStoredSchema:
     * removed resource name if same as table name
     """
     clean_tables = deepcopy(stored_schema["tables"])
-    for table_name, t in clean_tables.items():
-        del t["name"]
-        if t.get("resource") == table_name:
-            del t["resource"]
-        for c in t["columns"].values():
+    for table in clean_tables.values():
+        del table["name"]
+        # if t.get("resource") == table_name:
+        #     del t["resource"]
+        for c in table["columns"].values():
             # remove defaults only on complete columns
             # if is_complete_column(c):
             #     remove_column_defaults(c)
@@ -593,8 +596,8 @@ def get_columns_names_with_prop(
     table: TTableSchema, column_prop: Union[TColumnProp, str], include_incomplete: bool = False
 ) -> List[str]:
     return [
-        c["name"]
-        for c in table["columns"].values()
+        c_n
+        for c_n, c in table["columns"].items()
         if column_prop in c
         and not has_default_column_prop_value(column_prop, c[column_prop])  # type: ignore[literal-required]
         and (include_incomplete or is_complete_column(c))
@@ -751,7 +754,6 @@ def get_nested_tables(tables: TSchemaTables, table_name: str) -> List[TTableSche
     """Get nested tables for table name and return a list of tables ordered by ancestry so the nested tables are always after their parents
 
     Note that this function follows only NESTED TABLE reference typically expressed on _dlt_parent_id (PARENT_KEY) to _dlt_id (ROW_KEY).
-    TABLE REFERENCES (foreign_key - primary_key) are not followed.
     """
     chain: List[TTableSchema] = []
 
@@ -779,6 +781,23 @@ def group_tables_by_resource(
             resource_tables = result.setdefault(resource, [])
             resource_tables.extend(get_nested_tables(tables, table["name"]))
     return result
+
+
+def migrate_complex_types(table: TTableSchema, warn: bool = False) -> None:
+    if "columns" not in table:
+        return
+    table_name = table.get("name")
+    for col_name, column in table["columns"].items():
+        if data_type := column.get("data_type"):
+            if data_type == "complex":
+                if warn:
+                    warnings.warn(
+                        f"`complex` data type found on column {col_name} table {table_name} is"
+                        " deprecated. Please use `json` type instead.",
+                        Dlt100DeprecationWarning,
+                        stacklevel=3,
+                    )
+                column["data_type"] = "json"
 
 
 def version_table() -> TTableSchema:
@@ -830,6 +849,22 @@ def loads_table() -> TTableSchema:
     return table
 
 
+def dlt_id_column() -> TColumnSchema:
+    """Definition of dlt id column"""
+    return {
+        "name": C_DLT_ID,
+        "data_type": "text",
+        "nullable": False,
+        "unique": True,
+        "row_key": True,
+    }
+
+
+def dlt_load_id_column() -> TColumnSchema:
+    """Definition of dlt load id column"""
+    return {"name": "_dlt_load_id", "data_type": "text", "nullable": False}
+
+
 def pipeline_state_table(add_dlt_id: bool = False) -> TTableSchema:
     # NOTE: always add new columns at the end of the table so we have identical layout
     # after an update of existing tables (always at the end)
@@ -842,10 +877,10 @@ def pipeline_state_table(add_dlt_id: bool = False) -> TTableSchema:
         {"name": "state", "data_type": "text", "nullable": False},
         {"name": "created_at", "data_type": "timestamp", "nullable": False},
         {"name": "version_hash", "data_type": "text", "nullable": True},
-        {"name": "_dlt_load_id", "data_type": "text", "nullable": False},
+        dlt_load_id_column(),
     ]
     if add_dlt_id:
-        columns.append({"name": "_dlt_id", "data_type": "text", "nullable": False, "unique": True})
+        columns.append(dlt_id_column())
     table = new_table(
         PIPELINE_STATE_TABLE_NAME,
         write_disposition="append",
@@ -892,6 +927,9 @@ def new_table(
             table["write_disposition"] = DEFAULT_WRITE_DISPOSITION
         if not resource:
             table["resource"] = table_name
+
+    # migrate complex types to json
+    migrate_complex_types(table, warn=True)
 
     if validate_schema:
         validate_dict_ignoring_xkeys(

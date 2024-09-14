@@ -17,7 +17,7 @@ from dlt.common.configuration.specs.config_providers_context import ConfigProvid
 from dlt.common.pipeline import ExtractInfo, NormalizeInfo, LoadInfo
 from dlt.common.schema import Schema
 from dlt.common.runtime.telemetry import stop_telemetry
-from dlt.common.typing import DictStrAny, StrStr, DictStrStr, TSecretValue
+from dlt.common.typing import DictStrAny, DictStrStr, TSecretValue
 from dlt.common.utils import digest128
 
 from dlt.destinations import dummy, filesystem
@@ -36,7 +36,6 @@ from dlt.extract.pipe import Pipe
 
 from tests.pipeline.utils import PIPELINE_TEST_CASES_PATH
 from tests.utils import TEST_STORAGE_ROOT, start_test_telemetry
-from tests.common.configuration.utils import toml_providers, environment
 
 
 def test_create_trace(toml_providers: ConfigProvidersContext, environment: Any) -> None:
@@ -328,8 +327,7 @@ def test_trace_schema() -> None:
     os.environ["API_TYPE"] = "REST"
     os.environ["SOURCES__MANY_HINTS__CREDENTIALS"] = "CREDS"
 
-    info = pipeline.run([many_hints(), github()])
-    info.raise_on_failed_jobs()
+    pipeline.run([many_hints(), github()])
 
     trace = pipeline.last_trace
     pipeline._schema_storage.storage.save("trace.json", json.dumps(trace, pretty=True))
@@ -338,8 +336,7 @@ def test_trace_schema() -> None:
     trace_pipeline = dlt.pipeline(
         pipeline_name="test_trace_schema_traces", destination=dummy(completed_prob=1.0)
     )
-    info = trace_pipeline.run([trace], table_name="trace", schema=schema)
-    info.raise_on_failed_jobs()
+    trace_pipeline.run([trace], table_name="trace", schema=schema)
 
     # add exception trace
     with pytest.raises(PipelineStepFailed):
@@ -350,8 +347,7 @@ def test_trace_schema() -> None:
         "trace_exception.json", json.dumps(trace_exception, pretty=True)
     )
 
-    info = trace_pipeline.run([trace_exception], table_name="trace")
-    info.raise_on_failed_jobs()
+    trace_pipeline.run([trace_exception], table_name="trace")
     inferred_trace_contract = trace_pipeline.schemas["trace"]
     inferred_contract_str = inferred_trace_contract.to_pretty_yaml(remove_processing_hints=True)
 
@@ -373,7 +369,7 @@ def test_trace_schema() -> None:
     contract_trace_pipeline = dlt.pipeline(
         pipeline_name="test_trace_schema_traces_contract", destination=dummy(completed_prob=1.0)
     )
-    info = contract_trace_pipeline.run(
+    contract_trace_pipeline.run(
         [trace_exception, trace],
         table_name="trace",
         schema=trace_contract,
@@ -517,6 +513,8 @@ def test_trace_telemetry() -> None:
         SENTRY_SENT_ITEMS.clear()
         # make dummy fail all files
         os.environ["FAIL_PROB"] = "1.0"
+        # but do not raise exceptions
+        os.environ["RAISE_ON_FAILED_JOBS"] = "false"
         load_info = dlt.pipeline().run(
             [1, 2, 3], table_name="data", destination="dummy", dataset_name="data_data"
         )
@@ -694,7 +692,6 @@ def assert_trace_serializable(trace: PipelineTrace) -> None:
     from dlt.destinations import duckdb
 
     trace_pipeline = dlt.pipeline("trace", destination=duckdb(":pipeline:")).drop()
-    load_info = trace_pipeline.run([trace], table_name="trace_data")
-    load_info.raise_on_failed_jobs()
+    trace_pipeline.run([trace], table_name="trace_data")
 
     # print(trace_pipeline.default_schema.to_pretty_yaml())

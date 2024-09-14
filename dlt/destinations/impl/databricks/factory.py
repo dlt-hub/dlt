@@ -21,7 +21,7 @@ if t.TYPE_CHECKING:
 
 class DatabricksTypeMapper(TypeMapperImpl):
     sct_to_unbound_dbt = {
-        "complex": "STRING",  # Databricks supports complex types like ARRAY
+        "json": "STRING",  # Json type stored as string
         "text": "STRING",
         "double": "DOUBLE",
         "bool": "BOOLEAN",
@@ -62,7 +62,7 @@ class DatabricksTypeMapper(TypeMapperImpl):
             "decimal",
             "wei",
             "binary",
-            "complex",
+            "json",
             "date",
         }:
             raise TerminalValueError("", column["data_type"])

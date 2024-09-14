@@ -38,7 +38,6 @@ from tests.load.utils import (
     drop_active_pipeline_data,
     TABLE_UPDATE,
     sequence_generator,
-    empty_schema,
 )
 
 # mark all tests as essential, do not remove
@@ -1020,8 +1019,7 @@ def test_adapter_additional_table_hints_table_description_with_alter_table(
         dlt.resource([{"col2": "ABC"}], name="hints"),
         table_description="Once upon a time a small table got hinted twice.",
     )
-    info = pipeline.run(mod_hints)
-    info.raise_on_failed_jobs()
+    pipeline.run(mod_hints)
     assert pipeline.last_trace.last_normalize_info.row_counts["hints"] == 1
 
     with pipeline.sql_client() as c:

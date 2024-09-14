@@ -105,21 +105,24 @@ Table schema is extended by data normalizer. Standard data normalizer adds propa
 A column schema contains following properties:
 
 1. `name` and `description` of a column in a table.
+
 1. `data_type` with a column data type.
 1. `precision` a precision for **text**, **timestamp**, **time**, **bigint**, **binary**, and **decimal** types
 1. `scale` a scale for **decimal** type
+1. `timezone` a flag indicating TZ aware or NTZ **timestamp** and **time**. Default value is **true**
+1. `nullable` tells if column is nullable or not.
 1. `is_variant` telling that column was generated as variant of another column.
 
 A column schema contains following basic hints:
 
-1. `nullable` tells if column is nullable or not.
 1. `primary_key` marks a column as a part of primary key.
-1. `merge_key` marks a column as a part of merge key used by
-   [incremental load](./incremental-loading.md#merge-incremental_loading).
-1. `foreign_key` marks a column as a part of foreign key.
+1. `row_key` a special for of primary key created by `dlt` to identify particular rows and link nested tables
+1. `parent_key` a special form of foreign key used by nested tables to refer to parent tables
 1. `root_key` marks a column as a part of root key which is a type of foreign key always referring to the
    root table.
 1. `unique` tells that column is unique. on some destination that generates unique index.
+1. `merge_key` marks a column as a part of merge key used by
+   [incremental load](./incremental-loading.md#merge-incremental_loading).
 
 `dlt` lets you define additional performance hints:
 
@@ -190,7 +193,7 @@ Now go ahead and try to add a new record where `id` is float number, you should 
 | time          | `'14:01:02'`, `datetime.time(14, 1, 2)`             | Supports precision - see **timestamp**                  |
 | bigint        | `9876543210`                                        | Supports precision as number of bits                    |
 | binary        | `b'\x00\x01\x02\x03'`                               | Supports precision, like **text**                       |
-| complex       | `[4, 5, 6]`, `{'a': 1}`                             |                                                         |
+| json          | `[4, 5, 6]`, `{'a': 1}`                             |                                                         |
 | decimal       | `Decimal('4.56')`                                   | Supports precision and scale                            |
 | wei           | `2**56`                                             |                                                         |
 
@@ -198,8 +201,8 @@ Now go ahead and try to add a new record where `id` is float number, you should 
 decimals. It works correctly on Postgres and BigQuery. All the other destinations have insufficient
 precision.
 
-`complex` data type tells `dlt` to load that element as JSON or struct and do not attempt to flatten
-or create a child table out of it.
+`json` data type tells `dlt` to load that element as JSON or string and do not attempt to flatten
+or create a child table out of it. Note that structured types like arrays or maps are not supported by `dlt` at this point.
 
 `time` data type is saved in destination without timezone info, if timezone is included it is stripped. E.g. `'14:01:02+02:00` -> `'14:01:02'`.
 
@@ -260,7 +263,9 @@ of columns added by normalizer:
 ```yaml
 settings:
   default_hints:
-    foreign_key:
+    row_key:
+      - _dlt_id
+    parent_key:
       - _dlt_parent_id
     not_null:
       - _dlt_id
@@ -334,14 +339,14 @@ This code snippet sets up a nullable boolean column named `my_column` directly i
 #### Using `apply_hints`
 When dealing with dynamically generated resources or needing to programmatically set hints, `apply_hints` is your tool. It's especially useful for applying hints across various collections or tables at once.
 
-For example, to apply a complex data type across all collections from a MongoDB source:
+For example, to apply a `json` data type across all collections from a MongoDB source:
 
 ```py
 all_collections = ["collection1", "collection2", "collection3"]  # replace with your actual collection names
 source_data = mongodb().with_resources(*all_collections)
 
 for col in all_collections:
-    source_data.resources[col].apply_hints(columns={"column_name": {"data_type": "complex"}})
+    source_data.resources[col].apply_hints(columns={"column_name": {"data_type": "json"}})
 
 pipeline = dlt.pipeline(
     pipeline_name="mongodb_pipeline",
@@ -350,7 +355,7 @@ pipeline = dlt.pipeline(
 )
 load_info = pipeline.run(source_data)
 ```
-This example iterates through MongoDB collections, applying the complex [data type](schema#data-types) to a specified column, and then processes the data with `pipeline.run`.
+This example iterates through MongoDB collections, applying the **json** [data type](schema#data-types) to a specified column, and then processes the data with `pipeline.run`.
 
 ## View and print the schema
 To view and print the default schema in a clear YAML format use the command:
@@ -363,8 +368,8 @@ This can be used in a pipeline as:
 ```py
 # Create a pipeline
 pipeline = dlt.pipeline(
-               pipeline_name="chess_pipeline", 
-               destination='duckdb', 
+               pipeline_name="chess_pipeline",
+               destination='duckdb',
                dataset_name="games_data")
 
 # Run the pipeline

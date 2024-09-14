@@ -21,7 +21,7 @@ if t.TYPE_CHECKING:
 class SnowflakeTypeMapper(TypeMapperImpl):
     BIGINT_PRECISION = 19
     sct_to_unbound_dbt = {
-        "complex": "VARIANT",
+        "json": "VARIANT",
         "text": "VARCHAR",
         "double": "FLOAT",
         "bool": "BOOLEAN",
@@ -47,7 +47,7 @@ class SnowflakeTypeMapper(TypeMapperImpl):
         "DATE": "date",
         "TIMESTAMP_TZ": "timestamp",
         "BINARY": "binary",
-        "VARIANT": "complex",
+        "VARIANT": "json",
         "TIME": "time",
     }
 
