@@ -636,7 +636,10 @@ def test_pipeline_load_parquet(destination_config: DestinationTestConfiguration)
     assert_load_info(info)
     # make sure it was parquet or sql inserts
     files = p.get_load_package_info(p.list_completed_load_packages()[1]).jobs["completed_jobs"]
-    if destination_config.destination == "athena" and destination_config.table_format == "iceberg":
+    if (
+        destination_config.destination_type == "athena"
+        and destination_config.table_format == "iceberg"
+    ):
         # iceberg uses sql to copy tables
         expected_formats.append("sql")
     assert all(f.job_file_info.file_format in expected_formats for f in files)
@@ -681,12 +684,18 @@ def _get_shuffled_events(shuffle: bool = dlt.secrets.value):
 
 
 @pytest.mark.parametrize(
-    "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
+    "destination_config",
+    destinations_configs(default_sql_configs=True),
+    ids=lambda x: x.name,
 )
 @pytest.mark.parametrize("github_resource", [github_repo_events, github_repo_events_table_meta])
 def test_merge_with_dispatch_and_incremental(
     destination_config: DestinationTestConfiguration, github_resource: DltResource
 ) -> None:
+    if destination_config.destination_name == "sqlalchemy_mysql":
+        # TODO: Github events have too many columns for MySQL
+        pytest.skip("MySQL can't handle too many columns")
+
     newest_issues = list(
         sorted(_get_shuffled_events(True), key=lambda x: x["created_at"], reverse=True)
     )
@@ -1258,7 +1267,7 @@ def test_dedup_sort_hint(destination_config: DestinationTestConfiguration) -> No
     assert sorted(observed, key=lambda d: d["id"]) == expected
 
     # additional tests with two records, run only on duckdb to limit test load
-    if destination_config.destination == "duckdb":
+    if destination_config.destination_type == "duckdb":
         # two records with same primary key
         # record with highest value in sort column is a delete
         # existing record is deleted and no record will be inserted
@@ -1339,7 +1348,7 @@ def test_merge_strategy_config() -> None:
     ids=lambda x: x.name,
 )
 def test_upsert_merge_strategy_config(destination_config: DestinationTestConfiguration) -> None:
-    if destination_config.destination == "filesystem":
+    if destination_config.destination_type == "filesystem":
         # TODO: implement validation and remove this test exception
         pytest.skip(
             "`upsert` merge strategy configuration validation has not yet been"

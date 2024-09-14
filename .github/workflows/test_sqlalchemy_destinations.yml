@@ -1,7 +1,7 @@
 # Tests destinations that can run without credentials.
 # i.e. local postgres, duckdb, filesystem (with local fs/memory bucket)
 
-name: dest | postgres, duckdb and fs
+name: dest | sqlalchemy mysql and sqlite
 
 on:
   pull_request:
@@ -21,11 +21,8 @@ env:
   RUNTIME__SENTRY_DSN: https://6f6f7b6f8e0f458a89be4187603b55fe@o1061158.ingest.sentry.io/4504819859914752
   RUNTIME__LOG_LEVEL: ERROR
   RUNTIME__DLTHUB_TELEMETRY_ENDPOINT: ${{ secrets.RUNTIME__DLTHUB_TELEMETRY_ENDPOINT }}
-  ACTIVE_DESTINATIONS: "[\"duckdb\", \"postgres\", \"filesystem\", \"weaviate\", \"qdrant\"]"
+  ACTIVE_DESTINATIONS: "[\"sqlalchemy\"]"
   ALL_FILESYSTEM_DRIVERS: "[\"memory\", \"file\"]"
-
-  DESTINATION__WEAVIATE__VECTORIZER: text2vec-contextionary
-  DESTINATION__WEAVIATE__MODULE_CONFIG: "{\"text2vec-contextionary\": {\"vectorizeClassName\": false, \"vectorizePropertyName\": true}}"
 
 jobs:
   get_docs_changes:
@@ -33,11 +30,14 @@ jobs:
     uses: ./.github/workflows/get_docs_changes.yml
 
   run_loader:
-    name: dest | postgres, duckdb and fs local tests
+    name: dest | sqlalchemy mysql and sqlite
     needs: get_docs_changes
     if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
     strategy:
       fail-fast: false
+      # Run on sqlalchemy 1.4 and 2.0
+      matrix:
+        sqlalchemy: [1.4, 2]
     defaults:
       run:
         shell: bash
@@ -46,34 +46,25 @@ jobs:
     # Service containers to run with `container-job`
     services:
       # Label used to access the service container
-      postgres:
-        # Docker Hub image
-        image: postgres
-        # Provide the password for postgres
+      mysql:
+        image: mysql:8
         env:
-          POSTGRES_DB: dlt_data
-          POSTGRES_USER: loader
-          POSTGRES_PASSWORD: loader
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: dlt_data
+          MYSQL_USER: loader
+          MYSQL_PASSWORD: loader
         ports:
-          - 5432:5432
-        # Set health checks to wait until postgres has started
+          - 3306:3306
+        # Wait for the service to be ready before completing the job
         options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
-      qdrant:
-        image: qdrant/qdrant:v1.8.4
-        ports:
-          - 6333:6333
+          --health-cmd="mysqladmin ping -h localhost -u root -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
 
     steps:
       - name: Check out
         uses: actions/checkout@master
-
-      - name: Start weaviate
-        run: docker compose -f ".github/weaviate-compose.yml" up -d
 
       - name: Setup Python
         uses: actions/setup-python@v4
@@ -95,16 +86,14 @@ jobs:
           key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}-local-destinations
 
       - name: Install dependencies
-        run: poetry install --no-interaction -E postgres -E duckdb -E parquet -E filesystem -E cli -E weaviate -E qdrant --with sentry-sdk --with pipeline -E deltalake
+        run: poetry install --no-interaction -E parquet -E filesystem -E sqlalchemy -E cli --with sentry-sdk --with pipeline && poetry run pip install mysqlclient && poetry run pip install "sqlalchemy==${{ matrix.sqlalchemy }}"
+
+      - name: create secrets.toml
+        run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
 
       # always run full suite, also on branches
-      - run: poetry run pytest tests/load --ignore tests/load/sources && poetry run pytest tests/cli
+      - run: poetry run pytest tests/load -x --ignore tests/load/sources
         name: Run tests Linux
         env:
-          DESTINATION__POSTGRES__CREDENTIALS: postgresql://loader:loader@localhost:5432/dlt_data
-          DESTINATION__QDRANT__CREDENTIALS__location: http://localhost:6333
-
-
-      - name: Stop weaviate
-        if: always()
-        run: docker compose -f ".github/weaviate-compose.yml" down -v
+          DESTINATION__SQLALCHEMY_MYSQL__CREDENTIALS: mysql://root:root@127.0.0.1:3306/dlt_data  # Use root cause we need to create databases
+          DESTINATION__SQLALCHEMY_SQLITE__CREDENTIALS: sqlite:///_storage/dl_data.sqlite
