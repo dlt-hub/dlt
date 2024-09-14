@@ -9,6 +9,7 @@ import dlt
 
 from dlt.common import json, pendulum
 from dlt.common.configuration.container import Container
+from dlt.common.destination.utils import resolve_merge_strategy
 from dlt.common.pipeline import StateInjectableContext
 from dlt.common.schema.utils import has_table_seen_data
 from dlt.common.schema.exceptions import (
@@ -46,6 +47,7 @@ def skip_if_not_supported(
     merge_strategy: TLoaderMergeStrategy,
     destination: TDestination,
 ) -> None:
+    # resolve_merge_strategy
     if merge_strategy not in destination.capabilities().supported_merge_strategies:
         pytest.skip(
             f"`{merge_strategy}` merge strategy not supported for `{destination.destination_name}`"
@@ -70,6 +72,7 @@ def test_merge_on_keys_in_schema(
     destination_config: DestinationTestConfiguration,
     merge_strategy: TLoaderMergeStrategy,
 ) -> None:
+    """Tests merge disposition on an annotated schema, no annotations on resource"""
     p = destination_config.setup_pipeline("eth_2", dev_mode=True)
 
     skip_if_not_supported(merge_strategy, p.destination)
@@ -257,6 +260,143 @@ def test_merge_record_updates(
         [
             {"baz": 2},
             {"baz": 1},
+        ],
+    )
+
+
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True,
+        local_filesystem_configs=True,
+        table_format_filesystem_configs=True,
+        supports_merge=True,
+        bucket_subset=(FILE_BUCKET),
+    ),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize("merge_strategy", ("delete-insert", "upsert"))
+def test_merge_nested_records_inserted_deleted(
+    destination_config: DestinationTestConfiguration,
+    merge_strategy: TLoaderMergeStrategy,
+) -> None:
+    p = destination_config.setup_pipeline(
+        "test_merge_nested_records_inserted_deleted", dev_mode=True
+    )
+
+    skip_if_not_supported(merge_strategy, p.destination)
+
+    @dlt.resource(
+        table_name="parent",
+        write_disposition={"disposition": "merge", "strategy": merge_strategy},
+        primary_key="id",
+        merge_key="foo",
+    )
+    def r(data):
+        yield data
+
+    # initial load
+    run_1 = [
+        {"id": 1, "foo": 1, "child": [{"bar": 1, "grandchild": [{"baz": 1}]}]},
+        {"id": 2, "foo": 1, "child": [{"bar": 1, "grandchild": [{"baz": 1}]}]},
+        {"id": 3, "foo": 1, "child": [{"bar": 3, "grandchild": [{"baz": 1}]}]},
+    ]
+    info = p.run(r(run_1), **destination_config.run_kwargs)
+    assert_load_info(info)
+    assert load_table_counts(p, "parent", "parent__child", "parent__child__grandchild") == {
+        "parent": 3,
+        "parent__child": 3,
+        "parent__child__grandchild": 3,
+    }
+    tables = load_tables_to_dicts(p, "parent", exclude_system_cols=True)
+    assert_records_as_set(
+        tables["parent"],
+        [
+            {"id": 1, "foo": 1},
+            {"id": 2, "foo": 1},
+            {"id": 3, "foo": 1},
+        ],
+    )
+
+    # delete records — delete parent (id 3), child (id 2) and grandchild (id 1)
+    # foo is merge key, should delete id = 3
+    run_3 = [
+        {"id": 1, "foo": 1, "child": [{"bar": 2}]},
+        {"id": 2, "foo": 1},
+    ]
+    info = p.run(r(run_3), **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    table_counts = load_table_counts(p, "parent", "parent__child", "parent__child__grandchild")
+    table_data = load_tables_to_dicts(p, "parent", "parent__child", exclude_system_cols=True)
+    if merge_strategy == "upsert":
+        # merge keys will not apply and parent will not be deleted
+        if destination_config.table_format == "delta":
+            # delta merges cannot delete from nested tables
+            assert table_counts == {
+                "parent": 3,  # id == 3 not deleted (not present in the data)
+                "parent__child": 3,  # child not deleted
+                "parent__child__grandchild": 3,  # grand child not deleted,
+            }
+        else:
+            assert table_counts == {
+                "parent": 3,  # id == 3 not deleted (not present in the data)
+                "parent__child": 2,
+                "parent__child__grandchild": 1,
+            }
+            assert_records_as_set(
+                table_data["parent__child"],
+                [
+                    {"bar": 2},  # id 1 updated to bar
+                    {"bar": 3},  # id 3 not deleted
+                ],
+            )
+    else:
+        assert table_counts == {
+            "parent": 2,
+            "parent__child": 1,
+            "parent__child__grandchild": 0,
+        }
+        assert_records_as_set(
+            table_data["parent__child"],
+            [
+                {"bar": 2},
+            ],
+        )
+
+    # insert records id 3 inserted back, id 2 added child, id 1 added grandchild
+    run_3 = [
+        {"id": 1, "foo": 1, "child": [{"bar": 1, "grandchild": [{"baz": 1}, {"baz": 4}]}]},
+        {"id": 2, "foo": 1, "child": [{"bar": 2, "grandchild": [{"baz": 2}]}, {"bar": 4}]},
+        {"id": 3, "foo": 1, "child": [{"bar": 3, "grandchild": [{"baz": 3}]}]},
+    ]
+    info = p.run(r(run_3), **destination_config.run_kwargs)
+    assert_load_info(info)
+    assert load_table_counts(p, "parent", "parent__child", "parent__child__grandchild") == {
+        "parent": 3,
+        "parent__child": 4,
+        "parent__child__grandchild": 4,
+    }
+    tables = load_tables_to_dicts(
+        p, "parent__child", "parent__child__grandchild", exclude_system_cols=True
+    )
+    assert_records_as_set(
+        tables["parent__child__grandchild"],
+        [
+            {"baz": 2},
+            {"baz": 1},
+            {"baz": 3},
+            {"baz": 4},
+        ],
+    )
+    assert_records_as_set(
+        tables["parent__child"],
+        [
+            {"bar": 2},
+            {"bar": 1},
+            {"bar": 3},
+            {"bar": 4},
         ],
     )
 
@@ -496,7 +636,10 @@ def test_pipeline_load_parquet(destination_config: DestinationTestConfiguration)
     assert_load_info(info)
     # make sure it was parquet or sql inserts
     files = p.get_load_package_info(p.list_completed_load_packages()[1]).jobs["completed_jobs"]
-    if destination_config.destination == "athena" and destination_config.table_format == "iceberg":
+    if (
+        destination_config.destination_type == "athena"
+        and destination_config.table_format == "iceberg"
+    ):
         # iceberg uses sql to copy tables
         expected_formats.append("sql")
     assert all(f.job_file_info.file_format in expected_formats for f in files)
@@ -541,12 +684,18 @@ def _get_shuffled_events(shuffle: bool = dlt.secrets.value):
 
 
 @pytest.mark.parametrize(
-    "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
+    "destination_config",
+    destinations_configs(default_sql_configs=True),
+    ids=lambda x: x.name,
 )
 @pytest.mark.parametrize("github_resource", [github_repo_events, github_repo_events_table_meta])
 def test_merge_with_dispatch_and_incremental(
     destination_config: DestinationTestConfiguration, github_resource: DltResource
 ) -> None:
+    if destination_config.destination_name == "sqlalchemy_mysql":
+        # TODO: Github events have too many columns for MySQL
+        pytest.skip("MySQL can't handle too many columns")
+
     newest_issues = list(
         sorted(_get_shuffled_events(True), key=lambda x: x["created_at"], reverse=True)
     )
@@ -1118,7 +1267,7 @@ def test_dedup_sort_hint(destination_config: DestinationTestConfiguration) -> No
     assert sorted(observed, key=lambda d: d["id"]) == expected
 
     # additional tests with two records, run only on duckdb to limit test load
-    if destination_config.destination == "duckdb":
+    if destination_config.destination_type == "duckdb":
         # two records with same primary key
         # record with highest value in sort column is a delete
         # existing record is deleted and no record will be inserted
@@ -1199,7 +1348,7 @@ def test_merge_strategy_config() -> None:
     ids=lambda x: x.name,
 )
 def test_upsert_merge_strategy_config(destination_config: DestinationTestConfiguration) -> None:
-    if destination_config.destination == "filesystem":
+    if destination_config.destination_type == "filesystem":
         # TODO: implement validation and remove this test exception
         pytest.skip(
             "`upsert` merge strategy configuration validation has not yet been"

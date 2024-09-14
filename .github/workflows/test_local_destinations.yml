@@ -104,6 +104,7 @@ jobs:
           DESTINATION__POSTGRES__CREDENTIALS: postgresql://loader:loader@localhost:5432/dlt_data
           DESTINATION__QDRANT__CREDENTIALS__location: http://localhost:6333
 
+
       - name: Stop weaviate
         if: always()
         run: docker compose -f ".github/weaviate-compose.yml" down -v

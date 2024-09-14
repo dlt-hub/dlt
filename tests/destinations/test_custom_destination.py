@@ -186,6 +186,19 @@ def test_instantiation() -> None:
     # local func does not create entry in destinations
     assert "local_sink_func" not in _DESTINATIONS
 
+    def local_sink_func_no_params(items: TDataItems, table: TTableSchema) -> None:
+        # consume data
+        pass
+
+    p = dlt.pipeline(
+        "sink_test",
+        destination=Destination.from_reference(
+            "destination", destination_callable=local_sink_func_no_params
+        ),
+        dev_mode=True,
+    )
+    p.run([1, 2, 3], table_name="items")
+
     # test passing string reference
     global global_calls
     global_calls = []
