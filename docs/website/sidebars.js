@@ -45,7 +45,7 @@ const sidebars = {
     },
     {
       type: 'category',
-      label: 'Core Concepts',
+      label: 'Core concepts',
       items: [
         'reference/explainers/how-dlt-works',
         'general-usage/source',
@@ -71,18 +71,18 @@ const sidebars = {
         'dlt-ecosystem/verified-sources/chess',
         'dlt-ecosystem/verified-sources/facebook_ads',
         {
-              type: 'category',
-              label: 'Filesystem & buckets',
-              description: 'AWS S3, GCP, Azure, local files',
-               link: {
-                type: 'doc',
-                id: 'dlt-ecosystem/verified-sources/filesystem/index',
-              },
-              items: [
-                'dlt-ecosystem/verified-sources/filesystem/basic',
-                'dlt-ecosystem/verified-sources/filesystem/advanced',
-              ]
-            },
+          type: 'category',
+          label: 'Filesystem & cloud storage',
+          description: 'AWS S3, Google Cloud Storage, Azure Blob Storage, local file system',
+            link: {
+            type: 'doc',
+            id: 'dlt-ecosystem/verified-sources/filesystem/index',
+          },
+          items: [
+            'dlt-ecosystem/verified-sources/filesystem/basic',
+            'dlt-ecosystem/verified-sources/filesystem/advanced',
+          ]
+        },
         'dlt-ecosystem/verified-sources/freshdesk',
         'dlt-ecosystem/verified-sources/github',
         'dlt-ecosystem/verified-sources/google_ads',
@@ -136,7 +136,20 @@ const sidebars = {
         'dlt-ecosystem/verified-sources/strapi',
         'dlt-ecosystem/verified-sources/stripe',
         'dlt-ecosystem/verified-sources/workable',
-        'dlt-ecosystem/verified-sources/zendesk'
+        'dlt-ecosystem/verified-sources/zendesk',
+        {
+          type: 'category',
+          label: 'REST API helpers',
+          link: {
+            type: 'doc',
+            id: 'general-usage/http/overview',
+          },
+          items: [
+            'general-usage/http/rest-client',
+            'general-usage/http/requests',
+          ]
+        },
+        'walkthroughs/add-a-verified-source',
       ]
     },
     {
@@ -164,16 +177,15 @@ const sidebars = {
         'dlt-ecosystem/destinations/dremio',
         'dlt-ecosystem/destinations/destination',
         'dlt-ecosystem/destinations/motherduck',
-        //added
         'walkthroughs/create-new-destination'
       ]
     },
-     {
+    {
       type: 'category',
-      label: 'Core concepts',
+      label: 'Using dlt',
       link: {
         type: 'generated-index',
-        title: 'Core concepts',
+        title: 'Using dlt',
         slug: 'general-usage',
         keywords: ['concepts', 'usage'],
       },
@@ -207,7 +219,7 @@ const sidebars = {
             'general-usage/customising-pipelines/removing_columns'
           ]
         },
-         {
+        {
           type: 'category',
           label: 'Configuration and secrets',
            link: {
@@ -311,14 +323,13 @@ const sidebars = {
       link: {
         type: 'generated-index',
         title: 'Reference',
-        description: 'The dlthub reference. Learn more about the dlt, CLI, and the telemetry.',
+        description: 'Learn more about the dlt, CLI, and the telemetry.',
         slug: 'reference',
         keywords: ['reference'],
       },
       items: [
         'reference/command-line-interface',
         'reference/telemetry',
-        'reference/frequently-asked-questions',
         // Unsure item
         'general-usage/destination-tables',
         'general-usage/naming-convention',
@@ -340,8 +351,10 @@ const sidebars = {
             'dlt-ecosystem/file-formats/insert-format',
           ]
         },
+        'reference/frequently-asked-questions',
       ],
     },
+    /*
     {
       type: 'category',
       label: 'How-to guides',
@@ -353,23 +366,6 @@ const sidebars = {
         keywords: ['how-to'],
       },
       items: [
-        'walkthroughs/create-a-pipeline',
-        'walkthroughs/add-a-verified-source',
-        'walkthroughs/add-incremental-configuration',
-        'walkthroughs/add_credentials',
-        'walkthroughs/run-a-pipeline',
-        'walkthroughs/adjust-a-schema',
-        'walkthroughs/share-a-dataset',
-        'dlt-ecosystem/visualizations/exploring-the-data',
-        {
-          type: 'category',
-          label: 'Customise pipelines',
-          items: [
-            'general-usage/customising-pipelines/renaming_columns',
-            'general-usage/customising-pipelines/pseudonymizing_columns',
-            'general-usage/customising-pipelines/removing_columns',
-          ]
-        },
         {
           type: 'category',
           label: 'Data enrichments',
@@ -378,9 +374,10 @@ const sidebars = {
             'general-usage/data-enrichments/currency_conversion_data_enrichment',
             'general-usage/data-enrichments/url-parser-data-enrichment'
           ]
-        } 
+        }
       ]
-    }  
+    }
+    */
   ]
 };
 
