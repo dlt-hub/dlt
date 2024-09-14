@@ -269,7 +269,7 @@ bucket_url='\\?\UNC\localhost\c$\a\b\c'
 :::
 
 ### SFTP
-Run `pip install "dlt[paramiko]` which will install the `paramiko` package alongside `dlt`, enabling secure SFTP transfers.
+Run `pip install "dlt[sftp]` which will install the `paramiko` package alongside `dlt`, enabling secure SFTP transfers.
 
 Configure your SFTP credentials by editing the `.dlt/secrets.toml` file. By default, the file contains placeholders for AWS credentials. You should replace these with your SFTP credentials.
 
