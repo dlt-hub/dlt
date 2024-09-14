@@ -194,9 +194,10 @@ def test_replace_write_disposition(layout: str, default_buckets_env: str) -> Non
 
             # First file from load1 remains, second file is replaced by load2
             # assert that only these two files are in the destination folder
+            is_sftp = urlparse(default_buckets_env).scheme == "sftp"
             paths = []
             for basedir, _dirs, files in client.fs_client.walk(
-                client.dataset_path, detail=False, refresh=True
+                client.dataset_path, detail=False, **({"refresh": True} if not is_sftp else {})
             ):
                 # remove internal paths
                 if "_dlt" in basedir:
@@ -257,9 +258,10 @@ def test_append_write_disposition(layout: str, default_buckets_env: str) -> None
             ]
             expected_files = sorted([Path(posixpath.join(root_path, fn)) for fn in expected_files])  # type: ignore[misc]
 
+            is_sftp = urlparse(default_buckets_env).scheme == "sftp"
             paths = []
             for basedir, _dirs, files in client.fs_client.walk(
-                client.dataset_path, detail=False, refresh=True
+                client.dataset_path, detail=False, **({"refresh": True} if not is_sftp else {})
             ):
                 # remove internal paths
                 if "_dlt" in basedir:
