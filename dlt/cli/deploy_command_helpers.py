@@ -14,8 +14,9 @@ import cron_descriptor
 import dlt
 
 from dlt.common import git
-from dlt.common.configuration.exceptions import LookupTrace
+from dlt.common.configuration.exceptions import LookupTrace, ConfigFieldMissingException
 from dlt.common.configuration.providers import ConfigTomlProvider, EnvironProvider
+from dlt.common.configuration.providers.toml import BaseDocProvider, StringTomlProvider
 from dlt.common.git import get_origin, get_repo, Repo
 from dlt.common.configuration.specs.run_configuration import get_default_pipeline_name
 from dlt.common.typing import StrAny
@@ -198,12 +199,50 @@ class BaseDeployment(abc.ABC):
                     # fmt.echo(f"{resolved_value.key} in {resolved_value.sections} moved to CONFIG")
 
     def _echo_secrets(self) -> None:
+        display_info = False
         for s_v in self.secret_envs:
             fmt.secho("Name:", fg="green")
             fmt.echo(fmt.bold(self.env_prov.get_key_name(s_v.key, *s_v.sections)))
-            fmt.secho("Secret:", fg="green")
-            fmt.echo(s_v.value)
+            try:
+                fmt.secho("Secret:", fg="green")
+                fmt.echo(self._lookup_secret_value(s_v))
+            except ConfigFieldMissingException:
+                fmt.secho("please set me up!", fg="red")
+                display_info = True
             fmt.echo()
+        if display_info:
+            self._display_missing_secret_info()
+            fmt.echo()
+
+    def _echo_secrets_toml(self) -> None:
+        display_info = False
+        toml_provider = StringTomlProvider("")
+        for s_v in self.secret_envs:
+            try:
+                secret_value = self._lookup_secret_value(s_v)
+            except ConfigFieldMissingException:
+                secret_value = "please set me up!"
+                display_info = True
+            toml_provider.set_value(s_v.key, secret_value, None, *s_v.sections)
+        for s_v in self.envs:
+            toml_provider.set_value(s_v.key, s_v.value, None, *s_v.sections)
+        fmt.echo(toml_provider.dumps())
+        if display_info:
+            self._display_missing_secret_info()
+            fmt.echo()
+
+    def _display_missing_secret_info(self) -> None:
+        fmt.warning(
+            "We could not read and display some secrets. Starting from 1.0 version of dlt,"
+            " those are not stored in the traces. Instead we are trying to read them from the"
+            " available configuration ie. secrets.toml file. Please run the deploy command from"
+            " the same working directory you ran your pipeline script. If you pass the"
+            " credentials in code we will not be able to display them here. See"
+            " https://dlthub.com/docs/general-usage/credentials"
+        )
+
+    def _lookup_secret_value(self, trace: LookupTrace) -> Any:
+        return dlt.secrets[BaseDocProvider.get_key_name(trace.key, *trace.sections)]
 
     def _echo_envs(self) -> None:
         for v in self.envs:

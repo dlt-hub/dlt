@@ -617,13 +617,17 @@ def main() -> int:
     elif args.command == "deploy":
         try:
             deploy_args = vars(args)
-            return deploy_command_wrapper(
-                pipeline_script_path=deploy_args.pop("pipeline_script_path"),
-                deployment_method=deploy_args.pop("deployment_method"),
-                repo_location=deploy_args.pop("location"),
-                branch=deploy_args.pop("branch"),
-                **deploy_args,
-            )
+            if deploy_args.get("deployment_method") is None:
+                print_help(deploy_cmd)
+                return -1
+            else:
+                return deploy_command_wrapper(
+                    pipeline_script_path=deploy_args.pop("pipeline_script_path"),
+                    deployment_method=deploy_args.pop("deployment_method"),
+                    repo_location=deploy_args.pop("location"),
+                    branch=deploy_args.pop("branch"),
+                    **deploy_args,
+                )
         except (NameError, KeyError):
             fmt.warning(
                 "Please install additional command line dependencies to use deploy command:"

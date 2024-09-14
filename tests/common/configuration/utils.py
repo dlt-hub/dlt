@@ -20,15 +20,11 @@ from dlt.common import Decimal, pendulum
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration
 from dlt.common.configuration.container import Container
-from dlt.common.configuration.providers import (
-    ConfigProvider,
-    EnvironProvider,
-    ConfigTomlProvider,
-    SecretsTomlProvider,
-)
+from dlt.common.configuration.providers import ConfigProvider, EnvironProvider
 from dlt.common.configuration.utils import get_resolved_traces
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
 from dlt.common.typing import TSecretValue, StrAny
+from tests.utils import _reset_providers
 
 
 @configspec
@@ -118,14 +114,7 @@ def env_provider() -> Iterator[ConfigProvider]:
 
 @pytest.fixture
 def toml_providers() -> Iterator[ConfigProvidersContext]:
-    pipeline_root = "./tests/common/cases/configuration/.dlt"
-    ctx = ConfigProvidersContext()
-    ctx.providers.clear()
-    ctx.add_provider(EnvironProvider())
-    ctx.add_provider(SecretsTomlProvider(project_dir=pipeline_root))
-    ctx.add_provider(ConfigTomlProvider(project_dir=pipeline_root))
-    with Container().injectable_context(ctx):
-        yield ctx
+    yield from _reset_providers("./tests/common/cases/configuration/.dlt")
 
 
 class MockProvider(ConfigProvider):
