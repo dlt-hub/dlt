@@ -111,7 +111,9 @@ def test_fsspec_as_credentials():
 @pytest.mark.parametrize("bucket_url", TESTS_BUCKET_URLS)
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, all_buckets_filesystem_configs=True),
+    destinations_configs(
+        default_sql_configs=True, supports_merge=True, all_buckets_filesystem_configs=True
+    ),
     ids=lambda x: x.name,
 )
 def test_csv_transformers(
@@ -126,9 +128,11 @@ def test_csv_transformers(
 
     # print(pipeline.last_trace.last_normalize_info)
     # must contain 24 rows of A881
-    if not destination_config.destination == "filesystem":
+    if destination_config.destination_type != "filesystem":
+        with pipeline.sql_client() as client:
+            table_name = client.make_qualified_table_name("met_csv")
         # TODO: comment out when filesystem destination supports queries (data pond PR)
-        assert_query_data(pipeline, "SELECT code FROM met_csv", ["A881"] * 24)
+        assert_query_data(pipeline, f"SELECT code FROM {table_name}", ["A881"] * 24)
 
     # load the other folder that contains data for the same day + one other day
     # the previous data will be replaced
@@ -138,9 +142,11 @@ def test_csv_transformers(
     assert_load_info(load_info)
     # print(pipeline.last_trace.last_normalize_info)
     # must contain 48 rows of A803
-    if not destination_config.destination == "filesystem":
+    if destination_config.destination_type != "filesystem":
+        with pipeline.sql_client() as client:
+            table_name = client.make_qualified_table_name("met_csv")
         # TODO: comment out when filesystem destination supports queries (data pond PR)
-        assert_query_data(pipeline, "SELECT code FROM met_csv", ["A803"] * 48)
+        assert_query_data(pipeline, f"SELECT code FROM {table_name}", ["A803"] * 48)
         # and 48 rows in total -> A881 got replaced
         # print(pipeline.default_schema.to_pretty_yaml())
         assert load_table_counts(pipeline, "met_csv") == {"met_csv": 48}

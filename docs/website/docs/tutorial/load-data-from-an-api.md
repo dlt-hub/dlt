@@ -1,19 +1,106 @@
 ---
-title: Load data from an API
-description: quick start with dlt
+title: "Build a dlt pipeline"
+description: Build a data pipeline with dlt
 keywords: [getting started, quick start, basic examples]
 ---
 
-In this section, we will retrieve and load data from the GitHub API into [DuckDB](https://duckdb.org). Specifically, we will load issues from our [dlt-hub/dlt](https://github.com/dlt-hub/dlt) repository. We picked DuckDB as our destination because it is a lightweight, in-process database that is easy to set up and use.
+This tutorial introduces you to foundational dlt concepts, demonstrating how to build a custom data pipeline that loads data from pure Python data structures to DuckDB. It starts with a simple example and progresses to more advanced topics and usage scenarios.
 
-Before we start, make sure you have installed `dlt` with the DuckDB dependency:
+## What you will learn
+
+- Loading data from a list of Python dictionaries into DuckDB.
+- Low level API usage with built-in HTTP client.
+- Understand and manage data loading behaviors.
+- Incrementally load new data and deduplicate existing data.
+- Dynamic resource creation and reducing code redundancy.
+- Group resources into sources.
+- Securely handle secrets.
+- Make reusable data sources.
+
+## Prerequisites
+
+- Python 3.9 or higher installed
+- Virtual environment set up
+
+## Installing dlt
+
+Before we start, make sure you have a Python virtual environment set up. Follow the instructions in the [installation guide](../reference/installation) to create a new virtual environment and install dlt.
+
+Verify that dlt is installed by running the following command in your terminal:
 
 ```sh
-pip install "dlt[duckdb]"
+dlt --version
 ```
 
+## Quick start
+
+For starters, let's load a list of Python dictionaries into DuckDB and inspect the created dataset. Here is the code:
+
+```py
+import dlt
+
+data = [{"id": 1, "name": "Alice"}, {"id": 2, "name": "Bob"}]
+
+pipeline = dlt.pipeline(
+    pipeline_name="quick_start", destination="duckdb", dataset_name="mydata"
+)
+load_info = pipeline.run(data, table_name="users")
+
+print(load_info)
+```
+
+When you look at the code above, you can see that we:
+1. Import the `dlt` library.
+2. Define our data to load.
+3. Create a pipeline that loads data into DuckDB. Here we also specify the `pipeline_name` and `dataset_name`. We'll use both in a moment.
+4. Run the pipeline.
+
+Save this Python script with the name `quick_start_pipeline.py` and run the following command:
+
+```sh
+python quick_start_pipeline.py
+```
+
+The output should look like:
+
+```sh
+Pipeline quick_start completed in 0.59 seconds
+1 load package(s) were loaded to destination duckdb and into dataset mydata
+The duckdb destination used duckdb:////home/user-name/quick_start/quick_start.duckdb location to store data
+Load package 1692364844.460054 is LOADED and contains no failed jobs
+```
+
+`dlt` just created a database schema called **mydata** (the `dataset_name`) with a table **users** in it.
+
+### Explore the data
+
+To allow sneak peek and basic discovery you can take advantage of [built-in integration with Strealmit](reference/command-line-interface#show-tables-and-data-in-the-destination):
+
+```sh
+dlt pipeline quick_start show
+```
+
+**quick_start** is the name of the pipeline from the script above. If you do not have Streamlit installed yet do:
+
+```sh
+pip install streamlit
+```
+
+Now you should see the **users** table:
+
+![Streamlit Explore data](/img/streamlit-new.png)
+Streamlit Explore data. Schema and data for a test pipeline “quick_start”.
+
 :::tip
-Need help with this tutorial? Join our [Slack community](https://dlthub.com/community) for quick support.
+`dlt` works in Jupyter Notebook and Google Colab! See our [Quickstart Colab Demo.](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing)
+
+Looking for source code of all the snippets? You can find and run them [from this repository](https://github.com/dlt-hub/dlt/blob/devel/docs/website/docs/getting-started-snippets.py).
+:::
+
+Now that you have a basic understanding of how to get started with dlt, you might be eager to dive deeper. For that we need to switch to a more advanced data source - the GitHub API. We will load issues from our [dlt-hub/dlt](https://github.com/dlt-hub/dlt) repository.
+
+:::note
+This tutorial uses GitHub REST API for demonstration purposes only. If you need to read data from a REST API, consider using the dlt's REST API source. Check out the [REST API source tutorial](./rest-api) for quick start or [REST API source reference](../dlt-ecosystem/verified-sources/rest_api) for more details.
 :::
 
 ## Create a pipeline
@@ -197,16 +284,299 @@ Let's zoom in on the changes:
 2. `paginate()` takes the URL of the API endpoint and optional parameters. In this case, we pass the `since` parameter to get only issues updated after the last pipeline run.
 3. We're not explicitly setting up pagination, `paginate()` handles it for us. Magic! Under the hood, `paginate()` analyzes the response and detects the pagination method used by the API. Read more about pagination in the [REST client documentation](../general-usage/http/rest-client.md#paginating-api-responses).
 
-## Next steps
+If you want to take full advantage of the `dlt` library, then we strongly suggest that you build your sources out of existing building blocks:
+To make most of `dlt`, consider the following:
 
-Continue your journey with the [Resource Grouping and Secrets](grouping-resources) tutorial.
+## Use source decorator
 
-If you want to take full advantage of the `dlt` library, then we strongly suggest that you build your sources out of existing **building blocks:**
+In the previous step, we loaded issues from the GitHub API. Now we'll load comments from the API as well. Here's a sample [dlt resource](../general-usage/resource) that does that:
 
-- Pick your [destinations](../dlt-ecosystem/destinations/).
-- Check [verified sources](../dlt-ecosystem/verified-sources/) provided by us and community.
-- Access your data with [SQL](../dlt-ecosystem/transformations/sql) or [Pandas](../dlt-ecosystem/transformations/sql).
-- [Append, replace and merge your tables](../general-usage/incremental-loading).
-- [Set up "last value" incremental loading](../general-usage/incremental-loading#incremental_loading-with-last-value).
-- [Set primary and merge keys, define the columns nullability and data types](../general-usage/resource#define-schema).
-- [Use built-in requests client](../reference/performance#using-the-built-in-requests-client).
+```py
+import dlt
+from dlt.sources.helpers.rest_client import paginate
+
+@dlt.resource(
+    table_name="comments",
+    write_disposition="merge",
+    primary_key="id",
+)
+def get_comments(
+    updated_at = dlt.sources.incremental("updated_at", initial_value="1970-01-01T00:00:00Z")
+):
+    for page in paginate(
+        "https://api.github.com/repos/dlt-hub/dlt/comments",
+        params={"per_page": 100}
+    ):
+        yield page
+```
+
+We can load this resource separately from the issues resource, however loading both issues and comments in one go is more efficient. To do that, we'll use the `@dlt.source` decorator on a function that returns a list of resources:
+
+```py
+@dlt.source
+def github_source():
+    return [get_issues, get_comments]
+```
+
+`github_source()` groups resources into a [source](../general-usage/source). A dlt source is a logical grouping of resources. You use it to group resources that belong together, for example, to load data from the same API. Loading data from a source can be run in a single pipeline. Here's what our updated script looks like:
+
+```py
+import dlt
+from dlt.sources.helpers.rest_client import paginate
+
+@dlt.resource(
+    table_name="issues",
+    write_disposition="merge",
+    primary_key="id",
+)
+def get_issues(
+    updated_at = dlt.sources.incremental("updated_at", initial_value="1970-01-01T00:00:00Z")
+):
+    for page in paginate(
+        "https://api.github.com/repos/dlt-hub/dlt/issues",
+        params={
+            "since": updated_at.last_value,
+            "per_page": 100,
+            "sort": "updated",
+            "directions": "desc",
+            "state": "open",
+        }
+    ):
+        yield page
+
+
+@dlt.resource(
+    table_name="comments",
+    write_disposition="merge",
+    primary_key="id",
+)
+def get_comments(
+    updated_at = dlt.sources.incremental("updated_at", initial_value="1970-01-01T00:00:00Z")
+):
+    for page in paginate(
+        "https://api.github.com/repos/dlt-hub/dlt/comments",
+        params={
+            "since": updated_at.last_value,
+            "per_page": 100,
+        }
+    ):
+        yield page
+
+
+@dlt.source
+def github_source():
+    return [get_issues, get_comments]
+
+
+pipeline = dlt.pipeline(
+    pipeline_name='github_with_source',
+    destination='duckdb',
+    dataset_name='github_data',
+)
+
+load_info = pipeline.run(github_source())
+print(load_info)
+```
+
+### Dynamic resources
+
+You've noticed that there's a lot of code duplication in the `get_issues` and `get_comments` functions. We can reduce that by extracting the common fetching code into a separate function and use it in both resources. Even better, we can use `dlt.resource` as a function and pass it the `fetch_github_data()` generator function directly. Here's the refactored code:
+
+```py
+import dlt
+from dlt.sources.helpers.rest_client import paginate
+
+BASE_GITHUB_URL = "https://api.github.com/repos/dlt-hub/dlt"
+
+def fetch_github_data(endpoint, params={}):
+    url = f"{BASE_GITHUB_URL}/{endpoint}"
+    return paginate(url, params=params)
+
+@dlt.source
+def github_source():
+    for endpoint in ["issues", "comments"]:
+        params = {"per_page": 100}
+        yield dlt.resource(
+            fetch_github_data(endpoint, params),
+            name=endpoint,
+            write_disposition="merge",
+            primary_key="id",
+        )
+
+pipeline = dlt.pipeline(
+    pipeline_name='github_dynamic_source',
+    destination='duckdb',
+    dataset_name='github_data',
+)
+load_info = pipeline.run(github_source())
+row_counts = pipeline.last_trace.last_normalize_info
+```
+
+## Handle secrets
+
+For the next step we'd want to get the [number of repository clones](https://docs.github.com/en/rest/metrics/traffic?apiVersion=2022-11-28#get-repository-clones) for our dlt repo from the GitHub API. However, the `traffic/clones` endpoint that returns the data requires [authentication](https://docs.github.com/en/rest/overview/authenticating-to-the-rest-api?apiVersion=2022-11-28).
+
+Let's handle this by changing our `fetch_github_data()` first:
+
+```py
+from dlt.sources.helpers.rest_client.auth import BearerTokenAuth
+
+def fetch_github_data(endpoint, params={}, access_token=None):
+    url = f"{BASE_GITHUB_URL}/{endpoint}"
+    return paginate(
+        url,
+        params=params,
+        auth=BearerTokenAuth(token=access_token) if access_token else None,
+    )
+
+
+@dlt.source
+def github_source(access_token):
+    for endpoint in ["issues", "comments", "traffic/clones"]:
+        params = {"per_page": 100}
+        yield dlt.resource(
+            fetch_github_data(endpoint, params, access_token),
+            name=endpoint,
+            write_disposition="merge",
+            primary_key="id",
+        )
+
+...
+```
+
+Here, we added `access_token` parameter and now we can use it to pass the access token to the request:
+
+```py
+load_info = pipeline.run(github_source(access_token="ghp_XXXXX"))
+```
+
+It's a good start. But we'd want to follow the best practices and not hardcode the token in the script. One option is to set the token as an environment variable, load it with `os.getenv()` and pass it around as a parameter. dlt offers a more convenient way to handle secrets and credentials: it lets you inject the arguments using a special `dlt.secrets.value` argument value.
+
+To use it, change the `github_source()` function to:
+
+```py
+@dlt.source
+def github_source(
+    access_token: str = dlt.secrets.value,
+):
+    ...
+```
+
+When you add `dlt.secrets.value` as a default value for an argument, `dlt` will try to load and inject this value from different configuration sources in the following order:
+
+1. Special environment variables.
+2. `secrets.toml` file.
+
+The `secret.toml` file is located in the `~/.dlt` folder (for global configuration) or in the `.dlt` folder in the project folder (for project-specific configuration).
+
+Let's add the token to the `~/.dlt/secrets.toml` file:
+
+```toml
+[github_with_source_secrets]
+access_token = "ghp_A...3aRY"
+```
+
+Now we can run the script and it will load the data from the `traffic/clones` endpoint:
+
+```py
+...
+
+@dlt.source
+def github_source(
+    access_token: str = dlt.secrets.value,
+):
+    for endpoint in ["issues", "comments", "traffic/clones"]:
+        params = {"per_page": 100}
+        yield dlt.resource(
+            fetch_github_data(endpoint, params, access_token),
+            name=endpoint,
+            write_disposition="merge",
+            primary_key="id",
+        )
+
+
+pipeline = dlt.pipeline(
+    pipeline_name="github_with_source_secrets",
+    destination="duckdb",
+    dataset_name="github_data",
+)
+load_info = pipeline.run(github_source())
+```
+
+## Configurable sources
+
+The next step is to make our dlt GitHub source reusable so it can load data from any GitHub repo. We'll do that by changing both `github_source()` and `fetch_github_data()` functions to accept the repo name as a parameter:
+
+```py
+import dlt
+from dlt.sources.helpers.rest_client import paginate
+
+BASE_GITHUB_URL = "https://api.github.com/repos/{repo_name}"
+
+
+def fetch_github_data(repo_name, endpoint, params={}, access_token=None):
+    """Fetch data from GitHub API based on repo_name, endpoint, and params."""
+    url = BASE_GITHUB_URL.format(repo_name=repo_name) + f"/{endpoint}"
+    return paginate(
+        url,
+        params=params,
+        auth=BearerTokenAuth(token=access_token) if access_token else None,
+    )
+
+
+@dlt.source
+def github_source(
+    repo_name: str = dlt.config.value,
+    access_token: str = dlt.secrets.value,
+):
+    for endpoint in ["issues", "comments", "traffic/clones"]:
+        params = {"per_page": 100}
+        yield dlt.resource(
+            fetch_github_data(repo_name, endpoint, params, access_token),
+            name=endpoint,
+            write_disposition="merge",
+            primary_key="id",
+        )
+
+
+pipeline = dlt.pipeline(
+    pipeline_name="github_with_source_secrets",
+    destination="duckdb",
+    dataset_name="github_data",
+)
+load_info = pipeline.run(github_source())
+```
+
+Next, create a `.dlt/config.toml` file in the project folder and add the `repo_name` parameter to it:
+
+```toml
+[github_with_source_secrets]
+repo_name = "dlt-hub/dlt"
+```
+
+That's it! Now you have a reusable source that can load data from any GitHub repo.
+
+## What’s next
+
+Congratulations on completing the tutorial! You've come a long way since the [getting started](../getting-started) guide. By now, you've mastered loading data from various GitHub API endpoints, organizing resources into sources, managing secrets securely, and creating reusable sources. You can use these skills to build your own pipelines and load data from any source.
+
+Interested in learning more? Here are some suggestions:
+1. You've been running your pipelines locally. Learn how to [deploy and run them in the cloud](../walkthroughs/deploy-a-pipeline/).
+2. Dive deeper into how dlt works by reading the [Using dlt](../general-usage) section. Some highlights:
+    - [Set up "last value" incremental loading](../general-usage/incremental-loading#incremental_loading-with-last-value).
+    - Learn about data loading strategies: [append, replace and merge](../general-usage/incremental-loading).
+    - [Connect the transformers to the resources](../general-usage/resource#feeding-data-from-one-resource-into-another) to load additional data or enrich it.
+    - [Customize your data schema—set primary and merge keys, define column nullability, and specify data types](../general-usage/resource#define-schema).
+    - [Create your resources dynamically from data](../general-usage/source#create-resources-dynamically).
+    - [Transform your data before loading](../general-usage/resource#customize-resources) and see some [examples of customizations like column renames and anonymization](../general-usage/customising-pipelines/renaming_columns).
+    - Employ data transformations using [SQL](../dlt-ecosystem/transformations/sql) or [Pandas](../dlt-ecosystem/transformations/sql).
+    - [Pass config and credentials into your sources and resources](../general-usage/credentials).
+    - [Run in production: inspecting, tracing, retry policies and cleaning up](../running-in-production/running).
+    - [Run resources in parallel, optimize buffers and local storage](../reference/performance.md)
+    - [Use REST API client helpers](../general-usage/http/rest-client.md) to simplify working with REST APIs.
+3. Check out our [how-to guides](../walkthroughs) to get answers to some common questions.
+4. Explore [destinations](../dlt-ecosystem/destinations/) and [sources](../dlt-ecosystem/verified-sources/) provided by us and community.
+5. Explore the [Examples](../examples) section to see how dlt can be used in real-world scenarios
+
+
+

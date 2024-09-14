@@ -137,4 +137,10 @@ conda install -c conda-forge dlt
 
 ### 4. Done!
 
-You are now ready to [build your first pipeline](../getting-started) :)
+You are now ready to build your first pipeline with `dlt`. Check out these tutorials to get started:
+
+- [Load data from a REST API](../tutorial/rest-api)
+- [Load data from a SQL database](../tutorial/sql-database)
+- [Load data from a cloud storage or a file system](../tutorial/filesystem)
+
+Or read a more detailed tutorial on how to build a [custom data pipeline with dlt](../tutorial/load-data-from-an-api.md).

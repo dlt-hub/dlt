@@ -86,6 +86,20 @@ class StorageSchemaInfo(NamedTuple):
             schema=normalized_doc[naming_convention.normalize_identifier("schema")],
         )
 
+    def to_normalized_mapping(self, naming_convention: NamingConvention) -> Dict[str, Any]:
+        """Convert this instance to mapping where keys are normalized according to given naming convention
+
+        Args:
+            naming_convention: Naming convention that should be used to normalize keys
+
+        Returns:
+            Dict[str, Any]: Mapping with normalized keys (e.g. {Version: ..., SchemaName: ...})
+        """
+        return {
+            naming_convention.normalize_identifier(key): value
+            for key, value in self._asdict().items()
+        }
+
 
 @dataclasses.dataclass
 class StateInfo:
@@ -439,7 +453,7 @@ class JobClientBase(ABC):
         self.capabilities = capabilities
 
     @abstractmethod
-    def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
+    def initialize_storage(self, truncate_tables: Optional[Iterable[str]] = None) -> None:
         """Prepares storage to be used ie. creates database schema or file system folder. Truncates requested tables."""
         pass
 

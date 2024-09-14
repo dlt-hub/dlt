@@ -275,7 +275,7 @@ def test_refresh_drop_data_only(destination_config: DestinationTestConfiguration
     data = load_tables_to_dicts(pipeline, "some_data_1", "some_data_2", "some_data_3")
     # name column still remains when table was truncated instead of dropped
     # (except on filesystem where truncate and drop are the same)
-    if destination_config.destination == "filesystem":
+    if destination_config.destination_type == "filesystem":
         result = sorted([row["id"] for row in data["some_data_1"]])
         assert result == [3, 4]
 

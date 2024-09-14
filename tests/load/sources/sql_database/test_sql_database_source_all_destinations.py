@@ -51,10 +51,10 @@ def test_load_sql_schema_loads_all_tables(
         schema=sql_source_db.schema,
         backend=backend,
         reflection_level="minimal",
-        type_adapter_callback=default_test_callback(destination_config.destination, backend),
+        type_adapter_callback=default_test_callback(destination_config.destination_type, backend),
     )
 
-    if destination_config.destination == "bigquery" and backend == "connectorx":
+    if destination_config.destination_type == "bigquery" and backend == "connectorx":
         # connectorx generates nanoseconds time which bigquery cannot load
         source.has_precision.add_map(convert_time_to_us)
         source.has_precision_nullable.add_map(convert_time_to_us)
@@ -91,10 +91,10 @@ def test_load_sql_schema_loads_all_tables_parallel(
         schema=sql_source_db.schema,
         backend=backend,
         reflection_level="minimal",
-        type_adapter_callback=default_test_callback(destination_config.destination, backend),
+        type_adapter_callback=default_test_callback(destination_config.destination_type, backend),
     ).parallelize()
 
-    if destination_config.destination == "bigquery" and backend == "connectorx":
+    if destination_config.destination_type == "bigquery" and backend == "connectorx":
         # connectorx generates nanoseconds time which bigquery cannot load
         source.has_precision.add_map(convert_time_to_us)
         source.has_precision_nullable.add_map(convert_time_to_us)

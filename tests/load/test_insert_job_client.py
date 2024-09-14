@@ -28,7 +28,7 @@ def file_storage() -> FileStorage:
 
 @pytest.fixture(scope="function")
 def client(request) -> Iterator[InsertValuesJobClient]:
-    yield from yield_client_with_storage(request.param.destination)  # type: ignore[misc]
+    yield from yield_client_with_storage(request.param.destination_factory())  # type: ignore[misc]
 
 
 @pytest.mark.essential

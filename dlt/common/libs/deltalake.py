@@ -175,7 +175,7 @@ def get_delta_tables(
 
 def _deltalake_storage_options(config: FilesystemConfiguration) -> Dict[str, str]:
     """Returns dict that can be passed as `storage_options` in `deltalake` library."""
-    creds = {}
+    creds = {}  # type: ignore
     extra_options = {}
     # TODO: create a mixin with to_object_store_rs_credentials for a proper discovery
     if hasattr(config.credentials, "to_object_store_rs_credentials"):

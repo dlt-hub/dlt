@@ -1,17 +1,17 @@
 ---
-title: Load data from Cloud Storage or a local filesystem
-description: Load data from
-keywords: [tutorial, filesystem, cloud storage, dlt, python, data pipeline, incremental loading]
+title: Load data from a cloud storage or a file system
+description: Learn how to load data files like JSON, JSONL, CSV, and Parquet from a cloud storage (AWS S3, Google Cloud Storage, Google Drive, Azure Blob Storage) or a local file system using dlt.
+keywords: [dlt, tutorial, filesystem, cloud storage, file system, python, data pipeline, incremental loading, json, jsonl, csv, parquet, duckdb]
 ---
 
-This tutorial is for you if you need to load data files like `jsonl`, `csv`, `parquet` from either Cloud Storage (ex. AWS S3, Google Cloud Storage, Google Drive, Azure) or a local filesystem.
+This tutorial is for you if you need to load data files like JSONL, CSV, and Parquet from either Cloud Storage (ex. AWS S3, Google Cloud Storage, Google Drive, Azure Blob Storage) or a local file system.
 
 ## What you will learn
 
-- How to set up a filesystem or cloud storage as a data source
-- Configuration basics for filesystems and cloud storage
+- How to set up a file system or cloud storage as a data source
+- Configuration basics for file systems and cloud storage
 - Loading methods
-- Incremental loading of data from filesystems or cloud storage
+- Incremental loading of data from file systems or cloud storage
 - How to load data of any type
 
 ## 0. Prerequisites
@@ -22,13 +22,13 @@ This tutorial is for you if you need to load data files like `jsonl`, `csv`, `pa
 
 ## 1. Setting up a new project
 
-To help you get started quickly, `dlt` provides some handy CLI commands. One of these commands will help you set up a new `dlt` project:
+To help you get started quickly, dlt provides some handy CLI commands. One of these commands will help you set up a new dlt project:
 
 ```sh
 dlt init filesystem duckdb
 ```
 
-This command creates a project that loads data from a filesystem into a DuckDB database. You can easily switch out duckdb for any other [supported destinations](../dlt-ecosystem/destinations).
+This command creates a project that loads data from a file system into a DuckDB database. You can easily switch out duckdb for any other [supported destinations](../dlt-ecosystem/destinations).
 After running this command, your project will have the following structure:
 
 ```text
@@ -41,14 +41,14 @@ requirements.txt
 
 Here’s what each file does:
 
-- `filesystem_pipeline.py`: This is the main script where you'll define your data pipeline. It contains several different examples of loading data from a filesystem source.
+- `filesystem_pipeline.py`: This is the main script where you'll define your data pipeline. It contains several different examples of loading data from the filesystem source.
 - `requirements.txt`: This file lists all the Python dependencies required for your project.
 - `.dlt/`: This directory contains the [configuration files](../general-usage/credentials/) for your project:
     - `secrets.toml`: This file stores your API keys, tokens, and other sensitive information.
     - `config.toml`: This file contains the configuration settings for your dlt project.
 
 :::note
-When deploying your pipeline in a production environment, managing all configurations with files might not be convenient. In this case, we recommend you to use the environment variables to store secrets and configs instead. Read more about [configuration providers](../general-usage/credentials/setup#available-config-providers) available in `dlt`.
+When deploying your pipeline in a production environment, managing all configurations with files might not be convenient. In this case, we recommend you to use the environment variables to store secrets and configs instead. Read more about [configuration providers](../general-usage/credentials/setup#available-config-providers) available in dlt.
 :::
 
 ## 2. Creating the pipeline
@@ -58,14 +58,14 @@ The filesystem source provides users with building blocks for loading data from 
 1. Listing the files in the bucket / directory.
 2. Reading the files and yielding records.
 
-`dlt`'s filesystem source includes several resources:
+dlt's filesystem source includes several resources:
 
 - the `filesystem` resource lists files in the directory or bucket
 - several readers resources (`read_csv`, `read_parquet`, `read_jsonl`) read files and yield the records. These resources have a
 special type, they called [transformers](../general-usage/resource#process-resources-with-dlttransformer). Transformers expect items from another resource.
 In this particular case transformers expect `FileItem` object and transform it into multiple records.
 
-Let's initialize a source and create a pipeline for loading `csv` files from Google Cloud Storage to DuckDB. You can replace code from `filesystem_pipeline.py` with the following:
+Let's initialize a source and create a pipeline for loading CSV files from Google Cloud Storage to DuckDB. You can replace code from `filesystem_pipeline.py` with the following:
 
 ```py
 import dlt
@@ -85,10 +85,10 @@ What's happening in the snippet above?
 2. We pipe the files names yielded by the filesystem resource to the transformer resource `read_csv` to read each file and iterate over records from the file. We name this transformer resource `"encounters"` using the `with_name()`. dlt will use the resource name `"encounters"` as a table name when loading the data.
 
 :::note
-A [transformer](../general-usage/resource#process-resources-with-dlttransformer) in `dlt` is a special type of resource that processes each record from another resource. This lets you chain multiple resources together.
+A [transformer](../general-usage/resource#process-resources-with-dlttransformer) in dlt is a special type of resource that processes each record from another resource. This lets you chain multiple resources together.
 :::
 
-3. We create the `dlt` pipeline configuring with the name `hospital_data_pipeline` and DuckDB destination.
+3. We create the dlt pipeline configuring with the name `hospital_data_pipeline` and DuckDB destination.
 4. We call `pipeline.run()`. This is where the underlying generators are iterated:
  - dlt retrieves remote data,
  - normalizes data,
@@ -170,7 +170,7 @@ files = filesystem(
 As you can see, all parameters of `filesystem` can be specified directly in the code or taken from the configuration.
 
 :::tip
-`dlt` supports more ways of authorizing with the cloud storages, including identity-based and default credentials. To learn more about adding credentials to your pipeline, please refer to the [Configuration and secrets section](../general-usage/credentials/complex_types#aws-credentials).
+dlt supports more ways of authorizing with the cloud storages, including identity-based and default credentials. To learn more about adding credentials to your pipeline, please refer to the [Configuration and secrets section](../general-usage/credentials/complex_types#aws-credentials).
 :::
 
 ## 4. Running the pipeline
@@ -192,7 +192,7 @@ Load package 1726074108.8017762 is LOADED and contains no failed jobs
 
 ## 5. Exploring the data
 
-Now that the pipeline has run successfully, let's explore the data loaded into DuckDB. `dlt` comes with a built-in browser application that allows you to interact with the data. To enable it, run the following command:
+Now that the pipeline has run successfully, let's explore the data loaded into DuckDB. dlt comes with a built-in browser application that allows you to interact with the data. To enable it, run the following command:
 
 ```sh
 pip install streamlit
@@ -212,14 +212,14 @@ You can explore the loaded data, run queries, and see some pipeline execution de
 
 ## 6. Appending, replacing, and merging loaded data
 
-If you try running the pipeline again with `python filesystem_pipeline.py`, you will notice that all the tables have duplicated data. This happens because by default, `dlt` appends the data to the destination table. It is very useful, for example, when you have daily data updates and you want to ingest them. With `dlt`, you can control how the data is loaded into the destination table by setting the `write_disposition` parameter in the resource configuration. The possible values are:
+If you try running the pipeline again with `python filesystem_pipeline.py`, you will notice that all the tables have duplicated data. This happens because by default, dlt appends the data to the destination table. It is very useful, for example, when you have daily data updates and you want to ingest them. With dlt, you can control how the data is loaded into the destination table by setting the `write_disposition` parameter in the resource configuration. The possible values are:
 - `append`: Appends the data to the destination table. This is the default.
 - `replace`: Replaces the data in the destination table with the new data.
 - `merge`: Merges the new data with the existing data in the destination table based on the primary key.
 
-To specify the `write_disposition`, you can set it in the `pipeline.run` command. Let's change the write disposition to `merge`. In this case, `dlt` will deduplicate the data before loading them into the destination.
+To specify the `write_disposition`, you can set it in the `pipeline.run` command. Let's change the write disposition to `merge`. In this case, dlt will deduplicate the data before loading them into the destination.
 
-To enable data deduplication, we also should specify a `primary_key` or `merge_key`, which will be used by `dlt` to define if two records are different. Both keys could consist of several columns. `dlt` will try to use `merge_key` and fallback to `primary_key` if it's not specified. To specify any hints about the data, including column types, primary keys, you can use the [`apply_hints`](../general-usage/resource#set-table-name-and-adjust-schema) method.
+To enable data deduplication, we also should specify a `primary_key` or `merge_key`, which will be used by dlt to define if two records are different. Both keys could consist of several columns. dlt will try to use `merge_key` and fallback to `primary_key` if it's not specified. To specify any hints about the data, including column types, primary keys, you can use the [`apply_hints`](../general-usage/resource#set-table-name-and-adjust-schema) method.
 
 ```py
 import dlt
@@ -241,7 +241,7 @@ You can learn more about `write_disposition` in the [write dispositions section]
 
 ## 7. Loading data incrementally
 
-When loading data from files, you often only want to load files that have been modified. `dlt` makes this easy with [incremental loading](../general-usage/incremental-loading). To load only modified files, you can use the `apply_hint` method:
+When loading data from files, you often only want to load files that have been modified. dlt makes this easy with [incremental loading](../general-usage/incremental-loading). To load only modified files, you can use the `apply_hint` method:
 
 ```py
 import dlt
@@ -257,7 +257,7 @@ info = pipeline.run(reader, write_disposition="merge")
 print(info)
 ```
 
-Notice that we used `apply_hints` on the `files` resource, not on `reader`. Why did we do that? As mentioned before, the `filesystem` resource lists all files in the storage based on the `file_glob` parameter. So at this point, we can also specify additional conditions to filter out files. In this case, we only want to load files that have been modified since the last load. `dlt` will automatically keep the state of incremental load and manage the correct filtering.
+Notice that we used `apply_hints` on the `files` resource, not on `reader`. Why did we do that? As mentioned before, the `filesystem` resource lists all files in the storage based on the `file_glob` parameter. So at this point, we can also specify additional conditions to filter out files. In this case, we only want to load files that have been modified since the last load. dlt will automatically keep the state of incremental load and manage the correct filtering.
 
 But what if we not only want to process modified files, but we also want to load only new records? In the `encounters` table, we can see the column named `STOP` indicating the timestamp of the end of the encounter. Let's modify our code to load only those records whose `STOP` timestamp was updated since our last load.
 
@@ -275,7 +275,7 @@ info = pipeline.run(reader, write_disposition="merge")
 print(info)
 ```
 
-Notice that we applied incremental loading both for `files` and for `reader`. Therefore, `dlt` will first filter out only modified files and then filter out new records based on the `STOP` column.
+Notice that we applied incremental loading both for `files` and for `reader`. Therefore, dlt will first filter out only modified files and then filter out new records based on the `STOP` column.
 
 If you run `dlt pipeline hospital_data_pipeline show`, you can see the pipeline now has new information in the state about the incremental variable:
 
@@ -287,7 +287,7 @@ To learn more about incremental loading, check out the [filesystem incremental l
 
 Now let's add the file names to the actual records. This could be useful to connect the files' origins to the actual records.
 
-Since the `filesystem` source yields information about files, we can modify the transformer to add any available metadata. Let's create a custom transformer function. We can just copy-paste the `read_csv` function from `dlt` code and add one column `file_name` to the dataframe:
+Since the `filesystem` source yields information about files, we can modify the transformer to add any available metadata. Let's create a custom transformer function. We can just copy-paste the `read_csv` function from dlt code and add one column `file_name` to the dataframe:
 
 ```py
 from typing import Any, Iterator
@@ -327,9 +327,9 @@ After executing this code, you'll see a new column in the `encounters` table:
 
 ## 9. Load any other type of files
 
-`dlt` natively supports three file types: `csv`, `parquet`, and `jsonl` (more details in [filesystem transformer resource](../dlt-ecosystem/verified-sources/filesystem/basic#2-choose-the-right-transformer-resource)). But you can easily create your own. In order to do this, you just need a function that takes as input a `FileItemDict` iterator and yields a list of records (recommended for performance) or individual records.
+dlt natively supports three file types: CSV, Parquet, and JSONL (more details in [filesystem transformer resource](../dlt-ecosystem/verified-sources/filesystem/basic#2-choose-the-right-transformer-resource)). But you can easily create your own. In order to do this, you just need a function that takes as input a `FileItemDict` iterator and yields a list of records (recommended for performance) or individual records.
 
-Let's create and apply a transformer that reads `json` files instead of `csv` (the implementation for `json` is a little bit different from `jsonl`).
+Let's create and apply a transformer that reads JSON files instead of CSV (the implementation for JSON is a little bit different from JSONL).
 
 ```py
 from typing import Iterator
@@ -360,9 +360,9 @@ Check out [other examples](../dlt-ecosystem/verified-sources/filesystem/advanced
 
 ## What's next?
 
-Congratulations on completing the tutorial! You've learned how to set up a filesystem source in `dlt` and run a data pipeline to load the data into DuckDB.
+Congratulations on completing the tutorial! You've learned how to set up a filesystem source in dlt and run a data pipeline to load the data into DuckDB.
 
-Interested in learning more about `dlt`? Here are some suggestions:
+Interested in learning more about dlt? Here are some suggestions:
 
 - Learn more about the filesystem source configuration in [filesystem source](../dlt-ecosystem/verified-sources/filesystem)
 - Learn more about different credential types in [Built-in credentials](../general-usage/credentials/complex_types#built-in-credentials)
