@@ -189,7 +189,6 @@ def test_row_and_parent_key_migration_upper_case() -> None:
 
     # set unique in _dlt_id to true
     event = upgraded_v9["tables"]["EVENT"]
-    print(event)
     event["columns"]["_DLT_ID"]["unique"] = True
 
     upgraded = migrate_schema(upgraded_v9, from_engine=9, to_engine=10)  # type: ignore
@@ -218,7 +217,7 @@ def test_row_and_parent_key_migration_upper_case() -> None:
     default_hints = upgraded["settings"]["default_hints"]
     assert "foreign_key" not in default_hints
     # unique still there
-    assert default_hints["unique"] == ["re:^_DLT_ID$"]
+    assert default_hints["unique"] == ["_DLT_ID"]
     # row && parent key
     assert default_hints["row_key"] == ["_DLT_ID"]
     assert default_hints["parent_key"] == ["_DLT_PARENT_ID"]
