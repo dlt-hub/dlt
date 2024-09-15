@@ -782,7 +782,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         # insert list elements for new active records in nested tables
         nested_tables = table_chain[1:]
         if nested_tables:
-            # TODO: - based on deterministic child hashes (OK)
+            # TODO: - based on deterministic nested hashes (OK)
             # - if row hash changes all is right
             # - if it does not we only capture new records, while we should replace existing with those in stage
             # - this write disposition is way more similar to regular merge (how root tables are handled is different, other tables handled same)

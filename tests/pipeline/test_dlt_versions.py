@@ -110,6 +110,11 @@ def test_pipeline_with_dlt_update(test_storage: FileStorage) -> None:
                         "version_hash"
                         not in github_schema["tables"][PIPELINE_STATE_TABLE_NAME]["columns"]
                     }
+                    # make sure that assignees are complex
+                    assert (
+                        github_schema["tables"]["issues"]["columns"]["assignee"]["data_type"]
+                        == "complex"
+                    )
                     # check loads table without attaching to pipeline
                     duckdb_cfg = resolve_configuration(
                         DuckDbClientConfiguration()._bind_dataset_name(dataset_name=GITHUB_DATASET),
@@ -163,6 +168,9 @@ def test_pipeline_with_dlt_update(test_storage: FileStorage) -> None:
                     )
                 )
                 assert github_schema["engine_version"] == SCHEMA_ENGINE_VERSION
+                assert (
+                    github_schema["tables"]["issues"]["columns"]["assignee"]["data_type"] == "json"
+                )
                 assert "schema_version_hash" in github_schema["tables"][LOADS_TABLE_NAME]["columns"]
                 # print(github_schema["tables"][PIPELINE_STATE_TABLE_NAME])
                 # load state
