@@ -1,7 +1,7 @@
 ---
 title: Destination tables
 description: Understanding the tables created in the destination database
-keywords: [destination tables, loaded data, data structure, schema, table, child table, load package, load id, lineage, staging dataset, versioned dataset]
+keywords: [destination tables, loaded data, data structure, schema, table, nested table, load package, load id, lineage, staging dataset, versioned dataset]
 ---
 
 # Destination tables
@@ -117,7 +117,7 @@ pipeline = dlt.pipeline(
 load_info = pipeline.run(data, table_name="users")
 ```
 
-Running this pipeline will create two tables in the destination, `users` and `users__pets`. The `users` table will contain the top-level data, and the `users__pets` table will contain the nested data. Here is what the tables may look like:
+Running this pipeline will create two tables in the destination, `users` (**root table**) and `users__pets` (**nested table**). The `users` table will contain the top-level data, and the `users__pets` table will contain the data nested in the Python list. Here is what the tables may look like:
 
 **mydata.users**
 
@@ -134,21 +134,18 @@ Running this pipeline will create two tables in the destination, `users` and `us
 | 2 | Spot | dog | 9uxh36VU9lqKpw | wX3f5vn801W16A | 1 |
 | 3 | Fido | dog | pe3FVtCWz8VuNA | rX8ybgTeEmAmmA | 0 |
 
-When creating a database schema, dlt recursively unpacks nested structures into relational tables,
-creating and linking children and parent tables.
+When creating a database schema, `dlt` maps the structure of Python objects (often representing JSON files) into relational tables,
+creating and linking nested tables.
 
 This is how it works:
 
-1. Each row in all (root and nested) data tables created by `dlt` contains a `UNIQUE` column named `_dlt_id`.
-1. Each child table contains a `FOREIGN KEY` column `_dlt_parent_id` linking to a particular row (`_dlt_id`) of a parent table.
+1. Each row in all (root and nested) data tables created by `dlt` contains a unique column named `_dlt_id`.
+1. Each nested table contains column named `_dlt_parent_id` linking to a particular row (`_dlt_id`) of a parent table.
 1. Rows in child tables come from the lists: `dlt` stores the position of each item in the list in `_dlt_list_idx`.
-1. For tables that are loaded with the `merge` write disposition, we add a root key column `_dlt_root_id`, which links the child table to a row in the top-level table.
+1. For tables that are loaded with the `merge` write disposition, we add a root key column `_dlt_root_id`, which links the child table to a row in the root table.
 
-:::note
 
-If you define your own primary key in a child table, it will be used to link to the parent table, and the `_dlt_parent_id` and `_dlt_list_idx` will not be added. `_dlt_id` is always added even if the primary key or other unique columns are defined.
 
-:::
 
 ## Naming convention: tables and columns
 
@@ -229,7 +226,7 @@ problems.
 ## Staging dataset
 
 So far we've been using the `append` write disposition in our example pipeline. This means that
-each time we run the pipeline, the data is appended to the existing tables. When you use the [merge write disposition](incremental-loading.md), dlt creates a staging database schema for staging data. This schema is named `<dataset_name>_staging` and contains the same tables as the destination schema. When you run the pipeline, the data from the staging tables is loaded into the destination tables in a single atomic transaction.
+each time we run the pipeline, the data is appended to the existing tables. When you use the [merge write disposition](incremental-loading.md), dlt creates a staging database schema for staging data. This schema is named `<dataset_name>_staging` [by default](https://dlthub.com/docs/devel/dlt-ecosystem/staging#staging-dataset) and contains the same tables as the destination schema. When you run the pipeline, the data from the staging tables is loaded into the destination tables in a single atomic transaction.
 
 Let's illustrate this with an example. We change our pipeline to use the `merge` write disposition:
 
@@ -274,7 +271,7 @@ Here is what the tables may look like after running the pipeline:
 
 Notice that the `mydata.users` table now contains the data from both the previous pipeline run and the current one.
 
-## Versioned datasets
+## Dev mode (versioned) datasets
 
 When you set the `dev_mode` argument to `True` in `dlt.pipeline` call, dlt creates a versioned dataset.
 This means that each time you run the pipeline, the data is loaded into a new dataset (a new database schema).
@@ -317,7 +314,7 @@ will remain in the destination but stay unknown to `dlt`. This will generally no
 
 If your destination table already exists and contains columns that have the same name as columns discovered by `dlt` but
 do not have matching datatypes, your load will fail and you will have to fix the column on the destination table first,
-or change the column name in your incoming data to something else to avoid a collission.
+or change the column name in your incoming data to something else to avoid a collision.
 
 If your destination table exists and already contains data, your load might also initially fail, since `dlt` creates
 special `non-nullable` columns that contains required mandatory metadata. Some databases will not allow you to create
@@ -332,7 +329,7 @@ create are:
 | _dlt_load_id | text/string/varchar |
 | _dlt_id | text/string/varchar |
 
-For child-tables you may also need to create:
+For nested tables you may also need to create:
 
 | name | type |
 | --- | --- |
