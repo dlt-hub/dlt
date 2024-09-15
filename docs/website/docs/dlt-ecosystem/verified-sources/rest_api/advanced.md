@@ -10,7 +10,7 @@ keywords: [rest api, restful api]
 - `name`: An optional name for the source.
 - `section`: An optional section name in the configuration file.
 - `max_table_nesting`: Sets the maximum depth of nested table above which the remaining nodes are loaded as structs or JSON.
-- `root_key` (bool): Enables merging on all resources by propagating root foreign key to child tables. This option is most useful if you plan to change write disposition of a resource to disable/enable merge. Defaults to False.
+- `root_key` (bool): Enables merging on all resources by propagating root foreign key to nested tables. This option is most useful if you plan to change write disposition of a resource to disable/enable merge. Defaults to False.
 - `schema_contract`: Schema contract settings that will be applied to this resource.
 - `spec`: A specification of configuration and secret values required by the source.
 

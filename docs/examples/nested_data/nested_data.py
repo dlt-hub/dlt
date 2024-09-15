@@ -35,11 +35,11 @@ from dlt.common.utils import map_nested_in_place
 CHUNK_SIZE = 10000
 
 
-# You can limit how deep dlt goes when generating child tables.
-# By default, the library will descend and generate child tables
+# You can limit how deep dlt goes when generating nested tables.
+# By default, the library will descend and generate nested tables
 # for all nested lists, without a limit.
-# In this example, we specify that we only want to generate child tables up to level 2,
-# so there will be only one level of child tables within child tables.
+# In this example, we specify that we only want to generate nested tables up to level 2,
+# so there will be only one level of nested tables within nested tables.
 @dlt.source(max_table_nesting=2)
 def mongodb_collection(
     connection_url: str = dlt.secrets.value,
@@ -149,7 +149,7 @@ if __name__ == "__main__":
     # The third method involves applying data type hints to specific columns in the data.
     # In this case, we tell dlt that column 'cast' (containing a list of actors)
     # in 'movies' table should have type 'json' which means
-    # that it will be loaded as JSON/struct and not as child table.
+    # that it will be loaded as JSON/struct and not as nested table.
     pipeline = dlt.pipeline(
         pipeline_name="mongodb_pipeline",
         destination="duckdb",

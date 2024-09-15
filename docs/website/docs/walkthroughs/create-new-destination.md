@@ -137,7 +137,7 @@ You can map hints present for tables and columns (ie. `cluster`, `sort`, `partit
 You can also add hints (ie indexes, partition clauses) to tables via `_get_table_update_sql` - see `BigQuery` implementation for a good example.
 
 ### Participate in staging dataset merge and replace
-`dlt` supports merging and transactional replace via **staging dataset** living along the destination dataset. `SqlJobClientBase` participates in this mechanism by default. In essence: each time when a job is completed, `dlt` checks which table got updated and if there are no remaining jobs for that table and its child and parent tables (all together called **table chain**). If table chain is fully loaded, `dlt` executes SQL transformations that move/merge data from staging dataset to destination dataset (that, as you can expect, happens also via jobs, of type `sql` that are dynamically created).
+`dlt` supports merging and transactional replace via **staging dataset** living along the destination dataset. `SqlJobClientBase` participates in this mechanism by default. In essence: each time when a job is completed, `dlt` checks which table got updated and if there are no remaining jobs for that table and its nested and root tables (all together called **table chain**). If table chain is fully loaded, `dlt` executes SQL transformations that move/merge data from staging dataset to destination dataset (that, as you can expect, happens also via jobs, of type `sql` that are dynamically created).
 
 Generated SQL is quite simple and we were able to run it on all existing destinations (we may introduce `sqlglot` to handle future cases). The SQL used requires:
 - SELECT, INSERT, DELETE/TRUNCATE statements
