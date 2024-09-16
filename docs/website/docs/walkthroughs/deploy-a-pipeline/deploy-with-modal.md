@@ -9,7 +9,7 @@ canonical: https://modal.com/blog/analytics-stack
 
 ## Introduction to Modal
 
-[Modal](https://modal.com/blog/analytics-stack) is a serverless platform designed for developers. It allows you to run and deploy code in the cloud without managing infrastructure.
+[Modal](https://modal.com/) is a serverless platform designed for developers. It allows you to run and deploy code in the cloud without managing infrastructure.
 
 With Modal, you can perform tasks like running generative models, large-scale batch jobs, and job queues, all while easily scaling compute resources.
 
@@ -23,13 +23,13 @@ With Modal, you can perform tasks like running generative models, large-scale ba
 
 To know more, please refer to [Modals's documentation.](https://modal.com/docs)
 
-## Building Data Pipelines with `dlt`
+## Building data pipelines with dlt
 
-**`dlt`** is an open-source Python library that allows you to declaratively load data sources into well-structured tables or datasets. It does this through automatic schema inference and evolution. The library simplifies building data pipelines by providing functionality to support the entire extract and load process.
+dlt is an open-source Python library that allows you to declaratively load data sources into well-structured tables or datasets. It does this through automatic schema inference and evolution. The library simplifies building data pipelines by providing functionality to support the entire extract and load process.
 
-### How does `dlt` integrate with Modal for pipeline orchestration?
+### How does dlt integrate with Modal for pipeline orchestration?
 
-To illustrate setting up a pipeline in Modal, we’ll be using the following example: [Building a cost-effective analytics stack with Modal, dlt, and dbt.](https://modal.com/blog/analytics-stack)
+As an example of how to set up a pipeline in Modal, we'll use the [building a cost-effective analytics stack with Modal, dlt, and dbt.](https://modal.com/blog/analytics-stack) case study.
 
 The example demonstrates automating a workflow to load data from Postgres to Snowflake using `dlt`.
 
