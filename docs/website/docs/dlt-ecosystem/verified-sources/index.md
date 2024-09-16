@@ -11,6 +11,10 @@ Planning to use `dlt` in production and need a source that isn't listed? We're h
 
 ### Core sources
 
+<DocCardList items={useCurrentSidebarCategory().items.filter(
+item => item.label === '30+ SQL Databases' || item.label === 'REST APIs' || item.label === 'Filesystem & cloud storage'
+)} />
+
 ### Verified sources
 
 Choose from our collection of verified sources, developed and maintained by the `dlt` team and community. Each source is rigorously tested against a real API and provided as Python code for easy customization.
@@ -18,6 +22,10 @@ Choose from our collection of verified sources, developed and maintained by the 
 :::tip
 If you couldn't find a source implementation, you can easily create your own, check out the [resource page](../../general-usage/resource) to learn how!
 :::
+
+<DocCardList items={useCurrentSidebarCategory().items.filter(
+item => item.label !== '30+ SQL Databases' && item.label !== 'REST API generic source'&& item.label !== 'Filesystem & buckets'
+)} />
 
 ### What's the difference between core and verified sources?
 
