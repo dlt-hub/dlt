@@ -372,6 +372,7 @@ if (process.argv.includes("--watch")) {
       if (Date.now() - lastUpdate < 500) {
           return;
       }
+      fs.rmSync(MD_TARGET_DIR, {force: true, recursive: true})
       console.log('%s changed...', name);
       syncExamples();
       preprocess_docs();
