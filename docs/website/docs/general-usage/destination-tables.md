@@ -84,7 +84,7 @@ connecting to the database directly.
 
 :::
 
-## Nested and root tables
+## Nested tables
 
 Now let's look at a more complex example:
 
@@ -117,7 +117,7 @@ pipeline = dlt.pipeline(
 load_info = pipeline.run(data, table_name="users")
 ```
 
-Running this pipeline will create two tables in the destination, `users` (**root table**) and `users__pets` (**nested table**). The `users` table will contain the top-level data, and the `users__pets` table will contain the data nested in the Python list. Here is what the tables may look like:
+Running this pipeline will create two tables in the destination, `users` (**root table**) and `users__pets` (**nested table**). The `users` table will contain the top-level data, and the `users__pets` table will contain the data nested in the Python lists. Here is what the tables may look like:
 
 **mydata.users**
 
@@ -134,18 +134,17 @@ Running this pipeline will create two tables in the destination, `users` (**root
 | 2 | Spot | dog | 9uxh36VU9lqKpw | wX3f5vn801W16A | 1 |
 | 3 | Fido | dog | pe3FVtCWz8VuNA | rX8ybgTeEmAmmA | 0 |
 
-When creating a database schema, `dlt` maps the structure of Python objects (often representing JSON files) into relational tables,
-creating and linking nested tables.
+When inferring a database schema, `dlt` maps the structure of Python objects (ie. from parsed JSON files) into nested tables and creates
+references between them.
 
 This is how it works:
 
-1. Each row in all (root and nested) data tables created by `dlt` contains a unique column named `_dlt_id`.
-1. Each nested table contains column named `_dlt_parent_id` linking to a particular row (`_dlt_id`) of a parent table.
-1. Rows in child tables come from the lists: `dlt` stores the position of each item in the list in `_dlt_list_idx`.
-1. For tables that are loaded with the `merge` write disposition, we add a root key column `_dlt_root_id`, which links the child table to a row in the root table.
+1. Each row in all (root and nested) data tables created by `dlt` contains a unique column named `_dlt_id` (**row key**).
+1. Each nested table contains column named `_dlt_parent_id` referencing to a particular row (`_dlt_id`) of a parent table (**parent key**).
+1. Rows in nested tables come from the Python lists: `dlt` stores the position of each item in the list in `_dlt_list_idx`.
+1. For nested tables that are loaded with the `merge` write disposition, we add a **root key** column `_dlt_root_id`, which references the child table to a row in the root table.
 
-
-
+[Learn more on nested references, row keys and parent keys](schema.md#nested-references-root-and-nested-tables)
 
 ## Naming convention: tables and columns
 

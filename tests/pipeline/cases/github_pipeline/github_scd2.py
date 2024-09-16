@@ -27,7 +27,10 @@ if __name__ == "__main__":
     if len(sys.argv) == 2:
         delete_issues = [int(p) for p in sys.argv[1].split(",")]
 
-    p = dlt.pipeline("dlt_github_scd2", destination="duckdb", dataset_name="github_scd2")
+    def filter_issues(issue):
+        return issue["number"] not in delete_issues
+
+    p = dlt.pipeline("dlt_github_pipeline", destination="duckdb", dataset_name="github_3")
     github_source = github()
-    info = p.run(github_source)
+    info = p.run(github_source.load_issues.add_filter(filter_issues))
     print(info)
