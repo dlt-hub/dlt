@@ -452,10 +452,18 @@ class DltResourceHints:
         md_dict: TMergeDispositionDict = dict_.pop("write_disposition")
         if merge_strategy := md_dict.get("strategy"):
             dict_["x-merge-strategy"] = merge_strategy
-        if "boundary_timestamp" in md_dict:
-            dict_["x-boundary-timestamp"] = md_dict["boundary_timestamp"]
-        # add columns for `scd2` merge strategy
+
         if merge_strategy == "scd2":
+            if "boundary_timestamp" in md_dict:
+                dict_["x-boundary-timestamp"] = md_dict["boundary_timestamp"]
+            if "retire_if_absent" in md_dict:
+                dict_["x-retire-if-absent"] = md_dict["retire_if_absent"]  # type: ignore[typeddict-item]
+            if "natural_key" in md_dict:
+                nk = md_dict["natural_key"]  # type: ignore[typeddict-item]
+                if nk in dict_["columns"]:
+                    dict_["columns"][nk]["x-natural-key"] = True
+                else:
+                    dict_["columns"][nk] = {"name": nk, "x-natural-key": True}
             if md_dict.get("validity_column_names") is None:
                 from_, to = DEFAULT_VALIDITY_COLUMN_NAMES
             else:
@@ -523,13 +531,20 @@ class DltResourceHints:
                     f"""Allowed values: {', '.join(['"' + s + '"' for s in MERGE_STRATEGIES])}."""
                 )
 
-            for ts in ("active_record_timestamp", "boundary_timestamp"):
-                if ts == "active_record_timestamp" and wd.get("active_record_timestamp") is None:
-                    continue  # None is allowed for active_record_timestamp
-                if ts in wd:
-                    try:
-                        ensure_pendulum_datetime(wd[ts])  # type: ignore[literal-required]
-                    except Exception:
-                        raise ValueError(
-                            f'could not parse `{ts}` value "{wd[ts]}"'  # type: ignore[literal-required]
-                        )
+            if wd.get("strategy") == "scd2":
+                for ts in ("active_record_timestamp", "boundary_timestamp"):
+                    if (
+                        ts == "active_record_timestamp"
+                        and wd.get("active_record_timestamp") is None
+                    ):
+                        continue  # None is allowed for active_record_timestamp
+                    if ts in wd:
+                        try:
+                            ensure_pendulum_datetime(wd[ts])  # type: ignore[literal-required]
+                        except Exception:
+                            raise ValueError(
+                                f'could not parse `{ts}` value "{wd[ts]}"'  # type: ignore[literal-required]
+                            )
+
+                if "retire_if_absent" in wd and not wd["retire_if_absent"] and "natural_key" not in wd:  # type: ignore[typeddict-item]
+                    raise ValueError("`natural_key` is required when `retire_if_absent=False`")

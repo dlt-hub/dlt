@@ -755,17 +755,26 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         active_record_timestamp = get_active_record_timestamp(root_table)
         if active_record_timestamp is None:
             active_record_literal = "NULL"
-            is_active_clause = f"{to} IS NULL"
+            is_active = f"{to} IS NULL"
         else:  # it's a datetime
             active_record_literal = format_datetime_literal(
                 active_record_timestamp, caps.timestamp_precision
             )
-            is_active_clause = f"{to} = {active_record_literal}"
+            is_active = f"{to} = {active_record_literal}"
 
-        # retire updated and deleted records
+        retire_if_absent = root_table.get("x-retire-if-absent", True)
+        if retire_if_absent:
+            dummy_clause = caps.escape_literal(True)
+        else:
+            nk = escape_column_id(get_first_column_name_with_prop(root_table, "x-natural-key"))
+            nk_present = f"{nk} IN (SELECT {nk} FROM {staging_root_table_name})"
+
+        # retire records
+        # always retire updated records, retire deleted records only if `retire_if_absent`
         sql.append(f"""
             {cls.gen_update_table_prefix(root_table_name)} {to} = {boundary_literal}
-            WHERE {is_active_clause}
+            WHERE {is_active}
+            AND {dummy_clause if retire_if_absent else nk_present}
             AND {hash_} NOT IN (SELECT {hash_} FROM {staging_root_table_name});
         """)
 
@@ -776,7 +785,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
             INSERT INTO {root_table_name} ({col_str}, {from_}, {to})
             SELECT {col_str}, {boundary_literal} AS {from_}, {active_record_literal} AS {to}
             FROM {staging_root_table_name} AS s
-            WHERE {hash_} NOT IN (SELECT {hash_} FROM {root_table_name} WHERE {is_active_clause});
+            WHERE {hash_} NOT IN (SELECT {hash_} FROM {root_table_name} WHERE {is_active});
         """)
 
         # insert list elements for new active records in nested tables
