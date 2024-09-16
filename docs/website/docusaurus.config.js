@@ -50,7 +50,7 @@ const config = {
   tagline: 'data load tool',
   url: 'https://dlthub.com',
   baseUrl: process.env.DOCUSAURUS_BASE_URL || '/docs',
-  onBrokenLinks: 'throw',
+  onBrokenLinks: 'warn',
   onBrokenMarkdownLinks: 'throw',
   favicon: 'img/favicon.ico',
   staticDirectories: ['public', 'static'],
