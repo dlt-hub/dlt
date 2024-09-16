@@ -74,7 +74,7 @@ Load package 1692364844.460054 is LOADED and contains no failed jobs
 
 ### Explore the data
 
-To allow sneak peek and basic discovery you can take advantage of [built-in integration with Strealmit](reference/command-line-interface#show-tables-and-data-in-the-destination):
+To allow sneak peek and basic discovery you can take advantage of [built-in integration with Strealmit](../reference/command-line-interface#show-tables-and-data-in-the-destination):
 
 ```sh
 dlt pipeline quick_start show
@@ -558,7 +558,7 @@ That's it! Now you have a reusable source that can load data from any GitHub rep
 
 ## What’s next
 
-Congratulations on completing the tutorial! You've come a long way since the [getting started](../getting-started) guide. By now, you've mastered loading data from various GitHub API endpoints, organizing resources into sources, managing secrets securely, and creating reusable sources. You can use these skills to build your own pipelines and load data from any source.
+Congratulations on completing the tutorial! You've come a long way since the [getting started](../intro) guide. By now, you've mastered loading data from various GitHub API endpoints, organizing resources into sources, managing secrets securely, and creating reusable sources. You can use these skills to build your own pipelines and load data from any source.
 
 Interested in learning more? Here are some suggestions:
 1. You've been running your pipelines locally. Learn how to [deploy and run them in the cloud](../walkthroughs/deploy-a-pipeline/).
