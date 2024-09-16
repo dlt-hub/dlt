@@ -137,7 +137,7 @@ def task_pipeline(dev: bool = False) -> None:
 
 ### Capturing deletes
 
-One limitation of our simple approach above is that it does not capture updates or deletions of data. This isn’t a hard requirement yet for our use cases, but it appears that `dlt` does have a [Postgres CDC replication feature](https://dlthub.com/docs/dlt-ecosystem/verified-sources/pg_replication) that we are considering.
+One limitation of our simple approach above is that it does not capture updates or deletions of data. This isn’t a hard requirement yet for our use cases, but it appears that `dlt` does have a [Postgres CDC replication feature](../../dlt-ecosystem/verified-sources/pg_replication) that we are considering.
 
 ### Scaling out
 
