@@ -42,7 +42,7 @@ print(pipeline.last_trace.last_normalize_info)
 
 ### Prerequisites
 
-Please make sure the `dlt` library is installed. Refer to the [installation guide](../../../getting-started).
+Please make sure the `dlt` library is installed. Refer to the [installation guide](../../../intro).
 
 ### Initialize the filesystem source
 
