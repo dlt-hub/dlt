@@ -76,7 +76,7 @@ Here’s a walkthrough:
     | 1 | 1 | Alice | 2024-07-01 | 1721878309.021546 | tgyMM73iMz0cQg |
     | 2 | 2 | Bob | 2024-07-02 | 1721878309.021546 | 88P0bD796pXo/Q |
 
-4. Next, the "contact" table in the SQL source is updated—two new rows are added, and the row with `id = 2` is removed The updated data source ("contact" table) now presents itself as follows:
+4. Next, the "contact" table in the SQL source is updated—two new rows are added, and the row with `id = 2` is removed. The updated data source ("contact" table) now presents itself as follows:
 
     | id | name | created_at |
     | --- | --- | --- |
@@ -140,8 +140,7 @@ Here’s a walkthrough:
     | 1 | 1 | Alice | 2024-07-01 | 1721878309.021546 | YQfmAu8xysqWmA |
     | 2 | 2 | Bob | 2024-07-02 | 1721878309.021546 | Vcb5KKah/RpmQw |
 
-4. Next, the "contact" table in the SQL source is updated—two new rows are added, and the row with `id = 2` is removed.
-The updated data source now presents itself as follows:
+4. Next, the "contact" table in the SQL source is updated—two new rows are added, and the row with `id = 2` is removed. The updated data source now presents itself as follows:
 
     | id | name | created_at |
     | --- | --- | --- |
@@ -207,8 +206,7 @@ Here’s a walkthrough:
     | 1 | 1 | Alice | 2024-07-01 00:00:00 UTC | 1721878309.021546 | 5H8ca6C89umxHA |
     | 2 | 2 | Bob | 2024-07-02 00:00:00 UTC | 1721878309.021546 | M61j4aOSqs4k2w |
 
-4. Next, the "contact" table in the SQL source is updated—two new rows are added, and the row with `id = 2` is removed.
-The updated data source now presents itself as follows:
+4. Next, the "contact" table in the SQL source is updated—two new rows are added, and the row with `id = 2` is removed. The updated data source now presents itself as follows:
 
     | id | name | created_at |
     | --- | --- | --- |
