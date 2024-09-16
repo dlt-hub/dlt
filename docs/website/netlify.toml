@@ -25,3 +25,8 @@ to = "docs/tutorial/load-data-from-an-api"
 [[redirects]]
 from = "/docs/tutorial/grouping-resources"
 to = "docs/tutorial/load-data-from-an-api"
+
+[[redirects]]
+from = "/docs/general-usage/credentials/config_specs"
+to = "/docs/general-usage/credentials"
+status = 301

@@ -114,12 +114,6 @@ const config = {
           {
             type: 'docsVersionDropdown',
           },
-          {
-            type: 'doc',
-            docId: 'intro',
-            position: 'left',
-            label: 'Docs',
-          },
           { to: 'https://dlthub.com/blog', label: 'Blog', position: 'left' },
           {
             href: 'https://dlthub.com/community',
