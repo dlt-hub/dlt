@@ -27,7 +27,7 @@ def get_completed_table_chain(
     For append and merge write disposition, tables without jobs will be included, providing they have seen data (and were created in the destination)
     Optionally `being_completed_job_id` can be passed that is considered to be completed before job itself moves in storage
     """
-    # returns ordered list of tables from parent to child leaf tables
+    # returns ordered list of tables from parent to nested leaf tables
     table_chain: List[TTableSchema] = []
     # allow for jobless tables for those write disposition
     skip_jobless_table = top_merged_table["write_disposition"] not in (
@@ -99,7 +99,7 @@ def init_client(
     # get all tables that actually have load jobs with data
     tables_with_jobs = set(job.table_name for job in new_jobs) - tables_no_data
 
-    # get tables to truncate by extending tables with jobs with all their child tables
+    # get tables to truncate by extending tables with jobs with all their nested tables
     initial_truncate_names = set(t["name"] for t in truncate_tables) if truncate_tables else set()
     truncate_table_names = set(
         _extend_tables_with_table_chain(
@@ -198,13 +198,13 @@ def _extend_tables_with_table_chain(
     haven't seen data or are not included by `include_table_filter`.
     Note that for root tables with replace and merge, the filter for tables that do not have jobs
 
-    Returns an unordered set of table names and their child tables
+    Returns an unordered set of table names and their nested tables
     """
     result: Set[str] = set()
     for table_name in tables:
         top_job_table = get_root_table(schema.tables, table_name)
         # for replace and merge write dispositions we should include tables
-        # without jobs in the table chain, because child tables may need
+        # without jobs in the table chain, because nested tables may need
         # processing due to changes in the root table
         skip_jobless_table = top_job_table["write_disposition"] not in (
             "replace",

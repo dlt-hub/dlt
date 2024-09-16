@@ -386,8 +386,8 @@ def my_upsert_resource():
 
 #### Known limitations
 - `hard_delete` hint not supported
-- deleting records from child tables not supported
-  - This means updates to json columns that involve element removals are not propagated. For example, if you first load `{"key": 1, "nested": [1, 2]}` and then load `{"key": 1, "nested": [1]}`, then the record for element `2` will not be deleted from the child table.
+- deleting records from nested tables not supported
+  - This means updates to json columns that involve element removals are not propagated. For example, if you first load `{"key": 1, "nested": [1, 2]}` and then load `{"key": 1, "nested": [1]}`, then the record for element `2` will not be deleted from the nested table.
 
 ## File Compression
 

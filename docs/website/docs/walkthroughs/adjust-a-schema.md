@@ -148,7 +148,7 @@ load_info = pipeline.run(data_source)
 
 In this example, the `add_map` function reorders columns by defining a new mapping. The lambda function specifies the desired order by rearranging the key-value pairs. When the pipeline runs, the data will load with the columns in the new order.
 
-### Load data as json instead of generating child table or columns from flattened dicts
+### Load data as json instead of generating nested table or columns from flattened dicts
 
 In the export schema, you can see that white and black players properties got flattened into:
 
@@ -165,7 +165,7 @@ white__aid:
 ```
 
 For some reason, you'd rather deal with a single JSON (or struct) column. Just declare the `white`
-column as `json`, which will instruct `dlt` not to flatten it (or not convert into child table in
+column as `json`, which will instruct `dlt` not to flatten it (or not convert into nested table in
 case of a list). Do the same with `black` column:
 
 ```yaml

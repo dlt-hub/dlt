@@ -16,7 +16,7 @@ def items():
     ...
 ```
 
-This resource will allow new tables (both child tables and [tables with dynamic names](resource.md#dispatch-data-to-many-tables)) to be created, but will throw an exception if data is extracted for an existing table which contains a new column.
+This resource will allow new tables (both nested tables and [tables with dynamic names](resource.md#dispatch-data-to-many-tables)) to be created, but will throw an exception if data is extracted for an existing table which contains a new column.
 
 ### Setting up the contract
 You can control the following **schema entities**:
@@ -56,8 +56,8 @@ You can change the contract on the **source** instance via `schema_contract` pro
 
 #### Nuances of contract modes.
 1. Contracts are applied **after names of tables and columns are normalized**.
-2. Contract defined on a resource is applied to all tables and child tables created by that resource.
-3. `discard_row` works on table level. So for example if you have two tables in parent-child relationship ie. *users* and *users__addresses* and contract is violated in *users__addresses* table, the row of that table is discarded while the parent row in *users* table will be loaded.
+2. Contract defined on a resource is applied to all root tables and nested tables created by that resource.
+3. `discard_row` works on table level. So for example if you have two tables in nested relationship ie. *users* and *users__addresses* and contract is violated in *users__addresses* table, the row of that table is discarded while the parent row in *users* table will be loaded.
 
 ### Use Pydantic models for data validation
 Pydantic models can be used to [define table schemas and validate incoming data](resource.md#define-a-schema-with-pydantic). You can use any model you already have. `dlt` will internally synthesize (if necessary) new models that conform with the **schema contract** on the resource.
@@ -97,7 +97,7 @@ Model validation is added as a [transform step](resource.md#filter-transform-and
 :::
 
 :::note
-Pydantic models work on the **extracted** data **before names are normalized or child relationships are created**. Make sure to name model fields as in your input data and handle nested data with the nested models.
+Pydantic models work on the **extracted** data **before names are normalized or nested tables are created**. Make sure to name model fields as in your input data and handle nested data with the nested models.
 
 As a consequence, `discard_row` will drop the whole data item - even if nested model was affected.
 :::
@@ -166,7 +166,7 @@ What tables are not considered new:
 
 ### Working with datasets that have manually added tables and columns on the first load
 
-In some cases you might be working with datasets that have tables or columns created outside of dlt. If you are loading to a table not created by `dlt` for the first time, `dlt` will not know about this table while enforcing schema contracts. This means that if you do a load where the `tables` are set to `evolve`, all will work as planned. If you have `tables` set to `freeze`, dlt will raise an exception because it thinks you are creating a new table (which you are from dlts perspective). You can allow `evolve` for one load and then switch back to `freeze`. 
+In some cases you might be working with datasets that have tables or columns created outside of dlt. If you are loading to a table not created by `dlt` for the first time, `dlt` will not know about this table while enforcing schema contracts. This means that if you do a load where the `tables` are set to `evolve`, all will work as planned. If you have `tables` set to `freeze`, dlt will raise an exception because it thinks you are creating a new table (which you are from dlts perspective). You can allow `evolve` for one load and then switch back to `freeze`.
 
 The same thing will happen if `dlt` knows your table, but you have manually added a column to your destination and you have `columns` set to `freeze`.
 

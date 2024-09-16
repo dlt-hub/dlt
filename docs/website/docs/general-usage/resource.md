@@ -55,7 +55,7 @@ accepts the following arguments:
 1. `columns` let's you define one or more columns, including the data types, nullability, and other
    hints. The column definition is a `TypedDict`: `TTableSchemaColumns`. In the example below, we tell
    `dlt` that column `tags` (containing a list of tags) in the `user` table should have type `json`,
-   which means that it will be loaded as JSON/struct and not as a child table.
+   which means that it will be loaded as JSON/struct and not as a separate nested table.
 
   ```py
   @dlt.resource(name="user", columns={"tags": {"data_type": "json"}})
@@ -116,7 +116,7 @@ Things to note:
 
 - Fields with an `Optional` type are marked as `nullable`
 - Fields with a `Union` type are converted to the first (not `None`) type listed in the union. For example, `status: Union[int, str]` results in a `bigint` column.
-- `list`, `dict`, and nested Pydantic model fields will use the `json` type which means they'll be stored as a JSON object in the database instead of creating child tables.
+- `list`, `dict`, and nested Pydantic model fields will use the `json` type which means they'll be stored as a JSON object in the database instead of creating nested tables.
 
 You can override this by configuring the Pydantic model
 
@@ -133,7 +133,7 @@ def get_users():
 ```
 
 `"skip_nested_types"` omits any `dict`/`list`/`BaseModel` type fields from the schema, so dlt will fall back on the default
-behavior of creating child tables for these fields.
+behavior of creating nested tables for these fields.
 
 We do not support `RootModel` that validate simple types. You can add such a validator yourself, see [data filtering section](#filter-transform-and-pivot-data).
 
@@ -346,8 +346,8 @@ for user in users().add_filter(lambda user: user["user_id"] != "me").add_map(ano
 
 ### Reduce the nesting level of generated tables
 
-You can limit how deep `dlt` goes when generating child tables. By default, the library will descend
-and generate child tables for all nested lists, without limit.
+You can limit how deep `dlt` goes when generating nested tables and flattening dicts into columns. By default, the library will descend
+and generate nested tables for all nested lists, without limit.
 
 :::note
 `max_table_nesting` is optional so you can skip it, in this case dlt will
@@ -379,13 +379,13 @@ def my_resource():
     }
 ```
 
-In the example above, we want only 1 level of child tables to be generated (so there are no child
-tables of child tables). Typical settings:
+In the example above, we want only 1 level of nested tables to be generated (so there are no nested
+tables of a nested table). Typical settings:
 
-- `max_table_nesting=0` will not generate child tables at all and all nested data will be
+- `max_table_nesting=0` will not generate nested tables and will not flatten dicts into columns at all. All nested data will be
   represented as JSON.
-- `max_table_nesting=1` will generate child tables of top-level tables and nothing more. All nested
-  data in child tables will be represented as JSON.
+- `max_table_nesting=1` will generate nested tables of root tables and nothing more. All nested
+  data in nested tables will be represented as JSON.
 
 You can achieve the same effect after the resource instance is created:
 

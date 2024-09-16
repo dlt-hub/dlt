@@ -1,12 +1,11 @@
 """
 ---
-title: Load parent table records into child table
-description: Learn how to integrate custom parent keys into child records
-keywords: [parent child relationship, parent key]
+title: Propagate primary_key from root to nested tables
+description: Learn how to propagate any column to nested tables
+keywords: [root table, nested reference, parent key]
 ---
 
-This example demonstrates handling data with parent-child relationships using the `dlt` library.
-You learn how to integrate specific fields (e.g., primary, foreign keys) from a parent record into each child record.
+You learn how to propagate specific fields (e.g., primary, foreign keys) from a parent record into each child record.
 
 In this example, we'll explore how to:
 

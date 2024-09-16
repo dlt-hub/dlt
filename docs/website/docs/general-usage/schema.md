@@ -36,7 +36,7 @@ the order is lost.
 
 ## Naming convention
 
-`dlt` creates tables, child tables and column schemas from the data. The data being loaded,
+`dlt` creates tables, nested tables and column schemas from the data. The data being loaded,
 typically JSON documents, contains identifiers (i.e. key names in a dictionary) with any Unicode
 characters, any lengths and naming styles. On the other hand the destinations accept very strict
 namespaces for their identifiers. Like Redshift that accepts case-insensitive alphanumeric
@@ -52,7 +52,7 @@ The default naming convention:
    alphanumerics and underscores.
 1. Adds `_` if name starts with number.
 1. Multiples of `_` are converted into single `_`.
-1. The parent-child relation is expressed as double `_` in names.
+1. Nesting is expressed as double `_` in names.
 1. It shorts the identifier if it exceed the length at the destination.
 
 > 💡 Standard behavior of `dlt` is to **use the same naming convention for all destinations** so
@@ -85,7 +85,7 @@ standard `dlt` normalizer creates a relational structure from Python dictionarie
 Elements of that structure: table and column definitions, are added to the schema.
 
 The data normalizer is configurable and users can plug their own normalizers i.e. to handle the
-parent-child table linking differently or generate parquet-like data structs instead of child
+nested table linking differently or generate parquet-like data structs instead of nested
 tables.
 
 ## Tables and columns
@@ -96,15 +96,18 @@ The key components of a schema are tables and columns. You can find a dictionary
 A table schema has the following properties:
 
 1. `name` and `description`.
-1. `parent` with a parent table name.
 1. `columns` with dictionary of table schemas.
 1. `write_disposition` hint telling `dlt` how new data coming to the table is loaded.
+1. `schema_contract` - describes a [contract on the table](schema-contracts.md)
+1. `parent` a part of the nested reference, defined on a nested table and points to the parent table.
 
 Table schema is extended by data normalizer. Standard data normalizer adds propagated columns to it.
 
 A column schema contains following properties:
 
 1. `name` and `description` of a column in a table.
+
+Data type information:
 
 1. `data_type` with a column data type.
 1. `precision` a precision for **text**, **timestamp**, **time**, **bigint**, **binary**, and **decimal** types
@@ -116,13 +119,16 @@ A column schema contains following properties:
 A column schema contains following basic hints:
 
 1. `primary_key` marks a column as a part of primary key.
-1. `row_key` a special for of primary key created by `dlt` to identify particular rows and link nested tables
-1. `parent_key` a special form of foreign key used by nested tables to refer to parent tables
-1. `root_key` marks a column as a part of root key which is a type of foreign key always referring to the
-   root table.
 1. `unique` tells that column is unique. on some destination that generates unique index.
 1. `merge_key` marks a column as a part of merge key used by
    [incremental load](./incremental-loading.md#merge-incremental_loading).
+
+Hints below are used to create [nested references](#root-and-nested-tables-nested-references)
+1. `row_key` a special form of primary key created by `dlt` to uniquely identify rows of data
+1. `parent_key` a special form of foreign key used by nested tables to refer to parent tables
+1. `root_key` marks a column as a part of root key which is a type of foreign key always referring to the
+   root table.
+1. `_dlt_list_idx` index on a nested list from which nested table is created.
 
 `dlt` lets you define additional performance hints:
 
@@ -202,7 +208,7 @@ decimals. It works correctly on Postgres and BigQuery. All the other destination
 precision.
 
 `json` data type tells `dlt` to load that element as JSON or string and do not attempt to flatten
-or create a child table out of it. Note that structured types like arrays or maps are not supported by `dlt` at this point.
+or create a nested table out of it. Note that structured types like arrays or maps are not supported by `dlt` at this point.
 
 `time` data type is saved in destination without timezone info, if timezone is included it is stripped. E.g. `'14:01:02+02:00` -> `'14:01:02'`.
 
@@ -215,13 +221,39 @@ The precision for **timestamp** is useful when creating **parquet** files. Use 3
 The precision for **bigint** is mapped to available integer types ie. TINYINT, INT, BIGINT. The default is 64 bits (8 bytes) precision (BIGINT)
 :::
 
+## Table references
+`dlt` tables to refer to other tables. It supports two types of such references.
+1. **nested reference** created automatically when nested data (ie. `json` document containing nested list) is converted into relational form. Those
+references use specialized column and table hints and are used ie. when [merging data](incremental-loading.md).
+2. **table references** are optional, user-defined annotations that are not verified and enforced but may be used by downstream tools ie.
+to generate automatic tests or models for the loaded data.
+
+### Nested references: root and nested tables
+When `dlt` normalizes nested data into relational schema it will automatically create [**root** and **nested** tables](destination-tables.md) and link them using **nested references**.
+
+1. All tables get a column with `row_key` hint (named `_dlt_id` by default) to uniquely identify each row of data.
+2. Nested tables get `parent` table hint with a name of the parent table. Root table does not have `parent` hint defined.
+3. Nested tables get a column with `parent_key` hint (named `_dlt_parent_id` by default) that refers to `row_key` of the `parent` table.
+
+`parent` + `row_key` + `parent_key` form a **nested reference**: from nested table to `parent` table and are extensively used when loading data. Both `replace` and `merge` write dispositions
+
+`row_key` is created as follows:
+1. Random string on **root** tables, except for [`upsert`](incremental-loading.md#upsert-strategy) and
+[`scd2`](incremental-loading.md#scd2-strategy) merge strategies, where it is a deterministic hash of `primary_key` (or whole row, so called `content_hash`, if PK is not defined).
+2. A deterministic hash of `parent_key`, `parent` table name and position in the list (`_dlt_list_idx`)
+for **nested** tables.
+
+You are able to bring your own `row_key` by adding `_dlt_id` column/field to your data (both root and nested). All data types with equal operator are supported.
+
+`merge` write disposition requires additional nested reference that goes from **nested** to **root** table, skipping all parent tables in between. This reference is created by [adding a column with hint](incremental-loading.md#forcing-root-key-propagation) `root_key` (named `_dlt_root_id` by default) to nested tables.
+
+### Table references
+You can annotate tables with table references. This feature is coming soon.
+
 ## Schema settings
 
 The `settings` section of schema file lets you define various global rules that impact how tables
 and columns are inferred from data. For example you can assign **primary_key** hint to all columns with name `id` or force **timestamp** data type on all columns containing `timestamp` with an use of regex pattern.
-
-> 💡 It is the best practice to use those instead of providing the exact column schemas via `columns`
-> argument or by pasting them in `yaml`.
 
 ### Data type autodetectors
 

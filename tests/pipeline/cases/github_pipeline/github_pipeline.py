@@ -13,11 +13,12 @@ def convert_dates(item: TDataItem) -> TDataItem:
 
 @dlt.source(root_key=True)
 def github():
-    @dlt.resource(
+    @dlt.resource(  # type: ignore
         table_name="issues",
         write_disposition="merge",
         primary_key="id",
         merge_key=("node_id", "url"),
+        columns={"assignee": {"data_type": "complex"}},
     )
     def load_issues(
         created_at=dlt.sources.incremental[pendulum.DateTime]("created_at"),  # noqa: B008
@@ -34,7 +35,7 @@ def github():
 
 if __name__ == "__main__":
     # pick the destination name
-    if len(sys.argv) < 1:
+    if len(sys.argv) < 2:
         raise RuntimeError(f"Please provide destination name in args ({sys.argv})")
     dest_ = sys.argv[1]
     if dest_ == "filesystem":
