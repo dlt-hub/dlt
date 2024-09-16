@@ -134,7 +134,7 @@ def test_core_functionality(
         {"nk": 1, "c1": "foo", "c2": "foo" if simple else {"nc1": "foo"}},
         {"nk": 2, "c1": "bar", "c2": "bar" if simple else {"nc1": "bar"}},
     ]
-    info = p.run(r(dim_snap), loader_file_format=destination_config.file_format)
+    info = p.run(r(dim_snap), **destination_config.run_kwargs)
     assert_load_info(info)
     # assert x-hints
     table = p.default_schema.get_table("dim_test")
@@ -171,7 +171,7 @@ def test_core_functionality(
         {"nk": 1, "c1": "foo", "c2": "foo_updated" if simple else {"nc1": "foo_updated"}},
         {"nk": 2, "c1": "bar", "c2": "bar" if simple else {"nc1": "bar"}},
     ]
-    info = p.run(r(dim_snap), loader_file_format=destination_config.file_format)
+    info = p.run(r(dim_snap), **destination_config.run_kwargs)
     ts_2 = get_load_package_created_at(p, info)
     assert_load_info(info)
     assert get_table(p, "dim_test", cname) == [
@@ -196,7 +196,7 @@ def test_core_functionality(
     dim_snap = [
         {"nk": 1, "c1": "foo", "c2": "foo_updated" if simple else {"nc1": "foo_updated"}},
     ]
-    info = p.run(r(dim_snap), loader_file_format=destination_config.file_format)
+    info = p.run(r(dim_snap), **destination_config.run_kwargs)
     ts_3 = get_load_package_created_at(p, info)
     assert_load_info(info)
     assert get_table(p, "dim_test", cname) == [
@@ -216,7 +216,7 @@ def test_core_functionality(
         {"nk": 1, "c1": "foo", "c2": "foo_updated" if simple else {"nc1": "foo_updated"}},
         {"nk": 3, "c1": "baz", "c2": "baz" if simple else {"nc1": "baz"}},
     ]
-    info = p.run(r(dim_snap), loader_file_format=destination_config.file_format)
+    info = p.run(r(dim_snap), **destination_config.run_kwargs)
     ts_4 = get_load_package_created_at(p, info)
     assert_load_info(info)
     assert get_table(p, "dim_test", cname) == [
@@ -263,7 +263,7 @@ def test_child_table(destination_config: DestinationTestConfiguration, simple: b
         l1_1 := {"nk": 1, "c1": "foo", "c2": [1] if simple else [{"cc1": 1}]},
         l1_2 := {"nk": 2, "c1": "bar", "c2": [2, 3] if simple else [{"cc1": 2}, {"cc1": 3}]},
     ]
-    info = p.run(r(dim_snap), loader_file_format=destination_config.file_format)
+    info = p.run(r(dim_snap), **destination_config.run_kwargs)
     ts_1 = get_load_package_created_at(p, info)
     assert_load_info(info)
     assert get_table(p, "dim_test", "c1") == [
@@ -277,12 +277,12 @@ def test_child_table(destination_config: DestinationTestConfiguration, simple: b
         {"_dlt_root_id": get_row_hash(l1_2), cname: 3},
     ]
 
-    # load 2 — update a record — change not in complex column
+    # load 2 — update a record — change not in nested column
     dim_snap = [
         l2_1 := {"nk": 1, "c1": "foo_updated", "c2": [1] if simple else [{"cc1": 1}]},
         {"nk": 2, "c1": "bar", "c2": [2, 3] if simple else [{"cc1": 2}, {"cc1": 3}]},
     ]
-    info = p.run(r(dim_snap), loader_file_format=destination_config.file_format)
+    info = p.run(r(dim_snap), **destination_config.run_kwargs)
     ts_2 = get_load_package_created_at(p, info)
     assert_load_info(info)
     assert get_table(p, "dim_test", "c1") == [
@@ -300,7 +300,7 @@ def test_child_table(destination_config: DestinationTestConfiguration, simple: b
         ],
     )
 
-    # load 3 — update a record — change in complex column
+    # load 3 — update a record — change in nested column
     dim_snap = [
         l3_1 := {
             "nk": 1,
@@ -309,7 +309,7 @@ def test_child_table(destination_config: DestinationTestConfiguration, simple: b
         },
         {"nk": 2, "c1": "bar", "c2": [2, 3] if simple else [{"cc1": 2}, {"cc1": 3}]},
     ]
-    info = p.run(r(dim_snap), loader_file_format=destination_config.file_format)
+    info = p.run(r(dim_snap), **destination_config.run_kwargs)
     ts_3 = get_load_package_created_at(p, info)
     assert_load_info(info)
     assert_records_as_set(
@@ -335,7 +335,7 @@ def test_child_table(destination_config: DestinationTestConfiguration, simple: b
     dim_snap = [
         {"nk": 1, "c1": "foo_updated", "c2": [1, 2] if simple else [{"cc1": 1}, {"cc1": 2}]},
     ]
-    info = p.run(r(dim_snap), loader_file_format=destination_config.file_format)
+    info = p.run(r(dim_snap), **destination_config.run_kwargs)
     ts_4 = get_load_package_created_at(p, info)
     assert_load_info(info)
     assert_records_as_set(
@@ -356,7 +356,7 @@ def test_child_table(destination_config: DestinationTestConfiguration, simple: b
         {"nk": 1, "c1": "foo_updated", "c2": [1, 2] if simple else [{"cc1": 1}, {"cc1": 2}]},
         l5_3 := {"nk": 3, "c1": "baz", "c2": [1, 2] if simple else [{"cc1": 1}, {"cc1": 2}]},
     ]
-    info = p.run(r(dim_snap), loader_file_format=destination_config.file_format)
+    info = p.run(r(dim_snap), **destination_config.run_kwargs)
     ts_5 = get_load_package_created_at(p, info)
     assert_load_info(info)
     assert_records_as_set(
@@ -403,7 +403,7 @@ def test_grandchild_table(destination_config: DestinationTestConfiguration) -> N
         l1_1 := {"nk": 1, "c1": "foo", "c2": [{"cc1": [1]}]},
         l1_2 := {"nk": 2, "c1": "bar", "c2": [{"cc1": [1, 2]}]},
     ]
-    info = p.run(r(dim_snap), loader_file_format=destination_config.file_format)
+    info = p.run(r(dim_snap), **destination_config.run_kwargs)
     assert_load_info(info)
     assert_records_as_set(
         get_table(p, "dim_test__c2__cc1"),
@@ -414,12 +414,12 @@ def test_grandchild_table(destination_config: DestinationTestConfiguration) -> N
         ],
     )
 
-    # load 2 — update a record — change not in complex column
+    # load 2 — update a record — change not in nested column
     dim_snap = [
         l2_1 := {"nk": 1, "c1": "foo_updated", "c2": [{"cc1": [1]}]},
         l1_2 := {"nk": 2, "c1": "bar", "c2": [{"cc1": [1, 2]}]},
     ]
-    info = p.run(r(dim_snap), loader_file_format=destination_config.file_format)
+    info = p.run(r(dim_snap), **destination_config.run_kwargs)
     assert_load_info(info)
     assert_records_as_set(
         (get_table(p, "dim_test__c2__cc1")),
@@ -431,12 +431,12 @@ def test_grandchild_table(destination_config: DestinationTestConfiguration) -> N
         ],
     )
 
-    # load 3 — update a record — change in complex column
+    # load 3 — update a record — change in nested column
     dim_snap = [
         l3_1 := {"nk": 1, "c1": "foo_updated", "c2": [{"cc1": [1, 2]}]},
         {"nk": 2, "c1": "bar", "c2": [{"cc1": [1, 2]}]},
     ]
-    info = p.run(r(dim_snap), loader_file_format=destination_config.file_format)
+    info = p.run(r(dim_snap), **destination_config.run_kwargs)
     assert_load_info(info)
     exp_3 = [
         {"_dlt_root_id": get_row_hash(l1_1), "value": 1},
@@ -452,7 +452,7 @@ def test_grandchild_table(destination_config: DestinationTestConfiguration) -> N
     dim_snap = [
         {"nk": 1, "c1": "foo_updated", "c2": [{"cc1": [1, 2]}]},
     ]
-    info = p.run(r(dim_snap), loader_file_format=destination_config.file_format)
+    info = p.run(r(dim_snap), **destination_config.run_kwargs)
     assert_load_info(info)
     assert_records_as_set(get_table(p, "dim_test__c2__cc1"), exp_3)
 
@@ -461,7 +461,7 @@ def test_grandchild_table(destination_config: DestinationTestConfiguration) -> N
         {"nk": 1, "c1": "foo_updated", "c2": [{"cc1": [1, 2]}]},
         l5_3 := {"nk": 3, "c1": "baz", "c2": [{"cc1": [1]}]},
     ]
-    info = p.run(r(dim_snap), loader_file_format=destination_config.file_format)
+    info = p.run(r(dim_snap), **destination_config.run_kwargs)
     assert_load_info(info)
     assert_records_as_set(
         get_table(p, "dim_test__c2__cc1"),
@@ -496,7 +496,7 @@ def test_record_reinsert(destination_config: DestinationTestConfiguration) -> No
         r1 := {"nk": 1, "c1": "foo", "c2": "foo", "child": [1]},
         r2 := {"nk": 2, "c1": "bar", "c2": "bar", "child": [2, 3]},
     ]
-    info = p.run(r(dim_snap))
+    info = p.run(r(dim_snap), **destination_config.run_kwargs)
     assert_load_info(info)
     assert load_table_counts(p, "dim_test")["dim_test"] == 2
     assert load_table_counts(p, "dim_test__child")["dim_test__child"] == 3
@@ -504,7 +504,7 @@ def test_record_reinsert(destination_config: DestinationTestConfiguration) -> No
 
     # load 2 — delete natural key 1
     dim_snap = [r2]
-    info = p.run(r(dim_snap))
+    info = p.run(r(dim_snap), **destination_config.run_kwargs)
     assert_load_info(info)
     assert load_table_counts(p, "dim_test")["dim_test"] == 2
     assert load_table_counts(p, "dim_test__child")["dim_test__child"] == 3
@@ -512,7 +512,7 @@ def test_record_reinsert(destination_config: DestinationTestConfiguration) -> No
 
     # load 3 — reinsert natural key 1
     dim_snap = [r1, r2]
-    info = p.run(r(dim_snap))
+    info = p.run(r(dim_snap), **destination_config.run_kwargs)
     assert_load_info(info)
     assert load_table_counts(p, "dim_test")["dim_test"] == 3
     assert load_table_counts(p, "dim_test__child")["dim_test__child"] == 3  # no new record
@@ -557,15 +557,17 @@ def test_validity_column_name_conflict(destination_config: DestinationTestConfig
     def r(data):
         yield data
 
-    # configuring a validity column name that appears in the data should cause an exception
-    dim_snap = {"nk": 1, "foo": 1, "from": 1}  # conflict on "from" column
-    with pytest.raises(PipelineStepFailed) as pip_ex:
-        p.run(r(dim_snap), loader_file_format=destination_config.file_format)
-    assert isinstance(pip_ex.value.__context__.__context__, ColumnNameConflictException)
+    # a schema check against an items got dropped because it was very costly and done on each row
+    dim_snap = {"nk": 1, "foo": 1, "from": "X"}  # conflict on "from" column
+    p.run(r(dim_snap), **destination_config.run_kwargs)
     dim_snap = {"nk": 1, "foo": 1, "to": 1}  # conflict on "to" column
-    with pytest.raises(PipelineStepFailed):
-        p.run(r(dim_snap), loader_file_format=destination_config.file_format)
-    assert isinstance(pip_ex.value.__context__.__context__, ColumnNameConflictException)
+    p.run(r(dim_snap), **destination_config.run_kwargs)
+
+    # instead the variant columns got generated
+    dim_test_table = p.default_schema.tables["dim_test"]
+    assert "from__v_text" in dim_test_table["columns"]
+
+    # but `to` column was coerced and then overwritten, this is the cost of dropping the check
 
 
 @pytest.mark.parametrize(
@@ -610,7 +612,7 @@ def test_active_record_timestamp(
         def r():
             yield {"foo": "bar"}
 
-        p.run(r())
+        p.run(r(), **destination_config.run_kwargs)
         actual_active_record_timestamp = ensure_pendulum_datetime(
             load_tables_to_dicts(p, "dim_test")["dim_test"][0]["_dlt_valid_to"]
         )
@@ -648,7 +650,7 @@ def test_boundary_timestamp(
         l1_1 := {"nk": 1, "foo": "foo"},
         l1_2 := {"nk": 2, "foo": "foo"},
     ]
-    info = p.run(r(dim_snap))
+    info = p.run(r(dim_snap), **destination_config.run_kwargs)
     assert_load_info(info)
     assert load_table_counts(p, "dim_test")["dim_test"] == 2
     from_, to = DEFAULT_VALIDITY_COLUMN_NAMES
@@ -671,7 +673,7 @@ def test_boundary_timestamp(
         # l1_2,  # natural key 2 no longer present
         l2_3 := {"nk": 3, "foo": "foo"},  # new natural key
     ]
-    info = p.run(r(dim_snap))
+    info = p.run(r(dim_snap), **destination_config.run_kwargs)
     assert_load_info(info)
     assert load_table_counts(p, "dim_test")["dim_test"] == 4
     expected = [
@@ -693,7 +695,7 @@ def test_boundary_timestamp(
         }
     )
     dim_snap = [l2_1]  # natural key 3 no longer present
-    info = p.run(r(dim_snap))
+    info = p.run(r(dim_snap), **destination_config.run_kwargs)
     assert_load_info(info)
     assert load_table_counts(p, "dim_test")["dim_test"] == 4
     expected = [
@@ -743,7 +745,7 @@ def test_arrow_custom_hash(
         ).add_map(add_row_hash_to_table("row_hash"))
 
     p = destination_config.setup_pipeline("abstract", dev_mode=True)
-    info = p.run(_make_scd2_r(table), loader_file_format=destination_config.file_format)
+    info = p.run(_make_scd2_r(table), **destination_config.run_kwargs)
     assert_load_info(info)
     # make sure we have scd2 columns in schema
     table_schema = p.default_schema.get_table("tabular")
@@ -759,14 +761,14 @@ def test_arrow_custom_hash(
     if item_type == "pandas":
         table = orig_table
         orig_table = table.copy(deep=True)
-        info = p.run(_make_scd2_r(table), loader_file_format=destination_config.file_format)
+        info = p.run(_make_scd2_r(table), **destination_config.run_kwargs)
         assert_load_info(info)
         # no changes (hopefully hash is deterministic)
         assert load_table_counts(p, "tabular")["tabular"] == 100
 
         # change single row
         orig_table.iloc[0, 0] = "Duck 🦆!"
-        info = p.run(_make_scd2_r(orig_table), loader_file_format=destination_config.file_format)
+        info = p.run(_make_scd2_r(orig_table), **destination_config.run_kwargs)
         assert_load_info(info)
         # on row changed
         assert load_table_counts(p, "tabular")["tabular"] == 101
@@ -796,7 +798,7 @@ def test_user_provided_row_hash(destination_config: DestinationTestConfiguration
         {"nk": 1, "c1": "foo", "c2": [1], "row_hash": "mocked_hash_1"},
         {"nk": 2, "c1": "bar", "c2": [2, 3], "row_hash": "mocked_hash_2"},
     ]
-    info = p.run(r(dim_snap), loader_file_format=destination_config.file_format)
+    info = p.run(r(dim_snap), **destination_config.run_kwargs)
     assert_load_info(info)
     ts_1 = get_load_package_created_at(p, info)
     table = p.default_schema.get_table("dim_test")
@@ -809,7 +811,7 @@ def test_user_provided_row_hash(destination_config: DestinationTestConfiguration
     dim_snap = [
         {"nk": 1, "c1": "foo_upd", "c2": [1], "row_hash": "mocked_hash_1_upd"},
     ]
-    info = p.run(r(dim_snap), loader_file_format=destination_config.file_format)
+    info = p.run(r(dim_snap), **destination_config.run_kwargs)
     assert_load_info(info)
     ts_2 = get_load_package_created_at(p, info)
 

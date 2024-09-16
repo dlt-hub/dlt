@@ -157,8 +157,8 @@ When adding resource to the source, `dlt` clones the resource so your existing i
 
 ### Reduce the nesting level of generated tables
 
-You can limit how deep `dlt` goes when generating child tables. By default, the library will descend
-and generate child tables for all nested lists, without limit.
+You can limit how deep `dlt` goes when generating nested tables and flattening dicts into columns. By default, the library will descend
+and generate nested tables for all nested lists and columns form dicts, without limit.
 
 ```py
 @dlt.source(max_table_nesting=1)
@@ -166,13 +166,13 @@ def mongo_db():
     ...
 ```
 
-In the example above we want only 1 level of child tables to be generates (so there are no child
-tables of child tables). Typical settings:
+In the example above, we want only 1 level of nested tables to be generated (so there are no nested
+tables of a nested table). Typical settings:
 
-- `max_table_nesting=0` will not generate child tables at all and all nested data will be
-  represented as json.
-- `max_table_nesting=1` will generate child tables of top level tables and nothing more. All nested
-  data in child tables will be represented as json.
+- `max_table_nesting=0` will not generate nested tables and will not flatten dicts into columns at all. All nested data will be
+  represented as JSON.
+- `max_table_nesting=1` will generate nested tables of root tables and nothing more. All nested
+  data in nested tables will be represented as JSON.
 
 You can achieve the same effect after the source instance is created:
 
@@ -188,8 +188,8 @@ MongoDB databases. Our practical experience is that setting the `max_nesting_lev
 produces the clearest and human-readable schemas.
 
 :::tip
-The `max_table_nesting` parameter at the source level doesn't automatically apply to individual 
-resources when accessed directly (e.g., using `source.resources["resource_1"])`. To make sure it 
+The `max_table_nesting` parameter at the source level doesn't automatically apply to individual
+resources when accessed directly (e.g., using `source.resources["resource_1"])`. To make sure it
 works, either use `source.with_resources("resource_1")` or set the parameter directly on the resource.
 :::
 
@@ -214,8 +214,8 @@ The schema is available via `schema` property of the source.
 
 Source provides two other convenience properties:
 
-1. `max_table_nesting` to set the maximum nesting level of child tables
-1. `root_key` to propagate the `_dlt_id` of from a root table to all child tables.
+1. `max_table_nesting` to set the maximum nesting level for nested tables and flattened columns
+1. `root_key` to propagate the `_dlt_id` of from a root table to all nested tables.
 
 ## Load sources
 

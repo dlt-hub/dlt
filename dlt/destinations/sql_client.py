@@ -133,6 +133,23 @@ SELECT 1
         ]
         self.execute_many(statements)
 
+    def _to_named_paramstyle(self, query: str, args: Sequence[Any]) -> Tuple[str, Dict[str, Any]]:
+        """Convert a query from "format" ( %s ) paramstyle to "named" ( :param_name ) paramstyle.
+        The %s are replaced with :arg0, :arg1, ... and the arguments are returned as a dictionary.
+
+        Args:
+            query: SQL query with %s placeholders
+            args: arguments to be passed to the query
+
+        Returns:
+            Tuple of the new query and a dictionary of named arguments
+        """
+        keys = [f"arg{i}" for i in range(len(args))]
+        # Replace position arguments (%s) with named arguments (:arg0, :arg1, ...)
+        query = query % tuple(f":{key}" for key in keys)
+        db_args = {key: db_arg for key, db_arg in zip(keys, args)}
+        return query, db_args
+
     @abstractmethod
     def execute_sql(
         self, sql: AnyStr, *args: Any, **kwargs: Any

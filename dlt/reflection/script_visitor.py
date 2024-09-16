@@ -80,6 +80,8 @@ class PipelineScriptVisitor(NodeVisitor):
                     self.known_sources[str(node.name)] = node
                 elif fn == n.RESOURCE:
                     self.known_resources[str(node.name)] = node
+                elif fn == n.TRANSFORMER:
+                    self.known_resources[str(node.name)] = node
         super().generic_visit(node)
 
     def visit_Call(self, node: ast.Call) -> Any:

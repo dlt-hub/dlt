@@ -1,16 +1,18 @@
 import re
-import inspect
 
-from typing import Any, List, Optional, Tuple
+from typing import Any, List, Optional, Sequence, Tuple
 
 from dlt.common import logger
+from dlt.common.destination.capabilities import DestinationCapabilitiesContext
+from dlt.common.destination.utils import resolve_merge_strategy
 from dlt.common.schema import Schema
 from dlt.common.schema.exceptions import SchemaCorruptedException
-from dlt.common.schema.typing import MERGE_STRATEGIES, TTableSchema
+from dlt.common.schema.typing import MERGE_STRATEGIES, TColumnType, TTableSchema
 from dlt.common.schema.utils import (
     get_columns_names_with_prop,
     get_first_column_name_with_prop,
     has_column_with_prop,
+    is_nested_table,
     pipeline_state_table,
 )
 from typing import Any, cast, Tuple, Dict, Type
@@ -81,13 +83,22 @@ def get_pipeline_state_query_columns() -> TTableSchema:
     return state_table
 
 
-def verify_sql_job_client_schema(schema: Schema, warnings: bool = True) -> List[Exception]:
+def verify_schema_merge_disposition(
+    schema: Schema,
+    load_tables: Sequence[TTableSchema],
+    capabilities: DestinationCapabilitiesContext,
+    warnings: bool = True,
+) -> List[Exception]:
     log = logger.warning if warnings else logger.info
     # collect all exceptions to show all problems in the schema
     exception_log: List[Exception] = []
 
     # verifies schema settings specific to sql job client
-    for table in schema.data_tables():
+    for table in load_tables:
+        # from now on validate only top level tables
+        if is_nested_table(table):
+            continue
+
         table_name = table["name"]
         if table.get("write_disposition") == "merge":
             if "x-merge-strategy" in table and table["x-merge-strategy"] not in MERGE_STRATEGIES:  # type: ignore[typeddict-item]
@@ -98,7 +109,9 @@ def verify_sql_job_client_schema(schema: Schema, warnings: bool = True) -> List[
                         f"""Allowed values: {', '.join(['"' + s + '"' for s in MERGE_STRATEGIES])}.""",
                     )
                 )
-            if table.get("x-merge-strategy") == "delete-insert":
+
+            merge_strategy = resolve_merge_strategy(schema.tables, table, capabilities)
+            if merge_strategy == "delete-insert":
                 if not has_column_with_prop(table, "primary_key") and not has_column_with_prop(
                     table, "merge_key"
                 ):
@@ -108,7 +121,7 @@ def verify_sql_job_client_schema(schema: Schema, warnings: bool = True) -> List[
                         " merge keys defined."
                         " dlt will fall back to `append` for this table."
                     )
-            elif table.get("x-merge-strategy") == "upsert":
+            elif merge_strategy == "upsert":
                 if not has_column_with_prop(table, "primary_key"):
                     exception_log.append(
                         SchemaCorruptedException(

@@ -35,6 +35,42 @@ All write dispositions are supported.
 ## Data loading
 `dlt` will load data using large INSERT VALUES statements by default. Loading is multithreaded (20 threads by default). If you are okay with installing `pyarrow`, we suggest switching to `parquet` as the file format. Loading is faster (and also multithreaded).
 
+### Data types
+`duckdb` supports various [timestamp types](https://duckdb.org/docs/sql/data_types/timestamp.html). These can be configured using the column flags `timezone` and `precision` in the `dlt.resource` decorator or the `pipeline.run` method.
+
+- **Precision**:  supported precision values are 0, 3, 6, and 9 for fractional seconds. Note that `timezone` and `precision` cannot be used together; attempting to combine them will result in an error.
+- **Timezone**:
+  - Setting `timezone=False` maps to `TIMESTAMP`.
+  - Setting `timezone=True` (or omitting the flag, which defaults to `True`) maps to `TIMESTAMP WITH TIME ZONE` (`TIMESTAMPTZ`).
+
+#### Example precision: TIMESTAMP_MS
+
+```py
+@dlt.resource(
+    columns={"event_tstamp": {"data_type": "timestamp", "precision": 3}},
+    primary_key="event_id",
+)
+def events():
+    yield [{"event_id": 1, "event_tstamp": "2024-07-30T10:00:00.123"}]
+
+pipeline = dlt.pipeline(destination="duckdb")
+pipeline.run(events())
+```
+
+#### Example timezone: TIMESTAMP
+
+```py
+@dlt.resource(
+    columns={"event_tstamp": {"data_type": "timestamp", "timezone": False}},
+    primary_key="event_id",
+)
+def events():
+    yield [{"event_id": 1, "event_tstamp": "2024-07-30T10:00:00.123+00:00"}]
+
+pipeline = dlt.pipeline(destination="duckdb")
+pipeline.run(events())
+```
+
 ### Names normalization
 `dlt` uses the standard **snake_case** naming convention to keep identical table and column identifiers across all destinations. If you want to use the **duckdb** wide range of characters (i.e., emojis) for table and column names, you can switch to the **duck_case** naming convention, which accepts almost any string as an identifier:
 * `\n` `\r`  and `"` are translated to `_`
@@ -77,7 +113,8 @@ to disable tz adjustments.
 :::
 
 ## Supported column hints
-`duckdb` may create unique indexes for all columns with `unique` hints, but this behavior **is disabled by default** because it slows the loading down significantly.
+
+`duckdb` can create unique indexes for columns with `unique` hints. However, **this feature is disabled by default** as it can significantly slow down data loading.
 
 ## Destination Configuration
 

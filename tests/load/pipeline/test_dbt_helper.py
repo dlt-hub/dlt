@@ -36,7 +36,7 @@ def dbt_venv() -> Iterator[Venv]:
 def test_run_jaffle_package(
     destination_config: DestinationTestConfiguration, dbt_venv: Venv
 ) -> None:
-    if destination_config.destination == "athena":
+    if destination_config.destination_type == "athena":
         pytest.skip(
             "dbt-athena requires database to be created and we don't do it in case of Jaffle"
         )
@@ -71,7 +71,7 @@ def test_run_jaffle_package(
     ids=lambda x: x.name,
 )
 def test_run_chess_dbt(destination_config: DestinationTestConfiguration, dbt_venv: Venv) -> None:
-    if destination_config.destination == "mssql":
+    if destination_config.destination_type == "mssql":
         pytest.skip(
             "mssql requires non standard SQL syntax and we do not have specialized dbt package"
             " for it"
@@ -93,7 +93,7 @@ def test_run_chess_dbt(destination_config: DestinationTestConfiguration, dbt_ven
     with pytest.raises(PrerequisitesException):
         transforms.run_all(source_tests_selector="source:*")
     # load data
-    info = pipeline.run(chess(max_players=5, month=9))
+    info = pipeline.run(chess(max_players=5, month=9), **destination_config.run_kwargs)
     print(info)
     assert pipeline.schema_names == ["chess"]
     # run all the steps (deps -> seed -> source tests -> run)
@@ -130,7 +130,7 @@ def test_run_chess_dbt(destination_config: DestinationTestConfiguration, dbt_ven
 def test_run_chess_dbt_to_other_dataset(
     destination_config: DestinationTestConfiguration, dbt_venv: Venv
 ) -> None:
-    if destination_config.destination == "mssql":
+    if destination_config.destination_type == "mssql":
         pytest.skip(
             "mssql requires non standard SQL syntax and we do not have specialized dbt package"
             " for it"
@@ -150,7 +150,7 @@ def test_run_chess_dbt_to_other_dataset(
     transforms = dlt.dbt.package(pipeline, "docs/examples/chess/dbt_transform", venv=dbt_venv)
     # assert pipeline.default_schema_name is None
     # load data
-    info = pipeline.run(chess(max_players=5, month=9))
+    info = pipeline.run(chess(max_players=5, month=9), **destination_config.run_kwargs)
     print(info)
     assert pipeline.schema_names == ["chess"]
     # store transformations in alternative dataset

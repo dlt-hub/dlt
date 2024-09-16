@@ -133,7 +133,7 @@ destination.
 
 The `clickhouse` destination has a few specific deviations from the default sql destinations:
 
-1. `Clickhouse` has an experimental `object` datatype, but we've found it to be a bit unpredictable, so the dlt clickhouse destination will load the complex datatype to a `text` column.
+1. `Clickhouse` has an experimental `object` datatype, but we've found it to be a bit unpredictable, so the dlt clickhouse destination will load the `json` datatype to a `text` column.
    If you need
    this feature, get in touch with our Slack community, and we will consider adding it.
 2. `Clickhouse` does not support the `time` datatype. Time will be loaded to a `text` column.

@@ -1,8 +1,9 @@
-from copy import copy, deepcopy
 from typing import TypedDict, cast, Any, Optional, Dict
+from typing_extensions import Self
 
 from dlt.common import logger
 from dlt.common.schema.typing import (
+    C_DLT_ID,
     TColumnNames,
     TColumnProp,
     TFileFormat,
@@ -19,9 +20,9 @@ from dlt.common.schema.typing import (
 )
 from dlt.common.schema.utils import (
     DEFAULT_WRITE_DISPOSITION,
-    DEFAULT_MERGE_STRATEGY,
     merge_column,
     merge_columns,
+    migrate_complex_types,
     new_column,
     new_table,
 )
@@ -40,18 +41,21 @@ from dlt.extract.utils import ensure_table_schema_columns, ensure_table_schema_c
 from dlt.extract.validation import create_item_validator
 
 
-class TResourceHints(TypedDict, total=False):
+class TResourceHintsBase(TypedDict, total=False):
+    write_disposition: Optional[TTableHintTemplate[TWriteDispositionConfig]]
+    parent: Optional[TTableHintTemplate[str]]
+    primary_key: Optional[TTableHintTemplate[TColumnNames]]
+    schema_contract: Optional[TTableHintTemplate[TSchemaContract]]
+    table_format: Optional[TTableHintTemplate[TTableFormat]]
+    merge_key: Optional[TTableHintTemplate[TColumnNames]]
+
+
+class TResourceHints(TResourceHintsBase, total=False):
     name: TTableHintTemplate[str]
     # description: TTableHintTemplate[str]
-    write_disposition: TTableHintTemplate[TWriteDispositionConfig]
     # table_sealed: Optional[bool]
-    parent: TTableHintTemplate[str]
     columns: TTableHintTemplate[TTableSchemaColumns]
-    primary_key: TTableHintTemplate[TColumnNames]
-    merge_key: TTableHintTemplate[TColumnNames]
     incremental: Incremental[Any]
-    schema_contract: TTableHintTemplate[TSchemaContract]
-    table_format: TTableHintTemplate[TTableFormat]
     file_format: TTableHintTemplate[TFileFormat]
     validator: ValidateItem
     original_columns: TTableHintTemplate[TAnySchemaColumns]
@@ -84,17 +88,11 @@ def make_hints(
     This method accepts the same table hints arguments as `dlt.resource` decorator.
     """
     validator, schema_contract = create_item_validator(columns, schema_contract)
-    clean_columns = columns
-    if columns is not None:
-        clean_columns = ensure_table_schema_columns_hint(columns)
-        if not callable(clean_columns):
-            clean_columns = clean_columns.values()  # type: ignore
     # create a table schema template where hints can be functions taking TDataItem
     new_template: TResourceHints = new_table(
         table_name,  # type: ignore
         parent_table_name,  # type: ignore
         write_disposition=write_disposition,  # type: ignore
-        columns=clean_columns,  # type: ignore
         schema_contract=schema_contract,  # type: ignore
         table_format=table_format,  # type: ignore
         file_format=file_format,  # type: ignore
@@ -103,9 +101,10 @@ def make_hints(
         new_template.pop("name")
     if not write_disposition and "write_disposition" in new_template:
         new_template.pop("write_disposition")
-    # remember original columns
+    # remember original columns and set template columns
     if columns is not None:
         new_template["original_columns"] = columns
+        new_template["columns"] = ensure_table_schema_columns_hint(columns)
     # always remove resource
     new_template.pop("resource", None)  # type: ignore
     if primary_key is not None:
@@ -163,11 +162,15 @@ class DltResourceHints:
 
     @property
     def schema_contract(self) -> TTableHintTemplate[TSchemaContract]:
-        return self._hints.get("schema_contract")
+        return None if self._hints is None else self._hints.get("schema_contract")
 
     @property
     def table_format(self) -> TTableHintTemplate[TTableFormat]:
         return None if self._hints is None else self._hints.get("table_format")
+
+    @property
+    def parent_table_name(self) -> TTableHintTemplate[str]:
+        return None if self._hints is None else self._hints.get("parent")
 
     def compute_table_schema(self, item: TDataItem = None, meta: Any = None) -> TTableSchema:
         """Computes the table schema based on hints and column definitions passed during resource creation.
@@ -197,6 +200,7 @@ class DltResourceHints:
             if k not in NATURAL_CALLABLES
         }  # type: ignore
         table_schema = self._create_table_schema(resolved_template, self.name)
+        migrate_complex_types(table_schema, warn=True)
         validate_dict_ignoring_xkeys(
             spec=TTableSchema,
             doc=table_schema,
@@ -218,7 +222,7 @@ class DltResourceHints:
         table_format: TTableHintTemplate[TTableFormat] = None,
         file_format: TTableHintTemplate[TFileFormat] = None,
         create_table_variant: bool = False,
-    ) -> None:
+    ) -> Self:
         """Creates or modifies existing table schema by setting provided hints. Accepts both static and dynamic hints based on data.
 
         If `create_table_variant` is specified, the `table_name` must be a string and hints will be used to create a separate set of hints
@@ -234,6 +238,8 @@ class DltResourceHints:
 
         Please note that for efficient incremental loading, the resource must be aware of the Incremental by accepting it as one if its arguments and then using are to skip already loaded data.
         In non-aware resources, `dlt` will filter out the loaded values, however, the resource will yield all the values again.
+
+        Returns: self for chaining
         """
         if create_table_variant:
             if not isinstance(table_name, str):
@@ -340,6 +346,7 @@ class DltResourceHints:
             t["incremental"] = incremental
 
         self._set_hints(t, create_table_variant)
+        return self
 
     def _set_hints(
         self, hints_template: TResourceHints, create_table_variant: bool = False
@@ -399,7 +406,6 @@ class DltResourceHints:
         if hints_template is None:
             return None
         # creates a deep copy of dict structure without actually copying the objects
-        # deepcopy(hints_template) #
         return clone_dict_nested(hints_template)  # type: ignore[type-var]
 
     @staticmethod
@@ -421,7 +427,7 @@ class DltResourceHints:
                 partial["columns"][key][hint] = True
 
     @staticmethod
-    def _merge_keys(dict_: Dict[str, Any]) -> None:
+    def _merge_keys(dict_: TResourceHints) -> None:
         """Merges primary and merge keys into columns in place."""
 
         if "primary_key" in dict_:
@@ -433,67 +439,68 @@ class DltResourceHints:
     def _merge_write_disposition_dict(dict_: Dict[str, Any]) -> None:
         """Merges write disposition dictionary into write disposition shorthand and x-hints in place."""
 
-        if dict_["write_disposition"]["disposition"] == "merge":
+        write_disposition = dict_["write_disposition"]["disposition"]
+        if write_disposition == "merge":
             DltResourceHints._merge_merge_disposition_dict(dict_)
         # reduce merge disposition from dict to shorthand
-        dict_["write_disposition"] = dict_["write_disposition"]["disposition"]
+        dict_["write_disposition"] = write_disposition
 
     @staticmethod
     def _merge_merge_disposition_dict(dict_: Dict[str, Any]) -> None:
         """Merges merge disposition dict into x-hints in place."""
 
-        mddict: TMergeDispositionDict = deepcopy(dict_["write_disposition"])
-        if mddict is not None:
-            dict_["x-merge-strategy"] = mddict.get("strategy", DEFAULT_MERGE_STRATEGY)
-            if "boundary_timestamp" in mddict:
-                dict_["x-boundary-timestamp"] = mddict["boundary_timestamp"]
-            # add columns for `scd2` merge strategy
-            if dict_.get("x-merge-strategy") == "scd2":
-                if mddict.get("validity_column_names") is None:
-                    from_, to = DEFAULT_VALIDITY_COLUMN_NAMES
-                else:
-                    from_, to = mddict["validity_column_names"]
-                dict_["columns"][from_] = {
-                    "name": from_,
-                    "data_type": "timestamp",
-                    "nullable": (
-                        True
-                    ),  # validity columns are empty when first loaded into staging table
-                    "x-valid-from": True,
-                }
-                dict_["columns"][to] = {
-                    "name": to,
-                    "data_type": "timestamp",
-                    "nullable": True,
-                    "x-valid-to": True,
-                    "x-active-record-timestamp": mddict.get("active_record_timestamp"),
-                }
-                # unique constraint is dropped for C_DLT_ID when used to store
-                # SCD2 row hash (only applies to root table)
-                hash_ = mddict.get("row_version_column_name", DataItemNormalizer.C_DLT_ID)
-                dict_["columns"][hash_] = {
-                    "name": hash_,
-                    "nullable": False,
-                    "x-row-version": True,
-                    # duplicate value in row hash column is possible in case
-                    # of insert-delete-reinsert pattern
-                    "unique": False,
-                }
+        md_dict: TMergeDispositionDict = dict_.pop("write_disposition")
+        if merge_strategy := md_dict.get("strategy"):
+            dict_["x-merge-strategy"] = merge_strategy
+        if "boundary_timestamp" in md_dict:
+            dict_["x-boundary-timestamp"] = md_dict["boundary_timestamp"]
+        # add columns for `scd2` merge strategy
+        if merge_strategy == "scd2":
+            if md_dict.get("validity_column_names") is None:
+                from_, to = DEFAULT_VALIDITY_COLUMN_NAMES
+            else:
+                from_, to = md_dict["validity_column_names"]
+            dict_["columns"][from_] = {
+                "name": from_,
+                "data_type": "timestamp",
+                "nullable": True,  # validity columns are empty when first loaded into staging table
+                "x-valid-from": True,
+            }
+            dict_["columns"][to] = {
+                "name": to,
+                "data_type": "timestamp",
+                "nullable": True,
+                "x-valid-to": True,
+                "x-active-record-timestamp": md_dict.get("active_record_timestamp"),
+            }
+            # unique constraint is dropped for C_DLT_ID when used to store
+            # SCD2 row hash (only applies to root table)
+            hash_ = md_dict.get("row_version_column_name", C_DLT_ID)
+            dict_["columns"][hash_] = {
+                "name": hash_,
+                "nullable": False,
+                "x-row-version": True,
+                # duplicate value in row hash column is possible in case
+                # of insert-delete-reinsert pattern
+                "unique": False,
+                "row_key": False,
+            }
 
     @staticmethod
     def _create_table_schema(resource_hints: TResourceHints, resource_name: str) -> TTableSchema:
-        """Creates table schema from resource hints and resource name."""
-
-        dict_ = cast(Dict[str, Any], resource_hints)
-        DltResourceHints._merge_keys(dict_)
-        dict_["resource"] = resource_name
-        if "write_disposition" in dict_:
-            if isinstance(dict_["write_disposition"], str):
-                dict_["write_disposition"] = {
-                    "disposition": dict_["write_disposition"]
+        """Creates table schema from resource hints and resource name. Resource hints are resolved
+        (do not contain callables) and will be modified in place
+        """
+        DltResourceHints._merge_keys(resource_hints)
+        if "write_disposition" in resource_hints:
+            if isinstance(resource_hints["write_disposition"], str):
+                resource_hints["write_disposition"] = {
+                    "disposition": resource_hints["write_disposition"]
                 }  # wrap in dict
-            DltResourceHints._merge_write_disposition_dict(dict_)
-        return cast(TTableSchema, dict_)
+            DltResourceHints._merge_write_disposition_dict(resource_hints)  # type: ignore[arg-type]
+        dict_ = cast(TTableSchema, resource_hints)
+        dict_["resource"] = resource_name
+        return dict_
 
     @staticmethod
     def validate_dynamic_hints(template: TResourceHints) -> None:

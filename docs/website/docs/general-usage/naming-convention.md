@@ -27,7 +27,7 @@ The standard behavior of `dlt` is to **use the same naming convention for all de
 - Multiples of `_` are converted into a single `_`.
 - Replaces all trailing `_` with `x`
 
-Uses __ as a parent-child separator for tables and flattened column names.
+Uses __ as a nesting separator for tables and flattened column names.
 
 :::tip
 If you do not like **snake_case**, your next safe option is **sql_ci**, which generates SQL-safe, lowercase, case-insensitive identifiers without any other transformations. To permanently change the default naming convention on a given machine:

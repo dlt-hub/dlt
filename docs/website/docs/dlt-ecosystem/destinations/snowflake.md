@@ -143,6 +143,27 @@ The data is loaded using an internal Snowflake stage. We use the `PUT` command a
 keep_staged_files = false
 ```
 
+### Data types
+`snowflake` supports various timestamp types, which can be configured using the column flags `timezone` and `precision` in the `dlt.resource` decorator or the `pipeline.run` method.
+
+- **Precision**: allows you to specify the number of decimal places for fractional seconds, ranging from 0 to 9. It can be used in combination with the `timezone` flag.
+- **Timezone**:
+  - Setting `timezone=False` maps to `TIMESTAMP_NTZ`.
+  - Setting `timezone=True` (or omitting the flag, which defaults to `True`) maps to `TIMESTAMP_TZ`.
+
+#### Example precision and timezone: TIMESTAMP_NTZ(3)
+```py
+@dlt.resource(
+    columns={"event_tstamp": {"data_type": "timestamp", "precision": 3, "timezone": False}},
+    primary_key="event_id",
+)
+def events():
+    yield [{"event_id": 1, "event_tstamp": "2024-07-30T10:00:00.123"}]
+
+pipeline = dlt.pipeline(destination="snowflake")
+pipeline.run(events())
+```
+
 ## Supported file formats
 * [insert-values](../file-formats/insert-format.md) is used by default
 * [parquet](../file-formats/parquet.md) is supported
@@ -155,7 +176,7 @@ When staging is enabled:
 * [csv](../file-formats/csv.md) is supported
 
 :::caution
-When loading from `parquet`, Snowflake will store `complex` types (JSON) in `VARIANT` as a string. Use the `jsonl` format instead or use `PARSE_JSON` to update the `VARIANT` field after loading.
+When loading from `parquet`, Snowflake will store `json` types (JSON) in `VARIANT` as a string. Use the `jsonl` format instead or use `PARSE_JSON` to update the `VARIANT` field after loading.
 :::
 
 ### Custom csv formats

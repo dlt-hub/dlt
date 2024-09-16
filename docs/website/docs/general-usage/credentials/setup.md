@@ -5,7 +5,7 @@ keywords: [credentials, secrets.toml, secrets, config, configuration, environmen
       variables, provider]
 ---
 
-`dlt` automatically extracts configuration settings and secrets based on flexible [naming conventions](setup/#naming-convention).
+`dlt` automatically extracts configuration settings and secrets based on flexible [naming conventions](#naming-convention).
 
 It then [injects](advanced/#injection-mechanism) these values where needed in functions decorated with `@dlt.source`, `@dlt.resource`, or `@dlt.destination`.
 
@@ -39,15 +39,71 @@ Please make sure your pipeline name contains no whitespace or any other punctuat
 
 To keep the naming convention flexible, `dlt` looks for a lot of possible combinations of key names, starting from the most specific possible path. Then, if the value is not found, it removes the right-most section and tries again.
 
-* The most specific possible path for **sources** looks like:
-```sh
-<pipeline_name>.sources.<source_module_name>.<source_function_name>.<argument_name>
-```
+The most specific possible path for **sources** looks like:
 
-* The most specific possible path for **destinations** looks like:
+<Tabs
+  groupId="config-provider-type"
+  defaultValue="toml"
+  values={[
+    {"label": "Toml config provider", "value": "toml"},
+    {"label": "ENV variables", "value": "env"},
+    {"label": "In the code", "value": "code"},
+]}>
+  <TabItem value="toml">
+
 ```sh
-<pipeline_name>.destination.<destination name>.credentials.<credential_option>
+[<pipeline_name>.sources.<source_module_name>.<source_function_name>]
+<argument_name>="some_value"
 ```
+  </TabItem>
+  <TabItem value="env">
+
+```sh
+export PIPELINE_NAME__SOURCES__SOURCE_MODULE_NAME__SOURCE_FUNCTION_NAME__ARGUMENT_NAME="some_value"
+```
+  </TabItem>
+  <TabItem value="code">
+
+```py
+import os
+
+os.environ["PIPELINE_NAME__SOURCES__SOURCE_MODULE_NAME__SOURCE_FUNCTION_NAME__ARGUMENT_NAME"] = "some_value"
+```
+  </TabItem>
+</Tabs>
+
+The most specific possible path for **destinations** looks like:
+
+<Tabs
+  groupId="config-provider-type"
+  defaultValue="toml"
+  values={[
+    {"label": "Toml config provider", "value": "toml"},
+    {"label": "ENV variables", "value": "env"},
+    {"label": "In the code", "value": "code"},
+]}>
+  <TabItem value="toml">
+
+```sh
+[<pipeline_name>.destination.<destination name>.credentials]
+<credential_option>="some_value"
+```
+  </TabItem>
+  <TabItem value="env">
+
+```sh
+export PIPELINE_NAME__DESTINATION__DESTINATION_NAME__CREDENTIALS__CREDENTIAL_VALUE="some_value"
+```
+  </TabItem>
+  <TabItem value="code">
+
+```py
+import os
+
+os.environ["PIPELINE_NAME__DESTINATION__DESTINATION_NAME__CREDENTIALS__CREDENTIAL_VALUE"] = "some_value"
+```
+  </TabItem>
+</Tabs>
 
 ### Example
 
@@ -86,7 +142,7 @@ project_id = "<project_id_2>"
 
 ### Credential types
 
-In most cases, credentials are just key-value pairs, but in some cases, the actual structure of [credentials](complex_types) could be quite complex and support several ways of setting it up.
+In most cases, credentials are just key-value pairs, but in some cases, the actual structure of [credentials](./complex_types) could be quite complex and support several ways of setting it up.
 For example, to connect to a `sql_database` source, you can either set up a connection string:
 
 ```toml
@@ -106,7 +162,7 @@ warehouse = "warehouse_name"
 role = "role"
 ```
 
-`dlt` can work with both ways and convert one to another. To learn more about which credential types are supported, visit the [complex credential types](complex_types) page.
+`dlt` can work with both ways and convert one to another. To learn more about which credential types are supported, visit the [complex credential types](./complex_types) page.
 
 ## Environment variables
 

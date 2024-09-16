@@ -1,32 +1,34 @@
-from dlt.destinations.impl.postgres.postgres import PostgresClient
-from dlt.destinations.impl.postgres.sql_client import psycopg2
-from psycopg2.errors import InsufficientPrivilege, InternalError_, SyntaxError
+"""WARNING: Running this script will drop add schemas in the redshift destination set up in your secrets.toml"""
 
-CONNECTION_STRING = ""
+import dlt
+from dlt.destinations.exceptions import (
+    DatabaseUndefinedRelation,
+    DatabaseTerminalException,
+    DatabaseTransientException,
+)
 
 if __name__ == "__main__":
-    # connect
-    connection = psycopg2.connect(CONNECTION_STRING)
-    connection.set_isolation_level(0)
+    pipeline = dlt.pipeline(pipeline_name="drop_redshift", destination="redshift")
 
-    # list all schemas
-    with connection.cursor() as curr:
-        curr.execute("""select s.nspname as table_schema,
+    with pipeline.sql_client() as client:
+        with client.execute_query("""select s.nspname as table_schema,
         s.oid as schema_id,
         u.usename as owner
         from pg_catalog.pg_namespace s
         join pg_catalog.pg_user u on u.usesysid = s.nspowner
-        order by table_schema;""")
-        schemas = [row[0] for row in curr.fetchall()]
-
-    # delete all schemas, skipp expected errors
-    with connection.cursor() as curr:
-        print(f"Deleting {len(schemas)} schemas")
-        for schema in schemas:
-            print(f"Deleting {schema}...")
+        order by table_schema;""") as cur:
+            dbs = [row[0] for row in cur.fetchall()]
+        for db in dbs:
+            if db.startswith("<"):
+                continue
+            sql = f"DROP SCHEMA {db} CASCADE;"
             try:
-                curr.execute(f"DROP SCHEMA IF EXISTS {schema} CASCADE;")
-            except (InsufficientPrivilege, InternalError_, SyntaxError) as ex:
-                print(ex)
-                pass
-            print(f"Deleted {schema}...")
+                print(sql)
+                with client.execute_query(sql):
+                    pass  #
+            except (
+                DatabaseUndefinedRelation,
+                DatabaseTerminalException,
+                DatabaseTransientException,
+            ):
+                print("Could not delete schema")

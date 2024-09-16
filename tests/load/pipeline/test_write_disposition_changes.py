@@ -34,7 +34,7 @@ def test_switch_from_merge(destination_config: DestinationTestConfiguration):
         data_with_subtables(10),
         table_name="items",
         write_disposition="merge",
-        loader_file_format=destination_config.file_format,
+        **destination_config.run_kwargs,
     )
     assert_data_table_counts(pipeline, {"items": 100, "items__sub_items": 100})
     assert pipeline.default_schema._normalizers_config["json"]["config"]["propagation"]["tables"][
@@ -45,7 +45,7 @@ def test_switch_from_merge(destination_config: DestinationTestConfiguration):
         data_with_subtables(10),
         table_name="items",
         write_disposition="merge",
-        loader_file_format=destination_config.file_format,
+        **destination_config.run_kwargs,
     )
     assert_load_info(info)
     assert_data_table_counts(
@@ -63,7 +63,7 @@ def test_switch_from_merge(destination_config: DestinationTestConfiguration):
         data_with_subtables(10),
         table_name="items",
         write_disposition="append",
-        loader_file_format=destination_config.file_format,
+        **destination_config.run_kwargs,
     )
     assert_load_info(info)
     assert_data_table_counts(
@@ -81,7 +81,7 @@ def test_switch_from_merge(destination_config: DestinationTestConfiguration):
         data_with_subtables(10),
         table_name="items",
         write_disposition="replace",
-        loader_file_format=destination_config.file_format,
+        **destination_config.run_kwargs,
     )
     assert_load_info(info)
     assert_data_table_counts(pipeline, {"items": 100, "items__sub_items": 100})
@@ -91,7 +91,9 @@ def test_switch_from_merge(destination_config: DestinationTestConfiguration):
 
 
 @pytest.mark.parametrize(
-    "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
+    "destination_config",
+    destinations_configs(default_sql_configs=True, supports_merge=True),
+    ids=lambda x: x.name,
 )
 @pytest.mark.parametrize("with_root_key", [True, False])
 def test_switch_to_merge(destination_config: DestinationTestConfiguration, with_root_key: bool):
@@ -110,7 +112,7 @@ def test_switch_to_merge(destination_config: DestinationTestConfiguration, with_
         s,
         table_name="items",
         write_disposition="append",
-        loader_file_format=destination_config.file_format,
+        **destination_config.run_kwargs,
     )
     assert_data_table_counts(pipeline, {"items": 100, "items__sub_items": 100})
 
@@ -126,7 +128,7 @@ def test_switch_to_merge(destination_config: DestinationTestConfiguration, with_
     # schemaless destinations allow adding of root key without the pipeline failing
     # they do not mind adding NOT NULL columns to tables with existing data (id NOT NULL is supported at all)
     # doing this will result in somewhat useless behavior
-    destination_allows_adding_root_key = destination_config.destination in [
+    destination_allows_adding_root_key = destination_config.destination_type in [
         "dremio",
         "clickhouse",
         "athena",
@@ -137,7 +139,7 @@ def test_switch_to_merge(destination_config: DestinationTestConfiguration, with_
             s,
             table_name="items",
             write_disposition="merge",
-            loader_file_format=destination_config.file_format,
+            **destination_config.run_kwargs,
         )
         return
 
@@ -148,7 +150,7 @@ def test_switch_to_merge(destination_config: DestinationTestConfiguration, with_
                 s,
                 table_name="items",
                 write_disposition="merge",
-                loader_file_format=destination_config.file_format,
+                **destination_config.run_kwargs,
             )
         return
 
@@ -156,7 +158,7 @@ def test_switch_to_merge(destination_config: DestinationTestConfiguration, with_
         s,
         table_name="items",
         write_disposition="merge",
-        loader_file_format=destination_config.file_format,
+        **destination_config.run_kwargs,
     )
     assert_load_info(info)
     assert_data_table_counts(

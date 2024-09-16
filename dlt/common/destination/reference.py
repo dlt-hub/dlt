@@ -21,22 +21,18 @@ from typing import (
 )
 from typing_extensions import Annotated
 import datetime  # noqa: 251
-from copy import deepcopy
 import inspect
 
 from dlt.common import logger, pendulum
 from dlt.common.configuration.specs.base_configuration import extract_inner_hint
-from dlt.common.destination.utils import verify_schema_capabilities
+from dlt.common.destination.typing import PreparedTableSchema
+from dlt.common.destination.utils import verify_schema_capabilities, verify_supported_data_types
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.metrics import LoadJobMetrics
 from dlt.common.normalizers.naming import NamingConvention
-from dlt.common.schema import Schema, TTableSchema, TSchemaTables
-from dlt.common.schema.utils import (
-    get_file_format,
-    get_write_disposition,
-    get_table_format,
-    get_merge_strategy,
-)
+from dlt.common.schema import Schema, TSchemaTables
+from dlt.common.schema.typing import C_DLT_LOAD_ID, _TTableSchemaBase, TWriteDisposition
+from dlt.common.schema.utils import fill_hints_from_parent_and_clone_table
 from dlt.common.configuration import configspec, resolve_configuration, known_sections, NotResolved
 from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
@@ -90,6 +86,20 @@ class StorageSchemaInfo(NamedTuple):
             schema=normalized_doc[naming_convention.normalize_identifier("schema")],
         )
 
+    def to_normalized_mapping(self, naming_convention: NamingConvention) -> Dict[str, Any]:
+        """Convert this instance to mapping where keys are normalized according to given naming convention
+
+        Args:
+            naming_convention: Naming convention that should be used to normalize keys
+
+        Returns:
+            Dict[str, Any]: Mapping with normalized keys (e.g. {Version: ..., SchemaName: ...})
+        """
+        return {
+            naming_convention.normalize_identifier(key): value
+            for key, value in self._asdict().items()
+        }
+
 
 @dataclasses.dataclass
 class StateInfo:
@@ -104,7 +114,7 @@ class StateInfo:
     def as_doc(self) -> TPipelineStateDoc:
         doc: TPipelineStateDoc = dataclasses.asdict(self)  # type: ignore[assignment]
         if self._dlt_load_id is None:
-            doc.pop("_dlt_load_id")
+            doc.pop(C_DLT_LOAD_ID)  # type: ignore[misc]
         if self.version_hash is None:
             doc.pop("version_hash")
         return doc
@@ -129,7 +139,7 @@ class StateInfo:
             state=normalized_doc[naming_convention.normalize_identifier("state")],
             created_at=normalized_doc[naming_convention.normalize_identifier("created_at")],
             version_hash=normalized_doc.get(naming_convention.normalize_identifier("version_hash")),
-            _dlt_load_id=normalized_doc.get(naming_convention.normalize_identifier("_dlt_load_id")),
+            _dlt_load_id=normalized_doc.get(naming_convention.normalize_identifier(C_DLT_LOAD_ID)),
         )
 
 
@@ -257,7 +267,7 @@ class DestinationClientStagingConfiguration(DestinationClientDwhConfiguration):
     Also supports datasets and can act as standalone destination.
     """
 
-    as_staging: bool = False
+    as_staging_destination: bool = False
     bucket_url: str = None
     # layout of the destination files
     layout: str = DEFAULT_FILE_LAYOUT
@@ -347,11 +357,11 @@ class RunnableLoadJob(LoadJob, ABC):
 
         # variables needed by most jobs, set by the loader in set_run_vars
         self._schema: Schema = None
-        self._load_table: TTableSchema = None
+        self._load_table: PreparedTableSchema = None
         self._load_id: str = None
         self._job_client: "JobClientBase" = None
 
-    def set_run_vars(self, load_id: str, schema: Schema, load_table: TTableSchema) -> None:
+    def set_run_vars(self, load_id: str, schema: Schema, load_table: PreparedTableSchema) -> None:
         """
         called by the loader right before the job is run
         """
@@ -443,7 +453,7 @@ class JobClientBase(ABC):
         self.capabilities = capabilities
 
     @abstractmethod
-    def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
+    def initialize_storage(self, truncate_tables: Optional[Iterable[str]] = None) -> None:
         """Prepares storage to be used ie. creates database schema or file system folder. Truncates requested tables."""
         pass
 
@@ -456,6 +466,38 @@ class JobClientBase(ABC):
     def drop_storage(self) -> None:
         """Brings storage back into not initialized state. Typically data in storage is destroyed."""
         pass
+
+    def verify_schema(
+        self, only_tables: Iterable[str] = None, new_jobs: Iterable[ParsedLoadJobFileName] = None
+    ) -> List[PreparedTableSchema]:
+        """Verifies schema before loading, returns a list of verified loaded tables."""
+        if exceptions := verify_schema_capabilities(
+            self.schema,
+            self.capabilities,
+            self.config.destination_type,
+            warnings=False,
+        ):
+            for exception in exceptions:
+                logger.error(str(exception))
+            raise exceptions[0]
+
+        prepared_tables = [
+            self.prepare_load_table(table_name)
+            for table_name in set(
+                list(only_tables or []) + self.schema.data_table_names(seen_data_only=True)
+            )
+        ]
+        if exceptions := verify_supported_data_types(
+            prepared_tables,
+            new_jobs,
+            self.capabilities,
+            self.config.destination_type,
+            warnings=False,
+        ):
+            for exception in exceptions:
+                logger.error(str(exception))
+            raise exceptions[0]
+        return prepared_tables
 
     def update_stored_schema(
         self,
@@ -473,7 +515,6 @@ class JobClientBase(ABC):
         Returns:
             Optional[TSchemaTables]: Returns an update that was applied at the destination.
         """
-        self._verify_schema()
         # make sure that schema being saved was not modified from the moment it was loaded from storage
         version_hash = self.schema.version_hash
         if self.schema.is_modified:
@@ -482,11 +523,19 @@ class JobClientBase(ABC):
             )
         return expected_update
 
+    def prepare_load_table(self, table_name: str) -> PreparedTableSchema:
+        """Prepares a table schema to be loaded by filling missing hints and doing other modifications requires by given destination."""
+        try:
+            return fill_hints_from_parent_and_clone_table(self.schema.tables, self.schema.tables[table_name])  # type: ignore[return-value]
+
+        except KeyError:
+            raise UnknownTableException(self.schema.name, table_name)
+
     @abstractmethod
     def create_load_job(
-        self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
+        self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
-        """Creates a load job for a particular `table` with content in `file_path`"""
+        """Creates a load job for a particular `table` with content in `file_path`. Table is already prepared to be loaded."""
         pass
 
     def prepare_load_job_execution(  # noqa: B027, optional override
@@ -495,15 +544,15 @@ class JobClientBase(ABC):
         """Prepare the connected job client for the execution of a load job (used for query tags in sql clients)"""
         pass
 
-    def should_truncate_table_before_load(self, table: TTableSchema) -> bool:
-        return table["write_disposition"] == "replace"
+    def should_truncate_table_before_load(self, table_name: str) -> bool:
+        return self.prepare_load_table(table_name)["write_disposition"] == "replace"
 
     def create_table_chain_completed_followup_jobs(
         self,
-        table_chain: Sequence[TTableSchema],
+        table_chain: Sequence[PreparedTableSchema],
         completed_table_chain_jobs: Optional[Sequence[LoadJobInfo]] = None,
     ) -> List[FollowupJobRequest]:
-        """Creates a list of followup jobs that should be executed after a table chain is completed"""
+        """Creates a list of followup jobs that should be executed after a table chain is completed. Tables are already prepared to be loaded."""
         return []
 
     @abstractmethod
@@ -520,34 +569,6 @@ class JobClientBase(ABC):
         self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: TracebackType
     ) -> None:
         pass
-
-    def _verify_schema(self) -> None:
-        """Verifies schema before loading"""
-        if exceptions := verify_schema_capabilities(
-            self.schema, self.capabilities, self.config.destination_type, warnings=False
-        ):
-            for exception in exceptions:
-                logger.error(str(exception))
-            raise exceptions[0]
-
-    def prepare_load_table(
-        self, table_name: str, prepare_for_staging: bool = False
-    ) -> TTableSchema:
-        try:
-            # make a copy of the schema so modifications do not affect the original document
-            table = deepcopy(self.schema.tables[table_name])
-            # add write disposition if not specified - in child tables
-            if "write_disposition" not in table:
-                table["write_disposition"] = get_write_disposition(self.schema.tables, table_name)
-            if "x-merge-strategy" not in table:
-                table["x-merge-strategy"] = get_merge_strategy(self.schema.tables, table_name)  # type: ignore[typeddict-unknown-key]
-            if "table_format" not in table:
-                table["table_format"] = get_table_format(self.schema.tables, table_name)
-            if "file_format" not in table:
-                table["file_format"] = get_file_format(self.schema.tables, table_name)
-            return table
-        except KeyError:
-            raise UnknownTableException(self.schema.name, table_name)
 
 
 class WithStateSync(ABC):
@@ -571,7 +592,7 @@ class WithStagingDataset(ABC):
     """Adds capability to use staging dataset and request it from the loader"""
 
     @abstractmethod
-    def should_load_data_to_staging_dataset(self, table: TTableSchema) -> bool:
+    def should_load_data_to_staging_dataset(self, table_name: str) -> bool:
         return False
 
     @abstractmethod
@@ -583,9 +604,7 @@ class WithStagingDataset(ABC):
 class SupportsStagingDestination(ABC):
     """Adds capability to support a staging destination for the load"""
 
-    def should_load_data_to_staging_dataset_on_staging_destination(
-        self, table: TTableSchema
-    ) -> bool:
+    def should_load_data_to_staging_dataset_on_staging_destination(self, table_name: str) -> bool:
         """If set to True, and staging destination is configured, the data will be loaded to staging dataset on staging destination
         instead of a regular dataset on staging destination. Currently it is used by Athena Iceberg which uses staging dataset
         on staging destination to copy data to iceberg tables stored on regular dataset on staging destination.
@@ -595,7 +614,7 @@ class SupportsStagingDestination(ABC):
         return False
 
     @abstractmethod
-    def should_truncate_table_before_load_on_staging_destination(self, table: TTableSchema) -> bool:
+    def should_truncate_table_before_load_on_staging_destination(self, table_name: str) -> bool:
         """If set to True, data in `table` will be truncated on staging destination (regular dataset). This is the default behavior which
         can be changed with a config flag.
         For Athena + Iceberg this setting is always False - Athena uses regular dataset to store Iceberg tables and we avoid touching it.

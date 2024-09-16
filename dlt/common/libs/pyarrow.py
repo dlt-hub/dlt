@@ -17,10 +17,11 @@ from typing import (
 from dlt import version
 from dlt.common.pendulum import pendulum
 from dlt.common.exceptions import MissingDependencyException
-from dlt.common.schema.typing import DLT_NAME_PREFIX, TTableSchemaColumns
+from dlt.common.schema.typing import C_DLT_ID, C_DLT_LOAD_ID, TTableSchemaColumns
 
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.schema.typing import TColumnType
+from dlt.common.schema.utils import is_nullable_column
 from dlt.common.typing import StrStr, TFileOrPath
 from dlt.common.normalizers.naming import NamingConvention
 
@@ -29,6 +30,7 @@ try:
     import pyarrow.parquet
     import pyarrow.compute
     import pyarrow.dataset
+    from pyarrow.parquet import ParquetFile
 except ModuleNotFoundError:
     raise MissingDependencyException(
         "dlt pyarrow helpers",
@@ -54,12 +56,17 @@ def get_py_arrow_datatype(
     elif column_type == "bool":
         return pyarrow.bool_()
     elif column_type == "timestamp":
-        return get_py_arrow_timestamp(column.get("precision") or caps.timestamp_precision, tz)
+        # sets timezone to None when timezone hint is false
+        timezone = tz if column.get("timezone", True) else None
+        precision = column.get("precision")
+        if precision is None:
+            precision = caps.timestamp_precision
+        return get_py_arrow_timestamp(precision, timezone)
     elif column_type == "bigint":
         return get_pyarrow_int(column.get("precision"))
     elif column_type == "binary":
         return pyarrow.binary(column.get("precision") or -1)
-    elif column_type == "complex":
+    elif column_type == "json":
         # return pyarrow.struct([pyarrow.field('json', pyarrow.string())])
         return pyarrow.string()
     elif column_type == "decimal":
@@ -75,7 +82,10 @@ def get_py_arrow_datatype(
     elif column_type == "date":
         return pyarrow.date32()
     elif column_type == "time":
-        return get_py_arrow_time(column.get("precision") or caps.timestamp_precision)
+        precision = column.get("precision")
+        if precision is None:
+            precision = caps.timestamp_precision
+        return get_py_arrow_time(precision)
     else:
         raise ValueError(column_type)
 
@@ -139,6 +149,10 @@ def get_column_type_from_py_arrow(dtype: pyarrow.DataType) -> TColumnType:
             precision = 6
         else:
             precision = 9
+
+        if dtype.tz is None:
+            return dict(data_type="timestamp", precision=precision, timezone=False)
+
         return dict(data_type="timestamp", precision=precision)
     elif pyarrow.types.is_date(dtype):
         return dict(data_type="date")
@@ -165,7 +179,7 @@ def get_column_type_from_py_arrow(dtype: pyarrow.DataType) -> TColumnType:
     elif pyarrow.types.is_decimal(dtype):
         return dict(data_type="decimal", precision=dtype.precision, scale=dtype.scale)
     elif pyarrow.types.is_nested(dtype):
-        return dict(data_type="complex")
+        return dict(data_type="json")
     else:
         raise ValueError(dtype)
 
@@ -230,7 +244,7 @@ def should_normalize_arrow_schema(
 ) -> Tuple[bool, Mapping[str, str], Dict[str, str], Dict[str, bool], bool, TTableSchemaColumns]:
     rename_mapping = get_normalized_arrow_fields_mapping(schema, naming)
     rev_mapping = {v: k for k, v in rename_mapping.items()}
-    nullable_mapping = {k: v.get("nullable", True) for k, v in columns.items()}
+    nullable_mapping = {k: is_nullable_column(v) for k, v in columns.items()}
     # All fields from arrow schema that have nullable set to different value than in columns
     # Key is the renamed column name
     nullable_updates: Dict[str, bool] = {}
@@ -239,8 +253,8 @@ def should_normalize_arrow_schema(
         if norm_name in nullable_mapping and field.nullable != nullable_mapping[norm_name]:
             nullable_updates[norm_name] = nullable_mapping[norm_name]
 
-    dlt_load_id_col = naming.normalize_table_identifier("_dlt_load_id")
-    dlt_id_col = naming.normalize_table_identifier("_dlt_id")
+    dlt_load_id_col = naming.normalize_identifier(C_DLT_LOAD_ID)
+    dlt_id_col = naming.normalize_identifier(C_DLT_ID)
     dlt_columns = {dlt_load_id_col, dlt_id_col}
 
     # Do we need to add a load id column?
@@ -319,7 +333,7 @@ def normalize_py_arrow_item(
             new_field = pyarrow.field(
                 column_name,
                 get_py_arrow_datatype(column, caps, "UTC"),
-                nullable=column.get("nullable", True),
+                nullable=is_nullable_column(column),
             )
             new_fields.append(new_field)
             new_columns.append(pyarrow.nulls(item.num_rows, type=new_field.type))
@@ -336,7 +350,7 @@ def normalize_py_arrow_item(
         load_id_type = pyarrow.dictionary(pyarrow.int8(), pyarrow.string())
         new_fields.append(
             pyarrow.field(
-                naming.normalize_table_identifier("_dlt_load_id"),
+                naming.normalize_identifier(C_DLT_LOAD_ID),
                 load_id_type,
                 nullable=False,
             )
@@ -491,6 +505,30 @@ def cast_arrow_schema_types(
                 schema = schema.set(i, adjusted_field)
                 break  # if type matches type check, do not do other type checks
     return schema
+
+
+def concat_batches_and_tables_in_order(
+    tables_or_batches: Iterable[Union[pyarrow.Table, pyarrow.RecordBatch]]
+) -> pyarrow.Table:
+    """Concatenate iterable of tables and batches into a single table, preserving row order. Zero copy is used during
+    concatenation so schemas must be identical.
+    """
+    batches = []
+    tables = []
+    for item in tables_or_batches:
+        if isinstance(item, pyarrow.RecordBatch):
+            batches.append(item)
+        elif isinstance(item, pyarrow.Table):
+            if batches:
+                tables.append(pyarrow.Table.from_batches(batches))
+                batches = []
+            tables.append(item)
+        else:
+            raise ValueError(f"Unsupported type {type(item)}")
+    if batches:
+        tables.append(pyarrow.Table.from_batches(batches))
+    # "none" option ensures 0 copy concat
+    return pyarrow.concat_tables(tables, promote_options="none")
 
 
 class NameNormalizationCollision(ValueError):

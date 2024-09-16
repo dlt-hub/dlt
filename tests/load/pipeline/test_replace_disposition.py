@@ -94,9 +94,7 @@ def test_replace_disposition(
             }
 
     # first run with offset 0
-    info = pipeline.run(
-        [load_items, append_items], loader_file_format=destination_config.file_format
-    )
+    info = pipeline.run([load_items, append_items], **destination_config.run_kwargs)
     assert_load_info(info)
     # count state records that got extracted
     state_records = increase_state_loads(info)
@@ -105,9 +103,7 @@ def test_replace_disposition(
 
     # second run with higher offset so we can check the results
     offset = 1000
-    info = pipeline.run(
-        [load_items, append_items], loader_file_format=destination_config.file_format
-    )
+    info = pipeline.run([load_items, append_items], **destination_config.run_kwargs)
     assert_load_info(info)
     state_records += increase_state_loads(info)
     dlt_loads += 1
@@ -153,9 +149,7 @@ def test_replace_disposition(
         if False:
             yield
 
-    info = pipeline.run(
-        [load_items_none, append_items], loader_file_format=destination_config.file_format
-    )
+    info = pipeline.run([load_items_none, append_items], **destination_config.run_kwargs)
     assert_load_info(info)
     state_records += increase_state_loads(info)
     dlt_loads += 1
@@ -186,9 +180,7 @@ def test_replace_disposition(
     pipeline_2 = destination_config.setup_pipeline(
         "test_replace_strategies_2", dataset_name=dataset_name
     )
-    info = pipeline_2.run(
-        load_items, table_name="items_copy", loader_file_format=destination_config.file_format
-    )
+    info = pipeline_2.run(load_items, table_name="items_copy", **destination_config.run_kwargs)
     assert_load_info(info)
     new_state_records = increase_state_loads(info)
     assert new_state_records == 1
@@ -202,7 +194,7 @@ def test_replace_disposition(
         "_dlt_pipeline_state": 1,
     }
 
-    info = pipeline_2.run(append_items, loader_file_format=destination_config.file_format)
+    info = pipeline_2.run(append_items, **destination_config.run_kwargs)
     assert_load_info(info)
     new_state_records = increase_state_loads(info)
     assert new_state_records == 0
@@ -321,9 +313,7 @@ def test_replace_table_clearing(
         yield []
 
     # regular call
-    pipeline.run(
-        [items_with_subitems, static_items], loader_file_format=destination_config.file_format
-    )
+    pipeline.run([items_with_subitems, static_items], **destination_config.run_kwargs)
     table_counts = load_table_counts(
         pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()]
     )
@@ -345,7 +335,7 @@ def test_replace_table_clearing(
     }
 
     # see if child table gets cleared
-    pipeline.run(items_without_subitems, loader_file_format=destination_config.file_format)
+    pipeline.run(items_without_subitems, **destination_config.run_kwargs)
     table_counts = load_table_counts(
         pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()]
     )
@@ -360,8 +350,8 @@ def test_replace_table_clearing(
 
     # see if yield none clears everything
     for empty_resource in [yield_none, no_yield, yield_empty_list]:
-        pipeline.run(items_with_subitems, loader_file_format=destination_config.file_format)
-        pipeline.run(empty_resource, loader_file_format=destination_config.file_format)
+        pipeline.run(items_with_subitems, **destination_config.run_kwargs)
+        pipeline.run(empty_resource, **destination_config.run_kwargs)
         table_counts = load_table_counts(
             pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()]
         )
@@ -375,7 +365,7 @@ def test_replace_table_clearing(
         assert pipeline.last_trace.last_normalize_info.row_counts == {"items": 0, "other_items": 0}
 
     # see if yielding something next to other none entries still goes into db
-    pipeline.run(items_with_subitems_yield_none, loader_file_format=destination_config.file_format)
+    pipeline.run(items_with_subitems_yield_none, **destination_config.run_kwargs)
     table_counts = load_table_counts(
         pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()]
     )

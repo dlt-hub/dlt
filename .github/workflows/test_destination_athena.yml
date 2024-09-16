@@ -22,7 +22,7 @@ env:
   RUNTIME__DLTHUB_TELEMETRY_ENDPOINT: ${{ secrets.RUNTIME__DLTHUB_TELEMETRY_ENDPOINT }}
   ACTIVE_DESTINATIONS: "[\"athena\"]"
   ALL_FILESYSTEM_DRIVERS: "[\"memory\"]"
-  EXCLUDED_DESTINATION_CONFIGURATIONS: "[\"athena-parquet-staging-iceberg\", \"athena-parquet-no-staging-iceberg\"]"
+  EXCLUDED_DESTINATION_CONFIGURATIONS: "[\"athena-parquet-iceberg-no-staging-iceberg\", \"athena-parquet-iceberg-staging-iceberg\"]"
 
 jobs:
   get_docs_changes:
@@ -73,11 +73,11 @@ jobs:
         run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
 
       - run: |
-          poetry run pytest tests/load -m "essential"
+          poetry run pytest tests/load --ignore tests/load/sources -m "essential"
         name: Run essential tests Linux
         if: ${{ ! (contains(github.event.pull_request.labels.*.name, 'ci full') || !github.event_name == 'schedule')}}
 
       - run: |
-          poetry run pytest tests/load
+          poetry run pytest tests/load --ignore tests/load/sources
         name: Run all tests Linux
         if: ${{ contains(github.event.pull_request.labels.*.name, 'ci full') || github.event_name == 'schedule'}}

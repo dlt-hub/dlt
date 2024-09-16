@@ -1,0 +1,394 @@
+version: 18
+version_hash: veEmgbCPXCIiqyfabeQWwz6UIQ2liETv7LLMpyktCos=
+engine_version: 10
+name: ethereum
+tables:
+  _dlt_loads:
+    columns:
+      load_id:
+        nullable: false
+        data_type: text
+      schema_name:
+        nullable: true
+        data_type: text
+      status:
+        nullable: false
+        data_type: bigint
+      inserted_at:
+        nullable: false
+        data_type: timestamp
+      schema_version_hash:
+        nullable: true
+        data_type: text
+    write_disposition: skip
+    description: Created by DLT. Tracks completed loads
+    schema_contract: {}
+    resource: _dlt_loads
+  _dlt_version:
+    columns:
+      version:
+        nullable: false
+        data_type: bigint
+      engine_version:
+        nullable: false
+        data_type: bigint
+      inserted_at:
+        nullable: false
+        data_type: timestamp
+      schema_name:
+        nullable: false
+        data_type: text
+      version_hash:
+        nullable: false
+        data_type: text
+      schema:
+        nullable: false
+        data_type: text
+    write_disposition: skip
+    description: Created by DLT. Tracks schema updates
+    schema_contract: {}
+    resource: _dlt_version
+  blocks:
+    description: Ethereum blocks
+    x-annotation: this will be preserved on save
+    write_disposition: append
+    filters:
+      includes: []
+      excludes: []
+    columns:
+      _dlt_load_id:
+        nullable: false
+        description: load id coming from the extractor
+        data_type: text
+      _dlt_id:
+        nullable: false
+        unique: true
+        data_type: text
+        row_key: true
+      number:
+        nullable: false
+        primary_key: true
+        data_type: bigint
+      parent_hash:
+        nullable: true
+        data_type: text
+      hash:
+        nullable: false
+        cluster: true
+        unique: true
+        data_type: text
+      base_fee_per_gas:
+        nullable: false
+        data_type: wei
+      difficulty:
+        nullable: false
+        data_type: wei
+      extra_data:
+        nullable: true
+        data_type: text
+      gas_limit:
+        nullable: false
+        data_type: bigint
+      gas_used:
+        nullable: false
+        data_type: bigint
+      logs_bloom:
+        nullable: true
+        data_type: binary
+      miner:
+        nullable: true
+        data_type: text
+      mix_hash:
+        nullable: true
+        data_type: text
+      nonce:
+        nullable: true
+        data_type: text
+      receipts_root:
+        nullable: true
+        data_type: text
+      sha3_uncles:
+        nullable: true
+        data_type: text
+      size:
+        nullable: true
+        data_type: bigint
+      state_root:
+        nullable: false
+        data_type: text
+      timestamp:
+        nullable: false
+        unique: true
+        sort: true
+        data_type: timestamp
+      total_difficulty:
+        nullable: true
+        data_type: wei
+      transactions_root:
+        nullable: false
+        data_type: text
+    schema_contract: {}
+    resource: blocks
+    x-normalizer:
+      seen-data: true
+  blocks__transactions:
+    columns:
+      _dlt_id:
+        nullable: false
+        unique: true
+        data_type: text
+        row_key: true
+      block_number:
+        nullable: false
+        primary_key: true
+        data_type: bigint
+        merge_key: true
+      transaction_index:
+        nullable: false
+        primary_key: true
+        data_type: bigint
+      hash:
+        nullable: false
+        unique: true
+        data_type: text
+      block_hash:
+        nullable: false
+        cluster: true
+        data_type: text
+      block_timestamp:
+        nullable: false
+        sort: true
+        data_type: timestamp
+      chain_id:
+        nullable: true
+        data_type: text
+      from:
+        nullable: true
+        data_type: text
+      gas:
+        nullable: true
+        data_type: bigint
+      gas_price:
+        nullable: true
+        data_type: bigint
+      input:
+        nullable: true
+        data_type: text
+      max_fee_per_gas:
+        nullable: true
+        data_type: wei
+      max_priority_fee_per_gas:
+        nullable: true
+        data_type: wei
+      nonce:
+        nullable: true
+        data_type: bigint
+      r:
+        nullable: true
+        data_type: text
+      s:
+        nullable: true
+        data_type: text
+      status:
+        nullable: true
+        data_type: bigint
+      to:
+        nullable: true
+        data_type: text
+      type:
+        nullable: true
+        data_type: text
+      v:
+        nullable: true
+        data_type: bigint
+      value:
+        nullable: false
+        data_type: wei
+      eth_value:
+        nullable: true
+        data_type: decimal
+    x-normalizer:
+      seen-data: true
+    write_disposition: append
+    resource: blocks__transactions
+  blocks__transactions__logs:
+    columns:
+      _dlt_id:
+        nullable: false
+        unique: true
+        data_type: text
+        row_key: true
+      address:
+        nullable: false
+        data_type: text
+      block_timestamp:
+        nullable: false
+        sort: true
+        data_type: timestamp
+      block_hash:
+        nullable: false
+        cluster: true
+        data_type: text
+      block_number:
+        nullable: false
+        primary_key: true
+        merge_key: true
+        data_type: bigint
+      transaction_index:
+        nullable: false
+        primary_key: true
+        merge_key: true
+        data_type: bigint
+      log_index:
+        nullable: false
+        primary_key: true
+        data_type: bigint
+      data:
+        nullable: true
+        data_type: text
+      removed:
+        nullable: true
+        data_type: bool
+      transaction_hash:
+        nullable: false
+        data_type: text
+    x-normalizer:
+      seen-data: true
+    write_disposition: append
+    resource: blocks__transactions__logs
+  blocks__transactions__logs__topics:
+    parent: blocks__transactions__logs
+    columns:
+      _dlt_parent_id:
+        nullable: false
+        data_type: text
+        parent_key: true
+      _dlt_list_idx:
+        nullable: false
+        data_type: bigint
+      _dlt_id:
+        nullable: false
+        unique: true
+        data_type: text
+        row_key: true
+      _dlt_root_id:
+        nullable: false
+        root_key: true
+        data_type: text
+      value:
+        nullable: true
+        data_type: text
+    x-normalizer:
+      seen-data: true
+  blocks__transactions__access_list:
+    parent: blocks__transactions
+    columns:
+      _dlt_parent_id:
+        nullable: false
+        data_type: text
+        parent_key: true
+      _dlt_list_idx:
+        nullable: false
+        data_type: bigint
+      _dlt_id:
+        nullable: false
+        unique: true
+        data_type: text
+        row_key: true
+      _dlt_root_id:
+        nullable: false
+        root_key: true
+        data_type: text
+      address:
+        nullable: true
+        data_type: text
+    x-normalizer:
+      seen-data: true
+  blocks__transactions__access_list__storage_keys:
+    parent: blocks__transactions__access_list
+    columns:
+      _dlt_parent_id:
+        nullable: false
+        data_type: text
+        parent_key: true
+      _dlt_list_idx:
+        nullable: false
+        data_type: bigint
+      _dlt_id:
+        nullable: false
+        unique: true
+        data_type: text
+        row_key: true
+      _dlt_root_id:
+        nullable: false
+        root_key: true
+        data_type: text
+      value:
+        nullable: true
+        data_type: text
+    x-normalizer:
+      seen-data: true
+  blocks__uncles:
+    parent: blocks
+    columns:
+      _dlt_parent_id:
+        nullable: false
+        data_type: text
+        parent_key: true
+      _dlt_list_idx:
+        nullable: false
+        data_type: bigint
+      _dlt_id:
+        nullable: false
+        unique: true
+        data_type: text
+        row_key: true
+      _dlt_root_id:
+        nullable: false
+        root_key: true
+        data_type: text
+      value:
+        nullable: true
+        data_type: text
+    x-normalizer:
+      seen-data: true
+settings:
+  default_hints:
+    not_null:
+    - re:^_dlt_id$
+    - _dlt_root_id
+    - _dlt_parent_id
+    - _dlt_list_idx
+    unique:
+    - _dlt_id
+    cluster:
+    - block_hash
+    partition:
+    - block_timestamp
+    root_key:
+    - _dlt_root_id
+    row_key:
+    - _dlt_id
+    parent_key:
+    - _dlt_parent_id
+  preferred_types:
+    timestamp: timestamp
+    block_timestamp: timestamp
+  schema_contract: {}
+normalizers:
+  names: dlt.common.normalizers.names.snake_case
+  json:
+    module: dlt.common.normalizers.json.relational
+    config:
+      propagation:
+        root:
+          _dlt_id: _dlt_root_id
+        tables:
+          blocks:
+            timestamp: block_timestamp
+            hash: block_hash
+previous_hashes:
+- oHfYGTI2GHOxuzwVz6+yvMilXUvHYhxrxkanC2T6MAI=
+- C5An8WClbavalXDdNSqXbdI7Swqh/mTWMcwWKCF//EE=
+- yjMtV4Zv0IJlfR5DPMwuXxGg8BRhy7E79L26XAHWEGE=
+

@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Callable, Sequence
+from typing import Any, Dict, List, Set, Callable, Sequence
 import pytest
 import random
 from os import environ
@@ -6,15 +6,16 @@ import io
 
 import dlt
 from dlt.common import json, sleep
-from dlt.common.destination.exceptions import DestinationUndefinedEntity
+from dlt.common.configuration.utils import auto_cast
+from dlt.common.data_types import py_type_to_sc_type
 from dlt.common.pipeline import LoadInfo
 from dlt.common.schema.utils import get_table_format
 from dlt.common.typing import DictStrAny
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 from dlt.destinations.fs_client import FSClientBase
-from dlt.pipeline.exceptions import SqlClientNotAvailable
-from dlt.common.storages import FileStorage
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
+
+from dlt.common.schema.typing import TTableSchema
 
 
 PIPELINE_TEST_CASES_PATH = "./tests/pipeline/cases/"
@@ -147,7 +148,7 @@ def _load_file(client: FSClientBase, filepath) -> List[Dict[str, Any]]:
         cols = lines[0][15:-2].split(",")
         for line in lines[2:]:
             if line:
-                values = line[1:-3].split(",")
+                values = map(auto_cast, line[1:-3].split(","))
                 result.append(dict(zip(cols, values)))
 
     # load parquet
@@ -420,3 +421,68 @@ def assert_query_data(
         # the second is load id
         if info:
             assert row[1] in info.loads_ids
+
+
+def assert_schema_on_data(
+    table_schema: TTableSchema,
+    rows: List[Dict[str, Any]],
+    requires_nulls: bool,
+    check_nested: bool,
+) -> None:
+    """Asserts that `rows` conform to `table_schema`. Fields and their order must conform to columns. Null values and
+    python data types are checked.
+    """
+    table_columns = table_schema["columns"]
+    columns_with_nulls: Set[str] = set()
+    for row in rows:
+        # check columns
+        assert set(table_schema["columns"].keys()) == set(row.keys())
+        # check column order
+        assert list(table_schema["columns"].keys()) == list(row.keys())
+        # check data types
+        for key, value in row.items():
+            print(key)
+            print(value)
+            if value is None:
+                assert table_columns[key][
+                    "nullable"
+                ], f"column {key} must be nullable: value is None"
+                # next value. we cannot validate data type
+                columns_with_nulls.add(key)
+                continue
+            expected_dt = table_columns[key]["data_type"]
+            # allow json strings
+            if expected_dt == "json":
+                if check_nested:
+                    # NOTE: we expect a dict or a list here. simple types of null will fail the test
+                    value = json.loads(value)
+                else:
+                    # skip checking nested types
+                    continue
+            actual_dt = py_type_to_sc_type(type(value))
+            assert actual_dt == expected_dt
+
+    if requires_nulls:
+        # make sure that all nullable columns in table received nulls
+        assert (
+            set(col["name"] for col in table_columns.values() if col["nullable"])
+            == columns_with_nulls
+        ), "Some columns didn't receive NULLs which is required"
+
+
+def load_table_distinct_counts(
+    p: dlt.Pipeline, distinct_column: str, *table_names: str
+) -> DictStrAny:
+    """Returns counts of distinct values for column `distinct_column` for `table_names` as dict"""
+    with p.sql_client() as c:
+        query = "\nUNION ALL\n".join(
+            [
+                f"SELECT '{name}' as name, COUNT(DISTINCT {distinct_column}) as c FROM"
+                f" {c.make_qualified_table_name(name)}"
+                for name in table_names
+            ]
+        )
+
+        with c.execute_query(query) as cur:
+            rows = list(cur.fetchall())
+            return {r[0]: r[1] for r in rows}

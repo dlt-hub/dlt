@@ -1,7 +1,9 @@
+from typing import List
 import pytest
 from copy import deepcopy
 import sqlfluff
 
+from dlt.common.schema.typing import TColumnSchema
 from dlt.common.utils import uniq_id
 from dlt.common.schema import Schema
 
@@ -31,7 +33,9 @@ def client(empty_schema: Schema) -> DuckDbClient:
 
 def test_create_table(client: DuckDbClient) -> None:
     # non existing table
-    sql = client._get_table_update_sql("event_test_table", TABLE_UPDATE, False)[0]
+    sql = client._get_table_update_sql(
+        "event_test_table", add_timezone_false_on_precision(TABLE_UPDATE), False
+    )[0]
     sqlfluff.parse(sql, dialect="duckdb")
     assert "event_test_table" in sql
     assert '"col1" BIGINT  NOT NULL' in sql
@@ -57,13 +61,15 @@ def test_create_table_all_precisions(client: DuckDbClient) -> None:
     # non existing table
     sql = client._get_table_update_sql(
         "event_test_table",
-        TABLE_UPDATE_ALL_TIMESTAMP_PRECISIONS + TABLE_UPDATE_ALL_INT_PRECISIONS,
+        add_timezone_false_on_precision(
+            TABLE_UPDATE_ALL_TIMESTAMP_PRECISIONS + TABLE_UPDATE_ALL_INT_PRECISIONS
+        ),
         False,
     )[0]
     sqlfluff.parse(sql, dialect="duckdb")
     assert '"col1_ts" TIMESTAMP_S ' in sql
     assert '"col2_ts" TIMESTAMP_MS ' in sql
-    assert '"col3_ts" TIMESTAMP WITH TIME ZONE ' in sql
+    assert '"col3_ts" TIMESTAMP ' in sql
     assert '"col4_ts" TIMESTAMP_NS ' in sql
     assert '"col1_int" TINYINT ' in sql
     assert '"col2_int" SMALLINT ' in sql
@@ -74,7 +80,9 @@ def test_create_table_all_precisions(client: DuckDbClient) -> None:
 
 def test_alter_table(client: DuckDbClient) -> None:
     # existing table has no columns
-    sqls = client._get_table_update_sql("event_test_table", TABLE_UPDATE, True)
+    sqls = client._get_table_update_sql(
+        "event_test_table", add_timezone_false_on_precision(TABLE_UPDATE), True
+    )
     for sql in sqls:
         sqlfluff.parse(sql, dialect="duckdb")
     canonical_name = client.sql_client.make_qualified_table_name("event_test_table")
@@ -107,7 +115,7 @@ def test_create_table_with_hints(client: DuckDbClient) -> None:
     mod_update[0]["primary_key"] = True
     mod_update[0]["sort"] = True
     mod_update[1]["unique"] = True
-    mod_update[4]["foreign_key"] = True
+    mod_update[4]["parent_key"] = True
     sql = ";".join(client._get_table_update_sql("event_test_table", mod_update, False))
     assert '"col1" BIGINT  NOT NULL' in sql
     assert '"col2" DOUBLE  NOT NULL' in sql
@@ -127,3 +135,11 @@ def test_create_table_with_hints(client: DuckDbClient) -> None:
     sql = client._get_table_update_sql("event_test_table", mod_update, False)[0]
     sqlfluff.parse(sql)
     assert '"col2" DOUBLE UNIQUE NOT NULL' in sql
+
+
+def add_timezone_false_on_precision(table_update: List[TColumnSchema]) -> List[TColumnSchema]:
+    table_update = deepcopy(table_update)
+    for column in table_update:
+        if column["data_type"] == "timestamp" and column.get("precision") is not None:
+            column["timezone"] = False
+    return table_update

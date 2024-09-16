@@ -206,7 +206,7 @@ def github_repo_events(
 `access_token`: Optional classic or fine-grained access token. If not provided, calls are made
 anonymously.
 
-`max_table_nesting=2` sets the maximum nesting level of child tables to 2.
+`max_table_nesting=2` sets the maximum nesting level to 2.
 
 Read more about [nesting levels](../../general-usage/source#reduce-the-nesting-level-of-generated-tables).
 

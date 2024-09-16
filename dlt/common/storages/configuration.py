@@ -12,6 +12,7 @@ from dlt.common.configuration.specs import (
     GcpOAuthCredentials,
     AnyAzureCredentials,
     BaseConfiguration,
+    SFTPCredentials,
 )
 from dlt.common.typing import DictStrAny
 from dlt.common.utils import digest128
@@ -48,8 +49,17 @@ class LoadStorageConfiguration(BaseConfiguration):
 
 
 FileSystemCredentials = Union[
-    AwsCredentials, GcpServiceAccountCredentials, AnyAzureCredentials, GcpOAuthCredentials
+    AwsCredentials,
+    GcpServiceAccountCredentials,
+    AnyAzureCredentials,
+    GcpOAuthCredentials,
+    SFTPCredentials,
 ]
+
+
+def _make_sftp_url(scheme: str, fs_path: str, bucket_url: str) -> str:
+    parsed_bucket_url = urlparse(bucket_url)
+    return f"{scheme}://{parsed_bucket_url.hostname}{fs_path}"
 
 
 def _make_az_url(scheme: str, fs_path: str, bucket_url: str) -> str:
@@ -76,7 +86,7 @@ def _make_file_url(scheme: str, fs_path: str, bucket_url: str) -> str:
     return p_.as_uri()
 
 
-MAKE_URI_DISPATCH = {"az": _make_az_url, "file": _make_file_url}
+MAKE_URI_DISPATCH = {"az": _make_az_url, "file": _make_file_url, "sftp": _make_sftp_url}
 
 MAKE_URI_DISPATCH["adl"] = MAKE_URI_DISPATCH["az"]
 MAKE_URI_DISPATCH["abfs"] = MAKE_URI_DISPATCH["az"]
@@ -109,6 +119,7 @@ class FilesystemConfiguration(BaseConfiguration):
     * az, abfs, adl, abfss, azure
     * file, memory
     * gdrive
+    * sftp
     """
 
     PROTOCOL_CREDENTIALS: ClassVar[Dict[str, Any]] = {
@@ -121,6 +132,7 @@ class FilesystemConfiguration(BaseConfiguration):
         "adl": AnyAzureCredentials,
         "abfss": AnyAzureCredentials,
         "azure": AnyAzureCredentials,
+        "sftp": SFTPCredentials,
     }
 
     bucket_url: str = None

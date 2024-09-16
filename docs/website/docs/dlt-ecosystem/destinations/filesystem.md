@@ -1,10 +1,14 @@
-# Filesystem & buckets
-The Filesystem destination stores data in remote file systems and bucket storages like **S3**, **Google Storage**, or **Azure Blob Storage**. Underneath, it uses [fsspec](https://github.com/fsspec/filesystem_spec) to abstract file operations. Its primary role is to be used as a staging for other destinations, but you can also quickly build a data lake with it.
+# Cloud storage and filesystem
+The filesystem destination stores data in remote file systems and cloud storage services like **AWS S3**, **Google Cloud Storage**, or **Azure Blob Storage**. Underneath, it uses [fsspec](https://github.com/fsspec/filesystem_spec) to abstract file operations. Its primary role is to be used as a staging for other destinations, but you can also quickly build a data lake with it.
 
-> 💡 Please read the notes on the layout of the data files. Currently, we are getting feedback on it. Please join our Slack (icon at the top of the page) and help us find the optimal layout.
+:::tip
+Please read the notes on the layout of the data files. Currently, we are getting feedback on it. Please join our Slack (icon at the top of the page) and help us find the optimal layout.
+:::
 
 ## Install dlt with filesystem
-**To install the dlt library with filesystem dependencies:**
+
+Install the dlt library with filesystem dependencies:
+
 ```sh
 pip install "dlt[filesystem]"
 ```
@@ -24,14 +28,15 @@ so pip does not fail on backtracking.
 ## Initialise the dlt project
 
 Let's start by initializing a new dlt project as follows:
-   ```sh
-   dlt init chess filesystem
-   ```
+```sh
+dlt init chess filesystem
+```
+
 :::note
-This command will initialize your pipeline with chess as the source and the AWS S3 filesystem as the destination.
+This command will initialize your pipeline with chess as the source and the AWS S3 as the destination.
 :::
 
-## Set up bucket storage and credentials
+## Set up the destination and credentials
 
 ### AWS S3
 The command above creates a sample `secrets.toml` and requirements file for AWS S3 bucket. You can install those dependencies by running:
@@ -39,7 +44,8 @@ The command above creates a sample `secrets.toml` and requirements file for AWS 
 pip install -r requirements.txt
 ```
 
-To edit the `dlt` credentials file with your secret info, open `.dlt/secrets.toml`, which looks like this:
+To edit the dlt credentials file with your secret info, open `.dlt/secrets.toml`, which looks like this:
+
 ```toml
 [destination.filesystem]
 bucket_url = "s3://[your_bucket_name]" # replace with your bucket name,
@@ -49,19 +55,21 @@ aws_access_key_id = "please set me up!" # copy the access key here
 aws_secret_access_key = "please set me up!" # copy the secret access key here
 ```
 
-If you have your credentials stored in `~/.aws/credentials`, just remove the **[destination.filesystem.credentials]** section above, and `dlt` will fall back to your **default** profile in local credentials. If you want to switch the profile, pass the profile name as follows (here: `dlt-ci-user`):
+If you have your credentials stored in `~/.aws/credentials`, just remove the **[destination.filesystem.credentials]** section above, and dlt will fall back to your **default** profile in local credentials. If you want to switch the profile, pass the profile name as follows (here: `dlt-ci-user`):
+
 ```toml
 [destination.filesystem.credentials]
 profile_name="dlt-ci-user"
 ```
 
-You can also pass an AWS region:
+You can also specify an AWS region:
+
 ```toml
 [destination.filesystem.credentials]
 region_name="eu-central-1"
 ```
 
-You need to create an S3 bucket and a user who can access that bucket. `dlt` does not create buckets automatically.
+You need to create an S3 bucket and a user who can access that bucket. dlt does not create buckets automatically.
 
 1. You can create the S3 bucket in the AWS console by clicking on "Create Bucket" in S3 and assigning the appropriate name and permissions to the bucket.
 2. Once the bucket is created, you'll have the bucket URL. For example, If the bucket name is `dlt-ci-test-bucket`, then the bucket URL will be:
@@ -71,7 +79,7 @@ You need to create an S3 bucket and a user who can access that bucket. `dlt` doe
    ```
 
 3. To grant permissions to the user being used to access the S3 bucket, go to the IAM > Users, and click on “Add Permissions”.
-4. Below you can find a sample policy that gives a minimum permission required by `dlt` to a bucket we created above. The policy contains permissions to list files in a bucket, get, put, and delete objects. **Remember to place your bucket name in the Resource section of the policy!**
+4. Below you can find a sample policy that gives a minimum permission required by dlt to a bucket we created above. The policy contains permissions to list files in a bucket, get, put, and delete objects. **Remember to place your bucket name in the Resource section of the policy!**
 
 ```json
 {
@@ -146,6 +154,7 @@ if you have default google cloud credentials in your environment (i.e. on cloud 
 Use **Cloud Storage** admin to create a new bucket. Then assign the **Storage Object Admin** role to your service account.
 
 ### Azure Blob Storage
+
 Run `pip install "dlt[az]"` which will install the `adlfs` package to interface with Azure Blob Storage.
 
 Edit the credentials in `.dlt/secrets.toml`, you'll see AWS credentials by default replace them with your Azure credentials.
@@ -186,7 +195,17 @@ azure_client_secret = "client_secret"
 azure_tenant_id = "tenant_id" # please set me up!
 ```
 
+:::caution
+**Concurrent blob uploads**
+`dlt` limits the number of concurrent connections for a single uploaded blob to 1. By default `adlfs` that we use, splits blobs into 4 MB chunks and uploads them concurrently which leads to gigabytes of used memory and thousands of connections for a larger load packages. You can increase the maximum concurrency as follows:
+```toml
+[destination.filesystem.kwargs]
+max_concurrency=3
+```
+:::
+
 ### Local file system
+
 If for any reason you want to have those files in a local folder, set up the `bucket_url` as follows (you are free to use `config.toml` for that as there are no secrets required)
 
 ```toml
@@ -259,6 +278,98 @@ bucket_url='\\?\UNC\localhost\c$\a\b\c'
 ```
 :::
 
+### SFTP
+Run `pip install "dlt[sftp]` which will install the `paramiko` package alongside `dlt`, enabling secure SFTP transfers.
+
+Configure your SFTP credentials by editing the `.dlt/secrets.toml` file. By default, the file contains placeholders for AWS credentials. You should replace these with your SFTP credentials.
+
+Below are the possible fields for SFTP credentials configuration:
+
+```text
+sftp_port             # The port for SFTP, defaults to 22 (standard for SSH/SFTP)
+sftp_username         # Your SFTP username, defaults to None
+sftp_password         # Your SFTP password (if using password-based auth), defaults to None
+sftp_key_filename     # Path to your private key file for key-based authentication, defaults to None
+sftp_key_passphrase   # Passphrase for your private key (if applicable), defaults to None
+sftp_timeout          # Timeout for establishing a connection, defaults to None
+sftp_banner_timeout   # Timeout for receiving the banner during authentication, defaults to None
+sftp_auth_timeout     # Authentication timeout, defaults to None
+sftp_channel_timeout  # Channel timeout for SFTP operations, defaults to None
+sftp_allow_agent      # Use SSH agent for key management (if available), defaults to True
+sftp_look_for_keys    # Search for SSH keys in the default SSH directory (~/.ssh/), defaults to True
+sftp_compress         # Enable compression (can improve performance over slow networks), defaults to False
+sftp_gss_auth         # Use GSS-API for authentication, defaults to False
+sftp_gss_kex          # Use GSS-API for key exchange, defaults to False
+sftp_gss_deleg_creds  # Delegate credentials with GSS-API, defaults to True
+sftp_gss_host         # Host for GSS-API, defaults to None
+sftp_gss_trust_dns    # Trust DNS for GSS-API, defaults to True
+```
+> For more information about credentials parameters: https://docs.paramiko.org/en/3.3/api/client.html#paramiko.client.SSHClient.connect
+
+### Authentication Methods
+
+SFTP authentication is attempted in the following order of priority:
+
+1. **Key-based authentication**: If you provide a `key_filename` containing the path to a private key or a corresponding OpenSSH public certificate (e.g., `id_rsa` and `id_rsa-cert.pub`), these will be used for authentication. If the private key requires a passphrase, you can specify it via `sftp_key_passphrase`. If your private key requires a passphrase to unlock, and you’ve provided one, it will be used to attempt to unlock the key.
+
+2. **SSH Agent-based authentication**: If `allow_agent=True` (default), Paramiko will look for any SSH keys stored in your local SSH agent (such as `id_rsa`, `id_dsa`, or `id_ecdsa` keys stored in `~/.ssh/`).
+
+3. **Username/Password authentication**: If a password is provided (`sftp_password`), plain username/password authentication will be attempted.
+
+4. **GSS-API authentication**: If GSS-API (Kerberos) is enabled (sftp_gss_auth=True), authentication will use the Kerberos protocol. GSS-API may also be used for key exchange (sftp_gss_kex=True) and credential delegation (sftp_gss_deleg_creds=True). This method is useful in environments where Kerberos is set up, often in enterprise networks.
+
+
+#### 1. **Key-based Authentication**
+
+If you use an SSH key instead of a password, you can specify the path to your private key in the configuration.
+
+```toml
+[destination.filesystem]
+bucket_url = "sftp://[hostname]/[path]"
+file_glob = "*"
+
+[destination.filesystem.credentials]
+sftp_username = "foo"
+sftp_key_filename = "/path/to/id_rsa"     # Replace with the path to your private key file
+sftp_key_passphrase = "your_passphrase"   # Optional: passphrase for your private key
+```
+
+#### 2. **SSH Agent-based Authentication**
+
+If you have an SSH agent running with loaded keys, you can allow Paramiko to use these keys automatically. You can omit the password and key fields if you're relying on the SSH agent.
+
+```toml
+[destination.filesystem]
+bucket_url = "sftp://[hostname]/[path]"
+file_glob = "*"
+
+[destination.filesystem.credentials]
+sftp_username = "foo"
+sftp_key_passphrase = "your_passphrase"   # Optional: passphrase for your private key
+```
+The loaded key must be one of the following types stored in ~/.ssh/: id_rsa, id_dsa, or id_ecdsa.
+
+#### 3. **Username/Password Authentication**
+
+This is the simplest form of authentication, where you supply a username and password directly.
+
+```toml
+[destination.filesystem]
+bucket_url = "sftp://[hostname]/[path]"  # The hostname of your SFTP server and the remote path
+file_glob = "*"                          # Pattern to match the files you want to upload/download
+
+[destination.filesystem.credentials]
+sftp_username = "foo"                    # Replace "foo" with your SFTP username
+sftp_password = "pass"                   # Replace "pass" with your SFTP password
+```
+
+
+### Notes:
+- **Key-based Authentication**: Make sure your private key has the correct permissions (`chmod 600`), or SSH will refuse to use it.
+- **Timeouts**: It's important to adjust timeout values based on your network conditions to avoid connection issues.
+
+This configuration allows flexible SFTP authentication, whether you're using passwords, keys, or agents, and ensures secure communication between your local environment and the SFTP server.
+
 ## Write disposition
 The filesystem destination handles the write dispositions as follows:
 - `append` - files belonging to such tables are added to the dataset folder
@@ -285,8 +396,8 @@ def my_upsert_resource():
 
 #### Known limitations
 - `hard_delete` hint not supported
-- deleting records from child tables not supported
-  - This means updates to complex columns that involve element removals are not propagated. For example, if you first load `{"key": 1, "complex": [1, 2]}` and then load `{"key": 1, "complex": [1]}`, then the record for element `2` will not be deleted from the child table.
+- deleting records from nested tables not supported
+  - This means updates to json columns that involve element removals are not propagated. For example, if you first load `{"key": 1, "nested": [1, 2]}` and then load `{"key": 1, "nested": [1]}`, then the record for element `2` will not be deleted from the nested table.
 
 ## File Compression
 
@@ -309,7 +420,7 @@ For more details on managing file compression, please visit our documentation on
 All the files are stored in a single folder with the name of the dataset that you passed to the `run` or `load` methods of the `pipeline`. In our example chess pipeline, it is **chess_players_games_data**.
 
 :::note
-Bucket storages are, in fact, key-blob storage so the folder structure is emulated by splitting file names into components by separator (`/`).
+Object storages are, in fact, key-blob storage so the folder structure is emulated by splitting file names into components by separator (`/`).
 :::
 
 You can control files layout by specifying the desired configuration. There are several ways to do this.

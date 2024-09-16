@@ -20,6 +20,9 @@ pytestmark = pytest.mark.essential
 def test_databricks_external_location(destination_config: DestinationTestConfiguration) -> None:
     # do not interfere with state
     os.environ["RESTORE_FROM_DESTINATION"] = "False"
+    # let the package complete even with failed jobs
+    os.environ["RAISE_ON_FAILED_JOBS"] = "false"
+
     dataset_name = "test_databricks_external_location" + uniq_id()
 
     from dlt.destinations import databricks, filesystem
@@ -52,7 +55,7 @@ def test_databricks_external_location(destination_config: DestinationTestConfigu
         destination=bricks,
         staging=stage,
     )
-    info = pipeline.run([1, 2, 3], table_name="digits")
+    info = pipeline.run([1, 2, 3], table_name="digits", **destination_config.run_kwargs)
     assert info.has_failed_jobs is True
     assert (
         "Invalid configuration value detected"
@@ -67,7 +70,7 @@ def test_databricks_external_location(destination_config: DestinationTestConfigu
         destination=bricks,
         staging=stage,
     )
-    info = pipeline.run([1, 2, 3], table_name="digits")
+    info = pipeline.run([1, 2, 3], table_name="digits", **destination_config.run_kwargs)
     assert info.has_failed_jobs is True
     assert (
         "credential_x" in pipeline.list_failed_jobs_in_package(info.loads_ids[0])[0].failed_message
@@ -78,7 +81,7 @@ def test_databricks_external_location(destination_config: DestinationTestConfigu
     pipeline = destination_config.setup_pipeline(
         "test_databricks_external_location", dataset_name=dataset_name, destination=bricks
     )
-    info = pipeline.run([1, 2, 3], table_name="digits")
+    info = pipeline.run([1, 2, 3], table_name="digits", **destination_config.run_kwargs)
     assert info.has_failed_jobs is True
     assert (
         "credential_x" in pipeline.list_failed_jobs_in_package(info.loads_ids[0])[0].failed_message
