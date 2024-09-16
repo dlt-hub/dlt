@@ -14,20 +14,27 @@ const versions = {"current": {
   noIndex: true
 }}
 
-// inject master version renaming only if versions present
+let knownVersions = [];
 if (fs.existsSync("versions.json")) {
+  knownVersions = JSON.parse(fs.readFileSync("versions.json"));
+}
+
+// inject master version renaming only if versions present and master included
+if (knownVersions) {
   let latestLabel = "latest"
   if (process.env.DOCUSAURUS_DLT_VERSION) {
     latestLabel = `${process.env.DOCUSAURUS_DLT_VERSION} (latest)`
   }
 
-
-  versions["master"] = {
-    label: latestLabel,
-    path: '/'
+  if (knownVersions.includes("master")) {
+    versions["master"] = {
+      label: latestLabel,
+      path: '/'
+    }
   }
+
   // disable indexing for all known versions
-  for (let v of JSON.parse(fs.readFileSync("versions.json"))) {
+  for (let v of knownVersions) {
     if (v == "master") {
       continue;
     }
@@ -35,7 +42,6 @@ if (fs.existsSync("versions.json")) {
       noIndex: true
     }
   }
-
 }
 
 /** @type {import('@docusaurus/types').Config} */
