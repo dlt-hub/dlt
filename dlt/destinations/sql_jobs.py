@@ -762,21 +762,20 @@ class SqlMergeFollowupJob(SqlFollowupJob):
             )
             is_active = f"{to} = {active_record_literal}"
 
-        retire_if_absent = root_table.get("x-retire-if-absent", True)
-        if retire_if_absent:
-            dummy_clause = caps.escape_literal(True)
-        else:
-            nk = escape_column_id(get_first_column_name_with_prop(root_table, "x-natural-key"))
-            nk_present = f"{nk} IN (SELECT {nk} FROM {staging_root_table_name})"
-
         # retire records
         # always retire updated records, retire deleted records only if `retire_if_absent`
-        sql.append(f"""
+        retire_sql = f"""
             {cls.gen_update_table_prefix(root_table_name)} {to} = {boundary_literal}
             WHERE {is_active}
-            AND {dummy_clause if retire_if_absent else nk_present}
             AND {hash_} NOT IN (SELECT {hash_} FROM {staging_root_table_name});
-        """)
+        """
+        retire_if_absent = root_table.get("x-retire-if-absent", True)
+        if not retire_if_absent:
+            retire_sql = retire_sql.rstrip()[:-1]  # remove semicolon
+            nk = escape_column_id(get_first_column_name_with_prop(root_table, "x-natural-key"))
+            nk_present = f"{nk} IN (SELECT {nk} FROM {staging_root_table_name})"
+            retire_sql += f" AND {nk_present};"
+        sql.append(retire_sql)
 
         # insert new active records in root table
         columns = map(escape_column_id, list(root_table["columns"].keys()))
