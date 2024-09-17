@@ -106,7 +106,7 @@ By separating the technical process of loading data from curation, you free the 
 
 **Tracking column lineage**
 
-The column lineage can be tracked by loading the 'load_info' to the destination. The 'load_info' contains information about columns ‘data types’, ‘add times’, and ‘load id’. To read more please see [the data lineage article](/blog/dlt-data-lineage) we have on the blog.
+The column lineage can be tracked by loading the 'load_info' to the destination. The 'load_info' contains information about columns ‘data types’, ‘add times’, and ‘load id’. To read more please see [the data lineage article](https://dlthub.com/blog/dlt-data-lineage) we have on the blog.
 
 **Getting notifications**
 
