@@ -17,13 +17,15 @@ from utils import collect_markdown_files
 
 # constants
 BASE_DIR = "../website/docs"
-GPT_MODEL = "gpt-3.5-turbo-0125"
-MAX_CHUNK_SIZE = 14000  # make sure that this is below the context window size of the model to not have cut off files
+GPT_MODEL = "gpt-4o-2024-05-13"
+MAX_CHUNK_SIZE = 4000  # make sure that this is below the context window size of the model to not have cut off files
 
 SYSTEM_PROMPT = """\
 You are a grammar checker. Every message you get will be a document that is to be grammarchecked and returned as such.
 You will not change the markdown syntax. You will only fix the grammar. You will not change the code snippets except for the comments therein.
 You will not modify the header section which is enclosed by two occurences of "---".
+Make sure all headings use the Sentence case.
+Never insert any codeblock start or end statements such as "```"
 Do not change the spelling or casing of these words: dlt, sdf, dbt
 """
 
@@ -80,8 +82,11 @@ if __name__ == "__main__":
         # cut file into sections
         sections: List[List[str]] = []
         current_section: List[str] = []
+        is_in_code_block: bool = False
         for line in doc:
-            if line.startswith("#"):
+            if "```" in line:
+                is_in_code_block = not is_in_code_block
+            if line.startswith("#") and not is_in_code_block:
                 if current_section:
                     sections.append(current_section)
                 current_section = [line]
@@ -108,23 +113,26 @@ if __name__ == "__main__":
 
         fmt.note(f"Created {len(chunks)} chunks")
 
-        fixed_chunks: List[List[str]] = []
+        fixed_chunks: List[str] = []
         for chunk in chunks:
             client = OpenAI()
+            input =  "".join(chunk)
             response = client.chat.completions.create(
+                seed=1239812398,
                 model=GPT_MODEL,
                 messages=[
                     {"role": "system", "content": SYSTEM_PROMPT},
-                    {"role": "user", "content": "".join(chunk)},
+                    {"role": "user", "content": input},
                 ],
                 temperature=0,
             )
-
             fixed_chunks.append(response.choices[0].message.content)  # type: ignore
 
         with open(file_path, "w", encoding="utf-8") as f:
             for c in fixed_chunks:
-                f.writelines(c)
+                f.write(c)
+                f.write("\n")
+                f.write("\n")
 
     if count == 0:
         fmt.warning("No files selected for grammar check.")

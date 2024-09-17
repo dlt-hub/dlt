@@ -238,7 +238,7 @@ alive-progress = ">=3.0.1"
 pyarrow = ">=14.0.0"
 psycopg2-binary = ">=2.9"
 lancedb = { version = ">=0.8.2", markers = "python_version >= '3.9'", allow-prereleases = true }
-openai = ">=1.35"
+openai = ">=1.45"
 connectorx = { version = ">=0.3.2" }
 
 [tool.black] # https://black.readthedocs.io/en/stable/usage_and_configuration/the_basics.html#configuration-via-a-file
