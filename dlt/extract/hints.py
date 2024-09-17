@@ -457,9 +457,9 @@ class DltResourceHints:
             if "boundary_timestamp" in md_dict:
                 dict_["x-boundary-timestamp"] = md_dict["boundary_timestamp"]
             if "retire_if_absent" in md_dict:
-                dict_["x-retire-if-absent"] = md_dict["retire_if_absent"]  # type: ignore[typeddict-item]
+                dict_["x-retire-if-absent"] = md_dict["retire_if_absent"]
             if "natural_key" in md_dict:
-                nk = md_dict["natural_key"]  # type: ignore[typeddict-item]
+                nk = md_dict["natural_key"]
                 if nk in dict_["columns"]:
                     dict_["columns"][nk]["x-natural-key"] = True
                 else:
@@ -546,5 +546,9 @@ class DltResourceHints:
                                 f'could not parse `{ts}` value "{wd[ts]}"'  # type: ignore[literal-required]
                             )
 
-                if "retire_if_absent" in wd and not wd["retire_if_absent"] and "natural_key" not in wd:  # type: ignore[typeddict-item]
+                if (
+                    "retire_if_absent" in wd
+                    and not wd["retire_if_absent"]
+                    and "natural_key" not in wd
+                ):
                     raise ValueError("`natural_key` is required when `retire_if_absent=False`")

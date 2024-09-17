@@ -237,6 +237,8 @@ class TMergeDispositionDict(TWriteDispositionDict, total=False):
     active_record_timestamp: Optional[TAnyDateTime]
     boundary_timestamp: Optional[TAnyDateTime]
     row_version_column_name: Optional[str]
+    retire_if_absent: Optional[bool]
+    natural_key: Optional[str]
 
 
 TWriteDispositionConfig = Union[TWriteDisposition, TWriteDispositionDict, TMergeDispositionDict]

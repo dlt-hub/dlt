@@ -725,7 +725,7 @@ def test_retire_if_absent(
 ) -> None:
     p = destination_config.setup_pipeline("abstract", dev_mode=True)
 
-    @dlt.resource(  # type: ignore[call-overload]
+    @dlt.resource(
         table_name="dim_test",
         write_disposition={
             "disposition": "merge",
@@ -792,11 +792,11 @@ def test_retire_if_absent(
             "retire_if_absent": True,
         }
     )
-    assert r.compute_table_schema()["x-retire-if-absent"]
+    assert r.compute_table_schema()["x-retire-if-absent"]  # type: ignore[typeddict-item]
 
     # user-provided hints for `natural_key` column should be respected
     r.apply_hints(
-        columns={"nk": {"x-foo": "foo"}},
+        columns={"nk": {"x-foo": "foo"}},  # type: ignore[typeddict-unknown-key]
         write_disposition={
             "disposition": "merge",
             "strategy": "scd2",
