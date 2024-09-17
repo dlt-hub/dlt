@@ -309,7 +309,7 @@ A resource configuration is used to define a [dlt resource](../../../general-usa
 - `include_from_parent`: A list of fields from the parent resource to be included in the resource output. See the [resource relationships](#include-fields-from-the-parent-resource) section for more details.
 - `selected`: A flag to indicate if the resource is selected for loading. This could be useful when you want to load data only from child resources and not from the parent resource.
 
-You can also pass additional resource parameters that will be used to configure the dlt resource. 
+You can also pass additional resource parameters that will be used to configure the dlt resource. See [dlt resource API reference](../../../api_reference/extract/decorators#resource) for more details.
 
 ### Endpoint configuration
 

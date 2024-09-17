@@ -24,7 +24,7 @@ If you couldn't find a source implementation, you can easily create your own, ch
 :::
 
 <DocCardList items={useCurrentSidebarCategory().items.filter(
-item => item.label !== '30+ SQL Databases' && item.label !== 'REST API generic source'&& item.label !== 'Filesystem & buckets'
+item => item.label !== '30+ SQL Databases' && item.label !== 'REST APIs' && item.label !== 'Filesystem & cloud storage'
 )} />
 
 ### What's the difference between core and verified sources?
