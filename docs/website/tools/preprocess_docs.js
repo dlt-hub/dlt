@@ -358,6 +358,7 @@ function syncExamples() {
   console.log(`Synced ${count} examples`)
 }
 
+fs.rmSync(MD_TARGET_DIR, {force: true, recursive: true})
 syncExamples();
 preprocess_docs();
 
