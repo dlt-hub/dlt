@@ -164,9 +164,12 @@ class DeltaLoadFilesystemJob(FilesystemLoadJob):
         return _deltalake_storage_options(self._job_client.config)
 
     def _delta_table(self) -> Optional["DeltaTable"]:  # type: ignore[name-defined] # noqa: F821
-        from dlt.common.libs.deltalake import try_get_deltatable
+        from dlt.common.libs.deltalake import DeltaTable
 
-        return try_get_deltatable(self.make_remote_url(), storage_options=self._storage_options)
+        if DeltaTable.is_deltatable(self.make_remote_url(), storage_options=self._storage_options):
+            return DeltaTable(self.make_remote_url(), storage_options=self._storage_options)
+        else:
+            return None
 
     @property
     def _partition_columns(self) -> List[str]:
