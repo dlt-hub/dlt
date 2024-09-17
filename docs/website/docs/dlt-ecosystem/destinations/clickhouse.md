@@ -220,7 +220,7 @@ To enable this, GCS provides an S3
 compatibility mode that emulates the S3 API, allowing ClickHouse to access GCS buckets via its S3 integration.
 
 For detailed instructions on setting up S3-compatible storage with dlt, including AWS S3, MinIO, and Cloudflare R2, refer to
-the [dlt documentation on filesystem destinations](https://dlthub.com/docs/dlt-ecosystem/destinations/filesystem#using-s3-compatible-storage).
+the [dlt documentation on filesystem destinations](/dlt-ecosystem/destinations/filesystem#using-s3-compatible-storage).
 
 To set up GCS staging with HMAC authentication in dlt:
 

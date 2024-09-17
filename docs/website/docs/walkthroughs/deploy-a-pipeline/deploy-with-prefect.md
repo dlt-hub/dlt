@@ -31,7 +31,7 @@ Here's a concise guide to orchestrating a `dlt` pipeline with Prefect using "Mov
 
 ### Here’s a summary of the steps followed:
 
-1. Create a `dlt` pipeline. For detailed instructions on creating a pipeline, please refer to the [documentation](https://dlthub.com/docs/walkthroughs/create-a-pipeline).
+1. Create a `dlt` pipeline. For detailed instructions on creating a pipeline, please refer to the [documentation](/walkthroughs/create-a-pipeline).
 
 1. Add `@task` decorator to the individual functions.
     1. Here we use `@task` decorator for `get_users` function: 

@@ -329,7 +329,7 @@ verified source.
    ```
 
    > Loads all the data till date in the first run, and then
-   > [incrementally](https://dlthub.com/docs/general-usage/incremental-loading) in subsequent runs.
+   > [incrementally](/general-usage/incremental-loading) in subsequent runs.
 
 1. To load data from a specific start date:
 
@@ -340,7 +340,7 @@ verified source.
    ```
 
    > Loads data starting from the specified date during the first run, and then
-   > [incrementally](https://dlthub.com/docs/general-usage/incremental-loading) in subsequent runs.
+   > [incrementally](/general-usage/incremental-loading) in subsequent runs.
 
 <!--@@@DLT_TUBA google_analytics-->
 

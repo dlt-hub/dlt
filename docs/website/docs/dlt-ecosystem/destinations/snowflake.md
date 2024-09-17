@@ -194,7 +194,7 @@ Which will read, `|` delimited file, without header and will continue on errors.
 Note that we ignore missing columns `ERROR_ON_COLUMN_COUNT_MISMATCH = FALSE` and we will insert NULL into them.
 
 ## Supported column hints
-Snowflake supports the following [column hints](https://dlthub.com/docs/general-usage/schema#tables-and-columns):
+Snowflake supports the following [column hints](/general-usage/schema#tables-and-columns):
 * `cluster` - creates a cluster column(s). Many columns per table are supported and only when a new table is created.
 
 ## Table and column identifiers

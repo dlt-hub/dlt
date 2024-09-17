@@ -65,10 +65,10 @@ To get started with your data pipeline, follow these steps:
    dlt init pg_replication duckdb
    ```
     
-   It will initialize [the pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/pg_replication_pipeline.py) with a Postgres replication as the [source](https://dlthub.com/docs/general-usage/source) and [DuckDB](https://dlthub.com/docs/dlt-ecosystem/destinations/duckdb) as the [destination](https://dlthub.com/docs/dlt-ecosystem/destinations).
+   It will initialize [the pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/pg_replication_pipeline.py) with a Postgres replication as the [source](/general-usage/source) and [DuckDB](/dlt-ecosystem/destinations/duckdb) as the [destination](/dlt-ecosystem/destinations).
     
     
-2. If you'd like to use a different destination, simply replace `duckdb` with the name of your preferred [destination](https://dlthub.com/docs/dlt-ecosystem/destinations).
+2. If you'd like to use a different destination, simply replace `duckdb` with the name of your preferred [destination](/dlt-ecosystem/destinations).
     
 3. This source uses `sql_database` source, you can init it as follows:
     
@@ -81,7 +81,7 @@ To get started with your data pipeline, follow these steps:
     
 4. After running these two commands, a new directory will be created with the necessary files and configuration settings to get started.
    
-   For more information, read the guide on [how to add a verified source](https://dlthub.com/docs/walkthroughs/add-a-verified-source).
+   For more information, read the guide on [how to add a verified source](/walkthroughs/add-a-verified-source).
 
    :::note
    You can omit the `[sql.sources.credentials]` section in `secrets.toml` as it is not required.
@@ -109,9 +109,9 @@ To get started with your data pipeline, follow these steps:
    sources.pg_replication.credentials="postgresql://username@password.host:port/database"
    ```
 
-3. Finally, follow the instructions in [Destinations](https://dlthub.com/docs/dlt-ecosystem/destinations/) to add credentials for your chosen destination. This will ensure that your data is properly routed.
+3. Finally, follow the instructions in [Destinations](/dlt-ecosystem/destinations/) to add credentials for your chosen destination. This will ensure that your data is properly routed.
 
-For more information, read the [Configuration section.](https://dlthub.com/docs/general-usage/credentials)
+For more information, read the [Configuration section.](/general-usage/credentials)
 
 ## Run the pipeline
 
@@ -130,12 +130,12 @@ For more information, read the [Configuration section.](https://dlthub.com/docs/
    For example, the `pipeline_name` for the above pipeline example is `pg_replication_pipeline`, you may also use any custom name instead.
 
 
-   For more information, read the guide on [how to run a pipeline](https://dlthub.com/docs/walkthroughs/run-a-pipeline).
+   For more information, read the guide on [how to run a pipeline](/walkthroughs/run-a-pipeline).
     
 
 ## Sources and resources
 
-`dlt` works on the principle of [sources](https://dlthub.com/docs/general-usage/source) and [resources](https://dlthub.com/docs/general-usage/resource).
+`dlt` works on the principle of [sources](/general-usage/source) and [resources](/general-usage/resource).
 
 ### Resource `replication_resource`
 

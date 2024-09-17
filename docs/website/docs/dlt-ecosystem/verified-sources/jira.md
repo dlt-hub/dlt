@@ -190,7 +190,7 @@ above.
 
 1. Configure the pipeline by specifying the pipeline name, destination, and dataset. To read more
    about pipeline configuration, please refer to our documentation
-   [here](https://dlthub.com/docs/general-usage/pipeline):
+   [here](/general-usage/pipeline):
 
     ```py
     pipeline = dlt.pipeline(
