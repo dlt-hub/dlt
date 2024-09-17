@@ -12,6 +12,7 @@ from dlt.common.schema.typing import (
     TTableSchemaColumns,
     TWriteDispositionConfig,
     TMergeDispositionDict,
+    TScd2StrategyDict,
     TAnySchemaColumns,
     TTableFormat,
     TSchemaContract,
@@ -454,6 +455,7 @@ class DltResourceHints:
             dict_["x-merge-strategy"] = merge_strategy
 
         if merge_strategy == "scd2":
+            md_dict = cast(TScd2StrategyDict, md_dict)
             if "boundary_timestamp" in md_dict:
                 dict_["x-boundary-timestamp"] = md_dict["boundary_timestamp"]
             if "retire_if_absent" in md_dict:
@@ -532,6 +534,7 @@ class DltResourceHints:
                 )
 
             if wd.get("strategy") == "scd2":
+                wd = cast(TScd2StrategyDict, wd)
                 for ts in ("active_record_timestamp", "boundary_timestamp"):
                     if (
                         ts == "active_record_timestamp"
