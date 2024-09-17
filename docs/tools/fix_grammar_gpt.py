@@ -53,6 +53,22 @@ if __name__ == "__main__":
         type=str,
     )
 
+    parser.add_argument(
+        "-o",
+        "--offset",
+        help="File count offset from where to start fixing",
+        default=0,
+        type=int,
+    )
+
+    parser.add_argument(
+        "-l",
+        "--limit",
+        help="File count limit, how many files to process",
+        default=100000,
+        type=int,
+    )
+
     # get args
     args = parser.parse_args()
 
@@ -65,8 +81,17 @@ if __name__ == "__main__":
 
     # run grammar check
     count = 0
+    processed = 0
     for file_path in markdown_files:
         count += 1
+
+        if count <= args.offset:
+            continue
+
+        if processed >= args.limit:
+            break
+
+        processed += 1
 
         fmt.note(f"Fixing grammar for file {file_path} ({count} of {len(markdown_files)})")
 
@@ -114,30 +139,33 @@ if __name__ == "__main__":
         # sanity test, make sure we still have the full doc
         assert doc == functools.reduce(lambda a, b: a + b, chunks)
 
-
         # count chars in doc
         fmt.note(f"Created {len(chunks)} chunks for {doc_length} chars")
 
         fixed_chunks: List[str] = []
         for chunk in chunks:
             client = OpenAI()
-            input =  "".join(chunk)
+            in_string = "".join(chunk)
             response = client.chat.completions.create(
                 seed=123981298,
                 model=GPT_MODEL,
                 messages=[
                     {"role": "system", "content": SYSTEM_PROMPT},
-                    {"role": "user", "content": input},
+                    {"role": "user", "content": in_string},
                 ],
                 temperature=0,
             )
-            fixed_chunks.append(response.choices[0].message.content)  # type: ignore
-
+            fixed_chunks.append(response.choices[0].message.content)
 
         # here we check that no part of the doc was swallowed by gpt
-        fixed_doc_length = functools.reduce(lambda count, chunk: count + len(chunk), fixed_chunks, 0)
+        fixed_doc_length = functools.reduce(
+            lambda count, chunk: count + len(chunk), fixed_chunks, 0
+        )
         if fixed_doc_length / doc_length < 0.9:
-            fmt.error("Doc length reduced too much during processing, skipping saving, please check manually")
+            fmt.error(
+                "Doc length reduced too much during processing, skipping saving, please check"
+                " manually"
+            )
             continue
 
         with open(file_path, "w", encoding="utf-8") as f:
@@ -149,4 +177,4 @@ if __name__ == "__main__":
     if count == 0:
         fmt.warning("No files selected for grammar check.")
     else:
-        fmt.note(f"Fixed grammar for {count} files.")
+        fmt.note(f"Fixed grammar for {processed} files.")
