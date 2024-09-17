@@ -17,7 +17,7 @@ from utils import collect_markdown_files
 
 # constants
 BASE_DIR = "../website/docs"
-GPT_MODEL = "gpt-4o-2024-05-13"
+GPT_MODEL = "gpt-4-turbo"
 MAX_CHUNK_SIZE = 4000  # make sure that this is below the context window size of the model to not have cut off files
 
 SYSTEM_PROMPT = """\
@@ -73,6 +73,9 @@ if __name__ == "__main__":
         with open(file_path, "r", encoding="utf-8") as f:
             doc = f.readlines()
 
+        with open(file_path, "r", encoding="utf-8") as f:
+            doc_length = len(f.read())
+
         def get_chunk_length(chunk: List[str]) -> int:
             count = 0
             for line in chunk:
@@ -111,14 +114,16 @@ if __name__ == "__main__":
         # sanity test, make sure we still have the full doc
         assert doc == functools.reduce(lambda a, b: a + b, chunks)
 
-        fmt.note(f"Created {len(chunks)} chunks")
+
+        # count chars in doc
+        fmt.note(f"Created {len(chunks)} chunks for {doc_length} chars")
 
         fixed_chunks: List[str] = []
         for chunk in chunks:
             client = OpenAI()
             input =  "".join(chunk)
             response = client.chat.completions.create(
-                seed=1239812398,
+                seed=123981298,
                 model=GPT_MODEL,
                 messages=[
                     {"role": "system", "content": SYSTEM_PROMPT},
@@ -127,6 +132,13 @@ if __name__ == "__main__":
                 temperature=0,
             )
             fixed_chunks.append(response.choices[0].message.content)  # type: ignore
+
+
+        # here we check that no part of the doc was swallowed by gpt
+        fixed_doc_length = functools.reduce(lambda count, chunk: count + len(chunk), fixed_chunks, 0)
+        if fixed_doc_length / doc_length < 0.9:
+            fmt.error("Doc length reduced too much during processing, skipping saving, please check manually")
+            continue
 
         with open(file_path, "w", encoding="utf-8") as f:
             for c in fixed_chunks:
