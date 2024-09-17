@@ -1,5 +1,5 @@
 ---
-title: Advanced Filesystem Usage
+title: Advanced filesystem usage
 description: Use filesystem source as a building block
 keywords: [readers source and filesystem, files, filesystem, readers source, cloud storage]
 ---
@@ -54,7 +54,7 @@ When using a nested or recursive glob pattern, `relative_path` will include the 
 
 ## Create your own transformer
 
-Although the `filesystem` resource yields the files from cloud storage or a local filesystem, you need to apply a transformer resource to retrieve the records from files. `dlt` natively supports three file types: `csv`, `parquet`, and `jsonl` (more details in [filesystem transformer resource](../filesystem/basic#2-choose-the-right-transformer-resource)).
+Although the `filesystem` resource yields the files from cloud storage or a local filesystem, you need to apply a transformer resource to retrieve the records from files. dlt natively supports three file types: [CSV](../../file-formats/csv.md), [Parquet](../../file-formats/parquet.md), and [JSONL](../../file-formats/jsonl.md) (more details in [filesystem transformer resource](../filesystem/basic#2-choose-the-right-transformer-resource)).
 
 But you can easily create your own. In order to do this, you just need a function that takes as input a `FileItemDict` iterator and yields a list of records (recommended for performance) or individual records.
 

@@ -1,11 +1,11 @@
 ---
-title: jsonl
-description: The jsonl file format
-keywords: [jsonl, file formats]
+title: JSONL
+description: The JSONL file format or JSON Delimited stores several JSON documents in one file. The JSON documents are separated by a new line.
+keywords: [jsonl, file formats, json delimited, jsonl file format]
 ---
 import SetTheFormat from './_set_the_format.mdx';
 
-# jsonl - JSON Delimited
+# JSONL - JSON Lines - JSON Delimited
 
 JSON Delimited is a file format that stores several JSON documents in one file. The JSON
 documents are separated by a new line.
@@ -18,8 +18,7 @@ Additional data types are stored as follows:
 - `HexBytes` is stored as a hex encoded string;
 - `json` is serialized as a string.
 
-This file format is
-[compressed](../../reference/performance.md#disabling-and-enabling-file-compression) by default.
+This file format is [compressed](../../reference/performance.md#disabling-and-enabling-file-compression) by default.
 
 ## Supported Destinations
 
