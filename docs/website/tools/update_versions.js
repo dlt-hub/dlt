@@ -6,6 +6,7 @@ const semver = require('semver')
 // const
 const REPO_DIR = ".dlt-repo"
 const REPO_DOCS_DIR = REPO_DIR + "/docs/website"
+const REPO_PREPROCESSED_FILES_DIR = REPO_DOCS_DIR + "/docs_processed"
 const REPO_URL = "https://github.com/dlt-hub/dlt.git"
 const VERSIONED_DOCS_FOLDER = "versioned_docs"
 const VERSIONED_SIDEBARS_FOLDER = "versioned_sidebars"
@@ -19,6 +20,7 @@ fs.rmSync(REPO_DIR, { recursive: true, force: true })
 
 // checkout fresh
 console.log("Checking out dlt repo")
+fs.rmSync(REPO_DIR, {force: true, recursive: true})
 proc.execSync(`git clone ${REPO_URL} ${REPO_DIR}`)
 
 // find tags
@@ -91,6 +93,9 @@ for (const version of selectedVersions) {
     //     process.exit(1)
     // }
 
+    // clear preprocessed docs in subrepo
+    fs.rmSync(REPO_PREPROCESSED_FILES_DIR, { force: true, recursive: true})
+
     // build doc version, we also run preprocessing and markdown gen for each doc version
     console.log(`Building docs...`)
     proc.execSync(`cd ${REPO_DOCS_DIR} && npm run preprocess-docs && PYTHONPATH=. pydoc-markdown`)
@@ -100,8 +105,7 @@ for (const version of selectedVersions) {
 
     console.log(`Moving snapshot`)
     fs.cpSync(REPO_DOCS_DIR+"/"+VERSIONED_DOCS_FOLDER, VERSIONED_DOCS_FOLDER, {recursive: true})
-    fs.cpSync(REPO_DOCS_DIR+"/"+VERSIONED_SIDEBARS_FOLDER, VERSIONED_SIDEBARS_FOLDER, {recursive: true})   
- 
+    fs.cpSync(REPO_DOCS_DIR+"/"+VERSIONED_SIDEBARS_FOLDER, VERSIONED_SIDEBARS_FOLDER, {recursive: true})    
 }
 
 fs.cpSync(REPO_DOCS_DIR+"/versions.json", "versions.json")
