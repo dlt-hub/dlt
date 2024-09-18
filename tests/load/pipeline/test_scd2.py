@@ -766,10 +766,24 @@ def test_retire_absent_rows(
     info = p.run(r(dim_snap), **destination_config.run_kwargs)
     assert_load_info(info)
     assert load_table_counts(p, "dim_test")["dim_test"] == 3
-    boundary_ts = get_load_package_created_at(p, info)
+    ts3 = get_load_package_created_at(p, info)
     # natural key 1 should now have two records (one retired, one active)
     actual = [{k: v for k, v in row.items() if k in ("nk", to)} for row in get_table(p, "dim_test")]
-    expected = [{"nk": 1, to: boundary_ts}, {"nk": 1, to: None}, {"nk": 2, to: None}]
+    expected = [{"nk": 1, to: ts3}, {"nk": 1, to: None}, {"nk": 2, to: None}]
+    assert_records_as_set(actual, expected)  # type: ignore[arg-type]
+
+    # load 4 — natural key 2 is absent, natural key 1 has changed back to
+    # initial version
+    dim_snap = [
+        {"nk": 1, "foo": "foo"},
+    ]
+    info = p.run(r(dim_snap), **destination_config.run_kwargs)
+    assert_load_info(info)
+    assert load_table_counts(p, "dim_test")["dim_test"] == 4
+    ts4 = get_load_package_created_at(p, info)
+    # natural key 1 should now have three records (two retired, one active)
+    actual = [{k: v for k, v in row.items() if k in ("nk", to)} for row in get_table(p, "dim_test")]
+    expected = [{"nk": 1, to: ts3}, {"nk": 1, to: ts4}, {"nk": 1, to: None}, {"nk": 2, to: None}]
     assert_records_as_set(actual, expected)  # type: ignore[arg-type]
 
     # now test various configs
