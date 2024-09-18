@@ -117,7 +117,7 @@ Alternatively, you can also paste the credentials as a connection string:
 sources.sql_database.credentials="mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam"
 ```
 
-For more details on the credentials format and other connection methods read the section on [configuring connection to the SQL Database](/dlt-ecosystem/verified-sources/sql_database#credentials-format).
+For more details on the credentials format and other connection methods read the section on [configuring connection to the SQL Database](../dlt-ecosystem/verified-sources/sql_database#credentials-format).
 
 
 ## 4. Install dependencies

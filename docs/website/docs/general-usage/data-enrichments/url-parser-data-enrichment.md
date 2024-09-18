@@ -228,7 +228,7 @@ need to register to use this service neither get an API key.
 ### Run the pipeline
 
 1. Install necessary dependencies for the preferred
-   [destination](/dlt-ecosystem/destinations/), For example, duckdb:
+   [destination](../../dlt-ecosystem/destinations/), For example, duckdb:
 
    ```sh
    pip install "dlt[duckdb]"

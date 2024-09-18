@@ -150,7 +150,7 @@ def matomo_reports(
 
 `site_id`: Website's Site ID as per Matomo account.
 
->Note: This is an [incremental](/general-usage/incremental-loading) source method and loads the "last_date" from the state of last pipeline run.
+>Note: This is an [incremental](../../general-usage/incremental-loading) source method and loads the "last_date" from the state of last pipeline run.
 
 ### Source `matomo_visits`:
 
@@ -183,7 +183,7 @@ def matomo_visits(
 
 `get_live_event_visitors`: Retrieve unique visitor data, defaulting to False.
 
->Note: This is an [incremental](/general-usage/incremental-loading) source method and loads the "last_date" from the state of last pipeline run.
+>Note: This is an [incremental](../../general-usage/incremental-loading) source method and loads the "last_date" from the state of last pipeline run.
 
 ### Resource `get_last_visits`
 
@@ -214,7 +214,7 @@ def get_last_visits(
 
 `rows_per_page`: Number of rows on each page.
 
->Note: This is an [incremental](/general-usage/incremental-loading) resource method and loads the "last_date" from the state of last pipeline run.
+>Note: This is an [incremental](../../general-usage/incremental-loading) resource method and loads the "last_date" from the state of last pipeline run.
 
 
 ### Transformer `visitors`

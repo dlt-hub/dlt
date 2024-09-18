@@ -15,7 +15,7 @@ streams of data in real time.
 
 Our AWS Kinesis [verified source](https://github.com/dlt-hub/verified-sources/tree/master/sources/kinesis)
 loads messages from Kinesis streams to your preferred
-[destination](/dlt-ecosystem/destinations/).
+[destination](../../dlt-ecosystem/destinations/).
 
 Resources that can be loaded using this verified source are:
 

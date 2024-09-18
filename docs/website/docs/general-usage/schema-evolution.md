@@ -10,7 +10,7 @@ Schema evolution is a best practice when ingesting most data. It’s simply a wa
 
 It separates the technical challenge of “loading” data, from the business challenge of “curating” data. This enables us to have pipelines that are maintainable by different individuals at different stages.
 
-However, for cases where schema evolution might be triggered by malicious events, such as in web tracking, data contracts are advised. Read more about how to implement data contracts [here](/general-usage/schema-contracts).
+However, for cases where schema evolution might be triggered by malicious events, such as in web tracking, data contracts are advised. Read more about how to implement data contracts [here](./schema-contracts).
 
 ## Schema evolution with `dlt`
 
@@ -49,7 +49,7 @@ The schema of data above is loaded to the destination as follows:
 
 As you can see above the `dlt's` inference engine generates the structure of the data based on the source and provided hints. It normalizes the data, creates tables and columns, and infers data types.
 
-For more information, you can refer to the **[Schema](/general-usage/schema)** and **[Adjust a Schema](/walkthroughs/adjust-a-schema)** sections in the documentation.
+For more information, you can refer to the **[Schema](./schema)** and **[Adjust a Schema](../walkthroughs/adjust-a-schema)** sections in the documentation.
 
 ## Evolving the schema
 
@@ -139,7 +139,7 @@ This script sends Slack notifications for schema updates using the `send_slack_m
 
 ## How to control evolution
 
-`dlt` allows schema evolution control via its schema and data contracts. Refer to our **[documentation](/general-usage/schema-contracts)** for details.
+`dlt` allows schema evolution control via its schema and data contracts. Refer to our **[documentation](./schema-contracts)** for details.
 
 ### How to test for removed columns - applying “not null” constraint
 
@@ -212,4 +212,4 @@ These is a simple examples of how schema evolution works.
 
 Demonstrating schema evolution without talking about schema and data contracts is only one side of the coin. Schema and data contracts dictate the terms of how the schema being written to destination should evolve.
 
-Schema and data contracts can be applied to entities ‘tables’ , ‘columns’  and ‘data_types’ using contract modes ‘evolve’, freeze’, ‘discard_rows’ and ‘discard_columns’ to tell `dlt` how to apply contract for a particular entity. To read more about **schema and data contracts**  read our [documentation](/general-usage/schema-contracts).
+Schema and data contracts can be applied to entities ‘tables’ , ‘columns’  and ‘data_types’ using contract modes ‘evolve’, freeze’, ‘discard_rows’ and ‘discard_columns’ to tell `dlt` how to apply contract for a particular entity. To read more about **schema and data contracts**  read our [documentation](./schema-contracts).

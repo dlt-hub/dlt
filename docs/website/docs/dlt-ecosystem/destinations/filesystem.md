@@ -414,7 +414,7 @@ disable_compression=true
 
 - To decompress a `gzip` file, you can use tools like `gunzip`. This will convert the compressed file back to its original format, making it readable.
 
-For more details on managing file compression, please visit our documentation on performance optimization: [Disabling and Enabling File Compression](/reference/performance#disabling-and-enabling-file-compression).
+For more details on managing file compression, please visit our documentation on performance optimization: [Disabling and Enabling File Compression](../../reference/performance#disabling-and-enabling-file-compression).
 
 ## Files layout
 All the files are stored in a single folder with the name of the dataset that you passed to the `run` or `load` methods of the `pipeline`. In our example chess pipeline, it is **chess_players_games_data**.

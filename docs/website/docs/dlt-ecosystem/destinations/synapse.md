@@ -173,7 +173,7 @@ Possible values:
 
 ## Supported column hints
 
-Synapse supports the following [column hints](/general-usage/schema#tables-and-columns):
+Synapse supports the following [column hints](../../general-usage/schema#tables-and-columns):
 
 * `primary_key` - creates a `PRIMARY KEY NONCLUSTERED NOT ENFORCED` constraint on the column
 * `unique` - creates a `UNIQUE NOT ENFORCED` constraint on the column

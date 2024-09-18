@@ -360,8 +360,9 @@ function syncExamples() {
 
 // strings to search for, this check could be better but it
 // is a quick fix
-const ABS_LINK = "(https://dlthub.com/docs";
-const DEVEL_LINK =  "(/devel"
+const HTTP_LINK = "](https://dlthub.com/docs";
+const ABS_LINK =  "](/"
+const ABS_IMG_LINK =  "](/img"
 
 /**
  * Inspect all md files an run some checks
@@ -381,14 +382,14 @@ function checkDocs() {
       const lineNo = index + 1;
       line = line.toLocaleLowerCase();
 
-      if (line.includes(ABS_LINK)) {
+      if (line.includes(ABS_LINK) && !line.includes(ABS_IMG_LINK)) {
         foundError = true;
         console.error(`Found absolute md link in file ${fileName}, line ${lineNo}`)
       }
   
-      if (line.includes(DEVEL_LINK)) {
+      if (line.includes(HTTP_LINK)) {
         foundError = true;
-        console.error(`Found devel md link in file ${fileName}, line ${lineNo}`)
+        console.error(`Found http md link referencing these docs in file ${fileName}, line ${lineNo}`)
       }
   
     }
