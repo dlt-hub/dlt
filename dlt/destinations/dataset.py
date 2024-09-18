@@ -7,7 +7,7 @@ from dlt.common.destination.reference import (
     SupportsReadableDataset,
 )
 
-from dlt.common.typing import DataFrame, ArrowTable
+from dlt.destinations.typing import DataFrame, ArrowTable
 
 
 class ReadableRelation(SupportsReadableRelation):

@@ -9,7 +9,7 @@ import sqlglot.expressions as exp
 
 from contextlib import contextmanager
 
-from dlt.destinations.typing import DBApiCursor
+from dlt.common.destination.reference import DBApiCursor
 
 from dlt.destinations.sql_client import raise_database_error
 from dlt.destinations.fs_client import FSClientBase

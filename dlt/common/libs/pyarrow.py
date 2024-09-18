@@ -31,6 +31,7 @@ try:
     import pyarrow.compute
     import pyarrow.dataset
     from pyarrow.parquet import ParquetFile
+    from pyarrow import Table as ArrowTable
 except ModuleNotFoundError:
     raise MissingDependencyException(
         "dlt pyarrow helpers",

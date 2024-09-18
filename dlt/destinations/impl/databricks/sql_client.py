@@ -33,8 +33,9 @@ from dlt.destinations.sql_client import (
     raise_database_error,
     raise_open_connection_error,
 )
-from dlt.destinations.typing import ArrowTable, DBApi, DBApiCursor, DBTransaction, DataFrame
+from dlt.destinations.typing import ArrowTable, DBApi, DBTransaction, DataFrame
 from dlt.destinations.impl.databricks.configuration import DatabricksCredentials
+from dlt.common.destination.reference import DBApiCursor
 
 
 class DatabricksCursorImpl(DBApiCursorImpl):

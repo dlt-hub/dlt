@@ -56,7 +56,7 @@ from dlt.destinations.sql_client import (
     raise_database_error,
     raise_open_connection_error,
 )
-from dlt.destinations.typing import DBApiCursor
+from dlt.common.destination.reference import DBApiCursor
 from dlt.destinations.job_client_impl import SqlJobClientWithStagingDataset
 from dlt.destinations.job_impl import FinalizedLoadJobWithFollowupJobs, FinalizedLoadJob
 from dlt.destinations.impl.athena.configuration import AthenaClientConfiguration

@@ -23,7 +23,8 @@ from dlt.destinations.sql_client import (
     raise_database_error,
     raise_open_connection_error,
 )
-from dlt.destinations.typing import DBApi, DBApiCursor, DBTransaction, DataFrame, ArrowTable
+from dlt.destinations.typing import DBApi, DBTransaction, DataFrame, ArrowTable
+from dlt.common.destination.reference import DBApiCursor
 
 
 # terminal reasons as returned in BQ gRPC error response

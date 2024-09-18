@@ -53,7 +53,7 @@ from dlt.common.destination.reference import (
     SupportsReadableDataset,
 )
 from dlt.common.destination.exceptions import DestinationUndefinedEntity
-from dlt.common.typing import DuckDBPyConnection
+
 from dlt.destinations.job_impl import (
     ReferenceFollowupJobRequest,
     FinalizedLoadJob,

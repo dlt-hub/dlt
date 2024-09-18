@@ -26,11 +26,13 @@ from dlt.destinations.exceptions import (
     LoadClientNotConnected,
     DatabaseException,
 )
-from dlt.destinations.typing import DBTransaction, DBApiCursor
-from dlt.destinations.sql_client import SqlClientBase, DBApiCursorImpl
+from dlt.common.destination.reference import DBApiCursor
+from dlt.destinations.typing import DBTransaction
+from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.impl.sqlalchemy.configuration import SqlalchemyCredentials
 from dlt.destinations.impl.sqlalchemy.alter_table import MigrationMaker
 from dlt.common.typing import TFun
+from dlt.destinations.sql_client import DBApiCursorImpl
 
 
 class SqlaTransactionWrapper(DBTransaction):

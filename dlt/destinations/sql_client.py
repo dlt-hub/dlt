@@ -32,14 +32,11 @@ from dlt.destinations.exceptions import (
 from dlt.destinations.typing import (
     DBApi,
     TNativeConn,
-    DBApiCursor,
     DataFrame,
     DBTransaction,
     ArrowTable,
 )
-
-
-from dlt.destinations.typing import DBApi, TNativeConn, DBApiCursor, DataFrame, DBTransaction
+from dlt.common.destination.reference import DBApiCursor
 
 
 class TJobQueryTags(TypedDict):

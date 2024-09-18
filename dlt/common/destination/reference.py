@@ -24,13 +24,13 @@ from typing import (
     TYPE_CHECKING,
     Protocol,
     Tuple,
+    AnyStr,
 )
 from typing_extensions import Annotated
 import datetime  # noqa: 251
 import inspect
 
 from dlt.common import logger, pendulum
-from dlt.common.typing import DataFrame, ArrowTable
 
 from dlt.common.configuration.specs.base_configuration import extract_inner_hint
 from dlt.common.destination.typing import PreparedTableSchema
@@ -58,6 +58,7 @@ from dlt.common.schema.exceptions import UnknownTableException
 from dlt.common.storages import FileStorage
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.common.storages.load_package import LoadJobInfo, TPipelineStateDoc
+from dlt.common.exceptions import MissingDependencyException
 
 
 TLoaderReplaceStrategy = Literal["truncate-and-insert", "insert-from-staging", "staging-optimized"]
@@ -66,6 +67,16 @@ TDestinationClient = TypeVar("TDestinationClient", bound="JobClientBase")
 TDestinationDwhClient = TypeVar("TDestinationDwhClient", bound="DestinationClientDwhConfiguration")
 
 DEFAULT_FILE_LAYOUT = "{table_name}/{load_id}.{file_id}.{ext}"
+
+try:
+    from dlt.common.libs.pandas import DataFrame
+except MissingDependencyException:
+    DataFrame = Any
+
+try:
+    from dlt.common.libs.pyarrow import ArrowTable
+except MissingDependencyException:
+    ArrowTable = Any
 
 
 class StorageSchemaInfo(NamedTuple):
@@ -485,6 +496,18 @@ class SupportsReadableRelation(Protocol):
     def iter_fetchmany(self, chunk_size: int) -> Generator[List[Tuple[Any, ...]], Any, Any]: ...
 
     def fetchone(self) -> Optional[Tuple[Any, ...]]: ...
+
+
+class DBApiCursor(SupportsReadableRelation):
+    """Protocol for DBAPI cursor"""
+
+    description: Tuple[Any, ...]
+
+    native_cursor: "DBApiCursor"
+    """Cursor implementation native to current destination"""
+
+    def execute(self, query: AnyStr, *args: Any, **kwargs: Any) -> None: ...
+    def close(self) -> None: ...
 
 
 class SupportsReadableDataset(Protocol):

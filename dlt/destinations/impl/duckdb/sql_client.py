@@ -11,7 +11,7 @@ from dlt.destinations.exceptions import (
     DatabaseTransientException,
     DatabaseUndefinedRelation,
 )
-from dlt.destinations.typing import DBApi, DBApiCursor, DBTransaction, DataFrame, ArrowTable
+from dlt.destinations.typing import DBApi, DBTransaction, DataFrame, ArrowTable
 from dlt.destinations.sql_client import (
     SqlClientBase,
     DBApiCursorImpl,
@@ -20,6 +20,7 @@ from dlt.destinations.sql_client import (
 )
 
 from dlt.destinations.impl.duckdb.configuration import DuckDbBaseCredentials
+from dlt.common.destination.reference import DBApiCursor
 
 
 class DuckDBDBApiCursorImpl(DBApiCursorImpl):
