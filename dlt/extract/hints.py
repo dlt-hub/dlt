@@ -458,8 +458,8 @@ class DltResourceHints:
             md_dict = cast(TScd2StrategyDict, md_dict)
             if "boundary_timestamp" in md_dict:
                 dict_["x-boundary-timestamp"] = md_dict["boundary_timestamp"]
-            if "retire_if_absent" in md_dict:
-                dict_["x-retire-if-absent"] = md_dict["retire_if_absent"]
+            if "retire_absent_rows" in md_dict:
+                dict_["x-retire-absent-rows"] = md_dict["retire_absent_rows"]
             if "natural_key" in md_dict:
                 nk = md_dict["natural_key"]
                 if nk in dict_["columns"]:
@@ -550,8 +550,8 @@ class DltResourceHints:
                             )
 
                 if (
-                    "retire_if_absent" in wd
-                    and not wd["retire_if_absent"]
+                    "retire_absent_rows" in wd
+                    and not wd["retire_absent_rows"]
                     and "natural_key" not in wd
                 ):
-                    raise ValueError("`natural_key` is required when `retire_if_absent=False`")
+                    raise ValueError("`natural_key` is required when `retire_absent_rows=False`")

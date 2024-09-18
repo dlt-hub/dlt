@@ -240,7 +240,7 @@ class TScd2StrategyDict(TMergeDispositionDict, total=False):
     active_record_timestamp: Optional[TAnyDateTime]
     boundary_timestamp: Optional[TAnyDateTime]
     row_version_column_name: Optional[str]
-    retire_if_absent: Optional[bool]
+    retire_absent_rows: Optional[bool]
     natural_key: Optional[str]
 
 

@@ -720,7 +720,7 @@ def test_boundary_timestamp(
     destinations_configs(default_sql_configs=True, subset=["duckdb"]),
     ids=lambda x: x.name,
 )
-def test_retire_if_absent(
+def test_retire_absent_rows(
     destination_config: DestinationTestConfiguration,
 ) -> None:
     p = destination_config.setup_pipeline("abstract", dev_mode=True)
@@ -730,7 +730,7 @@ def test_retire_if_absent(
         write_disposition={
             "disposition": "merge",
             "strategy": "scd2",
-            "retire_if_absent": False,
+            "retire_absent_rows": False,
             "natural_key": "nk",
         },
     )
@@ -775,24 +775,24 @@ def test_retire_if_absent(
     # now test various configs
 
     with pytest.raises(ValueError):
-        # should raise because `natural_key` is required when `retire_if_absent=False`
+        # should raise because `natural_key` is required when `retire_absent_rows=False`
         r.apply_hints(
             write_disposition={
                 "disposition": "merge",
                 "strategy": "scd2",
-                "retire_if_absent": False,
+                "retire_absent_rows": False,
             }
         )
 
-    # `retire_if_absent=True` does not require `natural_key`
+    # `retire_absent_rows=True` does not require `natural_key`
     r.apply_hints(
         write_disposition={
             "disposition": "merge",
             "strategy": "scd2",
-            "retire_if_absent": True,
+            "retire_absent_rows": True,
         }
     )
-    assert r.compute_table_schema()["x-retire-if-absent"]  # type: ignore[typeddict-item]
+    assert r.compute_table_schema()["x-retire-absent-rows"]  # type: ignore[typeddict-item]
 
     # user-provided hints for `natural_key` column should be respected
     r.apply_hints(
@@ -800,7 +800,7 @@ def test_retire_if_absent(
         write_disposition={
             "disposition": "merge",
             "strategy": "scd2",
-            "retire_if_absent": False,
+            "retire_absent_rows": False,
             "natural_key": "nk",
         },
     )

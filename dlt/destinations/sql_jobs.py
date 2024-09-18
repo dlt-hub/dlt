@@ -763,14 +763,14 @@ class SqlMergeFollowupJob(SqlFollowupJob):
             is_active = f"{to} = {active_record_literal}"
 
         # retire records
-        # always retire updated records, retire deleted records only if `retire_if_absent`
+        # always retire updated records, retire deleted records only if `retire_absent_rows`
         retire_sql = f"""
             {cls.gen_update_table_prefix(root_table_name)} {to} = {boundary_literal}
             WHERE {is_active}
             AND {hash_} NOT IN (SELECT {hash_} FROM {staging_root_table_name});
         """
-        retire_if_absent = root_table.get("x-retire-if-absent", True)
-        if not retire_if_absent:
+        retire_absent_rows = root_table.get("x-retire-absent-rows", True)
+        if not retire_absent_rows:
             retire_sql = retire_sql.rstrip()[:-1]  # remove semicolon
             nk = escape_column_id(get_first_column_name_with_prop(root_table, "x-natural-key"))
             nk_present = f"{nk} IN (SELECT {nk} FROM {staging_root_table_name})"
