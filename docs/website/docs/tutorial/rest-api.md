@@ -109,6 +109,9 @@ You can explore the loaded data, run queries and see some pipeline execution det
 Now that your environment and the project are set up, let's take a closer look at the configuration of the REST API source. Open the `rest_api_pipeline.py` file in your code editor and locate the following code snippet:
 
 ```py
+import dlt
+from dlt.sources.rest_api import rest_api_source
+
 def load_pokemon() -> None:
     pipeline = dlt.pipeline(
         pipeline_name="rest_api_pokemon",
@@ -263,6 +266,9 @@ When working with some APIs, you may need to load data incrementally to avoid fe
 To illustrate incremental loading, let's consider the GitHub API. In the `rest_api_pipeline.py` file, you can find an example of how to load data from the GitHub API incrementally. Let's take a look at the configuration:
 
 ```py
+import dlt
+from dlt.sources.rest_api import rest_api_source
+
 pipeline = dlt.pipeline(
     pipeline_name="rest_api_github",
     destination="duckdb",
@@ -302,7 +308,7 @@ github_source = rest_api_source({
     ],
 })
 
-load_info = pipeline.run(github_source())
+load_info = pipeline.run(github_source)
 print(load_info)
 ```
 

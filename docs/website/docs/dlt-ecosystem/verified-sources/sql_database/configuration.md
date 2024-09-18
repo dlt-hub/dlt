@@ -12,7 +12,7 @@ import Header from '../_source-info-header.md';
 
 ## Configuring the SQL Database source
 
-`dlt` sources are python scripts made up of source and resource functions that can be easily customized. The SQL Database verified source has the following built-in source and resource:  
+`dlt` sources are python scripts made up of source and resource functions that can be easily customized. The SQL Database verified source has the following built-in source and resource:
 1. `sql_database`: a `dlt` source which can be used to load multiple tables and views from a SQL database
 2. `sql_table`: a `dlt` resource that loads a single table from the SQL database
 
@@ -20,16 +20,18 @@ Read more about sources and resources here: [General usage: source](../../../gen
 
 ### Example usage:
 
-1. **Load all the tables from a database**  
-    Calling `sql_database()` loads all tables from the database.  
+1. **Load all the tables from a database**
+    Calling `sql_database()` loads all tables from the database.
 
     ```py
-    def load_entire_database() -> None:
+    import dlt
+    from dlt.sources.sql_database import sql_database
 
+    def load_entire_database() -> None:
         # Define the pipeline
         pipeline = dlt.pipeline(
-            pipeline_name="rfam", 
-            destination='synapse', 
+            pipeline_name="rfam",
+            destination='synapse',
             dataset_name="rfam_data"
         )
 
@@ -41,22 +43,24 @@ Read more about sources and resources here: [General usage: source](../../../gen
 
         # Print load info
         print(info)
-    ```  
+    ```
 
-2. **Load select tables from a database**  
-    Calling `sql_database().with_resources("family", "clan")` loads only the tables `"family"` and `"clan"` from the database.  
+2. **Load select tables from a database**
+    Calling `sql_database().with_resources("family", "clan")` loads only the tables `"family"` and `"clan"` from the database.
 
     ```py
-    def load_select_tables_from_database() -> None:
+    import dlt
+    from dlt.sources.sql_database import sql_database
 
+    def load_select_tables_from_database() -> None:
         # Define the pipeline
         pipeline = dlt.pipeline(
-            pipeline_name="rfam", 
-            destination="postgres", 
+            pipeline_name="rfam",
+            destination="postgres",
             dataset_name="rfam_data"
         )
 
-        # Fetch tables "family" and "clan" 
+        # Fetch tables "family" and "clan"
         source = sql_database().with_resources("family", "clan")
 
         # Run the pipeline
@@ -65,22 +69,24 @@ Read more about sources and resources here: [General usage: source](../../../gen
         # Print load info
         print(info)
 
-    ```  
+    ```
 
-3. **Load a standalone table**  
+3. **Load a standalone table**
     Calling `sql_table(table="family")` fetches only the table `"family"`
 
     ```py
-    def load_select_tables_from_database() -> None:
+    import dlt
+    from dlt.sources.sql_database import sql_table
 
+    def load_select_tables_from_database() -> None:
         # Define the pipeline
         pipeline = dlt.pipeline(
-            pipeline_name="rfam", 
-            destination="duckdb", 
+            pipeline_name="rfam",
+            destination="duckdb",
             dataset_name="rfam_data"
         )
 
-        # Fetch the table "family" 
+        # Fetch the table "family"
         table = sql_table(table="family")
 
         # Run the pipeline
@@ -92,8 +98,8 @@ Read more about sources and resources here: [General usage: source](../../../gen
     ```
 
 :::tip
-We intend our sources to be fully hackable. Feel free to change the source code of the sources and resources to customize it to your needs. 
-:::  
+We intend our sources to be fully hackable. Feel free to change the source code of the sources and resources to customize it to your needs.
+:::
 
 
 ## Configuring the connection
@@ -106,12 +112,12 @@ We intend our sources to be fully hackable. Feel free to change the source code 
 "dialect+database_type://username:password@server:port/database_name"
 ```
 
-For example, to connect to a MySQL database using the `pymysql` dialect you can use the following connection string:  
+For example, to connect to a MySQL database using the `pymysql` dialect you can use the following connection string:
 ```py
 "mysql+pymysql://rfamro:PWD@mysql-rfam-public.ebi.ac.uk:4497/Rfam"
 ```
 
-Database-specific drivers can be passed into the connection string using query parameters. For example, to connect to Microsoft SQL Server using the ODBC Driver, you would need to pass the driver as a query parameter as follows:  
+Database-specific drivers can be passed into the connection string using query parameters. For example, to connect to Microsoft SQL Server using the ODBC Driver, you would need to pass the driver as a query parameter as follows:
 
 ```py
 "mssql+pyodbc://username:password@server/database?driver=ODBC+Driver+17+for+SQL+Server"
@@ -124,30 +130,32 @@ There are several options for adding your connection credentials into your `dlt`
 
 #### 1. Setting them in `secrets.toml` or as environment variables (Recommended)
 
-You can set up credentials using [any method](/general-usage/credentials/setup#available-config-providers) supported by `dlt`. We recommend using `.dlt/secrets.toml` or the environment variables. See Step 2 of the [setup](./setup) for how to set credentials inside `secrets.toml`. For more information on passing credentials read [here](/general-usage/credentials/setup).   
+You can set up credentials using [any method](/general-usage/credentials/setup#available-config-providers) supported by `dlt`. We recommend using `.dlt/secrets.toml` or the environment variables. See Step 2 of the [setup](./setup) for how to set credentials inside `secrets.toml`. For more information on passing credentials read [here](/general-usage/credentials/setup).
 
 
-#### 2. Passing them directly in the script 
+#### 2. Passing them directly in the script
 It is also possible to explicitly pass credentials inside the source. Example:
+
 ```py
 from dlt.sources.credentials import ConnectionStringCredentials
-from sql_database import sql_table
+from dlt.sources.sql_database import sql_database
 
 credentials = ConnectionStringCredentials(
     "mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam"
 )
 
-source = sql_table(credentials).with_resource("family")
+source = sql_database(credentials).with_resource("family")
 ```
 
-:::note 
-It is recommended to configure credentials in `.dlt/secrets.toml` and to not include any sensitive information in the pipeline code.  
+:::note
+It is recommended to configure credentials in `.dlt/secrets.toml` and to not include any sensitive information in the pipeline code.
 :::
 
 ### Other connection options
-#### Using SqlAlchemy Engine as credentials  
+#### Using SqlAlchemy Engine as credentials
 You are able to pass an instance of SqlAlchemy Engine instead of credentials:
 ```py
+from dlt.sources.sql_database import sql_table
 from sqlalchemy import create_engine
 
 engine = create_engine("mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam")
@@ -175,7 +183,10 @@ reflects the database table and preserves original types (i.e. **decimal** / **n
 Note that if `pandas` is installed, we'll use it to convert `SQLAlchemy` tuples into `ndarray` as it seems to be 20-30% faster than using `numpy` directly.
 
 ```py
+import dlt
 import sqlalchemy as sa
+from dlt.sources.sql_database import sql_database
+
 pipeline = dlt.pipeline(
     pipeline_name="rfam_cx", destination="postgres", dataset_name="rfam_data_arrow"
 )
@@ -210,10 +221,13 @@ With the default settings, several data types will be coerced to dtypes in the y
 not to use the** `pandas` **backend if your source tables contain date, time, or decimal columns**
 :::
 
-Internally dlt uses `pandas.io.sql._wrap_result` to generate `pandas` frames. To adjust [pandas-specific settings,](https://pandas.pydata.org/docs/reference/api/pandas.read_sql_table.html) pass it in the `backend_kwargs` parameter. For example, below we set `coerce_float` to `False`: 
+Internally dlt uses `pandas.io.sql._wrap_result` to generate `pandas` frames. To adjust [pandas-specific settings,](https://pandas.pydata.org/docs/reference/api/pandas.read_sql_table.html) pass it in the `backend_kwargs` parameter. For example, below we set `coerce_float` to `False`:
 
 ```py
+import dlt
 import sqlalchemy as sa
+from dlt.sources.sql_database import sql_database
+
 pipeline = dlt.pipeline(
     pipeline_name="rfam_cx", destination="postgres", dataset_name="rfam_data_pandas_2"
 )
@@ -249,7 +263,7 @@ There are certain limitations when using this backend:
 * JSON fields (at least those coming from postgres) are double wrapped in strings. To unwrap this, you can pass the in-built transformation function `unwrap_json_connector_x` (for example, with `add_map`):
 
     ```py
-    from sources.sql_database.helpers import unwrap_json_connector_x
+    from dlt.sources.sql_database.helpers import unwrap_json_connector_x
     ```
 
 :::note
@@ -259,7 +273,9 @@ There are certain limitations when using this backend:
 ```py
 """This example is taken from the benchmarking tests for ConnectorX performed on the UNSW_Flow dataset (~2mln rows, 25+ columns). Full code here: https://github.com/dlt-hub/sql_database_benchmarking"""
 import os
+import dlt
 from dlt.destinations import filesystem
+from dlt.sources.sql_database import sql_table
 
 unsw_table = sql_table(
     "postgresql://loader:loader@localhost:5432/dlt_data",

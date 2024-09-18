@@ -51,6 +51,9 @@ In this example, the source will ignore responses with a status code of 404, res
 #### Example B
 
 ```py
+from requests.models import Response
+from dlt.common import json
+
 def set_encoding(response, *args, **kwargs):
     # sets the encoding in case it's not correctly detected
     response.encoding = 'windows-1252'
