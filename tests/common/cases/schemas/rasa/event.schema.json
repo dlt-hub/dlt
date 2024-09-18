@@ -111,7 +111,8 @@
       "re:^_timestamp$": "timestamp",
       "re:^inserted_at$": "timestamp",
       "re:confidence": "double",
-      "re:^_dlt_list_idx$": "bigint"
+      "re:^_dlt_list_idx$": "bigint",
+      "re:^_test_slot$": "complex"
     }
   },
   "normalizers": {

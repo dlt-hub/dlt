@@ -42,6 +42,8 @@ from typing_extensions import (
     get_original_bases,
 )
 
+from typing_extensions import is_typeddict as _is_typeddict
+
 try:
     from types import UnionType  # type: ignore[attr-defined]
 except ImportError:
@@ -309,7 +311,7 @@ def is_newtype_type(t: Type[Any]) -> bool:
 
 
 def is_typeddict(t: Type[Any]) -> bool:
-    if isinstance(t, _TypedDict):
+    if _is_typeddict(t):
         return True
     if inner_t := extract_type_if_modifier(t):
         return is_typeddict(inner_t)
@@ -437,6 +439,26 @@ def copy_sig(
     """Copies docstring and signature from wrapper to func but keeps the func return value type"""
 
     def decorator(func: Callable[..., TReturnVal]) -> Callable[TInputArgs, TReturnVal]:
+        func.__doc__ = wrapper.__doc__
+        return func
+
+    return decorator
+
+
+def copy_sig_any(
+    wrapper: Callable[Concatenate[TDataItem, TInputArgs], Any],
+) -> Callable[
+    [Callable[..., TReturnVal]], Callable[Concatenate[TDataItem, TInputArgs], TReturnVal]
+]:
+    """Copies docstring and signature from wrapper to func but keeps the func return value type
+
+    It converts the type of first argument of the wrapper to Any which allows to type transformers in DltSources.
+    See filesystem source readers as example
+    """
+
+    def decorator(
+        func: Callable[..., TReturnVal]
+    ) -> Callable[Concatenate[Any, TInputArgs], TReturnVal]:
         func.__doc__ = wrapper.__doc__
         return func
 

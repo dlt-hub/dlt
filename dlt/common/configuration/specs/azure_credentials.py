@@ -32,6 +32,8 @@ class AzureCredentialsWithoutDefaults(CredentialsConfiguration):
         creds = self.to_adlfs_credentials()
         if creds["sas_token"] is None:
             creds.pop("sas_token")
+        if creds["account_key"] is None:
+            creds.pop("account_key")
         return creds
 
     def create_sas_token(self) -> None:

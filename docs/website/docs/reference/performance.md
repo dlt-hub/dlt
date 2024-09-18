@@ -1,10 +1,10 @@
 ---
-title: Performance
+title: Optimizing dlt
 description: Scale-up, parallelize and finetune dlt pipelines
 keywords: [scaling, parallelism, finetuning]
 ---
 
-# Performance
+# Optimizing dlt
 
 ## Yield pages instead of rows
 
@@ -62,7 +62,7 @@ Several [text file formats](../dlt-ecosystem/file-formats/) have `gzip` compress
 Keep in mind load packages are buffered to disk and are left for any troubleshooting, so you can [clear disk space by setting the `delete_completed_jobs` option](../running-in-production/running.md#data-left-behind).
 
 ### Observing cpu and memory usage
-Please make sure that you have the `psutils` package installed (note that Airflow installs it by default). Then you can dump the stats periodically by setting the [progress](../general-usage/pipeline.md#display-the-loading-progress) to `log` in `config.toml`:
+Please make sure that you have the `psutil` package installed (note that Airflow installs it by default). Then you can dump the stats periodically by setting the [progress](../general-usage/pipeline.md#display-the-loading-progress) to `log` in `config.toml`:
 ```toml
 progress="log"
 ```
@@ -148,6 +148,7 @@ As before, **if you have just a single table with millions of records you should
 
 <!--@@@DLT_SNIPPET ./performance_snippets/toml-snippets.toml::normalize_workers_2_toml-->
 
+Since the normalize stage uses a process pool to create load package concurrently, adjusting the `file_max_items` and `file_max_bytes` settings can significantly impact load behavior. By setting a lower value for `file_max_items`, you reduce the size of each data chunk sent to the destination database, which can be particularly useful for managing memory constraints on the database server. Without explicit configuration `file_max_items`, `dlt` writes all data rows into one large intermediary file, attempting to insert all data from this single file. Configuring `file_max_items` ensures data is inserted in manageable chunks, enhancing performance and preventing potential memory issues.
 
 ### Parallel pipeline config example
 The example below simulates loading of a large database table with 1 000 000 records. The **config.toml** below sets the parallelization as follows:
@@ -224,7 +225,7 @@ resources are: `round_robin` and `fifo`.
 `fifo` is an option for sequential extraction. It will result in every resource being fully extracted until the resource generator is expired, or a configured limit is reached, then the next resource will be evaluated. Resources are extracted in the order that you added them to your source.
 
 :::tip
-Switch to `fifo` when debugging sources with many resources and connected transformers, for example [rest_api](../dlt-ecosystem/verified-sources/rest_api.md).
+Switch to `fifo` when debugging sources with many resources and connected transformers, for example [rest_api](../dlt-ecosystem/verified-sources/rest_api/index.md).
 Your data will be requested in deterministic and straightforward order - given data item (ie. user record you got from API) will be processed by all resources
 and transformers until completion before starting with new one
 :::

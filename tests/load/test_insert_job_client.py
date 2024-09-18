@@ -28,7 +28,7 @@ def file_storage() -> FileStorage:
 
 @pytest.fixture(scope="function")
 def client(request) -> Iterator[InsertValuesJobClient]:
-    yield from yield_client_with_storage(request.param.destination)  # type: ignore[misc]
+    yield from yield_client_with_storage(request.param.destination_factory())  # type: ignore[misc]
 
 
 @pytest.mark.essential
@@ -55,12 +55,18 @@ def test_simple_load(client: InsertValuesJobClient, file_storage: FileStorage) -
         f" '{str(pendulum.now())}'"
         + post
     )
-    expect_load_file(client, file_storage, insert_sql + insert_values + ";", user_table_name)
+    expect_load_file(
+        client,
+        file_storage,
+        insert_sql + insert_values + ";",
+        user_table_name,
+        file_format="insert_values",
+    )
     rows_count = client.sql_client.execute_sql(f"SELECT COUNT(1) FROM {canonical_name}")[0][0]
     assert rows_count == 1
     # insert 100 more rows
     query = insert_sql + (insert_values + sep) * 99 + insert_values + ";"
-    expect_load_file(client, file_storage, query, user_table_name)
+    expect_load_file(client, file_storage, query, user_table_name, file_format="insert_values")
     rows_count = client.sql_client.execute_sql(f"SELECT COUNT(1) FROM {canonical_name}")[0][0]
     assert rows_count == 101
     # insert null value (single-record insert has same syntax for both writer types)
@@ -69,7 +75,13 @@ def test_simple_load(client: InsertValuesJobClient, file_storage: FileStorage) -
         f"('{uniq_id()}', '{uniq_id()}', '90238094809sajlkjxoiewjhduuiuehd',"
         f" '{str(pendulum.now())}', NULL);"
     )
-    expect_load_file(client, file_storage, insert_sql_nc + insert_values_nc, user_table_name)
+    expect_load_file(
+        client,
+        file_storage,
+        insert_sql_nc + insert_values_nc,
+        user_table_name,
+        file_format="insert_values",
+    )
     rows_count = client.sql_client.execute_sql(f"SELECT COUNT(1) FROM {canonical_name}")[0][0]
     assert rows_count == 102
 
@@ -94,7 +106,7 @@ def test_loading_errors(client: InsertValuesJobClient, file_storage: FileStorage
         if dtype == "redshift":
             # redshift does not know or psycopg does not recognize those correctly
             TNotNullViolation = psycopg2.errors.InternalError_
-    elif dtype == "duckdb":
+    elif dtype in ("duckdb", "motherduck"):
         import duckdb
 
         TUndefinedColumn = duckdb.BinderException
@@ -115,14 +127,24 @@ def test_loading_errors(client: InsertValuesJobClient, file_storage: FileStorage
         f" '{str(pendulum.now())}', NULL);"
     )
     job = expect_load_file(
-        client, file_storage, insert_sql + insert_values, user_table_name, "failed"
+        client,
+        file_storage,
+        insert_sql + insert_values,
+        user_table_name,
+        "failed",
+        file_format="insert_values",
     )
     assert type(job._exception.dbapi_exception) is TUndefinedColumn  # type: ignore
     # insert null value
     insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp)\nVALUES\n"
     insert_values = f"('{uniq_id()}', '{uniq_id()}', '90238094809sajlkjxoiewjhduuiuehd', NULL);"
     job = expect_load_file(
-        client, file_storage, insert_sql + insert_values, user_table_name, "failed"
+        client,
+        file_storage,
+        insert_sql + insert_values,
+        user_table_name,
+        "failed",
+        file_format="insert_values",
     )
     assert type(job._exception.dbapi_exception) is TNotNullViolation  # type: ignore
     # insert wrong type
@@ -132,7 +154,12 @@ def test_loading_errors(client: InsertValuesJobClient, file_storage: FileStorage
         f" {client.capabilities.escape_literal(True)});"
     )
     job = expect_load_file(
-        client, file_storage, insert_sql + insert_values, user_table_name, "failed"
+        client,
+        file_storage,
+        insert_sql + insert_values,
+        user_table_name,
+        "failed",
+        file_format="insert_values",
     )
     assert type(job._exception.dbapi_exception) is TDatatypeMismatch  # type: ignore
     # numeric overflow on bigint
@@ -145,7 +172,12 @@ def test_loading_errors(client: InsertValuesJobClient, file_storage: FileStorage
         f" '{str(pendulum.now())}', {2**64//2});"
     )
     job = expect_load_file(
-        client, file_storage, insert_sql + insert_values, user_table_name, "failed"
+        client,
+        file_storage,
+        insert_sql + insert_values,
+        user_table_name,
+        "failed",
+        file_format="insert_values",
     )
     assert type(job._exception) == DatabaseTerminalException  # type: ignore
     # numeric overflow on NUMERIC
@@ -162,14 +194,25 @@ def test_loading_errors(client: InsertValuesJobClient, file_storage: FileStorage
         f"('{uniq_id()}', '{uniq_id()}', '90238094809sajlkjxoiewjhduuiuehd',"
         f" '{str(pendulum.now())}', {below_limit});"
     )
-    expect_load_file(client, file_storage, insert_sql + insert_values, user_table_name)
+    expect_load_file(
+        client,
+        file_storage,
+        insert_sql + insert_values,
+        user_table_name,
+        file_format="insert_values",
+    )
     # this will raise
     insert_values = (
         f"('{uniq_id()}', '{uniq_id()}', '90238094809sajlkjxoiewjhduuiuehd',"
         f" '{str(pendulum.now())}', {above_limit});"
     )
     job = expect_load_file(
-        client, file_storage, insert_sql + insert_values, user_table_name, "failed"
+        client,
+        file_storage,
+        insert_sql + insert_values,
+        user_table_name,
+        "failed",
+        file_format="insert_values",
     )
     assert type(job._exception) == DatabaseTerminalException  # type: ignore
 
@@ -200,7 +243,9 @@ def test_query_split(client: InsertValuesJobClient, file_storage: FileStorage) -
     # this guarantees that we execute inserts line by line
     with patch.object(client.sql_client, "execute_fragments") as mocked_fragments:
         user_table_name = prepare_table(client)
-        expect_load_file(client, file_storage, insert_sql, user_table_name)
+        expect_load_file(
+            client, file_storage, insert_sql, user_table_name, file_format="insert_values"
+        )
         # print(mocked_fragments.mock_calls)
     # split in 10 lines
     assert mocked_fragments.call_count == 10
@@ -224,7 +269,9 @@ def test_query_split(client: InsertValuesJobClient, file_storage: FileStorage) -
     client.sql_client.capabilities.max_query_length = query_length
     with patch.object(client.sql_client, "execute_fragments") as mocked_fragments:
         user_table_name = prepare_table(client)
-        expect_load_file(client, file_storage, insert_sql, user_table_name)
+        expect_load_file(
+            client, file_storage, insert_sql, user_table_name, file_format="insert_values"
+        )
     # split in 2 on ','
     assert mocked_fragments.call_count == 2
 
@@ -233,7 +280,9 @@ def test_query_split(client: InsertValuesJobClient, file_storage: FileStorage) -
     client.sql_client.capabilities.max_query_length = query_length
     with patch.object(client.sql_client, "execute_fragments") as mocked_fragments:
         user_table_name = prepare_table(client)
-        expect_load_file(client, file_storage, insert_sql, user_table_name)
+        expect_load_file(
+            client, file_storage, insert_sql, user_table_name, file_format="insert_values"
+        )
     # split in 2 on separator ("," or " UNION ALL")
     assert mocked_fragments.call_count == 2
 
@@ -246,7 +295,9 @@ def test_query_split(client: InsertValuesJobClient, file_storage: FileStorage) -
     client.sql_client.capabilities.max_query_length = query_length
     with patch.object(client.sql_client, "execute_fragments") as mocked_fragments:
         user_table_name = prepare_table(client)
-        expect_load_file(client, file_storage, insert_sql, user_table_name)
+        expect_load_file(
+            client, file_storage, insert_sql, user_table_name, file_format="insert_values"
+        )
     # split in 2 on ','
     assert mocked_fragments.call_count == 1
 
@@ -263,7 +314,7 @@ def assert_load_with_max_query(
     insert_sql = prepare_insert_statement(
         insert_lines, client.capabilities.insert_values_writer_type
     )
-    expect_load_file(client, file_storage, insert_sql, user_table_name)
+    expect_load_file(client, file_storage, insert_sql, user_table_name, file_format="insert_values")
     canonical_name = client.sql_client.make_qualified_table_name(user_table_name)
     rows_count = client.sql_client.execute_sql(f"SELECT COUNT(1) FROM {canonical_name}")[0][0]
     assert rows_count == insert_lines

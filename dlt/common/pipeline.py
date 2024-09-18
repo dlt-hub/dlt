@@ -16,7 +16,6 @@ from typing import (
     Optional,
     Protocol,
     Sequence,
-    TYPE_CHECKING,
     Tuple,
     TypeVar,
     TypedDict,
@@ -36,6 +35,14 @@ from dlt.common.configuration.specs import RunConfiguration
 from dlt.common.destination import TDestinationReferenceArg, TDestination
 from dlt.common.destination.exceptions import DestinationHasFailedJobs
 from dlt.common.exceptions import PipelineStateNotAvailable, SourceSectionNotAvailable
+from dlt.common.metrics import (
+    DataWriterMetrics,
+    ExtractDataInfo,
+    ExtractMetrics,
+    LoadMetrics,
+    NormalizeMetrics,
+    StepMetrics,
+)
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import (
     TColumnNames,
@@ -44,11 +51,12 @@ from dlt.common.schema.typing import (
     TSchemaContract,
 )
 from dlt.common.source import get_current_pipe_name
+from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.common.storages.load_storage import LoadPackageInfo
 from dlt.common.time import ensure_pendulum_datetime, precise_time
 from dlt.common.typing import DictStrAny, REPattern, StrAny, SupportsHumanize
 from dlt.common.jsonpath import delete_matches, TAnyJsonPath
-from dlt.common.data_writers.writers import DataWriterMetrics, TLoaderFileFormat
+from dlt.common.data_writers.writers import TLoaderFileFormat
 from dlt.common.utils import RowCounts, merge_row_counts
 from dlt.common.versioned_state import TVersionedState
 
@@ -66,15 +74,6 @@ class _StepInfo(NamedTuple):
     first_run: bool
     started_at: datetime.datetime
     finished_at: datetime.datetime
-
-
-class StepMetrics(TypedDict):
-    """Metrics for particular package processed in particular pipeline step"""
-
-    started_at: datetime.datetime
-    """Start of package processing"""
-    finished_at: datetime.datetime
-    """End of package processing"""
 
 
 TStepMetricsCo = TypeVar("TStepMetricsCo", bound=StepMetrics, covariant=True)
@@ -154,17 +153,20 @@ class StepInfo(SupportsHumanize, Generic[TStepMetricsCo]):
         return msg
 
     @staticmethod
-    def job_metrics_asdict(
+    def writer_metrics_asdict(
         job_metrics: Dict[str, DataWriterMetrics], key_name: str = "job_id", extend: StrAny = None
     ) -> List[DictStrAny]:
-        jobs = []
-        for job_id, metrics in job_metrics.items():
+        entities = []
+        for entity_id, metrics in job_metrics.items():
             d = metrics._asdict()
             if extend:
                 d.update(extend)
-            d[key_name] = job_id
-            jobs.append(d)
-        return jobs
+            d[key_name] = entity_id
+            # add job-level info if known
+            if metrics.file_path:
+                d["table_name"] = ParsedLoadJobFileName.parse(metrics.file_path).table_name
+            entities.append(d)
+        return entities
 
     def _astuple(self) -> _StepInfo:
         return _StepInfo(
@@ -175,25 +177,6 @@ class StepInfo(SupportsHumanize, Generic[TStepMetricsCo]):
             self.started_at,
             self.finished_at,
         )
-
-
-class ExtractDataInfo(TypedDict):
-    name: str
-    data_type: str
-
-
-class ExtractMetrics(StepMetrics):
-    schema_name: str
-    job_metrics: Dict[str, DataWriterMetrics]
-    """Metrics collected per job id during writing of job file"""
-    table_metrics: Dict[str, DataWriterMetrics]
-    """Job metrics aggregated by table"""
-    resource_metrics: Dict[str, DataWriterMetrics]
-    """Job metrics aggregated by resource"""
-    dag: List[Tuple[str, str]]
-    """A resource dag where elements of the list are graph edges"""
-    hints: Dict[str, Dict[str, Any]]
-    """Hints passed to the resources"""
 
 
 class _ExtractInfo(NamedTuple):
@@ -228,16 +211,8 @@ class ExtractInfo(StepInfo[ExtractMetrics], _ExtractInfo):  # type: ignore[misc]
         for load_id, metrics_list in self.metrics.items():
             for idx, metrics in enumerate(metrics_list):
                 extend = {"load_id": load_id, "extract_idx": idx}
-                load_metrics["job_metrics"].extend(
-                    self.job_metrics_asdict(metrics["job_metrics"], extend=extend)
-                )
-                load_metrics["table_metrics"].extend(
-                    self.job_metrics_asdict(
-                        metrics["table_metrics"], key_name="table_name", extend=extend
-                    )
-                )
                 load_metrics["resource_metrics"].extend(
-                    self.job_metrics_asdict(
+                    self.writer_metrics_asdict(
                         metrics["resource_metrics"], key_name="resource_name", extend=extend
                     )
                 )
@@ -253,18 +228,20 @@ class ExtractInfo(StepInfo[ExtractMetrics], _ExtractInfo):  # type: ignore[misc]
                         for name, hints in metrics["hints"].items()
                     ]
                 )
+                load_metrics["job_metrics"].extend(
+                    self.writer_metrics_asdict(metrics["job_metrics"], extend=extend)
+                )
+                load_metrics["table_metrics"].extend(
+                    self.writer_metrics_asdict(
+                        metrics["table_metrics"], key_name="table_name", extend=extend
+                    )
+                )
+
         d.update(load_metrics)
         return d
 
     def asstr(self, verbosity: int = 0) -> str:
         return self._load_packages_asstr(self.load_packages, verbosity)
-
-
-class NormalizeMetrics(StepMetrics):
-    job_metrics: Dict[str, DataWriterMetrics]
-    """Metrics collected per job id during writing of job file"""
-    table_metrics: Dict[str, DataWriterMetrics]
-    """Job metrics aggregated by table"""
 
 
 class _NormalizeInfo(NamedTuple):
@@ -305,10 +282,10 @@ class NormalizeInfo(StepInfo[NormalizeMetrics], _NormalizeInfo):  # type: ignore
             for idx, metrics in enumerate(metrics_list):
                 extend = {"load_id": load_id, "extract_idx": idx}
                 load_metrics["job_metrics"].extend(
-                    self.job_metrics_asdict(metrics["job_metrics"], extend=extend)
+                    self.writer_metrics_asdict(metrics["job_metrics"], extend=extend)
                 )
                 load_metrics["table_metrics"].extend(
-                    self.job_metrics_asdict(
+                    self.writer_metrics_asdict(
                         metrics["table_metrics"], key_name="table_name", extend=extend
                     )
                 )
@@ -324,10 +301,6 @@ class NormalizeInfo(StepInfo[NormalizeMetrics], _NormalizeInfo):  # type: ignore
             msg = "No data found to normalize"
         msg += self._load_packages_asstr(self.load_packages, verbosity)
         return msg
-
-
-class LoadMetrics(StepMetrics):
-    pass
 
 
 class _LoadInfo(NamedTuple):
@@ -354,7 +327,19 @@ class LoadInfo(StepInfo[LoadMetrics], _LoadInfo):  # type: ignore[misc]
 
     def asdict(self) -> DictStrAny:
         """A dictionary representation of LoadInfo that can be loaded with `dlt`"""
-        return super().asdict()
+        d = super().asdict()
+        # transform metrics
+        d.pop("metrics")
+        load_metrics: Dict[str, List[Any]] = {"job_metrics": []}
+        for load_id, metrics_list in self.metrics.items():
+            # one set of metrics per package id
+            assert len(metrics_list) == 1
+            metrics = metrics_list[0]
+            for job_metrics in metrics["job_metrics"].values():
+                load_metrics["job_metrics"].append({"load_id": load_id, **job_metrics._asdict()})
+
+        d.update(load_metrics)
+        return d
 
     def asstr(self, verbosity: int = 0) -> str:
         msg = f"Pipeline {self.pipeline.pipeline_name} load step completed in "

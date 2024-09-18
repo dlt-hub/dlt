@@ -80,6 +80,3 @@ if __name__ == "__main__":
     client = weaviate.Client("http://localhost:8080")
     # get text of all the invoices in InvoiceText class we just created above
     print(client.query.get("InvoiceText", ["text", "file_name", "mtime", "page_id"]).do())
-
-    # make sure nothing failed
-    load_info.raise_on_failed_jobs()

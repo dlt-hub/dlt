@@ -106,10 +106,25 @@ qdrant_adapter(
 )
 ```
 
+When using the `qdrant_adapter`, it's important to apply it directly to resources, not to the whole source. Here's an example:
+
+```py
+products_tables = sql_database().with_resources("products", "customers")
+
+pipeline = dlt.pipeline(
+        pipeline_name="postgres_to_qdrant_pipeline",
+        destination="qdrant",
+    )
+
+# apply adapter to the needed resources
+qdrant_adapter(products_tables.products, embed="description")
+qdrant_adapter(products_tables.customers, embed="bio")
+
+info = pipeline.run(products_tables)
+```
+
 :::tip
-
 A more comprehensive pipeline would load data from some API or use one of dlt's [verified sources](../verified-sources/).
-
 :::
 
 ## Write disposition

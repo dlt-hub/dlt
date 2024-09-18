@@ -65,7 +65,8 @@ def test_platform_connection() -> None:
         # basic check of trace result
         assert trace_result, "no trace"
         assert trace_result["pipeline_name"] == "platform_test_pipeline"
-        assert len(trace_result["steps"]) == 4
+        # just extract, normalize and load steps. run step is not serialized to trace (it was just a copy of load)
+        assert len(trace_result["steps"]) == 3
         assert trace_result["execution_context"]["library"]["name"] == "dlt"
 
         # basic check of state result

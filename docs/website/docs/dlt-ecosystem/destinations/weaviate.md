@@ -116,6 +116,22 @@ weaviate_adapter(
     tokenization={"title": "word", "description": "whitespace"},
 )
 ```
+When using the `weaviate_adapter`, it's important to apply it directly to resources, not to the whole source. Here's an example:
+
+```py
+products_tables = sql_database().with_resources("products", "customers")
+
+pipeline = dlt.pipeline(
+        pipeline_name="postgres_to_weaviate_pipeline",
+        destination="weaviate",
+    )
+
+# apply adapter to the needed resources
+weaviate_adapter(products_tables.products, vectorize="description")
+weaviate_adapter(products_tables.customers, vectorize="bio")
+
+info = pipeline.run(products_tables)
+```
 
 :::tip
 
@@ -180,18 +196,18 @@ Loading data into Weaviate from different sources requires a proper understandin
 
 Data loaded into Weaviate from various sources might have different types. To ensure compatibility with Weaviate's schema, there's a predefined mapping between the [dlt types](../../general-usage/schema.md#data-types) and [Weaviate's native types](https://weaviate.io/developers/weaviate/config-refs/datatypes):
 
-| dlt Type   | Weaviate Type |
-|------------|---------------|
-| text       | text          |
-| double     | number        |
-| bool       | boolean       |
-| timestamp  | date          |
-| date       | date          |
-| bigint     | int           |
-| binary     | blob          |
-| decimal    | text          |
-| wei        | number        |
-| complex    | text          |
+| dlt Type  | Weaviate Type |
+| --------- | ------------- |
+| text      | text          |
+| double    | number        |
+| bool      | boolean       |
+| timestamp | date          |
+| date      | date          |
+| bigint    | int           |
+| binary    | blob          |
+| decimal   | text          |
+| wei       | number        |
+| json      | text          |
 
 ### Dataset name
 

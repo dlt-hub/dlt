@@ -2,7 +2,7 @@ import dataclasses
 from typing import Dict, Final, ClassVar, Any, List, Optional
 
 from dlt.common.data_writers.configuration import CsvFormatConfiguration
-from dlt.common.libs.sql_alchemy import URL
+from dlt.common.libs.sql_alchemy_shims import URL
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.utils import digest128

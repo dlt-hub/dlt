@@ -4,7 +4,7 @@ from typing import Final, Optional, Any, Dict, ClassVar, List
 
 from dlt import version
 from dlt.common.data_writers.configuration import CsvFormatConfiguration
-from dlt.common.libs.sql_alchemy import URL
+from dlt.common.libs.sql_alchemy_shims import URL
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.typing import TSecretStrValue
 from dlt.common.configuration.specs import ConnectionStringCredentials

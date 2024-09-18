@@ -71,14 +71,16 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
         credentials: GcpServiceAccountCredentialsWithoutDefaults,
         capabilities: DestinationCapabilitiesContext,
         location: str = "US",
+        project_id: Optional[str] = None,
         http_timeout: float = 15.0,
         retry_deadline: float = 60.0,
     ) -> None:
         self._client: bigquery.Client = None
         self.credentials: GcpServiceAccountCredentialsWithoutDefaults = credentials
         self.location = location
+        self.project_id = project_id or self.credentials.project_id
         self.http_timeout = http_timeout
-        super().__init__(credentials.project_id, dataset_name, staging_dataset_name, capabilities)
+        super().__init__(self.project_id, dataset_name, staging_dataset_name, capabilities)
 
         self._default_retry = bigquery.DEFAULT_RETRY.with_deadline(retry_deadline)
         self._default_query = bigquery.QueryJobConfig(
@@ -89,7 +91,7 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
     @raise_open_connection_error
     def open_connection(self) -> bigquery.Client:
         self._client = bigquery.Client(
-            self.credentials.project_id,
+            self.project_id,
             credentials=self.credentials.to_native_credentials(),
             location=self.location,
         )
@@ -229,7 +231,7 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
                 conn.close()
 
     def catalog_name(self, escape: bool = True) -> Optional[str]:
-        project_id = self.capabilities.casefold_identifier(self.credentials.project_id)
+        project_id = self.capabilities.casefold_identifier(self.project_id)
         if escape:
             project_id = self.capabilities.escape_identifier(project_id)
         return project_id

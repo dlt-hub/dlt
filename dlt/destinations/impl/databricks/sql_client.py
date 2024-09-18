@@ -164,7 +164,7 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
                 return DatabaseTransientException(ex)
             return DatabaseTerminalException(ex)
         elif isinstance(ex, databricks_lib.OperationalError):
-            return DatabaseTerminalException(ex)
+            return DatabaseTransientException(ex)
         elif isinstance(ex, (databricks_lib.ProgrammingError, databricks_lib.IntegrityError)):
             return DatabaseTerminalException(ex)
         elif isinstance(ex, databricks_lib.DatabaseError):

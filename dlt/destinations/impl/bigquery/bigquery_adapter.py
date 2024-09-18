@@ -2,6 +2,7 @@ from typing import Any, Optional, Literal, Dict
 
 from dateutil import parser
 
+from dlt.common.destination import PreparedTableSchema
 from dlt.common.pendulum import timezone
 from dlt.common.schema.typing import (
     TColumnNames,
@@ -174,3 +175,8 @@ def bigquery_adapter(
             " specified."
         )
     return resource
+
+
+def should_autodetect_schema(table: PreparedTableSchema) -> bool:
+    """Tells if schema should be auto detected for a given prepared `table`"""
+    return table.get(AUTODETECT_SCHEMA_HINT, False)  # type: ignore[return-value]

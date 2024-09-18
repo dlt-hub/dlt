@@ -112,6 +112,18 @@ VMs available on GCP (cloud functions, Composer runners, Colab notebooks) have a
 location = "US"
 ```
 
+### Using Different `project_id`
+
+You can set the `project_id` in your configuration to be different from the one in your credentials, provided your account has access to it:
+```toml
+[destination.bigquery]
+project_id = "project_id_destination"
+
+[destination.bigquery.credentials]
+project_id = "project_id_credentials"
+```
+In this scenario, `project_id_credentials` will be used for authentication, while `project_id_destination` will be used as the data destination.
+
 ## Write Disposition
 
 All write dispositions are supported.
@@ -350,7 +362,7 @@ bigquery_adapter(my_resource, partition="partition_column_name")
 my_resource = bigquery_adapter(my_resource, partition="partition_column_name")
 ```
 
-Refer to the [full API specification](../../api_reference/destinations/impl/bigquery/bigquery_adapter.md) for more details.
+Refer to the [full API specification](../../api_reference/destinations/impl/bigquery/bigquery_adapter) for more details.
 
 <!--@@@DLT_TUBA bigquery-->
 

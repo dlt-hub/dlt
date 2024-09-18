@@ -35,11 +35,11 @@ from dlt.common.utils import map_nested_in_place
 CHUNK_SIZE = 10000
 
 
-# You can limit how deep dlt goes when generating child tables.
-# By default, the library will descend and generate child tables
+# You can limit how deep dlt goes when generating nested tables.
+# By default, the library will descend and generate nested tables
 # for all nested lists, without a limit.
-# In this example, we specify that we only want to generate child tables up to level 2,
-# so there will be only one level of child tables within child tables.
+# In this example, we specify that we only want to generate nested tables up to level 2,
+# so there will be only one level of nested tables within nested tables.
 @dlt.source(max_table_nesting=2)
 def mongodb_collection(
     connection_url: str = dlt.secrets.value,
@@ -128,9 +128,6 @@ if __name__ == "__main__":
     tables.pop("_dlt_pipeline_state")
     assert len(tables) == 7, pipeline.last_trace.last_normalize_info
 
-    # make sure nothing failed
-    load_info.raise_on_failed_jobs()
-
     # The second method involves setting the max_table_nesting attribute directly
     # on the source data object.
     # This allows for dynamic control over the maximum nesting
@@ -149,25 +146,19 @@ if __name__ == "__main__":
     tables.pop("_dlt_pipeline_state")
     assert len(tables) == 1, pipeline.last_trace.last_normalize_info
 
-    # make sure nothing failed
-    load_info.raise_on_failed_jobs()
-
     # The third method involves applying data type hints to specific columns in the data.
     # In this case, we tell dlt that column 'cast' (containing a list of actors)
-    # in 'movies' table should have type complex which means
-    # that it will be loaded as JSON/struct and not as child table.
+    # in 'movies' table should have type 'json' which means
+    # that it will be loaded as JSON/struct and not as nested table.
     pipeline = dlt.pipeline(
         pipeline_name="mongodb_pipeline",
         destination="duckdb",
         dataset_name="unpacked_data_without_cast",
     )
     source_data = mongodb_collection(collection="movies", write_disposition="replace")
-    source_data.movies.apply_hints(columns={"cast": {"data_type": "complex"}})
+    source_data.movies.apply_hints(columns={"cast": {"data_type": "json"}})
     load_info = pipeline.run(source_data)
     print(load_info)
     tables = pipeline.last_trace.last_normalize_info.row_counts
     tables.pop("_dlt_pipeline_state")
     assert len(tables) == 6, pipeline.last_trace.last_normalize_info
-
-    # make sure nothing failed
-    load_info.raise_on_failed_jobs()

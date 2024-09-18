@@ -57,7 +57,8 @@ def test_create_table(client: PostgresClient) -> None:
     # non existing table
     sql = client._get_table_update_sql("event_test_table", TABLE_UPDATE, False)[0]
     sqlfluff.parse(sql, dialect="postgres")
-    assert "event_test_table" in sql
+    qualified_name = client.sql_client.make_qualified_table_name("event_test_table")
+    assert f"CREATE TABLE {qualified_name}" in sql
     assert '"col1" bigint  NOT NULL' in sql
     assert '"col2" double precision  NOT NULL' in sql
     assert '"col3" boolean  NOT NULL' in sql
@@ -127,7 +128,7 @@ def test_create_table_with_hints(client: PostgresClient, empty_schema: Schema) -
     mod_update[0]["primary_key"] = True
     mod_update[0]["sort"] = True
     mod_update[1]["unique"] = True
-    mod_update[4]["foreign_key"] = True
+    mod_update[4]["parent_key"] = True
     sql = client._get_table_update_sql("event_test_table", mod_update, False)[0]
     sqlfluff.parse(sql, dialect="postgres")
     assert '"col1" bigint  NOT NULL' in sql
@@ -173,3 +174,11 @@ def test_create_table_case_sensitive(cs_client: PostgresClient) -> None:
     # every line starts with "Col"
     for line in sql.split("\n")[1:]:
         assert line.startswith('"Col')
+
+
+def test_create_dlt_table(client: PostgresClient) -> None:
+    # non existing table
+    sql = client._get_table_update_sql("_dlt_version", TABLE_UPDATE, False)[0]
+    sqlfluff.parse(sql, dialect="postgres")
+    qualified_name = client.sql_client.make_qualified_table_name("_dlt_version")
+    assert f"CREATE TABLE IF NOT EXISTS {qualified_name}" in sql

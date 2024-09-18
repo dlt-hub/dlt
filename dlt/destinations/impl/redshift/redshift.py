@@ -14,28 +14,25 @@ from typing import Dict, List, Optional, Sequence, Any, Tuple
 
 
 from dlt.common.destination.reference import (
-    FollowupJob,
+    FollowupJobRequest,
     CredentialsConfiguration,
+    PreparedTableSchema,
     SupportsStagingDestination,
     LoadJob,
 )
-from dlt.common.data_types import TDataType
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.schema import TColumnSchema, TColumnHint, Schema
-from dlt.common.exceptions import TerminalValueError
-from dlt.common.schema.utils import table_schema_has_type, table_schema_has_type_with_precision
-from dlt.common.schema.typing import TTableSchema, TColumnType, TTableFormat, TTableSchemaColumns
+from dlt.common.schema.utils import table_schema_has_type
+from dlt.common.schema.typing import TColumnType
 from dlt.common.configuration.specs import AwsCredentialsWithoutDefaults
 
 from dlt.destinations.insert_job_client import InsertValuesJobClient
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
-from dlt.destinations.exceptions import DatabaseTerminalException, LoadJobTerminalException
+from dlt.destinations.exceptions import DatabaseTerminalException
 from dlt.destinations.job_client_impl import CopyRemoteFileLoadJob
 from dlt.destinations.impl.postgres.sql_client import Psycopg2SqlClient
 from dlt.destinations.impl.redshift.configuration import RedshiftClientConfiguration
-from dlt.destinations.job_impl import ReferenceFollowupJob
-from dlt.destinations.sql_client import SqlClientBase
-from dlt.destinations.type_mapping import TypeMapper
+from dlt.destinations.job_impl import ReferenceFollowupJobRequest
 
 
 HINT_TO_REDSHIFT_ATTR: Dict[TColumnHint, str] = {
@@ -44,66 +41,6 @@ HINT_TO_REDSHIFT_ATTR: Dict[TColumnHint, str] = {
     # "primary_key": "PRIMARY KEY",
     "sort": "SORTKEY",
 }
-
-
-class RedshiftTypeMapper(TypeMapper):
-    sct_to_unbound_dbt = {
-        "complex": "super",
-        "text": "varchar(max)",
-        "double": "double precision",
-        "bool": "boolean",
-        "date": "date",
-        "timestamp": "timestamp with time zone",
-        "bigint": "bigint",
-        "binary": "varbinary",
-        "time": "time without time zone",
-    }
-
-    sct_to_dbt = {
-        "decimal": "numeric(%i,%i)",
-        "wei": "numeric(%i,%i)",
-        "text": "varchar(%i)",
-        "binary": "varbinary(%i)",
-    }
-
-    dbt_to_sct = {
-        "super": "complex",
-        "varchar(max)": "text",
-        "double precision": "double",
-        "boolean": "bool",
-        "date": "date",
-        "timestamp with time zone": "timestamp",
-        "bigint": "bigint",
-        "binary varying": "binary",
-        "numeric": "decimal",
-        "time without time zone": "time",
-        "varchar": "text",
-        "smallint": "bigint",
-        "integer": "bigint",
-    }
-
-    def to_db_integer_type(
-        self, precision: Optional[int], table_format: TTableFormat = None
-    ) -> str:
-        if precision is None:
-            return "bigint"
-        if precision <= 16:
-            return "smallint"
-        elif precision <= 32:
-            return "integer"
-        elif precision <= 64:
-            return "bigint"
-        raise TerminalValueError(
-            f"bigint with {precision} bits precision cannot be mapped into postgres integer type"
-        )
-
-    def from_db_type(
-        self, db_type: str, precision: Optional[int], scale: Optional[int]
-    ) -> TColumnType:
-        if db_type == "numeric":
-            if (precision, scale) == self.capabilities.wei_precision:
-                return dict(data_type="wei")
-        return super().from_db_type(db_type, precision, scale)
 
 
 class RedshiftSqlClient(Psycopg2SqlClient):
@@ -153,34 +90,15 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
         file_type = ""
         dateformat = ""
         compression = ""
-        if table_schema_has_type(self._load_table, "time"):
-            raise LoadJobTerminalException(
-                self.file_name(),
-                f"Redshift cannot load TIME columns from {ext} files. Switch to direct INSERT file"
-                " format or convert `datetime.time` objects in your data to `str` or"
-                " `datetime.datetime`",
-            )
         if ext == "jsonl":
-            if table_schema_has_type(self._load_table, "binary"):
-                raise LoadJobTerminalException(
-                    self.file_name(),
-                    "Redshift cannot load VARBYTE columns from json files. Switch to parquet to"
-                    " load binaries.",
-                )
             file_type = "FORMAT AS JSON 'auto'"
             dateformat = "dateformat 'auto' timeformat 'auto'"
             compression = "GZIP"
         elif ext == "parquet":
-            if table_schema_has_type_with_precision(self._load_table, "binary"):
-                raise LoadJobTerminalException(
-                    self.file_name(),
-                    f"Redshift cannot load fixed width VARBYTE columns from {ext} files. Switch to"
-                    " direct INSERT file format or use binary columns without precision.",
-                )
             file_type = "PARQUET"
-            # if table contains complex types then SUPER field will be used.
+            # if table contains json types then SUPER field will be used.
             # https://docs.aws.amazon.com/redshift/latest/dg/ingest-super.html
-            if table_schema_has_type(self._load_table, "complex"):
+            if table_schema_has_type(self._load_table, "json"):
                 file_type += " SERIALIZETOJSON"
         else:
             raise ValueError(f"Unsupported file type {ext} for Redshift.")
@@ -236,12 +154,14 @@ class RedshiftClient(InsertValuesJobClient, SupportsStagingDestination):
         super().__init__(schema, config, sql_client)
         self.sql_client = sql_client
         self.config: RedshiftClientConfiguration = config
-        self.type_mapper = RedshiftTypeMapper(self.capabilities)
+        self.type_mapper = self.capabilities.get_type_mapper()
 
-    def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[FollowupJob]:
+    def _create_merge_followup_jobs(
+        self, table_chain: Sequence[PreparedTableSchema]
+    ) -> List[FollowupJobRequest]:
         return [RedshiftMergeJob.from_table_chain(table_chain, self.sql_client)]
 
-    def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:
+    def _get_column_def_sql(self, c: TColumnSchema, table: PreparedTableSchema = None) -> str:
         hints_str = " ".join(
             HINT_TO_REDSHIFT_ATTR.get(h, "")
             for h in HINT_TO_REDSHIFT_ATTR.keys()
@@ -249,16 +169,16 @@ class RedshiftClient(InsertValuesJobClient, SupportsStagingDestination):
         )
         column_name = self.sql_client.escape_column_name(c["name"])
         return (
-            f"{column_name} {self.type_mapper.to_db_type(c)} {hints_str} {self._gen_not_null(c.get('nullable', True))}"
+            f"{column_name} {self.type_mapper.to_destination_type(c,table)} {hints_str} {self._gen_not_null(c.get('nullable', True))}"
         )
 
     def create_load_job(
-        self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
+        self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
         """Starts SqlLoadJob for files ending with .sql or returns None to let derived classes to handle their specific jobs"""
         job = super().create_load_job(table, file_path, load_id, restore)
         if not job:
-            assert ReferenceFollowupJob.is_reference_job(
+            assert ReferenceFollowupJobRequest.is_reference_job(
                 file_path
             ), "Redshift must use staging to load files"
             job = RedshiftCopyFileLoadJob(
@@ -271,4 +191,7 @@ class RedshiftClient(InsertValuesJobClient, SupportsStagingDestination):
     def _from_db_type(
         self, pq_t: str, precision: Optional[int], scale: Optional[int]
     ) -> TColumnType:
-        return self.type_mapper.from_db_type(pq_t, precision, scale)
+        return self.type_mapper.from_destination_type(pq_t, precision, scale)
+
+    def should_truncate_table_before_load_on_staging_destination(self, table_name: str) -> bool:
+        return self.config.truncate_tables_on_staging_destination_before_load

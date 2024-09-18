@@ -20,15 +20,11 @@ from dlt.common import Decimal, pendulum
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration
 from dlt.common.configuration.container import Container
-from dlt.common.configuration.providers import (
-    ConfigProvider,
-    EnvironProvider,
-    ConfigTomlProvider,
-    SecretsTomlProvider,
-)
+from dlt.common.configuration.providers import ConfigProvider, EnvironProvider
 from dlt.common.configuration.utils import get_resolved_traces
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
 from dlt.common.typing import TSecretValue, StrAny
+from tests.utils import _reset_providers
 
 
 @configspec
@@ -51,7 +47,7 @@ class CoercionTestConfiguration(BaseConfiguration):
     tuple_val: Tuple[int, int, StrAny] = None
     any_val: Any = None
     none_val: str = None
-    COMPLEX_VAL: Dict[str, Tuple[int, List[str], List[str]]] = None
+    NESTED_VAL: Dict[str, Tuple[int, List[str], List[str]]] = None
     date_val: datetime.datetime = None
     dec_val: Decimal = None
     sequence_val: Sequence[str] = None
@@ -118,14 +114,7 @@ def env_provider() -> Iterator[ConfigProvider]:
 
 @pytest.fixture
 def toml_providers() -> Iterator[ConfigProvidersContext]:
-    pipeline_root = "./tests/common/cases/configuration/.dlt"
-    ctx = ConfigProvidersContext()
-    ctx.providers.clear()
-    ctx.add_provider(EnvironProvider())
-    ctx.add_provider(SecretsTomlProvider(project_dir=pipeline_root))
-    ctx.add_provider(ConfigTomlProvider(project_dir=pipeline_root))
-    with Container().injectable_context(ctx):
-        yield ctx
+    yield from _reset_providers("./tests/common/cases/configuration/.dlt")
 
 
 class MockProvider(ConfigProvider):
@@ -181,7 +170,7 @@ COERCIONS = {
     "tuple_val": (1, 2, {"1": "complicated dicts allowed in literal eval"}),
     "any_val": "function() {}",
     "none_val": "none",
-    "COMPLEX_VAL": {"_": [1440, ["*"], []], "change-email": [560, ["*"], []]},
+    "NESTED_VAL": {"_": [1440, ["*"], []], "change-email": [560, ["*"], []]},
     "date_val": pendulum.now(),
     "dec_val": Decimal("22.38"),
     "sequence_val": ["A", "B", "KAPPA"],

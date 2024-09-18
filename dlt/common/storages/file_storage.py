@@ -3,7 +3,6 @@ import os
 import re
 import stat
 import errno
-import tempfile
 import shutil
 import pathvalidate
 from typing import IO, Any, Optional, List, cast
@@ -29,10 +28,8 @@ class FileStorage:
     @staticmethod
     def save_atomic(storage_path: str, relative_path: str, data: Any, file_type: str = "t") -> str:
         mode = "w" + file_type
-        with tempfile.NamedTemporaryFile(
-            dir=storage_path, mode=mode, delete=False, encoding=encoding_for_mode(mode)
-        ) as f:
-            tmp_path = f.name
+        tmp_path = os.path.join(storage_path, uniq_id(8))
+        with open(tmp_path, mode=mode, encoding=encoding_for_mode(mode)) as f:
             f.write(data)
         try:
             dest_path = os.path.join(storage_path, relative_path)
@@ -116,11 +113,11 @@ class FileStorage:
             return FileStorage.open_zipsafe_ro(self.make_full_path(relative_path), mode)
         return open(self.make_full_path(relative_path), mode, encoding=encoding_for_mode(mode))
 
-    def open_temp(self, delete: bool = False, mode: str = "w", file_type: str = None) -> IO[Any]:
-        mode = mode + file_type or self.file_type
-        return tempfile.NamedTemporaryFile(
-            dir=self.storage_path, mode=mode, delete=delete, encoding=encoding_for_mode(mode)
-        )
+    # def open_temp(self, delete: bool = False, mode: str = "w", file_type: str = None) -> IO[Any]:
+    #     mode = mode + file_type or self.file_type
+    #     return tempfile.NamedTemporaryFile(
+    #         dir=self.storage_path, mode=mode, delete=delete, encoding=encoding_for_mode(mode)
+    #     )
 
     def has_file(self, relative_path: str) -> bool:
         return os.path.isfile(self.make_full_path(relative_path))

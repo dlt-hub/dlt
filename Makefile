@@ -44,7 +44,7 @@ has-poetry:
 	poetry --version
 
 dev: has-poetry
-	poetry install --all-extras --with airflow,docs,providers,pipeline,sentry-sdk,dbt
+	poetry install --all-extras --with docs,providers,pipeline,sources,sentry-sdk
 
 lint:
 	./tools/check-package.sh
@@ -52,7 +52,7 @@ lint:
 	poetry run mypy --config-file mypy.ini dlt tests
 	poetry run flake8 --max-line-length=200 dlt
 	poetry run flake8 --max-line-length=200 tests --exclude tests/reflection/module_cases
-	poetry run black dlt docs tests --diff --extend-exclude=".*syntax_error.py"
+	poetry run black dlt docs tests --check --diff --color --extend-exclude=".*syntax_error.py"
 	# poetry run isort ./ --diff
 	# $(MAKE) lint-security
 

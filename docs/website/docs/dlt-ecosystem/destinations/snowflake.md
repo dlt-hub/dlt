@@ -136,7 +136,33 @@ If you set the [`replace` strategy](../../general-usage/full-loading.md) to `sta
 recreated with a [clone command](https://docs.snowflake.com/en/sql-reference/sql/create-clone) from the staging tables.
 
 ## Data loading
-The data is loaded using an internal Snowflake stage. We use the `PUT` command and per-table built-in stages by default. Stage files are immediately removed (if not specified otherwise).
+The data is loaded using an internal Snowflake stage. We use the `PUT` command and per-table built-in stages by default. Stage files are kept by default, unless specified otherwise via the `keep_staged_files` parameter:
+
+```toml
+[destination.snowflake]
+keep_staged_files = false
+```
+
+### Data types
+`snowflake` supports various timestamp types, which can be configured using the column flags `timezone` and `precision` in the `dlt.resource` decorator or the `pipeline.run` method.
+
+- **Precision**: allows you to specify the number of decimal places for fractional seconds, ranging from 0 to 9. It can be used in combination with the `timezone` flag.
+- **Timezone**:
+  - Setting `timezone=False` maps to `TIMESTAMP_NTZ`.
+  - Setting `timezone=True` (or omitting the flag, which defaults to `True`) maps to `TIMESTAMP_TZ`.
+
+#### Example precision and timezone: TIMESTAMP_NTZ(3)
+```py
+@dlt.resource(
+    columns={"event_tstamp": {"data_type": "timestamp", "precision": 3, "timezone": False}},
+    primary_key="event_id",
+)
+def events():
+    yield [{"event_id": 1, "event_tstamp": "2024-07-30T10:00:00.123"}]
+
+pipeline = dlt.pipeline(destination="snowflake")
+pipeline.run(events())
+```
 
 ## Supported file formats
 * [insert-values](../file-formats/insert-format.md) is used by default
@@ -150,7 +176,7 @@ When staging is enabled:
 * [csv](../file-formats/csv.md) is supported
 
 :::caution
-When loading from `parquet`, Snowflake will store `complex` types (JSON) in `VARIANT` as a string. Use the `jsonl` format instead or use `PARSE_JSON` to update the `VARIANT` field after loading.
+When loading from `parquet`, Snowflake will store `json` types (JSON) in `VARIANT` as a string. Use the `jsonl` format instead or use `PARSE_JSON` to update the `VARIANT` field after loading.
 :::
 
 ### Custom csv formats
@@ -171,7 +197,7 @@ Note that we ignore missing columns `ERROR_ON_COLUMN_COUNT_MISMATCH = FALSE` and
 Snowflake supports the following [column hints](https://dlthub.com/docs/general-usage/schema#tables-and-columns):
 * `cluster` - creates a cluster column(s). Many columns per table are supported and only when a new table is created.
 
-### Table and column identifiers
+## Table and column identifiers
 Snowflake supports both case sensitive and case insensitive identifiers. All unquoted and uppercase identifiers resolve case-insensitively in SQL statements. Case insensitive [naming conventions](../../general-usage/naming-convention.md#case-sensitive-and-insensitive-destinations) like the default **snake_case** will generate case insensitive identifiers. Case sensitive (like **sql_cs_v1**) will generate
 case sensitive identifiers that must be quoted in SQL statements.
 

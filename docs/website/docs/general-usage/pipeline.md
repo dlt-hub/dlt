@@ -85,6 +85,19 @@ You can inspect stored artifacts using the command
 > 💡 You can attach `Pipeline` instance to an existing working folder, without creating a new
 > pipeline with `dlt.attach`.
 
+### Separate working environments with `pipelines_dir`.
+You can run several pipelines with the same name but with different configuration ie. to target development / staging / production environments.
+Set the `pipelines_dir` argument to store all the working folders in specific place. For example:
+```py
+import dlt
+from dlt.common.pipeline import get_dlt_pipelines_dir
+
+dev_pipelines_dir = os.path.join(get_dlt_pipelines_dir(), "dev")
+pipeline = dlt.pipeline(destination="duckdb", dataset_name="sequence", pipelines_dir=dev_pipelines_dir)
+```
+stores pipeline working folder in `~/.dlt/pipelines/dev/<pipeline_name>`. Mind that you need to pass this `~/.dlt/pipelines/dev/`
+in to all cli commands to get info/trace for that pipeline.
+
 ## Do experiments with dev mode
 
 If you [create a new pipeline script](../walkthroughs/create-a-pipeline.md) you will be

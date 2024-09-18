@@ -8,6 +8,7 @@ from dlt.common.schema.typing import (
     TSchemaEvolutionMode,
 )
 from dlt.common.normalizers.naming import NamingConvention
+from dlt.common.schema.typing import TColumnSchema, TColumnSchemaBase
 
 
 class SchemaException(DltException):
@@ -72,8 +73,8 @@ class TablePropertiesConflictException(SchemaException):
         self.val2 = val2
         super().__init__(
             schema_name,
-            f"Cannot merge partial tables for {table_name} due to property {prop_name}: {val1} !="
-            f" {val2}",
+            f"Cannot merge partial tables into table `{table_name}` due to property `{prop_name}`"
+            f' with different values: "{val1}" != "{val2}"',
         )
 
 
@@ -231,3 +232,29 @@ class TableIdentifiersFrozen(SchemaException):
 
 class ColumnNameConflictException(SchemaException):
     pass
+
+
+class UnboundColumnException(SchemaException):
+    def __init__(self, schema_name: str, table_name: str, column: TColumnSchemaBase) -> None:
+        self.column = column
+        self.schema_name = schema_name
+        self.table_name = table_name
+        nullable: bool = column.get("nullable", False)
+        key_type: str = ""
+        if column.get("merge_key"):
+            key_type = "merge key"
+        elif column.get("primary_key"):
+            key_type = "primary key"
+
+        msg = (
+            f"The column {column['name']} in table {table_name} did not receive any data during"
+            " this load. "
+        )
+        if key_type or not nullable:
+            msg += f"It is marked as non-nullable{' '+key_type} and it must have values. "
+
+        msg += (
+            "This can happen if you specify the column manually, for example using the 'merge_key',"
+            " 'primary_key' or 'columns' argument but it does not exist in the data."
+        )
+        super().__init__(schema_name, msg)

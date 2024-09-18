@@ -5,10 +5,12 @@ from abc import ABC, abstractmethod
 from fsspec import AbstractFileSystem
 
 from dlt.common.destination.reference import WithReadableRelations
+from dlt.common.schema import Schema
 
 
 class FSClientBase(WithReadableRelations, ABC):
     fs_client: AbstractFileSystem
+    schema: Schema
 
     @property
     @abstractmethod

@@ -216,7 +216,7 @@ load_data()
   )
   ```
 :::tip
-When you run `load_data` DAG above, Airflow  will call `source` function every 30 seconds (by default) to be able to monitor the tasks. Make sure that your source function does not do any long lasting operations ie. reflecting source database. In case of [sql_database](../../dlt-ecosystem/verified-sources/sql_database.md) we added an option to delay database reflection until data is accessed by a resource.
+When you run `load_data` DAG above, Airflow  will call `source` function every 30 seconds (by default) to be able to monitor the tasks. Make sure that your source function does not do any long lasting operations ie. reflecting source database. In case of [sql_database](../../dlt-ecosystem/verified-sources/sql_database/index.md) we added an option to delay database reflection until data is accessed by a resource.
 :::
 
 ### 3. Import sources and move the relevant code from the pipeline script

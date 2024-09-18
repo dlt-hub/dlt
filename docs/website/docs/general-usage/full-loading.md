@@ -48,7 +48,7 @@ may end up with new data in some tables and no data in other tables if the load 
 ### The `insert-from-staging` strategy
 
 The `insert-from-staging` is the slowest of all three strategies. It will load all new data into staging tables away from your final destination tables and will then truncate and insert the new data in one transaction.
-It also maintains a consistent state between child and parent tables at all times. Use this strategy if you have the requirement for consistent destination datasets with zero downtime and the `optimized` strategy does not work for you.
+It also maintains a consistent state between nested and root tables at all times. Use this strategy if you have the requirement for consistent destination datasets with zero downtime and the `optimized` strategy does not work for you.
 This strategy behaves the same way across all destinations.
 
 ### The `staging-optimized` strategy

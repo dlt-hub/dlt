@@ -24,7 +24,7 @@ JSON and provides it to `dlt` as input, which then normalizes that data.
 ## Normalize
 
 The configurable normalization engine in `dlt` recursively unpacks this nested structure into
-relational tables (i.e. inferring data types, linking tables to create parent-child relationships,
+relational tables (i.e. inferring data types, linking tables to create nested relationships,
 etc.), making it ready to be loaded. This creates a
 [schema](../../general-usage/glossary.md#schema), which will automatically evolve to any future
 source data changes (e.g. new fields or tables).

@@ -7,8 +7,7 @@ keywords: [getting started, quick start, basics]
 # Building data pipelines with `dlt`, from basic to advanced
 
 This in-depth overview will take you through the main areas of pipelining with `dlt`. Go to the
-related pages you are instead looking for the [quickstart](getting-started.md), or the
-[walkthroughs](walkthroughs).
+related pages you are instead looking for the [quickstart](./intro.md).
 
 ## Why build pipelines with `dlt`?
 
@@ -49,8 +48,8 @@ normalize, and evolve your data schemas, enabling seamless data integration and 
 For example, let's consider a scenario where you want to load a list of objects into a DuckDB table
 named "three". With `dlt`, you can create a pipeline and run it with just a few lines of code:
 
-1. [Create a pipeline](walkthroughs/create-a-pipeline.md) to the [destination](dlt-ecosystem/destinations).
-1. Give this pipeline data and [run it](walkthroughs/run-a-pipeline.md).
+1. [Create a pipeline](./walkthroughs/create-a-pipeline.md) to the [destination](dlt-ecosystem/destinations).
+1. Give this pipeline data and [run it](./walkthroughs/run-a-pipeline.md).
 
 ```py
 import dlt
@@ -378,7 +377,7 @@ processing and loading the data. Exporting schema files enables you to modify th
 adjustments to the schema as needed. You can then import the modified schema files back into `dlt` to
 use them in your pipeline.
 
-Read more: [Adjust a schema docs.](walkthroughs/adjust-a-schema.md)
+Read more: [Adjust a schema docs.](./walkthroughs/adjust-a-schema.md)
 
 ## Governance Support in `dlt` Pipelines
 
@@ -400,7 +399,7 @@ define the structure of normalized data and guide the processing and loading of 
 predefined schemas, pipelines maintain data integrity and facilitate standardized data handling
 practices.
 
-Read more: [Adjust a schema docs.](walkthroughs/adjust-a-schema.md)
+Read more: [Adjust a schema docs.](./walkthroughs/adjust-a-schema.md)
 
 ### Schema evolution
 

@@ -7,12 +7,12 @@ from uuid import uuid4
 from dlt.common.data_writers.exceptions import BufferedDataWriterClosed
 from dlt.common.data_writers.writers import (
     DataWriter,
-    DataWriterMetrics,
     InsertValuesWriter,
     JsonlWriter,
     ALL_WRITERS,
 )
 from dlt.common.destination.capabilities import TLoaderFileFormat, DestinationCapabilitiesContext
+from dlt.common.metrics import DataWriterMetrics
 from dlt.common.schema.utils import new_column
 from dlt.common.storages.file_storage import FileStorage
 

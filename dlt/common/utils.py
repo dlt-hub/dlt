@@ -282,29 +282,31 @@ def clone_dict_nested(src: TDict) -> TDict:
     return update_dict_nested({}, src, copy_src_dicts=True)  # type: ignore[return-value]
 
 
-def map_nested_in_place(func: AnyFun, _complex: TAny) -> TAny:
-    """Applies `func` to all elements in `_dict` recursively, replacing elements in nested dictionaries and lists in place."""
-    if isinstance(_complex, tuple):
-        if hasattr(_complex, "_asdict"):
-            _complex = _complex._asdict()
+def map_nested_in_place(func: AnyFun, _nested: TAny, *args: Any, **kwargs: Any) -> TAny:
+    """Applies `func` to all elements in `_dict` recursively, replacing elements in nested dictionaries and lists in place.
+    Additional `*args` and `**kwargs` are passed to `func`.
+    """
+    if isinstance(_nested, tuple):
+        if hasattr(_nested, "_asdict"):
+            _nested = _nested._asdict()
         else:
-            _complex = list(_complex)  # type: ignore
+            _nested = list(_nested)  # type: ignore
 
-    if isinstance(_complex, dict):
-        for k, v in _complex.items():
+    if isinstance(_nested, dict):
+        for k, v in _nested.items():
             if isinstance(v, (dict, list, tuple)):
-                _complex[k] = map_nested_in_place(func, v)
+                _nested[k] = map_nested_in_place(func, v, *args, **kwargs)
             else:
-                _complex[k] = func(v)
-    elif isinstance(_complex, list):
-        for idx, _l in enumerate(_complex):
+                _nested[k] = func(v, *args, **kwargs)
+    elif isinstance(_nested, list):
+        for idx, _l in enumerate(_nested):
             if isinstance(_l, (dict, list, tuple)):
-                _complex[idx] = map_nested_in_place(func, _l)
+                _nested[idx] = map_nested_in_place(func, _l, *args, **kwargs)
             else:
-                _complex[idx] = func(_l)
+                _nested[idx] = func(_l, *args, **kwargs)
     else:
-        raise ValueError(_complex, "Not a complex type")
-    return _complex
+        raise ValueError(_nested, "Not a nested type")
+    return _nested
 
 
 def is_interactive() -> bool:
@@ -564,6 +566,27 @@ def get_exception_trace_chain(
     elif exc.__context__:
         return get_exception_trace_chain(exc.__context__, traces, seen)
     return traces
+
+
+def group_dict_of_lists(input_dict: Dict[str, List[Any]]) -> List[Dict[str, Any]]:
+    """Decomposes a dictionary with list values into a list of dictionaries with unique keys.
+
+    This function takes an input dictionary where each key maps to a list of objects.
+    It returns a list of dictionaries, each containing at most one object per key.
+    The goal is to ensure that no two objects with the same key appear in the same dictionary.
+
+    Parameters:
+        input_dict (Dict[str, List[Any]]): A dictionary with string keys and list of objects as values.
+
+    Returns:
+        List[Dict[str, Any]]: A list of dictionaries, each with unique keys and single objects.
+    """
+    max_length = max(len(v) for v in input_dict.values())
+    list_of_dicts: List[Dict[str, Any]] = [{} for _ in range(max_length)]
+    for name, value_list in input_dict.items():
+        for idx, obj in enumerate(value_list):
+            list_of_dicts[idx][name] = obj
+    return list_of_dicts
 
 
 def order_deduped(lst: List[Any]) -> List[Any]:
