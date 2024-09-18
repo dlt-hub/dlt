@@ -1259,6 +1259,44 @@ def test_state_with_simple_incremental(
     destinations_configs(all_buckets_filesystem_configs=True),
     ids=lambda x: x.name,
 )
+def test_state_cleanup(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    # TODO: add test parameters to:
+    # - cleanup disabled/enable
+    # - test different values of state files
+    # TODO: ask about making MAX_STATE_HISTORY configurable (very slow test)
+
+    p = destination_config.setup_pipeline("p1", dataset_name="incremental_test")
+
+    # Initial run with a base dataset
+    @dlt.resource(name="items")
+    def initial_resource(primary_key=dlt.sources.incremental("id")):
+        yield from [{"id": 1}, {"id": 2}]
+
+    p.run(initial_resource)
+
+    # Run incremental tests multiple times
+    for i in range(3, 105):  # Adjust range as needed
+
+        @dlt.resource(name="items")
+        def incremental_resource(primary_key=dlt.sources.incremental("id"), new_i=i):
+            yield from [{"id": j} for j in range(1, new_i + 1)]
+
+        p = destination_config.setup_pipeline("p1", dataset_name="incremental_test")
+        p.run(incremental_resource)
+
+    client: FilesystemClient = p.destination_client()  # type: ignore
+    state_table_files = list(client._list_dlt_table_files(client.schema.state_table_name))
+
+    assert len(state_table_files) == 100
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(all_buckets_filesystem_configs=True),
+    ids=lambda x: x.name,
+)
 @pytest.mark.parametrize(
     "layout",
     [
