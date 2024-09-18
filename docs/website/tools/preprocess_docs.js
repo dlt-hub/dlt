@@ -358,9 +358,14 @@ function syncExamples() {
   console.log(`Synced ${count} examples`)
 }
 
-fs.rmSync(MD_TARGET_DIR, {force: true, recursive: true})
-syncExamples();
-preprocess_docs();
+
+function processDocs() {
+  fs.rmSync(MD_TARGET_DIR, {force: true, recursive: true})
+  syncExamples();
+  preprocess_docs();
+}
+
+processDocs()
 
 /**
  * Watch for changes and preprocess the docs if --watch cli command flag is present
@@ -373,10 +378,8 @@ if (process.argv.includes("--watch")) {
       if (Date.now() - lastUpdate < 500) {
           return;
       }
-      fs.rmSync(MD_TARGET_DIR, {force: true, recursive: true})
       console.log('%s changed...', name);
-      syncExamples();
-      preprocess_docs();
+      processDocs();
       lastUpdate = Date.now();
   });
 }
