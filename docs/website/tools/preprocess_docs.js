@@ -374,18 +374,26 @@ function checkDocs() {
     }
 
     // here we simply check that there are no absolute or devel links in the markdown files
-    const fileContent = fs.readFileSync(fileName, 'utf8').toLowerCase();
+    let lines = fs.readFileSync(fileName, 'utf8').split(/\r?\n/);
 
+    for (let [index, line] of lines.entries()) {
 
-    if (fileContent.includes(ABS_LINK)) {
-      foundError = true;
-      console.error(`Found absolute md link in file ${fileName}`)
+      const lineNo = index + 1;
+      line = line.toLocaleLowerCase();
+
+      if (line.includes(ABS_LINK)) {
+        foundError = true;
+        console.error(`Found absolute md link in file ${fileName}, line ${lineNo}`)
+      }
+  
+      if (line.includes(DEVEL_LINK)) {
+        foundError = true;
+        console.error(`Found devel md link in file ${fileName}, line ${lineNo}`)
+      }
+  
     }
 
-    if (fileContent.includes(DEVEL_LINK)) {
-      foundError = true;
-      console.error(`Found devel md link in file ${fileName}`)
-    }
+
 
   }
 
