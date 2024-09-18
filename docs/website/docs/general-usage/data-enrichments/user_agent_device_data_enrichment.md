@@ -49,8 +49,8 @@ user_device_enrichment/
 ```
 ### 1. Creating resource
 
-   `dlt` works on the principle of [sources](https://dlthub.com/docs/general-usage/source)
-   and [resources.](https://dlthub.com/docs/general-usage/resource)
+   `dlt` works on the principle of [sources](../source)
+   and [resources.](../resource)
 
    This data resource yields data typical of what many web analytics and
    tracking tools can collect. However, the specifics of what data is collected
@@ -281,7 +281,7 @@ The first step is to register on [SerpAPI](https://serpapi.com/) and obtain the 
 ### Run the pipeline
 
 1. Install necessary dependencies for the preferred
-   [destination](https://dlthub.com/docs/dlt-ecosystem/destinations/), For example, duckdb:
+   [destination](../../dlt-ecosystem/destinations/), For example, duckdb:
 
    ```sh
    pip install "dlt[duckdb]"

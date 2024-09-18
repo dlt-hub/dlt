@@ -225,7 +225,7 @@ problems.
 ## Staging dataset
 
 So far we've been using the `append` write disposition in our example pipeline. This means that
-each time we run the pipeline, the data is appended to the existing tables. When you use the [merge write disposition](incremental-loading.md), dlt creates a staging database schema for staging data. This schema is named `<dataset_name>_staging` [by default](https://dlthub.com/docs/devel/dlt-ecosystem/staging#staging-dataset) and contains the same tables as the destination schema. When you run the pipeline, the data from the staging tables is loaded into the destination tables in a single atomic transaction.
+each time we run the pipeline, the data is appended to the existing tables. When you use the [merge write disposition](incremental-loading.md), dlt creates a staging database schema for staging data. This schema is named `<dataset_name>_staging` [by default](../dlt-ecosystem/staging#staging-dataset) and contains the same tables as the destination schema. When you run the pipeline, the data from the staging tables is loaded into the destination tables in a single atomic transaction.
 
 Let's illustrate this with an example. We change our pipeline to use the `merge` write disposition:
 

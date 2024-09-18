@@ -211,7 +211,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 verified source.
 
 To create your data pipeline using single loading and
-[incremental data loading](https://dlthub.com/docs/general-usage/incremental-loading) (only for the
+[incremental data loading](../../general-usage/incremental-loading) (only for the
 **Candidates** endpoint), follow these steps:
 
 1. Configure the pipeline by specifying the pipeline name, destination, and dataset as follows:
@@ -270,10 +270,10 @@ To create your data pipeline using single loading and
 
 1. To use incremental loading for the candidates endpoint, maintain the same pipeline and
    destination dataset names. The pipeline name helps retrieve the
-   [state](https://dlthub.com/docs/general-usage/state) of the last run, essential for incremental
+   [state](../../general-usage/state) of the last run, essential for incremental
    data loading. Changing these names might trigger a
-   [“dev_mode”](https://dlthub.com/docs/general-usage/pipeline#do-experiments-with-dev-mode),
+   [“dev_mode”](../../general-usage/pipeline#do-experiments-with-dev-mode),
    disrupting metadata tracking for
-   [incremental data loading](https://dlthub.com/docs/general-usage/incremental-loading).
+   [incremental data loading](../../general-usage/incremental-loading).
 
 <!--@@@DLT_TUBA workable-->

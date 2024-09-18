@@ -14,7 +14,7 @@ For our example we will use "subject" and "description" fields from a ticket as 
 
 ## Prerequisites
 
-We're going to use some ready-made components from the [dlt ecosystem](https://dlthub.com/docs/dlt-ecosystem) to make this process easier:
+We're going to use some ready-made components from the [sources](../dlt-ecosystem/verified-sources) and [destinations](../dlt-ecosystem/destinations) to make this process easier:
 
 1. A [Zendesk verified source](../dlt-ecosystem/verified-sources/zendesk.md) to extract the tickets from the API.
 2. A [Weaviate destination](../dlt-ecosystem/destinations/weaviate.md) to load the data into a Weaviate instance.

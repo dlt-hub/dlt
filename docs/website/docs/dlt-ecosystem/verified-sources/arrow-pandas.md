@@ -95,7 +95,7 @@ Keep in mind that enabling these incurs some performance overhead:
 ## Incremental loading with Arrow tables
 
 You can use incremental loading with Arrow tables as well.
-Usage is the same as without other dlt resources. Refer to the [incremental loading](/general-usage/incremental-loading.md) guide for more information.
+Usage is the same as without other dlt resources. Refer to the [incremental loading](../../general-usage/incremental-loading.md) guide for more information.
 
 Example:
 
