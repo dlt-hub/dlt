@@ -67,6 +67,11 @@ jobs:
         with:
           python-version: "3.10.x"
 
+      - name: Setup node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
       - name: Install Poetry
         uses: snok/install-poetry@v1
         with:
