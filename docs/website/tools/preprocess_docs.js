@@ -358,11 +358,49 @@ function syncExamples() {
   console.log(`Synced ${count} examples`)
 }
 
+// strings to search for, this check could be better but it
+// is a quick fix
+const ABS_LINK = "(https://dlthub.com/docs";
+const DEVEL_LINK =  "(/devel"
+
+/**
+ * Inspect all md files an run some checks
+ */
+function checkDocs() {
+  let foundError = false;
+  for (const fileName of walkSync(MD_SOURCE_DIR)) {
+    if (!DOCS_EXTENSIONS.includes(path.extname(fileName))) {
+        continue
+    }
+
+    // here we simply check that there are no absolute or devel links in the markdown files
+    const fileContent = fs.readFileSync(fileName, 'utf8').toLowerCase();
+
+
+    if (fileContent.includes(ABS_LINK)) {
+      foundError = true;
+      console.error(`Found absolute md link in file ${fileName}`)
+    }
+
+    if (fileContent.includes(DEVEL_LINK)) {
+      foundError = true;
+      console.error(`Found devel md link in file ${fileName}`)
+    }
+
+  }
+
+  if (foundError) {
+    throw Error("Found one or more errors while checking docs.")
+  }
+  console.info("Found no errors in md files")
+}
+
 
 function processDocs() {
   fs.rmSync(MD_TARGET_DIR, {force: true, recursive: true})
   syncExamples();
   preprocess_docs();
+  checkDocs();
 }
 
 processDocs()
