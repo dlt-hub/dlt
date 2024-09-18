@@ -51,7 +51,7 @@ certain range.
   ```
 
   Behind the scene, the loader generates a SQL query filtering rows with `last_modified` values greater than the incremental value. In the first run, this is the initial value (midnight (00:00:00) January 1, 2024).
-  In subsequent runs, it is the latest value of `last_modified` that `dlt` stores in [state](https://dlthub.com/docs/general-usage/state).
+  In subsequent runs, it is the latest value of `last_modified` that `dlt` stores in [state](/general-usage/state).
 
 2. **Incremental loading with the source `sql_database`**.
 
