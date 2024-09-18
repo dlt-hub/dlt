@@ -564,7 +564,7 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
         # write
         self._write_to_json_file(hash_path, cast(DictStrAny, pipeline_state_doc))
 
-        if self.config.cleanup_pipeline_states:
+        if self.config.enable_state_cleanup:
             self._cleanup_pipeline_states(pipeline_name)
 
     def get_stored_state(self, pipeline_name: str) -> Optional[StateInfo]:
