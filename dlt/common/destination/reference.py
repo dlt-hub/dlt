@@ -40,12 +40,7 @@ from dlt.common.metrics import LoadJobMetrics
 from dlt.common.normalizers.naming import NamingConvention
 
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
-from dlt.common.schema.utils import (
-    get_file_format,
-    get_write_disposition,
-    get_table_format,
-    get_merge_strategy,
-)
+
 from dlt.common.schema.typing import C_DLT_LOAD_ID, _TTableSchemaBase, TWriteDisposition
 from dlt.common.schema.utils import fill_hints_from_parent_and_clone_table
 
@@ -632,7 +627,7 @@ class JobClientBase(ABC):
         pass
 
     def dataset(self) -> SupportsReadableDataset:
-        raise Exception("Destination does not support SupportsReadDataset")
+        raise Exception("Destination does not support readable datasets")
 
 
 class WithStateSync(ABC):
