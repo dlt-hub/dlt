@@ -145,6 +145,7 @@ class FilesystemConfiguration(BaseConfiguration):
     kwargs: Optional[DictStrAny] = None
     client_kwargs: Optional[DictStrAny] = None
     deltalake_storage_options: Optional[DictStrAny] = None
+    cleanup_pipeline_states: bool = True
 
     @property
     def protocol(self) -> str:
