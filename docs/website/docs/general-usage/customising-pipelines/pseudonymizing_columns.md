@@ -6,10 +6,7 @@ keywords: [pseudonymize, anonymize, columns, special characters]
 
 # Pseudonymizing columns
 
-Pseudonymization is a deterministic way to hide personally identifiable info (PII), enabling us to
-consistently achieve the same mapping. If instead you wish to anonymize, you can delete the data, or
-replace it with a constant. In the example below, we create a dummy source with a PII column called
-"name", which we replace with deterministic hashes (i.e. replacing the German umlaut).
+Pseudonymization is a deterministic way to hide personally identifiable information (PII), enabling us to consistently achieve the same mapping. If instead you wish to anonymize, you can delete the data or replace it with a constant. In the example below, we create a dummy source with a PII column called "name", which we replace with deterministic hashes (i.e., replacing the German umlaut).
 
 ```py
 import dlt
@@ -20,12 +17,12 @@ def dummy_source(prefix: str = None):
     @dlt.resource
     def dummy_data():
         for _ in range(3):
-            yield {'id':_, 'name': f'Jane Washington {_}'}
+            yield {'id': _, 'name': f'Jane Washington {_}'}
     return dummy_data(),
 
 def pseudonymize_name(doc):
     '''
-    Pseudonmyisation is a deterministic type of PII-obscuring
+    Pseudonymization is a deterministic type of PII-obscuring.
     Its role is to allow identifying users by their hash,
     without revealing the underlying info.
     '''
@@ -59,3 +56,4 @@ for row in data_resource:
 pipeline = dlt.pipeline(pipeline_name='example', destination='bigquery', dataset_name='normalized_data')
 load_info = pipeline.run(data_resource)
 ```
+
