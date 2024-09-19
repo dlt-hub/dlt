@@ -321,6 +321,7 @@ class DBApiCursorImpl(DBApiCursor):
 
     def __init__(self, curr: DBApiCursor) -> None:
         self.native_cursor = curr
+        self.columns = {}
 
         # wire protocol methods
         self.execute = curr.execute  # type: ignore
@@ -378,13 +379,16 @@ class DBApiCursorImpl(DBApiCursor):
         # if loading to a specific pipeline, it would be nice to have the correct caps here
         caps = DestinationCapabilitiesContext.generic_capabilities()
 
+        # provide default columns in case not known
+        columns = self.columns or {c: {"name": c, "nullable": True} for c in self._get_columns()}
+
         if not chunk_size:
             result = self.fetchall()
-            yield row_tuples_to_arrow(result, caps, self.columns or {}, tz="UTC")
+            yield row_tuples_to_arrow(result, caps, columns, tz="UTC")
             return
 
         for result in self.iter_fetchmany(chunk_size=chunk_size):
-            yield row_tuples_to_arrow(result, caps, self.columns or {}, tz="UTC")
+            yield row_tuples_to_arrow(result, caps, columns, tz="UTC")
 
 
 def raise_database_error(f: TFun) -> TFun:
