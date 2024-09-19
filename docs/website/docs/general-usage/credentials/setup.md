@@ -142,7 +142,7 @@ project_id = "<project_id_2>"
 
 ### Credential types
 
-In most cases, credentials are just key-value pairs, but in some cases, the actual structure of [credentials](complex_types) could be quite complex and support several ways of setting it up.
+In most cases, credentials are just key-value pairs, but in some cases, the actual structure of [credentials](./complex_types) could be quite complex and support several ways of setting it up.
 For example, to connect to a `sql_database` source, you can either set up a connection string:
 
 ```toml
@@ -162,7 +162,7 @@ warehouse = "warehouse_name"
 role = "role"
 ```
 
-`dlt` can work with both ways and convert one to another. To learn more about which credential types are supported, visit the [complex credential types](complex_types) page.
+`dlt` can work with both ways and convert one to another. To learn more about which credential types are supported, visit the [complex credential types](./complex_types) page.
 
 ## Environment variables
 

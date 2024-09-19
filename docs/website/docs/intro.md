@@ -18,7 +18,7 @@ dlt is designed to be easy to use, flexible, and scalable:
 
 - dlt infers [schemas](./general-usage/schema) and [data types](./general-usage/schema/#data-types), [normalizes the data](./general-usage/schema/#data-normalizer), and handles nested data structures.
 - dlt supports a variety of [popular destinations](./dlt-ecosystem/destinations/) and has an interface to add [custom destinations](./dlt-ecosystem/destinations/destination) to create reverse ETL pipelines.
-- dlt can be deployed anywhere Python runs, be it on [Airflow](./walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer), [serverless functions](./walkthroughs/deploy-a-pipeline/deploy-with-google-cloud-functions) or any other cloud deployment of your choice.
+- dlt can be deployed anywhere Python runs, be it on [Airflow](./walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer), [serverless functions](./walkthroughs/deploy-a-pipeline/deploy-with-google-cloud-functions), or any other cloud deployment of your choice.
 - dlt automates pipeline maintenance with [schema evolution](./general-usage/schema-evolution) and [schema and data contracts](./general-usage/schema-contracts).
 
 To get started with dlt, install the library using pip:
@@ -43,7 +43,7 @@ We recommend using a clean virtual environment for your experiments! Read the [d
 ]}>
   <TabItem value="rest-api">
 
-Use dlt's [REST API source](./tutorial/rest-api) to extract data from any REST API. Define API endpoints you’d like to fetch data from, pagination method and authentication and dlt will handle the rest:
+Use dlt's [REST API source](./tutorial/rest-api) to extract data from any REST API. Define the API endpoints you’d like to fetch data from, the pagination method, and authentication, and dlt will handle the rest:
 
 ```py
 import dlt
@@ -76,7 +76,7 @@ Follow the [REST API source tutorial](./tutorial/rest-api) to learn more about t
   </TabItem>
   <TabItem value="sql-database">
 
-Use the [SQL source](./tutorial/sql-database) to extract data from the database like PostgreSQL, MySQL, SQLite, Oracle and more.
+Use the [SQL source](./tutorial/sql-database) to extract data from databases like PostgreSQL, MySQL, SQLite, Oracle, and more.
 
 ```py
 from dlt.sources.sql_database import sql_database
@@ -99,7 +99,7 @@ Follow the [SQL source tutorial](./tutorial/sql-database) to learn more about th
   </TabItem>
   <TabItem value="filesystem">
 
-[Filesystem](./tutorial/filesystem) source extracts data from AWS S3, Google Cloud Storage, Google Drive, Azure, or a local file system.
+The [Filesystem](./tutorial/filesystem) source extracts data from AWS S3, Google Cloud Storage, Google Drive, Azure, or a local file system.
 
 ```py
 from dlt.sources.filesystem import filesystem
@@ -156,3 +156,4 @@ If you'd like to try out dlt without installing it on your machine, check out th
 1. Give the library a ⭐ and check out the code on [GitHub](https://github.com/dlt-hub/dlt).
 1. Ask questions and share how you use the library on [Slack](https://dlthub.com/community).
 1. Report problems and make feature requests [here](https://github.com/dlt-hub/dlt/issues/new/choose).
+

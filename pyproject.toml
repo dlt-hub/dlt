@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dlt"
-version = "0.9.9a1"
+version = "1.0.0"
 description = "dlt is an open-source python-first scalable data loading library that does not require any backend to run."
 authors = ["dltHub Inc. <services@dlthub.com>"]
 maintainers = [ "Marcin Rudolf <marcin@dlthub.com>", "Adrian Brudaru <adrian@dlthub.com>", "Anton Burnashev <anton@dlthub.com>", "David Scharf <david@dlthub.com>" ]
@@ -238,7 +238,7 @@ alive-progress = ">=3.0.1"
 pyarrow = ">=14.0.0"
 psycopg2-binary = ">=2.9"
 lancedb = { version = ">=0.8.2", markers = "python_version >= '3.9'", allow-prereleases = true }
-openai = ">=1.35"
+openai = ">=1.45"
 connectorx = { version = ">=0.3.2" }
 
 [tool.black] # https://black.readthedocs.io/en/stable/usage_and_configuration/the_basics.html#configuration-via-a-file

@@ -181,7 +181,7 @@ Do you want to apply these changes? [y/N]
 
 As a result of the command above:
 
-1. All the indicated tables will be dropped in the destination. Note that `dlt` drops the child
+1. All the indicated tables will be dropped in the destination. Note that `dlt` drops the nested
    tables as well.
 1. All the indicated tables will be removed from the indicated schema.
 1. The state for the resource `repo_events` was found and will be reset.

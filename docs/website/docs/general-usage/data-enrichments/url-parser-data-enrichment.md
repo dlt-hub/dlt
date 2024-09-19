@@ -6,28 +6,28 @@ keywords: [data enrichment, url parser, referer data enrichment]
 
 # Data enrichment part three: URL parser data enrichment
 
-URL parser data enrichment is extracting various URL components to gain additional insights and
+URL parser data enrichment involves extracting various URL components to gain additional insights and
 context about the URL. This extracted information can be used for data analysis, marketing, SEO, and
 more.
 
 ## URL parsing process
 
-Here is step-by-step process for URL parser data enrichment :
+Here is a step-by-step process for URL parser data enrichment:
 
-1. Get the URL data that is needed to be parsed from a source or create one.
-1. Send the URL data to an API like [URL Parser API](https://urlparse.com/).
-1. Get the parsed URL data.
-1. Include metadata like conversion rate, date, and time.
-1. Save the updated dataset in a data warehouse or lake using a data pipeline.
+1. Get the URL data that needs to be parsed from a source or create one.
+2. Send the URL data to an API like [URL Parser API](https://urlparse.com/).
+3. Receive the parsed URL data.
+4. Include metadata like conversion rate, date, and time.
+5. Save the updated dataset in a data warehouse or lake using a data pipeline.
 
-We use **[URL Parse API](https://urlparse.com/)** to extract the information about the URL. However,
+We use **[URL Parse API](https://urlparse.com/)** to extract information about the URL. However,
 you can use any API you prefer.
 
 :::tip
-`URL Parse API` is free, with 1000 requests/hour limit, which can be increased on request.
+`URL Parse API` is free, with a 1000 requests/hour limit, which can be increased upon request.
 :::
 
-By default the URL Parse API will return a JSON response like:
+By default, the URL Parse API will return a JSON response like:
 
 ```json
 {
@@ -51,7 +51,7 @@ By default the URL Parse API will return a JSON response like:
 }
 ```
 
-## Creating data enrichment pipeline
+## Creating a data enrichment pipeline
 
 You can either follow the example in the linked Colab notebook or follow this documentation to
 create the URL-parser data enrichment pipeline.
@@ -64,7 +64,7 @@ This Colab notebook outlines a three-part data enrichment process for a sample d
 - Currency conversion data enrichment
 - URL-parser data enrichment
 
-This document focuses on the URL-Parser Data Enrichment (Part Three). For a comprehensive
+This document focuses on the URL-parser data enrichment (Part Three). For a comprehensive
 understanding, you may explore all three enrichments sequentially in the notebook:
 [Colab Notebook](https://colab.research.google.com/drive/1ZKEkf1LRSld7CWQFS36fUXjhJKPAon7P?usp=sharing).
 
@@ -91,10 +91,10 @@ different tracking services.
 
 Let's examine a synthetic dataset created for this article. It includes:
 
-- `user_id`: Web trackers typically assign unique ID to users for tracking their journeys and
+- `user_id`: Web trackers typically assign a unique ID to users for tracking their journeys and
   interactions over time.
 
-- `device_name`: User device information helps in understanding the user base's device.
+- `device_name`: User device information helps in understanding the user base's device preferences.
 
 - `page_refer`: The referer URL is tracked to analyze traffic sources and user navigation behavior.
 
@@ -139,12 +139,11 @@ Here's the resource that yields the sample data as discussed above:
 
 ### 2. Create `url_parser` function
 
-We use a free service called [URL Parse API](https://urlparse.com/), to parse the urls. You don’t
-need to register to use this service neither get an API key.
+We use a free service called [URL Parse API](https://urlparse.com/), to parse the URLs. You don’t
+need to register to use this service nor get an API key.
 
 1. Create a `url_parser` function as follows:
    ```py
-   # @dlt.transformer(data_from=tracked_data)
    def url_parser(record):
        """
        Send a URL to a parsing service and return the parsed data.
@@ -185,10 +184,10 @@ need to register to use this service neither get an API key.
    processing.
 
    `Transformers` are a form of `dlt resource` that takes input from other resources
-   via `data_from` argument to enrich or transform the data.
+   via the `data_from` argument to enrich or transform the data.
    [Click here.](../../general-usage/resource.md#process-resources-with-dlttransformer)
 
-   Conversely, `add_map` used to customize a resource applies transformations at an item level
+   Conversely, `add_map` is used to customize a resource and applies transformations at an item level
    within a resource. It's useful for tasks like anonymizing individual data records. More on this
    can be found under [Customize resources](../../general-usage/resource.md#customize-resources) in
    the documentation.
@@ -222,13 +221,13 @@ need to register to use this service neither get an API key.
    )
    ```
 
-   This will execute the `url_parser` function with the tracked data and return parsed URL.
+   This will execute the `url_parser` function with the tracked data and return the parsed URL.
    :::
 
 ### Run the pipeline
 
 1. Install necessary dependencies for the preferred
-   [destination](https://dlthub.com/docs/dlt-ecosystem/destinations/), For example, duckdb:
+   [destination](../../dlt-ecosystem/destinations/), for example, duckdb:
 
    ```sh
    pip install "dlt[duckdb]"
@@ -248,3 +247,4 @@ need to register to use this service neither get an API key.
 
    For example, the "pipeline_name" for the above pipeline example is `data_enrichment_three`; you
    can use any custom name instead.
+

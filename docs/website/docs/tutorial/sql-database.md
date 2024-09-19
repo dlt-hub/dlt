@@ -64,6 +64,9 @@ Running the script as it is will execute the function `load_standalone_table_res
 The following function will load the tables `family` and `genome`.
 
 ```py
+import dlt
+from dlt.sources.sql_database import sql_database
+
 def load_tables_family_and_genome():
 
     # create a dlt source that will load tables "family" and "genome"
@@ -114,7 +117,7 @@ Alternatively, you can also paste the credentials as a connection string:
 sources.sql_database.credentials="mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam"
 ```
 
-For more details on the credentials format and other connection methods read the section on [configuring connection to the SQL Database](https://dlthub.com/docs/dlt-ecosystem/verified-sources/sql_database#credentials-format).
+For more details on the credentials format and other connection methods read the section on [configuring connection to the SQL Database](../dlt-ecosystem/verified-sources/sql_database#credentials-format).
 
 
 ## 4. Install dependencies
@@ -172,6 +175,9 @@ all the tables have the data duplicated. This happens as dlt, by default, append
 To prevent the data from being duplicated in each row, set `write_disposition` to `replace`:
 
 ```py
+import dlt
+from dlt.sources.sql_database import sql_database
+
 def load_tables_family_and_genome():
 
     source = sql_database().with_resources("family", "genome")
@@ -200,6 +206,9 @@ When you want to update the existing data as new data is loaded, you can use the
 In the previous example, we set `write_disposition="replace"` inside `pipeline.run()` which caused all the tables to be loaded with `replace`. However, it's also possible to define the `write_disposition` strategy separately for each tables using the `apply_hints` method. In the example below, we use `apply_hints` on each table to specify different primary keys for merge:
 
 ```py
+import dlt
+from dlt.sources.sql_database import sql_database
+
 def load_tables_family_and_genome():
 
     source = sql_database().with_resources("family", "genome")
@@ -229,6 +238,9 @@ Often you don't want to load the whole data in each load, but rather only the ne
 In the example below, we configure the table `"family"` to load incrementally based on the column `"updated"`:
 
 ```py
+import dlt
+from dlt.sources.sql_database import sql_database
+
 def load_tables_family_and_genome():
 
     source = sql_database().with_resources("family", "genome")

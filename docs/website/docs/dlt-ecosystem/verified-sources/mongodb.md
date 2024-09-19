@@ -103,7 +103,7 @@ nested data. It employs a flexible schema, and its key terms include:
 
 `Databases`: Containers for collections; a single MongoDB server can have multiple databases.
 
-The `dlt` converts nested data into relational tables, deduces data types, and defines parent-child
+The `dlt` converts nested data into relational tables, deduces data types, and defines nested
 relationships, creating an adaptive schema for future data adjustments.
 
 ### Initialize the verified source

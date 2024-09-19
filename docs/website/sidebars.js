@@ -64,12 +64,6 @@ const sidebars = {
         id: 'dlt-ecosystem/verified-sources/index',
       },
       items: [
-        'dlt-ecosystem/verified-sources/airtable',
-        'dlt-ecosystem/verified-sources/amazon_kinesis',
-        'dlt-ecosystem/verified-sources/arrow-pandas',
-        'dlt-ecosystem/verified-sources/asana',
-        'dlt-ecosystem/verified-sources/chess',
-        'dlt-ecosystem/verified-sources/facebook_ads',
         {
           type: 'category',
           label: 'Filesystem & cloud storage',
@@ -83,6 +77,41 @@ const sidebars = {
             'dlt-ecosystem/verified-sources/filesystem/advanced',
           ]
         },
+        {
+          type: 'category',
+          label: 'REST APIs',
+          description:'Load data from any REST API',
+           link: {
+            type: 'doc',
+            id: 'dlt-ecosystem/verified-sources/rest_api/index',
+          },
+          items: [
+            'dlt-ecosystem/verified-sources/rest_api/basic',
+            'dlt-ecosystem/verified-sources/rest_api/advanced',
+          ]
+        },
+        {
+          type: 'category',
+          label: '30+ SQL Databases',
+          description: 'PostgreSQL, MySQL, MS SQL, BigQuery, Redshift, and more',
+          link: {
+            type: 'doc',
+            id: 'dlt-ecosystem/verified-sources/sql_database/index',
+           },
+          items: [
+            'dlt-ecosystem/verified-sources/sql_database/setup',
+            'dlt-ecosystem/verified-sources/sql_database/configuration',
+            'dlt-ecosystem/verified-sources/sql_database/usage',
+            'dlt-ecosystem/verified-sources/sql_database/troubleshooting',
+            'dlt-ecosystem/verified-sources/sql_database/advanced',
+          ]
+        },
+        'dlt-ecosystem/verified-sources/airtable',
+        'dlt-ecosystem/verified-sources/amazon_kinesis',
+        'dlt-ecosystem/verified-sources/arrow-pandas',
+        'dlt-ecosystem/verified-sources/asana',
+        'dlt-ecosystem/verified-sources/chess',
+        'dlt-ecosystem/verified-sources/facebook_ads',
         'dlt-ecosystem/verified-sources/freshdesk',
         'dlt-ecosystem/verified-sources/github',
         'dlt-ecosystem/verified-sources/google_ads',
@@ -99,39 +128,10 @@ const sidebars = {
         'dlt-ecosystem/verified-sources/personio',
         'dlt-ecosystem/verified-sources/pg_replication',
         'dlt-ecosystem/verified-sources/pipedrive',
-        {
-          type: 'category',
-          label: 'REST APIs',
-          description:'Load data from any REST API',
-           link: {
-            type: 'doc',
-            id: 'dlt-ecosystem/verified-sources/rest_api/index',
-          },
-          items: [
-            'dlt-ecosystem/verified-sources/rest_api/basic',
-            'dlt-ecosystem/verified-sources/rest_api/advanced',
-          ]
-        },
         'dlt-ecosystem/verified-sources/openapi-generator',
         'dlt-ecosystem/verified-sources/salesforce',
         'dlt-ecosystem/verified-sources/scrapy',
         'dlt-ecosystem/verified-sources/shopify',
-        {
-          type: 'category',
-          label: '30+ SQL Databases',
-          description: 'PostgreSQL, MySQL, MS SQL, BigQuery, Redshift, and more',
-           link: {
-            type: 'doc',
-            id: 'dlt-ecosystem/verified-sources/sql_database/index',
-          },
-          items: [
-            'dlt-ecosystem/verified-sources/sql_database/setup',
-            'dlt-ecosystem/verified-sources/sql_database/configuration',
-            'dlt-ecosystem/verified-sources/sql_database/usage',
-            'dlt-ecosystem/verified-sources/sql_database/troubleshooting',
-            'dlt-ecosystem/verified-sources/sql_database/advanced'
-          ]
-        },
         'dlt-ecosystem/verified-sources/slack',
         'dlt-ecosystem/verified-sources/strapi',
         'dlt-ecosystem/verified-sources/stripe',

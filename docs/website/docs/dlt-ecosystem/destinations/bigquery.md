@@ -220,7 +220,7 @@ When staging is enabled:
 
 ## Supported Column Hints
 
-BigQuery supports the following [column hints](https://dlthub.com/docs/general-usage/schema#tables-and-columns):
+BigQuery supports the following [column hints](../../general-usage/schema#tables-and-columns):
 
 * `partition` - creates a partition with a day granularity on the decorated column (`PARTITION BY DATE`).
   May be used with `datetime`, `date`, and `bigint` data types.
@@ -362,7 +362,7 @@ bigquery_adapter(my_resource, partition="partition_column_name")
 my_resource = bigquery_adapter(my_resource, partition="partition_column_name")
 ```
 
-Refer to the [full API specification](../../api_reference/destinations/impl/bigquery/bigquery_adapter.md) for more details.
+Refer to the [full API specification](../../api_reference/destinations/impl/bigquery/bigquery_adapter) for more details.
 
 <!--@@@DLT_TUBA bigquery-->
 

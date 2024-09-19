@@ -1,10 +1,14 @@
-# Filesystem & buckets
-The Filesystem destination stores data in remote file systems and bucket storages like **S3**, **Google Storage**, or **Azure Blob Storage**. Underneath, it uses [fsspec](https://github.com/fsspec/filesystem_spec) to abstract file operations. Its primary role is to be used as a staging for other destinations, but you can also quickly build a data lake with it.
+# Cloud storage and filesystem
+The filesystem destination stores data in remote file systems and cloud storage services like **AWS S3**, **Google Cloud Storage**, or **Azure Blob Storage**. Underneath, it uses [fsspec](https://github.com/fsspec/filesystem_spec) to abstract file operations. Its primary role is to be used as a staging for other destinations, but you can also quickly build a data lake with it.
 
-> 💡 Please read the notes on the layout of the data files. Currently, we are getting feedback on it. Please join our Slack (icon at the top of the page) and help us find the optimal layout.
+:::tip
+Please read the notes on the layout of the data files. Currently, we are getting feedback on it. Please join our Slack (icon at the top of the page) and help us find the optimal layout.
+:::
 
 ## Install dlt with filesystem
-**To install the dlt library with filesystem dependencies:**
+
+Install the dlt library with filesystem dependencies:
+
 ```sh
 pip install "dlt[filesystem]"
 ```
@@ -24,14 +28,15 @@ so pip does not fail on backtracking.
 ## Initialise the dlt project
 
 Let's start by initializing a new dlt project as follows:
-   ```sh
-   dlt init chess filesystem
-   ```
+```sh
+dlt init chess filesystem
+```
+
 :::note
-This command will initialize your pipeline with chess as the source and the AWS S3 filesystem as the destination.
+This command will initialize your pipeline with chess as the source and the AWS S3 as the destination.
 :::
 
-## Set up bucket storage and credentials
+## Set up the destination and credentials
 
 ### AWS S3
 The command above creates a sample `secrets.toml` and requirements file for AWS S3 bucket. You can install those dependencies by running:
@@ -39,7 +44,8 @@ The command above creates a sample `secrets.toml` and requirements file for AWS 
 pip install -r requirements.txt
 ```
 
-To edit the `dlt` credentials file with your secret info, open `.dlt/secrets.toml`, which looks like this:
+To edit the dlt credentials file with your secret info, open `.dlt/secrets.toml`, which looks like this:
+
 ```toml
 [destination.filesystem]
 bucket_url = "s3://[your_bucket_name]" # replace with your bucket name,
@@ -49,19 +55,21 @@ aws_access_key_id = "please set me up!" # copy the access key here
 aws_secret_access_key = "please set me up!" # copy the secret access key here
 ```
 
-If you have your credentials stored in `~/.aws/credentials`, just remove the **[destination.filesystem.credentials]** section above, and `dlt` will fall back to your **default** profile in local credentials. If you want to switch the profile, pass the profile name as follows (here: `dlt-ci-user`):
+If you have your credentials stored in `~/.aws/credentials`, just remove the **[destination.filesystem.credentials]** section above, and dlt will fall back to your **default** profile in local credentials. If you want to switch the profile, pass the profile name as follows (here: `dlt-ci-user`):
+
 ```toml
 [destination.filesystem.credentials]
 profile_name="dlt-ci-user"
 ```
 
-You can also pass an AWS region:
+You can also specify an AWS region:
+
 ```toml
 [destination.filesystem.credentials]
 region_name="eu-central-1"
 ```
 
-You need to create an S3 bucket and a user who can access that bucket. `dlt` does not create buckets automatically.
+You need to create an S3 bucket and a user who can access that bucket. dlt does not create buckets automatically.
 
 1. You can create the S3 bucket in the AWS console by clicking on "Create Bucket" in S3 and assigning the appropriate name and permissions to the bucket.
 2. Once the bucket is created, you'll have the bucket URL. For example, If the bucket name is `dlt-ci-test-bucket`, then the bucket URL will be:
@@ -71,7 +79,7 @@ You need to create an S3 bucket and a user who can access that bucket. `dlt` doe
    ```
 
 3. To grant permissions to the user being used to access the S3 bucket, go to the IAM > Users, and click on “Add Permissions”.
-4. Below you can find a sample policy that gives a minimum permission required by `dlt` to a bucket we created above. The policy contains permissions to list files in a bucket, get, put, and delete objects. **Remember to place your bucket name in the Resource section of the policy!**
+4. Below you can find a sample policy that gives a minimum permission required by dlt to a bucket we created above. The policy contains permissions to list files in a bucket, get, put, and delete objects. **Remember to place your bucket name in the Resource section of the policy!**
 
 ```json
 {
@@ -146,6 +154,7 @@ if you have default google cloud credentials in your environment (i.e. on cloud 
 Use **Cloud Storage** admin to create a new bucket. Then assign the **Storage Object Admin** role to your service account.
 
 ### Azure Blob Storage
+
 Run `pip install "dlt[az]"` which will install the `adlfs` package to interface with Azure Blob Storage.
 
 Edit the credentials in `.dlt/secrets.toml`, you'll see AWS credentials by default replace them with your Azure credentials.
@@ -196,6 +205,7 @@ max_concurrency=3
 :::
 
 ### Local file system
+
 If for any reason you want to have those files in a local folder, set up the `bucket_url` as follows (you are free to use `config.toml` for that as there are no secrets required)
 
 ```toml
@@ -386,8 +396,8 @@ def my_upsert_resource():
 
 #### Known limitations
 - `hard_delete` hint not supported
-- deleting records from child tables not supported
-  - This means updates to json columns that involve element removals are not propagated. For example, if you first load `{"key": 1, "nested": [1, 2]}` and then load `{"key": 1, "nested": [1]}`, then the record for element `2` will not be deleted from the child table.
+- deleting records from nested tables not supported
+  - This means updates to json columns that involve element removals are not propagated. For example, if you first load `{"key": 1, "nested": [1, 2]}` and then load `{"key": 1, "nested": [1]}`, then the record for element `2` will not be deleted from the nested table.
 
 ## File Compression
 
@@ -404,13 +414,13 @@ disable_compression=true
 
 - To decompress a `gzip` file, you can use tools like `gunzip`. This will convert the compressed file back to its original format, making it readable.
 
-For more details on managing file compression, please visit our documentation on performance optimization: [Disabling and Enabling File Compression](https://dlthub.com/docs/reference/performance#disabling-and-enabling-file-compression).
+For more details on managing file compression, please visit our documentation on performance optimization: [Disabling and Enabling File Compression](../../reference/performance#disabling-and-enabling-file-compression).
 
 ## Files layout
 All the files are stored in a single folder with the name of the dataset that you passed to the `run` or `load` methods of the `pipeline`. In our example chess pipeline, it is **chess_players_games_data**.
 
 :::note
-Bucket storages are, in fact, key-blob storage so the folder structure is emulated by splitting file names into components by separator (`/`).
+Object storages are, in fact, key-blob storage so the folder structure is emulated by splitting file names into components by separator (`/`).
 :::
 
 You can control files layout by specifying the desired configuration. There are several ways to do this.

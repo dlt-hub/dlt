@@ -135,7 +135,7 @@ The message context contains the following information:
 
 ## Send telemetry data to your own tracker
 You can setup your own tracker to receive telemetry events. You can create scalable, globally distributed
-edge service [using `dlt` and Cloudflare](https://dlthub.com/docs/blog/dlt-segment-migration).
+edge service [using `dlt` and Cloudflare](https://dlthub.com/blog/dlt-segment-migration).
 
 Once your tracker is running, point `dlt` to it. You can use global `config.toml` to redirect all pipelines on
 a given machine.

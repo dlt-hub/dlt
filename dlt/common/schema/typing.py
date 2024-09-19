@@ -138,6 +138,7 @@ TColumnNames = Union[str, Sequence[str]]
 
 class TColumnType(TypedDict, total=False):
     data_type: Optional[TDataType]
+    nullable: Optional[bool]
     precision: Optional[int]
     scale: Optional[int]
     timezone: Optional[bool]
@@ -147,7 +148,6 @@ class TColumnSchemaBase(TColumnType, total=False):
     """TypedDict that defines basic properties of a column: name, data type and nullable"""
 
     name: Optional[str]
-    nullable: Optional[bool]
 
 
 class TColumnSchema(TColumnSchemaBase, total=False):
