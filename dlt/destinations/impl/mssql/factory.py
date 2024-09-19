@@ -109,6 +109,11 @@ class mssql(Destination[MsSqlClientConfiguration, "MsSqlJobClient"]):
         caps.max_rows_per_insert = 1000
         caps.timestamp_precision = 7
         caps.supported_merge_strategies = ["delete-insert", "upsert", "scd2"]
+        caps.supported_replace_strategies = [
+            "truncate-and-insert",
+            "insert-from-staging",
+            "staging-optimized",
+        ]
 
         return caps
 

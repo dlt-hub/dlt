@@ -49,6 +49,7 @@ class sqlalchemy(Destination[SqlalchemyClientConfiguration, "SqlalchemyJobClient
         # Multiple concatenated statements are not supported by all engines, so leave them off by default
         caps.supports_multiple_statements = False
         caps.type_mapper = SqlalchemyTypeMapper
+        caps.supported_replace_strategies = ["truncate-and-insert", "insert-from-staging"]
 
         return caps
 

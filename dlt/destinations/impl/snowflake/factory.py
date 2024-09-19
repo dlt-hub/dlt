@@ -121,6 +121,11 @@ class snowflake(Destination[SnowflakeClientConfiguration, "SnowflakeClient"]):
         caps.alter_add_multi_column = True
         caps.supports_clone_table = True
         caps.supported_merge_strategies = ["delete-insert", "upsert", "scd2"]
+        caps.supported_replace_strategies = [
+            "truncate-and-insert",
+            "insert-from-staging",
+            "staging-optimized",
+        ]
         return caps
 
     @property
