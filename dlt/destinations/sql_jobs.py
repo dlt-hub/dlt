@@ -340,6 +340,10 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         """
 
     @classmethod
+    def gen_concat_sql(cls, columns: Sequence[str]) -> str:
+        return f"CONCAT({', '.join(columns)})"
+
+    @classmethod
     def _shorten_table_name(cls, ident: str, sql_client: SqlClientBase[Any]) -> str:
         """Trims identifier to max length supported by sql_client. Used for dynamically constructed table names"""
         from dlt.common.normalizers.naming import NamingConvention
@@ -367,7 +371,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
 
     @classmethod
     def gen_update_table_prefix(cls, table_name: str) -> str:
-        return f"UPDATE {table_name} AS d SET"
+        return f"UPDATE {table_name} SET"
 
     @classmethod
     def requires_temp_table_for_delete(cls) -> bool:
@@ -777,8 +781,11 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                 get_columns_names_with_prop(root_table, "merge_key"),
                 escape_column_id,
             )
-            keys_equal = cls._gen_key_table_clauses([], merge_keys)[0].format(d="d", s="s")
-            nk_present = f"EXISTS (SELECT 1 FROM {staging_root_table_name} AS s WHERE {keys_equal})"
+            if len(merge_keys) == 1:
+                nk = merge_keys[0]
+            else:
+                nk = cls.gen_concat_sql(merge_keys)  # compound key
+            nk_present = f"{nk} IN (SELECT {nk} FROM {staging_root_table_name})"
             retire_sql += f" AND {nk_present};"
         sql.append(retire_sql)
 

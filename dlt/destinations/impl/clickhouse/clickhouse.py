@@ -195,7 +195,7 @@ class ClickHouseMergeJob(SqlMergeFollowupJob):
 
     @classmethod
     def gen_update_table_prefix(cls, table_name: str) -> str:
-        return f"ALTER TABLE {table_name} UPDATE AS d"
+        return f"ALTER TABLE {table_name} UPDATE"
 
     @classmethod
     def requires_temp_table_for_delete(cls) -> bool:

@@ -9,6 +9,7 @@ import dlt
 from dlt.common.typing import TAnyDateTime
 from dlt.common.pendulum import pendulum
 from dlt.common.pipeline import LoadInfo
+from dlt.common.data_types.typing import TDataType
 from dlt.common.schema.typing import DEFAULT_VALIDITY_COLUMN_NAMES
 from dlt.common.normalizers.json.relational import DataItemNormalizer
 from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCaseNamingConvention
@@ -809,7 +810,19 @@ def test_retire_absent_rows(
     )
     assert dim_test.compute_table_schema()["x-retire-absent-rows"]  # type: ignore[typeddict-item]
 
-    # test compound `merge_key`
+
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, supports_merge=True),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize("key_type", ("text", "bigint"))
+def test_retire_absent_rows_compound_key(
+    destination_config: DestinationTestConfiguration,
+    key_type: TDataType,
+) -> None:
+    p = destination_config.setup_pipeline("abstract", dev_mode=True)
 
     @dlt.resource(
         merge_key=["first_name", "last_name"],
@@ -822,34 +835,40 @@ def test_retire_absent_rows(
     def dim_test_compound(data):
         yield data
 
+    # vary `first_name` type to test mixed compound `merge_key`
+    if key_type == "text":
+        first_name = "John"
+    elif key_type == "bigint":
+        first_name = 1  # type: ignore[assignment]
     # load 1 — initial load
     dim_snap = [
-        {"first_name": "John", "last_name": "Doe", "age": 20},
-        {"first_name": "John", "last_name": "Dodo", "age": 20},
+        {"first_name": first_name, "last_name": "Doe", "age": 20},
+        {"first_name": first_name, "last_name": "Dodo", "age": 20},
     ]
     info = p.run(dim_test_compound(dim_snap), **destination_config.run_kwargs)
     assert_load_info(info)
     assert load_table_counts(p, "dim_test_compound")["dim_test_compound"] == 2
     # both records should be active (i.e. not retired)
+    _, to = DEFAULT_VALIDITY_COLUMN_NAMES
     assert [row[to] for row in get_table(p, "dim_test_compound")] == [None, None]
 
-    # load 2 — natural key "John" + "Dodo" is absent, natural key "John" + "Doe" has changed
+    # load 2 — "Dodo" is absent, "Doe" has changed
     dim_snap = [
-        {"first_name": "John", "last_name": "Doe", "age": 30},
+        {"first_name": first_name, "last_name": "Doe", "age": 30},
     ]
     info = p.run(dim_test_compound(dim_snap), **destination_config.run_kwargs)
     assert_load_info(info)
     assert load_table_counts(p, "dim_test_compound")["dim_test_compound"] == 3
     ts3 = get_load_package_created_at(p, info)
-    # natural key "John" + "Doe" should now have two records (one retired, one active)
+    # "Doe" should now have two records (one retired, one active)
     actual = [
         {k: v for k, v in row.items() if k in ("first_name", "last_name", to)}
         for row in get_table(p, "dim_test_compound")
     ]
     expected = [
-        {"first_name": "John", "last_name": "Doe", to: ts3},
-        {"first_name": "John", "last_name": "Doe", to: None},
-        {"first_name": "John", "last_name": "Dodo", to: None},
+        {"first_name": first_name, "last_name": "Doe", to: ts3},
+        {"first_name": first_name, "last_name": "Doe", to: None},
+        {"first_name": first_name, "last_name": "Dodo", to: None},
     ]
     assert_records_as_set(actual, expected)  # type: ignore[arg-type]
 
