@@ -50,7 +50,6 @@ from dlt.destinations.utils import verify_schema_merge_disposition
 
 INIT_FILE_NAME = "init"
 FILENAME_SEPARATOR = "__"
-MAX_STATE_HISTORY = 100
 
 
 class FilesystemLoadJob(RunnableLoadJob):
@@ -524,26 +523,27 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
     def _cleanup_pipeline_states(self, pipeline_name: str) -> None:
         state_table_files = list(self._list_dlt_table_files(self.schema.state_table_name))
 
-        # filter and collect a list of state files
-        state_file_info: List[Dict[str, Any]] = [
-            {
-                "pipeline_name": fileparts[0],
-                "load_id": float(fileparts[1]),  # convert load_id to float for comparison
-                "filepath": filepath,
-            }
-            for filepath, fileparts in state_table_files
-            if fileparts[0] == pipeline_name
-        ]
+        if len(state_table_files) > self.config.max_state_files:
+            # filter and collect a list of state files
+            state_file_info: List[Dict[str, Any]] = [
+                {
+                    "pipeline_name": fileparts[0],
+                    "load_id": float(fileparts[1]),  # convert load_id to float for comparison
+                    "filepath": filepath,
+                }
+                for filepath, fileparts in state_table_files
+                if fileparts[0] == pipeline_name
+            ]
 
-        # sort state file info by load_id in descending order
-        state_file_info.sort(key=lambda x: x["load_id"], reverse=True)
+            # sort state file info by load_id in descending order
+            state_file_info.sort(key=lambda x: x["load_id"], reverse=True)
 
-        # keeping only the most recent MAX_STATE_HISTORY files
-        files_to_delete = state_file_info[MAX_STATE_HISTORY:]
+            # keeping only the most recent MAX_STATE_HISTORY files
+            files_to_delete = state_file_info[self.config.max_state_files :]
 
-        # delete the old files
-        for file_info in files_to_delete:
-            self.fs_client.rm_file(file_info["filepath"])
+            # delete the old files
+            for file_info in files_to_delete:
+                self.fs_client.rm(file_info["filepath"])
 
     def _store_current_state(self, load_id: str) -> None:
         # don't save the state this way when used as staging

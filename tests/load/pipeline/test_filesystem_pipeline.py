@@ -1259,37 +1259,42 @@ def test_state_with_simple_incremental(
     destinations_configs(all_buckets_filesystem_configs=True),
     ids=lambda x: x.name,
 )
+@pytest.mark.parametrize("enable_state_cleanup", ["true", "false"])
 def test_state_cleanup(
     destination_config: DestinationTestConfiguration,
+    enable_state_cleanup: str,
 ) -> None:
-    # TODO: add test parameters to:
-    # - cleanup disabled/enable
-    # - test different values of state files
-    # TODO: ask about making MAX_STATE_HISTORY configurable (very slow test)
+    os.environ["DESTINATION__FILESYSTEM__ENABLE_STATE_CLEANUP"] = enable_state_cleanup
+    os.environ["DESTINATION__FILESYSTEM__MAX_STATE_FILES"] = "3"
 
-    p = destination_config.setup_pipeline("p1", dataset_name="incremental_test")
+    p = destination_config.setup_pipeline("p1", dataset_name=destination_config.destination_name)
 
-    # Initial run with a base dataset
-    @dlt.resource(name="items")
-    def initial_resource(primary_key=dlt.sources.incremental("id")):
-        yield from [{"id": 1}, {"id": 2}]
+    # Initial dataset
+    @dlt.resource(name="items", primary_key="id")
+    def initial_resource(_=dlt.sources.incremental("id")):
+        yield from [{"id": 0}]
 
     p.run(initial_resource)
 
-    # Run incremental tests multiple times
-    for i in range(3, 105):  # Adjust range as needed
+    # Run incremental multiple times
+    for i in range(1, 5):  # Adjust range as needed
 
-        @dlt.resource(name="items")
-        def incremental_resource(primary_key=dlt.sources.incremental("id"), new_i=i):
+        @dlt.resource(name="items", primary_key="id")
+        def incremental_resource(_=dlt.sources.incremental("id"), new_i=i):
             yield from [{"id": j} for j in range(1, new_i + 1)]
 
-        p = destination_config.setup_pipeline("p1", dataset_name="incremental_test")
+        p = destination_config.setup_pipeline(
+            "p1", dataset_name=destination_config.destination_name
+        )
         p.run(incremental_resource)
 
     client: FilesystemClient = p.destination_client()  # type: ignore
     state_table_files = list(client._list_dlt_table_files(client.schema.state_table_name))
 
-    assert len(state_table_files) == 100
+    if enable_state_cleanup == "true":
+        assert len(state_table_files) == 3
+    else:
+        assert len(state_table_files) == 5
 
 
 @pytest.mark.parametrize(

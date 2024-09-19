@@ -146,6 +146,7 @@ class FilesystemConfiguration(BaseConfiguration):
     client_kwargs: Optional[DictStrAny] = None
     deltalake_storage_options: Optional[DictStrAny] = None
     enable_state_cleanup: bool = True
+    max_state_files: int = 100
 
     @property
     def protocol(self) -> str:
