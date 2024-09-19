@@ -109,7 +109,7 @@ class dremio(Destination[DremioClientConfiguration, "DremioClient"]):
         caps.supports_multiple_statements = False
         caps.timestamp_precision = 3
         caps.supported_merge_strategies = ["delete-insert", "scd2"]
-        caps.supoorted_replace_strategies = ["truncate-and-insert", "insert-from-staging"]
+        caps.supported_replace_strategies = ["truncate-and-insert", "insert-from-staging"]
         return caps
 
     @property
