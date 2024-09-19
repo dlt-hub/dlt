@@ -715,9 +715,10 @@ def test_boundary_timestamp(
         )
 
 
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, subset=["duckdb"]),
+    destinations_configs(default_sql_configs=True, supports_merge=True),
     ids=lambda x: x.name,
 )
 def test_retire_absent_rows(
@@ -726,15 +727,14 @@ def test_retire_absent_rows(
     p = destination_config.setup_pipeline("abstract", dev_mode=True)
 
     @dlt.resource(
-        table_name="dim_test",
+        merge_key="nk",
         write_disposition={
             "disposition": "merge",
             "strategy": "scd2",
             "retire_absent_rows": False,
-            "natural_key": "nk",
         },
     )
-    def r(data):
+    def dim_test(data):
         yield data
 
     # load 1 — initial load
@@ -742,7 +742,7 @@ def test_retire_absent_rows(
         {"nk": 1, "foo": "foo"},
         {"nk": 2, "foo": "foo"},
     ]
-    info = p.run(r(dim_snap), **destination_config.run_kwargs)
+    info = p.run(dim_test(dim_snap), **destination_config.run_kwargs)
     assert_load_info(info)
     assert load_table_counts(p, "dim_test")["dim_test"] == 2
     _, to = DEFAULT_VALIDITY_COLUMN_NAMES
@@ -753,7 +753,7 @@ def test_retire_absent_rows(
     dim_snap = [
         {"nk": 1, "foo": "foo"},
     ]
-    info = p.run(r(dim_snap), **destination_config.run_kwargs)
+    info = p.run(dim_test(dim_snap), **destination_config.run_kwargs)
     assert_load_info(info)
     assert load_table_counts(p, "dim_test")["dim_test"] == 2
     # both records should still be active
@@ -763,7 +763,7 @@ def test_retire_absent_rows(
     dim_snap = [
         {"nk": 1, "foo": "bar"},
     ]
-    info = p.run(r(dim_snap), **destination_config.run_kwargs)
+    info = p.run(dim_test(dim_snap), **destination_config.run_kwargs)
     assert_load_info(info)
     assert load_table_counts(p, "dim_test")["dim_test"] == 3
     ts3 = get_load_package_created_at(p, info)
@@ -777,7 +777,7 @@ def test_retire_absent_rows(
     dim_snap = [
         {"nk": 1, "foo": "foo"},
     ]
-    info = p.run(r(dim_snap), **destination_config.run_kwargs)
+    info = p.run(dim_test(dim_snap), **destination_config.run_kwargs)
     assert_load_info(info)
     assert load_table_counts(p, "dim_test")["dim_test"] == 4
     ts4 = get_load_package_created_at(p, info)
@@ -789,40 +789,69 @@ def test_retire_absent_rows(
     # now test various configs
 
     with pytest.raises(ValueError):
-        # should raise because `natural_key` is required when `retire_absent_rows=False`
-        r.apply_hints(
+        # should raise because `merge_key` is required when `retire_absent_rows=False`
+        dim_test.apply_hints(
+            merge_key="",
             write_disposition={
                 "disposition": "merge",
                 "strategy": "scd2",
                 "retire_absent_rows": False,
-            }
+            },
         )
 
-    # `retire_absent_rows=True` does not require `natural_key`
-    r.apply_hints(
+    # `retire_absent_rows=True` does not require `merge_key`
+    dim_test.apply_hints(
         write_disposition={
             "disposition": "merge",
             "strategy": "scd2",
             "retire_absent_rows": True,
         }
     )
-    assert r.compute_table_schema()["x-retire-absent-rows"]  # type: ignore[typeddict-item]
+    assert dim_test.compute_table_schema()["x-retire-absent-rows"]  # type: ignore[typeddict-item]
 
-    # user-provided hints for `natural_key` column should be respected
-    r.apply_hints(
-        columns={"nk": {"x-foo": "foo"}},  # type: ignore[typeddict-unknown-key]
+    # test compound `merge_key`
+
+    @dlt.resource(
+        merge_key=["first_name", "last_name"],
         write_disposition={
             "disposition": "merge",
             "strategy": "scd2",
             "retire_absent_rows": False,
-            "natural_key": "nk",
         },
     )
-    assert r.compute_table_schema()["columns"]["nk"] == {
-        "x-foo": "foo",
-        "name": "nk",
-        "x-natural-key": True,
-    }
+    def dim_test_compound(data):
+        yield data
+
+    # load 1 — initial load
+    dim_snap = [
+        {"first_name": "John", "last_name": "Doe", "age": 20},
+        {"first_name": "John", "last_name": "Dodo", "age": 20},
+    ]
+    info = p.run(dim_test_compound(dim_snap), **destination_config.run_kwargs)
+    assert_load_info(info)
+    assert load_table_counts(p, "dim_test_compound")["dim_test_compound"] == 2
+    # both records should be active (i.e. not retired)
+    assert [row[to] for row in get_table(p, "dim_test_compound")] == [None, None]
+
+    # load 2 — natural key "John" + "Dodo" is absent, natural key "John" + "Doe" has changed
+    dim_snap = [
+        {"first_name": "John", "last_name": "Doe", "age": 30},
+    ]
+    info = p.run(dim_test_compound(dim_snap), **destination_config.run_kwargs)
+    assert_load_info(info)
+    assert load_table_counts(p, "dim_test_compound")["dim_test_compound"] == 3
+    ts3 = get_load_package_created_at(p, info)
+    # natural key "John" + "Doe" should now have two records (one retired, one active)
+    actual = [
+        {k: v for k, v in row.items() if k in ("first_name", "last_name", to)}
+        for row in get_table(p, "dim_test_compound")
+    ]
+    expected = [
+        {"first_name": "John", "last_name": "Doe", to: ts3},
+        {"first_name": "John", "last_name": "Doe", to: None},
+        {"first_name": "John", "last_name": "Dodo", to: None},
+    ]
+    assert_records_as_set(actual, expected)  # type: ignore[arg-type]
 
 
 @pytest.mark.parametrize(

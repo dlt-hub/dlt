@@ -353,7 +353,7 @@ class DltResourceHints:
         self, hints_template: TResourceHints, create_table_variant: bool = False
     ) -> None:
         DltResourceHints.validate_dynamic_hints(hints_template)
-        DltResourceHints.validate_write_disposition_hint(hints_template.get("write_disposition"))
+        DltResourceHints.validate_write_disposition_hint(hints_template)
         if create_table_variant:
             table_name: str = hints_template["name"]  # type: ignore[assignment]
             # incremental cannot be specified in variant
@@ -524,7 +524,8 @@ class DltResourceHints:
             )
 
     @staticmethod
-    def validate_write_disposition_hint(wd: TTableHintTemplate[TWriteDispositionConfig]) -> None:
+    def validate_write_disposition_hint(template: TResourceHints) -> None:
+        wd = template.get("write_disposition")
         if isinstance(wd, dict) and wd["disposition"] == "merge":
             wd = cast(TMergeDispositionDict, wd)
             if "strategy" in wd and wd["strategy"] not in MERGE_STRATEGIES:
@@ -552,6 +553,6 @@ class DltResourceHints:
                 if (
                     "retire_absent_rows" in wd
                     and not wd["retire_absent_rows"]
-                    and "natural_key" not in wd
+                    and template.get("merge_key") is None
                 ):
-                    raise ValueError("`natural_key` is required when `retire_absent_rows=False`")
+                    raise ValueError("`merge_key` is required when `retire_absent_rows=False`")

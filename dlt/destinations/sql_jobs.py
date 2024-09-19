@@ -367,7 +367,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
 
     @classmethod
     def gen_update_table_prefix(cls, table_name: str) -> str:
-        return f"UPDATE {table_name} SET"
+        return f"UPDATE {table_name} AS d SET"
 
     @classmethod
     def requires_temp_table_for_delete(cls) -> bool:
@@ -772,8 +772,13 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         retire_absent_rows = root_table.get("x-retire-absent-rows", True)
         if not retire_absent_rows:
             retire_sql = retire_sql.rstrip()[:-1]  # remove semicolon
-            nk = escape_column_id(get_first_column_name_with_prop(root_table, "x-natural-key"))
-            nk_present = f"{nk} IN (SELECT {nk} FROM {staging_root_table_name})"
+            # merge keys act as natural key
+            merge_keys = cls._escape_list(
+                get_columns_names_with_prop(root_table, "merge_key"),
+                escape_column_id,
+            )
+            keys_equal = cls._gen_key_table_clauses([], merge_keys)[0].format(d="d", s="s")
+            nk_present = f"EXISTS (SELECT 1 FROM {staging_root_table_name} AS s WHERE {keys_equal})"
             retire_sql += f" AND {nk_present};"
         sql.append(retire_sql)
 
