@@ -35,7 +35,7 @@ from dlt.common.schema.typing import (
 from dlt.extract.items import TTableHintTemplate
 from dlt.extract.incremental.typing import LastValueFunc
 
-from dlt.sources.helpers.requests import Session
+from requests import Session
 
 from dlt.sources.helpers.rest_client.typing import HTTPMethodBasic
 
