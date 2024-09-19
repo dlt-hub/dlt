@@ -111,7 +111,7 @@ Normally connections are opened and closed for each load job and in other stages
 To make sure the database persists throughout the pipeline run you need to pass in an SQLAlchemy `Engine` object instead of credentials.
 This engine is not disposed of automatically by `dlt`. Example:
 
-```python
+```py
 import dlt
 import sqlalchemy as sa
 
