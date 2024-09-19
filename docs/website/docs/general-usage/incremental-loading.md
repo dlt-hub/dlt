@@ -46,7 +46,7 @@ The `merge` write disposition can be used with three different strategies:
 2. `scd2`
 3. `upsert`
 
-### `Delete-insert` strategy
+### `delete-insert` strategy
 
 The default `delete-insert` strategy is used in two scenarios:
 
@@ -405,7 +405,7 @@ The `upsert` merge strategy is currently supported for these destinations:
 - `mssql`
 - `postgres`
 - `snowflake`
-- 🧪 `filesystem` with `delta` table format (see limitations [here](../dlt-ecosystem/destinations/filesystem.md#known-limitations))
+- `filesystem` with `delta` table format (see limitations [here](../dlt-ecosystem/destinations/filesystem.md#known-limitations))
 :::
 
 The `upsert` merge strategy does primary-key based *upserts*:
@@ -468,7 +468,7 @@ In essence, the `dlt.sources.incremental` instance above:
 
 When paginating, you probably need the **start_value** which does not change during the execution of the resource, however, most paginators will return a **next page** link which you should use.
 
-Behind the scenes, `dlt` will deduplicate the results, i.e., in case the last issue is returned again (`updated_at` filter is inclusive) and skip already loaded ones.
+Behind the scenes, dlt will deduplicate the results, i.e., in case the last issue is returned again (`updated_at` filter is inclusive) and skip already loaded ones.
 
 In the example below, we incrementally load the GitHub events, where the API does not let us filter for the newest events - it always returns all of them. Nevertheless, `dlt` will load only the new items, filtering out all the duplicates and past issues.
 ```py
@@ -487,7 +487,7 @@ We just yield all the events and `dlt` does the filtering (using the `id` column
 GitHub returns events ordered from newest to oldest. So we declare the `rows_order` as **descending** to [stop requesting more pages once the incremental value is out of range](#declare-row-order-to-not-request-unnecessary-data). We stop requesting more data from the API after finding the first event with `created_at` earlier than `initial_value`.
 
 :::note
-`dlt.sources.incremental` is implemented as a [filter function](resource.md#filter-transform-and-pivot-data) that is executed **after** all other transforms you add with `add_map` / `add_filter`. This means that you can manipulate the data item before the incremental filter sees it. For example:
+`dlt.sources.incremental` is implemented as a [filter function](resource.md#filter-transform-and-pivot-data) that is executed **after** all other transforms you add with `add_map` or  `add_filter`. This means that you can manipulate the data item before the incremental filter sees it. For example:
 * You can create a surrogate primary key from other columns
 * You can modify the cursor value or create a new field composed of other fields
 * Dump Pydantic models to Python dicts to allow incremental to find custom values
@@ -592,15 +592,15 @@ august_issues = repo_issues(
 ...
 ```
 
-Note that `dlt`'s incremental filtering considers the ranges half-closed. `initial_value` is inclusive, `end_value` is exclusive, so chaining ranges like above works without overlaps.
+Note that dlt's incremental filtering considers the ranges half-closed. `initial_value` is inclusive, `end_value` is exclusive, so chaining ranges like above works without overlaps.
 
 ### Declare row order to not request unnecessary data
 
-With the `row_order` argument set, `dlt` will stop retrieving data from the data source (e.g., GitHub API) if it detects that the values of the cursor field are out of the range of **start** and **end** values.
+With the `row_order` argument set, dlt will stop retrieving data from the data source (e.g., GitHub API) if it detects that the values of the cursor field are out of the range of **start** and **end** values.
 
 In particular:
-* `dlt` stops processing when the resource yields any item with a cursor value _equal to or greater than_ the `end_value` and `row_order` is set to **asc**. (`end_value` is not included)
-* `dlt` stops processing when the resource yields any item with a cursor value _lower_ than the `last_value` and `row_order` is set to **desc**. (`last_value` is included)
+* dlt stops processing when the resource yields any item with a cursor value _equal to or greater than_ the `end_value` and `row_order` is set to **asc**. (`end_value` is not included)
+* dlt stops processing when the resource yields any item with a cursor value _lower_ than the `last_value` and `row_order` is set to **desc**. (`last_value` is included)
 
 :::note
 "higher" and "lower" here refer to when the default `last_value_func` is used (`max()`),
@@ -747,8 +747,8 @@ def tickets(
 ```
 
 We opt-in to the Airflow scheduler by setting `allow_external_schedulers` to `True`:
-1. When running on Airflow, the start and end values are controlled by Airflow and the `dlt` [state](state.md) is not used.
-2. In all other environments, the `incremental` behaves as usual, maintaining the `dlt` state.
+1. When running on Airflow, the start and end values are controlled by Airflow and the dlt [state](state.md) is not used.
+2. In all other environments, the `incremental` behaves as usual, maintaining the dlt state.
 
 Let's generate a deployment with `dlt deploy zendesk_pipeline.py airflow-composer` and customize the DAG:
 

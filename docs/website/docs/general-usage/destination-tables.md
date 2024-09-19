@@ -134,11 +134,11 @@ Running this pipeline will create two tables in the destination, `users` (**root
 | 2 | Spot | dog | 9uxh36VU9lqKpw | wX3f5vn801W16A | 1 |
 | 3 | Fido | dog | pe3FVtCWz8VuNA | rX8ybgTeEmAmmA | 0 |
 
-When inferring a database schema, `dlt` maps the structure of Python objects (i.e., from parsed JSON files) into nested tables and creates references between them.
+When inferring a database schema, dlt maps the structure of Python objects (i.e., from parsed JSON files) into nested tables and creates references between them.
 
 This is how it works:
 
-1. Each row in all (root and nested) data tables created by `dlt` contains a unique column named `_dlt_id` (**row key**).
+1. Each row in all (root and nested) data tables created by dlt contains a unique column named `_dlt_id` (**row key**).
 2. Each nested table contains a column named `_dlt_parent_id` referencing a particular row (`_dlt_id`) of a parent table (**parent key**).
 3. Rows in nested tables come from the Python lists: `dlt` stores the position of each item in the list in `_dlt_list_idx`.
 4. For nested tables that are loaded with the `merge` write disposition, we add a **root key** column `_dlt_root_id`, which references the child table to a row in the root table.

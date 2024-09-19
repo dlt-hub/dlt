@@ -25,7 +25,7 @@ p.run(issues, write_disposition="replace", primary_key="id", table_name="issues"
 
 ## Choosing the correct replace strategy for your full load
 
-`dlt` implements three different strategies for doing a full load on your table: `truncate-and-insert`, `insert-from-staging`, and `staging-optimized`. The exact behavior of these strategies can also vary between the available destinations.
+dlt implements three different strategies for doing a full load on your table: `truncate-and-insert`, `insert-from-staging`, and `staging-optimized`. The exact behavior of these strategies can also vary between the available destinations.
 
 You can select a strategy with a setting in your `config.toml` file. If you do not select a strategy, dlt will default to `truncate-and-insert`.
 

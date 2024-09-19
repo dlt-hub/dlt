@@ -47,13 +47,13 @@ The schema of data above is loaded to the destination as follows:
 
 ### What did the schema inference engine do?
 
-As you can see above, the `dlt's` inference engine generates the structure of the data based on the source and provided hints. It normalizes the data, creates tables and columns, and infers data types.
+As you can see above, the dlt's inference engine generates the structure of the data based on the source and provided hints. It normalizes the data, creates tables and columns, and infers data types.
 
-For more information, you can refer to the **[Schema](./schema)** and **[Adjust a Schema](../walkthroughs/adjust-a-schema)** sections in the documentation.
+For more information, you can refer to the [Schema](./schema) and [Adjust a Schema](../walkthroughs/adjust-a-schema) sections in the documentation.
 
 ## Evolving the schema
 
-For a typical data source, the schema tends to change over time, and `dlt` handles this changing schema seamlessly.
+For a typical data source, the schema tends to change over time, and dlt handles this changing schema seamlessly.
 
 Let’s add the following 4 cases:
 
@@ -110,7 +110,7 @@ The column lineage can be tracked by loading the 'load_info' to the destination.
 
 **Getting notifications**
 
-We can read the load outcome and send it to a Slack webhook with `dlt`.
+We can read the load outcome and send it to a Slack webhook with dlt.
 ```py
 # Import the send_slack_message function from the dlt library
 from dlt.common.runtime.slack import send_slack_message
@@ -211,5 +211,5 @@ This is a simple example of how schema evolution works.
 
 Demonstrating schema evolution without talking about schema and data contracts is only one side of the coin. Schema and data contracts dictate the terms of how the schema being written to the destination should evolve.
 
-Schema and data contracts can be applied to entities such as ‘tables’, ‘columns’, and ‘data_types’ using contract modes such as ‘evolve’, ‘freeze’, ‘discard_rows’, and ‘discard_columns’ to tell `dlt` how to apply contracts for a particular entity. To read more about **schema and data contracts**, read our [documentation](./schema-contracts).
+Schema and data contracts can be applied to entities such as ‘tables’, ‘columns’, and ‘data_types’ using contract modes such as ‘evolve’, ‘freeze’, ‘discard_rows’, and ‘discard_columns’ to tell dlt how to apply contracts for a particular entity. To read more about **schema and data contracts**, read our [documentation](./schema-contracts).
 

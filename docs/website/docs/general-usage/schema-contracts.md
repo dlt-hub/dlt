@@ -107,7 +107,7 @@ As a consequence, `discard_row` will drop the whole data item - even if a nested
 
 All contract settings apply to [arrow tables and panda frames](../dlt-ecosystem/verified-sources/arrow-pandas.md) as well.
 1. **tables** mode is the same - no matter what the data item type is.
-2. **columns** will allow new columns, raise an exception, or modify tables/frames still in the extract step to avoid rewriting parquet files.
+2. **columns** will allow new columns, raise an exception, or modify tables/frames still in the extract step to avoid rewriting Parquet files.
 3. **data_type** changes to data types in tables/frames are not allowed and will result in a data type schema clash. We could allow for more modes (evolving data types in Arrow tables sounds weird but ping us on Slack if you need it.)
 
 Here's how `dlt` deals with column modes:
@@ -135,12 +135,12 @@ except PipelineStepFailed as pip_ex:
 `DataValidationError` provides the following context:
 1. `schema_name`, `table_name`, and `column_name` provide the logical "location" at which the contract was violated.
 2. `schema_entity` and `contract_mode` indicate which contract was violated.
-3. `table_schema` contains the schema against which the contract was validated. It may be a Pydantic model or a `dlt` TTableSchema instance.
+3. `table_schema` contains the schema against which the contract was validated. It may be a Pydantic model or a dlt `TTableSchema` instance.
 4. `schema_contract` is the full, expanded schema contract.
 5. `data_item` is the causing data item (Python dict, arrow table, Pydantic model, or list thereof).
 
 ### Contracts on new tables
-If a table is a **new table** that has not been created on the destination yet, `dlt` will allow the creation of new columns. For a single pipeline run, the column mode is changed (internally) to **evolve** and then reverted back to the original mode. This allows for initial schema inference to happen, and then on subsequent runs, the inferred contract will be applied to the new data.
+If a table is a **new table** that has not been created on the destination yet, dlt will allow the creation of new columns. For a single pipeline run, the column mode is changed (internally) to **evolve** and then reverted back to the original mode. This allows for initial schema inference to happen, and then on subsequent runs, the inferred contract will be applied to the new data.
 
 The following tables are considered new:
 1. Child tables inferred from nested data.
@@ -164,7 +164,7 @@ Tables that are not considered new:
 
 ### Working with datasets that have manually added tables and columns on the first load
 
-In some cases, you might be working with datasets that have tables or columns created outside of `dlt`. If you are loading to a table not created by `dlt` for the first time, `dlt` will not know about this table while enforcing schema contracts. This means that if you do a load where the `tables` are set to `evolve`, all will work as planned. If you have `tables` set to `freeze`, `dlt` will raise an exception because it thinks you are creating a new table (which you are from `dlt`'s perspective). You can allow `evolve` for one load and then switch back to `freeze`.
+In some cases, you might be working with datasets that have tables or columns created outside of dlt. If you are loading to a table not created by dlt for the first time, dlt will not know about this table while enforcing schema contracts. This means that if you do a load where the `tables` are set to `evolve`, all will work as planned. If you have `tables` set to `freeze`, dlt will raise an exception because it thinks you are creating a new table (which you are from dlt's perspective). You can allow `evolve` for one load and then switch back to `freeze`.
 
 The same thing will happen if `dlt` knows your table, but you have manually added a column to your destination and you have `columns` set to `freeze`.
 

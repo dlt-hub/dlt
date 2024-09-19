@@ -7,7 +7,7 @@ keywords: [schema, dlt schema, yaml]
 # Schema
 
 The schema describes the structure of normalized data (e.g., tables, columns, data types, etc.) and
-provides instructions on how the data should be processed and loaded. `dlt` generates schemas from
+provides instructions on how the data should be processed and loaded. dlt generates schemas from
 the data during the normalization process. Users can affect this standard behavior by providing
 **hints** that change how tables, columns, and other metadata are generated and how the data is
 loaded. Such hints can be passed in the code, i.e., to the `dlt.resource` decorator or `pipeline.run`
@@ -42,7 +42,7 @@ characters, any lengths, and naming styles. On the other hand, the destinations 
 namespaces for their identifiers. Like Redshift, that accepts case-insensitive alphanumeric
 identifiers with a maximum of 127 characters.
 
-Each schema contains a [naming convention](naming-convention.md) that tells `dlt` how to translate identifiers to the
+Each schema contains a [naming convention](naming-convention.md) that tells dlt how to translate identifiers to the
 namespace that the destination understands. This convention can be configured, changed in code, or enforced via
 destination.
 

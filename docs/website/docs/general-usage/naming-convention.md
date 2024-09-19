@@ -5,7 +5,7 @@ keywords: [identifiers, snake case, case sensitive, case insensitive, naming]
 ---
 
 # Naming convention
-`dlt` creates table and column identifiers from the data. The data source, i.e., a stream of JSON documents, may have identifiers (i.e., key names in a dictionary) with any Unicode characters, of any length, and naming style. On the other hand, destinations require that you follow strict rules when you name tables, columns, or collections.
+dlt creates table and column identifiers from the data. The data source, i.e., a stream of JSON documents, may have identifiers (i.e., key names in a dictionary) with any Unicode characters, of any length, and naming style. On the other hand, destinations require that you follow strict rules when you name tables, columns, or collections.
 A good example is [Redshift](../dlt-ecosystem/destinations/redshift.md#naming-convention) that accepts case-insensitive alphanumeric identifiers with a maximum of 127 characters.
 
 `dlt` groups tables from a single [source](source.md) in a [schema](schema.md). Each schema defines a **naming convention** that tells `dlt` how to translate identifiers to the
@@ -139,9 +139,9 @@ Depending on the destination, certain names may not be allowed. To ensure your d
 
 ## Avoid identifier collisions
 `dlt` detects various types of identifier collisions and ignores the others.
-1. `dlt` detects collisions if a case-sensitive naming convention is used on a case-insensitive destination.
-2. `dlt` detects collisions if a change of naming convention changes the identifiers of tables already created in the destination.
-3. `dlt` detects collisions when the naming convention is applied to column names of arrow tables.
+1. dlt detects collisions if a case-sensitive naming convention is used on a case-insensitive destination.
+2. dlt detects collisions if a change of naming convention changes the identifiers of tables already created in the destination.
+3. dlt detects collisions when the naming convention is applied to column names of arrow tables.
 
 `dlt` will not detect a collision when normalizing source data. If you have a dictionary, keys will be merged if they collide after being normalized.
 You can create a custom naming convention that does not generate collisions on data, see examples below.
@@ -160,7 +160,7 @@ We include [two examples](../examples/custom_naming) of naming conventions that 
 2. A variant of `sql_cs` that allows for LATIN (i.e., umlaut) characters.
 
 :::note
-Note that the fully qualified name of your custom naming convention will be stored in the `Schema`, and `dlt` will attempt to import it when the schema is loaded from storage.
+Note that the fully qualified name of your custom naming convention will be stored in the schema, and dlt will attempt to import it when the schema is loaded from storage.
 You should distribute your custom naming conventions with your pipeline code or via a pip package from which it can be imported.
 :::
 

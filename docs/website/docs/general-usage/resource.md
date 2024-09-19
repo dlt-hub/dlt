@@ -473,7 +473,7 @@ You can emit columns as a Pydantic model and use dynamic hints (i.e., lambda for
 :::
 
 ### Import external files
-You can import external files, i.e., `csv`, `parquet`, and `jsonl`, by yielding items marked with `with_file_import`, optionally passing a table schema corresponding to the imported file. `dlt` will not read, parse, or normalize any names (i.e., `csv` or `arrow` headers) and will attempt to copy the file into the destination as is.
+You can import external files, i.e., CSV, Parquet, and JSONL, by yielding items marked with `with_file_import`, optionally passing a table schema corresponding to the imported file. dlt will not read, parse, or normalize any names (i.e., CSV or Arrow headers) and will attempt to copy the file into the destination as is.
 ```py
 import os
 import dlt
@@ -518,7 +518,7 @@ include_header=false
 on_error_continue=true
 ```
 
-You can sniff the schema from the data, i.e., using `duckdb` to infer the table schema from a `csv` file. `dlt.mark.with_file_import` accepts additional arguments that you can use to pass hints at runtime.
+You can sniff the schema from the data, i.e., using DuckDB to infer the table schema from a CSV file. `dlt.mark.with_file_import` accepts additional arguments that you can use to pass hints at runtime.
 
 :::note
 * If you do not define any columns, the table will not be created in the destination. `dlt` will still attempt to load data into it, so if you create a fitting table upfront, the load process will succeed.

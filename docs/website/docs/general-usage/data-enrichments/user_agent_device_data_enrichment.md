@@ -96,7 +96,7 @@ def tracked_data():
 
 ### 2. Create `fetch_average_price` function
 
-This particular function retrieves the average price of a device by utilizing SerpAPI and Google shopping listings. To filter the data, the function uses `dlt` state, and only fetches prices from SerpAPI for devices that have not been updated in the most recent run or for those that were loaded more than 180 days in the past.
+This particular function retrieves the average price of a device by utilizing SerpAPI and Google shopping listings. To filter the data, the function uses dlt state, and only fetches prices from SerpAPI for devices that have not been updated in the most recent run or for those that were loaded more than 180 days in the past.
 
 The first step is to register on [SerpAPI](https://serpapi.com/) and obtain the API token key.
 

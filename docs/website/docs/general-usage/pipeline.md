@@ -13,7 +13,7 @@ Once the pipeline runs, all resources are evaluated and the data is loaded at th
 
 Example:
 
-This pipeline will load a list of objects into a `duckdb` table named "three":
+This pipeline will load a list of objects into a DuckDB table named "three":
 
 ```py
 import dlt
@@ -41,7 +41,7 @@ To load the data, you call the `run` method and pass your data in the `data` arg
 
 Arguments:
 
-- `data` (the first argument) may be a dlt source, resource, generator function, or any Iterator /
+- `data` (the first argument) may be a dlt source, resource, generator function, or any Iterator or
   Iterable (i.e., a list or the result of the `map` function).
 - `write_disposition` controls how to write data to a table. Defaults to "append".
   - `append` will always add new data at the end of the table.
@@ -112,7 +112,7 @@ You can reset parts or all of your sources by using the `refresh` argument to `d
 That means when you run the pipeline, the sources/resources being processed will have their state reset and their tables either dropped or truncated,
 depending on which refresh mode is used.
 
-The `refresh` option works with all relational/SQL destinations and file buckets (`filesystem`). It does not work with vector databases (we are working on that) and
+The `refresh` option works with all relational or SQL destinations and cloud storages and files (`filesystem`). It does not work with vector databases (we are working on that) and
 with custom destinations.
 
 The `refresh` argument should have one of the following string values to decide the refresh mode:
@@ -184,7 +184,7 @@ the "_schedule" is truncated, and new (full) table data will be inserted/copied.
 ## Display the loading progress
 
 You can add a progress monitor to the pipeline. Typically, its role is to visually assure the user that
-the pipeline run is progressing. `dlt` supports 4 progress monitors out of the box:
+the pipeline run is progressing. dlt supports 4 progress monitors out of the box:
 
 - [enlighten](https://github.com/Rockhopper-Technologies/enlighten) - a status bar with progress
   bars that also allows for logging.
