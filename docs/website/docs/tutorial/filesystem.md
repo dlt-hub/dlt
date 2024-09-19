@@ -115,8 +115,8 @@ Let's specify the bucket URL and credentials. We can do this using the following
   groupId="config-provider-type"
   defaultValue="toml"
   values={[
-    {"label": "Toml config provider", "value": "toml"},
-    {"label": "ENV variables", "value": "env"},
+    {"label": "TOML config provider", "value": "toml"},
+    {"label": "Environment variables", "value": "env"},
     {"label": "In the code", "value": "code"},
 ]}>
 

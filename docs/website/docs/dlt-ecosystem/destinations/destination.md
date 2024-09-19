@@ -145,7 +145,7 @@ There are multiple ways to pass the custom destination function to `dlt` pipelin
       )
   )
   ```
-- Via a fully qualified string to function location (can be used from `config.toml` or ENV vars). The destination function should be located in another file.
+- Via a fully qualified string to function location (this can be set in `config.toml` or through environment variables). The destination function should be located in another file.
   ```py
   # file my_pipeline.py
 
