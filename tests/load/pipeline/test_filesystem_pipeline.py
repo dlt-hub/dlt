@@ -16,6 +16,7 @@ from dlt.common.storages.configuration import FilesystemConfiguration
 from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.common.utils import uniq_id
 from dlt.common.schema.typing import TWriteDisposition
+from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.destinations import filesystem
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 from dlt.destinations.impl.filesystem.typing import TExtraPlaceholders
@@ -1259,8 +1260,23 @@ def test_state_with_simple_incremental(
     destinations_configs(all_buckets_filesystem_configs=True),
     ids=lambda x: x.name,
 )
+def test_max_state_files_exception(destination_config: DestinationTestConfiguration) -> None:
+    os.environ["DESTINATION__FILESYSTEM__MAX_STATE_FILES"] = "1"
+
+    with pytest.raises(Exception, match="The max_state_files must be grater than 1."):
+        p = destination_config.setup_pipeline(
+            "p1", dataset_name=destination_config.destination_name
+        )
+        p.run([1, 2, 3])
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(all_buckets_filesystem_configs=True),
+    ids=lambda x: x.name,
+)
 @pytest.mark.parametrize("enable_state_cleanup", ["true", "false"])
-def test_state_cleanup(
+def test_enable_state_cleanup(
     destination_config: DestinationTestConfiguration,
     enable_state_cleanup: str,
 ) -> None:

@@ -172,6 +172,9 @@ class FilesystemConfiguration(BaseConfiguration):
         if self.is_local_path(self.bucket_url):
             self.bucket_url = self.make_file_url(self.bucket_url)
 
+        if self.max_state_files <= 1:
+            raise ConfigurationValueError("The max_state_files must be grater than 1.")
+
     @resolve_type("credentials")
     def resolve_credentials_type(self) -> Type[CredentialsConfiguration]:
         # use known credentials or empty credentials for unknown protocol
