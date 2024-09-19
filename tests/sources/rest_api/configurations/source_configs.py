@@ -2,9 +2,13 @@ from collections import namedtuple
 from typing import cast, List
 
 import dlt
+import dlt.common
 from dlt.common.typing import TSecretStrValue
 from dlt.common.exceptions import DictValidationException
 from dlt.common.configuration.specs import configspec
+import dlt.helpers
+import dlt.sources.helpers
+import dlt.sources.helpers.requests
 from dlt.sources.helpers.rest_client.paginators import HeaderLinkPaginator
 from dlt.sources.helpers.rest_client.auth import OAuth2AuthBase
 
@@ -303,6 +307,13 @@ VALID_CONFIGS: List[RESTAPIConfig] = [
                 },
             },
         ],
+    },
+    {
+        "client": {
+            "base_url": "https://example.com",
+            "session": dlt.sources.helpers.requests.Session(),
+        },
+        "resources": ["users"],
     },
 ]
 
