@@ -6,7 +6,7 @@ keywords: [readers source and filesystem, files, filesystem, readers source, clo
 import Header from '../_source-info-header.md';
 <Header/>
 
-Filesystem source allows loading files from remote locations (AWS S3, Google Cloud Storage, Google Drive, Azure) or the local filesystem seamlessly. Filesystem source natively supports `csv`, `parquet`, and `jsonl` files and allows customization for loading any type of structured files.
+Filesystem source allows loading files from remote locations (AWS S3, Google Cloud Storage, Google Drive, Azure, sftp server) or the local filesystem seamlessly. Filesystem source natively supports `csv`, `parquet`, and `jsonl` files and allows customization for loading any type of structured files.
 
 To load unstructured data (`.pdf`, `.txt`, e-mail), please refer to the [unstructured data source](https://github.com/dlt-hub/verified-sources/tree/master/sources/unstructured_data).
 
@@ -75,6 +75,7 @@ To get started with your data pipeline, follow these steps:
     {"label": "AWS S3", "value": "aws"},
     {"label": "GCS/GDrive", "value": "gcp"},
     {"label": "Azure", "value": "azure"},
+    {"label": "SFTP", "value": "sftp"},
     {"label": "Local filesystem", "value": "local"},
 ]}>
 
@@ -122,6 +123,18 @@ For more info, see
 
 </TabItem>
 
+<TabItem value="sftp">
+
+dlt supports several authentication methods:
+
+1. Key-based authentication
+2. SSH Agent-based authentication
+3. Username/Password authentication
+4. GSS-API authentication
+
+Learn more about sftp authentication options in [SFTP section](../../destinations/filesystem#sftp). To obtain credentials, contact your server administrator.
+</TabItem>
+
 <TabItem value="local">
 You don't need any credentials for the local filesystem.
 </TabItem>
@@ -143,6 +156,7 @@ a bucket, can be specified in `config.toml`.
     {"label": "AWS S3", "value": "aws"},
     {"label": "GCS/GDrive", "value": "gcp"},
     {"label": "Azure", "value": "azure"},
+    {"label": "SFTP", "value": "sftp"},
     {"label": "Local filesystem", "value": "local"},
 ]}>
 
@@ -195,6 +209,24 @@ bucket_url="gs://<bucket_name>/<path_to_files>/"
 ```
 </TabItem>
 
+<TabItem value="sftp">
+
+Learn how to set up sftp credentials for each authentication method in the [SFTP section](../../destinations/filesystem#sftp).
+For example, in case of key-based authentication, you can configure the source the following way:
+
+```toml
+# secrets.toml
+[sources.filesystem.credentials]
+sftp_username = "foo"
+sftp_key_filename = "/path/to/id_rsa"     # Replace with the path to your private key file
+sftp_key_passphrase = "your_passphrase"   # Optional: passphrase for your private key
+
+# config.toml
+[sources.filesystem] # use [sources.readers.credentials] for the "readers" source
+bucket_url = "sftp://[hostname]/[path]"
+```
+</TabItem>
+
 <TabItem value="local">
 
 You can use both native local filesystem paths and `file://` URI. Absolute, relative, and UNC Windows paths are supported.
@@ -219,7 +251,7 @@ bucket_url='~\Documents\csv_files\'
 </Tabs>
 
 You can also specify the credentials using Environment variables. The name of the corresponding environment
-variable should be slightly different than the corresponding name in the `toml` file. Simply replace dots `.` with double
+variable should be slightly different from the corresponding name in the `toml` file. Simply replace dots `.` with double
 underscores `__`:
 
 ```sh
