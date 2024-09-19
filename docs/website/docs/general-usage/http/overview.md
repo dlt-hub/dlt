@@ -14,7 +14,7 @@ Additionally, dlt provides tools to simplify working with APIs:
 
 ## Quick example
 
-Here's a simple pipeline that reads issues from the [dlt GitHub repository](https://github.com/dlt-hub/dlt/issues). The API endpoint is https://api.github.com/repos/dlt-hub/dlt/issues. The result is "paginated", meaning that the API returns a limited number of issues per page. The `paginate()` method iterates over all pages and yields the results which are then processed by the pipeline.
+Here's a simple pipeline that reads issues from the [dlt GitHub repository](https://github.com/dlt-hub/dlt/issues). The API endpoint is https://api.github.com/repos/dlt-hub/dlt/issues. The result is "paginated," meaning that the API returns a limited number of issues per page. The `paginate()` method iterates over all pages and yields the results which are then processed by the pipeline.
 
 ```py
 import dlt
@@ -46,7 +46,7 @@ print(load_info)
 
 Here's what the code does:
 1. We create a `RESTClient` instance with the base URL of the API: in this case, the GitHub API (https://api.github.com).
-2. Issues endpoint returns a list of issues. Since there could be hundreds of issues, the API "paginates" the results: it returns a limited number of issues in each response along with a link to the next batch of issues (or "page"). The `paginate()` method iterates over all pages and yields the batches of issues.
+2. The issues endpoint returns a list of issues. Since there could be hundreds of issues, the API "paginates" the results: it returns a limited number of issues in each response along with a link to the next batch of issues (or "page"). The `paginate()` method iterates over all pages and yields the batches of issues.
 3. Here we specify the address of the endpoint we want to read from: `/repos/dlt-hub/dlt/issues`.
 4. We pass the parameters to the actual API call to control the data we get back. In this case, we ask for 100 issues per page (`"per_page": 100`), sorted by the last update date (`"sort": "updated"`) in descending order (`"direction": "desc"`).
 5. We yield the page from the resource function to the pipeline. The `page` is an instance of the [`PageData`](#pagedata) and contains the data from the current page of the API response and some metadata.
@@ -87,5 +87,6 @@ print(load_info)
 
 In the example above:
 1. We create a `RESTClient` instance with the base URL of the API: in this case, the [PokéAPI](https://pokeapi.co/). We also specify the paginator to use explicitly: `JSONLinkPaginator` with the `next_url_path` set to `"next"`. This tells the paginator to look for the next page URL in the `next` key of the JSON response.
-2. In `data_selector` we specify the JSON path to extract the data from the response. This is used to extract the data from the response JSON.
-3. By default the number of items per page is limited to 20. We override this by specifying the `limit` parameter in the API call.
+2. In `data_selector`, we specify the JSON path to extract the data from the response. This is used to extract the data from the response JSON.
+3. By default, the number of items per page is limited to 20. We override this by specifying the `limit` parameter in the API call.
+
