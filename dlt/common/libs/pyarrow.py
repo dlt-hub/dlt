@@ -417,12 +417,13 @@ def columns_to_arrow(
                 name,
                 get_py_arrow_datatype(
                     schema_item,
-                    caps,
+                    caps or DestinationCapabilitiesContext.generic_capabilities(),
                     timestamp_timezone,
                 ),
                 nullable=schema_item.get("nullable", True),
             )
             for name, schema_item in columns.items()
+            if schema_item.get("data_type") is not None
         ]
     )
 
