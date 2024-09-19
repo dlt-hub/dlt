@@ -320,12 +320,10 @@ class ParquetDataWriter(DataWriter):
         )
 
     def write_header(self, columns_schema: TTableSchemaColumns) -> None:
-        from dlt.common.libs.pyarrow import table_schema_columns_to_py_arrow
+        from dlt.common.libs.pyarrow import columns_to_arrow
 
         # build schema
-        self.schema = table_schema_columns_to_py_arrow(
-            columns_schema, self._caps, self.timestamp_timezone
-        )
+        self.schema = columns_to_arrow(columns_schema, self._caps, self.timestamp_timezone)
         # find row items that are of the json type (could be abstracted out for use in other writers?)
         self.nested_indices = [
             i for i, field in columns_schema.items() if field["data_type"] == "json"

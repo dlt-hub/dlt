@@ -367,41 +367,24 @@ class DBApiCursorImpl(DBApiCursor):
         from dlt.common.libs.pandas import pandas as pd
 
         for table in self.iter_arrow(chunk_size=chunk_size):
-            # NOTE: we go via arrow table
+            # NOTE: we go via arrow table, types are created for arrow is columns are known
             # https://github.com/apache/arrow/issues/38644 for reference on types_mapper
             yield table.to_pandas(types_mapper=pd.ArrowDtype)
 
     def iter_arrow(self, chunk_size: int) -> Generator[ArrowTable, None, None]:
         """Default implementation converts query result to arrow table"""
-        from dlt.common.libs.pyarrow import table_schema_columns_to_py_arrow, pyarrow
+        from dlt.common.libs.pyarrow import row_tuples_to_arrow
 
-        def _result_to_arrow_table(
-            result: List[Tuple[Any, ...]], columns: List[str], schema: pyarrow.schema
-        ) -> ArrowTable:
-            # TODO: it might be faster to creaty pyarrow arrays and create tables from them
-            pylist = [dict(zip(columns, t)) for t in result]
-            return ArrowTable.from_pylist(pylist, schema=schema)
-
-        cursor_columns = self._get_columns()
-
-        # we can create the arrow schema if columns are present
-        # TODO: when using this dataset as a source for a new pipeline, we should
-        # get the capabilities of the destination that it will end up it
-        arrow_schema = (
-            table_schema_columns_to_py_arrow(
-                self.columns, caps=DestinationCapabilitiesContext.generic_capabilities()
-            )
-            if self.columns
-            else None
-        )
+        # if loading to a specific pipeline, it would be nice to have the correct caps here
+        caps = DestinationCapabilitiesContext.generic_capabilities()
 
         if not chunk_size:
             result = self.fetchall()
-            yield _result_to_arrow_table(result, cursor_columns, arrow_schema)
+            yield row_tuples_to_arrow(result, caps, self.columns or {}, tz="UTC")
             return
 
         for result in self.iter_fetchmany(chunk_size=chunk_size):
-            yield _result_to_arrow_table(result, cursor_columns, arrow_schema)
+            yield row_tuples_to_arrow(result, caps, self.columns or {}, tz="UTC")
 
 
 def raise_database_error(f: TFun) -> TFun:

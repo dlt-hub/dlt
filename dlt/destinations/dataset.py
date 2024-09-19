@@ -30,8 +30,12 @@ class ReadableRelation(SupportsReadableRelation):
     @contextmanager
     def cursor(self) -> Generator[SupportsReadableRelation, Any, Any]:
         """Gets a DBApiCursor for the current relation"""
-        with self.client.table_relation(table=self.table, columns=self.columns) as cursor:
-            yield cursor
+        if self.table:
+            with self.client.table_relation(table=self.table, columns=self.columns) as cursor:
+                yield cursor
+        elif self.query:
+            with self.client.query_relation(query=self.query) as cursor:
+                yield cursor
 
     def df(self, chunk_size: int = None) -> Optional[DataFrame]:
         """Get first batch of table as dataframe"""
@@ -43,16 +47,12 @@ class ReadableRelation(SupportsReadableRelation):
         with self.cursor() as cursor:
             return cursor.arrow(chunk_size=chunk_size)
 
-    def iter_df(
-        self, chunk_size: int, columns: TTableSchemaColumns = None
-    ) -> Generator[DataFrame, None, None]:
+    def iter_df(self, chunk_size: int) -> Generator[DataFrame, None, None]:
         """iterates over the whole table in dataframes of the given chunk_size"""
         with self.cursor() as cursor:
             yield from cursor.iter_df(chunk_size=chunk_size)
 
-    def iter_arrow(
-        self, chunk_size: int, columns: TTableSchemaColumns = None
-    ) -> Generator[ArrowTable, None, None]:
+    def iter_arrow(self, chunk_size: int) -> Generator[ArrowTable, None, None]:
         """iterates over the whole table in arrow tables of the given chunk_size"""
         with self.cursor() as cursor:
             yield from cursor.iter_arrow(chunk_size=chunk_size)

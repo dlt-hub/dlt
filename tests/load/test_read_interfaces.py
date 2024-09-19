@@ -130,6 +130,13 @@ def _run_dataset_checks(
     ids = reduce(lambda a, b: a + b, [[item[0] for item in chunk] for chunk in chunks])
     assert set(ids) == set(range(total_records))
 
+    # simple check that query also works
+    relationship = pipeline.dataset().query("select * from items where id < 20")
+
+    # we selected the first 20
+    table = relationship.arrow()
+    assert table.num_rows == 20
+
 
 @pytest.mark.essential
 @pytest.mark.parametrize(

@@ -146,7 +146,7 @@ class TableLoader:
                     yield df
                 elif self.backend == "pyarrow":
                     yield row_tuples_to_arrow(
-                        partition, self.columns, tz=backend_kwargs.get("tz", "UTC")
+                        partition, columns=self.columns, tz=backend_kwargs.get("tz", "UTC")
                     )
 
     def _load_rows_connectorx(
