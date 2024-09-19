@@ -564,7 +564,8 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
         # write
         self._write_to_json_file(hash_path, cast(DictStrAny, pipeline_state_doc))
 
-        if self.config.enable_state_cleanup:
+        # perform state cleanup only if max_state_files is set to a positive value
+        if self.config.max_state_files >= 1:
             self._cleanup_pipeline_states(pipeline_name)
 
     def get_stored_state(self, pipeline_name: str) -> Optional[StateInfo]:

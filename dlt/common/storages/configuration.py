@@ -145,8 +145,8 @@ class FilesystemConfiguration(BaseConfiguration):
     kwargs: Optional[DictStrAny] = None
     client_kwargs: Optional[DictStrAny] = None
     deltalake_storage_options: Optional[DictStrAny] = None
-    enable_state_cleanup: bool = True
     max_state_files: int = 100
+    """Maximum number of pipeline state files to keep; negative value disables cleanup."""
 
     @property
     def protocol(self) -> str:
@@ -171,9 +171,6 @@ class FilesystemConfiguration(BaseConfiguration):
         # this is just a path in a local file system
         if self.is_local_path(self.bucket_url):
             self.bucket_url = self.make_file_url(self.bucket_url)
-
-        if self.max_state_files <= 1:
-            raise ConfigurationValueError("The max_state_files must be grater than 1.")
 
     @resolve_type("credentials")
     def resolve_credentials_type(self) -> Type[CredentialsConfiguration]:
