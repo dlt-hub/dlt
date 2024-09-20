@@ -206,7 +206,7 @@ In the previous example, we set `write_disposition="replace"` inside `pipeline.r
 
 ```py
 import dlt
-from dlt.sources.sql_database as sql_database
+from dlt.sources.sql_database import sql_database
 
 def load_tables_family_and_genome():
 

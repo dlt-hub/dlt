@@ -246,7 +246,6 @@ as a supplier of `config` and `secret` values. The code below demonstrates how t
 
 ```py
 import dlt
-import json
 
 from dlt.common.configuration.providers import CustomLoaderDocProvider
 
