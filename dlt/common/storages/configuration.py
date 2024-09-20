@@ -146,7 +146,7 @@ class FilesystemConfiguration(BaseConfiguration):
     client_kwargs: Optional[DictStrAny] = None
     deltalake_storage_options: Optional[DictStrAny] = None
     max_state_files: int = 100
-    """Maximum number of pipeline state files to keep; negative value disables cleanup."""
+    """Maximum number of pipeline state files to keep; 0 or negative value disables cleanup."""
 
     @property
     def protocol(self) -> str:
