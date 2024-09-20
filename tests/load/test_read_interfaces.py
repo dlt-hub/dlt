@@ -3,6 +3,7 @@ import dlt
 import os
 
 from dlt import Pipeline
+from dlt.common import Decimal
 
 from typing import List
 from functools import reduce
@@ -23,7 +24,7 @@ def _run_dataset_checks(
     destination_type = pipeline.destination_client().config.destination_type
 
     skip_df_chunk_size_check = False
-    expected_columns = ["id", "_dlt_load_id", "_dlt_id"]
+    expected_columns = ["id", "decimal", "_dlt_load_id", "_dlt_id"]
     if destination_type == "bigquery":
         chunk_size = 50
         total_records = 80
@@ -43,10 +44,19 @@ def _run_dataset_checks(
 
     @dlt.source()
     def source():
-        @dlt.resource()
+        @dlt.resource(
+            columns={
+                "id": {"data_type": "bigint"},
+                "decimal": {"data_type": "decimal", "precision": 10, "scale": 3},
+            }
+        )
         def items():
             yield from [
-                {"id": i, "children": [{"id": i + 100}, {"id": i + 1000}]}
+                {
+                    "id": i,
+                    "children": [{"id": i + 100}, {"id": i + 1000}],
+                    "decimal": Decimal("10.433"),
+                }
                 for i in range(total_records)
             ]
 
@@ -57,10 +67,10 @@ def _run_dataset_checks(
     pipeline.run(s, loader_file_format=destination_config.file_format)
 
     # access via key
-    relationship = pipeline.dataset()["items"]
+    table_relationship = pipeline.dataset()["items"]
 
     # full frame
-    df = relationship.df()
+    df = table_relationship.df()
     assert len(df.index) == total_records
 
     #
@@ -68,14 +78,14 @@ def _run_dataset_checks(
     #
 
     # chunk
-    df = relationship.df(chunk_size=chunk_size)
+    df = table_relationship.df(chunk_size=chunk_size)
     if not skip_df_chunk_size_check:
         assert len(df.index) == chunk_size
     # lowercase results for the snowflake case
     assert set(df.columns.values) == set(expected_columns)
 
     # iterate all dataframes
-    frames = list(relationship.iter_df(chunk_size=chunk_size))
+    frames = list(table_relationship.iter_df(chunk_size=chunk_size))
     if not skip_df_chunk_size_check:
         assert [len(df.index) for df in frames] == expected_chunk_counts
 
@@ -84,23 +94,23 @@ def _run_dataset_checks(
     assert set(ids) == set(range(total_records))
 
     # access via prop
-    relationship = pipeline.dataset().items
+    table_relationship = pipeline.dataset().items
 
     #
     # check arrow tables
     #
 
     # full table
-    table = relationship.arrow()
+    table = table_relationship.arrow()
     assert table.num_rows == total_records
 
     # chunk
-    table = relationship.arrow(chunk_size=chunk_size)
+    table = table_relationship.arrow(chunk_size=chunk_size)
     assert set(table.column_names) == set(expected_columns)
     assert table.num_rows == chunk_size
 
     # check frame amount and items counts
-    tables = list(relationship.iter_arrow(chunk_size=chunk_size))
+    tables = list(table_relationship.iter_arrow(chunk_size=chunk_size))
     assert [t.num_rows for t in tables] == expected_chunk_counts
 
     # check all items are present
@@ -108,34 +118,39 @@ def _run_dataset_checks(
     assert set(ids) == set(range(total_records))
 
     # check fetch accessors
-    relationship = pipeline.dataset().items
+    table_relationship = pipeline.dataset().items
 
     # check accessing one item
-    one = relationship.fetchone()
+    one = table_relationship.fetchone()
     assert one[0] in range(total_records)
 
     # check fetchall
-    fall = relationship.fetchall()
+    fall = table_relationship.fetchall()
     assert len(fall) == total_records
     assert {item[0] for item in fall} == set(range(total_records))
 
     # check fetchmany
-    many = relationship.fetchmany(chunk_size)
+    many = table_relationship.fetchmany(chunk_size)
     assert len(many) == chunk_size
 
     # check iterfetchmany
-    chunks = list(relationship.iter_fetchmany(chunk_size=chunk_size))
+    chunks = list(table_relationship.iter_fetchmany(chunk_size=chunk_size))
     assert [len(chunk) for chunk in chunks] == expected_chunk_counts
     ids = reduce(lambda a, b: a + b, [[item[0] for item in chunk] for chunk in chunks])
     assert set(ids) == set(range(total_records))
 
     # simple check that query also works
     tname = pipeline.sql_client().make_qualified_table_name("items")
-    relationship = pipeline.dataset().query(f"select * from {tname} where id < 20")
+    query_relationship = pipeline.dataset().query(f"select * from {tname} where id < 20")
 
     # we selected the first 20
-    table = relationship.arrow()
+    table = query_relationship.arrow()
     assert table.num_rows == 20
+
+    # check that precision and scale for a decimal are set correctly on arrow table
+    # this is a stand in to confirm that column hints are applied to database results
+    # when known
+    # assert table_relationship.arrow().schema.field("decimal").type.precision == 10
 
 
 @pytest.mark.essential
