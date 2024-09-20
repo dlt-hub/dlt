@@ -18,6 +18,7 @@ from typing import (
     List,
     Generator,
     TypedDict,
+    cast,
 )
 
 from dlt.common.typing import TFun
@@ -321,7 +322,7 @@ class DBApiCursorImpl(DBApiCursor):
 
     def __init__(self, curr: DBApiCursor) -> None:
         self.native_cursor = curr
-        self.columns = {}
+        self.columns = None
 
         # wire protocol methods
         self.execute = curr.execute  # type: ignore
@@ -380,7 +381,9 @@ class DBApiCursorImpl(DBApiCursor):
         caps = DestinationCapabilitiesContext.generic_capabilities()
 
         # provide default columns in case not known
-        columns = self.columns or {c: {"name": c, "nullable": True} for c in self._get_columns()}
+        columns = self.columns or cast(
+            TTableSchemaColumns, {c: {"name": c, "nullable": True} for c in self._get_columns()}
+        )
 
         if not chunk_size:
             result = self.fetchall()

@@ -468,6 +468,9 @@ class HasFollowupJobs:
 class SupportsReadableRelation(Protocol):
     """A readable relation retrieved from a destination that supports it"""
 
+    columns: TTableSchemaColumns
+    """Known dlt table columns for this relation"""
+
     def df(self, chunk_size: int = None) -> Optional[DataFrame]:
         """Fetches the results as data frame. For large queries the results may be chunked
 
@@ -506,9 +509,6 @@ class DBApiCursor(SupportsReadableRelation):
 
     native_cursor: "DBApiCursor"
     """Cursor implementation native to current destination"""
-
-    columns: TTableSchemaColumns
-    """Known dlt table columns for this cursor"""
 
     def execute(self, query: AnyStr, *args: Any, **kwargs: Any) -> None: ...
     def close(self) -> None: ...
