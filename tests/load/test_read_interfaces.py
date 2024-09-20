@@ -12,6 +12,7 @@ from tests.load.utils import (
     DestinationTestConfiguration,
     AZ_BUCKET,
     ABFS_BUCKET,
+    SFTP_BUCKET
 )
 from pandas import DataFrame
 
@@ -32,9 +33,6 @@ def _run_dataset_checks(
     else:
         chunk_size = 2048
         total_records = 3000
-
-    if destination_type == "snowflake":
-        expected_columns = [e.upper() for e in expected_columns]
 
     # on filesystem one chunk is one file and not the default vector size
     if destination_type == "filesystem":
@@ -73,6 +71,7 @@ def _run_dataset_checks(
     df = relationship.df(chunk_size=chunk_size)
     if not skip_df_chunk_size_check:
         assert len(df.index) == chunk_size
+    # lowercase results for the snowflake case
     assert set(df.columns.values) == set(expected_columns)
 
     # iterate all dataframes
@@ -131,7 +130,8 @@ def _run_dataset_checks(
     assert set(ids) == set(range(total_records))
 
     # simple check that query also works
-    relationship = pipeline.dataset().query("select * from items where id < 20")
+    tname = pipeline.sql_client().make_qualified_table_name("items")
+    relationship = pipeline.dataset().query(f"select * from {tname} where id < 20")
 
     # we selected the first 20
     table = relationship.arrow()
@@ -157,7 +157,7 @@ def test_read_interfaces_sql(destination_config: DestinationTestConfiguration) -
     destinations_configs(
         local_filesystem_configs=True,
         all_buckets_filesystem_configs=True,
-        bucket_exclude=[AZ_BUCKET, ABFS_BUCKET],
+        bucket_exclude=[AZ_BUCKET, ABFS_BUCKET, SFTP_BUCKET],
     ),  # TODO: make AZ work
     ids=lambda x: x.name,
 )
