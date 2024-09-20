@@ -140,9 +140,9 @@ def mock_api_server():
             else:
                 context.status_code = 404
                 return {"error": "Post not found"}
-        
+
         @router.get(r"/posts/\d+/some_details_204")
-        def post_detail_404(request, context):
+        def post_detail_204(request, context):
             """Return 204  No Content for post with id > 0. Used to test ignoring 204 responses."""
             post_id = int(request.url.split("/")[-2])
             if post_id < 1:

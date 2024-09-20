@@ -139,6 +139,7 @@ def test_ignoring_endpoint_returning_404(mock_api_server):
         {"id": 3, "title": "Post 3"},
     ]
 
+
 def test_ignoring_endpoint_returning_204(mock_api_server):
     mock_source = rest_api_source(
         {
