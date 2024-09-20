@@ -42,7 +42,7 @@ After running this command, your project will have the following structure:
 
 Here’s what each file does:
 
-- `sql_database_pipeline.py`: This is the main script where you'll define your data pipeline. It contains several different examples for how you can configure your SQL Database pipeline.
+- `sql_database_pipeline.py`: This is the main script where you'll define your data pipeline. It contains several different examples of how you can configure your SQL Database pipeline.
 - `requirements.txt`: This file lists all the Python dependencies required for your project.
 - `.dlt/`: This directory contains the [configuration files](../general-usage/credentials/) for your project:
     - `secrets.toml`: This file stores your credentials, API keys, tokens, and other sensitive information.
@@ -69,14 +69,14 @@ from dlt.sources.sql_database import sql_database
 
 def load_tables_family_and_genome():
 
-    # create a dlt source that will load tables "family" and "genome"
+    # Create a dlt source that will load tables "family" and "genome"
     source = sql_database().with_resources("family", "genome")
 
     # Create a dlt pipeline object
     pipeline = dlt.pipeline(
-        pipeline_name="sql_to_duckdb_pipeline", # custom name for the pipeline
+        pipeline_name="sql_to_duckdb_pipeline", # Custom name for the pipeline
         destination="duckdb", # dlt destination to which the data will be loaded
-        dataset_name="sql_to_duckdb_pipeline_data" # custom name for the dataset created in the destination
+        dataset_name="sql_to_duckdb_pipeline_data" # Custom name for the dataset created in the destination
     )
 
     # Run the pipeline
@@ -99,7 +99,7 @@ Explanation:
 
 ## 3. Add credentials
 
-To sucessfully connect to your SQL database, you will need to pass credentials into your pipeline. dlt automatically looks for this information inside the generated TOML files.
+To successfully connect to your SQL database, you will need to pass credentials into your pipeline. dlt automatically looks for this information inside the generated TOML files.
 
 Simply paste the [connection details](https://docs.rfam.org/en/latest/database.html) inside `secrets.toml` as follows:
 ```toml
@@ -117,7 +117,7 @@ Alternatively, you can also paste the credentials as a connection string:
 sources.sql_database.credentials="mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam"
 ```
 
-For more details on the credentials format and other connection methods read the section on [configuring connection to the SQL Database](../dlt-ecosystem/verified-sources/sql_database#credentials-format).
+For more details on the credentials format and other connection methods, read the section on [configuring connection to the SQL Database](../dlt-ecosystem/verified-sources/sql_database#credentials-format).
 
 
 ## 4. Install dependencies
@@ -141,7 +141,7 @@ After performing steps 1-4, you should now be able to successfully run the pipel
 ```sh
 python sql_database_pipeline.py
 ```
-This will create the file `sql_to_duckdb_pipeline.duckdb` in your dlt project directory which contains the loaded data.
+This will create the file `sql_to_duckdb_pipeline.duckdb` in your dlt project directory, which contains the loaded data.
 
 ## 6. Explore the data
 
@@ -157,14 +157,13 @@ Next, run the following command to launch the data browser app:
 dlt pipeline sql_to_duckdb_pipeline show
 ```
 
-You can explore the loaded data, run queries and see some pipeline execution details.
+You can explore the loaded data, run queries, and see some pipeline execution details.
 
 ![streamlit-screenshot](https://storage.googleapis.com/dlt-blog-images/docs-sql-database-tutorial-streamlit-screenshot.png)
 
 ## 7. Append, replace, or merge loaded data
 
-Try running the pipeline again with `python sql_database_pipeline.py`. You will notice that
-all the tables have the data duplicated. This happens as dlt, by default, appends data to the destination tables in every load. This behavior can be adjusted by setting the `write_disposition` parameter inside the `pipeline.run()` method. The possible settings are:
+Try running the pipeline again with `python sql_database_pipeline.py`. You will notice that all the tables have the data duplicated. This happens as dlt, by default, appends data to the destination tables in every load. This behavior can be adjusted by setting the `write_disposition` parameter inside the `pipeline.run()` method. The possible settings are:
 
 - `append`: Appends the data to the destination table. This is the default.
 - `replace`: Replaces the data in the destination table with the new data.
@@ -203,7 +202,7 @@ Run the pipeline again with `sql_database_pipeline.py`. This time, the data will
 
 When you want to update the existing data as new data is loaded, you can use the `merge` write disposition. This requires specifying a primary key for the table. The primary key is used to match the new data with the existing data in the destination table.
 
-In the previous example, we set `write_disposition="replace"` inside `pipeline.run()` which caused all the tables to be loaded with `replace`. However, it's also possible to define the `write_disposition` strategy separately for each tables using the `apply_hints` method. In the example below, we use `apply_hints` on each table to specify different primary keys for merge:
+In the previous example, we set `write_disposition="replace"` inside `pipeline.run()` which caused all the tables to be loaded with `replace`. However, it's also possible to define the `write_disposition` strategy separately for each table using the `apply_hints` method. In the example below, we use `apply_hints` on each table to specify different primary keys for merge:
 
 ```py
 import dlt
@@ -233,7 +232,7 @@ if __name__ == '__main__':
 
 ## 8. Load data incrementally
 
-Often you don't want to load the whole data in each load, but rather only the new or modified data.  dlt makes this easy with [incremental loading](../general-usage/incremental-loading).
+Often, you don't want to load the entire dataset in each load, but rather only the new or modified data. dlt makes this easy with [incremental loading](../general-usage/incremental-loading).
 
 In the example below, we configure the table `"family"` to load incrementally based on the column `"updated"`:
 
@@ -274,3 +273,4 @@ Interested in learning more about dlt? Here are some suggestions:
 - Learn more about the SQL Database source configuration in [the SQL Database source reference](../dlt-ecosystem/verified-sources/sql_database)
 - Learn more about different credential types in [Built-in credentials](../general-usage/credentials/complex_types#built-in-credentials)
 - Learn how to [create a custom source](./load-data-from-an-api.md) in the advanced tutorial
+
