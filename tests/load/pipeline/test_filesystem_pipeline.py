@@ -1260,46 +1260,6 @@ def test_state_with_simple_incremental(
     destinations_configs(all_buckets_filesystem_configs=True),
     ids=lambda x: x.name,
 )
-@pytest.mark.parametrize("max_state_files", [-1, 1, 3])
-def test_cleanup_pipeline_states(
-    destination_config: DestinationTestConfiguration, max_state_files: int
-) -> None:
-    os.environ["DESTINATION__FILESYSTEM__MAX_STATE_FILES"] = str(max_state_files)
-    incremental_count = 5
-
-    p = destination_config.setup_pipeline("p1", dataset_name=destination_config.destination_name)
-
-    @dlt.resource(name="items", primary_key="id")
-    def initial_resource(_=dlt.sources.incremental("id")):
-        yield from [{"id": 0}]
-
-    p.run(initial_resource)
-
-    # Run incremental multiple times
-    for i in range(1, incremental_count):
-
-        @dlt.resource(name="items", primary_key="id")
-        def incremental_resource(_=dlt.sources.incremental("id"), new_i=i):
-            yield from [{"id": j} for j in range(1, new_i + 1)]
-
-        p = destination_config.setup_pipeline(
-            "p1", dataset_name=destination_config.destination_name
-        )
-        p.run(incremental_resource)
-
-    client: FilesystemClient = p.destination_client()  # type: ignore
-    state_table_files = list(client._list_dlt_table_files(client.schema.state_table_name))
-
-    expected_results = {-1: incremental_count, 1: 1, 3: 3}
-
-    assert len(state_table_files) == expected_results[max_state_files]
-
-
-@pytest.mark.parametrize(
-    "destination_config",
-    destinations_configs(all_buckets_filesystem_configs=True),
-    ids=lambda x: x.name,
-)
 @pytest.mark.parametrize(
     "layout",
     [
@@ -1375,3 +1335,129 @@ def test_client_methods(
     # test truncate multiple
     fs_client.truncate_tables(["table_1", "table_3"])
     assert load_table_counts(p, "table_1", "table_2", "table_3") == {"table_2": 21}
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(all_buckets_filesystem_configs=True),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize("max_state_files", [-1, 0, 1, 3])
+def test_cleanup_states(
+    destination_config: DestinationTestConfiguration, max_state_files: int
+) -> None:
+    """
+    Test the behavior of pipeline state cleanup based on different max_state_files configurations.
+
+    Steps:
+    1. Run the pipeline five times with max_state_files set to -1, 0, 1, and 3.
+    2. Verify that state files are cleaned or retained according to the max_state_files setting:
+        - Negative or zero values disable cleanup.
+        - Positive values trigger cleanup, keeping only the specified number of state files.
+    """
+    os.environ["DESTINATION__FILESYSTEM__MAX_STATE_FILES"] = str(max_state_files)
+
+    dataset_name = f"{destination_config.destination_name}{uniq_id()}"
+    p = destination_config.setup_pipeline("p1", dataset_name=dataset_name)
+
+    @dlt.resource(name="items", primary_key="id")
+    def r1(_=dlt.sources.incremental("id")):
+        yield from [{"id": 0}]
+
+    @dlt.resource(name="items", primary_key="id")
+    def r2(_=dlt.sources.incremental("id")):
+        yield from [{"id": 0}, {"id": 1}]
+
+    @dlt.resource(name="items", primary_key="id")
+    def r3(_=dlt.sources.incremental("id")):
+        yield from [{"id": 0}, {"id": 1}, {"id": 2}]
+
+    @dlt.resource(name="items", primary_key="id")
+    def r4(_=dlt.sources.incremental("id")):
+        yield from [{"id": 0}, {"id": 1}, {"id": 2}, {"id": 3}]
+
+    @dlt.resource(name="items", primary_key="id")
+    def r5(_=dlt.sources.incremental("id")):
+        yield from [{"id": 0}, {"id": 1}, {"id": 2}, {"id": 3}, {"id": 4}]
+
+    # run pipeline
+    run_count = 5
+
+    p.run(r1)
+    p.run(r2)
+    p.run(r3)
+    p.run(r4)
+    p.run(r5)
+
+    client: FilesystemClient = p.destination_client()  # type: ignore
+    state_table_files = list(client._list_dlt_table_files(client.schema.state_table_name,"p1"))
+
+    if max_state_files == -1 or max_state_files == 0 :
+        assert len(state_table_files) == run_count
+    else:
+        assert len(state_table_files) == max_state_files
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(all_buckets_filesystem_configs=True),
+    ids=lambda x: x.name,
+)
+def test_cleanup_states_shared_dataset(destination_config: DestinationTestConfiguration) -> None:
+    """
+    Test that two pipelines sharing the same bucket_url and dataset_name can independently 
+    clean their _dlt_pipeline_state files with different max_state_files configurations.
+
+    Steps:
+    1. Run pipeline p1 five times with max_state_files set to 5.
+    2. Run pipeline p2 five times with max_state_files set to 2.
+    3. Verify that each pipeline only deletes its own state files and does not affect the other.
+    """
+    dataset_name = f"{destination_config.destination_name}{uniq_id()}"
+
+    p1 = destination_config.setup_pipeline("p1", dataset_name=dataset_name)
+    p2 = destination_config.setup_pipeline("p2", dataset_name=dataset_name)
+
+    @dlt.resource(name="items", primary_key="id")
+    def r1(_=dlt.sources.incremental("id")):
+        yield from [{"id": 0}]
+
+    @dlt.resource(name="items", primary_key="id")
+    def r2(_=dlt.sources.incremental("id")):
+        yield from [{"id": 0}, {"id": 1}]
+
+    @dlt.resource(name="items", primary_key="id")
+    def r3(_=dlt.sources.incremental("id")):
+        yield from [{"id": 0}, {"id": 1}, {"id": 2}]
+
+    @dlt.resource(name="items", primary_key="id")
+    def r4(_=dlt.sources.incremental("id")):
+        yield from [{"id": 0}, {"id": 1}, {"id": 2}, {"id": 3}]
+
+    @dlt.resource(name="items", primary_key="id")
+    def r5(_=dlt.sources.incremental("id")):
+        yield from [{"id": 0}, {"id": 1}, {"id": 2}, {"id": 3}, {"id": 4}]
+
+    os.environ["DESTINATION__FILESYSTEM__MAX_STATE_FILES"] = str(5)
+    p1.run(r1)
+    p1.run(r2)
+    p1.run(r3)
+    p1.run(r4)
+    p1.run(r5)
+
+    os.environ["DESTINATION__FILESYSTEM__MAX_STATE_FILES"] = str(2)
+    p2.run(r1)
+    p2.run(r2)
+    p2.run(r3)
+    p2.run(r4)
+    p2.run(r5)
+
+    p1_client: FilesystemClient = p1.destination_client()  # type: ignore
+    p1_state_files = list(p1_client._list_dlt_table_files(p1_client.schema.state_table_name, "p1"))
+
+    p2_client: FilesystemClient = p2.destination_client()  # type: ignore
+    p2_state_files = list(p2_client._list_dlt_table_files(p2_client.schema.state_table_name, "p2"))
+
+    assert len(p1_state_files) == 5
+
+    assert len(p2_state_files) == 2
