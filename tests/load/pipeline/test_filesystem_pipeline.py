@@ -1342,6 +1342,63 @@ def test_client_methods(
     destinations_configs(all_buckets_filesystem_configs=True),
     ids=lambda x: x.name,
 )
+def test_cleanup_states_by_load_id(destination_config: DestinationTestConfiguration) -> None:
+    """
+    Test the pipeline state cleanup functionality by verifying that old state files are removed based on `load_id` when multiple loads are executed.
+
+    Specifically, the oldest state file (corresponding to the first `load_id`) should be deleted.
+
+    This test checks that when running a pipeline with a resource that produces incremental data, older state files are cleared according to the `max_state_files` setting.
+
+    Steps:
+    1. Set `max_state_files` to 2, allowing only two newest state files to be kept.
+    2. Run the pipeline three times.
+    3. Verify that the state file from the first load is no longer present in the state table.
+    """
+
+    dataset_name = f"{destination_config.destination_name}{uniq_id()}"
+    p = destination_config.setup_pipeline("p1", dataset_name=dataset_name)
+
+    @dlt.resource(name="items", primary_key="id")
+    def r1(_=dlt.sources.incremental("id")):
+        yield from [{"id": 0}]
+
+    @dlt.resource(name="items", primary_key="id")
+    def r2(_=dlt.sources.incremental("id")):
+        yield from [{"id": 0}, {"id": 1}]
+
+    @dlt.resource(name="items", primary_key="id")
+    def r3(_=dlt.sources.incremental("id")):
+        yield from [{"id": 0}, {"id": 1}, {"id": 2}]
+
+    os.environ["DESTINATION__FILESYSTEM__MAX_STATE_FILES"] = str(2)
+
+    info = p.run(r1)
+    first_load_id = info.loads_ids[0]
+
+    info = p.run(r2)
+    second_load_id = [load_id for load_id in info.loads_ids if load_id != first_load_id][0]
+
+    info = p.run(r3)
+    third_load_id = [
+        load_id
+        for load_id in info.loads_ids
+        if load_id != first_load_id and load_id != second_load_id
+    ][0]
+
+    client: FilesystemClient = p.destination_client()  # type: ignore
+    state_table_files = list(client._list_dlt_table_files(client.schema.state_table_name, "p1"))
+
+    assert not any(fileparts[1] == first_load_id for _, fileparts in state_table_files)
+    assert any(fileparts[1] == second_load_id for _, fileparts in state_table_files)
+    assert any(fileparts[1] == third_load_id for _, fileparts in state_table_files)
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(all_buckets_filesystem_configs=True),
+    ids=lambda x: x.name,
+)
 @pytest.mark.parametrize("max_state_files", [-1, 0, 1, 3])
 def test_cleanup_states(
     destination_config: DestinationTestConfiguration, max_state_files: int
@@ -1390,9 +1447,9 @@ def test_cleanup_states(
     p.run(r5)
 
     client: FilesystemClient = p.destination_client()  # type: ignore
-    state_table_files = list(client._list_dlt_table_files(client.schema.state_table_name,"p1"))
+    state_table_files = list(client._list_dlt_table_files(client.schema.state_table_name, "p1"))
 
-    if max_state_files == -1 or max_state_files == 0 :
+    if max_state_files == -1 or max_state_files == 0:
         assert len(state_table_files) == run_count
     else:
         assert len(state_table_files) == max_state_files
@@ -1405,7 +1462,7 @@ def test_cleanup_states(
 )
 def test_cleanup_states_shared_dataset(destination_config: DestinationTestConfiguration) -> None:
     """
-    Test that two pipelines sharing the same bucket_url and dataset_name can independently 
+    Test that two pipelines sharing the same bucket_url and dataset_name can independently
     clean their _dlt_pipeline_state files with different max_state_files configurations.
 
     Steps:
