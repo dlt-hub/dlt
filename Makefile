@@ -116,3 +116,4 @@ start-test-containers:
 	docker compose -f "tests/load/postgres/docker-compose.yml" up -d
 	docker compose -f "tests/load/weaviate/docker-compose.yml" up -d
 	docker compose -f "tests/load/filesystem_sftp/docker-compose.yml" up -d
+	docker compose -f "tests/load/sqlalchemy/docker-compose.yml" up -d

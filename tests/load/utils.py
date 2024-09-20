@@ -337,6 +337,7 @@ def destinations_configs(
                 supports_merge=False,
                 supports_dbt=False,
                 destination_name="sqlalchemy_mysql",
+                credentials="mysql://root:root@127.0.0.1:3306/dlt_data"  # Use root cause we need to create databases,
             ),
             DestinationTestConfiguration(
                 destination_type="sqlalchemy",
