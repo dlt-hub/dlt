@@ -40,9 +40,13 @@ from dlt.common.metrics import LoadJobMetrics
 from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.schema.typing import TTableSchemaColumns
 
-from dlt.common.schema import Schema, TTableSchema, TSchemaTables
-
-from dlt.common.schema.typing import C_DLT_LOAD_ID, _TTableSchemaBase, TWriteDisposition
+from dlt.common.schema import Schema, TSchemaTables, TTableSchema
+from dlt.common.schema.typing import (
+    C_DLT_LOAD_ID,
+    _TTableSchemaBase,
+    TWriteDisposition,
+    TLoaderReplaceStrategy,
+)
 from dlt.common.schema.utils import fill_hints_from_parent_and_clone_table
 
 from dlt.common.configuration import configspec, resolve_configuration, known_sections, NotResolved
@@ -62,7 +66,6 @@ from dlt.common.storages.load_package import LoadJobInfo, TPipelineStateDoc
 from dlt.common.exceptions import MissingDependencyException
 
 
-TLoaderReplaceStrategy = Literal["truncate-and-insert", "insert-from-staging", "staging-optimized"]
 TDestinationConfig = TypeVar("TDestinationConfig", bound="DestinationClientConfiguration")
 TDestinationClient = TypeVar("TDestinationClient", bound="JobClientBase")
 TDestinationDwhClient = TypeVar("TDestinationDwhClient", bound="DestinationClientDwhConfiguration")

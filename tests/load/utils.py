@@ -35,6 +35,7 @@ from dlt.common.destination.reference import (
     DestinationClientStagingConfiguration,
     TDestinationReferenceArg,
     WithStagingDataset,
+    DestinationCapabilitiesContext,
 )
 from dlt.common.destination import TLoaderFileFormat, Destination
 from dlt.common.destination.reference import DEFAULT_FILE_LAYOUT
@@ -170,6 +171,10 @@ class DestinationTestConfiguration:
         dest_name = kwargs.pop("destination_name", self.destination_name)
         self.setup()
         return Destination.from_reference(dest_type, destination_name=dest_name, **kwargs)
+
+    def raw_capabilities(self) -> DestinationCapabilitiesContext:
+        dest = Destination.from_reference(self.destination_type)
+        return dest._raw_capabilities()
 
     @property
     def name(self) -> str:

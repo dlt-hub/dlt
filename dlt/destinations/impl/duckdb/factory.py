@@ -148,6 +148,7 @@ class duckdb(Destination[DuckDbClientConfiguration, "DuckDbClient"]):
         caps.alter_add_multi_column = False
         caps.supports_truncate_command = False
         caps.supported_merge_strategies = ["delete-insert", "scd2"]
+        caps.supported_replace_strategies = ["truncate-and-insert", "insert-from-staging"]
 
         return caps
 

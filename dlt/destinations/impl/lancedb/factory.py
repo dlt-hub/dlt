@@ -40,6 +40,7 @@ class lancedb(Destination[LanceDBClientConfiguration, "LanceDBClient"]):
 
         caps.decimal_precision = (38, 18)
         caps.timestamp_precision = 6
+        caps.supported_replace_strategies = ["truncate-and-insert"]
 
         return caps
 

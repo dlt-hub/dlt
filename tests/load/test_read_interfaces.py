@@ -12,7 +12,7 @@ from tests.load.utils import (
     DestinationTestConfiguration,
     AZ_BUCKET,
     ABFS_BUCKET,
-    SFTP_BUCKET
+    SFTP_BUCKET,
 )
 from pandas import DataFrame
 
