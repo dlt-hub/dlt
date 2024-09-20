@@ -506,7 +506,7 @@ def _create_response_action_hook(
         elif action_type == "ignore":
             logger.info(
                 f"Ignoring response with code {response.status_code} "
-                f"and content '{response.json()}'."
+                f"and content '{response.text}'."
             )
             raise IgnoreResponseException
 
