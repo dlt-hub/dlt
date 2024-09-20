@@ -130,7 +130,7 @@ There are several options for adding your connection credentials into your `dlt`
 
 #### 1. Setting them in `secrets.toml` or as environment variables (Recommended)
 
-You can set up credentials using [any method](https://dlthub.com/docs/devel/general-usage/credentials/setup#available-config-providers) supported by `dlt`. We recommend using `.dlt/secrets.toml` or the environment variables. See Step 2 of the [setup](./setup) for how to set credentials inside `secrets.toml`. For more information on passing credentials read [here](https://dlthub.com/docs/devel/general-usage/credentials/setup).
+You can set up credentials using [any method](../../../general-usage/credentials/setup#available-config-providers) supported by `dlt`. We recommend using `.dlt/secrets.toml` or the environment variables. See Step 2 of the [setup](./setup) for how to set credentials inside `secrets.toml`. For more information on passing credentials read [here](../../../general-usage/credentials/setup).
 
 
 #### 2. Passing them directly in the script
