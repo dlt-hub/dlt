@@ -471,7 +471,7 @@ class HasFollowupJobs:
 class SupportsReadableRelation(Protocol):
     """A readable relation retrieved from a destination that supports it"""
 
-    columns: TTableSchemaColumns
+    schema_columns: TTableSchemaColumns
     """Known dlt table columns for this relation"""
 
     def df(self, chunk_size: int = None) -> Optional[DataFrame]:

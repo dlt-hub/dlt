@@ -162,7 +162,7 @@ class DestinationTestConfiguration:
     supports_dbt: bool = True
     disable_compression: bool = False
     dev_mode: bool = False
-    credentials: Optional[Union[CredentialsConfiguration, Dict[str, Any]]] = None
+    credentials: Optional[Union[CredentialsConfiguration, Dict[str, Any], str]] = None
     env_vars: Optional[Dict[str, str]] = None
     destination_name: Optional[str] = None
 
@@ -215,8 +215,11 @@ class DestinationTestConfiguration:
             os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "True"
 
         if self.credentials is not None:
-            for key, value in dict(self.credentials).items():
-                os.environ[f"DESTINATION__CREDENTIALS__{key.upper()}"] = str(value)
+            if isinstance(self.credentials, str):
+                os.environ[f"DESTINATION__CREDENTIALS"] = self.credentials
+            else:
+                for key, value in dict(self.credentials).items():
+                    os.environ[f"DESTINATION__CREDENTIALS__{key.upper()}"] = str(value)
 
         if self.env_vars is not None:
             for k, v in self.env_vars.items():
@@ -340,6 +343,7 @@ def destinations_configs(
                 supports_merge=False,
                 supports_dbt=False,
                 destination_name="sqlalchemy_sqlite",
+                credentials="sqlite:///_storage/dl_data.sqlite"
             ),
         ]
 
