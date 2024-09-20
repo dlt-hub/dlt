@@ -296,7 +296,7 @@ client = RESTClient(
 
 You can disable automatic stoppage of pagination by setting `stop_after_empty_page = False`. In this case, you must provide either `total_path` or `maximum_page` to guarantee that the paginator terminates.
 
-#### JSON response cursor paginator
+#### JSONResponseCursorPaginator
 
 `JSONResponseCursorPaginator` handles pagination based on a cursor in the JSON response.
 
