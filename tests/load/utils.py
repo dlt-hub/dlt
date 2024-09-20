@@ -216,7 +216,7 @@ class DestinationTestConfiguration:
 
         if self.credentials is not None:
             if isinstance(self.credentials, str):
-                os.environ[f"DESTINATION__CREDENTIALS"] = self.credentials
+                os.environ["DESTINATION__CREDENTIALS"] = self.credentials
             else:
                 for key, value in dict(self.credentials).items():
                     os.environ[f"DESTINATION__CREDENTIALS__{key.upper()}"] = str(value)
@@ -337,7 +337,9 @@ def destinations_configs(
                 supports_merge=False,
                 supports_dbt=False,
                 destination_name="sqlalchemy_mysql",
-                credentials="mysql://root:root@127.0.0.1:3306/dlt_data"  # Use root cause we need to create databases,
+                credentials=(  # Use root cause we need to create databases,
+                    "mysql://root:root@127.0.0.1:3306/dlt_data"
+                ),
             ),
             DestinationTestConfiguration(
                 destination_type="sqlalchemy",
