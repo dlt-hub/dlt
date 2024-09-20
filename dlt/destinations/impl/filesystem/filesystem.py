@@ -476,7 +476,9 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
         """for base64 strings"""
         return base64.b64decode(s).hex() if s else None
 
-    def _list_dlt_table_files(self, table_name: str) -> Iterator[Tuple[str, List[str]]]:
+    def _list_dlt_table_files(
+        self, table_name: str, pipeline_name: str = None
+    ) -> Iterator[Tuple[str, List[str]]]:
         dirname = self.get_table_dir(table_name)
         if not self.fs_client.exists(self.pathlib.join(dirname, INIT_FILE_NAME)):
             raise DestinationUndefinedEntity({"dir": dirname})
@@ -485,7 +487,9 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
             fileparts = filename.split(FILENAME_SEPARATOR)
             if len(fileparts) != 3:
                 continue
-            yield filepath, fileparts
+            # Filters only if pipeline_name provided
+            if pipeline_name is None or fileparts[0] == pipeline_name:
+                yield filepath, fileparts
 
     def _store_load(self, load_id: str) -> None:
         # write entry to load "table"
@@ -521,18 +525,18 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
         )
 
     def _cleanup_pipeline_states(self, pipeline_name: str) -> None:
-        state_table_files = list(self._list_dlt_table_files(self.schema.state_table_name))
+        state_table_files = list(
+            self._list_dlt_table_files(self.schema.state_table_name, pipeline_name)
+        )
 
         if len(state_table_files) > self.config.max_state_files:
             # filter and collect a list of state files
             state_file_info: List[Dict[str, Any]] = [
                 {
-                    "pipeline_name": fileparts[0],
                     "load_id": float(fileparts[1]),  # convert load_id to float for comparison
                     "filepath": filepath,
                 }
                 for filepath, fileparts in state_table_files
-                if fileparts[0] == pipeline_name
             ]
 
             # sort state file info by load_id in descending order
