@@ -235,7 +235,7 @@ client = RESTClient(
 
 You can disable automatic stoppage of pagination by setting `stop_after_empty_page = False`. In this case, you must provide either `total_path` or `maximum_offset` to guarantee that the paginator terminates.
 
-#### Page number paginator
+#### PageNumberPaginator
 
 `PageNumberPaginator` works by incrementing the page number for each request.
 
