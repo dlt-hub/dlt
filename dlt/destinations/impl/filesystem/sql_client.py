@@ -19,21 +19,24 @@ from dlt.destinations.impl.duckdb.factory import duckdb as duckdb_factory
 
 
 class FilesystemSqlClient(DuckDbSqlClient):
-    def __init__(self, fs_client: FSClientBase, protocol: str) -> None:
+    def __init__(self, fs_client: FSClientBase, protocol: str, dataset_name: str) -> None:
         """For now we do all operations in the memory dataset"""
         """TODO: is this ok?"""
         super().__init__(
-            dataset_name="memory",
+            dataset_name=dataset_name,
             staging_dataset_name=None,
             credentials=None,
             capabilities=duckdb_factory()._raw_capabilities(),
         )
         self.fs_client = fs_client
-        self._conn = duckdb.connect(":memory:")
-        self._conn.register_filesystem(self.fs_client.fs_client)
         self.existing_views: List[str] = []  # remember which views already where created
         self.protocol = protocol
         self.is_local_filesystem = protocol == "file"
+
+        # set up duckdb instance
+        self._conn = duckdb.connect(":memory:")
+        self._conn.sql(f"CREATE SCHEMA {self.dataset_name}")
+        self._conn.register_filesystem(self.fs_client.fs_client)
 
     @raise_database_error
     def populate_duckdb(self, tables: List[str]) -> None:
@@ -60,6 +63,7 @@ class FilesystemSqlClient(DuckDbSqlClient):
             # create table
             protocol = "" if self.is_local_filesystem else f"{self.protocol}://"
             files_string = f"'{protocol}{folder}/**/*.{file_type}'"
+            ptable = self.make_qualified_table_name(ptable)
             create_table_sql_base = (
                 f"CREATE VIEW {ptable} AS SELECT * FROM {read_command}([{files_string}])"
             )

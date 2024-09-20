@@ -268,7 +268,9 @@ class FilesystemClient(
         from dlt.destinations.impl.filesystem.sql_client import FilesystemSqlClient
 
         if not self._sql_client:
-            self._sql_client = FilesystemSqlClient(self, protocol=self.config.protocol)
+            self._sql_client = FilesystemSqlClient(
+                self, protocol=self.config.protocol, dataset_name=self.dataset_name
+            )
         return self._sql_client
 
     @sql_client.setter
@@ -705,6 +707,7 @@ class FilesystemClient(
     def table_relation(
         self, *, table: str, columns: TTableSchemaColumns
     ) -> Generator[DBApiCursor, Any, Any]:
+        table = self.sql_client.make_qualified_table_name(table)
         with self.sql_client.execute_query(f"SELECT * FROM {table}") as cursor:
             cursor.columns = columns
             yield cursor
