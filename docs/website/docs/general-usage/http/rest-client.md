@@ -169,7 +169,7 @@ This paginator handles pagination based on a link to the next page in the respon
 
 Note: Normally, you don't need to specify this paginator explicitly, as it is used automatically when the API returns a `Link` header. On rare occasions, you may need to specify the paginator when the API uses a different relation type.
 
-#### Offset paginator
+#### OffsetPaginator
 
 `OffsetPaginator` handles pagination based on an offset and limit in the query parameters.
 
