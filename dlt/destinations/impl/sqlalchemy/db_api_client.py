@@ -71,6 +71,8 @@ def raise_database_error(f: TFun) -> TFun:
 
 class SqlaDbApiCursor(DBApiCursorImpl):
     def __init__(self, curr: sa.engine.CursorResult) -> None:
+        self.schema_columns = None
+
         # Sqlalchemy CursorResult is *mostly* compatible with DB-API cursor
         self.native_cursor = curr  # type: ignore[assignment]
         curr.columns

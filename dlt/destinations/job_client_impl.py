@@ -721,7 +721,7 @@ WHERE """
             table = sql_client.make_qualified_table_name(table)
             query = f"SELECT * FROM {table}"
             with sql_client.execute_query(query) as cursor:
-                cursor.columns = columns
+                cursor.schema_columns = columns
                 yield cursor
 
     @contextmanager

@@ -343,7 +343,7 @@ def destinations_configs(
                 supports_merge=False,
                 supports_dbt=False,
                 destination_name="sqlalchemy_sqlite",
-                credentials="sqlite:///_storage/dl_data.sqlite"
+                credentials="sqlite:///_storage/dl_data.sqlite",
             ),
         ]
 

@@ -25,13 +25,15 @@ class ReadableRelation(SupportsReadableRelation):
         self.client = client
         self.query = query
         self.table = table
-        self.columns = columns
+        self.schema_columns = columns
 
     @contextmanager
     def cursor(self) -> Generator[SupportsReadableRelation, Any, Any]:
         """Gets a DBApiCursor for the current relation"""
         if self.table:
-            with self.client.table_relation(table=self.table, columns=self.columns) as cursor:
+            with self.client.table_relation(
+                table=self.table, columns=self.schema_columns
+            ) as cursor:
                 yield cursor
         elif self.query:
             with self.client.query_relation(query=self.query) as cursor:

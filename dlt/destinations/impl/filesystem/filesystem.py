@@ -709,7 +709,7 @@ class FilesystemClient(
     ) -> Generator[DBApiCursor, Any, Any]:
         table = self.sql_client.make_qualified_table_name(table)
         with self.sql_client.execute_query(f"SELECT * FROM {table}") as cursor:
-            cursor.columns = columns
+            cursor.schema_columns = columns
             yield cursor
 
     @contextmanager

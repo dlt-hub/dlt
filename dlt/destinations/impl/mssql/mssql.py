@@ -151,7 +151,7 @@ class MsSqlJobClient(InsertValuesJobClient):
             query = f"SELECT * FROM {table}"
             sql_client._conn.autocommit = False
             with sql_client.execute_query(query) as cursor:
-                cursor.columns = columns
+                cursor.schema_columns = columns
                 yield cursor
 
     @contextmanager

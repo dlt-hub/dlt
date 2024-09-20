@@ -322,7 +322,7 @@ class DBApiCursorImpl(DBApiCursor):
 
     def __init__(self, curr: DBApiCursor) -> None:
         self.native_cursor = curr
-        self.columns = None
+        self.schema_columns = None
 
         # wire protocol methods
         self.execute = curr.execute  # type: ignore
@@ -381,7 +381,7 @@ class DBApiCursorImpl(DBApiCursor):
         caps = DestinationCapabilitiesContext.generic_capabilities()
 
         # provide default columns in case not known
-        columns = self.columns or cast(
+        columns = self.schema_columns or cast(
             TTableSchemaColumns, {c: {"name": c, "nullable": True} for c in self._get_columns()}
         )
 
