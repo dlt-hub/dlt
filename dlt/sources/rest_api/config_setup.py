@@ -383,7 +383,7 @@ def _bind_path_params(resource: EndpointResource) -> None:
                     if param_type != "resolve":
                         raise ValueError(
                             f"The path {path} defined in resource {resource['name']} tries to bind"
-                            f" param {name} with type {param_type}. Paths can only bind 'resource'"
+                            f" param {name} with type {param_type}. Paths can only bind 'resolve'"
                             " type params."
                         )
                     # resolved params are bound later
