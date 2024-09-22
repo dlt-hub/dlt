@@ -12,7 +12,7 @@ keywords: [postgres, destination, data warehouse]
 pip install "dlt[postgres]"
 ```
 
-## Setup Guide
+## Setup guide
 
 **1. Initialize a project with a pipeline that loads to Postgres by running:**
 ```sh
@@ -103,25 +103,22 @@ pipeline = dlt.pipeline(destination="postgres")
 pipeline.run(events())
 ```
 
-### Fast loading with arrow tables and csv
-You can use [arrow tables](../verified-sources/arrow-pandas.md) and [csv](../file-formats/csv.md) to quickly load tabular data. Pick the `csv` loader file format
-like below
+### Fast loading with arrow tables and CSV
+You can use [arrow tables](../verified-sources/arrow-pandas.md) and [CSV](../file-formats/csv.md) to quickly load tabular data. Pick the `CSV` loader file format like below:
 ```py
 info = pipeline.run(arrow_table, loader_file_format="csv")
 ```
-In the example above `arrow_table` will be converted to csv with **pyarrow** and then streamed into **postgres** with COPY command. This method skips the regular
-`dlt` normalizer used for Python objects and is several times faster.
+In the example above, `arrow_table` will be converted to CSV with **pyarrow** and then streamed into **postgres** with the COPY command. This method skips the regular `dlt` normalizer used for Python objects and is several times faster.
 
 ## Supported file formats
 * [insert-values](../file-formats/insert-format.md) is used by default.
-* [csv](../file-formats/csv.md) is supported
+* [CSV](../file-formats/csv.md) is supported.
 
 ## Supported column hints
 `postgres` will create unique indexes for all columns with `unique` hints. This behavior **may be disabled**.
 
 ### Table and column identifiers
-Postgres supports both case sensitive and case insensitive identifiers. All unquoted and lowercase identifiers resolve case-insensitively in SQL statements. Case insensitive [naming conventions](../../general-usage/naming-convention.md#case-sensitive-and-insensitive-destinations) like the default **snake_case** will generate case insensitive identifiers. Case sensitive (like **sql_cs_v1**) will generate
-case sensitive identifiers that must be quoted in SQL statements.
+Postgres supports both case-sensitive and case-insensitive identifiers. All unquoted and lowercase identifiers resolve case-insensitively in SQL statements. Case insensitive [naming conventions](../../general-usage/naming-convention.md#case-sensitive-and-insensitive-destinations) like the default **snake_case** will generate case-insensitive identifiers. Case sensitive (like **sql_cs_v1**) will generate case-sensitive identifiers that must be quoted in SQL statements.
 
 ## Additional destination options
 The Postgres destination creates UNIQUE indexes by default on columns with the `unique` hint (i.e., `_dlt_id`). To disable this behavior:
@@ -130,8 +127,8 @@ The Postgres destination creates UNIQUE indexes by default on columns with the `
 create_indexes=false
 ```
 
-### Setting up `csv` format
-You can provide [non-default](../file-formats/csv.md#default-settings) csv settings via configuration file or explicitly.
+### Setting up `CSV` format
+You can provide [non-default](../file-formats/csv.md#default-settings) CSV settings via a configuration file or explicitly.
 ```toml
 [destination.postgres.csv_format]
 delimiter="|"
@@ -146,10 +143,10 @@ csv_format = CsvFormatConfiguration(delimiter="|", include_header=False)
 
 dest_ = postgres(csv_format=csv_format)
 ```
-Above we set `csv` file without header, with **|** as a separator.
+Above, we set the `CSV` file without a header, with **|** as a separator.
 
 :::tip
-You'll need those setting when [importing external files](../../general-usage/resource.md#import-external-files)
+You'll need those settings when [importing external files](../../general-usage/resource.md#import-external-files).
 :::
 
 ### dbt support
