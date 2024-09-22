@@ -52,6 +52,8 @@ from dlt.sources.helpers.rest_client.auth import (
     OAuth2ClientCredentials,
 )
 
+from dlt.extract.resource import DltResource
+
 from .typing import (
     EndpointResourceBase,
     AuthConfig,
@@ -269,35 +271,20 @@ def make_parent_key_name(resource_name: str, field_name: str) -> str:
 
 def build_resource_dependency_graph(
     resource_defaults: EndpointResourceBase,
-    resource_list: List[Union[str, EndpointResource]],
-) -> Tuple[Any, Dict[str, EndpointResource], Dict[str, Optional[ResolvedParam]]]:
+    resource_list: List[Union[str, EndpointResource, DltResource]],
+) -> Tuple[
+    Any, Dict[str, Union[EndpointResource, DltResource]], Dict[str, Optional[ResolvedParam]]
+]:
     dependency_graph = graphlib.TopologicalSorter()
-    endpoint_resource_map: Dict[str, EndpointResource] = {}
     resolved_param_map: Dict[str, ResolvedParam] = {}
-
-    # expand all resources and index them
-    for resource_kwargs in resource_list:
-        if isinstance(resource_kwargs, dict):
-            # clone resource here, otherwise it needs to be cloned in several other places
-            # note that this clones only dict structure, keeping all instances without deepcopy
-            resource_kwargs = update_dict_nested({}, resource_kwargs)  # type: ignore
-
-        endpoint_resource = _make_endpoint_resource(resource_kwargs, resource_defaults)
-        assert isinstance(endpoint_resource["endpoint"], dict)
-        _setup_single_entity_endpoint(endpoint_resource["endpoint"])
-        _bind_path_params(endpoint_resource)
-
-        resource_name = endpoint_resource["name"]
-        assert isinstance(
-            resource_name, str
-        ), f"Resource name must be a string, got {type(resource_name)}"
-
-        if resource_name in endpoint_resource_map:
-            raise ValueError(f"Resource {resource_name} has already been defined")
-        endpoint_resource_map[resource_name] = endpoint_resource
+    endpoint_resource_map = expand_and_index_resources(resource_list, resource_defaults)
 
     # create dependency graph
     for resource_name, endpoint_resource in endpoint_resource_map.items():
+        if isinstance(endpoint_resource, DltResource):
+            dependency_graph.add(resource_name)
+            resolved_param_map[resource_name] = None
+            break
         assert isinstance(endpoint_resource["endpoint"], dict)
         # connect transformers to resources via resolved params
         resolved_params = _find_resolved_params(endpoint_resource["endpoint"])
@@ -320,6 +307,37 @@ def build_resource_dependency_graph(
             resolved_param_map[resource_name] = None
 
     return dependency_graph, endpoint_resource_map, resolved_param_map
+
+
+def expand_and_index_resources(
+    resource_list: List[Union[str, EndpointResource, DltResource]],
+    resource_defaults: EndpointResourceBase,
+) -> Dict[str, Union[EndpointResource, DltResource]]:
+    endpoint_resource_map: Dict[str, Union[EndpointResource, DltResource]] = {}
+    for resource in resource_list:
+        if isinstance(resource, DltResource):
+            endpoint_resource_map[resource.name] = resource
+            break
+        elif isinstance(resource, dict):
+            # clone resource here, otherwise it needs to be cloned in several other places
+            # note that this clones only dict structure, keeping all instances without deepcopy
+            resource = update_dict_nested({}, resource)  # type: ignore
+
+        endpoint_resource = _make_endpoint_resource(resource, resource_defaults)
+        assert isinstance(endpoint_resource["endpoint"], dict)
+        _setup_single_entity_endpoint(endpoint_resource["endpoint"])
+        _bind_path_params(endpoint_resource)
+
+        resource_name = endpoint_resource["name"]
+        assert isinstance(
+            resource_name, str
+        ), f"Resource name must be a string, got {type(resource_name)}"
+
+        if resource_name in endpoint_resource_map:
+            raise ValueError(f"Resource {resource_name} has already been defined")
+        endpoint_resource_map[resource_name] = endpoint_resource
+
+    return endpoint_resource_map
 
 
 def _make_endpoint_resource(

@@ -211,7 +211,7 @@ def rest_api_resources(config: RESTAPIConfig) -> List[DltResource]:
 def create_resources(
     client_config: ClientConfig,
     dependency_graph: graphlib.TopologicalSorter,
-    endpoint_resource_map: Dict[str, EndpointResource],
+    endpoint_resource_map: Dict[str, Union[EndpointResource, DltResource]],
     resolved_param_map: Dict[str, Optional[ResolvedParam]],
 ) -> Dict[str, DltResource]:
     resources = {}
@@ -219,6 +219,10 @@ def create_resources(
     for resource_name in dependency_graph.static_order():
         resource_name = cast(str, resource_name)
         endpoint_resource = endpoint_resource_map[resource_name]
+        if isinstance(endpoint_resource, DltResource):
+            resources[resource_name] = endpoint_resource
+            continue
+
         endpoint_config = cast(Endpoint, endpoint_resource["endpoint"])
         request_params = endpoint_config.get("params", {})
         request_json = endpoint_config.get("json", None)

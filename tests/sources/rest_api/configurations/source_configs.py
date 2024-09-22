@@ -113,6 +113,12 @@ class CustomOAuthAuth(OAuth2AuthBase):
     pass
 
 
+@dlt.resource(name="repositories", selected=False)
+def repositories():
+    """A seed list of repositories to fetch"""
+    yield from [{"name": "dlt"}, {"name": "verified-sources"}, {"name": "dlthub-education"}]
+
+
 VALID_CONFIGS: List[RESTAPIConfig] = [
     {
         "client": {"base_url": "https://api.example.com"},
@@ -310,19 +316,42 @@ VALID_CONFIGS: List[RESTAPIConfig] = [
         ],
     },
     {
-        "client": {
-            "base_url": "https://example.com",
-            "session": requests.Session(),
-        },
-        "resources": ["users"],
+        "client": {"base_url": "https://github.com/api/v2"},
+        "resources": [
+            {
+                "name": "issues",
+                "endpoint": {
+                    "path": "dlt-hub/{repository}/issues/",
+                    "params": {
+                        "repository": {
+                            "type": "resolve",
+                            "resource": "repositories",
+                            "field": "name",
+                        },
+                    },
+                },
+            },
+            repositories(),
+        ],
     },
     {
-        "client": {
-            "base_url": "https://example.com",
-            # This is a subclass of requests.Session and is thus also allowed
-            "session": dlt.sources.helpers.requests.Session(),
-        },
-        "resources": ["users"],
+        "client": {"base_url": "https://github.com/api/v2"},
+        "resources": [
+            {
+                "name": "issues",
+                "endpoint": {
+                    "path": "dlt-hub/{repository}/issues/",
+                    "params": {
+                        "repository": {
+                            "type": "resolve",
+                            "resource": "repositories",
+                            "field": "name",
+                        },
+                    },
+                },
+            },
+            repositories(),
+        ],
     },
 ]
 
