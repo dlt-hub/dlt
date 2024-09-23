@@ -33,7 +33,7 @@ As an example of how to set up a pipeline in Modal, we'll use the [building a co
 
 The example demonstrates automating a workflow to load data from Postgres to Snowflake using dlt.
 
-## How to run `dlt` on Modal
+## How to run dlt on Modal
 
 Here’s our dlt setup copying data from our Postgres read replica into Snowflake:
 
