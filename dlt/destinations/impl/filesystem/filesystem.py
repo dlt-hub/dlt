@@ -547,7 +547,7 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
 
             # delete the old files
             for file_info in files_to_delete:
-                self.fs_client.rm(file_info["filepath"])
+                self._delete_file(file_info["filepath"])
 
     def _store_current_state(self, load_id: str) -> None:
         # don't save the state this way when used as staging
