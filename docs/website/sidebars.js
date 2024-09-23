@@ -88,6 +88,18 @@ const sidebars = {
           items: [
             'dlt-ecosystem/verified-sources/rest_api/basic',
             'dlt-ecosystem/verified-sources/rest_api/advanced',
+            {
+              type: 'category',
+              label: 'REST API helpers',
+              link: {
+                type: 'doc',
+                id: 'general-usage/http/overview',
+              },
+              items: [
+                'general-usage/http/rest-client',
+                'general-usage/http/requests',
+              ]
+            },
           ]
         },
         {
@@ -137,18 +149,6 @@ const sidebars = {
         'dlt-ecosystem/verified-sources/stripe',
         'dlt-ecosystem/verified-sources/workable',
         'dlt-ecosystem/verified-sources/zendesk',
-        {
-          type: 'category',
-          label: 'REST API helpers',
-          link: {
-            type: 'doc',
-            id: 'general-usage/http/overview',
-          },
-          items: [
-            'general-usage/http/rest-client',
-            'general-usage/http/requests',
-          ]
-        },
         'walkthroughs/add-a-verified-source',
       ]
     },

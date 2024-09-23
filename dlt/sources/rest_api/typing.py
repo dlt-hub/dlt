@@ -35,6 +35,8 @@ from dlt.common.schema.typing import (
 from dlt.extract.items import TTableHintTemplate
 from dlt.extract.incremental.typing import LastValueFunc
 
+from requests import Session
+
 from dlt.sources.helpers.rest_client.typing import HTTPMethodBasic
 
 from dlt.sources.helpers.rest_client.paginators import (
@@ -187,6 +189,7 @@ class ClientConfig(TypedDict, total=False):
     headers: Optional[Dict[str, str]]
     auth: Optional[AuthConfig]
     paginator: Optional[PaginatorConfig]
+    session: Optional[Session]
 
 
 class IncrementalRESTArgs(IncrementalArgs, total=False):
