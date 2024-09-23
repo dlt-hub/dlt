@@ -1,4 +1,4 @@
-from typing import Any, Generator, List, Tuple, Optional
+from typing import Any, Generator
 
 from contextlib import contextmanager
 from dlt.common.destination.reference import (
@@ -6,7 +6,6 @@ from dlt.common.destination.reference import (
     SupportsReadableDataset,
 )
 
-from dlt.destinations.typing import DataFrame, ArrowTable
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.common.schema import Schema
@@ -17,22 +16,24 @@ class ReadableDBAPIRelation(SupportsReadableRelation):
         self,
         *,
         client: SqlClientBase[Any],
-        table_name: str = None,
-        query: str = None,
-        schema: Schema = None,
+        query: str,
+        schema_columns: TTableSchemaColumns = None,
     ) -> None:
         """Create a lazy evaluated relation to for the dataset of a destination"""
         self.client = client
-        self.schema = schema
+        self.schema_columns = schema_columns
         self.query = query
-        self.table_name = table_name
-        self.schema_columns = {}
 
-        # prepare query for table relation
-        if self.table_name:
-            table_name = client.make_qualified_table_name(self.table_name)
-            self.query = f"SELECT * FROM {table_name}"
-            self.schema_columns = self.schema.tables[self.table_name]["columns"]
+        # wire protocol functions
+        self.df = self._wrap_func("df")  # type: ignore
+        self.arrow = self._wrap_func("arrow")  # type: ignore
+        self.fetchall = self._wrap_func("fetchall")  # type: ignore
+        self.fetchmany = self._wrap_func("fetchmany")  # type: ignore
+        self.fetchone = self._wrap_func("fetchone")  # type: ignore
+
+        self.iter_df = self._wrap_iter("iter_df")  # type: ignore
+        self.iter_arrow = self._wrap_iter("iter_arrow")  # type: ignore
+        self.iter_fetchmany = self._wrap_iter("iter_fetchmany")  # type: ignore
 
     @contextmanager
     def cursor(self) -> Generator[SupportsReadableRelation, Any, Any]:
@@ -42,45 +43,23 @@ class ReadableDBAPIRelation(SupportsReadableRelation):
                 cursor.schema_columns = self.schema_columns
                 yield cursor
 
-    def df(self, chunk_size: int = None) -> Optional[DataFrame]:
-        """Get first batch of table as dataframe"""
-        with self.cursor() as cursor:
-            return cursor.df(chunk_size=chunk_size)
+    def _wrap_iter(self, func_name: str) -> Any:
+        """wrap SupportsReadableRelation generators in cursor context"""
 
-    def arrow(self, chunk_size: int = None) -> Optional[ArrowTable]:
-        """Get first batch of table as arrow table"""
-        with self.cursor() as cursor:
-            return cursor.arrow(chunk_size=chunk_size)
+        def _wrap(*args: Any, **kwargs: Any) -> Any:
+            with self.cursor() as cursor:
+                yield from getattr(cursor, func_name)(*args, **kwargs)
 
-    def iter_df(self, chunk_size: int) -> Generator[DataFrame, None, None]:
-        """iterates over the whole table in dataframes of the given chunk_size"""
-        with self.cursor() as cursor:
-            yield from cursor.iter_df(chunk_size=chunk_size)
+        return _wrap
 
-    def iter_arrow(self, chunk_size: int) -> Generator[ArrowTable, None, None]:
-        """iterates over the whole table in arrow tables of the given chunk_size"""
-        with self.cursor() as cursor:
-            yield from cursor.iter_arrow(chunk_size=chunk_size)
+    def _wrap_func(self, func_name: str) -> Any:
+        """wrap SupportsReadableRelation functions in cursor context"""
 
-    def fetchall(self) -> List[Tuple[Any, ...]]:
-        """does a dbapi fetch all"""
-        with self.cursor() as cursor:
-            return cursor.fetchall()
+        def _wrap(*args: Any, **kwargs: Any) -> Any:
+            with self.cursor() as cursor:
+                return getattr(cursor, func_name)(*args, **kwargs)
 
-    def fetchmany(self, chunk_size: int) -> List[Tuple[Any, ...]]:
-        """does a dbapi fetchmany with a given chunk size"""
-        with self.cursor() as cursor:
-            return cursor.fetchmany(chunk_size)
-
-    def iter_fetchmany(self, chunk_size: int) -> Generator[List[Tuple[Any, ...]], Any, Any]:
-        with self.cursor() as cursor:
-            yield from cursor.iter_fetchmany(
-                chunk_size=chunk_size,
-            )
-
-    def fetchone(self) -> Optional[Tuple[Any, ...]]:
-        with self.cursor() as cursor:
-            return cursor.fetchone()
+        return _wrap
 
 
 class ReadableDBAPIDataset(SupportsReadableDataset):
@@ -90,13 +69,23 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
         self.client = client
         self.schema = schema
 
-    def query(self, query: str) -> SupportsReadableRelation:
-        return ReadableDBAPIRelation(client=self.client, query=query, schema=self.schema)
+    def query(
+        self, query: str, schema_columns: TTableSchemaColumns = None
+    ) -> SupportsReadableRelation:
+        schema_columns = schema_columns or {}
+        return ReadableDBAPIRelation(client=self.client, query=query, schema_columns=schema_columns)  # type: ignore[abstract]
+
+    def table(self, table_name: str) -> SupportsReadableRelation:
+        # prepare query for table relation
+        table_name = self.client.make_qualified_table_name(table_name)
+        query = f"SELECT * FROM {table_name}"
+        schema_columns = self.schema.tables.get(table_name, {}).get("columns", {})
+        return self.query(query, schema_columns)
 
     def __getitem__(self, table_name: str) -> SupportsReadableRelation:
         """access of table via dict notation"""
-        return ReadableDBAPIRelation(client=self.client, table_name=table_name, schema=self.schema)
+        return self.table(table_name)
 
     def __getattr__(self, table_name: str) -> SupportsReadableRelation:
         """access of table via property notation"""
-        return self[table_name]
+        return self.table(table_name)
