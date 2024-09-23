@@ -47,6 +47,7 @@ def _run_dataset_checks(
         @dlt.resource(
             columns={
                 "id": {"data_type": "bigint"},
+                # we add a decimal with precision to see wether the hints are preserved
                 "decimal": {"data_type": "decimal", "precision": 10, "scale": 3},
             }
         )
@@ -150,7 +151,14 @@ def _run_dataset_checks(
     # check that precision and scale for a decimal are set correctly on arrow table
     # this is a stand in to confirm that column hints are applied to database results
     # when known
-    # assert table_relationship.arrow().schema.field("decimal").type.precision == 10
+    expected_decimal_precision = 10
+    if destination_config.destination_type == "bigquery":
+        # bigquery does not allow precision configuration..
+        expected_decimal_precision = 38
+    assert (
+        table_relationship.arrow().schema.field("decimal").type.precision
+        == expected_decimal_precision
+    )
 
 
 @pytest.mark.essential
@@ -177,7 +185,7 @@ def test_read_interfaces_sql(destination_config: DestinationTestConfiguration) -
     ids=lambda x: x.name,
 )
 def test_read_interfaces_filesystem(destination_config: DestinationTestConfiguration) -> None:
-    # we force multiple files per table, they may only hold 50 items
+    # we force multiple files per table, they may only hold 700 items
     os.environ["DATA_WRITER__FILE_MAX_ITEMS"] = "700"
 
     if destination_config.file_format not in ["parquet", "jsonl"]:
