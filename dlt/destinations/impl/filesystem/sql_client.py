@@ -21,8 +21,6 @@ from dlt.destinations.impl.duckdb.factory import duckdb as duckdb_factory
 
 class FilesystemSqlClient(DuckDbSqlClient):
     def __init__(self, fs_client: FSClientBase, protocol: str, dataset_name: str) -> None:
-        """For now we do all operations in the memory dataset"""
-        """TODO: is this ok?"""
         super().__init__(
             dataset_name=dataset_name,
             staging_dataset_name=None,

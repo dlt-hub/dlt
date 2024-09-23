@@ -83,9 +83,9 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
 
     def table(self, table_name: str) -> SupportsReadableRelation:
         # prepare query for table relation
+        schema_columns = self.schema.tables.get(table_name, {}).get("columns", {})
         table_name = self.client.make_qualified_table_name(table_name)
         query = f"SELECT * FROM {table_name}"
-        schema_columns = self.schema.tables.get(table_name, {}).get("columns", {})
         return self.query(query, schema_columns)
 
     def __getitem__(self, table_name: str) -> SupportsReadableRelation:

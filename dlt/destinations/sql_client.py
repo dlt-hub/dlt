@@ -335,7 +335,9 @@ class DBApiCursorImpl(DBApiCursor):
         return getattr(self.native_cursor, name)
 
     def _get_columns(self) -> List[str]:
-        return [c[0] for c in self.native_cursor.description]
+        if self.native_cursor.description:
+            return [c[0] for c in self.native_cursor.description]
+        return []
 
     def set_default_schema_columns(self) -> None:
         self.schema_columns = cast(

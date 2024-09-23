@@ -58,6 +58,7 @@ def _run_dataset_checks(
                     "id": i,
                     "children": [{"id": i + 100}, {"id": i + 1000}],
                     "decimal": Decimal("10.433"),
+                    "other_decimal": Decimal("10.433"),
                 }
                 for i in range(total_records)
             ]

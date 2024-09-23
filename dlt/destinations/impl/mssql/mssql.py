@@ -1,14 +1,12 @@
-from typing import Dict, Optional, Sequence, List, Any, Generator
-from contextlib import contextmanager
+from typing import Dict, Optional, Sequence, List, Any
 
 from dlt.common.destination.reference import (
     FollowupJobRequest,
     PreparedTableSchema,
-    SupportsReadableRelation,
 )
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.schema import TColumnSchema, TColumnHint, Schema
-from dlt.common.schema.typing import TColumnType, TTableSchemaColumns
+from dlt.common.schema.typing import TColumnType
 
 from dlt.destinations.sql_jobs import SqlStagingCopyFollowupJob, SqlMergeFollowupJob, SqlJobParams
 
@@ -136,27 +134,3 @@ class MsSqlJobClient(InsertValuesJobClient):
         self, pq_t: str, precision: Optional[int], scale: Optional[int]
     ) -> TColumnType:
         return self.type_mapper.from_destination_type(pq_t, precision, scale)
-
-    #
-    # NOTE: for the two methods below we need to implement this code to disable autocommit
-    # otherwise mssql and synapse will fail. it would be better to have a general mechanism
-    # for opening connections in read only mode or something like that
-    #
-    @contextmanager
-    def table_relation(
-        self, *, table: str, columns: TTableSchemaColumns
-    ) -> Generator[SupportsReadableRelation, Any, Any]:
-        with self.sql_client as sql_client:
-            table = sql_client.make_qualified_table_name(table)
-            query = f"SELECT * FROM {table}"
-            sql_client._conn.autocommit = False
-            with sql_client.execute_query(query) as cursor:
-                cursor.schema_columns = columns
-                yield cursor
-
-    @contextmanager
-    def query_relation(self, *, query: str) -> Generator[SupportsReadableRelation, Any, Any]:
-        with self.sql_client as sql_client:
-            sql_client._conn.autocommit = False
-            with sql_client.execute_query(query) as cursor:
-                yield cursor
