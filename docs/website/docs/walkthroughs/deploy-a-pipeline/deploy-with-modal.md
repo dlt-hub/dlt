@@ -35,7 +35,7 @@ The example demonstrates automating a workflow to load data from Postgres to Sno
 
 ## How to run dlt on Modal
 
-Here’s our dlt setup copying data from our Postgres read replica into Snowflake:
+Here’s a dlt project setup to copy data from our Postgres read replica into Snowflake:  
 
 1. Run the `dlt init` CLI command to initialize the SQL database source and set up the `sql_database_pipeline.py` template.
    ```sh
@@ -67,7 +67,7 @@ Here’s our dlt setup copying data from our Postgres read replica into Snowflak
    app = modal.App("dlt-postgres-pipeline", image=image)
    ```
 
-3. Wrap the provided `load_select_tables_from_database` with the Modal Function decorator, Modal Secrets containing your database credentials, and a daily cron schedule, as shown below. The function is in `sql_pipeline.py` and will be customized for your specific use case.
+3. Wrap the provided `load_select_tables_from_database` with the Modal Function decorator, Modal Secrets containing your database credentials, and a daily cron schedule, as shown below. The function is in `sql_pipeline.py` and can be customized for your specific use case.
    ```py
    # Function to load the table from the database, scheduled to run daily
    @app.function(
@@ -87,12 +87,12 @@ Here’s our dlt setup copying data from our Postgres read replica into Snowflak
        # Placeholder for future logic
        pass
    ```
-   :::NOTE
-   You can also configure credentials using the environment variables method supported by dlt, which automatically pulls credentials from environment variables.
-   For more details on this approach, refer to the documentation here: [Docs](https://dlthub.com/docs/general-usage/credentials/setup#environment-variables).
+   :::info
+   You can also configure credentials using the environment variables supported by dlt, which automatically pull credentials from environment variables.
+   For more details, refer to the documentation [here](https://dlthub.com/docs/general-usage/credentials/setup#environment-variables).
    :::
 
-4. Write your `dlt` pipeline:
+4. Customize your `dlt` pipeline:
    ```py
    # Modal Secrets are loaded as environment variables which are used here to create the SQLALchemy connection string
    pg_url = f'postgresql://{os.environ["PGUSER"]}:{os.environ["PGPASSWORD"]}@localhost:{os.environ["PGPORT"]}/{os.environ["PGDATABASE"]}'
@@ -120,7 +120,7 @@ Here’s our dlt setup copying data from our Postgres read replica into Snowflak
    info = pipeline.run(source_1, write_disposition="merge")
    print(info)
    ```
-> It's recommended to clean up any unused functions in sql_pipeline.py if they are not needed.
+> It's recommended that any unused functions in `sql_pipeline.py` be cleaned up if they are not required.
 
 5. Run the pipeline on Modal as:
    ```sh
