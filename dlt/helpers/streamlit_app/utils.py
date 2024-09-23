@@ -48,7 +48,7 @@ def query_using_cache(pipeline: dlt.Pipeline, ttl: int) -> Callable[..., Optiona
         try:
             with pipeline.sql_client(schema_name) as client:
                 with client.execute_query(query) as curr:
-                    return curr.df(chunk_size=chunk_size)
+                    return curr.pandas(chunk_size=chunk_size)
         except SqlClientNotAvailable:
             st.error("🚨 Cannot load data - SqlClient not available")
 

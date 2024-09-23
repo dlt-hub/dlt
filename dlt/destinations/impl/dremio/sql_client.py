@@ -25,10 +25,10 @@ from dlt.common.destination.reference import DBApiCursor
 class DremioCursorImpl(DBApiCursorImpl):
     native_cursor: pydremio.DremioCursor  # type: ignore[assignment]
 
-    def df(self, chunk_size: int = None, **kwargs: Any) -> Optional[DataFrame]:
+    def pandas(self, chunk_size: int = None, **kwargs: Any) -> Optional[DataFrame]:
         if chunk_size is None:
             return self.arrow(chunk_size=chunk_size).to_pandas()
-        return super().df(chunk_size=chunk_size, **kwargs)
+        return super().pandas(chunk_size=chunk_size, **kwargs)
 
     def arrow(self, chunk_size: int = None, **kwargs: Any) -> Optional[DataFrame]:
         if chunk_size is None:

@@ -72,7 +72,7 @@ def _run_dataset_checks(
     table_relationship = pipeline.dataset()["items"]
 
     # full frame
-    df = table_relationship.df()
+    df = table_relationship.pandas()
     assert len(df.index) == total_records
 
     #
@@ -80,14 +80,14 @@ def _run_dataset_checks(
     #
 
     # chunk
-    df = table_relationship.df(chunk_size=chunk_size)
+    df = table_relationship.pandas(chunk_size=chunk_size)
     if not skip_df_chunk_size_check:
         assert len(df.index) == chunk_size
     # lowercase results for the snowflake case
     assert set(df.columns.values) == set(expected_columns)
 
     # iterate all dataframes
-    frames = list(table_relationship.iter_df(chunk_size=chunk_size))
+    frames = list(table_relationship.iter_pandas(chunk_size=chunk_size))
     if not skip_df_chunk_size_check:
         assert [len(df.index) for df in frames] == expected_chunk_counts
 
@@ -233,7 +233,7 @@ def test_evolving_filesystem(destination_config: DestinationTestConfiguration) -
 
     pipeline.run([items()], loader_file_format=destination_config.file_format)
 
-    df = pipeline.dataset().items.df()
+    df = pipeline.dataset().items.pandas()
     assert len(df.index) == 20
 
     @dlt.resource(table_name="items")
@@ -242,5 +242,5 @@ def test_evolving_filesystem(destination_config: DestinationTestConfiguration) -
 
     pipeline.run([items2()], loader_file_format=destination_config.file_format)
     # check df and arrow access
-    assert len(pipeline.dataset().items.df().index) == 50
+    assert len(pipeline.dataset().items.pandas().index) == 50
     assert pipeline.dataset().items.arrow().num_rows == 50

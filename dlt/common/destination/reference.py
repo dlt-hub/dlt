@@ -474,7 +474,7 @@ class SupportsReadableRelation(Protocol):
     schema_columns: TTableSchemaColumns
     """Known dlt table columns for this relation"""
 
-    def df(self, chunk_size: int = None) -> Optional[DataFrame]:
+    def pandas(self, chunk_size: int = None) -> Optional[DataFrame]:
         """Fetches the results as data frame. For large queries the results may be chunked
 
         Fetches the results into a data frame. The default implementation uses helpers in `pandas.io.sql` to generate Pandas data frame.
@@ -492,7 +492,7 @@ class SupportsReadableRelation(Protocol):
 
     def arrow(self, chunk_size: int = None) -> Optional[ArrowTable]: ...
 
-    def iter_df(self, chunk_size: int) -> Generator[DataFrame, None, None]: ...
+    def iter_pandas(self, chunk_size: int) -> Generator[DataFrame, None, None]: ...
 
     def iter_arrow(self, chunk_size: int) -> Generator[ArrowTable, None, None]: ...
 

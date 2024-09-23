@@ -30,4 +30,4 @@ print("")
 print("get and display data frame with customers")
 with pipeline.sql_client() as client:
     with client.execute_query("SELECT * FROM customers") as curr:
-        print(curr.df())
+        print(curr.pandas())

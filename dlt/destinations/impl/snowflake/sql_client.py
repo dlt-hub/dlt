@@ -24,10 +24,10 @@ from dlt.common.destination.reference import DBApiCursor
 class SnowflakeCursorImpl(DBApiCursorImpl):
     native_cursor: snowflake_lib.cursor.SnowflakeCursor  # type: ignore[assignment]
 
-    def df(self, chunk_size: int = None, **kwargs: Any) -> Optional[DataFrame]:
+    def pandas(self, chunk_size: int = None, **kwargs: Any) -> Optional[DataFrame]:
         if chunk_size is None:
             return self.native_cursor.fetch_pandas_all(**kwargs)
-        return super().df(chunk_size=chunk_size, **kwargs)
+        return super().pandas(chunk_size=chunk_size, **kwargs)
 
 
 class SnowflakeSqlClient(SqlClientBase[snowflake_lib.SnowflakeConnection], DBTransaction):

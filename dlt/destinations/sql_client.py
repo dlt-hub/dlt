@@ -342,14 +342,14 @@ class DBApiCursorImpl(DBApiCursor):
             TTableSchemaColumns, {c: {"name": c, "nullable": True} for c in self._get_columns()}
         )
 
-    def df(self, chunk_size: int = None, **kwargs: Any) -> Optional[DataFrame]:
+    def pandas(self, chunk_size: int = None, **kwargs: Any) -> Optional[DataFrame]:
         """Fetches results as data frame in full or in specified chunks.
 
         May use native pandas/arrow reader if available. Depending on
         the native implementation chunk size may vary.
         """
         try:
-            return next(self.iter_df(chunk_size=chunk_size))
+            return next(self.iter_pandas(chunk_size=chunk_size))
         except StopIteration:
             return None
 
@@ -370,7 +370,7 @@ class DBApiCursorImpl(DBApiCursor):
                 return
             yield result
 
-    def iter_df(self, chunk_size: int) -> Generator[DataFrame, None, None]:
+    def iter_pandas(self, chunk_size: int) -> Generator[DataFrame, None, None]:
         """Default implementation converts arrow to df"""
         from dlt.common.libs.pandas import pandas as pd
 

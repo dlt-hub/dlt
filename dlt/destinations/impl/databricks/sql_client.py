@@ -54,7 +54,7 @@ class DatabricksCursorImpl(DBApiCursorImpl):
                 return
             yield table
 
-    def iter_df(self, chunk_size: int) -> Generator[DataFrame, None, None]:
+    def iter_pandas(self, chunk_size: int) -> Generator[DataFrame, None, None]:
         for table in self.iter_arrow(chunk_size=chunk_size):
             yield table.to_pandas()
 
