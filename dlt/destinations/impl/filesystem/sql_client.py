@@ -1,4 +1,4 @@
-from typing import Any, Iterator, AnyStr, List
+from typing import Any, Iterator, AnyStr, List, cast
 
 import os
 
@@ -10,6 +10,7 @@ import sqlglot.expressions as exp
 from contextlib import contextmanager
 
 from dlt.common.destination.reference import DBApiCursor
+from dlt.common.destination.typing import PreparedTableSchema
 
 from dlt.destinations.sql_client import raise_database_error
 from dlt.destinations.fs_client import FSClientBase
@@ -43,33 +44,47 @@ class FilesystemSqlClient(DuckDbSqlClient):
         """Add the required tables as views to the duckdb in memory instance"""
 
         # create all tables in duck instance
-        for ptable in tables:
-            if ptable in self.existing_views:
+        for table_name in tables:
+            if table_name in self.existing_views:
                 continue
-            self.existing_views.append(ptable)
+            self.existing_views.append(table_name)
 
-            folder = self.fs_client.get_table_dir(ptable)
-            files = self.fs_client.list_table_files(ptable)
+            folder = self.fs_client.get_table_dir(table_name)
+            files = self.fs_client.list_table_files(table_name)
 
             # discover tables files
             file_type = os.path.splitext(files[0])[1][1:]
+            columns_string = ""
             if file_type == "jsonl":
                 read_command = "read_json"
+                # for json we need to provide types
+                type_mapper = self.capabilities.get_type_mapper()
+                schema_table = cast(PreparedTableSchema, self.fs_client.schema.tables[table_name])
+                columns = map(
+                    lambda c: (
+                        f'{self.escape_column_name(c["name"])}:'
+                        f' "{type_mapper.to_destination_type(c, schema_table)}"'
+                    ),
+                    self.fs_client.schema.tables[table_name]["columns"].values(),
+                )
+                columns_string = ",columns = {" + ",".join(columns) + "}"
+
             elif file_type == "parquet":
                 read_command = "read_parquet"
             else:
-                raise AssertionError(f"Unknown filetype {file_type} for table {ptable}")
+                raise AssertionError(f"Unknown filetype {file_type} for table {table_name}")
 
             # create table
             protocol = "" if self.is_local_filesystem else f"{self.protocol}://"
             files_string = f"'{protocol}{folder}/**/*.{file_type}'"
-            ptable = self.make_qualified_table_name(ptable)
+            table_name = self.make_qualified_table_name(table_name)
             create_table_sql_base = (
-                f"CREATE VIEW {ptable} AS SELECT * FROM {read_command}([{files_string}])"
+                f"CREATE VIEW {table_name} AS SELECT * FROM"
+                f" {read_command}([{files_string}] {columns_string})"
             )
             create_table_sql_gzipped = (
-                f"CREATE VIEW {ptable} AS SELECT * FROM {read_command}([{files_string}],"
-                " compression = 'gzip')"
+                f"CREATE VIEW {table_name} AS SELECT * FROM"
+                f" {read_command}([{files_string}] {columns_string} , compression = 'gzip')"
             )
             try:
                 self._conn.execute(create_table_sql_base)

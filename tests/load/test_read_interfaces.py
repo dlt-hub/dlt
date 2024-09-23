@@ -24,7 +24,7 @@ def _run_dataset_checks(
     destination_type = pipeline.destination_client().config.destination_type
 
     skip_df_chunk_size_check = False
-    expected_columns = ["id", "decimal", "_dlt_load_id", "_dlt_id"]
+    expected_columns = ["id", "decimal", "decimal2", "_dlt_load_id", "_dlt_id"]
     if destination_type == "bigquery":
         chunk_size = 50
         total_records = 80
@@ -49,6 +49,7 @@ def _run_dataset_checks(
                 "id": {"data_type": "bigint"},
                 # we add a decimal with precision to see wether the hints are preserved
                 "decimal": {"data_type": "decimal", "precision": 10, "scale": 3},
+                "decimal2": {"data_type": "decimal", "precision": 12, "scale": 3},
             }
         )
         def items():
@@ -152,12 +153,18 @@ def _run_dataset_checks(
     # this is a stand in to confirm that column hints are applied to database results
     # when known
     expected_decimal_precision = 10
+    expected_decimal_precision_2 = 12
     if destination_config.destination_type == "bigquery":
         # bigquery does not allow precision configuration..
         expected_decimal_precision = 38
+        expected_decimal_precision_2 = 38
     assert (
         table_relationship.arrow().schema.field("decimal").type.precision
         == expected_decimal_precision
+    )
+    assert (
+        table_relationship.arrow().schema.field("decimal2").type.precision
+        == expected_decimal_precision_2
     )
 
 
