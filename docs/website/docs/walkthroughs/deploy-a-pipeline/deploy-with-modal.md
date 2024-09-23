@@ -31,13 +31,13 @@ dlt is an open-source Python library that allows you to declaratively load data 
 
 As an example of how to set up a pipeline in Modal, we'll use the [building a cost-effective analytics stack with Modal, dlt, and dbt.](https://modal.com/blog/analytics-stack) case study.
 
-The example demonstrates automating a workflow to load data from Postgres to Snowflake using `dlt`.
+The example demonstrates automating a workflow to load data from Postgres to Snowflake using dlt.
 
 ## How to run `dlt` on Modal
 
-Here’s our `dlt` setup copying data from our Postgres read replica into Snowflake:
+Here’s our dlt setup copying data from our Postgres read replica into Snowflake:
 
-1. Run the `dlt` SQL database setup to initialize their `sql_database_pipeline.py` template:
+1. Run the `dlt init` CLI command to initialize the SQL database source and set up the `sql_database_pipeline.py` template.
    ```sh
    dlt init sql_database snowflake
    ```
@@ -67,7 +67,7 @@ Here’s our `dlt` setup copying data from our Postgres read replica into Snowfl
    app = modal.App("dlt-postgres-pipeline", image=image)
    ```
 
-3. Wrap the provided `load_table_from_database` with the Modal Function decorator, Modal Secrets containing your database credentials, and a daily cron schedule
+3. Wrap the provided `load_select_tables_from_database` with the Modal Function decorator, Modal Secrets containing your database credentials, and a daily cron schedule, as shown below. The function is in `sql_pipeline.py` and will be customized for your specific use case.
    ```py
    # Function to load the table from the database, scheduled to run daily
    @app.function(
@@ -79,7 +79,7 @@ Here’s our `dlt` setup copying data from our Postgres read replica into Snowfl
        schedule=modal.Cron("24 6 * * *"),
        timeout=3000,
    )
-   def load_table_from_database(
+   def load_select_tables_from_database(
        table: str,
        incremental_col: str,
        dev: bool = False,
@@ -87,6 +87,10 @@ Here’s our `dlt` setup copying data from our Postgres read replica into Snowfl
        # Placeholder for future logic
        pass
    ```
+   :::NOTE
+   You can also configure credentials using the environment variables method supported by dlt, which automatically pulls credentials from environment variables.
+   For more details on this approach, refer to the documentation here: [Docs](https://dlthub.com/docs/general-usage/credentials/setup#environment-variables).
+   :::
 
 4. Write your `dlt` pipeline:
    ```py
@@ -115,6 +119,12 @@ Here’s our `dlt` setup copying data from our Postgres read replica into Snowfl
     # if there are duplicates, merge the latest values
    info = pipeline.run(source_1, write_disposition="merge")
    print(info)
+   ```
+> It's recommended to clean up any unused functions in sql_pipeline.py if they are not needed.
+
+5. Run the pipeline on Modal as:
+   ```sh
+   modal run sql_pipeline.py
    ```
 
 ## Advanced configuration
