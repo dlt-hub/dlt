@@ -322,7 +322,6 @@ class DBApiCursorImpl(DBApiCursor):
 
     def __init__(self, curr: DBApiCursor) -> None:
         self.native_cursor = curr
-        self.schema_columns = None
 
         # wire protocol methods
         self.execute = curr.execute  # type: ignore
@@ -330,11 +329,18 @@ class DBApiCursorImpl(DBApiCursor):
         self.fetchmany = curr.fetchmany  # type: ignore
         self.fetchone = curr.fetchone  # type: ignore
 
+        self.set_default_schema_columns()
+
     def __getattr__(self, name: str) -> Any:
         return getattr(self.native_cursor, name)
 
     def _get_columns(self) -> List[str]:
         return [c[0] for c in self.native_cursor.description]
+
+    def set_default_schema_columns(self) -> None:
+        self.schema_columns = cast(
+            TTableSchemaColumns, {c: {"name": c, "nullable": True} for c in self._get_columns()}
+        )
 
     def df(self, chunk_size: int = None, **kwargs: Any) -> Optional[DataFrame]:
         """Fetches results as data frame in full or in specified chunks.
@@ -371,7 +377,7 @@ class DBApiCursorImpl(DBApiCursor):
         for table in self.iter_arrow(chunk_size=chunk_size):
             # NOTE: we go via arrow table, types are created for arrow is columns are known
             # https://github.com/apache/arrow/issues/38644 for reference on types_mapper
-            yield table.to_pandas(types_mapper=pd.ArrowDtype)
+            yield table.to_pandas()
 
     def iter_arrow(self, chunk_size: int) -> Generator[ArrowTable, None, None]:
         """Default implementation converts query result to arrow table"""
@@ -380,18 +386,13 @@ class DBApiCursorImpl(DBApiCursor):
         # if loading to a specific pipeline, it would be nice to have the correct caps here
         caps = DestinationCapabilitiesContext.generic_capabilities()
 
-        # provide default columns in case not known
-        columns = self.schema_columns or cast(
-            TTableSchemaColumns, {c: {"name": c, "nullable": True} for c in self._get_columns()}
-        )
-
         if not chunk_size:
             result = self.fetchall()
-            yield row_tuples_to_arrow(result, caps, columns, tz="UTC")
+            yield row_tuples_to_arrow(result, caps, self.schema_columns, tz="UTC")
             return
 
         for result in self.iter_fetchmany(chunk_size=chunk_size):
-            yield row_tuples_to_arrow(result, caps, columns, tz="UTC")
+            yield row_tuples_to_arrow(result, caps, self.schema_columns, tz="UTC")
 
 
 def raise_database_error(f: TFun) -> TFun:

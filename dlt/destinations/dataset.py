@@ -39,6 +39,11 @@ class ReadableDBAPIRelation(SupportsReadableRelation):
     def cursor(self) -> Generator[SupportsReadableRelation, Any, Any]:
         """Gets a DBApiCursor for the current relation"""
         with self.client as client:
+            # this hacky code is needed for mssql to disable autocommit, read iterators
+            # will not work otherwise. in the future we should be able to create a readony
+            # client which will do this automatically
+            if hasattr(self.client, "_conn") and hasattr(self.client._conn, "autocommit"):
+                self.client._conn.autocommit = False
             with client.execute_query(self.query) as cursor:
                 cursor.schema_columns = self.schema_columns
                 yield cursor
