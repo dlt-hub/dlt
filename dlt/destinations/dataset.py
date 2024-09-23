@@ -45,7 +45,8 @@ class ReadableDBAPIRelation(SupportsReadableRelation):
             if hasattr(self.client, "_conn") and hasattr(self.client._conn, "autocommit"):
                 self.client._conn.autocommit = False
             with client.execute_query(self.query) as cursor:
-                cursor.schema_columns = self.schema_columns
+                if self.schema_columns:
+                    cursor.schema_columns = self.schema_columns
                 yield cursor
 
     def _wrap_iter(self, func_name: str) -> Any:
