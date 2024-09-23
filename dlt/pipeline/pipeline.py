@@ -16,6 +16,7 @@ from typing import (
     get_type_hints,
     ContextManager,
     Dict,
+    Literal,
 )
 
 from dlt import version
@@ -112,6 +113,7 @@ from dlt.normalize.configuration import NormalizeConfiguration
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.destinations.fs_client import FSClientBase
 from dlt.destinations.job_client_impl import SqlJobClientBase
+from dlt.destinations.dataset import ReadableDBAPIDataset
 from dlt.load.configuration import LoaderConfiguration
 from dlt.load import Load
 
@@ -1698,6 +1700,8 @@ class Pipeline(SupportsPipeline):
         # pickle only the SupportsPipeline protocol fields
         return {"pipeline_name": self.pipeline_name}
 
-    def dataset(self) -> SupportsReadableDataset:
+    def dataset(self, dataset_type: Literal["dbapi", "ibis"] = "dbapi") -> SupportsReadableDataset:
         """Access helper to dataset"""
-        return self.destination_client().dataset()
+        if dataset_type == "dbapi":
+            return ReadableDBAPIDataset(self.sql_client(), schema=self.default_schema)
+        raise NotImplementedError(f"Dataset of type {dataset_type} not implemented")

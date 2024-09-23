@@ -64,7 +64,7 @@ from dlt.destinations.job_impl import (
 from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
 from dlt.destinations import path_utils
 from dlt.destinations.fs_client import FSClientBase
-from dlt.destinations.dataset import ReadableDataset
+from dlt.destinations.dataset import ReadableDBAPIDataset
 from dlt.destinations.utils import verify_schema_merge_disposition
 
 INIT_FILE_NAME = "init"
@@ -702,20 +702,3 @@ class FilesystemClient(
                     pass
 
         return jobs
-
-    @contextmanager
-    def table_relation(
-        self, *, table: str, columns: TTableSchemaColumns
-    ) -> Generator[DBApiCursor, Any, Any]:
-        table = self.sql_client.make_qualified_table_name(table)
-        with self.sql_client.execute_query(f"SELECT * FROM {table}") as cursor:
-            cursor.schema_columns = columns
-            yield cursor
-
-    @contextmanager
-    def query_relation(self, *, query: str) -> Generator[DBApiCursor, Any, Any]:
-        with self.sql_client.execute_query(query) as cursor:
-            yield cursor
-
-    def dataset(self) -> SupportsReadableDataset:
-        return ReadableDataset(self, self.schema)

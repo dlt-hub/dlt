@@ -2,41 +2,44 @@ from typing import Any, Generator, List, Tuple, Optional
 
 from contextlib import contextmanager
 from dlt.common.destination.reference import (
-    WithReadableRelations,
     SupportsReadableRelation,
     SupportsReadableDataset,
 )
 
 from dlt.destinations.typing import DataFrame, ArrowTable
 from dlt.common.schema.typing import TTableSchemaColumns
+from dlt.destinations.sql_client import SqlClientBase
 from dlt.common.schema import Schema
 
 
-class ReadableRelation(SupportsReadableRelation):
+class ReadableDBAPIRelation(SupportsReadableRelation):
     def __init__(
         self,
         *,
-        client: WithReadableRelations,
-        table: str = None,
+        client: SqlClientBase[Any],
+        table_name: str = None,
         query: str = None,
-        columns: TTableSchemaColumns = None
+        schema: Schema = None,
     ) -> None:
         """Create a lazy evaluated relation to for the dataset of a destination"""
         self.client = client
+        self.schema = schema
         self.query = query
-        self.table = table
-        self.schema_columns = columns
+        self.table_name = table_name
+        self.schema_columns = {}
+
+        # prepare query for table relation
+        if self.table_name:
+            table_name = client.make_qualified_table_name(self.table_name)
+            self.query = f"SELECT * FROM {table_name}"
+            self.schema_columns = self.schema.tables[self.table_name]["columns"]
 
     @contextmanager
     def cursor(self) -> Generator[SupportsReadableRelation, Any, Any]:
         """Gets a DBApiCursor for the current relation"""
-        if self.table:
-            with self.client.table_relation(
-                table=self.table, columns=self.schema_columns
-            ) as cursor:
-                yield cursor
-        elif self.query:
-            with self.client.query_relation(query=self.query) as cursor:
+        with self.client as client:
+            with client.execute_query(self.query) as cursor:
+                cursor.schema_columns = self.schema_columns
                 yield cursor
 
     def df(self, chunk_size: int = None) -> Optional[DataFrame]:
@@ -80,21 +83,20 @@ class ReadableRelation(SupportsReadableRelation):
             return cursor.fetchone()
 
 
-class ReadableDataset(SupportsReadableDataset):
-    """Access to dataframes and arrowtables in the destination dataset"""
+class ReadableDBAPIDataset(SupportsReadableDataset):
+    """Access to dataframes and arrowtables in the destination dataset via dbapi"""
 
-    def __init__(self, client: WithReadableRelations, schema: Schema) -> None:
+    def __init__(self, client: SqlClientBase[Any], schema: Schema) -> None:
         self.client = client
         self.schema = schema
 
     def query(self, query: str) -> SupportsReadableRelation:
-        return ReadableRelation(client=self.client, query=query)
+        return ReadableDBAPIRelation(client=self.client, query=query, schema=self.schema)
 
-    def __getitem__(self, table: str) -> SupportsReadableRelation:
+    def __getitem__(self, table_name: str) -> SupportsReadableRelation:
         """access of table via dict notation"""
-        table_columns = self.schema.tables[table]["columns"]
-        return ReadableRelation(client=self.client, table=table, columns=table_columns)
+        return ReadableDBAPIRelation(client=self.client, table_name=table_name, schema=self.schema)
 
-    def __getattr__(self, table: str) -> SupportsReadableRelation:
+    def __getattr__(self, table_name: str) -> SupportsReadableRelation:
         """access of table via property notation"""
-        return self[table]
+        return self[table_name]

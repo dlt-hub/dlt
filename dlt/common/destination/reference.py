@@ -656,9 +656,6 @@ class JobClientBase(ABC):
     ) -> None:
         pass
 
-    def dataset(self) -> SupportsReadableDataset:
-        raise Exception("Destination does not support readable datasets")
-
 
 class WithStateSync(ABC):
     @abstractmethod
@@ -710,22 +707,6 @@ class SupportsStagingDestination(ABC):
         For Athena we truncate those tables only on "replace" write disposition.
         """
         pass
-
-
-class WithReadableRelations(ABC):
-    """Add support for getting readable reletions form a destination"""
-
-    @abstractmethod
-    def table_relation(
-        self, *, table: str, columns: TTableSchemaColumns
-    ) -> ContextManager[SupportsReadableRelation]: ...
-
-    @abstractmethod
-    def query_relation(
-        self,
-        *,
-        query: str,
-    ) -> ContextManager[SupportsReadableRelation]: ...
 
 
 # TODO: type Destination properly

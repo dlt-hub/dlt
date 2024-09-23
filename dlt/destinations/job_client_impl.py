@@ -54,10 +54,9 @@ from dlt.common.destination.reference import (
     JobClientBase,
     HasFollowupJobs,
     CredentialsConfiguration,
-    WithReadableRelations,
     SupportsReadableRelation,
 )
-from dlt.destinations.dataset import ReadableDataset
+from dlt.destinations.dataset import ReadableDBAPIDataset
 
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
 from dlt.destinations.job_impl import (
@@ -129,7 +128,7 @@ class CopyRemoteFileLoadJob(RunnableLoadJob, HasFollowupJobs):
         self._bucket_path = ReferenceFollowupJobRequest.resolve_reference(file_path)
 
 
-class SqlJobClientBase(WithSqlClient, WithReadableRelations, JobClientBase, WithStateSync):
+class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
     INFO_TABLES_QUERY_THRESHOLD: ClassVar[int] = 1000
     """Fallback to querying all tables in the information schema if checking more than threshold"""
 
@@ -712,26 +711,6 @@ WHERE """
                 "pipeline_name": pipeline_name,
             }
         )
-
-    @contextmanager
-    def table_relation(
-        self, *, table: str, columns: TTableSchemaColumns
-    ) -> Generator[SupportsReadableRelation, Any, Any]:
-        with self.sql_client as sql_client:
-            table = sql_client.make_qualified_table_name(table)
-            query = f"SELECT * FROM {table}"
-            with sql_client.execute_query(query) as cursor:
-                cursor.schema_columns = columns
-                yield cursor
-
-    @contextmanager
-    def query_relation(self, *, query: str) -> Generator[SupportsReadableRelation, Any, Any]:
-        with self.sql_client as sql_client:
-            with sql_client.execute_query(query) as cursor:
-                yield cursor
-
-    def dataset(self) -> SupportsReadableDataset:
-        return ReadableDataset(self, self.schema)
 
 
 class SqlJobClientWithStagingDataset(SqlJobClientBase, WithStagingDataset):
