@@ -89,7 +89,7 @@ Here’s a dlt project setup to copy data from our Postgres read replica into Sn
    ```
    
    Please note that you can also configure credentials using the environment variables supported by dlt, which automatically pull credentials from environment variables.
-   For more details, refer to the documentation [here](https://dlthub.com/docs/general-usage/credentials/setup#environment-variables).
+   For more details, refer to the documentation [here](../../general-usage/credentials/setup#environment-variables).
    
 
 4. Customize your `dlt` pipeline:
