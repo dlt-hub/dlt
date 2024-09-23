@@ -291,7 +291,7 @@ with pipeline.sql_client() as client:
     with client.execute_query(
         'SELECT "reactions__+1", "reactions__-1", reactions__laugh, reactions__hooray, reactions__rocket FROM issues'
     ) as table:
-        reactions = table.df()
+        reactions = table.pandas()
 
 counts = reactions.sum(0).sort_values(0, ascending=False)
 ```
