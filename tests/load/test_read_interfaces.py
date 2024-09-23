@@ -187,7 +187,7 @@ def test_read_interfaces_sql(destination_config: DestinationTestConfiguration) -
         local_filesystem_configs=True,
         all_buckets_filesystem_configs=True,
         bucket_exclude=[AZ_BUCKET, ABFS_BUCKET, SFTP_BUCKET],
-    ),  # TODO: make AZ work
+    ),  # TODO: make AZ and SFTP work
     ids=lambda x: x.name,
 )
 def test_read_interfaces_filesystem(destination_config: DestinationTestConfiguration) -> None:

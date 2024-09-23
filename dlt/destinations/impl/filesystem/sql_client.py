@@ -18,6 +18,8 @@ from dlt.destinations.fs_client import FSClientBase
 from dlt.destinations.impl.duckdb.sql_client import DuckDbSqlClient
 from dlt.destinations.impl.duckdb.factory import duckdb as duckdb_factory
 
+SUPPORTED_PROTOCOLS = ["gs", "gcs", "s3", "file", "memory"]
+
 
 class FilesystemSqlClient(DuckDbSqlClient):
     def __init__(self, fs_client: FSClientBase, protocol: str, dataset_name: str) -> None:
@@ -31,6 +33,12 @@ class FilesystemSqlClient(DuckDbSqlClient):
         self.existing_views: List[str] = []  # remember which views already where created
         self.protocol = protocol
         self.is_local_filesystem = protocol == "file"
+
+        if protocol not in SUPPORTED_PROTOCOLS:
+            raise NotImplementedError(
+                f"Protocol {protocol} currently not supported for FilesystemSqlClient. Supported"
+                f" protocols are {SUPPORTED_PROTOCOLS}."
+            )
 
         # set up duckdb instance
         self._conn = duckdb.connect(":memory:")
@@ -70,7 +78,10 @@ class FilesystemSqlClient(DuckDbSqlClient):
             elif file_type == "parquet":
                 read_command = "read_parquet"
             else:
-                raise AssertionError(f"Unknown filetype {file_type} for table {table_name}")
+                raise NotImplementedError(
+                    f"Unknown filetype {file_type} for table {table_name}. Currently only jsonl and"
+                    " parquet files are supported."
+                )
 
             # create table
             protocol = "" if self.is_local_filesystem else f"{self.protocol}://"
