@@ -150,7 +150,7 @@ This destination fully supports [dlt state sync](../../general-usage/state#synci
 ### Data types
 
 All `dlt` data types are supported, but how they are stored in the database depends on the SQLAlchemy dialect.
-For example, SQLite does not have a `DATETIME`/`TIMESTAMP` type, so `timestamp` columns are stored as `TEXT` in ISO 8601 format.
+For example, SQLite does not have `DATETIME` or `TIMESTAMP` types, so `timestamp` columns are stored as `TEXT` in ISO 8601 format.
 
 ## Supported file formats
 

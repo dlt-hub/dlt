@@ -104,7 +104,7 @@ pipeline.run(events())
 ```
 
 ### Fast loading with arrow tables and CSV
-You can use [arrow tables](../verified-sources/arrow-pandas.md) and [CSV](../file-formats/csv.md) to quickly load tabular data. Pick the `CSV` loader file format like below:
+You can use [Arrow tables](../verified-sources/arrow-pandas.md) and [CSV](../file-formats/csv.md) to quickly load tabular data. Pick the CSV loader file format like below:
 ```py
 info = pipeline.run(arrow_table, loader_file_format="csv")
 ```

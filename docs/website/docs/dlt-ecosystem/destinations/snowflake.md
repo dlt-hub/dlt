@@ -315,7 +315,7 @@ stage_name="DLT_STAGE"
 keep_staged_files=true
 ```
 
-### Setting up `csv` format
+### Setting up CSV format
 
 You can provide [non-default](../file-formats/csv.md#default-settings) csv settings via configuration file or explicitly.
 
@@ -334,7 +334,7 @@ csv_format = CsvFormatConfiguration(delimiter="|", include_header=False, on_erro
 
 dest_ = snowflake(csv_format=csv_format)
 ```
-Above, we set the `csv` file without a header, with **|** as a separator, and we request to ignore lines with errors.
+Above, we set the CSV file format without a header, with **|** as a separator, and we request to ignore lines with errors.
 
 :::tip
 You'll need these settings when [importing external files](../../general-usage/resource.md#import-external-files).

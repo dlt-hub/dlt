@@ -166,9 +166,9 @@ pipeline.run(
   bigquery_adapter(load_cve(), autodetect_schema=True)
 )
 ```
-Above, we use the `pyarrow` library to convert a `json` document into an `arrow` table and use `bigquery_adapter` to enable schema autodetect for the **cve** resource.
+Above, we use the `pyarrow` library to convert a JSON document into an Arrow table and use `bigquery_adapter` to enable schema autodetect for the **cve** resource.
 
-Yielding Python dicts/lists and loading them as `jsonl` works as well. In many cases, the resulting nested structure is simpler than those obtained via pyarrow/duckdb and parquet. However, there are slight differences in inferred types from `dlt` (BigQuery coerces types more aggressively). BigQuery also does not try to preserve the column order in relation to the order of fields in JSON.
+Yielding Python dicts/lists and loading them as JSONL works as well. In many cases, the resulting nested structure is simpler than those obtained via pyarrow/duckdb and parquet. However, there are slight differences in inferred types from `dlt` (BigQuery coerces types more aggressively). BigQuery also does not try to preserve the column order in relation to the order of fields in JSON.
 
 ```py
 import dlt
@@ -184,7 +184,7 @@ pipeline.run(
   bigquery_adapter(load_cve(), autodetect_schema=True)
 )
 ```
-In the example below, we represent `json` data as tables up to nesting level 1. Above this nesting level, we let BigQuery create nested fields.
+In the example below, we represent JSON data as tables up to nesting level 1. Above this nesting level, we let BigQuery create nested fields.
 
 :::caution
 If you yield data as Python objects (dicts) and load this data as `parquet`, the nested fields will be converted into strings. This is one of the consequences of
@@ -204,7 +204,7 @@ When staging is enabled:
 * [parquet](../file-formats/parquet.md) is supported.
 
 :::caution
-**BigQuery cannot load JSON columns from `parquet` files**. `dlt` will fail such jobs permanently. Instead:
+**BigQuery cannot load JSON columns from Parquet files**. `dlt` will fail such jobs permanently. Instead:
 * Switch to `jsonl` to load and parse JSON properly.
 * Use schema [autodetect and nested fields](#use-bigquery-schema-autodetect-for-nested-fields)
 :::
@@ -287,7 +287,7 @@ This destination [integrates with dbt](../transformations/dbt/dbt.md) via [dbt-b
 Credentials, if explicitly defined, are shared with `dbt` along with other settings like **location**, retries, and timeouts.
 In the case of implicit credentials (i.e., available in a cloud function), `dlt` shares the `project_id` and delegates obtaining credentials to the `dbt` adapter.
 
-### Syncing of `dlt` state
+### Syncing of dlt state
 
 This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination).
 

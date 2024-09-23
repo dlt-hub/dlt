@@ -192,7 +192,7 @@ For performance reasons, we recommend keeping the multithreaded approach and mak
 
 ## Manage pipeline state for incremental loading
 Custom destinations do not have a general mechanism to restore pipeline state. This will impact data sources that rely on the state being kept, i.e., all incremental resources.
-If you wipe the pipeline directory (i.e., by deleting a folder or running on AWS Lambda / GitHub Actions where you get a clean runner), the progress of the incremental loading is lost. On the next run, you will re-acquire the data from the beginning.
+If you wipe the pipeline directory (i.e., by deleting a folder or running on AWS Lambda or GitHub Actions where you get a clean runner), the progress of the incremental loading is lost. On the next run, you will re-acquire the data from the beginning.
 
 While we are working on a pluggable state storage, you can fix the problem above by:
 1. Not wiping the pipeline directory. For example, if you run your pipeline on an EC instance periodically, the state will be preserved.

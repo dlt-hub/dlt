@@ -99,7 +99,7 @@ dlt init chess databricks
 ```sh
 pip install -r requirements.txt
 ```
-This will install dlt with the **databricks** extra, which contains the Databricks Python dbapi client.
+This will install dlt with the `databricks` extra, which contains the Databricks Python dbapi client.
 
 **4. Enter your credentials into `.dlt/secrets.toml`.**
 
@@ -136,7 +136,7 @@ For more information on staging, see the [staging support](#staging-support) sec
 The `jsonl` format has some limitations when used with Databricks:
 
 1. Compression must be disabled to load jsonl files in Databricks. Set `data_writer.disable_compression` to `true` in the dlt config when using this format.
-2. The following data types are not supported when using the `jsonl` format with `databricks`: `decimal`, `json`, `date`, `binary`. Use `parquet` if your data contains these types.
+2. The following data types are not supported when using the JSONL format with `databricks`: `decimal`, `json`, `date`, `binary`. Use `parquet` if your data contains these types.
 3. The `bigint` data type with precision is not supported with the `jsonl` format.
 
 ## Staging support

@@ -47,7 +47,7 @@ embedding_model_provider_api_key = "embedding_model_provider_api_key" # Not need
 - The `embedding_model` specifies the model used by the embedding provider for generating embeddings.
   Check with the embedding provider which options are available.
   Reference https://lancedb.github.io/lancedb/embeddings/default_embedding_functions/.
-- The `embedding_model_provider_api_key` is the API key for the embedding model provider used to generate embeddings. If you're using a provider that doesn't need authentication, such as ollama, you don't need to supply this key.
+- The `embedding_model_provider_api_key` is the API key for the embedding model provider used to generate embeddings. If you're using a provider that doesn't need authentication, such as Ollama, you don't need to supply this key.
 
 :::info Available model providers
 - "gemini-text"

@@ -198,7 +198,6 @@ data_items = [
 @dlt.resource(table_format="iceberg")
 def partitioned_data():
     yield [{"id": i, "category": c, "created_at": d} for i, c, d in data_items]
-```
 
 # Add partitioning hints to the table
 athena_adapter(
@@ -213,6 +212,6 @@ athena_adapter(
 
 pipeline = dlt.pipeline("athena_example")
 pipeline.run(partitioned_data)
-
+```
 <!--@@@DLT_TUBA athena-->
 

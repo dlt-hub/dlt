@@ -153,7 +153,7 @@ If you have default Google Cloud credentials in your environment (i.e., on cloud
 
 Use **Cloud Storage** admin to create a new bucket. Then assign the **Storage Object Admin** role to your service account.
 
-### Azure Blob storage
+### Azure Blob Storage
 
 Run `pip install "dlt[az]"` which will install the `adlfs` package to interface with Azure Blob Storage.
 
@@ -347,7 +347,7 @@ sftp_key_passphrase = "your_passphrase"   # Optional: passphrase for your privat
 ```
 The loaded key must be one of the following types stored in ~/.ssh/: id_rsa, id_dsa, or id_ecdsa.
 
-#### 3. Username/password authentication
+#### 3. Username and password authentication
 
 This is the simplest form of authentication, where you supply a username and password directly.
 

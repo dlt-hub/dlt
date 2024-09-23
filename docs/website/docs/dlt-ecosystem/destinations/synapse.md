@@ -57,9 +57,9 @@ CREATE LOGIN loader WITH PASSWORD = 'your_loader_password';
 CREATE USER loader FOR LOGIN loader;
 
 -- DDL permissions
-GRANT CREATE SCHEMA TO loader ON DATABASE :: yourpool;
-GRANT CREATE TABLE TO loader ON DATABASE :: yourpool;
-GRANT CREATE VIEW TO loader ON DATABASE :: yourpool;
+GRANT CREATE SCHEMA ON DATABASE :: yourpool TO loader;
+GRANT CREATE TABLE ON DATABASE :: yourpool TO loader;
+GRANT CREATE VIEW ON DATABASE :: yourpool TO loader;
 
 -- DML permissions
 GRANT ADMINISTER DATABASE BULK OPERATIONS TO loader; -- only required when loading from staging Storage Account

@@ -73,8 +73,8 @@ pipeline.run(events())
 
 ### Names normalization
 `dlt` uses the standard **snake_case** naming convention to keep identical table and column identifiers across all destinations. If you want to use the **duckdb** wide range of characters (i.e., emojis) for table and column names, you can switch to the **duck_case** naming convention, which accepts almost any string as an identifier:
-* `\n` `\r`  and `"` are translated to `_`
-* Multiple `_` are translated to a single `_`
+* New line (`\n`), carriage return (`\r`), and double quotes (`"`) are translated to an underscore (`_`).
+* Consecutive underscores (`_`) are translated to a single `_`
 
 Switch the naming convention using `config.toml`:
 ```toml
@@ -105,7 +105,7 @@ You can configure the following file formats to load data into duckdb:
 `duckdb` has [timestamp types](https://duckdb.org/docs/sql/data_types/timestamp.html) with resolutions from milliseconds to nanoseconds. However,
 only the microseconds resolution (the most commonly used) is time zone aware. `dlt` generates timestamps with timezones by default, so loading parquet files
 with default settings will fail (`duckdb` does not coerce tz-aware timestamps to naive timestamps).
-Disable the timezones by changing the `dlt` [parquet writer settings](../file-formats/parquet.md#writer-settings) as follows:
+Disable the timezones by changing the `dlt` [Parquet writer settings](../file-formats/parquet.md#writer-settings) as follows:
 ```sh
 DATA_WRITER__TIMESTAMP_TIMEZONE=""
 ```
@@ -187,7 +187,7 @@ destination.duckdb.credentials="duckdb:///_storage/test_quack.duckdb"
 
 The **duckdb://** URL above creates a **relative** path to `_storage/test_quack.duckdb`. To define an **absolute** path, you need to specify four slashes, i.e., `duckdb:////_storage/test_quack.duckdb`.
 
-Dlt supports a unique connection string that triggers specific behavior for the duckdb destination:
+Dlt supports a unique connection string that triggers specific behavior for the `duckdb` destination:
 * **:pipeline:** creates the database in the working directory of the pipeline, naming it `quack.duckdb`.
 
 Please see the code snippets below showing how to use it:
