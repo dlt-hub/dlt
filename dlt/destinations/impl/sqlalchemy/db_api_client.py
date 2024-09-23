@@ -17,6 +17,7 @@ from pathlib import Path
 
 import sqlalchemy as sa
 from sqlalchemy.engine import Connection
+from sqlalchemy.exc import ResourceClosedError
 
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import PreparedTableSchema
@@ -82,7 +83,11 @@ class SqlaDbApiCursor(DBApiCursorImpl):
         self.set_default_schema_columns()
 
     def _get_columns(self) -> List[str]:
-        return list(self.native_cursor.keys())  # type: ignore[attr-defined]
+        try:
+            return list(self.native_cursor.keys())  # type: ignore[attr-defined]
+        except ResourceClosedError:
+            # this happens if now rows are returned
+            return []
 
     # @property
     # def description(self) -> Any:
