@@ -6,34 +6,26 @@ keywords: [data enrichment, user-agent data, device enrichment]
 
 # Data enrichment part one: User-agent device data enrichment
 
-Data enrichment enhances raw data with valuable information from multiple sources, increasing its
-analytical and decision-making value.
+Data enrichment enhances raw data with valuable information from multiple sources, increasing its analytical and decision-making value.
 
-This part covers enriching sample data with device price. Understanding the price segment
-of the device that the user used to access your service can be helpful in personalized marketing,
-customer segmentation, and many more.
+This part covers enriching sample data with device price. Understanding the price segment of the device that the user used to access your service can be helpful in personalized marketing, customer segmentation, and more.
 
-This documentation will discuss how to enrich the user device information with the average market
-price.
+This documentation will discuss how to enrich user device information with the average market price.
 
-## Setup Guide
+## Setup guide
 
-We use SerpAPI to retrieve device prices using Google Shopping, but alternative services or APIs are
-viable.
+We use SerpAPI to retrieve device prices using Google Shopping, but alternative services or APIs are viable.
 
 :::note
-SerpAPI free tier offers 100 free calls monthly. For production, consider upgrading to a higher
-plan.
+SerpAPI's free tier offers 100 free calls monthly. For production, consider upgrading to a higher plan.
 :::
 
 
-## Creating data enrichment pipeline
-You can either follow the example in the linked Colab notebook or follow this documentation to
-create the user-agent device data enrichment pipeline.
+## Creating a data enrichment pipeline
+You can either follow the example in the linked Colab notebook or follow this documentation to create the user-agent device data enrichment pipeline.
 
 ### A. Colab notebook
-The Colab notebook combines three data enrichment processes for a sample dataset, starting with "Data
-enrichment part one: User-agent device data".
+The Colab notebook combines three data enrichment processes for a sample dataset, starting with "Data enrichment part one: User-agent device data".
 
 Here's the link to the notebook:
 **[Colab Notebook](https://colab.research.google.com/drive/1ZKEkf1LRSld7CWQFS36fUXjhJKPAon7P?usp=sharing).**
@@ -47,85 +39,77 @@ user_device_enrichment/
 │   └── secrets.toml
 └── device_enrichment_pipeline.py
 ```
+
 ### 1. Creating resource
 
-   `dlt` works on the principle of [sources](../source)
-   and [resources.](../resource)
+`dlt` works on the principle of [sources](../source) and [resources.](../resource)
 
-   This data resource yields data typical of what many web analytics and
-   tracking tools can collect. However, the specifics of what data is collected
-   and how it's used can vary significantly among different tracking services.
+This data resource yields data typical of what many web analytics and tracking tools can collect. However, the specifics of what data is collected and how it's used can vary significantly among different tracking services.
 
-   Let's examine a synthetic dataset created for this article. It includes:
+Let's examine a synthetic dataset created for this article. It includes:
 
-   `user_id`: Web trackers typically assign unique ID to users for
-   tracking their journeys and interactions over time.
+`user_id`: Web trackers typically assign a unique ID to users for tracking their journeys and interactions over time.
 
-   `device_name`: User device information helps in understanding the user base's device.
+`device_name`: User device information helps in understanding the user base's device preferences.
 
-   `page_refer`: The referer URL is tracked to analyze traffic sources and user navigation behavior.
+`page_refer`: The referer URL is tracked to analyze traffic sources and user navigation behavior.
 
-   Here's the resource that yields the sample data as discussed above:
+Here's the resource that yields the sample data as discussed above:
 
-   ```py
-    import dlt
+```py
+import dlt
 
-    @dlt.resource(write_disposition="append")
-    def tracked_data():
-        """
-        A generator function that yields a series of dictionaries, each representing
-        user tracking data.
+@dlt.resource(write_disposition="append")
+def tracked_data():
+    """
+    A generator function that yields a series of dictionaries, each representing
+    user tracking data.
 
-        This function is decorated with `dlt.resource` to integrate into the DLT (Data
-        Loading Tool) pipeline. The `write_disposition` parameter is set to "append" to
-        ensure that data from this generator is appended to the existing data in the
-        destination table.
+    This function is decorated with `dlt.resource` to integrate into the DLT (Data
+    Loading Tool) pipeline. The `write_disposition` parameter is set to "append" to
+    ensure that data from this generator is appended to the existing data in the
+    destination table.
 
-        Yields:
-            dict: A dictionary with keys 'user_id', 'device_name', and 'page_referer',
-            representing the user's tracking data including their device and the page
-            they were referred from.
-        """
+    Yields:
+        dict: A dictionary with keys 'user_id', 'device_name', and 'page_referer',
+        representing the user's tracking data including their device and the page
+        they were referred from.
+    """
 
-        # Sample data representing tracked user data
-        sample_data = [
-            {"user_id": 1, "device_name": "Sony Experia XZ", "page_referer":
-            "https://b2venture.lightning.force.com/"},
-            {"user_id": 2, "device_name": "Samsung Galaxy S23 Ultra 5G",
-            "page_referer": "https://techcrunch.com/2023/07/20/can-dlthub-solve-the-python-library-problem-for-ai-dig-ventures-thinks-so/"},
-            {"user_id": 3, "device_name": "Apple iPhone 14 Pro Max",
-            "page_referer": "https://dlthub.com/success-stories/freelancers-perspective/"},
-            {"user_id": 4, "device_name": "OnePlus 11R",
-            "page_referer": "https://www.reddit.com/r/dataengineering/comments/173kp9o/ideas_for_data_validation_on_data_ingestion/"},
-            {"user_id": 5, "device_name": "Google Pixel 7 Pro", "page_referer": "https://pypi.org/"},
-        ]
+    # Sample data representing tracked user data
+    sample_data = [
+        {"user_id": 1, "device_name": "Sony Experia XZ", "page_referer":
+        "https://b2venture.lightning.force.com/"},
+        {"user_id": 2, "device_name": "Samsung Galaxy S23 Ultra 5G",
+        "page_referer": "https://techcrunch.com/2023/07/20/can-dlthub-solve-the-python-library-problem-for-ai-dig-ventures-thinks-so/"},
+        {"user_id": 3, "device_name": "Apple iPhone 14 Pro Max",
+        "page_referer": "https://dlthub.com/success-stories/freelancers-perspective/"},
+        {"user_id": 4, "device_name": "OnePlus 11R",
+        "page_referer": "https://www.reddit.com/r/dataengineering/comments/173kp9o/ideas_for_data_validation_on_data_ingestion/"},
+        {"user_id": 5, "device_name": "Google Pixel 7 Pro", "page_referer": "https://pypi.org/"},
+    ]
 
-        # Yielding each user's data as a dictionary
-        for user_data in sample_data:
-            yield user_data
-   ```
+    # Yielding each user's data as a dictionary
+    for user_data in sample_data:
+        yield user_data
+```
 
 ### 2. Create `fetch_average_price` function
 
-This particular function retrieves the average price of a device by utilizing SerpAPI and Google
-shopping listings. To filter the data, the function uses `dlt` state, and only fetches prices
-from SerpAPI for devices that have not been updated in the most recent run or for those that were
-loaded more than 180 days in the past.
+This particular function retrieves the average price of a device by utilizing SerpAPI and Google shopping listings. To filter the data, the function uses dlt state, and only fetches prices from SerpAPI for devices that have not been updated in the most recent run or for those that were loaded more than 180 days in the past.
 
 The first step is to register on [SerpAPI](https://serpapi.com/) and obtain the API token key.
 
-1. In the `.dlt`folder, there's a file called `secrets.toml`. It's where you store sensitive
-   information securely, like access tokens. Keep this file safe. Here's its format for service
-   account authentication:
+1. In the `.dlt` folder, there's a file called `secrets.toml`. It's where you store sensitive information securely, like access tokens. Keep this file safe. Here's its format for service account authentication:
 
    ```py
    [sources]
-   api_key= "Please set me up!"  #Serp Api key.
+   api_key= "Please set me up!"  # Serp Api key.
    ```
 
 1. Replace the value of the `api_key`.
 
-1. Create `fetch_average_price()` function as follows:
+1. Create the `fetch_average_price()` function as follows:
    ```py
    from datetime import datetime, timedelta
    import requests
@@ -229,16 +213,15 @@ The first step is to register on [SerpAPI](https://serpapi.com/) and obtain the 
    - Add map function
    - Transformer function
 
-
    The `dlt` library's `transformer` and `add_map` functions serve distinct purposes in data
    processing.
 
-   `Transformers` used to process a resource and are ideal for post-load data transformations in a
+   `Transformers` are used to process a resource and are ideal for post-load data transformations in a
    pipeline, compatible with tools like `dbt`, the `dlt SQL client`, or Pandas for intricate data
    manipulation. To read more:
    [Click here.](../../general-usage/resource#process-resources-with-dlttransformer)
 
-   Conversely, `add_map` used to customize a resource applies transformations at an item level
+   Conversely, `add_map` is used to customize a resource and applies transformations at an item level
    within a resource. It's useful for tasks like anonymizing individual data records. More on this
    can be found under
    [Customize resources](../../general-usage/resource#customize-resources) in the
@@ -281,7 +264,7 @@ The first step is to register on [SerpAPI](https://serpapi.com/) and obtain the 
 ### Run the pipeline
 
 1. Install necessary dependencies for the preferred
-   [destination](../../dlt-ecosystem/destinations/), For example, duckdb:
+   [destination](../../dlt-ecosystem/destinations/), for example, duckdb:
 
    ```sh
    pip install "dlt[duckdb]"
@@ -301,5 +284,4 @@ The first step is to register on [SerpAPI](https://serpapi.com/) and obtain the 
 
    For example, the "pipeline_name" for the above pipeline example is `data_enrichment_one`; you can use
    any custom name instead.
-
 

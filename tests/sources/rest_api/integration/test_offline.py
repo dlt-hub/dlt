@@ -2,7 +2,7 @@ from typing import Any, List, Optional
 from unittest import mock
 
 import pytest
-from requests import Request, Response
+from requests import Request, Response, Session
 
 import dlt
 from dlt.common import pendulum
@@ -327,3 +327,34 @@ def test_posts_with_inremental_date_conversion(mock_api_server) -> None:
         _, called_kwargs = mock_paginate.call_args_list[0]
         assert called_kwargs["params"] == {"since": "1970-01-01", "until": "1970-01-02"}
         assert called_kwargs["path"] == "posts"
+
+
+def test_multiple_response_actions_on_every_response(mock_api_server, mocker):
+    class CustomSession(Session):
+        pass
+
+    def send_spy(*args, **kwargs):
+        return original_send(*args, **kwargs)
+
+    my_session = CustomSession()
+    original_send = my_session.send
+    mocked_send = mocker.patch.object(my_session, "send", side_effect=send_spy)
+
+    source = rest_api_source(
+        {
+            "client": {
+                "base_url": "https://api.example.com",
+                "session": my_session,
+            },
+            "resources": [
+                {
+                    "name": "posts",
+                },
+            ],
+        }
+    )
+
+    list(source.with_resources("posts").add_limit(1))
+
+    mocked_send.assert_called_once()
+    assert mocked_send.call_args[0][0].url == "https://api.example.com/posts"

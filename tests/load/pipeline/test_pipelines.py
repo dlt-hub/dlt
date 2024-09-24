@@ -48,7 +48,7 @@ from tests.load.utils import (
     destinations_configs,
     DestinationTestConfiguration,
 )
-from tests.load.pipeline.utils import REPLACE_STRATEGIES
+from tests.load.pipeline.utils import REPLACE_STRATEGIES, skip_if_unsupported_replace_strategy
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential
@@ -641,11 +641,7 @@ def test_dataset_name_change(destination_config: DestinationTestConfiguration) -
 def test_pipeline_upfront_tables_two_loads(
     destination_config: DestinationTestConfiguration, replace_strategy: str
 ) -> None:
-    if not destination_config.supports_merge and replace_strategy != "truncate-and-insert":
-        pytest.skip(
-            f"Destination {destination_config.name} does not support merge and thus"
-            f" {replace_strategy}"
-        )
+    skip_if_unsupported_replace_strategy(destination_config, replace_strategy)
 
     # use staging tables for replace
     os.environ["DESTINATION__REPLACE_STRATEGY"] = replace_strategy

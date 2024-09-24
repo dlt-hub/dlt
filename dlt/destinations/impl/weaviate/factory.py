@@ -61,6 +61,7 @@ class weaviate(Destination[WeaviateClientConfiguration, "WeaviateClient"]):
         caps.is_max_text_data_type_length_in_bytes = False
         caps.supports_ddl_transactions = False
         caps.naming_convention = "dlt.destinations.impl.weaviate.naming"
+        caps.supported_replace_strategies = ["truncate-and-insert"]
 
         return caps
 
