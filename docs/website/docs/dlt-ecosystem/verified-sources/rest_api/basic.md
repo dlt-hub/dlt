@@ -647,30 +647,33 @@ In the following example, we want to load the issues belonging to three reposito
 Instead of defining now three different issues resources, one for each of the paths `dlt-hub/dlt/issues/`, `dlt-hub/verified-sources/issues/`, `dlt-hub/dlthub-education/issues/`, we have a resource `repositories` which yields a list of repository names which will be fetched by the dependent resource `issues`.
 
 ```py
- @dlt.resource()
-    def repositories() -> Generator[List[Dict[str, Any]]]:
-        """A seed list of repositories to fetch"""
-        yield [{"name": "dlt"}, {"name": "verified-sources"}, {"name": "dlthub-education"}]
+from dlt.sources.rest_api import RESTAPIConfig
 
-    config: RESTAPIConfig = {
-        "client": {"base_url": "https://github.com/api/v2"},
-        "resources": [
-            {
-                "name": "issues",
-                "endpoint": {
-                    "path": "dlt-hub/{repository}/issues/",
-                    "params": {
-                        "repository": {
-                            "type": "resolve",
-                            "resource": "repositories",
-                            "field": "name",
-                        },
+@dlt.resource()
+def repositories() -> Generator[List[Dict[str, Any]]]:
+    """A seed list of repositories to fetch"""
+    yield [{"name": "dlt"}, {"name": "verified-sources"}, {"name": "dlthub-education"}]
+
+
+config: RESTAPIConfig = {
+    "client": {"base_url": "https://github.com/api/v2"},
+    "resources": [
+        {
+            "name": "issues",
+            "endpoint": {
+                "path": "dlt-hub/{repository}/issues/",
+                "params": {
+                    "repository": {
+                        "type": "resolve",
+                        "resource": "repositories",
+                        "field": "name",
                     },
                 },
             },
-            repositories(),
-        ],
-    }
+        },
+        repositories(),
+    ],
+}
 ```
 
 Be careful that the parent resource needs to return `Generator[List[Dict[str, Any]]]`. Thus, the following will NOT work:
