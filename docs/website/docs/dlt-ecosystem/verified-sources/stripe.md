@@ -13,25 +13,25 @@ import Header from './_source-info-header.md';
 
 This Stripe `dlt` verified source and
 [pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/stripe_pipeline.py)
-loads data using Stripe API to the destination of your choice.
+loads data using the Stripe API to the destination of your choice.
 
 This verified source loads data from the following endpoints:
 
-| Name	            | Description                                |
+| Name               | Description                                |
 |--------------------|--------------------------------------------|
 | Subscription       | Recurring payment on Stripe                |
-| Account	         | User profile on Stripe                     |
-| Coupon	            | Discount codes offered by businesses       |
-| Customer	         | Buyers using Stripe                        |
-| Product	         | Items or services for sale                 |
-| Price	            | Cost details for products or plans         |
-| Event	            | Significant activities in a Stripe account |
-| Invoice	         | Payment request document                   |
+| Account            | User profile on Stripe                     |
+| Coupon             | Discount codes offered by businesses       |
+| Customer           | Buyers using Stripe                        |
+| Product            | Items or services for sale                 |
+| Price              | Cost details for products or plans         |
+| Event              | Significant activities in a Stripe account |
+| Invoice            | Payment request document                   |
 | BalanceTransaction | Funds movement record in Stripe            |
 
 Please note that endpoints in the verified source can be customized as per the Stripe API [reference documentation.](https://stripe.com/docs/api)
 
-## Setup Guide
+## Setup guide
 
 ### Grab credentials
 
@@ -89,8 +89,7 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 
 ## Run the pipeline
 
-1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
-   running the command:
+1. Before running the pipeline, ensure that you have installed all the necessary dependencies by running the command:
 
    ```sh
    pip install -r requirements.txt
@@ -102,26 +101,22 @@ For more information, read the [General Usage: Credentials.](../../general-usage
    python stripe_analytics_pipeline.py
    ```
 
-1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
-   the following command:
+1. Once the pipeline has finished running, you can verify that everything loaded correctly by using the following command:
 
    ```sh
    dlt pipeline <pipeline_name> show
    ```
 
-   For example, the `pipeline_name` for the above pipeline example is `stripe_analytics`, you
-   may also use any custom name instead.
+   For example, the `pipeline_name` for the above pipeline example is `stripe_analytics`. You may also use any custom name instead.
 
 For more information, read the guide on [how to run a pipeline](../../walkthroughs/run-a-pipeline).
 
 ## Sources and resources
 
-`dlt` works on the principle of [sources](../../general-usage/source) and
-[resources](../../general-usage/resource).
+`dlt` works on the principle of [sources](../../general-usage/source) and [resources](../../general-usage/resource).
 
 ### Default endpoints
-You can write your own pipelines to load data to a destination using this verified source.
-However, it is important to note is how the `ENDPOINTS` and `INCREMENTAL_ENDPOINTS` tuples are defined in `stripe_analytics/settings.py`.
+You can write your own pipelines to load data to a destination using this verified source. However, it is important to note how the `ENDPOINTS` and `INCREMENTAL_ENDPOINTS` tuples are defined in `stripe_analytics/settings.py`.
 
 ```py
 # The most popular Stripe API's endpoints
@@ -168,20 +163,19 @@ def incremental_stripe_source(
 ```
 `endpoints`: Tuple containing incremental endpoint names.
 
-`initial_start_date`: Parameter for incremental loading; data after initial_start_date is loaded on the first run (default: None).
+`initial_start_date`: Parameter for incremental loading; data after the initial_start_date is loaded on the first run (default: None).
 
 `end_date`: End datetime for data loading (default: None).
-
 
 After each run, 'initial_start_date' updates to the last loaded date. Subsequent runs then retrieve only new data using append mode, streamlining the process and preventing redundant data downloads.
 
 For more information, read the [Incremental loading](../../general-usage/incremental-loading).
 
 ## Customization
+
 ### Create your own pipeline
 
-If you wish to create your own pipelines, you can leverage source and resource methods from this
-verified source.
+If you wish to create your own pipelines, you can leverage source and resource methods from this verified source.
 
 1. Configure the pipeline by specifying the pipeline name, destination, and dataset as follows:
 
@@ -235,3 +229,4 @@ verified source.
     > To load data, maintain the pipeline name and destination dataset name. The pipeline name is vital for accessing the last run's [state](../../general-usage/state), which determines the incremental data load's end date. Altering these names can trigger a [“dev_mode”](../../general-usage/pipeline#do-experiments-with-dev-mode), disrupting the metadata (state) tracking for [incremental data loading](../../general-usage/incremental-loading).
 
 <!--@@@DLT_TUBA stripe_analytics-->
+
