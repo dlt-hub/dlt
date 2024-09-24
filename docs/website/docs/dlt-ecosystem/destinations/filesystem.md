@@ -696,7 +696,6 @@ This destination fully supports [dlt state sync](../../general-usage/state#synci
 settings in the layout section. When using filesystem as a staging destination, not all of these folders are created, as the state and schemas are
 managed in the regular way by the final destination you have configured.
 
-You will also notice `init` files being present in the root folder and the special `dlt` folders. In the absence of the concepts of schemas and tables
-in blob storages and directories, `dlt` uses these special files to harmonize the behavior of the `filesystem` destination with the other implemented destinations.
+**Note:** When using incremental loads, each successful load generates a state in the `_dlt_pipeline_state` folder at the destination. By default, only the latest 100 states are retained. The cleanup process can be adjusted or disabled using the filesystem configuration `max_state_files`, which defines the maximum number of pipeline state files to retain (default is 100). Setting this value to 0 or a negative number disables the cleanup of old states.
 
 <!--@@@DLT_TUBA filesystem-->
