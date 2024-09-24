@@ -363,7 +363,7 @@ def test_multiple_response_actions_on_every_response(mock_api_server, mocker):
 def test_DltResource_gets_called(mock_api_server, mocker) -> None:
     @dlt.resource()
     def post_list():
-        yield from [[{"id": "0"}], [{"id": "1"}], [{"id": "2"}]]
+        yield [{"id": "0"}, {"id": "1"}, {"id": "2"}]
 
     config: RESTAPIConfig = {
         "client": {"base_url": "http://api.example.com/"},

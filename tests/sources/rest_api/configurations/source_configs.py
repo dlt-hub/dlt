@@ -116,7 +116,7 @@ class CustomOAuthAuth(OAuth2AuthBase):
 @dlt.resource(name="repositories", selected=False)
 def repositories():
     """A seed list of repositories to fetch"""
-    yield from [{"name": "dlt"}, {"name": "verified-sources"}, {"name": "dlthub-education"}]
+    yield [{"name": "dlt"}, {"name": "verified-sources"}, {"name": "dlthub-education"}]
 
 
 VALID_CONFIGS: List[RESTAPIConfig] = [
