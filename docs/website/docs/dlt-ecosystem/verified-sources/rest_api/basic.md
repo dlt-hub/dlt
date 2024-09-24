@@ -341,7 +341,7 @@ The fields in the endpoint configuration are:
 - `json`: The JSON payload to be sent with the request (for POST and PUT requests).
 - `paginator`: Pagination configuration for the endpoint. See the [pagination](#pagination) section for more details.
 - `data_selector`: A JSONPath to select the data from the response. See the [data selection](#data-selection) section for more details.
-- `response_actions`: A list of actions that define how to process the response data. See the [response actions](#response-actions) section for more details.
+- `response_actions`: A list of actions that define how to process the response data. See the [response actions](./advanced#response-actions) section for more details.
 - `incremental`: Configuration for [incremental loading](#incremental-loading).
 
 ### Pagination
@@ -877,7 +877,7 @@ See the [troubleshooting guide](../../../general-usage/incremental-loading.md#tr
 
 #### Getting HTTP 404 errors
 
-Some API may return 404 errors for resources that do not exist or have no data. Manage these responses by configuring the `ignore` action in [response actions](#response-actions).
+Some API may return 404 errors for resources that do not exist or have no data. Manage these responses by configuring the `ignore` action in [response actions](./advanced#response-actions).
 
 ### Authentication issues
 
