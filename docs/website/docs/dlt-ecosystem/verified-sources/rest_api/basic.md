@@ -877,7 +877,7 @@ See the [troubleshooting guide](../../../general-usage/incremental-loading.md#tr
 
 #### Getting HTTP 404 errors
 
-Some API may return 404 errors for resources that do not exist or have no data. Manage these responses by configuring the `ignore` action in [response actions](../advanced#response-actions).
+Some API may return 404 errors for resources that do not exist or have no data. Manage these responses by configuring the `ignore` action in [response actions](advanced#response-actions).
 
 ### Authentication issues
 
