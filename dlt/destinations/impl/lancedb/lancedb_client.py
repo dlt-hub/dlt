@@ -14,7 +14,6 @@ from typing import (
     Set,
 )
 
-from dlt.common.destination.capabilities import DataTypeMapper
 import lancedb  # type: ignore
 import lancedb.table  # type: ignore
 import pyarrow as pa
@@ -47,11 +46,11 @@ from dlt.common.destination.reference import (
 from dlt.common.pendulum import timedelta
 from dlt.common.schema import Schema, TSchemaTables
 from dlt.common.schema.typing import (
-    C_DLT_LOAD_ID,
     TColumnType,
     TTableSchemaColumns,
     TWriteDisposition,
     TColumnSchema,
+    TTableSchema,
 )
 from dlt.common.schema.utils import get_columns_names_with_prop
 from dlt.common.storages import FileStorage, LoadJobInfo, ParsedLoadJobFileName
@@ -83,7 +82,7 @@ from dlt.destinations.impl.lancedb.utils import (
     create_filter_condition,
 )
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest
-from dlt.destinations.type_mapping import TypeMapper
+from dlt.destinations.type_mapping import TypeMapperImpl
 
 if TYPE_CHECKING:
     NDArray = ndarray[Any, Any]
@@ -96,7 +95,7 @@ BATCH_PROCESS_CHUNK_SIZE = 10_000
 EMPTY_STRING_PLACEHOLDER = "0uEoDNBpQUBwsxKbmxxB"
 
 
-class LanceDBTypeMapper(TypeMapper):
+class LanceDBTypeMapper(TypeMapperImpl):
     sct_to_unbound_dbt = {
         "text": pa.string(),
         "double": pa.float64(),
@@ -738,14 +737,8 @@ class LanceDBLoadJob(RunnableLoadJob, HasFollowupJobs):
         self,
         file_path: str,
         table_schema: TTableSchema,
-        type_mapper: DataTypeMapper,
-        model_func: TextEmbeddingFunction,
-        fq_table_name: str,
     ) -> None:
         super().__init__(file_path)
-        self._type_mapper = type_mapper
-        self._fq_table_name: str = fq_table_name
-        self._model_func = model_func
         self._job_client: "LanceDBClient" = None
         self._table_schema: TTableSchema = table_schema
 
@@ -780,12 +773,15 @@ class LanceDBLoadJob(RunnableLoadJob, HasFollowupJobs):
                 "LanceDB's write disposition requires at least one explicit primary key."
             )
 
+        dlt_id = self._schema.naming.normalize_identifier(
+            self._schema.data_item_normalizer.C_DLT_ID
+        )
         write_records(
             arrow_table,
             db_client=db_client,
             table_name=fq_table_name,
             write_disposition=write_disposition,
-            merge_key=self._schema.data_item_normalizer.C_DLT_ID,  # type: ignore[attr-defined]
+            merge_key=dlt_id,
         )
 
 
@@ -801,9 +797,15 @@ class LanceDBRemoveOrphansJob(RunnableLoadJob):
         self.references = ReferenceFollowupJobRequest.resolve_references(file_path)
 
     def run(self) -> None:
-        dlt_load_id = self._schema.data_item_normalizer.C_DLT_LOAD_ID  # type: ignore[attr-defined]
-        dlt_id = self._schema.data_item_normalizer.C_DLT_ID  # type: ignore[attr-defined]
-        dlt_root_id = self._schema.data_item_normalizer.C_DLT_ROOT_ID  # type: ignore[attr-defined]
+        dlt_load_id = self._schema.naming.normalize_identifier(
+            self._schema.data_item_normalizer.C_DLT_LOAD_ID
+        )
+        dlt_id = self._schema.naming.normalize_identifier(
+            self._schema.data_item_normalizer.C_DLT_ID
+        )
+        dlt_root_id = self._schema.naming.normalize_identifier(
+            self._schema.data_item_normalizer.C_DLT_ROOT_ID
+        )
 
         db_client: DBConnection = self._job_client.db_client
         table_lineage: TTableLineage = [

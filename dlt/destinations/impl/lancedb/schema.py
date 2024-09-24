@@ -4,18 +4,16 @@ from typing import (
     List,
     cast,
     Optional,
-    Tuple,
 )
 
 import pyarrow as pa
 from lancedb.embeddings import TextEmbeddingFunction  # type: ignore
 from typing_extensions import TypeAlias
 
-from dlt.common.json import json
-from dlt.common.schema import Schema, TColumnSchema, TTableSchema
-from dlt.common.typing import DictStrAny
-
 from dlt.common.destination.capabilities import DataTypeMapper
+from dlt.common.json import json
+from dlt.common.schema import Schema, TColumnSchema
+from dlt.common.typing import DictStrAny
 
 
 TArrowSchema: TypeAlias = pa.Schema
@@ -44,9 +42,7 @@ def make_arrow_field_schema(
 def make_arrow_table_schema(
     table_name: str,
     schema: Schema,
-    type_mapper: TypeMapper,
     type_mapper: DataTypeMapper,
-    id_field_name: Optional[str] = None,
     vector_field_name: Optional[str] = None,
     embedding_fields: Optional[List[str]] = None,
     embedding_model_func: Optional[TextEmbeddingFunction] = None,
