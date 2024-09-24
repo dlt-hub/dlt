@@ -241,7 +241,6 @@ class TScd2StrategyDict(TMergeDispositionDict, total=False):
     boundary_timestamp: Optional[TAnyDateTime]
     row_version_column_name: Optional[str]
     retire_absent_rows: Optional[bool]
-    natural_key: Optional[str]
 
 
 TWriteDispositionConfig = Union[

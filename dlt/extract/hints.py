@@ -460,12 +460,6 @@ class DltResourceHints:
                 dict_["x-boundary-timestamp"] = md_dict["boundary_timestamp"]
             if "retire_absent_rows" in md_dict:
                 dict_["x-retire-absent-rows"] = md_dict["retire_absent_rows"]
-            if "natural_key" in md_dict:
-                nk = md_dict["natural_key"]
-                if nk in dict_["columns"]:
-                    dict_["columns"][nk]["x-natural-key"] = True
-                else:
-                    dict_["columns"][nk] = {"name": nk, "x-natural-key": True}
             if md_dict.get("validity_column_names") is None:
                 from_, to = DEFAULT_VALIDITY_COLUMN_NAMES
             else:
