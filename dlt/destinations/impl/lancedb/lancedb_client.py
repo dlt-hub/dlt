@@ -103,7 +103,7 @@ class LanceDBTypeMapper(TypeMapperImpl):
         "bigint": pa.int64(),
         "binary": pa.binary(),
         "date": pa.date32(),
-        "complex": pa.string(),
+        "json": pa.string(),
     }
 
     sct_to_dbt = {}
@@ -164,7 +164,7 @@ class LanceDBTypeMapper(TypeMapperImpl):
             if (precision, scale) == self.capabilities.wei_precision:
                 return cast(TColumnType, dict(data_type="wei"))
             return dict(data_type="decimal", precision=precision, scale=scale)
-        return super().from_db_type(cast(str, db_type), precision, scale)
+        return super().from_db_type(cast(str, db_type), precision, scale)  # type: ignore
 
 
 def write_records(
@@ -557,7 +557,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
         # normalize property names
         p_load_id = self.schema.naming.normalize_identifier("load_id")
         p_dlt_load_id = self.schema.naming.normalize_identifier(
-            self.schema.data_item_normalizer.C_DLT_LOAD_ID  # type: ignore[attr-defined]
+            self.schema.data_item_normalizer.c_dlt_load_id  # type: ignore[attr-defined]
         )
         p_pipeline_name = self.schema.naming.normalize_identifier("pipeline_name")
         p_status = self.schema.naming.normalize_identifier("status")
@@ -707,7 +707,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
         completed_table_chain_jobs: Optional[Sequence[LoadJobInfo]] = None,
     ) -> List[FollowupJobRequest]:
         jobs = super().create_table_chain_completed_followup_jobs(
-            table_chain, completed_table_chain_jobs
+            table_chain, completed_table_chain_jobs  # type: ignore[arg-type]
         )
         # Orphan removal is only supported for upsert strategy because we need a deterministic key hash.
         first_table_in_chain = table_chain[0]
@@ -774,7 +774,7 @@ class LanceDBLoadJob(RunnableLoadJob, HasFollowupJobs):
             )
 
         dlt_id = self._schema.naming.normalize_identifier(
-            self._schema.data_item_normalizer.C_DLT_ID
+            self._schema.data_item_normalizer.c_dlt_id  # type: ignore[attr-defined]
         )
         write_records(
             arrow_table,
@@ -798,13 +798,13 @@ class LanceDBRemoveOrphansJob(RunnableLoadJob):
 
     def run(self) -> None:
         dlt_load_id = self._schema.naming.normalize_identifier(
-            self._schema.data_item_normalizer.C_DLT_LOAD_ID
+            self._schema.data_item_normalizer.c_dlt_load_id  # type: ignore[attr-defined]
         )
         dlt_id = self._schema.naming.normalize_identifier(
-            self._schema.data_item_normalizer.C_DLT_ID
+            self._schema.data_item_normalizer.c_dlt_id  # type: ignore[attr-defined]
         )
         dlt_root_id = self._schema.naming.normalize_identifier(
-            self._schema.data_item_normalizer.C_DLT_ROOT_ID
+            self._schema.data_item_normalizer.c_dlt_root_id  # type: ignore[attr-defined]
         )
 
         db_client: DBConnection = self._job_client.db_client
