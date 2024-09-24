@@ -679,7 +679,7 @@ config: RESTAPIConfig = {
 Be careful that the parent resource needs to return `Generator[List[Dict[str, Any]]]`. Thus, the following will NOT work:
 
 ```py
- @dlt.resource()
+@dlt.resource
 def repositories() -> Generator[Dict[str, Any]]:
     """Not working seed list of repositories to fetch"""
     yield from [{"name": "dlt"}, {"name": "verified-sources"}, {"name": "dlthub-education"}]
