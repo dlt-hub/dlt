@@ -358,8 +358,61 @@ function syncExamples() {
   console.log(`Synced ${count} examples`)
 }
 
-syncExamples();
-preprocess_docs();
+// strings to search for, this check could be better but it
+// is a quick fix
+const HTTP_LINK = "](https://dlthub.com/docs";
+const ABS_LINK =  "](/"
+const ABS_IMG_LINK =  "](/img"
+
+/**
+ * Inspect all md files an run some checks
+ */
+function checkDocs() {
+  let foundError = false;
+  for (const fileName of walkSync(MD_SOURCE_DIR)) {
+    if (!DOCS_EXTENSIONS.includes(path.extname(fileName))) {
+        continue
+    }
+
+    // here we simply check that there are no absolute or devel links in the markdown files
+    let lines = fs.readFileSync(fileName, 'utf8').split(/\r?\n/);
+
+    for (let [index, line] of lines.entries()) {
+
+      const lineNo = index + 1;
+      line = line.toLocaleLowerCase();
+
+      if (line.includes(ABS_LINK) && !line.includes(ABS_IMG_LINK)) {
+        foundError = true;
+        console.error(`Found absolute md link in file ${fileName}, line ${lineNo}`)
+      }
+  
+      if (line.includes(HTTP_LINK)) {
+        foundError = true;
+        console.error(`Found http md link referencing these docs in file ${fileName}, line ${lineNo}`)
+      }
+  
+    }
+
+
+
+  }
+
+  if (foundError) {
+    throw Error("Found one or more errors while checking docs.")
+  }
+  console.info("Found no errors in md files")
+}
+
+
+function processDocs() {
+  fs.rmSync(MD_TARGET_DIR, {force: true, recursive: true})
+  syncExamples();
+  preprocess_docs();
+  checkDocs();
+}
+
+processDocs()
 
 /**
  * Watch for changes and preprocess the docs if --watch cli command flag is present
@@ -373,8 +426,7 @@ if (process.argv.includes("--watch")) {
           return;
       }
       console.log('%s changed...', name);
-      syncExamples();
-      preprocess_docs();
+      processDocs();
       lastUpdate = Date.now();
   });
 }

@@ -2,7 +2,13 @@ import os
 import pytest
 from typing import Iterator
 
-from tests.load.utils import ALL_BUCKETS, DEFAULT_BUCKETS, WITH_GDRIVE_BUCKETS, drop_pipeline
+from tests.load.utils import (
+    ALL_BUCKETS,
+    DEFAULT_BUCKETS,
+    WITH_GDRIVE_BUCKETS,
+    drop_pipeline,
+    empty_schema,
+)
 from tests.utils import preserve_environ, patch_home_dir
 
 

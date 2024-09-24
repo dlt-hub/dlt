@@ -1,4 +1,5 @@
 from typing import NamedTuple, Sequence
+
 from dlt.common.destination import TLoaderFileFormat
 from dlt.common.exceptions import DltException
 

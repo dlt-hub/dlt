@@ -4,7 +4,11 @@ from dlt.common.data_writers.configuration import CsvFormatConfiguration
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
 from dlt.common.data_writers.escape import escape_snowflake_identifier
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
+from dlt.common.destination.typing import PreparedTableSchema
+from dlt.common.exceptions import TerminalValueError
+from dlt.common.schema.typing import TColumnSchema, TColumnType
 
+from dlt.destinations.type_mapping import TypeMapperImpl
 from dlt.destinations.impl.snowflake.configuration import (
     SnowflakeCredentials,
     SnowflakeClientConfiguration,
@@ -12,6 +16,80 @@ from dlt.destinations.impl.snowflake.configuration import (
 
 if t.TYPE_CHECKING:
     from dlt.destinations.impl.snowflake.snowflake import SnowflakeClient
+
+
+class SnowflakeTypeMapper(TypeMapperImpl):
+    BIGINT_PRECISION = 19
+    sct_to_unbound_dbt = {
+        "json": "VARIANT",
+        "text": "VARCHAR",
+        "double": "FLOAT",
+        "bool": "BOOLEAN",
+        "date": "DATE",
+        "timestamp": "TIMESTAMP_TZ",
+        "bigint": f"NUMBER({BIGINT_PRECISION},0)",  # Snowflake has no integer types
+        "binary": "BINARY",
+        "time": "TIME",
+    }
+
+    sct_to_dbt = {
+        "text": "VARCHAR(%i)",
+        "timestamp": "TIMESTAMP_TZ(%i)",
+        "decimal": "NUMBER(%i,%i)",
+        "time": "TIME(%i)",
+        "wei": "NUMBER(%i,%i)",
+    }
+
+    dbt_to_sct = {
+        "VARCHAR": "text",
+        "FLOAT": "double",
+        "BOOLEAN": "bool",
+        "DATE": "date",
+        "TIMESTAMP_TZ": "timestamp",
+        "BINARY": "binary",
+        "VARIANT": "json",
+        "TIME": "time",
+    }
+
+    def from_destination_type(
+        self, db_type: str, precision: t.Optional[int] = None, scale: t.Optional[int] = None
+    ) -> TColumnType:
+        if db_type == "NUMBER":
+            if precision == self.BIGINT_PRECISION and scale == 0:
+                return dict(data_type="bigint")
+            elif (precision, scale) == self.capabilities.wei_precision:
+                return dict(data_type="wei")
+            return dict(data_type="decimal", precision=precision, scale=scale)
+        if db_type == "TIMESTAMP_NTZ":
+            return dict(data_type="timestamp", precision=precision, scale=scale, timezone=False)
+        return super().from_destination_type(db_type, precision, scale)
+
+    def to_db_datetime_type(
+        self,
+        column: TColumnSchema,
+        table: PreparedTableSchema = None,
+    ) -> str:
+        timezone = column.get("timezone", True)
+        precision = column.get("precision")
+
+        if timezone and precision is None:
+            return None
+
+        timestamp = "TIMESTAMP_TZ" if timezone else "TIMESTAMP_NTZ"
+
+        # append precision if specified and valid
+        if precision is not None:
+            if 0 <= precision <= 9:
+                timestamp += f"({precision})"
+            else:
+                column_name = column["name"]
+                table_name = table["name"]
+                raise TerminalValueError(
+                    f"Snowflake does not support precision '{precision}' for '{column_name}' in"
+                    f" table '{table_name}'"
+                )
+
+        return timestamp
 
 
 class snowflake(Destination[SnowflakeClientConfiguration, "SnowflakeClient"]):
@@ -23,6 +101,7 @@ class snowflake(Destination[SnowflakeClientConfiguration, "SnowflakeClient"]):
         caps.supported_loader_file_formats = ["jsonl", "parquet", "csv"]
         caps.preferred_staging_file_format = "jsonl"
         caps.supported_staging_file_formats = ["jsonl", "parquet", "csv"]
+        caps.type_mapper = SnowflakeTypeMapper
         # snowflake is case sensitive but all unquoted identifiers are upper cased
         # so upper case identifiers are considered case insensitive
         caps.escape_identifier = escape_snowflake_identifier
@@ -42,6 +121,11 @@ class snowflake(Destination[SnowflakeClientConfiguration, "SnowflakeClient"]):
         caps.alter_add_multi_column = True
         caps.supports_clone_table = True
         caps.supported_merge_strategies = ["delete-insert", "upsert", "scd2"]
+        caps.supported_replace_strategies = [
+            "truncate-and-insert",
+            "insert-from-staging",
+            "staging-optimized",
+        ]
         return caps
 
     @property

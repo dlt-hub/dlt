@@ -9,7 +9,7 @@ import Header from './_source-info-header.md';
 
 <Header/>
 
-Our OpenAPI source generator - `dlt-init-openapi` - generates [`dlt`](https://dlthub.com/docs) data pipelines from [OpenAPI 3.x specs](https://swagger.io/specification/) using the [rest_api verified source](./rest_api) to extract data from any REST API. If you are not familiar with the `rest_api` source, please read [rest_api](./rest_api) to learn how our `rest_api` source works.
+Our OpenAPI source generator - `dlt-init-openapi` - generates [`dlt`](../../intro) data pipelines from [OpenAPI 3.x specs](https://swagger.io/specification/) using the [rest_api verified source](./rest_api) to extract data from any REST API. If you are not familiar with the `rest_api` source, please read [rest_api](./rest_api) to learn how our `rest_api` source works.
 
 :::tip
 We also have a cool [Google Colab example](https://colab.research.google.com/drive/1MRZvguOTZj1MlkEGzjiso8lQ_wr1MJRI?usp=sharing#scrollTo=LHGxzf1Ev_yr) that demonstrates this generator. 😎

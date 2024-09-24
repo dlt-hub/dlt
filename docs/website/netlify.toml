@@ -5,3 +5,32 @@ to = "/docs/intro"
 [[redirects]]
 from = "/docs"
 to = "/docs/intro"
+
+[[redirects]]
+from = "/docs/getting-started"
+to = "/docs/intro"
+
+[[redirects]]
+from = "/docs/dlt-ecosystem"
+to = "/docs/dlt-ecosystem/verified-sources"
+
+[[redirects]]
+from = "/docs/general-usage/credentials/config_providers"
+to = "/docs/general-usage/credentials/setup"
+
+[[redirects]]
+from = "/docs/general-usage/credentials/configuration"
+to = "/docs/general-usage/credentials/setup"
+
+[[redirects]]
+from = "/docs/general-usage/credentials/config_specs"
+to = "/docs/general-usage/credentials/complex_types"
+status = 301
+
+[[redirects]]
+from = "/docs/tutorial/intro"
+to = "docs/tutorial/load-data-from-an-api"
+
+[[redirects]]
+from = "/docs/tutorial/grouping-resources"
+to = "docs/tutorial/load-data-from-an-api"

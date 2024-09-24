@@ -9,20 +9,24 @@ from contextlib import contextmanager
 
 import dlt
 from dlt.common import logger, time, json, pendulum
+from dlt.common.destination.utils import resolve_merge_strategy
 from dlt.common.metrics import LoadJobMetrics
+from dlt.common.schema.typing import C_DLT_LOAD_ID, TTableSchemaColumns
 from dlt.common.storages.fsspec_filesystem import glob_files
 from dlt.common.typing import DictStrAny
-from dlt.common.schema import Schema, TSchemaTables, TTableSchema
+from dlt.common.schema import Schema, TSchemaTables
 from dlt.common.schema.utils import get_columns_names_with_prop
 from dlt.common.storages import FileStorage, fsspec_from_config
 from dlt.common.storages.load_package import (
     LoadJobInfo,
+    ParsedLoadJobFileName,
     TPipelineStateDoc,
     load_package as current_load_package,
 )
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
     FollowupJobRequest,
+    PreparedTableSchema,
     TLoadJobState,
     RunnableLoadJob,
     JobClientBase,
@@ -42,6 +46,7 @@ from dlt.destinations.job_impl import (
 from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
 from dlt.destinations import path_utils
 from dlt.destinations.fs_client import FSClientBase
+from dlt.destinations.utils import verify_schema_merge_disposition
 
 INIT_FILE_NAME = "init"
 FILENAME_SEPARATOR = "__"
@@ -101,45 +106,56 @@ class DeltaLoadFilesystemJob(FilesystemLoadJob):
     def __init__(self, file_path: str) -> None:
         super().__init__(file_path=file_path)
 
-        # create Arrow dataset from Parquet files
-        from dlt.common.libs.pyarrow import pyarrow as pa
-
         self.file_paths = ReferenceFollowupJobRequest.resolve_references(self._file_path)
-        self.arrow_ds = pa.dataset.dataset(self.file_paths)
 
     def make_remote_path(self) -> str:
         # remote path is table dir - delta will create its file structure inside it
         return self._job_client.get_table_dir(self.load_table_name)
 
     def run(self) -> None:
-        logger.info(f"Will copy file(s) {self.file_paths} to delta table {self.make_remote_url()}")
-
+        # create Arrow dataset from Parquet files
+        from dlt.common.libs.pyarrow import pyarrow as pa
         from dlt.common.libs.deltalake import write_delta_table, merge_delta_table
+
+        logger.info(
+            f"Will copy file(s) {self.file_paths} to delta table {self.make_remote_url()} [arrow"
+            f" buffer: {pa.total_allocated_bytes()}]"
+        )
+        source_ds = pa.dataset.dataset(self.file_paths)
+        delta_table = self._delta_table()
 
         # explicitly check if there is data
         # (https://github.com/delta-io/delta-rs/issues/2686)
-        if self.arrow_ds.head(1).num_rows == 0:
-            self._create_or_evolve_delta_table()
-            return
-
-        with self.arrow_ds.scanner().to_reader() as arrow_rbr:  # RecordBatchReader
-            if self._load_table["write_disposition"] == "merge" and self._delta_table is not None:
-                assert self._load_table["x-merge-strategy"] in self._job_client.capabilities.supported_merge_strategies  # type: ignore[typeddict-item]
-                merge_delta_table(
-                    table=self._delta_table,
-                    data=arrow_rbr,
-                    schema=self._load_table,
-                )
-            else:
-                write_delta_table(
-                    table_or_uri=(
-                        self.make_remote_url() if self._delta_table is None else self._delta_table
-                    ),
-                    data=arrow_rbr,
-                    write_disposition=self._load_table["write_disposition"],
-                    partition_by=self._partition_columns,
-                    storage_options=self._storage_options,
-                )
+        if source_ds.head(1).num_rows == 0:
+            delta_table = self._create_or_evolve_delta_table(source_ds, delta_table)
+        else:
+            with source_ds.scanner().to_reader() as arrow_rbr:  # RecordBatchReader
+                if self._load_table["write_disposition"] == "merge" and delta_table is not None:
+                    self._load_table["x-merge-strategy"] = resolve_merge_strategy(  # type: ignore[typeddict-unknown-key]
+                        self._schema.tables, self._load_table, self._job_client.capabilities
+                    )
+                    merge_delta_table(
+                        table=delta_table,
+                        data=arrow_rbr,
+                        schema=self._load_table,
+                    )
+                else:
+                    write_delta_table(
+                        table_or_uri=(
+                            self.make_remote_url() if delta_table is None else delta_table
+                        ),
+                        data=arrow_rbr,
+                        write_disposition=self._load_table["write_disposition"],
+                        partition_by=self._partition_columns,
+                        storage_options=self._storage_options,
+                    )
+        # release memory ASAP by deleting objects explicitly
+        del source_ds
+        del delta_table
+        logger.info(
+            f"Copied {self.file_paths} to delta table {self.make_remote_url()} [arrow buffer:"
+            f" {pa.total_allocated_bytes()}]"
+        )
 
     @property
     def _storage_options(self) -> Dict[str, str]:
@@ -147,33 +163,35 @@ class DeltaLoadFilesystemJob(FilesystemLoadJob):
 
         return _deltalake_storage_options(self._job_client.config)
 
-    @property
     def _delta_table(self) -> Optional["DeltaTable"]:  # type: ignore[name-defined] # noqa: F821
-        from dlt.common.libs.deltalake import try_get_deltatable
+        from dlt.common.libs.deltalake import DeltaTable
 
-        return try_get_deltatable(self.make_remote_url(), storage_options=self._storage_options)
+        if DeltaTable.is_deltatable(self.make_remote_url(), storage_options=self._storage_options):
+            return DeltaTable(self.make_remote_url(), storage_options=self._storage_options)
+        else:
+            return None
 
     @property
     def _partition_columns(self) -> List[str]:
         return get_columns_names_with_prop(self._load_table, "partition")
 
-    def _create_or_evolve_delta_table(self) -> None:
+    def _create_or_evolve_delta_table(self, arrow_ds: "Dataset", delta_table: "DeltaTable") -> "DeltaTable":  # type: ignore[name-defined] # noqa: F821
         from dlt.common.libs.deltalake import (
             DeltaTable,
             ensure_delta_compatible_arrow_schema,
             _evolve_delta_table_schema,
         )
 
-        if self._delta_table is None:
-            DeltaTable.create(
+        if delta_table is None:
+            return DeltaTable.create(
                 table_uri=self.make_remote_url(),
-                schema=ensure_delta_compatible_arrow_schema(self.arrow_ds.schema),
+                schema=ensure_delta_compatible_arrow_schema(arrow_ds.schema),
                 mode="overwrite",
                 partition_by=self._partition_columns,
                 storage_options=self._storage_options,
             )
         else:
-            _evolve_delta_table_schema(self._delta_table, self.arrow_ds.schema)
+            return _evolve_delta_table_schema(delta_table, arrow_ds.schema)
 
 
 class FilesystemLoadJobWithFollowup(HasFollowupJobs, FilesystemLoadJob):
@@ -236,9 +254,7 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
     def with_staging_dataset(self) -> Iterator["FilesystemClient"]:
         current_dataset_name = self.dataset_name
         try:
-            self.dataset_name = self.schema.naming.normalize_table_identifier(
-                current_dataset_name + "_staging"
-            )
+            self.dataset_name = self.config.normalize_staging_dataset_name(self.schema)
             yield self
         finally:
             # restore previous dataset name
@@ -264,6 +280,17 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
         for filename, fileparts in self._iter_stored_schema_files():
             if fileparts[0] == self.schema.name:
                 self._delete_file(filename)
+
+    def get_storage_tables(
+        self, table_names: Iterable[str]
+    ) -> Iterable[Tuple[str, TTableSchemaColumns]]:
+        """Yields tables that have files in storage, does not return column schemas"""
+        for table_name in table_names:
+            if len(self.list_table_files(table_name)) > 0:
+                yield (table_name, {"_column": {}})
+            else:
+                # if no columns we assume that table does not exist
+                yield (table_name, {})
 
     def truncate_tables(self, table_names: List[str]) -> None:
         """Truncate a set of regular tables with given `table_names`"""
@@ -291,6 +318,19 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
             if self.fs_client.exists(file_path):
                 raise FileExistsError(file_path)
 
+    def verify_schema(
+        self, only_tables: Iterable[str] = None, new_jobs: Iterable[ParsedLoadJobFileName] = None
+    ) -> List[PreparedTableSchema]:
+        loaded_tables = super().verify_schema(only_tables, new_jobs)
+        # TODO: finetune verify_schema_merge_disposition ie. hard deletes are not supported
+        if exceptions := verify_schema_merge_disposition(
+            self.schema, loaded_tables, self.capabilities, warnings=True
+        ):
+            for exception in exceptions:
+                logger.error(str(exception))
+            raise exceptions[0]
+        return loaded_tables
+
     def update_stored_schema(
         self,
         only_tables: Iterable[str] = None,
@@ -307,12 +347,20 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
                 self.fs_client.touch(self.pathlib.join(directory, INIT_FILE_NAME))
 
         # don't store schema when used as staging
-        if not self.config.as_staging:
+        if not self.config.as_staging_destination:
             self._store_current_schema()
 
         # we assume that expected_update == applied_update so table schemas in dest were not
         # externally changed
         return applied_update
+
+    def prepare_load_table(self, table_name: str) -> PreparedTableSchema:
+        table = super().prepare_load_table(table_name)
+        if self.config.as_staging_destination:
+            if table["write_disposition"] == "merge":
+                table["write_disposition"] = "append"
+            table.pop("table_format", None)
+        return table
 
     def get_table_dir(self, table_name: str, remote: bool = False) -> str:
         # dlt tables do not respect layout (for now)
@@ -369,12 +417,12 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
         return self.fs_client.exists(self.pathlib.join(self.dataset_path, INIT_FILE_NAME))  # type: ignore[no-any-return]
 
     def create_load_job(
-        self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
+        self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
         # skip the state table, we create a jsonl file in the complete_load step
         # this does not apply to scenarios where we are using filesystem as staging
         # where we want to load the state the regular way
-        if table["name"] == self.schema.state_table_name and not self.config.as_staging:
+        if table["name"] == self.schema.state_table_name and not self.config.as_staging_destination:
             return FinalizedLoadJob(file_path)
         if table.get("table_format") == "delta":
             import dlt.common.libs.deltalake  # assert dependencies are installed
@@ -385,7 +433,11 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
             # otherwise just continue
             return FinalizedLoadJobWithFollowupJobs(file_path)
 
-        cls = FilesystemLoadJobWithFollowup if self.config.as_staging else FilesystemLoadJob
+        cls = (
+            FilesystemLoadJobWithFollowup
+            if self.config.as_staging_destination
+            else FilesystemLoadJob
+        )
         return cls(file_path)
 
     def make_remote_url(self, remote_path: str) -> str:
@@ -403,10 +455,11 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
     ) -> None:
         pass
 
-    def should_load_data_to_staging_dataset(self, table: TTableSchema) -> bool:
+    def should_load_data_to_staging_dataset(self, table_name: str) -> bool:
         return False
 
-    def should_truncate_table_before_load(self, table: TTableSchema) -> bool:
+    def should_truncate_table_before_load(self, table_name: str) -> bool:
+        table = self.prepare_load_table(table_name)
         return (
             table["write_disposition"] == "replace"
             and not table.get("table_format") == "delta"  # Delta can do a logical replace
@@ -472,7 +525,7 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
 
     def _store_current_state(self, load_id: str) -> None:
         # don't save the state this way when used as staging
-        if self.config.as_staging:
+        if self.config.as_staging_destination:
             return
 
         # get state doc from current pipeline
@@ -506,7 +559,7 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
             # we had dlt_load_id stored until version 0.5 and since we do not have any version control
             # we always migrate
             if load_id := state_json.pop("dlt_load_id", None):  # type: ignore[typeddict-item]
-                state_json["_dlt_load_id"] = load_id
+                state_json[C_DLT_LOAD_ID] = load_id  # type: ignore[literal-required]
             return StateInfo(**state_json)
 
         return None
@@ -587,7 +640,7 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
 
     def create_table_chain_completed_followup_jobs(
         self,
-        table_chain: Sequence[TTableSchema],
+        table_chain: Sequence[PreparedTableSchema],
         completed_table_chain_jobs: Optional[Sequence[LoadJobInfo]] = None,
     ) -> List[FollowupJobRequest]:
         assert completed_table_chain_jobs is not None
@@ -601,6 +654,13 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
                     for job in completed_table_chain_jobs
                     if job.job_file_info.table_name == table["name"]
                 ]
-                file_name = FileStorage.get_file_name_from_file_path(table_job_paths[0])
-                jobs.append(ReferenceFollowupJobRequest(file_name, table_job_paths))
+                if table_job_paths:
+                    file_name = FileStorage.get_file_name_from_file_path(table_job_paths[0])
+                    jobs.append(ReferenceFollowupJobRequest(file_name, table_job_paths))
+                else:
+                    # file_name = ParsedLoadJobFileName(table["name"], "empty", 0, "reference").file_name()
+                    # TODO: if we implement removal od orphaned rows, we may need to propagate such job without files
+                    # to the delta load job
+                    pass
+
         return jobs

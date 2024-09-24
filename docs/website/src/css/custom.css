@@ -521,84 +521,251 @@ html[data-theme='dark'] .slack-navbar::after {
 * Sidebar icons
 ****************/
 
+
+/* 0.5.4 version */
+
 /* Introduction */
 
-.theme-doc-sidebar-menu.menu__list>li:nth-child(1)>a::before {
+html.docs-version-0\.5\.4 .theme-doc-sidebar-menu.menu__list>li:nth-child(1)>a::before {
   background-image: url(../../static/img/Introduction-Inactive.svg);
 }
 
-.theme-doc-sidebar-menu.menu__list>li:hover:nth-child(1)>a::before,
+html.docs-version-0\.5\.4 .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(1)>a::before,
 .theme-doc-sidebar-menu.menu__list>li:nth-child(1)>a.menu__link--active::before {
   background-image: url(../../static/img/Introduction-Active.svg);
 }
 
-html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(1)>a::before {
+html[data-theme='dark'].docs-version-0\.5\.4 .theme-doc-sidebar-menu.menu__list>li:nth-child(1)>a::before {
   background-image: url(../../static/img/Introduction-Inactive-1.svg);
 }
 
-html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(1)>a::before,
-html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(1)>a.menu__link--active::before {
+html[data-theme='dark'].docs-version-0\.5\.4 .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(1)>a::before,
+html[data-theme='dark'].docs-version-0\.5\.4 .theme-doc-sidebar-menu.menu__list>li:nth-child(1)>a.menu__link--active::before {
   background-image: url(../../static/img/Introduction-Active-1.svg);
 }
 
 /* Getting started */
 
-.theme-doc-sidebar-menu.menu__list>li:nth-child(2)>a::before {
+html.docs-version-0\.5\.4 .theme-doc-sidebar-menu.menu__list>li:nth-child(2)>a::before {
   background-image: url(../../static/img/GettingStarted-Inactive.svg);
 }
 
-.theme-doc-sidebar-menu.menu__list>li:hover:nth-child(2)>a::before,
+html.docs-version-0\.5\.4 .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(2)>a::before,
 .theme-doc-sidebar-menu.menu__list>li:nth-child(2)>a.menu__link--active::before {
   background-image: url(../../static/img/GettingStarted-Active.svg);
 }
 
-html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(2)>a::before {
+html[data-theme='dark'].docs-version-0\.5\.4 .theme-doc-sidebar-menu.menu__list>li:nth-child(2)>a::before {
   background-image: url(../../static/img/GettingStarted-Inactive-1.svg);
 }
 
-html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(2)>a::before,
-html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(2)>a.menu__link--active::before {
+html[data-theme='dark'].docs-version-0\.5\.4 .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(2)>a::before,
+html[data-theme='dark'].docs-version-0\.5\.4 .theme-doc-sidebar-menu.menu__list>li:nth-child(2)>a.menu__link--active::before {
   background-image: url(../../static/img/GettingStarted-Active-1.svg);
 }
 
 /* Tutorial */
 
-.theme-doc-sidebar-menu.menu__list>li:nth-child(3)>div>a::before {
+html.docs-version-0\.5\.4 .theme-doc-sidebar-menu.menu__list>li:nth-child(3)>div>a::before {
   background-image: url(../../static/img/Pipelines-Inactive.svg);
 }
 
-.theme-doc-sidebar-menu.menu__list>li:hover:nth-child(3)>div>a::before,
+html.docs-version-0\.5\.4 .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(3)>div>a::before,
 .theme-doc-sidebar-menu.menu__list>li:nth-child(3)>div>[aria-expanded="true"]::before {
   background-image: url(../../static/img/Pipelines-Active.svg);
 }
 
-html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(3)>div>a::before {
+html[data-theme='dark'].docs-version-0\.5\.4 .theme-doc-sidebar-menu.menu__list>li:nth-child(3)>div>a::before {
   background-image: url(../../static/img/Pipelines-Inactive-1.svg);
 }
 
-html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(3)>div>a::before,
+html[data-theme='dark'].docs-version-0\.5\.4 .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(3)>div>a::before,
 html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(3)>div>[aria-expanded="true"]::before {
   background-image: url(../../static/img/Pipelines-Active-1.svg);
 }
 
 /* Integrations */
 
-.theme-doc-sidebar-menu.menu__list>li:nth-child(4)>div>a::before {
+html.docs-version-0\.5\.4 .theme-doc-sidebar-menu.menu__list>li:nth-child(4)>div>a::before {
   background-image: url(../../static/img/UsingLoadedData-Inactive.svg);
 }
 
-.theme-doc-sidebar-menu.menu__list>li:hover:nth-child(4)>div>a::before,
+html.docs-version-0\.5\.4 .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(4)>div>a::before,
 .theme-doc-sidebar-menu.menu__list>li:nth-child(4)>div>[aria-expanded="true"]::before {
   background-image: url(../../static/img/UsingLoadedData-Active.svg);
 }
 
-html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(4)>div>a::before {
+html[data-theme='dark'].docs-version-0\.5\.4 .theme-doc-sidebar-menu.menu__list>li:nth-child(4)>div>a::before {
   background-image: url(../../static/img/UsingLoadedData-Inactive-1.svg);
+}
+
+html[data-theme='dark'].docs-version-0\.5\.4 .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(4)>div>a::before,
+html[data-theme='dark'].docs-version-0\.5\.4 .theme-doc-sidebar-menu.menu__list>li:nth-child(4)>div>[aria-expanded="true"]::before {
+  background-image: url(../../static/img/UsingLoadedData-Active-1.svg);
+}
+
+/* Using dlt */
+
+html.docs-version-0\.5\.4 .theme-doc-sidebar-menu.menu__list>li:nth-child(5)>div>a::before {
+  background-image: url(../../static/img/GeneralUsage-Inactive.svg);
+}
+
+html.docs-version-0\.5\.4 .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(5)>div>a::before,
+.theme-doc-sidebar-menu.menu__list>li:nth-child(5)>div>[aria-expanded="true"]::before {
+  background-image: url(../../static/img/GeneralUsage-Active.svg);
+}
+
+html[data-theme='dark'].docs-version-0\.5\.4 .theme-doc-sidebar-menu.menu__list>li:nth-child(5)>div>a::before {
+  background-image: url(../../static/img/GeneralUsage-Inactive-1.svg);
+}
+
+html[data-theme='dark'].docs-version-0\.5\.4 .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(5)>div>a::before,
+html[data-theme='dark'].docs-version-0\.5\.4 .theme-doc-sidebar-menu.menu__list>li:nth-child(5)>div>[aria-expanded="true"]::before {
+  background-image: url(../../static/img/GeneralUsage-Active-1.svg);
+}
+
+/* How-to Guides */
+
+html.docs-version-0\.5\.4 .theme-doc-sidebar-menu.menu__list>li:nth-child(6)>div>a::before {
+  background-image: url(../../static/img/Walkthrough-Inactive.svg);
+}
+
+html.docs-version-0\.5\.4 .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(6)>div>a::before,
+.theme-doc-sidebar-menu.menu__list>li:nth-child(6)>div>[aria-expanded="true"]::before {
+  background-image: url(../../static/img/Walkthrough-Active.svg);
+}
+
+html[data-theme='dark'].docs-version-0\.5\.4 .theme-doc-sidebar-menu.menu__list>li:nth-child(6)>div>a::before {
+  background-image: url(../../static/img/Walkthrough-Inactive-1.svg);
+}
+
+html[data-theme='dark'].docs-version-0\.5\.4 .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(6)>div>a::before,
+html[data-theme='dark'].docs-version-0\.5\.4 .theme-doc-sidebar-menu.menu__list>li:nth-child(6)>div>[aria-expanded="true"]::before {
+  background-image: url(../../static/img/Walkthrough-Active-1.svg);
+}
+
+/* Code Examples */
+
+html.docs-version-0\.5\.4 .theme-doc-sidebar-menu.menu__list>li:nth-child(7)>div>a::before {
+  background-image: url(../../static/img/Howdltworks-Inactive.svg);
+}
+
+html.docs-version-0\.5\.4 .theme-doc-sidebar-menu.menu__list>li:hover:nth_child(7)>div>a::before,
+.theme-doc-sidebar-menu.menu__list>li:nth_child(7)>div>[aria-expanded="true"]::before {
+  background-image: url(../../static/img/Howdltworks-Active.svg);
+}
+
+html[data-theme='dark'].docs-version-0\.5\.4 .theme-doc-sidebar-menu.menu__list>li:nth-child(7)>div>a::before {
+  background-image: url(../../static/img/Howdltworks-Inactive-1.svg);
+}
+
+html[data-theme='dark'].docs-version-0\.5\.4 .theme-doc-sidebar-menu.menu__list>li:hover-nth-child(7)>div>a::before,
+html[data-theme='dark'].docs-version-0\.5\.4 .theme-doc-sidebar-menu.menu__list>li:nth-child(7)>div>[aria-expanded="true"]::before {
+  background-image: url(../../static/img/Howdltworks-Active-1.svg);
+}
+
+/* Reference */
+
+html.docs-version-0\.5\.4 .theme-doc-sidebar-menu.menu__list>li:nth-child(8)>div>a::before {
+  background-image: url(../../static/img/Reference-Inactive.svg);
+}
+
+html.docs-version-0\.5\.4 .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(8)>div>a::before,
+.theme-doc-sidebar-menu.menu__list>li:nth-child(8)>div>[aria-expanded="true"]::before {
+  background-image: url(../../static/img/Reference-Active.svg);
+}
+
+html[data-theme='dark'].docs-version-0\.5\.4 .theme-doc-sidebar-menu.menu__list>li:nth-child(8)>div>a::before {
+  background-image: url(../../static/img/Reference-Inactive-1.svg);
+}
+
+html[data-theme='dark'].docs-version-0\.5\.4 .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(8)>div>a::before,
+html[data-theme='dark'].docs-version-0\.5\.4 .theme-doc-sidebar-menu.menu__list>li:nth-child(8)>div>[aria-expanded="true"]::before {
+  background-image: url(../../static/img/Reference-Active-1.svg);
+}
+
+/* End of 0.5.4 version */
+
+/* Development version */
+
+/* Getting started */
+
+.theme-doc-sidebar-menu.menu__list>li:nth-child(1)>div>a::before {
+  background-image: url(../../static/img/GettingStarted-Inactive.svg);
+}
+
+.theme-doc-sidebar-menu.menu__list>li:hover:nth-child(1)>div>a::before,
+.theme-doc-sidebar-menu.menu__list>li:nth-child(1)>div>[aria-expanded="true"]::before {
+  background-image: url(../../static/img/GettingStarted-Active.svg);
+}
+
+html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(1)>div>a::before {
+  background-image: url(../../static/img/GettingStarted-Inactive-1.svg);
+}
+
+html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(1)>div>a::before,
+html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(1)>div>[aria-expanded="true"]::before {
+  background-image: url(../../static/img/GettingStarted-Active-1.svg);
+}
+
+/* Core concepts */
+
+.theme-doc-sidebar-menu.menu__list>li:nth-child(2)>div>a::before {
+  background-image: url(../../static/img/UserGuide-Inactive.svg);
+}
+
+.theme-doc-sidebar-menu.menu__list>li:hover:nth-child(2)>div>a::before,
+.theme-doc-sidebar-menu.menu__list>li:nth-child(2)>div>[aria-expanded="true"]::before {
+  background-image: url(../../static/img/UserGuide-Active.svg);
+}
+
+html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(2)>div>a::before {
+  background-image: url(../../static/img/UserGuide-Inactive-1.svg);
+}
+
+html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(2)>div>a::before,
+html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(2)>div>[aria-expanded="true"]::before {
+  background-image: url(../../static/img/UserGuide-Active-1.svg);
+}
+
+/* Sources */
+
+.theme-doc-sidebar-menu.menu__list>li:nth-child(3)>div>a::before {
+  background-image: url(../../static/img/Sources-Inactive.svg);
+}
+
+.theme-doc-sidebar-menu.menu__list>li:hover:nth-child(3)>div>a::before,
+.theme-doc-sidebar-menu.menu__list>li:nth-child(3)>div>[aria-expanded="true"]::before {
+  background-image: url(../../static/img/Sources-Active.svg);
+}
+
+html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(3)>div>a::before {
+  background-image: url(../../static/img/Sources-Inactive-1.svg);
+}
+
+html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(3)>div>a::before,
+html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(3)>div>[aria-expanded="true"]::before {
+  background-image: url(../../static/img/Sources-Active-1.svg);
+}
+
+/* Destinations */
+
+.theme-doc-sidebar-menu.menu__list>li:nth-child(4)>div>a::before {
+  background-image: url(../../static/img/Destinations-Inactive.svg);
+}
+
+.theme-doc-sidebar-menu.menu__list>li:hover:nth-child(4)>div>a::before,
+.theme-doc-sidebar-menu.menu__list>li:nth-child(4)>div>[aria-expanded="true"]::before {
+  background-image: url(../../static/img/Destinations-Active.svg);
+}
+
+html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(4)>div>a::before {
+  background-image: url(../../static/img/Destinations-Inactive-1.svg);
 }
 
 html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(4)>div>a::before,
 html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(4)>div>[aria-expanded="true"]::before {
-  background-image: url(../../static/img/UsingLoadedData-Active-1.svg);
+  background-image: url(../../static/img/Destinations-Active-1.svg);
 }
 
 /* Using dlt */
@@ -608,7 +775,7 @@ html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(4)>div>[
 }
 
 .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(5)>div>a::before,
-.theme-doc-sidebar-menu.menu__list>li:nth-child(6)>div>[aria-expanded="true"]::before {
+.theme-doc-sidebar-menu.menu__list>li:nth-child(5)>div>[aria-expanded="true"]::before {
   background-image: url(../../static/img/GeneralUsage-Active.svg);
 }
 
@@ -621,77 +788,97 @@ html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(5)>div>[
   background-image: url(../../static/img/GeneralUsage-Active-1.svg);
 }
 
-/* How-to Guides */
+/* Deploying dlt */
 
 .theme-doc-sidebar-menu.menu__list>li:nth-child(6)>div>a::before {
-  background-image: url(../../static/img/Walkthrough-Inactive.svg);
+  background-image: url(../../static/img/UsingLoadedData-Inactive.svg);
 }
 
 .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(6)>div>a::before,
 .theme-doc-sidebar-menu.menu__list>li:nth-child(6)>div>[aria-expanded="true"]::before {
-  background-image: url(../../static/img/Walkthrough-Active.svg);
+  background-image: url(../../static/img/UsingLoadedData-Active.svg);
 }
 
 html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(6)>div>a::before {
-  background-image: url(../../static/img/Walkthrough-Inactive-1.svg);
+  background-image: url(../../static/img/UsingLoadedData-Inactive-1.svg);
 }
 
 html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(6)>div>a::before,
 html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(6)>div>[aria-expanded="true"]::before {
-  background-image: url(../../static/img/Walkthrough-Active-1.svg);
+  background-image: url(../../static/img/UsingLoadedData-Active-1.svg);
+}
+
+/* Optimizing dlt */
+
+.theme-doc-sidebar-menu.menu__list>li:nth-child(7)>a::before {
+  background-image: url(../../static/img/Installation-Inactive.svg);
+}
+
+.theme-doc-sidebar-menu.menu__list>li:hover:nth-child(7)>a::before,
+.theme-doc-sidebar-menu.menu__list>li:nth-child(7)>a.menu__link--active::before {
+  background-image: url(../../static/img/Installation-Active.svg);
+}
+
+html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(7)>a::before {
+  background-image: url(../../static/img/Installation-Inactive-1.svg);
+}
+
+html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(7)>a::before,
+html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(7)>a.menu__link--active::before {
+  background-image: url(../../static/img/Installation-Active-1.svg);
 }
 
 /* Code Examples */
 
-.theme-doc-sidebar-menu.menu__list>li:nth-child(7)>div>a::before {
+.theme-doc-sidebar-menu.menu__list>li:nth-child(8)>div>a::before {
   background-image: url(../../static/img/Howdltworks-Inactive.svg);
 }
 
-.theme-doc-sidebar-menu.menu__list>li:hover:nth-child(7)>div>a::before,
-.theme-doc-sidebar-menu.menu__list>li:nth-child(7)>div>[aria-expanded="true"]::before {
+.theme-doc-sidebar-menu.menu__list>li:hover:nth-child(8)>div>a::before,
+.theme-doc-sidebar-menu.menu__list>li:nth-child(8)>div>[aria-expanded="true"]::before {
   background-image: url(../../static/img/Howdltworks-Active.svg);
 }
 
-html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(7)>div>a::before {
+html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(8)>div>a::before {
   background-image: url(../../static/img/Howdltworks-Inactive-1.svg);
 }
 
-html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(7)>div>a::before,
-html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(7)>div>[aria-expanded="true"]::before {
+html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(8)>div>a::before,
+html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(8)>div>[aria-expanded="true"]::before {
   background-image: url(../../static/img/Howdltworks-Active-1.svg);
 }
 
 /* Reference */
 
-.theme-doc-sidebar-menu.menu__list>li:nth-child(8)>div>a::before {
+.theme-doc-sidebar-menu.menu__list>li:nth-child(9)>div>a::before {
   background-image: url(../../static/img/Reference-Inactive.svg);
 }
 
-.theme-doc-sidebar-menu.menu__list>li:hover:nth-child(8)>div>a::before,
-.theme-doc-sidebar-menu.menu__list>li:nth-child(8)>div>[aria-expanded="true"]::before {
+.theme-doc-sidebar-menu.menu__list>li:hover:nth-child(9)>div>a::before,
+.theme-doc-sidebar-menu.menu__list>li:nth-child(9)>div>[aria-expanded="true"]::before {
   background-image: url(../../static/img/Reference-Active.svg);
 }
 
-html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(8)>div>a::before {
+html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(9)>div>a::before {
   background-image: url(../../static/img/Reference-Inactive-1.svg);
 }
 
-html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(8)>div>a::before,
-html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(8)>div>[aria-expanded="true"]::before {
+html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(9)>div>a::before,
+html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(9)>div>[aria-expanded="true"]::before {
   background-image: url(../../static/img/Reference-Active-1.svg);
 }
 
 /* Devel / Stable switch */
 
-.theme-doc-sidebar-menu.menu__list>li:nth-child(9)>a svg {
+.theme-doc-sidebar-menu.menu__list>li:nth-child(10)>a svg {
   display: none;
 }
 
-.theme-doc-sidebar-menu.menu__list>li:nth-child(9)>a {
+.theme-doc-sidebar-menu.menu__list>li:nth-child(10)>a {
   flex: none;
 }
 
-.theme-doc-sidebar-menu.menu__list>li:nth-child(9) {
+.theme-doc-sidebar-menu.menu__list>li:nth-child(10) {
   margin-top:30px;
   padding-top: 10px;
   justify-content: center;

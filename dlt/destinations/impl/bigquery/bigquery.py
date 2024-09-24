@@ -1,36 +1,29 @@
-import functools
 import os
 from pathlib import Path
-import time
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, cast
 
 import google.cloud.bigquery as bigquery  # noqa: I250
 from google.api_core import exceptions as api_core_exceptions
-from google.cloud import exceptions as gcp_exceptions
 from google.api_core import retry
+from google.cloud import exceptions as gcp_exceptions
 from google.cloud.bigquery.retry import _RETRYABLE_REASONS
 
 from dlt.common import logger
-from dlt.common.runtime.signals import sleep
-from dlt.common.json import json
-from dlt.common.destination import DestinationCapabilitiesContext
+from dlt.common.destination import DestinationCapabilitiesContext, PreparedTableSchema
 from dlt.common.destination.reference import (
     HasFollowupJobs,
     FollowupJobRequest,
-    TLoadJobState,
     RunnableLoadJob,
     SupportsStagingDestination,
     LoadJob,
 )
+from dlt.common.json import json
+from dlt.common.runtime.signals import sleep
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns
-from dlt.common.schema.typing import TTableSchema, TColumnType, TTableFormat
-from dlt.common.schema.utils import get_inherited_table_hint
-from dlt.common.schema.utils import table_schema_has_type
-from dlt.common.storages.file_storage import FileStorage
+from dlt.common.schema.typing import TColumnType
+from dlt.common.schema.utils import get_inherited_table_hint, get_columns_names_with_prop
 from dlt.common.storages.load_package import destination_state
 from dlt.common.typing import DictStrAny
-from dlt.destinations.job_impl import DestinationJsonlLoadJob, DestinationParquetLoadJob
-from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.exceptions import (
     DatabaseTransientException,
     DatabaseUndefinedRelation,
@@ -47,64 +40,14 @@ from dlt.destinations.impl.bigquery.bigquery_adapter import (
     ROUND_HALF_EVEN_HINT,
     ROUND_HALF_AWAY_FROM_ZERO_HINT,
     TABLE_EXPIRATION_HINT,
+    should_autodetect_schema,
 )
 from dlt.destinations.impl.bigquery.configuration import BigQueryClientConfiguration
 from dlt.destinations.impl.bigquery.sql_client import BigQuerySqlClient, BQ_TERMINAL_REASONS
-from dlt.destinations.job_client_impl import SqlJobClientWithStaging
+from dlt.destinations.job_client_impl import SqlJobClientWithStagingDataset
+from dlt.destinations.job_impl import DestinationJsonlLoadJob, DestinationParquetLoadJob
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
-from dlt.destinations.type_mapping import TypeMapper
-from dlt.destinations.utils import parse_db_data_type_str_with_precision
-
-
-class BigQueryTypeMapper(TypeMapper):
-    sct_to_unbound_dbt = {
-        "complex": "JSON",
-        "text": "STRING",
-        "double": "FLOAT64",
-        "bool": "BOOL",
-        "date": "DATE",
-        "timestamp": "TIMESTAMP",
-        "bigint": "INT64",
-        "binary": "BYTES",
-        "wei": "BIGNUMERIC",  # non-parametrized should hold wei values
-        "time": "TIME",
-    }
-
-    sct_to_dbt = {
-        "text": "STRING(%i)",
-        "binary": "BYTES(%i)",
-    }
-
-    dbt_to_sct = {
-        "STRING": "text",
-        "FLOAT64": "double",
-        "BOOL": "bool",
-        "DATE": "date",
-        "TIMESTAMP": "timestamp",
-        "INT64": "bigint",
-        "BYTES": "binary",
-        "NUMERIC": "decimal",
-        "BIGNUMERIC": "decimal",
-        "JSON": "complex",
-        "TIME": "time",
-    }
-
-    def to_db_decimal_type(self, column: TColumnSchema) -> str:
-        # Use BigQuery's BIGNUMERIC for large precision decimals
-        precision, scale = self.decimal_precision(column.get("precision"), column.get("scale"))
-        if precision > 38 or scale > 9:
-            return "BIGNUMERIC(%i,%i)" % (precision, scale)
-        return "NUMERIC(%i,%i)" % (precision, scale)
-
-    # noinspection PyTypeChecker,PydanticTypeChecker
-    def from_db_type(
-        self, db_type: str, precision: Optional[int], scale: Optional[int]
-    ) -> TColumnType:
-        # precision is present in the type name
-        if db_type == "BIGNUMERIC":
-            return dict(data_type="wei")
-        return super().from_db_type(*parse_db_data_type_str_with_precision(db_type))
 
 
 class BigQueryLoadJob(RunnableLoadJob, HasFollowupJobs):
@@ -212,7 +155,7 @@ class BigQueryMergeJob(SqlMergeFollowupJob):
         return sql
 
 
-class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
+class BigQueryClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
     def __init__(
         self,
         schema: Schema,
@@ -232,15 +175,15 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
         super().__init__(schema, config, sql_client)
         self.config: BigQueryClientConfiguration = config
         self.sql_client: BigQuerySqlClient = sql_client  # type: ignore
-        self.type_mapper = BigQueryTypeMapper(self.capabilities)
+        self.type_mapper = self.capabilities.get_type_mapper()
 
     def _create_merge_followup_jobs(
-        self, table_chain: Sequence[TTableSchema]
+        self, table_chain: Sequence[PreparedTableSchema]
     ) -> List[FollowupJobRequest]:
         return [BigQueryMergeJob.from_table_chain(table_chain, self.sql_client)]
 
     def create_load_job(
-        self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
+        self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
         job = super().create_load_job(table, file_path, load_id)
 
@@ -281,12 +224,12 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
     def _get_table_update_sql(
         self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
     ) -> List[str]:
-        # return empty columns which will skip table CREATE or ALTER
-        # to let BigQuery autodetect table from data
-        if self._should_autodetect_schema(table_name):
+        # Return empty columns which will skip table CREATE or ALTER to let BigQuery
+        # auto-detect table from data.
+        table = self.prepare_load_table(table_name)
+        if should_autodetect_schema(table):
             return []
 
-        table: Optional[TTableSchema] = self.prepare_load_table(table_name)
         sql = super()._get_table_update_sql(table_name, new_columns, generate_alter)
         canonical_name = self.sql_client.make_qualified_table_name(table_name)
 
@@ -354,17 +297,23 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
 
         return sql
 
-    def prepare_load_table(
-        self, table_name: str, prepare_for_staging: bool = False
-    ) -> Optional[TTableSchema]:
-        table = super().prepare_load_table(table_name, prepare_for_staging)
-        if table_name in self.schema.data_table_names():
+    def prepare_load_table(self, table_name: str) -> Optional[PreparedTableSchema]:
+        table = super().prepare_load_table(table_name)
+        if table_name not in self.schema.dlt_table_names():
             if TABLE_DESCRIPTION_HINT not in table:
                 table[TABLE_DESCRIPTION_HINT] = (  # type: ignore[name-defined, typeddict-unknown-key, unused-ignore]
                     get_inherited_table_hint(
                         self.schema.tables, table_name, TABLE_DESCRIPTION_HINT, allow_none=True
                     )
                 )
+            if AUTODETECT_SCHEMA_HINT not in table:
+                table[AUTODETECT_SCHEMA_HINT] = (  # type: ignore[typeddict-unknown-key]
+                    get_inherited_table_hint(
+                        self.schema.tables, table_name, AUTODETECT_SCHEMA_HINT, allow_none=True
+                    )
+                    or self.config.autodetect_schema
+                )
+
         return table
 
     def get_storage_tables(
@@ -417,10 +366,10 @@ SELECT {",".join(self._get_storage_table_query_columns())}
 
         return query, folded_table_names
 
-    def _get_column_def_sql(self, column: TColumnSchema, table: TTableSchema = None) -> str:
+    def _get_column_def_sql(self, column: TColumnSchema, table: PreparedTableSchema = None) -> str:
         name = self.sql_client.escape_column_name(column["name"])
         column_def_sql = (
-            f"{name} {self.type_mapper.to_db_type(column, table)} {self._gen_not_null(column.get('nullable', True))}"
+            f"{name} {self.type_mapper.to_destination_type(column, table)} {self._gen_not_null(column.get('nullable', True))}"
         )
         if column.get(ROUND_HALF_EVEN_HINT, False):
             column_def_sql += " OPTIONS (rounding_mode='ROUND_HALF_EVEN')"
@@ -428,7 +377,7 @@ SELECT {",".join(self._get_storage_table_query_columns())}
             column_def_sql += " OPTIONS (rounding_mode='ROUND_HALF_AWAY_FROM_ZERO')"
         return column_def_sql
 
-    def _create_load_job(self, table: TTableSchema, file_path: str) -> bigquery.LoadJob:
+    def _create_load_job(self, table: PreparedTableSchema, file_path: str) -> bigquery.LoadJob:
         # append to table for merge loads (append to stage) and regular appends.
         table_name = table["name"]
 
@@ -457,19 +406,9 @@ SELECT {",".join(self._get_storage_table_query_columns())}
             ignore_unknown_values=False,
             max_bad_records=0,
         )
-        if self._should_autodetect_schema(table_name):
-            # allow BigQuery to infer and evolve the schema, note that dlt is not
-            # creating such tables at all
-            job_config.autodetect = True
-            job_config.schema_update_options = bigquery.SchemaUpdateOption.ALLOW_FIELD_ADDITION
-            job_config.create_disposition = bigquery.CreateDisposition.CREATE_IF_NEEDED
-        elif ext == "parquet" and table_schema_has_type(table, "complex"):
-            # if table contains complex types, we cannot load with parquet
-            raise LoadJobTerminalException(
-                file_path,
-                "Bigquery cannot load into JSON data type from parquet. Enable autodetect_schema in"
-                " config or via BigQuery adapter or use jsonl format instead.",
-            )
+        if should_autodetect_schema(table):
+            # Allow BigQuery to infer and evolve the schema, note that dlt is not creating such tables at all.
+            job_config = self._set_user_hints_with_schema_autodetection(table, job_config)
 
         if bucket_path:
             return self.sql_client.native_connection.load_table_from_uri(
@@ -489,6 +428,37 @@ SELECT {",".join(self._get_storage_table_query_columns())}
                 timeout=self.config.file_upload_timeout,
             )
 
+    def _set_user_hints_with_schema_autodetection(
+        self, table: PreparedTableSchema, job_config: bigquery.LoadJobConfig
+    ) -> bigquery.LoadJobConfig:
+        job_config.autodetect = True
+        job_config.schema_update_options = bigquery.SchemaUpdateOption.ALLOW_FIELD_ADDITION
+        job_config.create_disposition = bigquery.CreateDisposition.CREATE_IF_NEEDED
+        if partition_column_ := get_columns_names_with_prop(table, PARTITION_HINT):
+            partition_column = partition_column_[0]
+            col_dtype = table["columns"][partition_column]["data_type"]
+            if col_dtype == "date":
+                job_config.time_partitioning = bigquery.TimePartitioning(field=partition_column)
+            elif col_dtype == "timestamp":
+                job_config.time_partitioning = bigquery.TimePartitioning(
+                    type_=bigquery.TimePartitioningType.DAY, field=partition_column
+                )
+            elif col_dtype == "bigint":
+                job_config.range_partitioning = bigquery.RangePartitioning(
+                    field=partition_column,
+                    range_=bigquery.PartitionRange(start=-172800000, end=691200000, interval=86400),
+                )
+        if clustering_columns := get_columns_names_with_prop(table, CLUSTER_HINT):
+            job_config.clustering_fields = clustering_columns
+        if table_description := table.get(TABLE_DESCRIPTION_HINT, False):
+            job_config.destination_table_description = table_description
+        if table_expiration := table.get(TABLE_EXPIRATION_HINT, False):
+            raise ValueError(
+                f"Table expiration time ({table_expiration}) can't be set with BigQuery type"
+                " auto-detection enabled!"
+            )
+        return job_config
+
     def _retrieve_load_job(self, file_path: str) -> bigquery.LoadJob:
         job_id = BigQueryLoadJob.get_job_id_from_file_path(file_path)
         return cast(bigquery.LoadJob, self.sql_client.native_connection.get_job(job_id))
@@ -496,14 +466,9 @@ SELECT {",".join(self._get_storage_table_query_columns())}
     def _from_db_type(
         self, bq_t: str, precision: Optional[int], scale: Optional[int]
     ) -> TColumnType:
-        return self.type_mapper.from_db_type(bq_t, precision, scale)
+        return self.type_mapper.from_destination_type(bq_t, precision, scale)
 
-    def _should_autodetect_schema(self, table_name: str) -> bool:
-        return get_inherited_table_hint(
-            self.schema._schema_tables, table_name, AUTODETECT_SCHEMA_HINT, allow_none=True
-        ) or (self.config.autodetect_schema and table_name not in self.schema.dlt_table_names())
-
-    def should_truncate_table_before_load_on_staging_destination(self, table: TTableSchema) -> bool:
+    def should_truncate_table_before_load_on_staging_destination(self, table_name: str) -> bool:
         return self.config.truncate_tables_on_staging_destination_before_load
 
 

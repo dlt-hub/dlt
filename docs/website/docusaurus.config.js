@@ -9,25 +9,32 @@ const darkCodeTheme = require('prism-react-renderer/themes/dracula');
 
 // create versions config
 const versions = {"current": {
-  label: 'devel', 
+  label: 'devel',
   path: 'devel',
   noIndex: true
 }}
 
-// inject master version renaming only if versions present
+let knownVersions = [];
 if (fs.existsSync("versions.json")) {
+  knownVersions = JSON.parse(fs.readFileSync("versions.json"));
+}
+
+// inject master version renaming only if versions present and master included
+if (knownVersions) {
   let latestLabel = "latest"
   if (process.env.DOCUSAURUS_DLT_VERSION) {
     latestLabel = `${process.env.DOCUSAURUS_DLT_VERSION} (latest)`
   }
 
-
-  versions["master"] = {
-    label: latestLabel,
-    path: '/'
+  if (knownVersions.includes("master")) {
+    versions["master"] = {
+      label: latestLabel,
+      path: '/'
+    }
   }
+
   // disable indexing for all known versions
-  for (let v of JSON.parse(fs.readFileSync("versions.json"))) {
+  for (let v of knownVersions) {
     if (v == "master") {
       continue;
     }
@@ -35,7 +42,6 @@ if (fs.existsSync("versions.json")) {
       noIndex: true
     }
   }
-
 }
 
 /** @type {import('@docusaurus/types').Config} */
@@ -84,9 +90,6 @@ const config = {
           showLastUpdateAuthor: true,
           showLastUpdateTime: true,
         },
-        blog: {
-          showReadingTime: true
-        },
         theme: {
           customCss: require.resolve('./src/css/custom.css'),
         },
@@ -111,13 +114,7 @@ const config = {
           {
             type: 'docsVersionDropdown',
           },
-          {
-            type: 'doc',
-            docId: 'intro',
-            position: 'left',
-            label: 'Docs',
-          },
-          { to: 'blog', label: 'Blog', position: 'left' },
+          { to: 'https://dlthub.com/blog', label: 'Blog', position: 'left' },
           {
             href: 'https://dlthub.com/community',
             label: 'Join community',
@@ -141,21 +138,6 @@ const config = {
       footer: {
         style: 'dark',
         links: [
-          {
-            title: 'Docs',
-            items: [
-              {
-                label: 'Docs',
-                to: '/intro',
-                className: 'footer-link'
-              },
-              {
-                label: 'Blog',
-                to: '/blog',
-                className: 'footer-link'
-              }
-            ],
-          },
           {
             title: 'Community',
             items: [

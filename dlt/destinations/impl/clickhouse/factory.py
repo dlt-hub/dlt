@@ -1,3 +1,4 @@
+import re
 import sys
 import typing as t
 
@@ -8,6 +9,9 @@ from dlt.common.data_writers.escape import (
     format_clickhouse_datetime_literal,
 )
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
+
+from dlt.common.schema.typing import TColumnType
+from dlt.destinations.type_mapping import TypeMapperImpl
 from dlt.destinations.impl.clickhouse.configuration import (
     ClickHouseClientConfiguration,
     ClickHouseCredentials,
@@ -19,6 +23,73 @@ if t.TYPE_CHECKING:
     from clickhouse_driver.dbapi import Connection  # type: ignore[import-untyped]
 
 
+class ClickHouseTypeMapper(TypeMapperImpl):
+    sct_to_unbound_dbt = {
+        "json": "String",
+        "text": "String",
+        "double": "Float64",
+        "bool": "Boolean",
+        "date": "Date",
+        "timestamp": "DateTime64(6,'UTC')",
+        "time": "String",
+        "bigint": "Int64",
+        "binary": "String",
+        "wei": "Decimal",
+    }
+
+    sct_to_dbt = {
+        "decimal": "Decimal(%i,%i)",
+        "wei": "Decimal(%i,%i)",
+        "timestamp": "DateTime64(%i,'UTC')",
+    }
+
+    dbt_to_sct = {
+        "String": "text",
+        "Float64": "double",
+        "Bool": "bool",
+        "Date": "date",
+        "DateTime": "timestamp",
+        "DateTime64": "timestamp",
+        "Time": "timestamp",
+        "Int64": "bigint",
+        "Object('json')": "json",
+        "Decimal": "decimal",
+    }
+
+    def from_destination_type(
+        self, db_type: str, precision: t.Optional[int] = None, scale: t.Optional[int] = None
+    ) -> TColumnType:
+        # Remove "Nullable" wrapper.
+        db_type = re.sub(r"^Nullable\((?P<type>.+)\)$", r"\g<type>", db_type)
+
+        # Remove timezone details.
+        if db_type == "DateTime('UTC')":
+            db_type = "DateTime"
+        if datetime_match := re.match(
+            r"DateTime64(?:\((?P<precision>\d+)(?:,?\s*'(?P<timezone>UTC)')?\))?",
+            db_type,
+        ):
+            if datetime_match["precision"]:
+                precision = int(datetime_match["precision"])
+            else:
+                precision = None
+            db_type = "DateTime64"
+
+        # Extract precision and scale, parameters and remove from string.
+        if decimal_match := re.match(
+            r"Decimal\((?P<precision>\d+)\s*(?:,\s*(?P<scale>\d+))?\)", db_type
+        ):
+            precision, scale = decimal_match.groups()  # type: ignore[assignment]
+            precision = int(precision)
+            scale = int(scale) if scale else 0
+            db_type = "Decimal"
+
+        if db_type == "Decimal" and (precision, scale) == self.capabilities.wei_precision:
+            return t.cast(TColumnType, dict(data_type="wei"))
+
+        return super().from_destination_type(db_type, precision, scale)
+
+
 class clickhouse(Destination[ClickHouseClientConfiguration, "ClickHouseClient"]):
     spec = ClickHouseClientConfiguration
 
@@ -28,6 +99,7 @@ class clickhouse(Destination[ClickHouseClientConfiguration, "ClickHouseClient"])
         caps.supported_loader_file_formats = ["parquet", "jsonl"]
         caps.preferred_staging_file_format = "jsonl"
         caps.supported_staging_file_formats = ["parquet", "jsonl"]
+        caps.type_mapper = ClickHouseTypeMapper
 
         caps.format_datetime_literal = format_clickhouse_datetime_literal
         caps.escape_identifier = escape_clickhouse_identifier
@@ -67,6 +139,7 @@ class clickhouse(Destination[ClickHouseClientConfiguration, "ClickHouseClient"])
         caps.supports_truncate_command = True
 
         caps.supported_merge_strategies = ["delete-insert", "scd2"]
+        caps.supported_replace_strategies = ["truncate-and-insert", "insert-from-staging"]
 
         return caps
 

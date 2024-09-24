@@ -16,9 +16,9 @@ Such a staging dataset has the same name as the dataset passed to `dlt.pipeline`
 [destination.postgres]
 staging_dataset_name_layout="staging_%s"
 ```
-The entry above switches the pattern to `staging_` prefix and for example, for a dataset with the name **github_data**, `dlt` will create **staging_github_data**.
+The entry above switches the pattern to a `staging_` prefix and, for example, for a dataset with the name **github_data**, `dlt` will create **staging_github_data**.
 
-To configure a static staging dataset name, you can do the following (we use the destination factory)
+To configure a static staging dataset name, you can do the following (we use the destination factory):
 ```py
 import dlt
 
@@ -41,21 +41,21 @@ truncate_staging_dataset=true
 Currently, only one destination, the [filesystem](destinations/filesystem.md), can be used as staging. The following destinations can copy remote files:
 
 1. [Azure Synapse](destinations/synapse#staging-support)
-1. [Athena](destinations/athena#staging-support)
-1. [Bigquery](destinations/bigquery.md#staging-support)
-1. [Dremio](destinations/dremio#staging-support)
-1. [Redshift](destinations/redshift.md#staging-support)
-1. [Snowflake](destinations/snowflake.md#staging-support)
+2. [Athena](destinations/athena#staging-support)
+3. [Bigquery](destinations/bigquery.md#staging-support)
+4. [Dremio](destinations/dremio#staging-support)
+5. [Redshift](destinations/redshift.md#staging-support)
+6. [Snowflake](destinations/snowflake.md#staging-support)
 
 ### How to use
-In essence, you need to set up two destinations and then pass them to `dlt.pipeline`. Below we'll use `filesystem` staging with `parquet` files to load into the `Redshift` destination.
+In essence, you need to set up two destinations and then pass them to `dlt.pipeline`. Below, we'll use `filesystem` staging with `parquet` files to load into the `Redshift` destination.
 
 1. **Set up the S3 bucket and filesystem staging.**
 
     Please follow our guide in the [filesystem destination documentation](destinations/filesystem.md). Test the staging as a standalone destination to make sure that files go where you want them. In your `secrets.toml`, you should now have a working `filesystem` configuration:
     ```toml
     [destination.filesystem]
-    bucket_url = "s3://[your_bucket_name]" # replace with your bucket name,
+    bucket_url = "s3://[your_bucket_name]" # replace with your bucket name
 
     [destination.filesystem.credentials]
     aws_access_key_id = "please set me up!" # copy the access key here
@@ -88,7 +88,7 @@ In essence, you need to set up two destinations and then pass them to `dlt.pipel
         dataset_name='player_data'
     )
     ```
-    `dlt` will automatically select an appropriate loader file format for the staging files. Below we explicitly specify the `parquet` file format (just to demonstrate how to do it):
+    `dlt` will automatically select an appropriate loader file format for the staging files. Below, we explicitly specify the `parquet` file format (just to demonstrate how to do it):
     ```py
     info = pipeline.run(chess(), loader_file_format="parquet")
     ```
@@ -103,15 +103,15 @@ Please note that `dlt` does not delete loaded files from the staging storage aft
 
 ### How to prevent staging files truncation
 
-Before `dlt` loads data to the staging storage, it truncates previously loaded files. To prevent it and keep the whole history
-of loaded files, you can use the following parameter:
+Before `dlt` loads data to the staging storage, it truncates previously loaded files. To prevent this and keep the whole history of loaded files, you can use the following parameter:
 
 ```toml
 [destination.redshift]
-truncate_table_before_load_on_staging_destination=false
+truncate_tables_on_staging_destination_before_load=false
 ```
 
 :::caution
-The [Athena](destinations/athena#staging-support) destination only truncates not iceberg tables with `replace` merge_disposition.
-Therefore, the parameter `truncate_table_before_load_on_staging_destination` only controls the truncation of corresponding files for these tables.
+The [Athena](destinations/athena#staging-support) destination only truncates non-iceberg tables with `replace` merge_disposition.
+Therefore, the parameter `truncate_tables_on_staging_destination_before_load` only controls the truncation of corresponding files for these tables.
 :::
+

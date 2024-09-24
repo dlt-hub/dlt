@@ -1,4 +1,4 @@
-from datetime import datetime  # noqa: I251
+from datetime import datetime, timedelta, time as dt_time, date  # noqa: I251
 import os
 
 import pytest
@@ -9,7 +9,12 @@ import base64
 
 import dlt
 from dlt.common import pendulum
-from dlt.common.time import reduce_pendulum_datetime_precision
+from dlt.common.time import (
+    reduce_pendulum_datetime_precision,
+    ensure_pendulum_time,
+    ensure_pendulum_datetime,
+    ensure_pendulum_date,
+)
 from dlt.common.utils import uniq_id
 
 from tests.load.utils import destinations_configs, DestinationTestConfiguration
@@ -41,7 +46,7 @@ def test_load_arrow_item(
     # os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "True"
     os.environ["NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_LOAD_ID"] = "True"
     os.environ["NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_ID"] = "True"
-    include_time = destination_config.destination not in (
+    include_time = destination_config.destination_type not in (
         "athena",
         "redshift",
         "databricks",
@@ -49,15 +54,21 @@ def test_load_arrow_item(
         "clickhouse",
     )  # athena/redshift can't load TIME columns
     include_binary = not (
-        destination_config.destination in ("redshift", "databricks")
+        destination_config.destination_type in ("redshift", "databricks")
         and destination_config.file_format == "jsonl"
     )
 
-    include_decimal = not (
-        destination_config.destination == "databricks" and destination_config.file_format == "jsonl"
-    )
+    include_decimal = True
+
+    if (
+        destination_config.destination_type == "databricks"
+        and destination_config.file_format == "jsonl"
+    ) or (destination_config.destination_name == "sqlalchemy_sqlite"):
+        include_decimal = False
+
     include_date = not (
-        destination_config.destination == "databricks" and destination_config.file_format == "jsonl"
+        destination_config.destination_type == "databricks"
+        and destination_config.file_format == "jsonl"
     )
 
     item, records, _ = arrow_table_all_data_types(
@@ -76,11 +87,13 @@ def test_load_arrow_item(
         yield item
 
     # use csv for postgres to get native arrow processing
-    file_format = (
-        destination_config.file_format if destination_config.destination != "postgres" else "csv"
+    destination_config.file_format = (
+        destination_config.file_format
+        if destination_config.destination_type != "postgres"
+        else "csv"
     )
 
-    load_info = pipeline.run(some_data(), loader_file_format=file_format)
+    load_info = pipeline.run(some_data(), **destination_config.run_kwargs)
     assert_load_info(load_info)
     # assert the table types
     some_table_columns = pipeline.default_schema.get_table("some_data")["columns"]
@@ -107,13 +120,13 @@ def test_load_arrow_item(
             if isinstance(row[i], memoryview):
                 row[i] = row[i].tobytes()
 
-    if destination_config.destination == "redshift":
+    if destination_config.destination_type == "redshift":
         # Redshift needs hex string
         for record in records:
             if "binary" in record:
                 record["binary"] = record["binary"].hex()
 
-    if destination_config.destination == "clickhouse":
+    if destination_config.destination_type == "clickhouse":
         for record in records:
             # Clickhouse needs base64 string for jsonl
             if "binary" in record and destination_config.file_format == "jsonl":
@@ -121,23 +134,29 @@ def test_load_arrow_item(
             if "binary" in record and destination_config.file_format == "parquet":
                 record["binary"] = record["binary"].decode("ascii")
 
-    for row in rows:
-        for i in range(len(row)):
-            if isinstance(row[i], datetime):
-                row[i] = pendulum.instance(row[i])
+    expected = sorted([list(r.values()) for r in records])
+    first_record = list(records[0].values())
+    for row, expected_row in zip(rows, expected):
+        for i in range(len(expected_row)):
+            if isinstance(expected_row[i], datetime):
+                row[i] = ensure_pendulum_datetime(row[i])
             # clickhouse produces rounding errors on double with jsonl, so we round the result coming from there
-            if (
-                destination_config.destination == "clickhouse"
+            elif (
+                destination_config.destination_type == "clickhouse"
                 and destination_config.file_format == "jsonl"
                 and isinstance(row[i], float)
             ):
                 row[i] = round(row[i], 4)
-
-    expected = sorted([list(r.values()) for r in records])
+            elif isinstance(first_record[i], dt_time):
+                # Some drivers (mysqlclient) return TIME columns as timedelta as seconds since midnight
+                # sqlite returns iso strings
+                row[i] = ensure_pendulum_time(row[i])
+            elif isinstance(expected_row[i], date):
+                row[i] = ensure_pendulum_date(row[i])
 
     for row in expected:
         for i in range(len(row)):
-            if isinstance(row[i], datetime):
+            if isinstance(row[i], (datetime, dt_time)):
                 row[i] = reduce_pendulum_datetime_precision(
                     row[i], pipeline.destination.capabilities().timestamp_precision
                 )
@@ -234,6 +253,14 @@ def test_load_arrow_with_not_null_columns(
     item_type: TestDataItemFormat, destination_config: DestinationTestConfiguration
 ) -> None:
     """Resource schema contains non-nullable columns. Arrow schema should be written accordingly"""
+    if (
+        destination_config.destination_type in ("databricks", "redshift")
+        and destination_config.file_format == "jsonl"
+    ):
+        pytest.skip(
+            "databricks + redshift / json cannot load most of the types so we skip this test"
+        )
+
     item, records, _ = arrow_table_all_data_types(item_type, include_json=False, include_time=False)
 
     @dlt.resource(primary_key="string", columns=[{"name": "int", "nullable": False}])
@@ -242,7 +269,7 @@ def test_load_arrow_with_not_null_columns(
 
     pipeline = destination_config.setup_pipeline("arrow_" + uniq_id())
 
-    pipeline.extract(some_data())
+    pipeline.extract(some_data(), table_format=destination_config.table_format)
 
     norm_storage = pipeline._get_normalize_storage()
     extract_files = [
@@ -258,7 +285,7 @@ def test_load_arrow_with_not_null_columns(
         assert result_tbl.schema.field("int").nullable is False
         assert result_tbl.schema.field("int").type == pa.int64()
 
-    pipeline.normalize()
-    # Load is succesful
+    pipeline.normalize(loader_file_format=destination_config.file_format)
+    # Load is successful
     info = pipeline.load()
     assert_load_info(info)

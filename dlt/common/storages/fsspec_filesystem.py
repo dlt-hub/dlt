@@ -30,6 +30,7 @@ from dlt.common.configuration.specs import (
     GcpCredentials,
     AwsCredentials,
     AzureCredentials,
+    SFTPCredentials,
 )
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.storages.configuration import (
@@ -64,6 +65,7 @@ MTIME_DISPATCH = {
     "file": lambda f: ensure_pendulum_datetime(f["mtime"]),
     "memory": lambda f: ensure_pendulum_datetime(f["created"]),
     "gdrive": lambda f: ensure_pendulum_datetime(f["modifiedTime"]),
+    "sftp": lambda f: ensure_pendulum_datetime(f["mtime"]),
 }
 # Support aliases
 MTIME_DISPATCH["gs"] = MTIME_DISPATCH["gcs"]
@@ -77,6 +79,7 @@ CREDENTIALS_DISPATCH: Dict[str, Callable[[FilesystemConfiguration], DictStrAny]]
     "az": lambda config: cast(AzureCredentials, config.credentials).to_adlfs_credentials(),
     "gs": lambda config: cast(GcpCredentials, config.credentials).to_gcs_credentials(),
     "gdrive": lambda config: {"credentials": cast(GcpCredentials, config.credentials)},
+    "sftp": lambda config: cast(SFTPCredentials, config.credentials).to_fsspec_credentials(),
 }
 CREDENTIALS_DISPATCH["adl"] = CREDENTIALS_DISPATCH["az"]
 CREDENTIALS_DISPATCH["abfs"] = CREDENTIALS_DISPATCH["az"]
@@ -136,6 +139,10 @@ def prepare_fsspec_args(config: FilesystemConfiguration) -> DictStrAny:
         register_implementation("gdrive", GoogleDriveFileSystem, "GoogleDriveFileSystem")
 
     fs_kwargs.update(DEFAULT_KWARGS.get(protocol, {}))
+
+    if protocol == "sftp":
+        fs_kwargs.clear()
+
     if config.kwargs is not None:
         fs_kwargs.update(config.kwargs)
     if config.client_kwargs is not None:
@@ -155,6 +162,7 @@ def fsspec_from_config(config: FilesystemConfiguration) -> Tuple[AbstractFileSys
     * s3
     * az, abfs, abfss, adl, azure
     * gcs, gs
+    * sftp
 
     All other filesystems are not authenticated
 

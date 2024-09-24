@@ -7,7 +7,7 @@ import time
 
 from dlt.common import pendulum, Decimal, json
 from dlt.common.configuration import inject_section
-from dlt.common.data_writers.writers import ParquetDataWriter
+from dlt.common.data_writers.writers import ArrowToParquetWriter, ParquetDataWriter
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.schema.utils import new_column
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
@@ -76,7 +76,7 @@ def test_parquet_writer_schema_evolution_with_small_buffer() -> None:
 def test_parquet_writer_json_serialization() -> None:
     c1 = new_column("col1", "bigint")
     c2 = new_column("col2", "bigint")
-    c3 = new_column("col3", "complex")
+    c3 = new_column("col3", "json")
 
     with get_writer(ParquetDataWriter) as writer:
         writer.write_data_item(
@@ -296,7 +296,7 @@ def test_parquet_writer_timestamp_precision(tz: str) -> None:
             else:
                 assert column_type.tz is None
 
-        _assert_arrow_field(0, "us")
+        _assert_arrow_field(0, "s")
         _assert_arrow_field(1, "ms")
         _assert_arrow_field(2, "us")
         _assert_arrow_field(3, "ns")
@@ -306,10 +306,93 @@ def test_parquet_writer_timestamp_precision(tz: str) -> None:
 
         def _assert_pq_column(col: int, prec: str) -> None:
             info = json.loads(reader.metadata.schema.column(col).logical_type.to_json())
+            print(info)
             assert info["isAdjustedToUTC"] is adjusted
             assert info["timeUnit"] == prec
 
-        _assert_pq_column(0, "microseconds")
+        # apparently storting seconds is not supported
+        _assert_pq_column(0, "milliseconds")
         _assert_pq_column(1, "milliseconds")
         _assert_pq_column(2, "microseconds")
         _assert_pq_column(3, "nanoseconds")
+
+
+def test_arrow_parquet_row_group_size() -> None:
+    import pyarrow as pa
+
+    c1 = {"col1": new_column("col1", "bigint")}
+
+    id_ = -1
+
+    def get_id_() -> int:
+        nonlocal id_
+        id_ += 1
+        return id_
+
+    single_elem_table = lambda: pa.Table.from_pylist([{"col1": get_id_()}])
+    single_elem_batch = lambda: pa.RecordBatch.from_pylist([{"col1": get_id_()}])
+
+    with get_writer(ArrowToParquetWriter, file_max_bytes=2**8, buffer_max_items=2) as writer:
+        writer.write_data_item(single_elem_table(), columns=c1)
+        writer._flush_items()
+        assert writer._writer.items_count == 1
+
+    with pa.parquet.ParquetFile(writer.closed_files[0].file_path) as reader:
+        assert reader.num_row_groups == 1
+        assert reader.metadata.row_group(0).num_rows == 1
+
+    # should be packages into single group
+    with get_writer(ArrowToParquetWriter, file_max_bytes=2**8, buffer_max_items=2) as writer:
+        writer.write_data_item(
+            [
+                single_elem_table(),
+                single_elem_batch(),
+                single_elem_batch(),
+                single_elem_table(),
+                single_elem_batch(),
+            ],
+            columns=c1,
+        )
+        writer._flush_items()
+        assert writer._writer.items_count == 5
+
+    with pa.parquet.ParquetFile(writer.closed_files[0].file_path) as reader:
+        assert reader.num_row_groups == 1
+        assert reader.metadata.row_group(0).num_rows == 5
+
+    with open(writer.closed_files[0].file_path, "rb") as f:
+        table = pq.read_table(f)
+        # all ids are there and in order
+        assert table["col1"].to_pylist() == list(range(1, 6))
+
+    # pass also empty and make it to be written with a separate call to parquet writer (by buffer_max_items)
+    with get_writer(ArrowToParquetWriter, file_max_bytes=2**8, buffer_max_items=1) as writer:
+        pq_batch = single_elem_batch()
+        writer.write_data_item(pq_batch, columns=c1)
+        # writer._flush_items()
+        # assert writer._writer.items_count == 5
+        # this will also create arrow schema
+        print(pq_batch.schema)
+        writer.write_data_item(pa.RecordBatch.from_pylist([], schema=pq_batch.schema), columns=c1)
+
+    with pa.parquet.ParquetFile(writer.closed_files[0].file_path) as reader:
+        assert reader.num_row_groups == 2
+        assert reader.metadata.row_group(0).num_rows == 1
+        # row group with size 0 for an empty item
+        assert reader.metadata.row_group(1).num_rows == 0
+
+
+def test_empty_tables_get_flushed() -> None:
+    c1 = {"col1": new_column("col1", "bigint")}
+    single_elem_table = pa.Table.from_pylist([{"col1": 1}])
+    empty_batch = pa.RecordBatch.from_pylist([], schema=single_elem_table.schema)
+
+    with get_writer(ArrowToParquetWriter, file_max_bytes=2**8, buffer_max_items=2) as writer:
+        writer.write_data_item(empty_batch, columns=c1)
+        writer.write_data_item(empty_batch, columns=c1)
+        # written
+        assert len(writer._buffered_items) == 0
+        writer.write_data_item(empty_batch, columns=c1)
+        assert len(writer._buffered_items) == 1
+        writer.write_data_item(single_elem_table, columns=c1)
+        assert len(writer._buffered_items) == 0

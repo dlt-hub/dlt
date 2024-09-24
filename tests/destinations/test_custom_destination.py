@@ -1,7 +1,6 @@
-from typing import List, Tuple, Dict, Union, cast
+from typing import List, Tuple, Dict
 
 import dlt
-import pytest
 import pytest
 import os
 import inspect
@@ -13,7 +12,10 @@ from dlt.common.typing import TDataItems
 from dlt.common.schema import TTableSchema
 from dlt.common.data_writers.writers import TLoaderFileFormat
 from dlt.common.destination.reference import Destination
-from dlt.common.destination.exceptions import InvalidDestinationReference
+from dlt.common.destination.exceptions import (
+    DestinationTransientException,
+    InvalidDestinationReference,
+)
 from dlt.common.configuration.exceptions import ConfigFieldMissingException, ConfigurationValueError
 from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.configuration.inject import get_fun_spec
@@ -187,6 +189,19 @@ def test_instantiation() -> None:
     # local func does not create entry in destinations
     assert "local_sink_func" not in _DESTINATIONS
 
+    def local_sink_func_no_params(items: TDataItems, table: TTableSchema) -> None:
+        # consume data
+        pass
+
+    p = dlt.pipeline(
+        "sink_test",
+        destination=Destination.from_reference(
+            "destination", destination_callable=local_sink_func_no_params
+        ),
+        dev_mode=True,
+    )
+    p.run([1, 2, 3], table_name="items")
+
     # test passing string reference
     global global_calls
     global_calls = []
@@ -266,7 +281,7 @@ def test_batched_transactions(loader_file_format: TLoaderFileFormat, batch_size:
         if table_name in provoke_error:
             for item in items:
                 if provoke_error[table_name] == item["id"]:
-                    raise AssertionError("Oh no!")
+                    raise DestinationTransientException("Oh no!")
 
         calls.setdefault(table_name, []).append(items)
 
@@ -498,17 +513,15 @@ def test_destination_with_spec() -> None:
 
     # call fails because `my_predefined_val` is required part of spec, even if not injected
     with pytest.raises(ConfigFieldMissingException):
-        info = dlt.pipeline("sink_test", destination=sink_func_with_spec(), dev_mode=True).run(
+        dlt.pipeline("sink_test", destination=sink_func_with_spec(), dev_mode=True).run(
             [1, 2, 3], table_name="items"
         )
-        info.raise_on_failed_jobs()
 
     # call happens now
     os.environ["MY_PREDEFINED_VAL"] = "VAL"
-    info = dlt.pipeline("sink_test", destination=sink_func_with_spec(), dev_mode=True).run(
+    dlt.pipeline("sink_test", destination=sink_func_with_spec(), dev_mode=True).run(
         [1, 2, 3], table_name="items"
     )
-    info.raise_on_failed_jobs()
 
     # check destination with additional config params
     @dlt.destination(spec=MyDestinationSpec)

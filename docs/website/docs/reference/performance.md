@@ -1,10 +1,10 @@
 ---
-title: Performance
+title: Optimizing dlt
 description: Scale-up, parallelize and finetune dlt pipelines
 keywords: [scaling, parallelism, finetuning]
 ---
 
-# Performance
+# Optimizing dlt
 
 ## Yield pages instead of rows
 
@@ -225,7 +225,7 @@ resources are: `round_robin` and `fifo`.
 `fifo` is an option for sequential extraction. It will result in every resource being fully extracted until the resource generator is expired, or a configured limit is reached, then the next resource will be evaluated. Resources are extracted in the order that you added them to your source.
 
 :::tip
-Switch to `fifo` when debugging sources with many resources and connected transformers, for example [rest_api](../dlt-ecosystem/verified-sources/rest_api.md).
+Switch to `fifo` when debugging sources with many resources and connected transformers, for example [rest_api](../dlt-ecosystem/verified-sources/rest_api/index.md).
 Your data will be requested in deterministic and straightforward order - given data item (ie. user record you got from API) will be processed by all resources
 and transformers until completion before starting with new one
 :::

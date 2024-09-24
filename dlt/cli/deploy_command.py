@@ -4,7 +4,7 @@ import yaml
 from enum import Enum
 from importlib.metadata import version as pkg_version
 
-from dlt.common.configuration.providers import SECRETS_TOML, SECRETS_TOML_KEY, StringTomlProvider
+from dlt.common.configuration.providers import SECRETS_TOML, SECRETS_TOML_KEY
 from dlt.common.configuration.paths import make_dlt_settings_path
 from dlt.common.configuration.utils import serialize_value
 from dlt.common.git import is_dirty
@@ -393,12 +393,7 @@ class AirflowDeployment(BaseDeployment):
                     f" {SECRETS_TOML_KEY} variable."
                 )
                 fmt.echo()
-                toml_provider = StringTomlProvider("")
-                for s_v in self.secret_envs:
-                    toml_provider.set_value(s_v.key, s_v.value, None, *s_v.sections)
-                for s_v in self.envs:
-                    toml_provider.set_value(s_v.key, s_v.value, None, *s_v.sections)
-                fmt.echo(toml_provider.dumps())
+                self._echo_secrets_toml()
             else:
                 raise ValueError(self.secrets_format)
 

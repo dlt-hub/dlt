@@ -24,7 +24,6 @@ from tests.load.lancedb.utils import assert_table, chunk_document, mock_embed
 from tests.load.utils import sequence_generator, drop_active_pipeline_data
 from tests.pipeline.utils import assert_load_info
 
-
 # Mark all tests as essential, don't remove.
 pytestmark = pytest.mark.essential
 

@@ -14,6 +14,7 @@ from typing import (
     Set,
 )
 
+from dlt.common.destination.capabilities import DataTypeMapper
 import lancedb  # type: ignore
 import lancedb.table  # type: ignore
 import pyarrow as pa
@@ -34,6 +35,7 @@ from dlt.common.destination.exceptions import (
 )
 from dlt.common.destination.reference import (
     JobClientBase,
+    PreparedTableSchema,
     WithStateSync,
     RunnableLoadJob,
     StorageSchemaInfo,
@@ -43,8 +45,9 @@ from dlt.common.destination.reference import (
     FollowupJobRequest,
 )
 from dlt.common.pendulum import timedelta
-from dlt.common.schema import Schema, TTableSchema, TSchemaTables
+from dlt.common.schema import Schema, TSchemaTables
 from dlt.common.schema.typing import (
+    C_DLT_LOAD_ID,
     TColumnType,
     TTableSchemaColumns,
     TWriteDisposition,
@@ -90,6 +93,7 @@ else:
 TIMESTAMP_PRECISION_TO_UNIT: Dict[int, str] = {0: "s", 3: "ms", 6: "us", 9: "ns"}
 UNIT_TO_TIMESTAMP_PRECISION: Dict[str, int] = {v: k for k, v in TIMESTAMP_PRECISION_TO_UNIT.items()}
 BATCH_PROCESS_CHUNK_SIZE = 10_000
+EMPTY_STRING_PLACEHOLDER = "0uEoDNBpQUBwsxKbmxxB"
 
 
 class LanceDBTypeMapper(TypeMapper):
@@ -244,7 +248,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
             read_consistency_interval=timedelta(0),
         )
         self.registry = EmbeddingFunctionRegistry.get_instance()
-        self.type_mapper = LanceDBTypeMapper(self.capabilities)
+        self.type_mapper = self.capabilities.get_type_mapper()
         self.sentinel_table_name = config.sentinel_table_name
         self.dataset_name = self.config.normalize_dataset_name(self.schema)
 
@@ -388,9 +392,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
         only_tables: Iterable[str] = None,
         expected_update: TSchemaTables = None,
     ) -> Optional[TSchemaTables]:
-        super().update_stored_schema(only_tables, expected_update)
-        applied_update: TSchemaTables = {}
-
+        applied_update = super().update_stored_schema(only_tables, expected_update)
         try:
             schema_info = self.get_stored_schema_by_hash(self.schema.stored_version_hash)
         except DestinationUndefinedEntity:
@@ -401,6 +403,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
                 f"Schema with hash {self.schema.stored_version_hash} "
                 "not found in the storage. upgrading"
             )
+            # TODO: return a real updated table schema (like in SQL job client)
             self._execute_schema_update(only_tables)
         else:
             logger.info(
@@ -408,6 +411,8 @@ class LanceDBClient(JobClientBase, WithStateSync):
                 f"inserted at {schema_info.inserted_at} found "
                 "in storage, no upgrade required"
             )
+        # we assume that expected_update == applied_update so table schemas in dest were not
+        # externally changed
         return applied_update
 
     def get_storage_table(self, table_name: str) -> Tuple[bool, TTableSchemaColumns]:
@@ -427,7 +432,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
             name = self.schema.naming.normalize_identifier(field.name)
             table_schema[name] = {
                 "name": name,
-                **self.type_mapper.from_db_type(field.type),
+                **self.type_mapper.from_destination_type(field.type, None, None),
             }
         return True, table_schema
 
@@ -690,7 +695,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
         )
 
     def create_load_job(
-        self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
+        self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
         if ReferenceFollowupJobRequest.is_reference_job(file_path):
             return LanceDBRemoveOrphansJob(file_path)
@@ -733,8 +738,14 @@ class LanceDBLoadJob(RunnableLoadJob, HasFollowupJobs):
         self,
         file_path: str,
         table_schema: TTableSchema,
+        type_mapper: DataTypeMapper,
+        model_func: TextEmbeddingFunction,
+        fq_table_name: str,
     ) -> None:
         super().__init__(file_path)
+        self._type_mapper = type_mapper
+        self._fq_table_name: str = fq_table_name
+        self._model_func = model_func
         self._job_client: "LanceDBClient" = None
         self._table_schema: TTableSchema = table_schema
 

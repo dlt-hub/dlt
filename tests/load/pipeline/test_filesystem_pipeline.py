@@ -44,7 +44,6 @@ def test_pipeline_merge_write_disposition(default_buckets_env: str) -> None:
     """Run pipeline twice with merge write disposition
     Regardless wether primary key is set or not, filesystem appends
     """
-    import pyarrow.parquet as pq  # Module is evaluated by other tests
 
     os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "True"
 
@@ -102,7 +101,6 @@ def test_pipeline_csv_filesystem_destination(item_type: TestDataItemFormat) -> N
 
     item, rows, _ = arrow_table_all_data_types(item_type, include_json=False, include_time=True)
     info = pipeline.run(item, table_name="table", loader_file_format="csv")
-    info.raise_on_failed_jobs()
     job = info.load_packages[0].jobs["completed_jobs"][0].file_path
     assert job.endswith("csv")
     with open(job, "r", encoding="utf-8", newline="") as f:
@@ -128,7 +126,6 @@ def test_csv_options(item_type: TestDataItemFormat) -> None:
 
     item, rows, _ = arrow_table_all_data_types(item_type, include_json=False, include_time=True)
     info = pipeline.run(item, table_name="table", loader_file_format="csv")
-    info.raise_on_failed_jobs()
     job = info.load_packages[0].jobs["completed_jobs"][0].file_path
     assert job.endswith("csv")
     with open(job, "r", encoding="utf-8", newline="") as f:
@@ -157,7 +154,6 @@ def test_csv_quoting_style(item_type: TestDataItemFormat) -> None:
 
     item, _, _ = arrow_table_all_data_types(item_type, include_json=False, include_time=True)
     info = pipeline.run(item, table_name="table", loader_file_format="csv")
-    info.raise_on_failed_jobs()
     job = info.load_packages[0].jobs["completed_jobs"][0].file_path
     assert job.endswith("csv")
     with open(job, "r", encoding="utf-8", newline="") as f:
@@ -257,7 +253,7 @@ def test_delta_table_pyarrow_version_check() -> None:
     "destination_config",
     destinations_configs(
         table_format_filesystem_configs=True,
-        table_format="delta",
+        with_table_format="delta",
         bucket_exclude=(MEMORY_BUCKET),
     ),
     ids=lambda x: x.name,
@@ -330,7 +326,7 @@ def test_delta_table_core(
     "destination_config",
     destinations_configs(
         table_format_filesystem_configs=True,
-        table_format="delta",
+        with_table_format="delta",
         bucket_subset=(FILE_BUCKET),
     ),
     ids=lambda x: x.name,
@@ -375,7 +371,7 @@ def test_delta_table_does_not_contain_job_files(
     "destination_config",
     destinations_configs(
         table_format_filesystem_configs=True,
-        table_format="delta",
+        with_table_format="delta",
         bucket_subset=(FILE_BUCKET),
     ),
     ids=lambda x: x.name,
@@ -421,7 +417,7 @@ def test_delta_table_multiple_files(
     "destination_config",
     destinations_configs(
         table_format_filesystem_configs=True,
-        table_format="delta",
+        with_table_format="delta",
         bucket_subset=(FILE_BUCKET),
     ),
     ids=lambda x: x.name,
@@ -432,7 +428,7 @@ def test_delta_table_child_tables(
     """Tests child table handling for `delta` table format."""
 
     @dlt.resource(table_format="delta")
-    def complex_table():
+    def nested_table():
         yield [
             {
                 "foo": 1,
@@ -448,57 +444,67 @@ def test_delta_table_child_tables(
 
     pipeline = destination_config.setup_pipeline("fs_pipe", dev_mode=True)
 
-    info = pipeline.run(complex_table())
+    info = pipeline.run(nested_table())
     assert_load_info(info)
     rows_dict = load_tables_to_dicts(
         pipeline,
-        "complex_table",
-        "complex_table__child",
-        "complex_table__child__grandchild",
+        "nested_table",
+        "nested_table__child",
+        "nested_table__child__grandchild",
         exclude_system_cols=True,
     )
     # assert row counts
-    assert len(rows_dict["complex_table"]) == 2
-    assert len(rows_dict["complex_table__child"]) == 3
-    assert len(rows_dict["complex_table__child__grandchild"]) == 5
+    assert len(rows_dict["nested_table"]) == 2
+    assert len(rows_dict["nested_table__child"]) == 3
+    assert len(rows_dict["nested_table__child__grandchild"]) == 5
     # assert column names
-    assert rows_dict["complex_table"][0].keys() == {"foo"}
-    assert rows_dict["complex_table__child"][0].keys() == {"bar"}
-    assert rows_dict["complex_table__child__grandchild"][0].keys() == {"value"}
+    assert rows_dict["nested_table"][0].keys() == {"foo"}
+    assert rows_dict["nested_table__child"][0].keys() == {"bar"}
+    assert rows_dict["nested_table__child__grandchild"][0].keys() == {"value"}
 
     # test write disposition handling with child tables
-    info = pipeline.run(complex_table())
+    info = pipeline.run(nested_table())
     assert_load_info(info)
     rows_dict = load_tables_to_dicts(
         pipeline,
-        "complex_table",
-        "complex_table__child",
-        "complex_table__child__grandchild",
+        "nested_table",
+        "nested_table__child",
+        "nested_table__child__grandchild",
         exclude_system_cols=True,
     )
-    assert len(rows_dict["complex_table"]) == 2 * 2
-    assert len(rows_dict["complex_table__child"]) == 3 * 2
-    assert len(rows_dict["complex_table__child__grandchild"]) == 5 * 2
+    assert len(rows_dict["nested_table"]) == 2 * 2
+    assert len(rows_dict["nested_table__child"]) == 3 * 2
+    assert len(rows_dict["nested_table__child__grandchild"]) == 5 * 2
 
-    info = pipeline.run(complex_table(), write_disposition="replace")
+    info = pipeline.run(nested_table(), write_disposition="replace")
     assert_load_info(info)
     rows_dict = load_tables_to_dicts(
         pipeline,
-        "complex_table",
-        "complex_table__child",
-        "complex_table__child__grandchild",
+        "nested_table",
+        "nested_table__child",
+        "nested_table__child__grandchild",
         exclude_system_cols=True,
     )
-    assert len(rows_dict["complex_table"]) == 2
-    assert len(rows_dict["complex_table__child"]) == 3
-    assert len(rows_dict["complex_table__child__grandchild"]) == 5
+    assert len(rows_dict["nested_table"]) == 2
+    assert len(rows_dict["nested_table__child"]) == 3
+    assert len(rows_dict["nested_table__child__grandchild"]) == 5
+
+    # now drop children and grandchildren, use merge write disposition to create and pass full table chain
+    # also for tables that do not have jobs
+    info = pipeline.run(
+        [{"foo": 3}] * 10000,
+        table_name="nested_table",
+        primary_key="foo",
+        write_disposition="merge",
+    )
+    assert_load_info(info)
 
 
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
         table_format_filesystem_configs=True,
-        table_format="delta",
+        with_table_format="delta",
         bucket_subset=(FILE_BUCKET),
     ),
     ids=lambda x: x.name,
@@ -584,7 +590,7 @@ def test_delta_table_partitioning(
     "destination_config",
     destinations_configs(
         table_format_filesystem_configs=True,
-        table_format="delta",
+        with_table_format="delta",
         bucket_subset=(FILE_BUCKET),
     ),
     ids=lambda x: x.name,
@@ -681,7 +687,7 @@ def test_delta_table_schema_evolution(
     "destination_config",
     destinations_configs(
         table_format_filesystem_configs=True,
-        table_format="delta",
+        with_table_format="delta",
         bucket_subset=(FILE_BUCKET, AZ_BUCKET),
     ),
     ids=lambda x: x.name,
@@ -693,7 +699,6 @@ def test_delta_table_empty_source(
 
     Tests both empty Arrow table and `dlt.mark.materialize_table_schema()`.
     """
-    from dlt.common.libs.pyarrow import pyarrow as pa
     from dlt.common.libs.deltalake import ensure_delta_compatible_arrow_data, get_delta_tables
     from tests.pipeline.utils import users_materialize_table_schema
 
@@ -740,9 +745,21 @@ def test_delta_table_empty_source(
         ensure_delta_compatible_arrow_data(empty_arrow_table).schema
     )
 
+    # now run the empty frame again
+    info = pipeline.run(delta_table(empty_arrow_table))
+    assert_load_info(info)
+
+    # use materialized list
+    # NOTE: this will create an empty parquet file with a schema takes from dlt schema.
+    # the original parquet file had a nested (struct) type in `json` field that is now
+    # in the delta table schema. the empty parquet file lost this information and had
+    # string type (converted from dlt `json`)
+    info = pipeline.run([dlt.mark.materialize_table_schema()], table_name="delta_table")
+    assert_load_info(info)
+
     # test `dlt.mark.materialize_table_schema()`
     users_materialize_table_schema.apply_hints(table_format="delta")
-    info = pipeline.run(users_materialize_table_schema())
+    info = pipeline.run(users_materialize_table_schema(), loader_file_format="parquet")
     assert_load_info(info)
     dt = get_delta_tables(pipeline, "users")["users"]
     assert dt.version() == 0
@@ -755,7 +772,7 @@ def test_delta_table_empty_source(
     "destination_config",
     destinations_configs(
         table_format_filesystem_configs=True,
-        table_format="delta",
+        with_table_format="delta",
         bucket_subset=(FILE_BUCKET),
     ),
     ids=lambda x: x.name,
@@ -804,7 +821,7 @@ def test_delta_table_mixed_source(
     "destination_config",
     destinations_configs(
         table_format_filesystem_configs=True,
-        table_format="delta",
+        with_table_format="delta",
         bucket_subset=(FILE_BUCKET),
     ),
     ids=lambda x: x.name,
@@ -832,7 +849,7 @@ def test_delta_table_dynamic_dispatch(
     "destination_config",
     destinations_configs(
         table_format_filesystem_configs=True,
-        table_format="delta",
+        with_table_format="delta",
         bucket_subset=(FILE_BUCKET, AZ_BUCKET),
     ),
     ids=lambda x: x.name,
@@ -912,7 +929,7 @@ def test_delta_table_get_delta_tables_helper(
     "destination_config",
     destinations_configs(
         table_format_filesystem_configs=True,
-        table_format="delta",
+        with_table_format="delta",
         bucket_subset=(FILE_BUCKET,),
     ),
     ids=lambda x: x.name,

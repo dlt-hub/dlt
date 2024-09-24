@@ -383,7 +383,7 @@ def _bind_path_params(resource: EndpointResource) -> None:
                     if param_type != "resolve":
                         raise ValueError(
                             f"The path {path} defined in resource {resource['name']} tries to bind"
-                            f" param {name} with type {param_type}. Paths can only bind 'resource'"
+                            f" param {name} with type {param_type}. Paths can only bind 'resolve'"
                             " type params."
                         )
                     # resolved params are bound later
@@ -505,8 +505,7 @@ def _create_response_action_hook(
                 hook(response)
         elif action_type == "ignore":
             logger.info(
-                f"Ignoring response with code {response.status_code} "
-                f"and content '{response.json()}'."
+                f"Ignoring response with code {response.status_code} and content '{response.text}'."
             )
             raise IgnoreResponseException
 

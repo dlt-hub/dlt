@@ -95,7 +95,7 @@ Keep in mind that enabling these incurs some performance overhead:
 ## Incremental loading with Arrow tables
 
 You can use incremental loading with Arrow tables as well.
-Usage is the same as without other dlt resources. Refer to the [incremental loading](/general-usage/incremental-loading.md) guide for more information.
+Usage is the same as without other dlt resources. Refer to the [incremental loading](../../general-usage/incremental-loading.md) guide for more information.
 
 Example:
 
@@ -123,10 +123,10 @@ pipeline.run(orders)
 Look at the [Connector X + Arrow Example](../../examples/connector_x_arrow/) to see how to load data from production databases fast.
 :::
 
-## Loading `json` documents
-If you want to skip default `dlt` JSON normalizer, you can use any available method to convert json documents into tabular data.
+## Loading JSON documents
+If you want to skip default `dlt` JSON normalizer, you can use any available method to convert JSON documents into tabular data.
 * **pandas** has `read_json` and `json_normalize` methods
-* **pyarrow** can infer table schema and convert json files into tables with `read_json`
+* **pyarrow** can infer table schema and convert JSON files into tables with `read_json`
 * **duckdb** can do the same with `read_json_auto`
 
 ```py
@@ -153,12 +153,12 @@ The Arrow data types are translated to dlt data types as follows:
 | `int<bit_width>`  | `bigint`    | Precision is determined by the bit width.                  |
 | `binary`          | `binary`    |                                                            |
 | `decimal`         | `decimal`   | Precision and scale are determined by the type properties. |
-| `struct`          | `complex`   |                                                            |
+| `struct`          | `json`   |                                                            |
 |                   |             |                                                            |
 
 
 ## Loading nested types
-All struct types are represented as `complex` and will be loaded as JSON (if destination permits) or a string. Currently we do not support **struct** types,
+All struct types are represented as `json` and will be loaded as JSON (if destination permits) or a string. Currently we do not support **struct** types,
 even if they are present in the destination (except **BigQuery** which can be [configured to handle them](../destinations/bigquery.md#use-bigquery-schema-autodetect-for-nested-fields))
 
 If you want to represent nested data as separated tables, you must yield panda frames and arrow tables as records. In the examples above:

@@ -63,7 +63,7 @@ def test_invoke_pipeline(script_runner: ScriptRunner) -> None:
     shutil.copytree("tests/cli/cases/deploy_pipeline", TEST_STORAGE_ROOT, dirs_exist_ok=True)
 
     with set_working_dir(TEST_STORAGE_ROOT):
-        with custom_environ({"COMPETED_PROB": "1.0", DLT_DATA_DIR: get_dlt_data_dir()}):
+        with custom_environ({"COMPLETED_PROB": "1.0", DLT_DATA_DIR: get_dlt_data_dir()}):
             venv = Venv.restore_current()
             venv.run_script("dummy_pipeline.py")
     # we check output test_pipeline_command else
