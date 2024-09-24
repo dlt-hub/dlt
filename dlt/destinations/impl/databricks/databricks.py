@@ -2,6 +2,9 @@ from typing import Optional, Sequence, List, cast
 from urllib.parse import urlparse, urlunparse
 
 from dlt import config
+from dlt.common.configuration.specs.azure_credentials import (
+    AzureServicePrincipalCredentialsWithoutDefaults,
+)
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
     HasFollowupJobs,
@@ -95,7 +98,9 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
                     ))
                     """
                 elif bucket_scheme in AZURE_BLOB_STORAGE_PROTOCOLS:
-                    assert isinstance(staging_credentials, AzureCredentialsWithoutDefaults)
+                    assert isinstance(
+                        staging_credentials, AzureCredentialsWithoutDefaults
+                    ), "AzureCredentialsWithoutDefaults required to pass explicit credential"
                     # Explicit azure credentials are needed to load from bucket without a named stage
                     credentials_clause = f"""WITH(CREDENTIAL(AZURE_SAS_TOKEN='{staging_credentials.azure_storage_sas_token}'))"""
                     bucket_path = self.ensure_databricks_abfss_url(
@@ -103,7 +108,13 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
                     )
 
             if bucket_scheme in AZURE_BLOB_STORAGE_PROTOCOLS:
-                assert isinstance(staging_credentials, AzureCredentialsWithoutDefaults)
+                assert isinstance(
+                    staging_credentials,
+                    (
+                        AzureCredentialsWithoutDefaults,
+                        AzureServicePrincipalCredentialsWithoutDefaults,
+                    ),
+                )
                 bucket_path = self.ensure_databricks_abfss_url(
                     bucket_path, staging_credentials.azure_storage_account_name
                 )
