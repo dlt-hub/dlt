@@ -677,9 +677,9 @@ Be careful that the parent resource needs to return `Generator[List[Dict[str, An
 
 ```py
  @dlt.resource()
-    def repositories() -> Generator[Dict[str, Any]]:
-        """Not working seed list of repositories to fetch"""
-        yield from [{"name": "dlt"}, {"name": "verified-sources"}, {"name": "dlthub-education"}]
+def repositories() -> Generator[Dict[str, Any]]:
+    """Not working seed list of repositories to fetch"""
+    yield from [{"name": "dlt"}, {"name": "verified-sources"}, {"name": "dlthub-education"}]
 ```
 
 
