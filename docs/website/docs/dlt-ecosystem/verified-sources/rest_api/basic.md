@@ -797,7 +797,7 @@ You can combine multiple processing steps to achieve complex transformations:
 1. Order matters: Processing steps are applied in the order they are listed. Be mindful of the sequence, especially when combining `map` and `filter`.
 2. Function definition: Define your filter and map functions separately for clarity and reuse.
 3. Use `filter` to exclude records early in the process to reduce the amount of data that needs to be processed.
-4. Combine consecutive `map` steps into a single function for better performance.
+4. Combine consecutive `map` steps into a single function for faster execution.
 :::
 
 ## Incremental loading
