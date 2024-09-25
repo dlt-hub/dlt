@@ -197,7 +197,7 @@ In addition to the mentioned resource,
 there are three more resources `projects`, `custom_reports_list`, and `document_categories`
 with similar behavior.
 
-### Resource-transformer `employees absences balance`
+### Resource-transformer `employees_absences_balance`
 
 Besides these source and resource functions, there are two transformer functions
 for endpoints like `/company/employees/{employee_id}/absences/balance` and `/company/custom-reports/reports/{report_id}`.
