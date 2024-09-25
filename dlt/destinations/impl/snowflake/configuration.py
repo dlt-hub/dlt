@@ -56,9 +56,9 @@ SNOWFLAKE_APPLICATION_ID = "dltHub_dlt"
 @configspec(init=False)
 class SnowflakeCredentials(ConnectionStringCredentials):
     drivername: Final[str] = dataclasses.field(default="snowflake", init=False, repr=False, compare=False)  # type: ignore[misc]
-    password: Optional[TSecretStrValue] = None
     host: str = None
     database: str = None
+    username: str = None
     warehouse: Optional[str] = None
     role: Optional[str] = None
     authenticator: Optional[str] = None

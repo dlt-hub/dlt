@@ -25,11 +25,6 @@ LOCAL_STATE_KEY = "duckdb_database"
 
 @configspec(init=False)
 class DuckDbBaseCredentials(ConnectionStringCredentials):
-    password: Optional[TSecretValue] = None
-    host: Optional[str] = None
-    port: Optional[int] = None
-    database: Optional[str] = None
-
     read_only: bool = False  # open database read/write
 
     def borrow_conn(self, read_only: bool) -> Any:

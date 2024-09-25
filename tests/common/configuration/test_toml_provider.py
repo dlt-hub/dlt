@@ -32,6 +32,7 @@ from dlt.common.typing import TSecretValue
 
 from tests.utils import preserve_environ
 from tests.common.configuration.utils import (
+    ConnectionStringCompatCredentials,
     SecretCredentials,
     WithCredentialsConfiguration,
     CoercionTestConfiguration,
@@ -150,12 +151,12 @@ def test_secrets_toml_credentials(environment: Any, toml_providers: ConfigProvid
     with pytest.raises(ConfigFieldMissingException):
         print(dict(resolve.resolve_configuration(GcpServiceAccountCredentialsWithoutDefaults())))
     # also try postgres credentials
-    c2 = ConnectionStringCredentials()
+    c2 = ConnectionStringCompatCredentials()
     c2.update({"drivername": "postgres"})
     c2 = resolve.resolve_configuration(c2, sections=("destination", "redshift"))
     assert c2.database == "destination.redshift.credentials"
     # bigquery credentials do not match redshift credentials
-    c3 = ConnectionStringCredentials()
+    c3 = ConnectionStringCompatCredentials()
     c3.update({"drivername": "postgres"})
     with pytest.raises(ConfigFieldMissingException):
         resolve.resolve_configuration(c3, sections=("destination", "bigquery"))
