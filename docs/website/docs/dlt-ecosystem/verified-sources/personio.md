@@ -178,7 +178,7 @@ def employees(
 Like the `employees` resource discussed above, other resources `absences` and `attendances` load
 data incrementally from the Personio API to your preferred destination.
 
-### Resource `absence types`
+### Resource `absence_types`
 
 Simple resource, which retrieves a list of various types of employee absences.
 ```py
