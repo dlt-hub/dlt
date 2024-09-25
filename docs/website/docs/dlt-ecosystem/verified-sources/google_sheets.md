@@ -5,7 +5,7 @@ keywords: [google sheets api, google sheets verified source, google sheets]
 ---
 import Header from './_source-info-header.md';
 
-# Google sheets
+# Google Sheets
 
 <Header/>
 
