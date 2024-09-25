@@ -706,7 +706,7 @@ def repositories() -> Generator[Dict[str, Any]]:
 
 The `processing_steps` field in the resource configuration allows you to apply transformations to the data fetched from the API before it is loaded into your destination. This is useful when you need to filter out certain records, modify the data structure, or anonymize sensitive information.
 
-Each processing step is a dictionary specifying the type of operation (`filter` or `map`) and the function to apply.
+Each processing step is a dictionary specifying the type of operation (`filter` or `map`) and the function to apply. Steps apply in the order they are listed.
 
 #### Quick example
 
