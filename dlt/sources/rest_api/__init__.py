@@ -21,6 +21,7 @@ from dlt.sources.helpers.rest_client.auth import (
     BearerTokenAuth,
     APIKeyAuth,
     AuthConfigBase,
+    OAuth2ClientCredentials,
 )
 from dlt.sources.helpers.rest_client.typing import HTTPMethodBasic
 from .typing import (
@@ -53,6 +54,9 @@ SENSITIVE_KEYS: List[str] = [
     "api_key",
     "username",
     "password",
+    "access_token",
+    "client_id",
+    "client_secret"
 ]
 
 
@@ -395,11 +399,11 @@ def _mask_secrets(auth_config: AuthConfig) -> AuthConfig:
         return auth_config
 
     has_sensitive_key = any(key in auth_config for key in SENSITIVE_KEYS)
-    if isinstance(auth_config, (APIKeyAuth, BearerTokenAuth, HttpBasicAuth)) or has_sensitive_key:
+    if isinstance(auth_config, (APIKeyAuth, BearerTokenAuth, HttpBasicAuth, OAuth2ClientCredentials)) or has_sensitive_key:
         return _mask_secrets_dict(auth_config)
     # Here, we assume that OAuth2 and other custom classes that don't implement __get__()
     # also don't print secrets in __str__()
-    # TODO: call auth_config.mask_secrets() when that is implemented in dlt-core
+    # TODO: call auth_config.mask_secrets() when that is implemented
     return auth_config
 
 

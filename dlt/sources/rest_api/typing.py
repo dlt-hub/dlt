@@ -138,7 +138,7 @@ PaginatorConfig = Union[
 ]
 
 
-AuthType = Literal["bearer", "api_key", "http_basic"]
+AuthType = Literal["bearer", "api_key", "http_basic", "oauth2_client_credentials"]
 
 
 class AuthTypeConfig(TypedDict, total=True):

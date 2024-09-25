@@ -125,7 +125,6 @@ class HttpBasicAuth(AuthConfigBase):
 class OAuth2AuthBase(AuthConfigBase):
     """Base class for oauth2 authenticators. requires access_token"""
 
-    # TODO: Separate class for flows (implicit, authorization_code, client_credentials, etc)
     access_token: TSecretStrValue = None
 
     def parse_native_representation(self, value: Any) -> None:
@@ -153,28 +152,21 @@ class OAuth2ClientCredentials(OAuth2AuthBase):
     with a temporary access token.
     With the access token, the client can access resource services.
     """
+    access_token_url: TSecretStrValue = None
+    client_id: TSecretStrValue = None
+    client_secret: TSecretStrValue = None
+    access_token_request_data: Dict[str, Any] = None
+    default_token_expiration: int = 3600
+    session: Annotated[BaseSession, NotResolved()] = None
 
-    def __init__(
-        self,
-        access_token_url: str,
-        client_id: TSecretStrValue,
-        client_secret: TSecretStrValue,
-        access_token_request_data: Dict[str, Any] = None,
-        default_token_expiration: int = 3600,
-        session: Annotated[BaseSession, NotResolved()] = None,
-    ) -> None:
-        super().__init__()
-        self.access_token_url = access_token_url
-        self.client_id = client_id
-        self.client_secret = client_secret
-        if access_token_request_data is None:
+    def __post_init__(self) -> None:
+        if self.access_token_request_data is None:
             self.access_token_request_data = {}
-        else:
-            self.access_token_request_data = access_token_request_data
-        self.default_token_expiration = default_token_expiration
+
         self.token_expiry: pendulum.DateTime = pendulum.now()
 
-        self.session = session if session is not None else requests.client.session
+        if self.session is None:
+            self.session = requests.client.session
 
     def __call__(self, request: PreparedRequest) -> PreparedRequest:
         if self.access_token is None or self.is_token_expired():
