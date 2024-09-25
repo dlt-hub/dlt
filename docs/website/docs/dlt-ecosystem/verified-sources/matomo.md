@@ -205,7 +205,9 @@ def get_last_visits(
 
 `rows_per_page`: Number of rows on each page.
 
->Note: This is an [incremental](../../general-usage/incremental-loading) resource method and loads the "last_date" from the state of the last pipeline run.
+:::note
+This is an [incremental](../../general-usage/incremental-loading) resource method and loads the "last_date" from the state of the last pipeline run.
+:::
 
 ### Transformer `visitors`
 
