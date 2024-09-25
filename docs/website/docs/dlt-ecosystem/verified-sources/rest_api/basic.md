@@ -639,7 +639,23 @@ The `field` value can be specified as a [JSONPath](https://github.com/h2non/json
 
 Under the hood, dlt handles this by using a [transformer resource](../../../general-usage/resource.md#process-resources-with-dlttransformer).
 
-#### Define a resource which is not a REST endpoint
+#### Include fields from the parent resource
+
+You can include data from the parent resource in the child resource by using the `include_from_parent` field in the resource configuration. For example:
+
+```py
+{
+    "name": "issue_comments",
+    "endpoint": {
+        ...
+    },
+    "include_from_parent": ["id", "title", "created_at"],
+}
+```
+
+This will include the `id`, `title`, and `created_at` fields from the `issues` resource in the `issue_comments` resource data. The name of the included fields will be prefixed with the parent resource name and an underscore (`_`) like so: `_issues_id`, `_issues_title`, `_issues_created_at`.
+
+### Define a resource which is not a REST endpoint
 
 Sometimes, we want to request endpoints with specific values that are not returned by another endpoint.
 Thus, you can also include arbitrary dlt resources in your `RESTAPIConfig` instead of defining a resource for every path!
@@ -686,30 +702,13 @@ def repositories() -> Generator[Dict[str, Any]]:
     yield from [{"name": "dlt"}, {"name": "verified-sources"}, {"name": "dlthub-education"}]
 ```
 
-
-#### Include fields from the parent resource
-
-You can include data from the parent resource in the child resource by using the `include_from_parent` field in the resource configuration. For example:
-
-```py
-{
-    "name": "issue_comments",
-    "endpoint": {
-        ...
-    },
-    "include_from_parent": ["id", "title", "created_at"],
-}
-```
-
-This will include the `id`, `title`, and `created_at` fields from the `issues` resource in the `issue_comments` resource data. The name of the included fields will be prefixed with the parent resource name and an underscore (`_`) like so: `_issues_id`, `_issues_title`, `_issues_created_at`.
-
-#### Processing steps: filter and transform data
+### Processing steps: filter and transform data
 
 The `processing_steps` field in the resource configuration allows you to apply transformations to the data fetched from the API before it is loaded into your destination. This is useful when you need to filter out certain records, modify the data structure, or anonymize sensitive information.
 
 Each processing step is a dictionary specifying the type of operation (`filter` or `map`) and the function to apply.
 
-##### Quick example
+#### Quick example
 
 ```py
 def lower_title(record):
@@ -738,7 +737,7 @@ In the example above:
 - The `filter` step uses a lambda function to include only records where `id` is less than 10.
 - The `map` step applies the `lower_title` function to each remaining record.
 
-##### Using `filter`
+#### Using `filter`
 
 The `filter` step allows you to exclude records that do not meet certain criteria. The provided function should return `True` to keep the record or `False` to exclude it:
 
@@ -754,7 +753,7 @@ The `filter` step allows you to exclude records that do not meet certain criteri
 
 In this example, only records with `id` equal to 10, 20, or 30 will be included.
 
-##### Using `map`
+#### Using `map`
 
 The `map` step allows you to modify the records fetched from the API. The provided function should take a record as an argument and return the modified record. For example, to anonymize the `email` field:
 
@@ -779,7 +778,7 @@ config: RESTAPIConfig = {
 }
 ```
 
-##### Combining `filter` and `map`
+#### Combining `filter` and `map`
 
 You can combine multiple processing steps to achieve complex transformations:
 
@@ -796,7 +795,7 @@ You can combine multiple processing steps to achieve complex transformations:
 ```
 
 :::tip
-##### Best practices
+#### Best practices
 1. Order matters: Processing steps are applied in the order they are listed. Be mindful of the sequence, especially when combining `map` and `filter`.
 2. Function definition: Define your filter and map functions separately for clarity and reuse.
 3. Use `filter` to exclude records early in the process to reduce the amount of data that needs to be processed.
