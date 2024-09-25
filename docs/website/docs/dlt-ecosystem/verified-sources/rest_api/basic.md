@@ -733,8 +733,8 @@ config: RESTAPIConfig = {
 
 In the example above:
 
-- The `filter` step uses a lambda function to include only records where `id` is less than 10.
-- The `map` step applies the `lower_title` function to each remaining record.
+- First, the `filter` step uses a lambda function to include only records where `id` is less than 10.
+- Thereafter, the `map` step applies the `lower_title` function to each remaining record.
 
 #### Using `filter`
 
@@ -768,7 +768,6 @@ config: RESTAPIConfig = {
     "resources": [
         {
             "name": "users",
-            "endpoint": "users",
             "processing_steps": [
                 {"map": anonymize_email},
             ],
