@@ -521,7 +521,7 @@ Unfortunately, most OAuth 2.0 implementations vary, and thus you might need to s
 
 **Parameters:**
 - `access_token_url`: The URL to obtain the temporary access token.
-- `client_id`: Client credential to obtain authorization. Usually issued via a developer portal.
+- `client_id`: Client identifier to obtain authorization. Usually issued via a developer portal.
 - `client_secret`: Client credential to obtain authorization. Usually issued via a developer portal.
 - `access_token_request_data`: A dictionary with data required by the authorization server apart from the `client_id`, `client_secret`, and `"grant_type": "client_credentials"`. Defaults to `None`.
 - `default_token_expiration`: The time in seconds after which the temporary access token expires. Defaults to 3600.
@@ -694,4 +694,3 @@ for page in client.paginate(
 ):
     print(page)
 ```
-
