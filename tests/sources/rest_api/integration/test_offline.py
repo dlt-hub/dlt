@@ -398,3 +398,41 @@ def test_multiple_response_actions_on_every_response(mock_api_server, mocker):
 
     mocked_send.assert_called_once()
     assert mocked_send.call_args[0][0].url == "https://api.example.com/posts"
+
+
+def test_DltResource_gets_called(mock_api_server, mocker) -> None:
+    @dlt.resource()
+    def post_list():
+        yield [{"id": "0"}, {"id": "1"}, {"id": "2"}]
+
+    config: RESTAPIConfig = {
+        "client": {"base_url": "http://api.example.com/"},
+        "resource_defaults": {
+            "write_disposition": "replace",
+        },
+        "resources": [
+            {
+                "name": "posts",
+                "endpoint": {
+                    "path": "posts/{post_id}/comments",
+                    "params": {
+                        "post_id": {
+                            "type": "resolve",
+                            "resource": "post_list",
+                            "field": "id",
+                        },
+                    },
+                },
+            },
+            post_list(),
+        ],
+    }
+
+    RESTClient = dlt.sources.helpers.rest_client.RESTClient
+    with mock.patch.object(RESTClient, "paginate") as mock_paginate:
+        source = rest_api_source(config)
+        _ = list(source)
+        assert mock_paginate.call_count == 3
+        for i in range(3):
+            _, kwargs = mock_paginate.call_args_list[i]
+            assert kwargs["path"] == f"posts/{i}/comments"
