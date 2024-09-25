@@ -74,8 +74,8 @@ follow these steps:
 1. Go to Credentials -> OAuth client ID -> Select Desktop App from the Application type and give an
    appropriate name.
 
-1. Download the credentials and fill "client_id", "client_secret", and "project_id" in
-   "secrets.toml".
+1. Download the credentials and fill `client_id`, `client_secret`, and `project_id` in
+   `secrets.toml`.
 
 1. Go back to credentials and select the OAuth consent screen on the left.
 
