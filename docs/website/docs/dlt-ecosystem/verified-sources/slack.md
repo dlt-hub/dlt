@@ -25,7 +25,7 @@ Sources and resources that can be loaded using this verified source are:
 | get_messages_resource | Retrieves all the messages for a given channel                                      |
 | access_logs           | Retrieves the access logs                                                           |
 
-## Setup Guide
+## Setup guide
 
 ### Grab user OAuth token
 
@@ -204,7 +204,7 @@ def get_messages_resource(
 
    - `end_value`: Timestamp range end, defaulting to end_dt in slack_source.
 
-   - `allow_external_schedulers`: A boolean that, if True, permits [external schedulers](../../general-usage/incremental-loading#using-airflow-schedule-for-backfill-and-incremental-loading) to manage incremental loading.
+   - `allow_external_schedulers`: A boolean that, if true, permits [external schedulers](../../general-usage/incremental-loading#using-airflow-schedule-for-backfill-and-incremental-loading) to manage incremental loading.
 
 ### Resource `access_logs`
 
@@ -217,7 +217,7 @@ This method retrieves access logs from the Slack API.
     primary_key="user_id",
     write_disposition="append",
 )
-# it is not an incremental resource it just has a end_date filter
+# It is not an incremental resource; it just has an end_date filter.
 def logs_resource() -> Iterable[TDataItem]:
    ...
 ```
@@ -232,8 +232,7 @@ def logs_resource() -> Iterable[TDataItem]:
 ## Customization
 ### Create your own pipeline
 
-If you wish to create your own pipelines, you can leverage source and resource methods from this
-verified source.
+If you wish to create your own pipelines, you can leverage source and resource methods from this verified source.
 
 1. Configure the pipeline by specifying the pipeline name, destination, and dataset as follows:
 
@@ -252,7 +251,7 @@ verified source.
    # Enable below to load only 'access_logs', available for paid accounts only.
    # source.access_logs.selected = True
 
-   # It loads data starting from 1st September 2023 to 8th Sep 2023.
+   # It loads data starting from 1st September 2023 to 8th September 2023.
    load_info = pipeline.run(source)
    print(load_info)
    ```
@@ -270,7 +269,7 @@ verified source.
        start_date=datetime(2023, 9, 1),
        end_date=datetime(2023, 9, 8),
    )
-   # It loads data starting from 1st September 2023 to 8th Sep 2023 from the channels: "general" and "random".
+   # It loads data starting from 1st September 2023 to 8th September 2023 from the channels: "general" and "random".
    load_info = pipeline.run(source)
    print(load_info)
    ```
