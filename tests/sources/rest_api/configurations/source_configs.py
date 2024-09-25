@@ -347,8 +347,6 @@ AUTH_TYPE_CONFIGS = [
     {
         "type": "oauth2_client_credentials",
         "access_token_url": "https://example.com/oauth/token",
-        "client_id": "a_client_id",
-        "client_secret": "a_client_secret",
         "access_token_request_data": {"foo": "bar"},
         "default_token_expiration": 60,
     },

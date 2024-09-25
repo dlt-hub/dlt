@@ -56,7 +56,7 @@ SENSITIVE_KEYS: List[str] = [
     "password",
     "access_token",
     "client_id",
-    "client_secret"
+    "client_secret",
 ]
 
 
@@ -399,7 +399,12 @@ def _mask_secrets(auth_config: AuthConfig) -> AuthConfig:
         return auth_config
 
     has_sensitive_key = any(key in auth_config for key in SENSITIVE_KEYS)
-    if isinstance(auth_config, (APIKeyAuth, BearerTokenAuth, HttpBasicAuth, OAuth2ClientCredentials)) or has_sensitive_key:
+    if (
+        isinstance(
+            auth_config, (APIKeyAuth, BearerTokenAuth, HttpBasicAuth, OAuth2ClientCredentials)
+        )
+        or has_sensitive_key
+    ):
         return _mask_secrets_dict(auth_config)
     # Here, we assume that OAuth2 and other custom classes that don't implement __get__()
     # also don't print secrets in __str__()

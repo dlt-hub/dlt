@@ -61,6 +61,7 @@ from dlt.sources.helpers.rest_client.auth import (
     HttpBasicAuth,
     BearerTokenAuth,
     APIKeyAuth,
+    OAuth2ClientCredentials,
 )
 
 PaginatorType = Literal[
@@ -168,6 +169,18 @@ class HttpBasicAuthConfig(AuthTypeConfig, total=True):
     password: str
 
 
+class OAuth2ClientCredentialsConfig(AuthTypeConfig, total=False):
+    """Uses OAuth 2.0 client credential authorization"""
+
+    access_token: Optional[str]
+    access_token_url: str
+    client_id: str
+    client_secret: str
+    access_token_request_data: Optional[Dict[str, Any]]
+    default_token_expiration: Optional[int]
+    session: Optional[Session]
+
+
 # TODO: add later
 # class OAuthJWTAuthConfig(AuthTypeConfig, total=True):
 
@@ -175,12 +188,14 @@ class HttpBasicAuthConfig(AuthTypeConfig, total=True):
 AuthConfig = Union[
     AuthConfigBase,
     AuthType,
-    BearerTokenAuthConfig,
-    ApiKeyAuthConfig,
-    HttpBasicAuthConfig,
     BearerTokenAuth,
+    BearerTokenAuthConfig,
     APIKeyAuth,
+    ApiKeyAuthConfig,
     HttpBasicAuth,
+    HttpBasicAuthConfig,
+    OAuth2ClientCredentials,
+    OAuth2ClientCredentialsConfig,
 ]
 
 

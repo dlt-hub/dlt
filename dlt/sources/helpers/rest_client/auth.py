@@ -152,6 +152,7 @@ class OAuth2ClientCredentials(OAuth2AuthBase):
     with a temporary access token.
     With the access token, the client can access resource services.
     """
+
     access_token_url: TSecretStrValue = None
     client_id: TSecretStrValue = None
     client_secret: TSecretStrValue = None
