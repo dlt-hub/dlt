@@ -722,7 +722,6 @@ config: RESTAPIConfig = {
     "resources": [
         {
             "name": "posts",
-            "endpoint": "posts",
             "processing_steps": [
                 {"filter": lambda x: x["id"] < 10},
                 {"map": lower_title},
