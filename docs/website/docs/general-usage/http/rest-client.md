@@ -159,7 +159,7 @@ def get_data():
         yield page
 ```
 
-#### Header link paginator
+#### HeaderLinkPaginator
 
 This paginator handles pagination based on a link to the next page in the response headers (e.g., the `Link` header, as used by the GitHub API).
 
