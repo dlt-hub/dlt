@@ -43,6 +43,7 @@ class FilesystemSqlClient(DuckDbSqlClient):
         # set up duckdb instance
         self._conn = duckdb.connect(":memory:")
         self._conn.sql(f"CREATE SCHEMA {self.dataset_name}")
+        self._conn.sql(f"USE {self.dataset_name}")
         self._conn.register_filesystem(self.fs_client.fs_client)
 
     @raise_database_error
