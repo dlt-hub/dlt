@@ -257,13 +257,17 @@ def with_runtime_trace(send_state: bool = False) -> Callable[[TFun], TFun]:
     return decorator
 
 
-def with_config_section(sections: Tuple[str, ...]) -> Callable[[TFun], TFun]:
+def with_config_section(
+    sections: Tuple[str, ...], merge_func: ConfigSectionContext.TMergeFunc = None
+) -> Callable[[TFun], TFun]:
     def decorator(f: TFun) -> TFun:
         @wraps(f)
         def _wrap(self: "Pipeline", *args: Any, **kwargs: Any) -> Any:
             # add section context to the container to be used by all configuration without explicit sections resolution
             with inject_section(
-                ConfigSectionContext(pipeline_name=self.pipeline_name, sections=sections)
+                ConfigSectionContext(
+                    pipeline_name=self.pipeline_name, sections=sections, merge_style=merge_func
+                )
             ):
                 return f(self, *args, **kwargs)
 
@@ -712,7 +716,7 @@ class Pipeline(SupportsPipeline):
         else:
             return None
 
-    @with_config_section(())
+    @with_config_section(sections=None, merge_func=ConfigSectionContext.prefer_existing)
     def sync_destination(
         self,
         destination: TDestinationReferenceArg = None,
@@ -980,7 +984,7 @@ class Pipeline(SupportsPipeline):
             state = self._get_state()
         return state["_local"][key]  # type: ignore
 
-    @with_config_section(())
+    @with_config_section(sections=None, merge_func=ConfigSectionContext.prefer_existing)
     def sql_client(self, schema_name: str = None) -> SqlClientBase[Any]:
         """Returns a sql client configured to query/change the destination and dataset that were used to load the data.
         Use the client with `with` statement to manage opening and closing connection to the destination:
@@ -1020,7 +1024,7 @@ class Pipeline(SupportsPipeline):
             return client
         raise FSClientNotAvailable(self.pipeline_name, self.destination.destination_name)
 
-    @with_config_section(())
+    @with_config_section(sections=None, merge_func=ConfigSectionContext.prefer_existing)
     def destination_client(self, schema_name: str = None) -> JobClientBase:
         """Get the destination job client for the configured destination
         Use the client with `with` statement to manage opening and closing connection to the destination:
