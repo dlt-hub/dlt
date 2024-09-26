@@ -678,7 +678,7 @@ class Pipeline(SupportsPipeline):
             and not self._state_restored
             and (self.destination or destination)
         ):
-            self.sync_destination(destination, staging, dataset_name)
+            self._sync_destination(destination, staging, dataset_name)
             # sync only once
             self._state_restored = True
         # normalize and load pending data
@@ -712,7 +712,7 @@ class Pipeline(SupportsPipeline):
         else:
             return None
 
-    @with_schemas_sync
+    @with_config_section(())
     def sync_destination(
         self,
         destination: TDestinationReferenceArg = None,
@@ -730,6 +730,17 @@ class Pipeline(SupportsPipeline):
         Note: this method is executed by the `run` method before any operation on data. Use `restore_from_destination` configuration option to disable that behavior.
 
         """
+        return self._sync_destination(
+            destination=destination, staging=staging, dataset_name=dataset_name
+        )
+
+    @with_schemas_sync
+    def _sync_destination(
+        self,
+        destination: TDestinationReferenceArg = None,
+        staging: TDestinationReferenceArg = None,
+        dataset_name: str = None,
+    ) -> None:
         self._set_destinations(destination=destination, staging=staging)
         self._set_dataset_name(dataset_name)
 
