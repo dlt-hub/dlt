@@ -62,7 +62,7 @@ def test_databricks_external_location(destination_config: DestinationTestConfigu
         in pipeline.list_failed_jobs_in_package(info.loads_ids[0])[0].failed_message
     )
 
-    # should fail on non existing stored credentials
+    # # should fail on non existing stored credentials
     bricks = databricks(is_staging_external_location=False, staging_credentials_name="CREDENTIAL_X")
     pipeline = destination_config.setup_pipeline(
         "test_databricks_external_location",
@@ -78,8 +78,12 @@ def test_databricks_external_location(destination_config: DestinationTestConfigu
 
     # should fail on non existing stored credentials
     # auto stage with regular az:// used
+    principal_az_stage = filesystem(destination_name="fsazureprincipal")
     pipeline = destination_config.setup_pipeline(
-        "test_databricks_external_location", dataset_name=dataset_name, destination=bricks
+        "test_databricks_external_location",
+        dataset_name=dataset_name,
+        destination=bricks,
+        staging=principal_az_stage,
     )
     info = pipeline.run([1, 2, 3], table_name="digits", **destination_config.run_kwargs)
     assert info.has_failed_jobs is True

@@ -307,6 +307,7 @@ A resource configuration is used to define a [dlt resource](../../../general-usa
 - `write_disposition`: The write disposition for the resource.
 - `primary_key`: The primary key for the resource.
 - `include_from_parent`: A list of fields from the parent resource to be included in the resource output. See the [resource relationships](#include-fields-from-the-parent-resource) section for more details.
+- `processing_steps`: A list of [processing steps](#processing-steps-filter-and-transform-data) to filter and transform the data.
 - `selected`: A flag to indicate if the resource is selected for loading. This could be useful when you want to load data only from child resources and not from the parent resource.
 
 You can also pass additional resource parameters that will be used to configure the dlt resource. See [dlt resource API reference](../../../api_reference/extract/decorators#resource) for more details.
@@ -341,7 +342,7 @@ The fields in the endpoint configuration are:
 - `json`: The JSON payload to be sent with the request (for POST and PUT requests).
 - `paginator`: Pagination configuration for the endpoint. See the [pagination](#pagination) section for more details.
 - `data_selector`: A JSONPath to select the data from the response. See the [data selection](#data-selection) section for more details.
-- `response_actions`: A list of actions that define how to process the response data. See the [response actions](#response-actions) section for more details.
+- `response_actions`: A list of actions that define how to process the response data. See the [response actions](./advanced#response-actions) section for more details.
 - `incremental`: Configuration for [incremental loading](#incremental-loading).
 
 ### Pagination
@@ -405,7 +406,7 @@ These are the available paginators:
 | `type` | Paginator class | Description |
 | ------------ | -------------- | ----------- |
 | `json_link` | [JSONLinkPaginator](../../../general-usage/http/rest-client.md#jsonresponsepaginator) | The link to the next page is in the body (JSON) of the response.<br/>*Parameters:*<ul><li>`next_url_path` (str) - the JSONPath to the next page URL</li></ul> |
-| `header_link` | [HeaderLinkPaginator](../../../general-usage/http/rest-client.md#headerlinkpaginator) | The links to the next page are in the response headers.<br/>*Parameters:*<ul><li>`link_header` (str) - the name of the header containing the links. Default is "next".</li></ul> |
+| `header_link` | [HeaderLinkPaginator](../../../general-usage/http/rest-client.md#headerlinkpaginator) | The links to the next page are in the response headers.<br/>*Parameters:*<ul><li>`links_next_key` (str) - the name of the header containing the links. Default is "next".</li></ul> |
 | `offset` | [OffsetPaginator](../../../general-usage/http/rest-client.md#offsetpaginator) | The pagination is based on an offset parameter. With total items count either in the response body or explicitly provided.<br/>*Parameters:*<ul><li>`limit` (int) - the maximum number of items to retrieve in each request</li><li>`offset` (int) - the initial offset for the first request. Defaults to `0`</li><li>`offset_param` (str) - the name of the query parameter used to specify the offset. Defaults to "offset"</li><li>`limit_param` (str) - the name of the query parameter used to specify the limit. Defaults to "limit"</li><li>`total_path` (str) - a JSONPath expression for the total number of items. If not provided, pagination is controlled by `maximum_offset` and `stop_after_empty_page`</li><li>`maximum_offset` (int) - optional maximum offset value. Limits pagination even without total count</li><li>`stop_after_empty_page` (bool) - Whether pagination should stop when a page contains no result items. Defaults to `True`</li></ul> |
 | `page_number` | [PageNumberPaginator](../../../general-usage/http/rest-client.md#pagenumberpaginator) | The pagination is based on a page number parameter. With total pages count either in the response body or explicitly provided.<br/>*Parameters:*<ul><li>`base_page` (int) - the starting page number. Defaults to `0`</li><li>`page_param` (str) - the query parameter name for the page number. Defaults to "page"</li><li>`total_path` (str) - a JSONPath expression for the total number of pages. If not provided, pagination is controlled by `maximum_page` and `stop_after_empty_page`</li><li>`maximum_page` (int) - optional maximum page number. Stops pagination once this page is reached</li><li>`stop_after_empty_page` (bool) - Whether pagination should stop when a page contains no result items. Defaults to `True`</li></ul> |
 | `cursor` | [JSONResponseCursorPaginator](../../../general-usage/http/rest-client.md#jsonresponsecursorpaginator) | The pagination is based on a cursor parameter. The value of the cursor is in the response body (JSON).<br/>*Parameters:*<ul><li>`cursor_path` (str) - the JSONPath to the cursor value. Defaults to "cursors.next"</li><li>`cursor_param` (str) - the query parameter name for the cursor. Defaults to "after"</li></ul> |
@@ -654,6 +655,151 @@ You can include data from the parent resource in the child resource by using the
 
 This will include the `id`, `title`, and `created_at` fields from the `issues` resource in the `issue_comments` resource data. The name of the included fields will be prefixed with the parent resource name and an underscore (`_`) like so: `_issues_id`, `_issues_title`, `_issues_created_at`.
 
+### Define a resource which is not a REST endpoint
+
+Sometimes, we want to request endpoints with specific values that are not returned by another endpoint.
+Thus, you can also include arbitrary dlt resources in your `RESTAPIConfig` instead of defining a resource for every path!
+
+In the following example, we want to load the issues belonging to three repositories.
+Instead of defining now three different issues resources, one for each of the paths `dlt-hub/dlt/issues/`, `dlt-hub/verified-sources/issues/`, `dlt-hub/dlthub-education/issues/`, we have a resource `repositories` which yields a list of repository names which will be fetched by the dependent resource `issues`.
+
+```py
+from dlt.sources.rest_api import RESTAPIConfig
+
+@dlt.resource()
+def repositories() -> Generator[List[Dict[str, Any]]]:
+    """A seed list of repositories to fetch"""
+    yield [{"name": "dlt"}, {"name": "verified-sources"}, {"name": "dlthub-education"}]
+
+
+config: RESTAPIConfig = {
+    "client": {"base_url": "https://github.com/api/v2"},
+    "resources": [
+        {
+            "name": "issues",
+            "endpoint": {
+                "path": "dlt-hub/{repository}/issues/",
+                "params": {
+                    "repository": {
+                        "type": "resolve",
+                        "resource": "repositories",
+                        "field": "name",
+                    },
+                },
+            },
+        },
+        repositories(),
+    ],
+}
+```
+
+Be careful that the parent resource needs to return `Generator[List[Dict[str, Any]]]`. Thus, the following will NOT work:
+
+```py
+@dlt.resource
+def repositories() -> Generator[Dict[str, Any]]:
+    """Not working seed list of repositories to fetch"""
+    yield from [{"name": "dlt"}, {"name": "verified-sources"}, {"name": "dlthub-education"}]
+```
+
+### Processing steps: filter and transform data
+
+The `processing_steps` field in the resource configuration allows you to apply transformations to the data fetched from the API before it is loaded into your destination. This is useful when you need to filter out certain records, modify the data structure, or anonymize sensitive information.
+
+Each processing step is a dictionary specifying the type of operation (`filter` or `map`) and the function to apply. Steps apply in the order they are listed.
+
+#### Quick example
+
+```py
+def lower_title(record):
+    record["title"] = record["title"].lower()
+    return record
+
+config: RESTAPIConfig = {
+    "client": {
+        "base_url": "https://api.example.com",
+    },
+    "resources": [
+        {
+            "name": "posts",
+            "processing_steps": [
+                {"filter": lambda x: x["id"] < 10},
+                {"map": lower_title},
+            ],
+        },
+    ],
+}
+```
+
+In the example above:
+
+- First, the `filter` step uses a lambda function to include only records where `id` is less than 10.
+- Thereafter, the `map` step applies the `lower_title` function to each remaining record.
+
+#### Using `filter`
+
+The `filter` step allows you to exclude records that do not meet certain criteria. The provided function should return `True` to keep the record or `False` to exclude it:
+
+```py
+{
+    "name": "posts",
+    "endpoint": "posts",
+    "processing_steps": [
+        {"filter": lambda x: x["id"] in [10, 20, 30]},
+    ],
+}
+```
+
+In this example, only records with `id` equal to 10, 20, or 30 will be included.
+
+#### Using `map`
+
+The `map` step allows you to modify the records fetched from the API. The provided function should take a record as an argument and return the modified record. For example, to anonymize the `email` field:
+
+```py
+def anonymize_email(record):
+    record["email"] = "REDACTED"
+    return record
+
+config: RESTAPIConfig = {
+    "client": {
+        "base_url": "https://api.example.com",
+    },
+    "resources": [
+        {
+            "name": "users",
+            "processing_steps": [
+                {"map": anonymize_email},
+            ],
+        },
+    ],
+}
+```
+
+#### Combining `filter` and `map`
+
+You can combine multiple processing steps to achieve complex transformations:
+
+```py
+{
+    "name": "posts",
+    "endpoint": "posts",
+    "processing_steps": [
+        {"filter": lambda x: x["id"] < 10},
+        {"map": lower_title},
+        {"filter": lambda x: "important" in x["title"]},
+    ],
+}
+```
+
+:::tip
+#### Best practices
+1. Order matters: Processing steps are applied in the order they are listed. Be mindful of the sequence, especially when combining `map` and `filter`.
+2. Function definition: Define your filter and map functions separately for clarity and reuse.
+3. Use `filter` to exclude records early in the process to reduce the amount of data that needs to be processed.
+4. Combine consecutive `map` steps into a single function for faster execution.
+:::
+
 ## Incremental loading
 
 Some APIs provide a way to fetch only new or changed data (most often by using a timestamp field like `updated_at`, `created_at`, or incremental IDs).
@@ -877,7 +1023,7 @@ See the [troubleshooting guide](../../../general-usage/incremental-loading.md#tr
 
 #### Getting HTTP 404 errors
 
-Some API may return 404 errors for resources that do not exist or have no data. Manage these responses by configuring the `ignore` action in [response actions](#response-actions).
+Some API may return 404 errors for resources that do not exist or have no data. Manage these responses by configuring the `ignore` action in [response actions](./advanced#response-actions).
 
 ### Authentication issues
 

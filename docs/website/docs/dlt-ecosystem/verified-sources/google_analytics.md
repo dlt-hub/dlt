@@ -5,7 +5,7 @@ keywords: [google analytics api, google analytics verified source, google analyt
 ---
 import Header from './_source-info-header.md';
 
-# Google Analytics
+# Google analytics
 
 <Header/>
 
@@ -25,7 +25,7 @@ Sources and resources that can be loaded using this verified source are:
 | metrics_table    | Assembles and presents data relevant to the report's metrics  |
 | dimensions_table | Compiles and displays data related to the report's dimensions |
 
-## Setup Guide
+## Setup guide
 
 ### Grab credentials
 
@@ -103,7 +103,9 @@ python google_analytics/setup_script_gcp_oauth.py
 Once you have executed the script and completed the authentication, you will receive a "refresh
 token" that can be used to set up the "secrets.toml".
 
-### Share the Google Analytics Property with the API:
+
+
+### Share the Google Analytics property with the API
 
 > Note: For service account authentication, use the client_email. For OAuth authentication, use the
 > email associated with the app creation and refresh token generation.
@@ -185,7 +187,7 @@ For more information, read the guide on [how to add a verified source](../../wal
 
 1. `property_id` is a unique number that identifies a particular property. You will need to
    explicitly pass it to get data from the property that you're interested in. For example, if the
-   property that you want to get data from is “GA4-Google Merch Shop” then you will need to pass its
+   property that you want to get data from is “GA4-Google Merch Shop,” then you will need to pass its
    property id "213025502".
 
    ![Property ID](./docs_images/GA4_Property_ID_size.png)
@@ -198,7 +200,7 @@ For more information, read the guide on [how to add a verified source](../../wal
 
    ```toml
    [sources.google_analytics]
-   property_id = "213025502" #  this is example property id, please use yours
+   property_id = "213025502" #  this is an example property id, please use yours
    queries = [
        {"resource_name"= "sample_analytics_data1", "dimensions"= ["browser", "city"], "metrics"= ["totalUsers", "transactions"]},
        {"resource_name"= "sample_analytics_data2", "dimensions"= ["browser", "city", "dateHour"], "metrics"= ["totalUsers"]}
@@ -230,7 +232,7 @@ For more information, read the [General Usage: Credentials.](../../general-usage
    dlt pipeline <pipeline_name> show
    ```
    For example, the `pipeline_name` for the above pipeline example is
-   `dlt_google_analytics_pipeline`, you may also use any custom name instead.
+   `dlt_google_analytics_pipeline`, but you may also use any custom name instead.
 
 For more information, read the guide on [how to run a pipeline](../../walkthroughs/run-a-pipeline).
 
@@ -286,8 +288,7 @@ def get_metadata(client: Resource, property_id: int) -> Iterator[Metadata]:
 
 ### Transformer `metrics_table`
 
-This transformer function extracts data using metadata and populates a table called "metrics" with
-the data from each metric.
+This transformer function extracts data using metadata and populates a table called "metrics" with the data from each metric.
 
 ```py
 @dlt.transformer(data_from=get_metadata, write_disposition="replace", name="metrics")
@@ -298,14 +299,12 @@ def metrics_table(metadata: Metadata) -> Iterator[TDataItem]:
 
 `metadata`: GA4 metadata is stored in this "Metadata" class object.
 
-Similarly, there is a transformer function called `dimensions_table` that populates a table called
-"dimensions" with the data from each dimension.
+Similarly, there is a transformer function called `dimensions_table` that populates a table called "dimensions" with the data from each dimension.
 
 ## Customization
 ### Create your own pipeline
 
-If you wish to create your own pipelines, you can leverage source and resource methods from this
-verified source.
+If you wish to create your own pipelines, you can leverage source and resource methods from this verified source.
 
 1. Configure the pipeline by specifying the pipeline name, destination, and dataset as follows:
 
@@ -317,8 +316,7 @@ verified source.
    )
    ```
 
-   To read more about pipeline configuration, please refer to our
-   [documentation](../../general-usage/pipeline).
+   To read more about pipeline configuration, please refer to our [documentation](../../general-usage/pipeline).
 
 1. To load all the data from metrics and dimensions:
 
@@ -328,8 +326,7 @@ verified source.
    print(load_info)
    ```
 
-   > Loads all the data till date in the first run, and then
-   > [incrementally](https://dlthub.com/docs/general-usage/incremental-loading) in subsequent runs.
+   > Loads all the data to date in the first run, and then [incrementally](../../general-usage/incremental-loading) in subsequent runs.
 
 1. To load data from a specific start date:
 
@@ -339,8 +336,7 @@ verified source.
    print(load_info)
    ```
 
-   > Loads data starting from the specified date during the first run, and then
-   > [incrementally](https://dlthub.com/docs/general-usage/incremental-loading) in subsequent runs.
+   > Loads data starting from the specified date during the first run, and then [incrementally](../../general-usage/incremental-loading) in subsequent runs.
 
 <!--@@@DLT_TUBA google_analytics-->
 

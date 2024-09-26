@@ -21,6 +21,7 @@ from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.providers import ConfigProvider, EnvironProvider
+from dlt.common.configuration.specs.connection_string_credentials import ConnectionStringCredentials
 from dlt.common.configuration.utils import get_resolved_traces
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
 from dlt.common.typing import TSecretValue, StrAny
@@ -76,6 +77,12 @@ class SectionedConfiguration(BaseConfiguration):
     __section__: ClassVar[str] = "DLT_TEST"
 
     password: str = None
+
+
+@configspec
+class ConnectionStringCompatCredentials(ConnectionStringCredentials):
+    database: str = None
+    username: str = None
 
 
 @pytest.fixture(scope="function")

@@ -12,7 +12,7 @@ import Header from './_source-info-header.md';
 Personio is a human resources management software that helps businesses streamline HR processes,
 including recruitment, employee data management, and payroll, in one platform.
 
-Our [Personio verified](https://github.com/dlt-hub/verified-sources/blob/master/sources/personio) source loads data using Perosnio API to your preferred
+Our [Personio verified](https://github.com/dlt-hub/verified-sources/blob/master/sources/personio) source loads data using the Personio API to your preferred
 [destination](../destinations).
 
 :::tip
@@ -23,17 +23,17 @@ Resources that can be loaded using this verified source are:
 
 | Name                       | Description                                                                       | Endpoint                                          |
 |----------------------------|-----------------------------------------------------------------------------------|---------------------------------------------------|
-| employees                  | Retrieves company employees details                                               | /company/employees                                |
+| employees                  | Retrieves company employees' details                                              | /company/employees                                |
 | absences                   | Retrieves absence periods for absences tracked in days                            | /company/time-offs                                |
-| absences_types             | Retrieves list of various types of employee absences                              | /company/time-off-types                           |
+| absences_types             | Retrieves a list of various types of employee absences                            | /company/time-off-types                           |
 | attendances                | Retrieves attendance records for each employee                                    | /company/attendances                              |
 | projects                   | Retrieves a list of all company projects                                          | /company/attendances/projects                     |
 | document_categories        | Retrieves all document categories of the company                                  | /company/document-categories                      |
-| employees_absences_balance | The transformer, retrieves the absence balance for a specific employee            | /company/employees/{employee_id}/absences/balance |
+| employees_absences_balance | The transformer retrieves the absence balance for a specific employee             | /company/employees/{employee_id}/absences/balance |
 | custom_reports_list        | Retrieves metadata about existing custom reports (name, report type, report date) | /company/custom-reports/reports                   |
 | custom_reports             | The transformer for custom reports                                                | /company/custom-reports/reports/{report_id}       |
 
-## Setup Guide
+## Setup guide
 
 ### Grab credentials
 
@@ -42,7 +42,7 @@ To load data from Personio, you need to obtain API credentials, `client_id` and 
 1. Sign in to your Personio account, and ensure that your user account has API access rights.
 1. Navigate to Settings > Integrations > API credentials.
 1. Click on "Generate new credentials."
-1. Assign necessary permissions to credentials, i.e. read access.
+1. Assign necessary permissions to credentials, i.e., read access.
 
 :::info
 The Personio UI, which is described here, might change. The full guide is available at this [link.](https://developer.personio.de/docs#21-employee-attendance-and-absence-endpoints)
@@ -173,8 +173,7 @@ def employees(
 
 `items_per_page`: Maximum number of items per page, defaults to 200.
 
-`allow_external_schedulers`: A boolean that, if True, permits [external schedulers](../../general-usage/incremental-loading#using-airflow-schedule-for-backfill-and-incremental-loading) to manage incremental loading.
-
+`allow_external_schedulers`: A boolean that, if true, permits [external schedulers](../../general-usage/incremental-loading#using-airflow-schedule-for-backfill-and-incremental-loading) to manage incremental loading.
 
 Like the `employees` resource discussed above, other resources `absences` and `attendances` load
 data incrementally from the Personio API to your preferred destination.
@@ -195,16 +194,16 @@ It is important to note that the data is loaded in `replace` mode where the exis
 completely replaced.
 
 In addition to the mentioned resource,
-there are three more resources `projects`, `custom_reports_list` and `document_categories`
-with similar behaviour.
+there are three more resources `projects`, `custom_reports_list`, and `document_categories`
+with similar behavior.
 
 ### Resource-transformer `employees_absences_balance`
 
-Besides of these source and resource functions, there are two transformer functions
+Besides these source and resource functions, there are two transformer functions
 for endpoints like `/company/employees/{employee_id}/absences/balance` and `/company/custom-reports/reports/{report_id}`.
 The transformer functions transform or process data from resources.
 
-The transformer function `employees_absences_balance` process data from the `employees` resource.
+The transformer function `employees_absences_balance` processes data from the `employees` resource.
 It fetches and returns a list of the absence balances for each employee.
 
 ```py
@@ -219,7 +218,7 @@ def employees_absences_balance(employees_item: TDataItem) -> Iterable[TDataItem]
 ```
 `employees_item`: The data item from the 'employees' resource.
 
-It uses `@dlt.defer` decorator to enable parallel run in thread pool.
+It uses the `@dlt.defer` decorator to enable parallel run in thread pool.
 
 ## Customization
 
@@ -252,4 +251,3 @@ verified source.
    print(pipeline.run(load_data))
    ```
 
-<!--@@@DLT_TUBA personio-->

@@ -33,6 +33,7 @@ from dlt.common.schema.typing import (
     TTableSchema,
     TLoaderMergeStrategy,
     TTableFormat,
+    TLoaderReplaceStrategy,
 )
 from dlt.common.wei import EVM_DECIMAL_PRECISION
 
@@ -169,7 +170,7 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
 
     supported_merge_strategies: Sequence[TLoaderMergeStrategy] = None
     merge_strategies_selector: MergeStrategySelector = None
-    # TODO: also add `supported_replace_strategies` capability
+    supported_replace_strategies: Sequence[TLoaderReplaceStrategy] = None
 
     max_parallel_load_jobs: Optional[int] = None
     """The destination can set the maximum amount of parallel load jobs being executed"""

@@ -20,7 +20,7 @@ The resource that can be loaded:
 | ----------------- |--------------------------------------------|
 | kafka_consumer    | Extracts messages from Kafka topics        |
 
-## Setup Guide
+## Setup guide
 
 ### Grab Kafka cluster credentials
 
@@ -96,7 +96,7 @@ sasl_password="example_secret"
 
 For more information, read the [Walkthrough: Run a pipeline](../../walkthroughs/run-a-pipeline).
 
-:::info If you created a topic and start reading from it immedately, the brokers may be not yet synchronized and offset from which `dlt` reads messages may become invalid. In this case the resource will return no messages. Pending messages will be received on next run (or when brokers synchronize)
+:::info If you created a topic and start reading from it immediately, the brokers may not yet be synchronized, and the offset from which `dlt` reads messages may become invalid. In this case, the resource will return no messages. Pending messages will be received on the next run (or when brokers synchronize).
 
 ## Sources and resources
 
@@ -126,7 +126,7 @@ def kafka_consumer(
 the `secrets.toml`. It may be used explicitly to pass an initialized
 Kafka Consumer object.
 
-`msg_processor`: A function, which will be used to process every message
+`msg_processor`: A function that will be used to process every message
 read from the given topics before saving them in the destination.
 It can be used explicitly to pass a custom processor. See the
 [default processor](https://github.com/dlt-hub/verified-sources/blob/fe8ed7abd965d9a0ca76d100551e7b64a0b95744/sources/kafka/helpers.py#L14-L50)

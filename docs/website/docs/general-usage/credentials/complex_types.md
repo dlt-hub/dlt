@@ -49,7 +49,7 @@ dsn="postgres://loader:loader@localhost:5432/dlt_data"
 
 ### Mixed form
 
-If all credentials, but the password provided explicitly in the code, `dlt` will look for the password in `secrets.toml`.
+If all credentials, except the password, are provided explicitly in the code, `dlt` will look for the password in `secrets.toml`.
 
 ```toml
 dsn.password="loader"
@@ -125,10 +125,10 @@ credentials.add_scopes(["scope3", "scope4"])
 
 `OAuth2Credentials` is a base class to implement actual OAuth; for example, it is a base class for [GcpOAuthCredentials](#gcpoauthcredentials).
 
-### GCP Credentials
+### GCP credentials
 
 #### Examples
-* [Google Analytics verified source](https://github.com/dlt-hub/verified-sources/blob/master/sources/google_analytics/__init__.py): the example of how to use GCP Credentials.
+* [Google Analytics verified source](https://github.com/dlt-hub/verified-sources/blob/master/sources/google_analytics/__init__.py): an example of how to use GCP Credentials.
 * [Google Analytics example](https://github.com/dlt-hub/verified-sources/blob/master/sources/google_analytics/setup_script_gcp_oauth.py): how you can get the refresh token using `dlt.secrets.value`.
 
 #### Types
@@ -192,6 +192,7 @@ property_id = "213025502"
 The `GcpOAuthCredentials` class is responsible for handling OAuth2 credentials for desktop applications in Google Cloud Platform (GCP). It can parse native values either as `GoogleOAuth2Credentials` or as serialized OAuth client secrets JSON. This class provides methods for authentication and obtaining access tokens.
 
 ##### Usage
+
 ```py
 oauth_credentials = GcpOAuthCredentials()
 
@@ -201,7 +202,7 @@ oauth_credentials = GcpOAuthCredentials()
 native_value_oauth = {"client_secret": ...}
 oauth_credentials.parse_native_representation(native_value_oauth)
 ```
-or more preferred use:
+Or more preferred use:
 ```py
 import dlt
 from dlt.sources.credentials import GcpOAuthCredentials
@@ -215,7 +216,7 @@ def google_analytics(
     credentials.auth(scopes=["scope1", "scope2"])
 
     # Retrieve native credentials for Google clients
-    # For example, build the service object for Google Analytics PI.
+    # For example, build the service object for Google Analytics API.
     client = BetaAnalyticsDataClient(credentials=credentials.to_native_credentials())
 
     # Get a string representation of the credentials
@@ -223,7 +224,7 @@ def google_analytics(
     credentials_str = str(credentials)
     ...
 ```
-while `secrets.toml` looks as follows:
+While `secrets.toml` looks as follows:
 ```toml
 [sources.google_analytics.credentials]
 client_id = "client_id" # please set me up!
@@ -231,7 +232,7 @@ client_secret = "client_secret" # please set me up!
 refresh_token = "refresh_token" # please set me up!
 project_id = "project_id" # please set me up!
 ```
-and `config.toml`:
+And `config.toml`:
 ```toml
 [sources.google_analytics]
 property_id = "213025502"
@@ -239,10 +240,8 @@ property_id = "213025502"
 
 In order for the `auth()` method to succeed:
 
-- You must provide valid `client_id`, `client_secret`, `refresh_token`, and `project_id` to get a current **access token** and authenticate with OAuth. Keep in mind that the `refresh_token` must contain all the scopes that is required for your access.
+- You must provide valid `client_id`, `client_secret`, `refresh_token`, and `project_id` to get a current **access token** and authenticate with OAuth. Keep in mind that the `refresh_token` must contain all the scopes that are required for your access.
 - If the `refresh_token` is not provided, and you run the pipeline from a console or a notebook, `dlt` will use InstalledAppFlow to run the desktop authentication flow.
-
-
 
 #### Defaults
 
@@ -264,7 +263,7 @@ credentials.region_name = "us-east-1"
 ```
 or
 ```py
-# Imports an external boto3 session and sets the credentials properties accordingly.
+# Imports an external botocore session and sets the credentials properties accordingly.
 import botocore.session
 
 credentials = AwsCredentials()
@@ -306,7 +305,7 @@ bucket_url = "bucket_url"
 
 If configuration is not provided, `dlt` uses the default AWS credentials (from `.aws/credentials`) as present on the machine:
 
-- It works by creating an instance of botocore Session.
+- It works by creating an instance of a botocore Session.
 - If `profile_name` is specified, the credentials for that profile are used. If not, the default profile is used.
 
 ### AzureCredentials
@@ -364,7 +363,7 @@ Example:
 ```py
 @dlt.source
 def zen_source(credentials: Union[ZenApiKeyCredentials, ZenEmailCredentials, str] = dlt.secrets.value, some_option: bool = False):
-  # Depending on what the user provides in config, ZenApiKeyCredentials or ZenEmailCredentials will be injected in the `credentials` argument. Both classes implement `auth` so you can always call it.
+  # Depending on what the user provides in config, ZenApiKeyCredentials or ZenEmailCredentials will be injected into the `credentials` argument. Both classes implement `auth` so you can always call it.
   credentials.auth()
   return dlt.resource([credentials], name="credentials")
 
@@ -374,7 +373,7 @@ assert list(zen_source())[0].email == "mx"
 
 # Pass explicit native value
 assert list(zen_source("secret:🔑:secret"))[0].api_secret == "secret"
-# pass explicit dict
+# Pass explicit dict
 assert list(zen_source(credentials={"email": "emx", "password": "pass"}))[0].email == "emx"
 ```
 
@@ -383,26 +382,23 @@ This applies not only to credentials but to [all specs](#writing-custom-specs).
 :::
 
 :::tip
-Check out the [complete example](https://github.com/dlt-hub/dlt/blob/devel/tests/common/configuration/test_spec_union.py), to learn how to create unions
-of credentials that derive from the common class, so you can handle it seamlessly in your code.
+Check out the [complete example](https://github.com/dlt-hub/dlt/blob/devel/tests/common/configuration/test_spec_union.py), to learn how to create unions of credentials that derive from the common class, so you can handle it seamlessly in your code.
 :::
 
 ## Writing custom specs
 
-**Custom specifications** let you take full control over the function arguments. You can
+**Custom specifications** let you take full control over the function arguments. You can:
 
 - Control which values should be injected, the types, default values.
 - Specify optional and final fields.
 - Form hierarchical configurations (specs in specs).
-- Provide own handlers for `on_partial` (called before failing on missing config key) or `on_resolved`.
-- Provide own native value parsers.
-- Provide own default credentials logic.
-- Utilise Python dataclass functionality.
-- Utilise Python `dict` functionality (`specs` instances can be created from dicts and serialized
-  from dicts).
+- Provide your own handlers for `on_partial` (called before failing on missing config key) or `on_resolved`.
+- Provide your own native value parsers.
+- Provide your own default credentials logic.
+- Utilize Python dataclass functionality.
+- Utilize Python `dict` functionality (`specs` instances can be created from dicts and serialized from dicts).
 
-In fact, `dlt` synthesizes a unique spec for each decorated function. For example, in the case of `google_sheets`, the following
-class is created:
+In fact, `dlt` synthesizes a unique spec for each decorated function. For example, in the case of `google_sheets`, the following class is created:
 
 ```py
 from dlt.sources.config import configspec, with_config
@@ -417,24 +413,19 @@ class GoogleSheetsConfiguration(BaseConfiguration):
 ### All specs derive from [BaseConfiguration](https://github.com/dlt-hub/dlt/blob/devel/dlt/common/configuration/specs/base_configuration.py#L170)
 This class serves as a foundation for creating configuration objects with specific characteristics:
 
-- It provides methods to parse and represent the configuration
-  in native form (`parse_native_representation` and `to_native_representation`).
+- It provides methods to parse and represent the configuration in native form (`parse_native_representation` and `to_native_representation`).
 
 - It defines methods for accessing and manipulating configuration fields.
 
-- It implements a dictionary-compatible interface on top of the dataclass.
-This allows instances of this class to be treated like dictionaries.
+- It implements a dictionary-compatible interface on top of the dataclass. This allows instances of this class to be treated like dictionaries.
 
-- It defines helper functions for checking if a certain attribute is present,
-if a field is valid, and for calling methods in the method resolution order (MRO).
+- It defines helper functions for checking if a certain attribute is present, if a field is valid, and for calling methods in the method resolution order (MRO).
 
 More information about this class can be found in the class docstrings.
 
 ### All credentials derive from [CredentialsConfiguration](https://github.com/dlt-hub/dlt/blob/devel/dlt/common/configuration/specs/base_configuration.py#L307)
 
-This class is a subclass of `BaseConfiguration`
-and is meant to serve as a base class for handling various types of credentials.
-It defines methods for initializing credentials, converting them to native representations,
-and generating string representations while ensuring sensitive information is appropriately handled.
+This class is a subclass of `BaseConfiguration` and is meant to serve as a base class for handling various types of credentials. It defines methods for initializing credentials, converting them to native representations, and generating string representations while ensuring sensitive information is appropriately handled.
 
 More information about this class can be found in the class docstrings.
+

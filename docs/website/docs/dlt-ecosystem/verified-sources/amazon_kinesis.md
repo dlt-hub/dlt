@@ -9,13 +9,9 @@ import Header from './_source-info-header.md';
 
 <Header/>
 
-[Amazon Kinesis](https://docs.aws.amazon.com/streams/latest/dev/key-concepts.html) is a cloud-based
-service for real-time data streaming and analytics, enabling the processing and analysis of large
-streams of data in real time.
+[Amazon Kinesis](https://docs.aws.amazon.com/streams/latest/dev/key-concepts.html) is a cloud-based service for real-time data streaming and analytics, enabling the processing and analysis of large streams of data in real time.
 
-Our AWS Kinesis [verified source](https://github.com/dlt-hub/verified-sources/tree/master/sources/kinesis)
-loads messages from Kinesis streams to your preferred
-[destination](https://dlthub.com/docs/dlt-ecosystem/destinations/).
+Our AWS Kinesis [verified source](https://github.com/dlt-hub/verified-sources/tree/master/sources/kinesis) loads messages from Kinesis streams to your preferred [destination](../../dlt-ecosystem/destinations/).
 
 Resources that can be loaded using this verified source are:
 
@@ -25,16 +21,14 @@ Resources that can be loaded using this verified source are:
 
 
 :::tip
-You can check out our pipeline example
-[here](https://github.com/dlt-hub/verified-sources/blob/master/sources/kinesis_pipeline.py).
+You can check out our pipeline example [here](https://github.com/dlt-hub/verified-sources/blob/master/sources/kinesis_pipeline.py).
 :::
 
-## Setup Guide
+## Setup guide
 
 ### Grab credentials
 
-To use this verified source, you need an AWS `Access key` and `Secret access key`, which can be obtained
-as follows:
+To use this verified source, you need an AWS `Access key` and `Secret access key`, which can be obtained as follows:
 
 1. Sign in to your AWS Management Console.
 1. Navigate to the IAM (Identity and Access Management) dashboard.
@@ -44,8 +38,7 @@ as follows:
 1. Download or copy the Access Key ID and Secret Access Key for future use.
 
 :::info
-The AWS UI, which is described here, might change. The full guide is available at this
-[link](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html).
+The AWS UI, which is described here, might change. The full guide is available at this [link](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html).
 :::
 
 ### Initialize the verified source
@@ -58,24 +51,17 @@ To get started with your data pipeline, follow these steps:
    dlt init kinesis duckdb
    ```
 
-   [This command](../../reference/command-line-interface) will initialize
-   [the pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/kinesis_pipeline.py)
-   with Kinesis as the [source](../../general-usage/source) and [duckdb](../destinations/duckdb.md)
-   as the [destination](../destinations).
+   [This command](../../reference/command-line-interface) will initialize [the pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/kinesis_pipeline.py) with Kinesis as the [source](../../general-usage/source) and [duckdb](../destinations/duckdb.md) as the [destination](../destinations).
 
-1. If you'd like to use a different destination, simply replace `duckdb` with the name of your
-   preferred [destination](../destinations).
+1. If you'd like to use a different destination, simply replace `duckdb` with the name of your preferred [destination](../destinations).
 
-1. After running this command, a new directory will be created with the necessary files and
-   configuration settings to get started.
+1. After running this command, a new directory will be created with the necessary files and configuration settings to get started.
 
 For more information, read [Add a verified source.](../../walkthroughs/add-a-verified-source)
 
 ### Add credentials
 
-1. In the `.dlt` folder, there's a file called `secrets.toml`. It's where you store sensitive
-   information securely, like access tokens. Keep this file safe. Here's its format for service
-   account authentication:
+1. In the `.dlt` folder, there's a file called `secrets.toml`. It's where you store sensitive information securely, like access tokens. Keep this file safe. Here's its format for service account authentication:
 
    ```toml
    # Put your secret values and credentials here.
@@ -93,13 +79,9 @@ For more information, read [Add a verified source.](../../walkthroughs/add-a-ver
    stream_name = "please set me up!" # Stream name (Optional).
    ```
 
-1. Replace the value of `aws_access_key_id` and `aws_secret_access_key` with the one that
-   [you copied above](#grab-credentials). This will ensure that the verified source can access
-   your Kinesis resource securely.
+1. Replace the value of `aws_access_key_id` and `aws_secret_access_key` with the one that [you copied above](#grab-credentials). This will ensure that the verified source can access your Kinesis resource securely.
 
-1. Next, follow the instructions in [Destinations](../destinations/duckdb) to add credentials for
-   your chosen destination. This will ensure that your data is properly routed to its final
-   destination.
+1. Next, follow the instructions in [Destinations](../destinations/duckdb) to add credentials for your chosen destination. This will ensure that your data is properly routed to its final destination.
 
 For more information, read [Credentials](../../general-usage/credentials).
 
@@ -110,11 +92,11 @@ For more information, read [Credentials](../../general-usage/credentials).
    ```sh
    pip install -r requirements.txt
    ```
-1. You're now ready to run the pipeline! To get started, run the following command:
+2. You're now ready to run the pipeline! To get started, run the following command:
    ```sh
    python kinesis_pipeline.py
    ```
-1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
+3. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
    ```sh
    dlt pipeline <pipeline_name> show
@@ -132,7 +114,7 @@ For more information, read [Run a pipeline.](../../walkthroughs/run-a-pipeline)
 ### Resource `kinesis_stream`
 
 This resource reads a Kinesis stream and yields messages. It supports
-[incremental loading](../../general-usage/incremental-loading) and parses messages as json by
+[incremental loading](../../general-usage/incremental-loading) and parses messages as JSON by
 default.
 
 ```py
@@ -180,14 +162,14 @@ resource will have the same name as the stream. When you iterate this resource (
  shard, it will create an iterator to read messages:
 
 1. If `initial_at_timestamp` is present, the resource will read all messages after this timestamp.
-1. If `initial_at_timestamp` is 0, only the messages at the tip of the stream are read.
-1. If no initial timestamp is provided, all messages will be retrieved (from the TRIM HORIZON).
+2. If `initial_at_timestamp` is 0, only the messages at the tip of the stream are read.
+3. If no initial timestamp is provided, all messages will be retrieved (from the TRIM HORIZON).
 
 The resource stores all message sequences per shard in the state. If you run the resource again, it
 will load messages incrementally:
 
 1. For all shards that had messages, only messages after the last message are retrieved.
-1. For shards that didn't have messages (or new shards), the last run time is used to get messages.
+2. For shards that didn't have messages (or new shards), the last run time is used to get messages.
 
 Please check the `kinesis_stream` [docstring](https://github.com/dlt-hub/verified-sources/blob/master/sources/kinesis/__init__.py#L31-L46)
 for additional options, i.e., to limit the number of messages
@@ -202,13 +184,13 @@ if False, `data` is returned as bytes.
 
 ## Customization
 
+
+
 ### Create your own pipeline
 
-If you wish to create your own pipelines, you can leverage source and resource methods from this
-verified source.
+If you wish to create your own pipelines, you can leverage source and resource methods from this verified source.
 
-1. Configure the [pipeline](../../general-usage/pipeline) by specifying the pipeline name,
-   destination, and dataset as follows:
+1. Configure the [pipeline](../../general-usage/pipeline) by specifying the pipeline name, destination, and dataset as follows:
 
    ```py
    pipeline = dlt.pipeline(
@@ -221,9 +203,9 @@ verified source.
 1. To load messages from a stream from the last one hour:
 
    ```py
-   # the resource below will take its name from the stream name,
-   # it can be used multiple times by default it assumes that Data is json and parses it,
-   # here we disable that to just get bytes in data elements of the message
+   # The resource below will take its name from the stream name,
+   # it can be used multiple times. By default, it assumes that data is JSON and parses it,
+   # here we disable that to just get bytes in data elements of the message.
    kinesis_stream_data = kinesis_stream(
        "kinesis_source_name",
        parse_json=False,
@@ -236,7 +218,7 @@ verified source.
 1. For incremental Kinesis streams, to fetch only new messages:
 
    ```py
-   #running pipeline will get only new messages
+   # Running pipeline will get only new messages.
    info = pipeline.run(kinesis_stream_data)
    message_counts = pipeline.last_trace.last_normalize_info.row_counts
    if "kinesis_source_name" not in message_counts:
@@ -245,7 +227,7 @@ verified source.
        print(pipeline.last_trace.last_normalize_info)
    ```
 
-1. To parse json with a simple decoder:
+1. To parse JSON with a simple decoder:
 
    ```py
    def _maybe_parse_json(item: TDataItem) -> TDataItem:
@@ -267,23 +249,23 @@ verified source.
 
    STATE_FILE = "kinesis_source_name.state.json"
 
-   # load the state if it exists
+   # Load the state if it exists.
    if os.path.exists(STATE_FILE):
        with open(STATE_FILE, "rb") as f:
            state = json.typed_loadb(f.read())
    else:
-       # provide new state
+       # Provide new state.
        state = {}
 
    with Container().injectable_context(
        StateInjectableContext(state=state)
    ) as managed_state:
-       # dlt resources/source is just an iterator
+       # dlt resources/source is just an iterator.
        for message in kinesis_stream_data:
-           # here you can send the message somewhere
+           # Here you can send the message somewhere.
            print(message)
-           # save state after each message to have full transaction load
-           # dynamodb is also OK
+           # Save state after each message to have full transaction load.
+           # DynamoDB is also OK.
            with open(STATE_FILE, "wb") as f:
                json.typed_dump(managed_state.state, f)
            print(managed_state.state)

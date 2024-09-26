@@ -36,7 +36,7 @@ If you see the version number (such as "dlt 0.5.3"), you're ready to proceed.
 
 ## Setting up a new project
 
-Initialize a new dlt project with REST API source and DuckDB destination:
+Initialize a new dlt project with a REST API source and DuckDB destination:
 
 ```sh
 dlt init rest_api duckdb
@@ -76,7 +76,7 @@ Let's verify that the pipeline is working as expected. Run the following command
 python rest_api_pipeline.py
 ```
 
-You should see the output of the pipeline execution in the terminal. The output will also diplay the location of the DuckDB database file where the data is stored:
+You should see the output of the pipeline execution in the terminal. The output will also display the location of the DuckDB database file where the data is stored:
 
 ```sh
 Pipeline rest_api_pokemon load step completed in 1.08 seconds
@@ -100,7 +100,7 @@ dlt pipeline rest_api_pokemon show
 ```
 
 The command opens a new browser window with the data browser application. `rest_api_pokemon` is the name of the pipeline defined in the `rest_api_pipeline.py` file.
-You can explore the loaded data, run queries and see some pipeline execution details:
+You can explore the loaded data, run queries, and see some pipeline execution details:
 
 ![Explore rest_api data in Streamlit App](https://dlt-static.s3.eu-central-1.amazonaws.com/images/docs-rest-api-tutorial-streamlit-screenshot.png)
 
@@ -109,6 +109,9 @@ You can explore the loaded data, run queries and see some pipeline execution det
 Now that your environment and the project are set up, let's take a closer look at the configuration of the REST API source. Open the `rest_api_pipeline.py` file in your code editor and locate the following code snippet:
 
 ```py
+import dlt
+from dlt.sources.rest_api import rest_api_source
+
 def load_pokemon() -> None:
     pipeline = dlt.pipeline(
         pipeline_name="rest_api_pokemon",
@@ -142,9 +145,9 @@ def load_pokemon() -> None:
     print(load_info)
 ```
 
-Here what's happening in the code:
+Here's what's happening in the code:
 
-1. With `dlt.pipeline()` we define a new pipeline named `rest_api_pokemon` with DuckDB as the destination and `rest_api_data` as the dataset name.
+1. With `dlt.pipeline()`, we define a new pipeline named `rest_api_pokemon` with DuckDB as the destination and `rest_api_data` as the dataset name.
 2. The `rest_api_source()` function creates a new REST API source object.
 3. We pass this source object to the `pipeline.run()` method to start the pipeline execution. Inside the `run()` method, dlt will fetch data from the API and load it into the DuckDB database.
 4. The `print(load_info)` outputs the pipeline execution details to the console.
@@ -166,7 +169,7 @@ config: RESTAPIConfig = {
 ```
 
 - The `client` configuration is used to connect to the web server and authenticate if necessary. For our simple example, we only need to specify the `base_url` of the API: `https://pokeapi.co/api/v2/`.
-- The `resource_defaults` configuration allows you to set default parameters for all resources. Normally you would set common parameters here, such as pagination limits. In our Pokemon API example, we set the `limit` parameter to 1000 for all resources to retrieve more data in a single request and reduce the number of HTTP API calls.
+- The `resource_defaults` configuration allows you to set default parameters for all resources. Normally, you would set common parameters here, such as pagination limits. In our Pokemon API example, we set the `limit` parameter to 1000 for all resources to retrieve more data in a single request and reduce the number of HTTP API calls.
 - The `resources` list contains the names of the resources you want to load from the API. REST API will use some conventions to determine the endpoint URL based on the resource name. For example, the resource name `pokemon` will be translated to the endpoint URL `https://pokeapi.co/api/v2/pokemon`.
 
 :::note
@@ -176,7 +179,7 @@ You may have noticed that we didn't specify any pagination configuration in the 
 
 ## Appending, replacing, and merging loaded data
 
-Try running the pipeline again with `python rest_api_pipeline.py`. You will notice that all the tables have data duplicated. This happens because by default, dlt appends the data to the destination table. In dlt you can control how the data is loaded into the destination table by setting the `write_disposition` parameter in the resource configuration. The possible values are:
+Try running the pipeline again with `python rest_api_pipeline.py`. You will notice that all the tables have duplicated data. This happens because, by default, dlt appends the data to the destination table. In dlt, you can control how the data is loaded into the destination table by setting the `write_disposition` parameter in the resource configuration. The possible values are:
 - `append`: Appends the data to the destination table. This is the default.
 - `replace`: Replaces the data in the destination table with the new data.
 - `merge`: Merges the new data with the existing data in the destination table based on the primary key.
@@ -234,7 +237,7 @@ pokemon_source = rest_api_source(
                 },
             },
             # For the `berry` and `location` resources, we keep
-            # the`replace` write disposition
+            # the `replace` write disposition
             "write_disposition": "replace",
         },
         "resources": [
@@ -263,6 +266,9 @@ When working with some APIs, you may need to load data incrementally to avoid fe
 To illustrate incremental loading, let's consider the GitHub API. In the `rest_api_pipeline.py` file, you can find an example of how to load data from the GitHub API incrementally. Let's take a look at the configuration:
 
 ```py
+import dlt
+from dlt.sources.rest_api import rest_api_source
+
 pipeline = dlt.pipeline(
     pipeline_name="rest_api_github",
     destination="duckdb",
@@ -302,11 +308,11 @@ github_source = rest_api_source({
     ],
 })
 
-load_info = pipeline.run(github_source())
+load_info = pipeline.run(github_source)
 print(load_info)
 ```
 
-In this configuration, the `since` parameter is defined as a special incremental parameter. The `cursor_path` field specifies the JSON path to the field that will be used to fetch the updated data and we use the `initial_value` for the initial value for the incremental parameter. This value will be used in the first request to fetch the data.
+In this configuration, the `since` parameter is defined as a special incremental parameter. The `cursor_path` field specifies the JSON path to the field that will be used to fetch the updated data, and we use the `initial_value` for the initial value for the incremental parameter. This value will be used in the first request to fetch the data.
 
 When the pipeline runs, dlt will automatically update the `since` parameter with the latest value from the response data. This way, you can fetch only the new or updated data from the API.
 
@@ -318,5 +324,6 @@ Congratulations on completing the tutorial! You've learned how to set up a REST 
 
 Interested in learning more about dlt? Here are some suggestions:
 
-- Learn more about the REST API source configuration in [REST API source documentation](../dlt-ecosystem/verified-sources/rest_api/)
-- Learn how to [create a custom source](./load-data-from-an-api.md) in the advanced tutorial
+- Learn more about the REST API source configuration in the [REST API source documentation](../dlt-ecosystem/verified-sources/rest_api/)
+- Learn how to [create a custom source](./load-data-from-an-api.md) in the advanced tutorial.
+

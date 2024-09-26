@@ -1,7 +1,11 @@
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TTableSchema
-from dlt.common.schema.utils import find_incomplete_columns
+from dlt.common.schema.utils import (
+    find_incomplete_columns,
+    get_first_column_name_with_prop,
+    is_nested_table,
+)
 from dlt.common.schema.exceptions import UnboundColumnException
 from dlt.common import logger
 
@@ -40,4 +44,14 @@ def verify_normalized_table(
             "Destination does not support the configured `table_format` value "
             f"`{table['table_format']}` for table `{table['name']}`. "
             "The setting will probably be ignored."
+        )
+
+    parent_key = get_first_column_name_with_prop(table, "parent_key")
+    if parent_key and not is_nested_table(table):
+        logger.warning(
+            f"Table {table['name']} has parent_key on column {parent_key} but no corresponding"
+            " `parent` table hint to refer to parent table.Such table is not considered a nested"
+            " table and relational normalizer will not generate linking data. The most probable"
+            " cause is manual modification of the dtl schema for the table. The most probable"
+            f" outcome will be NULL violation during the load process on {parent_key}."
         )

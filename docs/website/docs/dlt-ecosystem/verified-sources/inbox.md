@@ -24,29 +24,29 @@ Sources and resources that can be loaded using this verified source are:
 | get_messages      | resource-transformer | Retrieves emails from the mailbox using given UIDs |
 | get_attachments   | resource-transformer | Downloads attachments from emails using given UIDs |
 
-## Setup Guide
+## Setup guide
 
 ### Grab credentials
 
 1. For verified source configuration, you need:
    - "host": IMAP server hostname (e.g., Gmail: imap.gmail.com, Outlook: imap-mail.outlook.com).
-   - "email_account": Associated email account name (e.g. dlthub@dlthub.com).
+   - "email_account": Associated email account name (e.g., dlthub@dlthub.com).
    - "password": APP password (for third-party clients) from the email provider.
 
 2. Host addresses and APP password procedures vary by provider and can be found via a quick Google search. For Google Mail's app password, read [here](https://support.google.com/mail/answer/185833?hl=en#:~:text=An%20app%20password%20is%20a,2%2DStep%20Verification%20turned%20on).
 
 3. However, this guide covers Gmail inbox configuration; similar steps apply to other providers.
 
-### Accessing Gmail Inbox
+### Accessing Gmail inbox
 
 1. SMTP server DNS: 'imap.gmail.com' for Gmail.
 2. Port: 993 (for internet messaging access protocol over TLS/SSL).
 
-### Grab App password for Gmail
+### Grab app password for Gmail
 
 1. An app password is a 16-digit code allowing less secure apps/devices to access your Google Account, available only with 2-Step Verification activated.
 
-#### Steps to Create and Use App Passwords:
+#### Steps to create and use app passwords:
 
 1. Visit your Google Account > Security.
 2. Under "How you sign in to Google", enable 2-Step Verification.
@@ -84,31 +84,25 @@ For more information, read the
 
 ### Add credential
 
-1. Inside the `.dlt` folder, you'll find a file called `secrets.toml`, which is where you can
-   securely store your access tokens and other sensitive information. It's important to handle this
-   file with care and keep it safe. Here's what the file looks like:
+1. Inside the `.dlt` folder, you'll find a file called `secrets.toml`, which is where you can securely store your access tokens and other sensitive information. It's important to handle this file with care and keep it safe. Here's what the file looks like:
 
    ```toml
    # put your secret values and credentials here
-   # do not share this file and do not push it to github
+   # do not share this file and do not push it to GitHub
    [sources.inbox]
    host = "Please set me up!" # The host address of the email service provider.
    email_account = "Please set me up!" # Email account associated with the service.
-   password = "Please set me up!" # # APP Password for the above email account.
+   password = "Please set me up!" # APP Password for the above email account.
    ```
 
-2. Replace the host, email, and password value with the [previously copied one](#grab-credentials)
-   to ensure secure access to your Inbox resources.
+2. Replace the host, email, and password value with the [previously copied one](#grab-credentials) to ensure secure access to your Inbox resources.
    > When adding the App Password, remove any spaces. For instance, "abcd efgh ijkl mnop" should be "abcdefghijklmnop".
 
-3. Next, follow the [destination documentation](../../dlt-ecosystem/destinations) instructions to
-   add credentials for your chosen destination, ensuring proper routing of your data to the final
-   destination.
+3. Next, follow the [destination documentation](../../dlt-ecosystem/destinations) instructions to add credentials for your chosen destination, ensuring proper routing of your data to the final destination.
 
 ## Run the pipeline
 
-1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
-   running the command:
+1. Before running the pipeline, ensure that you have installed all the necessary dependencies by running the command:
    ```sh
    pip install -r requirements.txt
    ```
@@ -123,20 +117,17 @@ For more information, read the
    For pdf parsing:
     - PyPDF2: `pip install PyPDF2`
 
-2. Once the pipeline has finished running, you can verify that everything loaded correctly by using
-   the following command:
+2. Once the pipeline has finished running, you can verify that everything loaded correctly by using the following command:
    ```sh
    dlt pipeline <pipeline_name> show
    ```
-   For example, the `pipeline_name` for the above pipeline example is `standard_inbox`, you may also
-   use any custom name instead.
+   For example, the `pipeline_name` for the above pipeline example is `standard_inbox`, you may also use any custom name instead.
 
 For more information, read the [Walkthrough: Run a pipeline.](../../walkthroughs/run-a-pipeline)
 
 ## Sources and resources
 
-`dlt` works on the principle of [sources](../../general-usage/source) and
-[resources](../../general-usage/resource).
+`dlt` works on the principle of [sources](../../general-usage/source) and [resources](../../general-usage/resource).
 
 ### Source `inbox_source`
 
@@ -170,7 +161,7 @@ def inbox_source(
 
 `start_date`: Start date to collect emails. Default: `/inbox/settings.py` 'DEFAULT_START_DATE'.
 
-`filter_emails`:Email addresses for 'FROM' filtering. Default: `/inbox/settings.py` 'FILTER_EMAILS'.
+`filter_emails`: Email addresses for 'FROM' filtering. Default: `/inbox/settings.py` 'FILTER_EMAILS'.
 
 `filter_by_mime_type`: MIME types for attachment filtering. Default: None.
 
@@ -207,7 +198,7 @@ def get_messages(
 
 `items`: An iterable containing dictionaries with 'message_uid' representing the email message UIDs.
 
-`include_body`: Includes email body if True. Default: True.
+`include_body`: Includes the email body if True. Default: True.
 
 ### Resource `get_attachments_by_uid`
 
@@ -261,7 +252,7 @@ verified source.
       # Print the loading details.
       print(load_info)
       ```
-      > Please refer to inbox_source() docstring for email filtering options by sender, date, or mime type.
+      > Please refer to the inbox_source() docstring for email filtering options by sender, date, or mime type.
 3. To load messages from multiple emails, including "community@dlthub.com":
 
    ```py
@@ -271,7 +262,7 @@ verified source.
    ```
 
 4. In `inbox_pipeline.py`, the `pdf_to_text` transformer extracts text from PDFs, treating each page as a separate data item.
-   Using the `pdf_to_text` function to load parsed pdfs from mail to the database:
+   Using the `pdf_to_text` function to load parsed PDFs from mail to the database:
 
    ```py
    filter_emails = ["mycreditcard@bank.com", "community@dlthub.com."] # Email senders
