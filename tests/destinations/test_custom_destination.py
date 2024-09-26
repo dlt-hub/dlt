@@ -12,7 +12,10 @@ from dlt.common.typing import TDataItems
 from dlt.common.schema import TTableSchema
 from dlt.common.data_writers.writers import TLoaderFileFormat
 from dlt.common.destination.reference import Destination
-from dlt.common.destination.exceptions import InvalidDestinationReference
+from dlt.common.destination.exceptions import (
+    DestinationTransientException,
+    InvalidDestinationReference,
+)
 from dlt.common.configuration.exceptions import ConfigFieldMissingException, ConfigurationValueError
 from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.configuration.inject import get_fun_spec
@@ -278,7 +281,7 @@ def test_batched_transactions(loader_file_format: TLoaderFileFormat, batch_size:
         if table_name in provoke_error:
             for item in items:
                 if provoke_error[table_name] == item["id"]:
-                    raise AssertionError("Oh no!")
+                    raise DestinationTransientException("Oh no!")
 
         calls.setdefault(table_name, []).append(items)
 

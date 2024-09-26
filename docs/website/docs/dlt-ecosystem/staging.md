@@ -107,11 +107,11 @@ Before `dlt` loads data to the staging storage, it truncates previously loaded f
 
 ```toml
 [destination.redshift]
-truncate_table_before_load_on_staging_destination=false
+truncate_tables_on_staging_destination_before_load=false
 ```
 
 :::caution
 The [Athena](destinations/athena#staging-support) destination only truncates non-iceberg tables with `replace` merge_disposition.
-Therefore, the parameter `truncate_table_before_load_on_staging_destination` only controls the truncation of corresponding files for these tables.
+Therefore, the parameter `truncate_tables_on_staging_destination_before_load` only controls the truncation of corresponding files for these tables.
 :::
 

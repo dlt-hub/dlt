@@ -50,6 +50,7 @@ def test_filesystem_configuration() -> None:
         "bucket_url": "az://root",
         "credentials": None,
         "client_kwargs": None,
+        "max_state_files": 100,
         "kwargs": None,
         "deltalake_storage_options": None,
     }
@@ -173,6 +174,7 @@ def test_filesystem_configuration_with_additional_arguments() -> None:
         "read_only": False,
         "bucket_url": "az://root",
         "credentials": None,
+        "max_state_files": 100,
         "kwargs": {"use_ssl": True},
         "client_kwargs": {"verify": "public.crt"},
         "deltalake_storage_options": {"AWS_S3_LOCKING_PROVIDER": "dynamodb"},

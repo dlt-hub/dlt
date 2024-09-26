@@ -517,7 +517,9 @@ class FilesystemClient(
         """for base64 strings"""
         return base64.b64decode(s).hex() if s else None
 
-    def _list_dlt_table_files(self, table_name: str) -> Iterator[Tuple[str, List[str]]]:
+    def _list_dlt_table_files(
+        self, table_name: str, pipeline_name: str = None
+    ) -> Iterator[Tuple[str, List[str]]]:
         dirname = self.get_table_dir(table_name)
         if not self.fs_client.exists(self.pathlib.join(dirname, INIT_FILE_NAME)):
             raise DestinationUndefinedEntity({"dir": dirname})
@@ -526,7 +528,9 @@ class FilesystemClient(
             fileparts = filename.split(FILENAME_SEPARATOR)
             if len(fileparts) != 3:
                 continue
-            yield filepath, fileparts
+            # Filters only if pipeline_name provided
+            if pipeline_name is None or fileparts[0] == pipeline_name:
+                yield filepath, fileparts
 
     def _store_load(self, load_id: str) -> None:
         # write entry to load "table"
@@ -561,6 +565,31 @@ class FilesystemClient(
             f"{pipeline_name}{FILENAME_SEPARATOR}{load_id}{FILENAME_SEPARATOR}{self._to_path_safe_string(version_hash)}.jsonl",
         )
 
+    def _cleanup_pipeline_states(self, pipeline_name: str) -> None:
+        state_table_files = list(
+            self._list_dlt_table_files(self.schema.state_table_name, pipeline_name)
+        )
+
+        if len(state_table_files) > self.config.max_state_files:
+            # filter and collect a list of state files
+            state_file_info: List[Dict[str, Any]] = [
+                {
+                    "load_id": float(fileparts[1]),  # convert load_id to float for comparison
+                    "filepath": filepath,
+                }
+                for filepath, fileparts in state_table_files
+            ]
+
+            # sort state file info by load_id in descending order
+            state_file_info.sort(key=lambda x: x["load_id"], reverse=True)
+
+            # keeping only the most recent MAX_STATE_HISTORY files
+            files_to_delete = state_file_info[self.config.max_state_files :]
+
+            # delete the old files
+            for file_info in files_to_delete:
+                self._delete_file(file_info["filepath"])
+
     def _store_current_state(self, load_id: str) -> None:
         # don't save the state this way when used as staging
         if self.config.as_staging_destination:
@@ -579,6 +608,10 @@ class FilesystemClient(
 
         # write
         self._write_to_json_file(hash_path, cast(DictStrAny, pipeline_state_doc))
+
+        # perform state cleanup only if max_state_files is set to a positive value
+        if self.config.max_state_files >= 1:
+            self._cleanup_pipeline_states(pipeline_name)
 
     def get_stored_state(self, pipeline_name: str) -> Optional[StateInfo]:
         # search newest state

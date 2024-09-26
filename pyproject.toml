@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dlt"
-version = "1.0.0"
+version = "1.1.0"
 description = "dlt is an open-source python-first scalable data loading library that does not require any backend to run."
 authors = ["dltHub Inc. <services@dlthub.com>"]
 maintainers = [ "Marcin Rudolf <marcin@dlthub.com>", "Adrian Brudaru <adrian@dlthub.com>", "Anton Burnashev <anton@dlthub.com>", "David Scharf <david@dlthub.com>" ]
@@ -60,7 +60,7 @@ psycopg2cffi = {version = ">=2.9.0", optional = true, markers="platform_python_i
 grpcio = {version = ">=1.50.0", optional = true}
 google-cloud-bigquery = {version = ">=2.26.0", optional = true}
 pyarrow = {version = ">=12.0.0", optional = true}
-duckdb = {version = ">=0.6.1,<0.11", optional = true}
+duckdb = {version = ">=0.9", optional = true}
 # keep per-python version dependency as a reference
 # duckdb = [
 #     {version = ">=0.6.1,<0.10.0", python = ">=3.8,<3.12", optional = true},

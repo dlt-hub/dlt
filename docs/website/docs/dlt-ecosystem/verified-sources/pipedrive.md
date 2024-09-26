@@ -30,7 +30,7 @@ Sources and resources that can be loaded using this verified source are:
 | stage        | Specific step in a sales process where a deal resides based on its progress                |
 | user         | Individual with a unique login credential who can access and use the platform              |
 
-## Setup Guide
+## Setup guide
 
 ### Grab API token
 
@@ -77,7 +77,7 @@ For more information, read the guide on [how to add a verified source.](../../wa
    ```toml
    [sources.pipedrive.credentials]
    # Note: Do not share this file and do not push it to GitHub!
-   pipedrive_api_key = "PIPEDRIVE_API_TOKEN" # please set me up !
+   pipedrive_api_key = "PIPEDRIVE_API_TOKEN" # please set me up!
    ```
 
 1. Replace `PIPEDRIVE_API_TOKEN` with the API token you [copied above](#grab-api-token).
@@ -93,11 +93,11 @@ For more information, read the [General Usage: Credentials.](../../general-usage
    ```sh
    pip install -r requirements.txt
    ```
-1. You're now ready to run the pipeline! To get started, run the following command:
+2. You're now ready to run the pipeline! To get started, run the following command:
    ```sh
    python pipedrive_pipeline.py
    ```
-1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
+3. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
    ```sh
    dlt pipeline <pipeline_name> show
@@ -132,8 +132,8 @@ Pipedrive API.
 
 ### Source `pipedrive_source`
 
-This function returns a list of resources including activities, deals, custom_fields_mapping and
-other resources data from Pipedrive API.
+This function returns a list of resources including activities, deals, custom_fields_mapping, and
+other resources data from the Pipedrive API.
 
 ```py
 @dlt.source(name="pipedrive")
@@ -146,8 +146,8 @@ def pipedrive_source(
 
 `pipedrive_api_key`: Authentication token for Pipedrive, configured in ".dlt/secrets.toml".
 
-`since_timestamp`: Starting timestamp for incremental loading. By default, complete history is loaded
- on the first run. And new data in subsequent runs.
+`since_timestamp`: Starting timestamp for incremental loading. By default, the complete history is loaded
+ on the first run, and new data in subsequent runs.
 
 > Note: Incremental loading can be enabled or disabled depending on user preferences.
 
@@ -167,7 +167,7 @@ for entity, resource_name in RECENTS_ENTITIES.items():
         write_disposition="merge",
     )(entity, **resource_kwargs)
 
-    #yields endpoint_resources.values
+    # yields endpoint_resources.values
 ```
 
 `entity and resource_name`: Key-value pairs from RECENTS_ENTITIES.
@@ -198,8 +198,8 @@ def pipedrive_source(args):
 
 `write_disposition`: Sets the transformer to merge new data with existing data in the destination.
 
-Similar to the transformer function "deals_participants" is another transformer function named
-"deals_flow" that gets the flow of deals from the Pipedrive API, and then yields the result for
+Similar to the transformer function "deals_participants," another transformer function named
+"deals_flow" gets the flow of deals from the Pipedrive API and then yields the result for
 further processing or loading.
 
 ### Resource `create_state`
@@ -225,7 +225,7 @@ entity exists. This updated state is then saved for future pipeline runs.
 Similar to the above functions, there are the following:
 
 `custom_fields_mapping`: Transformer function that parses and yields custom fields' mapping in order
-to be stored in destination by dlt.
+to be stored in the destination by dlt.
 
 `leads`: Resource function that incrementally loads Pipedrive leads by update_time.
 
@@ -291,6 +291,4 @@ verified source.
    load_info = pipeline.run(activities_source)
    print(load_info)
    ```
-
-<!--@@@DLT_TUBA pipedrive-->
 
