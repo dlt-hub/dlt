@@ -2588,7 +2588,7 @@ def test_cursor_date_coercion(item_type: TestDataItemFormat) -> None:
     assert pip_ex.value.__cause__.cursor_path == "updated_at"
 
 
-@pytest.mark.parametrize("item_type", ["object"])
+@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
 @pytest.mark.parametrize("primary_key", ["id", None])
 def test_warning_large_deduplication_state(item_type: TestDataItemFormat, primary_key, mocker):
     @dlt.resource(primary_key=primary_key)
@@ -2603,7 +2603,7 @@ def test_warning_large_deduplication_state(item_type: TestDataItemFormat, primar
     logger_spy = mocker.spy(dlt.common.logger, "warning")
     p = dlt.pipeline(pipeline_name=uniq_id())
     p.extract(some_data(1))
-    logger_spy.assert_called_once_with(
+    logger_spy.assert_any_call(
         "There are over 200 records to be deduplicated because they share the same primary key"
         f" `{primary_key}`."
     )
