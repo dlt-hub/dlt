@@ -969,6 +969,7 @@ class Pipeline(SupportsPipeline):
             state = self._get_state()
         return state["_local"][key]  # type: ignore
 
+    @with_config_section(())
     def sql_client(self, schema_name: str = None) -> SqlClientBase[Any]:
         """Returns a sql client configured to query/change the destination and dataset that were used to load the data.
         Use the client with `with` statement to manage opening and closing connection to the destination:
@@ -1008,6 +1009,7 @@ class Pipeline(SupportsPipeline):
             return client
         raise FSClientNotAvailable(self.pipeline_name, self.destination.destination_name)
 
+    @with_config_section(())
     def destination_client(self, schema_name: str = None) -> JobClientBase:
         """Get the destination job client for the configured destination
         Use the client with `with` statement to manage opening and closing connection to the destination:
