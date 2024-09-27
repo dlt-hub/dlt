@@ -1,5 +1,5 @@
 ---
-title: SQL databases (powered by SQLAlchemy)
+title: 30+ SQL databases (powered by SQLAlchemy)
 description: SQLAlchemy destination
 keywords: [sql, sqlalchemy, database, destination]
 ---

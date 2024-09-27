@@ -171,6 +171,7 @@ const sidebars = {
         'dlt-ecosystem/destinations/redshift',
         'dlt-ecosystem/destinations/snowflake',
         'dlt-ecosystem/destinations/athena',
+        'dlt-ecosystem/destinations/sqlalchemy',
         'dlt-ecosystem/destinations/weaviate',
         'dlt-ecosystem/destinations/lancedb',
         'dlt-ecosystem/destinations/qdrant',
