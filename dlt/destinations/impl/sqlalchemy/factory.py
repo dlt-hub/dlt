@@ -50,6 +50,7 @@ class sqlalchemy(Destination[SqlalchemyClientConfiguration, "SqlalchemyJobClient
         caps.supports_multiple_statements = False
         caps.type_mapper = SqlalchemyTypeMapper
         caps.supported_replace_strategies = ["truncate-and-insert", "insert-from-staging"]
+        caps.supported_merge_strategies = ["delete-insert"]
 
         return caps
 

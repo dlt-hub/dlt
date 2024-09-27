@@ -3,6 +3,7 @@ import math
 
 import sqlalchemy as sa
 
+from dlt.common.schema.utils import get_columns_names_with_prop
 from dlt.common.destination.reference import (
     RunnableLoadJob,
     HasFollowupJobs,
@@ -10,9 +11,12 @@ from dlt.common.destination.reference import (
 )
 from dlt.common.storages import FileStorage
 from dlt.common.json import json, PY_DATETIME_DECODERS
-from dlt.destinations.sql_jobs import SqlFollowupJob, SqlJobParams
+from dlt.destinations.sql_jobs import SqlFollowupJob, SqlJobParams, SqlMergeFollowupJob
 
 from dlt.destinations.impl.sqlalchemy.db_api_client import SqlalchemyClient
+from dlt.destinations.impl.sqlalchemy.merge_job import (
+    SqlalchemyMergeFollowupJob as SqlalchemyMergeFollowupJob,
+)
 
 if TYPE_CHECKING:
     from dlt.destinations.impl.sqlalchemy.sqlalchemy_job_client import SqlalchemyJobClient
