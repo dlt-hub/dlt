@@ -440,7 +440,7 @@ The available authentication methods are defined in the `dlt.sources.helpers.res
 - [HttpBasicAuth](#http-basic-authentication)
 - [OAuth2ClientCredentials](#oauth-20-authorization)
 
-For specific use cases, you can [implement custom authentication](#implementing-custom-authentication) by subclassing the `AuthConfigBase` class from the Requests library.
+For specific use cases, you can [implement custom authentication](#implementing-custom-authentication) by subclassing the `AuthConfigBase` class from the `dlt.sources.helpers.rest_client.auth` module.
 For specific flavors of OAuth 2.0, you can [implement custom OAuth 2.0](#oauth-20-authorization) by subclassing `OAuth2ClientCredentials`.
 
 ### Bearer token authentication
