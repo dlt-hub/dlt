@@ -815,6 +815,72 @@ def test_merge_key_compound_natural_key(
     assert_records_as_set(actual, expected)  # type: ignore[arg-type]
 
 
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, supports_merge=True),
+    ids=lambda x: x.name,
+)
+def test_merge_key_partition(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    p = destination_config.setup_pipeline("abstract", dev_mode=True)
+
+    @dlt.resource(
+        merge_key="date",
+        write_disposition={"disposition": "merge", "strategy": "scd2"},
+    )
+    def dim_test(data):
+        yield data
+
+    # load 1 — "2024-01-01" partition
+    dim_snap = [
+        {"date": "2024-01-01", "name": "a"},
+        {"date": "2024-01-01", "name": "b"},
+    ]
+    info = p.run(dim_test(dim_snap), **destination_config.run_kwargs)
+    assert_load_info(info)
+    assert load_table_counts(p, "dim_test")["dim_test"] == 2
+    # both records should be active (i.e. not retired)
+    assert [row[TO] for row in get_table(p, "dim_test")] == [None, None]
+
+    # load 2 — "2024-01-02" partition
+    dim_snap = [
+        {"date": "2024-01-02", "name": "c"},
+        {"date": "2024-01-02", "name": "d"},
+    ]
+    info = p.run(dim_test(dim_snap), **destination_config.run_kwargs)
+    assert_load_info(info)
+    assert load_table_counts(p, "dim_test")["dim_test"] == 4
+    # two "2024-01-01" should be untouched, two "2024-01-02" records should
+    # be added
+    assert [row[TO] for row in get_table(p, "dim_test")] == [None, None, None, None]
+
+    # load 2 — reload "2024-01-01" partition
+    dim_snap = [
+        {"date": "2024-01-01", "name": "a"},  # unchanged
+        {"date": "2024-01-01", "name": "bb"},  # new
+    ]
+    info = p.run(dim_test(dim_snap), **destination_config.run_kwargs)
+    assert_load_info(info)
+    # "b" should be retired, "bb" should be added, "2024-01-02" partition
+    # should be untouched
+    assert load_table_counts(p, "dim_test")["dim_test"] == 5
+    ts2 = get_load_package_created_at(p, info)
+    actual = [
+        {k: v for k, v in row.items() if k in ("date", "name", TO)}
+        for row in get_table(p, "dim_test")
+    ]
+    expected = [
+        {"date": "2024-01-01", "name": "a", TO: None},
+        {"date": "2024-01-01", "name": "b", TO: ts2},
+        {"date": "2024-01-01", "name": "bb", TO: None},
+        {"date": "2024-01-02", "name": "c", TO: None},
+        {"date": "2024-01-02", "name": "d", TO: None},
+    ]
+    assert_records_as_set(actual, expected)  # type: ignore[arg-type]
+
+
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(default_sql_configs=True, subset=["duckdb"]),
