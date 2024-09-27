@@ -2607,3 +2607,55 @@ def test_warning_large_deduplication_state(item_type: TestDataItemFormat, primar
         "There are over 200 records to be deduplicated because they share the same primary key"
         f" `{primary_key}`."
     )
+
+
+# @pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
+def test_no_deduplication_on_write_disposition_merge(
+    # item_type: TestDataItemFormat,
+) -> None:
+    item_type = "object"
+
+    @dlt.resource(write_disposition="merge", merge_key="id", primary_key="id")
+    def some_data(
+        created_at=dlt.sources.incremental("created_at"),
+    ):
+        yield data_to_item_format(
+            item_type,
+            [
+                {"id": 1, "created_at": 1},
+                {"id": 2, "created_at": 1},
+            ],
+        )
+
+    p = dlt.pipeline(pipeline_name=uniq_id())
+    p.run(some_data(1), destination="duckdb")
+    load_id_1 = ""
+    with p.sql_client() as client:
+        load_ids = client.execute_sql("select distinct _dlt_load_id from some_data")
+        assert len(load_ids) == 1
+        load_id_1 = load_ids[0][0]
+
+    p.run(some_data(2), destination="duckdb")
+    with p.sql_client() as client:
+        # no duplicates
+        assert_query_data(p, "select id from some_data order by id", [1, 2])
+        load_ids = client.execute_sql("select _dlt_load_id from some_data where id = 2")
+        assert len(load_ids) == 1, "Expected table to contain only one load"
+        load_id_2 = load_ids[0][0]
+
+        # row with id=2 got updated – even though it has the same merge_key as the first row with id=2
+        assert load_id_1 != load_id_2, "Expected row with id=2 to get updated"
+
+        # row with id=1 is not updated
+        assert_query_data(p, "select _dlt_load_id from some_data where id = 1", load_id_1)
+
+    # TODO: test the incremental individually and test that it emits all records with the identical primary key!
+
+    s = p.state["sources"][p.default_schema_name]["resources"]["some_data"]["incremental"][
+        "created_at"
+    ]
+    assert s["last_value"] == 2
+
+
+def test_deduplication_on_write_disposition_not_merge() -> None:
+    pytest.skip()

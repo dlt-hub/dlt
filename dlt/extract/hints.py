@@ -236,7 +236,7 @@ class DltResourceHints:
         parent_table_name (str, optional): A name of parent table if foreign relation is defined. Please note that if you use merge, you must define `root_key` columns explicitly
         incremental (Incremental, optional): Enables the incremental loading for a resource.
 
-        Please note that for efficient incremental loading, the resource must be aware of the Incremental by accepting it as one if its arguments and then using are to skip already loaded data.
+        Please note that for efficient incremental loading, the resource must be aware of the Incremental by accepting it as one if its arguments and then using it to skip already loaded data.
         In non-aware resources, `dlt` will filter out the loaded values, however, the resource will yield all the values again.
 
         Returns: self for chaining
