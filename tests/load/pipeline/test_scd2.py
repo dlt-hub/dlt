@@ -697,18 +697,14 @@ def test_boundary_timestamp(
     destinations_configs(default_sql_configs=True, supports_merge=True),
     ids=lambda x: x.name,
 )
-def test_retire_absent_rows(
+def test_merge_key_natural_key(
     destination_config: DestinationTestConfiguration,
 ) -> None:
     p = destination_config.setup_pipeline("abstract", dev_mode=True)
 
     @dlt.resource(
         merge_key="nk",
-        write_disposition={
-            "disposition": "merge",
-            "strategy": "scd2",
-            "retire_absent_rows": False,
-        },
+        write_disposition={"disposition": "merge", "strategy": "scd2"},
     )
     def dim_test(data):
         yield data
@@ -761,29 +757,6 @@ def test_retire_absent_rows(
     expected = [{"nk": 1, TO: ts3}, {"nk": 1, TO: ts4}, {"nk": 1, TO: None}, {"nk": 2, TO: None}]
     assert_records_as_set(actual, expected)  # type: ignore[arg-type]
 
-    # now test various configs
-
-    with pytest.raises(ValueError):
-        # should raise because `merge_key` is required when `retire_absent_rows=False`
-        dim_test.apply_hints(
-            merge_key="",
-            write_disposition={
-                "disposition": "merge",
-                "strategy": "scd2",
-                "retire_absent_rows": False,
-            },
-        )
-
-    # `retire_absent_rows=True` does not require `merge_key`
-    dim_test.apply_hints(
-        write_disposition={
-            "disposition": "merge",
-            "strategy": "scd2",
-            "retire_absent_rows": True,
-        }
-    )
-    assert dim_test.compute_table_schema()["x-retire-absent-rows"]  # type: ignore[typeddict-item]
-
 
 @pytest.mark.essential
 @pytest.mark.parametrize(
@@ -792,7 +765,7 @@ def test_retire_absent_rows(
     ids=lambda x: x.name,
 )
 @pytest.mark.parametrize("key_type", ("text", "bigint"))
-def test_retire_absent_rows_compound_key(
+def test_merge_key_compound_natural_key(
     destination_config: DestinationTestConfiguration,
     key_type: TDataType,
 ) -> None:
@@ -800,11 +773,7 @@ def test_retire_absent_rows_compound_key(
 
     @dlt.resource(
         merge_key=["first_name", "last_name"],
-        write_disposition={
-            "disposition": "merge",
-            "strategy": "scd2",
-            "retire_absent_rows": False,
-        },
+        write_disposition={"disposition": "merge", "strategy": "scd2"},
     )
     def dim_test_compound(data):
         yield data

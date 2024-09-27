@@ -458,8 +458,6 @@ class DltResourceHints:
             md_dict = cast(TScd2StrategyDict, md_dict)
             if "boundary_timestamp" in md_dict:
                 dict_["x-boundary-timestamp"] = md_dict["boundary_timestamp"]
-            if "retire_absent_rows" in md_dict:
-                dict_["x-retire-absent-rows"] = md_dict["retire_absent_rows"]
             if md_dict.get("validity_column_names") is None:
                 from_, to = DEFAULT_VALIDITY_COLUMN_NAMES
             else:
@@ -543,10 +541,3 @@ class DltResourceHints:
                             raise ValueError(
                                 f'could not parse `{ts}` value "{wd[ts]}"'  # type: ignore[literal-required]
                             )
-
-                if (
-                    "retire_absent_rows" in wd
-                    and not wd["retire_absent_rows"]
-                    and template.get("merge_key") is None
-                ):
-                    raise ValueError("`merge_key` is required when `retire_absent_rows=False`")

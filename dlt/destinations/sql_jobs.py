@@ -766,27 +766,27 @@ class SqlMergeFollowupJob(SqlFollowupJob):
             )
             is_active = f"{to} = {active_record_literal}"
 
-        # retire records
-        # always retire updated records, retire deleted records only if `retire_absent_rows`
+        # retire records:
+        # - no `merge_key`: retire all absent records
+        # - yes `merge_key`: retire those absent records whose `merge_key`
+        # is present in staging data
         retire_sql = f"""
             {cls.gen_update_table_prefix(root_table_name)} {to} = {boundary_literal}
             WHERE {is_active}
             AND {hash_} NOT IN (SELECT {hash_} FROM {staging_root_table_name});
         """
-        retire_absent_rows = root_table.get("x-retire-absent-rows", True)
-        if not retire_absent_rows:
-            retire_sql = retire_sql.rstrip()[:-1]  # remove semicolon
-            # merge keys act as natural key
-            merge_keys = cls._escape_list(
-                get_columns_names_with_prop(root_table, "merge_key"),
-                escape_column_id,
-            )
+        merge_keys = cls._escape_list(
+            get_columns_names_with_prop(root_table, "merge_key"),
+            escape_column_id,
+        )
+        if len(merge_keys) > 0:
             if len(merge_keys) == 1:
-                nk = merge_keys[0]
+                key = merge_keys[0]
             else:
-                nk = cls.gen_concat_sql(merge_keys)  # compound key
-            nk_present = f"{nk} IN (SELECT {nk} FROM {staging_root_table_name})"
-            retire_sql += f" AND {nk_present};"
+                key = cls.gen_concat_sql(merge_keys)  # compound key
+            key_present = f"{key} IN (SELECT {key} FROM {staging_root_table_name})"
+            retire_sql = retire_sql.rstrip()[:-1]  # remove semicolon
+            retire_sql += f" AND {key_present};"
         sql.append(retire_sql)
 
         # insert new active records in root table
