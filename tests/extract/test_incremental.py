@@ -3557,6 +3557,6 @@ def test_warning_large_deduplication_state(item_type: TestDataItemFormat, primar
     p = dlt.pipeline(pipeline_name=uniq_id())
     p.extract(some_data(1))
     logger_spy.assert_any_call(
-        "There are over 200 records to be deduplicated because they share the same primary key"
+        "There are 201 records to be deduplicated because they share the same primary key"
         f" `{primary_key}`."
     )
