@@ -444,29 +444,22 @@ class TestRESTClient:
 
         import requests
 
-        original_send = requests.Session.send
-        requests.Session.send = mocker.Mock()  # type: ignore[method-assign]
+        mocked_send = mocker.patch.object(requests.Session, "send")
         rest_client.get("/posts/1")
-        assert requests.Session.send.call_args[1] == {  # type: ignore[attr-defined]
+        assert mocked_send.call_args[1] == {
             "timeout": 42,
             "proxies": ANY,
             "stream": ANY,
             "verify": ANY,
             "cert": ANY,
         }
-        # restore, otherwise side-effect on subsequent tests
-        requests.Session.send = original_send  # type: ignore[method-assign]
 
     def test_request_kwargs(self, mocker) -> None:
-        def send_spy(*args, **kwargs):
-            return original_send(*args, **kwargs)
-
         rest_client = RESTClient(
             base_url="https://api.example.com",
             session=Client().session,
         )
-        original_send = rest_client.session.send
-        mocked_send = mocker.patch.object(rest_client.session, "send", side_effect=send_spy)
+        mocked_send = mocker.spy(rest_client.session, "send")
 
         rest_client.get(
             path="/posts/1",
