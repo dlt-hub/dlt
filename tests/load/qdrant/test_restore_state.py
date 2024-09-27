@@ -1,11 +1,9 @@
-from typing import TYPE_CHECKING
 import pytest
 from qdrant_client import models
 
 import dlt
 from tests.load.utils import destinations_configs, DestinationTestConfiguration
 
-from dlt.common.destination.reference import JobClientBase, WithStateSync
 from dlt.destinations.impl.qdrant.qdrant_job_client import QdrantClient
 
 
@@ -37,7 +35,7 @@ def test_uncommitted_state(destination_config: DestinationTestConfiguration):
         pipeline.extract(dummy_table)
 
     pipeline.normalize()
-    info = pipeline.load(raise_on_failed_jobs=True)
+    info = pipeline.load()
 
     client: QdrantClient
     with pipeline.destination_client() as client:  # type: ignore[assignment]

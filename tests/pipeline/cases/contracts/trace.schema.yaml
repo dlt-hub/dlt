@@ -1,0 +1,829 @@
+version: 5
+version_hash: zsNXwXS2tlD1Or0sGgLOMI7clOz978WoyDuzVx+KU1s=
+engine_version: 10
+name: trace
+tables:
+  _dlt_version:
+    columns:
+      version:
+        data_type: bigint
+        nullable: false
+      engine_version:
+        data_type: bigint
+        nullable: false
+      inserted_at:
+        data_type: timestamp
+        nullable: false
+      schema_name:
+        data_type: text
+        nullable: false
+      version_hash:
+        data_type: text
+        nullable: false
+      schema:
+        data_type: text
+        nullable: false
+    write_disposition: skip
+    description: Created by DLT. Tracks schema updates
+    resource: _dlt_version
+  _dlt_loads:
+    columns:
+      load_id:
+        data_type: text
+        nullable: false
+      schema_name:
+        data_type: text
+        nullable: true
+      status:
+        data_type: bigint
+        nullable: false
+      inserted_at:
+        data_type: timestamp
+        nullable: false
+      schema_version_hash:
+        data_type: text
+        nullable: true
+    write_disposition: skip
+    description: Created by DLT. Tracks completed loads
+    resource: _dlt_loads
+  trace:
+    columns:
+      transaction_id:
+        data_type: text
+        nullable: true
+      pipeline_name:
+        data_type: text
+        nullable: true
+      execution_context__ci_run:
+        data_type: bool
+        nullable: true
+      execution_context__python:
+        data_type: text
+        nullable: true
+      execution_context__cpu:
+        data_type: bigint
+        nullable: true
+      execution_context__os__name:
+        data_type: text
+        nullable: true
+      execution_context__os__version:
+        data_type: text
+        nullable: true
+      execution_context__library__name:
+        data_type: text
+        nullable: true
+      execution_context__library__version:
+        data_type: text
+        nullable: true
+      started_at:
+        data_type: timestamp
+        nullable: true
+      finished_at:
+        data_type: timestamp
+        nullable: true
+      engine_version:
+        data_type: bigint
+        nullable: true
+      _dlt_load_id:
+        data_type: text
+        nullable: false
+      _dlt_id:
+        data_type: text
+        nullable: false
+        unique: true
+        row_key: true
+    write_disposition: append
+    resource: trace
+  trace__execution_context__exec_info:
+    columns:
+      value:
+        data_type: text
+        nullable: true
+      _dlt_id:
+        data_type: text
+        nullable: false
+        unique: true
+        row_key: true
+      _dlt_parent_id:
+        data_type: text
+        nullable: false
+        parent_key: true
+      _dlt_list_idx:
+        data_type: bigint
+        nullable: false
+    parent: trace
+  trace__steps:
+    columns:
+      span_id:
+        data_type: text
+        nullable: true
+      step:
+        data_type: text
+        nullable: true
+      started_at:
+        data_type: timestamp
+        nullable: true
+      finished_at:
+        data_type: timestamp
+        nullable: true
+      step_info__pipeline__pipeline_name:
+        data_type: text
+        nullable: true
+      step_info__first_run:
+        data_type: bool
+        nullable: true
+      step_info__started_at:
+        data_type: timestamp
+        nullable: true
+      step_info__finished_at:
+        data_type: timestamp
+        nullable: true
+      _dlt_parent_id:
+        data_type: text
+        nullable: false
+        parent_key: true
+      _dlt_list_idx:
+        data_type: bigint
+        nullable: false
+      _dlt_id:
+        data_type: text
+        nullable: false
+        unique: true
+        row_key: true
+      load_info__destination_type:
+        data_type: text
+        nullable: true
+      load_info__destination_displayable_credentials:
+        data_type: text
+        nullable: true
+      load_info__destination_name:
+        data_type: text
+        nullable: true
+      load_info__staging_type:
+        data_type: text
+        nullable: true
+      load_info__staging_name:
+        data_type: text
+        nullable: true
+      load_info__staging_displayable_credentials:
+        data_type: text
+        nullable: true
+      load_info__destination_fingerprint:
+        data_type: text
+        nullable: true
+      step_exception:
+        data_type: text
+        nullable: true
+    parent: trace
+  trace__steps__extract_info__job_metrics:
+    columns:
+      file_path:
+        data_type: text
+        nullable: true
+      items_count:
+        data_type: bigint
+        nullable: true
+      file_size:
+        data_type: bigint
+        nullable: true
+      created:
+        data_type: double
+        nullable: true
+      last_modified:
+        data_type: double
+        nullable: true
+      load_id:
+        data_type: text
+        nullable: true
+      extract_idx:
+        data_type: bigint
+        nullable: true
+      job_id:
+        data_type: text
+        nullable: true
+      table_name:
+        data_type: text
+        nullable: true
+      _dlt_parent_id:
+        data_type: text
+        nullable: false
+        parent_key: true
+      _dlt_list_idx:
+        data_type: bigint
+        nullable: false
+      _dlt_id:
+        data_type: text
+        nullable: false
+        unique: true
+        row_key: true
+    parent: trace__steps
+  trace__steps__extract_info__table_metrics:
+    columns:
+      file_path:
+        data_type: text
+        nullable: true
+      items_count:
+        data_type: bigint
+        nullable: true
+      file_size:
+        data_type: bigint
+        nullable: true
+      created:
+        data_type: double
+        nullable: true
+      last_modified:
+        data_type: double
+        nullable: true
+      load_id:
+        data_type: text
+        nullable: true
+      extract_idx:
+        data_type: bigint
+        nullable: true
+      table_name:
+        data_type: text
+        nullable: true
+      _dlt_parent_id:
+        data_type: text
+        nullable: false
+        parent_key: true
+      _dlt_list_idx:
+        data_type: bigint
+        nullable: false
+      _dlt_id:
+        data_type: text
+        nullable: false
+        unique: true
+        row_key: true
+    parent: trace__steps
+  trace__steps__extract_info__resource_metrics:
+    columns:
+      file_path:
+        data_type: text
+        nullable: true
+      items_count:
+        data_type: bigint
+        nullable: true
+      file_size:
+        data_type: bigint
+        nullable: true
+      created:
+        data_type: double
+        nullable: true
+      last_modified:
+        data_type: double
+        nullable: true
+      load_id:
+        data_type: text
+        nullable: true
+      extract_idx:
+        data_type: bigint
+        nullable: true
+      resource_name:
+        data_type: text
+        nullable: true
+      _dlt_parent_id:
+        data_type: text
+        nullable: false
+        parent_key: true
+      _dlt_list_idx:
+        data_type: bigint
+        nullable: false
+      _dlt_id:
+        data_type: text
+        nullable: false
+        unique: true
+        row_key: true
+    parent: trace__steps
+  trace__steps__extract_info__dag:
+    columns:
+      load_id:
+        data_type: text
+        nullable: true
+      extract_idx:
+        data_type: bigint
+        nullable: true
+      parent_name:
+        data_type: text
+        nullable: true
+      resource_name:
+        data_type: text
+        nullable: true
+      _dlt_parent_id:
+        data_type: text
+        nullable: false
+        parent_key: true
+      _dlt_list_idx:
+        data_type: bigint
+        nullable: false
+      _dlt_id:
+        data_type: text
+        nullable: false
+        unique: true
+        row_key: true
+    parent: trace__steps
+  trace__steps__extract_info__hints:
+    columns:
+      load_id:
+        data_type: text
+        nullable: true
+      extract_idx:
+        data_type: bigint
+        nullable: true
+      resource_name:
+        data_type: text
+        nullable: true
+      columns:
+        data_type: text
+        nullable: true
+      write_disposition:
+        data_type: text
+        nullable: true
+      schema_contract:
+        data_type: text
+        nullable: true
+      table_format:
+        data_type: text
+        nullable: true
+      file_format:
+        data_type: text
+        nullable: true
+      original_columns:
+        data_type: text
+        nullable: true
+      primary_key:
+        data_type: text
+        nullable: true
+      _dlt_parent_id:
+        data_type: text
+        nullable: false
+        parent_key: true
+      _dlt_list_idx:
+        data_type: bigint
+        nullable: false
+      _dlt_id:
+        data_type: text
+        nullable: false
+        unique: true
+        row_key: true
+    parent: trace__steps
+  trace__steps__step_info__loads_ids:
+    columns:
+      value:
+        data_type: text
+        nullable: true
+      _dlt_id:
+        data_type: text
+        nullable: false
+        unique: true
+        row_key: true
+      _dlt_parent_id:
+        data_type: text
+        nullable: false
+        parent_key: true
+      _dlt_list_idx:
+        data_type: bigint
+        nullable: false
+    parent: trace__steps
+  trace__steps__step_info__load_packages:
+    columns:
+      load_id:
+        data_type: text
+        nullable: true
+      package_path:
+        data_type: text
+        nullable: true
+      state:
+        data_type: text
+        nullable: true
+      schema_hash:
+        data_type: text
+        nullable: true
+      schema_name:
+        data_type: text
+        nullable: true
+      _dlt_parent_id:
+        data_type: text
+        nullable: false
+        parent_key: true
+      _dlt_list_idx:
+        data_type: bigint
+        nullable: false
+      _dlt_id:
+        data_type: text
+        nullable: false
+        unique: true
+        row_key: true
+      completed_at:
+        data_type: timestamp
+        nullable: true
+    parent: trace__steps
+  trace__steps__step_info__load_packages__jobs:
+    columns:
+      state:
+        data_type: text
+        nullable: true
+      file_path:
+        data_type: text
+        nullable: true
+      file_size:
+        data_type: bigint
+        nullable: true
+      created_at:
+        data_type: timestamp
+        nullable: true
+      elapsed:
+        data_type: double
+        nullable: true
+      table_name:
+        data_type: text
+        nullable: true
+      file_id:
+        data_type: text
+        nullable: true
+      retry_count:
+        data_type: bigint
+        nullable: true
+      file_format:
+        data_type: text
+        nullable: true
+      job_id:
+        data_type: text
+        nullable: true
+      _dlt_parent_id:
+        data_type: text
+        nullable: false
+        parent_key: true
+      _dlt_list_idx:
+        data_type: bigint
+        nullable: false
+      _dlt_id:
+        data_type: text
+        nullable: false
+        unique: true
+        row_key: true
+    parent: trace__steps__step_info__load_packages
+  trace__steps__normalize_info__job_metrics:
+    columns:
+      file_path:
+        data_type: text
+        nullable: true
+      items_count:
+        data_type: bigint
+        nullable: true
+      file_size:
+        data_type: bigint
+        nullable: true
+      created:
+        data_type: double
+        nullable: true
+      last_modified:
+        data_type: double
+        nullable: true
+      load_id:
+        data_type: text
+        nullable: true
+      extract_idx:
+        data_type: bigint
+        nullable: true
+      job_id:
+        data_type: text
+        nullable: true
+      table_name:
+        data_type: text
+        nullable: true
+      _dlt_parent_id:
+        data_type: text
+        nullable: false
+        parent_key: true
+      _dlt_list_idx:
+        data_type: bigint
+        nullable: false
+      _dlt_id:
+        data_type: text
+        nullable: false
+        unique: true
+        row_key: true
+    parent: trace__steps
+  trace__steps__normalize_info__table_metrics:
+    columns:
+      file_path:
+        data_type: text
+        nullable: true
+      items_count:
+        data_type: bigint
+        nullable: true
+      file_size:
+        data_type: bigint
+        nullable: true
+      created:
+        data_type: double
+        nullable: true
+      last_modified:
+        data_type: double
+        nullable: true
+      load_id:
+        data_type: text
+        nullable: true
+      extract_idx:
+        data_type: bigint
+        nullable: true
+      table_name:
+        data_type: text
+        nullable: true
+      _dlt_parent_id:
+        data_type: text
+        nullable: false
+        parent_key: true
+      _dlt_list_idx:
+        data_type: bigint
+        nullable: false
+      _dlt_id:
+        data_type: text
+        nullable: false
+        unique: true
+        row_key: true
+    parent: trace__steps
+  trace__steps__load_info__job_metrics:
+    columns:
+      load_id:
+        data_type: text
+        nullable: true
+      job_id:
+        data_type: text
+        nullable: true
+      file_path:
+        data_type: text
+        nullable: true
+      table_name:
+        data_type: text
+        nullable: true
+      state:
+        data_type: text
+        nullable: true
+      _dlt_parent_id:
+        data_type: text
+        nullable: false
+        parent_key: true
+      _dlt_list_idx:
+        data_type: bigint
+        nullable: false
+      _dlt_id:
+        data_type: text
+        nullable: false
+        unique: true
+        row_key: true
+      started_at:
+        data_type: timestamp
+        nullable: true
+      finished_at:
+        data_type: timestamp
+        nullable: true
+      remote_url:
+        data_type: text
+        nullable: true
+    parent: trace__steps
+  trace__steps__step_info__load_packages__tables:
+    columns:
+      write_disposition:
+        data_type: text
+        nullable: true
+      schema_contract:
+        data_type: text
+        nullable: true
+      table_format:
+        data_type: text
+        nullable: true
+      file_format:
+        data_type: text
+        nullable: true
+      name:
+        data_type: text
+        nullable: true
+      resource:
+        data_type: text
+        nullable: true
+      schema_name:
+        data_type: text
+        nullable: true
+      load_id:
+        data_type: text
+        nullable: true
+      _dlt_parent_id:
+        data_type: text
+        nullable: false
+        parent_key: true
+      _dlt_list_idx:
+        data_type: bigint
+        nullable: false
+      _dlt_id:
+        data_type: text
+        nullable: false
+        unique: true
+        row_key: true
+      parent:
+        data_type: text
+        nullable: true
+      x_normalizer__seen_data:
+        data_type: bool
+        nullable: true
+    parent: trace__steps__step_info__load_packages
+  trace__steps__step_info__load_packages__tables__columns:
+    columns:
+      name:
+        data_type: text
+        nullable: true
+      data_type:
+        data_type: text
+        nullable: true
+      precision:
+        data_type: bigint
+        nullable: true
+      scale:
+        data_type: bigint
+        nullable: true
+      timezone:
+        data_type: bool
+        nullable: true
+      nullable:
+        data_type: bool
+        nullable: true
+      variant:
+        data_type: bool
+        nullable: true
+      primary_key:
+        data_type: bool
+        nullable: true
+      table_name:
+        data_type: text
+        nullable: true
+      schema_name:
+        data_type: text
+        nullable: true
+      load_id:
+        data_type: text
+        nullable: true
+      _dlt_parent_id:
+        data_type: text
+        nullable: false
+        parent_key: true
+      _dlt_list_idx:
+        data_type: bigint
+        nullable: false
+      _dlt_id:
+        data_type: text
+        nullable: false
+        unique: true
+        row_key: true
+      unique:
+        data_type: bool
+        nullable: true
+      row_key:
+        data_type: bool
+        nullable: true
+      parent_key:
+        data_type: bool
+        nullable: true
+      root_key:
+        data_type: bool
+        nullable: true
+      merge_key:
+        data_type: bool
+        nullable: true
+      partition:
+        data_type: bool
+        nullable: true
+      cluster:
+        data_type: bool
+        nullable: true
+      sort:
+        data_type: bool
+        nullable: true
+    parent: trace__steps__step_info__load_packages__tables
+  trace__resolved_config_values:
+    columns:
+      key:
+        data_type: text
+        nullable: true
+      is_secret_hint:
+        data_type: bool
+        nullable: true
+      provider_name:
+        data_type: text
+        nullable: true
+      config_type_name:
+        data_type: text
+        nullable: true
+      _dlt_parent_id:
+        data_type: text
+        nullable: false
+        parent_key: true
+      _dlt_list_idx:
+        data_type: bigint
+        nullable: false
+      _dlt_id:
+        data_type: text
+        nullable: false
+        unique: true
+        row_key: true
+    parent: trace
+  trace__resolved_config_values__sections:
+    columns:
+      value:
+        data_type: text
+        nullable: true
+      _dlt_id:
+        data_type: text
+        nullable: false
+        unique: true
+        row_key: true
+      _dlt_parent_id:
+        data_type: text
+        nullable: false
+        parent_key: true
+      _dlt_list_idx:
+        data_type: bigint
+        nullable: false
+    parent: trace__resolved_config_values
+  trace__steps__exception_traces:
+    columns:
+      message:
+        data_type: text
+        nullable: true
+      exception_type:
+        data_type: text
+        nullable: true
+      is_terminal:
+        data_type: bool
+        nullable: true
+      docstring:
+        data_type: text
+        nullable: true
+      load_id:
+        data_type: text
+        nullable: true
+      pipeline_name:
+        data_type: text
+        nullable: true
+      exception_attrs:
+        data_type: text
+        nullable: true
+      _dlt_parent_id:
+        data_type: text
+        nullable: false
+        parent_key: true
+      _dlt_list_idx:
+        data_type: bigint
+        nullable: false
+      _dlt_id:
+        data_type: text
+        nullable: false
+        unique: true
+        row_key: true
+    parent: trace__steps
+  trace__steps__exception_traces__stack_trace:
+    columns:
+      value:
+        data_type: text
+        nullable: true
+      _dlt_id:
+        data_type: text
+        nullable: false
+        unique: true
+        row_key: true
+      _dlt_parent_id:
+        data_type: text
+        nullable: false
+        parent_key: true
+      _dlt_list_idx:
+        data_type: bigint
+        nullable: false
+    parent: trace__steps__exception_traces
+settings:
+  detections:
+  - iso_timestamp
+  default_hints:
+    not_null:
+    - _dlt_id
+    - _dlt_root_id
+    - _dlt_parent_id
+    - _dlt_list_idx
+    - _dlt_load_id
+    root_key:
+    - _dlt_root_id
+    unique:
+    - _dlt_id
+    row_key:
+    - _dlt_id
+    parent_key:
+    - _dlt_parent_id
+normalizers:
+  names: snake_case
+  json:
+    module: dlt.common.normalizers.json.relational
+previous_hashes:
+- JE62zVwqT2T/qHTi2Qdnn2d1A/JzCzyGtDwc+qUmbTs=
+- 9Ysjq/W0xpxkI/vBiYm8Qbr2nDP3JMt6KvGKUS/FCyI=
+- NYeAxJ2r+T+dKFnXFhBEPzBP6SO+ORdhOfgQRo/XqBU=
+- RV9jvZSD5dM+ZGjEL3HqokLvtf22K4zMNc3zWRahEw4=
+

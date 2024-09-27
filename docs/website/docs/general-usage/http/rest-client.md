@@ -33,7 +33,7 @@ The `RESTClient` class is initialized with the following parameters:
 - `base_url`: The root URL of the API. All requests will be made relative to this URL.
 - `headers`: Default headers to include in every request. This can be used to set common headers like `User-Agent` or other custom headers.
 - `auth`: The authentication configuration. See the [Authentication](#authentication) section for more details.
-- `paginator`: A paginator instance for handling paginated responses. See the [Paginators](#paginators) below.
+- `paginator`: A paginator instance for handling paginated responses. See the [Paginators](#paginators) section below.
 - `data_selector`: A [JSONPath selector](https://github.com/h2non/jsonpath-ng?tab=readme-ov-file#jsonpath-syntax) for extracting data from the responses. This defines a way to extract the data from the response JSON. Only used when paginating.
 - `session`: An optional session for making requests. This should be a [Requests session](https://requests.readthedocs.io/en/latest/api/#requests.Session) instance that can be used to set up custom request behavior for the client.
 
@@ -56,17 +56,15 @@ for page in client.paginate("/posts"):
 ```
 
 :::tip
-If `paginator` is not specified, the `paginate()` method will attempt to automatically detect the pagination mechanism used by the API. If the API uses a standard pagination mechanism like having a `next` link in the response's headers or JSON body, the `paginate()` method will handle this automatically. Otherwise, you can specify a paginator object explicitly or implement a custom paginator.
+If a `paginator` is not specified, the `paginate()` method will attempt to automatically detect the pagination mechanism used by the API. If the API uses a standard pagination mechanism like having a `next` link in the response's headers or JSON body, the `paginate()` method will handle this automatically. Otherwise, you can specify a paginator object explicitly or implement a custom paginator.
 :::
 
 ### Selecting data from the response
 
-When paginating through API responses, the `RESTClient` tries to automatically extract the data from the response. Sometimes though you may need to explicitly
-specify how to extract the data from the response JSON.
+When paginating through API responses, the `RESTClient` tries to automatically extract the data from the response. Sometimes, however, you may need to explicitly specify how to extract the data from the response JSON.
 
-Use `data_selector` parameter of the `RESTClient` class or the `paginate()` method to tell the client how to extract the data.
-`data_selector` is a [JSONPath](https://github.com/h2non/jsonpath-ng?tab=readme-ov-file#jsonpath-syntax) expression that points to the key in
-the JSON that contains the data to be extracted.
+Use the `data_selector` parameter of the `RESTClient` class or the `paginate()` method to tell the client how to extract the data.
+`data_selector` is a [JSONPath](https://github.com/h2non/jsonpath-ng?tab=readme-ov-file#jsonpath-syntax) expression that points to the key in the JSON that contains the data to be extracted.
 
 For example, if the API response looks like this:
 
@@ -100,7 +98,7 @@ The `data_selector` needs to be set to `"results.posts"`. Read more about [JSONP
 
 ### PageData
 
-Each `PageData` instance contains the data for a single page, along with context such as the original request and response objects, allowing for detailed inspection.. The `PageData` is a list-like object that contains the following attributes:
+Each `PageData` instance contains the data for a single page, along with context such as the original request and response objects, allowing for detailed inspection. The `PageData` is a list-like object that contains the following attributes:
 
 - `request`: The original request object.
 - `response`: The response object.
@@ -161,17 +159,15 @@ def get_data():
         yield page
 ```
 
-
 #### HeaderLinkPaginator
 
-This paginator handles pagination based on a link to the next page in the response headers (e.g., the `Link` header, as used by GitHub API).
+This paginator handles pagination based on a link to the next page in the response headers (e.g., the `Link` header, as used by the GitHub API).
 
 **Parameters:**
 
 - `links_next_key`: The relation type (rel) to identify the next page link within the Link header. Defaults to "next".
 
-Note: normally, you don't need to specify this paginator explicitly, as it is used automatically when the API returns a `Link` header. On rare occasions, you may
-need to specify the paginator when the API uses a different relation type.
+Note: Normally, you don't need to specify this paginator explicitly, as it is used automatically when the API returns a `Link` header. On rare occasions, you may need to specify the paginator when the API uses a different relation type.
 
 #### OffsetPaginator
 
@@ -184,13 +180,13 @@ need to specify the paginator when the API uses a different relation type.
 - `offset_param`: The name of the query parameter used to specify the offset. Defaults to `"offset"`.
 - `limit_param`: The name of the query parameter used to specify the limit. Defaults to `"limit"`.
 - `total_path`: A JSONPath expression for the total number of items. If not provided, pagination is controlled by `maximum_offset` and `stop_after_empty_page`.
-- `maximum_offset`: Optional maximum offset value. Limits pagination even without total count.
+- `maximum_offset`: Optional maximum offset value. Limits pagination even without a total count.
 - `stop_after_empty_page`: Whether pagination should stop when a page contains no result items. Defaults to `True`.
 
 **Example:**
 
 Assuming an API endpoint `https://api.example.com/items` supports pagination with `offset` and `limit` parameters.
-E.g. `https://api.example.com/items?offset=0&limit=100`, `https://api.example.com/items?offset=100&limit=100`, etc. And includes the total count in its responses, e.g.:
+E.g., `https://api.example.com/items?offset=0&limit=100`, `https://api.example.com/items?offset=100&limit=100`, etc., and includes the total count in its responses, e.g.:
 
 ```json
 {
@@ -224,7 +220,7 @@ client = RESTClient(
 )
 ```
 
-Additionally, you can limit pagination with `maximum_offset`, for example during development. If `maximum_offset` is reached before the first empty page then pagination stops:
+Additionally, you can limit pagination with `maximum_offset`, for example during development. If `maximum_offset` is reached before the first empty page, then pagination stops:
 
 ```py
 client = RESTClient(
@@ -237,8 +233,7 @@ client = RESTClient(
 )
 ```
 
-You can disable automatic stoppage of pagination by setting `stop_after_stop_after_empty_page = False`. In this case, you must provide either `total_path` or `maximum_offset` to guarantee that the paginator terminates.
-
+You can disable automatic stoppage of pagination by setting `stop_after_empty_page = False`. In this case, you must provide either `total_path` or `maximum_offset` to guarantee that the paginator terminates.
 
 #### PageNumberPaginator
 
@@ -287,20 +282,19 @@ client = RESTClient(
 )
 ```
 
-Additionally, you can limit pagination with `maximum_offset`, for example during development. If `maximum_page` is reached before the first empty page then pagination stops:
+Additionally, you can limit pagination with `maximum_page`, for example during development. If `maximum_page` is reached before the first empty page, then pagination stops:
 
 ```py
 client = RESTClient(
     base_url="https://api.example.com",
-    paginator=OffsetPaginator(
-        maximum_page=2,  # limits response to 2 pages
-        total_path=None,
+    paginator=PageNumberPaginator(
+        maximum_page=2,  # Limits response to 2 pages
+        total_path=None
     )
 )
 ```
 
-You can disable automatic stoppage of pagination by setting `stop_after_stop_after_empty_page = False`. In this case, you must provide either `total_path` or `maximum_page` to guarantee that the paginator terminates.
-
+You can disable automatic stoppage of pagination by setting `stop_after_empty_page = False`. In this case, you must provide either `total_path` or `maximum_page` to guarantee that the paginator terminates.
 
 #### JSONResponseCursorPaginator
 
@@ -335,17 +329,17 @@ client = RESTClient(
 
 ### Implementing a custom paginator
 
-When working with APIs that use non-standard pagination schemes, or when you need more control over the pagination process, you can implement a custom paginator by subclassing the `BasePaginator` class and implementing the methods  `init_request`, `update_state` and `update_request`.
+When working with APIs that use non-standard pagination schemes, or when you need more control over the pagination process, you can implement a custom paginator by subclassing the `BasePaginator` class and implementing the methods `init_request`, `update_state`, and `update_request`.
 
 - `init_request(request: Request) -> None`: This method is called before making the first API call in the `RESTClient.paginate` method. You can use this method to set up the initial request query parameters, headers, etc. For example, you can set the initial page number or cursor value.
 
 - `update_state(response: Response, data: Optional[List[Any]]) -> None`: This method updates the paginator's state based on the response of the API call. Typically, you extract pagination details (like the next page reference) from the response and store them in the paginator instance.
 
-- `update_request(request: Request) -> None`: Before making the next API call in `RESTClient.paginate` method, `update_request` is used to modify the request with the necessary parameters to fetch the next page (based on the current state of the paginator). For example, you can add query parameters to the request, or modify the URL.
+- `update_request(request: Request) -> None`: Before making the next API call in the `RESTClient.paginate` method, `update_request` is used to modify the request with the necessary parameters to fetch the next page (based on the current state of the paginator). For example, you can add query parameters to the request or modify the URL.
 
-#### Example 1: creating a query parameter paginator
+#### Example 1: Creating a query parameter paginator
 
-Suppose an API uses query parameters for pagination, incrementing an page parameter for each subsequent page, without providing direct links to next pages in its responses. E.g. `https://api.example.com/posts?page=1`, `https://api.example.com/posts?page=2`, etc. Here's how you could implement a paginator for this scheme:
+Suppose an API uses query parameters for pagination, incrementing a page parameter for each subsequent page, without providing direct links to the next pages in its responses. E.g., `https://api.example.com/posts?page=1`, `https://api.example.com/posts?page=2`, etc. Here's how you could implement a paginator for this scheme:
 
 ```py
 from typing import Any, List, Optional
@@ -359,7 +353,7 @@ class QueryParamPaginator(BasePaginator):
         self.page = initial_page
 
     def init_request(self, request: Request) -> None:
-        # This will set the initial page number (e.g. page=1)
+        # This will set the initial page number (e.g., page=1)
         self.update_request(request)
 
     def update_state(self, response: Response, data: Optional[List[Any]] = None) -> None:
@@ -395,9 +389,9 @@ def get_data():
 [`PageNumberPaginator`](#pagenumberpaginator) that ships with dlt does the same thing, but with more flexibility and error handling. This example is meant to demonstrate how to implement a custom paginator. For most use cases, you should use the [built-in paginators](#paginators).
 :::
 
-#### Example 2: creating a paginator for POST requests
+#### Example 2: Creating a paginator for POST requests
 
-Some APIs use POST requests for pagination, where the next page is fetched by sending a POST request with a cursor or other parameters in the request body. This is frequently used in "search" API endpoints or other endpoints with big payloads. Here's how you could implement a paginator for a case like this:
+Some APIs use POST requests for pagination, where the next page is fetched by sending a POST request with a cursor or other parameters in the request body. This is frequently used in "search" API endpoints or other endpoints with large payloads. Here's how you could implement a paginator for a case like this:
 
 ```py
 from typing import Any, List, Optional
@@ -444,15 +438,14 @@ The available authentication methods are defined in the `dlt.sources.helpers.res
 - [BearerTokenAuth](#bearer-token-authentication)
 - [APIKeyAuth](#api-key-authentication)
 - [HttpBasicAuth](#http-basic-authentication)
-- [OAuth2ClientCredentials](#oauth20-authorization)
+- [OAuth2ClientCredentials](#oauth-20-authorization)
 
 For specific use cases, you can [implement custom authentication](#implementing-custom-authentication) by subclassing the `AuthConfigBase` class from the Requests library.
-For specific flavors of OAuth 2.0 you can [implement custom OAuth 2.0](#oauth2-authorization)
-by subclassing `OAuth2ClientCredentials`.
+For specific flavors of OAuth 2.0, you can [implement custom OAuth 2.0](#oauth-20-authorization) by subclassing `OAuth2ClientCredentials`.
 
 ### Bearer token authentication
 
-Bearer Token Authentication (`BearerTokenAuth`) is an auth method where the client sends a token in the request's Authorization header (e.g. `Authorization: Bearer <token>`). The server validates this token and grants access if the token is valid.
+Bearer Token Authentication (`BearerTokenAuth`) is an auth method where the client sends a token in the request's Authorization header (e.g., `Authorization: Bearer <token>`). The server validates this token and grants access if the token is valid.
 
 **Parameters:**
 
@@ -475,7 +468,7 @@ for page in client.paginate("/protected/resource"):
 
 ### API key authentication
 
-API Key Authentication (`ApiKeyAuth`) is an auth method where the client sends an API key in a custom header (e.g. `X-API-Key: <key>`, or as a query parameter).
+API Key Authentication (`ApiKeyAuth`) is an auth method where the client sends an API key in a custom header (e.g., `X-API-Key: <key>`, or as a query parameter).
 
 **Parameters:**
 
@@ -521,15 +514,15 @@ response = client.get("/protected/resource")
 ### OAuth 2.0 authorization
 
 OAuth 2.0 is a common protocol for authorization. We have implemented two-legged authorization employed for server-to-server authorization because the end user (resource owner) does not need to grant approval.
-The REST client acts as the OAuth client which obtains a temporary access token from the authorization server. This access token is then sent to the resource server to access protected content. If the access token is expired, the OAuth client automatically refreshes it.
+The REST client acts as the OAuth client, which obtains a temporary access token from the authorization server. This access token is then sent to the resource server to access protected content. If the access token is expired, the OAuth client automatically refreshes it.
 
-Unfortunately, most OAuth 2.0 implementations vary and thus you might need to subclass `OAuth2ClientCredentials` and implement `build_access_token_request()` to suite the requirements of the specific authorization server you want to interact with.
+Unfortunately, most OAuth 2.0 implementations vary, and thus you might need to subclass `OAuth2ClientCredentials` and implement `build_access_token_request()` to suit the requirements of the specific authorization server you want to interact with.
 
 **Parameters:**
-- `access_token_url`: The url to obtain the temporary access token.
+- `access_token_url`: The URL to obtain the temporary access token.
 - `client_id`: Client credential to obtain authorization. Usually issued via a developer portal.
 - `client_secret`: Client credential to obtain authorization. Usually issued via a developer portal.
-- `access_token_request_data`: A dictionary with data required by the autorization server apart from the `client_id`, `client_secret`, and `"grant_type": "client_credentials"`. Defaults to `None`.
+- `access_token_request_data`: A dictionary with data required by the authorization server apart from the `client_id`, `client_secret`, and `"grant_type": "client_credentials"`. Defaults to `None`.
 - `default_token_expiration`: The time in seconds after which the temporary access token expires. Defaults to 3600.
 
 **Example:**
@@ -540,7 +533,7 @@ from dlt.sources.helpers.rest_client import RESTClient
 from dlt.sources.helpers.rest_client.auth import OAuth2ClientCredentials
 
 class OAuth2ClientCredentialsHTTPBasic(OAuth2ClientCredentials):
-    """Used e.g. by Zoom Zoom Video Communications, Inc."""
+    """Used e.g. by Zoom Video Communications, Inc."""
     def build_access_token_request(self) -> Dict[str, Any]:
         authentication: str = b64encode(
             f"{self.client_id}:{self.client_secret}".encode()
@@ -597,7 +590,7 @@ client = RESTClient(
 
 ## Advanced usage
 
-`RESTClient.paginate()` allows to specify a [custom hook function](https://requests.readthedocs.io/en/latest/user/advanced/#event-hooks) that can be used to modify the response objects. For example, to handle specific HTTP status codes gracefully:
+`RESTClient.paginate()` allows you to specify a [custom hook function](https://requests.readthedocs.io/en/latest/user/advanced/#event-hooks) that can be used to modify the response objects. For example, to handle specific HTTP status codes gracefully:
 
 ```py
 def custom_response_handler(response):
@@ -608,7 +601,7 @@ def custom_response_handler(response):
 client.paginate("/posts", hooks={"response": [custom_response_handler]})
 ```
 
-The handler function may raise `IgnoreResponseException` to exit the pagination loop early. This is useful for the enpoints that return a 404 status code when there are no items to paginate.
+The handler function may raise `IgnoreResponseException` to exit the pagination loop early. This is useful for endpoints that return a 404 status code when there are no items to paginate.
 
 ## Shortcut for paginating API responses
 
@@ -620,7 +613,6 @@ from dlt.sources.helpers.rest_client import paginate
 for page in paginate("https://api.example.com/posts"):
     print(page)
 ```
-
 
 ## Retry
 
@@ -641,8 +633,7 @@ request_max_retry_delay = 30  # Cap exponential delay to 30 seconds
 
 ### `RESTClient.get()` and `RESTClient.post()` methods
 
-These methods work similarly to the [get()](https://docs.python-requests.org/en/latest/api/#requests.get) and [post()](https://docs.python-requests.org/en/latest/api/#requests.post) functions
-from the Requests library. They return a [Response](https://docs.python-requests.org/en/latest/api/#requests.Response) object that contains the response data.
+These methods work similarly to the [get()](https://docs.python-requests.org/en/latest/api/#requests.get) and [post()](https://docs.python-requests.org/en/latest/api/#requests.post) functions from the Requests library. They return a [Response](https://docs.python-requests.org/en/latest/api/#requests.Response) object that contains the response data.
 You can inspect the `Response` object to get the `response.status_code`, `response.headers`, and `response.content`. For example:
 
 ```py
@@ -659,7 +650,7 @@ print(response.content)
 
 ### `RESTClient.paginate()`
 
-Debugging `paginate()` is trickier because it's a generator function that yields [`PageData`](#pagedata) objects. Here's several ways to debug the `paginate()` method:
+Debugging `paginate()` is trickier because it's a generator function that yields [`PageData`](#pagedata) objects. Here are several ways to debug the `paginate()` method:
 
 1. Enable [logging](../../running-in-production/running.md#set-the-log-level-and-format) to see detailed information about the HTTP requests:
 
@@ -702,3 +693,4 @@ for page in client.paginate(
 ):
     print(page)
 ```
+

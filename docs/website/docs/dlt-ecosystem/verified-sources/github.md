@@ -9,21 +9,20 @@ import Header from './_source-info-header.md';
 
 <Header/>
 
-This verified source can be used to load data on issues or pull requests from any GitHub repository
-onto a [destination](../../dlt-ecosystem/destinations) of your choice using [GitHub API](https://docs.github.com/en/rest?apiVersion=2022-11-28).
+This verified source can be used to load data on issues or pull requests from any GitHub repository onto a [destination](../../dlt-ecosystem/destinations) of your choice using the [GitHub API](https://docs.github.com/en/rest?apiVersion=2022-11-28).
 
 Resources that can be loaded using this verified source are:
 
 | Name             | Description                                                                      |
 | ---------------- |----------------------------------------------------------------------------------|
-| github_reactions | Retrieves all issues, pull requests, comments and reactions associated with them |
+| github_reactions | Retrieves all issues, pull requests, comments, and reactions associated with them |
 | github_repo_events      | Gets all the repo events associated with the repository                   |
 
-## Setup Guide
+## Setup guide
 
 ### Grab credentials
 
-To get the API token, sign-in to your GitHub account and follow these steps:
+To get the API token, sign in to your GitHub account and follow these steps:
 
 1. Click on your profile picture in the top right corner.
 
@@ -31,8 +30,7 @@ To get the API token, sign-in to your GitHub account and follow these steps:
 
 1. Select "Developer settings" on the left panel.
 
-1. Under "Personal access tokens", click on "Generate a personal access token (preferably under
-   Tokens(classic))".
+1. Under "Personal access tokens", click on "Generate a personal access token (preferably under Tokens(classic))".
 
 1. Grant at least the following scopes to the token by checking them.
 
@@ -42,7 +40,7 @@ To get the API token, sign-in to your GitHub account and follow these steps:
    | read:repo_hook  | Grants read and ping access to hooks in public or private repositories                  |
    | read:org        | Read-only access to organization membership, organization projects, and team membership |
    | read:user       | Grants access to read a user's profile data                                             |
-   | read:project    | Grants read only access to user and organization projects                               |
+   | read:project    | Grants read-only access to user and organization projects                               |
    | read:discussion | Allows read access for team discussions                                                 |
 
 1. Finally, click "Generate token".
@@ -52,11 +50,11 @@ To get the API token, sign-in to your GitHub account and follow these steps:
 > You can optionally add API access tokens to avoid making requests as an unauthorized user.
 > If you wish to load data using the github_reaction source, the access token is mandatory.
 
-More information you can see in the
+For more information, see the
 [GitHub authentication](https://docs.github.com/en/rest/overview/authenticating-to-the-rest-api?apiVersion=2022-11-28#basic-authentication)
 and
 [GitHub API token scopes](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/scopes-for-oauth-apps)
-documentations.
+documentation.
 
 ### Initialize the verified source
 
@@ -83,30 +81,24 @@ For more information, read the guide on [how to add a verified source](../../wal
 
 ### Add credentials
 
-1. In `.dlt/secrets.toml`, you can securely store your access tokens and other sensitive
-   information. It's important to handle this file with care and keep it safe. Here's what the file
-   looks like:
+1. In `.dlt/secrets.toml`, you can securely store your access tokens and other sensitive information. It's important to handle this file with care and keep it safe. Here's what the file looks like:
 
    ```toml
    # Put your secret values and credentials here
-   # Github access token (must be classic for reactions source)
+   # GitHub access token (must be classic for reactions source)
    [sources.github]
    access_token="please set me up!" # use GitHub access token here
    ```
 
-1. Replace the API token value with the [previously copied one](#grab-credentials) to ensure secure
-   access to your GitHub resources.
+1. Replace the API token value with the [previously copied one](#grab-credentials) to ensure secure access to your GitHub resources.
 
-1. Next, follow the [destination documentation](../../dlt-ecosystem/destinations) instructions to
-   add credentials for your chosen destination, ensuring proper routing of your data to the final
-   destination.
+1. Next, follow the [destination documentation](../../dlt-ecosystem/destinations) instructions to add credentials for your chosen destination, ensuring proper routing of your data to the final destination.
 
 For more information, read the [General Usage: Credentials.](../../general-usage/credentials)
 
 ## Run the pipeline
 
-1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
-   running the command:
+1. Before running the pipeline, ensure that you have installed all the necessary dependencies by running the command:
    ```sh
    pip install -r requirements.txt
    ```
@@ -114,25 +106,21 @@ For more information, read the [General Usage: Credentials.](../../general-usage
    ```sh
    python github_pipeline.py
    ```
-1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
-   the following command:
+1. Once the pipeline has finished running, you can verify that everything loaded correctly by using the following command:
    ```sh
    dlt pipeline <pipeline_name> show
    ```
-   For example, the `pipeline_name` for the above pipeline example is `github_reactions`, you may
-   also use any custom name instead.
+   For example, the `pipeline_name` for the above pipeline example is `github_reactions`; you may also use any custom name instead.
 
 For more information, read the guide on [how to run a pipeline](../../walkthroughs/run-a-pipeline).
 
 ## Sources and resources
 
-`dlt` works on the principle of [sources](../../general-usage/source) and
-[resources](../../general-usage/resource).
+`dlt` works on the principle of [sources](../../general-usage/source) and [resources](../../general-usage/resource).
 
 ### Source `github_reactions`
 
-This `dlt.source` function uses GraphQL to fetch DltResource objects: issues and pull requests along
-with associated reactions, comments, and reactions to comments.
+This `dlt.source` function uses GraphQL to fetch DltResource objects: issues and pull requests along with associated reactions, comments, and reactions to comments.
 
 ```py
 @dlt.source
@@ -151,21 +139,17 @@ def github_reactions(
 
 `name`: Refers to the name of the repository.
 
-`access_token`: Classic access token should be utilized and is stored in the `.dlt/secrets.toml`
-file.
+`access_token`: A classic access token should be utilized and is stored in the `.dlt/secrets.toml` file.
 
 `items_per_page`: The number of issues/pull requests to retrieve in a single page. Defaults to 100.
 
-`max_items`: The maximum number of issues/pull requests to retrieve in total. If set to None, it
-means all items will be retrieved. Defaults to None.
+`max_items`: The maximum number of issues/pull requests to retrieve in total. If set to None, it means all items will be retrieved. Defaults to None.
 
-`max_item_age_seconds`: The feature to restrict retrieval of items older than a specific duration is
-yet to be implemented. Defaults to None.
+`max_item_age_seconds`: The feature to restrict retrieval of items older than a specific duration is yet to be implemented. Defaults to None.
 
 ### Resource `_get_reactions_data` ("issues")
 
-The `dlt.resource` function employs the `_get_reactions_data` method to retrieve data about issues,
-their associated comments, and subsequent reactions.
+The `dlt.resource` function employs the `_get_reactions_data` method to retrieve data about issues, their associated comments, and subsequent reactions.
 
 ```py
 dlt.resource(
@@ -185,11 +169,9 @@ dlt.resource(
 
 ### Source `github_repo_events`
 
-This `dlt.source` fetches repository events incrementally, dispatching them to separate tables based
-on event type. It loads new events only and appends them to tables.
+This `dlt.source` fetches repository events incrementally, dispatching them to separate tables based on event type. It loads new events only and appends them to tables.
 
-> Note: Github allows retrieving up to 300 events for public repositories, so frequent updates are
-> recommended for active repos.
+> Note: GitHub allows retrieving up to 300 events for public repositories, so frequent updates are recommended for active repos.
 
 ```py
 @dlt.source(max_table_nesting=2)
@@ -203,17 +185,15 @@ def github_repo_events(
 
 `name`: Denotes the name of the repository.
 
-`access_token`: Optional classic or fine-grained access token. If not provided, calls are made
-anonymously.
+`access_token`: Optional classic or fine-grained access token. If not provided, calls are made anonymously.
 
-`max_table_nesting=2` sets the maximum nesting level of child tables to 2.
+`max_table_nesting=2` sets the maximum nesting level to 2.
 
 Read more about [nesting levels](../../general-usage/source#reduce-the-nesting-level-of-generated-tables).
 
 ### Resource `repo_events`
 
-This `dlt.resource` function serves as the resource for the `github_repo_events` source. It yields
-repository events as data items.
+This `dlt.resource` function serves as the resource for the `github_repo_events` source. It yields repository events as data items.
 
 ```py
 dlt.resource(primary_key="id", table_name=lambda i: i["type"])  # type: ignore
@@ -229,9 +209,7 @@ def repo_events(
 
 `table_name`: Routes data to appropriate tables based on the data type.
 
-`last_created_at`: This parameter determines the initial value for "last_created_at" in
-dlt.sources.incremental. If no value is given, the default "initial_value" is used. The function
-"last_value_func" determines the most recent 'created_at' value.
+`last_created_at`: This parameter determines the initial value for "last_created_at" in dlt.sources.incremental. If no value is given, the default "initial_value" is used. The function "last_value_func" determines the most recent 'created_at' value.
 
 Read more about [incremental loading](../../general-usage/incremental-loading#incremental_loading-with-last-value).
 
@@ -239,8 +217,7 @@ Read more about [incremental loading](../../general-usage/incremental-loading#in
 
 ### Create your own pipeline
 
-If you wish to create your own pipelines, you can leverage source and resource methods from this
-verified source.
+If you wish to create your own pipelines, you can leverage source and resource methods from this verified source.
 
 1. Configure the pipeline by specifying the pipeline name, destination, and dataset as follows:
 
@@ -252,18 +229,16 @@ verified source.
    )
    ```
 
-   To read more about pipeline configuration, please refer to our
-   [documentation](../../general-usage/pipeline).
+   To read more about pipeline configuration, please refer to our [documentation](../../general-usage/pipeline).
 
-1. To load all the data from repo on issues, pull requests, their comments and reactions, you can do
-   the following:
+1. To load all the data from the repo on issues, pull requests, their comments, and reactions, you can do the following:
 
    ```py
    load_data = github_reactions("duckdb", "duckdb")
    load_info = pipeline.run(load_data)
    print(load_info)
    ```
-   here, "duckdb" is the owner of the repository and the name of the repository.
+   Here, "duckdb" is the owner of the repository and the name of the repository.
 
 1. To load only the first 100 issues, you can do the following:
 
@@ -273,8 +248,7 @@ verified source.
    print(load_info)
    ```
 
-1. You can use fetch and process repo events data incrementally. It loads all data during the first
-   run and incrementally in subsequent runs.
+1. You can fetch and process repo events data incrementally. It loads all data during the first run and incrementally in subsequent runs.
 
    ```py
    load_data = github_repo_events(
@@ -287,3 +261,4 @@ verified source.
    It is optional to use `access_token` or make anonymous API calls.
 
 <!--@@@DLT_TUBA github-->
+

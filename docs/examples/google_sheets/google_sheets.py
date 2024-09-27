@@ -100,6 +100,3 @@ if __name__ == "__main__":
     print(row_counts.keys())
     assert row_counts["hidden_columns_merged_cells"] == 7
     assert row_counts["blank_columns"] == 21
-
-    # make sure nothing failed
-    load_info.raise_on_failed_jobs()

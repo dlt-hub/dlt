@@ -28,6 +28,7 @@ from .azure_credentials import (
     AnyAzureCredentials,
 )
 
+from .sftp_crendentials import SFTPCredentials
 
 # backward compatibility for service account credentials
 from .gcp_credentials import (
@@ -62,4 +63,5 @@ __all__ = [
     "AnyAzureCredentials",
     "GcpClientCredentials",
     "GcpClientCredentialsWithDefault",
+    "SFTPCredentials",
 ]

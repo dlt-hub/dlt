@@ -23,6 +23,7 @@ env:
   RUNTIME__DLTHUB_TELEMETRY_ENDPOINT: ${{ secrets.RUNTIME__DLTHUB_TELEMETRY_ENDPOINT }}
 
   ACTIVE_DESTINATIONS: "[\"filesystem\"]"
+  ALL_FILESYSTEM_DRIVERS: "[\"memory\", \"file\", \"r2\", \"s3\", \"gs\", \"az\", \"abfss\", \"gdrive\"]" #excludes sftp
 
 jobs:
   get_docs_changes:
@@ -72,6 +73,7 @@ jobs:
       - name: create secrets.toml
         run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
 
-      - run: |
-          poetry run pytest tests/libs tests/load -m needspyarrow17
-        name: Run needspyarrow17 tests Linux
+      - name: Run needspyarrow17 tests Linux
+        run: |
+          poetry run pytest tests/libs -m "needspyarrow17"
+          poetry run pytest tests/load -m "needspyarrow17"

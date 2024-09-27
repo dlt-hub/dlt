@@ -52,7 +52,7 @@ def assert_table(
         "_dlt_id",
         "_dlt_load_id",
         dlt.config.get("destination.lancedb.credentials.id_field_name", str) or "id__",
-        dlt.config.get("destination.lancedb.credentials.vector_field_name", str) or "vector__",
+        dlt.config.get("destination.lancedb.credentials.vector_field_name", str) or "vector",
     ]
     objects_without_dlt_or_special_keys = [
         {k: v for k, v in record.items() if k not in drop_keys} for record in records

@@ -232,7 +232,7 @@ class DltSource(Iterable[TDataItem]):
 
     @property
     def root_key(self) -> bool:
-        """Enables merging on all resources by propagating root foreign key to child tables. This option is most useful if you plan to change write disposition of a resource to disable/enable merge"""
+        """Enables merging on all resources by propagating root foreign key to nested tables. This option is most useful if you plan to change write disposition of a resource to disable/enable merge"""
         # this also check the normalizer type
         config = RelationalNormalizer.get_normalizer_config(self._schema).get("propagation")
         data_normalizer = self._schema.data_item_normalizer

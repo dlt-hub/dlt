@@ -12,7 +12,7 @@ We'll use the [GitHub API](https://docs.github.com/en/rest) to fetch the events 
 1. Install dlt with duckdb support:
 
 ```sh
-pip install dlt[duckdb]
+pip install "dlt[duckdb]"
 ```
 
 2. Create a new a new file `github_events_dispatch.py` and paste the following code:
@@ -86,7 +86,7 @@ dlt pipeline -v github_events show
 ```
 
 :::tip
-Some of the events produce tables with really many child tables. You can [control the level of table nesting](general-usage/source.md#reduce-the-nesting-level-of-generated-tables) with a decorator.
+Some of the events produce tables with really many nested tables. You can [control the level of table nesting](general-usage/source.md#reduce-the-nesting-level-of-generated-tables) with a decorator.
 
 
 Another fun [Colab Demo](https://colab.research.google.com/drive/1BXvma_9R9MX8p_iSvHE4ebg90sUroty2#scrollTo=a3OcZolbaWGf) - we analyze reactions on duckdb repo!

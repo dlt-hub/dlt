@@ -1,7 +1,7 @@
 import dataclasses
 from typing import Any, ClassVar, Dict, List, Optional, Union
 
-from dlt.common.libs.sql_alchemy import URL, make_url
+from dlt.common.libs.sql_alchemy_shims import URL, make_url
 from dlt.common.configuration.specs.exceptions import InvalidConnectionString
 from dlt.common.typing import TSecretValue
 from dlt.common.configuration.specs.base_configuration import CredentialsConfiguration, configspec
@@ -10,14 +10,20 @@ from dlt.common.configuration.specs.base_configuration import CredentialsConfigu
 @configspec
 class ConnectionStringCredentials(CredentialsConfiguration):
     drivername: str = dataclasses.field(default=None, init=False, repr=False, compare=False)
-    database: str = None
+    database: Optional[str] = None
     password: Optional[TSecretValue] = None
-    username: str = None
+    username: Optional[str] = None
     host: Optional[str] = None
     port: Optional[int] = None
     query: Optional[Dict[str, Any]] = None
 
-    __config_gen_annotations__: ClassVar[List[str]] = ["port", "password", "host"]
+    __config_gen_annotations__: ClassVar[List[str]] = [
+        "database",
+        "port",
+        "username",
+        "password",
+        "host",
+    ]
 
     def __init__(self, connection_string: Union[str, Dict[str, Any]] = None) -> None:
         """Initializes the credentials from SQLAlchemy like connection string or from dict holding connection string elements"""

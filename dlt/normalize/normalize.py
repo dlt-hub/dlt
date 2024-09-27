@@ -4,10 +4,10 @@ from typing import List, Dict, Sequence, Optional, Callable
 from concurrent.futures import Future, Executor
 
 from dlt.common import logger
+from dlt.common.metrics import DataWriterMetrics
 from dlt.common.runtime.signals import sleep
 from dlt.common.configuration import with_config, known_sections
 from dlt.common.configuration.accessors import config
-from dlt.common.data_writers import DataWriterMetrics
 from dlt.common.data_writers.writers import EMPTY_DATA_WRITER_METRICS
 from dlt.common.runners import TRunMetrics, Runnable, NullExecutor
 from dlt.common.runtime import signals
@@ -34,7 +34,7 @@ from dlt.common.storages.load_package import LoadPackageInfo
 from dlt.normalize.configuration import NormalizeConfiguration
 from dlt.normalize.exceptions import NormalizeJobFailed
 from dlt.normalize.worker import w_normalize_files, group_worker_files, TWorkerRV
-from dlt.normalize.schema import verify_normalized_schema
+from dlt.normalize.validate import verify_normalized_table
 
 
 # normalize worker wrapping function signature
@@ -185,6 +185,7 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
         # update normalizer specific info
         for table_name in table_metrics:
             table = schema.tables[table_name]
+            verify_normalized_table(schema, table, self.config.destination_capabilities)
             x_normalizer = table.setdefault("x-normalizer", {})
             # drop evolve once for all tables that seen data
             x_normalizer.pop("evolve-columns-once", None)
@@ -196,7 +197,6 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
                 x_normalizer["seen-data"] = True
         # schema is updated, save it to schema volume
         if schema.is_modified:
-            verify_normalized_schema(schema)
             logger.info(
                 f"Saving schema {schema.name} with version {schema.stored_version}:{schema.version}"
             )
@@ -297,11 +297,17 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
             with self.collector(f"Normalize {schema.name} in {load_id}"):
                 self.collector.update("Files", 0, len(schema_files))
                 self.collector.update("Items", 0)
+                # self.verify_package(load_id, schema, schema_files)
                 self._step_info_start_load_id(load_id)
                 self.spool_schema_files(load_id, schema, schema_files)
 
         # return info on still pending packages (if extractor saved something in the meantime)
         return TRunMetrics(False, len(self.normalize_storage.extracted_packages.list_packages()))
+
+    # def verify_package(self, load_id, schema: Schema, schema_files: Sequence[str]) -> None:
+    #     """Verifies package schema and jobs against destination capabilities"""
+    #     # get all tables in schema files
+    #     table_names = set(ParsedLoadJobFileName.parse(job).table_name for job in schema_files)
 
     def get_load_package_info(self, load_id: str) -> LoadPackageInfo:
         """Returns information on extracted/normalized/completed package with given load_id, all jobs and their statuses."""

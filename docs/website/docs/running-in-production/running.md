@@ -259,9 +259,19 @@ def check(ex: Exception):
 
 ### Failed jobs
 
-If any job in the package **fail terminally** it will be moved to `failed_jobs` folder and assigned
-such status. By default **no exception is raised** and other jobs will be processed and completed.
-You may inspect if the failed jobs are present by checking the load info as follows:
+If any job in the package **fails terminally** it will be moved to `failed_jobs` folder and assigned
+such status.
+By default, **an exceptions is raised** and on the first failed job, the load package will be aborted with `LoadClientJobFailed` (terminal exception).
+Such package will be completed but its load id is not added to the `_dlt_loads` table.
+All the jobs that were running in parallel are completed before raising. The dlt state, if present, will not be visible to `dlt`.
+Here is an example `config.toml` to disable this behavior:
+
+```toml
+# I hope you know what you are doing by setting this to false
+load.raise_on_failed_jobs=false
+```
+
+If you prefer dlt to to not raise a terminal exception on failed jobs then you can manually check for failed jobs and raise an exception by checking the load info as follows:
 
 ```py
 # returns True if there are failed jobs in any of the load packages
@@ -270,17 +280,19 @@ print(load_info.has_failed_jobs)
 load_info.raise_on_failed_jobs()
 ```
 
-You may also abort the load package with `LoadClientJobFailed` (terminal exception) on a first
-failed job. Such package is immediately moved to completed but its load id is not added to the
-`_dlt_loads` table. All the jobs that were running in parallel are completed before raising. The dlt
-state, if present, will not be visible to `dlt`. Here's example `config.toml` to enable this option:
+:::caution
+Note that certain write dispositions will irreversibly modify your data
+1. `replace` write disposition with the default `truncate-and-insert` [strategy](../general-usage/full-loading.md) will truncate tables before loading.
+2. `merge` write disposition will merge staging dataset tables into the destination dataset. This will happen only when all data for this table (and nested tables) got loaded.
 
-```toml
-# you should really load just one job at a time to get the deterministic behavior
-load.workers=1
-# I hope you know what you are doing by setting this to true
-load.raise_on_failed_jobs=true
-```
+Here's what you can do to deal with partially loaded packages:
+1. Retry the load step in case of transient errors
+2. Use replace strategy with staging dataset so replace happens only when data for the table (and all nested tables) was fully loaded and is atomic operation (if possible)
+3. Use only "append" write disposition. When your load package fails you are able to use `_dlt_load_id` to remove all unprocessed data.
+4. Use "staging append" (`merge` disposition without primary key and merge key defined).
+
+:::
+
 
 ### What `run` does inside
 

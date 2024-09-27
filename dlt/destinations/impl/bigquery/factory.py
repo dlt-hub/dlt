@@ -1,15 +1,89 @@
 import typing as t
 
+from dlt.common.destination.typing import PreparedTableSchema
+from dlt.common.exceptions import TerminalValueError
 from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.configuration.specs import GcpServiceAccountCredentials
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 from dlt.common.data_writers.escape import escape_hive_identifier, format_bigquery_datetime_literal
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
+from dlt.common.schema.typing import TColumnSchema, TColumnType
+from dlt.common.typing import TLoaderFileFormat
 
+from dlt.destinations.type_mapping import TypeMapperImpl
+from dlt.destinations.impl.bigquery.bigquery_adapter import should_autodetect_schema
 from dlt.destinations.impl.bigquery.configuration import BigQueryClientConfiguration
+from dlt.destinations.utils import parse_db_data_type_str_with_precision
+
 
 if t.TYPE_CHECKING:
     from dlt.destinations.impl.bigquery.bigquery import BigQueryClient
+
+
+class BigQueryTypeMapper(TypeMapperImpl):
+    sct_to_unbound_dbt = {
+        "json": "JSON",
+        "text": "STRING",
+        "double": "FLOAT64",
+        "bool": "BOOL",
+        "date": "DATE",
+        "timestamp": "TIMESTAMP",
+        "bigint": "INT64",
+        "binary": "BYTES",
+        "wei": "BIGNUMERIC",  # non-parametrized should hold wei values
+        "time": "TIME",
+    }
+
+    sct_to_dbt = {
+        "text": "STRING(%i)",
+        "binary": "BYTES(%i)",
+    }
+
+    dbt_to_sct = {
+        "STRING": "text",
+        "FLOAT64": "double",
+        "BOOL": "bool",
+        "DATE": "date",
+        "TIMESTAMP": "timestamp",
+        "INT64": "bigint",
+        "BYTES": "binary",
+        "NUMERIC": "decimal",
+        "BIGNUMERIC": "decimal",
+        "JSON": "json",
+        "TIME": "time",
+    }
+
+    def ensure_supported_type(
+        self,
+        column: TColumnSchema,
+        table: PreparedTableSchema,
+        loader_file_format: TLoaderFileFormat,
+    ) -> None:
+        # if table contains json types, we cannot load with parquet
+        if (
+            loader_file_format == "parquet"
+            and column["data_type"] == "json"
+            and not should_autodetect_schema(table)
+        ):
+            raise TerminalValueError(
+                "Enable autodetect_schema in config or via BigQuery adapter", column["data_type"]
+            )
+
+    def to_db_decimal_type(self, column: TColumnSchema) -> str:
+        # Use BigQuery's BIGNUMERIC for large precision decimals
+        precision, scale = self.decimal_precision(column.get("precision"), column.get("scale"))
+        if precision > 38 or scale > 9:
+            return "BIGNUMERIC(%i,%i)" % (precision, scale)
+        return "NUMERIC(%i,%i)" % (precision, scale)
+
+    # noinspection PyTypeChecker,PydanticTypeChecker
+    def from_destination_type(
+        self, db_type: str, precision: t.Optional[int], scale: t.Optional[int]
+    ) -> TColumnType:
+        # precision is present in the type name
+        if db_type == "BIGNUMERIC":
+            return dict(data_type="wei")
+        return super().from_destination_type(*parse_db_data_type_str_with_precision(db_type))
 
 
 # noinspection PyPep8Naming
@@ -22,6 +96,7 @@ class bigquery(Destination[BigQueryClientConfiguration, "BigQueryClient"]):
         caps.supported_loader_file_formats = ["jsonl", "parquet"]
         caps.preferred_staging_file_format = "parquet"
         caps.supported_staging_file_formats = ["parquet", "jsonl"]
+        caps.type_mapper = BigQueryTypeMapper
         # BigQuery is by default case sensitive but that cannot be turned off for a dataset
         # https://cloud.google.com/bigquery/docs/reference/standard-sql/lexical#case_sensitivity
         caps.escape_identifier = escape_hive_identifier
@@ -43,6 +118,11 @@ class bigquery(Destination[BigQueryClientConfiguration, "BigQueryClient"]):
         caps.supports_clone_table = True
         caps.schema_supports_numeric_precision = False  # no precision information in BigQuery
         caps.supported_merge_strategies = ["delete-insert", "upsert", "scd2"]
+        caps.supported_replace_strategies = [
+            "truncate-and-insert",
+            "insert-from-staging",
+            "staging-optimized",
+        ]
 
         return caps
 

@@ -5,9 +5,14 @@ from textwrap import dedent
 from urllib.parse import urlparse, urlunparse
 
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.reference import SupportsStagingDestination, FollowupJob, LoadJob
+from dlt.common.destination.reference import (
+    PreparedTableSchema,
+    SupportsStagingDestination,
+    FollowupJobRequest,
+    LoadJob,
+)
 
-from dlt.common.schema import TTableSchema, TColumnSchema, Schema, TColumnHint
+from dlt.common.schema import TColumnSchema, Schema, TColumnHint
 from dlt.common.schema.utils import (
     table_schema_has_type,
     get_inherited_table_hint,
@@ -19,16 +24,15 @@ from dlt.common.configuration.specs import (
     AzureServicePrincipalCredentialsWithoutDefaults,
 )
 
-from dlt.destinations.job_impl import ReferenceFollowupJob
+from dlt.destinations.impl.mssql.factory import MsSqlTypeMapper
+from dlt.destinations.job_impl import ReferenceFollowupJobRequest
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.job_client_impl import (
     SqlJobClientBase,
     CopyRemoteFileLoadJob,
 )
-from dlt.destinations.exceptions import LoadJobTerminalException
 
 from dlt.destinations.impl.mssql.mssql import (
-    MsSqlTypeMapper,
     MsSqlJobClient,
     VARCHAR_MAX_N,
     VARBINARY_MAX_N,
@@ -76,10 +80,16 @@ class SynapseClient(MsSqlJobClient, SupportsStagingDestination):
     def _get_table_update_sql(
         self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
     ) -> List[str]:
-        table = self.prepare_load_table(table_name, staging=self.in_staging_mode)
+        table = self.prepare_load_table(table_name)
+        if self.in_staging_dataset_mode and self.config.replace_strategy == "insert-from-staging":
+            # Staging tables should always be heap tables, because "when you are
+            # temporarily landing data in dedicated SQL pool, you may find that
+            # using a heap table makes the overall process faster."
+            table[TABLE_INDEX_TYPE_HINT] = "heap"  # type: ignore[typeddict-unknown-key]
+
         table_index_type = cast(TTableIndexType, table.get(TABLE_INDEX_TYPE_HINT))
-        if self.in_staging_mode:
-            final_table = self.prepare_load_table(table_name, staging=False)
+        if self.in_staging_dataset_mode:
+            final_table = self.prepare_load_table(table_name)
             final_table_index_type = cast(TTableIndexType, final_table.get(TABLE_INDEX_TYPE_HINT))
         else:
             final_table_index_type = table_index_type
@@ -130,18 +140,13 @@ class SynapseClient(MsSqlJobClient, SupportsStagingDestination):
         return c
 
     def _create_replace_followup_jobs(
-        self, table_chain: Sequence[TTableSchema]
-    ) -> List[FollowupJob]:
+        self, table_chain: Sequence[PreparedTableSchema]
+    ) -> List[FollowupJobRequest]:
         return SqlJobClientBase._create_replace_followup_jobs(self, table_chain)
 
-    def prepare_load_table(self, table_name: str, staging: bool = False) -> TTableSchema:
-        table = super().prepare_load_table(table_name, staging)
-        if staging and self.config.replace_strategy == "insert-from-staging":
-            # Staging tables should always be heap tables, because "when you are
-            # temporarily landing data in dedicated SQL pool, you may find that
-            # using a heap table makes the overall process faster."
-            table[TABLE_INDEX_TYPE_HINT] = "heap"  # type: ignore[typeddict-unknown-key]
-        elif table_name in self.schema.dlt_table_names():
+    def prepare_load_table(self, table_name: str) -> PreparedTableSchema:
+        table = super().prepare_load_table(table_name)
+        if table_name in self.schema.dlt_table_names():
             # dlt tables should always be heap tables, because "for small lookup
             # tables, less than 60 million rows, consider using HEAP or clustered
             # index for faster query performance."
@@ -159,11 +164,11 @@ class SynapseClient(MsSqlJobClient, SupportsStagingDestination):
         return table
 
     def create_load_job(
-        self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
+        self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
         job = super().create_load_job(table, file_path, load_id, restore)
         if not job:
-            assert ReferenceFollowupJob.is_reference_job(
+            assert ReferenceFollowupJobRequest.is_reference_job(
                 file_path
             ), "Synapse must use staging to load files"
             job = SynapseCopyFileLoadJob(
@@ -172,6 +177,9 @@ class SynapseClient(MsSqlJobClient, SupportsStagingDestination):
                 self.config.staging_use_msi,
             )
         return job
+
+    def should_truncate_table_before_load_on_staging_destination(self, table_name: str) -> bool:
+        return self.config.truncate_tables_on_staging_destination_before_load
 
 
 class SynapseCopyFileLoadJob(CopyRemoteFileLoadJob):
@@ -191,15 +199,6 @@ class SynapseCopyFileLoadJob(CopyRemoteFileLoadJob):
         # get format
         ext = os.path.splitext(self._bucket_path)[1][1:]
         if ext == "parquet":
-            if table_schema_has_type(self._load_table, "time"):
-                # Synapse interprets Parquet TIME columns as bigint, resulting in
-                # an incompatibility error.
-                raise LoadJobTerminalException(
-                    self.file_name(),
-                    "Synapse cannot load TIME columns from Parquet files. Switch to direct INSERT"
-                    " file format or convert `datetime.time` objects in your data to `str` or"
-                    " `datetime.datetime`",
-                )
             file_type = "PARQUET"
 
             # dlt-generated DDL statements will still create the table, but

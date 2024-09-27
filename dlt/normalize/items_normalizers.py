@@ -3,13 +3,18 @@ from abc import abstractmethod
 
 from dlt.common import logger
 from dlt.common.json import json
-from dlt.common.data_writers import DataWriterMetrics
 from dlt.common.data_writers.writers import ArrowToObjectAdapter
 from dlt.common.json import custom_pua_decode, may_have_pua
+from dlt.common.metrics import DataWriterMetrics
 from dlt.common.normalizers.json.relational import DataItemNormalizer as RelationalNormalizer
 from dlt.common.runtime import signals
-from dlt.common.schema.typing import TSchemaEvolutionMode, TTableSchemaColumns, TSchemaContractDict
-from dlt.common.schema.utils import has_table_seen_data
+from dlt.common.schema.typing import (
+    C_DLT_ID,
+    TSchemaEvolutionMode,
+    TTableSchemaColumns,
+    TSchemaContractDict,
+)
+from dlt.common.schema.utils import dlt_id_column, has_table_seen_data
 from dlt.common.storages import NormalizeStorage
 from dlt.common.storages.data_item_storage import DataItemStorage
 from dlt.common.storages.load_package import ParsedLoadJobFileName
@@ -242,10 +247,9 @@ class ArrowItemsNormalizer(ItemsNormalizer):
             table_update = schema.update_table(
                 {
                     "name": root_table_name,
-                    "columns": {
-                        "_dlt_id": {"name": "_dlt_id", "data_type": "text", "nullable": False}
-                    },
-                }
+                    "columns": {C_DLT_ID: dlt_id_column()},
+                },
+                normalize_identifiers=True,
             )
             table_updates = schema_update.setdefault(root_table_name, [])
             table_updates.append(table_update)
@@ -316,7 +320,8 @@ class ArrowItemsNormalizer(ItemsNormalizer):
         new_cols: TTableSchemaColumns = {}
         for key, column in table["columns"].items():
             if column.get("data_type") in ("timestamp", "time"):
-                if prec := column.get("precision"):
+                prec = column.get("precision")
+                if prec is not None:
                     # apply the arrow schema precision to dlt column schema
                     data_type = pyarrow.get_column_type_from_py_arrow(arrow_schema.field(key).type)
                     if data_type["data_type"] in ("timestamp", "time"):

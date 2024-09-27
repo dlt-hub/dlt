@@ -4,12 +4,12 @@ from dlt.common import logger
 from dlt.common.configuration.container import Container
 from dlt.common.data_writers import (
     DataWriter,
-    DataWriterMetrics,
     create_import_spec,
     resolve_best_writer_spec,
     get_best_writer_spec,
     is_native_writer,
 )
+from dlt.common.metrics import DataWriterMetrics
 from dlt.common.utils import chunks
 from dlt.common.schema.typing import TStoredSchema, TTableSchema
 from dlt.common.storages import (
@@ -73,7 +73,6 @@ def w_normalize_files(
     )
     # TODO: capabilities.supported_*_formats can be None, it should have defaults
     supported_file_formats = destination_caps.supported_loader_file_formats or []
-    supported_table_formats = destination_caps.supported_table_formats or []
 
     # process all files with data items and write to buffered item storage
     with Container().injectable_context(destination_caps):
@@ -90,21 +89,11 @@ def w_normalize_files(
             if table_name in item_normalizers:
                 return item_normalizers[table_name]
 
-            if (
-                "table_format" in table_schema
-                and table_schema["table_format"] not in supported_table_formats
-            ):
-                logger.warning(
-                    "Destination does not support the configured `table_format` value "
-                    f"`{table_schema['table_format']}` for table `{table_schema['name']}`. "
-                    "The setting will probably be ignored."
-                )
-
             items_preferred_file_format = preferred_file_format
             items_supported_file_formats = supported_file_formats
-            if destination_caps.loader_file_format_adapter is not None:
+            if destination_caps.loader_file_format_selector is not None:
                 items_preferred_file_format, items_supported_file_formats = (
-                    destination_caps.loader_file_format_adapter(
+                    destination_caps.loader_file_format_selector(
                         preferred_file_format,
                         (
                             supported_file_formats.copy()
@@ -233,9 +222,10 @@ def w_normalize_files(
                     parsed_file_name.table_name
                 )
                 root_tables.add(root_table_name)
+                root_table = stored_schema["tables"].get(root_table_name, {"name": root_table_name})
                 normalizer = _get_items_normalizer(
                     parsed_file_name,
-                    stored_schema["tables"].get(root_table_name, {"name": root_table_name}),
+                    root_table,
                 )
                 logger.debug(
                     f"Processing extracted items in {extracted_items_file} in load_id"

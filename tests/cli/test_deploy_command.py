@@ -19,7 +19,7 @@ from dlt.cli.exceptions import CliCommandException
 from dlt.pipeline.exceptions import CannotRestorePipelineException
 from dlt.cli.deploy_command_helpers import get_schedule_description
 
-from tests.utils import TEST_STORAGE_ROOT, test_storage
+from tests.utils import TEST_STORAGE_ROOT, reset_providers, test_storage
 
 
 DEPLOY_PARAMS = [
@@ -134,28 +134,34 @@ def test_deploy_command(
             test_storage.delete(".dlt/secrets.toml")
             test_storage.atomic_rename(".dlt/secrets.toml.ci", ".dlt/secrets.toml")
 
-            # this time script will run
-            venv.run_script("debug_pipeline.py")
-            with echo.always_choose(False, always_choose_value=True):
-                with io.StringIO() as buf, contextlib.redirect_stdout(buf):
-                    deploy_command.deploy_command(
-                        "debug_pipeline.py",
-                        deployment_method,
-                        deploy_command.COMMAND_DEPLOY_REPO_LOCATION,
-                        **deployment_args
-                    )
-                    _out = buf.getvalue()
-                print(_out)
-                # make sure our secret and config values are all present
-                assert "api_key_9x3ehash" in _out
-                assert "dlt_data" in _out
-                if "schedule" in deployment_args:
-                    assert get_schedule_description(deployment_args["schedule"])
-                secrets_format = deployment_args.get("secrets_format", "env")
-                if secrets_format == "env":
-                    assert "API_KEY" in _out
-                else:
-                    assert "api_key = " in _out
+            # reset toml providers to (1) CWD (2) non existing dir so API_KEY is not found
+            for project_dir, api_key in [
+                (None, "api_key_9x3ehash"),
+                (".", "please set me up!"),
+            ]:
+                with reset_providers(project_dir=project_dir):
+                    # this time script will run
+                    venv.run_script("debug_pipeline.py")
+                    with echo.always_choose(False, always_choose_value=True):
+                        with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+                            deploy_command.deploy_command(
+                                "debug_pipeline.py",
+                                deployment_method,
+                                deploy_command.COMMAND_DEPLOY_REPO_LOCATION,
+                                **deployment_args
+                            )
+                            _out = buf.getvalue()
+                        print(_out)
+                        # make sure our secret and config values are all present
+                        assert api_key in _out
+                        assert "dlt_data" in _out
+                        if "schedule" in deployment_args:
+                            assert get_schedule_description(deployment_args["schedule"])
+                        secrets_format = deployment_args.get("secrets_format", "env")
+                        if secrets_format == "env":
+                            assert "API_KEY" in _out
+                        else:
+                            assert "api_key = " in _out
 
             # non existing script name
             with pytest.raises(NoSuchPathError):

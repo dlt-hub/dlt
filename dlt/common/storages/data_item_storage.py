@@ -1,14 +1,13 @@
-from pathlib import Path
-from typing import Dict, Any, List, Sequence
+from typing import Dict, Any, List
 from abc import ABC, abstractmethod
 
 from dlt.common import logger
+from dlt.common.metrics import DataWriterMetrics
 from dlt.common.schema import TTableSchemaColumns
-from dlt.common.typing import StrAny, TDataItems
+from dlt.common.typing import TDataItems
 from dlt.common.data_writers import (
     BufferedDataWriter,
     DataWriter,
-    DataWriterMetrics,
     FileWriterSpec,
 )
 

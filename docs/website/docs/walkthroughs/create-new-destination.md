@@ -129,15 +129,15 @@ You must map `dlt` data types to destination data types. For this you can implem
 * the database types must be exactly those as used in `INFORMATION_SCHEMA.COLUMNS`
 * decimal precision and scale are filled from the capabilities (in all our implementations)
 * until now all destinations could handle binary types
-* we always try to map the `complex` type into `JSON` type in the destination. if that does not work you can try mapping into a string. See how we do that for various destinations.
-* the reverse mapping of types is sometimes tricky ie. you may not able to detect complex types (your destination lacks JSON support). this is not really needed during schema updates and loading (just for testing) so in general you should be fine.
+* we always try to map the `json` type into `JSON` type in the destination. if that does not work you can try mapping into a string. See how we do that for various destinations.
+* the reverse mapping of types is sometimes tricky ie. you may not able to detect nested types (your destination lacks JSON support). this is not really needed during schema updates and loading (just for testing) so in general you should be fine.
 
 ### Table and column hints
 You can map hints present for tables and columns (ie. `cluster`, `sort`, `partition`) to generate specific DDL for columns and tables. See `_get_column_def_sql` in various destinations.
 You can also add hints (ie indexes, partition clauses) to tables via `_get_table_update_sql` - see `BigQuery` implementation for a good example.
 
 ### Participate in staging dataset merge and replace
-`dlt` supports merging and transactional replace via **staging dataset** living along the destination dataset. `SqlJobClientBase` participates in this mechanism by default. In essence: each time when a job is completed, `dlt` checks which table got updated and if there are no remaining jobs for that table and its child and parent tables (all together called **table chain**). If table chain is fully loaded, `dlt` executes SQL transformations that move/merge data from staging dataset to destination dataset (that, as you can expect, happens also via jobs, of type `sql` that are dynamically created).
+`dlt` supports merging and transactional replace via **staging dataset** living along the destination dataset. `SqlJobClientBase` participates in this mechanism by default. In essence: each time when a job is completed, `dlt` checks which table got updated and if there are no remaining jobs for that table and its nested and root tables (all together called **table chain**). If table chain is fully loaded, `dlt` executes SQL transformations that move/merge data from staging dataset to destination dataset (that, as you can expect, happens also via jobs, of type `sql` that are dynamically created).
 
 Generated SQL is quite simple and we were able to run it on all existing destinations (we may introduce `sqlglot` to handle future cases). The SQL used requires:
 - SELECT, INSERT, DELETE/TRUNCATE statements

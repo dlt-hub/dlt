@@ -1,6 +1,6 @@
 import dataclasses
 from typing import Final, ClassVar, Any, List, Dict
-from dlt.common.libs.sql_alchemy import URL
+from dlt.common.libs.sql_alchemy_shims import URL
 
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ConnectionStringCredentials
@@ -14,6 +14,8 @@ from dlt.common.destination.reference import DestinationClientDwhWithStagingConf
 @configspec(init=False)
 class MsSqlCredentials(ConnectionStringCredentials):
     drivername: Final[str] = dataclasses.field(default="mssql", init=False, repr=False, compare=False)  # type: ignore
+    database: str = None
+    username: str = None
     password: TSecretValue = None
     host: str = None
     port: int = 1433

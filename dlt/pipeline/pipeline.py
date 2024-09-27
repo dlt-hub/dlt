@@ -42,6 +42,7 @@ from dlt.common.runtime import signals, initialize_runtime
 from dlt.common.schema.typing import (
     TColumnNames,
     TSchemaTables,
+    TTableFormat,
     TWriteDispositionConfig,
     TAnySchemaColumns,
     TSchemaContract,
@@ -68,7 +69,7 @@ from dlt.common.destination import (
     DestinationCapabilitiesContext,
     merge_caps_file_formats,
     TDestination,
-    ALL_SUPPORTED_FILE_FORMATS,
+    LOADER_FILE_FORMATS,
     TLoaderFileFormat,
 )
 from dlt.common.destination.reference import (
@@ -256,13 +257,17 @@ def with_runtime_trace(send_state: bool = False) -> Callable[[TFun], TFun]:
     return decorator
 
 
-def with_config_section(sections: Tuple[str, ...]) -> Callable[[TFun], TFun]:
+def with_config_section(
+    sections: Tuple[str, ...], merge_func: ConfigSectionContext.TMergeFunc = None
+) -> Callable[[TFun], TFun]:
     def decorator(f: TFun) -> TFun:
         @wraps(f)
         def _wrap(self: "Pipeline", *args: Any, **kwargs: Any) -> Any:
             # add section context to the container to be used by all configuration without explicit sections resolution
             with inject_section(
-                ConfigSectionContext(pipeline_name=self.pipeline_name, sections=sections)
+                ConfigSectionContext(
+                    pipeline_name=self.pipeline_name, sections=sections, merge_style=merge_func
+                )
             ):
                 return f(self, *args, **kwargs)
 
@@ -401,6 +406,7 @@ class Pipeline(SupportsPipeline):
         schema: Schema = None,
         max_parallel_items: int = ConfigValue,
         workers: int = ConfigValue,
+        table_format: TTableFormat = None,
         schema_contract: TSchemaContract = None,
         refresh: Optional[TRefreshMode] = None,
     ) -> ExtractInfo:
@@ -419,13 +425,14 @@ class Pipeline(SupportsPipeline):
                 for source in data_to_sources(
                     data,
                     self,
-                    schema,
-                    table_name,
-                    parent_table_name,
-                    write_disposition,
-                    columns,
-                    primary_key,
-                    schema_contract,
+                    schema=schema,
+                    table_name=table_name,
+                    parent_table_name=parent_table_name,
+                    write_disposition=write_disposition,
+                    columns=columns,
+                    primary_key=primary_key,
+                    schema_contract=schema_contract,
+                    table_format=table_format,
                 ):
                     if source.exhausted:
                         raise SourceExhausted(source.name)
@@ -472,23 +479,6 @@ class Pipeline(SupportsPipeline):
                 set(caps.supported_loader_file_formats),
             )
 
-        # verify merge strategy
-        for table in self.default_schema.data_tables(include_incomplete=True):
-            if (
-                "x-merge-strategy" in table
-                and caps.supported_merge_strategies
-                and table["x-merge-strategy"] not in caps.supported_merge_strategies  # type: ignore[typeddict-item]
-            ):
-                if self.destination.destination_name == "filesystem" and table["x-merge-strategy"] == "delete-insert":  # type: ignore[typeddict-item]
-                    # `filesystem` does not support `delete-insert`, but no
-                    # error should be raised because it falls back to `append`
-                    pass
-                else:
-                    raise DestinationCapabilitiesException(
-                        f"`{table.get('x-merge-strategy')}` merge strategy not supported"
-                        f" for `{self.destination.destination_name}` destination."
-                    )
-
     @with_runtime_trace()
     @with_schemas_sync
     @with_config_section((known_sections.NORMALIZE,))
@@ -499,7 +489,7 @@ class Pipeline(SupportsPipeline):
         if is_interactive():
             workers = 1
 
-        if loader_file_format and loader_file_format not in ALL_SUPPORTED_FILE_FORMATS:
+        if loader_file_format and loader_file_format not in LOADER_FILE_FORMATS:
             raise ValueError(f"{loader_file_format} is unknown.")
         # check if any schema is present, if not then no data was extracted
         if not self.default_schema_name:
@@ -550,7 +540,7 @@ class Pipeline(SupportsPipeline):
         credentials: Any = None,
         *,
         workers: int = 20,
-        raise_on_failed_jobs: bool = False,
+        raise_on_failed_jobs: bool = ConfigValue,
     ) -> LoadInfo:
         """Loads the packages prepared by `normalize` method into the `dataset_name` at `destination`, optionally using provided `credentials`"""
         # set destination and default dataset if provided (this is the reason we have state sync here)
@@ -610,6 +600,7 @@ class Pipeline(SupportsPipeline):
         primary_key: TColumnNames = None,
         schema: Schema = None,
         loader_file_format: TLoaderFileFormat = None,
+        table_format: TTableFormat = None,
         schema_contract: TSchemaContract = None,
         refresh: Optional[TRefreshMode] = None,
     ) -> LoadInfo:
@@ -662,6 +653,8 @@ class Pipeline(SupportsPipeline):
 
             loader_file_format (Literal["jsonl", "insert_values", "parquet"], optional). The file format the loader will use to create the load package. Not all file_formats are compatible with all destinations. Defaults to the preferred file format of the selected destination.
 
+            table_format (Literal["delta", "iceberg"], optional). The table format used by the destination to store tables. Currently you can select table format on filesystem and Athena destinations.
+
             schema_contract (TSchemaContract, optional): On override for the schema contract settings, this will replace the schema contract settings for all tables in the schema. Defaults to None.
 
             refresh (str | TRefreshMode): Fully or partially reset sources before loading new data in this run. The following refresh modes are supported:
@@ -689,7 +682,7 @@ class Pipeline(SupportsPipeline):
             and not self._state_restored
             and (self.destination or destination)
         ):
-            self.sync_destination(destination, staging, dataset_name)
+            self._sync_destination(destination, staging, dataset_name)
             # sync only once
             self._state_restored = True
         # normalize and load pending data
@@ -714,6 +707,7 @@ class Pipeline(SupportsPipeline):
                 columns=columns,
                 primary_key=primary_key,
                 schema=schema,
+                table_format=table_format,
                 schema_contract=schema_contract,
                 refresh=refresh or self.refresh,
             )
@@ -722,7 +716,7 @@ class Pipeline(SupportsPipeline):
         else:
             return None
 
-    @with_schemas_sync
+    @with_config_section(sections=None, merge_func=ConfigSectionContext.prefer_existing)
     def sync_destination(
         self,
         destination: TDestinationReferenceArg = None,
@@ -740,6 +734,17 @@ class Pipeline(SupportsPipeline):
         Note: this method is executed by the `run` method before any operation on data. Use `restore_from_destination` configuration option to disable that behavior.
 
         """
+        return self._sync_destination(
+            destination=destination, staging=staging, dataset_name=dataset_name
+        )
+
+    @with_schemas_sync
+    def _sync_destination(
+        self,
+        destination: TDestinationReferenceArg = None,
+        staging: TDestinationReferenceArg = None,
+        dataset_name: str = None,
+    ) -> None:
         self._set_destinations(destination=destination, staging=staging)
         self._set_dataset_name(dataset_name)
 
@@ -979,6 +984,7 @@ class Pipeline(SupportsPipeline):
             state = self._get_state()
         return state["_local"][key]  # type: ignore
 
+    @with_config_section(sections=None, merge_func=ConfigSectionContext.prefer_existing)
     def sql_client(self, schema_name: str = None) -> SqlClientBase[Any]:
         """Returns a sql client configured to query/change the destination and dataset that were used to load the data.
         Use the client with `with` statement to manage opening and closing connection to the destination:
@@ -1018,6 +1024,7 @@ class Pipeline(SupportsPipeline):
             return client
         raise FSClientNotAvailable(self.pipeline_name, self.destination.destination_name)
 
+    @with_config_section(sections=None, merge_func=ConfigSectionContext.prefer_existing)
     def destination_client(self, schema_name: str = None) -> JobClientBase:
         """Get the destination job client for the configured destination
         Use the client with `with` statement to manage opening and closing connection to the destination:
@@ -1213,7 +1220,9 @@ class Pipeline(SupportsPipeline):
             )
 
             if issubclass(client_spec, DestinationClientStagingConfiguration):
-                spec: DestinationClientDwhConfiguration = client_spec(as_staging=as_staging)
+                spec: DestinationClientDwhConfiguration = client_spec(
+                    as_staging_destination=as_staging
+                )
             else:
                 spec = client_spec()
             spec._bind_dataset_name(self.dataset_name, default_schema_name)
@@ -1677,7 +1686,7 @@ class Pipeline(SupportsPipeline):
             load_package_state_update["pipeline_state"] = doc
             self._extract_source(
                 extract_,
-                data_to_sources(data, self, schema)[0],
+                data_to_sources(data, self, schema=schema)[0],
                 1,
                 1,
                 load_package_state_update=load_package_state_update,

@@ -77,7 +77,7 @@ class TestRESTClient:
     def test_get_single_resource(self, rest_client):
         response = rest_client.get("/posts/1")
         assert response.status_code == 200
-        assert response.json() == {"id": "1", "body": "Post body 1"}
+        assert response.json() == {"id": 1, "body": "Post body 1"}
 
     def test_pagination(self, rest_client: RESTClient):
         pages_iter = rest_client.paginate(
@@ -412,7 +412,7 @@ class TestRESTClient:
         page_generator = rest_client.paginate(
             path="/posts/search",
             method="POST",
-            json={"ids_greater_than": posts_skip - 1},
+            json={"ids_greater_than": posts_skip - 1, "page_size": 5, "page_count": 5},
             paginator=JSONBodyPageCursorPaginator(),
         )
         result = [post for page in list(page_generator) for post in page]

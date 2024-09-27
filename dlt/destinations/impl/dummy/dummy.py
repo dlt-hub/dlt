@@ -14,8 +14,9 @@ from typing import (
 )
 import os
 import time
+from dlt.common.metrics import LoadJobMetrics
 from dlt.common.pendulum import pendulum
-from dlt.common.schema import Schema, TTableSchema, TSchemaTables
+from dlt.common.schema import Schema, TSchemaTables
 from dlt.common.storages import FileStorage
 from dlt.common.storages.load_package import LoadJobInfo
 from dlt.common.destination import DestinationCapabilitiesContext
@@ -25,7 +26,8 @@ from dlt.common.destination.exceptions import (
 )
 from dlt.common.destination.reference import (
     HasFollowupJobs,
-    FollowupJob,
+    FollowupJobRequest,
+    PreparedTableSchema,
     SupportsStagingDestination,
     TLoadJobState,
     RunnableLoadJob,
@@ -37,10 +39,9 @@ from dlt.destinations.sql_jobs import SqlMergeFollowupJob
 
 from dlt.destinations.exceptions import (
     LoadJobNotExistsException,
-    LoadJobInvalidStateTransitionException,
 )
 from dlt.destinations.impl.dummy.configuration import DummyClientConfiguration
-from dlt.destinations.job_impl import ReferenceFollowupJob
+from dlt.destinations.job_impl import ReferenceFollowupJobRequest
 
 
 class LoadDummyBaseJob(RunnableLoadJob):
@@ -78,18 +79,25 @@ class LoadDummyBaseJob(RunnableLoadJob):
             c_r = random.random()
             if self.config.retry_prob >= c_r:
                 # this will make the job go to a retry state
-                raise DestinationTransientException("a random retry occured")
+                raise DestinationTransientException("a random retry occurred")
 
             # fail prob
             c_r = random.random()
             if self.config.fail_prob >= c_r:
                 # this will make the the job go to a failed state
-                raise DestinationTerminalException("a random fail occured")
+                raise DestinationTerminalException("a random fail occurred")
 
             time.sleep(0.1)
 
+    def metrics(self) -> Optional[LoadJobMetrics]:
+        m = super().metrics()
+        # add remote url if there's followup job
+        if self.config.create_followup_jobs:
+            m = m._replace(remote_url=self._file_name)
+        return m
 
-class DummyFollowupJob(ReferenceFollowupJob):
+
+class DummyFollowupJobRequest(ReferenceFollowupJobRequest):
     def __init__(
         self, original_file_name: str, remote_paths: List[str], config: DummyClientConfiguration
     ) -> None:
@@ -100,9 +108,9 @@ class DummyFollowupJob(ReferenceFollowupJob):
 
 
 class LoadDummyJob(LoadDummyBaseJob, HasFollowupJobs):
-    def create_followup_jobs(self, final_state: TLoadJobState) -> List[FollowupJob]:
+    def create_followup_jobs(self, final_state: TLoadJobState) -> List[FollowupJobRequest]:
         if self.config.create_followup_jobs and final_state == "completed":
-            new_job = DummyFollowupJob(
+            new_job = DummyFollowupJobRequest(
                 original_file_name=self.file_name(),
                 remote_paths=[self._file_name],
                 config=self.config,
@@ -113,8 +121,8 @@ class LoadDummyJob(LoadDummyBaseJob, HasFollowupJobs):
 
 
 JOBS: Dict[str, LoadDummyBaseJob] = {}
-CREATED_FOLLOWUP_JOBS: Dict[str, FollowupJob] = {}
-CREATED_TABLE_CHAIN_FOLLOWUP_JOBS: Dict[str, FollowupJob] = {}
+CREATED_FOLLOWUP_JOBS: Dict[str, FollowupJobRequest] = {}
+CREATED_TABLE_CHAIN_FOLLOWUP_JOBS: Dict[str, FollowupJobRequest] = {}
 RETRIED_JOBS: Dict[str, LoadDummyBaseJob] = {}
 
 
@@ -153,7 +161,7 @@ class DummyClient(JobClientBase, SupportsStagingDestination, WithStagingDataset)
         return applied_update
 
     def create_load_job(
-        self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
+        self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
         job_id = FileStorage.get_file_name_from_file_path(file_path)
         if restore and job_id not in JOBS:
@@ -171,9 +179,9 @@ class DummyClient(JobClientBase, SupportsStagingDestination, WithStagingDataset)
 
     def create_table_chain_completed_followup_jobs(
         self,
-        table_chain: Sequence[TTableSchema],
+        table_chain: Sequence[PreparedTableSchema],
         completed_table_chain_jobs: Optional[Sequence[LoadJobInfo]] = None,
-    ) -> List[FollowupJob]:
+    ) -> List[FollowupJobRequest]:
         """Creates a list of followup jobs that should be executed after a table chain is completed"""
 
         # if sql job follow up is configure we schedule a merge job that will always fail
@@ -184,7 +192,7 @@ class DummyClient(JobClientBase, SupportsStagingDestination, WithStagingDataset)
         if self.config.create_followup_table_chain_reference_jobs:
             table_job_paths = [job.file_path for job in completed_table_chain_jobs]
             file_name = FileStorage.get_file_name_from_file_path(table_job_paths[0])
-            job = ReferenceFollowupJob(file_name, table_job_paths)
+            job = ReferenceFollowupJobRequest(file_name, table_job_paths)
             CREATED_TABLE_CHAIN_FOLLOWUP_JOBS[job.job_id()] = job
             return [job]
         return []
@@ -192,8 +200,11 @@ class DummyClient(JobClientBase, SupportsStagingDestination, WithStagingDataset)
     def complete_load(self, load_id: str) -> None:
         pass
 
-    def should_load_data_to_staging_dataset(self, table: TTableSchema) -> bool:
-        return super().should_load_data_to_staging_dataset(table)
+    def should_load_data_to_staging_dataset(self, table_name: str) -> bool:
+        return super().should_load_data_to_staging_dataset(table_name)
+
+    def should_truncate_table_before_load_on_staging_destination(self, table_name: str) -> bool:
+        return self.config.truncate_tables_on_staging_destination_before_load
 
     @contextmanager
     def with_staging_dataset(self) -> Iterator[JobClientBase]:
@@ -212,7 +223,7 @@ class DummyClient(JobClientBase, SupportsStagingDestination, WithStagingDataset)
         pass
 
     def _create_job(self, job_id: str) -> LoadDummyBaseJob:
-        if ReferenceFollowupJob.is_reference_job(job_id):
+        if ReferenceFollowupJobRequest.is_reference_job(job_id):
             return LoadDummyBaseJob(job_id, config=self.config)
         else:
             return LoadDummyJob(job_id, config=self.config)

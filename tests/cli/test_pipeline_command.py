@@ -22,7 +22,7 @@ from tests.cli.utils import (
 
 
 def test_pipeline_command_operations(repo_dir: str, project_files: FileStorage) -> None:
-    init_command.init_command("chess", "duckdb", False, repo_dir)
+    init_command.init_command("chess", "duckdb", repo_dir)
 
     try:
         pipeline = dlt.attach(pipeline_name="chess_pipeline")
@@ -160,7 +160,7 @@ def test_pipeline_command_operations(repo_dir: str, project_files: FileStorage) 
 
 
 def test_pipeline_command_failed_jobs(repo_dir: str, project_files: FileStorage) -> None:
-    init_command.init_command("chess", "dummy", False, repo_dir)
+    init_command.init_command("chess", "dummy", repo_dir)
 
     try:
         pipeline = dlt.attach(pipeline_name="chess_pipeline")
@@ -170,6 +170,8 @@ def test_pipeline_command_failed_jobs(repo_dir: str, project_files: FileStorage)
 
     # now run the pipeline
     os.environ["FAIL_PROB"] = "1.0"
+    # let it fail without an exception
+    os.environ["RAISE_ON_FAILED_JOBS"] = "false"
     venv = Venv.restore_current()
     try:
         print(venv.run_script("chess_pipeline.py"))
@@ -195,7 +197,7 @@ def test_pipeline_command_failed_jobs(repo_dir: str, project_files: FileStorage)
 
 
 def test_pipeline_command_drop_partial_loads(repo_dir: str, project_files: FileStorage) -> None:
-    init_command.init_command("chess", "dummy", False, repo_dir)
+    init_command.init_command("chess", "dummy", repo_dir)
     os.environ["EXCEPTION_PROB"] = "1.0"
 
     try:

@@ -95,21 +95,9 @@ def test_write_delta_table(
     client = cast(FilesystemClient, client)
     storage_options = _deltalake_storage_options(client.config)
 
-    with pytest.raises(Exception):
-        # bug in `delta-rs` causes error when writing big decimal values
-        # https://github.com/delta-io/delta-rs/issues/2510
-        # if this test fails, the bug has been fixed and we should remove this
-        # note from the docs:
-        write_delta_table(
-            remote_dir + "/corrupt_delta_table",
-            arrow_table_all_data_types("arrow-table", include_decimal_default_precision=True)[0],
-            write_disposition="append",
-            storage_options=storage_options,
-        )
-
     arrow_table = arrow_table_all_data_types(
         "arrow-table",
-        include_decimal_default_precision=False,
+        include_decimal_default_precision=True,
         include_decimal_arrow_max_precision=True,
         num_rows=2,
     )[0]
@@ -155,7 +143,7 @@ def test_write_delta_table(
     assert dt.to_pyarrow_table().shape == (arrow_table.num_rows, arrow_table.num_columns)
 
     # the previous table version should still exist
-    dt.load_version(1)
+    dt.load_as_version(1)
     assert dt.to_pyarrow_table().shape == (arrow_table.num_rows * 2, arrow_table.num_columns)
 
     # `merge` should resolve to `append` bevavior

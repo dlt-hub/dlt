@@ -5,7 +5,7 @@ from dlt.common.data_writers.exceptions import DataWriterNotFound
 from dlt.common.json import json
 from dlt.common.configuration import known_sections
 from dlt.common.configuration.inject import with_config
-from dlt.common.destination import ALL_SUPPORTED_FILE_FORMATS, TLoaderFileFormat
+from dlt.common.destination import LOADER_FILE_FORMATS, TLoaderFileFormat
 from dlt.common.configuration.accessors import config
 from dlt.common.schema import TSchemaTables
 from dlt.common.storages.file_storage import FileStorage
@@ -17,7 +17,7 @@ from dlt.common.storages.load_package import (
     LoadPackageInfo,
     PackageStorage,
     ParsedLoadJobFileName,
-    TJobState,
+    TPackageJobState,
     TLoadPackageState,
     TJobFileFormat,
 )
@@ -46,7 +46,7 @@ class LoadStorage(VersionedStorage):
     LOADED_FOLDER = "loaded"  # folder to keep the loads that were completely processed
     NEW_PACKAGES_FOLDER = "new"  # folder where new packages are created
 
-    ALL_SUPPORTED_FILE_FORMATS = ALL_SUPPORTED_FILE_FORMATS
+    ALL_SUPPORTED_FILE_FORMATS = LOADER_FILE_FORMATS
 
     @with_config(spec=LoadStorageConfiguration, sections=(known_sections.LOAD,))
     def __init__(
@@ -141,16 +141,16 @@ class LoadStorage(VersionedStorage):
         """Marks schema update as processed and stores the update that was applied at the destination"""
         load_path = self.get_normalized_package_path(load_id)
         schema_update_file = join(load_path, PackageStorage.SCHEMA_UPDATES_FILE_NAME)
-        processed_schema_update_file = join(
+        applied_schema_update_file = join(
             load_path, PackageStorage.APPLIED_SCHEMA_UPDATES_FILE_NAME
         )
         # delete initial schema update
         self.storage.delete(schema_update_file)
         # save applied update
-        self.storage.save(processed_schema_update_file, json.dumps(applied_update))
+        self.storage.save(applied_schema_update_file, json.dumps(applied_update))
 
     def import_new_job(
-        self, load_id: str, job_file_path: str, job_state: TJobState = "new_jobs"
+        self, load_id: str, job_file_path: str, job_state: TPackageJobState = "new_jobs"
     ) -> None:
         """Adds new job by moving the `job_file_path` into `new_jobs` of package `load_id`"""
         # TODO: use normalize storage and add file type checks

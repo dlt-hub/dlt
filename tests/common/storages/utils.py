@@ -16,7 +16,7 @@ from dlt.common.storages import (
     LoadStorageConfiguration,
     FilesystemConfiguration,
     LoadPackageInfo,
-    TJobState,
+    TPackageJobState,
     LoadStorage,
 )
 from dlt.common.storages import DataItemStorage, FileStorage
@@ -195,7 +195,7 @@ def assert_package_info(
     storage: LoadStorage,
     load_id: str,
     package_state: str,
-    job_state: TJobState,
+    job_state: TPackageJobState,
     jobs_count: int = 1,
 ) -> LoadPackageInfo:
     package_info = storage.get_load_package_info(load_id)

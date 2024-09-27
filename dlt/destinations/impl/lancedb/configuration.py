@@ -90,7 +90,7 @@ class LanceDBClientConfiguration(DestinationClientDwhConfiguration):
     but it is configurable in rare cases.
 
     Make sure it corresponds with the associated embedding model's dimensionality."""
-    vector_field_name: str = "vector__"
+    vector_field_name: str = "vector"
     """Name of the special field to store the vector embeddings."""
     id_field_name: str = "id__"
     """Name of the special field to manage deduplication."""

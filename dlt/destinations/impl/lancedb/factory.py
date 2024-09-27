@@ -1,10 +1,20 @@
 import typing as t
 
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
+from dlt.common.destination.capabilities import DataTypeMapper
+from dlt.common.exceptions import MissingDependencyException
 from dlt.destinations.impl.lancedb.configuration import (
     LanceDBCredentials,
     LanceDBClientConfiguration,
 )
+
+LanceDBTypeMapper: t.Type[DataTypeMapper]
+try:
+    # lancedb type mapper cannot be used without pyarrow installed
+    from dlt.destinations.impl.lancedb.type_mapper import LanceDBTypeMapper
+except MissingDependencyException:
+    # assign mock type mapper if no arrow
+    from dlt.common.destination.capabilities import UnsupportedTypeMapper as LanceDBTypeMapper
 
 
 if t.TYPE_CHECKING:
@@ -18,6 +28,7 @@ class lancedb(Destination[LanceDBClientConfiguration, "LanceDBClient"]):
         caps = DestinationCapabilitiesContext()
         caps.preferred_loader_file_format = "jsonl"
         caps.supported_loader_file_formats = ["jsonl"]
+        caps.type_mapper = LanceDBTypeMapper
 
         caps.max_identifier_length = 200
         caps.max_column_identifier_length = 1024
@@ -29,6 +40,7 @@ class lancedb(Destination[LanceDBClientConfiguration, "LanceDBClient"]):
 
         caps.decimal_precision = (38, 18)
         caps.timestamp_precision = 6
+        caps.supported_replace_strategies = ["truncate-and-insert"]
 
         return caps
 

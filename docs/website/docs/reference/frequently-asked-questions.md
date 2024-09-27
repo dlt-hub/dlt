@@ -10,8 +10,8 @@ keywords: [faq, usage information, technical help]
 Yes, [this feature is available](../general-usage/resource.md#reduce-the-nesting-level-of-generated-tables). You can also control the nesting
 on a level of a particular column:
 
-**Apply hints for complex columns**
-If certain columns should not be normalized, you can mark them as `complex`. This can be done in two ways.
+**Apply hints for nested columns**
+If certain columns should not be normalized, you can mark them as `json`. This can be done in two ways.
 
 1. When fetching the source data.
    ```py
@@ -19,7 +19,7 @@ If certain columns should not be normalized, you can mark them as `complex`. Thi
    source_data.resource3.apply_hints(
        columns={
            "column_name": {
-               "data_type": "complex"
+               "data_type": "json"
            }
        }
    )
@@ -27,7 +27,7 @@ If certain columns should not be normalized, you can mark them as `complex`. Thi
 
 1. During resource definition.
    ```py
-   @dlt.resource(columns={"column_name": {"data_type": "complex"}})
+   @dlt.resource(columns={"column_name": {"data_type": "json"}})
    def my_resource():
        # Function body goes here
        pass

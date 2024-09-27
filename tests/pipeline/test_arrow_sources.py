@@ -2,8 +2,6 @@ import os
 from typing import Any
 import pytest
 import pandas as pd
-import os
-import io
 import pyarrow as pa
 
 import dlt
@@ -111,7 +109,7 @@ def test_extract_and_normalize(item_type: TPythonTableFormat, is_list: bool):
     assert schema_columns["time"]["data_type"] == "time"
     assert schema_columns["binary"]["data_type"] == "binary"
     assert schema_columns["string"]["data_type"] == "text"
-    assert schema_columns["json"]["data_type"] == "complex"
+    assert schema_columns["json"]["data_type"] == "json"
 
 
 @pytest.mark.parametrize(
@@ -236,7 +234,7 @@ def test_load_arrow_vary_schema(item_type: TPythonTableFormat) -> None:
     pipeline = dlt.pipeline(pipeline_name=pipeline_name, destination="duckdb")
 
     item, _, _ = arrow_table_all_data_types(item_type, include_not_normalized_name=False)
-    pipeline.run(item, table_name="data").raise_on_failed_jobs()
+    pipeline.run(item, table_name="data")
 
     item, _, _ = arrow_table_all_data_types(item_type, include_not_normalized_name=False)
     # remove int column
@@ -246,7 +244,7 @@ def test_load_arrow_vary_schema(item_type: TPythonTableFormat) -> None:
         names = item.schema.names
         names.remove("int")
         item = item.select(names)
-    pipeline.run(item, table_name="data").raise_on_failed_jobs()
+    pipeline.run(item, table_name="data")
 
 
 @pytest.mark.parametrize("item_type", ["pandas", "arrow-table", "arrow-batch"])
@@ -310,10 +308,10 @@ def test_normalize_with_dlt_columns(item_type: TPythonTableFormat):
     assert schema.tables["some_data"]["columns"]["_dlt_id"]["data_type"] == "text"
     assert schema.tables["some_data"]["columns"]["_dlt_load_id"]["data_type"] == "text"
 
-    pipeline.load().raise_on_failed_jobs()
+    pipeline.load()
 
     # should be able to load again
-    pipeline.run(some_data()).raise_on_failed_jobs()
+    pipeline.run(some_data())
 
     # should be able to load arrow without a column
     try:
@@ -322,12 +320,12 @@ def test_normalize_with_dlt_columns(item_type: TPythonTableFormat):
         names = item.schema.names
         names.remove("int")
         item = item.select(names)
-    pipeline.run(item, table_name="some_data").raise_on_failed_jobs()
+    pipeline.run(item, table_name="some_data")
 
     # should be able to load arrow with a new column
     item, records, _ = arrow_table_all_data_types(item_type, num_rows=200)
     item = item.append_column("static_int", [[0] * 200])
-    pipeline.run(item, table_name="some_data").raise_on_failed_jobs()
+    pipeline.run(item, table_name="some_data")
 
     schema = pipeline.default_schema
     assert schema.tables["some_data"]["columns"]["static_int"]["data_type"] == "bigint"
@@ -380,8 +378,7 @@ def test_normalize_reorder_columns_separate_packages(item_type: TPythonTableForm
     assert normalize_info.row_counts["table"] == 5432 * 3
 
     # load to duckdb
-    load_info = pipeline.load()
-    load_info.raise_on_failed_jobs()
+    pipeline.load()
 
 
 @pytest.mark.parametrize("item_type", ["arrow-table", "pandas", "arrow-batch"])
@@ -423,7 +420,7 @@ def test_normalize_reorder_columns_single_package(item_type: TPythonTableFormat)
             shuffled_names.append("binary")
             assert actual_tbl.schema.names == shuffled_names
 
-    pipeline.load().raise_on_failed_jobs()
+    pipeline.load()
 
 
 @pytest.mark.parametrize("item_type", ["arrow-table", "pandas", "arrow-batch"])
@@ -475,7 +472,7 @@ def test_normalize_reorder_columns_single_batch(item_type: TPythonTableFormat) -
             assert len(actual_tbl) == 5432 * 3
             assert actual_tbl.schema.names == shuffled_names
 
-    pipeline.load().raise_on_failed_jobs()
+    pipeline.load()
 
 
 @pytest.mark.parametrize("item_type", ["pandas", "arrow-table", "arrow-batch"])
@@ -543,11 +540,11 @@ def test_import_file_with_arrow_schema() -> None:
 
     # columns should be created from empty table
     import_file = "tests/load/cases/loading/header.jsonl"
-    info = pipeline.run(
+    pipeline.run(
         [dlt.mark.with_file_import(import_file, "jsonl", 2, hints=empty_table)],
         table_name="no_header",
     )
-    info.raise_on_failed_jobs()
+
     assert_only_table_columns(pipeline, "no_header", schema.names)
     rows = load_tables_to_dicts(pipeline, "no_header")
     assert len(rows["no_header"]) == 2

@@ -12,7 +12,7 @@ keywords: [duckdb, destination, data warehouse]
 pip install "dlt[duckdb]"
 ```
 
-## Setup Guide
+## Setup guide
 
 **1. Initialize a project with a pipeline that loads to DuckDB by running:**
 ```sh
@@ -35,10 +35,46 @@ All write dispositions are supported.
 ## Data loading
 `dlt` will load data using large INSERT VALUES statements by default. Loading is multithreaded (20 threads by default). If you are okay with installing `pyarrow`, we suggest switching to `parquet` as the file format. Loading is faster (and also multithreaded).
 
+### Data types
+`duckdb` supports various [timestamp types](https://duckdb.org/docs/sql/data_types/timestamp.html). These can be configured using the column flags `timezone` and `precision` in the `dlt.resource` decorator or the `pipeline.run` method.
+
+- **Precision**: Supported precision values are 0, 3, 6, and 9 for fractional seconds. Note that `timezone` and `precision` cannot be used together; attempting to combine them will result in an error.
+- **Timezone**:
+  - Setting `timezone=False` maps to `TIMESTAMP`.
+  - Setting `timezone=True` (or omitting the flag, which defaults to `True`) maps to `TIMESTAMP WITH TIME ZONE` (`TIMESTAMPTZ`).
+
+#### Example precision: TIMESTAMP_MS
+
+```py
+@dlt.resource(
+    columns={"event_tstamp": {"data_type": "timestamp", "precision": 3}},
+    primary_key="event_id",
+)
+def events():
+    yield [{"event_id": 1, "event_tstamp": "2024-07-30T10:00:00.123"}]
+
+pipeline = dlt.pipeline(destination="duckdb")
+pipeline.run(events())
+```
+
+#### Example timezone: TIMESTAMP
+
+```py
+@dlt.resource(
+    columns={"event_tstamp": {"data_type": "timestamp", "timezone": False}},
+    primary_key="event_id",
+)
+def events():
+    yield [{"event_id": 1, "event_tstamp": "2024-07-30T10:00:00.123+00:00"}]
+
+pipeline = dlt.pipeline(destination="duckdb")
+pipeline.run(events())
+```
+
 ### Names normalization
 `dlt` uses the standard **snake_case** naming convention to keep identical table and column identifiers across all destinations. If you want to use the **duckdb** wide range of characters (i.e., emojis) for table and column names, you can switch to the **duck_case** naming convention, which accepts almost any string as an identifier:
-* `\n` `\r`  and `"` are translated to `_`
-* multiple `_` are translated to a single `_`
+* New line (`\n`), carriage return (`\r`), and double quotes (`"`) are translated to an underscore (`_`).
+* Consecutive underscores (`_`) are translated to a single `_`
 
 Switch the naming convention using `config.toml`:
 ```toml
@@ -57,19 +93,19 @@ dlt.config["schema.naming"] = "duck_case"
 
 
 ## Supported file formats
-You can configure the following file formats to load data to duckdb:
-* [insert-values](../file-formats/insert-format.md) is used by default
-* [parquet](../file-formats/parquet.md) is supported
+You can configure the following file formats to load data into duckdb:
+* [insert-values](../file-formats/insert-format.md) is used by default.
+* [parquet](../file-formats/parquet.md) is supported.
 :::note
 `duckdb` cannot COPY many parquet files to a single table from multiple threads. In this situation, `dlt` serializes the loads. Still, that may be faster than INSERT.
 :::
 * [jsonl](../file-formats/jsonl.md)
 
 :::tip
-`duckdb` has [timestamp types](https://duckdb.org/docs/sql/data_types/timestamp.html) with resolutions from milliseconds to nanoseconds. However
-only microseconds resolution (the most common used) is time zone aware. `dlt` generates timestamps with timezones by default so loading parquet files
+`duckdb` has [timestamp types](https://duckdb.org/docs/sql/data_types/timestamp.html) with resolutions from milliseconds to nanoseconds. However,
+only the microseconds resolution (the most commonly used) is time zone aware. `dlt` generates timestamps with timezones by default, so loading parquet files
 with default settings will fail (`duckdb` does not coerce tz-aware timestamps to naive timestamps).
-Disable the timezones by changing `dlt` [parquet writer settings](../file-formats/parquet.md#writer-settings) as follows:
+Disable the timezones by changing the `dlt` [Parquet writer settings](../file-formats/parquet.md#writer-settings) as follows:
 ```sh
 DATA_WRITER__TIMESTAMP_TIMEZONE=""
 ```
@@ -77,9 +113,10 @@ to disable tz adjustments.
 :::
 
 ## Supported column hints
-`duckdb` may create unique indexes for all columns with `unique` hints, but this behavior **is disabled by default** because it slows the loading down significantly.
 
-## Destination Configuration
+`duckdb` can create unique indexes for columns with `unique` hints. However, **this feature is disabled by default** as it can significantly slow down data loading.
+
+## Destination configuration
 
 By default, a DuckDB database will be created in the current working directory with a name `<pipeline_name>.duckdb` (`chess.duckdb` in the example above). After loading, it is available in `read/write` mode via `with pipeline.sql_client() as con:`, which is a wrapper over `DuckDBPyConnection`. See [duckdb docs](https://duckdb.org/docs/api/python/overview#persistent-storage) for details.
 
@@ -115,7 +152,7 @@ p = dlt.pipeline(
   dev_mode=False,
 )
 
-# Or if you would like to use in-memory duckdb instance
+# Or if you would like to use an in-memory duckdb instance
 db = duckdb.connect(":memory:")
 p = pipeline_one = dlt.pipeline(
   pipeline_name="in_memory_pipeline",
@@ -138,7 +175,7 @@ print(db.sql("DESCRIBE;"))
 ```
 
 :::note
-Be careful! The in-memory instance of the database will be destroyed, once your Python script exits.
+Be careful! The in-memory instance of the database will be destroyed once your Python script exits.
 :::
 
 This destination accepts database connection strings in the format used by [duckdb-engine](https://github.com/Mause/duckdb_engine#configuration).
@@ -150,10 +187,10 @@ destination.duckdb.credentials="duckdb:///_storage/test_quack.duckdb"
 
 The **duckdb://** URL above creates a **relative** path to `_storage/test_quack.duckdb`. To define an **absolute** path, you need to specify four slashes, i.e., `duckdb:////_storage/test_quack.duckdb`.
 
-Dlt supports a unique connection string that triggers specific behavior for duckdb destination:
+Dlt supports a unique connection string that triggers specific behavior for the `duckdb` destination:
 * **:pipeline:** creates the database in the working directory of the pipeline, naming it `quack.duckdb`.
 
-Please see the code snippets below showing how to use it
+Please see the code snippets below showing how to use it:
 
 1. Via `config.toml`
 ```toml
@@ -176,9 +213,10 @@ create_indexes=true
 ```
 
 ### dbt support
-This destination [integrates with dbt](../transformations/dbt/dbt.md) via [dbt-duckdb](https://github.com/jwills/dbt-duckdb), which is a community-supported package. The `duckdb` database is shared with `dbt`. In rare cases, you may see information that the binary database format does not match the database format expected by `dbt-duckdb`. You can avoid that by updating the `duckdb` package in your `dlt` project with `pip install -U`.
+This destination [integrates with dbt](../transformations/dbt/dbt.md) via [dbt-duckdb](https://github.com/jwills/dbt-duckdb), which is a community-supported package. The `duckdb` database is shared with `dbt`. In rare cases, you may see information that the binary database format does not match the database format expected by `dbt-duckdb`. You can avoid this by updating the `duckdb` package in your `dlt` project with `pip install -U`.
 
 ### Syncing of `dlt` state
 This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination).
 
 <!--@@@DLT_TUBA duckdb-->
+

@@ -2,7 +2,7 @@ import dataclasses
 from typing import Dict, Final, ClassVar, Any, List, Optional
 
 from dlt.common.data_writers.configuration import CsvFormatConfiguration
-from dlt.common.libs.sql_alchemy import URL
+from dlt.common.libs.sql_alchemy_shims import URL
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.utils import digest128
@@ -14,6 +14,8 @@ from dlt.common.destination.reference import DestinationClientDwhWithStagingConf
 @configspec(init=False)
 class PostgresCredentials(ConnectionStringCredentials):
     drivername: Final[str] = dataclasses.field(default="postgresql", init=False, repr=False, compare=False)  # type: ignore
+    database: str = None
+    username: str = None
     password: TSecretValue = None
     host: str = None
     port: int = 5432
