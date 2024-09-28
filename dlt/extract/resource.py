@@ -467,10 +467,17 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             if incremental:
                 primary_key = table_schema_template.get("primary_key", incremental.primary_key)
                 if primary_key is not None:
-                    incremental.primary_key = primary_key
+                    if table_schema_template.get("write_disposition") == "merge":
+                        self._disable_deduplication(incremental)
+                    else:
+                        incremental.primary_key = primary_key
 
             if table_schema_template.get("validator") is not None:
                 self.validator = table_schema_template["validator"]
+
+    def _disable_deduplication(self, incremental: IncrementalResourceWrapper) -> None:
+        """See IncrementalTransform.deduplication_disabled()"""
+        incremental.primary_key = ()
 
     def bind(self: TDltResourceImpl, *args: Any, **kwargs: Any) -> TDltResourceImpl:
         """Binds the parametrized resource to passed arguments. Modifies resource pipe in place. Does not evaluate generators or iterators."""
