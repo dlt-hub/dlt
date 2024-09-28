@@ -301,21 +301,129 @@ pipeline.run(dim_customer())  # third run — 2024-04-10 06:45:22.847403
 | 2024-04-09 22:13:07.943703 | NULL | 1 | foo_updated | 1 |
 
 #### Example: incremental `scd2`
-`retire_absent_rows` can be set to `False` to work with incremental extracts instead of full extracts:
+A `merge_key` can be provided to work with incremental extracts instead of full extracts. The `merge_key` lets you define which absent rows are considered "deleted". Compound natural keys are allowed and can be specified by providing a list of column names as `merge_key`.
+
+*Case 1: do not retire absent records*
+
+You can set the natural key as `merge_key` to prevent retirement of absent rows. In this case you don't consider any absent row deleted. Records are not retired in the destination if their corresponding natural keys are not present in the source extract. This allows for incremental extracts that only contain updated records.
+
 ```py
 @dlt.resource(
-    merge_key="my_natural_key",
-    write_disposition={
-        "disposition": "merge",
-        "strategy": "scd2",
-        "retire_absent_rows": False,
-    }
+    merge_key="customer_key",
+    write_disposition={"disposition": "merge", "strategy": "scd2"}
 )
 def dim_customer():
-    ...
+    # initial load
+    yield [
+        {"customer_key": 1, "c1": "foo", "c2": 1},
+        {"customer_key": 2, "c1": "bar", "c2": 2}
+    ]
+
+pipeline.run(dim_customer())  # first run — 2024-04-09 18:27:53.734235
 ...
 ```
-Using this setting, records are not retired in the destination if their corresponding natural keys are not present in the source extract. This allows for incremental extracts that only contain updated records. You need to specify the natural key as `merge_key` when `retire_absent_rows` is `False`. Compound natural keys are allowed and can be specified by providing a list of column names as `merge_key`.
+*`dim_customer` destination table after first run:*
+
+| `_dlt_valid_from` | `_dlt_valid_to` | `customer_key` | `c1` | `c2` |
+| -- | -- | -- | -- | -- |
+| 2024-04-09 18:27:53.734235 | NULL | 1 | foo | 1 |
+| 2024-04-09 18:27:53.734235 | NULL | 2 | bar | 2 |
+
+```py
+...
+def dim_customer():
+    # second load — record for customer_key 1 got updated, customer_key 2 absent
+    yield [
+        {"customer_key": 1, "c1": "foo_updated", "c2": 1},
+]
+
+pipeline.run(dim_customer())  # second run — 2024-04-09 22:13:07.943703
+```
+
+*`dim_customer` destination table after second run—customer key 2 was not retired:*
+
+| `_dlt_valid_from` | `_dlt_valid_to` | `customer_key` | `c1` | `c2` |
+| -- | -- | -- | -- | -- |
+| 2024-04-09 18:27:53.734235 | **2024-04-09 22:13:07.943703** | 1 | foo | 1 |
+| 2024-04-09 18:27:53.734235 | NULL | 2 | bar | 2 |
+| **2024-04-09 22:13:07.943703** | **NULL** | **1** | **foo_updated** | **1** |
+
+*Case 2: only retire records for given partitions*
+
+:::note
+Technically this is not SCD2 because the key used to merge records is not a natural key.
+:::
+
+You can set a "partition" column as `merge_key` to retire absent rows for given partitions. In this case you only consider absent rows deleted if their partition value is present in the extract. Physical partitioning of the table is not required—the word "partition" is used conceptually here.
+
+```py
+@dlt.resource(
+    merge_key="date",
+    write_disposition={"disposition": "merge", "strategy": "scd2"}
+)
+def some_data():
+    # load 1 — "2024-01-01" partition
+    yield [
+        {"date": "2024-01-01", "name": "a"},
+        {"date": "2024-01-01", "name": "b"},
+    ]
+
+pipeline.run(some_data())  # first run — 2024-01-02 03:03:35.854305
+...
+```
+
+*`some_data` destination table after first run:*
+
+| `_dlt_valid_from` | `_dlt_valid_to` | `date` | `name` |
+| -- | -- | -- | -- |
+| 2024-01-02 03:03:35.854305 | NULL | 2024-01-01 | a |
+| 2024-01-02 03:03:35.854305 | NULL | 2024-01-01 | b |
+
+```py
+...
+def some_data():
+    # load 2 — "2024-01-02" partition
+    yield [
+        {"date": "2024-01-02", "name": "c"},
+        {"date": "2024-01-02", "name": "d"},
+    ]
+
+pipeline.run(some_data())  # second run — 2024-01-03 03:01:11.943703
+...
+```
+
+*`some_data` destination table after second run—added 2024-01-02 records, did not touch 2024-01-01 records:*
+
+| `_dlt_valid_from` | `_dlt_valid_to` | `date` | `name` |
+| -- | -- | -- | -- |
+| 2024-01-02 03:03:35.854305 | NULL | 2024-01-01 | a |
+| 2024-01-02 03:03:35.854305 | NULL | 2024-01-01 | b |
+| **2024-01-03 03:01:11.943703** | **NULL** | **2024-01-02** | **c** |
+| **2024-01-03 03:01:11.943703** | **NULL** | **2024-01-02** | **d** |
+
+```py
+...
+def some_data():
+    # load 3 — reload "2024-01-01" partition
+    yield [
+        {"date": "2024-01-01", "name": "a"},  # unchanged
+        {"date": "2024-01-01", "name": "bb"},  # new
+    ]
+
+pipeline.run(some_data())  # third run — 2024-01-03 10:30:05.750356
+...
+```
+
+*`some_data` destination table after third run—retired b, added bb, did not touch 2024-01-02 partition:*
+
+| `_dlt_valid_from` | `_dlt_valid_to` | `date` | `name` |
+| -- | -- | -- | -- |
+| 2024-01-02 03:03:35.854305 | NULL | 2024-01-01 | a |
+| 2024-01-02 03:03:35.854305 | **2024-01-03 10:30:05.750356** | 2024-01-01 | b |
+| 2024-01-03 03:01:11.943703 | NULL | 2024-01-02 | c |
+| 2024-01-03 03:01:11.943703 | NULL | 2024-01-02 | d |
+| **2024-01-03 10:30:05.750356** | **NULL** | **2024-01-01** | **bb** |
+
 
 #### Example: configure validity column names
 `_dlt_valid_from` and `_dlt_valid_to` are used by default as validity column names. Other names can be configured as follows:
