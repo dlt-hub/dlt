@@ -852,11 +852,11 @@ def test_merge_key_partition(
     info = p.run(dim_test(dim_snap), **destination_config.run_kwargs)
     assert_load_info(info)
     assert load_table_counts(p, "dim_test")["dim_test"] == 4
-    # two "2024-01-01" should be untouched, two "2024-01-02" records should
+    # two "2024-01-01" records should be untouched, two "2024-01-02" records should
     # be added
     assert [row[TO] for row in get_table(p, "dim_test")] == [None, None, None, None]
 
-    # load 2 — reload "2024-01-01" partition
+    # load 3 — reload "2024-01-01" partition
     dim_snap = [
         {"date": "2024-01-01", "name": "a"},  # unchanged
         {"date": "2024-01-01", "name": "bb"},  # new
