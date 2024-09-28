@@ -1,6 +1,6 @@
 """Generic API Source"""
 from copy import deepcopy
-from typing import Type, Any, Dict, List, Optional, Generator, Callable, cast, Union
+from typing import Any, Dict, List, Optional, Generator, Callable, cast, Union
 import graphlib  # type: ignore[import,unused-ignore]
 from requests.auth import AuthBase
 
@@ -9,7 +9,6 @@ from dlt.common.validation import validate_dict
 from dlt.common import jsonpath
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import TSchemaContract
-from dlt.common.configuration.specs import BaseConfiguration
 
 from dlt.extract.incremental import Incremental
 from dlt.extract.source import DltResource, DltSource
@@ -26,6 +25,7 @@ from dlt.sources.helpers.rest_client.typing import HTTPMethodBasic
 from .typing import (
     AuthConfig,
     ClientConfig,
+    EndpointResourceBase,
     ResolvedParam,
     ResolveParamConfig,
     Endpoint,
@@ -56,6 +56,18 @@ SENSITIVE_KEYS: List[str] = [
 ]
 
 
+@dlt.source
+def rest_api(
+    client: ClientConfig = dlt.config.value,
+    resources: List[Union[str, EndpointResource, DltResource]] = dlt.config.value,
+    resource_defaults: Optional[EndpointResourceBase] = None,
+) -> List[DltResource]:
+    """Creates and configures a REST API source with default settings"""
+    return rest_api_resources(
+        {"client": client, "resources": resources, "resource_defaults": resource_defaults}
+    )
+
+
 def rest_api_source(
     config: RESTAPIConfig,
     name: str = None,
@@ -64,7 +76,7 @@ def rest_api_source(
     root_key: bool = False,
     schema: Schema = None,
     schema_contract: TSchemaContract = None,
-    spec: Type[BaseConfiguration] = None,
+    parallelized: bool = False,
 ) -> DltSource:
     """Creates and configures a REST API source for data extraction.
 
@@ -85,8 +97,9 @@ def rest_api_source(
             will be loaded from file.
         schema_contract (TSchemaContract, optional): Schema contract settings
             that will be applied to this resource.
-        spec (Type[BaseConfiguration], optional): A specification of configuration
-            and secret values required by the source.
+        parallelized (bool, optional): If `True`, resource generators will be
+            extracted in parallel with other resources. Transformers that return items are also parallelized.
+            Non-eligible resources are ignored. Defaults to `False` which preserves resource settings.
 
     Returns:
         DltSource: A configured dlt source.
@@ -109,18 +122,17 @@ def rest_api_source(
             },
         })
     """
-    decorated = dlt.source(
-        rest_api_resources,
-        name,
-        section,
-        max_table_nesting,
-        root_key,
-        schema,
-        schema_contract,
-        spec,
+    decorated = rest_api.with_args(
+        name=name,
+        section=section,
+        max_table_nesting=max_table_nesting,
+        root_key=root_key,
+        schema=schema,
+        schema_contract=schema_contract,
+        parallelized=parallelized,
     )
 
-    return decorated(config)
+    return decorated(**config)
 
 
 def rest_api_resources(config: RESTAPIConfig) -> List[DltResource]:
@@ -186,7 +198,7 @@ def rest_api_resources(config: RESTAPIConfig) -> List[DltResource]:
     _validate_config(config)
 
     client_config = config["client"]
-    resource_defaults = config.get("resource_defaults", {})
+    resource_defaults = config.get("resource_defaults") or {}
     resource_list = config["resources"]
 
     (
@@ -449,22 +461,3 @@ def _validate_param_type(
             raise ValueError(
                 f"Invalid param type: {value.get('type')}. Available options: {PARAM_TYPES}"
             )
-
-
-# XXX: This is a workaround pass test_dlt_init.py
-# since the source uses dlt.source as a function
-def _register_source(source_func: Callable[..., DltSource]) -> None:
-    import inspect
-    from dlt.common.configuration import get_fun_spec
-    from dlt.common.source import _SOURCES, SourceInfo
-
-    spec = get_fun_spec(source_func)
-    func_module = inspect.getmodule(source_func)
-    _SOURCES[source_func.__name__] = SourceInfo(
-        SPEC=spec,
-        f=source_func,
-        module=func_module,
-    )
-
-
-_register_source(rest_api_source)
