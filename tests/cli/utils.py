@@ -6,8 +6,9 @@ from typing import Iterator
 from dlt.common import git
 from dlt.common.pipeline import get_dlt_repos_dir
 from dlt.common.storages.file_storage import FileStorage
-from dlt.common.source import _SOURCES
 from dlt.common.utils import set_working_dir, uniq_id
+
+from dlt.sources.reference import SourceReference
 
 from dlt.cli import echo
 from dlt.cli.init_command import DEFAULT_VERIFIED_SOURCES_REPO
@@ -58,14 +59,14 @@ def get_repo_dir(cloned_init_repo: FileStorage) -> str:
 
 def get_project_files(clear_all_sources: bool = True) -> FileStorage:
     # we only remove sources registered outside of dlt core
-    for name, source in _SOURCES.copy().items():
+    for name, source in SourceReference.SOURCES.copy().items():
         if not source.module.__name__.startswith(
             "dlt.sources"
         ) and not source.module.__name__.startswith("default_pipeline"):
-            _SOURCES.pop(name)
+            SourceReference.SOURCES.pop(name)
 
     if clear_all_sources:
-        _SOURCES.clear()
+        SourceReference.SOURCES.clear()
 
     # project dir
     return FileStorage(PROJECT_DIR, makedirs=True)

@@ -152,8 +152,8 @@ def test_overwrite_query_value_from_explicit() -> None:
 
 def test_to_connector_params_private_key() -> None:
     creds = SnowflakeCredentials()
-    creds.private_key = PKEY_PEM_STR  # type: ignore[assignment]
-    creds.private_key_passphrase = PKEY_PASSPHRASE  # type: ignore[assignment]
+    creds.private_key = PKEY_PEM_STR
+    creds.private_key_passphrase = PKEY_PASSPHRASE
     creds.username = "user1"
     creds.database = "db1"
     creds.host = "host1"
@@ -177,8 +177,8 @@ def test_to_connector_params_private_key() -> None:
     )
 
     creds = SnowflakeCredentials()
-    creds.private_key = PKEY_DER_STR  # type: ignore[assignment]
-    creds.private_key_passphrase = PKEY_PASSPHRASE  # type: ignore[assignment]
+    creds.private_key = PKEY_DER_STR
+    creds.private_key_passphrase = PKEY_PASSPHRASE
     creds.username = "user1"
     creds.database = "db1"
     creds.host = "host1"

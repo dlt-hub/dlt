@@ -23,7 +23,6 @@ from dlt.common.configuration.paths import make_dlt_settings_path
 from dlt.common.configuration.providers import CONFIG_TOML, SECRETS_TOML, SecretsTomlProvider
 from dlt.common.runners import Venv
 from dlt.common.storages.file_storage import FileStorage
-from dlt.common.source import _SOURCES
 from dlt.common.utils import set_working_dir
 
 
@@ -532,7 +531,7 @@ def test_pipeline_template_sources_in_single_file(
     repo_dir: str, project_files: FileStorage
 ) -> None:
     init_command.init_command("debug", "bigquery", repo_dir)
-    # _SOURCES now contains the sources from pipeline.py which simulates loading from two places
+    # SourceReference.SOURCES now contains the sources from pipeline.py which simulates loading from two places
     with pytest.raises(CliCommandException) as cli_ex:
         init_command.init_command("arrow", "redshift", repo_dir)
     assert "In init scripts you must declare all sources and resources in single file." in str(

@@ -10,7 +10,6 @@ from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.configuration.specs.exceptions import InvalidConnectionString
 from dlt.common.destination.reference import DestinationClientDwhWithStagingConfiguration
-from dlt.common.typing import TSecretValue
 from dlt.destinations.impl.duckdb.exceptions import InvalidInMemoryDuckdbCredentials
 
 try:

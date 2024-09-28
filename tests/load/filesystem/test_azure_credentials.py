@@ -38,7 +38,7 @@ def az_service_principal_config() -> Optional[FilesystemConfiguration]:
     credentials = AzureServicePrincipalCredentialsWithoutDefaults(
         azure_tenant_id=dlt.config.get("tests.az_sp_tenant_id", str),
         azure_client_id=dlt.config.get("tests.az_sp_client_id", str),
-        azure_client_secret=dlt.config.get("tests.az_sp_client_secret", str),  # type: ignore[arg-type]
+        azure_client_secret=dlt.config.get("tests.az_sp_client_secret", str),
         azure_storage_account_name=dlt.config.get("tests.az_sp_storage_account_name", str),
     )
     #

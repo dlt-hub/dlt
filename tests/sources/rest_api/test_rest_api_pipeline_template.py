@@ -18,6 +18,6 @@ def test_all_examples(example_name: str) -> None:
     github_token: TSecretStrValue = dlt.secrets.get("sources.github.access_token")
     if not github_token:
         # try to get GITHUB TOKEN which is available on github actions, fallback to None if not available
-        github_token = os.environ.get("GITHUB_TOKEN", None)  # type: ignore
+        github_token = os.environ.get("GITHUB_TOKEN", None)
     dlt.secrets["sources.rest_api_pipeline.github.access_token"] = github_token
     getattr(rest_api_pipeline, example_name)()

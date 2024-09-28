@@ -54,7 +54,7 @@ class BearerTokenAuth(AuthConfigBase):
 
     def parse_native_representation(self, value: Any) -> None:
         if isinstance(value, str):
-            self.token = cast(TSecretStrValue, value)
+            self.token = value
         else:
             raise NativeValueError(
                 type(self),
@@ -77,7 +77,7 @@ class APIKeyAuth(AuthConfigBase):
 
     def parse_native_representation(self, value: Any) -> None:
         if isinstance(value, str):
-            self.api_key = cast(TSecretStrValue, value)
+            self.api_key = value
         else:
             raise NativeValueError(
                 type(self),
@@ -130,7 +130,7 @@ class OAuth2AuthBase(AuthConfigBase):
 
     def parse_native_representation(self, value: Any) -> None:
         if isinstance(value, str):
-            self.access_token = cast(TSecretStrValue, value)
+            self.access_token = value
         else:
             raise NativeValueError(
                 type(self),

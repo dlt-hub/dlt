@@ -3,7 +3,7 @@ from typing import Any, ClassVar, Dict, List, Optional, Union
 
 from dlt.common.libs.sql_alchemy_shims import URL, make_url
 from dlt.common.configuration.specs.exceptions import InvalidConnectionString
-from dlt.common.typing import TSecretValue
+from dlt.common.typing import TSecretStrValue
 from dlt.common.configuration.specs.base_configuration import CredentialsConfiguration, configspec
 
 
@@ -11,7 +11,7 @@ from dlt.common.configuration.specs.base_configuration import CredentialsConfigu
 class ConnectionStringCredentials(CredentialsConfiguration):
     drivername: str = dataclasses.field(default=None, init=False, repr=False, compare=False)
     database: Optional[str] = None
-    password: Optional[TSecretValue] = None
+    password: Optional[TSecretStrValue] = None
     username: Optional[str] = None
     host: Optional[str] = None
     port: Optional[int] = None
@@ -45,7 +45,7 @@ class ConnectionStringCredentials(CredentialsConfiguration):
 
     def on_resolved(self) -> None:
         if self.password:
-            self.password = TSecretValue(self.password.strip())
+            self.password = self.password.strip()
 
     def to_native_representation(self) -> str:
         return self.to_url().render_as_string(hide_password=False)
