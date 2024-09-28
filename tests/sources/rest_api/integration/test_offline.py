@@ -437,7 +437,6 @@ def test_DltResource_gets_called(mock_api_server, mocker) -> None:
 
 
 def test_logs_full_response_on_http_error(mock_api_server, mocker):
-
     my_session = Session()
     mocked_send = mocker.spy(my_session, "_log_full_response_if_error")
     logger_spy = mocker.spy(dlt.common.logger, "error")
@@ -453,8 +452,7 @@ def test_logs_full_response_on_http_error(mock_api_server, mocker):
                     "name": "crash",
                     "endpoint": {
                         "path": "/posts/2/some_details_404",
-                    }
-
+                    },
                 },
             ],
         }
@@ -464,7 +462,10 @@ def test_logs_full_response_on_http_error(mock_api_server, mocker):
         list(source.with_resources("crash"))
 
     mocked_send.assert_called_once()
-    logger_spy.assert_called_once_with('404 Client Error: None for url: https://api.example.com/posts/2/some_details_404. Full response: {"error":"Post not found"}')
+    logger_spy.assert_called_once_with(
+        "404 Client Error: None for url: https://api.example.com/posts/2/some_details_404. Full"
+        ' response: {"error":"Post not found"}'
+    )
 
     assert mocked_send.call_args[0][0].status_code == 404
     assert mocked_send.call_args[0][0].text == '{"error":"Post not found"}'
