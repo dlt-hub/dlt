@@ -371,7 +371,7 @@ def test_posts_with_inremental_date_conversion(mock_api_server) -> None:
         assert called_kwargs["path"] == "posts"
 
 
-def test_multiple_response_actions_on_every_response(mock_api_server, mocker):
+def test_can_pass_custom_session(mock_api_server, mocker):
     class CustomSession(BaseSession):
         pass
 
