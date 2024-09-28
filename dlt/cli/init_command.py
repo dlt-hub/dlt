@@ -18,13 +18,14 @@ from dlt.common.configuration.providers import (
     SecretsTomlProvider,
 )
 from dlt.common.pipeline import get_dlt_repos_dir
-from dlt.common.source import _SOURCES
 from dlt.version import DLT_PKG_NAME, __version__
 from dlt.common.destination import Destination
 from dlt.common.reflection.utils import rewrite_python_script
 from dlt.common.schema.utils import is_valid_schema_name
 from dlt.common.schema.exceptions import InvalidSchemaName
 from dlt.common.storages.file_storage import FileStorage
+
+from dlt.sources.reference import SourceReference
 from dlt.sources import pipeline_templates as init_module
 
 import dlt.reflection.names as n
@@ -477,7 +478,7 @@ def init_command(
         # template sources are always in module starting with "pipeline"
         # for templates, place config and secrets into top level section
         required_secrets, required_config, checked_sources = source_detection.detect_source_configs(
-            _SOURCES, source_configuration.source_module_prefix, ()
+            SourceReference.SOURCES, source_configuration.source_module_prefix, ()
         )
         # template has a strict rules where sources are placed
         for source_q_name, source_config in checked_sources.items():
@@ -485,8 +486,8 @@ def init_command(
                 raise CliCommandException(
                     "init",
                     f"The pipeline script {source_configuration.src_pipeline_script} imports a"
-                    f" source/resource {source_config.f.__name__} from module"
-                    f" {source_config.module.__name__}. In init scripts you must declare all"
+                    f" source/resource {source_config.name} from section"
+                    f" {source_config.section}. In init scripts you must declare all"
                     " sources and resources in single file.",
                 )
         # rename sources and resources
@@ -501,7 +502,7 @@ def init_command(
         # pipeline sources are in module with name starting from {pipeline_name}
         # for verified pipelines place in the specific source section
         required_secrets, required_config, checked_sources = source_detection.detect_source_configs(
-            _SOURCES,
+            SourceReference.SOURCES,
             source_configuration.source_module_prefix,
             (known_sections.SOURCES, source_name),
         )

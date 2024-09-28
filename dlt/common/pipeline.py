@@ -4,7 +4,7 @@ import os
 import datetime  # noqa: 251
 import humanize
 import contextlib
-
+import threading
 from typing import (
     Any,
     Callable,
@@ -34,7 +34,11 @@ from dlt.common.configuration.paths import get_dlt_data_dir
 from dlt.common.configuration.specs import RunConfiguration
 from dlt.common.destination import TDestinationReferenceArg, TDestination
 from dlt.common.destination.exceptions import DestinationHasFailedJobs
-from dlt.common.exceptions import PipelineStateNotAvailable, SourceSectionNotAvailable
+from dlt.common.exceptions import (
+    PipelineStateNotAvailable,
+    SourceSectionNotAvailable,
+    ResourceNameNotAvailable,
+)
 from dlt.common.metrics import (
     DataWriterMetrics,
     ExtractDataInfo,
@@ -50,7 +54,6 @@ from dlt.common.schema.typing import (
     TWriteDispositionConfig,
     TSchemaContract,
 )
-from dlt.common.source import get_current_pipe_name
 from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.common.storages.load_storage import LoadPackageInfo
 from dlt.common.time import ensure_pendulum_datetime, precise_time
@@ -787,3 +790,28 @@ def get_dlt_pipelines_dir() -> str:
 def get_dlt_repos_dir() -> str:
     """Gets default directory where command repositories will be stored"""
     return os.path.join(get_dlt_data_dir(), "repos")
+
+
+_CURRENT_PIPE_NAME: Dict[int, str] = {}
+"""Name of currently executing pipe per thread id set during execution of a gen in pipe"""
+
+
+def set_current_pipe_name(name: str) -> None:
+    """Set pipe name in current thread"""
+    _CURRENT_PIPE_NAME[threading.get_ident()] = name
+
+
+def unset_current_pipe_name() -> None:
+    """Unset pipe name in current thread"""
+    _CURRENT_PIPE_NAME[threading.get_ident()] = None
+
+
+def get_current_pipe_name() -> str:
+    """When executed from withing dlt.resource decorated function, gets pipe name associated with current thread.
+
+    Pipe name is the same as resource name for all currently known cases. In some multithreading cases, pipe name may be not available.
+    """
+    name = _CURRENT_PIPE_NAME.get(threading.get_ident())
+    if name is None:
+        raise ResourceNameNotAvailable()
+    return name

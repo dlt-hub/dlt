@@ -7,8 +7,8 @@ from dlt.common.configuration import is_secret_hint
 from dlt.common.configuration.specs import BaseConfiguration
 from dlt.common.reflection.utils import creates_func_def_name_node
 from dlt.common.typing import is_optional_type
-from dlt.common.source import SourceInfo
 
+from dlt.sources.reference import SourceReference
 from dlt.cli.config_toml_writer import WritableConfigValue
 from dlt.cli.exceptions import CliCommandException
 from dlt.reflection.script_visitor import PipelineScriptVisitor
@@ -72,14 +72,16 @@ def find_source_calls_to_replace(
 
 
 def detect_source_configs(
-    sources: Dict[str, SourceInfo], module_prefix: str, section: Tuple[str, ...]
-) -> Tuple[Dict[str, WritableConfigValue], Dict[str, WritableConfigValue], Dict[str, SourceInfo]]:
+    sources: Dict[str, SourceReference], module_prefix: str, section: Tuple[str, ...]
+) -> Tuple[
+    Dict[str, WritableConfigValue], Dict[str, WritableConfigValue], Dict[str, SourceReference]
+]:
     # all detected secrets with sections
     required_secrets: Dict[str, WritableConfigValue] = {}
     # all detected configs with sections
     required_config: Dict[str, WritableConfigValue] = {}
     # all sources checked
-    checked_sources: Dict[str, SourceInfo] = {}
+    checked_sources: Dict[str, SourceReference] = {}
 
     for source_name, source_info in sources.items():
         # accept only sources declared in the `init` or `pipeline` modules
