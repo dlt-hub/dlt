@@ -1,11 +1,13 @@
+from typing import TYPE_CHECKING, Any, Optional, Tuple, TypeVar, Union
+
+from requests import PreparedRequest, Response
 from requests import Session as BaseSession
-from typing import Optional, TYPE_CHECKING, Union, Tuple, TypeVar
 
-from dlt.sources.helpers.requests.typing import TRequestTimeout
-from dlt.common.typing import TimedeltaSeconds
+from dlt.common import logger
 from dlt.common.time import to_seconds
+from dlt.common.typing import TimedeltaSeconds
+from dlt.sources.helpers.requests.typing import TRequestTimeout
 from dlt.version import __version__
-
 
 TSession = TypeVar("TSession", bound=BaseSession)
 
@@ -56,6 +58,15 @@ class Session(BaseSession):
             resp.raise_for_status()
         return resp
 
-    def send(self, request, **kwargs):  # type: ignore[no-untyped-def]
+    def send(self, request: PreparedRequest, **kwargs: Any) -> Response:
         kwargs.setdefault("timeout", self.timeout)
+        request.hooks["response"].append(self._log_full_response_if_error)
         return super().send(request, **kwargs)
+
+    def _log_full_response_if_error(self, response: Response, *args: Any, **kwargs: Any) -> None:
+        if 400 <= response.status_code < 500:
+            http_error_msg = (
+                f"{response.status_code} Client Error: {response.reason} for url: {response.url}."
+                f" Full response: {response.text}"
+            )
+            logger.error(http_error_msg)

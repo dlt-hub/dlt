@@ -106,7 +106,7 @@ def test_retry_on_status_without_raise_for_status(mock_sleep: mock.MagicMock) ->
     assert m.call_count == RunConfiguration.request_max_attempts
 
 
-def test_hooks_with_raise_for_statue() -> None:
+def test_hooks_with_raise_for_status() -> None:
     url = "https://example.com/data"
     session = Client(raise_for_status=True).session
     m = requests_mock.Adapter()
@@ -124,6 +124,25 @@ def test_hooks_with_raise_for_statue() -> None:
     assert response.json() == []
 
     assert m.call_count == 1
+
+
+def test_logs_full_response_on_error(mocker) -> None:
+    url = "https://example.com/data"
+    # this configuration is also used by the rest_api source
+    session = Client(raise_for_status=False).session
+    m = requests_mock.Adapter()
+    session.mount("https://", m)
+
+    m.register_uri("GET", url, status_code=400, reason="A reason", content=b"The full content")
+
+    mocked_hook = mocker.spy(session, "_log_full_response_if_error")
+    logger_spy = mocker.spy(dlt.common.logger, "error")
+    _ = session.get(url)
+    mocked_hook.assert_called_once()
+    logger_spy.assert_called_once_with(
+        "400 Client Error: A reason for url: https://example.com/data."
+        " Full response: The full content"
+    )
 
 
 @pytest.mark.parametrize(
