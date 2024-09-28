@@ -60,8 +60,15 @@ class Session(BaseSession):
 
     def send(self, request: PreparedRequest, **kwargs: Any) -> Response:
         kwargs.setdefault("timeout", self.timeout)
-        request.hooks["response"].append(self._log_full_response_if_error)
+        self._attach_log_error_hook(request)
         return super().send(request, **kwargs)
+
+    def _attach_log_error_hook(self, request: PreparedRequest) -> None:
+        if "response" in request.hooks:
+            # ensure that the logging is called before any other handler, such as raise_for_status()
+            request.hooks["response"].insert(0, self._log_full_response_if_error)
+        else:
+            request.hooks["response"] = [self._log_full_response_if_error]
 
     def _log_full_response_if_error(self, response: Response, *args: Any, **kwargs: Any) -> None:
         if 400 <= response.status_code < 500:
