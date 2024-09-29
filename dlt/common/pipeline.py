@@ -549,9 +549,7 @@ class SupportsPipelineRun(Protocol):
 
 @configspec
 class PipelineContext(ContainerInjectableContext):
-    _deferred_pipeline: Callable[[], SupportsPipeline] = dataclasses.field(
-        default=None, init=False, repr=False, compare=False
-    )
+    _DEFERRED_PIPELINE: ClassVar[Callable[[], SupportsPipeline]] = None
     _pipeline: SupportsPipeline = dataclasses.field(
         default=None, init=False, repr=False, compare=False
     )
@@ -562,11 +560,11 @@ class PipelineContext(ContainerInjectableContext):
         """Creates or returns exiting pipeline"""
         if not self._pipeline:
             # delayed pipeline creation
-            assert self._deferred_pipeline is not None, (
+            assert PipelineContext._DEFERRED_PIPELINE is not None, (
                 "Deferred pipeline creation function not provided to PipelineContext. Are you"
                 " calling dlt.pipeline() from another thread?"
             )
-            self.activate(self._deferred_pipeline())
+            self.activate(PipelineContext._DEFERRED_PIPELINE())
         return self._pipeline
 
     def activate(self, pipeline: SupportsPipeline) -> None:
@@ -585,9 +583,10 @@ class PipelineContext(ContainerInjectableContext):
             self._pipeline._set_context(False)
         self._pipeline = None
 
-    def __init__(self, deferred_pipeline: Callable[..., SupportsPipeline] = None) -> None:
+    @classmethod
+    def cls__init__(self, deferred_pipeline: Callable[..., SupportsPipeline] = None) -> None:
         """Initialize the context with a function returning the Pipeline object to allow creation on first use"""
-        self._deferred_pipeline = deferred_pipeline
+        self._DEFERRED_PIPELINE = deferred_pipeline
 
 
 def current_pipeline() -> SupportsPipeline:

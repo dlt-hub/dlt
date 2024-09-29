@@ -8,7 +8,7 @@ from dlt.common.pipeline import get_dlt_repos_dir
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.utils import set_working_dir, uniq_id
 
-from dlt.sources.reference import SourceReference
+from dlt.sources import SourceReference
 
 from dlt.cli import echo
 from dlt.cli.init_command import DEFAULT_VERIFIED_SOURCES_REPO

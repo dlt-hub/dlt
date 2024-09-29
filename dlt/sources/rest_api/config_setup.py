@@ -14,8 +14,8 @@ from typing import (
 )
 import graphlib  # type: ignore[import,unused-ignore]
 import string
+from requests import Response
 
-import dlt
 from dlt.common import logger
 from dlt.common.configuration import resolve_configuration
 from dlt.common.schema.utils import merge_columns
@@ -25,7 +25,6 @@ from dlt.common import jsonpath
 from dlt.extract.incremental import Incremental
 from dlt.extract.utils import ensure_table_schema_columns
 
-from dlt.sources.helpers.requests import Response
 from dlt.sources.helpers.rest_client.paginators import (
     BasePaginator,
     SinglePagePaginator,
@@ -196,7 +195,7 @@ def setup_incremental_object(
         if (
             isinstance(param_config, dict)
             and param_config.get("type") == "incremental"
-            or isinstance(param_config, dlt.sources.incremental)
+            or isinstance(param_config, Incremental)
         ):
             incremental_params.append(param_name)
     if len(incremental_params) > 1:
@@ -206,7 +205,7 @@ def setup_incremental_object(
         )
     convert: Optional[Callable[..., Any]]
     for param_name, param_config in request_params.items():
-        if isinstance(param_config, dlt.sources.incremental):
+        if isinstance(param_config, Incremental):
             if param_config.end_value is not None:
                 raise ValueError(
                     f"Only initial_value is allowed in the configuration of param: {param_name}. To"
@@ -228,7 +227,7 @@ def setup_incremental_object(
             config = exclude_keys(param_config, {"type", "convert", "transform"})
             # TODO: implement param type to bind incremental to
             return (
-                dlt.sources.incremental(**config),
+                Incremental(**config),
                 IncrementalParam(start=param_name, end=None),
                 convert,
             )
@@ -238,7 +237,7 @@ def setup_incremental_object(
             incremental_config, {"start_param", "end_param", "convert", "transform"}
         )
         return (
-            dlt.sources.incremental(**config),
+            Incremental(**config),
             IncrementalParam(
                 start=incremental_config["start_param"],
                 end=incremental_config.get("end_param"),

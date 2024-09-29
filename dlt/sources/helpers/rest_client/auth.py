@@ -24,7 +24,6 @@ from dlt.common.configuration.specs import CredentialsConfiguration
 from dlt.common.configuration.specs.exceptions import NativeValueError
 from dlt.common.pendulum import pendulum
 from dlt.common.typing import TSecretStrValue
-from dlt.sources.helpers import requests
 
 if TYPE_CHECKING:
     from cryptography.hazmat.primitives.asymmetric.types import PrivateKeyTypes
@@ -173,8 +172,11 @@ class OAuth2ClientCredentials(OAuth2AuthBase):
             self.access_token_request_data = access_token_request_data
         self.default_token_expiration = default_token_expiration
         self.token_expiry: pendulum.DateTime = pendulum.now()
+        self.session = session
+        if not self.session:
+            from dlt.sources.helpers import requests
 
-        self.session = session if session is not None else requests.client.session
+            session = requests.client.session
 
     def __call__(self, request: PreparedRequest) -> PreparedRequest:
         if self.access_token is None or self.is_token_expired():
@@ -235,6 +237,8 @@ class OAuthJWTAuth(BearerTokenAuth):
         self.token_expiry: Optional[pendulum.DateTime] = None
         # use default system session unless specified otherwise
         if self.session is None:
+            from dlt.sources.helpers import requests
+
             self.session = requests.client.session
 
     def __call__(self, r: PreparedRequest) -> PreparedRequest:

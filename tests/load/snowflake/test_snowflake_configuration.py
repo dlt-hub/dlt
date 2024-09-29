@@ -8,7 +8,7 @@ from tests.utils import TEST_DICT_CONFIG_PROVIDER
 
 pytest.importorskip("snowflake")
 
-from dlt.common.libs.sql_alchemy_shims import make_url
+from dlt.common.libs.sql_alchemy_compat import make_url
 from dlt.common.configuration.resolve import resolve_configuration
 from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.common.utils import digest128

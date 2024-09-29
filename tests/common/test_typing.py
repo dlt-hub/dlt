@@ -277,8 +277,8 @@ def test_get_all_types_of_class_in_union() -> None:
 
 def test_secret_type() -> None:
     # typing must be ok
-    val: TSecretValue = 1
-    val_2: TSecretValue = b"ABC"
+    val: TSecretValue = 1  # noqa
+    val_2: TSecretValue = b"ABC"  # noqa
 
     # must evaluate to self at runtime
     assert TSecretValue("a") == "a"
@@ -287,9 +287,9 @@ def test_secret_type() -> None:
     assert isinstance(TSecretValue(7), int)
 
     # secret str evaluates to str
-    val_str: TSecretStrValue = "x"
+    val_str: TSecretStrValue = "x"  # noqa
     # here we expect ignore!
-    val_str_err: TSecretStrValue = 1  # type: ignore[assignment]
+    val_str_err: TSecretStrValue = 1  # type: ignore[assignment] # noqa
 
     assert TSecretStrValue("x_str") == "x_str"
     assert TSecretStrValue({}) == "{}"

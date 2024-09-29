@@ -25,8 +25,7 @@ from dlt.common.schema.utils import is_valid_schema_name
 from dlt.common.schema.exceptions import InvalidSchemaName
 from dlt.common.storages.file_storage import FileStorage
 
-from dlt.sources.reference import SourceReference
-from dlt.sources import pipeline_templates as init_module
+from dlt.sources import SourceReference, pipeline_templates as init_module
 
 import dlt.reflection.names as n
 from dlt.reflection.script_inspector import inspect_pipeline_script, load_script_module

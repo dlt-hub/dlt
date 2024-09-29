@@ -1,7 +1,8 @@
 import dataclasses
 from typing import Any, ClassVar, Dict, List, Optional, Union
 
-from dlt.common.libs.sql_alchemy_shims import URL, make_url
+# avoid importing sqlalchemy
+from dlt.common.libs.sql_alchemy_shims import URL
 from dlt.common.configuration.specs.exceptions import InvalidConnectionString
 from dlt.common.typing import TSecretStrValue
 from dlt.common.configuration.specs.base_configuration import CredentialsConfiguration, configspec
@@ -34,6 +35,8 @@ class ConnectionStringCredentials(CredentialsConfiguration):
         if not isinstance(native_value, str):
             raise InvalidConnectionString(self.__class__, native_value, self.drivername)
         try:
+            from dlt.common.libs.sql_alchemy_compat import make_url
+
             url = make_url(native_value)
             # update only values that are not None
             self.update({k: v for k, v in url._asdict().items() if v is not None})
@@ -66,6 +69,10 @@ class ConnectionStringCredentials(CredentialsConfiguration):
 
         # query must be str -> str
         query = {k: _serialize_value(v) for k, v in self.get_query().items()}
+
+        # import "real" URL
+        from dlt.common.libs.sql_alchemy_compat import URL
+
         return URL.create(
             self.drivername,
             self.username,

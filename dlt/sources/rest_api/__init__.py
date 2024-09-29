@@ -10,8 +10,7 @@ from dlt.common import jsonpath
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import TSchemaContract
 
-from dlt.extract.incremental import Incremental
-from dlt.extract.source import DltResource, DltSource
+from dlt.extract import Incremental, DltResource, DltSource, decorators
 
 from dlt.sources.helpers.rest_client import RESTClient
 from dlt.sources.helpers.rest_client.paginators import BasePaginator
@@ -56,7 +55,7 @@ SENSITIVE_KEYS: List[str] = [
 ]
 
 
-@dlt.source
+@decorators.source
 def rest_api(
     client: ClientConfig = dlt.config.value,
     resources: List[Union[str, EndpointResource, DltResource]] = dlt.config.value,

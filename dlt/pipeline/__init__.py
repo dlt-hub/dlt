@@ -309,4 +309,4 @@ from dlt.pipeline import trace, track, platform
 trace.TRACKING_MODULES = [track, platform]
 
 # setup default pipeline in the container
-Container()[PipelineContext] = PipelineContext(pipeline)
+PipelineContext.cls__init__(pipeline)
