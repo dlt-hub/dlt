@@ -18,7 +18,11 @@ from dlt.destinations.job_client_impl import SqlJobClientWithStagingDataset, Sql
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.schema import Schema, TTableSchema, TColumnSchema, TSchemaTables
 from dlt.common.schema.typing import TColumnType, TTableSchemaColumns
-from dlt.common.schema.utils import pipeline_state_table, normalize_table_identifiers, is_complete_column
+from dlt.common.schema.utils import (
+    pipeline_state_table,
+    normalize_table_identifiers,
+    is_complete_column,
+)
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
 from dlt.destinations.impl.sqlalchemy.db_api_client import SqlalchemyClient
 from dlt.destinations.impl.sqlalchemy.configuration import SqlalchemyClientConfiguration
