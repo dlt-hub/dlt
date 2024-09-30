@@ -1,6 +1,6 @@
 ---
-title: Filesystem & Buckets
-description: dlt-verified source for Filesystem & Buckets
+title: Filesystem & cloud storage
+description: dlt-verified source for Filesystem & cloud storage
 keywords: [readers source and filesystem, files, filesystem, readers source, cloud storage]
 ---
 
