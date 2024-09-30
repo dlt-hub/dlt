@@ -69,14 +69,15 @@ TDestinationDwhClient = TypeVar("TDestinationDwhClient", bound="DestinationClien
 
 DEFAULT_FILE_LAYOUT = "{table_name}/{load_id}.{file_id}.{ext}"
 
-try:
-    from dlt.common.libs.pandas import DataFrame
-except MissingDependencyException:
+if TYPE_CHECKING:
+    try:
+        from dlt.common.libs.pandas import DataFrame
+        from dlt.common.libs.pyarrow import Table as ArrowTable
+    except MissingDependencyException:
+        DataFrame = Any
+        ArrowTable = Any
+else:
     DataFrame = Any
-
-try:
-    from dlt.common.libs.pyarrow import ArrowTable
-except MissingDependencyException:
     ArrowTable = Any
 
 
