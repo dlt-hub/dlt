@@ -384,9 +384,13 @@ class DBApiCursorImpl(DBApiCursor):
     def iter_arrow(self, chunk_size: int) -> Generator[ArrowTable, None, None]:
         """Default implementation converts query result to arrow table"""
         from dlt.common.libs.pyarrow import row_tuples_to_arrow
+        from dlt.common.configuration.container import Container
 
-        # if loading to a specific pipeline, it would be nice to have the correct caps here
-        caps = DestinationCapabilitiesContext.generic_capabilities()
+        # get capabilities of possibly currently active pipeline
+        caps = (
+            Container().get(DestinationCapabilitiesContext)
+            or DestinationCapabilitiesContext.generic_capabilities()
+        )
 
         if not chunk_size:
             result = self.fetchall()
