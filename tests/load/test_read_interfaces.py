@@ -11,11 +11,11 @@ from functools import reduce
 from tests.load.utils import (
     destinations_configs,
     DestinationTestConfiguration,
-    AZ_BUCKET,
-    ABFS_BUCKET,
+    GCS_BUCKET,
     SFTP_BUCKET,
 )
 from pandas import DataFrame
+from dlt.destinations import filesystem
 
 
 def _run_dataset_checks(
@@ -191,8 +191,8 @@ def test_read_interfaces_sql(destination_config: DestinationTestConfiguration) -
     destinations_configs(
         local_filesystem_configs=True,
         all_buckets_filesystem_configs=True,
-        bucket_exclude=[AZ_BUCKET, ABFS_BUCKET, SFTP_BUCKET],
-    ),  # TODO: make AZ and SFTP work
+        bucket_exclude=[SFTP_BUCKET],
+    ),  # TODO: make SFTP work
     ids=lambda x: x.name,
 )
 def test_read_interfaces_filesystem(destination_config: DestinationTestConfiguration) -> None:
@@ -211,6 +211,17 @@ def test_read_interfaces_filesystem(destination_config: DestinationTestConfigura
     )
 
     _run_dataset_checks(pipeline, destination_config)
+
+    # for gcs buckets we additionally test the s3 compat layer
+    if destination_config.bucket_url == GCS_BUCKET:
+        gcp_bucket = filesystem(
+            GCS_BUCKET.replace("gs://", "s3://"), destination_name="filesystem_s3_gcs_comp"
+        )
+        pipeline = destination_config.setup_pipeline(
+            "read_pipeline", dataset_name="read_test", dev_mode=True, destination=gcp_bucket
+        )
+        _run_dataset_checks(pipeline, destination_config)
+        assert pipeline.destination_client().config.credentials
 
 
 @pytest.mark.essential

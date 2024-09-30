@@ -262,13 +262,6 @@ class FilesystemClient(
 
     @property
     def sql_client(self) -> SqlClientBase[Any]:
-        return self.sql_client_with_connection()
-
-    @sql_client.setter
-    def sql_client(self, client: SqlClientBase[Any]) -> None:
-        self._sql_client = client
-
-    def sql_client_with_connection(self, duckdb_connection: Any = None) -> SqlClientBase[Any]:
         # we use an inner import here, since the sql client depends on duckdb and will
         # only be used for read access on data, some users will not need the dependency
         from dlt.destinations.impl.filesystem.sql_client import FilesystemSqlClient
@@ -278,9 +271,13 @@ class FilesystemClient(
                 self,
                 protocol=self.config.protocol,
                 dataset_name=self.dataset_name,
-                duckdb_connection=duckdb_connection,
+                duckdb_connection=None,
             )
         return self._sql_client
+
+    @sql_client.setter
+    def sql_client(self, client: SqlClientBase[Any]) -> None:
+        self._sql_client = client
 
     def drop_storage(self) -> None:
         if self.is_storage_initialized():

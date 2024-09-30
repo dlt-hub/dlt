@@ -1,4 +1,4 @@
-from typing import Any, Iterator, AnyStr, List, cast
+from typing import Any, Iterator, AnyStr, List, cast, TYPE_CHECKING
 
 import os
 
@@ -6,6 +6,7 @@ import duckdb
 
 import sqlglot
 import sqlglot.expressions as exp
+from dlt.common import logger
 
 from contextlib import contextmanager
 
@@ -13,21 +14,31 @@ from dlt.common.destination.reference import DBApiCursor
 from dlt.common.destination.typing import PreparedTableSchema
 
 from dlt.destinations.sql_client import raise_database_error
-from dlt.destinations.fs_client import FSClientBase
 
 from dlt.destinations.impl.duckdb.sql_client import DuckDbSqlClient
 from dlt.destinations.impl.duckdb.factory import duckdb as duckdb_factory, DuckDbCredentials
+from dlt.common.configuration.specs import (
+    AwsCredentials,
+    AzureServicePrincipalCredentialsWithoutDefaults,
+    AzureCredentialsWithoutDefaults,
+)
 
-SUPPORTED_PROTOCOLS = ["gs", "gcs", "s3", "file", "memory"]
+SUPPORTED_PROTOCOLS = ["gs", "gcs", "s3", "file", "memory", "az", "abfss"]
+
+if TYPE_CHECKING:
+    from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
+else:
+    FilesystemClient = Any
 
 
 class FilesystemSqlClient(DuckDbSqlClient):
     def __init__(
         self,
-        fs_client: FSClientBase,
+        fs_client: FilesystemClient,
         protocol: str,
         dataset_name: str,
         duckdb_connection: duckdb.DuckDBPyConnection = None,
+        create_persistent_secrets: bool = False,
     ) -> None:
         super().__init__(
             dataset_name=dataset_name,
@@ -39,6 +50,8 @@ class FilesystemSqlClient(DuckDbSqlClient):
         self.protocol = protocol
         self.is_local_filesystem = protocol == "file"
         self.using_external_database = duckdb_connection is not None
+        self.create_persistent_secrets = create_persistent_secrets
+        self.autocreate_required_views = False
 
         if protocol not in SUPPORTED_PROTOCOLS:
             raise NotImplementedError(
@@ -51,15 +64,77 @@ class FilesystemSqlClient(DuckDbSqlClient):
         if self._conn:
             return self._conn
         super().open_connection()
-        # set up connection
-        self._conn.register_filesystem(self.fs_client.fs_client)
+
+        # set up connection and dataset
         self._existing_views: List[str] = []  # remember which views already where created
         if not self.has_dataset():
             self.create_dataset()
         self._conn.sql(f"USE {self.dataset_name}")
+        self.autocreate_required_views = True
+
+        persistent = ""
+        if self.create_persistent_secrets:
+            persistent = " PERSISTENT "
+
+        # add secrets required for creating views
+        if self.protocol == "s3":
+            aws_creds = cast(AwsCredentials, self.fs_client.config.credentials)
+            endpoint = (
+                aws_creds.endpoint_url.replace("https://", "")
+                if aws_creds.endpoint_url
+                else "s3.amazonaws.com"
+            )
+            self._conn.sql(f"""
+            CREATE {persistent} SECRET secret_aws (
+                TYPE S3,
+                KEY_ID '{aws_creds.aws_access_key_id}',
+                SECRET '{aws_creds.aws_secret_access_key}',
+                REGION '{aws_creds.region_name}',
+                ENDPOINT '{endpoint}'
+            );""")
+
+        # azure with storage account creds
+        elif self.protocol in ["az", "abfss"] and isinstance(
+            self.fs_client.config.credentials, AzureCredentialsWithoutDefaults
+        ):
+            azsa_creds = self.fs_client.config.credentials
+            self._conn.sql(f"""
+            CREATE {persistent} SECRET secret_az (
+                TYPE AZURE,
+                CONNECTION_STRING 'AccountName={azsa_creds.azure_storage_account_name};AccountKey={azsa_creds.azure_storage_account_key}'
+            );""")
+
+        # azure with service principal creds
+        elif self.protocol in ["az", "abfss"] and isinstance(
+            self.fs_client.config.credentials, AzureServicePrincipalCredentialsWithoutDefaults
+        ):
+            azsp_creds = self.fs_client.config.credentials
+            self._conn.sql(f"""
+            CREATE SECRET secret_az (
+                TYPE AZURE,
+                PROVIDER SERVICE_PRINCIPAL,
+                TENANT_ID '{azsp_creds.azure_tenant_id}',
+                CLIENT_ID '{azsp_creds.azure_client_id}',
+                CLIENT_SECRET '{azsp_creds.azure_client_secret}',
+                ACCOUNT_NAME '{azsp_creds.azure_storage_account_name}'
+            );""")
+
+        # native google storage implementation is not supported..
+        elif self.protocol in ["gs", "gcs"]:
+            logger.warn(
+                "For gs/gcs access via duckdb please use the gs/gcs s3 compatibility layer. Falling"
+                " back to fsspec."
+            )
+            self._conn.register_filesystem(self.fs_client.fs_client)
+
+        # for memory we also need to register filesystem
+        elif self.protocol == "memory":
+            self._conn.register_filesystem(self.fs_client.fs_client)
+
         return self._conn
 
     def close_connection(self) -> None:
+        # we keep the local memory instance around as long this client exists
         if self.using_external_database:
             return super().close_connection()
 
@@ -101,9 +176,14 @@ class FilesystemSqlClient(DuckDbSqlClient):
                     " parquet files are supported."
                 )
 
-            # create table
+            # build files string
             protocol = "" if self.is_local_filesystem else f"{self.protocol}://"
+            supports_wildcard_notation = self.protocol != "abfss"
             files_string = f"'{protocol}{folder}/**/*.{file_type}'"
+            if not supports_wildcard_notation:
+                files_string = ",".join(map(lambda f: f"'{protocol}{f}'", files))
+
+            # create table
             table_name = self.make_qualified_table_name(table_name)
             create_table_sql_base = (
                 f"CREATE VIEW {table_name} AS SELECT * FROM"
@@ -123,12 +203,10 @@ class FilesystemSqlClient(DuckDbSqlClient):
     @raise_database_error
     def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> Iterator[DBApiCursor]:
         # find all tables to preload
-        try:
+        if self.autocreate_required_views:  # skip this step when operating on the schema..
             expression = sqlglot.parse_one(query, read="duckdb")  # type: ignore
             load_tables = [t.name for t in expression.find_all(exp.Table)]
             self.create_view_for_tables(load_tables)
-        except Exception:
-            pass
 
         # TODO: raise on non-select queries here, they do not make sense in this context
         with super().execute_query(query, *args, **kwargs) as cursor:
