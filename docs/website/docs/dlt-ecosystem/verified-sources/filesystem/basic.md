@@ -6,7 +6,7 @@ keywords: [readers source and filesystem, files, filesystem, readers source, clo
 import Header from '../_source-info-header.md';
 <Header/>
 
-Filesystem source allows loading files from remote locations (AWS S3, Google Cloud Storage, Google Drive, Azure, sftp server) or the local filesystem seamlessly. Filesystem source natively supports `csv`, `parquet`, and `jsonl` files and allows customization for loading any type of structured files.
+Filesystem source allows loading files from remote locations (AWS S3, Google Cloud Storage, Google Drive, Azure Blob Storage, SFTP server) or the local filesystem seamlessly. Filesystem source natively supports `csv`, `parquet`, and `jsonl` files and allows customization for loading any type of structured files.
 
 To load unstructured data (`.pdf`, `.txt`, e-mail), please refer to the [unstructured data source](https://github.com/dlt-hub/verified-sources/tree/master/sources/unstructured_data).
 
@@ -132,7 +132,7 @@ dlt supports several authentication methods:
 3. Username/Password authentication
 4. GSS-API authentication
 
-Learn more about sftp authentication options in [SFTP section](../../destinations/filesystem#sftp). To obtain credentials, contact your server administrator.
+Learn more about SFTP authentication options in [SFTP section](../../destinations/filesystem#sftp). To obtain credentials, contact your server administrator.
 </TabItem>
 
 <TabItem value="local">
@@ -211,7 +211,7 @@ bucket_url="gs://<bucket_name>/<path_to_files>/"
 
 <TabItem value="sftp">
 
-Learn how to set up sftp credentials for each authentication method in the [SFTP section](../../destinations/filesystem#sftp).
+Learn how to set up SFTP credentials for each authentication method in the [SFTP section](../../destinations/filesystem#sftp).
 For example, in case of key-based authentication, you can configure the source the following way:
 
 ```toml

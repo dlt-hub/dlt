@@ -67,7 +67,7 @@ const sidebars = {
         {
           type: 'category',
           label: 'Filesystem & cloud storage',
-          description: 'AWS S3, Google Cloud Storage, Azure, sftp, local file system',
+          description: 'AWS S3, Google Cloud Storage, Azure, SFTP, local file system',
             link: {
             type: 'doc',
             id: 'dlt-ecosystem/verified-sources/filesystem/index',

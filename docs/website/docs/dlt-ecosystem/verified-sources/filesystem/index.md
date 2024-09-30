@@ -8,8 +8,8 @@ The Filesystem source allows seamless loading of files from the following locati
 * AWS S3
 * Google Cloud Storage
 * Google Drive
-* Azure
-* remote filesystem (via sftp)
+* Azure Blob Storage
+* remote filesystem (via SFTP)
 * local filesystem
 
 The Filesystem source natively supports `csv`, `parquet`, and `jsonl` files and allows customization for loading any type of structured files.
