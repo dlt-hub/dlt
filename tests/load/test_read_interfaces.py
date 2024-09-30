@@ -189,9 +189,9 @@ def _run_dataset_checks(
     join_relationship = pipeline._dataset()(query)
     table = join_relationship.fetchall()
     assert len(table) == 20
-    assert table[0] == (0, 0)
-    assert table[5] == (5, 10)
-    assert table[10] == (10, 20)
+    assert list(table[0]) == [0, 0]
+    assert list(table[5]) == [5, 10]
+    assert list(table[10]) == [10, 20]
 
     # special filesystem sql checks
     if destination_config.destination_type == "filesystem":
@@ -208,9 +208,9 @@ def _run_dataset_checks(
             with c.execute_query("SELECT * FROM items_joined ORDER BY id ASC;") as cursor:
                 joined_table = cursor.fetchall()
                 assert len(joined_table) == total_records
-                assert joined_table[0] == (0, 0)
-                assert joined_table[5] == (5, 10)
-                assert joined_table[10] == (10, 20)
+                assert list(joined_table[0]) == [0, 0]
+                assert list(joined_table[5]) == [5, 10]
+                assert list(joined_table[10]) == [10, 20]
 
             # inserting values into a view should fail gracefully
             try:
