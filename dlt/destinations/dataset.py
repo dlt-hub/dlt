@@ -1,4 +1,4 @@
-from typing import Any, Generator
+from typing import Any, Generator, AnyStr
 
 from contextlib import contextmanager
 from dlt.common.destination.reference import (
@@ -16,7 +16,7 @@ class ReadableDBAPIRelation(SupportsReadableRelation):
         self,
         *,
         client: SqlClientBase[Any],
-        query: str,
+        query: Any,
         schema_columns: TTableSchemaColumns = None,
     ) -> None:
         """Create a lazy evaluated relation to for the dataset of a destination"""
@@ -75,9 +75,9 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
         self.client = client
         self.schema = schema
 
-    def query(
-        self, query: str, schema_columns: TTableSchemaColumns = None
-    ) -> SupportsReadableRelation:
+    def __call__(
+        self, query: Any, schema_columns: TTableSchemaColumns = None
+    ) -> ReadableDBAPIRelation:
         schema_columns = schema_columns or {}
         return ReadableDBAPIRelation(client=self.client, query=query, schema_columns=schema_columns)  # type: ignore[abstract]
 
@@ -86,7 +86,7 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
         schema_columns = self.schema.tables.get(table_name, {}).get("columns", {})
         table_name = self.client.make_qualified_table_name(table_name)
         query = f"SELECT * FROM {table_name}"
-        return self.query(query, schema_columns)
+        return self(query, schema_columns)
 
     def __getitem__(self, table_name: str) -> SupportsReadableRelation:
         """access of table via dict notation"""

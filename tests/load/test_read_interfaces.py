@@ -144,14 +144,14 @@ def _run_dataset_checks(
 
     # simple check that query also works
     tname = pipeline.sql_client().make_qualified_table_name("items")
-    query_relationship = pipeline._dataset().query(f"select * from {tname} where id < 20")
+    query_relationship = pipeline._dataset()(f"select * from {tname} where id < 20")
 
     # we selected the first 20
     table = query_relationship.arrow()
     assert table.num_rows == 20
 
     # check unqualified table name
-    query_relationship = pipeline._dataset().query(f"select * from items where id < 20")
+    query_relationship = pipeline._dataset()("select * from items where id < 20")
     table = query_relationship.arrow()
     assert table.num_rows == 20
 
