@@ -1717,7 +1717,7 @@ class Pipeline(SupportsPipeline):
         # pickle only the SupportsPipeline protocol fields
         return {"pipeline_name": self.pipeline_name}
 
-    def dataset(self, dataset_type: Literal["dbapi", "ibis"] = "dbapi") -> SupportsReadableDataset:
+    def _dataset(self, dataset_type: Literal["dbapi", "ibis"] = "dbapi") -> SupportsReadableDataset:
         """Access helper to dataset"""
         if dataset_type == "dbapi":
             return ReadableDBAPIDataset(self.sql_client(), schema=self.default_schema)

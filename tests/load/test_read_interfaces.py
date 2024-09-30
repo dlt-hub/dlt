@@ -70,7 +70,7 @@ def _run_dataset_checks(
     pipeline.run(s, loader_file_format=destination_config.file_format)
 
     # access via key
-    table_relationship = pipeline.dataset()["items"]
+    table_relationship = pipeline._dataset()["items"]
 
     # full frame
     df = table_relationship.df()
@@ -97,7 +97,7 @@ def _run_dataset_checks(
     assert set(ids) == set(range(total_records))
 
     # access via prop
-    table_relationship = pipeline.dataset().items
+    table_relationship = pipeline._dataset().items
 
     #
     # check arrow tables
@@ -121,7 +121,7 @@ def _run_dataset_checks(
     assert set(ids) == set(range(total_records))
 
     # check fetch accessors
-    table_relationship = pipeline.dataset().items
+    table_relationship = pipeline._dataset().items
 
     # check accessing one item
     one = table_relationship.fetchone()
@@ -144,7 +144,7 @@ def _run_dataset_checks(
 
     # simple check that query also works
     tname = pipeline.sql_client().make_qualified_table_name("items")
-    query_relationship = pipeline.dataset().query(f"select * from {tname} where id < 20")
+    query_relationship = pipeline._dataset().query(f"select * from {tname} where id < 20")
 
     # we selected the first 20
     table = query_relationship.arrow()
@@ -234,7 +234,7 @@ def test_evolving_filesystem(destination_config: DestinationTestConfiguration) -
 
     pipeline.run([items()], loader_file_format=destination_config.file_format)
 
-    df = pipeline.dataset().items.df()
+    df = pipeline._dataset().items.df()
     assert len(df.index) == 20
 
     @dlt.resource(table_name="items")
@@ -243,5 +243,5 @@ def test_evolving_filesystem(destination_config: DestinationTestConfiguration) -
 
     pipeline.run([items2()], loader_file_format=destination_config.file_format)
     # check df and arrow access
-    assert len(pipeline.dataset().items.df().index) == 50
-    assert pipeline.dataset().items.arrow().num_rows == 50
+    assert len(pipeline._dataset().items.df().index) == 50
+    assert pipeline._dataset().items.arrow().num_rows == 50
