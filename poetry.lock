@@ -10849,7 +10849,7 @@ lancedb = ["lancedb", "pyarrow", "tantivy"]
 motherduck = ["duckdb", "pyarrow"]
 mssql = ["pyodbc"]
 parquet = ["pyarrow"]
-postgis = ["GeoAlchemy2", "geopandas", "psycopg2-binary", "psycopg2cffi"]
+postgis = ["GeoAlchemy2", "geopandas", "psycopg2-binary", "psycopg2cffi", "shapely"]
 postgres = ["psycopg2-binary", "psycopg2cffi"]
 qdrant = ["qdrant-client"]
 redshift = ["psycopg2-binary", "psycopg2cffi"]
@@ -10864,4 +10864,4 @@ weaviate = ["weaviate-client"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.8.1,<3.13"
-content-hash = "f726d31d79d14c5d8fa95fac90f97bcfd8e85c6521a0d8357e53c2c9aeab8445"
+content-hash = "e4de29e2e928340c4a29c213d22986402e0bb5e64c863fefabd6050384356c51"
