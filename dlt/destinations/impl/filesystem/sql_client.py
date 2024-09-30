@@ -16,23 +16,29 @@ from dlt.destinations.sql_client import raise_database_error
 from dlt.destinations.fs_client import FSClientBase
 
 from dlt.destinations.impl.duckdb.sql_client import DuckDbSqlClient
-from dlt.destinations.impl.duckdb.factory import duckdb as duckdb_factory
+from dlt.destinations.impl.duckdb.factory import duckdb as duckdb_factory, DuckDbCredentials
 
 SUPPORTED_PROTOCOLS = ["gs", "gcs", "s3", "file", "memory"]
 
 
 class FilesystemSqlClient(DuckDbSqlClient):
-    def __init__(self, fs_client: FSClientBase, protocol: str, dataset_name: str) -> None:
+    def __init__(
+        self,
+        fs_client: FSClientBase,
+        protocol: str,
+        dataset_name: str,
+        duckdb_connection: duckdb.DuckDBPyConnection = None,
+    ) -> None:
         super().__init__(
             dataset_name=dataset_name,
             staging_dataset_name=None,
-            credentials=None,
+            credentials=DuckDbCredentials(duckdb_connection or ":memory:"),
             capabilities=duckdb_factory()._raw_capabilities(),
         )
         self.fs_client = fs_client
-        self.existing_views: List[str] = []  # remember which views already where created
         self.protocol = protocol
         self.is_local_filesystem = protocol == "file"
+        self.using_external_database = duckdb_connection is not None
 
         if protocol not in SUPPORTED_PROTOCOLS:
             raise NotImplementedError(
@@ -40,21 +46,28 @@ class FilesystemSqlClient(DuckDbSqlClient):
                 f" protocols are {SUPPORTED_PROTOCOLS}."
             )
 
-        # set up duckdb instance
-        self._conn = duckdb.connect(":memory:")
-        self._conn.sql(f"CREATE SCHEMA {self.dataset_name}")
-        self._conn.sql(f"USE {self.dataset_name}")
+    def open_connection(self) -> duckdb.DuckDBPyConnection:
+        # we keep the in memory instance around, so if this prop is set, return it
+        if self._conn:
+            return self._conn
+        super().open_connection()
         self._conn.register_filesystem(self.fs_client.fs_client)
+        self._existing_views: List[str] = []  # remember which views already where created
+        return self._conn
+
+    def close_connection(self) -> None:
+        if self.using_external_database:
+            return super().close_connection()
 
     @raise_database_error
-    def populate_duckdb(self, tables: List[str]) -> None:
+    def create_view_for_tables(self, tables: List[str]) -> None:
         """Add the required tables as views to the duckdb in memory instance"""
 
         # create all tables in duck instance
         for table_name in tables:
-            if table_name in self.existing_views:
+            if table_name in self._existing_views:
                 continue
-            self.existing_views.append(table_name)
+            self._existing_views.append(table_name)
 
             folder = self.fs_client.get_table_dir(table_name)
             files = self.fs_client.list_table_files(table_name)
@@ -87,7 +100,6 @@ class FilesystemSqlClient(DuckDbSqlClient):
             # create table
             protocol = "" if self.is_local_filesystem else f"{self.protocol}://"
             files_string = f"'{protocol}{folder}/**/*.{file_type}'"
-            table_name = self.make_qualified_table_name(table_name)
             create_table_sql_base = (
                 f"CREATE VIEW {table_name} AS SELECT * FROM"
                 f" {read_command}([{files_string}] {columns_string})"
@@ -108,16 +120,8 @@ class FilesystemSqlClient(DuckDbSqlClient):
         # find all tables to preload
         expression = sqlglot.parse_one(query, read="duckdb")  # type: ignore
         load_tables = [t.name for t in expression.find_all(exp.Table)]
-        self.populate_duckdb(load_tables)
+        self.create_view_for_tables(load_tables)
 
         # TODO: raise on non-select queries here, they do not make sense in this context
         with super().execute_query(query, *args, **kwargs) as cursor:
             yield cursor
-
-    def open_connection(self) -> None:
-        """we are using an in memory instance, nothing to do"""
-        pass
-
-    def close_connection(self) -> None:
-        """we are using an in memory instance, nothing to do"""
-        pass
