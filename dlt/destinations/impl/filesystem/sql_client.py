@@ -146,6 +146,9 @@ class FilesystemSqlClient(DuckDbSqlClient):
         for table_name in tables:
             if table_name in self._existing_views:
                 continue
+            if table_name not in self.fs_client.schema.tables:
+                # unknown tables will not be created
+                continue
             self._existing_views.append(table_name)
 
             folder = self.fs_client.get_table_dir(table_name)
