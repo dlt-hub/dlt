@@ -84,15 +84,14 @@ lancedb = { version = ">=0.8.2", optional = true, markers = "python_version >= '
 tantivy = { version = ">= 0.22.0", optional = true }
 deltalake = { version = ">=0.19.0", optional = true }
 sqlalchemy = { version = ">=1.4", optional = true }
-alembic = {version = "^1.13.2", optional = true}
+alembic = {version = ">1.10.0", optional = true}
 paramiko = {version = ">=3.3.0", optional = true}
-sqlglot = "^25.9.0"
-db-dtypes = { version = ">=1.2.0", optional = true }
+sqlglot = {version = ">=20.0.0", optional = true}
 
 [tool.poetry.extras]
 gcp = ["grpcio", "google-cloud-bigquery", "db-dtypes", "gcsfs"]
 # bigquery is alias on gcp extras
-bigquery = ["grpcio", "google-cloud-bigquery", "pyarrow", "db-dtypes", "gcsfs"]
+bigquery = ["grpcio", "google-cloud-bigquery", "pyarrow", "gcsfs"]
 postgres = ["psycopg2-binary", "psycopg2cffi"]
 redshift = ["psycopg2-binary", "psycopg2cffi"]
 parquet = ["pyarrow"]

@@ -2195,23 +2195,6 @@ alembic = ["alembic (>=1.0.11,<2.0.0)", "sqlalchemy (>=2.0.21)"]
 sqlalchemy = ["sqlalchemy (>=2.0.21)"]
 
 [[package]]
-name = "db-dtypes"
-version = "1.3.0"
-description = "Pandas Data Types for SQL systems (BigQuery, Spanner)"
-optional = true
-python-versions = ">=3.7"
-files = [
-    {file = "db_dtypes-1.3.0-py2.py3-none-any.whl", hash = "sha256:7e65c59f849ccbe6f7bc4d0253edcc212a7907662906921caba3e4aadd0bc277"},
-    {file = "db_dtypes-1.3.0.tar.gz", hash = "sha256:7bcbc8858b07474dc85b77bb2f3ae488978d1336f5ea73b58c39d9118bc3e91b"},
-]
-
-[package.dependencies]
-numpy = ">=1.16.6"
-packaging = ">=17.0"
-pandas = ">=0.24.2"
-pyarrow = ">=3.0.0"
-
-[[package]]
 name = "dbt-athena-community"
 version = "1.7.1"
 description = "The athena adapter plugin for dbt (data build tool)"
@@ -8814,7 +8797,7 @@ typing-extensions = "*"
 name = "sqlglot"
 version = "25.23.2"
 description = "An easily customizable SQL parser and transpiler"
-optional = false
+optional = true
 python-versions = ">=3.7"
 files = [
     {file = "sqlglot-25.23.2-py3-none-any.whl", hash = "sha256:52b8c82da4b338fe5163395d6dbc4346fb39142d2735b0b662fc70a28b71472c"},
@@ -9933,7 +9916,7 @@ cffi = ["cffi (>=1.11)"]
 [extras]
 athena = ["botocore", "pyarrow", "pyathena", "s3fs"]
 az = ["adlfs"]
-bigquery = ["db-dtypes", "gcsfs", "google-cloud-bigquery", "grpcio", "pyarrow"]
+bigquery = ["gcsfs", "google-cloud-bigquery", "grpcio", "pyarrow"]
 cli = ["cron-descriptor", "pipdeptree"]
 clickhouse = ["adlfs", "clickhouse-connect", "clickhouse-driver", "gcsfs", "pyarrow", "s3fs"]
 databricks = ["databricks-sql-connector"]
@@ -9941,7 +9924,7 @@ deltalake = ["deltalake", "pyarrow"]
 dremio = ["pyarrow"]
 duckdb = ["duckdb"]
 filesystem = ["botocore", "s3fs", "sqlglot"]
-gcp = ["db-dtypes", "gcsfs", "google-cloud-bigquery", "grpcio"]
+gcp = ["gcsfs", "google-cloud-bigquery", "grpcio"]
 gs = ["gcsfs"]
 lancedb = ["lancedb", "pyarrow", "tantivy"]
 motherduck = ["duckdb", "pyarrow"]
@@ -9961,4 +9944,4 @@ weaviate = ["weaviate-client"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.8.1,<3.13"
-content-hash = "d044acbd1535a3cad2ee7de4af34bfc343ef38d487212336b09a9d332f3d1f7a"
+content-hash = "b3553a1a29977ba05bd74e0802c450266d1da673d3730f999e8ef24759f55d8b"
