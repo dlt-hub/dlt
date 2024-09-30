@@ -312,6 +312,57 @@ def test_execute_query(client: SqlJobClientBase) -> None:
 @pytest.mark.parametrize(
     "client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name
 )
+def test_execute_df(client: SqlJobClientBase) -> None:
+    if client.config.destination_type == "bigquery":
+        chunk_size = 50
+        total_records = 80
+    elif client.config.destination_type == "mssql":
+        chunk_size = 700
+        total_records = 1000
+    else:
+        chunk_size = 2048
+        total_records = 3000
+
+    client.update_stored_schema()
+    table_name, py_type = prepare_temp_table(client)
+    f_q_table_name = client.sql_client.make_qualified_table_name(table_name)
+
+    if client.capabilities.insert_values_writer_type == "default":
+        insert_query = ",".join([f"({idx})" for idx in range(0, total_records)])
+        sql_stmt = f"INSERT INTO {f_q_table_name} VALUES {insert_query};"
+    elif client.capabilities.insert_values_writer_type == "select_union":
+        insert_query = " UNION ALL ".join([f"SELECT {idx}" for idx in range(0, total_records)])
+        sql_stmt = f"INSERT INTO {f_q_table_name} {insert_query};"
+
+    client.sql_client.execute_sql(sql_stmt)
+    with client.sql_client.execute_query(
+        f"SELECT * FROM {f_q_table_name} ORDER BY col ASC"
+    ) as curr:
+        df = curr.df()
+        # Force lower case df columns, snowflake has all cols uppercase
+        df.columns = [dfcol.lower() for dfcol in df.columns]
+        assert list(df["col"]) == list(range(0, total_records))
+    # get chunked
+    with client.sql_client.execute_query(
+        f"SELECT * FROM {f_q_table_name} ORDER BY col ASC"
+    ) as curr:
+        # be compatible with duckdb vector size
+        df_1 = curr.df(chunk_size=chunk_size)
+        df_2 = curr.df(chunk_size=chunk_size)
+        df_3 = curr.df(chunk_size=chunk_size)
+        # Force lower case df columns, snowflake has all cols uppercase
+        for df in [df_1, df_2, df_3]:
+            if df is not None:
+                df.columns = [dfcol.lower() for dfcol in df.columns]
+
+    assert list(df_1["col"]) == list(range(0, chunk_size))
+    assert list(df_2["col"]) == list(range(chunk_size, total_records))
+    assert df_3 is None
+
+
+@pytest.mark.parametrize(
+    "client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name
+)
 def test_database_exceptions(client: SqlJobClientBase) -> None:
     client.update_stored_schema()
     term_ex: Any
