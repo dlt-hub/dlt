@@ -45,8 +45,8 @@ The most specific possible path for **sources** looks like:
   groupId="config-provider-type"
   defaultValue="toml"
   values={[
-    {"label": "Toml config provider", "value": "toml"},
-    {"label": "ENV variables", "value": "env"},
+    {"label": "TOML config provider", "value": "toml"},
+    {"label": "Environment variables", "value": "env"},
     {"label": "In the code", "value": "code"},
 ]}>
   <TabItem value="toml">
@@ -78,8 +78,8 @@ The most specific possible path for **destinations** looks like:
   groupId="config-provider-type"
   defaultValue="toml"
   values={[
-    {"label": "Toml config provider", "value": "toml"},
-    {"label": "ENV variables", "value": "env"},
+    {"label": "TOML config provider", "value": "toml"},
+    {"label": "Environment variables", "value": "env"},
     {"label": "In the code", "value": "code"},
 ]}>
   <TabItem value="toml">
@@ -285,8 +285,8 @@ Let's assume we have a [notion](../../dlt-ecosystem/verified-sources/notion) sou
   groupId="config-provider-type"
   defaultValue="toml"
   values={[
-    {"label": "Toml config provider", "value": "toml"},
-    {"label": "ENV variables", "value": "env"},
+    {"label": "TOML config provider", "value": "toml"},
+    {"label": "Environment variables", "value": "env"},
     {"label": "In the code", "value": "code"},
 ]}>
 
@@ -319,7 +319,7 @@ aws_secret_access_key = "1234567890_access_key" # copy the secret access key her
   <TabItem value="env">
 
 ```sh
-# ENV vars are set up the same way both for configs and secrets
+# Environment variables are set up the same way both for configs and secrets
 export RUNTIME__LOG_LEVEL="INFO"
 export DESTINATION__FILESYSTEM__BUCKET_URL="s3://[your_bucket_name]"
 export NORMALIZE__DATA_WRITER__DISABLE_COMPRESSION="true"
@@ -376,8 +376,8 @@ Let's assume we use the `bigquery` destination and the `google_sheets` source. T
   groupId="config-provider-type"
   defaultValue="toml"
   values={[
-    {"label": "Toml config provider", "value": "toml"},
-    {"label": "ENV variables", "value": "env"},
+    {"label": "TOML config provider", "value": "toml"},
+    {"label": "Environment variables", "value": "env"},
     {"label": "In the code", "value": "code"},
 ]}>
 
@@ -424,8 +424,8 @@ os.environ["CREDENTIALS__PROJECT_ID"] = os.environ.get("GOOGLE_PROJECT_ID")
   groupId="config-provider-type"
   defaultValue="toml"
   values={[
-    {"label": "Toml config provider", "value": "toml"},
-    {"label": "ENV variables", "value": "env"},
+    {"label": "TOML config provider", "value": "toml"},
+    {"label": "Environment variables", "value": "env"},
     {"label": "In the code", "value": "code"},
 ]}>
 
@@ -506,8 +506,8 @@ Let's assume we have several different Google sources and destinations. We can u
   groupId="config-provider-type"
   defaultValue="toml"
   values={[
-    {"label": "Toml config provider", "value": "toml"},
-    {"label": "ENV variables", "value": "env"},
+    {"label": "TOML config provider", "value": "toml"},
+    {"label": "Environment variables", "value": "env"},
     {"label": "In the code", "value": "code"},
 ]}>
 
@@ -590,8 +590,8 @@ Let's assume we have several sources of the same type. How can we separate them 
   groupId="config-provider-type"
   defaultValue="toml"
   values={[
-    {"label": "Toml config provider", "value": "toml"},
-    {"label": "ENV variables", "value": "env"},
+    {"label": "TOML config provider", "value": "toml"},
+    {"label": "Environment variables", "value": "env"},
     {"label": "In the code", "value": "code"},
 ]}>
 
