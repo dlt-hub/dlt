@@ -67,7 +67,7 @@ def test_duck_case_names(destination_config: DestinationTestConfiguration) -> No
     # show tables and columns
     with pipeline.sql_client() as client:
         with client.execute_query("DESCRIBE 🦚peacocks🦚;") as q:
-            tables = q.pandas()
+            tables = q.df()
     assert tables["column_name"].tolist() == ["🐾Feet", "1+1", "hey", "_dlt_load_id", "_dlt_id"]
 
 

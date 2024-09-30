@@ -25,15 +25,15 @@ class ReadableDBAPIRelation(SupportsReadableRelation):
         self.query = query
 
         # wire protocol functions
-        self.pandas = self._wrap_func("pandas")  # type: ignore
+        self.df = self._wrap_func("df")  # type: ignore
         self.arrow = self._wrap_func("arrow")  # type: ignore
         self.fetchall = self._wrap_func("fetchall")  # type: ignore
         self.fetchmany = self._wrap_func("fetchmany")  # type: ignore
         self.fetchone = self._wrap_func("fetchone")  # type: ignore
 
-        self.iter_pandas = self._wrap_iter("iter_pandas")  # type: ignore
+        self.iter_df = self._wrap_iter("iter_df")  # type: ignore
         self.iter_arrow = self._wrap_iter("iter_arrow")  # type: ignore
-        self.iter_fetchmany = self._wrap_iter("iter_fetchmany")  # type: ignore
+        self.iter_fetch = self._wrap_iter("iter_fetch")  # type: ignore
 
     @contextmanager
     def cursor(self) -> Generator[SupportsReadableRelation, Any, Any]:

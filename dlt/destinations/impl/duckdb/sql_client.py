@@ -35,7 +35,7 @@ class DuckDBDBApiCursorImpl(DBApiCursorImpl):
             return 1
         return math.floor(chunk_size / self.vector_size)
 
-    def iter_pandas(self, chunk_size: int) -> Generator[DataFrame, None, None]:
+    def iter_df(self, chunk_size: int) -> Generator[DataFrame, None, None]:
         # full frame
         if not chunk_size:
             yield self.native_cursor.fetch_df()

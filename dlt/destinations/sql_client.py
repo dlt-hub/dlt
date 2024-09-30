@@ -344,14 +344,14 @@ class DBApiCursorImpl(DBApiCursor):
             TTableSchemaColumns, {c: {"name": c, "nullable": True} for c in self._get_columns()}
         )
 
-    def pandas(self, chunk_size: int = None, **kwargs: Any) -> Optional[DataFrame]:
+    def df(self, chunk_size: int = None, **kwargs: Any) -> Optional[DataFrame]:
         """Fetches results as data frame in full or in specified chunks.
 
         May use native pandas/arrow reader if available. Depending on
         the native implementation chunk size may vary.
         """
         try:
-            return next(self.iter_pandas(chunk_size=chunk_size))
+            return next(self.iter_df(chunk_size=chunk_size))
         except StopIteration:
             return None
 
@@ -366,13 +366,13 @@ class DBApiCursorImpl(DBApiCursor):
         except StopIteration:
             return None
 
-    def iter_fetchmany(self, chunk_size: int) -> Generator[List[Tuple[Any, ...]], Any, Any]:
+    def iter_fetch(self, chunk_size: int) -> Generator[List[Tuple[Any, ...]], Any, Any]:
         while True:
             if not (result := self.fetchmany(chunk_size)):
                 return
             yield result
 
-    def iter_pandas(self, chunk_size: int) -> Generator[DataFrame, None, None]:
+    def iter_df(self, chunk_size: int) -> Generator[DataFrame, None, None]:
         """Default implementation converts arrow to df"""
         from dlt.common.libs.pandas import pandas as pd
 
@@ -393,7 +393,7 @@ class DBApiCursorImpl(DBApiCursor):
             yield row_tuples_to_arrow(result, caps, self.schema_columns, tz="UTC")
             return
 
-        for result in self.iter_fetchmany(chunk_size=chunk_size):
+        for result in self.iter_fetch(chunk_size=chunk_size):
             yield row_tuples_to_arrow(result, caps, self.schema_columns, tz="UTC")
 
 

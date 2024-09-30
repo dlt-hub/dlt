@@ -469,7 +469,7 @@ def test_arrow_no_pandas() -> None:
     with info.pipeline.sql_client() as client:  # type: ignore
         with client.execute_query("SELECT * FROM data") as c:
             with pytest.raises(ImportError):
-                df = c.pandas()
+                df = c.df()
 
 
 def test_empty_parquet(test_storage: FileStorage) -> None:
