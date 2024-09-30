@@ -150,6 +150,11 @@ def _run_dataset_checks(
     table = query_relationship.arrow()
     assert table.num_rows == 20
 
+    # check unqualified table name
+    query_relationship = pipeline._dataset().query(f"select * from items where id < 20")
+    table = query_relationship.arrow()
+    assert table.num_rows == 20
+
     # check that hints are carried over to arrow table
     expected_decimal_precision = 10
     expected_decimal_precision_2 = 12
