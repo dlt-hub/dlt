@@ -1,4 +1,4 @@
-from typing import Any, Iterator, AnyStr, List, cast, TYPE_CHECKING
+from typing import Any, Iterator, AnyStr, List, cast, TYPE_CHECKING, Dict
 
 import os
 
@@ -35,28 +35,24 @@ class FilesystemSqlClient(DuckDbSqlClient):
     def __init__(
         self,
         fs_client: FilesystemClient,
-        protocol: str,
-        dataset_name: str,
+        dataset_name: str = None,
         duckdb_connection: duckdb.DuckDBPyConnection = None,
-        create_persistent_secrets: bool = False,
     ) -> None:
         super().__init__(
-            dataset_name=dataset_name,
+            dataset_name=dataset_name or fs_client.dataset_name,
             staging_dataset_name=None,
             credentials=DuckDbCredentials(duckdb_connection or ":memory:"),
             capabilities=duckdb_factory()._raw_capabilities(),
         )
         self.fs_client = fs_client
-        self.protocol = protocol
-        self.is_local_filesystem = protocol == "file"
         self.using_external_database = duckdb_connection is not None
-        self.create_persistent_secrets = create_persistent_secrets
+        self.create_persistent_secrets = False
         self.autocreate_required_views = False
 
-        if protocol not in SUPPORTED_PROTOCOLS:
+        if self.fs_client.config.protocol not in SUPPORTED_PROTOCOLS:
             raise NotImplementedError(
-                f"Protocol {protocol} currently not supported for FilesystemSqlClient. Supported"
-                f" protocols are {SUPPORTED_PROTOCOLS}."
+                f"Protocol {self.fs_client.config.protocol} currently not supported for"
+                f" FilesystemSqlClient. Supported protocols are {SUPPORTED_PROTOCOLS}."
             )
 
     def open_connection(self) -> duckdb.DuckDBPyConnection:
@@ -77,7 +73,7 @@ class FilesystemSqlClient(DuckDbSqlClient):
             persistent = " PERSISTENT "
 
         # add secrets required for creating views
-        if self.protocol == "s3":
+        if self.fs_client.config.protocol == "s3":
             aws_creds = cast(AwsCredentials, self.fs_client.config.credentials)
             endpoint = (
                 aws_creds.endpoint_url.replace("https://", "")
@@ -94,7 +90,7 @@ class FilesystemSqlClient(DuckDbSqlClient):
             );""")
 
         # azure with storage account creds
-        elif self.protocol in ["az", "abfss"] and isinstance(
+        elif self.fs_client.config.protocol in ["az", "abfss"] and isinstance(
             self.fs_client.config.credentials, AzureCredentialsWithoutDefaults
         ):
             azsa_creds = self.fs_client.config.credentials
@@ -105,7 +101,7 @@ class FilesystemSqlClient(DuckDbSqlClient):
             );""")
 
         # azure with service principal creds
-        elif self.protocol in ["az", "abfss"] and isinstance(
+        elif self.fs_client.config.protocol in ["az", "abfss"] and isinstance(
             self.fs_client.config.credentials, AzureServicePrincipalCredentialsWithoutDefaults
         ):
             azsp_creds = self.fs_client.config.credentials
@@ -120,7 +116,7 @@ class FilesystemSqlClient(DuckDbSqlClient):
             );""")
 
         # native google storage implementation is not supported..
-        elif self.protocol in ["gs", "gcs"]:
+        elif self.fs_client.config.protocol in ["gs", "gcs"]:
             logger.warn(
                 "For gs/gcs access via duckdb please use the gs/gcs s3 compatibility layer. Falling"
                 " back to fsspec."
@@ -128,7 +124,7 @@ class FilesystemSqlClient(DuckDbSqlClient):
             self._conn.register_filesystem(self.fs_client.fs_client)
 
         # for memory we also need to register filesystem
-        elif self.protocol == "memory":
+        elif self.fs_client.config.protocol == "memory":
             self._conn.register_filesystem(self.fs_client.fs_client)
 
         return self._conn
@@ -139,17 +135,18 @@ class FilesystemSqlClient(DuckDbSqlClient):
             return super().close_connection()
 
     @raise_database_error
-    def create_view_for_tables(self, tables: List[str]) -> None:
+    def create_view_for_tables(self, tables: Dict[str, str]) -> None:
         """Add the required tables as views to the duckdb in memory instance"""
 
         # create all tables in duck instance
-        for table_name in tables:
-            if table_name in self._existing_views:
+        for table_name in tables.keys():
+            view_name = tables[table_name]
+            if view_name in self._existing_views:
                 continue
             if table_name not in self.fs_client.schema.tables:
                 # unknown tables will not be created
                 continue
-            self._existing_views.append(table_name)
+            self._existing_views.append(view_name)
 
             folder = self.fs_client.get_table_dir(table_name)
             files = self.fs_client.list_table_files(table_name)
@@ -180,20 +177,24 @@ class FilesystemSqlClient(DuckDbSqlClient):
                 )
 
             # build files string
-            protocol = "" if self.is_local_filesystem else f"{self.protocol}://"
-            supports_wildcard_notation = self.protocol != "abfss"
+            protocol = (
+                "" if self.fs_client.is_local_filesystem else f"{self.fs_client.config.protocol}://"
+            )
+            supports_wildcard_notation = self.fs_client.config.protocol != "abfss"
             files_string = f"'{protocol}{folder}/**/*.{file_type}'"
             if not supports_wildcard_notation:
-                files_string = ",".join(map(lambda f: f"'{protocol}{f}'", files))
+                files_string = ",".join(
+                    map(lambda f: f"'{self.fs_client.config.protocol }{f}'", files)
+                )
 
             # create table
-            table_name = self.make_qualified_table_name(table_name)
+            view_name = self.make_qualified_table_name(view_name)
             create_table_sql_base = (
-                f"CREATE VIEW {table_name} AS SELECT * FROM"
+                f"CREATE VIEW {view_name} AS SELECT * FROM"
                 f" {read_command}([{files_string}] {columns_string})"
             )
             create_table_sql_gzipped = (
-                f"CREATE VIEW {table_name} AS SELECT * FROM"
+                f"CREATE VIEW {view_name} AS SELECT * FROM"
                 f" {read_command}([{files_string}] {columns_string} , compression = 'gzip')"
             )
             try:
@@ -208,7 +209,7 @@ class FilesystemSqlClient(DuckDbSqlClient):
         # find all tables to preload
         if self.autocreate_required_views:  # skip this step when operating on the schema..
             expression = sqlglot.parse_one(query, read="duckdb")  # type: ignore
-            load_tables = [t.name for t in expression.find_all(exp.Table)]
+            load_tables = {t.name: t.name for t in expression.find_all(exp.Table)}
             self.create_view_for_tables(load_tables)
 
         # TODO: raise on non-select queries here, they do not make sense in this context

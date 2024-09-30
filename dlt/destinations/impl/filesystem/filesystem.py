@@ -267,12 +267,7 @@ class FilesystemClient(
         from dlt.destinations.impl.filesystem.sql_client import FilesystemSqlClient
 
         if not self._sql_client:
-            self._sql_client = FilesystemSqlClient(
-                self,
-                protocol=self.config.protocol,
-                dataset_name=self.dataset_name,
-                duckdb_connection=None,
-            )
+            self._sql_client = FilesystemSqlClient(self)
         return self._sql_client
 
     @sql_client.setter

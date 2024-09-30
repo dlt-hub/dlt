@@ -15,7 +15,6 @@ from tests.load.utils import (
     SFTP_BUCKET,
 )
 from dlt.destinations import filesystem
-from dlt.destinations.impl.filesystem.sql_client import FilesystemSqlClient
 
 
 def _run_dataset_checks(
@@ -196,9 +195,12 @@ def _run_dataset_checks(
 
     # special filesystem sql checks
     if destination_config.destination_type == "filesystem":
+        import duckdb
+        from dlt.destinations.impl.filesystem.sql_client import FilesystemSqlClient
+
         # check we can create new tables from the views
         with pipeline.sql_client() as c:
-            c.create_view_for_tables(["items", "double_items"])
+            c.create_view_for_tables({"items": "items", "double_items": "double_items"})
             c.execute_sql(
                 "CREATE TABLE items_joined AS (SELECT i.id, di.double_id FROM items as i JOIN"
                 " double_items as di ON (i.id = di.id));"
@@ -215,6 +217,31 @@ def _run_dataset_checks(
                 c.execute_sql("INSERT INTO double_items VALUES (1, 2)")
             except Exception as exc:
                 assert "double_items is not an table" in str(exc)
+
+        # we create a second duckdb pipieline and will see if we can make our filesystem views available there
+        other_pipeline = dlt.pipeline("other_pipeline", dev_mode=True, destination="duckdb")
+        other_db_location = (
+            other_pipeline.destination_client().config.credentials.database  #  type: ignore
+        )
+        other_pipeline.run([1, 2, 3], table_name="items")
+        assert len(other_pipeline._dataset().items.fetchall()) == 3
+
+        # TODO: implement these tests
+        return
+
+        # now we can use the filesystemsql client to create the needed views
+        fs_sql_client = FilesystemSqlClient(
+            pipeline.destination_client(),
+            dataset_name=other_pipeline.dataset_name,
+            duckdb_connection=duckdb.connect(other_db_location),
+        )
+        fs_sql_client.create_persistent_secrets = True
+        with fs_sql_client as sql_client:
+            sql_client.create_view_for_tables({"items": "referenced_items"})
+
+        # we now have access to this view on the original dataset
+        assert len(other_pipeline._dataset().items.fetchall()) == 3
+        assert len(other_pipeline._dataset().referenced_items.fetchall()) == 3000
 
 
 @pytest.mark.essential
