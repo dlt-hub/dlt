@@ -51,8 +51,12 @@ class FilesystemSqlClient(DuckDbSqlClient):
         if self._conn:
             return self._conn
         super().open_connection()
+        # set up connection
         self._conn.register_filesystem(self.fs_client.fs_client)
         self._existing_views: List[str] = []  # remember which views already where created
+        if not self.has_dataset():
+            self.create_dataset()
+        self._conn.sql(f"USE {self.dataset_name}")
         return self._conn
 
     def close_connection(self) -> None:
@@ -100,6 +104,7 @@ class FilesystemSqlClient(DuckDbSqlClient):
             # create table
             protocol = "" if self.is_local_filesystem else f"{self.protocol}://"
             files_string = f"'{protocol}{folder}/**/*.{file_type}'"
+            table_name = self.make_qualified_table_name(table_name)
             create_table_sql_base = (
                 f"CREATE VIEW {table_name} AS SELECT * FROM"
                 f" {read_command}([{files_string}] {columns_string})"
@@ -118,9 +123,12 @@ class FilesystemSqlClient(DuckDbSqlClient):
     @raise_database_error
     def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> Iterator[DBApiCursor]:
         # find all tables to preload
-        expression = sqlglot.parse_one(query, read="duckdb")  # type: ignore
-        load_tables = [t.name for t in expression.find_all(exp.Table)]
-        self.create_view_for_tables(load_tables)
+        try:
+            expression = sqlglot.parse_one(query, read="duckdb")  # type: ignore
+            load_tables = [t.name for t in expression.find_all(exp.Table)]
+            self.create_view_for_tables(load_tables)
+        except Exception:
+            pass
 
         # TODO: raise on non-select queries here, they do not make sense in this context
         with super().execute_query(query, *args, **kwargs) as cursor:
