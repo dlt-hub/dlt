@@ -302,7 +302,10 @@ sftp_gss_deleg_creds  # Delegate credentials with GSS-API, defaults to True
 sftp_gss_host         # Host for GSS-API, defaults to None
 sftp_gss_trust_dns    # Trust DNS for GSS-API, defaults to True
 ```
-> For more information about credentials parameters: https://docs.paramiko.org/en/3.3/api/client.html#paramiko.client.SSHClient.connect
+
+:::info
+For more information about credentials parameters: https://docs.paramiko.org/en/3.3/api/client.html#paramiko.client.SSHClient.connect
+:::
 
 ### Authentication methods
 
