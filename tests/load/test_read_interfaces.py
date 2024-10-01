@@ -250,6 +250,9 @@ def _run_dataset_checks(
         )
         with fs_sql_client as sql_client:
             sql_client.create_views_for_tables({"items": "referenced_items"})
+        # the line below solves problems with certificate path lookup on linux
+        # see duckdb docs
+        external_db.sql("SET azure_transport_option_type = 'curl';")
         assert len(external_db.sql("SELECT * FROM second.referenced_items").fetchall()) == 3000
         assert len(external_db.sql("SELECT * FROM first.items").fetchall()) == 3
 
