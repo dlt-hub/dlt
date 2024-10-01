@@ -245,19 +245,21 @@ You can use the `CustomLoaderDocProvider` classes to supply a custom dictionary 
 as a supplier of `config` and `secret` values. The code below demonstrates how to use a config stored in `config.json`.
 
 ```py
-import dlt
+import json
 
+import dlt
 from dlt.common.configuration.providers import CustomLoaderDocProvider
 
-# create a function that loads a dict
+# Create a function that loads a dict
 def load_config():
-   with open("config.json", "rb") as f:
-      config_dict = json.load(f)
+    with open("config.json", "rb") as f:
+        return json.load(f)
 
-# create the custom provider
+
+# Create the custom provider
 provider = CustomLoaderDocProvider("my_json_provider", load_config)
 
-# register provider
+# Register provider
 dlt.config.register_provider(provider)
 ```
 
