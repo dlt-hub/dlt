@@ -34,14 +34,14 @@ def repo_events(last_created_at=dlt.sources.incremental("created_at")):
         response.raise_for_status()
         yield response.json()
 
-        # stop requesting pages if the last element was already older than
-        # the initial value
-        # note: incremental will skip those items anyway, we just do not
-        # want to use the API limits
+        # Stop requesting pages if the last element was already older than
+        # the initial value.
+        # Note: incremental will skip those items anyway, we just do not
+        # want to use the API limits.
         if last_created_at.start_out_of_range:
             break
 
-        # get next page
+        # Get the next page.
         if "next" not in response.links:
             break
         url = response.links["next"]["url"]
@@ -95,4 +95,5 @@ Another fun [Colab Demo](https://colab.research.google.com/drive/1BXvma_9R9MX8p_
 
 Learn more:
 * [Change the nesting of the tables](general-usage/source.md#reduce-the-nesting-level-of-generated-tables) with a decorator.
+
 
