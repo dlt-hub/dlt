@@ -9933,7 +9933,7 @@ cffi = ["cffi (>=1.11)"]
 [extras]
 athena = ["botocore", "pyarrow", "pyathena", "s3fs"]
 az = ["adlfs"]
-bigquery = ["gcsfs", "google-cloud-bigquery", "grpcio", "pyarrow"]
+bigquery = ["db-dtypes", "gcsfs", "google-cloud-bigquery", "grpcio", "pyarrow"]
 cli = ["cron-descriptor", "pipdeptree"]
 clickhouse = ["adlfs", "clickhouse-connect", "clickhouse-driver", "gcsfs", "pyarrow", "s3fs"]
 databricks = ["databricks-sql-connector"]
@@ -9961,4 +9961,4 @@ weaviate = ["weaviate-client"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.8.1,<3.13"
-content-hash = "7b861f8056a389286ceed236342f93cfd43eb85b8897352e23846ed308f960a2"
+content-hash = "e0407ef0b20740989cddd3a9fba109bb4a3ce3a2699e9bf5f48a08e480c42225"

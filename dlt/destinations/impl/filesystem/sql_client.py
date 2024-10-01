@@ -183,9 +183,7 @@ class FilesystemSqlClient(DuckDbSqlClient):
             supports_wildcard_notation = self.fs_client.config.protocol != "abfss"
             files_string = f"'{protocol}{folder}/**/*.{file_type}'"
             if not supports_wildcard_notation:
-                files_string = ",".join(
-                    map(lambda f: f"'{self.fs_client.config.protocol }{f}'", files)
-                )
+                files_string = ",".join(map(lambda f: f"'{protocol}{f}'", files))
 
             # create table
             view_name = self.make_qualified_table_name(view_name)
