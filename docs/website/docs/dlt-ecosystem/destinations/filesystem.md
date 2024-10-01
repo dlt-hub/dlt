@@ -719,9 +719,9 @@ pipeline = dlt.pipeline(
 )
 ```
 
-**Notes**
+:::note
 - `max_identifier_length` truncates all identifiers (tables, columns). Ensure the length maintains uniqueness to avoid collisions.
-
 - Adjust `max_identifier_length` based on your data structure and filesystem limits.
+:::
 
 <!--@@@DLT_TUBA filesystem-->
