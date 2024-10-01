@@ -8,7 +8,7 @@ keywords: [credentials, secrets.toml, secrets, config, configuration, environmen
 
 ## Injection mechanism
 
-`dlt` has a special treatment for functions decorated with `@dlt.source`, `@dlt.resource`, and `@dlt.destination`. When such a function is called, `dlt` takes the argument names in the signature and supplies (`injects`) the required values by looking for them in [various config providers](setup).
+`dlt` has a special treatment for functions decorated with `@dlt.source`, `@dlt.resource`, and `@dlt.destination`. When such a function is called, `dlt` takes the argument names in the signature and supplies (injects) the required values by looking for them in [various config providers](setup).
 
 ### Injection rules
 
