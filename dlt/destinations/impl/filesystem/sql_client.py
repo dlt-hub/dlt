@@ -1,6 +1,7 @@
 from typing import Any, Iterator, AnyStr, List, cast, TYPE_CHECKING, Dict
 
 import os
+import re
 
 import dlt
 
@@ -57,8 +58,12 @@ class FilesystemSqlClient(DuckDbSqlClient):
             )
 
     def create_authentication(self, persistent: bool = False, secret_name: str = None) -> None:
+        def _escape_bucket_name(bucket_name: str) -> str:
+            regex = re.compile("[^a-zA-Z]")
+            return regex.sub("", bucket_name.lower())
+
         if not secret_name:
-            secret_name = f"secret_{self.fs_client.config.protocol}"
+            secret_name = f"secret_{_escape_bucket_name(self.fs_client.config.bucket_url)}"
 
         persistent_stmt = ""
         if persistent:
