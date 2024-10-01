@@ -109,7 +109,7 @@ def load_github() -> None:
 
     load_info = pipeline.run(github_source())
     print(load_info)  # noqa: T201
-    print(pipeline.last_trace)
+    print(pipeline.last_trace)  # noqa: T201
 
 
 def load_pokemon() -> None:
@@ -152,7 +152,7 @@ def load_pokemon() -> None:
 
     load_info = pipeline.run(pokemon_source)
     print(load_info)  # noqa: T201
-    print(pipeline.last_trace)
+    print(pipeline.last_trace)  # noqa: T201
 
 
 if __name__ == "__main__":
