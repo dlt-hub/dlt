@@ -109,7 +109,7 @@ C:\> .\env\Scripts\activate
 You can now install `dlt` in your virtual environment by running:
 
 ```sh
-# install the newest dlt version or upgrade the exisint version to the newest one
+# install the newest dlt version or upgrade the existing version to the newest one
 pip install -U dlt
 ```
 
