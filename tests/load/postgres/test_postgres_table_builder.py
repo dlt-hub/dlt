@@ -1,24 +1,24 @@
-import pytest
 from copy import deepcopy
+from typing import Dict, Iterator
+
+import pytest
 import sqlfluff
 
+import dlt
 from dlt.common.exceptions import TerminalValueError
-from dlt.common.utils import uniq_id
 from dlt.common.schema import Schema, utils
-
+from dlt.common.utils import uniq_id
 from dlt.destinations import postgres
-from dlt.destinations.impl.postgres.postgres import PostgresClient
 from dlt.destinations.impl.postgres.configuration import (
     PostgresClientConfiguration,
     PostgresCredentials,
 )
-
+from dlt.destinations.impl.postgres.postgres import PostgresClient
 from tests.cases import (
     TABLE_UPDATE,
     TABLE_UPDATE_ALL_INT_PRECISIONS,
-    TABLE_UPDATE_ALL_TIMESTAMP_PRECISIONS,
 )
-from tests.load.utils import empty_schema
+from tests.load.utils import empty_schema, destinations_configs, DestinationTestConfiguration
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential
@@ -182,3 +182,55 @@ def test_create_dlt_table(client: PostgresClient) -> None:
     sqlfluff.parse(sql, dialect="postgres")
     qualified_name = client.sql_client.make_qualified_table_name("_dlt_version")
     assert f"CREATE TABLE IF NOT EXISTS {qualified_name}" in sql
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["postgres"]),
+    ids=lambda x: x.name,
+)
+def test_read_geo_datafile(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    from shapely import wkb, wkt  # type: ignore
+    import binascii
+
+    @dlt.resource(
+        columns=[
+            # {"name": "geom_type", "data_type": "geometry"},
+            {"name": "wkt_type", "data_type": "text"},
+            {"name": "wkb_type", "data_type": "binary"},
+        ]
+    )
+    def geom_types() -> Iterator[Dict[str, float]]:
+        sample_wkt = "POINT(0 0)"
+        sample_geometry = wkt.loads(sample_wkt)
+        sample_wkb = wkb.dumps(sample_geometry)
+        yield from [{"wkt_type": sample_wkt, "sample_wkb": sample_wkb}]
+
+    pipeline = destination_config.setup_pipeline(
+        f"geom_types",
+        dev_mode=True,
+    )
+
+    pipeline.run(geom_types())
+
+    with pipeline.sql_client() as c:
+        nc = c.native_connection
+        fqtn_geom_types = c.make_qualified_table_name("geom_types", escape=False)
+
+
+
+        hints_rounding_mode = None
+        no_hints_rounding_mode = None
+
+        for row in results:
+            if row["table_name"] == "no_hints":  # type: ignore
+                no_hints_rounding_mode = row["rounding_mode"]  # type: ignore
+            elif row["table_name"] == "hints":  # type: ignore
+                hints_rounding_mode = row["rounding_mode"]  # type: ignore
+
+        assert (no_hints_rounding_mode is None) and (
+            hints_rounding_mode == "ROUND_HALF_AWAY_FROM_ZERO"
+        )
+
