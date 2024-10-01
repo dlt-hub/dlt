@@ -26,6 +26,7 @@ def github_source(access_token: Optional[str] = dlt.secrets.value) -> Any:
                 if access_token
                 else None
             ),
+            "paginator": {"type": "header_link", "links_next_key": "next"},
         },
         # The default configuration for all resources and their endpoints
         "resource_defaults": {
@@ -64,7 +65,7 @@ def github_source(access_token: Optional[str] = dlt.secrets.value) -> Any:
                         "since": {
                             "type": "incremental",
                             "cursor_path": "updated_at",
-                            "initial_value": pendulum.today().subtract(days=30).to_iso8601_string(),
+                            "initial_value": pendulum.today().subtract(days=7).to_iso8601_string(),
                         },
                     },
                 },
@@ -108,6 +109,7 @@ def load_github() -> None:
 
     load_info = pipeline.run(github_source())
     print(load_info)  # noqa: T201
+    print(pipeline.last_trace)
 
 
 def load_pokemon() -> None:
@@ -121,8 +123,7 @@ def load_pokemon() -> None:
         {
             "client": {
                 "base_url": "https://pokeapi.co/api/v2/",
-                # If you leave out the paginator, it will be inferred from the API:
-                # "paginator": "json_link",
+                "paginator": "json_link",
             },
             "resource_defaults": {
                 "endpoint": {
@@ -151,6 +152,7 @@ def load_pokemon() -> None:
 
     load_info = pipeline.run(pokemon_source)
     print(load_info)  # noqa: T201
+    print(pipeline.last_trace)
 
 
 if __name__ == "__main__":
