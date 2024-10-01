@@ -171,7 +171,7 @@ log_format="JSON"
 - `json` to get the log in json format
 - [Python standard log format specifier](https://docs.python.org/3/library/logging.html#logrecord-attributes)
 
-As with any other configuration, you can use environment variables instead of the `toml` file.
+As with any other configuration, you can use environment variables instead of the TOML file.
 
 - `RUNTIME__LOG_LEVEL` to set the log level
 - `LOG_FORMAT` to set the log format

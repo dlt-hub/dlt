@@ -90,7 +90,9 @@ If you are planning run the pipeline with Google Cloud Composer, follow the next
 pipedrive_api_key = "c66..."
 ```
 
-> 💡 `deploy` command will use [Airflow variable](#4-add-credentials) called `dlt_secrets_toml` to store all the required secrets as `toml` fragment. You can also use **environment variables** by passing `--secrets-format env` option:
+:::tip
+ `deploy` command will use [Airflow variable](#4-add-credentials) called `dlt_secrets_toml` to store all the required secrets as TOML fragment. You can also use **environment variables** by passing `--secrets-format env` option:
+:::
 
 ```sh
 dlt deploy pipedrive_pipeline.py airflow-composer --secrets-format env
@@ -393,7 +395,7 @@ There are two ways to pass the credentials
      will be displayed in the output:
 
      ```sh
-     3. Add the following toml-string to the Airflow UI as the dlt_secrets_toml variable.
+     3. Add the following TOML-string to the Airflow UI as the dlt_secrets_toml variable.
 
      [sources.pipedrive]
      pipedrive_api_key = "c66c..."
@@ -401,7 +403,7 @@ There are two ways to pass the credentials
 
    - Launch the Airflow UI, head to **Admin** top level menu and select **Variables**
    - Add a new variable with a name `dlt_secrets_toml`
-   - Paste the `toml` fragment displayed by the `deploy` command.
+   - Paste the TOML fragment displayed by the `deploy` command.
    - 💡 the content of this variable will be used by `dlt` Airflow helper instead of local `secrets.toml` which you are familiar with. If your local secrets file contains anything else you want to access on Airflow, you are good to just copy the local `secrets.toml` content to `dlt_secrets_toml` variable.
 
 1. as ENVIRONMENT VARIABLES.

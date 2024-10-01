@@ -91,9 +91,9 @@ Now,
    * connection string (used in SQL Alchemy) (in code and via config providers).
    * if nothing is passed, the default credentials are used (i.e., those present on Cloud Function runner)
 
-## Toml files structure
+## TOML files structure
 
-`dlt` arranges the sections of [toml files](setup/#secretstoml-and-configtoml) into a **default layout** that is expected by the [injection mechanism](#injection-mechanism).
+`dlt` arranges the sections of [TOML files](setup/#secretstoml-and-configtoml) into a **default layout** that is expected by the [injection mechanism](#injection-mechanism).
 This layout makes it easy to configure simple cases but also provides room for more explicit sections and complex cases, i.e., having several sources with different credentials
 or even hosting several pipelines in the same project sharing the same config and credentials.
 
@@ -158,7 +158,7 @@ dlt.config["sheet_id"] = "23029402349032049"
 dlt.secrets["destination.postgres.credentials"] = BaseHook.get_connection('postgres_dsn').extra
 ```
 
-This will mock the `toml` provider to desired values.
+This will mock the TOML provider to desired values.
 
 ## Example
 

@@ -234,7 +234,7 @@ export DESTINATION__FILESYSTEM__KWARGS = '{"auto_mkdir": true/false}'
 bucket_url = 'C:\a\b\c'
 ```
 
-In the example above, we specify `bucket_url` using **toml's literal strings** that do not require [escaping of backslashes](https://github.com/toml-lang/toml/blob/main/toml.md#string).
+In the example above, we specify `bucket_url` using **TOML's literal strings** that do not require [escaping of backslashes](https://github.com/toml-lang/toml/blob/main/toml.md#string).
 
 ```toml
 [destination.unc_destination]
