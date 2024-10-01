@@ -1,9 +1,12 @@
+from typing import Any
+
 import pytest
 import dlt
 import os
 
 from dlt import Pipeline
 from dlt.common import Decimal
+from dlt.common.utils import uniq_id
 
 from typing import List
 from functools import reduce
@@ -200,7 +203,7 @@ def _run_dataset_checks(
 
         # check we can create new tables from the views
         with pipeline.sql_client() as c:
-            c.create_view_for_tables({"items": "items", "double_items": "double_items"})
+            c.create_views_for_tables({"items": "items", "double_items": "double_items"})
             c.execute_sql(
                 "CREATE TABLE items_joined AS (SELECT i.id, di.double_id FROM items as i JOIN"
                 " double_items as di ON (i.id = di.id));"
@@ -218,30 +221,48 @@ def _run_dataset_checks(
             except Exception as exc:
                 assert "double_items is not an table" in str(exc)
 
-        # we create a second duckdb pipieline and will see if we can make our filesystem views available there
-        other_pipeline = dlt.pipeline("other_pipeline", dev_mode=True, destination="duckdb")
-        other_db_location = (
-            other_pipeline.destination_client().config.credentials.database  #  type: ignore
-        )
-        other_pipeline.run([1, 2, 3], table_name="items")
-        assert len(other_pipeline._dataset().items.fetchall()) == 3
-
-        # TODO: implement these tests
-        return
+        # we create a duckdb with a table an see wether we can add more views
+        duck_db_location = "_storage/" + uniq_id()
+        external_db = duckdb.connect(duck_db_location)
+        external_db.execute("CREATE SCHEMA first;")
+        external_db.execute("CREATE SCHEMA second;")
+        external_db.execute("CREATE TABLE first.items AS SELECT i FROM range(0, 3) t(i)")
+        assert len(external_db.sql("SELECT * FROM first.items").fetchall()) == 3
 
         # now we can use the filesystemsql client to create the needed views
+        fs_client: Any = pipeline.destination_client()
         fs_sql_client = FilesystemSqlClient(
-            pipeline.destination_client(),
-            dataset_name=other_pipeline.dataset_name,
-            duckdb_connection=duckdb.connect(other_db_location),
+            dataset_name="second",
+            fs_client=fs_client,
+            duckdb_connection=external_db,
         )
-        fs_sql_client.create_persistent_secrets = True
         with fs_sql_client as sql_client:
-            sql_client.create_view_for_tables({"items": "referenced_items"})
+            sql_client.create_views_for_tables({"items": "referenced_items"})
+        assert len(external_db.sql("SELECT * FROM second.referenced_items").fetchall()) == 3000
+        assert len(external_db.sql("SELECT * FROM first.items").fetchall()) == 3
 
-        # we now have access to this view on the original dataset
-        assert len(other_pipeline._dataset().items.fetchall()) == 3
-        assert len(other_pipeline._dataset().referenced_items.fetchall()) == 3000
+        # test creating persistent secrets
+        # NOTE: there is some kind of duckdb cache that makes testing persistent secrets impossible
+        # because somehow the non-persistent secrets are around as long as the python process runs, even
+        # wenn closing the db connection, renaming the db file and reconnecting
+        secret_name = f"secret_{uniq_id()}_secret"
+
+        supports_persistent_secrets = (
+            destination_config.bucket_url.startswith("s3")
+            or destination_config.bucket_url.startswith("az")
+            or destination_config.bucket_url.startswith("abfss")
+        )
+
+        try:
+            with fs_sql_client as sql_client:
+                fs_sql_client.create_authentication(persistent=True, secret_name=secret_name)
+            # the line below would error if there were no persistent secrets of the given name
+            external_db.execute(f"DROP PERSISTENT SECRET {secret_name}")
+        except Exception as exc:
+            assert (
+                not supports_persistent_secrets
+            ), f"{destination_config.bucket_url} is expected to support persistent secrets"
+            assert "Cannot create persistent secret" in str(exc)
 
 
 @pytest.mark.essential

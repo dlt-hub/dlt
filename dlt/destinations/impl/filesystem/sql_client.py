@@ -46,8 +46,7 @@ class FilesystemSqlClient(DuckDbSqlClient):
         )
         self.fs_client = fs_client
         self.using_external_database = duckdb_connection is not None
-        self.create_persistent_secrets = False
-        self.autocreate_required_views = False
+        self.autocreate_required_views = True
 
         if self.fs_client.config.protocol not in SUPPORTED_PROTOCOLS:
             raise NotImplementedError(
@@ -55,22 +54,18 @@ class FilesystemSqlClient(DuckDbSqlClient):
                 f" FilesystemSqlClient. Supported protocols are {SUPPORTED_PROTOCOLS}."
             )
 
-    def open_connection(self) -> duckdb.DuckDBPyConnection:
-        # we keep the in memory instance around, so if this prop is set, return it
-        if self._conn:
-            return self._conn
-        super().open_connection()
+    def create_authentication(self, persistent: bool = False, secret_name: str = None) -> None:
+        if not secret_name:
+            secret_name = f"secret_{self.fs_client.config.protocol}"
 
-        # set up connection and dataset
-        self._existing_views: List[str] = []  # remember which views already where created
-        if not self.has_dataset():
-            self.create_dataset()
-        self._conn.sql(f"USE {self.dataset_name}")
-        self.autocreate_required_views = True
+        persistent_stmt = ""
+        if persistent:
+            persistent_stmt = " PERSISTENT "
 
-        persistent = ""
-        if self.create_persistent_secrets:
-            persistent = " PERSISTENT "
+        # abfss buckets have an @ compontent
+        scope = self.fs_client.config.bucket_url
+        if "@" in scope:
+            scope = scope.split("@")[0]
 
         # add secrets required for creating views
         if self.fs_client.config.protocol == "s3":
@@ -81,12 +76,13 @@ class FilesystemSqlClient(DuckDbSqlClient):
                 else "s3.amazonaws.com"
             )
             self._conn.sql(f"""
-            CREATE {persistent} SECRET secret_aws (
+            CREATE OR REPLACE {persistent_stmt} SECRET {secret_name} (
                 TYPE S3,
                 KEY_ID '{aws_creds.aws_access_key_id}',
                 SECRET '{aws_creds.aws_secret_access_key}',
                 REGION '{aws_creds.region_name}',
-                ENDPOINT '{endpoint}'
+                ENDPOINT '{endpoint}',
+                SCOPE '{scope}'
             );""")
 
         # azure with storage account creds
@@ -95,9 +91,10 @@ class FilesystemSqlClient(DuckDbSqlClient):
         ):
             azsa_creds = self.fs_client.config.credentials
             self._conn.sql(f"""
-            CREATE {persistent} SECRET secret_az (
+            CREATE OR REPLACE {persistent_stmt} SECRET {secret_name} (
                 TYPE AZURE,
-                CONNECTION_STRING 'AccountName={azsa_creds.azure_storage_account_name};AccountKey={azsa_creds.azure_storage_account_key}'
+                CONNECTION_STRING 'AccountName={azsa_creds.azure_storage_account_name};AccountKey={azsa_creds.azure_storage_account_key}',
+                SCOPE '{scope}'
             );""")
 
         # azure with service principal creds
@@ -106,14 +103,21 @@ class FilesystemSqlClient(DuckDbSqlClient):
         ):
             azsp_creds = self.fs_client.config.credentials
             self._conn.sql(f"""
-            CREATE SECRET secret_az (
+            CREATE OR REPLACE {persistent_stmt} SECRET {secret_name} (
                 TYPE AZURE,
                 PROVIDER SERVICE_PRINCIPAL,
                 TENANT_ID '{azsp_creds.azure_tenant_id}',
                 CLIENT_ID '{azsp_creds.azure_client_id}',
                 CLIENT_SECRET '{azsp_creds.azure_client_secret}',
-                ACCOUNT_NAME '{azsp_creds.azure_storage_account_name}'
+                ACCOUNT_NAME '{azsp_creds.azure_storage_account_name}',
+                SCOPE '{scope}'
             );""")
+        elif persistent:
+            raise Exception(
+                "Cannot create persistent secret for filesystem protocol"
+                f" {self.fs_client.config.protocol}. If you are trying to use persistent secrets"
+                " with gs/gcs, please use the s3 compatibility layer."
+            )
 
         # native google storage implementation is not supported..
         elif self.fs_client.config.protocol in ["gs", "gcs"]:
@@ -127,6 +131,28 @@ class FilesystemSqlClient(DuckDbSqlClient):
         elif self.fs_client.config.protocol == "memory":
             self._conn.register_filesystem(self.fs_client.fs_client)
 
+    def open_connection(self) -> duckdb.DuckDBPyConnection:
+        # we keep the in memory instance around, so if this prop is set, return it
+        if self._conn:
+            return self._conn
+        super().open_connection()
+
+        # set up connection and dataset
+        self._existing_views: List[str] = []  # remember which views already where created
+
+        self.autocreate_required_views = False
+        if not self.has_dataset():
+            self.create_dataset()
+        self.autocreate_required_views = True
+        self._conn.sql(f"USE {self.dataset_name}")
+
+        # the line below solves problems with certificate path lookup on linux
+        # see duckdb docs
+        self._conn.sql("SET azure_transport_option_type = 'curl';")
+
+        # create authentication to data provider
+        self.create_authentication()
+
         return self._conn
 
     def close_connection(self) -> None:
@@ -135,7 +161,7 @@ class FilesystemSqlClient(DuckDbSqlClient):
             return super().close_connection()
 
     @raise_database_error
-    def create_view_for_tables(self, tables: Dict[str, str]) -> None:
+    def create_views_for_tables(self, tables: Dict[str, str]) -> None:
         """Add the required tables as views to the duckdb in memory instance"""
 
         # create all tables in duck instance
@@ -208,7 +234,7 @@ class FilesystemSqlClient(DuckDbSqlClient):
         if self.autocreate_required_views:  # skip this step when operating on the schema..
             expression = sqlglot.parse_one(query, read="duckdb")  # type: ignore
             load_tables = {t.name: t.name for t in expression.find_all(exp.Table)}
-            self.create_view_for_tables(load_tables)
+            self.create_views_for_tables(load_tables)
 
         # TODO: raise on non-select queries here, they do not make sense in this context
         with super().execute_query(query, *args, **kwargs) as cursor:
