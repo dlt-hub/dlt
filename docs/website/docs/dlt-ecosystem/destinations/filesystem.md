@@ -703,7 +703,7 @@ You will also notice `init` files being present in the root folder and the speci
 When running your pipeline, you might encounter an error like `[Errno 36] File name too long Error`. This error occurs because the generated file name exceeds the maximum allowed length on your filesystem.
 
 ### Solution
-To prevent this, you can set the `max_identifier_length` parameter for your destination. This truncates all identifiers (including filenames) to a specified maximum length.
+To prevent the file name length error, set the `max_identifier_length` parameter for your destination. This truncates all identifiers (including filenames) to a specified maximum length.
 For example: 
 
 ```py
