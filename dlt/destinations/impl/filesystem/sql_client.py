@@ -135,25 +135,24 @@ class FilesystemSqlClient(DuckDbSqlClient):
 
     def open_connection(self) -> duckdb.DuckDBPyConnection:
         # we keep the in memory instance around, so if this prop is set, return it
-        if self._conn:
-            return self._conn
-        super().open_connection()
+        if not self._conn:
+            super().open_connection()
 
-        # set up connection and dataset
-        self._existing_views: List[str] = []  # remember which views already where created
+            # set up connection and dataset
+            self._existing_views: List[str] = []  # remember which views already where created
 
-        self.autocreate_required_views = False
-        if not self.has_dataset():
-            self.create_dataset()
-        self.autocreate_required_views = True
-        self._conn.sql(f"USE {self.dataset_name}")
+            self.autocreate_required_views = False
+            if not self.has_dataset():
+                self.create_dataset()
+            self.autocreate_required_views = True
+            self._conn.sql(f"USE {self.dataset_name}")
+
+            # create authentication to data provider
+            self.create_authentication()
 
         # the line below solves problems with certificate path lookup on linux
         # see duckdb docs
         self._conn.sql("SET azure_transport_option_type = 'curl';")
-
-        # create authentication to data provider
-        self.create_authentication()
 
         return self._conn
 

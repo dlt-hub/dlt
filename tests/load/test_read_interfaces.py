@@ -53,6 +53,7 @@ def _run_dataset_checks(
     def source():
         @dlt.resource(
             table_format=table_format,
+            write_disposition="replace",
             columns={
                 "id": {"data_type": "bigint"},
                 # we add a decimal with precision to see wether the hints are preserved
@@ -73,6 +74,7 @@ def _run_dataset_checks(
 
         @dlt.resource(
             table_format=table_format,
+            write_disposition="replace",
             columns={
                 "id": {"data_type": "bigint"},
                 "double_id": {"data_type": "bigint"},
@@ -94,7 +96,7 @@ def _run_dataset_checks(
     pipeline.run(s, loader_file_format=destination_config.file_format)
 
     if alternate_access_pipeline:
-        pipeline = alternate_access_pipeline
+        pipeline.destination = alternate_access_pipeline.destination
 
     # access via key
     table_relationship = pipeline._dataset()["items"]
