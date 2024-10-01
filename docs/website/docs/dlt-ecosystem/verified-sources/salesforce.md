@@ -135,7 +135,7 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 
 For more information, read the guide on [how to run a pipeline](../../walkthroughs/run-a-pipeline).
 
-### Sources and resources
+## Sources and resources
 
 `dlt` works on the principle of [sources](../../general-usage/source) and
 [resources](../../general-usage/resource).
