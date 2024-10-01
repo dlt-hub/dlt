@@ -14,20 +14,20 @@ data management and collaboration.
 
 This Airtable `dlt` verified source and
 [pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/airtable_pipeline.py)
-loads data using “Airtable API” to the destination of your choice.
+loads data using the “Airtable API” to the destination of your choice.
 
 Sources and resources that can be loaded using this verified source are:
 
 | Name              | Description                                |
 | ----------------- |--------------------------------------------|
 | airtable_source   | Retrieves tables from an Airtable base     |
-| airtable_resource | Retrives data from a single Airtable table |
+| airtable_resource | Retrieves data from a single Airtable table |
 
-## Setup Guide
+## Setup guide
 
 ### Grab Airtable personal access tokens
 
-1. Click your account icon top-right.
+1. Click your account icon in the top-right.
 1. Choose "Developer Hub" from the dropdown.
 1. Select "Personal access token" on the left, then "Create new token".
 1. Name it appropriately.
@@ -90,16 +90,16 @@ For more information, read the guide on [how to add a verified source.](../../wa
 
       ```toml
       [sources.airtable]
-      access_token = "Please set me up!" # please set me up!
+      access_token = "Please set me up!" # Please set me up!
       ```
 
 1. Finally, enter credentials for your chosen destination as per the [docs](../destinations/).
 
-1. Next you need to configure ".dlt/config.toml", which looks like:
+1. Next, you need to configure ".dlt/config.toml", which looks like:
 
    ```toml
    [sources.airtable]
-   base_id = "Please set me up!"       # The id of the base.
+   base_id = "Please set me up!"       # The ID of the base.
    table_names = ["Table1","Table2"]   # A list of table IDs or table names to load.
    ```
 
@@ -142,7 +142,7 @@ For more information, read the guide on [how to run a pipeline](../../walkthroug
 
 ### Source `airtable_source`
 
-This function retrieves tables from given Airtable base.
+This function retrieves tables from a given Airtable base.
 
 ```py
 @dlt.source
@@ -178,10 +178,11 @@ def airtable_resource(
 
 ## Customization
 
+
+
 ### Create your own pipeline
 
-If you wish to create your own pipelines, you can leverage source and resource methods from this
-verified source.
+If you wish to create your own pipelines, you can leverage source and resource methods from this verified source.
 
 1. Configure the pipeline by specifying the pipeline name, destination, and dataset as follows:
 
@@ -196,7 +197,7 @@ verified source.
 1. To load the entire base:
 
    ```py
-   base_id = "Please set me up!"     # The id of the base.
+   base_id = "Please set me up!"     # The ID of the base.
 
    airtables = airtable_source(base_id=base_id)
    load_info = pipeline.run(load_data, write_disposition="replace")
@@ -205,8 +206,8 @@ verified source.
 1. To load selected tables from a base table:
 
    ```py
-   base_id = "Please set me up!"     # The id of the base.
-   table_names = ["Table1","Table2"] # A list of table IDs or table names to load.
+   base_id = "Please set me up!"     # The ID of the base.
+   table_names = ["Table1", "Table2"] # A list of table IDs or table names to load.
 
    airtables = airtable_source(
       base_id = base_id,
@@ -221,14 +222,14 @@ verified source.
 1. To load data and apply hints to a specific column:
 
    ```py
-   base_id = "Please set me up!"       # The id of the base.
-   table_names = ["Table1","Table2"]   # A list of table IDs or table names to load.
+   base_id = "Please set me up!"       # The ID of the base.
+   table_names = ["Table1", "Table2"]   # A list of table IDs or table names to load.
    resource_name = "Please set me up!" # The table name we want to apply hints.
    field_name = "Please set me up!"    # The table field name for which we want to apply hints.
 
    airtables = airtable_source(
         base_id="Please set me up!",
-        table_names=["Table1","Table2"],
+        table_names=["Table1", "Table2"],
    )
 
    airtables.resources[resource_name].apply_hints(
