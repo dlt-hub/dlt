@@ -2,6 +2,8 @@ from typing import Any, Iterator, AnyStr, List, cast, TYPE_CHECKING, Dict
 
 import os
 
+import dlt
+
 import duckdb
 
 import sqlglot
@@ -172,60 +174,63 @@ class FilesystemSqlClient(DuckDbSqlClient):
             if table_name not in self.fs_client.schema.tables:
                 # unknown tables will not be created
                 continue
-            self._existing_views.append(view_name)
 
+            # discover file type
+            schema_table = cast(PreparedTableSchema, self.fs_client.schema.tables[table_name])
+            self._existing_views.append(view_name)
             folder = self.fs_client.get_table_dir(table_name)
             files = self.fs_client.list_table_files(table_name)
+            first_file_type = os.path.splitext(files[0])[1][1:]
 
-            # discover tables files
-            file_type = os.path.splitext(files[0])[1][1:]
-            columns_string = ""
-            if file_type == "jsonl":
-                read_command = "read_json"
-                # for json we need to provide types
-                type_mapper = self.capabilities.get_type_mapper()
-                schema_table = cast(PreparedTableSchema, self.fs_client.schema.tables[table_name])
-                columns = map(
+            # build files string
+            supports_wildcard_notation = self.fs_client.config.protocol != "abfss"
+            protocol = (
+                "" if self.fs_client.is_local_filesystem else f"{self.fs_client.config.protocol}://"
+            )
+            resolved_folder = f"{protocol}{folder}"
+            resolved_files_string = f"'{resolved_folder}/**/*.{first_file_type}'"
+            if not supports_wildcard_notation:
+                resolved_files_string = ",".join(map(lambda f: f"'{protocol}{f}'", files))
+
+            # build columns definition
+            type_mapper = self.capabilities.get_type_mapper()
+            columns = ",".join(
+                map(
                     lambda c: (
                         f'{self.escape_column_name(c["name"])}:'
                         f' "{type_mapper.to_destination_type(c, schema_table)}"'
                     ),
                     self.fs_client.schema.tables[table_name]["columns"].values(),
                 )
-                columns_string = ",columns = {" + ",".join(columns) + "}"
+            )
 
-            elif file_type == "parquet":
-                read_command = "read_parquet"
+            # discover wether compression is enabled
+            compression = (
+                ""
+                if dlt.config.get("data_writer.disable_compression")
+                else ", compression = 'gzip'"
+            )
+
+            # create from statement
+            from_statement = ""
+            if schema_table.get("table_format") == "delta":
+                from_statement = f"delta_scan('{resolved_folder}')"
+            elif first_file_type == "parquet":
+                from_statement = f"read_parquet([{resolved_files_string}])"
+            elif first_file_type == "jsonl":
+                from_statement = (
+                    f"read_json([{resolved_files_string}], columns = {{{columns}}}) {compression}"
+                )
             else:
                 raise NotImplementedError(
-                    f"Unknown filetype {file_type} for table {table_name}. Currently only jsonl and"
-                    " parquet files are supported."
+                    f"Unknown filetype {first_file_type} for table {table_name}. Currently only"
+                    " jsonl and parquet files as well as delta tables are supported."
                 )
-
-            # build files string
-            protocol = (
-                "" if self.fs_client.is_local_filesystem else f"{self.fs_client.config.protocol}://"
-            )
-            supports_wildcard_notation = self.fs_client.config.protocol != "abfss"
-            files_string = f"'{protocol}{folder}/**/*.{file_type}'"
-            if not supports_wildcard_notation:
-                files_string = ",".join(map(lambda f: f"'{protocol}{f}'", files))
 
             # create table
             view_name = self.make_qualified_table_name(view_name)
-            create_table_sql_base = (
-                f"CREATE VIEW {view_name} AS SELECT * FROM"
-                f" {read_command}([{files_string}] {columns_string})"
-            )
-            create_table_sql_gzipped = (
-                f"CREATE VIEW {view_name} AS SELECT * FROM"
-                f" {read_command}([{files_string}] {columns_string} , compression = 'gzip')"
-            )
-            try:
-                self._conn.execute(create_table_sql_base)
-            except (duckdb.InvalidInputException, duckdb.IOException):
-                # try to load non gzipped files
-                self._conn.execute(create_table_sql_gzipped)
+            create_table_sql_base = f"CREATE VIEW {view_name} AS SELECT * FROM {from_statement}"
+            self._conn.execute(create_table_sql_base)
 
     @contextmanager
     @raise_database_error

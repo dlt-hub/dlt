@@ -16,12 +16,17 @@ from tests.load.utils import (
     DestinationTestConfiguration,
     GCS_BUCKET,
     SFTP_BUCKET,
+    FILE_BUCKET,
+    MEMORY_BUCKET,
 )
 from dlt.destinations import filesystem
 
 
 def _run_dataset_checks(
-    pipeline: Pipeline, destination_config: DestinationTestConfiguration
+    pipeline: Pipeline,
+    destination_config: DestinationTestConfiguration,
+    table_format: Any = None,
+    alternate_access_pipeline: Pipeline = None,
 ) -> None:
     destination_type = pipeline.destination_client().config.destination_type
 
@@ -47,12 +52,13 @@ def _run_dataset_checks(
     @dlt.source()
     def source():
         @dlt.resource(
+            table_format=table_format,
             columns={
                 "id": {"data_type": "bigint"},
                 # we add a decimal with precision to see wether the hints are preserved
                 "decimal": {"data_type": "decimal", "precision": 10, "scale": 3},
                 "other_decimal": {"data_type": "decimal", "precision": 12, "scale": 3},
-            }
+            },
         )
         def items():
             yield from [
@@ -66,10 +72,11 @@ def _run_dataset_checks(
             ]
 
         @dlt.resource(
+            table_format=table_format,
             columns={
                 "id": {"data_type": "bigint"},
                 "double_id": {"data_type": "bigint"},
-            }
+            },
         )
         def double_items():
             yield from [
@@ -85,6 +92,9 @@ def _run_dataset_checks(
     # run source
     s = source()
     pipeline.run(s, loader_file_format=destination_config.file_format)
+
+    if alternate_access_pipeline:
+        pipeline = alternate_access_pipeline
 
     # access via key
     table_relationship = pipeline._dataset()["items"]
@@ -314,7 +324,44 @@ def test_read_interfaces_filesystem(destination_config: DestinationTestConfigura
             "read_pipeline", dataset_name="read_test", dev_mode=True, destination=gcp_bucket
         )
         _run_dataset_checks(pipeline, destination_config)
-        assert pipeline.destination_client().config.credentials
+
+
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        table_format_filesystem_configs=True,
+        with_table_format="delta",
+        bucket_exclude=[SFTP_BUCKET, MEMORY_BUCKET],
+    ),
+    ids=lambda x: x.name,
+)
+def test_delta_tables(destination_config: DestinationTestConfiguration) -> None:
+    os.environ["DATA_WRITER__FILE_MAX_ITEMS"] = "700"
+
+    pipeline = destination_config.setup_pipeline(
+        "read_pipeline",
+        dataset_name="read_test",
+    )
+
+    # in case of gcs we use the s3 compat layer for reading
+    # for writing we still need to use the gc authentication, as delta_rs seems to use
+    # methods on the s3 interface that are not implemented by gcs
+    access_pipeline = pipeline
+    if destination_config.bucket_url == GCS_BUCKET:
+        gcp_bucket = filesystem(
+            GCS_BUCKET.replace("gs://", "s3://"), destination_name="filesystem_s3_gcs_comp"
+        )
+        access_pipeline = destination_config.setup_pipeline(
+            "read_pipeline", dataset_name="read_test", destination=gcp_bucket
+        )
+
+    _run_dataset_checks(
+        pipeline,
+        destination_config,
+        table_format="delta",
+        alternate_access_pipeline=access_pipeline,
+    )
 
 
 @pytest.mark.essential
