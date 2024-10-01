@@ -10,7 +10,7 @@ Filesystem source allows loading files from remote locations (AWS S3, Google Clo
 
 To load unstructured data (`.pdf`, `.txt`, e-mail), please refer to the [unstructured data source](https://github.com/dlt-hub/verified-sources/tree/master/sources/unstructured_data).
 
-## How Filesystem source works?
+## How filesystem source works
 
 The Filesystem source doesn't just give you an easy way to load data from both remote and local files — it also comes with a powerful set of tools that let you customize the loading process to fit your specific needs.
 
@@ -54,7 +54,7 @@ To get started with your data pipeline, follow these steps:
    dlt init filesystem duckdb
    ```
 
-   [dlt init command](../../../reference/command-line-interface) will initialize
+   The [dlt init command](../../../reference/command-line-interface) will initialize
    [the pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/filesystem_pipeline.py)
    with the filesystem as the source and [duckdb](../../destinations/duckdb.md) as the destination.
 
@@ -65,6 +65,8 @@ To get started with your data pipeline, follow these steps:
    configuration settings to get started.
 
 ## Configuration
+
+
 
 ### Get credentials
 
@@ -132,7 +134,7 @@ dlt supports several authentication methods:
 3. Username/Password authentication
 4. GSS-API authentication
 
-Learn more about SFTP authentication options in [SFTP section](../../destinations/filesystem#sftp). To obtain credentials, contact your server administrator.
+Learn more about SFTP authentication options in the [SFTP section](../../destinations/filesystem#sftp). To obtain credentials, contact your server administrator.
 </TabItem>
 
 <TabItem value="local">
@@ -145,7 +147,7 @@ You don't need any credentials for the local filesystem.
 
 To provide credentials to the filesystem source, you can use [any method available](../../../general-usage/credentials/setup#available-config-providers) in `dlt`.
 One of the easiest ways is to use configuration files. The `.dlt` folder in your working directory
-contains two files: `config.toml` and  `secrets.toml`. Sensitive information, like passwords and
+contains two files: `config.toml` and `secrets.toml`. Sensitive information, like passwords and
 access tokens, should only be put into `secrets.toml`, while any other configuration, like the path to
 a bucket, can be specified in `config.toml`.
 
@@ -212,7 +214,7 @@ bucket_url="gs://<bucket_name>/<path_to_files>/"
 <TabItem value="sftp">
 
 Learn how to set up SFTP credentials for each authentication method in the [SFTP section](../../destinations/filesystem#sftp).
-For example, in case of key-based authentication, you can configure the source the following way:
+For example, in the case of key-based authentication, you can configure the source the following way:
 
 ```toml
 # secrets.toml
@@ -229,7 +231,7 @@ bucket_url = "sftp://[hostname]/[path]"
 
 <TabItem value="local">
 
-You can use both native local filesystem paths and `file://` URI. Absolute, relative, and UNC Windows paths are supported.
+You can use both native local filesystem paths and the `file://` URI. Absolute, relative, and UNC Windows paths are supported.
 
 You could provide an absolute filepath:
 
@@ -239,7 +241,7 @@ You could provide an absolute filepath:
 bucket_url='file://Users/admin/Documents/csv_files'
 ```
 
-Or skip the schema and provide the local path in a format native for your operating system. For example, for Windows:
+Or skip the schema and provide the local path in a format native to your operating system. For example, for Windows:
 
 ```toml
 [sources.filesystem]
@@ -250,7 +252,7 @@ bucket_url='~\Documents\csv_files\'
 
 </Tabs>
 
-You can also specify the credentials using Environment variables. The name of the corresponding environment
+You can also specify the credentials using environment variables. The name of the corresponding environment
 variable should be slightly different from the corresponding name in the `toml` file. Simply replace dots `.` with double
 underscores `__`:
 
@@ -260,7 +262,7 @@ export SOURCES__FILESYSTEM__AWS_SECRET_ACCESS_KEY = "Please set me up!"
 ```
 
 :::tip
-`dlt` supports more ways of authorizing with the cloud storage, including identity-based
+`dlt` supports more ways of authorizing with cloud storage, including identity-based
 and default credentials. To learn more about adding credentials to your pipeline, please refer to the
 [Configuration and secrets section](../../../general-usage/credentials/complex_types#gcp-credentials).
 :::
@@ -310,7 +312,7 @@ or taken from the config:
 Full list of `filesystem` resource parameters:
 
 * `bucket_url` - full URL of the bucket (could be a relative path in the case of the local filesystem).
-* `credentials` - cloud storage credentials of `AbstractFilesystem` instance (should be empty for the local filesystem). We recommend not to specify this parameter in the code, but put it in secrets file instead.
+* `credentials` - cloud storage credentials of `AbstractFilesystem` instance (should be empty for the local filesystem). We recommend not specifying this parameter in the code, but putting it in a secrets file instead.
 * `file_glob` -  file filter in glob format. Defaults to listing all non-recursive files in the bucket URL.
 * `files_per_page` - number of files processed at once. The default value is `100`.
 * `extract_content` - if true, the content of the file will be read and returned in the resource. The default value is `False`.
@@ -332,15 +334,15 @@ filesystem_pipe = filesystem(
 
 #### Available transformers
 
-- `read_csv()` - process `csv` files using `pandas`
-- `read_jsonl()` - process `jsonl` files chuck by chunk
-- `read_parquet()` - process `parquet` files using `pyarrow`
-- `read_csv_duckdb()` - this transformer process `csv` files using DuckDB, which usually shows better performance, than `pandas`.
+- `read_csv()` - processes `csv` files using `pandas`
+- `read_jsonl()` - processes `jsonl` files chunk by chunk
+- `read_parquet()` - processes `parquet` files using `pyarrow`
+- `read_csv_duckdb()` - this transformer processes `csv` files using DuckDB, which usually shows better performance than `pandas`.
 
 :::tip
 We advise that you give each resource a
 [specific name](../../../general-usage/resource#duplicate-and-rename-resources)
-before loading with `pipeline.run`. This will make sure that data goes to a table with the name you
+before loading with `pipeline.run`. This will ensure that data goes to a table with the name you
 want and that each pipeline uses a
 [separate state for incremental loading.](../../../general-usage/state#read-and-write-pipeline-state-in-a-resource)
 :::
@@ -366,7 +368,7 @@ import dlt
 from dlt.sources.filesystem import filesystem, read_csv
 
 filesystem_pipe = filesystem(bucket_url="file://Users/admin/Documents/csv_files", file_glob="*.csv") | read_csv()
-# tell dlt to merge on date
+# Tell dlt to merge on date
 filesystem_pipe.apply_hints(write_disposition="merge", merge_key="date")
 
 # We load the data into the table_name table
@@ -380,19 +382,19 @@ print(load_info)
 Here are a few simple ways to load your data incrementally:
 
 1. [Load files based on modification date](#load-files-based-on-modification-date). Only load files that have been updated since the last time `dlt` processed them. `dlt` checks the files' metadata (like the modification date) and skips those that haven't changed.
-2. [Load new records based on a specific column](#load-new-records-based-on-a-specific-column). You can load only the new or updated records by looking at a specific column, like `updated_at`. Unlike the first method, this approach would read all files every time and then filter the records which was updated.
-3. [Combine loading only updated files and records](#combine-loading-only-updated-files-and-records). Finally, you can combine both methods. It could be useful if new records could be added to existing files, so you not only want to filter the modified files, but modified records as well.
+2. [Load new records based on a specific column](#load-new-records-based-on-a-specific-column). You can load only the new or updated records by looking at a specific column, like `updated_at`. Unlike the first method, this approach would read all files every time and then filter the records which were updated.
+3. [Combine loading only updated files and records](#combine-loading-only-updated-files-and-records). Finally, you can combine both methods. It could be useful if new records could be added to existing files, so you not only want to filter the modified files, but also the modified records.
 
 #### Load files based on modification date
-For example, to load only new CSV files with [incremental loading](../../../general-usage/incremental-loading) you can use `apply_hints` method.
+For example, to load only new CSV files with [incremental loading](../../../general-usage/incremental-loading), you can use the `apply_hints` method.
 
 ```py
 import dlt
 from dlt.sources.filesystem import filesystem, read_csv
 
-# This configuration will only consider new csv files
+# This configuration will only consider new CSV files
 new_files = filesystem(bucket_url="s3://bucket_name", file_glob="directory/*.csv")
-# add incremental on modification time
+# Add incremental on modification time
 new_files.apply_hints(incremental=dlt.sources.incremental("modification_date"))
 
 pipeline = dlt.pipeline(pipeline_name="my_pipeline", destination="duckdb")
@@ -402,13 +404,13 @@ print(load_info)
 
 #### Load new records based on a specific column
 
-In this example we load only new records based on the field called `updated_at`. This method may be useful if you are not able to
-filter files by modification date because for example, all files are modified each time new record is appeared.
+In this example, we load only new records based on the field called `updated_at`. This method may be useful if you are not able to
+filter files by modification date because, for example, all files are modified each time a new record appears.
 ```py
 import dlt
 from dlt.sources.filesystem import filesystem, read_csv
 
-# We consider all csv files
+# We consider all CSV files
 all_files = filesystem(bucket_url="s3://bucket_name", file_glob="directory/*.csv")
 
 # But filter out only updated records
@@ -425,11 +427,11 @@ print(load_info)
 import dlt
 from dlt.sources.filesystem import filesystem, read_csv
 
-# This configuration will only consider modified csv files
+# This configuration will only consider modified CSV files
 new_files = filesystem(bucket_url="s3://bucket_name", file_glob="directory/*.csv")
 new_files.apply_hints(incremental=dlt.sources.incremental("modification_date"))
 
-# And in each modified file we filter out only updated records
+# And in each modified file, we filter out only updated records
 filesystem_pipe = (new_files | read_csv())
 filesystem_pipe.apply_hints(incremental=dlt.sources.incremental("updated_at"))
 pipeline = dlt.pipeline(pipeline_name="my_pipeline", destination="duckdb")
@@ -459,7 +461,7 @@ print(load_info)
 ```
 
 :::tip
-You could also use `file_glob` to filter files by names. It works very well in simple cases, for example, filtering by extention:
+You could also use `file_glob` to filter files by names. It works very well in simple cases, for example, filtering by extension:
 ```py
 from dlt.sources.filesystem import filesystem
 
@@ -493,8 +495,8 @@ print(load_info)
 
 Windows supports paths up to 255 characters. When you access a path longer than 255 characters, you'll see a `FileNotFound` exception.
 
- To go over this limit, you can use [extended paths](https://learn.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation?tabs=registry).
- **Note that Python glob does not work with extended UNC paths**, so you will not be able to use them
+To go over this limit, you can use [extended paths](https://learn.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation?tabs=registry).
+**Note that Python glob does not work with extended UNC paths**, so you will not be able to use them
 
 ```toml
 [sources.filesystem]
@@ -515,3 +517,4 @@ filesystem supports full Python [glob](https://docs.python.org/3/library/glob.ht
 while cloud storage supports a restricted `fsspec` [version](https://filesystem-spec.readthedocs.io/en/latest/api.html#fsspec.spec.AbstractFileSystem.glob).
 
 <!--@@@DLT_TUBA filesystem-->
+
