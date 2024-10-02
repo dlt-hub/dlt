@@ -2,14 +2,15 @@ import contextlib
 from copy import copy
 import makefun
 import inspect
-from typing import Dict, Iterable, Iterator, List, Sequence, Tuple, Any
-from typing_extensions import Self, Protocol, TypeVar, Generic
+from typing import Dict, Iterable, Iterator, List, Sequence, Tuple, Any, Generic
+from typing_extensions import Self, Protocol, TypeVar
 from types import ModuleType
 from typing import Dict, Type, ClassVar
 
 from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.specs import BaseConfiguration, known_sections
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
+from dlt.common.configuration.specs.run_context import PluggableRunContext, SupportsRunContext
 from dlt.common.normalizers.json.relational import DataItemNormalizer as RelationalNormalizer
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TColumnName, TSchemaContract
@@ -514,6 +515,7 @@ class SourceReference:
     module: ModuleType
     section: str
     name: str
+    context: SupportsRunContext
 
     def __init__(
         self,
@@ -528,26 +530,50 @@ class SourceReference:
         self.module = module
         self.section = section
         self.name = name
-        # TODO: add dlt run context name
+        self.context = Container()[PluggableRunContext].context
+
+    @staticmethod
+    def to_fully_qualified_ref(ref: str) -> List[str]:
+        """Converts ref into fully qualified form, return one or more alternatives for shorthand notations.
+        Run context is injected in needed.
+        """
+        ref_split = ref.split(".")
+        if len(ref_split) > 3:
+            raise ValueError(ref)
+        # fully qualified path
+        if ref_split == 3:
+            return [ref]
+        # context name is needed
+        run_name = Container()[PluggableRunContext].context.name
+        # expand shorthand notation
+        if len(ref_split) == 1:
+            return [f"{run_name}.{ref}.{ref}"]
+        # for ref with two parts two options are possible
+        return [f"{run_name}.{ref}", f"{ref_split[0]}.{ref_split[1]}.{ref_split[1]}"]
 
     @classmethod
     def register(cls, ref: "SourceReference") -> None:
-        cls.SOURCES[f"{ref.section}.{ref.name}"] = ref
+        cls.SOURCES[f"{ref.context.name}.{ref.section}.{ref.name}"] = ref
 
     @classmethod
-    def find(cls, section: str, name: str) -> "SourceReference":
-        return cls.SOURCES[f"{section}.{name}"]
+    def find(cls, ref: str) -> "SourceReference":
+        refs = cls.to_fully_qualified_ref(ref)
+
+        for ref_ in refs:
+            if wrapper := cls.SOURCES.get(ref_):
+                return wrapper
+        raise KeyError(refs)
 
     @classmethod
     def from_reference(cls, ref: str) -> SourceFactory[Any, DltSource]:
         """Returns registered source factory or imports source module and returns a function.
         Expands shorthand notation into section.name eg. "sql_database" is expanded into "sql_database.sql_database"
         """
-        if "." not in ref:
-            ref = f"{ref}.{ref}"
+        refs = cls.to_fully_qualified_ref(ref)
 
-        if wrapper := cls.SOURCES.get(ref):
-            return wrapper.f
+        for ref_ in refs:
+            if wrapper := cls.SOURCES.get(ref_):
+                return wrapper.f
 
         # TODO: try to import module
-        raise UnknownSourceReference(ref)
+        raise UnknownSourceReference(refs)

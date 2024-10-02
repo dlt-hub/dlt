@@ -709,7 +709,7 @@ def test_source_reference() -> None:
     # unknown reference
     with pytest.raises(UnknownSourceReference) as ref_ex:
         SourceReference.from_reference("$ref")
-    assert ref_ex.value.ref == "$ref.$ref"
+    assert ref_ex.value.ref == ["dlt.$ref.$ref"]
 
     @dlt.source(section="special")
     def absolute_config(init: int, mark: str = dlt.config.value, secret: str = dlt.secrets.value):
@@ -846,8 +846,7 @@ def test_spec_generation() -> None:
     def inner_source(secret=dlt.secrets.value, config=dlt.config.value, opt: str = "A"):
         return standalone_resource
 
-    print(SourceReference.SOURCES.keys())
-    SPEC = SourceReference.find("test_decorators", "inner_source").SPEC
+    SPEC = SourceReference.find("test_decorators.inner_source").SPEC
     fields = SPEC.get_resolvable_fields()
     assert {"secret", "config", "opt"} == set(fields.keys())
 
@@ -863,21 +862,23 @@ def test_sources_no_arguments() -> None:
         return dlt.resource([1, 2], name="data")
 
     # there is a spec even if no arguments
-    SPEC = SourceReference.SOURCES["test_decorators.no_args"].SPEC
+    SPEC = SourceReference.find("dlt.test_decorators.no_args").SPEC
     assert SPEC
-    _, _, checked = detect_source_configs(SourceReference.SOURCES, "", ())
-    assert "test_decorators.no_args" in checked
 
-    SPEC = SourceReference.SOURCES["test_decorators.not_args_r"].SPEC
+    # source names are used to index detected sources
+    _, _, checked = detect_source_configs(SourceReference.SOURCES, "", ())
+    assert "no_args" in checked
+
+    SPEC = SourceReference.find("dlt.test_decorators.not_args_r").SPEC
     assert SPEC
     _, _, checked = detect_source_configs(SourceReference.SOURCES, "", ())
-    assert "test_decorators.not_args_r" in checked
+    assert "not_args_r" in checked
 
     @dlt.resource
     def not_args_r_i():
         yield from [1, 2, 3]
 
-    assert "test_decorators.not_args_r_i" not in SourceReference.SOURCES
+    assert "dlt.test_decorators.not_args_r_i" not in SourceReference.SOURCES
 
     # you can call those
     assert list(no_args()) == [1, 2]
