@@ -276,7 +276,7 @@ def build_resource_dependency_graph(
     Any, Dict[str, Union[EndpointResource, DltResource]], Dict[str, Optional[List[ResolvedParam]]]
 ]:
     dependency_graph = graphlib.TopologicalSorter()
-    resolved_param_map: Dict[str, ResolvedParam] = {}
+    resolved_param_map: Dict[str, Optional[List[ResolvedParam]]] = {}
     endpoint_resource_map = expand_and_index_resources(resource_list, resource_defaults)
 
     # create dependency graph
@@ -288,17 +288,14 @@ def build_resource_dependency_graph(
         assert isinstance(endpoint_resource["endpoint"], dict)
         # connect transformers to resources via resolved params
         resolved_params = _find_resolved_params(endpoint_resource["endpoint"])
-        
-        #set of resources in resolved params
+
+        # set of resources in resolved params
         named_resources = {rp.resolve_config["resource"] for rp in resolved_params}
 
         if len(named_resources) > 1:
-            raise ValueError(
-                f"Multiple parent resources for {resource_name}: {resolved_params}"
-            )
+            raise ValueError(f"Multiple parent resources for {resource_name}: {resolved_params}")
         elif len(named_resources) == 1:
-
-            #validate the first parameter (note the resource is the same for all params)
+            # validate the first parameter (note the resource is the same for all params)
             first_param = resolved_params[0]
             predecessor = first_param.resolve_config["resource"]
             if predecessor not in endpoint_resource_map:
@@ -306,7 +303,7 @@ def build_resource_dependency_graph(
                     f"A transformer resource {resource_name} refers to non existing parent resource"
                     f" {predecessor} on {first_param}"
                 )
-            
+
             dependency_graph.add(resource_name, predecessor)
             resolved_param_map[resource_name] = resolved_params
         else:
@@ -589,17 +586,17 @@ def process_parent_data_item(
     param_values = {}
 
     for resolved_param in resolved_params:
-
         field_values = jsonpath.find_values(resolved_param.field_path, item)
 
         if not field_values:
             field_path = resolved_param.resolve_config["field"]
             raise ValueError(
-                f"Transformer expects a field '{field_path}' to be present in the incoming data from"
-                f" resource {parent_resource_name} in order to bind it to path param"
-                f" {resolved_param.param_name}. Available parent fields are {', '.join(item.keys())}"
+                f"Transformer expects a field '{field_path}' to be present in the incoming data"
+                f" from resource {parent_resource_name} in order to bind it to path param"
+                f" {resolved_param.param_name}. Available parent fields are"
+                f" {', '.join(item.keys())}"
             )
-        
+
         param_values[resolved_param.param_name] = field_values[0]
 
     bound_path = path.format(**param_values)
