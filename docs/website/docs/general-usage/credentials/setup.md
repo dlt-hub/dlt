@@ -237,7 +237,7 @@ The TOML provider also has the capability to read files from `~/.dlt/` (located 
 ### Structure
 
 `dlt` organizes sections in TOML files in a specific structure required by the [injection mechanism](advanced/#injection-mechanism).
-Understanding this structure gives you more flexibility in setting credentials. For more details, see [Toml files structure](advanced/#toml-files-structure).
+Understanding this structure gives you more flexibility in setting credentials. For more details, see [TOML files structure](advanced/#toml-files-structure).
 
 ## Custom providers
 

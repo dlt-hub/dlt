@@ -253,7 +253,7 @@ bucket_url='~\Documents\csv_files\'
 </Tabs>
 
 You can also specify the credentials using environment variables. The name of the corresponding environment
-variable should be slightly different from the corresponding name in the `toml` file. Simply replace dots `.` with double
+variable should be slightly different from the corresponding name in the TOML file. Simply replace dots `.` with double
 underscores `__`:
 
 ```sh

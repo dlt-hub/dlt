@@ -24,7 +24,10 @@ project_id = "project_id" # please set me up!
 private_key = "private_key" # please set me up!
 client_email = "client_email" # please set me up!
 ```
-> Note that for toml names are case-sensitive and sections are separated with ".".
+
+:::note
+Keys in TOML files are case-sensitive and sections are separated with a period (`.`).
+:::
 
 For destination credentials, read the [documentation pages for each destination](../dlt-ecosystem/destinations) to create and configure credentials.
 

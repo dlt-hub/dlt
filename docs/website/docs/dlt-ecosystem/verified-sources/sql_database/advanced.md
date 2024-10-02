@@ -134,13 +134,12 @@ source = sql_database(
 dlt.pipeline("demo").run(source)
 ```
 
-## Configuring with TOML/environment variables
-
-You can set most of the arguments of `sql_database()` and `sql_table()` directly in the `.toml` files and/or as environment variables. `dlt` automatically injects these values into the pipeline script.
+## Configuring with TOML or environment variables
+You can set most of the arguments of `sql_database()` and `sql_table()` directly in the TOML files or as environment variables. `dlt` automatically injects these values into the pipeline script.
 
 This is particularly useful with `sql_table()` because you can maintain a separate configuration for each table (below we show **secrets.toml** and **config.toml**; you are free to combine them into one):
 
-The examples below show how you can set arguments in any of the `.toml` files (`secrets.toml` or `config.toml`):
+The examples below show how you can set arguments in any of the TOML files (`secrets.toml` or `config.toml`):
 1. Specifying connection string:
     ```toml
     [sources.sql_database]
