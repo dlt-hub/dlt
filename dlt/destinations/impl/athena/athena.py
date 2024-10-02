@@ -150,6 +150,12 @@ class AthenaMergeJob(SqlMergeFollowupJob):
         return sql, temp_table_name
 
     @classmethod
+    def gen_concat_sql(cls, columns: Sequence[str]) -> str:
+        # Athena requires explicit casting
+        columns = [f"CAST({c} AS VARCHAR)" for c in columns]
+        return f"CONCAT({', '.join(columns)})"
+
+    @classmethod
     def requires_temp_table_for_delete(cls) -> bool:
         return True
 

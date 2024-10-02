@@ -17,7 +17,7 @@ you'll ingest to transfer data to your warehouse.
 
 This Strapi `dlt` verified source and
 [pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/strapi_pipeline.py)
-loads data using “Strapi API” to the destination of your choice.
+loads data using the “Strapi API” to the destination of your choice.
 
 Sources and resources that can be loaded using this verified source are:
 
@@ -25,7 +25,7 @@ Sources and resources that can be loaded using this verified source are:
 | ------------- | -------------------------- |
 | strapi_source | Retrieves data from Strapi |
 
-## Setup Guide
+## Setup guide
 
 ### Grab API token
 
@@ -86,7 +86,7 @@ For more information, read the guide on [how to add a verified source](../../wal
 
 1. Finally, enter credentials for your chosen destination as per the [docs](../destinations/).
 
-For more information, read the [General Usage: Credentials.](../../general-usage/credentials)
+For more information, read the [General usage: Credentials.](../../general-usage/credentials)
 
 ## Run the pipeline
 
@@ -126,7 +126,7 @@ For more information, read the guide on [how to run a pipeline](../../walkthroug
 
 ### Source `strapi_source`
 
-This function retrives data from Strapi.
+This function retrieves data from Strapi.
 
 ```py
 @dlt.source
@@ -176,3 +176,4 @@ verified source.
 > requirements.
 
 <!--@@@DLT_TUBA strapi-->
+

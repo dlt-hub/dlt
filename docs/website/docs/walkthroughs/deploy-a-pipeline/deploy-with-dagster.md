@@ -184,17 +184,17 @@ For a complete picture of Dagster's integration with dlt, please refer to their 
 ### Frequently Asked Questions
 - **Can I remove the generated `.dlt` folder with `secrets.toml` and `config.toml` files?**
 
-  Yes. Since dlt is compatible with ENV variables, you can use this for secrets required by both Dagster and dlt.
-  
+  Yes. Since dlt is compatible with environment variables, you can use this for secrets required by both Dagster and dlt.
+
 - **I'm working with several sources – how can I best group these assets?**
 
   To effectively group assets in Dagster when working with multiple sources, use the `group_name` parameter in your `@dlt_assets` decorator. This helps organize and visualize assets related to a particular source or theme in the Dagster UI. Here’s a simplified example:
-  
+
   ```py
   import dlt
   from dagster_embedded_elt.dlt import dlt_assets
   from dlt_sources.google_analytics import google_analytics
-  
+
   # Define assets for the first Google Analytics source
   @dlt_assets(
       dlt_source=google_analytics(),
@@ -207,7 +207,7 @@ For a complete picture of Dagster's integration with dlt, please refer to their 
   )
   def google_analytics_assets_1(context, dlt):
       yield from dlt.run(context=context)
-  
+
   # Define assets for the second Google Analytics source
   @dlt_assets(
       dlt_source=google_analytics(),
@@ -222,18 +222,18 @@ For a complete picture of Dagster's integration with dlt, please refer to their 
       yield from dlt.run(context=context)
   ```
 
- 
-  
+
+
 - **How can I use `bigquery_adapter` with `@dlt_assets` in Dagster for partitioned tables?**
-   
-  To use `bigquery_adapter` with `@dlt_assets` in Dagster for partitioned tables, modify your resource setup to include `bigquery_adapter` with the partition parameter. Here's a quick example:  
-  
+
+  To use `bigquery_adapter` with `@dlt_assets` in Dagster for partitioned tables, modify your resource setup to include `bigquery_adapter` with the partition parameter. Here's a quick example:
+
   ```py
   import dlt
   from google.analytics import BetaAnalyticsDataClient
   from dlt.destinations.adapters import bigquery_adapter
   from dagster import dlt_asset
-  
+
   @dlt_asset
   def google_analytics_asset(context):
       # Configuration (replace with your actual values or parameters)
@@ -244,20 +244,20 @@ For a complete picture of Dagster's integration with dlt, please refer to their 
       start_date = "2024-01-01"
       rows_per_page = 1000
       credentials = your_credentials
-  
+
       # Initialize Google Analytics client
       client = BetaAnalyticsDataClient(credentials=credentials.to_native_credentials())
-  
+
       # Fetch metadata
       metadata = get_metadata(client=client, property_id=property_id)
       resource_list = [metadata | metrics_table, metadata | dimensions_table]
-  
+
       # Configure and add resources to the list
       for query in queries:
           dimensions = query["dimensions"]
           if "date" not in dimensions:
               dimensions.append("date")
-  
+
           resource_name = query["resource_name"]
           resource_list.append(
               bigquery_adapter(
@@ -274,7 +274,7 @@ For a complete picture of Dagster's integration with dlt, please refer to their 
                   partition="date"
               )
           )
-  
+
       return resource_list
   ```
 
