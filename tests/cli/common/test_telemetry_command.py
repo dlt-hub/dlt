@@ -6,7 +6,7 @@ from typing import Any
 from unittest.mock import patch
 
 from dlt.common.configuration.container import Container
-from dlt.common.configuration.paths import DOT_DLT
+from dlt.common.runtime.run_context import DOT_DLT
 from dlt.common.configuration.providers import ConfigTomlProvider, CONFIG_TOML
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
 from dlt.common.storages import FileStorage

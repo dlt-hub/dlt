@@ -76,17 +76,19 @@ def detect_source_configs(
 ) -> Tuple[
     Dict[str, WritableConfigValue], Dict[str, WritableConfigValue], Dict[str, SourceReference]
 ]:
+    """Creates sample secret and configs for `sources` belonging to `module_prefix`. Assumes that
+    all sources belong to a single section so only source name is used to create sample layouts"""
     # all detected secrets with sections
     required_secrets: Dict[str, WritableConfigValue] = {}
     # all detected configs with sections
     required_config: Dict[str, WritableConfigValue] = {}
-    # all sources checked
+    # all sources checked, indexed by source name
     checked_sources: Dict[str, SourceReference] = {}
 
-    for source_name, source_info in sources.items():
+    for _, source_info in sources.items():
         # accept only sources declared in the `init` or `pipeline` modules
         if source_info.module.__name__.startswith(module_prefix):
-            checked_sources[source_name] = source_info
+            checked_sources[source_info.name] = source_info
             source_config = source_info.SPEC() if source_info.SPEC else BaseConfiguration()
             spec_fields = source_config.get_resolvable_fields()
             for field_name, field_type in spec_fields.items():
@@ -101,8 +103,8 @@ def detect_source_configs(
                     val_store = required_config
 
                 if val_store is not None:
-                    # we are sure that all resources come from single file so we can put them in single section
-                    val_store[source_name + ":" + field_name] = WritableConfigValue(
+                    # we are sure that all sources come from single file so we can put them in single section
+                    val_store[source_info.name + ":" + field_name] = WritableConfigValue(
                         field_name, field_type, None, section
                     )
 

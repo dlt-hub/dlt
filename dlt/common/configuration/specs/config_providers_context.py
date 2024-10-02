@@ -19,7 +19,6 @@ from dlt.common.configuration.specs import (
     configspec,
     known_sections,
 )
-from dlt.common.runtime.exec_info import is_airflow_installed
 
 
 @configspec

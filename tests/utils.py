@@ -24,6 +24,7 @@ from dlt.common.configuration.specs import RunConfiguration
 from dlt.common.configuration.specs.config_providers_context import (
     ConfigProvidersContext,
 )
+from dlt.common.configuration.specs.run_context import PluggableRunContext, SupportsRunContext
 from dlt.common.pipeline import LoadInfo, PipelineContext, SupportsPipeline
 from dlt.common.runtime.init import init_logging
 from dlt.common.runtime.telemetry import start_telemetry, stop_telemetry
@@ -164,19 +165,64 @@ def duckdb_pipeline_location() -> Iterator[None]:
         yield
 
 
+class MockableRunContext(SupportsRunContext):
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @property
+    def global_dir(self) -> str:
+        return self._global_dir
+
+    @property
+    def run_dir(self) -> str:
+        return self._run_dir
+
+    @property
+    def settings_dir(self) -> str:
+        return self._settings_dir
+
+    @property
+    def data_dir(self) -> str:
+        return self._data_dir
+
+    _name: str
+    _global_dir: str
+    _run_dir: str
+    _settings_dir: str
+    _data_dir: str
+
+    @classmethod
+    def from_context(cls, ctx: SupportsRunContext) -> "MockableRunContext":
+        cls_ = cls()
+        cls_._name = ctx.name
+        cls_._global_dir = ctx.global_dir
+        cls_._run_dir = ctx.run_dir
+        cls_._settings_dir = ctx.settings_dir
+        cls_._data_dir = ctx.data_dir
+        return cls_
+
+
 @pytest.fixture(autouse=True)
 def patch_home_dir() -> Iterator[None]:
-    with patch("dlt.common.configuration.paths._get_user_home_dir") as _get_home_dir:
-        _get_home_dir.return_value = os.path.abspath(TEST_STORAGE_ROOT)
+    ctx = PluggableRunContext()
+    mock = MockableRunContext.from_context(ctx.context)
+    mock._global_dir = mock._data_dir = os.path.abspath(TEST_STORAGE_ROOT)
+    ctx.context = mock
+
+    with Container().injectable_context(ctx):
         yield
 
 
 @pytest.fixture(autouse=True)
 def patch_random_home_dir() -> Iterator[None]:
-    global_dir = os.path.join(TEST_STORAGE_ROOT, "global_" + uniq_id())
-    os.makedirs(global_dir, exist_ok=True)
-    with patch("dlt.common.configuration.paths._get_user_home_dir") as _get_home_dir:
-        _get_home_dir.return_value = os.path.abspath(global_dir)
+    ctx = PluggableRunContext()
+    mock = MockableRunContext.from_context(ctx.context)
+    mock._global_dir = mock._data_dir = os.path.join(TEST_STORAGE_ROOT, "global_" + uniq_id())
+    ctx.context = mock
+
+    os.makedirs(mock.global_dir, exist_ok=True)
+    with Container().injectable_context(ctx):
         yield
 
 

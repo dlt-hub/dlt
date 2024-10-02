@@ -8,7 +8,6 @@ from typing import Dict, NamedTuple, Sequence, Tuple, TypedDict, List, Literal
 from dlt.cli.exceptions import VerifiedSourceRepoError
 
 from dlt.common import git
-from dlt.common.configuration.paths import make_dlt_settings_path
 from dlt.common.storages import FileStorage
 
 from dlt.common.reflection.utils import get_module_docstring
@@ -67,13 +66,13 @@ class TVerifiedSourcesFileIndex(TypedDict):
 
 
 def _save_dot_sources(index: TVerifiedSourcesFileIndex) -> None:
-    with open(make_dlt_settings_path(SOURCES_INIT_INFO_FILE), "w", encoding="utf-8") as f:
+    with open(utils.make_dlt_settings_path(SOURCES_INIT_INFO_FILE), "w", encoding="utf-8") as f:
         yaml.dump(index, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
 
 
 def _load_dot_sources() -> TVerifiedSourcesFileIndex:
     try:
-        with open(make_dlt_settings_path(SOURCES_INIT_INFO_FILE), "r", encoding="utf-8") as f:
+        with open(utils.make_dlt_settings_path(SOURCES_INIT_INFO_FILE), "r", encoding="utf-8") as f:
             index: TVerifiedSourcesFileIndex = yaml.safe_load(f)
             if not index:
                 raise FileNotFoundError(SOURCES_INIT_INFO_FILE)

@@ -28,6 +28,7 @@ def change_telemetry_status_command(enabled: bool) -> None:
         WritableConfigValue("dlthub_telemetry", bool, enabled, (RunConfiguration.__section__,))
     ]
     # write local config
+    # TODO: use designated (main) config provider (for non secret values) ie. taken from run context
     config = ConfigTomlProvider(add_global_config=False)
     config_toml = tomlkit.document()
     if not config.is_empty:
@@ -49,5 +50,6 @@ def change_telemetry_status_command(enabled: bool) -> None:
     else:
         fmt.echo("Telemetry switched %s" % fmt.bold("OFF"))
     # reload config providers
+    # TODO: improve providers registration so all registered providers are inserted below
     ctx = Container()[ConfigProvidersContext]
     ctx.providers = ConfigProvidersContext.initial_providers()
