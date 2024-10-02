@@ -30,7 +30,6 @@ from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import ContextDefaultCannotBeCreated
 from dlt.common.configuration.specs import ContainerInjectableContext
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
-from dlt.common.configuration.paths import get_dlt_data_dir
 from dlt.common.configuration.specs import RunConfiguration
 from dlt.common.destination import TDestinationReferenceArg, TDestination
 from dlt.common.destination.exceptions import DestinationHasFailedJobs
@@ -783,12 +782,16 @@ def get_dlt_pipelines_dir() -> str:
     2. if current user is root in /var/dlt/pipelines
     3. if current user does not have a home directory in /tmp/dlt/pipelines
     """
-    return os.path.join(get_dlt_data_dir(), "pipelines")
+    from dlt.common.runtime import run_context
+
+    return os.path.join(run_context.current().data_dir, "pipelines")
 
 
 def get_dlt_repos_dir() -> str:
     """Gets default directory where command repositories will be stored"""
-    return os.path.join(get_dlt_data_dir(), "repos")
+    from dlt.common.runtime import run_context
+
+    return os.path.join(run_context.current().data_dir, "repos")
 
 
 _CURRENT_PIPE_NAME: Dict[int, str] = {}
