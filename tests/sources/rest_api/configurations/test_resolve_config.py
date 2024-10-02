@@ -88,32 +88,32 @@ def test_bind_path_param() -> None:
 
 
 def test_process_parent_data_item() -> None:
-    resolve_param = ResolvedParam(
+    resolve_params = [ResolvedParam(
         "id", {"field": "obj_id", "resource": "issues", "type": "resolve"}
-    )
+    )]
     bound_path, parent_record = process_parent_data_item(
-        "dlt-hub/dlt/issues/{id}/comments", {"obj_id": 12345}, resolve_param, None
+        "dlt-hub/dlt/issues/{id}/comments", {"obj_id": 12345}, resolve_params, None
     )
     assert bound_path == "dlt-hub/dlt/issues/12345/comments"
     assert parent_record == {}
 
     bound_path, parent_record = process_parent_data_item(
-        "dlt-hub/dlt/issues/{id}/comments", {"obj_id": 12345}, resolve_param, ["obj_id"]
+        "dlt-hub/dlt/issues/{id}/comments", {"obj_id": 12345}, resolve_params, ["obj_id"]
     )
     assert parent_record == {"_issues_obj_id": 12345}
 
     bound_path, parent_record = process_parent_data_item(
         "dlt-hub/dlt/issues/{id}/comments",
         {"obj_id": 12345, "obj_node": "node_1"},
-        resolve_param,
+        resolve_params,
         ["obj_id", "obj_node"],
     )
     assert parent_record == {"_issues_obj_id": 12345, "_issues_obj_node": "node_1"}
 
     # test nested data
-    resolve_param_nested = ResolvedParam(
+    resolve_param_nested = [ResolvedParam(
         "id", {"field": "some_results.obj_id", "resource": "issues", "type": "resolve"}
-    )
+    )]
     item = {"some_results": {"obj_id": 12345}}
     bound_path, parent_record = process_parent_data_item(
         "dlt-hub/dlt/issues/{id}/comments", item, resolve_param_nested, None
@@ -123,7 +123,7 @@ def test_process_parent_data_item() -> None:
     # param path not found
     with pytest.raises(ValueError) as val_ex:
         bound_path, parent_record = process_parent_data_item(
-            "dlt-hub/dlt/issues/{id}/comments", {"_id": 12345}, resolve_param, None
+            "dlt-hub/dlt/issues/{id}/comments", {"_id": 12345}, resolve_params, None
         )
     assert "Transformer expects a field 'obj_id'" in str(val_ex.value)
 
@@ -132,10 +132,22 @@ def test_process_parent_data_item() -> None:
         bound_path, parent_record = process_parent_data_item(
             "dlt-hub/dlt/issues/{id}/comments",
             {"obj_id": 12345, "obj_node": "node_1"},
-            resolve_param,
+            resolve_params,
             ["obj_id", "node"],
         )
     assert "in order to include it in child records under _issues_node" in str(val_ex.value)
+
+    multi_resolve_params = [ResolvedParam(
+        "issue_id", {"field": "issue", "resource": "comments", "type": "resolve"}
+    ), ResolvedParam(
+        "id", {"field": "id", "resource": "comments", "type": "resolve"}
+    )]
+    bound_path, parent_record = process_parent_data_item(
+        "dlt-hub/dlt/issues/{issue_id}/comments/{id}", {"issue": 12345,"id":56789}, multi_resolve_params, None
+    )
+    assert bound_path == "dlt-hub/dlt/issues/12345/comments/56789"
+    assert parent_record == {}
+
 
 
 def test_two_resources_can_depend_on_one_parent_resource() -> None:
@@ -173,7 +185,7 @@ def test_two_resources_can_depend_on_one_parent_resource() -> None:
     assert resources["user_details"]._pipe.parent.name == "users"
 
 
-def test_dependent_resource_cannot_bind_multiple_parameters() -> None:
+def test_dependent_resource_can_bind_multiple_parameters() -> None:
     config: RESTAPIConfig = {
         "client": {
             "base_url": "https://api.example.com",
@@ -200,15 +212,9 @@ def test_dependent_resource_cannot_bind_multiple_parameters() -> None:
             },
         ],
     }
-    with pytest.raises(ValueError) as e:
-        rest_api_resources(config)
-
-    error_part_1 = re.escape(
-        "Multiple resolved params for resource user_details: [ResolvedParam(param_name='user_id'"
-    )
-    error_part_2 = re.escape("ResolvedParam(param_name='group_id'")
-    assert e.match(error_part_1)
-    assert e.match(error_part_2)
+    
+    resources = rest_api_source(config).resources
+    assert resources["user_details"]._pipe.parent.name == "users"
 
 
 def test_one_resource_cannot_bind_two_parents() -> None:
@@ -244,7 +250,7 @@ def test_one_resource_cannot_bind_two_parents() -> None:
         rest_api_resources(config)
 
     error_part_1 = re.escape(
-        "Multiple resolved params for resource user_details: [ResolvedParam(param_name='user_id'"
+        "Multiple parent resources for user_details: [ResolvedParam(param_name='user_id'"
     )
     error_part_2 = re.escape("ResolvedParam(param_name='group_id'")
     assert e.match(error_part_1)
