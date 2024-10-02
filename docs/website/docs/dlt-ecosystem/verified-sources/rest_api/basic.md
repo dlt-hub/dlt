@@ -110,7 +110,7 @@ After you get the token, add it to the `secrets.toml` file:
 github_token = "your_github_token"
 ```
 
-### Run the pipeline
+## Run the pipeline
 
 1. Install the required dependencies by running the following command:
 

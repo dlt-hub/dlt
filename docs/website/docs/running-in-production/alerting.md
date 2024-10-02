@@ -54,7 +54,7 @@ for package in info.load_packages:
     # Iterate over each table in the schema_update of the current package
     for table_name, table in package.schema_update.items():
         # Iterate over each column in the current table
-        for column_name, column in table["columns"]. items():
+        for column_name, column in table["columns"].items():
             # Send a message to the Slack channel with the table
             # and column update information
             send_slack_message(

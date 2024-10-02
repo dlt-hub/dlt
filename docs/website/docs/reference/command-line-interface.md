@@ -39,7 +39,7 @@ that will add additional packages to the current environment.
 
 > 💡 We ask you to install those dependencies separately to keep our core library small and make it work everywhere.
 
-### GitHub action
+### `github-action`
 
 ```sh
 dlt deploy <script>.py github-action --schedule "*/30 * * * *"
@@ -58,7 +58,7 @@ For the chess.com API example above, you could deploy it with
 
 Follow the guide on [how to deploy a pipeline with GitHub Actions](../walkthroughs/deploy-a-pipeline/deploy-with-github-actions) to learn more.
 
-### Airflow composer
+### `airflow-composer`
 
 ```sh
 dlt deploy <script>.py airflow-composer

@@ -112,9 +112,9 @@ Example for `load` pipeline run step:
 }
 ```
 
-## The message context
+## The message `context`
 
-The message context contains the following information:
+The message `context` contains the following information:
 
 - `anonymousId`: a random tracking cookie stored in `~/.dlt/.anonymous_id`.
 - `ci_run`: a flag indicating if the message was sent from a CI environment (e.g., `GitHub Actions`, `Travis CI`).

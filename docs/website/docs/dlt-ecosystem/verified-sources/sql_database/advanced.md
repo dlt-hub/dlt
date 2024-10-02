@@ -146,7 +146,7 @@ The examples below show how you can set arguments in any of the `.toml` files (`
     [sources.sql_database]
     credentials="mssql+pyodbc://loader.database.windows.net/dlt_data?trusted_connection=yes&driver=ODBC+Driver+17+for+SQL+Server"
     ```
-2. Setting parameters like backend, chunk size, and incremental column for the table `chat_message`:
+2. Setting parameters like backend, `chunk_size`, and incremental column for the table `chat_message`:
     ```toml
     [sources.sql_database.chat_message]
     backend="pandas"
@@ -176,7 +176,7 @@ The examples below show how you can set arguments in any of the `.toml` files (`
     database = sql_database()
     ```
 
-You'll be able to configure all the arguments this way (except the adapter callback function). [Standard dlt rules apply](/general-usage/credentials/setup).
+You'll be able to configure all the arguments this way (except the adapter callback function). [Standard dlt rules apply](../../../general-usage/credentials/setup).
 
 It is also possible to set these arguments as environment variables [using the proper naming convention](../../../general-usage/credentials/setup#naming-convention):
 ```sh
