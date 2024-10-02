@@ -1,5 +1,5 @@
 from copy import deepcopy
-from typing import Dict, Iterator
+from typing import Generator, Any
 
 import pytest
 import sqlfluff
@@ -7,6 +7,7 @@ import sqlfluff
 import dlt
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.schema import Schema, utils
+from dlt.common.typing import DictStrStr
 from dlt.common.utils import uniq_id
 from dlt.destinations import postgres
 from dlt.destinations.impl.postgres.configuration import (
@@ -14,11 +15,13 @@ from dlt.destinations.impl.postgres.configuration import (
     PostgresCredentials,
 )
 from dlt.destinations.impl.postgres.postgres import PostgresClient
+from dlt.destinations.impl.postgres.postgres_adapter import postgres_adapter
 from tests.cases import (
     TABLE_UPDATE,
     TABLE_UPDATE_ALL_INT_PRECISIONS,
 )
-from tests.load.utils import empty_schema, destinations_configs, DestinationTestConfiguration
+from tests.load.utils import destinations_configs, DestinationTestConfiguration, sequence_generator
+from tests.utils import assert_load_info
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential
@@ -189,48 +192,62 @@ def test_create_dlt_table(client: PostgresClient) -> None:
     destinations_configs(default_sql_configs=True, subset=["postgres"]),
     ids=lambda x: x.name,
 )
-def test_read_geo_datafile(
+def test_adapter_geometry_hint_config(
     destination_config: DestinationTestConfiguration,
 ) -> None:
-    from shapely import wkb, wkt  # type: ignore
-    import binascii
+    @dlt.resource(columns=[{"name": "content", "data_type": "text"}])
+    def some_data() -> Generator[DictStrStr, Any, None]:
+        yield from next(sequence_generator())
 
-    @dlt.resource(
-        columns=[
-            # {"name": "geom_type", "data_type": "geometry"},
-            {"name": "wkt_type", "data_type": "text"},
-            {"name": "wkb_type", "data_type": "binary"},
-        ]
-    )
-    def geom_types() -> Iterator[Dict[str, float]]:
-        sample_wkt = "POINT(0 0)"
-        sample_geometry = wkt.loads(sample_wkt)
-        sample_wkb = wkb.dumps(sample_geometry)
-        yield from [{"wkt_type": sample_wkt, "sample_wkb": sample_wkb}]
+    assert some_data.columns["content"] == {"name": "content", "data_type": "text"}  # type: ignore[index]
 
-    pipeline = destination_config.setup_pipeline(
-        f"geom_types",
-        dev_mode=True,
+    postgres_adapter(
+        some_data,
+        geometry=["content"],
     )
 
-    pipeline.run(geom_types())
+    assert some_data.columns["content"] == {  # type: ignore
+        "name": "content",
+        "data_type": "text",
+        "x-postgres-geometry": True,
+    }
 
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["postgres"]),
+    ids=lambda x: x.name,
+)
+def test_adapter_geometry_hint(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    raise NotImplementedError
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["postgres"]),
+    ids=lambda x: x.name,
+)
+def test_read_from_geopandas_with_geodata_type(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    import geopandas as gpd  # type: ignore
+
+    pipeline = destination_config.setup_pipeline("geodata_pandas_pipeline", dev_mode=True)
+    gdf = gpd.read_file("tests/load/cases/loading/sample_geodata.xml")
+
+    info = pipeline.run(gdf, table_name="geodata_pandas")
+    assert_load_info(info)
+
+    # Check the 'geometry' field has been cast to a PostGIS geometry type.
     with pipeline.sql_client() as c:
-        nc = c.native_connection
-        fqtn_geom_types = c.make_qualified_table_name("geom_types", escape=False)
-
-
-
-        hints_rounding_mode = None
-        no_hints_rounding_mode = None
-
-        for row in results:
-            if row["table_name"] == "no_hints":  # type: ignore
-                no_hints_rounding_mode = row["rounding_mode"]  # type: ignore
-            elif row["table_name"] == "hints":  # type: ignore
-                hints_rounding_mode = row["rounding_mode"]  # type: ignore
-
-        assert (no_hints_rounding_mode is None) and (
-            hints_rounding_mode == "ROUND_HALF_AWAY_FROM_ZERO"
-        )
-
+        fqtn_geodata_pandas = c.make_qualified_table_name("geodata_pandas", escape=False)
+        with c.execute_query(f"""
+            SELECT f_geometry_column, type
+            FROM geometry_columns
+            WHERE f_table_name = '{fqtn_geodata_pandas}' AND f_geometry_column = 'geometry';
+            """) as cur:
+            geom_info = cur.fetchone()
+            assert geom_info
+            assert geom_info[0] == "geometry"
