@@ -149,7 +149,7 @@ response = requests.get(url, headers=headers)
 
 # Set up the DLT pipeline
 pipeline = dlt.pipeline(
-    pipeline_name="quick start", destination="duckdb", dataset_name="mydata"
+    pipeline_name="quick_start", destination="duckdb", dataset_name="mydata"
 )
 # Run the pipeline with the data from the GitHub API response
 load_info = pipeline.run(response.json())

@@ -205,7 +205,7 @@ players_games:
       data_type: json
 ```
 
-## Keep your import schema
+## 4. Keep your import schema
 
 Just add and push the import folder to git. It will be used automatically when cloned. Alternatively,
 [bundle such schema with your source](../general-usage/schema.md#attaching-schemas-to-sources).

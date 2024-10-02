@@ -1,4 +1,4 @@
-# Deploy GCP cloud function as a webhook
+# Deploy GCP Cloud Function as a webhook
 
 A webhook is a way for one application to send automated messages or data to another application in real time. Unlike traditional APIs, which require constant polling for updates, webhooks allow applications to push information instantly as soon as an event occurs. This event-driven architecture enables faster and more responsive interactions between systems, saving valuable resources and improving overall system performance.
 

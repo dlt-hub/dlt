@@ -164,7 +164,7 @@ You can find the full example code in [this repository](https://github.com/dlt-h
 
 1. Run the pipeline.
 
-   Now that you have a running instance of Dagster, you can run our data pipeline.
+   Now that you have a running instance of Dagster, you can run your data pipeline.
 
    To run the pipeline, go to **Assets** and click the **Materialize** button in the top right. In Dagster, materialization refers to executing the code associated with an asset to produce an output.
 
@@ -181,7 +181,7 @@ You can find the full example code in [this repository](https://github.com/dlt-h
 For a complete picture of Dagster's integration with dlt, please refer to their [documentation](https://docs.dagster.io/integrations/embedded-elt/dlt). This documentation offers a detailed overview and steps for ingesting GitHub data and storing it in Snowflake. You can use a similar approach to build your pipelines.
 :::
 
-### Frequently asked questions
+### Frequently Asked Questions
 - **Can I remove the generated `.dlt` folder with `secrets.toml` and `config.toml` files?**
 
   Yes. Since dlt is compatible with environment variables, you can use this for secrets required by both Dagster and dlt.
