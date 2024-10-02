@@ -6,15 +6,11 @@ keywords: [telemetry, usage information, opt out]
 
 # Telemetry
 
-`dlt` collects and reports **anonymous** usage information. This information is essential to figure
-out how we should improve the library. Telemetry does not send any personal data. We create random
-tracking cookie that is stored in your `~./dlt` directory. You can disable telemetry at any moment
-or send it to your own servers instead.
+`dlt` collects and reports **anonymous** usage information. This information is essential to figuring out how we should improve the library. Telemetry does not send any personal data. We create a random tracking cookie that is stored in your `~/.dlt` directory. You can disable telemetry at any moment or send it to your own servers instead.
 
-## How to opt-out
+## How to opt out
 
-You can disable telemetry by adding `--disable-telemetry` to any dlt
-[command](command-line-interface.md).
+You can disable telemetry by adding `--disable-telemetry` to any dlt [command](command-line-interface.md).
 
 This command will disable telemetry both in the current project and globally for the whole machine:
 
@@ -34,8 +30,7 @@ You can check the current telemetry status with this command:
 dlt telemetry
 ```
 
-The other way to disable telemetry is to set the `runtime.dlthub_telemetry` option in `config.toml`
-file in `.dlt` folder.
+Another way to disable telemetry is to set the `runtime.dlthub_telemetry` option in the `config.toml` file in the `.dlt` folder.
 
 ```toml
 [runtime]
@@ -47,11 +42,8 @@ dlthub_telemetry=false
 
 Anonymous telemetry is sent when:
 
-- Any `dlt` command is executed from the command line. The data contains the command name. In the
-  case of `dlt init` command, we also send the requested destination and data source names.
-- When `pipeline.run` is called, we send information when
-  [extract, normalize and load](explainers/how-dlt-works.md) steps are completed. The data contains
-  the destination name (e.g. `duckdb`), hashes of: dataset name, pipeline name, default schema name, destination fingerprint (which is a hash of selected destination configuration fields), elapsed time, and if the step succeeded or not.
+- Any `dlt` command is executed from the command line. The data contains the command name. In the case of the `dlt init` command, we also send the requested destination and data source names.
+- When `pipeline.run` is called, we send information when the [extract, normalize, and load](explainers/how-dlt-works.md) steps are completed. The data contains the destination name (e.g., `duckdb`), hashes of the dataset name, pipeline name, default schema name, destination fingerprint (which is a hash of selected destination configuration fields), elapsed time, and whether the step succeeded or not.
 - When `dbt` and `airflow` helpers are used
 
 Here is an example `dlt init` telemetry message:
@@ -122,23 +114,19 @@ Example for `load` pipeline run step:
 
 ## The message `context`
 
-The message context contains the following information:
+The message `context` contains the following information:
 
 - `anonymousId`: a random tracking cookie stored in `~/.dlt/.anonymous_id`.
-- `ci_run`: a flag indicating if the message was sent from a CI environment (e.g. `Github Actions`,
-  `Travis CI`).
-- `cpu`: contains number of cores.
-- `exec_info`: contains a list of strings that identify execution environment: (e.g. `kubernetes`,
-  `docker`, `airflow`).
-- The `library`, `os`, and `python` give us some understanding of the runtime environment of the
-  `dlt`.
+- `ci_run`: a flag indicating if the message was sent from a CI environment (e.g., `GitHub Actions`, `Travis CI`).
+- `cpu`: contains the number of cores.
+- `exec_info`: contains a list of strings that identify the execution environment: (e.g., `kubernetes`, `docker`, `airflow`).
+- The `library`, `os`, and `python` give us some understanding of the runtime environment of the `dlt`.
 
 ## Send telemetry data to your own tracker
-You can setup your own tracker to receive telemetry events. You can create scalable, globally distributed
-edge service [using `dlt` and Cloudflare](https://dlthub.com/docs/blog/dlt-segment-migration).
 
-Once your tracker is running, point `dlt` to it. You can use global `config.toml` to redirect all pipelines on
-a given machine.
+You can set up your own tracker to receive telemetry events. You can create a scalable, globally distributed edge service [using `dlt` and Cloudflare](https://dlthub.com/blog/dlt-segment-migration).
+
+Once your tracker is running, point `dlt` to it. You can use the global `config.toml` to redirect all pipelines on a given machine.
 
 ```toml
 [runtime]
@@ -147,12 +135,11 @@ dlthub_telemetry_endpoint="telemetry-tracker.services4745.workers.dev"
 
 ### Track events with Segment
 
-You can send the anonymous telemetry to your own [Segment](https://segment.com/)
-account. You need to create a HTTP Server source and generate a WRITE KEY, which you then pass to
-the `config.toml` like this:
+You can send anonymous telemetry to your own [Segment](https://segment.com/) account. You need to create an HTTP Server source and generate a WRITE KEY, which you then pass to the `config.toml` like this:
 
 ```toml
 [runtime]
 dlthub_telemetry_endpoint="https://api.segment.io/v1/track"
 dlthub_telemetry_segment_write_key="<write_key>"
 ```
+

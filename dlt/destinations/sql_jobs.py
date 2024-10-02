@@ -340,6 +340,10 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         """
 
     @classmethod
+    def gen_concat_sql(cls, columns: Sequence[str]) -> str:
+        return f"CONCAT({', '.join(columns)})"
+
+    @classmethod
     def _shorten_table_name(cls, ident: str, sql_client: SqlClientBase[Any]) -> str:
         """Trims identifier to max length supported by sql_client. Used for dynamically constructed table names"""
         from dlt.common.normalizers.naming import NamingConvention
@@ -755,19 +759,35 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         active_record_timestamp = get_active_record_timestamp(root_table)
         if active_record_timestamp is None:
             active_record_literal = "NULL"
-            is_active_clause = f"{to} IS NULL"
+            is_active = f"{to} IS NULL"
         else:  # it's a datetime
             active_record_literal = format_datetime_literal(
                 active_record_timestamp, caps.timestamp_precision
             )
-            is_active_clause = f"{to} = {active_record_literal}"
+            is_active = f"{to} = {active_record_literal}"
 
-        # retire updated and deleted records
-        sql.append(f"""
+        # retire records:
+        # - no `merge_key`: retire all absent records
+        # - yes `merge_key`: retire those absent records whose `merge_key`
+        # is present in staging data
+        retire_sql = f"""
             {cls.gen_update_table_prefix(root_table_name)} {to} = {boundary_literal}
-            WHERE {is_active_clause}
+            WHERE {is_active}
             AND {hash_} NOT IN (SELECT {hash_} FROM {staging_root_table_name});
-        """)
+        """
+        merge_keys = cls._escape_list(
+            get_columns_names_with_prop(root_table, "merge_key"),
+            escape_column_id,
+        )
+        if len(merge_keys) > 0:
+            if len(merge_keys) == 1:
+                key = merge_keys[0]
+            else:
+                key = cls.gen_concat_sql(merge_keys)  # compound key
+            key_present = f"{key} IN (SELECT {key} FROM {staging_root_table_name})"
+            retire_sql = retire_sql.rstrip()[:-1]  # remove semicolon
+            retire_sql += f" AND {key_present};"
+        sql.append(retire_sql)
 
         # insert new active records in root table
         columns = map(escape_column_id, list(root_table["columns"].keys()))
@@ -776,7 +796,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
             INSERT INTO {root_table_name} ({col_str}, {from_}, {to})
             SELECT {col_str}, {boundary_literal} AS {from_}, {active_record_literal} AS {to}
             FROM {staging_root_table_name} AS s
-            WHERE {hash_} NOT IN (SELECT {hash_} FROM {root_table_name} WHERE {is_active_clause});
+            WHERE {hash_} NOT IN (SELECT {hash_} FROM {root_table_name} WHERE {is_active});
         """)
 
         # insert list elements for new active records in nested tables

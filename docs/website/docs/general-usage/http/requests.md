@@ -10,7 +10,7 @@ We recommend using this to make API calls in your sources as it makes your pipel
 
 The dlt requests client will additionally set the default user-agent header to `dlt/{DLT_VERSION_NAME}`.
 
-For most use cases this is a drop in replacement for `requests`, so in places where you would normally do:
+For most use cases, this is a drop-in replacement for `requests`, so in places where you would normally do:
 
 ```py
 import requests
@@ -35,21 +35,21 @@ data = response.json()
 
 ## Retry rules
 
-By default failing requests are retried up to 5 times with an exponentially increasing delay. That means the first retry will wait 1 second and the fifth retry will wait 16 seconds.
+By default, failing requests are retried up to 5 times with an exponentially increasing delay. That means the first retry will wait 1 second, and the fifth retry will wait 16 seconds.
 
-If all retry attempts fail the corresponding requests exception is raised. E.g. `requests.HTTPError` or `requests.ConnectionTimeout`
+If all retry attempts fail, the corresponding requests exception is raised. E.g., `requests.HTTPError` or `requests.ConnectionTimeout`.
 
 All standard HTTP server errors trigger a retry. This includes:
 
 * Error status codes:
 
     All status codes in the `500` range and `429` (too many requests).
-    Commonly servers include a `Retry-After` header with `429` and `503` responses.
-    When detected this value supersedes the standard retry delay.
+    Commonly, servers include a `Retry-After` header with `429` and `503` responses.
+    When detected, this value supersedes the standard retry delay.
 
 * Connection and timeout errors
 
-    When the remote server is unreachable, the connection is unexpectedly dropped or when the request takes longer than the configured `timeout`.
+    When the remote server is unreachable, the connection is unexpectedly dropped, or when the request takes longer than the configured `timeout`.
 
 ## Customizing retry settings
 
@@ -63,7 +63,7 @@ request_timeout = 120  # Timeout in seconds
 request_max_retry_delay = 30  # Cap exponential delay to 30 seconds
 ```
 
-For more control you can create your own instance of `dlt.sources.requests.Client` and use that instead of the global client.
+For more control, you can create your own instance of `dlt.sources.requests.Client` and use that instead of the global client.
 
 This lets you customize which status codes and exceptions to retry on:
 
@@ -98,3 +98,4 @@ http_client = Client(
     retry_condition=retry_if_error_key
 )
 ```
+

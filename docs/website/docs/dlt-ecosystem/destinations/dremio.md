@@ -12,19 +12,19 @@ keywords: [dremio, iceberg, aws, glue catalog]
 pip install "dlt[dremio,s3]"
 ```
 
-## Setup Guide
+## Setup guide
 ### 1. Initialize the dlt project
 
 Let's start by initializing a new dlt project as follows:
    ```sh
    dlt init chess dremio
    ```
-   > 💡 This command will initialise your pipeline with chess as the source and aws dremio as the destination using the filesystem staging destination
+   > 💡 This command will initialize your pipeline with chess as the source and aws dremio as the destination using the filesystem staging destination.
 
 
-### 2. Setup bucket storage and dremio credentials
+### 2. Setup bucket storage and Dremio credentials
 
-First install dependencies by running:
+First, install dependencies by running:
 ```sh
 pip install -r requirements.txt
 ```
@@ -32,7 +32,7 @@ or with `pip install "dlt[dremio,s3]"` which will install `s3fs`, `pyarrow`, and
 
 To edit the `dlt` credentials file with your secret info, open `.dlt/secrets.toml`. You will need to provide a `bucket_url` which holds the uploaded parquet files.
 
-The toml file looks like this:
+The TOML file looks like this:
 
 ```toml
 [destination.filesystem]
@@ -46,22 +46,22 @@ aws_secret_access_key = "please set me up!" # copy the secret access key here
 staging_data_source = "<staging-data-source>" # the name of the "Object Storage" data source in Dremio containing the s3 bucket
 
 [destination.dremio.credentials]
-username = "<username>"  # the dremio username
-password = "<password or pat token>"  # dremio password or PAT token
+username = "<username>"  # the Dremio username
+password = "<password or pat token>"  # Dremio password or PAT token
 database = "<database>" # the name of the "data source" set up in Dremio where you want to load your data
 host = "localhost" # the Dremio hostname
 port = 32010 # the Dremio Arrow Flight grpc port
 drivername="grpc" # either 'grpc' or 'grpc+tls'
 ```
 
-You can also pass SqlAlchemy-like connection like below
+You can also pass a SqlAlchemy-like connection like below:
 ```toml
 [destination.dremio]
 staging_data_source="s3_staging"
 credentials="grpc://<username>:<password>@<host>:<port>/<data_source>"
 ```
 
-if you have your credentials stored in `~/.aws/credentials` just remove the **[destination.filesystem.credentials]** and **[destination.dremio.credentials]** section above and `dlt` will fall back to your **default** profile in local credentials. If you want to switch the  profile, pass the profile name as follows (here: `dlt-ci-user`):
+If you have your credentials stored in `~/.aws/credentials`, just remove the **[destination.filesystem.credentials]** and **[destination.dremio.credentials]** sections above and `dlt` will fall back to your **default** profile in local credentials. If you want to switch the profile, pass the profile name as follows (here: `dlt-ci-user`):
 ```toml
 [destination.filesystem.credentials]
 profile_name="dlt-ci-user"
@@ -74,15 +74,15 @@ profile_name="dlt-ci-user"
 - `replace`
 - `merge`
 
-> The `merge` write disposition uses the default DELETE/UPDATE/INSERT strategy to merge data into the destination. Be aware that Dremio does not support transactions so a partial pipeline failure can result in the destination table being in an inconsistent state. The `merge` write disposition will eventually be implemented using [MERGE INTO](https://docs.dremio.com/current/reference/sql/commands/apache-iceberg-tables/apache-iceberg-merge/) to resolve this issue.
+> The `merge` write disposition uses the default DELETE/UPDATE/INSERT strategy to merge data into the destination. Be aware that Dremio does not support transactions, so a partial pipeline failure can result in the destination table being in an inconsistent state. The `merge` write disposition will eventually be implemented using [MERGE INTO](https://docs.dremio.com/current/reference/sql/commands/apache-iceberg-tables/apache-iceberg-merge/) to resolve this issue.
 
 ## Data loading
 
-Data loading happens by copying a staged parquet files from an object storage bucket to the destination table in Dremio using [COPY INTO](https://docs.dremio.com/cloud/reference/sql/commands/copy-into-table/) statements. The destination table format is specified by the storage format for the data source in Dremio. Typically, this will be Apache Iceberg.
+Data loading happens by copying staged parquet files from an object storage bucket to the destination table in Dremio using [COPY INTO](https://docs.dremio.com/cloud/reference/sql/commands/copy-into-table/) statements. The destination table format is specified by the storage format for the data source in Dremio. Typically, this will be Apache Iceberg.
 
 > ❗ **Dremio cannot load `fixed_len_byte_array` columns from `parquet` files**.
 
-## Dataset Creation
+## Dataset creation
 
 Dremio does not support `CREATE SCHEMA` DDL statements.
 
@@ -92,9 +92,9 @@ Therefore, "Metastore" data sources, such as Hive or Glue, require that the data
 
 ## Staging support
 
-Using a staging destination is mandatory when using the dremio destination. If you do not set staging to `filesystem`, dlt will automatically do this for you.
+Using a staging destination is mandatory when using the Dremio destination. If you do not set staging to `filesystem`, dlt will automatically do this for you.
 
-## Table Partitioning and Local Sort
+## Table partitioning and local sort
 Apache Iceberg table partitions and local sort properties can be configured as shown below:
 ```py
 import dlt
@@ -119,3 +119,4 @@ This will result in `PARTITION BY ("foo","bar")` and `LOCALSORT BY ("baz")` clau
 - This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination).
 
 <!--@@@DLT_TUBA dremio-->
+

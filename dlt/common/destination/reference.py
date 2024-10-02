@@ -27,11 +27,14 @@ from dlt.common import logger, pendulum
 from dlt.common.configuration.specs.base_configuration import extract_inner_hint
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.destination.utils import verify_schema_capabilities, verify_supported_data_types
-from dlt.common.exceptions import TerminalValueError
+from dlt.common.exceptions import TerminalException
 from dlt.common.metrics import LoadJobMetrics
 from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.schema import Schema, TSchemaTables
-from dlt.common.schema.typing import C_DLT_LOAD_ID, _TTableSchemaBase, TWriteDisposition
+from dlt.common.schema.typing import (
+    C_DLT_LOAD_ID,
+    TLoaderReplaceStrategy,
+)
 from dlt.common.schema.utils import fill_hints_from_parent_and_clone_table
 from dlt.common.configuration import configspec, resolve_configuration, known_sections, NotResolved
 from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration
@@ -41,14 +44,12 @@ from dlt.common.destination.exceptions import (
     UnknownDestinationModule,
     DestinationSchemaTampered,
     DestinationTransientException,
-    DestinationTerminalException,
 )
 from dlt.common.schema.exceptions import UnknownTableException
 from dlt.common.storages import FileStorage
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.common.storages.load_package import LoadJobInfo, TPipelineStateDoc
 
-TLoaderReplaceStrategy = Literal["truncate-and-insert", "insert-from-staging", "staging-optimized"]
 TDestinationConfig = TypeVar("TDestinationConfig", bound="DestinationClientConfiguration")
 TDestinationClient = TypeVar("TDestinationClient", bound="JobClientBase")
 TDestinationDwhClient = TypeVar("TDestinationDwhClient", bound="DestinationClientDwhConfiguration")
@@ -353,7 +354,7 @@ class RunnableLoadJob(LoadJob, ABC):
         # ensure file name
         super().__init__(file_path)
         self._state: TLoadJobState = "ready"
-        self._exception: Exception = None
+        self._exception: BaseException = None
 
         # variables needed by most jobs, set by the loader in set_run_vars
         self._schema: Schema = None
@@ -392,7 +393,7 @@ class RunnableLoadJob(LoadJob, ABC):
             self._job_client.prepare_load_job_execution(self)
             self.run()
             self._state = "completed"
-        except (DestinationTerminalException, TerminalValueError) as e:
+        except (TerminalException, AssertionError) as e:
             self._state = "failed"
             self._exception = e
             logger.exception(f"Terminal exception in job {self.job_id()} in file {self._file_path}")

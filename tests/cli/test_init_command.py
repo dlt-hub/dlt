@@ -63,7 +63,7 @@ CORE_SOURCES = ["filesystem", "rest_api", "sql_database"]
 TEMPLATES = ["debug", "default", "arrow", "requests", "dataframe", "intro"]
 
 # a few verified sources we know to exist
-SOME_KNOWN_VERIFIED_SOURCES = ["chess", "sql_database", "google_sheets", "pipedrive"]
+SOME_KNOWN_VERIFIED_SOURCES = ["chess", "google_sheets", "pipedrive"]
 
 
 def get_verified_source_candidates(repo_dir: str) -> List[str]:
@@ -150,7 +150,7 @@ def test_list_sources(repo_dir: str) -> None:
     check_results(core_sources)
 
     verified_sources = _list_verified_sources(DEFAULT_VERIFIED_SOURCES_REPO)
-    assert set(SOME_KNOWN_VERIFIED_SOURCES).issubset(verified_sources)
+    assert set(SOME_KNOWN_VERIFIED_SOURCES).issubset(verified_sources.keys())
     check_results(verified_sources)
     assert len(verified_sources.keys()) > 10
 

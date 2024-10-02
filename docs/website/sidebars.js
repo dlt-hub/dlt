@@ -66,19 +66,6 @@ const sidebars = {
       items: [
         {
           type: 'category',
-          label: 'Filesystem & cloud storage',
-          description: 'AWS S3, Google Cloud Storage, Azure Blob Storage, local file system',
-            link: {
-            type: 'doc',
-            id: 'dlt-ecosystem/verified-sources/filesystem/index',
-          },
-          items: [
-            'dlt-ecosystem/verified-sources/filesystem/basic',
-            'dlt-ecosystem/verified-sources/filesystem/advanced',
-          ]
-        },
-        {
-          type: 'category',
           label: 'REST APIs',
           description:'Load data from any REST API',
            link: {
@@ -88,6 +75,18 @@ const sidebars = {
           items: [
             'dlt-ecosystem/verified-sources/rest_api/basic',
             'dlt-ecosystem/verified-sources/rest_api/advanced',
+            {
+              type: 'category',
+              label: 'REST API helpers',
+              link: {
+                type: 'doc',
+                id: 'general-usage/http/overview',
+              },
+              items: [
+                'general-usage/http/rest-client',
+                'general-usage/http/requests',
+              ]
+            },
           ]
         },
         {
@@ -104,6 +103,19 @@ const sidebars = {
             'dlt-ecosystem/verified-sources/sql_database/usage',
             'dlt-ecosystem/verified-sources/sql_database/troubleshooting',
             'dlt-ecosystem/verified-sources/sql_database/advanced',
+          ]
+        },
+        {
+          type: 'category',
+          label: 'Filesystem & cloud storage',
+          description: 'AWS S3, Google Cloud Storage, Azure, SFTP, local file system',
+            link: {
+            type: 'doc',
+            id: 'dlt-ecosystem/verified-sources/filesystem/index',
+          },
+          items: [
+            'dlt-ecosystem/verified-sources/filesystem/basic',
+            'dlt-ecosystem/verified-sources/filesystem/advanced',
           ]
         },
         'dlt-ecosystem/verified-sources/airtable',
@@ -137,18 +149,6 @@ const sidebars = {
         'dlt-ecosystem/verified-sources/stripe',
         'dlt-ecosystem/verified-sources/workable',
         'dlt-ecosystem/verified-sources/zendesk',
-        {
-          type: 'category',
-          label: 'REST API helpers',
-          link: {
-            type: 'doc',
-            id: 'general-usage/http/overview',
-          },
-          items: [
-            'general-usage/http/rest-client',
-            'general-usage/http/requests',
-          ]
-        },
         'walkthroughs/add-a-verified-source',
       ]
     },
@@ -171,6 +171,7 @@ const sidebars = {
         'dlt-ecosystem/destinations/redshift',
         'dlt-ecosystem/destinations/snowflake',
         'dlt-ecosystem/destinations/athena',
+        'dlt-ecosystem/destinations/sqlalchemy',
         'dlt-ecosystem/destinations/weaviate',
         'dlt-ecosystem/destinations/lancedb',
         'dlt-ecosystem/destinations/qdrant',

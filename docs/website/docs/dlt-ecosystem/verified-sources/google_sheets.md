@@ -14,7 +14,7 @@ offered by Google as part of its Google Workspace suite.
 
 This Google Sheets `dlt` verified source and
 [pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/google_sheets_pipeline.py)
-loads data using “Google Sheets API” to the destination of your choice.
+loads data using the “Google Sheets API” to the destination of your choice.
 
 Sources and resources that can be loaded using this verified source are:
 
@@ -24,14 +24,14 @@ Sources and resources that can be loaded using this verified source are:
 | range_names        | Processes the range and yields data from each range        |
 | spreadsheet_info   | Information about the spreadsheet and the ranges processed |
 
-## Setup Guide
+## Setup guide
 
 ### Grab credentials
 
 There are two methods to get authenticated for using this verified source:
 
 - OAuth credentials
-- Service account credential
+- Service account credentials
 
 Here we'll discuss how to set up both OAuth tokens and service account credentials. In general,
 OAuth tokens are preferred when user consent is required, while service account credentials are
@@ -41,7 +41,7 @@ credentials. You can choose the method of authentication as per your requirement
 #### Google service account credentials
 
 You need to create a GCP service account to get API credentials if you don't have one. To create
- one, follow these steps:
+one, follow these steps:
 
 1. Sign in to [console.cloud.google.com](http://console.cloud.google.com/).
 
@@ -69,17 +69,17 @@ follow these steps:
 
 1. Enable the Sheets API in the project.
 
-1. Search credentials in the search bar and go to Credentials.
+1. Search for credentials in the search bar and go to Credentials.
 
 1. Go to Credentials -> OAuth client ID -> Select Desktop App from the Application type and give an
    appropriate name.
 
-1. Download the credentials and fill "client_id", "client_secret" and "project_id" in
-   "secrets.toml".
+1. Download the credentials and fill `client_id`, `client_secret`, and `project_id` in
+   `secrets.toml`.
 
 1. Go back to credentials and select the OAuth consent screen on the left.
 
-1. Fill in the App name, user support email(your email), authorized domain (localhost.com), and dev
+1. Fill in the App name, user support email (your email), authorized domain (localhost.com), and dev
    contact info (your email again).
 
 1. Add the following scope:
@@ -92,7 +92,7 @@ follow these steps:
 
 1. Generate `refresh_token`:
 
-   After configuring "client_id", "client_secret" and "project_id" in "secrets.toml". To generate
+   After configuring "client_id", "client_secret", and "project_id" in "secrets.toml". To generate
    the refresh token, run the following script from the root folder:
 
    ```sh
@@ -103,6 +103,8 @@ follow these steps:
    token" that can be used to set up the ".dlt/secrets.toml".
 
 ### Prepare your data
+
+
 
 #### Share Google Sheet with the email
 
@@ -129,48 +131,46 @@ When setting up the pipeline, you can use either the browser-copied URL of your 
 https://docs.google.com/spreadsheets/d/1VTtCiYgxjAwcIw7UM1_BSaxC3rzIpr0HwXZwd2OlPD4/edit?usp=sharing
 ```
 
-or spreadsheet id (which is a part of the url)
+or the spreadsheet ID (which is a part of the URL)
 
 ```sh
 1VTtCiYgxjAwcIw7UM1_BSaxC3rzIpr0HwXZwd2OlPD4
 ```
 
-typically you pass it directly to the [google_spreadsheet function](#create-your-own-pipeline) or in [config.toml](#add-credentials) as defined here.
+Typically, you pass it directly to the [google_spreadsheet function](#create-your-own-pipeline) or in [config.toml](#add-credentials) as defined here.
 
-
-You can provide specific ranges to `google_spreadsheet` pipeline, as detailed in following.
+You can provide specific ranges to the `google_spreadsheet` pipeline, as detailed in the following.
 
 #### Guidelines about headers
 
-Make sure your data has headers and is in the form of well-structured table.
+Make sure your data has headers and is in the form of a well-structured table.
 
 The first row of any extracted range should contain headers. Please make sure:
 
 1. The header names are strings and are unique.
 1. All the columns that you intend to extract have a header.
-1. The data starts exactly at the origin of the range - otherwise a source will remove padding, but it
+1. The data starts exactly at the origin of the range - otherwise, a source will remove padding, but it
    is a waste of resources.
    > When a source detects any problems with headers or table layout, it will issue a WARNING in the
    > log. Hence, we advise running your pipeline script manually/locally and fixing all the problems.
 1. Columns without headers will be removed and not extracted.
 1. Columns with headers that do not contain any data will be removed.
-1. If there are any problems with reading headers (i.e. header is not string or is empty or not
+1. If there are any problems with reading headers (i.e., the header is not a string or is empty or not
    unique): the headers row will be extracted as data and automatic header names will be used.
-1. Empty rows are ignored
+1. Empty rows are ignored.
 1. `dlt` will normalize range names and headers into table and column names - so they may be
    different in the database than in Google Sheets. Prefer small cap names without special
    characters.
 
-
 #### Guidelines about named ranges
 
-We recommend to use
+We recommend using
 [Named Ranges](https://support.google.com/docs/answer/63175?hl=en&co=GENIE.Platform%3DDesktop) to
 indicate which data should be extracted from a particular spreadsheet, and this is how this source
 will work by default - when called without setting any other options. All the named ranges will be
-converted into tables, named after them and stored in the destination.
+converted into tables, named after them, and stored in the destination.
 
-1. You can let the spreadsheet users add and remove tables by just adding/removing the ranges,
+1. You can let the spreadsheet users add and remove tables by just adding or removing the ranges;
    you do not need to configure the pipeline again.
 
 1. You can indicate exactly the fragments of interest, and only this data will be retrieved, so it is
@@ -194,16 +194,16 @@ converted into tables, named after them and stored in the destination.
 
 If you are not happy with the workflow above, you can:
 
-1. Disable it by setting `get_named_ranges` option to `False`.
+1. Disable it by setting the `get_named_ranges` option to `False`.
 
-1. Enable retrieving all sheets/tabs with get_sheets option set to `True`.
+1. Enable retrieving all sheets/tabs with the get_sheets option set to `True`.
 
 1. Pass a list of ranges as supported by Google Sheets in range_names.
 
    > Note: To retrieve all named ranges with "get_named_ranges" or all sheets with "get_sheets"
    > methods, pass an empty `range_names` list as `range_names = []`. Even when you use a set
-   > "get_named_ranges" to false pass the range_names as an empty list to get all the sheets with
-   > "get_sheets" method.
+   > "get_named_ranges" to false, pass the range_names as an empty list to get all the sheets with
+   > the "get_sheets" method.
 
 ### Initialize the verified source
 
@@ -260,7 +260,7 @@ For more information, read the guide on [how to add a verified source](../../wal
 
 1. Finally, enter credentials for your chosen destination as per the [docs](../destinations/).
 
-1. Next you need to configure ".dlt/config.toml", which looks like:
+1. Next, you need to configure ".dlt/config.toml", which looks like:
 
    ```toml
    [sources.google_sheets]
@@ -277,13 +277,13 @@ For more information, read the guide on [how to add a verified source](../../wal
    spreadsheet_identifier = "https://docs.google.com/spreadsheets/d/1VTtCiYgxjAwcIw7UM1_BSaxC3rzIpr0HwXZwd2OlPD4/edit?usp=sharing"
    ```
 
-   or spreadsheet id (which is a part of the url)
+   or the spreadsheet ID (which is a part of the URL)
 
    ```toml
    spreadsheet_identifier="1VTtCiYgxjAwcIw7UM1_BSaxC3rzIpr0HwXZwd2OlPD4"
    ```
 
-> Note: You have an option to pass "range_names" and "spreadsheet_identifier" directly to the
+> Note: You have the option to pass "range_names" and "spreadsheet_identifier" directly to the
 > google_spreadsheet function or in ".dlt/config.toml"
 
 For more information, read the [General Usage: Credentials.](../../general-usage/credentials)
@@ -320,7 +320,7 @@ For more information, read the guide on [how to run a pipeline](../../walkthroug
 The `dlt` normalizer uses the first row of data to infer types and attempts to coerce subsequent rows, creating variant columns if unsuccessful. This is standard behavior.
 If `dlt` did not correctly determine the data type in the column, or you want to change the data type for other reasons,
 then you can provide a type hint for the affected column in the resource.
-Also, since recently `dlt`'s no longer recognizing date and time types, so you have to designate it yourself as `timestamp`.
+Also, since recently, `dlt` no longer recognizes date and time types, so you have to designate it yourself as `timestamp`.
 
 Use the `apply_hints` method on the resource to achieve this.
 Here's how you can do it:
@@ -332,11 +332,11 @@ for resource in resources:
         "date": {"data_type": "timestamp"},
     })
 ```
-In this example, the `total_amount` column is enforced to be of type double and `date` is enforced to be of type timestamp.
+In this example, the `total_amount` column is enforced to be of type double, and `date` is enforced to be of type timestamp.
 This will ensure that all values in the `total_amount` column are treated as `double`, regardless of whether they are integers or decimals in the original Google Sheets data.
-And `date` column will be represented as dates, not integers.
+And the `date` column will be represented as dates, not integers.
 
-For a single resource (e.g. `Sheet1`), you can simply use:
+For a single resource (e.g., `Sheet1`), you can simply use:
 ```py
 source.Sheet1.apply_hints(columns={
     "total_amount": {"data_type": "double"},
@@ -387,9 +387,9 @@ def google_spreadsheet(
 
 `credentials`: GCP credentials with Google Sheets API access.
 
-`get_sheets`: If True, imports all spreadsheet sheets into the database.
+`get_sheets`: If true, imports all spreadsheet sheets into the database.
 
-`get_named_ranges`: If True, imports either all named ranges or those
+`get_named_ranges`: If true, imports either all named ranges or those
 [specified](google_sheets.md#guidelines-about-named-ranges) into the database.
 
 ### Resource `range_names`
@@ -412,7 +412,7 @@ headers, and data types as arguments.
 
 `write_disposition`: Dictates how data is loaded to the destination.
 
-> Please Note:
+> Please note:
 >
 > 1. Empty rows are ignored.
 > 1. Empty cells are converted to None (and then to NULL by dlt).
@@ -420,7 +420,7 @@ headers, and data types as arguments.
 
 ### Resource `spreadsheet_info`
 
-This resource loads the info about the sheets and range names into the destination as a table.
+This resource loads the information about the sheets and range names into the destination as a table.
 This table refreshes after each load, storing information on loaded ranges:
 
 - Spreadsheet ID and title.
@@ -440,18 +440,18 @@ dlt.resource(
 
 `name`: Denotes the table name, set here as "spreadsheet_info".
 
-`write_disposition`: Dictates how data is loaded to the destination.
-[Read more](https://dlthub.com/docs/general-usage/incremental-loading#the-3-write-dispositions).
+`write_disposition`: Dictates how data is loaded into the destination.
+[Read more](../../general-usage/incremental-loading#the-3-write-dispositions).
 
-`merge_key`: Parameter is used to specify the column used to identify records for merging. In this
-case,"spreadsheet_id", means that the records will be merged based on the values in this column.
-[Read more](https://dlthub.com/docs/general-usage/incremental-loading#merge-incremental_loading).
+`merge_key`: This parameter is used to specify the column used to identify records for merging. In this
+case, "spreadsheet_id" means that the records will be merged based on the values in this column.
+[Read more](../../general-usage/incremental-loading#merge-incremental_loading).
 
 ## Customization
+
 ### Create your own pipeline
 
-If you wish to create your own pipelines, you can leverage source and resource methods from this
-verified source.
+If you wish to create your own pipelines, you can leverage source and resource methods from this verified source.
 
 1. Configure the pipeline by specifying the pipeline name, destination, and dataset as follows:
 
@@ -467,7 +467,7 @@ verified source.
 
    ```py
    load_data = google_spreadsheet(
-        "https://docs.google.com/spreadsheets/d/1HhWHjqouQnnCIZAFa2rL6vT91YRN8aIhts22SUUR580/edit#gid=0", #Spreadsheet URL
+        "https://docs.google.com/spreadsheets/d/1HhWHjqouQnnCIZAFa2rL6vT91YRN8aIhts22SUUR580/edit#gid=0", # Spreadsheet URL
         range_names=["range_name1", "range_name2"], # Range names
         get_sheets=False,
         get_named_ranges=False,
@@ -476,14 +476,13 @@ verified source.
    print(load_info)
    ```
 
-   > Note: You can pass the URL or spreadsheet ID and range names explicitly or in
-   > ".dlt/config.toml".
+   > Note: You can pass the URL or spreadsheet ID and range names explicitly or in ".dlt/config.toml".
 
-1. To load all the range_names from spreadsheet:
+1. To load all the range_names from the spreadsheet:
 
    ```py
    load_data = google_spreadsheet(
-        "https://docs.google.com/spreadsheets/d/1HhWHjqouQnnCIZAFa2rL6vT91YRN8aIhts22SUUR580/edit#gid=0", #Spreadsheet URL
+        "https://docs.google.com/spreadsheets/d/1HhWHjqouQnnCIZAFa2rL6vT91YRN8aIhts22SUUR580/edit#gid=0", # Spreadsheet URL
         get_sheets=False,
         get_named_ranges=True,
    )
@@ -493,11 +492,11 @@ verified source.
 
    > Pass an empty list to range_names in ".dlt/config.toml" to retrieve all range names.
 
-1. To load all the sheets from spreadsheet:
+1. To load all the sheets from the spreadsheet:
 
    ```py
    load_data = google_spreadsheet(
-        "https://docs.google.com/spreadsheets/d/1HhWHjqouQnnCIZAFa2rL6vT91YRN8aIhts22SUUR580/edit#gid=0", #Spreadsheet URL
+        "https://docs.google.com/spreadsheets/d/1HhWHjqouQnnCIZAFa2rL6vT91YRN8aIhts22SUUR580/edit#gid=0", # Spreadsheet URL
         get_sheets=True,
         get_named_ranges=False,
    )
@@ -511,7 +510,7 @@ verified source.
 
    ```py
    load_data = google_spreadsheet(
-        "https://docs.google.com/spreadsheets/d/1HhWHjqouQnnCIZAFa2rL6vT91YRN8aIhts22SUUR580/edit#gid=0", #Spreadsheet URL
+        "https://docs.google.com/spreadsheets/d/1HhWHjqouQnnCIZAFa2rL6vT91YRN8aIhts22SUUR580/edit#gid=0", # Spreadsheet URL
         get_sheets=True,
         get_named_ranges=True,
    )
@@ -525,17 +524,17 @@ verified source.
 
    ```py
    load_data1 = google_spreadsheet(
-        "https://docs.google.com/spreadsheets/d/43lkHjqouQnnCIZAFa2rL6vT91YRN8aIhts22SUUR580/edit#gid=0", #Spreadsheet URL
+        "https://docs.google.com/spreadsheets/d/43lkHjqouQnnCIZAFa2rL6vT91YRN8aIhts22SUUR580/edit#gid=0", # Spreadsheet URL
         range_names=["Sheet 1!A1:B10"],
         get_named_ranges=False,
    )
 
    load_data2 = google_spreadsheet(
-        "https://docs.google.com/spreadsheets/d/3jo4HjqouQnnCIZAFa2rL6vT91YRN8aIhts22SKKO390/edit#gid=0", #Spreadsheet URL
+        "https://docs.google.com/spreadsheets/d/3jo4HjqouQnnCIZAFa2rL6vT91YRN8aIhts22SKKO390/edit#gid=0", # Spreadsheet URL
         range_names=["Sheet 1!B1:C10"],
         get_named_ranges=True,
    )
-   load_info = pipeline.run([load_data1,load_data2])
+   load_info = pipeline.run([load_data1, load_data2])
    print(load_info)
    ```
 
@@ -543,7 +542,7 @@ verified source.
 
    ```py
    load_data = google_spreadsheet(
-    "https://docs.google.com/spreadsheets/d/43lkHjqouQnnCIZAFa2rL6vT91YRN8aIhts22SUUR580/edit#gid=0", #Spreadsheet URL
+    "https://docs.google.com/spreadsheets/d/43lkHjqouQnnCIZAFa2rL6vT91YRN8aIhts22SUUR580/edit#gid=0", # Spreadsheet URL
      range_names=["Sheet 1!A1:B10"],
      get_named_ranges=False,
    )
@@ -554,29 +553,29 @@ verified source.
    print(load_info)
    ```
 
-### Using Airflow with Google Spreadsheets:
+### Using Airflow with Google spreadsheets
 
-Consider the following when using Google Spreadsheets with Airflow:
+Consider the following when using Google spreadsheets with Airflow:
 
-`Efficient Data Retrieval`
+`Efficient data retrieval`
 
 - Our source fetches all required data with just two API calls, regardless of the number of specified data ranges. This allows for swift data loading from google_spreadsheet before executing the pipeline.
 
-`Airflow Specificity`
+`Airflow specificity`
 
 - With Airflow, data source creation and execution are distinct processes.
 - If your execution environment (runner) is on a different machine, this might cause the data to be loaded twice, leading to inefficiencies.
 
-`Airflow Helper Caution`
+`Airflow helper caution`
 - Avoid using `scc decomposition` because it unnecessarily creates a new source instance for every specified data range. This is not efficient and can cause redundant tasks.
 
-#### Recommended Airflow Deployment
+#### Recommended Airflow deployment
 
-Below is the correct way to set up an Airflow DAG  for this purpose:
+Below is the correct way to set up an Airflow DAG for this purpose:
 
-- Define a DAG to run daily, starting from say February 1, 2023. It avoids catching up for missed runs and ensures only one instance runs at a time.
+- Define a DAG to run daily, starting from February 1, 2023. It avoids catching up for missed runs and ensures only one instance runs at a time.
 
-- Data is imported from Google Spreadsheets and directed BigQuery.
+- Data is imported from Google spreadsheets and directed to BigQuery.
 
 - When adding the Google Spreadsheet task to the pipeline, avoid decomposing it; run it as a single task for efficiency.
 
@@ -591,7 +590,7 @@ Below is the correct way to set up an Airflow DAG  for this purpose:
 def get_named_ranges():
     tasks = PipelineTasksGroup("get_named_ranges", use_data_folder=False, wipe_local_data=True)
 
-    # import your source from pipeline script
+    # Import your source from pipeline script
     from google_sheets import google_spreadsheet
 
     pipeline = dlt.pipeline(
@@ -600,8 +599,9 @@ def get_named_ranges():
         destination='bigquery',
     )
 
-    # do not use decompose to run `google_spreadsheet` in single task
+    # Do not use decompose to run `google_spreadsheet` in single task
     tasks.add_run(pipeline, google_spreadsheet("1HhWHjqouQnnCIZAFa2rL6vT91YRN8aIhts22SUUR580"), decompose="none", trigger_rule="all_done", retries=0, provide_context=True)
 ```
 
 <!--@@@DLT_TUBA google_sheets-->
+

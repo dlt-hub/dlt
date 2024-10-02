@@ -86,7 +86,7 @@ def sqla_col_to_column_schema(
     if hasattr(sqltypes, "Uuid") and isinstance(sql_t, sqltypes.Uuid):
         # we represent UUID as text by default, see default_table_adapter
         col["data_type"] = "text"
-    if isinstance(sql_t, sqltypes.Numeric):
+    elif isinstance(sql_t, sqltypes.Numeric):
         # check for Numeric type first and integer later, some numeric types (ie. Oracle)
         # derive from both
         # all Numeric types that are returned as floats will assume "double" type

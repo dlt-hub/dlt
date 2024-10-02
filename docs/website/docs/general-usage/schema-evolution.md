@@ -6,23 +6,23 @@ keywords: [schema evolution, schema, dlt schema]
 
 ## When to use schema evolution?
 
-Schema evolution is a best practice when ingesting most data. It’s simply a way to get data across a format barrier.
+Schema evolution is a best practice when ingesting most data. It's simply a way to get data across a format barrier.
 
-It separates the technical challenge of “loading” data, from the business challenge of “curating” data. This enables us to have pipelines that are maintainable by different individuals at different stages.
+It separates the technical challenge of "loading" data from the business challenge of "curating" data. This enables us to have pipelines that are maintainable by different individuals at different stages.
 
-However, for cases where schema evolution might be triggered by malicious events, such as in web tracking, data contracts are advised. Read more about how to implement data contracts [here](https://dlthub.com/docs/general-usage/schema-contracts).
+However, for cases where schema evolution might be triggered by malicious events, such as in web tracking, data contracts are advised. Read more about how to implement data contracts [here](./schema-contracts).
 
 ## Schema evolution with `dlt`
 
 `dlt` automatically infers the initial schema for your first pipeline run. However, in most cases, the schema tends to change over time, which makes it critical for downstream consumers to adapt to schema changes.
 
-As the structure of data changes, such as the addition of new columns, changing data types, etc., `dlt` handles these schema changes, enabling you to adapt to changes without losing velocity.
+As the structure of data changes, such as the addition of new columns or changing data types, `dlt` handles these schema changes, enabling you to adapt to changes without losing velocity.
 
 ## Inferring a schema from nested data
 
-The first run of a pipeline will scan the data that goes through it and generate a schema. To convert nested data into relational format, `dlt` flattens dictionaries and unpacks nested lists into sub-tables.
+The first run of a pipeline will scan the data that goes through it and generate a schema. To convert nested data into a relational format, `dlt` flattens dictionaries and unpacks nested lists into sub-tables.
 
-We’ll review some examples here and figure out how `dlt` creates initial schema and how normalisation works. Consider a pipeline that loads the following schema:
+We'll review some examples here and figure out how `dlt` creates the initial schema and how normalization works. Consider a pipeline that loads the following schema:
 
 ```py
 data = [{
@@ -47,18 +47,18 @@ The schema of data above is loaded to the destination as follows:
 
 ### What did the schema inference engine do?
 
-As you can see above the `dlt's` inference engine generates the structure of the data based on the source and provided hints. It normalizes the data, creates tables and columns, and infers data types.
+As you can see above, the dlt's inference engine generates the structure of the data based on the source and provided hints. It normalizes the data, creates tables and columns, and infers data types.
 
-For more information, you can refer to the **[Schema](https://dlthub.com/docs/general-usage/schema)** and **[Adjust a Schema](https://dlthub.com/docs/walkthroughs/adjust-a-schema)** sections in the documentation.
+For more information, you can refer to the [Schema](./schema) and [Adjust a Schema](../walkthroughs/adjust-a-schema) sections in the documentation.
 
 ## Evolving the schema
 
-For a typical data source schema tends to change with time, and `dlt` handles this changing schema seamlessly.
+For a typical data source, the schema tends to change over time, and dlt handles this changing schema seamlessly.
 
 Let’s add the following 4 cases:
 
-- A column is added : a field named “CEO” was added.
-- A column type is changed: Datatype of column named “inventory_nr” was changed from integer to string.
+- A column is added: a field named “CEO” was added.
+- A column type is changed: The datatype of the column named “inventory_nr” was changed from integer to string.
 - A column is removed: a field named “room” was commented out/removed.
 - A column is renamed: a field “building” was renamed to “main_block”.
 
@@ -106,11 +106,11 @@ By separating the technical process of loading data from curation, you free the 
 
 **Tracking column lineage**
 
-The column lineage can be tracked by loading the 'load_info' to the destination. The 'load_info' contains information about columns ‘data types’, ‘add times’, and ‘load id’. To read more please see [the data lineage article](https://dlthub.com/docs/blog/dlt-data-lineage) we have on the blog.
+The column lineage can be tracked by loading the 'load_info' to the destination. The 'load_info' contains information about columns’ data types, add times, and load id. To read more please see [the data lineage article](https://dlthub.com/blog/dlt-data-lineage) we have on the blog.
 
 **Getting notifications**
 
-We can read the load outcome and send it to slack webhook with `dlt`.
+We can read the load outcome and send it to a Slack webhook with dlt.
 ```py
 # Import the send_slack_message function from the dlt library
 from dlt.common.runtime.slack import send_slack_message
@@ -139,16 +139,15 @@ This script sends Slack notifications for schema updates using the `send_slack_m
 
 ## How to control evolution
 
-`dlt` allows schema evolution control via its schema and data contracts. Refer to our **[documentation](https://dlthub.com/docs/general-usage/schema-contracts)** for details.
+`dlt` allows schema evolution control via its schema and data contracts. Refer to our **[documentation](./schema-contracts)** for details.
 
-### How to test for removed columns - applying “not null” constraint
+### How to test for removed columns - applying "not null" constraint
 
-A column not existing, and a column being null, are two different things. However, when it comes to APIs and json, it’s usually all treated the same - the key-value pair will simply not exist.
+A column not existing and a column being null are two different things. However, when it comes to APIs and JSON, it’s usually all treated the same - the key-value pair will simply not exist.
 
 To remove a column, exclude it from the output of the resource function. Subsequent data inserts will treat this column as null. Verify column removal by applying a not null constraint. For instance, after removing the "room" column, apply a not null constraint to confirm its exclusion.
 
 ```py
-
 data = [{
     "organization": "Tech Innovations Inc.",
     "address": {
@@ -166,7 +165,7 @@ pipeline = dlt.pipeline("organizations_pipeline", destination="duckdb")
 # Adding not null constraint
 pipeline.run(data, table_name="org", columns={"room": {"data_type": "bigint", "nullable": False}})
 ```
-During pipeline execution a data validation error indicates that a removed column is being passed as null.
+During pipeline execution, a data validation error indicates that a removed column is being passed as null.
 
 ## Some schema changes in the data
 
@@ -202,14 +201,15 @@ The schema of the data above is loaded to the destination as follows:
 
 ## What did the schema evolution engine do?
 
-The schema evolution engine in the `dlt` library is designed to handle changes in the structure of your data over time. For example:
+The schema evolution engine in the `dlt` library is designed to handle changes in the structure of your data over time. For example:
 
-- As above in continuation of the inferred schema, the “specifications” are nested in "details”, which are nested in “Inventory”, all under table name “org”. So the table created for projects is `org__inventory__details__specifications`.
+- As above in continuation of the inferred schema, the “specifications” are nested in "details", which are nested in “Inventory”, all under the table name “org”. So the table created for projects is `org__inventory__details__specifications`.
 
-These is a simple examples of how schema evolution works.
+This is a simple example of how schema evolution works.
 
 ## Schema evolution using schema and data contracts
 
-Demonstrating schema evolution without talking about schema and data contracts is only one side of the coin. Schema and data contracts dictate the terms of how the schema being written to destination should evolve.
+Demonstrating schema evolution without talking about schema and data contracts is only one side of the coin. Schema and data contracts dictate the terms of how the schema being written to the destination should evolve.
 
-Schema and data contracts can be applied to entities ‘tables’ , ‘columns’  and ‘data_types’ using contract modes ‘evolve’, freeze’, ‘discard_rows’ and ‘discard_columns’ to tell `dlt` how to apply contract for a particular entity. To read more about **schema and data contracts**  read our [documentation](https://dlthub.com/docs/general-usage/schema-contracts).
+Schema and data contracts can be applied to entities such as ‘tables’, ‘columns’, and ‘data_types’ using contract modes such as ‘evolve’, ‘freeze’, ‘discard_rows’, and ‘discard_columns’ to tell dlt how to apply contracts for a particular entity. To read more about **schema and data contracts**, read our [documentation](./schema-contracts).
+

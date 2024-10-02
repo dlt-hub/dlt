@@ -5,6 +5,7 @@ from concurrent.futures import Executor
 import os
 
 from dlt.common import logger
+from dlt.common.exceptions import TerminalException
 from dlt.common.metrics import LoadJobMetrics
 from dlt.common.runtime.signals import sleep
 from dlt.common.configuration import with_config, known_sections
@@ -197,7 +198,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                     " extension could not be associated with job type and that indicates an error"
                     " in the code."
                 )
-        except DestinationTerminalException:
+        except (TerminalException, AssertionError):
             job = FinalizedLoadJobWithFollowupJobs.from_file_path(
                 file_path, "failed", pretty_format_exception()
             )

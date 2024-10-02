@@ -10,8 +10,7 @@ keywords: [credentials, secrets.toml, environment variables]
 
 When using a pipeline locally, we recommend using the `.dlt/secrets.toml` method.
 
-To do so, open your dlt secrets file and match the source names and credentials to the ones in your
-script, for example:
+To do so, open your dlt secrets file and match the source names and credentials to the ones in your script, for example:
 
 ```toml
 [sources.pipedrive]
@@ -25,10 +24,12 @@ project_id = "project_id" # please set me up!
 private_key = "private_key" # please set me up!
 client_email = "client_email" # please set me up!
 ```
-> Note that for toml names are case-sensitive and sections are separated with ".".
 
-For destination credentials, read the [documentation pages for each destination](../dlt-ecosystem/destinations) to create and configure
-credentials.
+:::note
+Keys in TOML files are case-sensitive and sections are separated with a period (`.`).
+:::
+
+For destination credentials, read the [documentation pages for each destination](../dlt-ecosystem/destinations) to create and configure credentials.
 
 For Verified Source credentials, read the [Setup Guides](../dlt-ecosystem/verified-sources) for each source to find how to get credentials.
 
@@ -41,8 +42,7 @@ Read more about [credential configuration.](../general-usage/credentials)
 To add credentials to your deployment,
 
 - either use one of the `dlt deploy` commands;
-- or follow the instructions to [pass credentials via code](../general-usage/credentials/advanced#examples)
-or [environment](../general-usage/credentials/setup#environment-variables).
+- or follow the instructions to [pass credentials via code](../general-usage/credentials/advanced#examples) or [environment](../general-usage/credentials/setup#environment-variables).
 
 ### Reading credentials from environment variables
 
@@ -76,7 +76,8 @@ DESTINATION__BIGQUERY__LOCATION
 ```
 
 ## Retrieving credentials from Google Cloud Secret Manager
-To retrieve secrets from Google Cloud Secret Manager using Python, and convert them into a dictionary format, you'll need to follow these steps. First, ensure that you have the necessary permissions to access the secrets on Google Cloud, and have the `google-cloud-secret-manager` library installed. If not, you can install it using pip:
+
+To retrieve secrets from Google Cloud Secret Manager using Python and convert them into a dictionary format, you'll need to follow these steps. First, ensure that you have the necessary permissions to access the secrets on Google Cloud and have the `google-cloud-secret-manager` library installed. If not, you can install it using pip:
 
 ```sh
 pip install google-cloud-secret-manager
@@ -90,7 +91,7 @@ Here's how you can retrieve secrets and convert them into a dictionary:
 2. **Access the secret**: Use the client to access the secret's latest version.
 3. **Convert to a dictionary**: If the secret is stored in a structured format (like JSON), parse it into a Python dictionary.
 
-Assume we store secrets in JSON format with name "temp-secret":
+Assume we store secrets in JSON format with the name "temp-secret":
 ```json
 {"api_token": "ghp_Kskdgf98dugjf98ghd...."}
 ```
@@ -103,7 +104,7 @@ Set `.dlt/secrets.toml` as:
 "private_key" = "-----BEGIN PRIVATE KEY-----\n....\n-----END PRIVATE KEY-----\n"
 "client_email" = "....gserviceaccount.com"
 ```
-or `GOOGLE_SECRETS__CREDENTIALS` to the path of your service account key file.
+or set `GOOGLE_SECRETS__CREDENTIALS` to the path of your service account key file.
 
 Retrieve the secrets stored in the Secret Manager as follows:
 
@@ -159,8 +160,9 @@ load_info = pipeline.run(response.json())
 print(load_info)
 ```
 
-### Points to Note:
+### Points to note:
 
 - **Permissions**: Ensure the service account or user credentials you are using have the necessary permissions to access the Secret Manager and the specific secrets.
 - **Secret format**: This example assumes that the secret is stored in a JSON string format. If your secret is in a different format, you will need to adjust the parsing method accordingly.
 - **Google Cloud authentication**: Make sure your environment is authenticated with Google Cloud. This can typically be done by setting credentials in `.dlt/secrets.toml` or setting the `GOOGLE_SECRETS__CREDENTIALS` environment variable to the path of your service account key file or the dict of credentials as a string.
+

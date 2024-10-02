@@ -4,11 +4,11 @@ description: Transforming the data loaded by a dlt pipeline with dbt Cloud
 keywords: [transform, sql]
 ---
 
-# DBT Cloud Client and Helper Functions
+# dbt Cloud client and helper functions
 
-## API Client
+## API client
 
-The DBT Cloud Client is a Python class designed to interact with the dbt Cloud API (version 2).
+The dbt Cloud Client is a Python class designed to interact with the dbt Cloud API (version 2).
 It provides methods to perform various operations on dbt Cloud, such as triggering job runs and retrieving job run statuses.
 
 ```py
@@ -26,7 +26,7 @@ run_status = client.get_run_status(run_id=job_run_id)
 print(f"Job run status: {run_status['status_humanized']}")
 ```
 
-## Helper Functions
+## Helper functions
 
 These Python functions provide an interface to interact with the dbt Cloud API.
 They simplify the process of triggering and monitoring job runs in dbt Cloud.
@@ -65,11 +65,11 @@ from dlt.helpers.dbt_cloud import get_dbt_cloud_run_status
 status = get_dbt_cloud_run_status(run_id=1234, wait_for_outcome=True)
 ```
 
-## Set Credentials
+## Set credentials
 
 ### secrets.toml
 
-When using a dlt locally, we recommend using the `.dlt/secrets.toml` method to set credentials.
+When using dlt locally, we recommend using the `.dlt/secrets.toml` method to set credentials.
 
 If you used the `dlt init` command, then the `.dlt` folder has already been created.
 Otherwise, create a `.dlt` folder in your working directory and a `secrets.toml` file inside it.
@@ -86,9 +86,9 @@ job_id = "set me up!" # optional only for the run_dbt_cloud_job function (you ca
 run_id = "set me up!" # optional for the get_dbt_cloud_run_status function (you can pass this explicitly as an argument to the function)
 ```
 
-### Environment Variables
+### Environment variables
 
-`dlt` supports reading credentials from the environment.
+dlt supports reading credentials from the environment.
 
 If dlt tries to read this from environment variables, it will use a different naming convention.
 
@@ -102,4 +102,5 @@ DBT_CLOUD__ACCOUNT_ID
 DBT_CLOUD__JOB_ID
 ```
 
-For more information, read the [Credentials](https://dlthub.com/docs/general-usage/credentials) documentation.
+For more information, read the [Credentials](../../../general-usage/credentials) documentation.
+
