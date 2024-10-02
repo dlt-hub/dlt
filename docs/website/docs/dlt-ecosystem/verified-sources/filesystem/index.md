@@ -1,5 +1,5 @@
 ---
-title: Cloud storage and file system
+title: Cloud storage and filesystem
 description: dlt-verified source for reading files from cloud storage and local file system
 keywords: [file system, files, filesystem, readers source, cloud storage, object storage, local file system]
 ---
