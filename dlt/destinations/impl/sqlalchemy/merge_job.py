@@ -58,7 +58,7 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
             if len(table_chain) == 1 and not cls.requires_temp_table_for_delete():
                 delete_statement = root_table_obj.delete().where(
                     sa.exists(
-                        sa.select([sa.literal(1)])
+                        sa.select(sa.literal(1))
                         .where(key_clause)
                         .select_from(staging_root_table_obj)
                     )
@@ -81,9 +81,9 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
                 # Insert data into the "temporary" table
                 insert_statement = delete_temp_table.insert().from_select(
                     [row_key_col],
-                    sa.select([row_key_col]).where(
+                    sa.select(row_key_col).where(
                         sa.exists(
-                            sa.select([sa.literal(1)])
+                            sa.select(sa.literal(1))
                             .where(key_clause)
                             .select_from(staging_root_table_obj)
                         )
@@ -370,7 +370,7 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
         update_statement = (
             root_table_obj.update()
             .values({to: sa.text(boundary_literal)})
-            .where(root_table_obj.c[hash_].notin_(sa.select([staging_root_table_obj.c[hash_]])))
+            .where(root_table_obj.c[hash_].notin_(sa.select(staging_root_table_obj.c[hash_])))
         )
 
         if active_record_timestamp is None:
@@ -407,7 +407,7 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
                 *[c for c in staging_root_table_obj.columns if c.name not in [from_, to]],
             ).where(
                 staging_root_table_obj.c[hash_].notin_(
-                    sa.select([root_table_obj.c[hash_]]).where(root_is_active_clause)
+                    sa.select(root_table_obj.c[hash_]).where(root_is_active_clause)
                 )
             ),
         )
