@@ -39,16 +39,21 @@ class FilesystemSqlClient(DuckDbSqlClient):
         self,
         fs_client: FilesystemClient,
         dataset_name: str = None,
-        duckdb_connection: duckdb.DuckDBPyConnection = None,
+        credentials: DuckDbCredentials = None,
     ) -> None:
+        # if no credentials are passed from the outside
+        # we know to keep an in memory instance here
+        if not credentials:
+            self.memory_db = duckdb.connect(":memory:")
+            credentials = DuckDbCredentials(self.memory_db)
+
         super().__init__(
             dataset_name=dataset_name or fs_client.dataset_name,
             staging_dataset_name=None,
-            credentials=DuckDbCredentials(duckdb_connection or ":memory:"),
+            credentials=credentials,
             capabilities=duckdb_factory()._raw_capabilities(),
         )
         self.fs_client = fs_client
-        self.using_external_database = duckdb_connection is not None
         self.autocreate_required_views = True
 
         if self.fs_client.config.protocol not in SUPPORTED_PROTOCOLS:
@@ -138,33 +143,26 @@ class FilesystemSqlClient(DuckDbSqlClient):
         elif self.fs_client.config.protocol == "memory":
             self._conn.register_filesystem(self.fs_client.fs_client)
 
-    def open_connection(self) -> duckdb.DuckDBPyConnection:
-        # we keep the in memory instance around, so if this prop is set, return it
-        if not self._conn:
-            super().open_connection()
-
-            # set up connection and dataset
-            self._existing_views: List[str] = []  # remember which views already where created
-
-            self.autocreate_required_views = False
-            if not self.has_dataset():
-                self.create_dataset()
-            self.autocreate_required_views = True
-            self._conn.sql(f"USE {self.dataset_name}")
-
-            # create authentication to data provider
-            self.create_authentication()
-
         # the line below solves problems with certificate path lookup on linux
         # see duckdb docs
-        self._conn.sql("SET azure_transport_option_type = 'curl';")
+        if self.fs_client.config.protocol in ["az", "abfss"]:
+            self._conn.sql("SET azure_transport_option_type = 'curl';")
+
+    def open_connection(self) -> duckdb.DuckDBPyConnection:
+        # we keep the in memory instance around, so if this prop is set, return it
+        super().open_connection()
+
+        # set up dataset
+        self.autocreate_required_views = False
+        if not self.has_dataset():
+            self.create_dataset()
+        self.autocreate_required_views = True
+        self._conn.sql(f"USE {self.fully_qualified_dataset_name()}")
+
+        # create authentication to data provider
+        self.create_authentication()
 
         return self._conn
-
-    def close_connection(self) -> None:
-        # we keep the local memory instance around as long this client exists
-        if self.using_external_database:
-            return super().close_connection()
 
     @raise_database_error
     def create_views_for_tables(self, tables: Dict[str, str]) -> None:
@@ -173,15 +171,18 @@ class FilesystemSqlClient(DuckDbSqlClient):
         # create all tables in duck instance
         for table_name in tables.keys():
             view_name = tables[table_name]
-            if view_name in self._existing_views:
-                continue
+
             if table_name not in self.fs_client.schema.tables:
-                # unknown tables will not be created
+                # unknown views will not be created
+                continue
+
+            # only create view if it does not exist in the current schema yet
+            existing_tables = [tname[0] for tname in self._conn.execute("SHOW TABLES").fetchall()]
+            if view_name in existing_tables:
                 continue
 
             # discover file type
             schema_table = cast(PreparedTableSchema, self.fs_client.schema.tables[table_name])
-            self._existing_views.append(view_name)
             folder = self.fs_client.get_table_dir(table_name)
             files = self.fs_client.list_table_files(table_name)
             first_file_type = os.path.splitext(files[0])[1][1:]

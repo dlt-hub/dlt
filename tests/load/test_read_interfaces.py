@@ -16,10 +16,10 @@ from tests.load.utils import (
     DestinationTestConfiguration,
     GCS_BUCKET,
     SFTP_BUCKET,
-    FILE_BUCKET,
     MEMORY_BUCKET,
 )
 from dlt.destinations import filesystem
+from tests.utils import TEST_STORAGE_ROOT
 
 
 def _run_dataset_checks(
@@ -211,11 +211,13 @@ def _run_dataset_checks(
     # special filesystem sql checks
     if destination_config.destination_type == "filesystem":
         import duckdb
-        from dlt.destinations.impl.filesystem.sql_client import FilesystemSqlClient
+        from dlt.destinations.impl.filesystem.sql_client import (
+            FilesystemSqlClient,
+            DuckDbCredentials,
+        )
 
         # check we can create new tables from the views
         with pipeline.sql_client() as c:
-            c.create_views_for_tables({"items": "items", "double_items": "double_items"})
             c.execute_sql(
                 "CREATE TABLE items_joined AS (SELECT i.id, di.double_id FROM items as i JOIN"
                 " double_items as di ON (i.id = di.id));"
@@ -234,7 +236,7 @@ def _run_dataset_checks(
                 assert "double_items is not an table" in str(exc)
 
         # we create a duckdb with a table an see wether we can add more views
-        duck_db_location = "_storage/" + uniq_id()
+        duck_db_location = TEST_STORAGE_ROOT + "/" + uniq_id()
         external_db = duckdb.connect(duck_db_location)
         external_db.execute("CREATE SCHEMA first;")
         external_db.execute("CREATE SCHEMA second;")
@@ -246,7 +248,7 @@ def _run_dataset_checks(
         fs_sql_client = FilesystemSqlClient(
             dataset_name="second",
             fs_client=fs_client,
-            duckdb_connection=external_db,
+            credentials=DuckDbCredentials(external_db),
         )
         with fs_sql_client as sql_client:
             sql_client.create_views_for_tables({"items": "referenced_items"})
