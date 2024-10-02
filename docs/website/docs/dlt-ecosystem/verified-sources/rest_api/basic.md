@@ -130,7 +130,7 @@ github_token = "your_github_token"
    dlt pipeline rest_api show
    ```
 
-### Source configuration
+## Source configuration
 
 
 
