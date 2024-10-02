@@ -213,7 +213,7 @@ The declarative resource configuration is defined in the `config` dictionary. It
 2. `resource_defaults`: Contains default settings for all [resources](#resource-configuration). In this example, we define that all resources:
     - Have `id` as the [primary key](../../../general-usage/resource#define-schema)
     - Use the `merge` [write disposition](../../../general-usage/incremental-loading#choosing-a-write-disposition) to merge the data with the existing data in the destination.
-    - Send a `per_page` query parameter with each request to get more results per page.
+    - Send a `per_page=100` query parameter with each request to get more results per page.
 
 3. `resources`: A list of [resources](#resource-configuration) to be loaded. Here, we have two resources: `issues` and `issue_comments`, which correspond to the GitHub API endpoints for [repository issues](https://docs.github.com/en/rest/issues/issues?apiVersion=2022-11-28#list-repository-issues) and [issue comments](https://docs.github.com/en/rest/issues/comments?apiVersion=2022-11-28#list-issue-comments). Note that we need an issue number to fetch comments for each issue. This number is taken from the `issues` resource. More on this in the [resource relationships](#define-resource-relationships) section.
 
