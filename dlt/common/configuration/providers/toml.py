@@ -2,11 +2,8 @@ import os
 import tomlkit
 import yaml
 import functools
-from tomlkit.items import Item as TOMLItem
-from tomlkit.container import Container as TOMLContainer
 from typing import Any, Callable, Dict, Optional, Tuple, Type
 
-from dlt.common.configuration.paths import get_dlt_settings_dir, get_dlt_data_dir
 from dlt.common.configuration.utils import auto_cast, auto_config_fragment
 from dlt.common.utils import update_dict_nested
 
@@ -193,7 +190,9 @@ class ProjectDocProvider(CustomLoaderDocProvider):
         Raises:
             TomlProviderReadException: File could not be read, most probably `toml` parsing error
         """
-        self._toml_path = os.path.join(project_dir or get_dlt_settings_dir(), file_name)
+        from dlt.common.runtime import run_context
+
+        self._toml_path = os.path.join(project_dir or run_context.current().settings_dir, file_name)
         self._add_global_config = add_global_config
 
         super().__init__(
@@ -206,7 +205,9 @@ class ProjectDocProvider(CustomLoaderDocProvider):
 
     @staticmethod
     def global_config_path() -> str:
-        return get_dlt_data_dir()
+        from dlt.common.runtime import run_context
+
+        return run_context.current().global_dir
 
     def write_toml(self) -> None:
         assert (
