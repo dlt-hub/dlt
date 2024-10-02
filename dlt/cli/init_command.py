@@ -2,14 +2,10 @@ import os
 import ast
 import shutil
 import tomlkit
-from types import ModuleType
-from typing import Dict, List, Sequence, Tuple
-from importlib.metadata import version as pkg_version
+from typing import Dict, Sequence, Tuple
 from pathlib import Path
-from importlib import import_module
 
 from dlt.common import git
-from dlt.common.configuration.paths import get_dlt_settings_dir, make_dlt_settings_path
 from dlt.common.configuration.specs import known_sections
 from dlt.common.configuration.providers import (
     CONFIG_TOML,
@@ -213,7 +209,7 @@ def _welcome_message(
     if is_new_source:
         fmt.echo(
             "* Add credentials for %s and other secrets in %s"
-            % (fmt.bold(destination_type), fmt.bold(make_dlt_settings_path(SECRETS_TOML)))
+            % (fmt.bold(destination_type), fmt.bold(utils.make_dlt_settings_path(SECRETS_TOML)))
         )
 
     if destination_type == "destination":
@@ -325,8 +321,9 @@ def init_command(
 
     # prepare destination storage
     dest_storage = FileStorage(os.path.abspath("."))
-    if not dest_storage.has_folder(get_dlt_settings_dir()):
-        dest_storage.create_folder(get_dlt_settings_dir())
+    settings_dir = utils.make_dlt_settings_path()
+    if not dest_storage.has_folder(settings_dir):
+        dest_storage.create_folder(settings_dir)
     # get local index of verified source files
     local_index = files_ops.load_verified_sources_local_index(source_name)
     # folder deleted at dest - full refresh
@@ -400,7 +397,7 @@ def init_command(
 
     # add .dlt/*.toml files to be copied
     source_configuration.files.extend(
-        [make_dlt_settings_path(CONFIG_TOML), make_dlt_settings_path(SECRETS_TOML)]
+        [utils.make_dlt_settings_path(CONFIG_TOML), utils.make_dlt_settings_path(SECRETS_TOML)]
     )
 
     # add dlt extras line to requirements
@@ -449,8 +446,6 @@ def init_command(
         visitor,
         [
             ("destination", destination_type),
-            ("pipeline_name", source_name),
-            ("dataset_name", source_name + "_data"),
         ],
         source_configuration.src_pipeline_script,
     )
@@ -465,39 +460,35 @@ def init_command(
     # detect all the required secrets and configs that should go into tomls files
     if source_configuration.source_type == "template":
         # replace destination, pipeline_name and dataset_name in templates
-        transformed_nodes = source_detection.find_call_arguments_to_replace(
-            visitor,
-            [
-                ("destination", destination_type),
-                ("pipeline_name", source_name),
-                ("dataset_name", source_name + "_data"),
-            ],
-            source_configuration.src_pipeline_script,
-        )
+        # transformed_nodes = source_detection.find_call_arguments_to_replace(
+        #     visitor,
+        #     [
+        #         ("destination", destination_type),
+        #         ("pipeline_name", source_name),
+        #         ("dataset_name", source_name + "_data"),
+        #     ],
+        #     source_configuration.src_pipeline_script,
+        # )
         # template sources are always in module starting with "pipeline"
         # for templates, place config and secrets into top level section
         required_secrets, required_config, checked_sources = source_detection.detect_source_configs(
             SourceReference.SOURCES, source_configuration.source_module_prefix, ()
         )
         # template has a strict rules where sources are placed
-        for source_q_name, source_config in checked_sources.items():
-            if source_q_name not in visitor.known_sources_resources:
-                raise CliCommandException(
-                    "init",
-                    f"The pipeline script {source_configuration.src_pipeline_script} imports a"
-                    f" source/resource {source_config.name} from section"
-                    f" {source_config.section}. In init scripts you must declare all"
-                    " sources and resources in single file.",
-                )
+        # for source_q_name, source_config in checked_sources.items():
+        #     if source_q_name not in visitor.known_sources_resources:
+        #         raise CliCommandException(
+        #             "init",
+        #             f"The pipeline script {source_configuration.src_pipeline_script} imports a"
+        #             f" source/resource {source_config.name} from section"
+        #             f" {source_config.section}. In init scripts you must declare all"
+        #             f" sources and resources in single file. Known names are {list(visitor.known_sources_resources.keys())}.",
+        #         )
         # rename sources and resources
-        transformed_nodes.extend(
-            source_detection.find_source_calls_to_replace(visitor, source_name)
-        )
+        # transformed_nodes.extend(
+        #     source_detection.find_source_calls_to_replace(visitor, source_name)
+        # )
     else:
-        # replace only destination for existing pipelines
-        transformed_nodes = source_detection.find_call_arguments_to_replace(
-            visitor, [("destination", destination_type)], source_configuration.src_pipeline_script
-        )
         # pipeline sources are in module with name starting from {pipeline_name}
         # for verified pipelines place in the specific source section
         required_secrets, required_config, checked_sources = source_detection.detect_source_configs(
@@ -505,14 +496,12 @@ def init_command(
             source_configuration.source_module_prefix,
             (known_sections.SOURCES, source_name),
         )
-
-    # the intro template does not use sources, for now allow it to pass here
-    if len(checked_sources) == 0 and source_name != "intro":
-        raise CliCommandException(
-            "init",
-            f"The pipeline script {source_configuration.src_pipeline_script} is not creating or"
-            " importing any sources or resources. Exiting...",
-        )
+        if len(checked_sources) == 0:
+            raise CliCommandException(
+                "init",
+                f"The pipeline script {source_configuration.src_pipeline_script} is not creating or"
+                " importing any sources or resources. Exiting...",
+            )
 
     # add destination spec to required secrets
     required_secrets["destinations:" + destination_type] = WritableConfigValue(
