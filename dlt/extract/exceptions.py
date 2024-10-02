@@ -1,5 +1,5 @@
 from inspect import Signature, isgenerator, isgeneratorfunction, unwrap
-from typing import Any, Set, Type
+from typing import Any, Sequence, Set, Type
 
 from dlt.common.exceptions import DltException
 from dlt.common.utils import get_callable_name
@@ -407,7 +407,7 @@ class ExplicitSourceNameInvalid(DltSourceException):
 
 
 class UnknownSourceReference(DltSourceException):
-    def __init__(self, ref: str) -> None:
+    def __init__(self, ref: Sequence[str]) -> None:
         self.ref = ref
         msg = (
             f"{ref} is not one of registered sources and could not be imported as module with"

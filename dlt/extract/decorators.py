@@ -714,17 +714,22 @@ def resource(
                     *args, **kwargs
                 )
 
+            # make the source module same as original resource
+            _source.__qualname__ = f.__qualname__
+            _source.__module__ = f.__module__
             # setup our special single resource source
             factory = (
                 DltSourceFactoryWrapper[Any, DltSource]()
                 .with_args(
                     name=resource_name,
                     section=source_section,
+                    spec=SPEC,
                     _impl_cls=_DltSingleSource,
                 )
                 .bind(_source)
             )
             # remove name and section overrides from the wrapper so resource is not unnecessarily renamed
+            factory.spec = BaseConfiguration  # do not inject anything to the helper
             factory.name = None
             factory.section = None
 
