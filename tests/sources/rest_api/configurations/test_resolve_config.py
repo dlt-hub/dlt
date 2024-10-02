@@ -88,9 +88,9 @@ def test_bind_path_param() -> None:
 
 
 def test_process_parent_data_item() -> None:
-    resolve_params = [ResolvedParam(
-        "id", {"field": "obj_id", "resource": "issues", "type": "resolve"}
-    )]
+    resolve_params = [
+        ResolvedParam("id", {"field": "obj_id", "resource": "issues", "type": "resolve"})
+        ]
     bound_path, parent_record = process_parent_data_item(
         "dlt-hub/dlt/issues/{id}/comments", {"obj_id": 12345}, resolve_params, None
     )
@@ -111,9 +111,9 @@ def test_process_parent_data_item() -> None:
     assert parent_record == {"_issues_obj_id": 12345, "_issues_obj_node": "node_1"}
 
     # test nested data
-    resolve_param_nested = [ResolvedParam(
-        "id", {"field": "some_results.obj_id", "resource": "issues", "type": "resolve"}
-    )]
+    resolve_param_nested = [
+        ResolvedParam("id", {"field": "some_results.obj_id", "resource": "issues", "type": "resolve"})
+        ]
     item = {"some_results": {"obj_id": 12345}}
     bound_path, parent_record = process_parent_data_item(
         "dlt-hub/dlt/issues/{id}/comments", item, resolve_param_nested, None
@@ -137,16 +137,24 @@ def test_process_parent_data_item() -> None:
         )
     assert "in order to include it in child records under _issues_node" in str(val_ex.value)
 
-    multi_resolve_params = [ResolvedParam(
-        "issue_id", {"field": "issue", "resource": "comments", "type": "resolve"}
-    ), ResolvedParam(
-        "id", {"field": "id", "resource": "comments", "type": "resolve"}
-    )]
+    #Resolve multiple parameters from a single record
+    multi_resolve_params = [
+        ResolvedParam("issue_id", {"field": "issue", "resource": "comments", "type": "resolve"}), 
+        ResolvedParam("id", {"field": "id", "resource": "comments", "type": "resolve"})
+        ]
+    
     bound_path, parent_record = process_parent_data_item(
         "dlt-hub/dlt/issues/{issue_id}/comments/{id}", {"issue": 12345,"id":56789}, multi_resolve_params, None
     )
     assert bound_path == "dlt-hub/dlt/issues/12345/comments/56789"
     assert parent_record == {}
+
+    # param path not found with multiple parameters
+    with pytest.raises(ValueError) as val_ex:
+        bound_path, parent_record = process_parent_data_item(
+             "dlt-hub/dlt/issues/{issue_id}/comments/{id}", {"_issue": 12345,"id":56789}, multi_resolve_params, None
+        )
+    assert "Transformer expects a field 'issue'" in str(val_ex.value)
 
 
 
