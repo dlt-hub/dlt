@@ -12,8 +12,9 @@ The Filesystem source allows seamless loading of files from the following locati
 * remote filesystem (via SFTP)
 * local filesystem
 
-The Filesystem source natively supports `csv`, `parquet`, and `jsonl` files and allows customization for loading any type of structured files.
+The Filesystem source natively supports `csv`, `parquet`, and `jsonl` files and allows customization for loading any type of structured file.
 
 import DocCardList from '@theme/DocCardList';
 
 <DocCardList />
+
