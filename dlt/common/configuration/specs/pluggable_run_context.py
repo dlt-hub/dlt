@@ -28,6 +28,15 @@ class SupportsRunContext(Protocol):
     def data_dir(self) -> str:
         """Defines where the pipelines working folders are stored."""
 
+    def get_data_entity(self, entity: str) -> str:
+        """Gets path in data_dir where `entity` (ie. `pipelines`, `repos`) are stored"""
+
+    def get_run_entity(self, entity: str) -> str:
+        """Gets path in run_dir where `entity` (ie. `sources`, `destinations` etc.) are stored"""
+
+    def get_setting(self, setting_path: str) -> str:
+        """Gets path in settings_dir where setting (ie. `secrets.toml`) are stored"""
+
 
 class PluggableRunContext(ContainerInjectableContext):
     """Injectable run context taken via plugin"""
