@@ -15,7 +15,11 @@ from dlt.destinations.impl.postgres.configuration import (
     PostgresCredentials,
 )
 from dlt.destinations.impl.postgres.postgres import PostgresClient
-from dlt.destinations.impl.postgres.postgres_adapter import postgres_adapter
+from dlt.destinations.impl.postgres.postgres_adapter import (
+    postgres_adapter,
+    SRID_HINT,
+    GEOMETRY_HINT,
+)
 from tests.cases import (
     TABLE_UPDATE,
     TABLE_UPDATE_ALL_INT_PRECISIONS,
@@ -202,16 +206,24 @@ def test_adapter_geometry_hint_config(
 
     assert some_data.columns["content"] == {"name": "content", "data_type": "text"}  # type: ignore[index]
 
-    postgres_adapter(
-        some_data,
-        geometry=["content"],
-        srid=2312
-    )
+    # Default SRID.
+    postgres_adapter(some_data, geometry=["content"])
 
     assert some_data.columns["content"] == {  # type: ignore
         "name": "content",
         "data_type": "text",
-        "x-postgres-geometry": True,
+        GEOMETRY_HINT: True,
+        SRID_HINT: 4326,
+    }
+
+    # Nonstandard SRID.
+    postgres_adapter(some_data, geometry="content", srid=8232)
+
+    assert some_data.columns["content"] == {  # type: ignore
+        "name": "content",
+        "data_type": "text",
+        GEOMETRY_HINT: True,
+        SRID_HINT: 8232,
     }
 
 
@@ -225,7 +237,7 @@ def test_geometry_types(
 ) -> None:
     @dlt.resource
     def geodata() -> Generator[Mapping[str, object], Any, None]:
-        yield from generate_sample_geometry_records()
+        yield from generate_sample_geometry_records(srid=10000)
 
     postgres_adapter(geodata, geometry=["wkt", "wkb_binary", "wkb_hex_str"])
 
