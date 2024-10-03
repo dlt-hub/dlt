@@ -19,6 +19,7 @@ from .helpers import (
     SqlTableResourceConfiguration,
     _detect_precision_hints_deprecated,
     TQueryAdapter,
+    TEngineAdapter,
 )
 from .schema_types import (
     default_table_adapter,
@@ -45,6 +46,7 @@ def sql_database(
     include_views: bool = False,
     type_adapter_callback: Optional[TTypeAdapter] = None,
     query_adapter_callback: Optional[TQueryAdapter] = None,
+    engine_adapter_callback: Optional[TEngineAdapter] = None,
 ) -> Iterable[DltResource]:
     """
     A dlt source which loads data from an SQL database using SQLAlchemy.
@@ -90,8 +92,12 @@ def sql_database(
     # set up alchemy engine
     engine = engine_from_credentials(credentials)
     engine.execution_options(stream_results=True, max_row_buffer=2 * chunk_size)
-    metadata = metadata or MetaData(schema=schema)
 
+    if engine_adapter_callback:
+        engine_adapter_callback(engine)
+
+    metadata = metadata or MetaData(schema=schema)
+    
     # use provided tables or all tables
     if table_names:
         tables = [
@@ -138,6 +144,7 @@ def sql_table(
     type_adapter_callback: Optional[TTypeAdapter] = None,
     included_columns: Optional[List[str]] = None,
     query_adapter_callback: Optional[TQueryAdapter] = None,
+    engine_adapter_callback: Optional[TEngineAdapter] = None,
 ) -> DltResource:
     """
     A dlt resource which loads data from an SQL database table using SQLAlchemy.
@@ -182,6 +189,10 @@ def sql_table(
 
     engine = engine_from_credentials(credentials, may_dispose_after_use=True)
     engine.execution_options(stream_results=True, max_row_buffer=2 * chunk_size)
+
+    if engine_adapter_callback:
+        engine_adapter_callback(engine)
+    
     metadata = metadata or MetaData(schema=schema)
 
     table_obj = metadata.tables.get("table") or Table(

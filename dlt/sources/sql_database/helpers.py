@@ -37,6 +37,7 @@ from dlt.common.libs.sql_alchemy import Engine, CompileError, create_engine
 
 TableBackend = Literal["sqlalchemy", "pyarrow", "pandas", "connectorx"]
 TQueryAdapter = Callable[[SelectAny, Table], SelectAny]
+TEngineAdapter = Callable[[Engine], Engine]
 
 
 class TableLoader:
