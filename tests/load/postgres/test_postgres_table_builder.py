@@ -1,5 +1,5 @@
 from copy import deepcopy
-from typing import Generator, Any
+from typing import Generator, Any, Mapping
 
 import pytest
 import sqlfluff
@@ -20,6 +20,7 @@ from tests.cases import (
     TABLE_UPDATE,
     TABLE_UPDATE_ALL_INT_PRECISIONS,
 )
+from tests.load.postgres.utils import generate_sample_geometry_records
 from tests.load.utils import destinations_configs, DestinationTestConfiguration, sequence_generator
 from tests.utils import assert_load_info
 
@@ -204,6 +205,7 @@ def test_adapter_geometry_hint_config(
     postgres_adapter(
         some_data,
         geometry=["content"],
+        srid=2312
     )
 
     assert some_data.columns["content"] == {  # type: ignore
@@ -218,10 +220,33 @@ def test_adapter_geometry_hint_config(
     destinations_configs(default_sql_configs=True, subset=["postgres"]),
     ids=lambda x: x.name,
 )
-def test_adapter_geometry_hint(
+def test_geometry_types(
     destination_config: DestinationTestConfiguration,
 ) -> None:
-    raise NotImplementedError
+    @dlt.resource
+    def geodata() -> Generator[Mapping[str, object], Any, None]:
+        yield from generate_sample_geometry_records()
+
+    postgres_adapter(geodata, geometry=["wkt", "wkb_binary", "wkb_hex_str"])
+
+    pipeline = destination_config.setup_pipeline("test_geometry_types", dev_mode=True)
+    info = pipeline.run(
+        geodata(),
+    )
+    assert_load_info(info)
+
+    with pipeline.sql_client() as c:
+        fqtn = c.make_qualified_table_name("geodata", escape=False)
+        with c.execute_query(f"""
+            SELECT f_geometry_column
+            FROM geometry_columns
+            WHERE f_table_name = '{fqtn}';
+            """) as cur:
+            records = cur.fetchall()
+            assert records
+            assert {record[0] for record in records} == {"wkt", "wkb_binary", "wkb_hex_str"}
+
+    # TODO: assert is serialized correctly back to client
 
 
 @pytest.mark.parametrize(
@@ -229,9 +254,10 @@ def test_adapter_geometry_hint(
     destinations_configs(default_sql_configs=True, subset=["postgres"]),
     ids=lambda x: x.name,
 )
-def test_read_from_geopandas_with_geodata_type(
+def test_read_from_geopandas_with_native_geodata_type(
     destination_config: DestinationTestConfiguration,
 ) -> None:
+    """Test geopandas geo columns are automatically identified as such and cast to postgis geotype."""
     import geopandas as gpd  # type: ignore
 
     pipeline = destination_config.setup_pipeline("geodata_pandas_pipeline", dev_mode=True)
@@ -248,6 +274,6 @@ def test_read_from_geopandas_with_geodata_type(
             FROM geometry_columns
             WHERE f_table_name = '{fqtn_geodata_pandas}' AND f_geometry_column = 'geometry';
             """) as cur:
-            geom_info = cur.fetchone()
-            assert geom_info
-            assert geom_info[0] == "geometry"
+            records = cur.fetchone()
+            assert records
+            assert records[0] == "geometry"

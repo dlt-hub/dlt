@@ -5,6 +5,7 @@ from dlt.destinations.utils import get_resource_for_adapter
 from dlt.extract import DltResource
 
 GEOMETRY_HINT = "x-postgres-geometry"
+SRID = "x-postgres-srid"
 
 
 def postgres_adapter(
