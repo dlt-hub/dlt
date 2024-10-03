@@ -66,7 +66,7 @@ In essence, you need to set up two destinations and then pass them to `dlt.pipel
 
     Please follow our guide in the [redshift destination documentation](destinations/redshift.md). In your `secrets.toml`, you added:
     ```toml
-    # keep it at the top of your toml file! before any section starts
+    # Keep it at the top of your TOML file, before any section starts
     destination.redshift.credentials="redshift://loader:<password>@localhost/dlt_data?connect_timeout=15"
     ```
 

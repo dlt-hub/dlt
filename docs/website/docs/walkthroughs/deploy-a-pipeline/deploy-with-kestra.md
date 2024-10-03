@@ -8,9 +8,9 @@ keywords: [how to, deploy a pipeline, Kestra]
 
 ## Introduction to Kestra
 
-[Kestra](https://kestra.io/docs) is an open-source, scalable orchestration platform that enables
-engineers to manage business-critical workflows declaratively in code. By applying 
-infrastructure as code best practices to data, process, and microservice orchestration, you
+[Kestra](https://kestra.io/docs) is an open-source, scalable orchestration platform that enables
+engineers to manage business-critical workflows declaratively in code. By applying
+infrastructure as code best practices to data, process, and microservice orchestration, you
 can build and manage reliable workflows.
 
 Kestra facilitates reliable workflow management, offering advanced settings for resiliency,
@@ -30,21 +30,21 @@ Kestra provides a robust orchestration engine with features including:
 
 To know more, please refer to [Kestra's documentation.](https://kestra.io/docs)
 
-## Building Data Pipelines with `dlt`
+## Building data pipelines with `dlt`
 
 **`dlt`** is an open-source Python library that allows you to declaratively load data sources
 into well-structured tables or datasets. It does this through automatic schema inference and evolution.
-The library simplifies building data pipeline by providing functionality to support the entire extract 
+The library simplifies building data pipelines by providing functionality to support the entire extract 
 and load process.
 
 ### How does `dlt` integrate with Kestra for pipeline orchestration?
 
 To illustrate setting up a pipeline in Kestra, we’ll be using the following example: 
-[From Inbox to Insights AI-Enhanced Email Analysis with dlt and Kestra.](https://kestra.io/blogs/2023-12-04-dlt-kestra-usage)
+[From Inbox to Insights: AI-Enhanced Email Analysis with dlt and Kestra.](https://kestra.io/blogs/2023-12-04-dlt-kestra-usage)
 
 The example demonstrates automating a workflow to load data from Gmail to BigQuery using the `dlt`,
 complemented by AI-driven summarization and sentiment analysis. You can refer to the project's
-github repo by clicking [here.](https://github.com/dlt-hub/dlt-kestra-demo)
+GitHub repo by clicking [here.](https://github.com/dlt-hub/dlt-kestra-demo)
 
 :::info 
 For the detailed guide, please take a look at the project's [README](https://github.com/dlt-hub/dlt-kestra-demo/blob/main/README.md) section. 
@@ -54,21 +54,21 @@ Here is the summary of the steps:
 
 1. Start by creating a virtual environment.
 
-1. Generate an `.env` File: Inside your project repository, create an `.env` file to store
+2. Generate an `.env` file: Inside your project repository, create an `.env` file to store
    credentials in "base64" format, prefixed with 'SECRET\_' for compatibility with Kestra's `secret()`
    function.
 
-1. As per Kestra’s recommendation, install the docker desktop on your machine.
+3. As per Kestra’s recommendation, install Docker Desktop on your machine.
 
-1. Ensure Docker is running, then download the Docker compose file with:
+4. Ensure Docker is running, then download the Docker Compose file with:
 
    ```sh
     curl -o docker-compose.yml \
     https://raw.githubusercontent.com/kestra-io/kestra/develop/docker-compose.yml
    ```
 
-1. Configure Docker compose file: 
-   Edit the downloaded Docker compose file to link the `.env` file for environment 
+5. Configure Docker Compose file: 
+   Edit the downloaded Docker Compose file to link the `.env` file for environment 
    variables.
 
    ```yaml
@@ -78,24 +78,24 @@ Here is the summary of the steps:
            - .env
    ```
 
-1. Enable Auto-Restart: In your `docker-compose.yml`, set `restart: always` for both postgres and
-   kestra services to ensure they reboot automatically after a system restart.
+6. Enable auto-restart: In your `docker-compose.yml`, set `restart: always` for both PostgreSQL and
+   Kestra services to ensure they reboot automatically after a system restart.
 
-1. Launch Kestra Server: Execute `docker compose up -d` to start the server.
+7. Launch Kestra server: Execute `docker compose up -d` to start the server.
 
-1. Access Kestra UI: Navigate to `http://localhost:8080/` to use the Kestra user interface.
+8. Access Kestra UI: Navigate to `http://localhost:8080/` to use the Kestra user interface.
 
-1. Create and Configure Flows:
+9. Create and configure flows:
 
    - Go to 'Flows', then 'Create'.
    - Configure the flow files in the editor.
    - Save your flows.
 
-1. **Understand Flow Components**:
+10. **Understand flow components**:
 
-   - Each flow must have an `id`, `namespace`, and a list of `tasks` with their respective `id` and
-     `type`.
-   - The main flow orchestrates tasks like loading data from a source to a destination.
+    - Each flow must have an `id`, `namespace`, and a list of `tasks` with their respective `id` and
+      `type`.
+    - The main flow orchestrates tasks like loading data from a source to a destination.
 
 By following these steps, you establish a structured workflow within Kestra, leveraging its powerful
 features for efficient data pipeline orchestration.
@@ -105,7 +105,7 @@ For detailed information on these steps, please consult the `README.md` in the
 [dlt-kestra-demo](https://github.com/dlt-hub/dlt-kestra-demo/blob/main/README.md) repo.
 :::
 
-### Additional Resources
+### Additional resources
 
 - Ingest Zendesk data into Weaviate using `dlt` with Kestra:
   [here](https://kestra.io/blueprints/148-ingest-zendesk-data-into-weaviate-using-dlt).
