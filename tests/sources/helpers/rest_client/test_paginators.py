@@ -380,6 +380,35 @@ class TestPageNumberPaginator:
         paginator.update_state(response, data=NON_EMPTY_PAGE)
         assert paginator.has_next_page is False
 
+
+    def test_init_request(self):
+        paginator = PageNumberPaginator(base_page=1, total_path=None)
+        request = Mock(Request)
+        request.params = {}
+        response = Mock(Response, json=lambda: "OK")
+
+        assert paginator.current_value == 1
+        assert paginator.has_next_page is True
+        paginator.init_request(request)
+
+        paginator.update_state(response, data=NON_EMPTY_PAGE)
+        paginator.update_request(request)
+
+        assert paginator.current_value == 2
+        assert paginator.has_next_page is True
+        assert request.params["page"] == 2
+
+        paginator.update_state(response, data=None)
+        paginator.update_request(request)
+
+        assert paginator.current_value == 2
+        assert paginator.has_next_page is False
+
+        paginator.init_request(request)
+        assert paginator.current_value == 1
+        assert paginator.has_next_page is True
+
+
     def test_update_state_with_string_total_pages(self):
         paginator = PageNumberPaginator(base_page=1, page=1)
         response = Mock(Response, json=lambda: {"total": "3"})
