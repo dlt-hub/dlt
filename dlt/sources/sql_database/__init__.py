@@ -12,7 +12,6 @@ from .helpers import (
     table_rows,
     engine_from_credentials,
     TableBackend,
-    SqlDatabaseTableConfiguration,
     SqlTableResourceConfiguration,
     _detect_precision_hints_deprecated,
     TQueryAdapter,

@@ -296,12 +296,6 @@ def _detect_precision_hints_deprecated(value: Optional[bool]) -> None:
 
 
 @configspec
-class SqlDatabaseTableConfiguration(BaseConfiguration):
-    incremental: Optional[Incremental] = None  # type: ignore[type-arg]
-    included_columns: Optional[List[str]] = None
-
-
-@configspec
 class SqlTableResourceConfiguration(BaseConfiguration):
     credentials: Union[ConnectionStringCredentials, Engine, str] = None
     table: str = None

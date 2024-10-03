@@ -30,7 +30,7 @@ IGNORE_CORE_SOURCES = [
 PIPELINE_FILE_SUFFIX = "_pipeline.py"
 
 # hardcode default template files here
-TEMPLATE_FILES = [".gitignore", ".dlt/config.toml", ".dlt/secrets.toml"]
+TEMPLATE_FILES = [".gitignore", ".dlt/config.toml"]
 DEFAULT_PIPELINE_TEMPLATE = "default_pipeline.py"
 
 
@@ -214,7 +214,7 @@ def get_template_configuration(
         sources_storage,
         source_pipeline_file_name,
         destination_pipeline_file_name,
-        TEMPLATE_FILES,
+        [],
         SourceRequirements([]),
         docstring,
         source_pipeline_file_name == DEFAULT_PIPELINE_TEMPLATE,
@@ -232,7 +232,7 @@ def get_core_source_configuration(
         sources_storage,
         pipeline_file,
         pipeline_file,
-        [".gitignore"],
+        [],
         SourceRequirements([]),
         _get_docstring_for_module(sources_storage, source_name),
         False,

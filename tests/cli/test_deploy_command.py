@@ -135,11 +135,11 @@ def test_deploy_command(
             test_storage.atomic_rename(".dlt/secrets.toml.ci", ".dlt/secrets.toml")
 
             # reset toml providers to (1) CWD (2) non existing dir so API_KEY is not found
-            for project_dir, api_key in [
+            for settings_dir, api_key in [
                 (None, "api_key_9x3ehash"),
                 (".", "please set me up!"),
             ]:
-                with reset_providers(project_dir=project_dir):
+                with reset_providers(settings_dir=settings_dir):
                     # this time script will run
                     venv.run_script("debug_pipeline.py")
                     with echo.always_choose(False, always_choose_value=True):

@@ -17,25 +17,26 @@ from dlt.common.pipeline import get_dlt_repos_dir
 from dlt.version import DLT_PKG_NAME, __version__
 from dlt.common.destination import Destination
 from dlt.common.reflection.utils import rewrite_python_script
+from dlt.common.runtime import run_context
 from dlt.common.schema.utils import is_valid_schema_name
 from dlt.common.schema.exceptions import InvalidSchemaName
 from dlt.common.storages.file_storage import FileStorage
 
-from dlt.sources import SourceReference, pipeline_templates as init_module
+from dlt.sources import SourceReference
 
 import dlt.reflection.names as n
-from dlt.reflection.script_inspector import inspect_pipeline_script, load_script_module
+from dlt.reflection.script_inspector import inspect_pipeline_script
 
 from dlt.cli import echo as fmt, pipeline_files as files_ops, source_detection
 from dlt.cli import utils
 from dlt.cli.config_toml_writer import WritableConfigValue, write_values
 from dlt.cli.pipeline_files import (
+    TEMPLATE_FILES,
     SourceConfiguration,
     TVerifiedSourceFileEntry,
     TVerifiedSourceFileIndex,
 )
 from dlt.cli.exceptions import CliCommandException
-from dlt.cli.requirements import SourceRequirements
 
 
 DLT_INIT_DOCS_URL = "https://dlthub.com/docs/reference/command-line-interface#dlt-init"
@@ -304,6 +305,9 @@ def init_command(
     core_sources_storage = _get_core_sources_storage()
     templates_storage = _get_templates_storage()
 
+    # get current run context
+    run_ctx = run_context.current()
+
     # discover type of source
     source_type: files_ops.TSourceType = "template"
     if (
@@ -320,10 +324,9 @@ def init_command(
             source_type = "verified"
 
     # prepare destination storage
-    dest_storage = FileStorage(os.path.abspath("."))
-    settings_dir = utils.make_dlt_settings_path()
-    if not dest_storage.has_folder(settings_dir):
-        dest_storage.create_folder(settings_dir)
+    dest_storage = FileStorage(run_ctx.run_dir)
+    if not dest_storage.has_folder(run_ctx.settings_dir):
+        dest_storage.create_folder(run_ctx.settings_dir)
     # get local index of verified source files
     local_index = files_ops.load_verified_sources_local_index(source_name)
     # folder deleted at dest - full refresh
@@ -373,8 +376,6 @@ def init_command(
                 f"The verified sources repository is dirty. {source_name} source files may not"
                 " update correctly in the future."
             )
-        # add template files
-        source_configuration.files.extend(files_ops.TEMPLATE_FILES)
 
     else:
         if source_type == "core":
@@ -396,9 +397,9 @@ def init_command(
             return
 
     # add .dlt/*.toml files to be copied
-    source_configuration.files.extend(
-        [utils.make_dlt_settings_path(CONFIG_TOML), utils.make_dlt_settings_path(SECRETS_TOML)]
-    )
+    # source_configuration.files.extend(
+    #     [run_ctx.get_setting(CONFIG_TOML), run_ctx.get_setting(SECRETS_TOML)]
+    # )
 
     # add dlt extras line to requirements
     source_configuration.requirements.update_dlt_extras(destination_type)
@@ -559,23 +560,32 @@ def init_command(
     )
 
     # copy files at the very end
-    for file_name in source_configuration.files:
+    copy_files = []
+    # copy template files
+    for file_name in TEMPLATE_FILES:
         dest_path = dest_storage.make_full_path(file_name)
-        # get files from init section first
         if templates_storage.has_file(file_name):
             if dest_storage.has_file(dest_path):
                 # do not overwrite any init files
                 continue
-            src_path = templates_storage.make_full_path(file_name)
-        else:
-            # only those that were modified should be copied from verified sources
-            if file_name in remote_modified:
-                src_path = source_configuration.storage.make_full_path(file_name)
-            else:
-                continue
+            copy_files.append((templates_storage.make_full_path(file_name), dest_path))
+
+    # only those that were modified should be copied from verified sources
+    for file_name in remote_modified:
+        copy_files.append(
+            (
+                source_configuration.storage.make_full_path(file_name),
+                # copy into where "sources" reside in run context, being root dir by default
+                dest_storage.make_full_path(
+                    os.path.join(run_ctx.get_run_entity("sources"), file_name)
+                ),
+            )
+        )
+
+    # modify storage at the end
+    for src_path, dest_path in copy_files:
         os.makedirs(os.path.dirname(dest_path), exist_ok=True)
         shutil.copy2(src_path, dest_path)
-
     if remote_index:
         # delete files
         for file_name in remote_deleted:
@@ -589,15 +599,11 @@ def init_command(
         dest_storage.save(source_configuration.dest_pipeline_script, dest_script_source)
 
     # generate tomls with comments
-    secrets_prov = SecretsTomlProvider()
-    secrets_toml = tomlkit.document()
-    write_values(secrets_toml, required_secrets.values(), overwrite_existing=False)
-    secrets_prov._config_doc = secrets_toml
+    secrets_prov = SecretsTomlProvider(settings_dir=run_ctx.settings_dir)
+    write_values(secrets_prov._config_toml, required_secrets.values(), overwrite_existing=False)
 
-    config_prov = ConfigTomlProvider()
-    config_toml = tomlkit.document()
-    write_values(config_toml, required_config.values(), overwrite_existing=False)
-    config_prov._config_doc = config_toml
+    config_prov = ConfigTomlProvider(settings_dir=run_ctx.settings_dir)
+    write_values(config_prov._config_toml, required_config.values(), overwrite_existing=False)
 
     # write toml files
     secrets_prov.write_toml()

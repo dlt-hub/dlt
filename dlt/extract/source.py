@@ -10,7 +10,10 @@ from typing import Dict, Type, ClassVar
 from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.specs import BaseConfiguration, known_sections
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
-from dlt.common.configuration.specs.run_context import PluggableRunContext, SupportsRunContext
+from dlt.common.configuration.specs.pluggable_run_context import (
+    PluggableRunContext,
+    SupportsRunContext,
+)
 from dlt.common.normalizers.json.relational import DataItemNormalizer as RelationalNormalizer
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TColumnName, TSchemaContract

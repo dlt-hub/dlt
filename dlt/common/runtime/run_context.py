@@ -5,7 +5,10 @@ from typing import ClassVar
 from dlt.common import known_env
 from dlt.common.configuration import plugins
 from dlt.common.configuration.container import Container
-from dlt.common.configuration.specs.run_context import SupportsRunContext, PluggableRunContext
+from dlt.common.configuration.specs.pluggable_run_context import (
+    SupportsRunContext,
+    PluggableRunContext,
+)
 
 # dlt settings folder
 DOT_DLT = os.environ.get(known_env.DLT_CONFIG_FOLDER, ".dlt")
@@ -56,6 +59,16 @@ class RunContext(SupportsRunContext):
         else:
             # if home directory is available use ~/.dlt/pipelines
             return os.path.join(home, DOT_DLT)
+
+    def get_data_entity(self, entity: str) -> str:
+        return os.path.join(self.data_dir, entity)
+
+    def get_run_entity(self, entity: str) -> str:
+        """Default run context assumes that entities are defined in root dir"""
+        return self.run_dir
+
+    def get_setting(self, setting_path: str) -> str:
+        return os.path.join(self.settings_dir, setting_path)
 
     @property
     def name(self) -> str:

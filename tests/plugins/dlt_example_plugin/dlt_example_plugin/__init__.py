@@ -2,7 +2,7 @@ import os
 from typing import ClassVar
 
 from dlt.common.configuration import plugins
-from dlt.common.configuration.specs.run_context import SupportsRunContext
+from dlt.common.configuration.specs.pluggable_run_context import SupportsRunContext
 from dlt.common.runtime.run_context import RunContext, DOT_DLT
 
 from tests.utils import TEST_STORAGE_ROOT
