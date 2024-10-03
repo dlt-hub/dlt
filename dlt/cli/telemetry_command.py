@@ -30,19 +30,17 @@ def change_telemetry_status_command(enabled: bool) -> None:
     # write local config
     # TODO: use designated (main) config provider (for non secret values) ie. taken from run context
     config = ConfigTomlProvider(add_global_config=False)
-    config_toml = tomlkit.document()
     if not config.is_empty:
-        write_values(config_toml, telemetry_value, overwrite_existing=True)
-        config._config_doc = config_toml
+        write_values(config._config_toml, telemetry_value, overwrite_existing=True)
         config.write_toml()
 
     # write global config
-    global_path = ConfigTomlProvider.global_config_path()
+    from dlt.common.runtime import run_context
+
+    global_path = run_context.current().global_dir
     os.makedirs(global_path, exist_ok=True)
-    config = ConfigTomlProvider(project_dir=global_path, add_global_config=False)
-    config_toml = tomlkit.document()
-    write_values(config_toml, telemetry_value, overwrite_existing=True)
-    config._config_doc = config_toml
+    config = ConfigTomlProvider(settings_dir=global_path, add_global_config=False)
+    write_values(config._config_toml, telemetry_value, overwrite_existing=True)
     config.write_toml()
 
     if enabled:
