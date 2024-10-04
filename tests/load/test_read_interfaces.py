@@ -208,6 +208,10 @@ def _run_dataset_checks(
     assert list(table[5]) == [5, 10]
     assert list(table[10]) == [10, 20]
 
+    # check loads table access
+    loads_table = pipeline._dataset()[pipeline.default_schema.loads_table_name]
+    loads_table.fetchall()
+
     # special filesystem sql checks
     if destination_config.destination_type == "filesystem":
         import duckdb
@@ -251,7 +255,9 @@ def _run_dataset_checks(
             credentials=DuckDbCredentials(external_db),
         )
         with fs_sql_client as sql_client:
-            sql_client.create_views_for_tables({"items": "referenced_items"})
+            sql_client.create_views_for_tables(
+                {"items": "referenced_items", "_dlt_loads": "_dlt_loads"}
+            )
         # the line below solves problems with certificate path lookup on linux
         # see duckdb docs
         external_db.sql("SET azure_transport_option_type = 'curl';")

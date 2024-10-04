@@ -216,6 +216,10 @@ class FilesystemSqlClient(DuckDbSqlClient):
                 else ", compression = 'gzip'"
             )
 
+            # dlt tables are never compressed for now...
+            if table_name in self.fs_client.schema.dlt_table_names():
+                compression = ""
+
             # create from statement
             from_statement = ""
             if schema_table.get("table_format") == "delta":
