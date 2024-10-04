@@ -6,6 +6,7 @@ import asyncio
 
 import dlt, os
 from dlt.common.configuration.container import Container
+from dlt.common.configuration.specs import BaseConfiguration
 from dlt.common.exceptions import DictValidationException, PipelineStateNotAvailable
 from dlt.common.pipeline import StateInjectableContext, source_state
 from dlt.common.schema import Schema
@@ -1102,6 +1103,21 @@ def test_clone_resource_on_bind():
     assert bound_pipe is pipe is multiplier
     assert bound_pipe._pipe is pipe._pipe
     assert bound_pipe._pipe.parent is pipe._pipe.parent
+
+
+@dlt.resource(selected=False)
+def number_gen_ext(max_r=3):
+    yield from range(1, max_r)
+
+
+def test_clone_resource_with_rename():
+    assert number_gen_ext.SPEC is not BaseConfiguration
+    gene_r = number_gen_ext.with_name("gene")
+    assert number_gen_ext.name == "number_gen_ext"
+    assert gene_r.name == "gene"
+    assert number_gen_ext.section == gene_r.section
+    assert gene_r.SPEC is number_gen_ext.SPEC
+    assert gene_r.selected == number_gen_ext.selected is False
 
 
 def test_source_multiple_iterations() -> None:

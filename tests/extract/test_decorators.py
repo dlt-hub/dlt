@@ -1001,8 +1001,16 @@ def test_standalone_resource() -> None:
     assert list(standalone_signature(1)) == [1, 2, 3, 4]
 
 
-@pytest.mark.parametrize("ref", ("standalone_signature", "regular_signature"))
-def test_reference_registered_resource(ref: str) -> None:
+@pytest.mark.parametrize("res", (standalone_signature, regular_signature))
+def test_reference_registered_resource(res: DltResource) -> None:
+    if isinstance(res, DltResource):
+        ref = res(1, 2).name
+        # find reference
+        res_ref = SourceReference.find(f"test_decorators.{ref}")
+        assert res_ref.SPEC is res.SPEC
+    else:
+        ref = res.__name__
+    # create source with single res.
     factory = SourceReference.from_reference(f"test_decorators.{ref}")
     # pass explicit config
     source = factory(init=1, secret_end=3)

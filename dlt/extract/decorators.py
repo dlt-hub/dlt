@@ -109,6 +109,7 @@ class DltSourceFactoryWrapper(SourceFactory[TSourceFunParams, TDltSourceImpl]):
         `section` (which corresponds to module name) and `name` (which corresponds to source function name).
         """
         self._f: AnyFun = None
+        self._ref: SourceReference = None
         self._deco_f: Callable[..., TDltSourceImpl] = None
 
         self.name: str = None
@@ -196,7 +197,8 @@ class DltSourceFactoryWrapper(SourceFactory[TSourceFunParams, TDltSourceImpl]):
     def bind(self, f: AnyFun) -> Self:
         """Binds wrapper to the original source function and registers the source reference. This method is called only once by the decorator"""
         self._f = f
-        SourceReference.register(self.wrap())
+        self._ref = self.wrap()
+        SourceReference.register(self._ref)
         return self
 
     def wrap(self) -> SourceReference:
@@ -723,15 +725,16 @@ def resource(
                 .with_args(
                     name=resource_name,
                     section=source_section,
-                    spec=SPEC,
+                    spec=BaseConfiguration,
                     _impl_cls=_DltSingleSource,
                 )
                 .bind(_source)
             )
             # remove name and section overrides from the wrapper so resource is not unnecessarily renamed
-            factory.spec = BaseConfiguration  # do not inject anything to the helper
             factory.name = None
             factory.section = None
+            # mod the reference to keep the right spec
+            factory._ref.SPEC = SPEC
 
         return wrap_standalone(resource_name, source_section, f)
 
