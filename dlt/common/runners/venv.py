@@ -120,6 +120,7 @@ class Venv:
     @staticmethod
     def _install_deps(context: types.SimpleNamespace, dependencies: List[str]) -> None:
         cmd = [context.env_exe, "-Im", "pip", "install"]
+        # cmd = ["uv", "pip",  "install", "--python", context.env_exe]
         try:
             subprocess.check_output(cmd + dependencies, stderr=subprocess.STDOUT)
         except subprocess.CalledProcessError as exc:
