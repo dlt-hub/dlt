@@ -1720,5 +1720,7 @@ class Pipeline(SupportsPipeline):
     def _dataset(self, dataset_type: Literal["dbapi", "ibis"] = "dbapi") -> SupportsReadableDataset:
         """Access helper to dataset"""
         if dataset_type == "dbapi":
-            return ReadableDBAPIDataset(self.sql_client(), schema=self.default_schema)
+            return ReadableDBAPIDataset(
+                self.sql_client(), schema=self.default_schema if self.default_schema_name else None
+            )
         raise NotImplementedError(f"Dataset of type {dataset_type} not implemented")

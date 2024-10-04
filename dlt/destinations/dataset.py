@@ -1,4 +1,4 @@
-from typing import Any, Generator, AnyStr
+from typing import Any, Generator, AnyStr, Optional
 
 from contextlib import contextmanager
 from dlt.common.destination.reference import (
@@ -71,7 +71,7 @@ class ReadableDBAPIRelation(SupportsReadableRelation):
 class ReadableDBAPIDataset(SupportsReadableDataset):
     """Access to dataframes and arrowtables in the destination dataset via dbapi"""
 
-    def __init__(self, client: SqlClientBase[Any], schema: Schema) -> None:
+    def __init__(self, client: SqlClientBase[Any], schema: Optional[Schema]) -> None:
         self.client = client
         self.schema = schema
 
@@ -83,7 +83,9 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
 
     def table(self, table_name: str) -> SupportsReadableRelation:
         # prepare query for table relation
-        schema_columns = self.schema.tables.get(table_name, {}).get("columns", {})
+        schema_columns = (
+            self.schema.tables.get(table_name, {}).get("columns", {}) if self.schema else {}
+        )
         table_name = self.client.make_qualified_table_name(table_name)
         query = f"SELECT * FROM {table_name}"
         return self(query, schema_columns)
