@@ -380,7 +380,6 @@ class TestPageNumberPaginator:
         paginator.update_state(response, data=NON_EMPTY_PAGE)
         assert paginator.has_next_page is False
 
-
     def test_init_request(self):
         paginator = PageNumberPaginator(base_page=1, total_path=None)
         request = Mock(Request)
@@ -407,7 +406,6 @@ class TestPageNumberPaginator:
         paginator.init_request(request)
         assert paginator.current_value == 1
         assert paginator.has_next_page is True
-
 
     def test_update_state_with_string_total_pages(self):
         paginator = PageNumberPaginator(base_page=1, page=1)
