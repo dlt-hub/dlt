@@ -12,6 +12,7 @@ import requests
 from requests import Response
 
 import dlt
+from dlt.common import known_env
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.providers import (
     DictionaryProvider,
@@ -180,15 +181,15 @@ class MockableRunContext(RunContext):
 
     @property
     def run_dir(self) -> str:
-        return self._run_dir
+        return os.environ.get(known_env.DLT_PROJECT_DIR, self._run_dir)
 
-    @property
-    def settings_dir(self) -> str:
-        return self._settings_dir
+    # @property
+    # def settings_dir(self) -> str:
+    #     return self._settings_dir
 
     @property
     def data_dir(self) -> str:
-        return self._data_dir
+        return os.environ.get(known_env.DLT_DATA_DIR, self._data_dir)
 
     _name: str
     _global_dir: str

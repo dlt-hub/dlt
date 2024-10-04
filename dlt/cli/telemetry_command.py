@@ -48,6 +48,5 @@ def change_telemetry_status_command(enabled: bool) -> None:
     else:
         fmt.echo("Telemetry switched %s" % fmt.bold("OFF"))
     # reload config providers
-    # TODO: improve providers registration so all registered providers are inserted below
-    ctx = Container()[ConfigProvidersContext]
-    ctx.providers = ConfigProvidersContext.initial_providers()
+    if ConfigProvidersContext in Container():
+        del Container()[ConfigProvidersContext]
