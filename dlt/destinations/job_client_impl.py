@@ -197,8 +197,11 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
             delete_schema: If True, also delete all versions of the current schema from storage
         """
         with self.maybe_ddl_transaction():
-            self.sql_client.drop_tables(*tables)
-            if delete_schema:
+            # only run drop command on existing tables
+            existing_tables = self.get_known_existing_storage_tables()
+            tables_to_drop = set(existing_tables).intersection(set(tables))
+            self.sql_client.drop_tables(*tables_to_drop)
+            if delete_schema and (self.schema.version_table_name in existing_tables):
                 self._delete_schema_in_storage(self.schema)
 
     @contextlib.contextmanager
@@ -377,6 +380,12 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
         """
         storage_table = list(self.get_storage_tables([table_name]))[0]
         return len(storage_table[1]) > 0, storage_table[1]
+
+    def get_known_existing_storage_tables(self) -> List[str]:
+        """Returns all tables known in dlt schema and found in destination"""
+        tables = self.get_storage_tables(self.schema.tables.keys())
+        existing_tables = [t[0] for t in tables if len(t[1]) > 0]
+        return existing_tables
 
     @abstractmethod
     def _from_db_type(
