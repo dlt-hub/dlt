@@ -438,11 +438,10 @@ The available authentication methods are defined in the `dlt.sources.helpers.res
 - [BearerTokenAuth](#bearer-token-authentication)
 - [APIKeyAuth](#api-key-authentication)
 - [HttpBasicAuth](#http-basic-authentication)
-- [OAuth2ClientCredentials](#oauth20-authorization)
+- [OAuth2ClientCredentials](#oauth-20-authorization)
 
-For specific use cases, you can [implement custom authentication](#implementing-custom-authentication) by subclassing the `AuthBase` class from the Requests library.
-For specific flavors of OAuth 2.0, you can [implement custom OAuth 2.0](#oauth2-authorization)
-by subclassing `OAuth2ClientCredentials`.
+For specific use cases, you can [implement custom authentication](#implementing-custom-authentication) by subclassing the `AuthConfigBase` class from the `dlt.sources.helpers.rest_client.auth` module.
+For specific flavors of OAuth 2.0, you can [implement custom OAuth 2.0](#oauth-20-authorization) by subclassing `OAuth2ClientCredentials`.
 
 ### Bearer token authentication
 
@@ -565,12 +564,12 @@ response = client.get("/users")
 
 ### Implementing custom authentication
 
-You can implement custom authentication by subclassing the `AuthBase` class and implementing the `__call__` method:
+You can implement custom authentication by subclassing the `AuthConfigBase` class and implementing the `__call__` method:
 
 ```py
-from requests.auth import AuthBase
+from dlt.sources.helpers.rest_client.auth import AuthConfigBase
 
-class CustomAuth(AuthBase):
+class CustomAuth(AuthConfigBase):
     def __init__(self, token):
         self.token = token
 
