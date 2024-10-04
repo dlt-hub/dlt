@@ -192,9 +192,10 @@ def sql_table(
     skip_nested_on_minimal = backend == "sqlalchemy"
     # Table object is only created when reflecting, we don't want empty tables in metadata
     # as it breaks foreign key resolution
-    table_obj: Optional[Table] = metadata.tables.get(table) or (
-        Table(table, metadata, autoload_with=engine) if not defer_table_reflect else None
-    )
+    table_obj = metadata.tables.get(table)
+    if table_obj is None and not defer_table_reflect:
+        table_obj = Table(table, metadata, autoload_with=engine)
+
     if table_obj is not None:
         if not defer_table_reflect:
             default_table_adapter(table_obj, included_columns)
