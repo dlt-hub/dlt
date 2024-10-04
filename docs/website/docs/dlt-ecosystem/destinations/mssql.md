@@ -64,7 +64,7 @@ LongAsMax="yes"
 
 You can also pass a SQLAlchemy-like database connection:
 ```toml
-# keep it at the top of your toml file! before any section starts
+# Keep it at the top of your TOML file, before any section starts
 destination.mssql.credentials="mssql://loader:<password>@loader.database.windows.net/dlt_data?TrustServerCertificate=yes&Encrypt=yes&LongAsMax=yes"
 ```
 
@@ -145,7 +145,7 @@ driver="ODBC Driver 18 for SQL Server"
 When using a SQLAlchemy connection string, replace spaces with `+`:
 
 ```toml
-# keep it at the top of your toml file! before any section starts
+# Keep it at the top of your TOML file, before any section starts
 destination.mssql.credentials="mssql://loader:<password>@loader.database.windows.net/dlt_data?driver=ODBC+Driver+18+for+SQL+Server"
 ```
 

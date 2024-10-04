@@ -237,7 +237,7 @@ The TOML provider also has the capability to read files from `~/.dlt/` (located 
 ### Structure
 
 `dlt` organizes sections in TOML files in a specific structure required by the [injection mechanism](advanced/#injection-mechanism).
-Understanding this structure gives you more flexibility in setting credentials. For more details, see [Toml files structure](advanced/#toml-files-structure).
+Understanding this structure gives you more flexibility in setting credentials. For more details, see [TOML files structure](advanced/#toml-files-structure).
 
 ## Custom providers
 
@@ -246,18 +246,18 @@ as a supplier of `config` and `secret` values. The code below demonstrates how t
 
 ```py
 import dlt
-
 from dlt.common.configuration.providers import CustomLoaderDocProvider
 
-# create a function that loads a dict
+# Create a function that loads a dict
 def load_config():
-   with open("config.json", "rb") as f:
-      config_dict = json.load(f)
+    with open("config.json", "rb") as f:
+        return json.load(f)
 
-# create the custom provider
+
+# Create the custom provider
 provider = CustomLoaderDocProvider("my_json_provider", load_config)
 
-# register provider
+# Register provider
 dlt.config.register_provider(provider)
 ```
 

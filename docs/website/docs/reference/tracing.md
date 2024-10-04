@@ -1,6 +1,6 @@
 1. Identifiers
 
-2. Data Lineage
+2. Data lineage
 
-3. Schema Lineage
+3. Schema lineage
 
