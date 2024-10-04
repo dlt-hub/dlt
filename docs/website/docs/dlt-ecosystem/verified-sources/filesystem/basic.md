@@ -1,14 +1,14 @@
 ---
 title: Filesystem source
 description: Learn how to set up and configure
-keywords: [readers source and filesystem, files, filesystem, readers source, cloud storage]
+keywords: [readers source and filesystem, files, filesystem, readers source, cloud storage, object storage, local file system]
 ---
 import Header from '../_source-info-header.md';
 <Header/>
 
-Filesystem source allows loading files from remote locations (AWS S3, Google Cloud Storage, Google Drive, Azure Blob Storage, SFTP server) or the local filesystem seamlessly. Filesystem source natively supports `csv`, `parquet`, and `jsonl` files and allows customization for loading any type of structured files.
+Filesystem source allows loading files from remote locations (AWS S3, Google Cloud Storage, Google Drive, Azure Blob Storage, SFTP server) or the local filesystem seamlessly. Filesystem source natively supports [CSV](../../file-formats/csv.md), [Parquet](../../file-formats/parquet.md), and [JSONL](../../file-formats/jsonl.md) files and allows customization for loading any type of structured files.
 
-To load unstructured data (`.pdf`, `.txt`, e-mail), please refer to the [unstructured data source](https://github.com/dlt-hub/verified-sources/tree/master/sources/unstructured_data).
+To load unstructured data (PDF, plain text, e-mail), please refer to the [unstructured data source](https://github.com/dlt-hub/verified-sources/tree/master/sources/unstructured_data).
 
 ## How filesystem source works
 
@@ -145,11 +145,8 @@ You don't need any credentials for the local filesystem.
 
 ### Add credentials to dlt pipeline
 
-To provide credentials to the filesystem source, you can use [any method available](../../../general-usage/credentials/setup#available-config-providers) in `dlt`.
-One of the easiest ways is to use configuration files. The `.dlt` folder in your working directory
-contains two files: `config.toml` and `secrets.toml`. Sensitive information, like passwords and
-access tokens, should only be put into `secrets.toml`, while any other configuration, like the path to
-a bucket, can be specified in `config.toml`.
+To provide credentials to the filesystem source, you can use [any method available](../../../general-usage/credentials/setup#available-config-providers) in dlt.
+One of the easiest ways is to use configuration files. The `.dlt` folder in your working directory contains two files: `config.toml` and `secrets.toml`. Sensitive information, like passwords and access tokens, should only be put into `secrets.toml`, while any other configuration, like the path to a bucket, can be specified in `config.toml`.
 
 <Tabs
   groupId="filesystem-type"
@@ -252,9 +249,7 @@ bucket_url='~\Documents\csv_files\'
 
 </Tabs>
 
-You can also specify the credentials using environment variables. The name of the corresponding environment
-variable should be slightly different from the corresponding name in the TOML file. Simply replace dots `.` with double
-underscores `__`:
+You can also specify the credentials using environment variables. The name of the corresponding environment variable should be slightly different from the corresponding name in the TOML file. Simply replace dots `.` with double underscores `__`:
 
 ```sh
 export SOURCES__FILESYSTEM__AWS_ACCESS_KEY_ID = "Please set me up!"
@@ -262,16 +257,12 @@ export SOURCES__FILESYSTEM__AWS_SECRET_ACCESS_KEY = "Please set me up!"
 ```
 
 :::tip
-`dlt` supports more ways of authorizing with cloud storage, including identity-based
-and default credentials. To learn more about adding credentials to your pipeline, please refer to the
-[Configuration and secrets section](../../../general-usage/credentials/complex_types#gcp-credentials).
+dlt supports more ways of authorizing with cloud storage, including identity-based and default credentials. To learn more about adding credentials to your pipeline, please refer to the [Configuration and secrets section](../../../general-usage/credentials/complex_types#gcp-credentials).
 :::
 
 ## Usage
 
-The filesystem source is quite unique since it provides you with building blocks for loading data from files.
-First, it iterates over files in the storage and then processes each file to yield the records.
-Usually, you need two resources:
+The filesystem source is quite unique since it provides you with building blocks for loading data from files. First, it iterates over files in the storage and then processes each file to yield the records. Usually, you need two resources:
 
 1. The `filesystem` resource enumerates files in a selected bucket using a glob pattern, returning details as `FileItem` in customizable page sizes.
 2. One of the available transformer resources to process each file in a specific transforming function and yield the records.
@@ -279,8 +270,7 @@ Usually, you need two resources:
 ### 1. Initialize a `filesystem` resource
 
 :::note
-If you use just the `filesystem` resource, it will only list files in the storage based on glob parameters and yield the
-files [metadata](advanced#fileitem-fields). The `filesystem` resource itself does not read or copy files.
+If you use just the `filesystem` resource, it will only list files in the storage based on glob parameters and yield the files [metadata](advanced#fileitem-fields). The `filesystem` resource itself does not read or copy files.
 :::
 
 All parameters of the resource can be specified directly in code:
@@ -319,9 +309,8 @@ Full list of `filesystem` resource parameters:
 
 ### 2. Choose the right transformer resource
 
-The current implementation of the filesystem source natively supports three file types: `csv`, `parquet`, and `jsonl`.
-You can apply any of the above or [create your own transformer](advanced#create-your-own-transformer). To apply the selected transformer
-resource, use pipe notation `|`:
+The current implementation of the filesystem source natively supports three file types: CSV, Parquet, and JSONL.
+You can apply any of the above or [create your own transformer](advanced#create-your-own-transformer). To apply the selected transformer resource, use pipe notation `|`:
 
 ```py
 from dlt.sources.filesystem import filesystem, read_csv
@@ -334,17 +323,13 @@ filesystem_pipe = filesystem(
 
 #### Available transformers
 
-- `read_csv()` - processes `csv` files using `pandas`
-- `read_jsonl()` - processes `jsonl` files chunk by chunk
-- `read_parquet()` - processes `parquet` files using `pyarrow`
-- `read_csv_duckdb()` - this transformer processes `csv` files using DuckDB, which usually shows better performance than `pandas`.
+- `read_csv()` - processes CSV files using [Pandas](https://pandas.pydata.org/)
+- `read_jsonl()` - processes JSONL files chunk by chunk
+- `read_parquet()` - processes Parquet files using [PyArrow](https://arrow.apache.org/docs/python/)
+- `read_csv_duckdb()` - this transformer processes CSV files using DuckDB, which usually shows better performance than pandas.
 
 :::tip
-We advise that you give each resource a
-[specific name](../../../general-usage/resource#duplicate-and-rename-resources)
-before loading with `pipeline.run`. This will ensure that data goes to a table with the name you
-want and that each pipeline uses a
-[separate state for incremental loading.](../../../general-usage/state#read-and-write-pipeline-state-in-a-resource)
+We advise that you give each resource a [specific name](../../../general-usage/resource#duplicate-and-rename-resources) before loading with `pipeline.run`. This will ensure that data goes to a table with the name you want and that each pipeline uses a [separate state for incremental loading.](../../../general-usage/state#read-and-write-pipeline-state-in-a-resource)
 :::
 
 ### 3. Create and run a pipeline
@@ -406,6 +391,7 @@ print(load_info)
 
 In this example, we load only new records based on the field called `updated_at`. This method may be useful if you are not able to
 filter files by modification date because, for example, all files are modified each time a new record appears.
+
 ```py
 import dlt
 from dlt.sources.filesystem import filesystem, read_csv
@@ -462,6 +448,7 @@ print(load_info)
 
 :::tip
 You could also use `file_glob` to filter files by names. It works very well in simple cases, for example, filtering by extension:
+
 ```py
 from dlt.sources.filesystem import filesystem
 
@@ -505,16 +492,12 @@ bucket_url = '\\?\C:\a\b\c'
 
 ### If you get an empty list of files
 
-If you are running a `dlt` pipeline with the filesystem source and get zero records, we recommend you check
+If you are running a dlt pipeline with the filesystem source and get zero records, we recommend you check
 the configuration of `bucket_url` and `file_glob` parameters.
 
-For example, with Azure Blob storage, people sometimes mistake the account name for the container name. Make sure
-you've set up a URL as `"az://<container name>/"`.
+For example, with Azure Blob Storage, people sometimes mistake the account name for the container name. Make sure you've set up a URL as `"az://<container name>/"`.
 
-Also, please reference the [glob](https://filesystem-spec.readthedocs.io/en/latest/api.html#fsspec.spec.AbstractFileSystem.glob)
-function to configure the resource correctly. Use `**` to include recursive files. Note that the local
-filesystem supports full Python [glob](https://docs.python.org/3/library/glob.html#glob.glob) functionality,
-while cloud storage supports a restricted `fsspec` [version](https://filesystem-spec.readthedocs.io/en/latest/api.html#fsspec.spec.AbstractFileSystem.glob).
+Also, please reference the [glob](https://filesystem-spec.readthedocs.io/en/latest/api.html#fsspec.spec.AbstractFileSystem.glob) function to configure the resource correctly. Use `**` to include recursive files. Note that the local filesystem supports full Python [glob](https://docs.python.org/3/library/glob.html#glob.glob) functionality, while cloud storage supports a restricted `fsspec` [version](https://filesystem-spec.readthedocs.io/en/latest/api.html#fsspec.spec.AbstractFileSystem.glob).
 
 <!--@@@DLT_TUBA filesystem-->
 
