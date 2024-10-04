@@ -15,7 +15,7 @@ python --version
 pip --version
 ```
 
-If you have a different python version installed or are missing pip, follow the instructions below to update your python version and/or install `pip`.
+If you have a different Python version installed or are missing pip, follow the instructions below to update your Python version and/or install `pip`.
 
 <Tabs values={[{"label": "Ubuntu", "value": "ubuntu"}, {"label": "macOS", "value": "macos"}, {"label": "Windows", "value": "windows"}]}  groupId="operating-systems" defaultValue="ubuntu">
   <TabItem value="ubuntu">
@@ -31,7 +31,7 @@ sudo apt install python3.10-venv
   </TabItem>
   <TabItem value="macos">
 
-On MacOS you can use [Homebrew](https://brew.sh) to install Python 3.10.
+On macOS, you can use [Homebrew](https://brew.sh) to install Python 3.10.
 
 ```sh
 brew update
@@ -50,10 +50,10 @@ C:\> pip3 install -U pip
   </TabItem>
 </Tabs>
 
-### 2. Set up and activate a virtual environment for your python project
+### 2. Set up and activate a virtual environment for your Python project
 
-We recommend working within a [virtual environment](https://docs.python.org/3/library/venv.html) when creating python projects.
-This way all the dependencies for your current project will be isolated from packages in other projects.
+We recommend working within a [virtual environment](https://docs.python.org/3/library/venv.html) when creating Python projects.
+This way, all the dependencies for your current project will be isolated from packages in other projects.
 
 <Tabs values={[{"label": "Ubuntu", "value": "ubuntu"}, {"label": "macOS", "value": "macos"}, {"label": "Windows", "value": "windows"}]}  groupId="operating-systems" defaultValue="ubuntu">
 
@@ -109,7 +109,7 @@ C:\> .\env\Scripts\activate
 You can now install `dlt` in your virtual environment by running:
 
 ```sh
-# install the newest dlt version or upgrade the exisint version to the newest one
+# install the newest dlt version or upgrade the existing version to the newest one
 pip install -U dlt
 ```
 
@@ -137,4 +137,11 @@ conda install -c conda-forge dlt
 
 ### 4. Done!
 
-You are now ready to [build your first pipeline](../getting-started) :)
+You are now ready to build your first pipeline with `dlt`. Check out these tutorials to get started:
+
+- [Load data from a REST API](../tutorial/rest-api)
+- [Load data from a SQL database](../tutorial/sql-database)
+- [Load data from a cloud storage or a file system](../tutorial/filesystem)
+
+Or read a more detailed tutorial on how to build a [custom data pipeline with dlt](../tutorial/load-data-from-an-api.md).
+

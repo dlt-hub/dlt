@@ -138,6 +138,7 @@ TColumnNames = Union[str, Sequence[str]]
 
 class TColumnType(TypedDict, total=False):
     data_type: Optional[TDataType]
+    nullable: Optional[bool]
     precision: Optional[int]
     scale: Optional[int]
     timezone: Optional[bool]
@@ -147,7 +148,6 @@ class TColumnSchemaBase(TColumnType, total=False):
     """TypedDict that defines basic properties of a column: name, data type and nullable"""
 
     name: Optional[str]
-    nullable: Optional[bool]
 
 
 class TColumnSchema(TColumnSchemaBase, total=False):
@@ -218,6 +218,7 @@ TTableProcessingHints = TypedDict(
 
 TWriteDisposition = Literal["skip", "append", "replace", "merge"]
 TLoaderMergeStrategy = Literal["delete-insert", "scd2", "upsert"]
+TLoaderReplaceStrategy = Literal["truncate-and-insert", "insert-from-staging", "staging-optimized"]
 
 
 WRITE_DISPOSITIONS: Set[TWriteDisposition] = set(get_args(TWriteDisposition))
@@ -231,15 +232,20 @@ class TWriteDispositionDict(TypedDict):
     disposition: TWriteDisposition
 
 
-class TMergeDispositionDict(TWriteDispositionDict, total=False):
+class TMergeDispositionDict(TWriteDispositionDict):
     strategy: Optional[TLoaderMergeStrategy]
+
+
+class TScd2StrategyDict(TMergeDispositionDict, total=False):
     validity_column_names: Optional[List[str]]
     active_record_timestamp: Optional[TAnyDateTime]
     boundary_timestamp: Optional[TAnyDateTime]
     row_version_column_name: Optional[str]
 
 
-TWriteDispositionConfig = Union[TWriteDisposition, TWriteDispositionDict, TMergeDispositionDict]
+TWriteDispositionConfig = Union[
+    TWriteDisposition, TWriteDispositionDict, TMergeDispositionDict, TScd2StrategyDict
+]
 
 
 class _TTableSchemaBase(TTableProcessingHints, total=False):

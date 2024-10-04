@@ -21,7 +21,7 @@ class NamingConvention(BaseNamingConvention):
     - Replaces all trailing `_` with `x`
     - Replaces `+` and `*` with `x`, `-` with `_`, `@` with `a` and `|` with `l`
 
-    Uses __ as patent-child separator for tables and flattened column names.
+    Uses __ as parent-child separator for tables and flattened column names.
     """
 
     RE_UNDERSCORES: ClassVar[REPattern] = RE_UNDERSCORES

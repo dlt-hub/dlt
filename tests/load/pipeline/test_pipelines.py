@@ -48,7 +48,7 @@ from tests.load.utils import (
     destinations_configs,
     DestinationTestConfiguration,
 )
-from tests.load.pipeline.utils import REPLACE_STRATEGIES
+from tests.load.pipeline.utils import REPLACE_STRATEGIES, skip_if_unsupported_replace_strategy
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential
@@ -100,7 +100,7 @@ def test_default_pipeline_names(
     # mock the correct destinations (never do that in normal code)
     with p.managed_state():
         p._set_destinations(
-            destination=Destination.from_reference(destination_config.destination),
+            destination=destination_config.destination_factory(),
             staging=(
                 Destination.from_reference(destination_config.staging)
                 if destination_config.staging
@@ -162,13 +162,12 @@ def test_default_schema_name(
         for idx, alpha in [(0, "A"), (0, "B"), (0, "C")]
     ]
 
-    p = dlt.pipeline(
+    p = destination_config.setup_pipeline(
         "test_default_schema_name",
-        TEST_STORAGE_ROOT,
-        destination=destination_config.destination,
-        staging=destination_config.staging,
         dataset_name=dataset_name,
+        pipelines_dir=TEST_STORAGE_ROOT,
     )
+
     p.config.use_single_dataset = use_single_dataset
     p.extract(
         data,
@@ -212,7 +211,7 @@ def test_attach_pipeline(destination_config: DestinationTestConfiguration) -> No
     destination_config.setup()
     info = dlt.run(
         _data(),
-        destination=destination_config.destination,
+        destination=destination_config.destination_factory(),
         staging=destination_config.staging,
         dataset_name="specific" + uniq_id(),
         **destination_config.run_kwargs,
@@ -288,7 +287,7 @@ def test_run_dev_mode(destination_config: DestinationTestConfiguration) -> None:
     p = dlt.pipeline(dev_mode=True)
     info = p.run(
         _data(),
-        destination=destination_config.destination,
+        destination=destination_config.destination_factory(),
         staging=destination_config.staging,
         dataset_name="iteration" + uniq_id(),
         **destination_config.run_kwargs,
@@ -380,7 +379,7 @@ def test_evolve_schema(destination_config: DestinationTestConfiguration) -> None
     assert "new_column" not in schema.get_table("simple_rows")["columns"]
 
     # lets violate unique constraint on postgres, redshift and BQ ignore unique indexes
-    if destination_config.destination == "postgres":
+    if destination_config.destination_type == "postgres":
         # let it complete even with PK violation (which is a teminal error)
         os.environ["RAISE_ON_FAILED_JOBS"] = "false"
         assert p.dataset_name == dataset_name
@@ -466,7 +465,7 @@ def test_source_max_nesting(destination_config: DestinationTestConfiguration) ->
 
     info = dlt.run(
         nested_data(),
-        destination=destination_config.destination,
+        destination=destination_config.destination_factory(),
         staging=destination_config.staging,
         dataset_name="ds_" + uniq_id(),
         **destination_config.run_kwargs,
@@ -509,11 +508,11 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
     column_schemas = deepcopy(TABLE_UPDATE_COLUMNS_SCHEMA)
 
     # parquet on bigquery and clickhouse does not support JSON but we still want to run the test
-    if destination_config.destination in ["bigquery"]:
+    if destination_config.destination_type in ["bigquery"]:
         column_schemas["col9_null"]["data_type"] = column_schemas["col9"]["data_type"] = "text"
 
     # duckdb 0.9.1 does not support TIME other than 6
-    if destination_config.destination in ["duckdb", "motherduck"]:
+    if destination_config.destination_type in ["duckdb", "motherduck"]:
         column_schemas["col11_precision"]["precision"] = None
         # also we do not want to test col4_precision (datetime) because
         # those timestamps are not TZ aware in duckdb and we'd need to
@@ -522,7 +521,7 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
         column_schemas["col4_precision"]["precision"] = 6
 
     # drop TIME from databases not supporting it via parquet
-    if destination_config.destination in [
+    if destination_config.destination_type in [
         "redshift",
         "athena",
         "synapse",
@@ -536,7 +535,7 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
         column_schemas.pop("col11_null")
         column_schemas.pop("col11_precision")
 
-    if destination_config.destination in ("redshift", "dremio"):
+    if destination_config.destination_type in ("redshift", "dremio"):
         data_types.pop("col7_precision")
         column_schemas.pop("col7_precision")
 
@@ -562,7 +561,7 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
     if destination_config.supports_merge:
         expected_completed_jobs += 1
         # add iceberg copy jobs
-        if destination_config.destination == "athena":
+        if destination_config.destination_type == "athena":
             expected_completed_jobs += 2  # if destination_config.supports_merge else 4
     assert len(package_info.jobs["completed_jobs"]) == expected_completed_jobs
 
@@ -583,10 +582,12 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
         assert_all_data_types_row(
             db_row,
             schema=column_schemas,
-            parse_json_strings=destination_config.destination
+            parse_json_strings=destination_config.destination_type
             in ["snowflake", "bigquery", "redshift"],
-            allow_string_binary=destination_config.destination == "clickhouse",
-            timestamp_precision=3 if destination_config.destination in ("athena", "dremio") else 6,
+            allow_string_binary=destination_config.destination_type == "clickhouse",
+            timestamp_precision=(
+                3 if destination_config.destination_type in ("athena", "dremio") else 6
+            ),
         )
 
 
@@ -640,11 +641,7 @@ def test_dataset_name_change(destination_config: DestinationTestConfiguration) -
 def test_pipeline_upfront_tables_two_loads(
     destination_config: DestinationTestConfiguration, replace_strategy: str
 ) -> None:
-    if not destination_config.supports_merge and replace_strategy != "truncate-and-insert":
-        pytest.skip(
-            f"Destination {destination_config.name} does not support merge and thus"
-            f" {replace_strategy}"
-        )
+    skip_if_unsupported_replace_strategy(destination_config, replace_strategy)
 
     # use staging tables for replace
     os.environ["DESTINATION__REPLACE_STRATEGY"] = replace_strategy
@@ -755,7 +752,9 @@ def test_pipeline_upfront_tables_two_loads(
 
 
 @pytest.mark.parametrize(
-    "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
+    "destination_config",
+    destinations_configs(default_sql_configs=True, exclude=["sqlalchemy"]),
+    ids=lambda x: x.name,
 )
 def test_query_all_info_tables_fallback(destination_config: DestinationTestConfiguration) -> None:
     pipeline = destination_config.setup_pipeline(
@@ -837,7 +836,7 @@ def simple_nested_pipeline(
     p = dlt.pipeline(
         pipeline_name=f"pipeline_{dataset_name}",
         dev_mode=dev_mode,
-        destination=destination_config.destination,
+        destination=destination_config.destination_factory(),
         staging=destination_config.staging,
         dataset_name=dataset_name,
     )
@@ -879,7 +878,7 @@ def test_dest_column_invalid_timestamp_precision(
     ids=lambda x: x.name,
 )
 def test_dest_column_hint_timezone(destination_config: DestinationTestConfiguration) -> None:
-    destination = destination_config.destination
+    destination = destination_config.destination_type
 
     input_data = [
         {"event_id": 1, "event_tstamp": "2024-07-30T10:00:00.123+00:00"},

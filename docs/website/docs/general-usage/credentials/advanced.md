@@ -8,7 +8,7 @@ keywords: [credentials, secrets.toml, secrets, config, configuration, environmen
 
 ## Injection mechanism
 
-`dlt` has a special treatment for functions decorated with `@dlt.source`, `@dlt.resource`, and `@dlt.destination`. When such a function is called, `dlt` takes the argument names in the signature and supplies (`injects`) the required values by looking for them in [various config providers](setup).
+`dlt` has a special treatment for functions decorated with `@dlt.source`, `@dlt.resource`, and `@dlt.destination`. When such a function is called, `dlt` takes the argument names in the signature and supplies (injects) the required values by looking for them in [various config providers](setup).
 
 ### Injection rules
 
@@ -26,7 +26,7 @@ keywords: [credentials, secrets.toml, secrets, config, configuration, environmen
   ```
   `dlt` allows the user to specify the argument `pipedrive_api_key` explicitly if, for some reason, they do not want to use [out-of-the-box options](setup) for credentials management.
 
-1. Required arguments (without default values) **are never injected** and must be specified when calling. For example, for the source:
+2. Required arguments (without default values) **are never injected** and must be specified when calling. For example, for the source:
 
   ```py
   @dlt.source
@@ -35,7 +35,7 @@ keywords: [credentials, secrets.toml, secrets, config, configuration, environmen
   ```
   The argument `channels_list` would not be injected and will output an error if it is not specified explicitly.
 
-1. Arguments with default values are injected if present in config providers. Otherwise, defaults from the function signature are used. For example, for the source:
+3. Arguments with default values are injected if present in config providers. Otherwise, defaults from the function signature are used. For example, for the source:
 
   ```py
   @dlt.source
@@ -48,7 +48,7 @@ keywords: [credentials, secrets.toml, secrets, config, configuration, environmen
   ```
   `dlt` firstly searches for all three arguments: `page_size`, `access_token`, and `start_date` in config providers in a [specific order](setup). If it cannot find them, it will use the default values.
 
-1. Arguments with the special default value `dlt.secrets.value` and `dlt.config.value` **must be injected**
+4. Arguments with the special default value `dlt.secrets.value` and `dlt.config.value` **must be injected**
    (or explicitly passed). If they are not found by the config providers, the code raises an
    exception. The code in the functions always receives those arguments.
 
@@ -58,12 +58,12 @@ keywords: [credentials, secrets.toml, secrets, config, configuration, environmen
 
 We highly recommend adding types to your function signatures.
 The effort is very low, and it gives `dlt` much more
-information on what source/resource expects.
+information on what the source or resource expects.
 
 Doing so provides several benefits:
 
-1. You'll never receive the invalid data types in your code.
-1. `dlt` will automatically parse and coerce types for you, so you don't need to parse it yourself.
+1. You'll never receive invalid data types in your code.
+1. `dlt` will automatically parse and coerce types for you, so you don't need to parse them yourself.
 1. `dlt` can generate sample config and secret files for your source automatically.
 1. You can request [built-in and custom credentials](complex_types) (i.e., connection strings, AWS / GCP / Azure credentials).
 1. You can specify a set of possible types via `Union`, i.e., OAuth or API Key authorization.
@@ -91,10 +91,10 @@ Now,
    * connection string (used in SQL Alchemy) (in code and via config providers).
    * if nothing is passed, the default credentials are used (i.e., those present on Cloud Function runner)
 
-## Toml files structure
+## TOML files structure
 
-`dlt` arranges the sections of [toml files](setup/#secretstoml-and-configtoml) into a **default layout** that is expected by the [injection mechanism](#injection-mechanism).
-This layout makes it easy to configure simple cases but also provides a room for more explicit sections and complex cases, i.e., having several sources with different credentials
+`dlt` arranges the sections of [TOML files](setup/#secretstoml-and-configtoml) into a **default layout** that is expected by the [injection mechanism](#injection-mechanism).
+This layout makes it easy to configure simple cases but also provides room for more explicit sections and complex cases, i.e., having several sources with different credentials
 or even hosting several pipelines in the same project sharing the same config and credentials.
 
 ```text
@@ -142,8 +142,8 @@ data_source = google_sheets(
 data_source.run(destination="bigquery")
 ```
 
-`dlt.config` and `dlt.secrets` behave like dictionaries from which you can request a value with any key name. `dlt` will look in all [config providers](setup) - env variables, TOML files, etc. to create these dictionaries. You can also use `dlt.config.get()` or `dlt.secrets.get()` to
-request a value cast to a desired type. For example:
+`dlt.config` and `dlt.secrets` behave like dictionaries from which you can request a value with any key name. `dlt` will look in all [config providers](setup) - environment variables, TOML files, etc. to create these dictionaries. You can also use `dlt.config.get()` or `dlt.secrets.get()` to
+request a value and cast it to a desired type. For example:
 
 ```py
 credentials = dlt.secrets.get("my_section.gcp_credentials", GcpServiceAccountCredentials)
@@ -158,7 +158,7 @@ dlt.config["sheet_id"] = "23029402349032049"
 dlt.secrets["destination.postgres.credentials"] = BaseHook.get_connection('postgres_dsn').extra
 ```
 
-Will mock the `toml` provider to desired values.
+This will mock the TOML provider to desired values.
 
 ## Example
 
@@ -173,7 +173,7 @@ def google_sheets(
     credentials=dlt.secrets.value,
     only_strings=False
 ):
-    # Allow both a dictionary and a string passed as credentials
+    # Allow both a dictionary and a string to be passed as credentials
     if isinstance(credentials, str):
         credentials = json.loads(credentials)
     # Allow both a list and a comma-delimited string to be passed as tabs
@@ -201,3 +201,4 @@ In the example above:
 `dlt.resource` behaves in the same way, so if you have a [standalone resource](../resource.md#declare-a-standalone-resource) (one that is not an inner function
 of a **source**)
 :::
+

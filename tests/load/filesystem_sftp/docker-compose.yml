@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+
+  sftpserver:
+    build:
+      context: bootstrap
+      dockerfile: Dockerfile
+    image: sftpserver:latest
+    networks:
+      - sftpserver
+    ports:
+      - "2222:22"
+    volumes:
+      - ../../common/storages/samples:/home/foo/sftp/data/standard_source/samples
+      - ../../common/storages/samples:/home/bobby/sftp/data/standard_source/samples  
+      - ../../common/storages/samples:/home/billy/sftp/data/standard_source/samples  
+
+networks:
+  sftpserver:
+    name: sftpserver

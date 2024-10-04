@@ -401,6 +401,114 @@ def test_merge_nested_records_inserted_deleted(
     )
 
 
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True,
+        local_filesystem_configs=True,
+        table_format_filesystem_configs=True,
+        supports_merge=True,
+        bucket_subset=(FILE_BUCKET),
+    ),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize("merge_strategy", ("delete-insert", "upsert"))
+def test_bring_your_own_dlt_id(
+    destination_config: DestinationTestConfiguration,
+    merge_strategy: TLoaderMergeStrategy,
+) -> None:
+    p = destination_config.setup_pipeline(
+        "test_merge_nested_records_inserted_deleted", dev_mode=True
+    )
+
+    skip_if_not_supported(merge_strategy, p.destination)
+
+    # sets _dlt_id as both primary key and row key.
+    @dlt.resource(
+        table_name="parent",
+        write_disposition={"disposition": "merge", "strategy": merge_strategy},
+        primary_key="_dlt_id",
+    )
+    def r(data):
+        yield data
+
+    # initial load
+    run_1 = [
+        {"_dlt_id": 1, "foo": 1, "child": [{"bar": 1, "grandchild": [{"baz": 1}]}]},
+    ]
+    info = p.run(r(run_1), **destination_config.run_kwargs)
+    assert_load_info(info)
+    run_2 = [
+        {"_dlt_id": 1, "foo": 2, "child": [{"bar": 2, "grandchild": [{"baz": 2}]}]},
+    ]
+    info = p.run(r(run_2), **destination_config.run_kwargs)
+    assert_load_info(info)
+    # _dlt_id is a bigint and a primary key
+    parent_dlt_id = p.default_schema.tables["parent"]["columns"]["_dlt_id"]
+    assert parent_dlt_id["data_type"] == "bigint"
+    assert parent_dlt_id["primary_key"] is True
+    assert parent_dlt_id["row_key"] is True
+    assert parent_dlt_id["unique"] is True
+
+    # parent_key on child refers to the dlt_id above
+    child_parent_id = p.default_schema.tables["parent__child"]["columns"]["_dlt_parent_id"]
+    assert child_parent_id["data_type"] == "bigint"
+    assert child_parent_id["parent_key"] is True
+
+    # same for root key
+    child_root_id = p.default_schema.tables["parent__child"]["columns"]["_dlt_root_id"]
+    assert child_root_id["data_type"] == "bigint"
+    assert child_root_id["root_key"] is True
+
+    # id on child is regular auto dlt id
+    child_dlt_id = p.default_schema.tables["parent__child"]["columns"]["_dlt_id"]
+    assert child_dlt_id["data_type"] == "text"
+
+    # check grandchild
+    grandchild_parent_id = p.default_schema.tables["parent__child__grandchild"]["columns"][
+        "_dlt_parent_id"
+    ]
+    # refers to child dlt id which is a regular one
+    assert grandchild_parent_id["data_type"] == "text"
+    assert grandchild_parent_id["parent_key"] is True
+
+    grandchild_root_id = p.default_schema.tables["parent__child__grandchild"]["columns"][
+        "_dlt_root_id"
+    ]
+    # root key still to parent
+    assert grandchild_root_id["data_type"] == "bigint"
+    assert grandchild_root_id["root_key"] is True
+
+    table_data = load_tables_to_dicts(
+        p, "parent", "parent__child", "parent__child__grandchild", exclude_system_cols=False
+    )
+    # drop dlt load id
+    del table_data["parent"][0]["_dlt_load_id"]
+    # all the ids are deterministic: on parent is set by the user, on child - is derived from parent
+    assert table_data == {
+        "parent": [{"_dlt_id": 1, "foo": 2}],
+        "parent__child": [
+            {
+                "bar": 2,
+                "_dlt_root_id": 1,
+                "_dlt_parent_id": 1,
+                "_dlt_list_idx": 0,
+                "_dlt_id": "mvMThji/REOKKA",
+            }
+        ],
+        "parent__child__grandchild": [
+            {
+                "baz": 2,
+                "_dlt_root_id": 1,
+                "_dlt_parent_id": "mvMThji/REOKKA",
+                "_dlt_list_idx": 0,
+                "_dlt_id": "KKZaBWTgbZd74A",
+            }
+        ],
+    }
+
+
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
@@ -636,7 +744,10 @@ def test_pipeline_load_parquet(destination_config: DestinationTestConfiguration)
     assert_load_info(info)
     # make sure it was parquet or sql inserts
     files = p.get_load_package_info(p.list_completed_load_packages()[1]).jobs["completed_jobs"]
-    if destination_config.destination == "athena" and destination_config.table_format == "iceberg":
+    if (
+        destination_config.destination_type == "athena"
+        and destination_config.table_format == "iceberg"
+    ):
         # iceberg uses sql to copy tables
         expected_formats.append("sql")
     assert all(f.job_file_info.file_format in expected_formats for f in files)
@@ -681,12 +792,18 @@ def _get_shuffled_events(shuffle: bool = dlt.secrets.value):
 
 
 @pytest.mark.parametrize(
-    "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
+    "destination_config",
+    destinations_configs(default_sql_configs=True),
+    ids=lambda x: x.name,
 )
 @pytest.mark.parametrize("github_resource", [github_repo_events, github_repo_events_table_meta])
 def test_merge_with_dispatch_and_incremental(
     destination_config: DestinationTestConfiguration, github_resource: DltResource
 ) -> None:
+    if destination_config.destination_name == "sqlalchemy_mysql":
+        # TODO: Github events have too many columns for MySQL
+        pytest.skip("MySQL can't handle too many columns")
+
     newest_issues = list(
         sorted(_get_shuffled_events(True), key=lambda x: x["created_at"], reverse=True)
     )
@@ -1258,7 +1375,7 @@ def test_dedup_sort_hint(destination_config: DestinationTestConfiguration) -> No
     assert sorted(observed, key=lambda d: d["id"]) == expected
 
     # additional tests with two records, run only on duckdb to limit test load
-    if destination_config.destination == "duckdb":
+    if destination_config.destination_type == "duckdb":
         # two records with same primary key
         # record with highest value in sort column is a delete
         # existing record is deleted and no record will be inserted
@@ -1339,7 +1456,7 @@ def test_merge_strategy_config() -> None:
     ids=lambda x: x.name,
 )
 def test_upsert_merge_strategy_config(destination_config: DestinationTestConfiguration) -> None:
-    if destination_config.destination == "filesystem":
+    if destination_config.destination_type == "filesystem":
         # TODO: implement validation and remove this test exception
         pytest.skip(
             "`upsert` merge strategy configuration validation has not yet been"

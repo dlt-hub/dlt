@@ -14,16 +14,16 @@ documents.
 
 This MongoDB `dlt` verified source and
 [pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/mongodb_pipeline.py)
-loads data using "MongoDB" source to the destination of your choice.
+loads data using the "MongoDB" source to the destination of your choice.
 
 Sources and resources that can be loaded using this verified source are:
 
 | Name               | Description                                |
 |--------------------|--------------------------------------------|
-| mongodb            | loads a specific MongoDB database          |
-| mongodb_collection | loads a collection from a MongoDB database |
+| mongodb            | Loads a specific MongoDB database          |
+| mongodb_collection | Loads a collection from a MongoDB database |
 
-## Setup Guide
+## Setup guide
 
 ### Grab credentials
 
@@ -42,22 +42,22 @@ Here are the typical ways to configure MongoDB and their connection URLs:
 
 | Name                | Description                                                                           | Connection URL Example                            |
 |---------------------|---------------------------------------------------------------------------------------|---------------------------------------------------|
-| Local Installation  | Install on Windows, macOS, Linux using official packages.                             | "mongodb://dbuser:passwd@host.or.ip:27017"        |
+| Local installation  | Install on Windows, macOS, Linux using official packages.                             | "mongodb://dbuser:passwd@host.or.ip:27017"        |
 | Docker              | Deploy using the MongoDB Docker image.                                                | "mongodb://dbuser:passwd@docker.host:27017"       |
 | MongoDB Atlas       | MongoDB’s managed service on AWS, Azure, and Google Cloud.                            | "mongodb+srv://dbuser:passwd@cluster.mongodb.net" |
-| Managed Cloud       | AWS DocumentDB, Azure Cosmos DB, and others offer MongoDB as a managed database.      | "mongodb://dbuser:passwd@managed.cloud:27017"     |
-| Configuration Tools | Use Ansible, Chef, or Puppet for automation of setup and configuration.               | "mongodb://dbuser:passwd@config.tool:27017"       |
-| Replica Set         | Set up for high availability with data replication across multiple MongoDB instances. | "mongodb://dbuser:passwd@replica.set:27017"       |
-| Sharded Cluster     | Scalable distribution of datasets across multiple MongoDB instances.                  | "mongodb://dbuser:passwd@shard.cluster:27017"     |
+| Managed cloud       | AWS DocumentDB, Azure Cosmos DB, and others offer MongoDB as a managed database.      | "mongodb://dbuser:passwd@managed.cloud:27017"     |
+| Configuration tools | Use Ansible, Chef, or Puppet for automation of setup and configuration.               | "mongodb://dbuser:passwd@config.tool:27017"       |
+| Replica set         | Set up for high availability with data replication across multiple MongoDB instances. | "mongodb://dbuser:passwd@replica.set:27017"       |
+| Sharded cluster     | Scalable distribution of datasets across multiple MongoDB instances.                  | "mongodb://dbuser:passwd@shard.cluster:27017"     |
 | Kubernetes          | Deploy on Kubernetes using Helm charts or operators.                                  | "mongodb://dbuser:passwd@k8s.cluster:27017"       |
-| Manual Tarball      | Install directly from the official MongoDB tarball, typically on Linux.               | "mongodb://dbuser:passwd@tarball.host:27017"      |
+| Manual tarball      | Install directly from the official MongoDB tarball, typically on Linux.               | "mongodb://dbuser:passwd@tarball.host:27017"      |
 
 > Note: The provided URLs are example formats; adjust as needed for your specific setup.
 
 #### Grab `database and collections`
 
-1. To grab "database and collections" you must have MongoDB shell installed. For installation
-   guidance, refer to [documentation here.](https://www.mongodb.com/docs/mongodb-shell/install/)
+1. To grab "database and collections," you must have the MongoDB shell installed. For installation
+   guidance, refer to [the documentation here.](https://www.mongodb.com/docs/mongodb-shell/install/)
 
 1. Modify the example URLs with your credentials (dbuser & passwd) and host details.
 
@@ -67,19 +67,19 @@ Here are the typical ways to configure MongoDB and their connection URLs:
    mongo "mongodb://dbuser:passwd@your_host:27017"
    ```
 
-1. List all Databases:
+1. List all databases:
 
    ```sh
    show dbs
    ```
 
-1. View Collections in a Database:
+1. View collections in a database:
 
-   1. Switch to Database:
+   1. Switch to the database:
       ```sh
       use your_database_name
       ```
-   1. Display its Collections:
+   1. Display its collections:
       ```sh
       show collections
       ```
@@ -90,7 +90,7 @@ Here are the typical ways to configure MongoDB and their connection URLs:
    exit
    ```
 
->Note the database and collection names for future source configuration.
+> Note the database and collection names for future source configuration.
 
 ### Prepare your data
 
@@ -103,7 +103,7 @@ nested data. It employs a flexible schema, and its key terms include:
 
 `Databases`: Containers for collections; a single MongoDB server can have multiple databases.
 
-The `dlt` converts nested data into relational tables, deduces data types, and defines parent-child
+The `dlt` converts nested data into relational tables, deduces data types, and defines nested
 relationships, creating an adaptive schema for future data adjustments.
 
 ### Initialize the verified source
@@ -239,10 +239,10 @@ def mongodb_collection(
 
 
 ## Customization
+
 ### Create your own pipeline
 
-If you wish to create your own pipelines, you can leverage source and resource methods from this
-verified source.
+If you wish to create your own pipelines, you can leverage source and resource methods from this verified source.
 
 1. Configure the pipeline by specifying the pipeline name, destination, and dataset as follows:
 
@@ -262,7 +262,7 @@ verified source.
    print(load_info)
    ```
 
-1. To load a specific collections from the database:
+1. To load specific collections from the database:
 
    ```py
    load_data = mongodb().with_resources("collection_1", "collection_2")
@@ -274,12 +274,12 @@ verified source.
 
    ```py
    load_data = mongodb(incremental=dlt.sources.incremental("date")).with_resources("collection_1")
-   load_info = pipeline.run(load_data, write_disposition = "merge")
+   load_info = pipeline.run(load_data, write_disposition="merge")
    print(load_info)
    ```
-   > Data is loaded incrementally based on "date" field.
+   > Data is loaded incrementally based on the "date" field.
 
-1. To load data from a particular collection say "movies" incrementally:
+1. To load data from a particular collection, say "movies," incrementally:
 
    ```py
    load_data = mongodb_collection(
@@ -293,7 +293,7 @@ verified source.
    ```
 
    > The source function "mongodb_collection" loads data from a particular single
-   > collection, where as source "mongodb" can load data from multiple collections.
+   > collection, whereas the source "mongodb" can load data from multiple collections.
    > This script configures incremental loading from the "movies" collection based on the
    > "lastupdated" field, starting from midnight on September 10, 2020.
 
@@ -311,7 +311,7 @@ verified source.
 
    ```
 
-   > It applies hint for incremental loading based on the "last_scraped" field, ideal for tables
+   > It applies a hint for incremental loading based on the "last_scraped" field, ideal for tables
    > with additions but no updates.
 
 1. To load a selected collection and rename it in the destination:
@@ -330,15 +330,16 @@ verified source.
 
 1. To load a selected collection, using Apache Arrow for data conversion:
    ```py
-   # Load collection "movies", using Apache Arrow for converion
+   # Load collection "movies", using Apache Arrow for conversion
    movies = mongodb_collection(
       collection="movies",
       data_item_format="arrow",
    )
 
    # Run the pipeline
-   info = pipeline.run(source)
+   info = pipeline.run(movies)
    print(info)
    ```
 
 <!--@@@DLT_TUBA mongodb-->
+

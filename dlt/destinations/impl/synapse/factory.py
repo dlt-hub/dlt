@@ -100,6 +100,7 @@ class synapse(Destination[SynapseClientConfiguration, "SynapseClient"]):
         caps.timestamp_precision = 7
 
         caps.supported_merge_strategies = ["delete-insert", "scd2"]
+        caps.supported_replace_strategies = ["truncate-and-insert", "insert-from-staging"]
 
         return caps
 

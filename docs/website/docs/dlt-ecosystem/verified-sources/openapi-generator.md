@@ -9,7 +9,7 @@ import Header from './_source-info-header.md';
 
 <Header/>
 
-Our OpenAPI source generator - `dlt-init-openapi` - generates [`dlt`](https://dlthub.com/docs) data pipelines from [OpenAPI 3.x specs](https://swagger.io/specification/) using the [rest_api verified source](./rest_api) to extract data from any REST API. If you are not familiar with the `rest_api` source, please read [rest_api](./rest_api) to learn how our `rest_api` source works.
+Our OpenAPI source generator - `dlt-init-openapi` - generates [`dlt`](../../intro) data pipelines from [OpenAPI 3.x specs](https://swagger.io/specification/) using the [rest_api verified source](./rest_api) to extract data from any REST API. If you are not familiar with the `rest_api` source, please read [rest_api](./rest_api) to learn how our `rest_api` source works.
 
 :::tip
 We also have a cool [Google Colab example](https://colab.research.google.com/drive/1MRZvguOTZj1MlkEGzjiso8lQ_wr1MJRI?usp=sharing#scrollTo=LHGxzf1Ev_yr) that demonstrates this generator. 😎
@@ -66,7 +66,7 @@ We will create a simple example pipeline from a [PokeAPI spec](https://pokeapi.c
     dlt pipeline pokemon_pipeline show
     ```
 
-9. You can go to our docs at https://dlthub.com/docs to learn how to modify the generated pipeline to load to many destinations, place schema contracts  on your pipeline, and many other things.
+9. You can go to our docs at https://dlthub.com/docs to learn how to modify the generated pipeline to load to many destinations, place schema contracts on your pipeline, and many other things.
 
 :::note
 We used the `--global-limit 2` CLI flag to limit the requests to the PokeAPI 
@@ -94,12 +94,12 @@ pokemon_pipeline/
 ```
 
 :::warning
-If you re-generate your pipeline, you will be prompted to continue if this folder exists. If you select yes, all generated files will be overwritten. All other files you may have created will remain in this folder. In non-interactive mode you will not be asked, and the generated files will be overwritten.
+If you re-generate your pipeline, you will be prompted to continue if this folder exists. If you select yes, all generated files will be overwritten. All other files you may have created will remain in this folder. In non-interactive mode, you will not be asked, and the generated files will be overwritten.
 :::
 
 ## A closer look at your `rest_api` dictionary in `pokemon/__init__.py`
 
-This file contains the [configuration dictionary](./rest_api#source-configuration) for the rest_api source which is the main result of running this generator. For our Pokemon example, we have used an OpenAPI 3 spec that works out of the box. The result of this dictionary depends on the quality of the spec you are using, whether the API you are querying actually adheres to this spec, and whether our heuristics manage to find the right values.
+This file contains the [configuration dictionary](./rest_api#source-configuration) for the rest_api source, which is the main result of running this generator. For our Pokemon example, we have used an OpenAPI 3 spec that works out of the box. The result of this dictionary depends on the quality of the spec you are using, whether the API you are querying actually adheres to this spec, and whether our heuristics manage to find the right values.
 
 The generated dictionary will look something like this:
 
@@ -168,7 +168,7 @@ dlt-init-openapi pokemon --path ./path/to/my_spec.yml --no-interactive --output-
 
 **Options**:
 
-_The only required options are either to supply a path or a URL to a spec_
+_The only required options are either to supply a path or a URL to a spec._
 
 - `--url URL`: A URL to read the OpenAPI JSON or YAML file from.
 - `--path PATH`: A path to read the OpenAPI JSON or YAML file from locally.
@@ -178,14 +178,14 @@ _The only required options are either to supply a path or a URL to a spec_
 - `--log-level`: Set the logging level for stdout output, defaults to 20 (INFO).
 - `--global-limit`: Set a global limit on the generated source.
 - `--update-rest-api-source`: Update the locally cached rest_api verified source.
-- `--allow-openapi-2`: Allows the use of OpenAPI v2. specs. Migration of the spec to 3.0 is recommended for better results though.
+- `--allow-openapi-2`: Allows the use of OpenAPI v2 specs. Migration of the spec to 3.0 is recommended for better results, though.
 - `--version`: Show the installed version of the generator and exit.
 - `--help`: Show this message and exit.
 
 ## Config options
 You can pass a path to a config file with the `--config PATH` argument. To see available config values, go to https://github.com/dlt-hub/dlt-init-openapi/blob/devel/dlt_init_openapi/config.py and read the information below each field on the `Config` class.
 
-The config file can be supplied as JSON or YAML dictionary. For example, to change the package name, you can create a YAML file:
+The config file can be supplied as a JSON or YAML dictionary. For example, to change the package name, you can create a YAML file:
 
 ```yaml
 # config.yml
@@ -199,7 +199,7 @@ $ dlt-init-openapi pokemon --url ... --config config.yml
 ```
 
 ## Telemetry
-We track your usage of this tool similar to how we track other commands in the dlt core library. Read more about this and how to disable it [here](../../reference/telemetry).
+We track your usage of this tool similarly to how we track other commands in the dlt core library. Read more about this and how to disable it [here](../../reference/telemetry).
 
 ## Prior work
 This project started as a fork of [openapi-python-client](https://github.com/openapi-generators/openapi-python-client). Pretty much all parts are heavily changed or completely replaced, but some lines of code still exist, and we like to acknowledge the many good ideas we got from the original project :)
@@ -208,3 +208,4 @@ This project started as a fork of [openapi-python-client](https://github.com/ope
 * OAuth Authentication currently is not natively supported. You can supply your own.
 * Per endpoint authentication currently is not supported by the generator. Only the first globally set securityScheme will be applied. You can add your own per endpoint if you need to.
 * Basic OpenAPI 2.0 support is implemented. We recommend updating your specs at https://editor.swagger.io before using `dlt-init-openapi`.
+

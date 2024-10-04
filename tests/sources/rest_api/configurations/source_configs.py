@@ -1,10 +1,15 @@
 from collections import namedtuple
 from typing import cast, List
 
+import requests
 import dlt
+import dlt.common
 from dlt.common.typing import TSecretStrValue
 from dlt.common.exceptions import DictValidationException
 from dlt.common.configuration.specs import configspec
+
+import dlt.sources.helpers
+import dlt.sources.helpers.requests
 from dlt.sources.helpers.rest_client.paginators import HeaderLinkPaginator
 from dlt.sources.helpers.rest_client.auth import OAuth2AuthBase
 
@@ -106,6 +111,12 @@ class CustomPaginator(HeaderLinkPaginator):
 @configspec
 class CustomOAuthAuth(OAuth2AuthBase):
     pass
+
+
+@dlt.resource(name="repositories", selected=False)
+def repositories():
+    """A seed list of repositories to fetch"""
+    yield [{"name": "dlt"}, {"name": "verified-sources"}, {"name": "dlthub-education"}]
 
 
 VALID_CONFIGS: List[RESTAPIConfig] = [
@@ -302,6 +313,44 @@ VALID_CONFIGS: List[RESTAPIConfig] = [
                     },
                 },
             },
+        ],
+    },
+    {
+        "client": {"base_url": "https://github.com/api/v2"},
+        "resources": [
+            {
+                "name": "issues",
+                "endpoint": {
+                    "path": "dlt-hub/{repository}/issues/",
+                    "params": {
+                        "repository": {
+                            "type": "resolve",
+                            "resource": "repositories",
+                            "field": "name",
+                        },
+                    },
+                },
+            },
+            repositories(),
+        ],
+    },
+    {
+        "client": {"base_url": "https://github.com/api/v2"},
+        "resources": [
+            {
+                "name": "issues",
+                "endpoint": {
+                    "path": "dlt-hub/{repository}/issues/",
+                    "params": {
+                        "repository": {
+                            "type": "resolve",
+                            "resource": "repositories",
+                            "field": "name",
+                        },
+                    },
+                },
+            },
+            repositories(),
         ],
     },
 ]

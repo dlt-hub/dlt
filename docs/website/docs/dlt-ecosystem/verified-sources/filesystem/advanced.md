@@ -32,10 +32,10 @@ The filesystem ensures consistent file representation across bucket types and of
 
 #### `FileItem` fields
 
-- `file_url` - complete URL of the file (e.g. `s3://bucket-name/path/file`). This field serves as a primary key.
+- `file_url` - complete URL of the file (e.g., `s3://bucket-name/path/file`). This field serves as a primary key.
 - `file_name` - name of the file from the bucket URL.
 - `relative_path` - set when doing `glob`, is a relative path to a `bucket_url` argument.
-- `mime_type` - file's mime type. It is sourced from the bucket provider or inferred from its extension.
+- `mime_type` - file's MIME type. It is sourced from the bucket provider or inferred from its extension.
 - `modification_date` - file's last modification time (format: `pendulum.DateTime`).
 - `size_in_bytes` - file size.
 - `file_content` - content, provided upon request.
@@ -90,7 +90,7 @@ example_xls = filesystem(
     bucket_url=BUCKET_URL, file_glob="../directory/example.xlsx"
 ) | read_excel("example_table")   # Pass the data through the transformer to read the "example_table" sheet.
 
-pipeline = dlt.pipeline(pipeline_name="my_pipeline", destination="duckdb", dataset_name="example_xls_data",)
+pipeline = dlt.pipeline(pipeline_name="my_pipeline", destination="duckdb", dataset_name="example_xls_data")
 # Execute the pipeline and load the extracted data into the "duckdb" destination.
 load_info = pipeline.run(example_xls.with_name("example_xls_data"))
 # Print the loading information.
@@ -119,7 +119,7 @@ def read_xml(items: Iterator[FileItemDict]) -> Iterator[TDataItems]:
     for file_obj in items:
         # Open the file object.
         with file_obj.open() as file:
-            # Parse the file to dict records
+            # Parse the file to dict records.
             yield xmltodict.parse(file.read())
 
 # Set up the pipeline to fetch a specific XML file from a filesystem (bucket).
@@ -143,14 +143,14 @@ You can get an fsspec client from the filesystem resource after it was extracted
 from dlt.sources.filesystem import filesystem, read_csv
 from dlt.sources.filesystem.helpers import fsspec_from_resource
 
-# get filesystem source
+# Get filesystem source.
 gs_resource = filesystem("gs://ci-test-bucket/")
-# extract files
+# Extract files.
 pipeline = dlt.pipeline(pipeline_name="my_pipeline", destination="duckdb")
 pipeline.run(gs_resource | read_csv())
-# get fs client
+# Get fs client.
 fs_client = fsspec_from_resource(gs_resource)
-# do any operation
+# Do any operation.
 fs_client.ls("ci-test-bucket/standard_source/samples")
 ```
 
@@ -166,31 +166,32 @@ from dlt.common.storages.fsspec_filesystem import FileItemDict
 from dlt.sources.filesystem import filesystem
 
 def _copy(item: FileItemDict) -> FileItemDict:
-    # instantiate fsspec and copy file
+    # Instantiate fsspec and copy file
     dest_file = os.path.join(local_folder, item["file_name"])
-    # create dest folder
+    # Create destination folder
     os.makedirs(os.path.dirname(dest_file), exist_ok=True)
-    # download file
+    # Download file
     item.fsspec.download(item["file_url"], dest_file)
-    # return file item unchanged
+    # Return file item unchanged
     return item
 
 BUCKET_URL = "gs://ci-test-bucket/"
 
-# use recursive glob pattern and add file copy step
+# Use recursive glob pattern and add file copy step
 downloader = filesystem(BUCKET_URL, file_glob="**").add_map(_copy)
 
-# NOTE: you do not need to load any data to execute extract, below we obtain
+# NOTE: You do not need to load any data to execute extract; below, we obtain
 # a list of files in a bucket and also copy them locally
 listing = list(downloader)
 print(listing)
-# download to table "listing"
+# Download to table "listing"
 pipeline = dlt.pipeline(pipeline_name="my_pipeline", destination="duckdb")
 load_info = pipeline.run(
     downloader.with_name("listing"), write_disposition="replace"
 )
-# pretty print the information on data that was loaded
+# Pretty print the information on data that was loaded
 print(load_info)
 print(listing)
 print(pipeline.last_trace.last_normalize_info)
 ```
+

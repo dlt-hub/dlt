@@ -4,7 +4,13 @@ from typing import IO, Any, Union
 import simplejson
 import platform
 
-from dlt.common.json import custom_pua_encode, custom_pua_decode_nested, custom_encode
+from dlt.common.json import (
+    custom_pua_encode,
+    custom_pua_decode_nested,
+    custom_encode,
+    TPuaDecoders,
+    DECODERS,
+)
 
 if platform.python_implementation() == "PyPy":
     # disable speedups on PyPy, it can be actually faster than Python C
@@ -73,8 +79,8 @@ def typed_dumpb(obj: Any, sort_keys: bool = False, pretty: bool = False) -> byte
     return typed_dumps(obj, sort_keys, pretty).encode("utf-8")
 
 
-def typed_loadb(s: Union[bytes, bytearray, memoryview]) -> Any:
-    return custom_pua_decode_nested(loadb(s))
+def typed_loadb(s: Union[bytes, bytearray, memoryview], decoders: TPuaDecoders = DECODERS) -> Any:
+    return custom_pua_decode_nested(loadb(s), decoders)
 
 
 def dumps(obj: Any, sort_keys: bool = False, pretty: bool = False) -> str:

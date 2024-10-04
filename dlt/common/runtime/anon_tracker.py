@@ -155,7 +155,7 @@ def _default_context_fields() -> TExecutionContext:
     global _TRACKER_CONTEXT
 
     if not _TRACKER_CONTEXT:
-        # Make sure to update the example in docs/docs/telemetry/telemetry.mdx
+        # Make sure to update the example in docs/reference/telemetry.md
         # if you change / add context
         _TRACKER_CONTEXT = get_execution_context()
 

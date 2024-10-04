@@ -15,7 +15,7 @@ We'll use the [GitHub API](https://docs.github.com/en/rest) to fetch the events 
 pip install "dlt[duckdb]"
 ```
 
-2. Create a new a new file `github_events_dispatch.py` and paste the following code:
+2. Create a new file `github_events_dispatch.py` and paste the following code:
 
 ```py
 import dlt
@@ -34,14 +34,14 @@ def repo_events(last_created_at=dlt.sources.incremental("created_at")):
         response.raise_for_status()
         yield response.json()
 
-        # stop requesting pages if the last element was already older than
-        # the initial value
-        # note: incremental will skip those items anyway, we just do not
-        # want to use the api limits
+        # Stop requesting pages if the last element was already older than
+        # the initial value.
+        # Note: incremental will skip those items anyway, we just do not
+        # want to use the API limits.
         if last_created_at.start_out_of_range:
             break
 
-        # get next page
+        # Get the next page.
         if "next" not in response.links:
             break
         url = response.links["next"]["url"]
@@ -60,11 +60,11 @@ print("------")
 print(load_info)
 ```
 
-In the code above we define a resource `repo_events` that fetches events from the GitHub API.
+In the code above, we define a resource `repo_events` that fetches events from the GitHub API.
 
-Events content never changes so we can use `append` write disposition and track new events using `created_at` field.
+Events content never changes, so we can use the `append` write disposition and track new events using the `created_at` field.
 
-We name the tables using a function that receives an event data and returns table name: `table_name=lambda i: i["type"]`
+We name the tables using a function that receives event data and returns the table name: `table_name=lambda i: i["type"]`
 
 3. Now run the script:
 
@@ -72,7 +72,7 @@ We name the tables using a function that receives an event data and returns tabl
 python github_events_dispatch.py
 ```
 
-4. Peek at created tables:
+4. Peek at the created tables:
 
 ```sh
 dlt pipeline -v github_events info
@@ -86,12 +86,14 @@ dlt pipeline -v github_events show
 ```
 
 :::tip
-Some of the events produce tables with really many child tables. You can [control the level of table nesting](general-usage/source.md#reduce-the-nesting-level-of-generated-tables) with a decorator.
+Some of the events produce tables with many nested tables. You can [control the level of table nesting](general-usage/source.md#reduce-the-nesting-level-of-generated-tables) with a decorator.
 
 
-Another fun [Colab Demo](https://colab.research.google.com/drive/1BXvma_9R9MX8p_iSvHE4ebg90sUroty2#scrollTo=a3OcZolbaWGf) - we analyze reactions on duckdb repo!
+Another fun [Colab Demo](https://colab.research.google.com/drive/1BXvma_9R9MX8p_iSvHE4ebg90sUroty2#scrollTo=a3OcZolbaWGf) - we analyze reactions on the duckdb repo!
 
 :::
 
 Learn more:
-* [Change nesting of the tables](general-usage/source.md#reduce-the-nesting-level-of-generated-tables) with a decorator.
+* [Change the nesting of the tables](general-usage/source.md#reduce-the-nesting-level-of-generated-tables) with a decorator.
+
+

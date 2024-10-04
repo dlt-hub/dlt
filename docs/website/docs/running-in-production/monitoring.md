@@ -6,8 +6,8 @@ keywords: [monitoring, run monitoring, data monitoring, airflow, github actions]
 
 # Monitoring
 
-Monitoring and [alerting](alerting.md) are used together to give a most complete picture of the
-health of a data product. With monitoring, we look at much more information than we consider when
+Monitoring and [alerting](alerting.md) are used together to provide a more complete picture of the
+health of a data product. With monitoring, we examine much more information than we consider when
 alerting. Monitoring is meant to give a fast, simple overview of the health of the system. How to
 best monitor a `dlt` pipeline will depend on your [deployment method](../walkthroughs/deploy-a-pipeline/).
 
@@ -15,10 +15,10 @@ best monitor a `dlt` pipeline will depend on your [deployment method](../walkthr
 
 ### Airflow
 
-In Airflow, at the top level we can monitor:
+In Airflow, at the top level, we can monitor:
 
 - The tasks scheduled to (not) run.
-- Run history (e.g. success / failure).
+- Run history (e.g., success/failure).
 
 Airflow DAGs:
 
@@ -30,10 +30,10 @@ Airflow DAG tasks:
 
 ### GitHub Actions
 
-In GitHub Actions, at the top level we can monitor:
+In GitHub Actions, at the top level, we can monitor:
 
 - The workflows scheduled to (not) run.
-- Run history (e.g. success / failure).
+- Run history (e.g., success/failure).
 
 GitHub Actions workflows:
 
@@ -50,7 +50,7 @@ receiving rich information on executed pipelines, including encountered errors a
 
 ## Data monitoring
 
-Data quality monitoring is considered with ensuring that quality data arrives to the data warehouse
+Data quality monitoring is concerned with ensuring that quality data arrives at the data warehouse
 on time. The reason we do monitoring instead of alerting for this is because we cannot easily define
 alerts for what could go wrong.
 
@@ -82,7 +82,7 @@ Normalized data for the following tables:
 - retailers: 1342 row(s)
 ```
 
-To load these info back to the destination you can use the following:
+To load this information back to the destination, you can use the following:
 ```py
 # Create a pipeline with the specified name, destination, and dataset
 # Run the pipeline
@@ -97,7 +97,7 @@ pipeline.run([trace], table_name="_trace")
 This process loads several additional tables to the destination, which provide insights into
 the extract, normalize, and load steps. Information on the number of rows loaded for each table,
 along with the `load_id`, can be found in the `_trace__steps__extract_info__table_metrics` table.
-The `load_id` is an epoch timestamp that indicates when the loading was completed. Here's graphical
+The `load_id` is an epoch timestamp that indicates when the loading was completed. Here's a graphical
 representation of the rows loaded with `load_id` for different tables:
 
 ![image](https://storage.googleapis.com/dlt-blog-images/docs_monitoring_count_of_rows_vs_load_id.jpg)
@@ -117,3 +117,4 @@ info = pipeline.run(source, table_name="table_name", write_disposition='append')
 print(info.load_packages[0])
 ```
 > `load_packages[0]` will print the information of the first load package in the list of load packages.
+

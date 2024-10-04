@@ -33,6 +33,7 @@ from dlt.common.schema.typing import (
     TTableSchema,
     TLoaderMergeStrategy,
     TTableFormat,
+    TLoaderReplaceStrategy,
 )
 from dlt.common.wei import EVM_DECIMAL_PRECISION
 
@@ -169,12 +170,18 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
 
     supported_merge_strategies: Sequence[TLoaderMergeStrategy] = None
     merge_strategies_selector: MergeStrategySelector = None
-    # TODO: also add `supported_replace_strategies` capability
+    supported_replace_strategies: Sequence[TLoaderReplaceStrategy] = None
 
     max_parallel_load_jobs: Optional[int] = None
     """The destination can set the maximum amount of parallel load jobs being executed"""
     loader_parallelism_strategy: Optional[TLoaderParallelismStrategy] = None
     """The destination can override the parallelism strategy"""
+
+    max_query_parameters: Optional[int] = None
+    """The maximum number of parameters that can be supplied in a single parametrized query"""
+
+    supports_native_boolean: bool = True
+    """The destination supports a native boolean type, otherwise bool columns are usually stored as integers"""
 
     def generates_case_sensitive_identifiers(self) -> bool:
         """Tells if capabilities as currently adjusted, will generate case sensitive identifiers"""
@@ -220,8 +227,8 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
         caps.merge_strategies_selector = merge_strategies_selector
         return caps
 
-    def get_type_mapper(self) -> DataTypeMapper:
-        return self.type_mapper(self)
+    def get_type_mapper(self, *args: Any, **kwargs: Any) -> DataTypeMapper:
+        return self.type_mapper(self, *args, **kwargs)
 
 
 def merge_caps_file_formats(

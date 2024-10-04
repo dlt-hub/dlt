@@ -9,7 +9,7 @@ keywords: [how to, create a pipeline, rest client]
 This guide walks you through creating a pipeline that uses our [REST API Client](../general-usage/http/rest-client)
 to connect to [DuckDB](../dlt-ecosystem/destinations/duckdb).
 :::tip
-We're using DuckDB as a destination here, but you can adapt the steps to any [source](https://dlthub.com/docs/dlt-ecosystem/verified-sources/) and [destination](https://dlthub.com/docs/dlt-ecosystem/destinations/) by
+We're using DuckDB as a destination here, but you can adapt the steps to any [source](../dlt-ecosystem/verified-sources/) and [destination](../dlt-ecosystem/destinations/) by
 using the [command](../reference/command-line-interface#dlt-init) `dlt init <source> <destination>` and tweaking the pipeline accordingly.
 :::
 
@@ -51,7 +51,7 @@ pip install -r requirements.txt
 
 ## 2. Obtain and add API credentials from GitHub
 
-You will need to [sign in](https://github.com/login) to your GitHub account and create your access token via [Personal access tokens page](https://github.com/settings/tokens).
+You will need to [sign in](https://github.com/login) to your GitHub account and create your access token via the [Personal access tokens page](https://github.com/settings/tokens).
 
 Copy your new access token over to `.dlt/secrets.toml`:
 
@@ -63,7 +63,7 @@ api_secret_key = '<api key value>'
 This token will be used by `github_api_source()` to authenticate requests.
 
 The **secret name** corresponds to the **argument name** in the source function.
-Below `api_secret_key` [will get its value](../general-usage/credentials/advanced)
+Below, `api_secret_key` [will get its value](../general-usage/credentials/advanced)
 from `secrets.toml` when `github_api_source()` is called.
 
 ```py
@@ -80,11 +80,11 @@ python github_api.py
 
 Your API key should be printed out to stdout along with some test data.
 
-## 3. Request project issues from then GitHub API
+## 3. Request project issues from the GitHub API
 
 
 :::tip
-We will use `dlt` repository as an example GitHub project https://github.com/dlt-hub/dlt, feel free to replace it with your own repository.
+We will use the `dlt` repository as an example GitHub project https://github.com/dlt-hub/dlt, feel free to replace it with your own repository.
 :::
 
 Modify `github_api_resource` in `github_api.py` to request issues data from your GitHub project's API:
@@ -109,7 +109,7 @@ def github_api_resource(api_secret_key: str = dlt.secrets.value):
 
 ## 4. Load the data
 
-Uncomment the commented out code in `main` function in `github_api.py`, so that running the
+Uncomment the commented-out code in the `main` function in `github_api.py`, so that running the
 `python github_api.py` command will now also run the pipeline:
 
 ```py
@@ -143,12 +143,12 @@ python github_api.py
 
 This should print out JSON data containing the issues in the GitHub project.
 
-It also prints `load_info` object.
+It also prints the `load_info` object.
 
 Let's explore the loaded data with the [command](../reference/command-line-interface#show-tables-and-data-in-the-destination) `dlt pipeline <pipeline_name> show`.
 
 :::info
-Make sure you have `streamlit` installed `pip install streamlit`
+Make sure you have `streamlit` installed: `pip install streamlit`
 :::
 
 ```sh
@@ -162,14 +162,8 @@ This will open a Streamlit app that gives you an overview of the data loaded.
 With a functioning pipeline, consider exploring:
 
 - Our [REST Client](../general-usage/http/rest-client).
-- [Deploy this pipeline with GitHub Actions](deploy-a-pipeline/deploy-with-github-actions), so that
-  the data is automatically loaded on a schedule.
-- Transform the [loaded data](../dlt-ecosystem/transformations) with dbt or in
-  Pandas DataFrames.
-- Learn how to [run](../running-in-production/running),
-  [monitor](../running-in-production/monitoring), and
-  [alert](../running-in-production/alerting) when you put your pipeline in production.
-- Try loading data to a different destination like
-  [Google BigQuery](../dlt-ecosystem/destinations/bigquery),
-  [Amazon Redshift](../dlt-ecosystem/destinations/redshift), or
-  [Postgres](../dlt-ecosystem/destinations/postgres).
+- [Deploy this pipeline with GitHub Actions](deploy-a-pipeline/deploy-with-github-actions), so that the data is automatically loaded on a schedule.
+- Transform the [loaded data](../dlt-ecosystem/transformations) with dbt or in Pandas DataFrames.
+- Learn how to [run](../running-in-production/running), [monitor](../running-in-production/monitoring), and [alert](../running-in-production/alerting) when you put your pipeline in production.
+- Try loading data to a different destination like [Google BigQuery](../dlt-ecosystem/destinations/bigquery), [Amazon Redshift](../dlt-ecosystem/destinations/redshift), or [Postgres](../dlt-ecosystem/destinations/postgres).
+

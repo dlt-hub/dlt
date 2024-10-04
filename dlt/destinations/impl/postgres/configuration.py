@@ -14,6 +14,8 @@ from dlt.common.destination.reference import DestinationClientDwhWithStagingConf
 @configspec(init=False)
 class PostgresCredentials(ConnectionStringCredentials):
     drivername: Final[str] = dataclasses.field(default="postgresql", init=False, repr=False, compare=False)  # type: ignore
+    database: str = None
+    username: str = None
     password: TSecretValue = None
     host: str = None
     port: int = 5432

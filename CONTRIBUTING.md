@@ -4,7 +4,7 @@ Thank you for considering contributing to **dlt**! We appreciate your help in ma
 
 ## Table of Contents
 
-1. [Getting Started](#getting-started)
+1. [Getting Started](#intro)
 2. [Submitting Changes](#submitting-changes)
 3. [Adding or updating core dependencies](#adding-or-updating-core-dependencies)
 4. [Linting](#linting)

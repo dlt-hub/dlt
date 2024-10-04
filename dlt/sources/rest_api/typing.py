@@ -34,6 +34,9 @@ from dlt.common.schema.typing import (
 
 from dlt.extract.items import TTableHintTemplate
 from dlt.extract.incremental.typing import LastValueFunc
+from dlt.extract.resource import DltResource
+
+from requests import Session
 
 from dlt.sources.helpers.rest_client.typing import HTTPMethodBasic
 
@@ -187,6 +190,7 @@ class ClientConfig(TypedDict, total=False):
     headers: Optional[Dict[str, str]]
     auth: Optional[AuthConfig]
     paginator: Optional[PaginatorConfig]
+    session: Optional[Session]
 
 
 class IncrementalRESTArgs(IncrementalArgs, total=False):
@@ -273,7 +277,7 @@ class EndpointResource(EndpointResourceBase, total=False):
 
 class RESTAPIConfigBase(TypedDict):
     client: ClientConfig
-    resources: List[Union[str, EndpointResource]]
+    resources: List[Union[str, EndpointResource, DltResource]]
 
 
 class RESTAPIConfig(RESTAPIConfigBase, total=False):

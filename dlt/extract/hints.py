@@ -12,6 +12,7 @@ from dlt.common.schema.typing import (
     TTableSchemaColumns,
     TWriteDispositionConfig,
     TMergeDispositionDict,
+    TScd2StrategyDict,
     TAnySchemaColumns,
     TTableFormat,
     TSchemaContract,
@@ -352,7 +353,7 @@ class DltResourceHints:
         self, hints_template: TResourceHints, create_table_variant: bool = False
     ) -> None:
         DltResourceHints.validate_dynamic_hints(hints_template)
-        DltResourceHints.validate_write_disposition_hint(hints_template.get("write_disposition"))
+        DltResourceHints.validate_write_disposition_hint(hints_template)
         if create_table_variant:
             table_name: str = hints_template["name"]  # type: ignore[assignment]
             # incremental cannot be specified in variant
@@ -452,10 +453,11 @@ class DltResourceHints:
         md_dict: TMergeDispositionDict = dict_.pop("write_disposition")
         if merge_strategy := md_dict.get("strategy"):
             dict_["x-merge-strategy"] = merge_strategy
-        if "boundary_timestamp" in md_dict:
-            dict_["x-boundary-timestamp"] = md_dict["boundary_timestamp"]
-        # add columns for `scd2` merge strategy
+
         if merge_strategy == "scd2":
+            md_dict = cast(TScd2StrategyDict, md_dict)
+            if "boundary_timestamp" in md_dict:
+                dict_["x-boundary-timestamp"] = md_dict["boundary_timestamp"]
             if md_dict.get("validity_column_names") is None:
                 from_, to = DEFAULT_VALIDITY_COLUMN_NAMES
             else:
@@ -514,7 +516,8 @@ class DltResourceHints:
             )
 
     @staticmethod
-    def validate_write_disposition_hint(wd: TTableHintTemplate[TWriteDispositionConfig]) -> None:
+    def validate_write_disposition_hint(template: TResourceHints) -> None:
+        wd = template.get("write_disposition")
         if isinstance(wd, dict) and wd["disposition"] == "merge":
             wd = cast(TMergeDispositionDict, wd)
             if "strategy" in wd and wd["strategy"] not in MERGE_STRATEGIES:
@@ -523,13 +526,18 @@ class DltResourceHints:
                     f"""Allowed values: {', '.join(['"' + s + '"' for s in MERGE_STRATEGIES])}."""
                 )
 
-            for ts in ("active_record_timestamp", "boundary_timestamp"):
-                if ts == "active_record_timestamp" and wd.get("active_record_timestamp") is None:
-                    continue  # None is allowed for active_record_timestamp
-                if ts in wd:
-                    try:
-                        ensure_pendulum_datetime(wd[ts])  # type: ignore[literal-required]
-                    except Exception:
-                        raise ValueError(
-                            f'could not parse `{ts}` value "{wd[ts]}"'  # type: ignore[literal-required]
-                        )
+            if wd.get("strategy") == "scd2":
+                wd = cast(TScd2StrategyDict, wd)
+                for ts in ("active_record_timestamp", "boundary_timestamp"):
+                    if (
+                        ts == "active_record_timestamp"
+                        and wd.get("active_record_timestamp") is None
+                    ):
+                        continue  # None is allowed for active_record_timestamp
+                    if ts in wd:
+                        try:
+                            ensure_pendulum_datetime(wd[ts])  # type: ignore[literal-required]
+                        except Exception:
+                            raise ValueError(
+                                f'could not parse `{ts}` value "{wd[ts]}"'  # type: ignore[literal-required]
+                            )

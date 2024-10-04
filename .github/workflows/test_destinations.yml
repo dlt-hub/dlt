@@ -30,6 +30,7 @@ env:
   # postgres runs again here so we can test on mac/windows
   ACTIVE_DESTINATIONS: "[\"redshift\", \"postgres\", \"duckdb\", \"filesystem\", \"dummy\"]"
   # note that all buckets are enabled for testing
+  ALL_FILESYSTEM_DRIVERS: "[\"memory\", \"file\", \"r2\", \"s3\", \"gs\", \"az\", \"abfss\", \"gdrive\"]" #excludes sftp
 
 jobs:
   get_docs_changes:

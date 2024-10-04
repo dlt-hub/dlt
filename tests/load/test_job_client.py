@@ -27,7 +27,12 @@ from dlt.destinations.exceptions import (
 )
 
 from dlt.destinations.job_client_impl import SqlJobClientBase
-from dlt.common.destination.reference import StateInfo, WithStagingDataset
+from dlt.common.destination.reference import (
+    StateInfo,
+    WithStagingDataset,
+    DestinationClientConfiguration,
+)
+from dlt.common.time import ensure_pendulum_datetime
 
 from tests.cases import table_update_and_row, assert_all_data_types_row
 from tests.utils import TEST_STORAGE_ROOT, autouse_test_storage
@@ -62,7 +67,7 @@ def file_storage() -> FileStorage:
 
 @pytest.fixture(scope="function")
 def client(request, naming) -> Iterator[SqlJobClientBase]:
-    yield from yield_client_with_storage(request.param.destination)
+    yield from yield_client_with_storage(request.param.destination_factory())
 
 
 @pytest.fixture(scope="function")
@@ -202,7 +207,7 @@ def test_complete_load(naming: str, client: SqlJobClientBase) -> None:
     assert load_rows[0][2] == 0
     import datetime  # noqa: I251
 
-    assert type(load_rows[0][3]) is datetime.datetime
+    assert isinstance(ensure_pendulum_datetime(load_rows[0][3]), datetime.datetime)
     assert load_rows[0][4] == client.schema.version_hash
     # make sure that hash in loads exists in schema versions table
     versions_table = client.sql_client.make_qualified_table_name(version_table_name)
@@ -417,7 +422,9 @@ def test_get_storage_table_with_all_types(client: SqlJobClientBase) -> None:
     assert len(storage_table) > 0
     # column order must match TABLE_UPDATE
     storage_columns = list(storage_table.values())
-    for c, expected_c in zip(TABLE_UPDATE, storage_columns):
+    for c, expected_c in zip(
+        TABLE_UPDATE, storage_columns
+    ):  # TODO: c and expected_c need to be swapped
         # storage columns are returned with column names as in information schema
         assert client.capabilities.casefold_identifier(c["name"]) == expected_c["name"]
         # athena does not know wei data type and has no JSON type, time is not supported with parquet tables
@@ -442,11 +449,19 @@ def test_get_storage_table_with_all_types(client: SqlJobClientBase) -> None:
                 continue
         if client.config.destination_type == "dremio" and c["data_type"] == "json":
             continue
+        if not client.capabilities.supports_native_boolean and c["data_type"] == "bool":
+            # The reflected data type is probably either int or boolean depending on how the client is implemented
+            assert expected_c["data_type"] in ("bigint", "bool")
+            continue
+
         assert c["data_type"] == expected_c["data_type"]
 
 
 @pytest.mark.parametrize(
-    "client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name
+    "client",
+    destinations_configs(default_sql_configs=True, exclude=("sqlalchemy",)),
+    indirect=True,
+    ids=lambda x: x.name,
 )
 def test_preserve_column_order(client: SqlJobClientBase) -> None:
     schema = client.schema
@@ -561,7 +576,7 @@ def test_load_with_all_types(
     if not client.capabilities.preferred_loader_file_format:
         pytest.skip("preferred loader file format not set, destination will only work with staging")
     table_name = "event_test_table" + uniq_id()
-    column_schemas, data_row = get_columns_and_row_all_types(client.config.destination_type)
+    column_schemas, data_row = get_columns_and_row_all_types(client.config)
 
     # we should have identical content with all disposition types
     partial = client.schema.update_table(
@@ -576,18 +591,21 @@ def test_load_with_all_types(
     client.schema._bump_version()
     client.update_stored_schema()
 
-    should_load_to_staging = client.should_load_data_to_staging_dataset(table_name)  # type: ignore[attr-defined]
-    if should_load_to_staging:
-        with client.with_staging_dataset():  # type: ignore[attr-defined]
-            # create staging for merge dataset
-            client.initialize_storage()
-            client.update_stored_schema()
+    if isinstance(client, WithStagingDataset):
+        should_load_to_staging = client.should_load_data_to_staging_dataset(table_name)
+        if should_load_to_staging:
+            with client.with_staging_dataset():
+                # create staging for merge dataset
+                client.initialize_storage()
+                client.update_stored_schema()
 
-    with client.sql_client.with_alternative_dataset_name(
-        client.sql_client.staging_dataset_name
-        if should_load_to_staging
-        else client.sql_client.dataset_name
-    ):
+        with client.sql_client.with_alternative_dataset_name(
+            client.sql_client.staging_dataset_name
+            if should_load_to_staging
+            else client.sql_client.dataset_name
+        ):
+            canonical_name = client.sql_client.make_qualified_table_name(table_name)
+    else:
         canonical_name = client.sql_client.make_qualified_table_name(table_name)
     # write row
     print(data_row)
@@ -633,7 +651,7 @@ def test_write_dispositions(
     os.environ["DESTINATION__REPLACE_STRATEGY"] = replace_strategy
 
     table_name = "event_test_table" + uniq_id()
-    column_schemas, data_row = get_columns_and_row_all_types(client.config.destination_type)
+    column_schemas, data_row = get_columns_and_row_all_types(client.config)
     client.schema.update_table(
         new_table(table_name, write_disposition=write_disposition, columns=column_schemas.values())
     )
@@ -646,6 +664,8 @@ def test_write_dispositions(
     client.update_stored_schema()
 
     if write_disposition == "merge":
+        if not client.capabilities.supported_merge_strategies:
+            pytest.skip("destination does not support merge")
         # add root key
         client.schema.tables[table_name]["columns"]["col1"]["root_key"] = True
         # create staging for merge dataset
@@ -665,9 +685,11 @@ def test_write_dispositions(
             with io.BytesIO() as f:
                 write_dataset(client, f, [data_row], column_schemas)
                 query = f.getvalue()
-            if client.should_load_data_to_staging_dataset(table_name):  # type: ignore[attr-defined]
+            if isinstance(
+                client, WithStagingDataset
+            ) and client.should_load_data_to_staging_dataset(table_name):
                 # load to staging dataset on merge
-                with client.with_staging_dataset():  # type: ignore[attr-defined]
+                with client.with_staging_dataset():
                     expect_load_file(client, file_storage, query, t)
             else:
                 # load directly on other
@@ -737,7 +759,7 @@ def test_get_resumed_job(client: SqlJobClientBase, file_storage: FileStorage) ->
 )
 def test_default_schema_name_init_storage(destination_config: DestinationTestConfiguration) -> None:
     with cm_yield_client_with_storage(
-        destination_config.destination,
+        destination_config.destination_factory(),
         default_config_values={
             "default_schema_name": (  # pass the schema that is a default schema. that should create dataset with the name `dataset_name`
                 "event"
@@ -748,7 +770,7 @@ def test_default_schema_name_init_storage(destination_config: DestinationTestCon
         assert client.sql_client.has_dataset()
 
     with cm_yield_client_with_storage(
-        destination_config.destination,
+        destination_config.destination_factory(),
         default_config_values={
             "default_schema_name": (
                 None  # no default_schema. that should create dataset with the name `dataset_name`
@@ -759,7 +781,7 @@ def test_default_schema_name_init_storage(destination_config: DestinationTestCon
         assert client.sql_client.has_dataset()
 
     with cm_yield_client_with_storage(
-        destination_config.destination,
+        destination_config.destination_factory(),
         default_config_values={
             "default_schema_name": (  # the default schema is not event schema . that should create dataset with the name `dataset_name` with schema suffix
                 "event_2"
@@ -788,7 +810,8 @@ def test_get_stored_state(
     os.environ["SCHEMA__NAMING"] = naming_convention
 
     with cm_yield_client_with_storage(
-        destination_config.destination, default_config_values={"default_schema_name": None}
+        destination_config.destination_factory(),
+        default_config_values={"default_schema_name": None},
     ) as client:
         # event schema with event table
         if not client.capabilities.preferred_loader_file_format:
@@ -814,6 +837,8 @@ def test_get_stored_state(
 
         # get state
         stored_state = client.get_stored_state("pipeline")
+        # Ensure timezone aware datetime for comparing
+        stored_state.created_at = pendulum.instance(stored_state.created_at)
         assert doc == stored_state.as_doc()
 
 
@@ -850,7 +875,8 @@ def test_many_schemas_single_dataset(
         assert len(db_rows) == expected_rows
 
     with cm_yield_client_with_storage(
-        destination_config.destination, default_config_values={"default_schema_name": None}
+        destination_config.destination_factory(),
+        default_config_values={"default_schema_name": None},
     ) as client:
         # event schema with event table
         if not client.capabilities.preferred_loader_file_format:
@@ -909,7 +935,11 @@ def test_many_schemas_single_dataset(
             "mandatory_column", "text", nullable=False
         )
         client.schema._bump_version()
-        if destination_config.destination == "clickhouse":
+        if destination_config.destination_type == "clickhouse" or (
+            # mysql allows adding not-null columns (they have an implicit default)
+            destination_config.destination_type == "sqlalchemy"
+            and client.sql_client.dialect_name == "mysql"
+        ):
             client.update_stored_schema()
         else:
             with pytest.raises(DatabaseException) as py_ex:
@@ -942,11 +972,16 @@ def normalize_rows(rows: List[Dict[str, Any]], naming: NamingConvention) -> None
             row[naming.normalize_identifier(k)] = row.pop(k)
 
 
-def get_columns_and_row_all_types(destination_type: str):
+def get_columns_and_row_all_types(destination_config: DestinationClientConfiguration):
+    exclude_types = []
+    if destination_config.destination_type in ["databricks", "clickhouse", "motherduck"]:
+        exclude_types.append("time")
+    if destination_config.destination_name == "sqlalchemy_sqlite":
+        exclude_types.extend(["decimal", "wei"])
     return table_update_and_row(
         # TIME + parquet is actually a duckdb problem: https://github.com/duckdb/duckdb/pull/13283
-        exclude_types=(
-            ["time"] if destination_type in ["databricks", "clickhouse", "motherduck"] else None
+        exclude_types=exclude_types,  # type: ignore[arg-type]
+        exclude_columns=(
+            ["col4_precision"] if destination_config.destination_type in ["motherduck"] else None
         ),
-        exclude_columns=["col4_precision"] if destination_type in ["motherduck"] else None,
     )
