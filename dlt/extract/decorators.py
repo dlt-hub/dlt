@@ -105,7 +105,7 @@ class DltSourceFactoryWrapper(SourceFactory[TSourceFunParams, TDltSourceImpl]):
         allows to change the decorator arguments at runtime. Changing the `name` and `section` creates a clone of the source
         with different name and taking the configuration from a different keys.
 
-        This wrapper registers the source under <section>.<name> type in SourceReference registry, using the original
+        This wrapper registers the source under `section`.`name` type in SourceReference registry, using the original
         `section` (which corresponds to module name) and `name` (which corresponds to source function name).
         """
         self._f: AnyFun = None
@@ -982,7 +982,7 @@ def _maybe_load_schema_for_callable(f: AnyFun, name: str) -> Optional[Schema]:
 
 
 def _get_source_section_name(m: ModuleType) -> str:
-    """Gets the source section name (as in SOURCES <section> <name> tuple) from __source_name__ of the module `m` or from its name"""
+    """Gets the source section name (as in SOURCES (section, name) tuple) from __source_name__ of the module `m` or from its name"""
     if m is None:
         return None
     if hasattr(m, "__source_name__"):
