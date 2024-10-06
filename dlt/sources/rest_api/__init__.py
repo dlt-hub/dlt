@@ -121,6 +121,9 @@ def rest_api_source(
             },
         })
     """
+    # TODO: this must be removed when TypedDicts are supported by resolve_configuration
+    #   so secrets values are bound BEFORE validation. validation will happen during the resolve process
+    _validate_config(config)
     decorated = rest_api.with_args(
         name=name,
         section=section,
@@ -406,7 +409,12 @@ def _validate_config(config: RESTAPIConfig) -> None:
 
 
 def _mask_secrets(auth_config: AuthConfig) -> AuthConfig:
-    if isinstance(auth_config, AuthBase) and not isinstance(auth_config, AuthConfigBase):
+    # skip AuthBase (derived from requests lib) or shorthand notation
+    if (
+        isinstance(auth_config, AuthBase)
+        and not isinstance(auth_config, AuthConfigBase)
+        or isinstance(auth_config, str)
+    ):
         return auth_config
 
     has_sensitive_key = any(key in auth_config for key in SENSITIVE_KEYS)
