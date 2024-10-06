@@ -83,6 +83,11 @@ class DuckDbBaseCredentials(ConnectionStringCredentials):
             else:
                 raise
 
+    @property
+    def has_open_connection(self) -> bool:
+        """Returns true if connection was not yet created or no connections were borrowed in case of external connection"""
+        return not hasattr(self, "_conn") or self._conn_borrows == 0
+
     def _get_conn_config(self) -> Dict[str, Any]:
         return {}
 
@@ -90,7 +95,6 @@ class DuckDbBaseCredentials(ConnectionStringCredentials):
         return self.database
 
     def _delete_conn(self) -> None:
-        # print("Closing conn because is owner")
         self._conn.close()
         delattr(self, "_conn")
 

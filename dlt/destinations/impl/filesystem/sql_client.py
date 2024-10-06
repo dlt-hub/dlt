@@ -35,6 +35,9 @@ else:
 
 
 class FilesystemSqlClient(DuckDbSqlClient):
+    memory_db: duckdb.DuckDBPyConnection = None
+    """Internally created in-mem database in case external is not provided"""
+
     def __init__(
         self,
         fs_client: FilesystemClient,
@@ -54,7 +57,6 @@ class FilesystemSqlClient(DuckDbSqlClient):
             capabilities=duckdb_factory()._raw_capabilities(),
         )
         self.fs_client = fs_client
-        self.autocreate_required_views = True
 
         if self.fs_client.config.protocol not in SUPPORTED_PROTOCOLS:
             raise NotImplementedError(
@@ -150,17 +152,17 @@ class FilesystemSqlClient(DuckDbSqlClient):
 
     def open_connection(self) -> duckdb.DuckDBPyConnection:
         # we keep the in memory instance around, so if this prop is set, return it
+        first_connection = self.credentials.has_open_connection
         super().open_connection()
 
-        # set up dataset
-        self.autocreate_required_views = False
-        if not self.has_dataset():
-            self.create_dataset()
-        self.autocreate_required_views = True
-        self._conn.sql(f"USE {self.fully_qualified_dataset_name()}")
+        if first_connection:
+            # set up dataset
+            if not self.has_dataset():
+                self.create_dataset()
+            self._conn.sql(f"USE {self.fully_qualified_dataset_name()}")
 
-        # create authentication to data provider
-        self.create_authentication()
+            # create authentication to data provider
+            self.create_authentication()
 
         return self._conn
 
@@ -244,12 +246,28 @@ class FilesystemSqlClient(DuckDbSqlClient):
     @contextmanager
     @raise_database_error
     def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> Iterator[DBApiCursor]:
-        # find all tables to preload
-        if self.autocreate_required_views:  # skip this step when operating on the schema..
+        # skip parametrized queries, we could also render them but currently user is not able to
+        # do parametrized queries via dataset interface
+        if not args and not kwargs:
+            # find all tables to preload
             expression = sqlglot.parse_one(query, read="duckdb")  # type: ignore
-            load_tables = {t.name: t.name for t in expression.find_all(exp.Table)}
-            self.create_views_for_tables(load_tables)
+            load_tables: Dict[str, str] = {}
+            for table in expression.find_all(exp.Table):
+                # sqlglot has tables without tables ie. schemas are tables
+                if not table.this:
+                    continue
+                schema = table.db
+                # add only tables from the dataset schema
+                if not schema or schema.lower() == self.dataset_name.lower():
+                    load_tables[table.name] = table.name
 
-        # TODO: raise on non-select queries here, they do not make sense in this context
+            if load_tables:
+                self.create_views_for_tables(load_tables)
+
         with super().execute_query(query, *args, **kwargs) as cursor:
             yield cursor
+
+    def __del__(self) -> None:
+        if self.memory_db:
+            self.memory_db.close()
+            self.memory_db = None
