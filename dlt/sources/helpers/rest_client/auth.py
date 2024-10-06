@@ -145,7 +145,7 @@ class OAuth2AuthBase(AuthConfigBase):
 @configspec
 class OAuth2ClientCredentials(OAuth2AuthBase):
     """
-    This class implements OAuth2 Client Credentials flow where the autorization service
+    This class implements OAuth2 Client Credentials flow where the authorization service
     gives permission without the end user approving.
     This is often used for machine-to-machine authorization.
     The client sends its client ID and client secret to the authorization service which replies
@@ -153,30 +153,25 @@ class OAuth2ClientCredentials(OAuth2AuthBase):
     With the access token, the client can access resource services.
     """
 
-    def __init__(
-        self,
-        access_token_url: str,
-        client_id: TSecretStrValue,
-        client_secret: TSecretStrValue,
-        access_token_request_data: Dict[str, Any] = None,
-        default_token_expiration: int = 3600,
-        session: Annotated[BaseSession, NotResolved()] = None,
-    ) -> None:
-        super().__init__()
-        self.access_token_url = access_token_url
-        self.client_id = client_id
-        self.client_secret = client_secret
-        if access_token_request_data is None:
+    access_token: Annotated[Optional[TSecretStrValue], NotResolved()] = None
+    access_token_url: str = None
+    client_id: TSecretStrValue = None
+    client_secret: TSecretStrValue = None
+    access_token_request_data: Dict[str, Any] = None
+    default_token_expiration: int = 3600
+    session: Annotated[BaseSession, NotResolved()] = None
+
+    def __post_init__(self) -> None:
+        if self.access_token_request_data is None:
             self.access_token_request_data = {}
         else:
-            self.access_token_request_data = access_token_request_data
-        self.default_token_expiration = default_token_expiration
+            self.access_token_request_data = self.access_token_request_data
         self.token_expiry: pendulum.DateTime = pendulum.now()
-        self.session = session
-        if not self.session:
+        # use default system session unless specified otherwise
+        if self.session is None:
             from dlt.sources.helpers import requests
 
-            session = requests.client.session
+            self.session = requests.client.session
 
     def __call__(self, request: PreparedRequest) -> PreparedRequest:
         if self.access_token is None or self.is_token_expired():
