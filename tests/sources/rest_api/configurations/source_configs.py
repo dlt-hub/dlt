@@ -4,6 +4,7 @@ from typing import cast, List
 import requests
 import dlt
 import dlt.common
+from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.typing import TSecretStrValue
 from dlt.common.exceptions import DictValidationException
 from dlt.common.configuration.specs import configspec
@@ -11,7 +12,7 @@ from dlt.common.configuration.specs import configspec
 import dlt.sources.helpers
 import dlt.sources.helpers.requests
 from dlt.sources.helpers.rest_client.paginators import HeaderLinkPaginator
-from dlt.sources.helpers.rest_client.auth import OAuth2AuthBase
+from dlt.sources.helpers.rest_client.auth import OAuth2AuthBase, APIKeyAuth
 
 from dlt.sources.helpers.rest_client.paginators import SinglePagePaginator
 from dlt.sources.helpers.rest_client.auth import HttpBasicAuth
@@ -31,6 +32,47 @@ INVALID_CONFIGS = [
         expected_message="following required fields are missing {'client'}",
         exception=DictValidationException,
         config={"resources": []},
+    ),
+    # expect missing api_key at the right config section coming from the shorthand auth notation
+    ConfigTest(
+        expected_message="SOURCES__REST_API__INVALID_CONFIG__CREDENTIALS__API_KEY",
+        exception=ConfigFieldMissingException,
+        config={
+            "client": {
+                "base_url": "https://api.example.com",
+                "auth": "api_key",
+            },
+            "resources": ["posts"],
+        },
+    ),
+    # expect missing api_key at the right config section coming from the explicit auth config base
+    ConfigTest(
+        expected_message="SOURCES__REST_API__INVALID_CONFIG__CREDENTIALS__API_KEY",
+        exception=ConfigFieldMissingException,
+        config={
+            "client": {
+                "base_url": "https://api.example.com",
+                "auth": APIKeyAuth(),
+            },
+            "resources": ["posts"],
+        },
+    ),
+    # expect missing api_key at the right config section coming from the dict notation
+    # TODO: currently this test fails on validation, api_key is necessary. validation happens
+    #   before secrets are bound, this must be changed
+    ConfigTest(
+        expected_message=(
+            "For ApiKeyAuthConfig: In path ./client/auth: following required fields are missing"
+            " {'api_key'}"
+        ),
+        exception=DictValidationException,
+        config={
+            "client": {
+                "base_url": "https://api.example.com",
+                "auth": {"type": "api_key", "location": "header"},
+            },
+            "resources": ["posts"],
+        },
     ),
     ConfigTest(
         expected_message="In path ./client: following fields are unexpected {'invalid_key'}",

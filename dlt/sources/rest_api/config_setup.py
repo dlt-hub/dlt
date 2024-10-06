@@ -176,14 +176,14 @@ def create_auth(auth_config: Optional[AuthConfig]) -> Optional[AuthConfigBase]:
     if isinstance(auth_config, dict):
         auth_type = auth_config.get("type", "bearer")
         auth_class = get_auth_class(auth_type)
-        auth = auth_class(**exclude_keys(auth_config, {"type"}))
+        auth = auth_class.from_init_value(exclude_keys(auth_config, {"type"}))
 
-    if auth:
+    if auth and not auth.__is_resolved__:
         # TODO: provide explicitly (non-default) values as explicit explicit_value=dict(auth)
         # this will resolve auth which is a configuration using current section context
-        return resolve_configuration(auth, accept_partial=True)
+        auth = resolve_configuration(auth, accept_partial=False)
 
-    return None
+    return auth
 
 
 def setup_incremental_object(
