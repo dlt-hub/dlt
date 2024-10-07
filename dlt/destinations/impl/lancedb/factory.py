@@ -26,8 +26,8 @@ class lancedb(Destination[LanceDBClientConfiguration, "LanceDBClient"]):
 
     def _raw_capabilities(self) -> DestinationCapabilitiesContext:
         caps = DestinationCapabilitiesContext()
-        caps.preferred_loader_file_format = "jsonl"
-        caps.supported_loader_file_formats = ["jsonl"]
+        caps.preferred_loader_file_format = "parquet"
+        caps.supported_loader_file_formats = ["parquet", "reference"]
         caps.type_mapper = LanceDBTypeMapper
 
         caps.max_identifier_length = 200
@@ -41,6 +41,10 @@ class lancedb(Destination[LanceDBClientConfiguration, "LanceDBClient"]):
         caps.decimal_precision = (38, 18)
         caps.timestamp_precision = 6
         caps.supported_replace_strategies = ["truncate-and-insert"]
+
+        caps.recommended_file_size = 128_000_000
+
+        caps.supported_merge_strategies = ["upsert"]
 
         return caps
 

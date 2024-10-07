@@ -40,7 +40,7 @@ def assert_table(
     exists = client.table_exists(qualified_table_name)
     assert exists
 
-    records = client.db_client.open_table(qualified_table_name).search().limit(50).to_list()
+    records = client.db_client.open_table(qualified_table_name).search().limit(0).to_list()
 
     if expected_items_count is not None:
         assert expected_items_count == len(records)
@@ -51,7 +51,6 @@ def assert_table(
     drop_keys = [
         "_dlt_id",
         "_dlt_load_id",
-        dlt.config.get("destination.lancedb.credentials.id_field_name", str) or "id__",
         dlt.config.get("destination.lancedb.credentials.vector_field_name", str) or "vector",
     ]
     objects_without_dlt_or_special_keys = [
@@ -72,3 +71,13 @@ class MockEmbeddingFunc(TextEmbeddingFunction):
 
     def ndims(self) -> int:
         return 2
+
+
+def mock_embed(
+    dim: int = 10,
+) -> str:
+    return str(np.random.random_sample(dim))
+
+
+def chunk_document(doc: str, chunk_size: int = 10) -> List[str]:
+    return [doc[i : i + chunk_size] for i in range(0, len(doc), chunk_size)]

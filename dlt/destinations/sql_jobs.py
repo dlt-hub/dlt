@@ -78,7 +78,6 @@ class SqlFollowupJob(FollowupJobRequestImpl):
             job = cls(file_info.file_name())
             job._save_text_file("\n".join(sql))
         except Exception as e:
-            # raise exception with some context
             raise SqlJobCreationException(e, table_chain) from e
 
         return job
