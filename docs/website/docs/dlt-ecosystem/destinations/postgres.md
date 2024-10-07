@@ -61,7 +61,7 @@ connect_timeout = 15
 
 You can also pass a database connection string similar to the one used by the `psycopg2` library or [SQLAlchemy](https://docs.sqlalchemy.org/en/20/core/engines.html#postgresql). The credentials above will look like this:
 ```toml
-# keep it at the top of your toml file! before any section starts
+# Keep it at the top of your TOML file, before any section starts
 destination.postgres.credentials="postgresql://loader:<password>@localhost/dlt_data?connect_timeout=15"
 ```
 
@@ -86,11 +86,11 @@ If you set the [`replace` strategy](../../general-usage/full-loading.md) to `sta
 `postgres` supports various timestamp types, which can be configured using the column flags `timezone` and `precision` in the `dlt.resource` decorator or the `pipeline.run` method.
 
 - **Precision**: allows you to specify the number of decimal places for fractional seconds, ranging from 0 to 6. It can be used in combination with the `timezone` flag.
-- **Timezone**: 
+- **Timezone**:
   - Setting `timezone=False` maps to `TIMESTAMP WITHOUT TIME ZONE`.
   - Setting `timezone=True` (or omitting the flag, which defaults to `True`) maps to `TIMESTAMP WITH TIME ZONE`.
 
-#### Example precision and timezone: TIMESTAMP (3) WITHOUT TIME ZONE 
+#### Example precision and timezone: TIMESTAMP (3) WITHOUT TIME ZONE
 ```py
 @dlt.resource(
     columns={"event_tstamp": {"data_type": "timestamp", "precision": 3, "timezone": False}},

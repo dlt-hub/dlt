@@ -20,18 +20,18 @@ Resources that can be loaded using this verified source are:
 
 | Name       | Description                                                                                           |
 | ---------- | ----------------------------------------------------------------------------------------------------- |
-| workspaces | people, materials, or assets required to complete a task or project successfully                      |
-| projects   | collections of tasks and related information                                                          |
-| sections   | used to organize tasks within a project into smaller groups or categories                             |
-| tags       | labels that can be attached to tasks, projects, or conversations to help categorize and organize them |
-| stories    | updates or comments that team members can add to a task or project                                    |
-| teams      | groups of individuals who work together to complete projects and tasks                                |
-| users      | individuals who have access to the Asana platform                                                     |
+| workspaces | People, materials, or assets required to complete a task or project successfully                      |
+| projects   | Collections of tasks and related information                                                          |
+| sections   | Used to organize tasks within a project into smaller groups or categories                             |
+| tags       | Labels that can be attached to tasks, projects, or conversations to help categorize and organize them |
+| stories    | Updates or comments that team members can add to a task or project                                    |
+| teams      | Groups of individuals who work together to complete projects and tasks                                |
+| users      | Individuals who have access to the Asana platform                                                     |
 
 To get a complete list of sub-endpoints that can be loaded, see
 [asana_dlt/settings.py.](https://github.com/dlt-hub/verified-sources/blob/master/sources/asana_dlt/settings.py)
 
-## Setup Guide
+## Setup guide
 
 ### Grab credentials
 
@@ -161,12 +161,9 @@ workspace from the iterator obtained. This enables the workspaces to be consumed
 
 ### Resource-transformer `projects`
 
-In addition to these source and resource functions, there are seven transformer functions. For
-various endpoints like “projects”, “sections”, “tags”, “tasks”, “stories”, “teams” and “users”. The
-transformer functions transform or process data from one or more resources.
+In addition to these source and resource functions, there are seven transformer functions for various endpoints like "projects", "sections", "tags", "tasks", "stories", "teams", and "users". The transformer functions transform or process data from one or more resources.
 
-The transformer function `projects` process data from the `workspaces` resource. It
-fetches and returns a list of projects for a given workspace from Asana.
+The transformer function `projects` processes data from the `workspaces` resource. It fetches and returns a list of projects for a given workspace from Asana.
 
 ```py
 @dlt.transformer(
@@ -184,18 +181,15 @@ def projects(
 
 `workspace`: The data item from the 'workspaces' resource.
 
-`access_token`: Token required to authenticate the Asana API. This token is defined in the
-`.dlt/secret.toml` file.
+`access_token`: Token required to authenticate the Asana API. This token is defined in the `.dlt/secret.toml` file.
 
-`fields`: A list of workspace fields to be fetched from `asana_dlt/settings.py`. For example,
-"name", "members", "completed", etc.
+`fields`: A list of workspace fields to be fetched from `asana_dlt/settings.py`. For example, "name", "members", "completed", etc.
 
-It uses `@dlt.defer` decorator to enable parallel run in thread pool.
+It uses the `@dlt.defer` decorator to enable parallel run in a thread pool.
 
 ### Resource-transformer `tasks`
 
-This [incremental](../../general-usage/incremental-loading.md) resource-transformer fetches all
-tasks for a given project from Asana.
+This [incremental](../../general-usage/incremental-loading.md) resource-transformer fetches all tasks for a given project from Asana.
 
 ```py
 @dlt.transformer(data_from=projects, write_disposition="merge", primary_key="gid")
@@ -212,23 +206,19 @@ def tasks(
 
 `workspace`: The data item from the 'projects' resource.
 
-`access_token`: Token required to authenticate the Asana API. This token is defined in the
-`.dlt/secret.toml` file.
+`access_token`: Token required to authenticate the Asana API. This token is defined in the `.dlt/secret.toml` file.
 
 `modified_at`: The date from which to fetch modified tasks.
 
-`fields`: A list of workspace fields to be fetched from `asana_dlt/settings.py`. For example,
-"name", "assignee", "completed", etc.
+`fields`: A list of workspace fields to be fetched from `asana_dlt/settings.py`. For example, "name", "assignee", "completed", etc.
 
 ## Customization
 
 ### Create your own pipeline
 
-If you wish to create your own pipelines, you can leverage source and resource methods from this
-verified source.
+If you wish to create your own pipelines, you can leverage source and resource methods from this verified source.
 
-To create your data pipeline using single loading for “workspaces” and “projects” endpoints, follow
-these steps:
+To create your data pipeline using single loading for the "workspaces" and "projects" endpoints, follow these steps:
 
 1. Configure the pipeline by specifying the pipeline name, destination, and dataset as follows:
 
@@ -240,10 +230,9 @@ these steps:
    )
    ```
 
-   To read more about pipeline configuration, please refer to our
-   [documentation](../../general-usage/pipeline).
+   To read more about pipeline configuration, please refer to our [documentation](../../general-usage/pipeline).
 
-1. To load the data from all the fields, you can utilise the `asana_source` method as follows:
+1. To load the data from all the fields, you can utilize the `asana_source` method as follows:
 
    ```py
    load_data = asana_source()
@@ -257,8 +246,7 @@ these steps:
    print(load_info)
    ```
 
-1. To use the method `pipeline.run()` to load custom endpoints “workspaces” and “projects”, the
-   above script may be modified as:
+1. To use the method `pipeline.run()` to load custom endpoints "workspaces" and "projects", the above script may be modified as:
 
    ```py
    load_info = pipeline.run(load_data.with_resources("workspaces", "projects"))

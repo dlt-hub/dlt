@@ -373,12 +373,8 @@ def test_multiple_response_actions_on_every_response(mock_api_server, mocker):
     class CustomSession(Session):
         pass
 
-    def send_spy(*args, **kwargs):
-        return original_send(*args, **kwargs)
-
     my_session = CustomSession()
-    original_send = my_session.send
-    mocked_send = mocker.patch.object(my_session, "send", side_effect=send_spy)
+    mocked_send = mocker.spy(my_session, "send")
 
     source = rest_api_source(
         {

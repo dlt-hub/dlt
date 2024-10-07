@@ -45,8 +45,8 @@ The most specific possible path for **sources** looks like:
   groupId="config-provider-type"
   defaultValue="toml"
   values={[
-    {"label": "Toml config provider", "value": "toml"},
-    {"label": "ENV variables", "value": "env"},
+    {"label": "TOML config provider", "value": "toml"},
+    {"label": "Environment variables", "value": "env"},
     {"label": "In the code", "value": "code"},
 ]}>
   <TabItem value="toml">
@@ -78,8 +78,8 @@ The most specific possible path for **destinations** looks like:
   groupId="config-provider-type"
   defaultValue="toml"
   values={[
-    {"label": "Toml config provider", "value": "toml"},
-    {"label": "ENV variables", "value": "env"},
+    {"label": "TOML config provider", "value": "toml"},
+    {"label": "Environment variables", "value": "env"},
     {"label": "In the code", "value": "code"},
 ]}>
   <TabItem value="toml">
@@ -237,7 +237,7 @@ The TOML provider also has the capability to read files from `~/.dlt/` (located 
 ### Structure
 
 `dlt` organizes sections in TOML files in a specific structure required by the [injection mechanism](advanced/#injection-mechanism).
-Understanding this structure gives you more flexibility in setting credentials. For more details, see [Toml files structure](advanced/#toml-files-structure).
+Understanding this structure gives you more flexibility in setting credentials. For more details, see [TOML files structure](advanced/#toml-files-structure).
 
 ## Custom providers
 
@@ -246,18 +246,18 @@ as a supplier of `config` and `secret` values. The code below demonstrates how t
 
 ```py
 import dlt
-
 from dlt.common.configuration.providers import CustomLoaderDocProvider
 
-# create a function that loads a dict
+# Create a function that loads a dict
 def load_config():
-   with open("config.json", "rb") as f:
-      config_dict = json.load(f)
+    with open("config.json", "rb") as f:
+        return json.load(f)
 
-# create the custom provider
+
+# Create the custom provider
 provider = CustomLoaderDocProvider("my_json_provider", load_config)
 
-# register provider
+# Register provider
 dlt.config.register_provider(provider)
 ```
 
@@ -285,8 +285,8 @@ Let's assume we have a [notion](../../dlt-ecosystem/verified-sources/notion) sou
   groupId="config-provider-type"
   defaultValue="toml"
   values={[
-    {"label": "Toml config provider", "value": "toml"},
-    {"label": "ENV variables", "value": "env"},
+    {"label": "TOML config provider", "value": "toml"},
+    {"label": "Environment variables", "value": "env"},
     {"label": "In the code", "value": "code"},
 ]}>
 
@@ -319,7 +319,7 @@ aws_secret_access_key = "1234567890_access_key" # copy the secret access key her
   <TabItem value="env">
 
 ```sh
-# ENV vars are set up the same way both for configs and secrets
+# Environment variables are set up the same way both for configs and secrets
 export RUNTIME__LOG_LEVEL="INFO"
 export DESTINATION__FILESYSTEM__BUCKET_URL="s3://[your_bucket_name]"
 export NORMALIZE__DATA_WRITER__DISABLE_COMPRESSION="true"
@@ -376,8 +376,8 @@ Let's assume we use the `bigquery` destination and the `google_sheets` source. T
   groupId="config-provider-type"
   defaultValue="toml"
   values={[
-    {"label": "Toml config provider", "value": "toml"},
-    {"label": "ENV variables", "value": "env"},
+    {"label": "TOML config provider", "value": "toml"},
+    {"label": "Environment variables", "value": "env"},
     {"label": "In the code", "value": "code"},
 ]}>
 
@@ -424,8 +424,8 @@ os.environ["CREDENTIALS__PROJECT_ID"] = os.environ.get("GOOGLE_PROJECT_ID")
   groupId="config-provider-type"
   defaultValue="toml"
   values={[
-    {"label": "Toml config provider", "value": "toml"},
-    {"label": "ENV variables", "value": "env"},
+    {"label": "TOML config provider", "value": "toml"},
+    {"label": "Environment variables", "value": "env"},
     {"label": "In the code", "value": "code"},
 ]}>
 
@@ -506,8 +506,8 @@ Let's assume we have several different Google sources and destinations. We can u
   groupId="config-provider-type"
   defaultValue="toml"
   values={[
-    {"label": "Toml config provider", "value": "toml"},
-    {"label": "ENV variables", "value": "env"},
+    {"label": "TOML config provider", "value": "toml"},
+    {"label": "Environment variables", "value": "env"},
     {"label": "In the code", "value": "code"},
 ]}>
 
@@ -590,8 +590,8 @@ Let's assume we have several sources of the same type. How can we separate them 
   groupId="config-provider-type"
   defaultValue="toml"
   values={[
-    {"label": "Toml config provider", "value": "toml"},
-    {"label": "ENV variables", "value": "env"},
+    {"label": "TOML config provider", "value": "toml"},
+    {"label": "Environment variables", "value": "env"},
     {"label": "In the code", "value": "code"},
 ]}>
 

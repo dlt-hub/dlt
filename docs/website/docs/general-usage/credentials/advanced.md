@@ -8,7 +8,7 @@ keywords: [credentials, secrets.toml, secrets, config, configuration, environmen
 
 ## Injection mechanism
 
-`dlt` has a special treatment for functions decorated with `@dlt.source`, `@dlt.resource`, and `@dlt.destination`. When such a function is called, `dlt` takes the argument names in the signature and supplies (`injects`) the required values by looking for them in [various config providers](setup).
+`dlt` has a special treatment for functions decorated with `@dlt.source`, `@dlt.resource`, and `@dlt.destination`. When such a function is called, `dlt` takes the argument names in the signature and supplies (injects) the required values by looking for them in [various config providers](setup).
 
 ### Injection rules
 
@@ -91,9 +91,9 @@ Now,
    * connection string (used in SQL Alchemy) (in code and via config providers).
    * if nothing is passed, the default credentials are used (i.e., those present on Cloud Function runner)
 
-## Toml files structure
+## TOML files structure
 
-`dlt` arranges the sections of [toml files](setup/#secretstoml-and-configtoml) into a **default layout** that is expected by the [injection mechanism](#injection-mechanism).
+`dlt` arranges the sections of [TOML files](setup/#secretstoml-and-configtoml) into a **default layout** that is expected by the [injection mechanism](#injection-mechanism).
 This layout makes it easy to configure simple cases but also provides room for more explicit sections and complex cases, i.e., having several sources with different credentials
 or even hosting several pipelines in the same project sharing the same config and credentials.
 
@@ -142,8 +142,8 @@ data_source = google_sheets(
 data_source.run(destination="bigquery")
 ```
 
-`dlt.config` and `dlt.secrets` behave like dictionaries from which you can request a value with any key name. `dlt` will look in all [config providers](setup) - env variables, TOML files, etc. to create these dictionaries. You can also use `dlt.config.get()` or `dlt.secrets.get()` to
-request a value cast to a desired type. For example:
+`dlt.config` and `dlt.secrets` behave like dictionaries from which you can request a value with any key name. `dlt` will look in all [config providers](setup) - environment variables, TOML files, etc. to create these dictionaries. You can also use `dlt.config.get()` or `dlt.secrets.get()` to
+request a value and cast it to a desired type. For example:
 
 ```py
 credentials = dlt.secrets.get("my_section.gcp_credentials", GcpServiceAccountCredentials)
@@ -158,7 +158,7 @@ dlt.config["sheet_id"] = "23029402349032049"
 dlt.secrets["destination.postgres.credentials"] = BaseHook.get_connection('postgres_dsn').extra
 ```
 
-This will mock the `toml` provider to desired values.
+This will mock the TOML provider to desired values.
 
 ## Example
 

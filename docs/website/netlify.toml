@@ -29,8 +29,16 @@ status = 301
 
 [[redirects]]
 from = "/docs/tutorial/intro"
-to = "docs/tutorial/load-data-from-an-api"
+to = "/docs/tutorial/load-data-from-an-api"
 
 [[redirects]]
 from = "/docs/tutorial/grouping-resources"
-to = "docs/tutorial/load-data-from-an-api"
+to = "/docs/tutorial/load-data-from-an-api"
+
+[[redirects]]
+from = "/docs/telemetry"
+to = "/docs/reference/telemetry"
+
+[[redirects]]
+from = "/docs/walkthroughs"
+to = "/docs/intro"

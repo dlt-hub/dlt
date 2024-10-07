@@ -63,7 +63,7 @@ To load data into Redshift, you need to create a Redshift cluster and enable acc
 
 You can also pass a database connection string similar to the one used by the `psycopg2` library or [SQLAlchemy](https://docs.sqlalchemy.org/en/20/core/engines.html#postgresql). The credentials above will look like this:
 ```toml
-# Keep it at the top of your toml file! Before any section starts
+# Keep it at the top of your TOML file, before any section starts
 destination.redshift.credentials="redshift://loader:<password>@localhost/dlt_data?connect_timeout=15"
 ```
 

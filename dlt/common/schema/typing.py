@@ -232,15 +232,20 @@ class TWriteDispositionDict(TypedDict):
     disposition: TWriteDisposition
 
 
-class TMergeDispositionDict(TWriteDispositionDict, total=False):
+class TMergeDispositionDict(TWriteDispositionDict):
     strategy: Optional[TLoaderMergeStrategy]
+
+
+class TScd2StrategyDict(TMergeDispositionDict, total=False):
     validity_column_names: Optional[List[str]]
     active_record_timestamp: Optional[TAnyDateTime]
     boundary_timestamp: Optional[TAnyDateTime]
     row_version_column_name: Optional[str]
 
 
-TWriteDispositionConfig = Union[TWriteDisposition, TWriteDispositionDict, TMergeDispositionDict]
+TWriteDispositionConfig = Union[
+    TWriteDisposition, TWriteDispositionDict, TMergeDispositionDict, TScd2StrategyDict
+]
 
 
 class _TTableSchemaBase(TTableProcessingHints, total=False):

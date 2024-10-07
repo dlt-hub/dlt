@@ -238,16 +238,16 @@ class SqlalchemyClient(SqlClientBase[Connection]):
         """Mimic multiple schemas in sqlite using ATTACH DATABASE to
         attach a new database file to the current connection.
         """
-        if dataset_name == "main":
-            # main always exists
-            return
         if self._sqlite_is_memory_db():
             new_db_fn = ":memory:"
         else:
             new_db_fn = self._sqlite_dataset_filename(dataset_name)
 
-        statement = "ATTACH DATABASE :fn AS :name"
-        self.execute_sql(statement, fn=new_db_fn, name=dataset_name)
+        if dataset_name != "main":  # main is the current file, it is always attached
+            statement = "ATTACH DATABASE :fn AS :name"
+            self.execute_sql(statement, fn=new_db_fn, name=dataset_name)
+        # WAL mode is applied to all currently attached databases
+        self.execute_sql("PRAGMA journal_mode=WAL")
         self._sqlite_attached_datasets.add(dataset_name)
 
     def _sqlite_drop_dataset(self, dataset_name: str) -> None:
