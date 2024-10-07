@@ -189,7 +189,7 @@ pipeline = dlt.pipeline(
 
 ### Databricks and Google Cloud Storage
 
-In order to load from GCS stage you must set-up the credentials via **named credential**. See below. Databricks does not allow to pass Google Credentials
+In order to load from Google Cloud Storage stage you must set-up the credentials via **named credential**. See below. Databricks does not allow to pass Google Credentials
 explicitly in SQL Statements.
 
 ### Use external locations and stored credentials
