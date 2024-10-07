@@ -35,102 +35,97 @@ The example demonstrates automating a workflow to load data from Postgres to Sno
 
 ## How to run dlt on Modal
 
-Here’s a dlt project setup to copy data from our Postgres read replica into Snowflake:  
+Here’s a dlt project setup to copy data from our MySQL into DuckDB:  
 
 1. Run the `dlt init` CLI command to initialize the SQL database source and set up the `sql_database_pipeline.py` template.
    ```sh
-   dlt init sql_database snowflake
+   dlt init sql_database duckdb
    ```
 2. Open the file and define the Modal Image you want to run `dlt` in:
    ```py
-   import dlt
-   import pendulum
-
-   from sql_database import sql_database, ConnectionStringCredentials, sql_table
-
    import modal
    import os
-
+   
+   # Define the Modal Image
    image = (
        modal.Image.debian_slim()
-       .apt_install(["libpq-dev"]) # system requirement for postgres driver
        .pip_install(
-           "sqlalchemy>=1.4", # how `dlt` establishes connections
-           "dlt[snowflake]>=0.4.11",
-           "psycopg2-binary", # postgres driver
-           "dlt[parquet]",
-           "psutil==6.0.0", # for `dlt` logging
-           "connectorx", # creates arrow tables from database for fast data extraction
+           "dlt>=1.1.0",
+           "dlt[duckdb]", # destination
+           "dlt[sql_database]", # source (postgres)
+           "pymysql" # database driver for MySQL source
        )
    )
+   
+   app = modal.App("example-dlt", image=image)
 
-   app = modal.App("dlt-postgres-pipeline", image=image)
+   # Modal Volume used to store the duckdb database file
+   vol = modal.Volume.from_name("duckdb-vol", create_if_missing=True)
    ```
 
-3. Wrap the provided `load_select_tables_from_database` with the Modal Function decorator, Modal Secrets containing your database credentials, and a daily cron schedule, as shown below. The function is in `sql_pipeline.py` and can be customized for your specific use case.
+3. Define a Modal Function. A Modal Function is a containerized environment that runs tasks. 
+   It can be scheduled (e.g., daily or on a Cron schedule), request more CPU/memory, and scale across
+   multiple containers.
+   
+   Here’s how to include your SQL pipeline in the Modal Function:
+   
    ```py
-   # Function to load the table from the database, scheduled to run daily
    @app.function(
-       secrets=[
-           modal.Secret.from_name("snowflake-secret"),
-           modal.Secret.from_name("postgres-read-replica-prod"),
-       ],
-       # run this pipeline daily at 6:24 AM
-       schedule=modal.Cron("24 6 * * *"),
-       timeout=3000,
+       volumes={"/data/": vol},
+       schedule=modal.Period(days=1),
+       secrets=[modal.Secret.from_name("sql-secret")],
    )
-   def load_select_tables_from_database(
-       table: str,
-       incremental_col: str,
-       dev: bool = False,
-   ) -> None:
-       # Placeholder for future logic
-       pass
-   ```
+   def load_tables():
+       import dlt
+       from dlt.sources.sql_database import sql_database
    
-   Please note that you can also configure credentials using the environment variables supported by dlt, which automatically pull credentials from environment variables.
-   For more details, refer to the documentation [here](../../general-usage/credentials/setup#environment-variables).
+       # Define the source database credentials; in production, you would save this as a Modal Secret which can be referenced here as an environment variable
+       # os.environ['SOURCES__SQL_DATABASE__CREDENTIALS']="mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam"
    
-
-4. Customize your `dlt` pipeline:
-   ```py
-   # Modal Secrets are loaded as environment variables which are used here to create the SQLALchemy connection string
-   pg_url = f'postgresql://{os.environ["PGUSER"]}:{os.environ["PGPASSWORD"]}@localhost:{os.environ["PGPORT"]}/{os.environ["PGDATABASE"]}'
-   snowflake_url = f'snowflake://{os.environ["SNOWFLAKE_USER"]}:{os.environ["SNOWFLAKE_PASSWORD"]}@{os.environ["SNOWFLAKE_ACCOUNT"]}/{os.environ["SNOWFLAKE_DATABASE"]}'
-   # Create a pipeline
-   schema = "POSTGRES_DLT_DEV" if dev else "POSTGRES_DLT"
-   pipeline = dlt.pipeline(
-       pipeline_name="task",
-       destination=dlt.destinations.snowflake(snowflake_url),
-       dataset_name=schema,
-       progress="log",
-   )
-   credentials = ConnectionStringCredentials(pg_url)
-   # defines the postgres table to sync (in this case, the "task" table)
-   source_1 = sql_database(credentials, backend="connectorx").with_resources("task")
-   # defines which column to reference for incremental loading (i.e. only load newer rows)
-   source_1.task.apply_hints(
-       incremental=dlt.sources.incremental(
-           "enqueued_at",
-           initial_value=pendulum.datetime(2024, 7, 24, 0, 0, 0, tz="UTC"),
+       # Load tables "family" and "genome"
+       source = sql_database().with_resources("family", "genome")
+   
+       # Create dlt pipeline object
+       pipeline = dlt.pipeline(
+           pipeline_name="sql_to_duckdb_pipeline",
+           destination=dlt.destinations.duckdb("/data/rfam.duckdb"), # write the duckdb database file to this file location,, which will get mounted to the Modal Volume
+           dataset_name="sql_to_duckdb_pipeline_data",
+           progress="log", # output progress of the pipeline
        )
-   )
-
-    # if there are duplicates, merge the latest values
-   info = pipeline.run(source_1, write_disposition="merge")
-   print(info)
+   
+       # Run the pipeline
+       load_info = pipeline.run(source)
+   
+       # Print run statistics
+       print(load_info)
    ```
-> It's recommended that any unused functions in `sql_pipeline.py` be cleaned up if they are not required.
-
-5. Run the pipeline on Modal as:
+   
+4. You can securely store your credentials using Modal secrets. When you reference secrets within a Modal script, 
+   the defined secret is automatically set as an environment variable. dlt natively supports environment variables, 
+   enabling seamless integration of your credentials. For example, to declare a connection string, you can define it as follows:
+   ```text
+   SOURCES__SQL_DATABASE__CREDENTIALS=mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam
+   ```
+   In the script above, the credentials specified are automatically utilized by dlt. 
+   For more details, please refer to the [documentation.](../../general-usage/credentials/setup#environment-variables)
+   
+4. Execute the pipeline once:
+   To run your pipeline a single time, use the following command:
    ```sh
    modal run sql_pipeline.py
+   ```
+
+5. Deploy the pipeline 
+   If you want to deploy your pipeline on Modal for continuous execution or scheduling, use this command:   
+   ```sh
+   modal deploy sql_pipeline.py
    ```
 
 ## Advanced configuration
 ### Modal Proxy
 
-If your database is in a private VPN, you can use [Modal Proxy](https://modal.com/docs/reference/modal.Proxy) as a bastion server (only available to Enterprise customers). We use Modal Proxy to connect to our production read replica by attaching it to the Function definition and changing the hostname to localhost:
+If your database is in a private VPN, you can use [Modal Proxy](https://modal.com/docs/reference/modal.Proxy) as a bastion server (available for Enterprise customers). 
+To connect to a production read replica, attach the proxy to the function definition and change the hostname to localhost:
 ```py
 @app.function(
     secrets=[
@@ -146,12 +141,12 @@ def task_pipeline(dev: bool = False) -> None:
 ```
 
 ### Capturing deletes
+To capture updates or deleted rows from your database, consider using dlt's [Postgres CDC replication feature](../../dlt-ecosystem/verified-sources/pg_replication), which is
+ useful for tracking changes and deletions in the data.
 
-One limitation of our simple approach above is that it does not capture updates or deletions of data. This isn’t a hard requirement yet for our use cases, but it appears that `dlt` does have a [Postgres CDC replication feature](../../dlt-ecosystem/verified-sources/pg_replication) that we are considering.
+### Sync Multiple Tables in Parallel
+To sync multiple tables in parallel, map each table copy job to a separate container using [Modal.starmap](https://modal.com/docs/reference/modal.Function#starmap):
 
-### Scaling out
-
-The example above syncs one table from our Postgres data source. In practice, we are syncing multiple tables and mapping each table copy job to a single container using [Modal.starmap](https://modal.com/docs/reference/modal.Function#starmap):
 ```py
 @app.function(timeout=3000, schedule=modal.Cron("29 11 * * *"))
 def main(dev: bool = False):
