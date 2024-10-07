@@ -64,13 +64,19 @@ class FilesystemSqlClient(DuckDbSqlClient):
                 f" FilesystemSqlClient. Supported protocols are {SUPPORTED_PROTOCOLS}."
             )
 
-    def create_authentication(self, persistent: bool = False, secret_name: str = None) -> None:
-        def _escape_bucket_name(bucket_name: str) -> str:
-            regex = re.compile("[^a-zA-Z]")
-            return regex.sub("", bucket_name.lower())
+    def _create_default_secret_name(self) -> str:
+        regex = re.compile("[^a-zA-Z]")
+        escaped_bucket_name = regex.sub("", self.fs_client.config.bucket_url.lower())
+        return f"secret_{escaped_bucket_name}"
 
+    def drop_authentication(self, secret_name: str) -> None:
         if not secret_name:
-            secret_name = f"secret_{_escape_bucket_name(self.fs_client.config.bucket_url)}"
+            secret_name = self._create_default_secret_name()
+        self._conn.sql(f"DROP PERSISTENT SECRET {secret_name}")
+
+    def create_authentication(self, persistent: bool = False, secret_name: str = None) -> None:
+        if not secret_name:
+            secret_name = self._create_default_secret_name()
 
         persistent_stmt = ""
         if persistent:
