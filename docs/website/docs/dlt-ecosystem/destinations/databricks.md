@@ -141,7 +141,7 @@ The `jsonl` format has some limitations when used with Databricks:
 
 ## Staging support
 
-Databricks supports both Amazon S3 and Azure Blob Storage as staging locations. `dlt` will upload files in `parquet` format to the staging location and will instruct Databricks to load data from there.
+Databricks supports both Amazon S3, Azure Blob Storage and Google Cloud Storage as staging locations. `dlt` will upload files in `parquet` format to the staging location and will instruct Databricks to load data from there.
 
 ### Databricks and Amazon S3
 
@@ -186,6 +186,11 @@ pipeline = dlt.pipeline(
 )
 
 ```
+
+### Databricks and Google Cloud Storage
+
+In order to load from Google Cloud Storage stage you must set-up the credentials via **named credential**. See below. Databricks does not allow to pass Google Credentials
+explicitly in SQL Statements.
 
 ### Use external locations and stored credentials
 `dlt` forwards bucket credentials to the `COPY INTO` SQL command by default. You may prefer to use [external locations or stored credentials instead](https://docs.databricks.com/en/sql/language-manual/sql-ref-external-locations.html#external-location) that are stored on the Databricks side.
