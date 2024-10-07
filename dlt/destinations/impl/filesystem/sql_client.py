@@ -69,7 +69,7 @@ class FilesystemSqlClient(DuckDbSqlClient):
         escaped_bucket_name = regex.sub("", self.fs_client.config.bucket_url.lower())
         return f"secret_{escaped_bucket_name}"
 
-    def drop_authentication(self, secret_name: str) -> None:
+    def drop_authentication(self, secret_name: str = None) -> None:
         if not secret_name:
             secret_name = self._create_default_secret_name()
         self._conn.sql(f"DROP PERSISTENT SECRET {secret_name}")
