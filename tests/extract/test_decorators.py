@@ -12,6 +12,7 @@ from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.configuration.inject import get_fun_spec
 from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
+from dlt.common.configuration.specs.pluggable_run_context import PluggableRunContext
 from dlt.common.exceptions import ArgumentsOverloadException, DictValidationException
 from dlt.common.pipeline import StateInjectableContext, TPipelineState
 from dlt.common.schema import Schema
@@ -46,6 +47,7 @@ from dlt.extract.exceptions import (
 from dlt.extract.items import TableNameMeta
 
 from tests.common.utils import load_yml_case
+from tests.utils import MockableRunContext
 
 
 def test_default_resource() -> None:
@@ -723,6 +725,59 @@ def test_source_reference() -> None:
     os.environ["SOURCES__SPECIAL__RES_REG_WITH_SECRET__SECRETZ"] = "resourse"
     source = ref(init=100)
     assert list(source) == ["resourse", "resourse", "resourse", 100, "ma", "sourse"]
+
+
+def test_source_reference_with_context() -> None:
+    ctx = PluggableRunContext()
+    mock = MockableRunContext.from_context(ctx.context)
+    mock._name = "mock"
+    ctx.context = mock
+
+    with Container().injectable_context(ctx):
+        # should be able to import things from dlt package
+        ref = SourceReference.from_reference("shorthand")
+        assert list(ref(["A", "B"])) == ["A", "B"]
+        ref = SourceReference.from_reference("shorthand.shorthand")
+        assert list(ref(["A", "B"])) == ["A", "B"]
+        # unknown reference
+        with pytest.raises(UnknownSourceReference) as ref_ex:
+            SourceReference.from_reference("$ref")
+        assert ref_ex.value.ref == ["mock.$ref.$ref", "dlt.$ref.$ref"]
+        with pytest.raises(UnknownSourceReference) as ref_ex:
+            SourceReference.from_reference("mock.$ref.$ref")
+        assert ref_ex.value.ref == ["mock.$ref.$ref"]
+
+        # create a "shorthand" source in this context
+        @dlt.source(name="shorthand", section="shorthand")
+        def with_shorthand_registry(data):
+            return dlt.resource(list(reversed(data)), name="alpha")
+
+        ref = SourceReference.from_reference("shorthand")
+        assert list(ref(["C", "x"])) == ["x", "C"]
+        ref = SourceReference.from_reference("mock.shorthand.shorthand")
+        assert list(ref(["C", "x"])) == ["x", "C"]
+        # from dlt package
+        ref = SourceReference.from_reference("dlt.shorthand.shorthand")
+        assert list(ref(["C", "x"])) == ["C", "x"]
+
+
+def test_source_reference_from_module() -> None:
+    ref = SourceReference.from_reference("tests.extract.test_decorators.with_shorthand_registry")
+    assert list(ref(["C", "x"])) == ["C", "x"]
+
+    # module exists but attr is not a factory
+    with pytest.raises(UnknownSourceReference) as ref_ex:
+        SourceReference.from_reference(
+            "tests.extract.test_decorators.test_source_reference_from_module"
+        )
+    assert ref_ex.value.ref == ["tests.extract.test_decorators.test_source_reference_from_module"]
+
+    # wrong module
+    with pytest.raises(UnknownSourceReference) as ref_ex:
+        SourceReference.from_reference(
+            "test.extract.test_decorators.test_source_reference_from_module"
+        )
+    assert ref_ex.value.ref == ["test.extract.test_decorators.test_source_reference_from_module"]
 
 
 def test_source_factory_with_args() -> None:

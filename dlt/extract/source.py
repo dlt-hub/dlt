@@ -1,5 +1,6 @@
 import contextlib
 from copy import copy
+from importlib import import_module
 import makefun
 import inspect
 from typing import Dict, Iterable, Iterator, List, Sequence, Tuple, Any, Generic
@@ -7,6 +8,7 @@ from typing_extensions import Self, Protocol, TypeVar
 from types import ModuleType
 from typing import Dict, Type, ClassVar
 
+from dlt.common import logger
 from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.specs import BaseConfiguration, known_sections
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
@@ -15,6 +17,7 @@ from dlt.common.configuration.specs.pluggable_run_context import (
     SupportsRunContext,
 )
 from dlt.common.normalizers.json.relational import DataItemNormalizer as RelationalNormalizer
+from dlt.common.runtime.run_context import RunContext
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TColumnName, TSchemaContract
 from dlt.common.schema.utils import normalize_table_identifiers
@@ -542,21 +545,31 @@ class SourceReference:
         """
         ref_split = ref.split(".")
         if len(ref_split) > 3:
-            raise ValueError(ref)
+            return []
         # fully qualified path
-        if ref_split == 3:
+        if len(ref_split) == 3:
             return [ref]
         # context name is needed
-        run_name = Container()[PluggableRunContext].context.name
-        # expand shorthand notation
-        if len(ref_split) == 1:
-            return [f"{run_name}.{ref}.{ref}"]
-        # for ref with two parts two options are possible
-        return [f"{run_name}.{ref}", f"{ref_split[0]}.{ref_split[1]}.{ref_split[1]}"]
+        refs = []
+        run_names = [Container()[PluggableRunContext].context.name]
+        # always look in default run context
+        if run_names[0] != RunContext.CONTEXT_NAME:
+            run_names.append(RunContext.CONTEXT_NAME)
+        for run_name in run_names:
+            # expand shorthand notation
+            if len(ref_split) == 1:
+                refs.append(f"{run_name}.{ref}.{ref}")
+            else:
+                # for ref with two parts two options are possible
+                refs.extend([f"{run_name}.{ref}", f"{ref_split[0]}.{ref_split[1]}.{ref_split[1]}"])
+        return refs
 
     @classmethod
-    def register(cls, ref: "SourceReference") -> None:
-        cls.SOURCES[f"{ref.context.name}.{ref.section}.{ref.name}"] = ref
+    def register(cls, ref_obj: "SourceReference") -> None:
+        ref = f"{ref_obj.context.name}.{ref_obj.section}.{ref_obj.name}"
+        if ref in cls.SOURCES:
+            logger.warning(f"A source with ref {ref} is already registered and will be overwritten")
+        cls.SOURCES[ref] = ref_obj
 
     @classmethod
     def find(cls, ref: str) -> "SourceReference":
@@ -578,5 +591,20 @@ class SourceReference:
             if wrapper := cls.SOURCES.get(ref_):
                 return wrapper.f
 
-        # TODO: try to import module
-        raise UnknownSourceReference(refs)
+        # try to import module
+        if "." in ref:
+            try:
+                module_path, attr_name = ref.rsplit(".", 1)
+                dest_module = import_module(module_path)
+                factory = getattr(dest_module, attr_name)
+                if hasattr(factory, "with_args"):
+                    return factory  # type: ignore[no-any-return]
+                else:
+                    raise ValueError(f"{attr_name} in {module_path} is of type {type(factory)}")
+            except ModuleNotFoundError:
+                # raise regular exception later
+                pass
+            except Exception as e:
+                raise UnknownSourceReference([ref]) from e
+
+        raise UnknownSourceReference(refs or [ref])
