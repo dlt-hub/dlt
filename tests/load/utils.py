@@ -331,13 +331,13 @@ def destinations_configs(
         destination_configs += [
             DestinationTestConfiguration(
                 destination_type="sqlalchemy",
-                supports_merge=False,
+                supports_merge=True,
                 supports_dbt=False,
                 destination_name="sqlalchemy_mysql",
             ),
             DestinationTestConfiguration(
                 destination_type="sqlalchemy",
-                supports_merge=False,
+                supports_merge=True,
                 supports_dbt=False,
                 destination_name="sqlalchemy_sqlite",
             ),
