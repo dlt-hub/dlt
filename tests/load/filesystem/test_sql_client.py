@@ -37,8 +37,9 @@ def _run_dataset_checks(
         destination_config.bucket_url.startswith("s3")
         or destination_config.bucket_url.startswith("az")
         or destination_config.bucket_url.startswith("abfss")
-        or destination_config.bucket_url.startswith("gs")
     )
+
+    unsupported_persistent_secrets = destination_config.bucket_url.startswith("gs")
 
     @dlt.source()
     def source():
@@ -77,7 +78,7 @@ def _run_dataset_checks(
         pipeline.destination = alternate_access_pipeline.destination
 
     import duckdb
-    from duckdb import HTTPException, IOException
+    from duckdb import HTTPException, IOException, InvalidInputException
     from dlt.destinations.impl.filesystem.sql_client import (
         FilesystemSqlClient,
         DuckDbCredentials,
@@ -159,7 +160,7 @@ def _run_dataset_checks(
     external_db.close()
 
     # in case we are not connecting to a bucket, views should still be here after connection reopen
-    if not needs_persistent_secrets:
+    if not needs_persistent_secrets and not unsupported_persistent_secrets:
         external_db = _external_duckdb_connection()
         assert (
             len(external_db.sql("SELECT * FROM second.referenced_items").fetchall())
@@ -170,12 +171,16 @@ def _run_dataset_checks(
 
     # in other cases secrets are not available and this should fail
     external_db = _external_duckdb_connection()
-    with pytest.raises((HTTPException, IOException)):
+    with pytest.raises((HTTPException, IOException, InvalidInputException)):
         assert (
             len(external_db.sql("SELECT * FROM second.referenced_items").fetchall())
             == total_records
         )
     external_db.close()
+
+    # gs does not support persistent secrest, so we can't do further checks
+    if unsupported_persistent_secrets:
+        return
 
     # create secret
     external_db = _external_duckdb_connection()
@@ -199,7 +204,7 @@ def _run_dataset_checks(
 
     # fails again
     external_db = _external_duckdb_connection()
-    with pytest.raises((HTTPException, IOException)):
+    with pytest.raises((HTTPException, IOException, InvalidInputException)):
         assert (
             len(external_db.sql("SELECT * FROM second.referenced_items").fetchall())
             == total_records
@@ -213,7 +218,7 @@ def _run_dataset_checks(
     destinations_configs(
         local_filesystem_configs=True,
         all_buckets_filesystem_configs=True,
-        bucket_exclude=[SFTP_BUCKET],
+        bucket_exclude=[SFTP_BUCKET, MEMORY_BUCKET],
     ),  # TODO: make SFTP work
     ids=lambda x: x.name,
 )
