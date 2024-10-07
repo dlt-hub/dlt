@@ -72,7 +72,7 @@ class FilesystemSqlClient(DuckDbSqlClient):
     def drop_authentication(self, secret_name: str = None) -> None:
         if not secret_name:
             secret_name = self._create_default_secret_name()
-        self._conn.sql(f"DROP PERSISTENT SECRET {secret_name}")
+        self._conn.sql(f"DROP PERSISTENT SECRET IF EXISTS {secret_name}")
 
     def create_authentication(self, persistent: bool = False, secret_name: str = None) -> None:
         if not secret_name:

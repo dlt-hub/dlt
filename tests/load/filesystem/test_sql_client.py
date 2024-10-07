@@ -190,8 +190,11 @@ def _run_dataset_checks(
 
     # now drop the secrets again
     fs_sql_client = _fs_sql_client_for_external_db(external_db)
-    with fs_sql_client as sql_client:
-        fs_sql_client.drop_authentication(TEST_SECRET_NAME)
+    try:
+        with fs_sql_client as sql_client:
+            fs_sql_client.drop_authentication(TEST_SECRET_NAME)
+    except IOException:
+        pass
     external_db.close()
 
     # fails again

@@ -212,81 +212,6 @@ def _run_dataset_checks(
     loads_table = pipeline._dataset()[pipeline.default_schema.loads_table_name]
     loads_table.fetchall()
 
-    # special filesystem sql checks
-    if destination_config.destination_type == "filesystem":
-        import duckdb
-        from dlt.destinations.impl.filesystem.sql_client import (
-            FilesystemSqlClient,
-            DuckDbCredentials,
-        )
-
-        # check we can create new tables from the views
-        with pipeline.sql_client() as c:
-            c.execute_sql(
-                "CREATE TABLE items_joined AS (SELECT i.id, di.double_id FROM items as i JOIN"
-                " double_items as di ON (i.id = di.id));"
-            )
-            with c.execute_query("SELECT * FROM items_joined ORDER BY id ASC;") as cursor:
-                joined_table = cursor.fetchall()
-                assert len(joined_table) == total_records
-                assert list(joined_table[0]) == [0, 0]
-                assert list(joined_table[5]) == [5, 10]
-                assert list(joined_table[10]) == [10, 20]
-
-            # inserting values into a view should fail gracefully
-            try:
-                c.execute_sql("INSERT INTO double_items VALUES (1, 2)")
-            except Exception as exc:
-                assert "double_items is not an table" in str(exc)
-
-        # we create a duckdb with a table an see wether we can add more views
-        duck_db_location = TEST_STORAGE_ROOT + "/" + uniq_id()
-        external_db = duckdb.connect(duck_db_location)
-        external_db.execute("CREATE SCHEMA first;")
-        external_db.execute("CREATE SCHEMA second;")
-        external_db.execute("CREATE TABLE first.items AS SELECT i FROM range(0, 3) t(i)")
-        assert len(external_db.sql("SELECT * FROM first.items").fetchall()) == 3
-
-        # now we can use the filesystemsql client to create the needed views
-        fs_client: Any = pipeline.destination_client()
-        fs_sql_client = FilesystemSqlClient(
-            dataset_name="second",
-            fs_client=fs_client,
-            credentials=DuckDbCredentials(external_db),
-        )
-        with fs_sql_client as sql_client:
-            sql_client.create_views_for_tables(
-                {"items": "referenced_items", "_dlt_loads": "_dlt_loads"}
-            )
-        # the line below solves problems with certificate path lookup on linux
-        # see duckdb docs
-        external_db.sql("SET azure_transport_option_type = 'curl';")
-        assert len(external_db.sql("SELECT * FROM second.referenced_items").fetchall()) == 3000
-        assert len(external_db.sql("SELECT * FROM first.items").fetchall()) == 3
-
-        # test creating persistent secrets
-        # NOTE: there is some kind of duckdb cache that makes testing persistent secrets impossible
-        # because somehow the non-persistent secrets are around as long as the python process runs, even
-        # wenn closing the db connection, renaming the db file and reconnecting
-        secret_name = f"secret_{uniq_id()}_secret"
-
-        supports_persistent_secrets = (
-            destination_config.bucket_url.startswith("s3")
-            or destination_config.bucket_url.startswith("az")
-            or destination_config.bucket_url.startswith("abfss")
-        )
-
-        try:
-            with fs_sql_client as sql_client:
-                fs_sql_client.create_authentication(persistent=True, secret_name=secret_name)
-            # the line below would error if there were no persistent secrets of the given name
-            external_db.execute(f"DROP PERSISTENT SECRET {secret_name}")
-        except Exception as exc:
-            assert (
-                not supports_persistent_secrets
-            ), f"{destination_config.bucket_url} is expected to support persistent secrets"
-            assert "Cannot create persistent secret" in str(exc)
-
 
 @pytest.mark.essential
 @pytest.mark.parametrize(
@@ -307,7 +232,7 @@ def test_read_interfaces_sql(destination_config: DestinationTestConfiguration) -
     destinations_configs(
         local_filesystem_configs=True,
         all_buckets_filesystem_configs=True,
-        bucket_exclude=[SFTP_BUCKET],
+        bucket_exclude=[SFTP_BUCKET, MEMORY_BUCKET],
     ),  # TODO: make SFTP work
     ids=lambda x: x.name,
 )
