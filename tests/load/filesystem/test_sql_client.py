@@ -37,6 +37,7 @@ def _run_dataset_checks(
         destination_config.bucket_url.startswith("s3")
         or destination_config.bucket_url.startswith("az")
         or destination_config.bucket_url.startswith("abfss")
+        or destination_config.bucket_url.startswith("gs")
     )
 
     @dlt.source()
