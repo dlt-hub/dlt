@@ -31,10 +31,6 @@ class ClickHouseCredentials(ConnectionStringCredentials):
     """Timeout for establishing connection. Defaults to 10 seconds."""
     send_receive_timeout: int = 300
     """Timeout for sending and receiving data. Defaults to 300 seconds."""
-    gcp_access_key_id: Optional[str] = None
-    """When loading from a gcp bucket, you need to provide gcp interoperable keys"""
-    gcp_secret_access_key: Optional[str] = None
-    """When loading from a gcp bucket, you need to provide gcp interoperable keys"""
 
     __config_gen_annotations__: ClassVar[List[str]] = [
         "host",
