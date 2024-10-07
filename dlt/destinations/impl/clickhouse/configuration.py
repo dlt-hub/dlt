@@ -77,6 +77,8 @@ class ClickHouseClientConfiguration(DestinationClientDwhWithStagingConfiguration
     """The default table engine to use. Defaults to 'merge_tree'. Other implemented options are 'shared_merge_tree' and 'replicated_merge_tree'."""
     dataset_sentinel_table_name: str = "dlt_sentinel_table"
     """Special table to mark dataset as existing"""
+    staging_use_https: bool = True
+    """Connect to the staging buckets via https"""
 
     __config_gen_annotations__: ClassVar[List[str]] = [
         "dataset_table_separator",
