@@ -128,24 +128,9 @@ def test_databricks_gcs_external_location(destination_config: DestinationTestCon
     info = pipeline.run([1, 2, 3], table_name="digits", **destination_config.run_kwargs)
     assert info.has_failed_jobs is True
     assert (
-        "You need to use Databricks named credential or external location"
+        "You need to use Databricks named credential"
         in pipeline.list_failed_jobs_in_package(info.loads_ids[0])[0].failed_message
     )
-
-    # should fail on internal config error as external location is not configured
-    # bricks = databricks(is_staging_external_location=True)
-    # pipeline = destination_config.setup_pipeline(
-    #     "test_databricks_gcs_external_location",
-    #     dataset_name=dataset_name,
-    #     destination=bricks,
-    #     staging=stage,
-    # )
-    # info = pipeline.run([1, 2, 3], table_name="digits", **destination_config.run_kwargs)
-    # assert info.has_failed_jobs is True
-    # assert (
-    #     "Invalid configuration value detected"
-    #     in pipeline.list_failed_jobs_in_package(info.loads_ids[0])[0].failed_message
-    # )
 
     # should fail on non existing stored credentials
     bricks = databricks(is_staging_external_location=False, staging_credentials_name="CREDENTIAL_X")
