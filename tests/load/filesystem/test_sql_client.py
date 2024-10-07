@@ -21,8 +21,6 @@ from dlt.destinations import filesystem
 from tests.utils import TEST_STORAGE_ROOT
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
 
-TEST_SECRET_NAME = "TEST_SECRET"
-
 
 def _run_dataset_checks(
     pipeline: Pipeline,
@@ -31,6 +29,8 @@ def _run_dataset_checks(
     alternate_access_pipeline: Pipeline = None,
 ) -> None:
     total_records = 200
+
+    TEST_SECRET_NAME = "TEST_SECRET" + uniq_id()
 
     # only some buckets have support for persistent secrets
     needs_persistent_secrets = (
@@ -76,7 +76,7 @@ def _run_dataset_checks(
         pipeline.destination = alternate_access_pipeline.destination
 
     import duckdb
-    from duckdb import HTTPException
+    from duckdb import HTTPException, IOException
     from dlt.destinations.impl.filesystem.sql_client import (
         FilesystemSqlClient,
         DuckDbCredentials,
@@ -169,7 +169,7 @@ def _run_dataset_checks(
 
     # in other cases secrets are not available and this should fail
     external_db = _external_duckdb_connection()
-    with pytest.raises(HTTPException):
+    with pytest.raises((HTTPException, IOException)):
         assert (
             len(external_db.sql("SELECT * FROM second.referenced_items").fetchall())
             == total_records
@@ -195,7 +195,7 @@ def _run_dataset_checks(
 
     # fails again
     external_db = _external_duckdb_connection()
-    with pytest.raises(HTTPException):
+    with pytest.raises((HTTPException, IOException)):
         assert (
             len(external_db.sql("SELECT * FROM second.referenced_items").fetchall())
             == total_records
