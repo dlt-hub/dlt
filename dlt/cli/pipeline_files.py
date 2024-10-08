@@ -225,14 +225,15 @@ def get_template_configuration(
 def get_core_source_configuration(
     sources_storage: FileStorage, source_name: str
 ) -> SourceConfiguration:
-    pipeline_file = source_name + "_pipeline.py"
+    src_pipeline_file = source_name + "/" + DEFAULT_PIPELINE_TEMPLATE
+    dest_pipeline_file = source_name + PIPELINE_FILE_SUFFIX
 
     return SourceConfiguration(
         "core",
         "dlt.sources." + source_name,
         sources_storage,
-        pipeline_file,
-        pipeline_file,
+        src_pipeline_file,
+        dest_pipeline_file,
         [".gitignore"],
         SourceRequirements([]),
         _get_docstring_for_module(sources_storage, source_name),
@@ -248,7 +249,7 @@ def get_verified_source_configuration(
             f"Verified source {source_name} could not be found in the repository", source_name
         )
     # find example script
-    example_script = f"{source_name}_pipeline.py"
+    example_script = f"{source_name}{PIPELINE_FILE_SUFFIX}"
     if not sources_storage.has_file(example_script):
         raise VerifiedSourceRepoError(
             f"Pipeline example script {example_script} could not be found in the repository",

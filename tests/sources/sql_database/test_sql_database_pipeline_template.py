@@ -17,6 +17,6 @@ import pytest
     ),
 )
 def test_all_examples(example_name: str) -> None:
-    from dlt.sources import sql_database_pipeline
+    from dlt.sources.sql_database import default_pipeline
 
-    getattr(sql_database_pipeline, example_name)()
+    getattr(default_pipeline, example_name)()
