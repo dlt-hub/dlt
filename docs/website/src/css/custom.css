@@ -93,11 +93,9 @@
 }
 
 .menu__link--active {
-  font-weight: 700;
   color: var(--ifm-menu-color-active);
 }
 .menu__link:hover {
-  /* font-weight: 700; */
   color: var(--ifm-menu-color-active);
 }
 
