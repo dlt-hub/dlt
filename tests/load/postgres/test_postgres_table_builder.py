@@ -1,24 +1,32 @@
-import pytest
 from copy import deepcopy
+from typing import Generator, Any, Mapping
+
+import pytest
 import sqlfluff
 
+import dlt
 from dlt.common.exceptions import TerminalValueError
-from dlt.common.utils import uniq_id
 from dlt.common.schema import Schema, utils
-
+from dlt.common.typing import DictStrStr
+from dlt.common.utils import uniq_id
 from dlt.destinations import postgres
-from dlt.destinations.impl.postgres.postgres import PostgresClient
 from dlt.destinations.impl.postgres.configuration import (
     PostgresClientConfiguration,
     PostgresCredentials,
 )
-
+from dlt.destinations.impl.postgres.postgres import PostgresClient
+from dlt.destinations.impl.postgres.postgres_adapter import (
+    postgres_adapter,
+    SRID_HINT,
+    GEOMETRY_HINT,
+)
 from tests.cases import (
     TABLE_UPDATE,
     TABLE_UPDATE_ALL_INT_PRECISIONS,
-    TABLE_UPDATE_ALL_TIMESTAMP_PRECISIONS,
 )
-from tests.load.utils import empty_schema
+from tests.load.postgres.utils import generate_sample_geometry_records
+from tests.load.utils import destinations_configs, DestinationTestConfiguration, sequence_generator
+from tests.utils import assert_load_info
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential
@@ -182,3 +190,102 @@ def test_create_dlt_table(client: PostgresClient) -> None:
     sqlfluff.parse(sql, dialect="postgres")
     qualified_name = client.sql_client.make_qualified_table_name("_dlt_version")
     assert f"CREATE TABLE IF NOT EXISTS {qualified_name}" in sql
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["postgres"]),
+    ids=lambda x: x.name,
+)
+def test_adapter_geometry_hint_config(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    @dlt.resource(columns=[{"name": "content", "data_type": "text"}])
+    def some_data() -> Generator[DictStrStr, Any, None]:
+        yield from next(sequence_generator())
+
+    assert some_data.columns["content"] == {"name": "content", "data_type": "text"}  # type: ignore[index]
+
+    # Default SRID.
+    postgres_adapter(some_data, geometry=["content"])
+
+    assert some_data.columns["content"] == {  # type: ignore
+        "name": "content",
+        "data_type": "text",
+        GEOMETRY_HINT: True,
+        SRID_HINT: 4326,
+    }
+
+    # Nonstandard SRID.
+    postgres_adapter(some_data, geometry="content", srid=8232)
+
+    assert some_data.columns["content"] == {  # type: ignore
+        "name": "content",
+        "data_type": "text",
+        GEOMETRY_HINT: True,
+        SRID_HINT: 8232,
+    }
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["postgres"]),
+    ids=lambda x: x.name,
+)
+def test_geometry_types(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    @dlt.resource
+    def geodata() -> Generator[Mapping[str, object], Any, None]:
+        yield from generate_sample_geometry_records(srid=10000)
+
+    postgres_adapter(geodata, geometry=["wkt", "wkb_binary", "wkb_hex_str"])
+
+    pipeline = destination_config.setup_pipeline("test_geometry_types", dev_mode=True)
+    info = pipeline.run(
+        geodata(),
+    )
+    assert_load_info(info)
+
+    with pipeline.sql_client() as c:
+        fqtn = c.make_qualified_table_name("geodata", escape=False)
+        with c.execute_query(f"""
+            SELECT f_geometry_column
+            FROM geometry_columns
+            WHERE f_table_name = '{fqtn}';
+            """) as cur:
+            records = cur.fetchall()
+            assert records
+            assert {record[0] for record in records} == {"wkt", "wkb_binary", "wkb_hex_str"}
+
+    # TODO: assert is serialized correctly back to client
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["postgres"]),
+    ids=lambda x: x.name,
+)
+def test_read_from_geopandas_with_native_geodata_type(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Test geopandas geo columns are automatically identified as such and cast to postgis geotype."""
+    import geopandas as gpd  # type: ignore
+
+    pipeline = destination_config.setup_pipeline("geodata_pandas_pipeline", dev_mode=True)
+    gdf = gpd.read_file("tests/load/cases/loading/sample_geodata.xml")
+
+    info = pipeline.run(gdf, table_name="geodata_pandas")
+    assert_load_info(info)
+
+    # Check the 'geometry' field has been cast to a PostGIS geometry type.
+    with pipeline.sql_client() as c:
+        fqtn_geodata_pandas = c.make_qualified_table_name("geodata_pandas", escape=False)
+        with c.execute_query(f"""
+            SELECT f_geometry_column, type
+            FROM geometry_columns
+            WHERE f_table_name = '{fqtn_geodata_pandas}' AND f_geometry_column = 'geometry';
+            """) as cur:
+            records = cur.fetchone()
+            assert records
+            assert records[0] == "geometry"
