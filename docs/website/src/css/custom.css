@@ -5,40 +5,40 @@
  */
 
 /* You can override the default Infima variables here. */
-@import url('https://fonts.googleapis.com/css2?family=Karla:wght@500&family=Roboto+Mono:wght@400;700&family=Space+Mono:wght@700&display=swap');
 
 :root {
 
-  --ifm-navbar-background-color: #F7F9FC;
-  --ifm-background-color: #F7F9FC;
+  /* --ifm-navbar-background-color: #F7F9FC; */
+  /* --ifm-background-color: #F7F9FC; */
 
-  --ifm-color-primary: #000000;
-  --ifm-link-color: #191937;
-  --ifm-color-primary-dark: #191937;
-  --ifm-color-primary-darker: #191937;
-  --ifm-color-primary-darkest: #191937;
-  --ifm-color-primary-light:#4c4898;
-  --ifm-color-primary: #191937;
-  --ifm-font-family-base: 'Karla';
-  --ifm-code-font-size: 95%;
-  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
-  --ifm-heading-color: #4C4898;
-  --ifm-font-color-base: #4C4898;
-  --ifm-gradient: transparent;
+  /* --ifm-color-primary: #000000; */
+  /* --ifm-link-color: #191937; */
+  --ifm-link-color: #4C4898;
+
+  /* --ifm-color-primary-dark: #191937; */
+  /* --ifm-color-primary-darker: #191937; */
+  /* --ifm-color-primary-darkest: #191937; */
+  /* --ifm-color-primary-light:#4c4898; */
+  /* --ifm-color-primary: #191937; */
+  /* --ifm-code-font-size: 95%; */
+  /* --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1); */
+  /* --ifm-heading-color: #4C4898; */
+  /* --ifm-font-color-base: #4C4898; */
+  /* --ifm-gradient: transparent; */
   --ifm-menu-color: #191937;
   --ifm-menu-color-active: #4C4898;
-  --ifm-menu-link-padding-horizontal: 0.35rem;
+  /* --ifm-menu-link-padding-horizontal: 0.35rem; */
   --docsearch-searchbox-background: #191937 !important;
   --docsearch-text-color: #ffffff !important;
   --docsearch-searchbox-focus-background: #191937 !important;
-  --ifm-color-content-secondary: #4c4898;
-  --ifm-navbar-link-hover-color:#4c4898;
-  --ifm-navbar-link-color:#191937;
-  --ifm-toc-link-color: #191937;
-  --ifm-active-toc-link-color:#4C4898;
-  --docsearch-highlight-color:#191937 !important;
-  --docsearch-hit-color: #191937 !important;
-  --ifm-footer-background-color: #E4E8F0;
+  /* --ifm-color-content-secondary: #4c4898; */
+  /* --ifm-navbar-link-hover-color:#4c4898; */
+  /* --ifm-navbar-link-color:#191937; */
+  /* --ifm-toc-link-color: #191937; */
+  /* --ifm-active-toc-link-color:#4C4898; */
+  /* --docsearch-highlight-color:#191937 !important; */
+  /* --docsearch-hit-color: #191937 !important; */
+  /* --ifm-footer-background-color: #E4E8F0; */
   --doc-sidebar-width: 340px !important;
 }
 
@@ -73,30 +73,18 @@
   --ifm-footer-background-color: #191937;
 }
 
-body {
-  font-family: 'Karla', sans-serif;
-}
-
-h1 {
-  font-family: 'Space Mono', monospace;
-}
-
-.navbar a{
+/* .navbar a{
   font-family: 'Roboto Mono', monospace;
-
 }
 .navbar__link:hover, .navbar__link--active {
   font-weight: 700;
-}
+} */
 
-p {
-  line-height: 22px;
-}
 
-.menu__link {
+/* .menu__link {
   font-family: 'Roboto Mono', monospace;
   font-size: 15px;
-}
+} */
 
 .menu__link.menu__link--active,
 .menu__link,
@@ -104,9 +92,12 @@ p {
   background: transparent !important;
 }
 
-.menu__link--active,
-.menu__link:hover {
+.menu__link--active {
   font-weight: 700;
+  color: var(--ifm-menu-color-active);
+}
+.menu__link:hover {
+  /* font-weight: 700; */
   color: var(--ifm-menu-color-active);
 }
 
@@ -115,7 +106,7 @@ p {
   color: var(--ifm-menu-color-active);
 }
 
- .sidebarItemLink_node_modules-\@docusaurus-theme-classic-lib-theme-BlogSidebar-Desktop-styles-module:hover {
+/* .sidebarItemLink_node_modules-\@docusaurus-theme-classic-lib-theme-BlogSidebar-Desktop-styles-module:hover {
   color: #4C4898 !important;
 }
 .sidebarItemLink_node_modules-\@docusaurus-theme-classic-lib-theme-BlogSidebar-Desktop-styles-module.sidebarItemLinkActive_node_modules-\@docusaurus-theme-classic-lib-theme-BlogSidebar-Desktop-styles-module{
@@ -124,7 +115,7 @@ p {
 
  .sidebarItemLink_node_modules-\@docusaurus-theme-classic-lib-theme-BlogSidebar-Desktop-styles-module {
   color: #191937 !important;
-}
+} */
 
 
 html[data-theme='dark'] .sidebarItemLink_node_modules-\@docusaurus-theme-classic-lib-theme-BlogSidebar-Desktop-styles-module:hover {
@@ -149,23 +140,23 @@ color: #191937 !important;
 }
 
 /* code-block-css */
-code {
+/* code {
   color: #eb5963 !important;
 }
 
 .token.builtin.class-name {
   color: #eb5963
-}
-
+} */
+/*
 pre code {
   background-color: #4C4898;
   font-family: 'Roboto Mono', monospace !important;
-}
-
+} */
+/*
 .token.plain {
   color: #ffffff
-}
-
+} */
+/*
 time{
   color: var(--ifm-toc-link-color);
 }
@@ -177,12 +168,12 @@ time{
 
 .token.comment {
   color: #8e92af !important;
-}
+} */
 
 /* code-block-css */
-.theme-doc-sidebar-container {
+/* .theme-doc-sidebar-container {
   background: var(--ifm-gradient);
-}
+} */
 
 .footer__title {
   color: #191937;
@@ -192,11 +183,9 @@ time{
   color: #191937;
 }
 
-.pagination-nav__label {
+/* .pagination-nav__label {
   font-size: 11px;
-}
-
-
+} */
 
 
 .details_node_modules-\@docusaurus-theme-classic-lib-theme-Details-styles-module {
@@ -228,15 +217,15 @@ html[data-theme='dark'] .navbar__items.navbar__items--right  .clean-btn svg > pa
 
 }
 
-.breadcrumbs__link {
+/* .breadcrumbs__link {
   background: #4c4898 !important;
   color: #fff !important;
-}
-
+} */
+/*
 html[data-theme='dark'] .breadcrumbs__link {
   background: #f3ff36 !important;
   color: #191937 !important;
-}
+} */
 
 html[data-theme='dark'] .footer__copyright {
   color: #fff
@@ -266,15 +255,15 @@ html[data-theme='dark'] .footer--dark {
   font-style: normal;
 }
 
-.table-of-contents__link:hover,
+/* .table-of-contents__link:hover,
 .table-of-contents__link:hover code,
 .table-of-contents__link--active,
 .table-of-contents__link--active code {
   color: var(  --ifm-active-toc-link-color);
   text-decoration: none;
-}
+} */
 
-.examples-link {
+/* .examples-link {
   font-family: 'Karla', sans-serif !important;
   background: var(--ifm-color-primary);
   border-radius: 8px;
@@ -289,28 +278,28 @@ html[data-theme='dark'] .footer--dark {
 
 html[data-theme='dark'] .examples-link:hover {
   color: #191937;
-}
+} */
 
-
+/*
 .theme-admonition.theme-admonition-tip.alert svg path{
   fill: #191937;
 }
 
 .theme-admonition-tip a {
   color: #191937 !important;
-}
+} */
 
 
 /* .container{
   padding: 0 !important;
 } */
 
-.examples-link:hover {
+/* .examples-link:hover {
   background: var(--ifm-color-primary-light);
   color: #fff;
-}
+} */
 
-.col--3 {
+/* .col--3 {
   background: var(--ifm-gradient);
   position: relative;
   top: 2rem;
@@ -319,7 +308,7 @@ html[data-theme='dark'] .examples-link:hover {
 
 .blog-list-page .col--3 {
   margin-top: -65px;
-}
+} */
 
 .DocSearch-Form {
   border-radius: 28px !important;
@@ -409,15 +398,15 @@ html[data-theme='dark'] .github-navbar:after {
   background:  url("../../static/img/GithubLight.svg") no-repeat;
 }
 
-.theme-edit-this-page>svg {
+/* .theme-edit-this-page>svg {
   display: none;
 }
-
-.theme-edit-this-page {
+ */
+/* .theme-edit-this-page {
   padding-left: 20px;
-}
+} */
 
-.theme-edit-this-page::before {
+/* .theme-edit-this-page::before {
   content: '';
   width: 20px;
   height: 20px;
@@ -426,7 +415,7 @@ html[data-theme='dark'] .github-navbar:after {
   position: relative;
   left: -5px;
   top: 2px;
-}
+} */
 
 html[data-theme='dark'] .theme-edit-this-page::before {
   background: url("data:image/svg+xml,%3Csvg viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath fill='white' d='M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12'/%3E%3C/svg%3E") no-repeat;
@@ -868,6 +857,7 @@ html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(9)>div>[
   background-image: url(../../static/img/Reference-Active-1.svg);
 }
 
+
 /* Devel / Stable switch */
 
 .theme-doc-sidebar-menu.menu__list>li:nth-child(10)>a svg {
@@ -1031,6 +1021,6 @@ and (max-height : 850px) {
 
 /* continue modal css :end */
 
-.container a {
+/* .container a {
   text-decoration: var(--ifm-link-hover-decoration);
-}
+} */
