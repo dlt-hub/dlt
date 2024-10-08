@@ -139,6 +139,10 @@ color: #191937 !important;
   margin-top: 30px;
 }
 
+html[data-theme='dark'] .prism-code {
+  background-color: #111127 !important;
+}
+
 /* code-block-css */
 /* code {
   color: #eb5963 !important;
