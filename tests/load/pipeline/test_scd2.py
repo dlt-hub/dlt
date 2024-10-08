@@ -52,13 +52,22 @@ def strip_timezone(ts: TAnyDateTime) -> pendulum.DateTime:
 
 
 def get_table(
-    pipeline: dlt.Pipeline, table_name: str, sort_column: str = None, include_root_id: bool = True
+    pipeline: dlt.Pipeline,
+    table_name: str,
+    sort_column: str = None,
+    include_root_id: bool = True,
+    ts_columns: Optional[List[str]] = None,
 ) -> List[Dict[str, Any]]:
     """Returns destination table contents as list of dictionaries."""
+    ts_columns = ts_columns or []
 
     table = [
         {
-            k: strip_timezone(v) if isinstance(v, datetime) else v
+            k: (
+                strip_timezone(v)
+                if isinstance(v, datetime) or (k in ts_columns and v is not None)
+                else v
+            )
             for k, v in r.items()
             if not k.startswith("_dlt")
             or k in DEFAULT_VALIDITY_COLUMN_NAMES
@@ -128,7 +137,7 @@ def test_core_functionality(
     # assert load results
     ts_1 = get_load_package_created_at(p, info)
     assert_load_info(info)
-    assert get_table(p, "dim_test", "c2__nc1") == [
+    assert get_table(p, "dim_test", "c2__nc1", ts_columns=[from_, to]) == [
         {
             from_: ts_1,
             to: None,
@@ -153,7 +162,7 @@ def test_core_functionality(
     info = p.run(r(dim_snap), **destination_config.run_kwargs)
     ts_2 = get_load_package_created_at(p, info)
     assert_load_info(info)
-    assert get_table(p, "dim_test", "c2__nc1") == [
+    assert get_table(p, "dim_test", "c2__nc1", ts_columns=[from_, to]) == [
         {
             from_: ts_1,
             to: None,
@@ -178,7 +187,7 @@ def test_core_functionality(
     info = p.run(r(dim_snap), **destination_config.run_kwargs)
     ts_3 = get_load_package_created_at(p, info)
     assert_load_info(info)
-    assert get_table(p, "dim_test", "c2__nc1") == [
+    assert get_table(p, "dim_test", "c2__nc1", ts_columns=[from_, to]) == [
         {from_: ts_1, to: ts_3, "nk": 2, "c1": "bar", "c2__nc1": "bar"},
         {from_: ts_1, to: ts_2, "nk": 1, "c1": "foo", "c2__nc1": "foo"},
         {
@@ -198,7 +207,7 @@ def test_core_functionality(
     info = p.run(r(dim_snap), **destination_config.run_kwargs)
     ts_4 = get_load_package_created_at(p, info)
     assert_load_info(info)
-    assert get_table(p, "dim_test", "c2__nc1") == [
+    assert get_table(p, "dim_test", "c2__nc1", ts_columns=[from_, to]) == [
         {from_: ts_1, to: ts_3, "nk": 2, "c1": "bar", "c2__nc1": "bar"},
         {
             from_: ts_4,
@@ -242,7 +251,7 @@ def test_child_table(destination_config: DestinationTestConfiguration, simple: b
     info = p.run(r(dim_snap), **destination_config.run_kwargs)
     ts_1 = get_load_package_created_at(p, info)
     assert_load_info(info)
-    assert get_table(p, "dim_test", "c1") == [
+    assert get_table(p, "dim_test", "c1", ts_columns=[FROM, TO]) == [
         {FROM: ts_1, TO: None, "nk": 2, "c1": "bar"},
         {FROM: ts_1, TO: None, "nk": 1, "c1": "foo"},
     ]
@@ -261,7 +270,7 @@ def test_child_table(destination_config: DestinationTestConfiguration, simple: b
     info = p.run(r(dim_snap), **destination_config.run_kwargs)
     ts_2 = get_load_package_created_at(p, info)
     assert_load_info(info)
-    assert get_table(p, "dim_test", "c1") == [
+    assert get_table(p, "dim_test", "c1", ts_columns=[FROM, TO]) == [
         {FROM: ts_1, TO: None, "nk": 2, "c1": "bar"},
         {FROM: ts_1, TO: ts_2, "nk": 1, "c1": "foo"},  # updated
         {FROM: ts_2, TO: None, "nk": 1, "c1": "foo_updated"},  # new
@@ -289,7 +298,7 @@ def test_child_table(destination_config: DestinationTestConfiguration, simple: b
     ts_3 = get_load_package_created_at(p, info)
     assert_load_info(info)
     assert_records_as_set(
-        get_table(p, "dim_test"),
+        get_table(p, "dim_test", ts_columns=[FROM, TO]),
         [
             {FROM: ts_1, TO: None, "nk": 2, "c1": "bar"},
             {FROM: ts_1, TO: ts_2, "nk": 1, "c1": "foo"},
@@ -315,7 +324,7 @@ def test_child_table(destination_config: DestinationTestConfiguration, simple: b
     ts_4 = get_load_package_created_at(p, info)
     assert_load_info(info)
     assert_records_as_set(
-        get_table(p, "dim_test"),
+        get_table(p, "dim_test", ts_columns=[FROM, TO]),
         [
             {FROM: ts_1, TO: ts_4, "nk": 2, "c1": "bar"},  # updated
             {FROM: ts_1, TO: ts_2, "nk": 1, "c1": "foo"},
@@ -336,7 +345,7 @@ def test_child_table(destination_config: DestinationTestConfiguration, simple: b
     ts_5 = get_load_package_created_at(p, info)
     assert_load_info(info)
     assert_records_as_set(
-        get_table(p, "dim_test"),
+        get_table(p, "dim_test", ts_columns=[FROM, TO]),
         [
             {FROM: ts_1, TO: ts_4, "nk": 2, "c1": "bar"},
             {FROM: ts_5, TO: None, "nk": 3, "c1": "baz"},  # new
@@ -502,7 +511,7 @@ def test_record_reinsert(destination_config: DestinationTestConfiguration) -> No
         {**{FROM: ts_3, TO: None}, **r1_no_child},
         {**{FROM: ts_1, TO: None}, **r2_no_child},
     ]
-    assert_records_as_set(get_table(p, "dim_test"), expected)
+    assert_records_as_set(get_table(p, "dim_test", ts_columns=[FROM, TO]), expected)
 
     # assert child records
     expected = [
@@ -739,7 +748,10 @@ def test_merge_key_natural_key(
     assert load_table_counts(p, "dim_test")["dim_test"] == 3
     ts3 = get_load_package_created_at(p, info)
     # natural key 1 should now have two records (one retired, one active)
-    actual = [{k: v for k, v in row.items() if k in ("nk", TO)} for row in get_table(p, "dim_test")]
+    actual = [
+        {k: v for k, v in row.items() if k in ("nk", TO)}
+        for row in get_table(p, "dim_test", ts_columns=[FROM, TO])
+    ]
     expected = [{"nk": 1, TO: ts3}, {"nk": 1, TO: None}, {"nk": 2, TO: None}]
     assert_records_as_set(actual, expected)  # type: ignore[arg-type]
 
@@ -753,7 +765,10 @@ def test_merge_key_natural_key(
     assert load_table_counts(p, "dim_test")["dim_test"] == 4
     ts4 = get_load_package_created_at(p, info)
     # natural key 1 should now have three records (two retired, one active)
-    actual = [{k: v for k, v in row.items() if k in ("nk", TO)} for row in get_table(p, "dim_test")]
+    actual = [
+        {k: v for k, v in row.items() if k in ("nk", TO)}
+        for row in get_table(p, "dim_test", ts_columns=[FROM, TO])
+    ]
     expected = [{"nk": 1, TO: ts3}, {"nk": 1, TO: ts4}, {"nk": 1, TO: None}, {"nk": 2, TO: None}]
     assert_records_as_set(actual, expected)  # type: ignore[arg-type]
 
@@ -805,7 +820,7 @@ def test_merge_key_compound_natural_key(
     # "Doe" should now have two records (one retired, one active)
     actual = [
         {k: v for k, v in row.items() if k in ("first_name", "last_name", TO)}
-        for row in get_table(p, "dim_test_compound")
+        for row in get_table(p, "dim_test_compound", ts_columns=[FROM, TO])
     ]
     expected = [
         {"first_name": first_name, "last_name": "Doe", TO: ts3},
@@ -869,7 +884,7 @@ def test_merge_key_partition(
     ts2 = get_load_package_created_at(p, info)
     actual = [
         {k: v for k, v in row.items() if k in ("date", "name", TO)}
-        for row in get_table(p, "dim_test")
+        for row in get_table(p, "dim_test", ts_columns=[TO])
     ]
     expected = [
         {"date": "2024-01-01", "name": "a", TO: None},

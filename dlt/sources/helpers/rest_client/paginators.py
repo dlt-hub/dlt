@@ -1,9 +1,10 @@
 import warnings
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
-from urllib.parse import urlparse, urljoin
+from urllib.parse import urljoin, urlparse
 
-from requests import Response, Request
+from requests import Request, Response
+
 from dlt.common import jsonpath
 
 
@@ -127,6 +128,7 @@ class RangePaginator(BasePaginator):
                 " provided."
             )
         self.param_name = param_name
+        self.initial_value = initial_value
         self.current_value = initial_value
         self.value_step = value_step
         self.base_index = base_index
@@ -136,6 +138,8 @@ class RangePaginator(BasePaginator):
         self.stop_after_empty_page = stop_after_empty_page
 
     def init_request(self, request: Request) -> None:
+        self._has_next_page = True
+        self.current_value = self.initial_value
         if request.params is None:
             request.params = {}
 
