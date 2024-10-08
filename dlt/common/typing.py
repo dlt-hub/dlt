@@ -79,6 +79,7 @@ else:
     REPattern = _REPattern
     PathLike = os.PathLike
 
+
 AnyType: TypeAlias = Any
 NoneType = type(None)
 DictStrAny: TypeAlias = Dict[str, Any]

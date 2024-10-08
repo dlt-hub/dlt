@@ -14,9 +14,11 @@ from typing import (
     Type,
     Iterable,
     Iterator,
+    Generator,
 )
 import zlib
 import re
+from contextlib import contextmanager
 
 from dlt.common import pendulum, logger
 from dlt.common.json import json
@@ -41,6 +43,7 @@ from dlt.common.destination.reference import (
     PreparedTableSchema,
     StateInfo,
     StorageSchemaInfo,
+    SupportsReadableDataset,
     WithStateSync,
     DestinationClientConfiguration,
     DestinationClientDwhConfiguration,
@@ -51,7 +54,9 @@ from dlt.common.destination.reference import (
     JobClientBase,
     HasFollowupJobs,
     CredentialsConfiguration,
+    SupportsReadableRelation,
 )
+from dlt.destinations.dataset import ReadableDBAPIDataset
 
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
 from dlt.destinations.job_impl import (
@@ -59,7 +64,7 @@ from dlt.destinations.job_impl import (
 )
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob, SqlStagingCopyFollowupJob
 from dlt.destinations.typing import TNativeConn
-from dlt.destinations.sql_client import SqlClientBase
+from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.destinations.utils import (
     get_pipeline_state_query_columns,
     info_schema_null_to_bool,
@@ -123,7 +128,7 @@ class CopyRemoteFileLoadJob(RunnableLoadJob, HasFollowupJobs):
         self._bucket_path = ReferenceFollowupJobRequest.resolve_reference(file_path)
 
 
-class SqlJobClientBase(JobClientBase, WithStateSync):
+class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
     INFO_TABLES_QUERY_THRESHOLD: ClassVar[int] = 1000
     """Fallback to querying all tables in the information schema if checking more than threshold"""
 
@@ -152,6 +157,14 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
         self.sql_client = sql_client
         assert isinstance(config, DestinationClientDwhConfiguration)
         self.config: DestinationClientDwhConfiguration = config
+
+    @property
+    def sql_client(self) -> SqlClientBase[TNativeConn]:
+        return self._sql_client
+
+    @sql_client.setter
+    def sql_client(self, client: SqlClientBase[TNativeConn]) -> None:
+        self._sql_client = client
 
     def drop_storage(self) -> None:
         self.sql_client.drop_dataset()
