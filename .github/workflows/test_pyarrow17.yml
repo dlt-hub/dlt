@@ -74,6 +74,9 @@ jobs:
       - name: create secrets.toml
         run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
 
+      - name: clear duckdb secrets and cache
+        run: rm -rf ~/.duckdb
+
       - name: Run needspyarrow17 tests Linux
         run: |
           poetry run pytest tests/libs -m "needspyarrow17"
