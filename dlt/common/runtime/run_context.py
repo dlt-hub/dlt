@@ -19,6 +19,9 @@ class RunContext(SupportsRunContext):
 
     CONTEXT_NAME: ClassVar[str] = "dlt"
 
+    def __init__(self, run_dir: str = "."):
+        self._init_run_dir = run_dir
+
     @property
     def global_dir(self) -> str:
         return self.data_dir
@@ -26,7 +29,7 @@ class RunContext(SupportsRunContext):
     @property
     def run_dir(self) -> str:
         """The default run dir is the current working directory but may be overridden by DLT_PROJECT_DIR env variable."""
-        return os.environ.get(known_env.DLT_PROJECT_DIR, ".")
+        return os.environ.get(known_env.DLT_PROJECT_DIR, self._init_run_dir)
 
     @property
     def settings_dir(self) -> str:
