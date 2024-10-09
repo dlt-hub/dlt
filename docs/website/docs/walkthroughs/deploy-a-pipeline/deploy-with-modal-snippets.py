@@ -7,14 +7,12 @@ def modal_snippet() -> None:
     import os
     
     # Define the Modal Image
-    image = (
-        modal.Image.debian_slim()
-        .pip_install(
-            "dlt>=1.1.0",
-            "dlt[duckdb]", # destination
-            "dlt[sql_database]", # source (postgres)
-            "pymysql" # database driver for MySQL source
-        )
+    image = modal.Image.debian_slim().pip_install(
++        "dlt>=1.1.0",
++        "dlt[duckdb]",  # destination
++        "dlt[sql_database]",  # source (postgres)
++        "pymysql",  # database driver for MySQL source
+     )
     )
     
     app = modal.App("example-dlt", image=image)
@@ -25,7 +23,7 @@ def modal_snippet() -> None:
     
     # @@@DLT_SNIPPET_START modal_function
     @app.function(
-     volumes={"/data/": vol},
+        volumes={"/data/": vol},
         schedule=modal.Period(days=1),
         secrets=[modal.Secret.from_name("sql-secret")],
     )
@@ -42,9 +40,11 @@ def modal_snippet() -> None:
         # Create dlt pipeline object
         pipeline = dlt.pipeline(
             pipeline_name="sql_to_duckdb_pipeline",
-            destination=dlt.destinations.duckdb("/data/rfam.duckdb"), # write the duckdb database file to this file location,, which will get mounted to the Modal Volume
+            destination=dlt.destinations.duckdb(
++                "/data/rfam.duckdb"
++            ),  # write the duckdb database file to this file location,, which will get mounted to the Modal Volume
             dataset_name="sql_to_duckdb_pipeline_data",
-            progress="log", # output progress of the pipeline
+            progress="log",  # output progress of the pipeline
         )
     
         # Run the pipeline
@@ -52,6 +52,6 @@ def modal_snippet() -> None:
     
         # Print run statistics
         print(load_info)
-    # @@@DLT_SNIPPET_END modal_function
+        # @@@DLT_SNIPPET_END modal_function
 
         assert_load_info(load_info)
