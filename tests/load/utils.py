@@ -679,6 +679,7 @@ def destinations_configs(
 
     # add marks
     destination_configs = [
+        # TODO: fix this, probably via pytest plugin that processes parametrize params
         cast(
             DestinationTestConfiguration,
             pytest.param(
@@ -688,7 +689,6 @@ def destinations_configs(
         )
         for conf in destination_configs
     ]
-
     return destination_configs
 
 

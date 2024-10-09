@@ -1,18 +1,27 @@
 import contextlib
 from copy import copy
+from importlib import import_module
 import makefun
 import inspect
-from typing import Dict, Iterable, Iterator, List, Sequence, Tuple, Any
-from typing_extensions import Self
+from typing import Dict, Iterable, Iterator, List, Sequence, Tuple, Any, Generic
+from typing_extensions import Self, Protocol, TypeVar
+from types import ModuleType
+from typing import Dict, Type, ClassVar
 
+from dlt.common import logger
 from dlt.common.configuration.resolve import inject_section
-from dlt.common.configuration.specs import known_sections
+from dlt.common.configuration.specs import BaseConfiguration, known_sections
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
+from dlt.common.configuration.specs.pluggable_run_context import (
+    PluggableRunContext,
+    SupportsRunContext,
+)
 from dlt.common.normalizers.json.relational import DataItemNormalizer as RelationalNormalizer
+from dlt.common.runtime.run_context import RunContext
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TColumnName, TSchemaContract
 from dlt.common.schema.utils import normalize_table_identifiers
-from dlt.common.typing import StrAny, TDataItem
+from dlt.common.typing import StrAny, TDataItem, ParamSpec
 from dlt.common.configuration.container import Container
 from dlt.common.pipeline import (
     PipelineContext,
@@ -26,13 +35,14 @@ from dlt.common.utils import graph_find_scc_nodes, flatten_list_or_items, graph_
 from dlt.extract.items import TDecompositionStrategy
 from dlt.extract.pipe_iterator import ManagedPipeIterator
 from dlt.extract.pipe import Pipe
-from dlt.extract.hints import DltResourceHints, make_hints
+from dlt.extract.hints import make_hints
 from dlt.extract.resource import DltResource
 from dlt.extract.exceptions import (
     DataItemRequiredForDynamicTableHints,
     ResourcesNotFoundError,
     DeletingResourcesNotSupported,
     InvalidParallelResourceDataType,
+    UnknownSourceReference,
 )
 
 
@@ -104,7 +114,7 @@ class DltResourceDict(Dict[str, DltResource]):
         return [r._pipe for r in self.values() if r.selected]
 
     def select(self, *resource_names: str) -> Dict[str, DltResource]:
-        # checks if keys are present
+        """Selects `resource_name` to be extracted, and unselects remaining resources."""
         for name in resource_names:
             if name not in self:
                 # if any key is missing, display the full info
@@ -129,6 +139,14 @@ class DltResourceDict(Dict[str, DltResource]):
         finally:
             self._suppress_clone_on_setitem = False
         self._clone_new_pipes([r.name for r in resources])
+
+    def detach(self, resource_name: str = None) -> DltResource:
+        """Clones `resource_name` (including parent resource pipes) and removes source contexts.
+        Defaults to the first resource in the source if `resource_name` is None.
+        """
+        return (self[resource_name] if resource_name else list(self.values())[0])._clone(
+            with_parent=True
+        )
 
     def _clone_new_pipes(self, resource_names: Sequence[str]) -> None:
         # clone all new pipes and keep
@@ -463,3 +481,130 @@ class DltSource(Iterable[TDataItem]):
         info += " Note that, like any iterator, you can iterate the source only once."
         info += f"\ninstance id: {id(self)}"
         return info
+
+
+TDltSourceImpl = TypeVar("TDltSourceImpl", bound=DltSource, default=DltSource)
+TSourceFunParams = ParamSpec("TSourceFunParams")
+
+
+class SourceFactory(Protocol, Generic[TSourceFunParams, TDltSourceImpl]):
+    def __call__(
+        self, *args: TSourceFunParams.args, **kwargs: TSourceFunParams.kwargs
+    ) -> TDltSourceImpl:
+        """Makes dlt source"""
+        pass
+
+    def with_args(
+        self,
+        *,
+        name: str = None,
+        section: str = None,
+        max_table_nesting: int = None,
+        root_key: bool = False,
+        schema: Schema = None,
+        schema_contract: TSchemaContract = None,
+        spec: Type[BaseConfiguration] = None,
+        parallelized: bool = None,
+        _impl_cls: Type[TDltSourceImpl] = None,
+    ) -> Self:
+        """Overrides default decorator arguments that will be used to when DltSource instance and returns modified clone."""
+
+
+class SourceReference:
+    """Runtime information on the source/resource"""
+
+    SOURCES: ClassVar[Dict[str, "SourceReference"]] = {}
+    """A registry of all the decorated sources and resources discovered when importing modules"""
+
+    SPEC: Type[BaseConfiguration]
+    f: SourceFactory[Any, DltSource]
+    module: ModuleType
+    section: str
+    name: str
+    context: SupportsRunContext
+
+    def __init__(
+        self,
+        SPEC: Type[BaseConfiguration],
+        f: SourceFactory[Any, DltSource],
+        module: ModuleType,
+        section: str,
+        name: str,
+    ) -> None:
+        self.SPEC = SPEC
+        self.f = f
+        self.module = module
+        self.section = section
+        self.name = name
+        self.context = Container()[PluggableRunContext].context
+
+    @staticmethod
+    def to_fully_qualified_ref(ref: str) -> List[str]:
+        """Converts ref into fully qualified form, return one or more alternatives for shorthand notations.
+        Run context is injected in needed.
+        """
+        ref_split = ref.split(".")
+        if len(ref_split) > 3:
+            return []
+        # fully qualified path
+        if len(ref_split) == 3:
+            return [ref]
+        # context name is needed
+        refs = []
+        run_names = [Container()[PluggableRunContext].context.name]
+        # always look in default run context
+        if run_names[0] != RunContext.CONTEXT_NAME:
+            run_names.append(RunContext.CONTEXT_NAME)
+        for run_name in run_names:
+            # expand shorthand notation
+            if len(ref_split) == 1:
+                refs.append(f"{run_name}.{ref}.{ref}")
+            else:
+                # for ref with two parts two options are possible
+                refs.extend([f"{run_name}.{ref}", f"{ref_split[0]}.{ref_split[1]}.{ref_split[1]}"])
+        return refs
+
+    @classmethod
+    def register(cls, ref_obj: "SourceReference") -> None:
+        ref = f"{ref_obj.context.name}.{ref_obj.section}.{ref_obj.name}"
+        if ref in cls.SOURCES:
+            logger.warning(f"A source with ref {ref} is already registered and will be overwritten")
+        cls.SOURCES[ref] = ref_obj
+
+    @classmethod
+    def find(cls, ref: str) -> "SourceReference":
+        refs = cls.to_fully_qualified_ref(ref)
+
+        for ref_ in refs:
+            if wrapper := cls.SOURCES.get(ref_):
+                return wrapper
+        raise KeyError(refs)
+
+    @classmethod
+    def from_reference(cls, ref: str) -> SourceFactory[Any, DltSource]:
+        """Returns registered source factory or imports source module and returns a function.
+        Expands shorthand notation into section.name eg. "sql_database" is expanded into "sql_database.sql_database"
+        """
+        refs = cls.to_fully_qualified_ref(ref)
+
+        for ref_ in refs:
+            if wrapper := cls.SOURCES.get(ref_):
+                return wrapper.f
+
+        # try to import module
+        if "." in ref:
+            try:
+                module_path, attr_name = ref.rsplit(".", 1)
+                dest_module = import_module(module_path)
+                factory = getattr(dest_module, attr_name)
+                if hasattr(factory, "with_args"):
+                    return factory  # type: ignore[no-any-return]
+                else:
+                    raise ValueError(f"{attr_name} in {module_path} is of type {type(factory)}")
+            except ModuleNotFoundError:
+                # raise regular exception later
+                pass
+            except Exception as e:
+                raise UnknownSourceReference([ref]) from e
+
+        raise UnknownSourceReference(refs or [ref])

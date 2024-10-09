@@ -396,7 +396,8 @@ class PipelineTasksGroup(TaskGroup):
         if not pipeline.pipelines_dir.startswith(os.environ[DLT_DATA_DIR]):
             raise ValueError(
                 "Please create your Pipeline instance after AirflowTasks are created. The dlt"
-                " pipelines directory is not set correctly."
+                f" pipelines directory {pipeline.pipelines_dir} is not set correctly"
+                f" ({os.environ[DLT_DATA_DIR]} expected)."
             )
 
         with self:

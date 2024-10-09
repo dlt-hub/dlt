@@ -12,14 +12,6 @@ from dlt.destinations.impl.sqlalchemy.configuration import (
 )
 from dlt.common.data_writers.escape import format_datetime_literal
 
-SqlalchemyTypeMapper: t.Type[DataTypeMapper]
-
-try:
-    from dlt.destinations.impl.sqlalchemy.type_mapper import SqlalchemyTypeMapper
-except ModuleNotFoundError:
-    # assign mock type mapper if no sqlalchemy
-    from dlt.common.destination.capabilities import UnsupportedTypeMapper as SqlalchemyTypeMapper
-
 if t.TYPE_CHECKING:
     # from dlt.destinations.impl.sqlalchemy.sqlalchemy_client import SqlalchemyJobClient
     from dlt.destinations.impl.sqlalchemy.sqlalchemy_job_client import SqlalchemyJobClient
@@ -37,6 +29,17 @@ class sqlalchemy(Destination[SqlalchemyClientConfiguration, "SqlalchemyJobClient
     spec = SqlalchemyClientConfiguration
 
     def _raw_capabilities(self) -> DestinationCapabilitiesContext:
+        # lazy import to avoid sqlalchemy dep
+        SqlalchemyTypeMapper: t.Type[DataTypeMapper]
+
+        try:
+            from dlt.destinations.impl.sqlalchemy.type_mapper import SqlalchemyTypeMapper
+        except ModuleNotFoundError:
+            # assign mock type mapper if no sqlalchemy
+            from dlt.common.destination.capabilities import (
+                UnsupportedTypeMapper as SqlalchemyTypeMapper,
+            )
+
         # https://www.sqlalchemyql.org/docs/current/limits.html
         caps = DestinationCapabilitiesContext.generic_capabilities()
         caps.preferred_loader_file_format = "typed-jsonl"

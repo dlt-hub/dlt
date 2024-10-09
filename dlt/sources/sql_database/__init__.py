@@ -2,20 +2,16 @@
 
 from typing import Callable, Dict, List, Optional, Union, Iterable, Any
 
+import dlt
+from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.libs.sql_alchemy import MetaData, Table, Engine
 
-import dlt
-from dlt.sources import DltResource
-
-
-from dlt.sources.credentials import ConnectionStringCredentials
-from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
+from dlt.extract import DltResource, Incremental, decorators
 
 from .helpers import (
     table_rows,
     engine_from_credentials,
     TableBackend,
-    SqlDatabaseTableConfiguration,
     SqlTableResourceConfiguration,
     _detect_precision_hints_deprecated,
     TQueryAdapter,
@@ -29,7 +25,7 @@ from .schema_types import (
 )
 
 
-@dlt.source
+@decorators.source
 def sql_database(
     credentials: Union[ConnectionStringCredentials, Engine, str] = dlt.secrets.value,
     schema: Optional[str] = dlt.config.value,
@@ -121,13 +117,15 @@ def sql_database(
         )
 
 
-@dlt.resource(name=lambda args: args["table"], standalone=True, spec=SqlTableResourceConfiguration)
+@decorators.resource(
+    name=lambda args: args["table"], standalone=True, spec=SqlTableResourceConfiguration
+)
 def sql_table(
     credentials: Union[ConnectionStringCredentials, Engine, str] = dlt.secrets.value,
     table: str = dlt.config.value,
     schema: Optional[str] = dlt.config.value,
     metadata: Optional[MetaData] = None,
-    incremental: Optional[dlt.sources.incremental[Any]] = None,
+    incremental: Optional[Incremental[Any]] = None,
     chunk_size: int = 50000,
     backend: TableBackend = "sqlalchemy",
     detect_precision_hints: Optional[bool] = None,
@@ -193,7 +191,7 @@ def sql_table(
             table_adapter_callback(table_obj)
 
     skip_nested_on_minimal = backend == "sqlalchemy"
-    return dlt.resource(
+    return decorators.resource(
         table_rows,
         name=table_obj.name,
         primary_key=get_primary_key(table_obj),
