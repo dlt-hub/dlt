@@ -398,6 +398,97 @@ def test_reflection_levels(
 
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
+@pytest.mark.parametrize("reflection_level", ["minimal", "full", "full_with_precision"])
+@pytest.mark.parametrize("with_defer", [False, True])
+@pytest.mark.parametrize("standalone_resource", [True, False])
+def test_reflect_foreign_keys_as_table_references(
+    sql_source_db: SQLAlchemySourceDB,
+    backend: TableBackend,
+    reflection_level: ReflectionLevel,
+    with_defer: bool,
+    standalone_resource: bool,
+) -> None:
+    """Test all reflection, correct schema is inferred"""
+
+    def prepare_source():
+        if standalone_resource:
+
+            @dlt.source
+            def dummy_source():
+                yield sql_table(
+                    credentials=sql_source_db.credentials,
+                    schema=sql_source_db.schema,
+                    table="has_composite_foreign_key",
+                    backend=backend,
+                    defer_table_reflect=with_defer,
+                    reflection_level=reflection_level,
+                )
+                yield sql_table(  # Has no foreign keys
+                    credentials=sql_source_db.credentials,
+                    schema=sql_source_db.schema,
+                    table="app_user",
+                    backend=backend,
+                    defer_table_reflect=with_defer,
+                    reflection_level=reflection_level,
+                )
+                yield sql_table(
+                    credentials=sql_source_db.credentials,
+                    schema=sql_source_db.schema,
+                    table="chat_message",
+                    backend=backend,
+                    defer_table_reflect=with_defer,
+                    reflection_level=reflection_level,
+                )
+
+            return dummy_source()
+
+        return sql_database(
+            credentials=sql_source_db.credentials,
+            table_names=["has_composite_foreign_key", "app_user", "chat_message"],
+            schema=sql_source_db.schema,
+            reflection_level=reflection_level,
+            defer_table_reflect=with_defer,
+            backend=backend,
+        )
+
+    source = prepare_source()
+
+    pipeline = make_pipeline("duckdb")
+    pipeline.extract(source)
+
+    schema = pipeline.default_schema
+    # Verify tables have references hints set up
+    app_user = schema.tables["app_user"]
+    assert app_user.get("references") is None
+
+    chat_message = schema.tables["chat_message"]
+    if reflection_level == "minimal":
+        assert chat_message.get("references") is None
+    else:
+        assert sorted(chat_message["references"], key=lambda x: x["referenced_table"]) == [
+            {"columns": ["user_id"], "referenced_columns": ["id"], "referenced_table": "app_user"},
+            {
+                "columns": ["channel_id"],
+                "referenced_columns": ["id"],
+                "referenced_table": "chat_channel",
+            },
+        ]
+
+    has_composite_foreign_key = schema.tables["has_composite_foreign_key"]
+    if reflection_level == "minimal":
+        assert has_composite_foreign_key.get("references") is None
+
+    else:
+        assert has_composite_foreign_key["references"] == [
+            {
+                "columns": ["other_a", "other_b", "other_c"],
+                "referenced_columns": ["a", "b", "c"],
+                "referenced_table": "has_composite_key",
+            }
+        ]
+
+
+@pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
 @pytest.mark.parametrize("standalone_resource", [True, False])
 def test_type_adapter_callback(
     sql_source_db: SQLAlchemySourceDB, backend: TableBackend, standalone_resource: bool

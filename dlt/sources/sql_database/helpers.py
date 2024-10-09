@@ -28,15 +28,14 @@ from dlt.extract import Incremental
 from .arrow_helpers import row_tuples_to_arrow
 from .schema_types import (
     default_table_adapter,
-    table_to_columns,
-    get_primary_key,
     Table,
     SelectAny,
     ReflectionLevel,
     TTypeAdapter,
+    table_to_resource_hints,
 )
 
-from dlt.common.libs.sql_alchemy import Engine, CompileError, create_engine
+from dlt.common.libs.sql_alchemy import Engine, CompileError, create_engine, MetaData
 
 
 TableBackend = Literal["sqlalchemy", "pyarrow", "pandas", "connectorx"]
@@ -187,11 +186,11 @@ class TableLoader:
 
 def table_rows(
     engine: Engine,
-    table: Table,
+    table: Union[Table, str],
+    metadata: MetaData,
     chunk_size: int,
     backend: TableBackend,
     incremental: Optional[Incremental[Any]] = None,
-    defer_table_reflect: bool = False,
     table_adapter_callback: Callable[[Table], None] = None,
     reflection_level: ReflectionLevel = "minimal",
     backend_kwargs: Dict[str, Any] = None,
@@ -199,17 +198,17 @@ def table_rows(
     included_columns: Optional[List[str]] = None,
     query_adapter_callback: Optional[TQueryAdapter] = None,
 ) -> Iterator[TDataItem]:
-    columns: TTableSchemaColumns = None
-    if defer_table_reflect:
-        table = Table(table.name, table.metadata, autoload_with=engine, extend_existing=True)  # type: ignore[attr-defined]
+    if isinstance(table, str):  # Reflection is deferred
+        table = Table(table, metadata, autoload_with=engine, extend_existing=True)
         default_table_adapter(table, included_columns)
         if table_adapter_callback:
             table_adapter_callback(table)
-        columns = table_to_columns(table, reflection_level, type_adapter_callback)
+
+        hints = table_to_resource_hints(table, reflection_level, type_adapter_callback)
 
         # set the primary_key in the incremental
         if incremental and incremental.primary_key is None:
-            primary_key = get_primary_key(table)
+            primary_key = hints["primary_key"]
             if primary_key is not None:
                 incremental.primary_key = primary_key
 
@@ -217,19 +216,18 @@ def table_rows(
         yield dlt.mark.with_hints(
             [],
             dlt.mark.make_hints(
-                primary_key=get_primary_key(table),
-                columns=columns,
+                **hints,
             ),
         )
     else:
         # table was already reflected
-        columns = table_to_columns(table, reflection_level, type_adapter_callback)
+        hints = table_to_resource_hints(table, reflection_level, type_adapter_callback)
 
     loader = TableLoader(
         engine,
         backend,
         table,
-        columns,
+        hints["columns"],
         incremental=incremental,
         chunk_size=chunk_size,
         query_adapter_callback=query_adapter_callback,

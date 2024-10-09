@@ -1,4 +1,4 @@
-from typing import TypedDict, cast, Any, Optional, Dict
+from typing import TypedDict, cast, Any, Optional, Dict, Sequence, Mapping
 from typing_extensions import Self
 
 from dlt.common import logger
@@ -18,6 +18,7 @@ from dlt.common.schema.typing import (
     TSchemaContract,
     DEFAULT_VALIDITY_COLUMN_NAMES,
     MERGE_STRATEGIES,
+    TTableReferenceParam,
 )
 from dlt.common.schema.utils import (
     DEFAULT_WRITE_DISPOSITION,
@@ -49,6 +50,7 @@ class TResourceHintsBase(TypedDict, total=False):
     schema_contract: Optional[TTableHintTemplate[TSchemaContract]]
     table_format: Optional[TTableHintTemplate[TTableFormat]]
     merge_key: Optional[TTableHintTemplate[TColumnNames]]
+    references: Optional[TTableHintTemplate[TTableReferenceParam]]
 
 
 class TResourceHints(TResourceHintsBase, total=False):
@@ -83,6 +85,7 @@ def make_hints(
     schema_contract: TTableHintTemplate[TSchemaContract] = None,
     table_format: TTableHintTemplate[TTableFormat] = None,
     file_format: TTableHintTemplate[TFileFormat] = None,
+    references: TTableHintTemplate[TTableReferenceParam] = None,
 ) -> TResourceHints:
     """A convenience function to create resource hints. Accepts both static and dynamic hints based on data.
 
@@ -97,6 +100,7 @@ def make_hints(
         schema_contract=schema_contract,  # type: ignore
         table_format=table_format,  # type: ignore
         file_format=file_format,  # type: ignore
+        references=references,  # type: ignore
     )
     if not table_name:
         new_template.pop("name")
@@ -222,6 +226,7 @@ class DltResourceHints:
         additional_table_hints: Optional[Dict[str, TTableHintTemplate[Any]]] = None,
         table_format: TTableHintTemplate[TTableFormat] = None,
         file_format: TTableHintTemplate[TFileFormat] = None,
+        references: TTableHintTemplate[TTableReferenceParam] = None,
         create_table_variant: bool = False,
     ) -> Self:
         """Creates or modifies existing table schema by setting provided hints. Accepts both static and dynamic hints based on data.
@@ -272,6 +277,7 @@ class DltResourceHints:
                 schema_contract,
                 table_format,
                 file_format,
+                references,
             )
         else:
             t = self._clone_hints(t)
@@ -341,6 +347,11 @@ class DltResourceHints:
                     t["file_format"] = file_format
                 else:
                     t.pop("file_format", None)
+            if references is not None:
+                if references:
+                    t["references"] = references
+                else:
+                    t.pop("references", None)
 
         # set properties that can't be passed to make_hints
         if incremental is not None:
@@ -354,6 +365,7 @@ class DltResourceHints:
     ) -> None:
         DltResourceHints.validate_dynamic_hints(hints_template)
         DltResourceHints.validate_write_disposition_hint(hints_template)
+        DltResourceHints.validate_reference_hint(hints_template)
         if create_table_variant:
             table_name: str = hints_template["name"]  # type: ignore[assignment]
             # incremental cannot be specified in variant
@@ -399,6 +411,7 @@ class DltResourceHints:
             schema_contract=hints_template.get("schema_contract"),
             table_format=hints_template.get("table_format"),
             file_format=hints_template.get("file_format"),
+            references=hints_template.get("references"),
             create_table_variant=create_table_variant,
         )
 
@@ -541,3 +554,23 @@ class DltResourceHints:
                             raise ValueError(
                                 f'could not parse `{ts}` value "{wd[ts]}"'  # type: ignore[literal-required]
                             )
+
+    @staticmethod
+    def validate_reference_hint(template: TResourceHints) -> None:
+        ref = template.get("reference")
+        if ref is None:
+            return
+        if not isinstance(ref, Sequence):
+            raise ValueError("Reference hint must be a sequence of table references.")
+        for r in ref:
+            if not isinstance(r, Mapping):
+                raise ValueError("Table reference must be a dictionary.")
+            columns = r.get("columns")
+            referenced_columns = r.get("referenced_columns")
+            table = r.get("referenced_table")
+            if not table:
+                raise ValueError("Referenced table must be specified.")
+            if not columns or not referenced_columns:
+                raise ValueError("Both columns and referenced_columns must be specified.")
+            if len(columns) != len(referenced_columns):
+                raise ValueError("Columns and referenced_columns must have the same length.")

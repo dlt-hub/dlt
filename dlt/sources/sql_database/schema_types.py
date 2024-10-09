@@ -7,13 +7,14 @@ from typing import (
     List,
     Callable,
     Union,
+    TypedDict,
 )
 from typing_extensions import TypeAlias
 from dlt.common.libs.sql_alchemy import Table, Column, Row, sqltypes, Select, TypeEngine
 
 
 from dlt.common import logger
-from dlt.common.schema.typing import TColumnSchema, TTableSchemaColumns
+from dlt.common.schema.typing import TColumnSchema, TTableSchemaColumns, TTableReference
 
 ReflectionLevel = Literal["minimal", "full", "full_with_precision"]
 
@@ -32,6 +33,12 @@ else:
 
 
 TTypeAdapter = Callable[[TypeEngineAny], Optional[Union[TypeEngineAny, Type[TypeEngineAny]]]]
+
+
+class TReflectedHints(TypedDict, total=False):
+    columns: TTableSchemaColumns
+    references: Optional[List[TTableReference]]
+    primary_key: Optional[List[str]]
 
 
 def default_table_adapter(table: Table, included_columns: Optional[List[str]]) -> None:
@@ -160,4 +167,46 @@ def table_to_columns(
             for c in table.columns
         )
         if col is not None
+    }
+
+
+def get_table_references(
+    table: Table,
+    reflection_level: ReflectionLevel = "full",
+) -> Optional[List[TTableReference]]:
+    """Resolve table references from SQLAlchemy foreign key constraints in the table"""
+    if reflection_level == "minimal":
+        return None
+    result: List[TTableReference] = []
+    for fk_constraint in table.foreign_key_constraints:
+        referenced_table = fk_constraint.referred_table.name
+        elements = fk_constraint.elements
+        referenced_columns = [element.column.name for element in elements]
+        columns = [col.name for col in fk_constraint.columns]
+
+        result.append(
+            {
+                "referenced_table": referenced_table,
+                "referenced_columns": referenced_columns,
+                "columns": columns,
+            }
+        )
+    return result
+
+
+def table_to_resource_hints(
+    table: Table,
+    reflection_level: ReflectionLevel = "full",
+    type_conversion_fallback: Optional[TTypeAdapter] = None,
+    skip_nested_columns_on_minimal: bool = False,
+) -> TReflectedHints:
+    return {
+        "columns": table_to_columns(
+            table,
+            reflection_level,
+            type_conversion_fallback,
+            skip_nested_columns_on_minimal,
+        ),
+        "references": get_table_references(table, reflection_level),
+        "primary_key": get_primary_key(table),
     }
