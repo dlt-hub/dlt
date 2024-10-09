@@ -23,6 +23,7 @@ from dlt.cli.telemetry_command import (
     change_telemetry_status_command,
     telemetry_status_command,
 )
+from dlt.cli import debug
 
 try:
     from dlt.cli import deploy_command
@@ -33,13 +34,11 @@ try:
 except ModuleNotFoundError:
     pass
 
-DEBUG_FLAG = False
-
 
 def on_exception(ex: Exception, info: str) -> None:
     click.secho(str(ex), err=True, fg="red")
     fmt.note("Please refer to %s for further assistance" % fmt.bold(info))
-    if DEBUG_FLAG:
+    if debug.is_debug_enabled():
         raise ex
 
 

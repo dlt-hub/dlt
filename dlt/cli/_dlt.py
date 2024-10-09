@@ -11,9 +11,9 @@ from dlt.cli.command_wrappers import (
     deploy_command_wrapper,
     telemetry_change_status_command_wrapper,
 )
+from dlt.cli import debug
 
 
-DEBUG_FLAG = False
 ACTION_EXECUTED = False
 
 
@@ -88,9 +88,8 @@ class DebugAction(argparse.Action):
         values: Any,
         option_string: str = None,
     ) -> None:
-        global DEBUG_FLAG
         # will show stack traces (and maybe more debug things)
-        DEBUG_FLAG = True
+        debug.enable_debug()
 
 
 def main() -> int:
