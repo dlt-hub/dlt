@@ -560,18 +560,24 @@ def normalize_table_identifiers(table: TTableSchema, naming: NamingConvention) -
             else:
                 new_columns[new_col_name] = c
         table["columns"] = new_columns
-    reference = table.get("references")
-    if reference:
-        new_references = []
-        for ref in reference:
+    references = table.get("references")
+    if references:
+        new_references = {}
+        for ref in references:
             new_ref = copy(ref)
             new_ref["referenced_table"] = naming.normalize_tables_path(ref["referenced_table"])
             new_ref["columns"] = [naming.normalize_path(c) for c in ref["columns"]]
             new_ref["referenced_columns"] = [
                 naming.normalize_path(c) for c in ref["referenced_columns"]
             ]
-            new_references.append(new_ref)
-        table["references"] = new_references
+            if new_ref["referenced_table"] in new_references:
+                logger.warning(
+                    f"In schema {naming} table {table['name']} has multiple references to"
+                    f" {new_ref['referenced_table']}. Only the last one is preserved."
+                )
+            new_references[new_ref["referenced_table"]] = new_ref
+
+        table["references"] = list(new_references.values())
     return table
 
 

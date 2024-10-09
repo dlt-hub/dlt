@@ -348,10 +348,15 @@ class DltResourceHints:
                 else:
                     t.pop("file_format", None)
             if references is not None:
-                if references:
+                if callable(references) or callable(t.get("references")):
                     t["references"] = references
                 else:
-                    t.pop("references", None)
+                    # Replace existin refs for same table
+                    new_references = t.get("references") or []
+                    ref_dict = {r["referenced_table"]: r for r in new_references}
+                    for ref in references:
+                        ref_dict[ref["referenced_table"]] = ref
+                    t["references"] = list(ref_dict.values())
 
         # set properties that can't be passed to make_hints
         if incremental is not None:
