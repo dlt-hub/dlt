@@ -25,8 +25,10 @@ try:
         COMMAND_DEPLOY_REPO_LOCATION,
         SecretFormats,
     )
+
+    deploy_command_available = True
 except ModuleNotFoundError:
-    pass
+    deploy_command_available = False
 
 
 @plugins.hookspec()
@@ -304,6 +306,14 @@ class DeployCommand(SupportsCliCommand):
         deploy_comm = argparse.ArgumentParser(
             formatter_class=argparse.ArgumentDefaultsHelpFormatter, add_help=False
         )
+
+        deploy_cmd.add_argument(
+            "pipeline_script_path", metavar="pipeline-script-path", help="Path to a pipeline script"
+        )
+
+        if not deploy_command_available:
+            return
+
         deploy_comm.add_argument(
             "--location",
             default=COMMAND_DEPLOY_REPO_LOCATION,
@@ -314,9 +324,6 @@ class DeployCommand(SupportsCliCommand):
             help="Advanced. Uses specific branch of the deploy repository to fetch the template.",
         )
 
-        deploy_cmd.add_argument(
-            "pipeline_script_path", metavar="pipeline-script-path", help="Path to a pipeline script"
-        )
         deploy_sub_parsers = deploy_cmd.add_subparsers(dest="deployment_method")
 
         # deploy github actions
@@ -362,20 +369,8 @@ class DeployCommand(SupportsCliCommand):
         )
 
     def execute(self, args: argparse.Namespace) -> int:
-        try:
-            deploy_args = vars(args)
-            if deploy_args.get("deployment_method") is None:
-                self.parser.print_help()
-                return -1
-            else:
-                return deploy_command_wrapper(
-                    pipeline_script_path=deploy_args.pop("pipeline_script_path"),
-                    deployment_method=deploy_args.pop("deployment_method"),
-                    repo_location=deploy_args.pop("location"),
-                    branch=deploy_args.pop("branch"),
-                    **deploy_args,
-                )
-        except (NameError, KeyError):
+        # exit if deploy command is not available
+        if not deploy_command_available:
             fmt.warning(
                 "Please install additional command line dependencies to use deploy command:"
             )
@@ -385,6 +380,19 @@ class DeployCommand(SupportsCliCommand):
                 " and make it work everywhere."
             )
             return -1
+
+        deploy_args = vars(args)
+        if deploy_args.get("deployment_method") is None:
+            self.parser.print_help()
+            return -1
+        else:
+            return deploy_command_wrapper(
+                pipeline_script_path=deploy_args.pop("pipeline_script_path"),
+                deployment_method=deploy_args.pop("deployment_method"),
+                repo_location=deploy_args.pop("location"),
+                branch=deploy_args.pop("branch"),
+                **deploy_args,
+            )
 
 
 #
