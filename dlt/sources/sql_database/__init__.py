@@ -18,7 +18,7 @@ from .helpers import (
 )
 from .schema_types import (
     default_table_adapter,
-    table_to_columns,
+    table_to_resource_hints,
     get_primary_key,
     ReflectionLevel,
     TTypeAdapter,
@@ -88,23 +88,30 @@ def sql_database(
     engine.execution_options(stream_results=True, max_row_buffer=2 * chunk_size)
     metadata = metadata or MetaData(schema=schema)
 
-    # use provided tables or all tables
-    if table_names:
-        tables = [
-            Table(name, metadata, autoload_with=None if defer_table_reflect else engine)
-            for name in table_names
-        ]
-    else:
-        if defer_table_reflect:
+    if defer_table_reflect:
+        if not table_names:
             raise ValueError("You must pass table names to defer table reflection")
-        metadata.reflect(bind=engine, views=include_views)
+        table_infos = [(schema, table) for table in table_names]
+    else:
+        # reflect tables
+        metadata.reflect(
+            bind=engine,
+            views=include_views or bool(table_names),  # Specified view names are always reflected
+            only=table_names if table_names else None,
+        )
         tables = list(metadata.tables.values())
+        # Some extra tables may be reflected in metadata due to foreign keys
+        table_infos = [
+            (table.schema, table.name)
+            for table in tables
+            if table_names is None or table.name in table_names
+        ]
 
-    for table in tables:
+    for table_schema, table_name in table_infos:
         yield sql_table(
             credentials=credentials,
-            table=table.name,
-            schema=table.schema,
+            table=table_name,
+            schema=table_schema,
             metadata=metadata,
             chunk_size=chunk_size,
             backend=backend,
@@ -182,30 +189,31 @@ def sql_table(
     engine.execution_options(stream_results=True, max_row_buffer=2 * chunk_size)
     metadata = metadata or MetaData(schema=schema)
 
-    table_obj = metadata.tables.get("table") or Table(
-        table, metadata, autoload_with=None if defer_table_reflect else engine
-    )
-    if not defer_table_reflect:
-        default_table_adapter(table_obj, included_columns)
-        if table_adapter_callback:
-            table_adapter_callback(table_obj)
-
     skip_nested_on_minimal = backend == "sqlalchemy"
-    return decorators.resource(
-        table_rows,
-        name=table_obj.name,
-        primary_key=get_primary_key(table_obj),
-        columns=table_to_columns(
+    # Table object is only created when reflecting, we don't want empty tables in metadata
+    # as it breaks foreign key resolution
+    table_obj: Optional[Table] = metadata.tables.get(table) or (
+        Table(table, metadata, autoload_with=engine) if not defer_table_reflect else None
+    )
+    if table_obj is not None:
+        if not defer_table_reflect:
+            default_table_adapter(table_obj, included_columns)
+            if table_adapter_callback:
+                table_adapter_callback(table_obj)
+        hints = table_to_resource_hints(
             table_obj, reflection_level, type_adapter_callback, skip_nested_on_minimal
-        ),
-    )(
+        )
+    else:
+        hints = {}
+
+    return decorators.resource(table_rows, name=table, **hints)(
         engine,
-        table_obj,
+        table_obj if table_obj is not None else table,  # Pass table name if reflection deferred
+        metadata,
         chunk_size,
         backend,
         incremental=incremental,
         reflection_level=reflection_level,
-        defer_table_reflect=defer_table_reflect,
         table_adapter_callback=table_adapter_callback,
         backend_kwargs=backend_kwargs,
         type_adapter_callback=type_adapter_callback,

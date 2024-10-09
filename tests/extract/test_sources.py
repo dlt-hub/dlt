@@ -1407,6 +1407,32 @@ def test_apply_hints() -> None:
     assert "to" in table["columns"]
     assert "x-valid-to" in table["columns"]["to"]
 
+    # Test table references hint
+    reference_hint = [
+        dict(
+            referenced_table="other_table",
+            columns=["a", "b"],
+            referenced_columns=["other_a", "other_b"],
+        )
+    ]
+    empty_r.apply_hints(references=reference_hint)
+    assert empty_r._hints["references"] == reference_hint
+    table = empty_r.compute_table_schema()
+    assert table["references"] == reference_hint
+
+    # Apply references again, hint is replaced
+    reference_hint_2 = [
+        dict(
+            referenced_table="other_table_2",
+            columns=["c", "d"],
+            referenced_columns=["other_c", "other_d"],
+        )
+    ]
+    empty_r.apply_hints(references=reference_hint_2)
+    assert empty_r._hints["references"] == reference_hint_2
+    table = empty_r.compute_table_schema()
+    assert table["references"] == reference_hint_2
+
 
 def test_apply_dynamic_hints() -> None:
     def empty_gen():
