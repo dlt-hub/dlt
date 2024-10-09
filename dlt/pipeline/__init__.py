@@ -9,7 +9,7 @@ from dlt.common.schema.typing import (
     TSchemaContract,
 )
 
-from dlt.common.typing import TSecretValue, Any
+from dlt.common.typing import TSecretStrValue, Any
 from dlt.common.configuration import with_config
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.inject import get_orig_args, last_config
@@ -28,7 +28,7 @@ TPipeline = TypeVar("TPipeline", bound=Pipeline, default=Pipeline)
 def pipeline(
     pipeline_name: str = None,
     pipelines_dir: str = None,
-    pipeline_salt: TSecretValue = None,
+    pipeline_salt: TSecretStrValue = None,
     destination: TDestinationReferenceArg = None,
     staging: TDestinationReferenceArg = None,
     dataset_name: str = None,
@@ -51,30 +51,30 @@ def pipeline(
     - Pipeline architecture and data loading steps: https://dlthub.com/docs/reference
     - List of supported destinations: https://dlthub.com/docs/dlt-ecosystem/destinations
 
-    #### Args:
+    Args:
         pipeline_name (str, optional): A name of the pipeline that will be used to identify it in monitoring events and to restore its state and data schemas on subsequent runs.
-        Defaults to the file name of pipeline script with `dlt_` prefix added.
+            Defaults to the file name of pipeline script with `dlt_` prefix added.
 
         pipelines_dir (str, optional): A working directory in which pipeline state and temporary files will be stored. Defaults to user home directory: `~/dlt/pipelines/`.
 
-        pipeline_salt (TSecretValue, optional): A random value used for deterministic hashing during data anonymization. Defaults to a value derived from the pipeline name.
-        Default value should not be used for any cryptographic purposes.
+        pipeline_salt (TSecretStrValue, optional): A random value used for deterministic hashing during data anonymization. Defaults to a value derived from the pipeline name.
+            Default value should not be used for any cryptographic purposes.
 
         destination (str | DestinationReference, optional): A name of the destination to which dlt will load the data, or a destination module imported from `dlt.destination`.
-        May also be provided to `run` method of the `pipeline`.
+            May also be provided to `run` method of the `pipeline`.
 
         staging (str | DestinationReference, optional): A name of the destination where dlt will stage the data before final loading, or a destination module imported from `dlt.destination`.
-        May also be provided to `run` method of the `pipeline`.
+            May also be provided to `run` method of the `pipeline`.
 
         dataset_name (str, optional): A name of the dataset to which the data will be loaded. A dataset is a logical group of tables ie. `schema` in relational databases or folder grouping many files.
-        May also be provided later to the `run` or `load` methods of the `Pipeline`. If not provided at all then defaults to the `pipeline_name`
+            May also be provided later to the `run` or `load` methods of the `Pipeline`. If not provided at all then defaults to the `pipeline_name`
 
         import_schema_path (str, optional): A path from which the schema `yaml` file will be imported on each pipeline run. Defaults to None which disables importing.
 
         export_schema_path (str, optional): A path where the schema `yaml` file will be exported after every schema change. Defaults to None which disables exporting.
 
         dev_mode (bool, optional): When set to True, each instance of the pipeline with the `pipeline_name` starts from scratch when run and loads the data to a separate dataset.
-        The datasets are identified by `dataset_name_` + datetime suffix. Use this setting whenever you experiment with your data to be sure you start fresh on each run. Defaults to False.
+            The datasets are identified by `dataset_name_` + datetime suffix. Use this setting whenever you experiment with your data to be sure you start fresh on each run. Defaults to False.
 
         refresh (str | TRefreshMode): Fully or partially reset sources during pipeline run. When set here the refresh is applied on each run of the pipeline.
             To apply refresh only once you can pass it to `pipeline.run` or `extract` instead. The following refresh modes are supported:
@@ -83,10 +83,10 @@ def pipeline(
             * `drop_data`: Wipe all data and resource state for all resources being processed. Schema is not modified.
 
         progress(str, Collector): A progress monitor that shows progress bars, console or log messages with current information on sources, resources, data items etc. processed in
-        `extract`, `normalize` and `load` stage. Pass a string with a collector name or configure your own by choosing from `dlt.progress` module.
-        We support most of the progress libraries: try passing `tqdm`, `enlighten` or `alive_progress` or `log` to write to console/log.
+            `extract`, `normalize` and `load` stage. Pass a string with a collector name or configure your own by choosing from `dlt.progress` module.
+            We support most of the progress libraries: try passing `tqdm`, `enlighten` or `alive_progress` or `log` to write to console/log.
 
-    #### Returns:
+    Returns:
         Pipeline: An instance of `Pipeline` class with. Please check the documentation of `run` method for information on what to do with it.
     """
 
@@ -101,7 +101,7 @@ def pipeline() -> Pipeline:  # type: ignore
 def pipeline(
     pipeline_name: str = None,
     pipelines_dir: str = None,
-    pipeline_salt: TSecretValue = None,
+    pipeline_salt: TSecretStrValue = None,
     destination: TDestinationReferenceArg = None,
     staging: TDestinationReferenceArg = None,
     dataset_name: str = None,
@@ -170,7 +170,7 @@ def pipeline(
 def attach(
     pipeline_name: str = None,
     pipelines_dir: str = None,
-    pipeline_salt: TSecretValue = None,
+    pipeline_salt: TSecretStrValue = None,
     destination: TDestinationReferenceArg = None,
     staging: TDestinationReferenceArg = None,
     progress: TCollectorArg = _NULL_COLLECTOR,
@@ -246,33 +246,33 @@ def run(
     Next it will make sure that data from the previous is fully processed. If not, `run` method normalizes and loads pending data items.
     Only then the new data from `data` argument is extracted, normalized and loaded.
 
-    #### Args:
+    Args:
         data (Any): Data to be loaded to destination
 
         destination (str | DestinationReference, optional): A name of the destination to which dlt will load the data, or a destination module imported from `dlt.destination`.
-        If not provided, the value passed to `dlt.pipeline` will be used.
+            If not provided, the value passed to `dlt.pipeline` will be used.
 
-        dataset_name (str, optional):A name of the dataset to which the data will be loaded. A dataset is a logical group of tables ie. `schema` in relational databases or folder grouping many files.
-        If not provided, the value passed to `dlt.pipeline` will be used. If not provided at all then defaults to the `pipeline_name`
+        dataset_name (str, optional): A name of the dataset to which the data will be loaded. A dataset is a logical group of tables ie. `schema` in relational databases or folder grouping many files.
+            If not provided, the value passed to `dlt.pipeline` will be used. If not provided at all then defaults to the `pipeline_name`
 
         table_name (str, optional): The name of the table to which the data should be loaded within the `dataset`. This argument is required for a `data` that is a list/Iterable or Iterator without `__name__` attribute.
-        The behavior of this argument depends on the type of the `data`:
-        * generator functions: the function name is used as table name, `table_name` overrides this default
-        * `@dlt.resource`: resource contains the full table schema and that includes the table name. `table_name` will override this property. Use with care!
-        * `@dlt.source`: source contains several resources each with a table schema. `table_name` will override all table names within the source and load the data into single table.
+            The behavior of this argument depends on the type of the `data`:
+            * generator functions: the function name is used as table name, `table_name` overrides this default
+            * `@dlt.resource`: resource contains the full table schema and that includes the table name. `table_name` will override this property. Use with care!
+            * `@dlt.source`: source contains several resources each with a table schema. `table_name` will override all table names within the source and load the data into single table.
 
         write_disposition (TWriteDispositionConfig, optional): Controls how to write data to a table. Accepts a shorthand string literal or configuration dictionary.
-        Allowed shorthand string literals: `append` will always add new data at the end of the table. `replace` will replace existing data with new data. `skip` will prevent data from loading. "merge" will deduplicate and merge data based on "primary_key" and "merge_key" hints. Defaults to "append".
-        Write behaviour can be further customized through a configuration dictionary. For example, to obtain an SCD2 table provide `write_disposition={"disposition": "merge", "strategy": "scd2"}`.
-        Please note that in case of `dlt.resource` the table schema value will be overwritten and in case of `dlt.source`, the values in all resources will be overwritten.
+            Allowed shorthand string literals: `append` will always add new data at the end of the table. `replace` will replace existing data with new data. `skip` will prevent data from loading. "merge" will deduplicate and merge data based on "primary_key" and "merge_key" hints. Defaults to "append".
+            Write behaviour can be further customized through a configuration dictionary. For example, to obtain an SCD2 table provide `write_disposition={"disposition": "merge", "strategy": "scd2"}`.
+            Please note that in case of `dlt.resource` the table schema value will be overwritten and in case of `dlt.source`, the values in all resources will be overwritten.
 
         columns (Sequence[TColumnSchema], optional): A list of column schemas. Typed dictionary describing column names, data types, write disposition and performance hints that gives you full control over the created table schema.
 
         schema (Schema, optional): An explicit `Schema` object in which all table schemas will be grouped. By default `dlt` takes the schema from the source (if passed in `data` argument) or creates a default one itself.
 
-        loader_file_format (Literal["jsonl", "insert_values", "parquet"], optional). The file format the loader will use to create the load package. Not all file_formats are compatible with all destinations. Defaults to the preferred file format of the selected destination.
+        loader_file_format (Literal["jsonl", "insert_values", "parquet"], optional): The file format the loader will use to create the load package. Not all file_formats are compatible with all destinations. Defaults to the preferred file format of the selected destination.
 
-        table_format (Literal["delta", "iceberg"], optional). The table format used by the destination to store tables. Currently you can select table format on filesystem and Athena destinations.
+        table_format (Literal["delta", "iceberg"], optional): The table format used by the destination to store tables. Currently you can select table format on filesystem and Athena destinations.
 
         schema_contract (TSchemaContract, optional): On override for the schema contract settings, this will replace the schema contract settings for all tables in the schema. Defaults to None.
 
@@ -282,7 +282,7 @@ def run(
             * `drop_data`: Wipe all data and resource state for all resources being processed. Schema is not modified.
 
     Raises:
-        PipelineStepFailed when a problem happened during `extract`, `normalize` or `load` steps.
+        PipelineStepFailed: when a problem happened during `extract`, `normalize` or `load` steps.
     Returns:
         LoadInfo: Information on loaded data including the list of package ids and failed job statuses. Please not that `dlt` will not raise if a single job terminally fails. Such information is provided via LoadInfo.
     """
@@ -309,4 +309,4 @@ from dlt.pipeline import trace, track, platform
 trace.TRACKING_MODULES = [track, platform]
 
 # setup default pipeline in the container
-Container()[PipelineContext] = PipelineContext(pipeline)
+PipelineContext.cls__init__(pipeline)

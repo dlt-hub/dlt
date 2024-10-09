@@ -107,7 +107,7 @@ const sidebars = {
         },
         {
           type: 'category',
-          label: 'Filesystem & cloud storage',
+          label: 'Cloud storage and filesystem',
           description: 'AWS S3, Google Cloud Storage, Azure, SFTP, local file system',
             link: {
             type: 'doc',

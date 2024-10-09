@@ -18,7 +18,11 @@ from dlt.destinations.job_client_impl import SqlJobClientWithStagingDataset, Sql
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.schema import Schema, TTableSchema, TColumnSchema, TSchemaTables
 from dlt.common.schema.typing import TColumnType, TTableSchemaColumns
-from dlt.common.schema.utils import pipeline_state_table, normalize_table_identifiers
+from dlt.common.schema.utils import (
+    pipeline_state_table,
+    normalize_table_identifiers,
+    is_complete_column,
+)
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
 from dlt.destinations.impl.sqlalchemy.db_api_client import SqlalchemyClient
 from dlt.destinations.impl.sqlalchemy.configuration import SqlalchemyClientConfiguration
@@ -26,6 +30,7 @@ from dlt.destinations.impl.sqlalchemy.load_jobs import (
     SqlalchemyJsonLInsertJob,
     SqlalchemyParquetInsertJob,
     SqlalchemyStagingCopyJob,
+    SqlalchemyMergeFollowupJob,
 )
 
 
@@ -65,6 +70,7 @@ class SqlalchemyJobClient(SqlJobClientWithStagingDataset):
             *[
                 self._to_column_object(col, schema_table)
                 for col in schema_table["columns"].values()
+                if is_complete_column(col)
             ],
             extend_existing=True,
             schema=self.sql_client.dataset_name,
@@ -97,13 +103,10 @@ class SqlalchemyJobClient(SqlJobClientWithStagingDataset):
     def _create_merge_followup_jobs(
         self, table_chain: Sequence[PreparedTableSchema]
     ) -> List[FollowupJobRequest]:
+        # Ensure all tables exist in metadata before generating sql job
         for table in table_chain:
             self._to_table_object(table)
-        return [
-            SqlalchemyStagingCopyJob.from_table_chain(
-                table_chain, self.sql_client, {"replace": False}
-            )
-        ]
+        return [SqlalchemyMergeFollowupJob.from_table_chain(table_chain, self.sql_client)]
 
     def create_load_job(
         self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False

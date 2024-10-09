@@ -180,6 +180,14 @@ Check out the [example](#examples) of setting up credentials through environment
 To organize development and securely manage environment variables for credentials storage, you can use [python-dotenv](https://pypi.org/project/python-dotenv/) to automatically load variables from an `.env` file.
 :::
 
+:::tip
+Environment Variables additionally looks for secret values in `/run/secrets/<secret-name>` to seamlessly resolve values defined as **Kubernetes/Docker secrets**.
+For that purpose it uses alternative name format with lowercase, `-` (dash) as a separator and "_" converted into `-`:
+In the example above: `sources--facebook-ads--access-token` will be used to search for the secrets (and other forms up until `access-token`).
+Mind that only values marked as secret (with `dlt.secrets.value` or using ie. `TSecretStrValue` explicitly) are checked. Remember to name your secrets
+in Kube resources/compose file properly.
+:::
+
 ## Vaults
 
 Vault integration methods vary based on the vault type. Check out our example involving [Google Cloud Secrets Manager](../../walkthroughs/add_credentials.md#retrieving-credentials-from-google-cloud-secret-manager).

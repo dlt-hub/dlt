@@ -94,6 +94,3 @@ jobs:
       # always run full suite, also on branches
       - run: poetry run pytest tests/load -x --ignore tests/load/sources
         name: Run tests Linux
-        env:
-          DESTINATION__SQLALCHEMY_MYSQL__CREDENTIALS: mysql://root:root@127.0.0.1:3306/dlt_data  # Use root cause we need to create databases
-          DESTINATION__SQLALCHEMY_SQLITE__CREDENTIALS: sqlite:///_storage/dl_data.sqlite

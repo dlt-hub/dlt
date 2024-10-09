@@ -574,7 +574,7 @@ rest_api.config_setup.register_auth("custom_auth", CustomAuth)
 
 ### Define resource relationships
 
-When you have a resource that depends on another resource, you can define the relationship using the `resolve` configuration. With it, you link a path parameter in the child resource to a field in the parent resource's data.
+When you have a resource that depends on another resource, you can define the relationship using the `resolve` configuration. This allows you to link one or more path parameters in the child resource to fields in the parent resource's data.
 
 In the GitHub example, the `issue_comments` resource depends on the `issues` resource. The `issue_number` parameter in the `issue_comments` endpoint configuration is resolved from the `number` field of the `issues` resource:
 
@@ -637,6 +637,54 @@ The syntax for the `resolve` field in parameter configuration is:
 The `field` value can be specified as a [JSONPath](https://github.com/h2non/jsonpath-ng?tab=readme-ov-file#jsonpath-syntax) to select a nested field in the parent resource data. For example: `"field": "items[0].id"`.
 
 Under the hood, dlt handles this by using a [transformer resource](../../../general-usage/resource.md#process-resources-with-dlttransformer).
+
+#### Resolving multiple path parameters from a parent resource
+
+When a child resource depends on multiple fields from a single parent resource, you can define multiple `resolve` parameters in the endpoint configuration. For example:
+
+```py
+{
+    "resources": [
+        "groups",
+        {
+            "name": "users",
+            "endpoint": {
+                "path": "groups/{group_id}/users",
+                "params": {
+                    "group_id": {
+                        "type": "resolve",
+                        "resource": "groups",
+                        "field": "id",
+                    },
+                },
+            },
+        },
+        {
+            "name": "user_details",
+            "endpoint": {
+                "path": "groups/{group_id}/users/{user_id}/details",
+                "params": {
+                    "group_id": {
+                        "type": "resolve",
+                        "resource": "users",
+                        "field": "group_id",
+                    },
+                    "user_id": {
+                        "type": "resolve",
+                        "resource": "users",
+                        "field": "id",
+                    },
+                },
+            },
+        },
+    ],
+}
+```
+
+In the configuration above:
+
+- The `users` resource depends on the `groups` resource, resolving the `group_id` parameter from the `id` field in `groups`.
+- The `user_details` resource depends on the `users` resource, resolving both `group_id` and `user_id` parameters from fields in `users`.
 
 #### Include fields from the parent resource
 

@@ -38,3 +38,7 @@ to = "/docs/tutorial/load-data-from-an-api"
 [[redirects]]
 from = "/docs/telemetry"
 to = "/docs/reference/telemetry"
+
+[[redirects]]
+from = "/docs/walkthroughs"
+to = "/docs/intro"

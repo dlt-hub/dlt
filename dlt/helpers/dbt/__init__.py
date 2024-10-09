@@ -6,7 +6,7 @@ import semver
 from dlt.common.runners import Venv
 from dlt.common.destination.reference import DestinationClientDwhConfiguration
 from dlt.common.configuration.specs import CredentialsWithDefault
-from dlt.common.typing import TSecretValue, ConfigValue
+from dlt.common.typing import TSecretStrValue, ConfigValue
 from dlt.version import get_installed_requirement_string
 
 from dlt.helpers.dbt.runner import create_runner, DBTPackageRunner
@@ -85,7 +85,7 @@ def package_runner(
     working_dir: str,
     package_location: str,
     package_repository_branch: str = ConfigValue,
-    package_repository_ssh_key: TSecretValue = TSecretValue(""),  # noqa
+    package_repository_ssh_key: TSecretStrValue = "",
     auto_full_refresh_when_out_of_sync: bool = ConfigValue,
 ) -> DBTPackageRunner:
     default_profile_name = _default_profile_name(destination_configuration)

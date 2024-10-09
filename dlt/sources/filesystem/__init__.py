@@ -2,6 +2,7 @@
 from typing import Iterator, List, Optional, Tuple, Union
 
 import dlt
+from dlt.extract import decorators
 from dlt.common.storages.fsspec_filesystem import (
     FileItem,
     FileItemDict,
@@ -25,7 +26,7 @@ from dlt.sources.filesystem.readers import (
 from dlt.sources.filesystem.settings import DEFAULT_CHUNK_SIZE
 
 
-@dlt.source(_impl_cls=ReadersSource, spec=FilesystemConfigurationResource)
+@decorators.source(_impl_cls=ReadersSource, spec=FilesystemConfigurationResource)
 def readers(
     bucket_url: str = dlt.secrets.value,
     credentials: Union[FileSystemCredentials, AbstractFileSystem] = dlt.secrets.value,
@@ -54,7 +55,7 @@ def readers(
     )
 
 
-@dlt.resource(primary_key="file_url", spec=FilesystemConfigurationResource, standalone=True)
+@decorators.resource(primary_key="file_url", spec=FilesystemConfigurationResource, standalone=True)
 def filesystem(
     bucket_url: str = dlt.secrets.value,
     credentials: Union[FileSystemCredentials, AbstractFileSystem] = dlt.secrets.value,
@@ -96,7 +97,7 @@ def filesystem(
         yield files_chunk
 
 
-read_csv = dlt.transformer(standalone=True)(_read_csv)
-read_jsonl = dlt.transformer(standalone=True)(_read_jsonl)
-read_parquet = dlt.transformer(standalone=True)(_read_parquet)
-read_csv_duckdb = dlt.transformer(standalone=True)(_read_csv_duckdb)
+read_csv = decorators.transformer(standalone=True)(_read_csv)
+read_jsonl = decorators.transformer(standalone=True)(_read_jsonl)
+read_parquet = decorators.transformer(standalone=True)(_read_parquet)
+read_csv_duckdb = decorators.transformer(standalone=True)(_read_csv_duckdb)

@@ -153,7 +153,7 @@ class Client:
 
     The retry is triggered when either any of the predicates or the default conditions based on status code/exception are `True`.
 
-    #### Args:
+    Args:
         request_timeout: Timeout for requests in seconds. May be passed as `timedelta` or `float/int` number of seconds.
         max_connections: Max connections per host in the HTTPAdapter pool
         raise_for_status: Whether to raise exception on error status codes (using `response.raise_for_status()`)

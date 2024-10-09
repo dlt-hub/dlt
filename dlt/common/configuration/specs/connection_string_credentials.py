@@ -1,9 +1,10 @@
 import dataclasses
 from typing import Any, ClassVar, Dict, List, Optional, Union
 
-from dlt.common.libs.sql_alchemy_shims import URL, make_url
+# avoid importing sqlalchemy
+from dlt.common.libs.sql_alchemy_shims import URL
 from dlt.common.configuration.specs.exceptions import InvalidConnectionString
-from dlt.common.typing import TSecretValue
+from dlt.common.typing import TSecretStrValue
 from dlt.common.configuration.specs.base_configuration import CredentialsConfiguration, configspec
 
 
@@ -11,7 +12,7 @@ from dlt.common.configuration.specs.base_configuration import CredentialsConfigu
 class ConnectionStringCredentials(CredentialsConfiguration):
     drivername: str = dataclasses.field(default=None, init=False, repr=False, compare=False)
     database: Optional[str] = None
-    password: Optional[TSecretValue] = None
+    password: Optional[TSecretStrValue] = None
     username: Optional[str] = None
     host: Optional[str] = None
     port: Optional[int] = None
@@ -34,6 +35,8 @@ class ConnectionStringCredentials(CredentialsConfiguration):
         if not isinstance(native_value, str):
             raise InvalidConnectionString(self.__class__, native_value, self.drivername)
         try:
+            from dlt.common.libs.sql_alchemy_compat import make_url
+
             url = make_url(native_value)
             # update only values that are not None
             self.update({k: v for k, v in url._asdict().items() if v is not None})
@@ -45,7 +48,7 @@ class ConnectionStringCredentials(CredentialsConfiguration):
 
     def on_resolved(self) -> None:
         if self.password:
-            self.password = TSecretValue(self.password.strip())
+            self.password = self.password.strip()
 
     def to_native_representation(self) -> str:
         return self.to_url().render_as_string(hide_password=False)
@@ -66,6 +69,10 @@ class ConnectionStringCredentials(CredentialsConfiguration):
 
         # query must be str -> str
         query = {k: _serialize_value(v) for k, v in self.get_query().items()}
+
+        # import "real" URL
+        from dlt.common.libs.sql_alchemy_compat import URL
+
         return URL.create(
             self.drivername,
             self.username,

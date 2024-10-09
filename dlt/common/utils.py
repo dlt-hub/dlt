@@ -271,7 +271,6 @@ def update_dict_nested(dst: TDict, src: TDict, copy_src_dicts: bool = False) -> 
             dst[key] = update_dict_nested({}, src_val, True)
         else:
             dst[key] = src_val
-
     return dst
 
 

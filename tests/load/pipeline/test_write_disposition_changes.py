@@ -128,11 +128,15 @@ def test_switch_to_merge(destination_config: DestinationTestConfiguration, with_
     # schemaless destinations allow adding of root key without the pipeline failing
     # they do not mind adding NOT NULL columns to tables with existing data (id NOT NULL is supported at all)
     # doing this will result in somewhat useless behavior
-    destination_allows_adding_root_key = destination_config.destination_type in [
-        "dremio",
-        "clickhouse",
-        "athena",
-    ]
+    destination_allows_adding_root_key = (
+        destination_config.destination_type
+        in [
+            "dremio",
+            "clickhouse",
+            "athena",
+        ]
+        or destination_config.destination_name == "sqlalchemy_mysql"
+    )
 
     if destination_allows_adding_root_key and not with_root_key:
         pipeline.run(

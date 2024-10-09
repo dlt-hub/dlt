@@ -1,13 +1,12 @@
 """Tests translation of `dlt` credentials into `object_store` Rust crate credentials."""
 
-from typing import Any, Dict, cast
+from typing import Any, Dict
 
 import pytest
 from deltalake import DeltaTable
 from deltalake.exceptions import TableNotFoundError
 
 import dlt
-from dlt.common.typing import TSecretStrValue
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.specs import (
     AnyAzureCredentials,
@@ -144,8 +143,8 @@ def test_aws_object_store_rs_credentials(driver: str) -> None:
     sess_creds = creds.to_session_credentials()
     creds = AwsCredentials(
         aws_access_key_id=sess_creds["aws_access_key_id"],
-        aws_secret_access_key=cast(TSecretStrValue, sess_creds["aws_secret_access_key"]),
-        aws_session_token=cast(TSecretStrValue, sess_creds["aws_session_token"]),
+        aws_secret_access_key=sess_creds["aws_secret_access_key"],
+        aws_session_token=sess_creds["aws_session_token"],
         region_name=fs_creds["region_name"],
     )
     assert creds.aws_session_token is not None
@@ -156,8 +155,8 @@ def test_aws_object_store_rs_credentials(driver: str) -> None:
     # AwsCredentialsWithoutDefaults: user-provided session token
     creds = AwsCredentialsWithoutDefaults(
         aws_access_key_id=sess_creds["aws_access_key_id"],
-        aws_secret_access_key=cast(TSecretStrValue, sess_creds["aws_secret_access_key"]),
-        aws_session_token=cast(TSecretStrValue, sess_creds["aws_session_token"]),
+        aws_secret_access_key=sess_creds["aws_secret_access_key"],
+        aws_session_token=sess_creds["aws_session_token"],
         region_name=fs_creds["region_name"],
     )
     assert creds.aws_session_token is not None

@@ -1,4 +1,4 @@
-from typing import Callable, List, Optional, Tuple, TYPE_CHECKING
+from typing import Callable, List, Optional, Tuple
 from dlt.common.configuration.specs import known_sections
 
 from dlt.common.configuration.specs.base_configuration import ContainerInjectableContext, configspec
