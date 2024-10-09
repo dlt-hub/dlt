@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
 import dataclasses
 from importlib import import_module
+from contextlib import contextmanager
+
 from types import TracebackType
 from typing import (
     Callable,
@@ -18,24 +20,33 @@ from typing import (
     Any,
     TypeVar,
     Generic,
+    Generator,
+    TYPE_CHECKING,
+    Protocol,
+    Tuple,
+    AnyStr,
 )
 from typing_extensions import Annotated
 import datetime  # noqa: 251
 import inspect
 
 from dlt.common import logger, pendulum
+
 from dlt.common.configuration.specs.base_configuration import extract_inner_hint
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.destination.utils import verify_schema_capabilities, verify_supported_data_types
 from dlt.common.exceptions import TerminalException
 from dlt.common.metrics import LoadJobMetrics
 from dlt.common.normalizers.naming import NamingConvention
-from dlt.common.schema import Schema, TSchemaTables
+from dlt.common.schema.typing import TTableSchemaColumns
+
+from dlt.common.schema import Schema, TSchemaTables, TTableSchema
 from dlt.common.schema.typing import (
     C_DLT_LOAD_ID,
     TLoaderReplaceStrategy,
 )
 from dlt.common.schema.utils import fill_hints_from_parent_and_clone_table
+
 from dlt.common.configuration import configspec, resolve_configuration, known_sections, NotResolved
 from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
@@ -49,12 +60,25 @@ from dlt.common.schema.exceptions import UnknownTableException
 from dlt.common.storages import FileStorage
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.common.storages.load_package import LoadJobInfo, TPipelineStateDoc
+from dlt.common.exceptions import MissingDependencyException
+
 
 TDestinationConfig = TypeVar("TDestinationConfig", bound="DestinationClientConfiguration")
 TDestinationClient = TypeVar("TDestinationClient", bound="JobClientBase")
 TDestinationDwhClient = TypeVar("TDestinationDwhClient", bound="DestinationClientDwhConfiguration")
 
 DEFAULT_FILE_LAYOUT = "{table_name}/{load_id}.{file_id}.{ext}"
+
+if TYPE_CHECKING:
+    try:
+        from dlt.common.libs.pandas import DataFrame
+        from dlt.common.libs.pyarrow import Table as ArrowTable
+    except MissingDependencyException:
+        DataFrame = Any
+        ArrowTable = Any
+else:
+    DataFrame = Any
+    ArrowTable = Any
 
 
 class StorageSchemaInfo(NamedTuple):
@@ -440,6 +464,65 @@ class HasFollowupJobs:
     def create_followup_jobs(self, final_state: TLoadJobState) -> List[FollowupJobRequest]:
         """Return list of jobs requests for jobs that should be created. `final_state` is state to which this job transits"""
         return []
+
+
+class SupportsReadableRelation(Protocol):
+    """A readable relation retrieved from a destination that supports it"""
+
+    schema_columns: TTableSchemaColumns
+    """Known dlt table columns for this relation"""
+
+    def df(self, chunk_size: int = None) -> Optional[DataFrame]:
+        """Fetches the results as data frame. For large queries the results may be chunked
+
+        Fetches the results into a data frame. The default implementation uses helpers in `pandas.io.sql` to generate Pandas data frame.
+        This function will try to use native data frame generation for particular destination. For `BigQuery`: `QueryJob.to_dataframe` is used.
+        For `duckdb`: `DuckDBPyConnection.df'
+
+        Args:
+            chunk_size (int, optional): Will chunk the results into several data frames. Defaults to None
+            **kwargs (Any): Additional parameters which will be passed to native data frame generation function.
+
+        Returns:
+            Optional[DataFrame]: A data frame with query results. If chunk_size > 0, None will be returned if there is no more data in results
+        """
+        ...
+
+    def arrow(self, chunk_size: int = None) -> Optional[ArrowTable]: ...
+
+    def iter_df(self, chunk_size: int) -> Generator[DataFrame, None, None]: ...
+
+    def iter_arrow(self, chunk_size: int) -> Generator[ArrowTable, None, None]: ...
+
+    def fetchall(self) -> List[Tuple[Any, ...]]: ...
+
+    def fetchmany(self, chunk_size: int) -> List[Tuple[Any, ...]]: ...
+
+    def iter_fetch(self, chunk_size: int) -> Generator[List[Tuple[Any, ...]], Any, Any]: ...
+
+    def fetchone(self) -> Optional[Tuple[Any, ...]]: ...
+
+
+class DBApiCursor(SupportsReadableRelation):
+    """Protocol for DBAPI cursor"""
+
+    description: Tuple[Any, ...]
+
+    native_cursor: "DBApiCursor"
+    """Cursor implementation native to current destination"""
+
+    def execute(self, query: AnyStr, *args: Any, **kwargs: Any) -> None: ...
+    def close(self) -> None: ...
+
+
+class SupportsReadableDataset(Protocol):
+    """A readable dataset retrieved from a destination, has support for creating readable relations for a query or table"""
+
+    def __call__(self, query: Any) -> SupportsReadableRelation: ...
+
+    def __getitem__(self, table: str) -> SupportsReadableRelation: ...
+
+    def __getattr__(self, table: str) -> SupportsReadableRelation: ...
 
 
 class JobClientBase(ABC):

@@ -24,8 +24,8 @@ def initial_providers() -> List[ConfigProvider]:
     # do not read the global config
     return [
         EnvironProvider(),
-        SecretsTomlProvider(project_dir="tests/.dlt", add_global_config=False),
-        ConfigTomlProvider(project_dir="tests/.dlt", add_global_config=False),
+        SecretsTomlProvider(settings_dir="tests/.dlt", add_global_config=False),
+        ConfigTomlProvider(settings_dir="tests/.dlt", add_global_config=False),
     ]
 
 

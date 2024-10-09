@@ -11,7 +11,7 @@ from dlt.common.configuration.utils import add_config_to_env
 from dlt.common.destination.reference import DestinationClientDwhConfiguration
 from dlt.common.runners import Venv
 from dlt.common.runners.stdout import iter_stdout_with_result
-from dlt.common.typing import StrAny, TSecretValue
+from dlt.common.typing import StrAny, TSecretStrValue
 from dlt.common.logger import is_json_logging
 from dlt.common.storages import FileStorage
 from dlt.common.git import git_custom_key_command, ensure_remote_head, force_clone_repo
@@ -306,7 +306,7 @@ def create_runner(
     working_dir: str,
     package_location: str = dlt.config.value,
     package_repository_branch: Optional[str] = None,
-    package_repository_ssh_key: Optional[TSecretValue] = TSecretValue(""),  # noqa
+    package_repository_ssh_key: Optional[TSecretStrValue] = "",
     package_profiles_dir: Optional[str] = None,
     package_profile_name: Optional[str] = None,
     auto_full_refresh_when_out_of_sync: bool = True,

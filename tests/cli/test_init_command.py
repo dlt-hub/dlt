@@ -19,15 +19,13 @@ import cryptography.hazmat.bindings._rust
 import dlt
 
 from dlt.common import git
-from dlt.common.configuration.paths import make_dlt_settings_path
 from dlt.common.configuration.providers import CONFIG_TOML, SECRETS_TOML, SecretsTomlProvider
 from dlt.common.runners import Venv
 from dlt.common.storages.file_storage import FileStorage
-from dlt.common.source import _SOURCES
 from dlt.common.utils import set_working_dir
 
 
-from dlt.cli import init_command, echo
+from dlt.cli import init_command, echo, utils
 from dlt.cli.init_command import (
     SOURCES_MODULE_NAME,
     DEFAULT_VERIFIED_SOURCES_REPO,
@@ -60,7 +58,7 @@ from tests.utils import IMPLEMENTED_DESTINATIONS, clean_test_storage
 CORE_SOURCES = ["filesystem", "rest_api", "sql_database"]
 
 # we also hardcode all the templates here for testing
-TEMPLATES = ["debug", "default", "arrow", "requests", "dataframe", "intro"]
+TEMPLATES = ["debug", "default", "arrow", "requests", "dataframe", "fruitshop", "github_api"]
 
 # a few verified sources we know to exist
 SOME_KNOWN_VERIFIED_SOURCES = ["chess", "google_sheets", "pipedrive"]
@@ -83,7 +81,7 @@ def test_init_command_pipeline_default_template(repo_dir: str, project_files: Fi
     init_command.init_command("some_random_name", "redshift", repo_dir)
     visitor = assert_init_files(project_files, "some_random_name_pipeline", "redshift")
     # multiple resources
-    assert len(visitor.known_resource_calls) > 1
+    assert len(visitor.known_resource_calls) == 1
 
 
 def test_default_source_file_selection() -> None:
@@ -247,7 +245,7 @@ def test_custom_destination_note(repo_dir: str, project_files: FileStorage):
 
 @pytest.mark.parametrize("omit", [True, False])
 # this will break if we have new core sources that are not in verified sources anymore
-@pytest.mark.parametrize("source", CORE_SOURCES)
+@pytest.mark.parametrize("source", set(CORE_SOURCES) - {"rest_api"})
 def test_omit_core_sources(
     source: str, omit: bool, project_files: FileStorage, repo_dir: str
 ) -> None:
@@ -527,17 +525,16 @@ def test_init_requirements_text(repo_dir: str, project_files: FileStorage) -> No
     assert "pip3 install" in _out
 
 
-@pytest.mark.skip("Why is this not working??")
-def test_pipeline_template_sources_in_single_file(
-    repo_dir: str, project_files: FileStorage
-) -> None:
-    init_command.init_command("debug", "bigquery", repo_dir)
-    # _SOURCES now contains the sources from pipeline.py which simulates loading from two places
-    with pytest.raises(CliCommandException) as cli_ex:
-        init_command.init_command("arrow", "redshift", repo_dir)
-    assert "In init scripts you must declare all sources and resources in single file." in str(
-        cli_ex.value
-    )
+# def test_pipeline_template_sources_in_single_file(
+#     repo_dir: str, project_files: FileStorage
+# ) -> None:
+#     init_command.init_command("debug", "bigquery", repo_dir)
+#     # SourceReference.SOURCES now contains the sources from pipeline.py which simulates loading from two places
+#     with pytest.raises(CliCommandException) as cli_ex:
+#         init_command.init_command("arrow", "redshift", repo_dir)
+#     assert "In init scripts you must declare all sources and resources in single file." in str(
+#         cli_ex.value
+#     )
 
 
 def test_incompatible_dlt_version_warning(repo_dir: str, project_files: FileStorage) -> None:
@@ -624,8 +621,8 @@ def assert_common_files(
 ) -> Tuple[PipelineScriptVisitor, SecretsTomlProvider]:
     # cwd must be project files - otherwise assert won't work
     assert os.getcwd() == project_files.storage_path
-    assert project_files.has_file(make_dlt_settings_path(SECRETS_TOML))
-    assert project_files.has_file(make_dlt_settings_path(CONFIG_TOML))
+    assert project_files.has_file(utils.make_dlt_settings_path(SECRETS_TOML))
+    assert project_files.has_file(utils.make_dlt_settings_path(CONFIG_TOML))
     assert project_files.has_file(".gitignore")
     assert project_files.has_file(pipeline_script)
     # inspect script

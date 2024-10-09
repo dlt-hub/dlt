@@ -3,6 +3,7 @@ from dlt.common.exceptions import MissingDependencyException
 
 try:
     import pandas
+    from pandas import DataFrame
 except ModuleNotFoundError:
     raise MissingDependencyException("dlt Pandas Helpers", ["pandas"])
 
