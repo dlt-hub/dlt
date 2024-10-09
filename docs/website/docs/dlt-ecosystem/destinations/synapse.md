@@ -81,7 +81,7 @@ host = "your_synapse_workspace_name.sql.azuresynapse.net"
 Equivalently, you can also pass a connection string as follows:
 
 ```toml
-# keep it at the top of your toml file! before any section starts
+# Keep it at the top of your TOML file, before any section starts
 destination.synapse.credentials = "synapse://loader:your_loader_password@your_synapse_workspace_name.azuresynapse.net/yourpool"
 ```
 
@@ -215,7 +215,7 @@ connect_timeout = 15
 `port` and `connect_timeout` can also be included in the connection string:
 
 ```toml
-# keep it at the top of your toml file! before any section starts
+# Keep it at the top of your TOML file, before any section starts
 destination.synapse.credentials = "synapse://loader:your_loader_password@your_synapse_workspace_name.azuresynapse.net:1433/yourpool?connect_timeout=15"
 ```
 

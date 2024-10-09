@@ -16,6 +16,7 @@ from typing import (
     get_type_hints,
     ContextManager,
     Dict,
+    Literal,
 )
 
 from dlt import version
@@ -82,6 +83,7 @@ from dlt.common.destination.reference import (
     DestinationClientStagingConfiguration,
     DestinationClientStagingConfiguration,
     DestinationClientDwhWithStagingConfiguration,
+    SupportsReadableDataset,
 )
 from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.pipeline import (
@@ -108,9 +110,10 @@ from dlt.extract.exceptions import SourceExhausted
 from dlt.extract.extract import Extract, data_to_sources
 from dlt.normalize import Normalize
 from dlt.normalize.configuration import NormalizeConfiguration
-from dlt.destinations.sql_client import SqlClientBase
+from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.destinations.fs_client import FSClientBase
 from dlt.destinations.job_client_impl import SqlJobClientBase
+from dlt.destinations.dataset import ReadableDBAPIDataset
 from dlt.load.configuration import LoaderConfiguration
 from dlt.load import Load
 
@@ -444,6 +447,7 @@ class Pipeline(SupportsPipeline):
                         workers,
                         refresh=refresh or self.refresh,
                     )
+
                 # this will update state version hash so it will not be extracted again by with_state_sync
                 self._bump_version_and_extract_state(
                     self._container[StateInjectableContext].state,
@@ -1005,7 +1009,12 @@ class Pipeline(SupportsPipeline):
         #         "Sql Client is not available in a pipeline without a default schema. Extract some data first or restore the pipeline from the destination using 'restore_from_destination' flag. There's also `_inject_schema` method for advanced users."
         #     )
         schema = self._get_schema_or_create(schema_name)
-        return self._sql_job_client(schema).sql_client
+        client_config = self._get_destination_client_initial_config()
+        client = self._get_destination_clients(schema, client_config)[0]
+        if isinstance(client, WithSqlClient):
+            return client.sql_client
+        else:
+            raise SqlClientNotAvailable(self.pipeline_name, self.destination.destination_name)
 
     def _fs_client(self, schema_name: str = None) -> FSClientBase:
         """Returns a filesystem client configured to point to the right folder / bucket for each table.
@@ -1707,3 +1716,11 @@ class Pipeline(SupportsPipeline):
     def __getstate__(self) -> Any:
         # pickle only the SupportsPipeline protocol fields
         return {"pipeline_name": self.pipeline_name}
+
+    def _dataset(self, dataset_type: Literal["dbapi", "ibis"] = "dbapi") -> SupportsReadableDataset:
+        """Access helper to dataset"""
+        if dataset_type == "dbapi":
+            return ReadableDBAPIDataset(
+                self.sql_client(), schema=self.default_schema if self.default_schema_name else None
+            )
+        raise NotImplementedError(f"Dataset of type {dataset_type} not implemented")

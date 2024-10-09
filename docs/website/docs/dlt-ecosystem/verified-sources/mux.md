@@ -14,7 +14,7 @@ import Header from './_source-info-header.md';
 
 This Mux `dlt` verified source and
 [pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/mux_pipeline.py)
-loads data using “Mux API” to the destination of your choice.
+loads data using the “Mux API” to the destination of your choice.
 
 
 | Name        | Description                                                                                         |
@@ -24,7 +24,7 @@ loads data using “Mux API” to the destination of your choice.
 
 > Note: The source `mux_source` loads all video assets, but each video view is for yesterday only!
 
-## Setup Guide
+## Setup guide
 
 ### Grab credentials
 
@@ -74,7 +74,7 @@ For more information, read the guide on [how to add a verified source.](../../wa
     Here's what the file looks like:
 
     ```toml
-    # Put your secret values and credentials here. Do not share this file and do not push it to github
+    # Put your secret values and credentials here. Do not share this file and do not push it to GitHub
     [sources.mux]
     mux_api_access_token = "please set me up" # Mux API access token
     mux_api_secret_key = "please set me up!" # Mux API secret key
@@ -94,11 +94,11 @@ For more information, read the [General Usage: Credentials.](../../general-usage
    ```sh
    pip install -r requirements.txt
    ```
-1. You're now ready to run the pipeline! To get started, run the following command:
+2. You're now ready to run the pipeline! To get started, run the following command:
    ```sh
    python mux_pipeline.py
    ```
-1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
+3. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
    ```sh
    dlt pipeline <pipeline_name> show
@@ -159,7 +159,7 @@ def views_resource(
     ...
 ```
 
-The arguments `mux_api_access_token`, `mux_api_secret_key` and `limit` are the same as described [above](#resource-assets_resource) in "asset_resource".
+The arguments `mux_api_access_token`, `mux_api_secret_key`, and `limit` are the same as described [above](#resource-assets_resource) in "asset_resource".
 
 
 ## Customization
@@ -178,21 +178,21 @@ verified source.
     )
     ```
 
-1. To load metadata about every asset to be loaded:
+2. To load metadata about every asset to be loaded:
 
     ```py
     load_info = pipeline.run(mux_source().with_resources("assets_resource"))
     print(load_info)
     ```
 
-1. To load data for each video view from yesterday:
+3. To load data for each video view from yesterday:
 
     ```py
     load_info = pipeline.run(mux_source().with_resources("views_resource"))
     print(load_info)
     ```
 
-1. To load both metadata about assets and video views from yesterday:
+4. To load both metadata about assets and video views from yesterday:
 
     ```py
     load_info = pipeline.run(mux_source())
@@ -200,3 +200,4 @@ verified source.
     ```
 
 <!--@@@DLT_TUBA mux-->
+

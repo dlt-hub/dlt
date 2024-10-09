@@ -79,6 +79,7 @@ else:
     REPattern = _REPattern
     PathLike = os.PathLike
 
+
 AnyType: TypeAlias = Any
 CallableAny = NewType("CallableAny", Any)  # type: ignore[valid-newtype]
 """A special callable Any that returns argument but is recognized as Any type by dlt hint checkers"""

@@ -18,13 +18,13 @@ Resources that can be loaded using this verified source are:
 | replication_resource | Load published messages from a replication slot |
 
 :::info
-The postgres replication source currently **does not** suppport the [scd2 merge strategy](../../general-usage/incremental-loading#scd2-strategy). 
+The Postgres replication source currently **does not** support the [scd2 merge strategy](../../general-usage/incremental-loading#scd2-strategy). 
 :::
 
-## Setup Guide
+## Setup guide
 
 ### Setup user
-To setup a Postgres user follow these steps:
+To set up a Postgres user, follow these steps:
 
 1. The Postgres user needs to have the `LOGIN` and `REPLICATION` attributes assigned:
     
@@ -40,17 +40,17 @@ To setup a Postgres user follow these steps:
     
 
 ### Set up RDS
-To setup a Postgres user on RDS follow these steps:
+To set up a Postgres user on RDS, follow these steps:
 
-1. You must enable replication for RDS Postgres instance via [Parameter Group](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_PostgreSQL.Replication.ReadReplicas.html)
+1. You must enable replication for the RDS Postgres instance via [Parameter Group](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_PostgreSQL.Replication.ReadReplicas.html).
 
-2. `WITH LOGIN REPLICATION;` does not work on RDS, instead do:
+2. `WITH LOGIN REPLICATION;` does not work on RDS; instead, do:
     
     ```sql
     GRANT rds_replication TO replication_user;
     ```
     
-3. Do not fallback to non-SSL connection by setting connection parameters:
+3. Do not fallback to a non-SSL connection by setting connection parameters:
     
    ```toml
    sources.pg_replication.credentials="postgresql://loader:password@host.rds.amazonaws.com:5432/dlt_data?sslmode=require&connect_timeout=300"
@@ -70,13 +70,13 @@ To get started with your data pipeline, follow these steps:
     
 2. If you'd like to use a different destination, simply replace `duckdb` with the name of your preferred [destination](../../dlt-ecosystem/destinations).
     
-3. This source uses `sql_database` source, you can init it as follows:
+3. This source uses the `sql_database` source; you can initialize it as follows:
     
    ```sh
    dlt init sql_database duckdb
    ```
    :::note
-   It is important to note that It is now only required if a user performs an initial load, specifically when `persist_snapshots` is set to `True`.
+   It is important to note that it is now only required if a user performs an initial load, specifically when `persist_snapshots` is set to `True`.
    :::
     
 4. After running these two commands, a new directory will be created with the necessary files and configuration settings to get started.
@@ -86,6 +86,7 @@ To get started with your data pipeline, follow these steps:
    :::note
    You can omit the `[sql.sources.credentials]` section in `secrets.toml` as it is not required.
    :::
+
 
 ### Add credentials
 
@@ -162,9 +163,9 @@ def replication_resource(
 
 `pub_name`: Publication slot name to publish messages.
 
-`include_columns`: Maps table name(s) to sequence of names of columns to include in the generated data items. Any column not in the sequence is excluded. If not provided, all columns are included
+`include_columns`: Maps table name(s) to a sequence of names of columns to include in the generated data items. Any column not in the sequence is excluded. If not provided, all columns are included.
 
-`columns`:  Maps table name(s) to column hints to apply on the replicated table(s)
+`columns`:  Maps table name(s) to column hints to apply on the replicated table(s).
 
 `target_batch_size`: Desired number of data items yielded in a batch. Can be used to limit the data items in memory.
 
@@ -256,7 +257,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
    dest_pl.run(changes)
    ```
     
-8. To replicate tables with selected columns you can use the `include_columns` argument as follows:
+8. To replicate tables with selected columns, you can use the `include_columns` argument as follows:
     
    ```py
    # requires the Postgres user to have the REPLICATION attribute assigned
@@ -273,3 +274,4 @@ If you wish to create your own pipelines, you can leverage source and resource m
    ```
     
    Similarly, to replicate changes from selected columns, you can use the `table_names` and `include_columns` arguments in the `replication_resource` function.
+

@@ -226,7 +226,7 @@ def create_resources(
     client_config: ClientConfig,
     dependency_graph: graphlib.TopologicalSorter,
     endpoint_resource_map: Dict[str, Union[EndpointResource, DltResource]],
-    resolved_param_map: Dict[str, Optional[ResolvedParam]],
+    resolved_param_map: Dict[str, Optional[List[ResolvedParam]]],
 ) -> Dict[str, DltResource]:
     resources = {}
 
@@ -243,10 +243,10 @@ def create_resources(
         paginator = create_paginator(endpoint_config.get("paginator"))
         processing_steps = endpoint_resource.pop("processing_steps", [])
 
-        resolved_param: ResolvedParam = resolved_param_map[resource_name]
+        resolved_params: List[ResolvedParam] = resolved_param_map[resource_name]
 
         include_from_parent: List[str] = endpoint_resource.get("include_from_parent", [])
-        if not resolved_param and include_from_parent:
+        if not resolved_params and include_from_parent:
             raise ValueError(
                 f"Resource {resource_name} has include_from_parent but is not "
                 "dependent on another resource"
@@ -281,7 +281,7 @@ def create_resources(
                     resource.add_map(step["map"])
             return resource
 
-        if resolved_param is None:
+        if resolved_params is None:
 
             def paginate_resource(
                 method: HTTPMethodBasic,
@@ -332,9 +332,10 @@ def create_resources(
             resources[resource_name] = process(resources[resource_name], processing_steps)
 
         else:
-            predecessor = resources[resolved_param.resolve_config["resource"]]
+            first_param = resolved_params[0]
+            predecessor = resources[first_param.resolve_config["resource"]]
 
-            base_params = exclude_keys(request_params, {resolved_param.param_name})
+            base_params = exclude_keys(request_params, {x.param_name for x in resolved_params})
 
             def paginate_dependent_resource(
                 items: List[Dict[str, Any]],
@@ -345,7 +346,7 @@ def create_resources(
                 data_selector: Optional[jsonpath.TJsonPath],
                 hooks: Optional[Dict[str, Any]],
                 client: RESTClient = client,
-                resolved_param: ResolvedParam = resolved_param,
+                resolved_params: List[ResolvedParam] = resolved_params,
                 include_from_parent: List[str] = include_from_parent,
                 incremental_object: Optional[Incremental[Any]] = incremental_object,
                 incremental_param: Optional[IncrementalParam] = incremental_param,
@@ -363,7 +364,7 @@ def create_resources(
 
                 for item in items:
                     formatted_path, parent_record = process_parent_data_item(
-                        path, item, resolved_param, include_from_parent
+                        path, item, resolved_params, include_from_parent
                     )
 
                     for child_page in client.paginate(
