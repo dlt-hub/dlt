@@ -98,8 +98,12 @@ def test_make_query_incremental_min(
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
 @pytest.mark.parametrize("with_end_value", [True, False])
-def test_make_query_incremental_include_none(
-    sql_source_db: SQLAlchemySourceDB, backend: TableBackend, with_end_value: bool
+@pytest.mark.parametrize("cursor_value_missing", ["include", "exclude"])
+def test_make_query_incremental_on_cursor_value_missing_set(
+    sql_source_db: SQLAlchemySourceDB,
+    backend: TableBackend,
+    with_end_value: bool,
+    cursor_value_missing: str,
 ) -> None:
     class MockIncremental:
         last_value = dlt.common.pendulum.now()
@@ -107,7 +111,7 @@ def test_make_query_incremental_include_none(
         cursor_path = "created_at"
         row_order = "asc"
         end_value = None if not with_end_value else dlt.common.pendulum.now().add(hours=1)
-        on_cursor_value_missing = "include"
+        on_cursor_value_missing = cursor_value_missing
 
     table = sql_source_db.get_table("chat_message")
     loader = TableLoader(
@@ -119,18 +123,25 @@ def test_make_query_incremental_include_none(
     )
 
     query = loader.make_query()
+    if cursor_value_missing == "include":
+        missing_cond = table.c.created_at.is_(None)
+        operator = sa.or_
+    else:
+        missing_cond = table.c.created_at.isnot(None)
+        operator = sa.and_
+
     if with_end_value:
-        where_clause = sa.or_(
+        where_clause = operator(
             sa.and_(
                 table.c.created_at >= MockIncremental.last_value,
                 table.c.created_at < MockIncremental.end_value,
             ),
-            table.c.created_at.is_(None),
+            missing_cond,
         )
     else:
-        where_clause = sa.or_(
+        where_clause = operator(
             table.c.created_at >= MockIncremental.last_value,
-            table.c.created_at.is_(None),
+            missing_cond,
         )
     expected = table.select().order_by(table.c.created_at.asc()).where(where_clause)
     assert query.compare(expected)
