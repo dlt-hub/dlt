@@ -132,14 +132,13 @@ def main() -> int:
 
     m = plugins.manager()
     commands = cast(List[Type[SupportsCliCommand]], m.hook.plug_cli())
-    # NOTE: plugin commands are added in reverse order so that the last added command (coming from external plugin)
-    # overwrites internal commands
-    commands.reverse()
 
     # install available commands
     installed_commands: Dict[str, SupportsCliCommand] = {}
     for c in commands:
         command = c()
+        if command.command in installed_commands.keys():
+            continue
         command_parser = subparsers.add_parser(command.command, help=command.help_string)
         command.configure_parser(command_parser)
         installed_commands[command.command] = command
