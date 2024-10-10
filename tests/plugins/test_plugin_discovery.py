@@ -11,6 +11,7 @@ from dlt.common.runners import Venv
 from dlt.common.configuration import plugins
 from dlt.common.runtime import run_context
 from tests.utils import TEST_STORAGE_ROOT
+from pytest_console_scripts import ScriptRunner
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -51,3 +52,15 @@ def test_example_plugin() -> None:
     context = run_context.current()
     assert context.name == "dlt-test"
     assert context.data_dir == os.path.abspath(TEST_STORAGE_ROOT)
+
+
+def test_cli_hook(script_runner: ScriptRunner) -> None:
+    # new command
+    result = script_runner.run(["dlt", "example", "--name", "John"])
+    assert result.returncode == 33
+    assert "Example command executed with name: John" in result.stdout
+
+    # overwritten pipeline command
+    result = script_runner.run(["dlt", "init"])
+    assert result.returncode == 55
+    assert "Plugin overwrote init command" in result.stdout
