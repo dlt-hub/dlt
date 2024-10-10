@@ -8,11 +8,14 @@ from typing import (
     Callable,
     Union,
     TypedDict,
+    Dict,
 )
 from typing_extensions import TypeAlias
+
+from sqlalchemy.exc import NoReferencedTableError
+
+
 from dlt.common.libs.sql_alchemy import Table, Column, Row, sqltypes, Select, TypeEngine
-
-
 from dlt.common import logger
 from dlt.common.schema.typing import TColumnSchema, TTableSchemaColumns, TTableReference
 
@@ -177,21 +180,36 @@ def get_table_references(
     """Resolve table references from SQLAlchemy foreign key constraints in the table"""
     if reflection_level == "minimal":
         return None
-    result: List[TTableReference] = []
+    ref_tables: Dict[str, TTableReference] = {}
     for fk_constraint in table.foreign_key_constraints:
-        referenced_table = fk_constraint.referred_table.name
+        try:
+            referenced_table = fk_constraint.referred_table.name
+        except NoReferencedTableError as e:
+            logger.warning(
+                "Foreign key constraint from table %s could not be resolved to a referenced table, error message: %s",
+                table.name,
+                e,
+            )
+            continue
+
+        if fk_constraint.referred_table.schema != table.schema:
+            continue
+
         elements = fk_constraint.elements
         referenced_columns = [element.column.name for element in elements]
         columns = [col.name for col in fk_constraint.columns]
-
-        result.append(
-            {
+        if referenced_table in ref_tables:
+            # Merge multiple foreign keys to the same table
+            existing_ref = ref_tables[referenced_table]
+            existing_ref["columns"].extend(columns)  # type: ignore[attr-defined]
+            existing_ref["referenced_columns"].extend(referenced_columns)  # type: ignore[attr-defined]
+        else:
+            ref_tables[referenced_table] = {
                 "referenced_table": referenced_table,
                 "referenced_columns": referenced_columns,
                 "columns": columns,
             }
-        )
-    return result
+    return list(ref_tables.values())
 
 
 def table_to_resource_hints(
