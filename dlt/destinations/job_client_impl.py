@@ -397,14 +397,21 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
     ) -> TColumnType:
         pass
 
-    def get_stored_schema(self) -> StorageSchemaInfo:
+    def get_stored_schema(self, any_schema_name: bool = False) -> StorageSchemaInfo:
         name = self.sql_client.make_qualified_table_name(self.schema.version_table_name)
         c_schema_name, c_inserted_at = self._norm_and_escape_columns("schema_name", "inserted_at")
-        query = (
-            f"SELECT {self.version_table_schema_columns} FROM {name} WHERE {c_schema_name} = %s"
-            f" ORDER BY {c_inserted_at} DESC;"
-        )
-        return self._row_to_schema_info(query, self.schema.name)
+        if any_schema_name:
+            query = (
+                f"SELECT {self.version_table_schema_columns} FROM {name}"
+                f" ORDER BY {c_inserted_at} DESC;"
+            )
+            return self._row_to_schema_info(query)
+        else:
+            query = (
+                f"SELECT {self.version_table_schema_columns} FROM {name} WHERE {c_schema_name} = %s"
+                f" ORDER BY {c_inserted_at} DESC;"
+            )
+            return self._row_to_schema_info(query, self.schema.name)
 
     def get_stored_state(self, pipeline_name: str) -> StateInfo:
         state_table = self.sql_client.make_qualified_table_name(self.schema.state_table_name)

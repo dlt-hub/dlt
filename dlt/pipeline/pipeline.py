@@ -84,6 +84,7 @@ from dlt.common.destination.reference import (
     DestinationClientStagingConfiguration,
     DestinationClientDwhWithStagingConfiguration,
     SupportsReadableDataset,
+    TDatasetType,
 )
 from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.pipeline import (
@@ -113,7 +114,7 @@ from dlt.normalize.configuration import NormalizeConfiguration
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.destinations.fs_client import FSClientBase
 from dlt.destinations.job_client_impl import SqlJobClientBase
-from dlt.destinations.dataset import ReadableDBAPIDataset
+from dlt.destinations.dataset import dataset
 from dlt.load.configuration import LoaderConfiguration
 from dlt.load import Load
 
@@ -1717,10 +1718,11 @@ class Pipeline(SupportsPipeline):
         # pickle only the SupportsPipeline protocol fields
         return {"pipeline_name": self.pipeline_name}
 
-    def _dataset(self, dataset_type: Literal["dbapi", "ibis"] = "dbapi") -> SupportsReadableDataset:
+    def _dataset(self, dataset_type: TDatasetType = "dbapi") -> SupportsReadableDataset:
         """Access helper to dataset"""
-        if dataset_type == "dbapi":
-            return ReadableDBAPIDataset(
-                self.sql_client(), schema=self.default_schema if self.default_schema_name else None
-            )
-        raise NotImplementedError(f"Dataset of type {dataset_type} not implemented")
+        return dataset(
+            self.destination,
+            self.dataset_name,
+            schema=(self.default_schema if self.default_schema_name else None),
+            dataset_type=dataset_type,
+        )

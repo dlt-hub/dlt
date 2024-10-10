@@ -1,9 +1,14 @@
-from typing import Any, Generator, AnyStr, Optional
+from typing import Any, Generator, Optional, Union
+from dlt.common.json import json
 
 from contextlib import contextmanager
 from dlt.common.destination.reference import (
     SupportsReadableRelation,
     SupportsReadableDataset,
+    TDatasetType,
+    TDestinationReferenceArg,
+    Destination,
+    JobClientBase,
 )
 
 from dlt.common.schema.typing import TTableSchemaColumns
@@ -71,24 +76,84 @@ class ReadableDBAPIRelation(SupportsReadableRelation):
 class ReadableDBAPIDataset(SupportsReadableDataset):
     """Access to dataframes and arrowtables in the destination dataset via dbapi"""
 
-    def __init__(self, client: SqlClientBase[Any], schema: Optional[Schema]) -> None:
-        self.client = client
-        self.schema = schema
+    def __init__(
+        self,
+        destination: TDestinationReferenceArg,
+        dataset_name: str,
+        schema: Union[Schema, str, None] = None,
+    ) -> None:
+        self._destination = Destination.from_reference(destination)
+        self._schema = schema
+        self._resolved_schema: Schema = None
+        self._dataset_name = dataset_name
+        self._sql_client: SqlClientBase[Any] = None
+
+    def _destination_client(self, schema: Schema) -> JobClientBase:
+        client_spec = self._destination.spec()
+        client_spec._bind_dataset_name(
+            dataset_name=self._dataset_name, default_schema_name=schema.name
+        )
+        return self._destination.client(schema, client_spec)
+
+    def _ensure_client_and_schema(self) -> None:
+        """Lazy load schema and client"""
+        # full schema given, nothing to do
+        if not self._resolved_schema and isinstance(self._schema, Schema):
+            self._resolved_schema = self._schema
+
+        # schema name given, resolve it from destination by name
+        elif not self._resolved_schema and isinstance(self._schema, str):
+            with self._destination_client(Schema(self._schema)) as client:
+                stored_schema = client.get_stored_schema()
+                if stored_schema:
+                    self._resolved_schema = Schema.from_stored_schema(
+                        json.loads(stored_schema.schema)
+                    )
+
+        # no schema name given, load newest schema from destination
+        elif not self._resolved_schema:
+            with self._destination_client(Schema(self._dataset_name)) as client:
+                stored_schema = client.get_stored_schema(any_schema_name=True)
+                if stored_schema:
+                    self._resolved_schema = Schema.from_stored_schema(
+                        json.loads(stored_schema.schema)
+                    )
+
+        # default to empty schema with dataset name if nothing found
+        if not self._resolved_schema:
+            self._resolved_schema = Schema(self._dataset_name)
+
+        # here we create the client bound to the resolved schema
+        # TODO: ensure that this destination supports the sql_client. otherwise error
+        if not self._sql_client:
+            self._sql_client = self._destination_client(self._resolved_schema).sql_client
 
     def __call__(
         self, query: Any, schema_columns: TTableSchemaColumns = None
     ) -> ReadableDBAPIRelation:
         schema_columns = schema_columns or {}
-        return ReadableDBAPIRelation(client=self.client, query=query, schema_columns=schema_columns)  # type: ignore[abstract]
+        return ReadableDBAPIRelation(client=self.sql_client, query=query, schema_columns=schema_columns)  # type: ignore[abstract]
 
     def table(self, table_name: str) -> SupportsReadableRelation:
         # prepare query for table relation
         schema_columns = (
             self.schema.tables.get(table_name, {}).get("columns", {}) if self.schema else {}
         )
-        table_name = self.client.make_qualified_table_name(table_name)
+        table_name = self.sql_client.make_qualified_table_name(table_name)
         query = f"SELECT * FROM {table_name}"
         return self(query, schema_columns)
+
+    @property
+    def schema(self) -> Schema:
+        """Lazy load schema from destination"""
+        self._ensure_client_and_schema()
+        return self._resolved_schema
+
+    @property
+    def sql_client(self) -> SqlClientBase[Any]:
+        """Lazy instantiate client"""
+        self._ensure_client_and_schema()
+        return self._sql_client
 
     def __getitem__(self, table_name: str) -> SupportsReadableRelation:
         """access of table via dict notation"""
@@ -97,3 +162,14 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
     def __getattr__(self, table_name: str) -> SupportsReadableRelation:
         """access of table via property notation"""
         return self.table(table_name)
+
+
+def dataset(
+    destination: TDestinationReferenceArg,
+    dataset_name: str,
+    schema: Union[Schema, str, None] = None,
+    dataset_type: TDatasetType = "dbapi",
+) -> SupportsReadableDataset:
+    if dataset_type == "dbapi":
+        return ReadableDBAPIDataset(destination, dataset_name, schema)
+    raise NotImplementedError(f"Dataset of type {dataset_type} not implemented")
