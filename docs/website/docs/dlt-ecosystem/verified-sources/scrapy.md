@@ -9,7 +9,7 @@ keywords: [scraping, scraping verified source, scrapy]
 This verified source utilizes Scrapy, an open-source and collaborative framework for web scraping.
 Scrapy enables efficient extraction of required data from websites.
 
-## Setup Guide
+## Setup guide
 
 ### Initialize the verified source
 
@@ -44,8 +44,8 @@ For more information, read the guide on
    start_urls = ["URL to be scraped"] # please set me up!
    start_urls_file = "/path/to/urls.txt" # please set me up!
    ```
-   > When both `start_urls` and `start_urls_file` are provided they will be merged and deduplicated
-   > to ensure a Scrapy gets a unique set of start URLs.
+   > When both `start_urls` and `start_urls_file` are provided, they will be merged and deduplicated
+   > to ensure Scrapy gets a unique set of start URLs.
 
 1. Inside the `.dlt` folder, you'll find a file called `secrets.toml`, which is where you can securely
    store your access tokens and other sensitive information. It's important to handle this
@@ -61,7 +61,7 @@ For more information, read [Secrets and Configs.](../../general-usage/credential
 In this section, we demonstrate how to use the `MySpider` class defined in "scraping_pipeline.py" to
 scrape data from "https://quotes.toscrape.com/page/1/".
 
-1. Start with configuring the `config.toml` as follows:
+1. Start by configuring the `config.toml` as follows:
 
    ```toml
    [sources.scraping]
@@ -85,12 +85,14 @@ scrape data from "https://quotes.toscrape.com/page/1/".
 
 ## Customization
 
+
+
 ### Create your own pipeline
 
 If you wish to create your data pipeline, follow these steps:
 
 1. The first step requires creating a spider class that scrapes data
-   from the website. For example, class `Myspider` below scrapes data from
+   from the website. For example, the class `Myspider` below scrapes data from
    URL: "https://quotes.toscrape.com/page/1/".
 
    ```py
@@ -153,7 +155,7 @@ If you wish to create your data pipeline, follow these steps:
 
    In the above example, scrapy settings are passed as a parameter. For more information about
    scrapy settings, please refer to the
-   [Scrapy documentation.](https://docs.scrapy.org/en/latest/topics/settings.html).
+   [Scrapy documentation](https://docs.scrapy.org/en/latest/topics/settings.html).
 
 1. To limit the number of items processed, use the "on_before_start" function to set a limit on
    the resources the pipeline processes. For instance, setting the resource limit to two allows
@@ -187,3 +189,4 @@ If you wish to create your data pipeline, follow these steps:
    scraping_host.pipeline_runner.scraping_resource.add_limit(2)
    scraping_host.run(dataset_name="quotes", write_disposition="append")
    ```
+

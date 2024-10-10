@@ -140,6 +140,46 @@ def test_ignoring_endpoint_returning_404(mock_api_server):
     ]
 
 
+def test_ignoring_endpoint_returning_204(mock_api_server):
+    mock_source = rest_api_source(
+        {
+            "client": {"base_url": "https://api.example.com"},
+            "resources": [
+                "posts",
+                {
+                    "name": "post_details",
+                    "endpoint": {
+                        "path": "posts/{post_id}/some_details_204",
+                        "params": {
+                            "post_id": {
+                                "type": "resolve",
+                                "resource": "posts",
+                                "field": "id",
+                            }
+                        },
+                        "response_actions": [
+                            {
+                                "status_code": 204,
+                                "action": "ignore",
+                            },
+                        ],
+                    },
+                },
+            ],
+        }
+    )
+
+    res = list(mock_source.with_resources("posts", "post_details").add_limit(1))
+
+    assert res[:5] == [
+        {"id": 0, "body": "Post body 0"},
+        {"id": 0, "title": "Post 0"},
+        {"id": 1, "title": "Post 1"},
+        {"id": 2, "title": "Post 2"},
+        {"id": 3, "title": "Post 3"},
+    ]
+
+
 def test_source_with_post_request(mock_api_server):
     class JSONBodyPageCursorPaginator(BaseReferencePaginator):
         def update_state(self, response: Response, data: Optional[List[Any]] = None) -> None:
@@ -333,12 +373,8 @@ def test_multiple_response_actions_on_every_response(mock_api_server, mocker):
     class CustomSession(Session):
         pass
 
-    def send_spy(*args, **kwargs):
-        return original_send(*args, **kwargs)
-
     my_session = CustomSession()
-    original_send = my_session.send
-    mocked_send = mocker.patch.object(my_session, "send", side_effect=send_spy)
+    mocked_send = mocker.spy(my_session, "send")
 
     source = rest_api_source(
         {
@@ -358,3 +394,41 @@ def test_multiple_response_actions_on_every_response(mock_api_server, mocker):
 
     mocked_send.assert_called_once()
     assert mocked_send.call_args[0][0].url == "https://api.example.com/posts"
+
+
+def test_DltResource_gets_called(mock_api_server, mocker) -> None:
+    @dlt.resource()
+    def post_list():
+        yield [{"id": "0"}, {"id": "1"}, {"id": "2"}]
+
+    config: RESTAPIConfig = {
+        "client": {"base_url": "http://api.example.com/"},
+        "resource_defaults": {
+            "write_disposition": "replace",
+        },
+        "resources": [
+            {
+                "name": "posts",
+                "endpoint": {
+                    "path": "posts/{post_id}/comments",
+                    "params": {
+                        "post_id": {
+                            "type": "resolve",
+                            "resource": "post_list",
+                            "field": "id",
+                        },
+                    },
+                },
+            },
+            post_list(),
+        ],
+    }
+
+    RESTClient = dlt.sources.helpers.rest_client.RESTClient
+    with mock.patch.object(RESTClient, "paginate") as mock_paginate:
+        source = rest_api_source(config)
+        _ = list(source)
+        assert mock_paginate.call_count == 3
+        for i in range(3):
+            _, kwargs = mock_paginate.call_args_list[i]
+            assert kwargs["path"] == f"posts/{i}/comments"

@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Optional, Any, Final, Type, Dict, Union
+from typing import TYPE_CHECKING, ClassVar, List, Optional, Any, Final, Type, Dict, Union
 import dataclasses
 
 from dlt.common.configuration import configspec
@@ -13,8 +13,6 @@ if TYPE_CHECKING:
 class SqlalchemyCredentials(ConnectionStringCredentials):
     if TYPE_CHECKING:
         _engine: Optional["Engine"] = None
-
-    username: Optional[str] = None  # e.g. sqlite doesn't need username
 
     def __init__(
         self, connection_string: Optional[Union[str, Dict[str, Any], "Engine"]] = None
@@ -48,6 +46,14 @@ class SqlalchemyCredentials(ConnectionStringCredentials):
         if engine := self.engine:
             return type(engine.dialect)
         return self.to_url().get_dialect()  # type: ignore[attr-defined,no-any-return]
+
+    __config_gen_annotations__: ClassVar[List[str]] = [
+        "database",
+        "port",
+        "username",
+        "password",
+        "host",
+    ]
 
 
 @configspec

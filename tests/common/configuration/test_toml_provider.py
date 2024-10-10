@@ -16,6 +16,7 @@ from dlt.common.configuration.providers.toml import (
     CONFIG_TOML,
     BaseDocProvider,
     CustomLoaderDocProvider,
+    SettingsTomlProvider,
     SecretsTomlProvider,
     ConfigTomlProvider,
     StringTomlProvider,
@@ -32,6 +33,7 @@ from dlt.common.typing import TSecretValue
 
 from tests.utils import preserve_environ
 from tests.common.configuration.utils import (
+    ConnectionStringCompatCredentials,
     SecretCredentials,
     WithCredentialsConfiguration,
     CoercionTestConfiguration,
@@ -150,12 +152,12 @@ def test_secrets_toml_credentials(environment: Any, toml_providers: ConfigProvid
     with pytest.raises(ConfigFieldMissingException):
         print(dict(resolve.resolve_configuration(GcpServiceAccountCredentialsWithoutDefaults())))
     # also try postgres credentials
-    c2 = ConnectionStringCredentials()
+    c2 = ConnectionStringCompatCredentials()
     c2.update({"drivername": "postgres"})
     c2 = resolve.resolve_configuration(c2, sections=("destination", "redshift"))
     assert c2.database == "destination.redshift.credentials"
     # bigquery credentials do not match redshift credentials
-    c3 = ConnectionStringCredentials()
+    c3 = ConnectionStringCompatCredentials()
     c3.update({"drivername": "postgres"})
     with pytest.raises(ConfigFieldMissingException):
         resolve.resolve_configuration(c3, sections=("destination", "bigquery"))
@@ -245,7 +247,7 @@ def test_toml_get_key_as_section(toml_providers: ConfigProvidersContext) -> None
 def test_toml_read_exception() -> None:
     pipeline_root = "./tests/common/cases/configuration/.wrong.dlt"
     with pytest.raises(TomlProviderReadException) as py_ex:
-        ConfigTomlProvider(project_dir=pipeline_root)
+        ConfigTomlProvider(settings_dir=pipeline_root)
     assert py_ex.value.file_name == "config.toml"
 
 
@@ -287,7 +289,7 @@ def test_toml_global_config() -> None:
 
 
 def test_write_value(toml_providers: ConfigProvidersContext) -> None:
-    provider: BaseDocProvider
+    provider: SettingsTomlProvider
     for provider in toml_providers.providers:  # type: ignore[assignment]
         if not provider.is_writable:
             continue
@@ -350,9 +352,10 @@ def test_write_value(toml_providers: ConfigProvidersContext) -> None:
             "dict_test.deep_dict.embed.inner_2",
         )
         # write a dict over non dict
-        provider.set_value("deep_list", test_d1, None, "deep", "deep", "deep")
+        ovr_dict = {"ovr": 1, "ocr": {"ovr": 2}}
+        provider.set_value("deep_list", ovr_dict, None, "deep", "deep", "deep")
         assert provider.get_value("deep_list", TAny, None, "deep", "deep", "deep") == (
-            test_d1,
+            ovr_dict,
             "deep.deep.deep.deep_list",
         )
         # merge dicts
@@ -367,7 +370,8 @@ def test_write_value(toml_providers: ConfigProvidersContext) -> None:
             test_m_d1_d2,
             "dict_test.deep_dict",
         )
-        # print(provider.get_value("deep_dict", Any, None, "dict_test"))
+        # compare toml and doc repr
+        assert provider._config_doc == provider._config_toml.unwrap()
 
         # write configuration
         pool = PoolRunnerConfiguration(pool_type="none", workers=10)
@@ -402,7 +406,7 @@ def test_set_spec_value(toml_providers: ConfigProvidersContext) -> None:
 
 
 def test_set_fragment(toml_providers: ConfigProvidersContext) -> None:
-    provider: BaseDocProvider
+    provider: SettingsTomlProvider
     for provider in toml_providers.providers:  # type: ignore[assignment]
         if not isinstance(provider, BaseDocProvider):
             continue

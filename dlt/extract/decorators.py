@@ -3,11 +3,10 @@ import inspect
 from types import ModuleType
 from functools import wraps
 from typing import (
-    TYPE_CHECKING,
     Any,
-    Awaitable,
     Callable,
     ClassVar,
+    Dict,
     Iterator,
     List,
     Literal,
@@ -18,7 +17,7 @@ from typing import (
     cast,
     overload,
 )
-from typing_extensions import TypeVar
+from typing_extensions import TypeVar, Self
 
 from dlt.common.configuration import with_config, get_fun_spec, known_sections, configspec
 from dlt.common.configuration.container import Container
@@ -31,7 +30,6 @@ from dlt.common.exceptions import ArgumentsOverloadException
 from dlt.common.pipeline import PipelineContext
 from dlt.common.reflection.spec import spec_from_signature
 from dlt.common.schema.utils import DEFAULT_WRITE_DISPOSITION
-from dlt.common.source import _SOURCES, SourceInfo
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import (
     TColumnNames,
@@ -63,7 +61,13 @@ from dlt.extract.exceptions import (
     CurrentSourceSchemaNotAvailable,
 )
 from dlt.extract.items import TTableHintTemplate
-from dlt.extract.source import DltSource
+from dlt.extract.source import (
+    DltSource,
+    SourceReference,
+    SourceFactory,
+    TDltSourceImpl,
+    TSourceFunParams,
+)
 from dlt.extract.resource import DltResource, TUnboundDltResource, TDltResourceImpl
 
 
@@ -85,122 +89,146 @@ class SourceInjectableContext(ContainerInjectableContext):
     can_create_default: ClassVar[bool] = False
 
 
-TSourceFunParams = ParamSpec("TSourceFunParams")
-TResourceFunParams = ParamSpec("TResourceFunParams")
-TDltSourceImpl = TypeVar("TDltSourceImpl", bound=DltSource, default=DltSource)
+class _DltSingleSource(DltSource):
+    """Used to register standalone (non-inner) resources"""
+
+    @property
+    def single_resource(self) -> DltResource:
+        return list(self.resources.values())[0]
 
 
-@overload
-def source(
-    func: Callable[TSourceFunParams, Any],
-    /,
-    name: str = None,
-    section: str = None,
-    max_table_nesting: int = None,
-    root_key: bool = False,
-    schema: Schema = None,
-    schema_contract: TSchemaContract = None,
-    spec: Type[BaseConfiguration] = None,
-    _impl_cls: Type[TDltSourceImpl] = DltSource,  # type: ignore[assignment]
-) -> Callable[TSourceFunParams, TDltSourceImpl]: ...
+class DltSourceFactoryWrapper(SourceFactory[TSourceFunParams, TDltSourceImpl]):
+    def __init__(
+        self,
+    ) -> None:
+        """Creates a wrapper that is returned by @source decorator. It preserves the decorated function when called and
+        allows to change the decorator arguments at runtime. Changing the `name` and `section` creates a clone of the source
+        with different name and taking the configuration from a different keys.
 
+        This wrapper registers the source under `section`.`name` type in SourceReference registry, using the original
+        `section` (which corresponds to module name) and `name` (which corresponds to source function name).
+        """
+        self._f: AnyFun = None
+        self._ref: SourceReference = None
+        self._deco_f: Callable[..., TDltSourceImpl] = None
 
-@overload
-def source(
-    func: None = ...,
-    /,
-    name: str = None,
-    section: str = None,
-    max_table_nesting: int = None,
-    root_key: bool = False,
-    schema: Schema = None,
-    schema_contract: TSchemaContract = None,
-    spec: Type[BaseConfiguration] = None,
-    _impl_cls: Type[TDltSourceImpl] = DltSource,  # type: ignore[assignment]
-) -> Callable[[Callable[TSourceFunParams, Any]], Callable[TSourceFunParams, TDltSourceImpl]]: ...
+        self.name: str = None
+        self.section: str = None
+        self.max_table_nesting: int = None
+        self.root_key: bool = False
+        self.schema: Schema = None
+        self.schema_contract: TSchemaContract = None
+        self.spec: Type[BaseConfiguration] = None
+        self.parallelized: bool = None
+        self._impl_cls: Type[TDltSourceImpl] = DltSource  # type: ignore[assignment]
 
+    def with_args(
+        self,
+        *,
+        name: str = None,
+        section: str = None,
+        max_table_nesting: int = None,
+        root_key: bool = None,
+        schema: Schema = None,
+        schema_contract: TSchemaContract = None,
+        spec: Type[BaseConfiguration] = None,
+        parallelized: bool = None,
+        _impl_cls: Type[TDltSourceImpl] = None,
+    ) -> Self:
+        """Overrides default arguments that will be used to create DltSource instance when this wrapper is called. This method
+        clones this wrapper.
+        """
+        # if source function not set, apply args in place
+        ovr = self.__class__() if self._f else self
 
-def source(
-    func: Optional[AnyFun] = None,
-    /,
-    name: str = None,
-    section: str = None,
-    max_table_nesting: int = None,
-    root_key: bool = False,
-    schema: Schema = None,
-    schema_contract: TSchemaContract = None,
-    spec: Type[BaseConfiguration] = None,
-    _impl_cls: Type[TDltSourceImpl] = DltSource,  # type: ignore[assignment]
-) -> Any:
-    """A decorator that transforms a function returning one or more `dlt resources` into a `dlt source` in order to load it with `dlt`.
+        if name is not None:
+            ovr.name = name
+        else:
+            ovr.name = self.name
+        if section is not None:
+            ovr.section = section
+        else:
+            ovr.section = self.section
+        if max_table_nesting is not None:
+            ovr.max_table_nesting = max_table_nesting
+        else:
+            ovr.max_table_nesting = self.max_table_nesting
+        if root_key is not None:
+            ovr.root_key = root_key
+        else:
+            ovr.root_key = self.root_key
+        ovr.schema = schema or self.schema
+        if schema_contract is not None:
+            ovr.schema_contract = schema_contract
+        else:
+            ovr.schema_contract = self.schema_contract
+        ovr.spec = spec or self.spec
+        if parallelized is not None:
+            ovr.parallelized = parallelized
+        else:
+            ovr.parallelized = self.parallelized
+        ovr._impl_cls = _impl_cls or self._impl_cls
 
-    #### Note:
-    A `dlt source` is a logical grouping of resources that are often extracted and loaded together. A source is associated with a schema, which describes the structure of the loaded data and provides instructions how to load it.
-    Such schema contains table schemas that describe the structure of the data coming from the resources.
+        # also remember original source function
+        ovr._f = self._f
+        # try to bind _f
+        ovr.wrap()
+        return ovr
 
-    Please refer to https://dlthub.com/docs/general-usage/source for a complete documentation.
+    def __call__(self, *args: Any, **kwargs: Any) -> TDltSourceImpl:
+        assert self._deco_f, f"Attempt to call source function on {self.name} before bind"
+        # if source impl is a single resource source
+        if issubclass(self._impl_cls, _DltSingleSource):
+            # call special source function that will create renamed resource
+            source = self._deco_f(self.name, self.section, args, kwargs)
+            assert isinstance(source, _DltSingleSource)
+            # set source section to empty to not interfere with resource sections, same thing we do in extract
+            source.section = ""
+            # apply selected settings directly to resource
+            resource = source.single_resource
+            if self.max_table_nesting is not None:
+                resource.max_table_nesting = self.max_table_nesting
+            if self.schema_contract is not None:
+                resource.apply_hints(schema_contract=self.schema_contract)
+        else:
+            source = self._deco_f(*args, **kwargs)
+        return source
 
-    #### Credentials:
-    Another important function of the source decorator is to provide credentials and other configuration to the code that extracts data. The decorator may automatically bind the source function arguments to the secret and config values.
-    >>> @dlt.source
-    >>> def chess(username, chess_url: str = dlt.config.value, api_secret = dlt.secrets.value, title: str = "GM"):
-    >>>     return user_profile(username, chess_url, api_secret), user_games(username, chess_url, api_secret, with_titles=title)
-    >>>
-    >>> list(chess("magnuscarlsen"))
+    def bind(self, f: AnyFun) -> Self:
+        """Binds wrapper to the original source function and registers the source reference. This method is called only once by the decorator"""
+        self._f = f
+        self._ref = self.wrap()
+        SourceReference.register(self._ref)
+        return self
 
-    Here `username` is a required, explicit python argument, `chess_url` is a required argument, that if not explicitly passed will be taken from configuration ie. `config.toml`, `api_secret` is a required argument, that if not explicitly passed will be taken from dlt secrets ie. `secrets.toml`.
-    See https://dlthub.com/docs/general-usage/credentials for details.
+    def wrap(self) -> SourceReference:
+        """Wrap the original source function using _deco."""
+        if not self._f:
+            return None
+        if hasattr(self._f, "__qualname__"):
+            self.__qualname__ = self._f.__qualname__
+        return self._wrap(self._f)
 
-    #### Args:
-        func: A function that returns a dlt resource or a list of those or a list of any data items that can be loaded by `dlt`.
-
-        name (str, optional): A name of the source which is also the name of the associated schema. If not present, the function name will be used.
-
-        section (str, optional): A name of configuration. If not present, the current python module name will be used.
-
-        max_table_nesting (int, optional): A schema hint that sets the maximum depth of nested table above which the remaining nodes are loaded as structs or JSON.
-
-        root_key (bool): Enables merging on all resources by propagating row key from root to all nested tables. This option is most useful if you plan to change write disposition of a resource to disable/enable merge. Defaults to False.
-
-        schema (Schema, optional): An explicit `Schema` instance to be associated with the source. If not present, `dlt` creates a new `Schema` object with provided `name`. If such `Schema` already exists in the same folder as the module containing the decorated function, such schema will be loaded from file.
-
-        schema_contract (TSchemaContract, optional): Schema contract settings that will be applied to this resource.
-
-        spec (Type[BaseConfiguration], optional): A specification of configuration and secret values required by the source.
-
-        _impl_cls (Type[TDltSourceImpl], optional): A custom implementation of DltSource, may be also used to providing just a typing stub
-
-    Returns:
-        `DltSource` instance
-    """
-    if name and schema:
-        raise ArgumentsOverloadException(
-            "'name' has no effect when `schema` argument is present", source.__name__
-        )
-
-    def decorator(
-        f: Callable[TSourceFunParams, Any]
-    ) -> Callable[TSourceFunParams, Union[Awaitable[TDltSourceImpl], TDltSourceImpl]]:
-        nonlocal schema, name
-
+    def _wrap(self, f: AnyFun) -> SourceReference:
+        """Wraps source function `f` in configuration injector."""
         if not callable(f) or isinstance(f, DltResource):
-            raise SourceNotAFunction(name or "<no name>", f, type(f))
+            raise SourceNotAFunction(self.name or "<no name>", f, type(f))
 
         if inspect.isclass(f):
-            raise SourceIsAClassTypeError(name or "<no name>", f)
+            raise SourceIsAClassTypeError(self.name or "<no name>", f)
 
         # source name is passed directly or taken from decorated function name
-        effective_name = name or get_callable_name(f)
+        effective_name = self.name or get_callable_name(f)
 
-        if schema and name and name != schema.name:
-            raise ExplicitSourceNameInvalid(name, schema.name)
+        if self.schema and self.name and self.name != self.schema.name:
+            raise ExplicitSourceNameInvalid(self.name, self.schema.name)
 
         # wrap source extraction function in configuration with section
         func_module = inspect.getmodule(f)
-        source_section = section or _get_source_section_name(func_module)
+        source_section = self.section or _get_source_section_name(func_module)
         # use effective_name which is explicit source name or callable name to represent third element in source config path
         source_sections = (known_sections.SOURCES, source_section, effective_name)
-        conf_f = with_config(f, spec=spec, sections=source_sections)
+        conf_f = with_config(f, spec=self.spec, sections=source_sections)
 
         def _eval_rv(_rv: Any, schema_copy: Schema) -> TDltSourceImpl:
             """Evaluates return value from the source function or coroutine"""
@@ -211,23 +239,26 @@ def source(
                 _rv = list(_rv)
 
             # convert to source
-            s = _impl_cls.from_data(schema_copy, source_section, _rv)
+            s = self._impl_cls.from_data(schema_copy, source_section, _rv)
             # apply hints
-            if max_table_nesting is not None:
-                s.max_table_nesting = max_table_nesting
-            s.schema_contract = schema_contract
+            if self.max_table_nesting is not None:
+                s.max_table_nesting = self.max_table_nesting
+            s.schema_contract = self.schema_contract
             # enable root propagation
-            s.root_key = root_key
+            s.root_key = self.root_key
+            # parallelize resources
+            if self.parallelized:
+                s.parallelize()
             return s
 
         def _make_schema() -> Schema:
-            if not schema:
+            if not self.schema:
                 # load the schema from file with name_schema.yaml/json from the same directory, the callable resides OR create new default schema
                 return _maybe_load_schema_for_callable(f, effective_name) or Schema(effective_name)
             else:
                 # clone the schema passed to decorator, update normalizers, remove processing hints
                 # NOTE: source may be called several times in many different settings
-                return schema.clone(update_normalizers=True, remove_processing_hints=True)
+                return self.schema.clone(update_normalizers=True, remove_processing_hints=True)
 
         @wraps(conf_f)
         def _wrap(*args: Any, **kwargs: Any) -> TDltSourceImpl:
@@ -270,20 +301,130 @@ def source(
         # get spec for wrapped function
         SPEC = get_fun_spec(conf_f)
         # get correct wrapper
-        wrapper: AnyFun = _wrap_coro if inspect.iscoroutinefunction(inspect.unwrap(f)) else _wrap  # type: ignore[assignment]
-        # store the source information
-        _SOURCES[_wrap.__qualname__] = SourceInfo(SPEC, wrapper, func_module)
-        if inspect.iscoroutinefunction(inspect.unwrap(f)):
-            return _wrap_coro
-        else:
-            return _wrap
+        self._deco_f = _wrap_coro if inspect.iscoroutinefunction(inspect.unwrap(f)) else _wrap  # type: ignore[assignment]
+        return SourceReference(SPEC, self, func_module, source_section, effective_name)  # type: ignore[arg-type]
+
+
+TResourceFunParams = ParamSpec("TResourceFunParams")
+
+
+@overload
+def source(
+    func: Callable[TSourceFunParams, Any],
+    /,
+    name: str = None,
+    section: str = None,
+    max_table_nesting: int = None,
+    root_key: bool = False,
+    schema: Schema = None,
+    schema_contract: TSchemaContract = None,
+    spec: Type[BaseConfiguration] = None,
+    parallelized: bool = False,
+    _impl_cls: Type[TDltSourceImpl] = DltSource,  # type: ignore[assignment]
+) -> SourceFactory[TSourceFunParams, TDltSourceImpl]: ...
+
+
+@overload
+def source(
+    func: None = ...,
+    /,
+    name: str = None,
+    section: str = None,
+    max_table_nesting: int = None,
+    root_key: bool = False,
+    schema: Schema = None,
+    schema_contract: TSchemaContract = None,
+    spec: Type[BaseConfiguration] = None,
+    parallelized: bool = False,
+    _impl_cls: Type[TDltSourceImpl] = DltSource,  # type: ignore[assignment]
+) -> Callable[
+    [Callable[TSourceFunParams, Any]], SourceFactory[TSourceFunParams, TDltSourceImpl]
+]: ...
+
+
+def source(
+    func: Optional[AnyFun] = None,
+    /,
+    name: str = None,
+    section: str = None,
+    max_table_nesting: int = None,
+    root_key: bool = False,
+    schema: Schema = None,
+    schema_contract: TSchemaContract = None,
+    spec: Type[BaseConfiguration] = None,
+    parallelized: bool = False,
+    _impl_cls: Type[TDltSourceImpl] = DltSource,  # type: ignore[assignment]
+) -> Any:
+    """A decorator that transforms a function returning one or more `dlt resources` into a `dlt source` in order to load it with `dlt`.
+
+    Note:
+    A `dlt source` is a logical grouping of resources that are often extracted and loaded together. A source is associated with a schema, which describes the structure of the loaded data and provides instructions how to load it.
+    Such schema contains table schemas that describe the structure of the data coming from the resources.
+
+    Please refer to https://dlthub.com/docs/general-usage/source for a complete documentation.
+
+    #### Credentials:
+    Another important function of the source decorator is to provide credentials and other configuration to the code that extracts data. The decorator may automatically bind the source function arguments to the secret and config values.
+    >>> @dlt.source
+    >>> def chess(username, chess_url: str = dlt.config.value, api_secret = dlt.secrets.value, title: str = "GM"):
+    >>>     return user_profile(username, chess_url, api_secret), user_games(username, chess_url, api_secret, with_titles=title)
+    >>>
+    >>> list(chess("magnuscarlsen"))
+
+    Here `username` is a required, explicit python argument, `chess_url` is a required argument, that if not explicitly passed will be taken from configuration ie. `config.toml`, `api_secret` is a required argument, that if not explicitly passed will be taken from dlt secrets ie. `secrets.toml`.
+    See https://dlthub.com/docs/general-usage/credentials for details.
+
+    Args:
+        func: A function that returns a dlt resource or a list of those or a list of any data items that can be loaded by `dlt`.
+
+        name (str, optional): A name of the source which is also the name of the associated schema. If not present, the function name will be used.
+
+        section (str, optional): A name of configuration. If not present, the current python module name will be used.
+
+        max_table_nesting (int, optional): A schema hint that sets the maximum depth of nested table above which the remaining nodes are loaded as structs or JSON.
+
+        root_key (bool): Enables merging on all resources by propagating row key from root to all nested tables. This option is most useful if you plan to change write disposition of a resource to disable/enable merge. Defaults to False.
+
+        schema (Schema, optional): An explicit `Schema` instance to be associated with the source. If not present, `dlt` creates a new `Schema` object with provided `name`. If such `Schema` already exists in the same folder as the module containing the decorated function, such schema will be loaded from file.
+
+        schema_contract (TSchemaContract, optional): Schema contract settings that will be applied to this resource.
+
+        spec (Type[BaseConfiguration], optional): A specification of configuration and secret values required by the source.
+
+        parallelized (bool, optional): If `True`, resource generators will be extracted in parallel with other resources.
+            Transformers that return items are also parallelized. Non-eligible resources are ignored. Defaults to `False` which preserves resource settings.
+
+        _impl_cls (Type[TDltSourceImpl], optional): A custom implementation of DltSource, may be also used to providing just a typing stub
+
+    Returns:
+        Wrapped decorated source function, see SourceFactory reference for additional wrapper capabilities
+    """
+    if name and schema:
+        raise ArgumentsOverloadException(
+            "'name' has no effect when `schema` argument is present", source.__name__
+        )
+
+    source_wrapper = (
+        DltSourceFactoryWrapper[Any, TDltSourceImpl]()
+        .with_args(
+            name=name,
+            section=section,
+            max_table_nesting=max_table_nesting,
+            root_key=root_key,
+            schema=schema,
+            schema_contract=schema_contract,
+            spec=spec,
+            parallelized=parallelized,
+            _impl_cls=_impl_cls,
+        )
+        .bind
+    )
 
     if func is None:
         # we're called with parens.
-        return decorator
-
+        return source_wrapper
     # we're called as @source without parens.
-    return decorator(func)
+    return source_wrapper(func)
 
 
 @overload
@@ -414,21 +555,21 @@ def resource(
     See https://dlthub.com/docs/general-usage/credentials for details.
     Note that if decorated function is an inner function, passing of the credentials will be disabled.
 
-    #### Args:
+    Args:
         data (Callable | Any, optional): a function to be decorated or a data compatible with `dlt` `run`.
 
         name (str, optional): A name of the resource that by default also becomes the name of the table to which the data is loaded.
-        If not present, the name of the decorated function will be used.
+            If not present, the name of the decorated function will be used.
 
         table_name (TTableHintTemplate[str], optional): An table name, if different from `name`.
-        This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
+            This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
 
         max_table_nesting (int, optional): A schema hint that sets the maximum depth of nested table above which the remaining nodes are loaded as structs or JSON.
 
         write_disposition (TTableHintTemplate[TWriteDispositionConfig], optional): Controls how to write data to a table. Accepts a shorthand string literal or configuration dictionary.
-        Allowed shorthand string literals: `append` will always add new data at the end of the table. `replace` will replace existing data with new data. `skip` will prevent data from loading. "merge" will deduplicate and merge data based on "primary_key" and "merge_key" hints. Defaults to "append".
-        Write behaviour can be further customized through a configuration dictionary. For example, to obtain an SCD2 table provide `write_disposition={"disposition": "merge", "strategy": "scd2"}`.
-        This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
+            Allowed shorthand string literals: `append` will always add new data at the end of the table. `replace` will replace existing data with new data. `skip` will prevent data from loading. "merge" will deduplicate and merge data based on "primary_key" and "merge_key" hints. Defaults to "append".
+            Write behaviour can be further customized through a configuration dictionary. For example, to obtain an SCD2 table provide `write_disposition={"disposition": "merge", "strategy": "scd2"}`.
+            This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
 
         columns (Sequence[TAnySchemaColumns], optional): A list, dict or pydantic model of column schemas.
             Typed dictionary describing column names, data types, write disposition and performance hints that gives you full control over the created table schema.
@@ -436,18 +577,18 @@ def resource(
             When the argument is a pydantic model, the model will be used to validate the data yielded by the resource as well.
 
         primary_key (str | Sequence[str]): A column name or a list of column names that comprise a private key. Typically used with "merge" write disposition to deduplicate loaded data.
-        This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
+            This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
 
         merge_key (str | Sequence[str]): A column name or a list of column names that define a merge key. Typically used with "merge" write disposition to remove overlapping data ranges ie. to keep a single record for a given day.
-        This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
+            This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
 
         schema_contract (TSchemaContract, optional): Schema contract settings that will be applied to all resources of this source (if not overridden in the resource itself)
 
         table_format (Literal["iceberg", "delta"], optional): Defines the storage format of the table. Currently only "iceberg" is supported on Athena, and "delta" on the filesystem.
-        Other destinations ignore this hint.
+            Other destinations ignore this hint.
 
         file_format (Literal["preferred", ...], optional): Format of the file in which resource data is stored. Useful when importing external files. Use `preferred` to force
-        a file format that is preferred by the destination used. This setting superseded the `load_file_format` passed to pipeline `run` method.
+            a file format that is preferred by the destination used. This setting superseded the `load_file_format` passed to pipeline `run` method.
 
         selected (bool, optional): When `True` `dlt pipeline` will extract and load this resource, if `False`, the resource will be ignored.
 
@@ -457,7 +598,8 @@ def resource(
 
         data_from (TUnboundDltResource, optional): Allows to pipe data from one resource to another to build multi-step pipelines.
 
-        parallelized (bool, optional): If `True`, the resource generator will be extracted in parallel with other resources. Defaults to `False`.
+        parallelized (bool, optional): If `True`, the resource generator will be extracted in parallel with other resources.
+            Transformers that return items are also parallelized. Defaults to `False`.
 
         _impl_cls (Type[TDltResourceImpl], optional): A custom implementation of DltResource, may be also used to providing just a typing stub
 
@@ -500,6 +642,33 @@ def resource(
             return resource.parallelize()
         return resource
 
+    def wrap_standalone(
+        _name: str, _section: str, f: AnyFun
+    ) -> Callable[TResourceFunParams, TDltResourceImpl]:
+        if not standalone:
+            # we return a DltResource that is callable and returns dlt resource when called
+            # so it should match the signature
+            return make_resource(_name, _section, f)  # type: ignore[return-value]
+
+        @wraps(f)
+        def _wrap(*args: Any, **kwargs: Any) -> TDltResourceImpl:
+            skip_args = 1 if data_from else 0
+            _, mod_sig, bound_args = simulate_func_call(f, skip_args, *args, **kwargs)
+            actual_resource_name = name(bound_args.arguments) if callable(name) else _name
+            r = make_resource(actual_resource_name, _section, f)
+            # wrap the standalone resource
+            data_ = r._pipe.bind_gen(*args, **kwargs)
+            if isinstance(data_, DltResource):
+                # we allow an edge case: resource can return another resource
+                r = data_  # type: ignore[assignment]
+            # consider transformer arguments bound
+            r._args_bound = True
+            # keep explicit args passed
+            r._set_explicit_args(f, mod_sig, *args, **kwargs)
+            return r
+
+        return _wrap
+
     def decorator(
         f: Callable[TResourceFunParams, Any]
     ) -> Callable[TResourceFunParams, TDltResourceImpl]:
@@ -536,33 +705,38 @@ def resource(
         # assign spec to "f"
         set_fun_spec(f, SPEC)
 
-        # store the non-inner resource information
+        # register non inner resources as source with single resource in it
         if not is_inner_resource:
-            _SOURCES[f.__qualname__] = SourceInfo(SPEC, f, func_module)
+            # a source function for the source wrapper, args that go to source are forwarded
+            # to a single resource within
+            def _source(
+                name_ovr: str, section_ovr: str, args: Tuple[Any, ...], kwargs: Dict[str, Any]
+            ) -> TDltResourceImpl:
+                return wrap_standalone(name_ovr or resource_name, section_ovr or source_section, f)(
+                    *args, **kwargs
+                )
 
-        if not standalone:
-            # we return a DltResource that is callable and returns dlt resource when called
-            # so it should match the signature
-            return make_resource(resource_name, source_section, f)  # type: ignore[return-value]
+            # make the source module same as original resource
+            _source.__qualname__ = f.__qualname__
+            _source.__module__ = f.__module__
+            # setup our special single resource source
+            factory = (
+                DltSourceFactoryWrapper[Any, DltSource]()
+                .with_args(
+                    name=resource_name,
+                    section=source_section,
+                    spec=BaseConfiguration,
+                    _impl_cls=_DltSingleSource,
+                )
+                .bind(_source)
+            )
+            # remove name and section overrides from the wrapper so resource is not unnecessarily renamed
+            factory.name = None
+            factory.section = None
+            # mod the reference to keep the right spec
+            factory._ref.SPEC = SPEC
 
-        @wraps(f)
-        def _wrap(*args: Any, **kwargs: Any) -> TDltResourceImpl:
-            skip_args = 1 if data_from else 0
-            _, mod_sig, bound_args = simulate_func_call(f, skip_args, *args, **kwargs)
-            actual_resource_name = name(bound_args.arguments) if callable(name) else resource_name
-            r = make_resource(actual_resource_name, source_section, f)
-            # wrap the standalone resource
-            data_ = r._pipe.bind_gen(*args, **kwargs)
-            if isinstance(data_, DltResource):
-                # we allow an edge case: resource can return another resource
-                r = data_  # type: ignore[assignment]
-            # consider transformer arguments bound
-            r._args_bound = True
-            # keep explicit args passed
-            r._set_explicit_args(f, mod_sig, *args, **kwargs)
-            return r
-
-        return _wrap
+        return wrap_standalone(resource_name, source_section, f)
 
     # if data is callable or none use decorator
     if data is None:
@@ -717,37 +891,37 @@ def transformer(
     >>> list(players("GM") | player_profile)
 
     Args:
-        f: (Callable): a function taking minimum one argument of TDataItems type which will receive data yielded from `data_from` resource.
+        f (Callable): a function taking minimum one argument of TDataItems type which will receive data yielded from `data_from` resource.
 
         data_from (Callable | Any, optional): a resource that will send data to the decorated function `f`
 
         name (str, optional): A name of the resource that by default also becomes the name of the table to which the data is loaded.
-        If not present, the name of the decorated function will be used.
+            If not present, the name of the decorated function will be used.
 
         table_name (TTableHintTemplate[str], optional): An table name, if different from `name`.
-        This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
+            This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
 
         max_table_nesting (int, optional): A schema hint that sets the maximum depth of nested table above which the remaining nodes are loaded as structs or JSON.
 
         write_disposition (Literal["skip", "append", "replace", "merge"], optional): Controls how to write data to a table. `append` will always add new data at the end of the table. `replace` will replace existing data with new data. `skip` will prevent data from loading. "merge" will deduplicate and merge data based on "primary_key" and "merge_key" hints. Defaults to "append".
-        This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
+            This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
 
         columns (Sequence[TAnySchemaColumns], optional): A list, dict or pydantic model of column schemas. Typed dictionary describing column names, data types, write disposition and performance hints that gives you full control over the created table schema.
-        This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
+            This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
 
         primary_key (str | Sequence[str]): A column name or a list of column names that comprise a private key. Typically used with "merge" write disposition to deduplicate loaded data.
-        This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
+            This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
 
         merge_key (str | Sequence[str]): A column name or a list of column names that define a merge key. Typically used with "merge" write disposition to remove overlapping data ranges ie. to keep a single record for a given day.
-        This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
+            This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
 
         schema_contract (TSchemaContract, optional): Schema contract settings that will be applied to all resources of this source (if not overridden in the resource itself)
 
         table_format (Literal["iceberg", "delta"], optional): Defines the storage format of the table. Currently only "iceberg" is supported on Athena, and "delta" on the filesystem.
-        Other destinations ignore this hint.
+            Other destinations ignore this hint.
 
         file_format (Literal["preferred", ...], optional): Format of the file in which resource data is stored. Useful when importing external files. Use `preferred` to force
-        a file format that is preferred by the destination used. This setting superseded the `load_file_format` passed to pipeline `run` method.
+            a file format that is preferred by the destination used. This setting superseded the `load_file_format` passed to pipeline `run` method.
 
         selected (bool, optional): When `True` `dlt pipeline` will extract and load this resource, if `False`, the resource will be ignored.
 
@@ -756,6 +930,13 @@ def transformer(
         standalone (bool, optional): Returns a wrapped decorated function that creates DltResource instance. Must be called before use. Cannot be part of a source.
 
         _impl_cls (Type[TDltResourceImpl], optional): A custom implementation of DltResource, may be also used to providing just a typing stub
+
+    Raises:
+        ResourceNameMissing: indicates that name of the resource cannot be inferred from the `data` being passed.
+        InvalidResourceDataType: indicates that the `data` argument cannot be converted into `dlt resource`
+
+    Returns:
+        TDltResourceImpl instance which may be loaded, iterated or combined with other resources into a pipeline.
     """
     if isinstance(f, DltResource):
         raise ValueError(
@@ -801,7 +982,7 @@ def _maybe_load_schema_for_callable(f: AnyFun, name: str) -> Optional[Schema]:
 
 
 def _get_source_section_name(m: ModuleType) -> str:
-    """Gets the source section name (as in SOURCES <section> <name> tuple) from __source_name__ of the module `m` or from its name"""
+    """Gets the source section name (as in SOURCES (section, name) tuple) from __source_name__ of the module `m` or from its name"""
     if m is None:
         return None
     if hasattr(m, "__source_name__"):

@@ -1,5 +1,5 @@
 ---
-title: SQL databases (powered by SQLAlchemy)
+title: 30+ SQL databases (powered by SQLAlchemy)
 description: SQLAlchemy destination
 keywords: [sql, sqlalchemy, database, destination]
 ---
@@ -135,8 +135,7 @@ The following write dispositions are supported:
 
 - `append`
 - `replace` with `truncate-and-insert` and `insert-from-staging` replace strategies. `staging-optimized` falls back to `insert-from-staging`.
-
-The `merge` disposition is not supported and falls back to `append`.
+- `merge` with `delete-insert` and `scd2` merge strategies.
 
 ## Data loading
 

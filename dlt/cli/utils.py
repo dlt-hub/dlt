@@ -7,6 +7,7 @@ from dlt.common.typing import TFun
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.specs import RunConfiguration
 from dlt.common.runtime.telemetry import with_telemetry
+from dlt.common.runtime import run_context
 
 from dlt.reflection.script_visitor import PipelineScriptVisitor
 
@@ -61,3 +62,11 @@ def track_command(command: str, track_before: bool, *args: str) -> Callable[[TFu
 def get_telemetry_status() -> bool:
     c = resolve_configuration(RunConfiguration())
     return c.dlthub_telemetry
+
+
+def make_dlt_settings_path(path: str = None) -> str:
+    """Returns path to file in dlt settings folder. Returns settings folder if path not specified."""
+    ctx = run_context.current()
+    if not path:
+        return ctx.settings_dir
+    return ctx.get_setting(path)

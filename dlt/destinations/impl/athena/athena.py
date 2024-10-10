@@ -56,7 +56,7 @@ from dlt.destinations.sql_client import (
     raise_database_error,
     raise_open_connection_error,
 )
-from dlt.destinations.typing import DBApiCursor
+from dlt.common.destination.reference import DBApiCursor
 from dlt.destinations.job_client_impl import SqlJobClientWithStagingDataset
 from dlt.destinations.job_impl import FinalizedLoadJobWithFollowupJobs, FinalizedLoadJob
 from dlt.destinations.impl.athena.configuration import AthenaClientConfiguration
@@ -148,6 +148,12 @@ class AthenaMergeJob(SqlMergeFollowupJob):
         # DROP needs backtick as escape identifier
         sql.insert(0, f"""DROP TABLE IF EXISTS {temp_table_name.replace('"', '`')};""")
         return sql, temp_table_name
+
+    @classmethod
+    def gen_concat_sql(cls, columns: Sequence[str]) -> str:
+        # Athena requires explicit casting
+        columns = [f"CAST({c} AS VARCHAR)" for c in columns]
+        return f"CONCAT({', '.join(columns)})"
 
     @classmethod
     def requires_temp_table_for_delete(cls) -> bool:

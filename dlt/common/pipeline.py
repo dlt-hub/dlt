@@ -4,7 +4,7 @@ import os
 import datetime  # noqa: 251
 import humanize
 import contextlib
-
+import threading
 from typing import (
     Any,
     Callable,
@@ -30,11 +30,14 @@ from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import ContextDefaultCannotBeCreated
 from dlt.common.configuration.specs import ContainerInjectableContext
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
-from dlt.common.configuration.paths import get_dlt_data_dir
 from dlt.common.configuration.specs import RunConfiguration
 from dlt.common.destination import TDestinationReferenceArg, TDestination
 from dlt.common.destination.exceptions import DestinationHasFailedJobs
-from dlt.common.exceptions import PipelineStateNotAvailable, SourceSectionNotAvailable
+from dlt.common.exceptions import (
+    PipelineStateNotAvailable,
+    SourceSectionNotAvailable,
+    ResourceNameNotAvailable,
+)
 from dlt.common.metrics import (
     DataWriterMetrics,
     ExtractDataInfo,
@@ -50,7 +53,6 @@ from dlt.common.schema.typing import (
     TWriteDispositionConfig,
     TSchemaContract,
 )
-from dlt.common.source import get_current_pipe_name
 from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.common.storages.load_storage import LoadPackageInfo
 from dlt.common.time import ensure_pendulum_datetime, precise_time
@@ -546,9 +548,7 @@ class SupportsPipelineRun(Protocol):
 
 @configspec
 class PipelineContext(ContainerInjectableContext):
-    _deferred_pipeline: Callable[[], SupportsPipeline] = dataclasses.field(
-        default=None, init=False, repr=False, compare=False
-    )
+    _DEFERRED_PIPELINE: ClassVar[Callable[[], SupportsPipeline]] = None
     _pipeline: SupportsPipeline = dataclasses.field(
         default=None, init=False, repr=False, compare=False
     )
@@ -559,11 +559,11 @@ class PipelineContext(ContainerInjectableContext):
         """Creates or returns exiting pipeline"""
         if not self._pipeline:
             # delayed pipeline creation
-            assert self._deferred_pipeline is not None, (
+            assert PipelineContext._DEFERRED_PIPELINE is not None, (
                 "Deferred pipeline creation function not provided to PipelineContext. Are you"
                 " calling dlt.pipeline() from another thread?"
             )
-            self.activate(self._deferred_pipeline())
+            self.activate(PipelineContext._DEFERRED_PIPELINE())
         return self._pipeline
 
     def activate(self, pipeline: SupportsPipeline) -> None:
@@ -582,9 +582,10 @@ class PipelineContext(ContainerInjectableContext):
             self._pipeline._set_context(False)
         self._pipeline = None
 
-    def __init__(self, deferred_pipeline: Callable[..., SupportsPipeline] = None) -> None:
+    @classmethod
+    def cls__init__(self, deferred_pipeline: Callable[..., SupportsPipeline] = None) -> None:
         """Initialize the context with a function returning the Pipeline object to allow creation on first use"""
-        self._deferred_pipeline = deferred_pipeline
+        self._DEFERRED_PIPELINE = deferred_pipeline
 
 
 def current_pipeline() -> SupportsPipeline:
@@ -781,9 +782,38 @@ def get_dlt_pipelines_dir() -> str:
     2. if current user is root in /var/dlt/pipelines
     3. if current user does not have a home directory in /tmp/dlt/pipelines
     """
-    return os.path.join(get_dlt_data_dir(), "pipelines")
+    from dlt.common.runtime import run_context
+
+    return run_context.current().get_data_entity("pipelines")
 
 
 def get_dlt_repos_dir() -> str:
     """Gets default directory where command repositories will be stored"""
-    return os.path.join(get_dlt_data_dir(), "repos")
+    from dlt.common.runtime import run_context
+
+    return run_context.current().get_data_entity("repos")
+
+
+_CURRENT_PIPE_NAME: Dict[int, str] = {}
+"""Name of currently executing pipe per thread id set during execution of a gen in pipe"""
+
+
+def set_current_pipe_name(name: str) -> None:
+    """Set pipe name in current thread"""
+    _CURRENT_PIPE_NAME[threading.get_ident()] = name
+
+
+def unset_current_pipe_name() -> None:
+    """Unset pipe name in current thread"""
+    _CURRENT_PIPE_NAME[threading.get_ident()] = None
+
+
+def get_current_pipe_name() -> str:
+    """When executed from withing dlt.resource decorated function, gets pipe name associated with current thread.
+
+    Pipe name is the same as resource name for all currently known cases. In some multithreading cases, pipe name may be not available.
+    """
+    name = _CURRENT_PIPE_NAME.get(threading.get_ident())
+    if name is None:
+        raise ResourceNameNotAvailable()
+    return name

@@ -32,7 +32,14 @@ from dlt.common.configuration.specs.base_configuration import (
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.reflection.spec import _get_spec_name_from_f
-from dlt.common.typing import StrAny, TSecretStrValue, TSecretValue, is_newtype_type
+from dlt.common.typing import (
+    StrAny,
+    TSecretStrValue,
+    TSecretValue,
+    is_annotated,
+    is_newtype_type,
+    is_subclass,
+)
 
 from tests.utils import preserve_environ
 from tests.common.configuration.utils import environment, toml_providers
@@ -199,7 +206,7 @@ def test_inject_secret_value_secret_type(environment: Any) -> None:
             f_type = spec.__dataclass_fields__[f].type
             assert is_secret_hint(f_type)
             assert cfg.get_resolvable_fields()[f] is f_type
-            assert is_newtype_type(f_type)
+            assert is_annotated(f_type)
 
     environment["_DICT"] = '{"a":1}'
     environment["_INT"] = "1234"

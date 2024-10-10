@@ -5,7 +5,7 @@ keywords: [insert values, file formats]
 ---
 import SetTheFormat from './_set_the_format.mdx';
 
-# SQL INSERT File Format
+# SQL INSERT file format
 
 This file format contains an INSERT...VALUES statement to be executed on the destination during the `load` stage.
 
@@ -18,12 +18,13 @@ Additional data types are stored as follows:
 
 This file format is [compressed](../../reference/performance.md#disabling-and-enabling-file-compression) by default.
 
-## Supported Destinations
+## Supported destinations
 
 This format is used by default by: **DuckDB**, **Postgres**, **Redshift**, **Synapse**, **MSSQL**, **Motherduck**
 
-It is also supported by: **Filesystem** if you'd like to store INSERT VALUES statements for some reason
+It is also supported by: **Filesystem** if you'd like to store INSERT VALUES statements for some reason.
 
 ## How to configure
 
 <SetTheFormat file_type="insert_values"/>
+

@@ -4,7 +4,7 @@ description: Learn how to load data files like JSON, JSONL, CSV, and Parquet fro
 keywords: [dlt, tutorial, filesystem, cloud storage, file system, python, data pipeline, incremental loading, json, jsonl, csv, parquet, duckdb]
 ---
 
-This tutorial is for you if you need to load data files like JSONL, CSV, and Parquet from either Cloud Storage (e.g., AWS S3, Google Cloud Storage, Google Drive, Azure Blob Storage) or a local file system.
+This tutorial is for you if you need to load data files like JSONL, CSV, and Parquet from either Cloud Storage (e.g., AWS S3, Google Cloud Storage, Google Drive, Azure Blob Storage), a remote (SFTP), or a local file system.
 
 ## What you will learn
 
@@ -112,8 +112,8 @@ Let's specify the bucket URL and credentials. We can do this using the following
   groupId="config-provider-type"
   defaultValue="toml"
   values={[
-    {"label": "Toml config provider", "value": "toml"},
-    {"label": "ENV variables", "value": "env"},
+    {"label": "TOML config provider", "value": "toml"},
+    {"label": "Environment variables", "value": "env"},
     {"label": "In the code", "value": "code"},
 ]}>
 

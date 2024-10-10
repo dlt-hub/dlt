@@ -6,7 +6,7 @@ from dlt.version import __version__
 from dlt.common.configuration import configspec
 from dlt.common.destination.reference import DestinationClientDwhWithStagingConfiguration
 from dlt.common.destination.exceptions import DestinationTerminalException
-from dlt.common.typing import TSecretValue
+from dlt.common.typing import TSecretStrValue
 from dlt.common.utils import digest128
 
 from dlt.destinations.impl.duckdb.configuration import DuckDbBaseCredentials
@@ -21,7 +21,7 @@ class MotherDuckCredentials(DuckDbBaseCredentials):
         default="md", init=False, repr=False, compare=False
     )
     username: str = "motherduck"
-    password: TSecretValue = None
+    password: TSecretStrValue = None
     database: str = "my_db"
     custom_user_agent: Optional[str] = MOTHERDUCK_USER_AGENT
 
@@ -35,7 +35,7 @@ class MotherDuckCredentials(DuckDbBaseCredentials):
     def _token_to_password(self) -> None:
         # could be motherduck connection
         if self.query and "token" in self.query:
-            self.password = TSecretValue(self.query.pop("token"))
+            self.password = self.query.pop("token")
 
     def borrow_conn(self, read_only: bool) -> Any:
         from duckdb import HTTPException, InvalidInputException

@@ -66,7 +66,7 @@ In essence, you need to set up two destinations and then pass them to `dlt.pipel
 
     Please follow our guide in the [redshift destination documentation](destinations/redshift.md). In your `secrets.toml`, you added:
     ```toml
-    # keep it at the top of your toml file! before any section starts
+    # Keep it at the top of your TOML file, before any section starts
     destination.redshift.credentials="redshift://loader:<password>@localhost/dlt_data?connect_timeout=15"
     ```
 
@@ -107,11 +107,11 @@ Before `dlt` loads data to the staging storage, it truncates previously loaded f
 
 ```toml
 [destination.redshift]
-truncate_table_before_load_on_staging_destination=false
+truncate_tables_on_staging_destination_before_load=false
 ```
 
 :::caution
 The [Athena](destinations/athena#staging-support) destination only truncates non-iceberg tables with `replace` merge_disposition.
-Therefore, the parameter `truncate_table_before_load_on_staging_destination` only controls the truncation of corresponding files for these tables.
+Therefore, the parameter `truncate_tables_on_staging_destination_before_load` only controls the truncation of corresponding files for these tables.
 :::
 

@@ -5,7 +5,6 @@ from enum import Enum
 from importlib.metadata import version as pkg_version
 
 from dlt.common.configuration.providers import SECRETS_TOML, SECRETS_TOML_KEY
-from dlt.common.configuration.paths import make_dlt_settings_path
 from dlt.common.configuration.utils import serialize_value
 from dlt.common.git import is_dirty
 
@@ -210,7 +209,7 @@ class GithubActionDeployment(BaseDeployment):
             fmt.echo(
                 "1. Add the following secret values (typically stored in %s): \n%s\nin %s"
                 % (
-                    fmt.bold(make_dlt_settings_path(SECRETS_TOML)),
+                    fmt.bold(utils.make_dlt_settings_path(SECRETS_TOML)),
                     fmt.bold(
                         "\n".join(
                             self.env_prov.get_key_name(s_v.key, *s_v.sections)
@@ -368,7 +367,7 @@ class AirflowDeployment(BaseDeployment):
                     "3. Add the following secret values (typically stored in %s): \n%s\n%s\nin"
                     " ENVIRONMENT VARIABLES using Google Composer UI"
                     % (
-                        fmt.bold(make_dlt_settings_path(SECRETS_TOML)),
+                        fmt.bold(utils.make_dlt_settings_path(SECRETS_TOML)),
                         fmt.bold(
                             "\n".join(
                                 self.env_prov.get_key_name(s_v.key, *s_v.sections)

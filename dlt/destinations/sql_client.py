@@ -16,18 +16,29 @@ from typing import (
     Type,
     AnyStr,
     List,
+    Generator,
     TypedDict,
+    cast,
 )
 
 from dlt.common.typing import TFun
+from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.utils import concat_strings_with_limit
+from dlt.common.destination.reference import JobClientBase
 
 from dlt.destinations.exceptions import (
     DestinationConnectionError,
     LoadClientNotConnected,
 )
-from dlt.destinations.typing import DBApi, TNativeConn, DBApiCursor, DataFrame, DBTransaction
+from dlt.destinations.typing import (
+    DBApi,
+    TNativeConn,
+    DataFrame,
+    DBTransaction,
+    ArrowTable,
+)
+from dlt.common.destination.reference import DBApiCursor
 
 
 class TJobQueryTags(TypedDict):
@@ -292,6 +303,20 @@ SELECT 1
             return f"DELETE FROM {qualified_table_name} WHERE 1=1;"
 
 
+class WithSqlClient(JobClientBase):
+    @property
+    @abstractmethod
+    def sql_client(self) -> SqlClientBase[TNativeConn]: ...
+
+    def __enter__(self) -> "WithSqlClient":
+        return self
+
+    def __exit__(
+        self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: TracebackType
+    ) -> None:
+        pass
+
+
 class DBApiCursorImpl(DBApiCursor):
     """A DBApi Cursor wrapper with dataframes reading functionality"""
 
@@ -304,11 +329,20 @@ class DBApiCursorImpl(DBApiCursor):
         self.fetchmany = curr.fetchmany  # type: ignore
         self.fetchone = curr.fetchone  # type: ignore
 
+        self.set_default_schema_columns()
+
     def __getattr__(self, name: str) -> Any:
         return getattr(self.native_cursor, name)
 
     def _get_columns(self) -> List[str]:
-        return [c[0] for c in self.native_cursor.description]
+        if self.native_cursor.description:
+            return [c[0] for c in self.native_cursor.description]
+        return []
+
+    def set_default_schema_columns(self) -> None:
+        self.schema_columns = cast(
+            TTableSchemaColumns, {c: {"name": c, "nullable": True} for c in self._get_columns()}
+        )
 
     def df(self, chunk_size: int = None, **kwargs: Any) -> Optional[DataFrame]:
         """Fetches results as data frame in full or in specified chunks.
@@ -316,18 +350,55 @@ class DBApiCursorImpl(DBApiCursor):
         May use native pandas/arrow reader if available. Depending on
         the native implementation chunk size may vary.
         """
-        from dlt.common.libs.pandas_sql import _wrap_result
+        try:
+            return next(self.iter_df(chunk_size=chunk_size))
+        except StopIteration:
+            return None
 
-        columns = self._get_columns()
-        if chunk_size is None:
-            return _wrap_result(self.native_cursor.fetchall(), columns, **kwargs)
-        else:
-            df = _wrap_result(self.native_cursor.fetchmany(chunk_size), columns, **kwargs)
-            # if no rows return None
-            if df.shape[0] == 0:
-                return None
-            else:
-                return df
+    def arrow(self, chunk_size: int = None, **kwargs: Any) -> Optional[ArrowTable]:
+        """Fetches results as data frame in full or in specified chunks.
+
+        May use native pandas/arrow reader if available. Depending on
+        the native implementation chunk size may vary.
+        """
+        try:
+            return next(self.iter_arrow(chunk_size=chunk_size))
+        except StopIteration:
+            return None
+
+    def iter_fetch(self, chunk_size: int) -> Generator[List[Tuple[Any, ...]], Any, Any]:
+        while True:
+            if not (result := self.fetchmany(chunk_size)):
+                return
+            yield result
+
+    def iter_df(self, chunk_size: int) -> Generator[DataFrame, None, None]:
+        """Default implementation converts arrow to df"""
+        from dlt.common.libs.pandas import pandas as pd
+
+        for table in self.iter_arrow(chunk_size=chunk_size):
+            # NOTE: we go via arrow table, types are created for arrow is columns are known
+            # https://github.com/apache/arrow/issues/38644 for reference on types_mapper
+            yield table.to_pandas()
+
+    def iter_arrow(self, chunk_size: int) -> Generator[ArrowTable, None, None]:
+        """Default implementation converts query result to arrow table"""
+        from dlt.common.libs.pyarrow import row_tuples_to_arrow
+        from dlt.common.configuration.container import Container
+
+        # get capabilities of possibly currently active pipeline
+        caps = (
+            Container().get(DestinationCapabilitiesContext)
+            or DestinationCapabilitiesContext.generic_capabilities()
+        )
+
+        if not chunk_size:
+            result = self.fetchall()
+            yield row_tuples_to_arrow(result, caps, self.schema_columns, tz="UTC")
+            return
+
+        for result in self.iter_fetch(chunk_size=chunk_size):
+            yield row_tuples_to_arrow(result, caps, self.schema_columns, tz="UTC")
 
 
 def raise_database_error(f: TFun) -> TFun:

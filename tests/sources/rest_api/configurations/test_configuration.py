@@ -44,7 +44,7 @@ from .source_configs import (
 @pytest.mark.parametrize("expected_message, exception, invalid_config", INVALID_CONFIGS)
 def test_invalid_configurations(expected_message, exception, invalid_config):
     with pytest.raises(exception, match=expected_message):
-        rest_api_source(invalid_config)
+        rest_api_source(invalid_config, name="invalid_config")
 
 
 @pytest.mark.parametrize("valid_config", VALID_CONFIGS)
@@ -401,3 +401,71 @@ def test_resource_defaults_no_params() -> None:
         "per_page": 50,
         "sort": "updated",
     }
+
+
+def test_accepts_DltResource_in_resources() -> None:
+    @dlt.resource(selected=False)
+    def repositories():
+        """A seed list of repositories to fetch"""
+        yield [{"name": "dlt"}, {"name": "verified-sources"}, {"name": "dlthub-education"}]
+
+    config: RESTAPIConfig = {
+        "client": {"base_url": "https://github.com/api/v2"},
+        "resources": [
+            {
+                "name": "issues",
+                "endpoint": {
+                    "path": "dlt-hub/{repository}/issues/",
+                    "params": {
+                        "repository": {
+                            "type": "resolve",
+                            "resource": "repositories",
+                            "field": "name",
+                        },
+                    },
+                },
+            },
+            repositories(),
+        ],
+    }
+
+    source = rest_api_source(config)
+    assert list(source.resources.keys()) == ["repositories", "issues"]
+    assert list(source.selected_resources.keys()) == ["issues"]
+
+
+def test_resource_defaults_dont_apply_to_DltResource() -> None:
+    @dlt.resource()
+    def repositories():
+        """A seed list of repositories to fetch"""
+        yield [{"name": "dlt"}, {"name": "verified-sources"}, {"name": "dlthub-education"}]
+
+    config: RESTAPIConfig = {
+        "client": {"base_url": "https://github.com/api/v2"},
+        "resource_defaults": {
+            "write_disposition": "replace",
+        },
+        "resources": [
+            {
+                "name": "issues",
+                "endpoint": {
+                    "path": "dlt-hub/{repository}/issues/",
+                    "params": {
+                        "repository": {
+                            "type": "resolve",
+                            "resource": "repositories",
+                            "field": "name",
+                        },
+                    },
+                },
+            },
+            repositories(),
+        ],
+    }
+
+    source = rest_api_source(config)
+    assert source.resources["issues"].write_disposition == "replace"
+    assert source.resources["repositories"].write_disposition != "replace", (
+        "DltResource defined outside of the RESTAPIConfig object is influenced by the content of"
+        " the RESTAPIConfig"
+    )

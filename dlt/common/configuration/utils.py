@@ -20,7 +20,7 @@ from collections.abc import Mapping as C_Mapping
 import yaml
 
 from dlt.common.json import json
-from dlt.common.typing import AnyType, DictStrAny, TAny
+from dlt.common.typing import AnyType, DictStrAny, TAny, is_any_type
 from dlt.common.data_types import coerce_value, py_type_to_sc_type
 from dlt.common.configuration.providers import EnvironProvider
 from dlt.common.configuration.exceptions import ConfigValueCannotBeCoercedException, LookupTrace
@@ -45,7 +45,7 @@ _RESOLVED_TRACES: Dict[str, ResolvedValueTrace] = {}  # stores all the resolved 
 
 def deserialize_value(key: str, value: Any, hint: Type[TAny]) -> TAny:
     try:
-        if hint != Any:
+        if not is_any_type(hint):
             # if deserializing to base configuration, try parse the value
             if is_base_configuration_inner_hint(hint):
                 c = hint()
