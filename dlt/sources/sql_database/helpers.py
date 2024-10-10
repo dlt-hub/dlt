@@ -13,6 +13,8 @@ from typing import (
 )
 import operator
 
+from sqlalchemy import and_, or_
+
 import dlt
 from dlt.common.configuration.specs import (
     BaseConfiguration,
@@ -72,6 +74,7 @@ class TableLoader:
             self.last_value = incremental.last_value
             self.end_value = incremental.end_value
             self.row_order: TSortOrder = self.incremental.row_order
+            self.include_none_cursor_value = self.incremental.on_cursor_value_missing == "include"
         else:
             self.cursor_column = None
             self.last_value = None
@@ -96,9 +99,13 @@ class TableLoader:
             return query  # type: ignore[no-any-return]
 
         if self.last_value is not None:
-            query = query.where(filter_op(self.cursor_column, self.last_value))
+            where_and_clauses = [filter_op(self.cursor_column, self.last_value)]
             if self.end_value is not None:
-                query = query.where(filter_op_end(self.cursor_column, self.end_value))
+                where_and_clauses.append(filter_op_end(self.cursor_column, self.end_value))
+            where_clause = and_(*where_and_clauses)
+            if self.include_none_cursor_value:
+                where_clause = or_(where_clause, self.cursor_column.is_(None))
+            query = query.where(where_clause)
 
         # generate order by from declared row order
         order_by = None
