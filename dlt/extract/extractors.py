@@ -130,7 +130,7 @@ class Extractor:
             # convert to table meta if created table variant so item is assigned to this table
             if meta.create_table_variant:
                 # name in hints meta must be a string, otherwise merge_hints would fail
-                meta = TableNameMeta(meta.hints["name"])  # type: ignore[arg-type]
+                meta = TableNameMeta(meta.hints["table_name"])  # type: ignore[arg-type]
             self._reset_contracts_cache()
 
         if table_name := self._get_static_table_name(resource, meta):
