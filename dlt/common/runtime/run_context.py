@@ -1,6 +1,6 @@
 import os
 import tempfile
-from typing import ClassVar
+from typing import Any, ClassVar, Optional
 
 from dlt.common import known_env
 from dlt.common.configuration import plugins
@@ -19,8 +19,8 @@ class RunContext(SupportsRunContext):
 
     CONTEXT_NAME: ClassVar[str] = "dlt"
 
-    def __init__(self, run_dir: str = "."):
-        self._init_run_dir = run_dir
+    def __init__(self, run_dir: Optional[str]):
+        self._init_run_dir = run_dir or "."
 
     @property
     def global_dir(self) -> str:
@@ -79,13 +79,21 @@ class RunContext(SupportsRunContext):
 
 
 @plugins.hookspec(firstresult=True)
-def plug_run_context() -> SupportsRunContext:
-    """Spec for plugin hook that returns current run context."""
+def plug_run_context(run_dir: Optional[str], **kwargs: Any) -> SupportsRunContext:
+    """Spec for plugin hook that returns current run context.
+
+    Args:
+        run_dir (str): An initial run directory of the context
+        **kwargs: Any additional arguments passed to the context via PluggableRunContext.reload
+
+    Returns:
+        SupportsRunContext: A run context implementing SupportsRunContext protocol
+    """
 
 
 @plugins.hookimpl(specname="plug_run_context")
-def plug_run_context_impl() -> SupportsRunContext:
-    return RunContext()
+def plug_run_context_impl(run_dir: Optional[str], **kwargs: Any) -> SupportsRunContext:
+    return RunContext(run_dir)
 
 
 def current() -> SupportsRunContext:

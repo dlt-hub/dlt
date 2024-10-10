@@ -1,5 +1,5 @@
 import os
-from typing import ClassVar
+from typing import Any, ClassVar, Optional
 
 from dlt.common.configuration import plugins
 from dlt.common.configuration.specs.pluggable_run_context import SupportsRunContext
@@ -25,5 +25,5 @@ class RunContextTest(RunContext):
 
 
 @plugins.hookimpl(specname="plug_run_context")
-def plug_run_context_impl() -> SupportsRunContext:
-    return RunContextTest()
+def plug_run_context_impl(run_dir: Optional[str], **kwargs: Any) -> SupportsRunContext:
+    return RunContextTest(run_dir)

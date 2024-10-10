@@ -1,10 +1,13 @@
-from typing import ClassVar, Protocol
+from typing import Any, ClassVar, Optional, Protocol
 
 from dlt.common.configuration.specs.base_configuration import ContainerInjectableContext
 
 
 class SupportsRunContext(Protocol):
     """Describes where `dlt` looks for settings, pipeline working folder"""
+
+    def __init__(self, run_dir: Optional[str], *args: Any, **kwargs: Any):
+        """An explicit run_dir, if None, run_dir should be auto-detected by particular implementation"""
 
     @property
     def name(self) -> str:
@@ -48,8 +51,12 @@ class PluggableRunContext(ContainerInjectableContext):
     def __init__(self) -> None:
         super().__init__()
 
+        # autodetect run dir
+        self.reload(run_dir=None)
+
+    def reload(self, run_dir: Optional[str], **kwargs: Any) -> None:
         from dlt.common.configuration import plugins
 
         m = plugins.manager()
-        self.context = m.hook.plug_run_context()
+        self.context = m.hook.plug_run_context(run_dir=run_dir, **kwargs)
         assert self.context, "plug_run_context hook returned None"
