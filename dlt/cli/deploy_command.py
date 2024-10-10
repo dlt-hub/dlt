@@ -26,9 +26,9 @@ from dlt.version import DLT_PKG_NAME
 from dlt.common.destination.reference import Destination
 
 REQUIREMENTS_GITHUB_ACTION = "requirements_github_action.txt"
-DLT_DEPLOY_DOCS_URL = "https://dlthub.com/docs/walkthroughs/deploy-a-pipeline"
+DLT_DEPLOY_DOCS_URL = "https://dlthub.com/docs/walkthroughs/deploy_a_pipeline"
 DLT_AIRFLOW_GCP_DOCS_URL = (
-    "https://dlthub.com/docs/walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer"
+    "https://dlthub.com/docs/walkthroughs/deploy_a_pipeline/deploy-with-airflow-composer"
 )
 AIRFLOW_GETTING_STARTED = "https://airflow.apache.org/docs/apache-airflow/stable/start.html"
 AIRFLOW_DAG_TEMPLATE_SCRIPT = "dag_template.py"

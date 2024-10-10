@@ -65,7 +65,7 @@ lint-and-test-snippets:
 	poetry run mypy --config-file mypy.ini docs/website docs/examples docs/tools --exclude docs/tools/lint_setup --exclude docs/website/docs_processed
 	poetry run flake8 --max-line-length=200 docs/website docs/examples docs/tools
 	cd docs/website/docs && poetry run pytest --ignore=node_modules
-	modal run docs/website/docs/walkthroughs/deploy-a-pipeline/deploy-with-modal-snippets.py 
+	modal run docs/website/docs/walkthroughs/deploy_a_pipeline/deploy-with-modal-snippets.py
 
 lint-and-test-examples:
 	cd docs/tools && poetry run python prepare_examples_tests.py
@@ -108,7 +108,7 @@ test-build-images: build-library
 	docker build -f deploy/dlt/Dockerfile.airflow --build-arg=COMMIT_SHA="$(shell git log -1 --pretty=%h)" --build-arg=IMAGE_VERSION="$(shell poetry version -s)" .
 	# docker build -f deploy/dlt/Dockerfile --build-arg=COMMIT_SHA="$(shell git log -1 --pretty=%h)" --build-arg=IMAGE_VERSION="$(shell poetry version -s)" .
 
-preprocess-docs: 
+preprocess-docs:
 	# run docs preprocessing to run a few checks and ensure examples can be parsed
 	cd docs/website && npm i && npm run preprocess-docs
 
