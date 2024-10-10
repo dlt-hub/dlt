@@ -46,6 +46,7 @@ from dlt.common.schema.typing import (
     TLoaderMergeStrategy,
     TSchemaContract,
     TSortOrder,
+    TTableReference,
 )
 from dlt.common.schema.exceptions import (
     CannotCoerceColumnException,
@@ -559,6 +560,24 @@ def normalize_table_identifiers(table: TTableSchema, naming: NamingConvention) -
             else:
                 new_columns[new_col_name] = c
         table["columns"] = new_columns
+    references = table.get("references")
+    if references:
+        new_references = {}
+        for ref in references:
+            new_ref = copy(ref)
+            new_ref["referenced_table"] = naming.normalize_tables_path(ref["referenced_table"])
+            new_ref["columns"] = [naming.normalize_path(c) for c in ref["columns"]]
+            new_ref["referenced_columns"] = [
+                naming.normalize_path(c) for c in ref["referenced_columns"]
+            ]
+            if new_ref["referenced_table"] in new_references:
+                logger.warning(
+                    f"In schema {naming} table {table['name']} has multiple references to"
+                    f" {new_ref['referenced_table']}. Only the last one is preserved."
+                )
+            new_references[new_ref["referenced_table"]] = new_ref
+
+        table["references"] = list(new_references.values())
     return table
 
 
@@ -902,6 +921,7 @@ def new_table(
     schema_contract: TSchemaContract = None,
     table_format: TTableFormat = None,
     file_format: TFileFormat = None,
+    references: Sequence[TTableReference] = None,
 ) -> TTableSchema:
     table: TTableSchema = {
         "name": table_name,
@@ -918,6 +938,8 @@ def new_table(
         table["table_format"] = table_format
     if file_format:
         table["file_format"] = file_format
+    if references:
+        table["references"] = references
     if parent_table_name:
         table["parent"] = parent_table_name
     else:
