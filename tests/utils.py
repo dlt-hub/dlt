@@ -199,7 +199,7 @@ class MockableRunContext(RunContext):
 
     @classmethod
     def from_context(cls, ctx: SupportsRunContext) -> "MockableRunContext":
-        cls_ = cls()
+        cls_ = cls(ctx.run_dir)
         cls_._name = ctx.name
         cls_._global_dir = ctx.global_dir
         cls_._run_dir = ctx.run_dir
