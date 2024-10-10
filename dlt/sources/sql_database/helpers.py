@@ -74,12 +74,13 @@ class TableLoader:
             self.last_value = incremental.last_value
             self.end_value = incremental.end_value
             self.row_order: TSortOrder = self.incremental.row_order
-            self.include_none_cursor_value = self.incremental.on_cursor_value_missing == "include"
+            self.on_cursor_value_missing = self.incremental.on_cursor_value_missing
         else:
             self.cursor_column = None
             self.last_value = None
             self.end_value = None
             self.row_order = None
+            self.on_cursor_value_missing = None
 
     def _make_query(self) -> SelectAny:
         table = self.table
@@ -103,8 +104,10 @@ class TableLoader:
             if self.end_value is not None:
                 where_and_clauses.append(filter_op_end(self.cursor_column, self.end_value))
             where_clause = and_(*where_and_clauses)
-            if self.include_none_cursor_value:
+            if self.on_cursor_value_missing == "include":
                 where_clause = or_(where_clause, self.cursor_column.is_(None))
+            elif self.on_cursor_value_missing == "exclude":
+                where_clause = and_(where_clause, self.cursor_column.isnot(None))
             query = query.where(where_clause)
 
         # generate order by from declared row order
