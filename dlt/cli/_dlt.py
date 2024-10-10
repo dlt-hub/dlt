@@ -3,7 +3,7 @@ import argparse
 
 from dlt.version import __version__
 from dlt.common.runners import Venv
-from dlt.common.configuration.specs.pluggable_cli_command import SupportsCliCommand
+from dlt.cli import SupportsCliCommand
 
 import dlt.cli.echo as fmt
 
@@ -67,6 +67,10 @@ class NonInteractiveAction(argparse.Action):
         option_string: str = None,
     ) -> None:
         fmt.ALWAYS_CHOOSE_DEFAULT = True
+        fmt.note(
+            "Non interactive mode. Default choices are automatically made for confirmations and"
+            " prompts."
+        )
 
 
 class DebugAction(argparse.Action):
@@ -128,15 +132,14 @@ def main() -> int:
 
     m = plugins.manager()
     commands = cast(List[Type[SupportsCliCommand]], m.hook.plug_cli())
+    # NOTE: plugin commands are added in reverse order so that the last added command (coming from external plugin)
+    # overwrites internal commands
+    commands.reverse()
 
     # install available commands
     installed_commands: Dict[str, SupportsCliCommand] = {}
     for c in commands:
         command = c()
-        # perevent plugins overwriting internal commands
-        assert (
-            command.command not in installed_commands.keys()
-        ), f"Command {command.command} is already installed"
         command_parser = subparsers.add_parser(command.command, help=command.help_string)
         command.configure_parser(command_parser)
         installed_commands[command.command] = command
