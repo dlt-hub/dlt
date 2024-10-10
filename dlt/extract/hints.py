@@ -353,7 +353,7 @@ class DltResourceHints:
                 else:
                     # Replace existin refs for same table
                     new_references = t.get("references") or []
-                    ref_dict = {r["referenced_table"]: r for r in new_references}
+                    ref_dict = {r["referenced_table"]: r for r in new_references}  # type: ignore[union-attr]
                     for ref in references:
                         ref_dict[ref["referenced_table"]] = ref
                     t["references"] = list(ref_dict.values())
