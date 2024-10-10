@@ -41,7 +41,7 @@ from dlt.pipeline import TCollectorArg
 from tests.utils import TEST_STORAGE_ROOT
 from tests.extract.utils import expect_extracted_file
 from tests.load.utils import DestinationTestConfiguration, destinations_configs
-from tests.pipeline.utils import assert_load_info, load_data_table_counts, many_delayed
+from tests.pipeline.utils import assert_load_info, load_data_table_counts, load_json_case, many_delayed
 
 DUMMY_COMPLETE = dummy(completed_prob=1)  # factory set up to complete jobs
 
@@ -500,6 +500,37 @@ def test_empty_parquet(test_storage: FileStorage) -> None:
     table = pq.read_table(os.path.abspath(test_storage.make_full_path(files[0])))
     assert table.num_rows == 0
     assert set(table.schema.names) == {"id", "name", "_dlt_load_id", "_dlt_id"}
+
+
+def test_parquet_with_flattened_columns() -> None:
+    # normalize json, write parquet file to filesystem
+    pipeline = dlt.pipeline(
+        "test_parquet_with_flattened_columns",
+        destination=dlt.destinations.filesystem("_storage")
+    )
+    info = pipeline.run([load_json_case("github_events")], table_name="events", loader_file_format="parquet")
+    assert_load_info(info)
+
+    # make sure flattened columns exist
+    assert "issue__reactions__url" in pipeline.default_schema.tables["events"]["columns"]
+
+    events_table = pipeline._dataset().events.arrow()
+    assert "issue__reactions__url" in events_table.schema.names
+
+    # load table back into filesystem
+    info = pipeline.run(events_table, table_name="events2", loader_file_format="parquet")
+    assert_load_info(info)
+
+    assert "issue__reactions__url" in pipeline.default_schema.tables["events2"]["columns"]
+
+    # load back into original table
+    info = pipeline.run(events_table, table_name="events", loader_file_format="parquet")
+    assert_load_info(info)
+
+    events_table_new = pipeline._dataset().events.arrow()
+    assert events_table.schema == events_table_new.schema
+    # double row count
+    assert events_table.num_rows * 2 == events_table_new.num_rows
 
 
 def test_resource_file_format() -> None:

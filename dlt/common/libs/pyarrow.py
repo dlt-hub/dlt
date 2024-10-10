@@ -366,7 +366,8 @@ def normalize_py_arrow_item(
 
 def get_normalized_arrow_fields_mapping(schema: pyarrow.Schema, naming: NamingConvention) -> StrStr:
     """Normalizes schema field names and returns mapping from original to normalized name. Raises on name collisions"""
-    norm_f = naming.normalize_identifier
+    # assume that columns in the arrow table may be already normalized so use "normalize_path"
+    norm_f = naming.normalize_path
     name_mapping = {n.name: norm_f(n.name) for n in schema}
     # verify if names uniquely normalize
     normalized_names = set(name_mapping.values())
