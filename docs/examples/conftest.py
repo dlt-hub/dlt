@@ -35,8 +35,8 @@ def setup_secret_providers(request):
     def _initial_providers():
         return [
             EnvironProvider(),
-            SecretsTomlProvider(project_dir=secret_dir, add_global_config=False),
-            ConfigTomlProvider(project_dir=config_dir, add_global_config=False),
+            SecretsTomlProvider(settings_dir=secret_dir, add_global_config=False),
+            ConfigTomlProvider(settings_dir=config_dir, add_global_config=False),
         ]
 
     glob_ctx = ConfigProvidersContext()

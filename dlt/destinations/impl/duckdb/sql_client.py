@@ -1,7 +1,9 @@
 import duckdb
 
+import math
+
 from contextlib import contextmanager
-from typing import Any, AnyStr, ClassVar, Iterator, Optional, Sequence
+from typing import Any, AnyStr, ClassVar, Iterator, Optional, Sequence, Generator
 from dlt.common.destination import DestinationCapabilitiesContext
 
 from dlt.destinations.exceptions import (
@@ -9,7 +11,7 @@ from dlt.destinations.exceptions import (
     DatabaseTransientException,
     DatabaseUndefinedRelation,
 )
-from dlt.destinations.typing import DBApi, DBApiCursor, DBTransaction, DataFrame
+from dlt.destinations.typing import DBApi, DBTransaction, DataFrame, ArrowTable
 from dlt.destinations.sql_client import (
     SqlClientBase,
     DBApiCursorImpl,
@@ -18,26 +20,42 @@ from dlt.destinations.sql_client import (
 )
 
 from dlt.destinations.impl.duckdb.configuration import DuckDbBaseCredentials
+from dlt.common.destination.reference import DBApiCursor
 
 
 class DuckDBDBApiCursorImpl(DBApiCursorImpl):
     """Use native duckdb data frame support if available"""
 
     native_cursor: duckdb.DuckDBPyConnection  # type: ignore
-    vector_size: ClassVar[int] = 2048
+    vector_size: ClassVar[int] = 2048  # vector size is 2048
 
-    def df(self, chunk_size: int = None, **kwargs: Any) -> DataFrame:
-        if chunk_size is None:
-            return self.native_cursor.df(**kwargs)
-        else:
-            multiple = chunk_size // self.vector_size + (
-                0 if self.vector_size % chunk_size == 0 else 1
-            )
-            df = self.native_cursor.fetch_df_chunk(multiple, **kwargs)
+    def _get_page_count(self, chunk_size: int) -> int:
+        """get the page count for vector size"""
+        if chunk_size < self.vector_size:
+            return 1
+        return math.floor(chunk_size / self.vector_size)
+
+    def iter_df(self, chunk_size: int) -> Generator[DataFrame, None, None]:
+        # full frame
+        if not chunk_size:
+            yield self.native_cursor.fetch_df()
+            return
+        # iterate
+        while True:
+            df = self.native_cursor.fetch_df_chunk(self._get_page_count(chunk_size))
             if df.shape[0] == 0:
-                return None
-            else:
-                return df
+                break
+            yield df
+
+    def iter_arrow(self, chunk_size: int) -> Generator[ArrowTable, None, None]:
+        if not chunk_size:
+            yield self.native_cursor.fetch_arrow_table()
+            return
+        # iterate
+        try:
+            yield from self.native_cursor.fetch_record_batch(chunk_size)
+        except StopIteration:
+            pass
 
 
 class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):

@@ -3,7 +3,7 @@ from typing import Any, Optional
 import dlt
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import RunConfiguration, BaseConfiguration
-from dlt.common.typing import AnyFun, TSecretValue
+from dlt.common.typing import AnyFun, TSecretStrValue
 from dlt.common.utils import digest256
 from dlt.common.destination import TLoaderFileFormat
 from dlt.common.pipeline import TRefreshMode
@@ -22,7 +22,7 @@ class PipelineConfiguration(BaseConfiguration):
     dataset_name: Optional[str] = None
     dataset_name_layout: Optional[str] = None
     """Layout for dataset_name, where %s is replaced with dataset_name. For example: 'prefix_%s'"""
-    pipeline_salt: Optional[TSecretValue] = None
+    pipeline_salt: Optional[TSecretStrValue] = None
     restore_from_destination: bool = True
     """Enables the `run` method of the `Pipeline` object to restore the pipeline state and schemas from the destination"""
     enable_runtime_trace: bool = True
@@ -44,7 +44,7 @@ class PipelineConfiguration(BaseConfiguration):
         else:
             self.runtime.pipeline_name = self.pipeline_name
         if not self.pipeline_salt:
-            self.pipeline_salt = TSecretValue(digest256(self.pipeline_name))
+            self.pipeline_salt = digest256(self.pipeline_name)
         if self.dataset_name_layout and "%s" not in self.dataset_name_layout:
             raise ConfigurationValueError(
                 "The dataset_name_layout must contain a '%s' placeholder for dataset_name. For"

@@ -73,7 +73,7 @@ jobs:
         uses: actions/checkout@master
 
       - name: Start weaviate
-        run: docker compose -f ".github/weaviate-compose.yml" up -d
+        run:  docker compose -f "tests/load/weaviate/docker-compose.yml" up -d
 
       - name: Setup Python
         uses: actions/setup-python@v4
@@ -122,7 +122,7 @@ jobs:
 
       - name: Stop weaviate
         if: always()
-        run: docker compose -f ".github/weaviate-compose.yml" down -v
+        run:  docker compose -f "tests/load/weaviate/docker-compose.yml" down -v
 
       - name: Stop SFTP server
         if: always()

@@ -1,9 +1,23 @@
 import posixpath
 import os
 import base64
-
+from contextlib import contextmanager
 from types import TracebackType
-from typing import Dict, List, Type, Iterable, Iterator, Optional, Tuple, Sequence, cast, Any
+from typing import (
+    ContextManager,
+    List,
+    Type,
+    Iterable,
+    Iterator,
+    Optional,
+    Tuple,
+    Sequence,
+    cast,
+    Generator,
+    Literal,
+    Any,
+    Dict,
+)
 from fsspec import AbstractFileSystem
 from contextlib import contextmanager
 
@@ -23,10 +37,12 @@ from dlt.common.storages.load_package import (
     TPipelineStateDoc,
     load_package as current_load_package,
 )
+from dlt.destinations.sql_client import DBApiCursor, WithSqlClient, SqlClientBase
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
     FollowupJobRequest,
     PreparedTableSchema,
+    SupportsReadableRelation,
     TLoadJobState,
     RunnableLoadJob,
     JobClientBase,
@@ -38,6 +54,7 @@ from dlt.common.destination.reference import (
     LoadJob,
 )
 from dlt.common.destination.exceptions import DestinationUndefinedEntity
+
 from dlt.destinations.job_impl import (
     ReferenceFollowupJobRequest,
     FinalizedLoadJob,
@@ -46,6 +63,7 @@ from dlt.destinations.job_impl import (
 from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
 from dlt.destinations import path_utils
 from dlt.destinations.fs_client import FSClientBase
+from dlt.destinations.dataset import ReadableDBAPIDataset
 from dlt.destinations.utils import verify_schema_merge_disposition
 
 INIT_FILE_NAME = "init"
@@ -209,7 +227,9 @@ class FilesystemLoadJobWithFollowup(HasFollowupJobs, FilesystemLoadJob):
         return jobs
 
 
-class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStateSync):
+class FilesystemClient(
+    FSClientBase, WithSqlClient, JobClientBase, WithStagingDataset, WithStateSync
+):
     """filesystem client storing jobs in memory"""
 
     fs_client: AbstractFileSystem
@@ -238,6 +258,21 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
         # cannot be replaced and we cannot initialize folders consistently
         self.table_prefix_layout = path_utils.get_table_prefix_layout(config.layout)
         self.dataset_name = self.config.normalize_dataset_name(self.schema)
+        self._sql_client: SqlClientBase[Any] = None
+
+    @property
+    def sql_client(self) -> SqlClientBase[Any]:
+        # we use an inner import here, since the sql client depends on duckdb and will
+        # only be used for read access on data, some users will not need the dependency
+        from dlt.destinations.impl.filesystem.sql_client import FilesystemSqlClient
+
+        if not self._sql_client:
+            self._sql_client = FilesystemSqlClient(self)
+        return self._sql_client
+
+    @sql_client.setter
+    def sql_client(self, client: SqlClientBase[Any]) -> None:
+        self._sql_client = client
 
     def drop_storage(self) -> None:
         if self.is_storage_initialized():

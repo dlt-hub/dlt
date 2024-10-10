@@ -51,8 +51,8 @@ def test_deltalake_storage_options() -> None:
     # yes credentials, yes deltalake_storage_options: no shared keys
     creds = AwsCredentials(
         aws_access_key_id="dummy_key_id",
-        aws_secret_access_key="dummy_acces_key",  # type: ignore[arg-type]
-        aws_session_token="dummy_session_token",  # type: ignore[arg-type]
+        aws_secret_access_key="dummy_acces_key",
+        aws_session_token="dummy_session_token",
         region_name="dummy_region_name",
     )
     config.credentials = creds
