@@ -519,15 +519,18 @@ def test_parquet_with_flattened_columns() -> None:
 
     # make sure flattened columns exist
     assert "issue__reactions__url" in pipeline.default_schema.tables["events"]["columns"]
+    assert "issue_reactions_url" not in pipeline.default_schema.tables["events"]["columns"]
 
     events_table = pipeline._dataset().events.arrow()
     assert "issue__reactions__url" in events_table.schema.names
+    assert "issue_reactions_url" not in events_table.schema.names
 
     # load table back into filesystem
     info = pipeline.run(events_table, table_name="events2", loader_file_format="parquet")
     assert_load_info(info)
 
     assert "issue__reactions__url" in pipeline.default_schema.tables["events2"]["columns"]
+    assert "issue_reactions_url" not in pipeline.default_schema.tables["events2"]["columns"]
 
     # load back into original table
     info = pipeline.run(events_table, table_name="events", loader_file_format="parquet")
@@ -537,6 +540,16 @@ def test_parquet_with_flattened_columns() -> None:
     assert events_table.schema == events_table_new.schema
     # double row count
     assert events_table.num_rows * 2 == events_table_new.num_rows
+
+    # now add a column that clearly needs normalization
+    updated_events_table = events_table_new.append_column(
+        "Clearly!Normalize", events_table_new["issue__reactions__url"]
+    )
+    info = pipeline.run(updated_events_table, table_name="events", loader_file_format="parquet")
+    assert_load_info(info)
+
+    assert "clearly_normalize" in pipeline.default_schema.tables["events"]["columns"]
+    assert "Clearly!Normalize" not in pipeline.default_schema.tables["events"]["columns"]
 
 
 def test_resource_file_format() -> None:

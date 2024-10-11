@@ -245,7 +245,12 @@ def should_normalize_arrow_schema(
     naming: NamingConvention,
     add_load_id: bool = False,
 ) -> Tuple[bool, Mapping[str, str], Dict[str, str], Dict[str, bool], bool, TTableSchemaColumns]:
+    """Figure out if any of the normalization steps must be executed. This prevents
+    from rewriting arrow tables when no changes are needed. Refer to `normalize_py_arrow_item`
+    for a list of normalizations. Note that `column` must be already normalized.
+    """
     rename_mapping = get_normalized_arrow_fields_mapping(schema, naming)
+    # no clashes in rename ensured above
     rev_mapping = {v: k for k, v in rename_mapping.items()}
     nullable_mapping = {k: is_nullable_column(v) for k, v in columns.items()}
     # All fields from arrow schema that have nullable set to different value than in columns
@@ -301,7 +306,8 @@ def normalize_py_arrow_item(
     caps: DestinationCapabilitiesContext,
     load_id: Optional[str] = None,
 ) -> TAnyArrowItem:
-    """Normalize arrow `item` schema according to the `columns`.
+    """Normalize arrow `item` schema according to the `columns`. Note that
+    columns must be already normalized.
 
     1. arrow schema field names will be normalized according to `naming`
     2. arrows columns will be reordered according to `columns`
@@ -366,14 +372,14 @@ def normalize_py_arrow_item(
 
 def get_normalized_arrow_fields_mapping(schema: pyarrow.Schema, naming: NamingConvention) -> StrStr:
     """Normalizes schema field names and returns mapping from original to normalized name. Raises on name collisions"""
-    # assume that columns in the arrow table may be already normalized so use "normalize_path"
+    # use normalize_path to be compatible with how regular columns are normalized in dlt.Schema
     norm_f = naming.normalize_path
     name_mapping = {n.name: norm_f(n.name) for n in schema}
     # verify if names uniquely normalize
     normalized_names = set(name_mapping.values())
     if len(name_mapping) != len(normalized_names):
         raise NameNormalizationCollision(
-            f"Arrow schema fields normalized from {list(name_mapping.keys())} to"
+            f"Arrow schema fields normalized from:\n{list(name_mapping.keys())}:\nto:\n"
             f" {list(normalized_names)}"
         )
     return name_mapping
