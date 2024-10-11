@@ -1,6 +1,5 @@
 import pytest
 
-import sqlalchemy as sa
 
 import dlt
 from dlt.common.typing import TDataItem
@@ -12,7 +11,8 @@ try:
     from dlt.sources.sql_database.helpers import TableLoader, TableBackend
     from dlt.sources.sql_database.schema_types import table_to_columns
     from tests.load.sources.sql_database.sql_source import SQLAlchemySourceDB
-except MissingDependencyException:
+    import sqlalchemy as sa
+except (MissingDependencyException, ModuleNotFoundError):
     pytest.skip("Tests require sql alchemy", allow_module_level=True)
 
 
