@@ -194,6 +194,7 @@ pandas = [
     {version = ">2.1", markers = "python_version >= '3.12'"},
     {version = "<2.1", markers = "python_version < '3.12'"}
 ]
+sqlglot = {version = ">=20.0.0"}
 
 [tool.poetry.group.airflow]
 optional = true
