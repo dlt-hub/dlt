@@ -9,10 +9,12 @@ from dlt.common.destination.reference import (
     TDestinationReferenceArg,
     Destination,
     JobClientBase,
+    WithStateSync,
+    DestinationClientDwhConfiguration,
 )
 
 from dlt.common.schema.typing import TTableSchemaColumns
-from dlt.destinations.sql_client import SqlClientBase
+from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.common.schema import Schema
 
 
@@ -90,9 +92,10 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
 
     def _destination_client(self, schema: Schema) -> JobClientBase:
         client_spec = self._destination.spec()
-        client_spec._bind_dataset_name(
-            dataset_name=self._dataset_name, default_schema_name=schema.name
-        )
+        if isinstance(client_spec, DestinationClientDwhConfiguration):
+            client_spec._bind_dataset_name(
+                dataset_name=self._dataset_name, default_schema_name=schema.name
+            )
         return self._destination.client(schema, client_spec)
 
     def _ensure_client_and_schema(self) -> None:
@@ -104,29 +107,37 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
         # schema name given, resolve it from destination by name
         elif not self._resolved_schema and isinstance(self._schema, str):
             with self._destination_client(Schema(self._schema)) as client:
-                stored_schema = client.get_stored_schema()
-                if stored_schema:
-                    self._resolved_schema = Schema.from_stored_schema(
-                        json.loads(stored_schema.schema)
-                    )
+                if isinstance(client, WithStateSync):
+                    stored_schema = client.get_stored_schema()
+                    if stored_schema:
+                        self._resolved_schema = Schema.from_stored_schema(
+                            json.loads(stored_schema.schema)
+                        )
 
         # no schema name given, load newest schema from destination
         elif not self._resolved_schema:
             with self._destination_client(Schema(self._dataset_name)) as client:
-                stored_schema = client.get_stored_schema(any_schema_name=True)
-                if stored_schema:
-                    self._resolved_schema = Schema.from_stored_schema(
-                        json.loads(stored_schema.schema)
-                    )
+                if isinstance(client, WithStateSync):
+                    stored_schema = client.get_stored_schema(any_schema_name=True)
+                    if stored_schema:
+                        self._resolved_schema = Schema.from_stored_schema(
+                            json.loads(stored_schema.schema)
+                        )
 
         # default to empty schema with dataset name if nothing found
         if not self._resolved_schema:
             self._resolved_schema = Schema(self._dataset_name)
 
         # here we create the client bound to the resolved schema
-        # TODO: ensure that this destination supports the sql_client. otherwise error
         if not self._sql_client:
-            self._sql_client = self._destination_client(self._resolved_schema).sql_client
+            destination_client = self._destination_client(self._resolved_schema)
+            if isinstance(destination_client, WithSqlClient):
+                self._sql_client = destination_client.sql_client
+            else:
+                raise Exception(
+                    f"Destination {destination_client.config.destination_type} does not support"
+                    " SqlClient."
+                )
 
     def __call__(
         self, query: Any, schema_columns: TTableSchemaColumns = None

@@ -226,7 +226,7 @@ def _run_dataset_checks(
         dataset_name=pipeline.dataset_name,
         schema=pipeline.default_schema_name,
     )
-    assert dataset.schema.tables["items"]["write_disposition"] == "replace"
+    assert dataset.schema.tables["items"]["write_disposition"] == "replace"  # type: ignore
 
     # check that schema is not loaded when wrong name given
     dataset = dlt.dataset(
@@ -234,24 +234,24 @@ def _run_dataset_checks(
         dataset_name=pipeline.dataset_name,
         schema="wrong_schema_name",
     )
-    assert "items" not in dataset.schema.tables
-    assert dataset.schema.name == pipeline.dataset_name
+    assert "items" not in dataset.schema.tables  # type: ignore
+    assert dataset.schema.name == pipeline.dataset_name  # type: ignore
 
     # check that schema is loaded if no schema name given
     dataset = dlt.dataset(
         destination=destination_config.destination_type,
         dataset_name=pipeline.dataset_name,
     )
-    assert dataset.schema.name == pipeline.default_schema_name
-    assert dataset.schema.tables["items"]["write_disposition"] == "replace"
+    assert dataset.schema.name == pipeline.default_schema_name  # type: ignore
+    assert dataset.schema.tables["items"]["write_disposition"] == "replace"  # type: ignore
 
     # check that there is no error when creating dataset without schema table
     dataset = dlt.dataset(
         destination=destination_config.destination_type,
         dataset_name="unknown_dataset",
     )
-    assert dataset.schema.name == "unknown_dataset"
-    assert "items" not in dataset.schema.tables
+    assert dataset.schema.name == "unknown_dataset"  # type: ignore
+    assert "items" not in dataset.schema.tables  # type: ignore
 
 
 @pytest.mark.essential

@@ -240,7 +240,10 @@ class SqlalchemyJobClient(SqlJobClientWithStagingDataset):
         self.sql_client.execute_sql(table_obj.insert().values(schema_mapping))
 
     def _get_stored_schema(
-        self, version_hash: Optional[str] = None, schema_name: Optional[str] = None
+        self,
+        version_hash: Optional[str] = None,
+        schema_name: Optional[str] = None,
+        any_schema_name: bool = False,
     ) -> Optional[StorageSchemaInfo]:
         version_table = self.schema.tables[self.schema.version_table_name]
         table_obj = self._to_table_object(version_table)  # type: ignore[arg-type]
@@ -249,7 +252,7 @@ class SqlalchemyJobClient(SqlJobClientWithStagingDataset):
             if version_hash is not None:
                 version_hash_col = self.schema.naming.normalize_identifier("version_hash")
                 q = q.where(table_obj.c[version_hash_col] == version_hash)
-            if schema_name is not None:
+            if schema_name is not None and not any_schema_name:
                 schema_name_col = self.schema.naming.normalize_identifier("schema_name")
                 q = q.where(table_obj.c[schema_name_col] == schema_name)
             inserted_at_col = self.schema.naming.normalize_identifier("inserted_at")
@@ -267,9 +270,11 @@ class SqlalchemyJobClient(SqlJobClientWithStagingDataset):
     def get_stored_schema_by_hash(self, version_hash: str) -> Optional[StorageSchemaInfo]:
         return self._get_stored_schema(version_hash)
 
-    def get_stored_schema(self) -> Optional[StorageSchemaInfo]:
+    def get_stored_schema(self, any_schema_name: bool = False) -> Optional[StorageSchemaInfo]:
         """Get the latest stored schema"""
-        return self._get_stored_schema(schema_name=self.schema.name)
+        return self._get_stored_schema(
+            schema_name=self.schema.name, any_schema_name=any_schema_name
+        )
 
     def get_stored_state(self, pipeline_name: str) -> StateInfo:
         state_table = self.schema.tables.get(
