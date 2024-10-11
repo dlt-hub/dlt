@@ -655,24 +655,28 @@ class FilesystemClient(
         """Get the schema by supplied hash, falls back to getting the newest version matching the existing schema name"""
         version_hash = self._to_path_safe_string(version_hash)
         # find newest schema for pipeline or by version hash
-        selected_path = None
-        newest_load_id = "0"
-        for filepath, fileparts in self._iter_stored_schema_files():
-            if (
-                not version_hash
-                and (fileparts[0] == self.schema.name or any_schema_name)
-                and fileparts[1] > newest_load_id
-            ):
-                newest_load_id = fileparts[1]
-                selected_path = filepath
-            elif fileparts[2] == version_hash:
-                selected_path = filepath
-                break
+        try:
+            selected_path = None
+            newest_load_id = "0"
+            for filepath, fileparts in self._iter_stored_schema_files():
+                if (
+                    not version_hash
+                    and (fileparts[0] == self.schema.name or any_schema_name)
+                    and fileparts[1] > newest_load_id
+                ):
+                    newest_load_id = fileparts[1]
+                    selected_path = filepath
+                elif fileparts[2] == version_hash:
+                    selected_path = filepath
+                    break
 
-        if selected_path:
-            return StorageSchemaInfo(
-                **json.loads(self.fs_client.read_text(selected_path, encoding="utf-8"))
-            )
+            if selected_path:
+                return StorageSchemaInfo(
+                    **json.loads(self.fs_client.read_text(selected_path, encoding="utf-8"))
+                )
+        except DestinationUndefinedEntity:
+            # ignore missing table
+            pass
 
         return None
 
