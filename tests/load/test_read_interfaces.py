@@ -20,6 +20,7 @@ from tests.load.utils import (
 )
 from dlt.destinations import filesystem
 from tests.utils import TEST_STORAGE_ROOT
+from dlt.common.destination.reference import TDestinationReferenceArg
 
 
 def _run_dataset_checks(
@@ -212,10 +213,14 @@ def _run_dataset_checks(
     loads_table = pipeline._dataset()[pipeline.default_schema.loads_table_name]
     loads_table.fetchall()
 
-    # check dataset factory
-    dataset = dlt.dataset(
-        destination=destination_config.destination_type, dataset_name=pipeline.dataset_name
+    destination_for_dataset: TDestinationReferenceArg = (
+        alternate_access_pipeline.destination
+        if alternate_access_pipeline
+        else destination_config.destination_type
     )
+
+    # check dataset factory
+    dataset = dlt.dataset(destination=destination_for_dataset, dataset_name=pipeline.dataset_name)
     # verfiy that sql client and schema are lazy loaded
     assert not dataset._schema
     assert not dataset._sql_client
@@ -225,7 +230,7 @@ def _run_dataset_checks(
 
     # check that schema is loaded by name
     dataset = dlt.dataset(
-        destination=destination_config.destination_type,
+        destination=destination_for_dataset,
         dataset_name=pipeline.dataset_name,
         schema=pipeline.default_schema_name,
     )
@@ -233,7 +238,7 @@ def _run_dataset_checks(
 
     # check that schema is not loaded when wrong name given
     dataset = dlt.dataset(
-        destination=destination_config.destination_type,
+        destination=destination_for_dataset,
         dataset_name=pipeline.dataset_name,
         schema="wrong_schema_name",
     )
@@ -242,7 +247,7 @@ def _run_dataset_checks(
 
     # check that schema is loaded if no schema name given
     dataset = dlt.dataset(
-        destination=destination_config.destination_type,
+        destination=destination_for_dataset,
         dataset_name=pipeline.dataset_name,
     )
     assert dataset.schema.name == pipeline.default_schema_name  # type: ignore
@@ -250,7 +255,7 @@ def _run_dataset_checks(
 
     # check that there is no error when creating dataset without schema table
     dataset = dlt.dataset(
-        destination=destination_config.destination_type,
+        destination=destination_for_dataset,
         dataset_name="unknown_dataset",
     )
     assert dataset.schema.name == "unknown_dataset"  # type: ignore
@@ -269,7 +274,7 @@ def _run_dataset_checks(
         client.update_stored_schema()
 
     dataset = dlt.dataset(
-        destination=destination_config.destination_type,
+        destination=destination_for_dataset,
         dataset_name=pipeline.dataset_name,
     )
     assert dataset.schema.name == "some_other_schema"  # type: ignore
