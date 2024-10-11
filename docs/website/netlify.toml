@@ -41,4 +41,4 @@ to = "/docs/reference/telemetry"
 
 [[redirects]]
 from = "/docs/walkthroughs"
-to = "docs/intro"
+to = "/docs/intro"

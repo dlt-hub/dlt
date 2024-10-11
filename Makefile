@@ -110,3 +110,10 @@ test-build-images: build-library
 preprocess-docs: 
 	# run docs preprocessing to run a few checks and ensure examples can be parsed
 	cd docs/website && npm i && npm run preprocess-docs
+
+start-test-containers:
+	docker compose -f "tests/load/dremio/docker-compose.yml" up -d
+	docker compose -f "tests/load/postgres/docker-compose.yml" up -d
+	docker compose -f "tests/load/weaviate/docker-compose.yml" up -d
+	docker compose -f "tests/load/filesystem_sftp/docker-compose.yml" up -d
+	docker compose -f "tests/load/sqlalchemy/docker-compose.yml" up -d

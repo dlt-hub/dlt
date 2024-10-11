@@ -11,6 +11,7 @@ from dlt.common.configuration.exceptions import ConfigFileNotFoundException
 
 @configspec
 class RunConfiguration(BaseConfiguration):
+    # TODO: deprecate pipeline_name, it is not used in any reasonable way
     pipeline_name: Optional[str] = None
     sentry_dsn: Optional[str] = None  # keep None to disable Sentry
     slack_incoming_hook: Optional[TSecretStrValue] = None

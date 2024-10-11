@@ -513,7 +513,7 @@ Available authentication types:
 | [BearerTokenAuth](../../../general-usage/http/rest-client.md#bearer-token-authentication) | `bearer` | Bearer token authentication. |
 | [HTTPBasicAuth](../../../general-usage/http/rest-client.md#http-basic-authentication) | `http_basic` | Basic HTTP authentication. |
 | [APIKeyAuth](../../../general-usage/http/rest-client.md#api-key-authentication) | `api_key` | API key authentication with key defined in the query parameters or in the headers. |
-| [OAuth2ClientCredentials](../../../general-usage/http/rest-client.md#oauth20-authorization) | N/A | OAuth 2.0 authorization with a temporary access token obtained from the authorization server. |
+| [OAuth2ClientCredentials](../../../general-usage/http/rest-client.md#oauth20-authorization) | `oauth2_client_credentials` | OAuth 2.0 authorization with a temporary access token obtained from the authorization server. |
 
 To specify the authentication configuration, use the `auth` field in the [client](#client) configuration:
 
@@ -554,6 +554,7 @@ Available authentication types:
 | `bearer` | [BearerTokenAuth](../../../general-usage/http/rest-client.md#bearer-token-authentication) | Bearer token authentication.<br/>Parameters:<ul><li>`token` (str)</li></ul> |
 | `http_basic` | [HTTPBasicAuth](../../../general-usage/http/rest-client.md#http-basic-authentication) | Basic HTTP authentication.<br/>Parameters:<ul><li>`username` (str)</li><li>`password` (str)</li></ul> |
 | `api_key` | [APIKeyAuth](../../../general-usage/http/rest-client.md#api-key-authentication) | API key authentication with key defined in the query parameters or in the headers. <br/>Parameters:<ul><li>`name` (str) - the name of the query parameter or header</li><li>`api_key` (str) - the API key value</li><li>`location` (str, optional) - the location of the API key in the request. Can be `query` or `header`. Default is `header`</li></ul> |
+| `oauth2_client_credentials` | [OAuth2ClientCredentials](../../../general-usage/http/rest-client.md#oauth20-authorization)) | OAuth 2.0 Client Credentials authorization for server-to-server communication without user consent. <br/>Parameters:<ul><li>`access_token` (str, optional) - the temporary token. Usually not provided here because it is automatically obtained from the server by exchanging `client_id` and `client_secret`. Default is `None`</li><li>`access_token_url` (str) - the URL to request the `access_token` from</li><li>`client_id` (str) - identifier for your app. Usually issued via a developer portal</li><li>`client_secret` (str) - client credential to obtain authorization. Usually issued via a developer portal</li><li>`access_token_request_data` (dict, optional) - A dictionary with data required by the authorization server apart from the `client_id`, `client_secret`, and `"grant_type": "client_credentials"`. Defaults to `None`</li><li>`default_token_expiration` (int, optional) - The time in seconds after which the temporary access token expires. Defaults to 3600.</li><li>`session` (requests.Session, optional) - a custom session object. Mostly used for testing</li></ul> |
 
 
 For more complex authentication methods, you can implement a [custom authentication class](../../../general-usage/http/rest-client.md#implementing-custom-authentication) and use it in the configuration.
@@ -574,7 +575,7 @@ rest_api.config_setup.register_auth("custom_auth", CustomAuth)
 
 ### Define resource relationships
 
-When you have a resource that depends on another resource, you can define the relationship using the `resolve` configuration. With it, you link a path parameter in the child resource to a field in the parent resource's data.
+When you have a resource that depends on another resource, you can define the relationship using the `resolve` configuration. This allows you to link one or more path parameters in the child resource to fields in the parent resource's data.
 
 In the GitHub example, the `issue_comments` resource depends on the `issues` resource. The `issue_number` parameter in the `issue_comments` endpoint configuration is resolved from the `number` field of the `issues` resource:
 
@@ -637,6 +638,54 @@ The syntax for the `resolve` field in parameter configuration is:
 The `field` value can be specified as a [JSONPath](https://github.com/h2non/jsonpath-ng?tab=readme-ov-file#jsonpath-syntax) to select a nested field in the parent resource data. For example: `"field": "items[0].id"`.
 
 Under the hood, dlt handles this by using a [transformer resource](../../../general-usage/resource.md#process-resources-with-dlttransformer).
+
+#### Resolving multiple path parameters from a parent resource
+
+When a child resource depends on multiple fields from a single parent resource, you can define multiple `resolve` parameters in the endpoint configuration. For example:
+
+```py
+{
+    "resources": [
+        "groups",
+        {
+            "name": "users",
+            "endpoint": {
+                "path": "groups/{group_id}/users",
+                "params": {
+                    "group_id": {
+                        "type": "resolve",
+                        "resource": "groups",
+                        "field": "id",
+                    },
+                },
+            },
+        },
+        {
+            "name": "user_details",
+            "endpoint": {
+                "path": "groups/{group_id}/users/{user_id}/details",
+                "params": {
+                    "group_id": {
+                        "type": "resolve",
+                        "resource": "users",
+                        "field": "group_id",
+                    },
+                    "user_id": {
+                        "type": "resolve",
+                        "resource": "users",
+                        "field": "id",
+                    },
+                },
+            },
+        },
+    ],
+}
+```
+
+In the configuration above:
+
+- The `users` resource depends on the `groups` resource, resolving the `group_id` parameter from the `id` field in `groups`.
+- The `user_details` resource depends on the `users` resource, resolving both `group_id` and `user_id` parameters from fields in `users`.
 
 #### Include fields from the parent resource
 

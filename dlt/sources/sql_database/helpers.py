@@ -14,12 +14,16 @@ from typing import (
 import operator
 
 import dlt
-from dlt.common.configuration.specs import BaseConfiguration, configspec
+from dlt.common.configuration.specs import (
+    BaseConfiguration,
+    ConnectionStringCredentials,
+    configspec,
+)
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.schema import TTableSchemaColumns
 from dlt.common.typing import TDataItem, TSortOrder
 
-from dlt.sources.credentials import ConnectionStringCredentials
+from dlt.extract import Incremental
 
 from .arrow_helpers import row_tuples_to_arrow
 from .schema_types import (
@@ -47,7 +51,7 @@ class TableLoader:
         table: Table,
         columns: TTableSchemaColumns,
         chunk_size: int = 1000,
-        incremental: Optional[dlt.sources.incremental[Any]] = None,
+        incremental: Optional[Incremental[Any]] = None,
         query_adapter_callback: Optional[TQueryAdapter] = None,
     ) -> None:
         self.engine = engine
@@ -146,7 +150,7 @@ class TableLoader:
                     yield df
                 elif self.backend == "pyarrow":
                     yield row_tuples_to_arrow(
-                        partition, self.columns, tz=backend_kwargs.get("tz", "UTC")
+                        partition, columns=self.columns, tz=backend_kwargs.get("tz", "UTC")
                     )
 
     def _load_rows_connectorx(
@@ -186,7 +190,7 @@ def table_rows(
     table: Table,
     chunk_size: int,
     backend: TableBackend,
-    incremental: Optional[dlt.sources.incremental[Any]] = None,
+    incremental: Optional[Incremental[Any]] = None,
     defer_table_reflect: bool = False,
     table_adapter_callback: Callable[[Table], None] = None,
     reflection_level: ReflectionLevel = "minimal",
@@ -292,17 +296,11 @@ def _detect_precision_hints_deprecated(value: Optional[bool]) -> None:
 
 
 @configspec
-class SqlDatabaseTableConfiguration(BaseConfiguration):
-    incremental: Optional[dlt.sources.incremental] = None  # type: ignore[type-arg]
-    included_columns: Optional[List[str]] = None
-
-
-@configspec
 class SqlTableResourceConfiguration(BaseConfiguration):
     credentials: Union[ConnectionStringCredentials, Engine, str] = None
     table: str = None
     schema: Optional[str] = None
-    incremental: Optional[dlt.sources.incremental] = None  # type: ignore[type-arg]
+    incremental: Optional[Incremental] = None  # type: ignore[type-arg]
     chunk_size: int = 50000
     backend: TableBackend = "sqlalchemy"
     detect_precision_hints: Optional[bool] = None

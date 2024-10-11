@@ -12,6 +12,7 @@ import requests
 from requests import Response
 
 import dlt
+from dlt.common import known_env
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.providers import (
     DictionaryProvider,
@@ -24,8 +25,13 @@ from dlt.common.configuration.specs import RunConfiguration
 from dlt.common.configuration.specs.config_providers_context import (
     ConfigProvidersContext,
 )
+from dlt.common.configuration.specs.pluggable_run_context import (
+    PluggableRunContext,
+    SupportsRunContext,
+)
 from dlt.common.pipeline import LoadInfo, PipelineContext, SupportsPipeline
 from dlt.common.runtime.init import init_logging
+from dlt.common.runtime.run_context import DOT_DLT, RunContext
 from dlt.common.runtime.telemetry import start_telemetry, stop_telemetry
 from dlt.common.schema import Schema
 from dlt.common.storages import FileStorage
@@ -164,19 +170,66 @@ def duckdb_pipeline_location() -> Iterator[None]:
         yield
 
 
+class MockableRunContext(RunContext):
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @property
+    def global_dir(self) -> str:
+        return self._global_dir
+
+    @property
+    def run_dir(self) -> str:
+        return os.environ.get(known_env.DLT_PROJECT_DIR, self._run_dir)
+
+    # @property
+    # def settings_dir(self) -> str:
+    #     return self._settings_dir
+
+    @property
+    def data_dir(self) -> str:
+        return os.environ.get(known_env.DLT_DATA_DIR, self._data_dir)
+
+    _name: str
+    _global_dir: str
+    _run_dir: str
+    _settings_dir: str
+    _data_dir: str
+
+    @classmethod
+    def from_context(cls, ctx: SupportsRunContext) -> "MockableRunContext":
+        cls_ = cls()
+        cls_._name = ctx.name
+        cls_._global_dir = ctx.global_dir
+        cls_._run_dir = ctx.run_dir
+        cls_._settings_dir = ctx.settings_dir
+        cls_._data_dir = ctx.data_dir
+        return cls_
+
+
 @pytest.fixture(autouse=True)
 def patch_home_dir() -> Iterator[None]:
-    with patch("dlt.common.configuration.paths._get_user_home_dir") as _get_home_dir:
-        _get_home_dir.return_value = os.path.abspath(TEST_STORAGE_ROOT)
+    ctx = PluggableRunContext()
+    mock = MockableRunContext.from_context(ctx.context)
+    mock._global_dir = mock._data_dir = os.path.join(os.path.abspath(TEST_STORAGE_ROOT), DOT_DLT)
+    ctx.context = mock
+
+    with Container().injectable_context(ctx):
         yield
 
 
 @pytest.fixture(autouse=True)
 def patch_random_home_dir() -> Iterator[None]:
-    global_dir = os.path.join(TEST_STORAGE_ROOT, "global_" + uniq_id())
-    os.makedirs(global_dir, exist_ok=True)
-    with patch("dlt.common.configuration.paths._get_user_home_dir") as _get_home_dir:
-        _get_home_dir.return_value = os.path.abspath(global_dir)
+    ctx = PluggableRunContext()
+    mock = MockableRunContext.from_context(ctx.context)
+    mock._global_dir = mock._data_dir = os.path.join(
+        os.path.join(TEST_STORAGE_ROOT, "global_" + uniq_id()), DOT_DLT
+    )
+    ctx.context = mock
+
+    os.makedirs(mock.global_dir, exist_ok=True)
+    with Container().injectable_context(ctx):
         yield
 
 
@@ -391,16 +444,16 @@ def assert_query_data(
 
 
 @contextlib.contextmanager
-def reset_providers(project_dir: str) -> Iterator[ConfigProvidersContext]:
-    """Context manager injecting standard set of providers where toml providers are initialized from `project_dir`"""
-    return _reset_providers(project_dir)
+def reset_providers(settings_dir: str) -> Iterator[ConfigProvidersContext]:
+    """Context manager injecting standard set of providers where toml providers are initialized from `settings_dir`"""
+    return _reset_providers(settings_dir)
 
 
-def _reset_providers(project_dir: str) -> Iterator[ConfigProvidersContext]:
+def _reset_providers(settings_dir: str) -> Iterator[ConfigProvidersContext]:
     ctx = ConfigProvidersContext()
     ctx.providers.clear()
     ctx.add_provider(EnvironProvider())
-    ctx.add_provider(SecretsTomlProvider(project_dir=project_dir))
-    ctx.add_provider(ConfigTomlProvider(project_dir=project_dir))
+    ctx.add_provider(SecretsTomlProvider(settings_dir=settings_dir))
+    ctx.add_provider(ConfigTomlProvider(settings_dir=settings_dir))
     with Container().injectable_context(ctx):
         yield ctx

@@ -11,14 +11,14 @@ from dlt.common.exceptions import (
 )
 from dlt.common.schema import Schema
 from dlt.common.schema.utils import pipeline_state_table
-from dlt.common.source import get_current_pipe_name
+from dlt.common.pipeline import get_current_pipe_name
 from dlt.common.storages import FileStorage
 from dlt.common import pipeline as state_module
 from dlt.common.storages.load_package import TPipelineStateDoc
 from dlt.common.utils import uniq_id
 from dlt.common.destination.reference import Destination, StateInfo
-
 from dlt.common.validation import validate_dict
+
 from dlt.destinations.utils import get_pipeline_state_query_columns
 from dlt.pipeline.exceptions import PipelineStateEngineNoUpgradePathException, PipelineStepFailed
 from dlt.pipeline.pipeline import Pipeline

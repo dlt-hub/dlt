@@ -347,9 +347,13 @@ def test_execute_df(client: SqlJobClientBase) -> None:
         f"SELECT * FROM {f_q_table_name} ORDER BY col ASC"
     ) as curr:
         # be compatible with duckdb vector size
-        df_1 = curr.df(chunk_size=chunk_size)
-        df_2 = curr.df(chunk_size=chunk_size)
-        df_3 = curr.df(chunk_size=chunk_size)
+        iterator = curr.iter_df(chunk_size)
+        df_1 = next(iterator)
+        df_2 = next(iterator)
+        try:
+            df_3 = next(iterator)
+        except StopIteration:
+            df_3 = None
         # Force lower case df columns, snowflake has all cols uppercase
         for df in [df_1, df_2, df_3]:
             if df is not None:

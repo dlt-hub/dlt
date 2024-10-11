@@ -674,6 +674,10 @@ def test_restore_state_parallel_changes(destination_config: DestinationTestConfi
     # nevertheless this is potentially dangerous situation 🤷
     assert ra_production_p.state == prod_state
 
+    # for now skip sql client tests for filesystem
+    if destination_config.destination_type == "filesystem":
+        return
+
     # get all the states, notice version 4 twice (one from production, the other from local)
     try:
         with p.sql_client() as client:

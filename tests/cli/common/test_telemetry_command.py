@@ -6,7 +6,7 @@ from typing import Any
 from unittest.mock import patch
 
 from dlt.common.configuration.container import Container
-from dlt.common.configuration.paths import DOT_DLT
+from dlt.common.runtime.run_context import DOT_DLT
 from dlt.common.configuration.providers import ConfigTomlProvider, CONFIG_TOML
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
 from dlt.common.storages import FileStorage
@@ -27,56 +27,66 @@ def test_main_telemetry_command(test_storage: FileStorage) -> None:
     def _initial_providers():
         return [ConfigTomlProvider(add_global_config=True)]
 
+    container = Container()
     glob_ctx = ConfigProvidersContext()
     glob_ctx.providers = _initial_providers()
 
-    with set_working_dir(test_storage.make_full_path("project")), Container().injectable_context(
-        glob_ctx
-    ), patch(
-        "dlt.common.configuration.specs.config_providers_context.ConfigProvidersContext.initial_providers",
-        _initial_providers,
-    ):
-        # no config files: status is ON
-        with io.StringIO() as buf, contextlib.redirect_stdout(buf):
-            telemetry_status_command()
-            assert "ENABLED" in buf.getvalue()
-        # disable telemetry
-        with io.StringIO() as buf, contextlib.redirect_stdout(buf):
-            change_telemetry_status_command(False)
-            # enable global flag in providers (tests have global flag disabled)
-            glob_ctx = ConfigProvidersContext()
-            glob_ctx.providers = [ConfigTomlProvider(add_global_config=True)]
-            with Container().injectable_context(glob_ctx):
+    try:
+        with set_working_dir(test_storage.make_full_path("project")), patch(
+            "dlt.common.configuration.specs.config_providers_context.ConfigProvidersContext.initial_providers",
+            _initial_providers,
+        ):
+            # no config files: status is ON
+            with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+                telemetry_status_command()
+                assert "ENABLED" in buf.getvalue()
+            # disable telemetry
+            with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+                # force the mock config.toml provider
+                container[ConfigProvidersContext] = glob_ctx
+                change_telemetry_status_command(False)
+                # enable global flag in providers (tests have global flag disabled)
+                glob_ctx = ConfigProvidersContext()
+                glob_ctx.providers = [ConfigTomlProvider(add_global_config=True)]
+                with Container().injectable_context(glob_ctx):
+                    telemetry_status_command()
+                    output = buf.getvalue()
+                    assert "OFF" in output
+                    assert "DISABLED" in output
+            # make sure no config.toml exists in project (it is not created if it was not already there)
+            project_dot = os.path.join("project", DOT_DLT)
+            assert not test_storage.has_folder(project_dot)
+            # enable telemetry
+            with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+                # force the mock config.toml provider
+                container[ConfigProvidersContext] = glob_ctx
+                change_telemetry_status_command(True)
+                # enable global flag in providers (tests have global flag disabled)
+                glob_ctx = ConfigProvidersContext()
+                glob_ctx.providers = [ConfigTomlProvider(add_global_config=True)]
+                with Container().injectable_context(glob_ctx):
+                    telemetry_status_command()
+                    output = buf.getvalue()
+                    assert "ON" in output
+                    assert "ENABLED" in output
+            # create config toml in project dir
+            test_storage.create_folder(project_dot)
+            test_storage.save(os.path.join("project", DOT_DLT, CONFIG_TOML), "# empty")
+            # disable telemetry
+            with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+                # force the mock config.toml provider
+                container[ConfigProvidersContext] = glob_ctx
+                # this command reload providers
+                change_telemetry_status_command(False)
+                # so the change is visible (because it is written to project config so we do not need to look into global like before)
                 telemetry_status_command()
                 output = buf.getvalue()
                 assert "OFF" in output
                 assert "DISABLED" in output
-        # make sure no config.toml exists in project (it is not created if it was not already there)
-        project_dot = os.path.join("project", DOT_DLT)
-        assert not test_storage.has_folder(project_dot)
-        # enable telemetry
-        with io.StringIO() as buf, contextlib.redirect_stdout(buf):
-            change_telemetry_status_command(True)
-            # enable global flag in providers (tests have global flag disabled)
-            glob_ctx = ConfigProvidersContext()
-            glob_ctx.providers = [ConfigTomlProvider(add_global_config=True)]
-            with Container().injectable_context(glob_ctx):
-                telemetry_status_command()
-                output = buf.getvalue()
-                assert "ON" in output
-                assert "ENABLED" in output
-        # create config toml in project dir
-        test_storage.create_folder(project_dot)
-        test_storage.save(os.path.join("project", DOT_DLT, CONFIG_TOML), "# empty")
-        # disable telemetry
-        with io.StringIO() as buf, contextlib.redirect_stdout(buf):
-            # this command reload providers
-            change_telemetry_status_command(False)
-            # so the change is visible (because it is written to project config so we do not need to look into global like before)
-            telemetry_status_command()
-            output = buf.getvalue()
-            assert "OFF" in output
-            assert "DISABLED" in output
+    finally:
+        # delete current config provider after the patched init ctx is out of scope
+        if ConfigProvidersContext in container:
+            del container[ConfigProvidersContext]
 
 
 def test_command_instrumentation() -> None:
@@ -130,14 +140,17 @@ def test_command_instrumentation() -> None:
 
 
 def test_instrumentation_wrappers() -> None:
-    from dlt.cli._dlt import (
-        init_command_wrapper,
-        list_sources_command_wrapper,
-        DEFAULT_VERIFIED_SOURCES_REPO,
-        pipeline_command_wrapper,
-        deploy_command_wrapper,
-        COMMAND_DEPLOY_REPO_LOCATION,
+    from dlt.cli.deploy_command import (
         DeploymentMethods,
+        COMMAND_DEPLOY_REPO_LOCATION,
+    )
+    from dlt.cli.init_command import (
+        DEFAULT_VERIFIED_SOURCES_REPO,
+    )
+    from dlt.cli.command_wrappers import (
+        init_command_wrapper,
+        deploy_command_wrapper,
+        list_sources_command_wrapper,
     )
 
     with patch("dlt.common.runtime.anon_tracker.before_send", _mock_before_send):

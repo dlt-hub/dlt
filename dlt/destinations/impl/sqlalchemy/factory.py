@@ -1,5 +1,6 @@
 import typing as t
 
+from dlt.common import pendulum
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
 from dlt.common.destination.capabilities import DataTypeMapper
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
@@ -9,14 +10,7 @@ from dlt.destinations.impl.sqlalchemy.configuration import (
     SqlalchemyCredentials,
     SqlalchemyClientConfiguration,
 )
-
-SqlalchemyTypeMapper: t.Type[DataTypeMapper]
-
-try:
-    from dlt.destinations.impl.sqlalchemy.type_mapper import SqlalchemyTypeMapper
-except ModuleNotFoundError:
-    # assign mock type mapper if no sqlalchemy
-    from dlt.common.destination.capabilities import UnsupportedTypeMapper as SqlalchemyTypeMapper
+from dlt.common.data_writers.escape import format_datetime_literal
 
 if t.TYPE_CHECKING:
     # from dlt.destinations.impl.sqlalchemy.sqlalchemy_client import SqlalchemyJobClient
@@ -24,10 +18,28 @@ if t.TYPE_CHECKING:
     from sqlalchemy.engine import Engine
 
 
+def _format_mysql_datetime_literal(
+    v: pendulum.DateTime, precision: int = 6, no_tz: bool = False
+) -> str:
+    # Format without timezone to prevent tz conversion in SELECT
+    return format_datetime_literal(v, precision, no_tz=True)
+
+
 class sqlalchemy(Destination[SqlalchemyClientConfiguration, "SqlalchemyJobClient"]):
     spec = SqlalchemyClientConfiguration
 
     def _raw_capabilities(self) -> DestinationCapabilitiesContext:
+        # lazy import to avoid sqlalchemy dep
+        SqlalchemyTypeMapper: t.Type[DataTypeMapper]
+
+        try:
+            from dlt.destinations.impl.sqlalchemy.type_mapper import SqlalchemyTypeMapper
+        except ModuleNotFoundError:
+            # assign mock type mapper if no sqlalchemy
+            from dlt.common.destination.capabilities import (
+                UnsupportedTypeMapper as SqlalchemyTypeMapper,
+            )
+
         # https://www.sqlalchemyql.org/docs/current/limits.html
         caps = DestinationCapabilitiesContext.generic_capabilities()
         caps.preferred_loader_file_format = "typed-jsonl"
@@ -50,6 +62,7 @@ class sqlalchemy(Destination[SqlalchemyClientConfiguration, "SqlalchemyJobClient
         caps.supports_multiple_statements = False
         caps.type_mapper = SqlalchemyTypeMapper
         caps.supported_replace_strategies = ["truncate-and-insert", "insert-from-staging"]
+        caps.supported_merge_strategies = ["delete-insert", "scd2"]
 
         return caps
 
@@ -67,6 +80,8 @@ class sqlalchemy(Destination[SqlalchemyClientConfiguration, "SqlalchemyJobClient
         caps.max_identifier_length = dialect.max_identifier_length
         caps.max_column_identifier_length = dialect.max_identifier_length
         caps.supports_native_boolean = dialect.supports_native_boolean
+        if dialect.name == "mysql":
+            caps.format_datetime_literal = _format_mysql_datetime_literal
 
         return caps
 

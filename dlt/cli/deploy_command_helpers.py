@@ -15,8 +15,11 @@ import dlt
 
 from dlt.common import git
 from dlt.common.configuration.exceptions import LookupTrace, ConfigFieldMissingException
-from dlt.common.configuration.providers import ConfigTomlProvider, EnvironProvider
-from dlt.common.configuration.providers.toml import BaseDocProvider, StringTomlProvider
+from dlt.common.configuration.providers import (
+    ConfigTomlProvider,
+    EnvironProvider,
+    StringTomlProvider,
+)
 from dlt.common.git import get_origin, get_repo, Repo
 from dlt.common.configuration.specs.run_configuration import get_default_pipeline_name
 from dlt.common.typing import StrAny
@@ -242,7 +245,7 @@ class BaseDeployment(abc.ABC):
         )
 
     def _lookup_secret_value(self, trace: LookupTrace) -> Any:
-        return dlt.secrets[BaseDocProvider.get_key_name(trace.key, *trace.sections)]
+        return dlt.secrets[StringTomlProvider.get_key_name(trace.key, *trace.sections)]
 
     def _echo_envs(self) -> None:
         for v in self.envs:
