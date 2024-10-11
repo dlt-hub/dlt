@@ -1,5 +1,5 @@
 from copy import deepcopy
-from typing import Generator, Any, Mapping
+from typing import Generator, Any, Dict, List
 
 import pytest
 import sqlfluff
@@ -20,6 +20,7 @@ from dlt.destinations.impl.postgres.postgres_adapter import (
     SRID_HINT,
     GEOMETRY_HINT,
 )
+from dlt.extract import DltResource
 from tests.cases import (
     TABLE_UPDATE,
     TABLE_UPDATE_ALL_INT_PRECISIONS,
@@ -236,10 +237,24 @@ def test_geometry_types(
     destination_config: DestinationTestConfiguration,
 ) -> None:
     @dlt.resource
-    def geodata() -> Generator[Mapping[str, object], Any, None]:
-        yield from generate_sample_geometry_records(srid=10000)
+    def geodata_default() -> Generator[List[Dict[str, Any]], Any, Any]:
+        yield generate_sample_geometry_records()
 
-    postgres_adapter(geodata, geometry=["wkt", "wkb_binary", "wkb_hex_str"])
+    @dlt.resource
+    def geodata_default_3857() -> Generator[List[Dict[str, Any]], Any, Any]:
+        yield generate_sample_geometry_records()
+
+    @dlt.resource
+    def geodata_default_2163() -> Generator[List[Dict[str, Any]], Any, Any]:
+        yield generate_sample_geometry_records()
+
+    postgres_adapter(geodata_default, geometry=["geom"])
+    postgres_adapter(geodata_default_3857, geometry=["geom"], srid=3857)
+    postgres_adapter(geodata_default_2163, geometry=["geom"], srid=2163)
+
+    @dlt.source
+    def geodata() -> List[DltResource]:
+        return [geodata_default, geodata_default_3857, geodata_default_2163]
 
     pipeline = destination_config.setup_pipeline("test_geometry_types", dev_mode=True)
     info = pipeline.run(
@@ -256,9 +271,9 @@ def test_geometry_types(
             """) as cur:
             records = cur.fetchall()
             assert records
-            assert {record[0] for record in records} == {"wkt", "wkb_binary", "wkb_hex_str"}
+            assert {record[0] for record in records} == {"geom"}
 
-    # TODO: assert is serialized correctly back to client
+    # TODO: assert round trip deserialization to client is correct
 
 
 @pytest.mark.parametrize(
