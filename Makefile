@@ -73,7 +73,6 @@ lint-and-test-examples:
 	poetry run mypy --config-file mypy.ini docs/examples
 	cd docs/examples && poetry run pytest
 
-
 test-examples:
 	cd docs/examples && poetry run pytest
 
