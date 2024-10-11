@@ -216,6 +216,9 @@ def _run_dataset_checks(
     dataset = dlt.dataset(
         destination=destination_config.destination_type, dataset_name=pipeline.dataset_name
     )
+    # verfiy that sql client and schema are lazy loaded
+    assert not dataset._schema
+    assert not dataset._sql_client
     table_relationship = dataset.items
     table = table_relationship.fetchall()
     assert len(table) == total_records
@@ -252,6 +255,25 @@ def _run_dataset_checks(
     )
     assert dataset.schema.name == "unknown_dataset"  # type: ignore
     assert "items" not in dataset.schema.tables  # type: ignore
+
+    # create a newer schema with different name and see wether this is loaded
+    from dlt.common.schema import Schema
+    from dlt.common.schema import utils
+
+    other_schema = Schema("some_other_schema")
+    other_schema.tables["other_table"] = utils.new_table("other_table")
+
+    pipeline._inject_schema(other_schema)
+    pipeline.default_schema_name = other_schema.name
+    with pipeline.destination_client() as client:
+        client.update_stored_schema()
+
+    dataset = dlt.dataset(
+        destination=destination_config.destination_type,
+        dataset_name=pipeline.dataset_name,
+    )
+    assert dataset.schema.name == "some_other_schema"  # type: ignore
+    assert "other_table" in dataset.schema.tables  # type: ignore
 
 
 @pytest.mark.essential
