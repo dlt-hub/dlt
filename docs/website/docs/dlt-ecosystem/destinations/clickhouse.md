@@ -102,6 +102,7 @@ You can set the following configuration options in the `.dlt/secrets.toml` file:
 dataset_table_separator = "___"                         # The default separator for dataset table names from the dataset.
 table_engine_type = "merge_tree"                        # The default table engine to use.
 dataset_sentinel_table_name = "dlt_sentinel_table"      # The default name for sentinel tables.
+staging_use_https = true                                # Wether to connecto to the staging bucket via https (defaults to True)
 ```
 
 ## Write disposition
