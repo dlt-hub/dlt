@@ -31,6 +31,7 @@ from dlt.common.destination.reference import (
     StateInfo,
     WithStagingDataset,
     DestinationClientConfiguration,
+    WithStateSync,
 )
 from dlt.common.time import ensure_pendulum_datetime
 
@@ -949,6 +950,73 @@ def test_many_schemas_single_dataset(
                 or "NOT NULL" in str(py_ex.value)
                 or "Adding columns with constraints not yet supported" in str(py_ex.value)
             )
+
+
+# NOTE: this could be folded into the above tests, but these only run on sql_client destinations for now
+# but we want to test filesystem and vector db here too
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True, default_vector_configs=True, all_buckets_filesystem_configs=True
+    ),
+    ids=lambda x: x.name,
+)
+def test_schema_retrieval(destination_config: DestinationTestConfiguration) -> None:
+    p = destination_config.setup_pipeline("schema_test", dev_mode=True)
+    from dlt.common.schema import utils
+
+    # we create 2 versions of 2 schemas
+    s1_v1 = Schema("schema_1")
+    s1_v2 = s1_v1.clone()
+    s1_v2.tables["items"] = utils.new_table("items")
+    s2_v1 = Schema("schema_2")
+    s2_v2 = s2_v1.clone()
+    s2_v2.tables["other_items"] = utils.new_table("other_items")
+
+    # sanity check
+    assert s1_v1.version_hash != s1_v2.version_hash
+    assert s2_v1.version_hash != s2_v2.version_hash
+
+    client: WithStateSync
+
+    def add_schema_to_pipeline(s: Schema) -> None:
+        p._inject_schema(s)
+        p.default_schema_name = s.name
+        with p.destination_client() as client:
+            client.initialize_storage()
+            client.update_stored_schema()
+
+    # check what happens if there is only one
+    add_schema_to_pipeline(s1_v1)
+    p.default_schema_name = s1_v1.name
+    with p.destination_client() as client:  # type: ignore[assignment]
+        assert client.get_stored_schema().version_hash == s1_v1.version_hash
+        assert client.get_stored_schema(any_schema_name=True).version_hash == s1_v1.version_hash
+
+    # now we add a different schema
+    # but keep default schema name at v1
+    add_schema_to_pipeline(s2_v1)
+    p.default_schema_name = s1_v1.name
+    with p.destination_client() as client:  # type: ignore[assignment]
+        assert client.get_stored_schema().version_hash == s1_v1.version_hash
+        # here v2 will be selected as it is newer
+        assert client.get_stored_schema(any_schema_name=True).version_hash == s2_v1.version_hash
+
+    # add two more version,
+    add_schema_to_pipeline(s1_v2)
+    add_schema_to_pipeline(s2_v2)
+    p.default_schema_name = s1_v1.name
+    with p.destination_client() as client:  # type: ignore[assignment]
+        assert client.get_stored_schema().version_hash == s1_v2.version_hash
+        # here v2 will be selected as it is newer
+        assert client.get_stored_schema(any_schema_name=True).version_hash == s2_v2.version_hash
+
+    # check same setup with other default schema name
+    p.default_schema_name = s2_v1.name
+    with p.destination_client() as client:  # type: ignore[assignment]
+        assert client.get_stored_schema().version_hash == s2_v2.version_hash
+        # here v2 will be selected as it is newer
+        assert client.get_stored_schema(any_schema_name=True).version_hash == s2_v2.version_hash
 
 
 def prepare_schema(client: SqlJobClientBase, case: str) -> Tuple[List[Dict[str, Any]], str]:
