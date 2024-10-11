@@ -50,10 +50,6 @@ from .source_configs import (
     "section", ("SOURCES__REST_API__CREDENTIALS", "SOURCES__CREDENTIALS", "CREDENTIALS")
 )
 def test_auth_shorthands(auth_type: AuthType, section: str) -> None:
-    # TODO: remove when changes in rest_client/auth.py are released
-    if auth_type == "oauth2_client_credentials":
-        pytest.skip("Waiting for release of changes in rest_client/auth.py")
-
     # mock all required envs
     with custom_environ(
         {
@@ -61,10 +57,9 @@ def test_auth_shorthands(auth_type: AuthType, section: str) -> None:
             f"{section}__API_KEY": "api_key",
             f"{section}__USERNAME": "username",
             f"{section}__PASSWORD": "password",
-            # TODO: uncomment when changes in rest_client/auth.py are released
-            # f"{section}__ACCESS_TOKEN_URL": "https://example.com/oauth/token",
-            # f"{section}__CLIENT_ID": "a_client_id",
-            # f"{section}__CLIENT_SECRET": "a_client_secret",
+            f"{section}__ACCESS_TOKEN_URL": "https://example.com/oauth/token",
+            f"{section}__CLIENT_ID": "a_client_id",
+            f"{section}__CLIENT_SECRET": "a_client_secret",
         }
     ):
         # shorthands need to instantiate from config
@@ -85,12 +80,11 @@ def test_auth_shorthands(auth_type: AuthType, section: str) -> None:
             if isinstance(auth, HttpBasicAuth):
                 assert auth.username == "username"
                 assert auth.password == "password"
-            # TODO: uncomment when changes in rest_client/auth.py are released
-            # if isinstance(auth, OAuth2ClientCredentials):
-            #     assert auth.access_token_url == "https://example.com/oauth/token"
-            #     assert auth.client_id == "a_client_id"
-            #     assert auth.client_secret == "a_client_secret"
-            #     assert auth.default_token_expiration == 3600
+            if isinstance(auth, OAuth2ClientCredentials):
+                assert auth.access_token_url == "https://example.com/oauth/token"
+                assert auth.client_id == "a_client_id"
+                assert auth.client_secret == "a_client_secret"
+                assert auth.default_token_expiration == 3600
 
 
 @pytest.mark.parametrize("auth_type_config", AUTH_TYPE_CONFIGS)
@@ -104,6 +98,8 @@ def test_auth_type_configs(auth_type_config: AuthTypeConfig, section: str) -> No
             f"{section}__API_KEY": "api_key",
             f"{section}__NAME": "session-cookie",
             f"{section}__PASSWORD": "password",
+            f"{section}__CLIENT_SECRET": "a_client_secret",
+            f"{section}__CLIENT_ID": "a_client_id",
         }
     ):
         # shorthands need to instantiate from config
@@ -127,9 +123,10 @@ def test_auth_type_configs(auth_type_config: AuthTypeConfig, section: str) -> No
                 assert auth.password == "password"
             if isinstance(auth, OAuth2ClientCredentials):
                 assert auth.access_token_url == "https://example.com/oauth/token"
+                assert auth.default_token_expiration == 60
+                # injected
                 assert auth.client_id == "a_client_id"
                 assert auth.client_secret == "a_client_secret"
-                assert auth.default_token_expiration == 60
 
 
 @pytest.mark.parametrize(
@@ -175,10 +172,16 @@ def test_error_message_invalid_auth_type() -> None:
 
 
 class AuthConfigTest(NamedTuple):
-    secret_keys: List[Literal["token", "api_key", "password", "username"]]
+    secret_keys: List[
+        Literal[
+            "token", "api_key", "password", "username", "client_id", "client_secret", "access_token"
+        ]
+    ]
     config: Union[Dict[str, Any], AuthConfigBase]
     masked_secrets: Optional[List[str]] = ["s*****t"]
 
+
+SENSITIVE_SECRET = cast(TSecretStrValue, "sensitive-secret")
 
 AUTH_CONFIGS = [
     AuthConfigTest(
@@ -224,15 +227,15 @@ AUTH_CONFIGS = [
     ),
     AuthConfigTest(
         secret_keys=["token"],
-        config=BearerTokenAuth(token=cast(TSecretStrValue, "sensitive-secret")),
+        config=BearerTokenAuth(token=SENSITIVE_SECRET),
     ),
     AuthConfigTest(
         secret_keys=["api_key"],
-        config=APIKeyAuth(api_key=cast(TSecretStrValue, "sensitive-secret")),
+        config=APIKeyAuth(api_key=SENSITIVE_SECRET),
     ),
     AuthConfigTest(
         secret_keys=["username", "password"],
-        config=HttpBasicAuth("sensitive-secret", cast(TSecretStrValue, "sensitive-secret")),
+        config=HttpBasicAuth("sensitive-secret", SENSITIVE_SECRET),
         masked_secrets=["s*****t", "s*****t"],
     ),
     AuthConfigTest(
@@ -242,8 +245,17 @@ AUTH_CONFIGS = [
     ),
     AuthConfigTest(
         secret_keys=["username", "password"],
-        config=HttpBasicAuth("", cast(TSecretStrValue, "sensitive-secret")),
+        config=HttpBasicAuth("", SENSITIVE_SECRET),
         masked_secrets=["*****", "s*****t"],
+    ),
+    AuthConfigTest(
+        secret_keys=["client_id", "client_secret", "access_token"],
+        config=OAuth2ClientCredentials(
+            access_token=SENSITIVE_SECRET,
+            client_id=SENSITIVE_SECRET,
+            client_secret=SENSITIVE_SECRET,
+        ),
+        masked_secrets=["s*****t", "s*****t", "s*****t"],
     ),
 ]
 
@@ -262,8 +274,8 @@ def test_secret_masking_oauth() -> None:
         client_secret=cast(TSecretStrValue, "sensitive-secret"),
     )
 
-    obj = _mask_secrets(config)
-    assert "sensitive-secret" not in str(obj)
+    masked = _mask_secrets(config)
+    assert "sensitive-secret" not in str(masked)
 
     # TODO
     # assert masked.access_token == "None"

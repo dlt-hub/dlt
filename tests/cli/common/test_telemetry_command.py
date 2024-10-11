@@ -140,14 +140,17 @@ def test_command_instrumentation() -> None:
 
 
 def test_instrumentation_wrappers() -> None:
-    from dlt.cli._dlt import (
-        init_command_wrapper,
-        list_sources_command_wrapper,
-        DEFAULT_VERIFIED_SOURCES_REPO,
-        pipeline_command_wrapper,
-        deploy_command_wrapper,
-        COMMAND_DEPLOY_REPO_LOCATION,
+    from dlt.cli.deploy_command import (
         DeploymentMethods,
+        COMMAND_DEPLOY_REPO_LOCATION,
+    )
+    from dlt.cli.init_command import (
+        DEFAULT_VERIFIED_SOURCES_REPO,
+    )
+    from dlt.cli.command_wrappers import (
+        init_command_wrapper,
+        deploy_command_wrapper,
+        list_sources_command_wrapper,
     )
 
     with patch("dlt.common.runtime.anon_tracker.before_send", _mock_before_send):
