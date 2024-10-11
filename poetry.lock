@@ -8714,7 +8714,7 @@ typing-extensions = "*"
 name = "sqlglot"
 version = "25.24.5"
 description = "An easily customizable SQL parser and transpiler"
-optional = true
+optional = false
 python-versions = ">=3.7"
 files = [
     {file = "sqlglot-25.24.5-py3-none-any.whl", hash = "sha256:f8a8870d1f5cdd2e2dc5c39a5030a0c7b0a91264fb8972caead3dac8e8438873"},
@@ -9861,4 +9861,4 @@ weaviate = ["weaviate-client"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.8.1,<3.13"
-content-hash = "11385c8ff3ce09de74da03658d4e81cdc3bd991556d715d69dbc1e17b54a1d91"
+content-hash = "97666ad4613f07d95c5388bae41befe6cc10c88d02ee8f1cee27b161e13729f1"

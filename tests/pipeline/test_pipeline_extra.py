@@ -41,7 +41,12 @@ from dlt.pipeline import TCollectorArg
 from tests.utils import TEST_STORAGE_ROOT
 from tests.extract.utils import expect_extracted_file
 from tests.load.utils import DestinationTestConfiguration, destinations_configs
-from tests.pipeline.utils import assert_load_info, load_data_table_counts, load_json_case, many_delayed
+from tests.pipeline.utils import (
+    assert_load_info,
+    load_data_table_counts,
+    load_json_case,
+    many_delayed,
+)
 
 DUMMY_COMPLETE = dummy(completed_prob=1)  # factory set up to complete jobs
 
@@ -505,10 +510,11 @@ def test_empty_parquet(test_storage: FileStorage) -> None:
 def test_parquet_with_flattened_columns() -> None:
     # normalize json, write parquet file to filesystem
     pipeline = dlt.pipeline(
-        "test_parquet_with_flattened_columns",
-        destination=dlt.destinations.filesystem("_storage")
+        "test_parquet_with_flattened_columns", destination=dlt.destinations.filesystem("_storage")
     )
-    info = pipeline.run([load_json_case("github_events")], table_name="events", loader_file_format="parquet")
+    info = pipeline.run(
+        [load_json_case("github_events")], table_name="events", loader_file_format="parquet"
+    )
     assert_load_info(info)
 
     # make sure flattened columns exist
