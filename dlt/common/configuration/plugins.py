@@ -17,12 +17,20 @@ class PluginContext(ContainerInjectableContext):
         super().__init__()
         self.manager = pluggy.PluginManager("dlt")
 
-        # we need to solve circular deps somehow
+        # TODO: we need to solve circular deps somehow
+
+        # run_context
         from dlt.common.runtime import run_context
 
-        # register
         self.manager.add_hookspecs(run_context)
         self.manager.register(run_context)
+
+        # cli
+        from dlt.cli import plugins
+
+        self.manager.add_hookspecs(plugins)
+        self.manager.register(plugins)
+
         load_setuptools_entrypoints(self.manager)
 
 

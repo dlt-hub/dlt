@@ -124,7 +124,6 @@ class HttpBasicAuth(AuthConfigBase):
 class OAuth2AuthBase(AuthConfigBase):
     """Base class for oauth2 authenticators. requires access_token"""
 
-    # TODO: Separate class for flows (implicit, authorization_code, client_credentials, etc)
     access_token: TSecretStrValue = None
 
     def parse_native_representation(self, value: Any) -> None:
@@ -164,8 +163,6 @@ class OAuth2ClientCredentials(OAuth2AuthBase):
     def __post_init__(self) -> None:
         if self.access_token_request_data is None:
             self.access_token_request_data = {}
-        else:
-            self.access_token_request_data = self.access_token_request_data
         self.token_expiry: pendulum.DateTime = pendulum.now()
         # use default system session unless specified otherwise
         if self.session is None:
