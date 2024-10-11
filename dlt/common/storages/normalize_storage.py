@@ -3,7 +3,7 @@ import glob
 import semver
 from typing import ClassVar, Sequence
 
-from semver import VersionInfo
+from semver import Version
 
 from dlt.common.configuration import with_config, known_sections
 from dlt.common.configuration.accessors import config
@@ -57,7 +57,7 @@ class NormalizeStorage(VersionedStorage):
                 ]
             )
 
-    def migrate_storage(self, from_version: VersionInfo, to_version: VersionInfo) -> None:
+    def migrate_storage(self, from_version: Version, to_version: Version) -> None:
         if from_version == "1.0.0" and from_version < to_version:
             # get files in storage
             if len(self.list_files_to_normalize_sorted()) > 0:
@@ -69,5 +69,5 @@ class NormalizeStorage(VersionedStorage):
                     " Storage will not migrate automatically duo to possible data loss. Delete the"
                     " files or normalize it with dlt 0.3.x",
                 )
-            from_version = semver.VersionInfo.parse("1.0.1")
+            from_version = semver.Version.parse("1.0.1")
             self._save_version(from_version)

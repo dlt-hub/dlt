@@ -31,6 +31,7 @@ from dlt.common.pipeline import (
     pipeline_state,
 )
 from dlt.common.utils import graph_find_scc_nodes, flatten_list_or_items, graph_edges_to_nodes
+from dlt.common.exceptions import MissingDependencyException
 
 from dlt.extract.items import TDecompositionStrategy
 from dlt.extract.pipe_iterator import ManagedPipeIterator
@@ -601,6 +602,8 @@ class SourceReference:
                     return factory  # type: ignore[no-any-return]
                 else:
                     raise ValueError(f"{attr_name} in {module_path} is of type {type(factory)}")
+            except MissingDependencyException:
+                raise
             except ModuleNotFoundError:
                 # raise regular exception later
                 pass

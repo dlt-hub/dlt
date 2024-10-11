@@ -23,3 +23,6 @@ DLT_USE_JSON = "DLT_USE_JSON"
 
 DLT_JSON_TYPED_PUA_START = "DLT_JSON_TYPED_PUA_START"
 """Start of the unicode block within the PUA used to encode types in typed json"""
+
+DLT_PIP_TOOL = "DLT_PIP_TOOL"
+"""Pip tool used to install deps in Venv"""

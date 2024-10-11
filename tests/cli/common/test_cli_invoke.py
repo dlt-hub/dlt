@@ -86,9 +86,9 @@ def test_invoke_pipeline(script_runner: ScriptRunner) -> None:
         assert "LoadPackageNotFound" in result.stderr
     finally:
         # reset debug flag so other tests may pass
-        from dlt.cli import _dlt
+        from dlt.cli import debug
 
-        _dlt.DEBUG_FLAG = False
+        debug.disable_debug()
 
 
 def test_invoke_init_chess_and_template(script_runner: ScriptRunner) -> None:
