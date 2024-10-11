@@ -854,7 +854,7 @@ Here we call **get_resource(endpoint)** and that creates an un-evaluated generat
 
 ### Using Airflow schedule for backfill and incremental loading
 
-When [running an Airflow task](../walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer.md#2-modify-dag-file), you can opt-in your resource to get the `initial_value`/`start_value` and `end_value` from the Airflow schedule associated with your DAG. Let's assume that the **Zendesk tickets** resource contains a year of data with thousands of tickets. We want to backfill the last year of data week by week and then continue with incremental loading daily.
+When [running an Airflow task](../walkthroughs/deploy_a_pipeline/deploy-with-airflow-composer.md#2-modify-dag-file), you can opt-in your resource to get the `initial_value`/`start_value` and `end_value` from the Airflow schedule associated with your DAG. Let's assume that the **Zendesk tickets** resource contains a year of data with thousands of tickets. We want to backfill the last year of data week by week and then continue with incremental loading daily.
 
 ```py
 @dlt.resource(primary_key="id")
