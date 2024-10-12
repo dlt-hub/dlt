@@ -3,14 +3,15 @@ import re
 import threading
 from typing import ClassVar, Dict, Iterator, Optional, Tuple, Type, TypeVar, Any
 
-from dlt.common.configuration.specs.base_configuration import ContainerInjectableContext
+from dlt.common.configuration.specs.base_configuration import (
+    ContainerInjectableContext,
+    TInjectableContext,
+)
 from dlt.common.configuration.exceptions import (
     ContainerInjectableContextMangled,
     ContextDefaultCannotBeCreated,
 )
 from dlt.common.typing import is_subclass
-
-TConfiguration = TypeVar("TConfiguration", bound=ContainerInjectableContext)
 
 
 class Container:
@@ -55,7 +56,7 @@ class Container:
     def __init__(self) -> None:
         pass
 
-    def __getitem__(self, spec: Type[TConfiguration]) -> TConfiguration:
+    def __getitem__(self, spec: Type[TInjectableContext]) -> TInjectableContext:
         # return existing config object or create it from spec
         if not is_subclass(spec, ContainerInjectableContext):
             raise KeyError(f"{spec.__name__} is not a context")
@@ -65,28 +66,27 @@ class Container:
             if spec.can_create_default:
                 item = spec()
                 self._thread_setitem(context, spec, item)
-                item.add_extras()
             else:
                 raise ContextDefaultCannotBeCreated(spec)
 
         return item  # type: ignore[return-value]
 
-    def __setitem__(self, spec: Type[TConfiguration], value: TConfiguration) -> None:
+    def __setitem__(self, spec: Type[TInjectableContext], value: TInjectableContext) -> None:
         # value passed to container must be final
         value.resolve()
         # put it into context
         self._thread_setitem(self._thread_context(spec), spec, value)
 
-    def __delitem__(self, spec: Type[TConfiguration]) -> None:
+    def __delitem__(self, spec: Type[TInjectableContext]) -> None:
         context = self._thread_context(spec)
         self._thread_delitem(context, spec)
 
-    def __contains__(self, spec: Type[TConfiguration]) -> bool:
+    def __contains__(self, spec: Type[TInjectableContext]) -> bool:
         context = self._thread_context(spec)
         return spec in context
 
     def _thread_context(
-        self, spec: Type[TConfiguration]
+        self, spec: Type[TInjectableContext]
     ) -> Dict[Type[ContainerInjectableContext], ContainerInjectableContext]:
         if spec.global_affinity:
             return self.main_context
@@ -107,7 +107,7 @@ class Container:
                 return context
 
     def _thread_getitem(
-        self, spec: Type[TConfiguration]
+        self, spec: Type[TInjectableContext]
     ) -> Tuple[
         Dict[Type[ContainerInjectableContext], ContainerInjectableContext],
         ContainerInjectableContext,
@@ -120,21 +120,33 @@ class Container:
         self,
         context: Dict[Type[ContainerInjectableContext], ContainerInjectableContext],
         spec: Type[ContainerInjectableContext],
-        value: TConfiguration,
+        value: TInjectableContext,
     ) -> None:
+        old_ctx = context.get(spec)
+        if old_ctx:
+            old_ctx.before_remove()
+            old_ctx.in_container = False
         context[spec] = value
+        value.in_container = True
+        value.after_add()
+        if not value.extras_added:
+            value.add_extras()
+            value.extras_added = True
 
     def _thread_delitem(
         self,
         context: Dict[Type[ContainerInjectableContext], ContainerInjectableContext],
         spec: Type[ContainerInjectableContext],
     ) -> None:
+        old_ctx = context[spec]
+        old_ctx.before_remove()
         del context[spec]
+        old_ctx.in_container = False
 
     @contextmanager
     def injectable_context(
-        self, config: TConfiguration, lock_context: bool = False
-    ) -> Iterator[TConfiguration]:
+        self, config: TInjectableContext, lock_context: bool = False
+    ) -> Iterator[TInjectableContext]:
         """A context manager that will insert `config` into the container and restore the previous value when it gets out of scope."""
 
         config.resolve()
@@ -171,7 +183,7 @@ class Container:
                     # value was modified in the meantime and not restored
                     raise ContainerInjectableContextMangled(spec, context[spec], config)
 
-    def get(self, spec: Type[TConfiguration]) -> Optional[TConfiguration]:
+    def get(self, spec: Type[TInjectableContext]) -> Optional[TInjectableContext]:
         try:
             return self[spec]
         except KeyError:
