@@ -134,9 +134,9 @@ def test_deploy_command(
             test_storage.delete(".dlt/secrets.toml")
             test_storage.atomic_rename(".dlt/secrets.toml.ci", ".dlt/secrets.toml")
 
-            # reset toml providers to (1) CWD (2) non existing dir so API_KEY is not found
+            # reset toml providers to (1) where secrets exist (2) non existing dir so API_KEY is not found
             for settings_dir, api_key in [
-                (None, "api_key_9x3ehash"),
+                (os.path.join(test_storage.storage_path, ".dlt"), "api_key_9x3ehash"),
                 (".", "please set me up!"),
             ]:
                 with reset_providers(settings_dir=settings_dir):

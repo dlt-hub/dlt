@@ -3,12 +3,12 @@ import tomlkit
 
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.providers.toml import ConfigTomlProvider
-from dlt.common.configuration.specs import RunConfiguration
+from dlt.common.configuration.specs import RuntimeConfiguration
 
 from dlt.cli import echo as fmt
 from dlt.cli.utils import get_telemetry_status
 from dlt.cli.config_toml_writer import WritableConfigValue, write_values
-from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
+from dlt.common.configuration.specs import PluggableRunContext
 from dlt.common.runtime.anon_tracker import get_anonymous_id
 
 DLT_TELEMETRY_DOCS_URL = "https://dlthub.com/docs/reference/telemetry"
@@ -23,23 +23,24 @@ def telemetry_status_command() -> None:
 
 
 def change_telemetry_status_command(enabled: bool) -> None:
+    from dlt.common.runtime import run_context
+
     # value to write
     telemetry_value = [
-        WritableConfigValue("dlthub_telemetry", bool, enabled, (RunConfiguration.__section__,))
+        WritableConfigValue("dlthub_telemetry", bool, enabled, (RuntimeConfiguration.__section__,))
     ]
     # write local config
     # TODO: use designated (main) config provider (for non secret values) ie. taken from run context
-    config = ConfigTomlProvider(add_global_config=False)
+    run_ctx = run_context.current()
+    config = ConfigTomlProvider(run_ctx.settings_dir)
     if not config.is_empty:
         write_values(config._config_toml, telemetry_value, overwrite_existing=True)
         config.write_toml()
 
     # write global config
-    from dlt.common.runtime import run_context
-
-    global_path = run_context.current().global_dir
+    global_path = run_ctx.global_dir
     os.makedirs(global_path, exist_ok=True)
-    config = ConfigTomlProvider(settings_dir=global_path, add_global_config=False)
+    config = ConfigTomlProvider(settings_dir=global_path)
     write_values(config._config_toml, telemetry_value, overwrite_existing=True)
     config.write_toml()
 
@@ -48,5 +49,4 @@ def change_telemetry_status_command(enabled: bool) -> None:
     else:
         fmt.echo("Telemetry switched %s" % fmt.bold("OFF"))
     # reload config providers
-    if ConfigProvidersContext in Container():
-        del Container()[ConfigProvidersContext]
+    Container()[PluggableRunContext].reload_providers()

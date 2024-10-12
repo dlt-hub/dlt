@@ -24,7 +24,7 @@ from dlt.common import logger
 from dlt.common.json import json
 from dlt.common.pendulum import pendulum
 from dlt.common.configuration import inject_section, known_sections
-from dlt.common.configuration.specs import RunConfiguration
+from dlt.common.configuration.specs import RuntimeConfiguration
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import (
     ConfigFieldMissingException,
@@ -316,7 +316,7 @@ class Pipeline(SupportsPipeline):
     """Tells if instance is currently active and available via dlt.pipeline()"""
     collector: _Collector
     config: PipelineConfiguration
-    runtime_config: RunConfiguration
+    runtime_config: RuntimeConfiguration
     refresh: Optional[TRefreshMode] = None
 
     def __init__(
@@ -333,7 +333,7 @@ class Pipeline(SupportsPipeline):
         progress: _Collector,
         must_attach_to_local_pipeline: bool,
         config: PipelineConfiguration,
-        runtime: RunConfiguration,
+        runtime: RuntimeConfiguration,
         refresh: Optional[TRefreshMode] = None,
     ) -> None:
         """Initializes the Pipeline class which implements `dlt` pipeline. Please use `pipeline` function in `dlt` module to create a new Pipeline instance."""
@@ -355,6 +355,7 @@ class Pipeline(SupportsPipeline):
         self._last_trace: PipelineTrace = None
         self._state_restored: bool = False
 
+        # modifies run_context and must go first
         initialize_runtime(self.runtime_config)
         # initialize pipeline working dir
         self._init_working_dir(pipeline_name, pipelines_dir)

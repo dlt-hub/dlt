@@ -10,6 +10,7 @@ from dlt.common.configuration import configspec, ConfigFieldMissingException, re
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.inject import with_config
 from dlt.common.configuration.exceptions import LookupTrace
+from dlt.common.configuration.specs.pluggable_run_context import PluggableRunContext
 from dlt.common.known_env import DLT_DATA_DIR, DLT_PROJECT_DIR
 from dlt.common.configuration.providers.toml import (
     SECRETS_TOML,
@@ -253,19 +254,19 @@ def test_toml_read_exception() -> None:
 
 def test_toml_global_config() -> None:
     # get current providers
-    providers = Container()[ConfigProvidersContext]
+    providers = Container()[PluggableRunContext].providers
     secrets = providers[SECRETS_TOML]
     config = providers[CONFIG_TOML]
     # in pytest should be false
-    assert secrets._add_global_config is False  # type: ignore[attr-defined]
-    assert config._add_global_config is False  # type: ignore[attr-defined]
+    assert secrets._global_dir is None  # type: ignore[attr-defined]
+    assert config._global_dir is None  # type: ignore[attr-defined]
 
     # set dlt data and settings dir
-    os.environ[DLT_DATA_DIR] = "./tests/common/cases/configuration/dlt_home"
-    os.environ[DLT_PROJECT_DIR] = "./tests/common/cases/configuration/"
+    global_dir = "./tests/common/cases/configuration/dlt_home"
+    settings_dir = "./tests/common/cases/configuration/.dlt"
     # create instance with global toml enabled
-    config = ConfigTomlProvider(add_global_config=True)
-    assert config._add_global_config is True
+    config = ConfigTomlProvider(settings_dir=settings_dir, global_dir=global_dir)
+    assert config._global_dir == os.path.join(global_dir, CONFIG_TOML)
     assert isinstance(config._config_doc, dict)
     assert len(config._config_doc) > 0
     # kept from global
@@ -281,10 +282,10 @@ def test_toml_global_config() -> None:
     v, _ = config.get_value("param1", bool, None, "api", "params")
     assert v == "a"
 
-    secrets = SecretsTomlProvider(add_global_config=True)
-    assert secrets._add_global_config is True
+    secrets = SecretsTomlProvider(settings_dir=settings_dir, global_dir=global_dir)
+    assert secrets._global_dir == os.path.join(global_dir, SECRETS_TOML)
     # check if values from project exist
-    secrets_project = SecretsTomlProvider(add_global_config=False)
+    secrets_project = SecretsTomlProvider(settings_dir=settings_dir)
     assert secrets._config_doc == secrets_project._config_doc
 
 

@@ -6,19 +6,19 @@ from typing import ClassVar, List
 from dlt.common.configuration.exceptions import DuplicateConfigProviderException
 from dlt.common.configuration.providers import (
     ConfigProvider,
-    EnvironProvider,
     ContextProvider,
-    SecretsTomlProvider,
-    ConfigTomlProvider,
-    GoogleSecretsProvider,
 )
-from dlt.common.configuration.specs.base_configuration import ContainerInjectableContext
+from dlt.common.configuration.specs.base_configuration import (
+    ContainerInjectableContext,
+    NotResolved,
+)
 from dlt.common.configuration.specs import (
     GcpServiceAccountCredentials,
     BaseConfiguration,
     configspec,
     known_sections,
 )
+from dlt.common.typing import Annotated
 
 
 @configspec
@@ -32,22 +32,20 @@ class ConfigProvidersConfiguration(BaseConfiguration):
 
 
 @configspec
-class ConfigProvidersContext(ContainerInjectableContext):
+class ConfigProvidersContext(BaseConfiguration):
     """Injectable list of providers used by the configuration `resolve` module"""
 
-    global_affinity: ClassVar[bool] = True
-
-    providers: List[ConfigProvider] = dataclasses.field(
+    providers: Annotated[List[ConfigProvider], NotResolved()] = dataclasses.field(
         default=None, init=False, repr=False, compare=False
     )
-    context_provider: ConfigProvider = dataclasses.field(
+    context_provider: Annotated[ConfigProvider, NotResolved()] = dataclasses.field(
         default=None, init=False, repr=False, compare=False
     )
 
-    def __init__(self) -> None:
+    def __init__(self, initial_providers: List[ConfigProvider]) -> None:
         super().__init__()
         # add default providers
-        self.providers = ConfigProvidersContext.initial_providers()
+        self.providers = initial_providers
         # ContextProvider will provide contexts when embedded in configurations
         self.context_provider = ContextProvider()
 
@@ -81,21 +79,9 @@ class ConfigProvidersContext(ContainerInjectableContext):
             raise DuplicateConfigProviderException(provider.name)
         self.providers.append(provider)
 
-    @staticmethod
-    def initial_providers() -> List[ConfigProvider]:
-        return _initial_providers()
-
-
-def _initial_providers() -> List[ConfigProvider]:
-    providers = [
-        EnvironProvider(),
-        SecretsTomlProvider(add_global_config=True),
-        ConfigTomlProvider(add_global_config=True),
-    ]
-    return providers
-
 
 def _extra_providers() -> List[ConfigProvider]:
+    """Providers that require initial providers to be instantiated as the are enabled via config"""
     from dlt.common.configuration.resolve import resolve_configuration
 
     providers_config = resolve_configuration(ConfigProvidersConfiguration())
@@ -113,6 +99,7 @@ def _google_secrets_provider(
     only_secrets: bool = True, only_toml_fragments: bool = True
 ) -> ConfigProvider:
     from dlt.common.configuration.resolve import resolve_configuration
+    from dlt.common.configuration.providers.google_secrets import GoogleSecretsProvider
 
     c = resolve_configuration(
         GcpServiceAccountCredentials(), sections=(known_sections.PROVIDERS, "google_secrets")

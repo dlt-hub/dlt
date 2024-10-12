@@ -32,7 +32,7 @@ from tenacity.retry import retry_base
 from dlt.sources.helpers.requests.session import Session, DEFAULT_TIMEOUT
 from dlt.sources.helpers.requests.typing import TRequestTimeout
 from dlt.common.typing import TimedeltaSeconds
-from dlt.common.configuration.specs import RunConfiguration
+from dlt.common.configuration.specs import RuntimeConfiguration
 from dlt.common.configuration import with_config
 
 
@@ -170,7 +170,7 @@ class Client:
 
     _session_attrs: Dict[str, Any]
 
-    @with_config(spec=RunConfiguration)
+    @with_config(spec=RuntimeConfiguration)
     def __init__(
         self,
         request_timeout: Optional[
@@ -180,10 +180,10 @@ class Client:
         raise_for_status: bool = True,
         status_codes: Sequence[int] = DEFAULT_RETRY_STATUS,
         exceptions: Sequence[Type[Exception]] = DEFAULT_RETRY_EXCEPTIONS,
-        request_max_attempts: int = RunConfiguration.request_max_attempts,
+        request_max_attempts: int = RuntimeConfiguration.request_max_attempts,
         retry_condition: Union[RetryPredicate, Sequence[RetryPredicate], None] = None,
-        request_backoff_factor: float = RunConfiguration.request_backoff_factor,
-        request_max_retry_delay: TimedeltaSeconds = RunConfiguration.request_max_retry_delay,
+        request_backoff_factor: float = RuntimeConfiguration.request_backoff_factor,
+        request_max_retry_delay: TimedeltaSeconds = RuntimeConfiguration.request_max_retry_delay,
         respect_retry_after_header: bool = True,
         session_attrs: Optional[Dict[str, Any]] = None,
     ) -> None:
@@ -224,7 +224,7 @@ class Client:
             0  # Incrementing marker to ensure per-thread sessions are recreated on config changes
         )
 
-    def update_from_config(self, config: RunConfiguration) -> None:
+    def update_from_config(self, config: RuntimeConfiguration) -> None:
         """Update session/retry settings from RunConfiguration"""
         self._session_kwargs["timeout"] = config.request_timeout
         self._retry_kwargs["backoff_factor"] = config.request_backoff_factor

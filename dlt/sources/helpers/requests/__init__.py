@@ -15,7 +15,7 @@ from requests import (
 from requests.exceptions import ChunkedEncodingError
 from dlt.sources.helpers.requests.retry import Client
 from dlt.sources.helpers.requests.session import Session
-from dlt.common.configuration.specs import RunConfiguration
+from dlt.common.configuration.specs import RuntimeConfiguration
 
 client = Client()
 
@@ -31,7 +31,7 @@ get, post, put, patch, delete, options, head, request = (
 )
 
 
-def init(config: RunConfiguration) -> None:
+def init(config: RuntimeConfiguration) -> None:
     """Initialize the default requests client from config"""
     client.update_from_config(config)
 

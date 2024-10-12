@@ -25,7 +25,7 @@ from dlt.common.storages.file_storage import FileStorage
 from dlt.sources import SourceReference
 
 import dlt.reflection.names as n
-from dlt.reflection.script_inspector import inspect_pipeline_script
+from dlt.reflection.script_inspector import import_pipeline_script
 
 from dlt.cli import echo as fmt, pipeline_files as files_ops, source_detection
 from dlt.cli import utils
@@ -452,7 +452,7 @@ def init_command(
     )
 
     # inspect the script
-    inspect_pipeline_script(
+    import_pipeline_script(
         source_configuration.storage.storage_path,
         source_configuration.storage.to_relative_path(source_configuration.src_pipeline_script),
         ignore_missing_imports=True,

@@ -53,7 +53,7 @@ from dlt.common.configuration import (
 )
 from dlt.common.configuration.specs import (
     BaseConfiguration,
-    RunConfiguration,
+    RuntimeConfiguration,
     ConnectionStringCredentials,
 )
 from dlt.common.configuration.providers import environ as environ_provider, toml
@@ -121,7 +121,7 @@ class VeryWrongConfiguration(WrongConfiguration):
 
 
 @configspec
-class ConfigurationWithOptionalTypes(RunConfiguration):
+class ConfigurationWithOptionalTypes(RuntimeConfiguration):
     pipeline_name: str = "Some Name"
 
     str_val: Optional[str] = None
@@ -135,12 +135,12 @@ class ProdConfigurationWithOptionalTypes(ConfigurationWithOptionalTypes):
 
 
 @configspec
-class MockProdConfiguration(RunConfiguration):
+class MockProdConfiguration(RuntimeConfiguration):
     pipeline_name: str = "comp"
 
 
 @configspec
-class FieldWithNoDefaultConfiguration(RunConfiguration):
+class FieldWithNoDefaultConfiguration(RuntimeConfiguration):
     no_default: str = None
 
 
@@ -605,13 +605,13 @@ def test_provider_values_over_embedded_default(environment: Any) -> None:
 
 
 def test_run_configuration_gen_name(environment: Any) -> None:
-    C = resolve.resolve_configuration(RunConfiguration())
+    C = resolve.resolve_configuration(RuntimeConfiguration())
     assert C.pipeline_name.startswith("dlt_")
 
 
 def test_configuration_is_mutable_mapping(environment: Any, env_provider: ConfigProvider) -> None:
     @configspec
-    class _SecretCredentials(RunConfiguration):
+    class _SecretCredentials(RuntimeConfiguration):
         pipeline_name: Optional[str] = "secret"
         secret_value: TSecretValue = None
         config_files_storage_path: str = "storage"
@@ -619,6 +619,8 @@ def test_configuration_is_mutable_mapping(environment: Any, env_provider: Config
     # configurations provide full MutableMapping support
     # here order of items in dict matters
     expected_dict = {
+        "name": None,
+        "data_dir": None,
         "pipeline_name": "secret",
         "sentry_dsn": None,
         "slack_incoming_hook": None,
@@ -709,7 +711,7 @@ def test_multi_derivation_defaults(environment: Any) -> None:
     assert C.pipeline_name == MultiConfiguration.pipeline_name == "comp"
     # but keys are ordered in MRO so password from ConfigurationWithOptionalTypes goes first
     keys = list(C.keys())
-    assert keys[0] == "pipeline_name"
+    assert keys[0] == "name"
     # SectionedConfiguration last field goes last
     assert keys[-1] == "password"
 
@@ -989,8 +991,8 @@ def test_coercion_rules() -> None:
 def test_is_valid_hint() -> None:
     assert is_valid_hint(Any) is True  # type: ignore[arg-type]
     assert is_valid_hint(Optional[Any]) is True  # type: ignore[arg-type]
-    assert is_valid_hint(RunConfiguration) is True
-    assert is_valid_hint(Optional[RunConfiguration]) is True  # type: ignore[arg-type]
+    assert is_valid_hint(RuntimeConfiguration) is True
+    assert is_valid_hint(Optional[RuntimeConfiguration]) is True  # type: ignore[arg-type]
     assert is_valid_hint(TSecretValue) is True
     assert is_valid_hint(Optional[TSecretValue]) is True  # type: ignore[arg-type]
     # in case of generics, origin will be used and args are not checked

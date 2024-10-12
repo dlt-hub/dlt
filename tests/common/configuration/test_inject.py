@@ -14,7 +14,6 @@ from dlt.common.configuration.inject import (
     with_config,
     create_resolved_partial,
 )
-from dlt.common.configuration.container import Container
 from dlt.common.configuration.providers import EnvironProvider
 from dlt.common.configuration.providers.toml import SECRETS_TOML
 from dlt.common.configuration.resolve import inject_section
@@ -41,7 +40,7 @@ from dlt.common.typing import (
     is_subclass,
 )
 
-from tests.utils import preserve_environ
+from tests.utils import inject_providers, preserve_environ
 from tests.common.configuration.utils import environment, toml_providers
 
 
@@ -343,7 +342,7 @@ def test_partial() -> None:
 
     # no value in scope will fail
     with pytest.raises(ConfigFieldMissingException):
-        test_sections()
+        print(test_sections())
 
     # same for partial
     with pytest.raises(ConfigFieldMissingException):
@@ -419,16 +418,12 @@ def test_lock_context(lock, same_pool) -> None:
             time.sleep(0.5)
             return super().get_value(key, hint, pipeline_name, *sections)
 
-    ctx = ConfigProvidersContext()
-    ctx.providers.clear()
-    ctx.add_provider(SlowProvider())
-
     @with_config(sections=("test",), lock_context_on_injection=lock)
     def test_sections(value=dlt.config.value):
         return value
 
     os.environ["TEST__VALUE"] = "test_val"
-    with Container().injectable_context(ctx):
+    with inject_providers([SlowProvider()]):
         start = time.time()
 
         if same_pool:

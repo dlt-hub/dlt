@@ -1,4 +1,3 @@
-from .run_configuration import RunConfiguration
 from .base_configuration import (
     BaseConfiguration,
     CredentialsConfiguration,
@@ -36,9 +35,12 @@ from .gcp_credentials import (
     GcpServiceAccountCredentials as GcpClientCredentialsWithDefault,
 )
 
+from .pluggable_run_context import PluggableRunContext
+from .run_configuration import RuntimeConfiguration
+
 
 __all__ = [
-    "RunConfiguration",
+    "RuntimeConfiguration",
     "BaseConfiguration",
     "CredentialsConfiguration",
     "CredentialsWithDefault",
@@ -46,6 +48,7 @@ __all__ = [
     "extract_inner_hint",
     "is_base_configuration_inner_hint",
     "configspec",
+    "PluggableRunContext",
     "ConfigSectionContext",
     "GcpServiceAccountCredentialsWithoutDefaults",
     "GcpServiceAccountCredentials",

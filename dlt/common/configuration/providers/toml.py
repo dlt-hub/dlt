@@ -1,7 +1,6 @@
 import os
 import tomlkit
 import tomlkit.items
-import functools
 from typing import Any, Optional
 
 from dlt.common.utils import update_dict_nested
@@ -45,12 +44,12 @@ class SettingsTomlProvider(CustomLoaderDocProvider):
         name: str,
         supports_secrets: bool,
         file_name: str,
-        settings_dir: str = None,
-        add_global_config: bool = False,
+        settings_dir: str,
+        global_dir: str = None,
     ) -> None:
         """Creates config provider from a `toml` file
 
-        The provider loads the `toml` file with specified name and from specified folder. If `add_global_config` flags is specified,
+        The provider loads the `toml` file with specified name and from specified folder. If `global_dir` is specified,
         it will additionally look for `file_name` in `dlt` global dir (home dir by default) and merge the content.
         The "settings" (`settings_dir`) values overwrite the "global" values.
 
@@ -61,19 +60,15 @@ class SettingsTomlProvider(CustomLoaderDocProvider):
             supports_secrets(bool): allows to store secret values in this provider
             file_name (str): The name of `toml` file to load
             settings_dir (str, optional): The location of `file_name`. If not specified, defaults to $cwd/.dlt
-            add_global_config (bool, optional): Looks for `file_name` in `dlt` home directory which in most cases is $HOME/.dlt
+            global_dir (bool, optional): Looks for `file_name` in global_dir (defaults to `dlt` home directory which in most cases is $HOME/.dlt)
 
         Raises:
             TomlProviderReadException: File could not be read, most probably `toml` parsing error
         """
-        from dlt.common.runtime import run_context
-
-        self._toml_path = os.path.join(
-            settings_dir or run_context.current().settings_dir, file_name
-        )
-        self._add_global_config = add_global_config
+        self._toml_path = os.path.join(settings_dir, file_name)
+        self._global_dir = os.path.join(global_dir, file_name) if global_dir else None
         self._config_toml = self._read_toml_files(
-            name, file_name, self._toml_path, add_global_config
+            name, file_name, self._toml_path, self._global_dir
         )
 
         super().__init__(
@@ -83,9 +78,7 @@ class SettingsTomlProvider(CustomLoaderDocProvider):
         )
 
     def write_toml(self) -> None:
-        assert (
-            not self._add_global_config
-        ), "Will not write configs when `add_global_config` flag was set"
+        assert not self._global_dir, "Will not write configs when `global_dir` was set"
         with open(self._toml_path, "w", encoding="utf-8") as f:
             tomlkit.dump(self._config_toml, f)
 
@@ -98,6 +91,10 @@ class SettingsTomlProvider(CustomLoaderDocProvider):
         if hasattr(value, "unwrap"):
             value = value.unwrap()
         super().set_value(key, value, pipeline_name, *sections)
+
+    @property
+    def is_empty(self) -> bool:
+        return len(self._config_toml.body) == 0 and super().is_empty
 
     def set_fragment(
         self, key: Optional[str], value_or_fragment: str, pipeline_name: str, *sections: str
@@ -116,16 +113,12 @@ class SettingsTomlProvider(CustomLoaderDocProvider):
 
     @staticmethod
     def _read_toml_files(
-        name: str, file_name: str, toml_path: str, add_global_config: bool
+        name: str, file_name: str, toml_path: str, global_path: str
     ) -> tomlkit.TOMLDocument:
         try:
             project_toml = SettingsTomlProvider._read_toml(toml_path)
-            if add_global_config:
-                from dlt.common.runtime import run_context
-
-                global_toml = SettingsTomlProvider._read_toml(
-                    os.path.join(run_context.current().global_dir, file_name)
-                )
+            if global_path:
+                global_toml = SettingsTomlProvider._read_toml(global_path)
                 project_toml = update_dict_nested(global_toml, project_toml)
             return project_toml
         except Exception as ex:
@@ -142,13 +135,13 @@ class SettingsTomlProvider(CustomLoaderDocProvider):
 
 
 class ConfigTomlProvider(SettingsTomlProvider):
-    def __init__(self, settings_dir: str = None, add_global_config: bool = False) -> None:
+    def __init__(self, settings_dir: str, global_dir: str = None) -> None:
         super().__init__(
             CONFIG_TOML,
             False,
             CONFIG_TOML,
             settings_dir=settings_dir,
-            add_global_config=add_global_config,
+            global_dir=global_dir,
         )
 
     @property
@@ -157,13 +150,13 @@ class ConfigTomlProvider(SettingsTomlProvider):
 
 
 class SecretsTomlProvider(SettingsTomlProvider):
-    def __init__(self, settings_dir: str = None, add_global_config: bool = False) -> None:
+    def __init__(self, settings_dir: str, global_dir: str = None) -> None:
         super().__init__(
             SECRETS_TOML,
             True,
             SECRETS_TOML,
             settings_dir=settings_dir,
-            add_global_config=add_global_config,
+            global_dir=global_dir,
         )
 
     @property

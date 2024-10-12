@@ -10,7 +10,7 @@ from tenacity import wait_exponential, RetryCallState, RetryError
 
 from tests.utils import preserve_environ
 import dlt
-from dlt.common.configuration.specs import RunConfiguration
+from dlt.common.configuration.specs import RuntimeConfiguration
 from dlt.sources.helpers.requests import Session, Client, client as default_client
 from dlt.sources.helpers.requests.retry import (
     DEFAULT_RETRY_EXCEPTIONS,
@@ -70,7 +70,7 @@ def test_retry_on_status_all_fails(mock_sleep: mock.MagicMock) -> None:
     with pytest.raises(requests.HTTPError):
         session.get(url)
 
-    assert m.call_count == RunConfiguration.request_max_attempts
+    assert m.call_count == RuntimeConfiguration.request_max_attempts
 
 
 def test_retry_on_status_success_after_2(mock_sleep: mock.MagicMock) -> None:
@@ -103,7 +103,7 @@ def test_retry_on_status_without_raise_for_status(mock_sleep: mock.MagicMock) ->
     response = session.get(url)
     assert response.status_code == 503
 
-    assert m.call_count == RunConfiguration.request_max_attempts
+    assert m.call_count == RuntimeConfiguration.request_max_attempts
 
 
 def test_hooks_with_raise_for_statue() -> None:
@@ -142,7 +142,7 @@ def test_retry_on_exception_all_fails(
     with pytest.raises(exception_class):
         session.get(url)
 
-    assert m.call_count == RunConfiguration.request_max_attempts
+    assert m.call_count == RuntimeConfiguration.request_max_attempts
 
 
 def test_retry_on_custom_condition(mock_sleep: mock.MagicMock) -> None:
@@ -158,7 +158,7 @@ def test_retry_on_custom_condition(mock_sleep: mock.MagicMock) -> None:
     response = session.get(url)
     assert response.content == b"error"
 
-    assert m.call_count == RunConfiguration.request_max_attempts
+    assert m.call_count == RuntimeConfiguration.request_max_attempts
 
 
 def test_retry_on_custom_condition_success_after_2(mock_sleep: mock.MagicMock) -> None:

@@ -79,10 +79,24 @@ def test_container_items(container: Container, spec: Type[InjectableTestContext]
     assert spec in container
     del container[spec]
     assert spec not in container
-    container[spec] = spec(current_value="S")
+
+    inst_s = spec(current_value="S")
+    # make sure that spec knows it is in the container
+    assert inst_s.in_container is False
+    container[spec] = inst_s
+    assert inst_s.in_container is True
     assert container[spec].current_value == "S"
-    container[spec] = spec(current_value="SS")
+
+    inst_ss = spec(current_value="SS")
+    container[spec] = inst_ss
     assert container[spec].current_value == "SS"
+
+    # inst_s out of container
+    assert inst_s.in_container is False
+    assert inst_ss.in_container is True
+    del container[spec]
+    assert inst_s.in_container is False
+    assert inst_ss.in_container is False
 
 
 def test_get_default_injectable_config(container: Container) -> None:

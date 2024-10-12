@@ -12,13 +12,12 @@ from dlt.common import logger
 from dlt.common.runtime.anon_tracker import get_anonymous_id, track, disable_anon_tracker
 from dlt.common.typing import DictStrAny, DictStrStr
 from dlt.common.configuration import configspec
-from dlt.common.configuration.specs import RunConfiguration
+from dlt.common.configuration.specs import RuntimeConfiguration
 from dlt.version import DLT_PKG_NAME, __version__
 
 from tests.common.runtime.utils import mock_image_env, mock_github_env, mock_pod_env
 from tests.common.configuration.utils import environment
 from tests.utils import (
-    preserve_environ,
     skipifspawn,
     skipifwindows,
     init_test_logging,
@@ -27,7 +26,7 @@ from tests.utils import (
 
 
 @configspec
-class SentryLoggerConfiguration(RunConfiguration):
+class SentryLoggerConfiguration(RuntimeConfiguration):
     pipeline_name: str = "logger"
     sentry_dsn: str = (
         "https://6f6f7b6f8e0f458a89be4187603b55fe@o1061158.ingest.sentry.io/4504819859914752"
@@ -79,7 +78,7 @@ def test_telemetry_endpoint(endpoint, write_key, expectation) -> None:
 
     with expectation:
         anon_tracker.init_anon_tracker(
-            RunConfiguration(
+            RuntimeConfiguration(
                 dlthub_telemetry_endpoint=endpoint, dlthub_telemetry_segment_write_key=write_key
             )
         )
@@ -112,7 +111,7 @@ def test_telemetry_endpoint_exceptions(endpoint, write_key, expectation) -> None
 
     with expectation:
         anon_tracker.init_anon_tracker(
-            RunConfiguration(
+            RuntimeConfiguration(
                 dlthub_telemetry_endpoint=endpoint, dlthub_telemetry_segment_write_key=write_key
             )
         )

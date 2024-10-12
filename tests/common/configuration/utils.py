@@ -25,7 +25,7 @@ from dlt.common.configuration.specs.connection_string_credentials import Connect
 from dlt.common.configuration.utils import get_resolved_traces
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
 from dlt.common.typing import TSecretValue, StrAny
-from tests.utils import _reset_providers
+from tests.utils import _inject_providers, _reset_providers, inject_providers
 
 
 @configspec
@@ -101,21 +101,17 @@ def reset_resolved_traces() -> None:
 
 @pytest.fixture(scope="function")
 def mock_provider() -> Iterator["MockProvider"]:
-    container = Container()
-    with container.injectable_context(ConfigProvidersContext()) as providers:
-        # replace all providers with MockProvider that does not support secrets
-        mock_provider = MockProvider()
-        providers.providers = [mock_provider]
+    mock_provider = MockProvider()
+    # replace all providers with MockProvider that does not support secrets
+    with inject_providers([mock_provider]):
         yield mock_provider
 
 
 @pytest.fixture(scope="function")
 def env_provider() -> Iterator[ConfigProvider]:
-    container = Container()
-    with container.injectable_context(ConfigProvidersContext()) as providers:
-        # inject only env provider
-        env_provider = EnvironProvider()
-        providers.providers = [env_provider]
+    env_provider = EnvironProvider()
+    # inject only env provider
+    with inject_providers([env_provider]):
         yield env_provider
 
 

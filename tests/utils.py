@@ -5,7 +5,6 @@ import platform
 import sys
 from os import environ
 from typing import Any, Iterable, Iterator, Literal, Union, get_args, List
-from unittest.mock import patch
 
 import pytest
 import requests
@@ -20,17 +19,14 @@ from dlt.common.configuration.providers import (
     SecretsTomlProvider,
     ConfigTomlProvider,
 )
+from dlt.common.configuration.providers.provider import ConfigProvider
 from dlt.common.configuration.resolve import resolve_configuration
-from dlt.common.configuration.specs import RunConfiguration
-from dlt.common.configuration.specs.config_providers_context import (
-    ConfigProvidersContext,
-)
+from dlt.common.configuration.specs import RuntimeConfiguration, PluggableRunContext
+from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
 from dlt.common.configuration.specs.pluggable_run_context import (
-    PluggableRunContext,
     SupportsRunContext,
 )
 from dlt.common.pipeline import LoadInfo, PipelineContext, SupportsPipeline
-from dlt.common.runtime.init import init_logging
 from dlt.common.runtime.run_context import DOT_DLT, RunContext
 from dlt.common.runtime.telemetry import start_telemetry, stop_telemetry
 from dlt.common.schema import Schema
@@ -112,7 +108,7 @@ ALL_TEST_DATA_ITEM_FORMATS = get_args(TestDataItemFormat)
 
 def TEST_DICT_CONFIG_PROVIDER():
     # add test dictionary provider
-    providers_context = Container()[ConfigProvidersContext]
+    providers_context = Container()[PluggableRunContext].providers
     try:
         return providers_context[DictionaryProvider.NAME]
     except KeyError:
@@ -211,9 +207,9 @@ class MockableRunContext(RunContext):
 @pytest.fixture(autouse=True)
 def patch_home_dir() -> Iterator[None]:
     ctx = PluggableRunContext()
-    mock = MockableRunContext.from_context(ctx.context)
-    mock._global_dir = mock._data_dir = os.path.join(os.path.abspath(TEST_STORAGE_ROOT), DOT_DLT)
-    ctx.context = mock
+    ctx.init_runtime(
+        RuntimeConfiguration(data_dir=os.path.abspath(os.path.join(TEST_STORAGE_ROOT, DOT_DLT)))
+    )
 
     with Container().injectable_context(ctx):
         yield
@@ -222,13 +218,14 @@ def patch_home_dir() -> Iterator[None]:
 @pytest.fixture(autouse=True)
 def patch_random_home_dir() -> Iterator[None]:
     ctx = PluggableRunContext()
-    mock = MockableRunContext.from_context(ctx.context)
-    mock._global_dir = mock._data_dir = os.path.join(
-        os.path.join(TEST_STORAGE_ROOT, "global_" + uniq_id()), DOT_DLT
+    ctx.init_runtime(
+        RuntimeConfiguration(
+            data_dir=os.path.abspath(
+                os.path.join(TEST_STORAGE_ROOT, "global_" + uniq_id(), DOT_DLT)
+            )
+        )
     )
-    ctx.context = mock
-
-    os.makedirs(mock.global_dir, exist_ok=True)
+    os.makedirs(ctx.context.global_dir, exist_ok=True)
     with Container().injectable_context(ctx):
         yield
 
@@ -328,16 +325,16 @@ def arrow_item_from_table(
     raise ValueError("Unknown item type: " + object_format)
 
 
-def init_test_logging(c: RunConfiguration = None) -> None:
+def init_test_logging(c: RuntimeConfiguration = None) -> None:
     if not c:
-        c = resolve_configuration(RunConfiguration())
-    init_logging(c)
+        c = resolve_configuration(RuntimeConfiguration())
+    Container()[PluggableRunContext].init_runtime(c)
 
 
-def start_test_telemetry(c: RunConfiguration = None):
+def start_test_telemetry(c: RuntimeConfiguration = None):
     stop_telemetry()
     if not c:
-        c = resolve_configuration(RunConfiguration())
+        c = resolve_configuration(RuntimeConfiguration())
     start_telemetry(c)
 
 
@@ -450,10 +447,34 @@ def reset_providers(settings_dir: str) -> Iterator[ConfigProvidersContext]:
 
 
 def _reset_providers(settings_dir: str) -> Iterator[ConfigProvidersContext]:
-    ctx = ConfigProvidersContext()
-    ctx.providers.clear()
-    ctx.add_provider(EnvironProvider())
-    ctx.add_provider(SecretsTomlProvider(settings_dir=settings_dir))
-    ctx.add_provider(ConfigTomlProvider(settings_dir=settings_dir))
-    with Container().injectable_context(ctx):
+    yield from _inject_providers(
+        [
+            EnvironProvider(),
+            SecretsTomlProvider(settings_dir=settings_dir),
+            ConfigTomlProvider(settings_dir=settings_dir),
+        ]
+    )
+
+
+@contextlib.contextmanager
+def inject_providers(providers: List[ConfigProvider]) -> Iterator[ConfigProvidersContext]:
+    return _inject_providers(providers)
+
+
+def _inject_providers(providers: List[ConfigProvider]) -> Iterator[ConfigProvidersContext]:
+    container = Container()
+    ctx = ConfigProvidersContext(initial_providers=providers)
+    try:
+        old_providers = container[PluggableRunContext].providers
+        container[PluggableRunContext].providers = ctx
         yield ctx
+    finally:
+        container[PluggableRunContext].providers = old_providers
+
+
+@contextlib.contextmanager
+def reload_run_context() -> Iterator[None]:
+    ctx = PluggableRunContext()
+
+    with Container().injectable_context(ctx):
+        yield

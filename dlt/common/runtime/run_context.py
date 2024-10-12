@@ -1,14 +1,21 @@
 import os
 import tempfile
-from typing import Any, ClassVar, Optional
+from typing import Any, ClassVar, Dict, List, Optional
 
 from dlt.common import known_env
 from dlt.common.configuration import plugins
 from dlt.common.configuration.container import Container
+from dlt.common.configuration.providers import (
+    EnvironProvider,
+    SecretsTomlProvider,
+    ConfigTomlProvider,
+)
+from dlt.common.configuration.providers.provider import ConfigProvider
 from dlt.common.configuration.specs.pluggable_run_context import (
     SupportsRunContext,
     PluggableRunContext,
 )
+from dlt.common.configuration.specs.run_configuration import RuntimeConfiguration
 
 # dlt settings folder
 DOT_DLT = os.environ.get(known_env.DLT_CONFIG_FOLDER, ".dlt")
@@ -21,6 +28,7 @@ class RunContext(SupportsRunContext):
 
     def __init__(self, run_dir: Optional[str]):
         self._init_run_dir = run_dir or "."
+        self._runtime_config: RuntimeConfiguration = None
 
     @property
     def global_dir(self) -> str:
@@ -50,6 +58,9 @@ class RunContext(SupportsRunContext):
         if known_env.DLT_DATA_DIR in os.environ:
             return os.environ[known_env.DLT_DATA_DIR]
 
+        if self.runtime_config and self.runtime_config.data_dir:
+            return self.runtime_config.data_dir
+
         # geteuid not available on Windows
         if hasattr(os, "geteuid") and os.geteuid() == 0:
             # we are root so use standard /var
@@ -63,6 +74,26 @@ class RunContext(SupportsRunContext):
             # if home directory is available use ~/.dlt/pipelines
             return os.path.join(home, DOT_DLT)
 
+    @property
+    def runtime_config(self) -> Optional[RuntimeConfiguration]:
+        return self._runtime_config
+
+    @runtime_config.setter
+    def runtime_config(self, new_value: RuntimeConfiguration) -> None:
+        self._runtime_config = new_value
+
+    def initial_providers(self) -> List[ConfigProvider]:
+        providers = [
+            EnvironProvider(),
+            SecretsTomlProvider(self.settings_dir, self.global_dir),
+            ConfigTomlProvider(self.settings_dir, self.global_dir),
+        ]
+        return providers
+
+    @property
+    def runtime_kwargs(self) -> Dict[str, Any]:
+        return None
+
     def get_data_entity(self, entity: str) -> str:
         return os.path.join(self.data_dir, entity)
 
@@ -75,16 +106,20 @@ class RunContext(SupportsRunContext):
 
     @property
     def name(self) -> str:
+        if self.runtime_config and self.runtime_config.name:
+            return self.runtime_config.name
         return self.__class__.CONTEXT_NAME
 
 
 @plugins.hookspec(firstresult=True)
-def plug_run_context(run_dir: Optional[str], **kwargs: Any) -> SupportsRunContext:
+def plug_run_context(
+    run_dir: Optional[str], runtime_kwargs: Optional[Dict[str, Any]]
+) -> SupportsRunContext:
     """Spec for plugin hook that returns current run context.
 
     Args:
         run_dir (str): An initial run directory of the context
-        **kwargs: Any additional arguments passed to the context via PluggableRunContext.reload
+        runtime_kwargs: Any additional arguments passed to the context via PluggableRunContext.reload
 
     Returns:
         SupportsRunContext: A run context implementing SupportsRunContext protocol
@@ -92,7 +127,9 @@ def plug_run_context(run_dir: Optional[str], **kwargs: Any) -> SupportsRunContex
 
 
 @plugins.hookimpl(specname="plug_run_context")
-def plug_run_context_impl(run_dir: Optional[str], **kwargs: Any) -> SupportsRunContext:
+def plug_run_context_impl(
+    run_dir: Optional[str], runtime_kwargs: Optional[Dict[str, Any]]
+) -> SupportsRunContext:
     return RunContext(run_dir)
 
 
