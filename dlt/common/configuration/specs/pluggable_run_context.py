@@ -41,13 +41,13 @@ class SupportsRunContext(Protocol):
     def initial_providers(self) -> List[ConfigProvider]:
         """Returns initial providers for this context"""
 
-    @property
-    def runtime_config(self) -> Optional[RuntimeConfiguration]:
-        """Returns current runtime configuration if initialized"""
+    # @property
+    # def runtime_config(self) -> Optional[RuntimeConfiguration]:
+    #     """Returns current runtime configuration if initialized"""
 
-    @runtime_config.setter
-    def runtime_config(self, new_value: RuntimeConfiguration) -> None:
-        """Sets runtime configuration"""
+    # @runtime_config.setter
+    # def runtime_config(self, new_value: RuntimeConfiguration) -> None:
+    #    """Sets runtime configuration"""
 
     def get_data_entity(self, entity: str) -> str:
         """Gets path in data_dir where `entity` (ie. `pipelines`, `repos`) are stored"""
@@ -66,8 +66,11 @@ class PluggableRunContext(ContainerInjectableContext):
 
     context: SupportsRunContext
     providers: ConfigProvidersContext
+    runtime_config: RuntimeConfiguration
 
-    def __init__(self, init_context: SupportsRunContext = None) -> None:
+    def __init__(
+        self, init_context: SupportsRunContext = None, runtime_config: RuntimeConfiguration = None
+    ) -> None:
         super().__init__()
 
         if init_context:
@@ -76,22 +79,22 @@ class PluggableRunContext(ContainerInjectableContext):
             # autodetect run dir
             self._plug(run_dir=None)
         self.providers = ConfigProvidersContext(self.context.initial_providers())
+        self.runtime_config = runtime_config
 
     def reload(self, run_dir: Optional[str] = None, runtime_kwargs: Dict[str, Any] = None) -> None:
         """Reloads the context, using existing settings if not overwritten with method args"""
+
         if run_dir is None:
             run_dir = self.context.run_dir
-        if runtime_kwargs is None:
-            runtime_kwargs = self.context.runtime_kwargs
-        runtime_config = self.context.runtime_config
+            if runtime_kwargs is None:
+                runtime_kwargs = self.context.runtime_kwargs
 
+        self.runtime_config = None
         self._plug(run_dir, runtime_kwargs=runtime_kwargs)
-        self.context.runtime_config = runtime_config
 
-        self.reload_providers()
-
-        if self.context.runtime_config:
-            self.init_runtime(self.context.runtime_config)
+        self.providers = ConfigProvidersContext(self.context.initial_providers())
+        # adds remaining providers and initializes runtime
+        self.add_extras()
 
     def reload_providers(self) -> None:
         self.providers = ConfigProvidersContext(self.context.initial_providers())
@@ -100,8 +103,9 @@ class PluggableRunContext(ContainerInjectableContext):
     def after_add(self) -> None:
         super().after_add()
 
-        if self.context.runtime_config:
-            self.init_runtime(self.context.runtime_config)
+        # initialize runtime if context comes back into container
+        if self.runtime_config:
+            self.initialize_runtime(self.runtime_config)
 
     def add_extras(self) -> None:
         from dlt.common.configuration.resolve import resolve_configuration
@@ -109,20 +113,19 @@ class PluggableRunContext(ContainerInjectableContext):
         # add extra providers
         self.providers.add_extras()
         # resolve runtime configuration
-        if not self.context.runtime_config:
-            self.context.runtime_config = resolve_configuration(RuntimeConfiguration())
+        if not self.runtime_config:
+            self.initialize_runtime(resolve_configuration(RuntimeConfiguration()))
 
-    def init_runtime(self, runtime_config: RuntimeConfiguration) -> None:
-        self.context.runtime_config = runtime_config
+    def initialize_runtime(self, runtime_config: RuntimeConfiguration) -> None:
+        self.runtime_config = runtime_config
 
         # do not activate logger if not in the container
         if not self.in_container:
             return
 
-        from dlt.common import logger
-        from dlt.common.runtime.init import init_logging
+        from dlt.common.runtime.init import initialize_runtime
 
-        logger.LOGGER = init_logging(self.context)
+        initialize_runtime(self.context, self.runtime_config)
 
     def _plug(self, run_dir: Optional[str], runtime_kwargs: Dict[str, Any] = None) -> None:
         from dlt.common.configuration import plugins

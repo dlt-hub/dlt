@@ -207,9 +207,9 @@ class MockableRunContext(RunContext):
 @pytest.fixture(autouse=True)
 def patch_home_dir() -> Iterator[None]:
     ctx = PluggableRunContext()
-    ctx.init_runtime(
-        RuntimeConfiguration(data_dir=os.path.abspath(os.path.join(TEST_STORAGE_ROOT, DOT_DLT)))
-    )
+    mock = MockableRunContext.from_context(ctx.context)
+    mock._global_dir = mock._data_dir = os.path.join(os.path.abspath(TEST_STORAGE_ROOT), DOT_DLT)
+    ctx.context = mock
 
     with Container().injectable_context(ctx):
         yield
@@ -218,13 +218,12 @@ def patch_home_dir() -> Iterator[None]:
 @pytest.fixture(autouse=True)
 def patch_random_home_dir() -> Iterator[None]:
     ctx = PluggableRunContext()
-    ctx.init_runtime(
-        RuntimeConfiguration(
-            data_dir=os.path.abspath(
-                os.path.join(TEST_STORAGE_ROOT, "global_" + uniq_id(), DOT_DLT)
-            )
-        )
+    mock = MockableRunContext.from_context(ctx.context)
+    mock._global_dir = mock._data_dir = os.path.abspath(
+        os.path.join(TEST_STORAGE_ROOT, "global_" + uniq_id(), DOT_DLT)
     )
+    ctx.context = mock
+
     os.makedirs(ctx.context.global_dir, exist_ok=True)
     with Container().injectable_context(ctx):
         yield
@@ -328,7 +327,7 @@ def arrow_item_from_table(
 def init_test_logging(c: RuntimeConfiguration = None) -> None:
     if not c:
         c = resolve_configuration(RuntimeConfiguration())
-    Container()[PluggableRunContext].init_runtime(c)
+    Container()[PluggableRunContext].initialize_runtime(c)
 
 
 def start_test_telemetry(c: RuntimeConfiguration = None):
@@ -372,9 +371,14 @@ def skip_if_not_active(destination: str) -> None:
 
 def is_running_in_github_fork() -> bool:
     """Check if executed by GitHub Actions, in a repo fork."""
-    is_github_actions = os.environ.get("GITHUB_ACTIONS") == "true"
+    is_github_actions = is_running_in_github_ci()
     is_fork = os.environ.get("IS_FORK") == "true"  # custom var set by us in the workflow's YAML
     return is_github_actions and is_fork
+
+
+def is_running_in_github_ci() -> bool:
+    """Check if executed by GitHub Actions"""
+    return os.environ.get("GITHUB_ACTIONS") == "true"
 
 
 skipifspawn = pytest.mark.skipif(
@@ -393,6 +397,10 @@ skipifwindows = pytest.mark.skipif(
 
 skipifgithubfork = pytest.mark.skipif(
     is_running_in_github_fork(), reason="Skipping test because it runs on a PR coming from fork"
+)
+
+skipifgithubci = pytest.mark.skipif(
+    is_running_in_github_ci(), reason="This test does not work on github CI"
 )
 
 
@@ -470,11 +478,3 @@ def _inject_providers(providers: List[ConfigProvider]) -> Iterator[ConfigProvide
         yield ctx
     finally:
         container[PluggableRunContext].providers = old_providers
-
-
-@contextlib.contextmanager
-def reload_run_context() -> Iterator[None]:
-    ctx = PluggableRunContext()
-
-    with Container().injectable_context(ctx):
-        yield

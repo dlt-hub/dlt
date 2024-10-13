@@ -39,7 +39,7 @@ from dlt.common.destination.exceptions import (
     DestinationCapabilitiesException,
 )
 from dlt.common.exceptions import MissingDependencyException
-from dlt.common.runtime import signals, initialize_runtime
+from dlt.common.runtime import signals, apply_runtime_config
 from dlt.common.schema.typing import (
     TColumnNames,
     TSchemaTables,
@@ -355,8 +355,6 @@ class Pipeline(SupportsPipeline):
         self._last_trace: PipelineTrace = None
         self._state_restored: bool = False
 
-        # modifies run_context and must go first
-        initialize_runtime(self.runtime_config)
         # initialize pipeline working dir
         self._init_working_dir(pipeline_name, pipelines_dir)
 
@@ -1325,6 +1323,10 @@ class Pipeline(SupportsPipeline):
         return Schema(normalize_schema_name(schema_name))
 
     def _set_context(self, is_active: bool) -> None:
+        if not self.is_active and is_active:
+            # initialize runtime if not active previously
+            apply_runtime_config(self.runtime_config)
+
         self.is_active = is_active
         if is_active:
             # set destination context on activation

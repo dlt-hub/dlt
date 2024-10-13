@@ -619,8 +619,6 @@ def test_configuration_is_mutable_mapping(environment: Any, env_provider: Config
     # configurations provide full MutableMapping support
     # here order of items in dict matters
     expected_dict = {
-        "name": None,
-        "data_dir": None,
         "pipeline_name": "secret",
         "sentry_dsn": None,
         "slack_incoming_hook": None,
@@ -711,7 +709,7 @@ def test_multi_derivation_defaults(environment: Any) -> None:
     assert C.pipeline_name == MultiConfiguration.pipeline_name == "comp"
     # but keys are ordered in MRO so password from ConfigurationWithOptionalTypes goes first
     keys = list(C.keys())
-    assert keys[0] == "name"
+    assert keys[0] == "pipeline_name"
     # SectionedConfiguration last field goes last
     assert keys[-1] == "password"
 

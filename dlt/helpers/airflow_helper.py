@@ -125,9 +125,9 @@ class PipelineTasksGroup(TaskGroup):
             data_dir = os.path.join(local_data_folder or gettempdir(), f"dlt_{uniq_id(8)}")
         os.environ[DLT_DATA_DIR] = data_dir
 
-        # delete existing config providers in container, they will get reloaded on next use
+        # reload config providers
         if PluggableRunContext in Container():
-            Container()[PluggableRunContext].reload()
+            Container()[PluggableRunContext].reload_providers()
 
     def _task_name(self, pipeline: Pipeline, data: Any) -> str:
         """Generate a task name.

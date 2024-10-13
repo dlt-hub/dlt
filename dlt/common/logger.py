@@ -4,7 +4,6 @@ import traceback
 from logging import LogRecord, Logger
 from typing import Any, Mapping, Iterator, Protocol
 
-DLT_LOGGER_NAME = "dlt"
 LOGGER: Logger = None
 
 

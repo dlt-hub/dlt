@@ -13,11 +13,11 @@ from dlt.common.warnings import Dlt100DeprecationWarning
 
 @configspec
 class RuntimeConfiguration(BaseConfiguration):
-    # TODO: deprecate pipeline_name, it is not used in any reasonable way
-    name: Optional[str] = None
-    """Name of the run context"""
-    data_dir: Optional[str] = None
-    """data_dir of the run context"""
+    # # TODO: deprecate pipeline_name, it is not used in any reasonable way
+    # name: Optional[str] = None
+    # """Name of the run context"""
+    # data_dir: Optional[str] = None
+    # """data_dir of the run context"""
 
     pipeline_name: Optional[str] = None
     sentry_dsn: Optional[str] = None  # keep None to disable Sentry
@@ -55,8 +55,8 @@ class RuntimeConfiguration(BaseConfiguration):
                 stacklevel=1,
             )
         # always use abs path for data_dir
-        if self.data_dir:
-            self.data_dir = abspath(self.data_dir)
+        # if self.data_dir:
+        #     self.data_dir = abspath(self.data_dir)
         if self.slack_incoming_hook:
             # it may be obfuscated base64 value
             # TODO: that needs to be removed ASAP

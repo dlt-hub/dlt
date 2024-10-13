@@ -43,10 +43,11 @@ def create_pool(config: PoolRunnerConfiguration) -> Executor:
         # if not fork method, provide initializer for logs and configuration
         start_method = config.start_method or multiprocessing.get_start_method()
         if start_method != "fork":
+            ctx = Container()[PluggableRunContext]
             return ProcessPoolExecutor(
                 max_workers=config.workers,
                 initializer=init.restore_run_context,
-                initargs=(Container()[PluggableRunContext].context,),
+                initargs=(ctx.context, ctx.runtime_config),
                 mp_context=multiprocessing.get_context(method=start_method),
             )
         else:

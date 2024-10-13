@@ -36,17 +36,6 @@ ConfigProvidersConfiguration.enable_google_secrets = False
 
 
 def pytest_configure(config):
-    # make sure we see the right run settings
-    # import dlt
-    # from dlt.common.configuration.container import Container
-    # from dlt.common.configuration.specs import PluggableRunContext
-
-    # run_ctx = Container()[PluggableRunContext].context
-    # # data_dir in storage (take from config)
-    # assert "_storage" in run_ctx.data_dir
-
-    # assert dlt.config["runtime.data_dir"] == "_storage/.dlt"
-
     # patch the configurations to use test storage by default, we modify the types (classes) fields
     # the dataclass implementation will use those patched values when creating instances (the values present
     # in the declaration are not frozen allowing patching)

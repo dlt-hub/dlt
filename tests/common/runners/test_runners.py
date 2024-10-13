@@ -7,7 +7,7 @@ from dlt.common.configuration import resolve_configuration, configspec
 from dlt.common.configuration.specs.run_configuration import RuntimeConfiguration
 from dlt.common.exceptions import DltException, SignalReceivedException
 from dlt.common.runners import pool_runner as runner
-from dlt.common.runtime import initialize_runtime
+from dlt.common.runtime import apply_runtime_config
 from dlt.common.runners.configuration import PoolRunnerConfiguration, TPoolType
 
 from tests.common.runners.utils import (
@@ -137,7 +137,7 @@ def test_initialize_runtime() -> None:
     logger._delete_current_logger()
     logger.LOGGER = None
 
-    initialize_runtime(config)
+    apply_runtime_config(config)
 
     assert logger.LOGGER is not None
     logger.warning("hello")
@@ -149,7 +149,7 @@ def test_pool_runner_process_methods_forced(method) -> None:
     r = _TestRunnableWorker(4)
     # make sure signals and logging is initialized
     C = resolve_configuration(RuntimeConfiguration())
-    initialize_runtime(C)
+    apply_runtime_config(C)
 
     runs_count = runner.run_pool(configure(ProcessPoolConfiguration), r)
     assert runs_count == 1
@@ -161,7 +161,7 @@ def test_pool_runner_process_methods_configured(method) -> None:
     r = _TestRunnableWorker(4)
     # make sure signals and logging is initialized
     C = resolve_configuration(RuntimeConfiguration())
-    initialize_runtime(C)
+    apply_runtime_config(C)
 
     runs_count = runner.run_pool(ProcessPoolConfiguration(start_method=method), r)
     assert runs_count == 1

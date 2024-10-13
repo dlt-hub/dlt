@@ -28,7 +28,7 @@ class RunContext(SupportsRunContext):
 
     def __init__(self, run_dir: Optional[str]):
         self._init_run_dir = run_dir or "."
-        self._runtime_config: RuntimeConfiguration = None
+        # self._runtime_config: RuntimeConfiguration = None
 
     @property
     def global_dir(self) -> str:
@@ -58,9 +58,6 @@ class RunContext(SupportsRunContext):
         if known_env.DLT_DATA_DIR in os.environ:
             return os.environ[known_env.DLT_DATA_DIR]
 
-        if self.runtime_config and self.runtime_config.data_dir:
-            return self.runtime_config.data_dir
-
         # geteuid not available on Windows
         if hasattr(os, "geteuid") and os.geteuid() == 0:
             # we are root so use standard /var
@@ -74,13 +71,13 @@ class RunContext(SupportsRunContext):
             # if home directory is available use ~/.dlt/pipelines
             return os.path.join(home, DOT_DLT)
 
-    @property
-    def runtime_config(self) -> Optional[RuntimeConfiguration]:
-        return self._runtime_config
+    # @property
+    # def runtime_config(self) -> Optional[RuntimeConfiguration]:
+    #     return self._runtime_config
 
-    @runtime_config.setter
-    def runtime_config(self, new_value: RuntimeConfiguration) -> None:
-        self._runtime_config = new_value
+    # @runtime_config.setter
+    # def runtime_config(self, new_value: RuntimeConfiguration) -> None:
+    #     self._runtime_config = new_value
 
     def initial_providers(self) -> List[ConfigProvider]:
         providers = [
@@ -106,8 +103,6 @@ class RunContext(SupportsRunContext):
 
     @property
     def name(self) -> str:
-        if self.runtime_config and self.runtime_config.name:
-            return self.runtime_config.name
         return self.__class__.CONTEXT_NAME
 
 

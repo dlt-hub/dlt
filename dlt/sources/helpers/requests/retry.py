@@ -33,7 +33,6 @@ from dlt.sources.helpers.requests.session import Session, DEFAULT_TIMEOUT
 from dlt.sources.helpers.requests.typing import TRequestTimeout
 from dlt.common.typing import TimedeltaSeconds
 from dlt.common.configuration.specs import RuntimeConfiguration
-from dlt.common.configuration import with_config
 
 
 DEFAULT_RETRY_STATUS = (429, *range(500, 600))
@@ -170,7 +169,6 @@ class Client:
 
     _session_attrs: Dict[str, Any]
 
-    @with_config(spec=RuntimeConfiguration)
     def __init__(
         self,
         request_timeout: Optional[

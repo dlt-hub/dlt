@@ -26,7 +26,7 @@ def initialize_airflow_db():
     os.environ["PROVIDERS__ENABLE_AIRFLOW_SECRETS"] = "true"
     Variable.set(SECRETS_TOML_KEY, SECRETS_TOML_CONTENT)
     # re-create providers
-    Container()[PluggableRunContext].reload()
+    Container()[PluggableRunContext].reload_providers()
     yield
     # restore providers
     Container()[PluggableRunContext].providers = providers
