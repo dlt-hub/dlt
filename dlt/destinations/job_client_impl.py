@@ -19,6 +19,7 @@ from typing import (
 import zlib
 import re
 from contextlib import contextmanager
+from contextlib import suppress
 
 from dlt.common import pendulum, logger
 from dlt.common.json import json
@@ -645,11 +646,15 @@ WHERE """
 
     def _delete_schema_in_storage(self, schema: Schema) -> None:
         """
-        Delete all stored versions with the same name as given schema
+        Delete all stored versions with the same name as given schema.
+        Fails silently if versions table does not exist
         """
-        name = self.sql_client.make_qualified_table_name(self.schema.version_table_name)
-        (c_schema_name,) = self._norm_and_escape_columns("schema_name")
-        self.sql_client.execute_sql(f"DELETE FROM {name} WHERE {c_schema_name} = %s;", schema.name)
+        with suppress(DatabaseUndefinedRelation):
+            name = self.sql_client.make_qualified_table_name(self.schema.version_table_name)
+            (c_schema_name,) = self._norm_and_escape_columns("schema_name")
+            self.sql_client.execute_sql(
+                f"DELETE FROM {name} WHERE {c_schema_name} = %s;", schema.name
+            )
 
     def _update_schema_in_storage(self, schema: Schema) -> None:
         # get schema string or zip
