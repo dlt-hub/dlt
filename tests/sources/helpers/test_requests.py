@@ -195,8 +195,7 @@ def test_wait_retry_after_int(mock_sleep: mock.MagicMock) -> None:
     assert 4 <= mock_sleep.call_args[0][0] <= 5  # Adds jitter up to 1s
 
 
-@pytest.mark.parametrize("existing_session", (False, True))
-def test_init_default_client(existing_session: bool) -> None:
+def test_init_default_client() -> None:
     """Test that the default client config is updated from runtime configuration.
     Run twice. 1. Clean start with no existing session attached.
     2. With session in thread local (session is updated)
@@ -230,7 +229,8 @@ def test_client_instance_with_config(existing_session: bool) -> None:
     }
     os.environ.update({key: str(value) for key, value in cfg.items()})
 
-    client = Client()
+    client = default_client if existing_session else Client()
+    client.update_from_config()
 
     session = client.session
     assert session.timeout == cfg["RUNTIME__REQUEST_TIMEOUT"]

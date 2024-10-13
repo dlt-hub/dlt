@@ -29,10 +29,11 @@ from tenacity import (
 )
 from tenacity.retry import retry_base
 
+from dlt.common.configuration.inject import with_config
+from dlt.common.typing import TimedeltaSeconds, ConfigValue
+from dlt.common.configuration.specs import RuntimeConfiguration
 from dlt.sources.helpers.requests.session import Session, DEFAULT_TIMEOUT
 from dlt.sources.helpers.requests.typing import TRequestTimeout
-from dlt.common.typing import TimedeltaSeconds
-from dlt.common.configuration.specs import RuntimeConfiguration
 
 
 DEFAULT_RETRY_STATUS = (429, *range(500, 600))
@@ -222,7 +223,8 @@ class Client:
             0  # Incrementing marker to ensure per-thread sessions are recreated on config changes
         )
 
-    def update_from_config(self, config: RuntimeConfiguration) -> None:
+    @with_config(spec=RuntimeConfiguration)
+    def update_from_config(self, config: RuntimeConfiguration = ConfigValue) -> None:
         """Update session/retry settings from RunConfiguration"""
         self._session_kwargs["timeout"] = config.request_timeout
         self._retry_kwargs["backoff_factor"] = config.request_backoff_factor
