@@ -338,6 +338,9 @@ def test_schema_update_alter_table(client: SqlJobClientBase) -> None:
     "client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name
 )
 def test_drop_tables(client: SqlJobClientBase) -> None:
+    # check that non existing tables and non existing versions table to do not raise
+    client.drop_tables(*["one", "two"], delete_schema=True)
+
     schema = client.schema
     # Add columns in all tables
     schema.tables["event_user"]["columns"] = dict(schema.tables["event_slot"]["columns"])

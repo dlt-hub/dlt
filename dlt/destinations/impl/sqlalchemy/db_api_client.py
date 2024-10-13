@@ -306,6 +306,8 @@ class SqlalchemyClient(SqlClientBase[Connection]):
             self.execute_sql(tbl.delete())
 
     def drop_tables(self, *tables: str) -> None:
+        if not self.has_dataset():
+            return
         for table in tables:
             tbl = sa.Table(table, self.metadata, schema=self.dataset_name, keep_existing=True)
             self.execute_sql(sa.schema.DropTable(tbl, if_exists=True))
