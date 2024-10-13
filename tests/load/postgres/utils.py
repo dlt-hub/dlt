@@ -59,7 +59,7 @@ def generate_sample_geometry_records() -> List[DictStrStr]:
         ("EmptyGeometryCollection", GeometryCollection()),
     ]
     return [
-        *[{"type": f"{name}_wkt", "geom": geom.wkt} for name, geom in geometries],
-        *[{"type": f"{name}_wkb", "geom": geom.wkb} for name, geom in geometries],
-        *[{"type": f"{name}_wkb_hex", "geom": geom.wkb_hex} for name, geom in geometries],
+        {"type": f"{name}_{format_}", "geom": getattr(geom, format_)}
+        for name, geom in geometries
+        for format_ in ("wkt", "wkb", "wkb_hex")
     ]

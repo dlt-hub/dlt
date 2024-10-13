@@ -236,25 +236,28 @@ def test_adapter_geometry_hint_config(
 def test_geometry_types(
     destination_config: DestinationTestConfiguration,
 ) -> None:
+    from shapely import wkt, wkb
+    from shapely import LinearRing
+
     @dlt.resource
     def geodata_default() -> Generator[List[Dict[str, Any]], Any, Any]:
         yield generate_sample_geometry_records()
 
     @dlt.resource
-    def geodata_default_3857() -> Generator[List[Dict[str, Any]], Any, Any]:
+    def geodata_3857() -> Generator[List[Dict[str, Any]], Any, Any]:
         yield generate_sample_geometry_records()
 
     @dlt.resource
-    def geodata_default_2163() -> Generator[List[Dict[str, Any]], Any, Any]:
+    def geodata_2163() -> Generator[List[Dict[str, Any]], Any, Any]:
         yield generate_sample_geometry_records()
 
     postgres_adapter(geodata_default, geometry=["geom"])
-    postgres_adapter(geodata_default_3857, geometry=["geom"], srid=3857)
-    postgres_adapter(geodata_default_2163, geometry=["geom"], srid=2163)
+    postgres_adapter(geodata_3857, geometry=["geom"], srid=3857)
+    postgres_adapter(geodata_2163, geometry=["geom"], srid=2163)
 
     @dlt.source
     def geodata() -> List[DltResource]:
-        return [geodata_default, geodata_default_3857, geodata_default_2163]
+        return [geodata_default, geodata_3857, geodata_2163]
 
     pipeline = destination_config.setup_pipeline("test_geometry_types", dev_mode=True)
     info = pipeline.run(
@@ -262,18 +265,63 @@ def test_geometry_types(
     )
     assert_load_info(info)
 
+    # Assert that types were read in as PostGIS geometry types.
     with pipeline.sql_client() as c:
-        fqtn = c.make_qualified_table_name("geodata", escape=False)
-        with c.execute_query(f"""
-            SELECT f_geometry_column
+        with c.execute_query(f"""SELECT f_geometry_column
             FROM geometry_columns
-            WHERE f_table_name = '{fqtn}';
-            """) as cur:
+            WHERE f_table_name in ('geodata_3857', 'geodata_2163', 'geodata_default')
+              AND f_table_schema = '{pipeline.default_schema.name}' """) as cur:
             records = cur.fetchall()
             assert records
             assert {record[0] for record in records} == {"geom"}
 
-    # TODO: assert round trip deserialization to client is correct
+    # Verify round-trip integrity.
+    with pipeline.sql_client() as c:
+        for resource in ["geodata_default", "geodata_3857", "geodata_2163"]:
+            srid = 4326 if resource == "geodata_default" else int(resource.split("_")[1])
+
+            query = f"""
+             SELECT type, ST_AsText(geom) as wkt, ST_SRID(geom) as srid, ST_AsBinary(geom) as wkb
+             FROM {pipeline.default_schema.name}.{resource}
+             """
+
+            with c.execute_query(query) as cur:
+                results = cur.fetchall()
+
+            original_geometries = generate_sample_geometry_records()
+
+            for result in results:
+                db_type, db_wkt, db_srid, db_wkb = result
+                orig_geom = next((g for g in original_geometries if g["type"] == db_type), None)
+
+                assert orig_geom is not None, f"No matching original geometry found for {db_type}"
+
+                assert (
+                    db_srid == srid
+                ), f"SRID mismatch for {db_type}: expected {srid}, got {db_srid}"
+
+                if "Empty" in db_type:
+                    assert wkt.loads(db_wkt).is_empty, f"Expected empty geometry for {db_type}"
+                else:
+                    if "_wkt" in db_type:
+                        orig_geom = wkt.loads(orig_geom["geom"])
+                        db_geom = wkt.loads(db_wkt)
+                    elif "_wkb" in db_type:
+                        orig_geom = wkb.loads(orig_geom["geom"])
+                        db_geom = wkb.loads(bytes(db_wkb))
+                    elif "_wkb_hex" in db_type:
+                        orig_geom = wkb.loads(bytes.fromhex(orig_geom["geom"]))
+                        db_geom = wkb.loads(bytes(db_wkb))
+
+                    tolerance = 1e-8
+                    if isinstance(orig_geom, LinearRing):
+                        assert LinearRing(db_geom.exterior.coords).equals_exact(
+                            orig_geom, tolerance
+                        ), f"Geometry mismatch for {db_type}"
+                    else:
+                        assert orig_geom.equals_exact(
+                            db_geom, tolerance
+                        ), f"Geometry mismatch for {db_type}"
 
 
 @pytest.mark.parametrize(
