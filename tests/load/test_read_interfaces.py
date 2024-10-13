@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, cast
 
 import pytest
 import dlt
@@ -21,6 +21,7 @@ from tests.load.utils import (
 from dlt.destinations import filesystem
 from tests.utils import TEST_STORAGE_ROOT
 from dlt.common.destination.reference import TDestinationReferenceArg
+from dlt.destinations.dataset import ReadableDBAPIDataset
 
 
 def _run_dataset_checks(
@@ -222,44 +223,60 @@ def _run_dataset_checks(
     # check dataset factory
     dataset = dlt.dataset(destination=destination_for_dataset, dataset_name=pipeline.dataset_name)
     # verfiy that sql client and schema are lazy loaded
-    assert not dataset._schema
-    assert not dataset._sql_client
+    assert not dataset.schema
+    assert not dataset.sql_client
     table_relationship = dataset.items
     table = table_relationship.fetchall()
     assert len(table) == total_records
 
     # check that schema is loaded by name
-    dataset = dlt.dataset(
-        destination=destination_for_dataset,
-        dataset_name=pipeline.dataset_name,
-        schema=pipeline.default_schema_name,
+    dataset = cast(
+        ReadableDBAPIDataset,
+        dlt.dataset(
+            destination=destination_for_dataset,
+            dataset_name=pipeline.dataset_name,
+            schema=pipeline.default_schema_name,
+        ),
     )
-    assert dataset.schema.tables["items"]["write_disposition"] == "replace"  # type: ignore
+    dataset._ensure_client_and_schema()
+    assert dataset.schema.tables["items"]["write_disposition"] == "replace"
 
     # check that schema is not loaded when wrong name given
-    dataset = dlt.dataset(
-        destination=destination_for_dataset,
-        dataset_name=pipeline.dataset_name,
-        schema="wrong_schema_name",
+    dataset = cast(
+        ReadableDBAPIDataset,
+        dlt.dataset(
+            destination=destination_for_dataset,
+            dataset_name=pipeline.dataset_name,
+            schema="wrong_schema_name",
+        ),
     )
-    assert "items" not in dataset.schema.tables  # type: ignore
-    assert dataset.schema.name == pipeline.dataset_name  # type: ignore
+    dataset._ensure_client_and_schema()
+    assert "items" not in dataset.schema.tables
+    assert dataset.schema.name == pipeline.dataset_name
 
     # check that schema is loaded if no schema name given
-    dataset = dlt.dataset(
-        destination=destination_for_dataset,
-        dataset_name=pipeline.dataset_name,
+    dataset = cast(
+        ReadableDBAPIDataset,
+        dlt.dataset(
+            destination=destination_for_dataset,
+            dataset_name=pipeline.dataset_name,
+        ),
     )
-    assert dataset.schema.name == pipeline.default_schema_name  # type: ignore
-    assert dataset.schema.tables["items"]["write_disposition"] == "replace"  # type: ignore
+    dataset._ensure_client_and_schema()
+    assert dataset.schema.name == pipeline.default_schema_name
+    assert dataset.schema.tables["items"]["write_disposition"] == "replace"
 
     # check that there is no error when creating dataset without schema table
-    dataset = dlt.dataset(
-        destination=destination_for_dataset,
-        dataset_name="unknown_dataset",
+    dataset = cast(
+        ReadableDBAPIDataset,
+        dlt.dataset(
+            destination=destination_for_dataset,
+            dataset_name="unknown_dataset",
+        ),
     )
-    assert dataset.schema.name == "unknown_dataset"  # type: ignore
-    assert "items" not in dataset.schema.tables  # type: ignore
+    dataset._ensure_client_and_schema()
+    assert dataset.schema.name == "unknown_dataset"
+    assert "items" not in dataset.schema.tables
 
     # create a newer schema with different name and see wether this is loaded
     from dlt.common.schema import Schema
@@ -273,12 +290,16 @@ def _run_dataset_checks(
     with pipeline.destination_client() as client:
         client.update_stored_schema()
 
-    dataset = dlt.dataset(
-        destination=destination_for_dataset,
-        dataset_name=pipeline.dataset_name,
+    dataset = cast(
+        ReadableDBAPIDataset,
+        dlt.dataset(
+            destination=destination_for_dataset,
+            dataset_name=pipeline.dataset_name,
+        ),
     )
-    assert dataset.schema.name == "some_other_schema"  # type: ignore
-    assert "other_table" in dataset.schema.tables  # type: ignore
+    dataset._ensure_client_and_schema()
+    assert dataset.schema.name == "some_other_schema"
+    assert "other_table" in dataset.schema.tables
 
 
 @pytest.mark.essential
