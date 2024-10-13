@@ -5,6 +5,7 @@ import platform
 import sys
 from os import environ
 from typing import Any, Iterable, Iterator, Literal, Union, get_args, List
+from unittest.mock import patch
 
 import pytest
 import requests
@@ -33,7 +34,7 @@ from dlt.common.schema import Schema
 from dlt.common.storages import FileStorage
 from dlt.common.storages.versioned_storage import VersionedStorage
 from dlt.common.typing import DictStrAny, StrAny, TDataItem
-from dlt.common.utils import custom_environ, uniq_id
+from dlt.common.utils import custom_environ, set_working_dir, uniq_id
 
 TEST_STORAGE_ROOT = "_storage"
 
@@ -253,6 +254,36 @@ def wipe_pipeline(preserve_environ) -> Iterator[None]:
         # p._wipe_working_folder()
         # deactivate context
         container[PipelineContext].deactivate()
+
+
+@pytest.fixture(autouse=True)
+def setup_secret_providers_to_current_module(request):
+    """Creates set of config providers where secrets are loaded from cwd()/.dlt and
+    configs are loaded from the .dlt/ in the same folder as module being tested
+    """
+    secret_dir = os.path.abspath("./.dlt")
+    dname = os.path.dirname(request.module.__file__)
+    config_dir = dname + "/.dlt"
+
+    # inject provider context so the original providers are restored at the end
+    def _initial_providers(self):
+        return [
+            EnvironProvider(),
+            SecretsTomlProvider(settings_dir=secret_dir),
+            ConfigTomlProvider(settings_dir=config_dir),
+        ]
+
+    with set_working_dir(dname), patch(
+        "dlt.common.runtime.run_context.RunContext.initial_providers",
+        _initial_providers,
+    ):
+        Container()[PluggableRunContext].reload_providers()
+
+        try:
+            sys.path.insert(0, dname)
+            yield
+        finally:
+            sys.path.pop(0)
 
 
 def data_to_item_format(

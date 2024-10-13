@@ -116,7 +116,6 @@ def test_json_logger_init(environment: DictStrStr) -> None:
         logger.exception("DIV")
 
 
-@pytest.mark.skipifgithubci
 @pytest.mark.forked
 def test_double_log_init(environment: DictStrStr, mocker: MockerFixture) -> None:
     # comment out @pytest.mark.forked and use -s option to see the log messages

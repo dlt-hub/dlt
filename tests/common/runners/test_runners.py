@@ -128,6 +128,7 @@ def test_runnable_with_runner() -> None:
     assert [v[0] for v in r.rv] == list(range(4))
 
 
+@pytest.mark.forked
 def test_initialize_runtime() -> None:
     config = resolve_configuration(RuntimeConfiguration())
     config.log_level = "INFO"
