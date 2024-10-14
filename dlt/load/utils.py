@@ -158,9 +158,7 @@ def _init_dataset_and_update_schema(
         f"Client for {job_client.config.destination_type} will start initialize storage"
         f" {staging_text}"
     )
-    was_storage_initialized = job_client.is_storage_initialized()
-    job_client.initialize_storage()
-    if was_storage_initialized and drop_tables:
+    if drop_tables and job_client.is_storage_initialized():
         if hasattr(job_client, "drop_tables"):
             logger.info(
                 f"Client for {job_client.config.destination_type} will drop tables"
@@ -172,6 +170,8 @@ def _init_dataset_and_update_schema(
                 f"Client for {job_client.config.destination_type} does not implement drop table."
                 f" Following tables {drop_tables} will not be dropped {staging_text}"
             )
+
+    job_client.initialize_storage()
 
     logger.info(
         f"Client for {job_client.config.destination_type} will update schema to package schema"
