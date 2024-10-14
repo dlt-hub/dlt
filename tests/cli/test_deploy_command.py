@@ -15,7 +15,7 @@ from dlt.common.typing import StrAny
 from dlt.common.utils import set_working_dir
 
 from dlt.cli import deploy_command, _dlt, echo
-from dlt.cli.exceptions import CliCommandException
+from dlt.cli.exceptions import CliCommandInnerException
 from dlt.pipeline.exceptions import CannotRestorePipelineException
 from dlt.cli.deploy_command_helpers import get_schedule_description
 
@@ -72,7 +72,7 @@ def test_deploy_command(
         # we have a repo without git origin
         with Repo.init(".") as repo:
             # test no origin
-            with pytest.raises(CliCommandException) as py_ex:
+            with pytest.raises(CliCommandInnerException) as py_ex:
                 deploy_command.deploy_command(
                     "debug_pipeline.py",
                     deployment_method,

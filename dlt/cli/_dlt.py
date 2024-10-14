@@ -1,11 +1,13 @@
 from typing import Any, Sequence, Type, cast, List, Dict
 import argparse
+import click
 
 from dlt.version import __version__
 from dlt.common.runners import Venv
 from dlt.cli import SupportsCliCommand
 
 import dlt.cli.echo as fmt
+from dlt.cli.exceptions import CliCommandException
 
 from dlt.cli.command_wrappers import (
     deploy_command_wrapper,
@@ -15,6 +17,7 @@ from dlt.cli import debug
 
 
 ACTION_EXECUTED = False
+DEFAULT_DOCS_URL = "https://dlthub.com/docs/intro"
 
 
 def print_help(parser: argparse.ArgumentParser) -> None:
@@ -153,11 +156,34 @@ def main() -> int:
             " the current virtual environment instead."
         )
 
-    if args.command in installed_commands:
-        return installed_commands[args.command].execute(args)
+    if cmd := installed_commands.get(args.command):
+        try:
+            cmd.execute(args)
+        except Exception as ex:
+            docs_url = cmd.docs_url if hasattr(cmd, "docs_url") else DEFAULT_DOCS_URL
+            error_code = -1
+            raiseable_exception = ex
+
+            # overwrite some values if this is a CliCommandException
+            if isinstance(ex, CliCommandException):
+                error_code = ex.error_code
+                docs_url = ex.docs_url or docs_url
+                raiseable_exception = ex.raiseable_exception
+
+            # print exception if available
+            if raiseable_exception:
+                click.secho(str(ex), err=True, fg="red")
+            
+            fmt.note(f"Please refer to our docs at '%s' for further assistance." % docs_url)
+            if debug.is_debug_enabled() and raiseable_exception:
+                raise raiseable_exception
+
+            return error_code
     else:
         print_help(parser)
         return -1
+
+    return 0
 
 
 def _main() -> None:

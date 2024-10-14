@@ -36,7 +36,7 @@ from dlt.cli.pipeline_files import (
     TVerifiedSourceFileEntry,
     TVerifiedSourceFileIndex,
 )
-from dlt.cli.exceptions import CliCommandException
+from dlt.cli.exceptions import CliCommandInnerException
 
 
 DLT_INIT_DOCS_URL = "https://dlthub.com/docs/reference/command-line-interface#dlt-init"
@@ -428,14 +428,14 @@ def init_command(
         source_configuration.src_pipeline_script,
     )
     if visitor.is_destination_imported:
-        raise CliCommandException(
+        raise CliCommandInnerException(
             "init",
             f"The pipeline script {source_configuration.src_pipeline_script} imports a destination"
             " from dlt.destinations. You should specify destinations by name when calling"
             " dlt.pipeline or dlt.run in init scripts.",
         )
     if n.PIPELINE not in visitor.known_calls:
-        raise CliCommandException(
+        raise CliCommandInnerException(
             "init",
             f"The pipeline script {source_configuration.src_pipeline_script} does not seem to"
             " initialize a pipeline with dlt.pipeline. Please initialize pipeline explicitly in"
@@ -498,7 +498,7 @@ def init_command(
             (known_sections.SOURCES, source_name),
         )
         if len(checked_sources) == 0:
-            raise CliCommandException(
+            raise CliCommandInnerException(
                 "init",
                 f"The pipeline script {source_configuration.src_pipeline_script} is not creating or"
                 " importing any sources or resources. Exiting...",
@@ -552,7 +552,7 @@ def init_command(
             )
 
         if not fmt.confirm("Do you want to proceed?", default=True):
-            raise CliCommandException("init", "Aborted")
+            raise CliCommandInnerException("init", "Aborted")
 
     dependency_system = _get_dependency_system(dest_storage)
     _welcome_message(

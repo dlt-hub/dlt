@@ -11,6 +11,7 @@ from dlt.common.typing import DictStrAny
 import dlt.cli.echo as fmt
 from dlt.cli import utils
 from dlt.pipeline.exceptions import CannotRestorePipelineException
+from dlt.cli.exceptions import CliCommandException
 
 from dlt.cli.init_command import (
     init_command,
@@ -35,13 +36,6 @@ except ModuleNotFoundError:
     pass
 
 
-def on_exception(ex: Exception, info: str) -> None:
-    click.secho(str(ex), err=True, fg="red")
-    fmt.note("Please refer to %s for further assistance" % fmt.bold(info))
-    if debug.is_debug_enabled():
-        raise ex
-
-
 @utils.track_command("init", False, "source_name", "destination_type")
 def init_command_wrapper(
     source_name: str,
@@ -49,48 +43,34 @@ def init_command_wrapper(
     repo_location: str,
     branch: str,
     omit_core_sources: bool = False,
-) -> int:
-    try:
-        init_command(
-            source_name,
-            destination_type,
-            repo_location,
-            branch,
-            omit_core_sources,
-        )
-    except Exception as ex:
-        on_exception(ex, DLT_INIT_DOCS_URL)
-        return -1
-    return 0
+) -> None:
+    init_command(
+        source_name,
+        destination_type,
+        repo_location,
+        branch,
+        omit_core_sources,
+    )
 
 
 @utils.track_command("list_sources", False)
-def list_sources_command_wrapper(repo_location: str, branch: str) -> int:
-    try:
-        list_sources_command(repo_location, branch)
-    except Exception as ex:
-        on_exception(ex, DLT_INIT_DOCS_URL)
-        return -1
-    return 0
+def list_sources_command_wrapper(repo_location: str, branch: str) -> None:
+    list_sources_command(repo_location, branch)
 
 
 @utils.track_command("pipeline", True, "operation")
 def pipeline_command_wrapper(
     operation: str, pipeline_name: str, pipelines_dir: str, verbosity: int, **command_kwargs: Any
-) -> int:
+) -> None:
     try:
         pipeline_command(operation, pipeline_name, pipelines_dir, verbosity, **command_kwargs)
-        return 0
     except CannotRestorePipelineException as ex:
         click.secho(str(ex), err=True, fg="red")
         click.secho(
             "Try command %s to restore the pipeline state from destination"
             % fmt.bold(f"dlt pipeline {pipeline_name} sync")
         )
-        return -1
-    except Exception as ex:
-        on_exception(ex, DLT_PIPELINE_COMMAND_DOCS_URL)
-        return -2
+        raise CliCommandException(error_code=-2)
 
 
 @utils.track_command("deploy", False, "deployment_method")
@@ -100,13 +80,12 @@ def deploy_command_wrapper(
     repo_location: str,
     branch: Optional[str] = None,
     **kwargs: Any,
-) -> int:
+) -> None:
     try:
         utils.ensure_git_command("deploy")
     except Exception as ex:
         click.secho(str(ex), err=True, fg="red")
-        return -1
-
+        raise CliCommandException(error_code=-2)
     from git import InvalidGitRepositoryError, NoSuchPathError
 
     try:
@@ -121,8 +100,7 @@ def deploy_command_wrapper(
         fmt.note(
             "You must run the pipeline locally successfully at least once in order to deploy it."
         )
-        on_exception(ex, DLT_DEPLOY_DOCS_URL)
-        return -2
+        raise CliCommandException(error_code=-3, raiseable_exception=ex)
     except InvalidGitRepositoryError:
         click.secho(
             "No git repository found for pipeline script %s." % fmt.bold(pipeline_script_path),
@@ -140,18 +118,14 @@ def deploy_command_wrapper(
             )
         )
         fmt.note("Please refer to %s for further assistance" % fmt.bold(DLT_DEPLOY_DOCS_URL))
-        return -3
+        raise CliCommandException(error_code=-4)
     except NoSuchPathError as path_ex:
         click.secho("The pipeline script does not exist\n%s" % str(path_ex), err=True, fg="red")
-        return -4
-    except Exception as ex:
-        on_exception(ex, DLT_DEPLOY_DOCS_URL)
-        return -5
-    return 0
+        raise CliCommandException(error_code=-5)
 
 
 @utils.track_command("schema", False, "operation")
-def schema_command_wrapper(file_path: str, format_: str, remove_defaults: bool) -> int:
+def schema_command_wrapper(file_path: str, format_: str, remove_defaults: bool) -> None:
     with open(file_path, "rb") as f:
         if os.path.splitext(file_path)[1][1:] == "json":
             schema_dict: DictStrAny = json.load(f)
@@ -163,24 +137,16 @@ def schema_command_wrapper(file_path: str, format_: str, remove_defaults: bool) 
     else:
         schema_str = s.to_pretty_yaml(remove_defaults=remove_defaults)
     fmt.echo(schema_str)
-    return 0
 
 
 @utils.track_command("telemetry", False)
-def telemetry_status_command_wrapper() -> int:
-    try:
-        telemetry_status_command()
-    except Exception as ex:
-        on_exception(ex, DLT_TELEMETRY_DOCS_URL)
-        return -1
-    return 0
+def telemetry_status_command_wrapper() -> None:
+    telemetry_status_command()
 
 
 @utils.track_command("telemetry_switch", False, "enabled")
-def telemetry_change_status_command_wrapper(enabled: bool) -> int:
+def telemetry_change_status_command_wrapper(enabled: bool) -> None:
     try:
         change_telemetry_status_command(enabled)
     except Exception as ex:
-        on_exception(ex, DLT_TELEMETRY_DOCS_URL)
-        return -1
-    return 0
+        raise CliCommandException(docs_url=DLT_TELEMETRY_DOCS_URL, raiseable_exception=ex)

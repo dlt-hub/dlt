@@ -37,7 +37,7 @@ from dlt.cli.init_command import (
     _list_template_sources,
     _list_verified_sources,
 )
-from dlt.cli.exceptions import CliCommandException
+from dlt.cli.exceptions import CliCommandInnerException
 from dlt.cli.requirements import SourceRequirements
 from dlt.reflection.script_visitor import PipelineScriptVisitor
 from dlt.reflection import names as n
