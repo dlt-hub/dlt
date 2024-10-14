@@ -223,8 +223,8 @@ def _run_dataset_checks(
     # check dataset factory
     dataset = dlt._dataset(destination=destination_for_dataset, dataset_name=pipeline.dataset_name)
     # verfiy that sql client and schema are lazy loaded
-    assert not dataset.schema
-    assert not dataset.sql_client
+    assert not dataset._schema
+    assert not dataset._sql_client
     table_relationship = dataset.items
     table = table_relationship.fetchall()
     assert len(table) == total_records
@@ -238,7 +238,6 @@ def _run_dataset_checks(
             schema=pipeline.default_schema_name,
         ),
     )
-    dataset._ensure_client_and_schema()
     assert dataset.schema.tables["items"]["write_disposition"] == "replace"
 
     # check that schema is not loaded when wrong name given
@@ -250,7 +249,6 @@ def _run_dataset_checks(
             schema="wrong_schema_name",
         ),
     )
-    dataset._ensure_client_and_schema()
     assert "items" not in dataset.schema.tables
     assert dataset.schema.name == pipeline.dataset_name
 
@@ -262,7 +260,6 @@ def _run_dataset_checks(
             dataset_name=pipeline.dataset_name,
         ),
     )
-    dataset._ensure_client_and_schema()
     assert dataset.schema.name == pipeline.default_schema_name
     assert dataset.schema.tables["items"]["write_disposition"] == "replace"
 
@@ -274,7 +271,6 @@ def _run_dataset_checks(
             dataset_name="unknown_dataset",
         ),
     )
-    dataset._ensure_client_and_schema()
     assert dataset.schema.name == "unknown_dataset"
     assert "items" not in dataset.schema.tables
 
@@ -297,7 +293,6 @@ def _run_dataset_checks(
             dataset_name=pipeline.dataset_name,
         ),
     )
-    dataset._ensure_client_and_schema()
     assert dataset.schema.name == "some_other_schema"
     assert "other_table" in dataset.schema.tables
 

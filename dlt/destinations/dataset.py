@@ -87,8 +87,18 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
         self._destination = Destination.from_reference(destination)
         self._provided_schema = schema
         self._dataset_name = dataset_name
-        self.sql_client: SqlClientBase[Any] = None
-        self.schema: Schema = None
+        self._sql_client: SqlClientBase[Any] = None
+        self._schema: Schema = None
+
+    @property
+    def schema(self) -> Schema:
+        self._ensure_client_and_schema()
+        return self._schema
+
+    @property
+    def sql_client(self) -> SqlClientBase[Any]:
+        self._ensure_client_and_schema()
+        return self._sql_client
 
     def _destination_client(self, schema: Schema) -> JobClientBase:
         client_spec = self._destination.spec()
@@ -101,34 +111,34 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
     def _ensure_client_and_schema(self) -> None:
         """Lazy load schema and client"""
         # full schema given, nothing to do
-        if not self.schema and isinstance(self._provided_schema, Schema):
-            self.schema = self._provided_schema
+        if not self._schema and isinstance(self._provided_schema, Schema):
+            self._schema = self._provided_schema
 
         # schema name given, resolve it from destination by name
-        elif not self.schema and isinstance(self._provided_schema, str):
+        elif not self._schema and isinstance(self._provided_schema, str):
             with self._destination_client(Schema(self._provided_schema)) as client:
                 if isinstance(client, WithStateSync):
                     stored_schema = client.get_stored_schema(self._provided_schema)
                     if stored_schema:
-                        self.schema = Schema.from_stored_schema(json.loads(stored_schema.schema))
+                        self._schema = Schema.from_stored_schema(json.loads(stored_schema.schema))
 
         # no schema name given, load newest schema from destination
-        elif not self.schema:
+        elif not self._schema:
             with self._destination_client(Schema(self._dataset_name)) as client:
                 if isinstance(client, WithStateSync):
                     stored_schema = client.get_stored_schema()
                     if stored_schema:
-                        self.schema = Schema.from_stored_schema(json.loads(stored_schema.schema))
+                        self._schema = Schema.from_stored_schema(json.loads(stored_schema.schema))
 
         # default to empty schema with dataset name if nothing found
-        if not self.schema:
-            self.schema = Schema(self._dataset_name)
+        if not self._schema:
+            self._schema = Schema(self._dataset_name)
 
         # here we create the client bound to the resolved schema
-        if not self.sql_client:
-            destination_client = self._destination_client(self.schema)
+        if not self._sql_client:
+            destination_client = self._destination_client(self._schema)
             if isinstance(destination_client, WithSqlClient):
-                self.sql_client = destination_client.sql_client
+                self._sql_client = destination_client.sql_client
             else:
                 raise Exception(
                     f"Destination {destination_client.config.destination_type} does not support"
@@ -138,13 +148,11 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
     def __call__(
         self, query: Any, schema_columns: TTableSchemaColumns = None
     ) -> ReadableDBAPIRelation:
-        self._ensure_client_and_schema()
         schema_columns = schema_columns or {}
         return ReadableDBAPIRelation(client=self.sql_client, query=query, schema_columns=schema_columns)  # type: ignore[abstract]
 
     def table(self, table_name: str) -> SupportsReadableRelation:
         # prepare query for table relation
-        self._ensure_client_and_schema()
         schema_columns = (
             self.schema.tables.get(table_name, {}).get("columns", {}) if self.schema else {}
         )
