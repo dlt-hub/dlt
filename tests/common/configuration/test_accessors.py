@@ -21,7 +21,7 @@ from dlt.common.configuration.specs import (
     GcpServiceAccountCredentialsWithoutDefaults,
     ConnectionStringCredentials,
 )
-from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
+from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContainer
 from dlt.common.configuration.utils import get_resolved_traces, ResolvedValueTrace
 from dlt.common.runners.configuration import PoolRunnerConfiguration
 from dlt.common.typing import AnyType, ConfigValue, SecretValue, TSecretValue
@@ -38,7 +38,7 @@ def test_accessor_singletons() -> None:
     assert dlt.secrets.value is SecretValue
 
 
-def test_getter_accessor(toml_providers: ConfigProvidersContext, environment: Any) -> None:
+def test_getter_accessor(toml_providers: ConfigProvidersContainer, environment: Any) -> None:
     with pytest.raises(KeyError) as py_ex:
         dlt.config["_unknown"]
     with pytest.raises(ConfigFieldMissingException) as py_ex:
@@ -76,7 +76,7 @@ def test_getter_accessor(toml_providers: ConfigProvidersContext, environment: An
     )
 
 
-def test_getter_auto_cast(toml_providers: ConfigProvidersContext, environment: Any) -> None:
+def test_getter_auto_cast(toml_providers: ConfigProvidersContainer, environment: Any) -> None:
     environment["VALUE"] = "{SET}"
     assert dlt.config["value"] == "{SET}"
     # bool
@@ -141,7 +141,7 @@ def test_getter_auto_cast(toml_providers: ConfigProvidersContext, environment: A
     )
 
 
-def test_getter_accessor_typed(toml_providers: ConfigProvidersContext, environment: Any) -> None:
+def test_getter_accessor_typed(toml_providers: ConfigProvidersContainer, environment: Any) -> None:
     # get a dict as str
     credentials_str = '{"secret_value":"2137","project_id":"mock-project-id-credentials"}'
     # the typed version coerces the value into desired type, in this case "dict" -> "str"
@@ -170,7 +170,7 @@ def test_getter_accessor_typed(toml_providers: ConfigProvidersContext, environme
     assert c2.client_email == "loader@a7513.iam.gserviceaccount.com"
 
 
-def test_setter(toml_providers: ConfigProvidersContext, environment: Any) -> None:
+def test_setter(toml_providers: ConfigProvidersContainer, environment: Any) -> None:
     assert dlt.secrets.writable_provider.name == "secrets.toml"
     assert dlt.config.writable_provider.name == "config.toml"
 
@@ -202,7 +202,7 @@ def test_setter(toml_providers: ConfigProvidersContext, environment: Any) -> Non
     }
 
 
-def test_secrets_separation(toml_providers: ConfigProvidersContext) -> None:
+def test_secrets_separation(toml_providers: ConfigProvidersContainer) -> None:
     # secrets are available both in config and secrets
     assert dlt.config.get("credentials") is not None
     assert dlt.secrets.get("credentials") is not None
@@ -212,7 +212,7 @@ def test_secrets_separation(toml_providers: ConfigProvidersContext) -> None:
     assert dlt.secrets.get("api_type") is None
 
 
-def test_access_injection(toml_providers: ConfigProvidersContext) -> None:
+def test_access_injection(toml_providers: ConfigProvidersContainer) -> None:
     @dlt.source
     def the_source(
         api_type=dlt.config.value,
@@ -231,7 +231,7 @@ def test_access_injection(toml_providers: ConfigProvidersContext) -> None:
     )
 
 
-def test_provider_registration(toml_providers: ConfigProvidersContext) -> None:
+def test_provider_registration(toml_providers: ConfigProvidersContainer) -> None:
     toml_providers.providers.clear()
 
     def loader():

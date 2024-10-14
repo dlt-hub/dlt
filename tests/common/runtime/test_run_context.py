@@ -5,8 +5,7 @@ import pickle
 
 from dlt.common import logger
 from dlt.common.configuration.container import Container
-from dlt.common.configuration.specs.pluggable_run_context import PluggableRunContext
-from dlt.common.configuration.specs.run_configuration import RuntimeConfiguration
+from dlt.common.configuration.specs import RuntimeConfiguration, PluggableRunContext
 from dlt.common.runtime.init import _INITIALIZED, apply_runtime_config, restore_run_context
 from dlt.common.runtime.run_context import RunContext
 

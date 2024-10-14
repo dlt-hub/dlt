@@ -15,7 +15,6 @@ from dlt.common.configuration.specs.pluggable_run_context import (
     SupportsRunContext,
     PluggableRunContext,
 )
-from dlt.common.configuration.specs.run_configuration import RuntimeConfiguration
 
 # dlt settings folder
 DOT_DLT = os.environ.get(known_env.DLT_CONFIG_FOLDER, ".dlt")
@@ -28,7 +27,6 @@ class RunContext(SupportsRunContext):
 
     def __init__(self, run_dir: Optional[str]):
         self._init_run_dir = run_dir or "."
-        # self._runtime_config: RuntimeConfiguration = None
 
     @property
     def global_dir(self) -> str:
@@ -70,14 +68,6 @@ class RunContext(SupportsRunContext):
         else:
             # if home directory is available use ~/.dlt/pipelines
             return os.path.join(home, DOT_DLT)
-
-    # @property
-    # def runtime_config(self) -> Optional[RuntimeConfiguration]:
-    #     return self._runtime_config
-
-    # @runtime_config.setter
-    # def runtime_config(self, new_value: RuntimeConfiguration) -> None:
-    #     self._runtime_config = new_value
 
     def initial_providers(self) -> List[ConfigProvider]:
         providers = [

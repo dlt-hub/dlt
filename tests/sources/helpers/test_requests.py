@@ -6,12 +6,11 @@ import random
 import pytest
 import requests
 import requests_mock
-from tenacity import wait_exponential, RetryCallState, RetryError
+from tenacity import wait_exponential
 
-from tests.utils import preserve_environ
 import dlt
 from dlt.common.configuration.specs import RuntimeConfiguration
-from dlt.sources.helpers.requests import Session, Client, client as default_client
+from dlt.sources.helpers.requests import Client, client as default_client
 from dlt.sources.helpers.requests.retry import (
     DEFAULT_RETRY_EXCEPTIONS,
     DEFAULT_RETRY_STATUS,
@@ -21,11 +20,15 @@ from dlt.sources.helpers.requests.retry import (
     wait_exponential_retry_after,
 )
 
+from tests.utils import preserve_environ
+
 
 @pytest.fixture(scope="function", autouse=True)
 def mock_sleep() -> Iterator[mock.MagicMock]:
     with mock.patch("time.sleep") as m:
         yield m
+    # restore standard settings on default client
+    default_client.configure(RuntimeConfiguration())
 
 
 def test_default_session_retry_settings() -> None:
@@ -229,8 +232,11 @@ def test_client_instance_with_config(existing_session: bool) -> None:
     }
     os.environ.update({key: str(value) for key, value in cfg.items()})
 
-    client = default_client if existing_session else Client()
-    client.configure()
+    if existing_session:
+        client = default_client
+        client.configure()
+    else:
+        client = Client()
 
     session = client.session
     assert session.timeout == cfg["RUNTIME__REQUEST_TIMEOUT"]

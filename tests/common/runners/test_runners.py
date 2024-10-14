@@ -4,7 +4,7 @@ from typing import Type
 
 from dlt.common.runtime import signals
 from dlt.common.configuration import resolve_configuration, configspec
-from dlt.common.configuration.specs.run_configuration import RuntimeConfiguration
+from dlt.common.configuration.specs import RuntimeConfiguration
 from dlt.common.exceptions import DltException, SignalReceivedException
 from dlt.common.runners import pool_runner as runner
 from dlt.common.runtime import apply_runtime_config

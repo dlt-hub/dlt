@@ -31,16 +31,11 @@ class ConfigProvidersConfiguration(BaseConfiguration):
     __section__: ClassVar[str] = known_sections.PROVIDERS
 
 
-@configspec
-class ConfigProvidersContext(BaseConfiguration):
+class ConfigProvidersContainer:
     """Injectable list of providers used by the configuration `resolve` module"""
 
-    providers: Annotated[List[ConfigProvider], NotResolved()] = dataclasses.field(
-        default=None, init=False, repr=False, compare=False
-    )
-    context_provider: Annotated[ConfigProvider, NotResolved()] = dataclasses.field(
-        default=None, init=False, repr=False, compare=False
-    )
+    providers: List[ConfigProvider] = None
+    context_provider: ConfigProvider = None
 
     def __init__(self, initial_providers: List[ConfigProvider]) -> None:
         super().__init__()

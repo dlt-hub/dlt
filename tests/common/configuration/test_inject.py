@@ -28,7 +28,7 @@ from dlt.common.configuration.specs.base_configuration import (
     is_secret_hint,
     is_valid_configspec_field,
 )
-from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
+from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContainer
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.reflection.spec import _get_spec_name_from_f
 from dlt.common.typing import (
@@ -177,7 +177,7 @@ def test_dlt_literals_defaults_none() -> None:
     assert with_optional_none() == (None, None)
 
 
-def test_inject_from_argument_section(toml_providers: ConfigProvidersContext) -> None:
+def test_inject_from_argument_section(toml_providers: ConfigProvidersContainer) -> None:
     # `gcp_storage` is a key in `secrets.toml` and the default `credentials` section of GcpServiceAccountCredentialsWithoutDefaults must be replaced with it
 
     @with_config
@@ -615,7 +615,7 @@ def test_initial_spec_from_arg_with_spec_type(environment: Any) -> None:
 
 
 def test_use_most_specific_union_type(
-    environment: Any, toml_providers: ConfigProvidersContext
+    environment: Any, toml_providers: ConfigProvidersContainer
 ) -> None:
     @with_config
     def postgres_union(

@@ -13,12 +13,6 @@ from dlt.common.warnings import Dlt100DeprecationWarning
 
 @configspec
 class RuntimeConfiguration(BaseConfiguration):
-    # # TODO: deprecate pipeline_name, it is not used in any reasonable way
-    # name: Optional[str] = None
-    # """Name of the run context"""
-    # data_dir: Optional[str] = None
-    # """data_dir of the run context"""
-
     pipeline_name: Optional[str] = None
     sentry_dsn: Optional[str] = None  # keep None to disable Sentry
     slack_incoming_hook: Optional[TSecretStrValue] = None

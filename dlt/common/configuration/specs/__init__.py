@@ -36,11 +36,12 @@ from .gcp_credentials import (
 )
 
 from .pluggable_run_context import PluggableRunContext
-from .run_configuration import RuntimeConfiguration
+from .runtime_configuration import RuntimeConfiguration, RunConfiguration
 
 
 __all__ = [
     "RuntimeConfiguration",
+    "RunConfiguration",
     "BaseConfiguration",
     "CredentialsConfiguration",
     "CredentialsWithDefault",

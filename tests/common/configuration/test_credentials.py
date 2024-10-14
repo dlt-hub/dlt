@@ -19,7 +19,7 @@ from dlt.common.configuration.specs.exceptions import (
     InvalidGoogleServicesJson,
     OAuth2ScopesRequired,
 )
-from dlt.common.configuration.specs.run_configuration import RuntimeConfiguration
+from dlt.common.configuration.specs import RuntimeConfiguration
 
 from dlt.destinations.impl.snowflake.configuration import SnowflakeCredentials
 from tests.utils import TEST_DICT_CONFIG_PROVIDER, preserve_environ

@@ -21,7 +21,7 @@ from dlt.common.configuration.providers import (
     StringTomlProvider,
 )
 from dlt.common.git import get_origin, get_repo, Repo
-from dlt.common.configuration.specs.run_configuration import get_default_pipeline_name
+from dlt.common.configuration.specs.runtime_configuration import get_default_pipeline_name
 from dlt.common.typing import StrAny
 from dlt.common.reflection.utils import evaluate_node_literal
 from dlt.common.pipeline import LoadInfo, TPipelineState, get_dlt_repos_dir

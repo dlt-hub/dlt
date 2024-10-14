@@ -23,7 +23,7 @@ from dlt.common.configuration.container import Container
 from dlt.common.configuration.providers import ConfigProvider, EnvironProvider
 from dlt.common.configuration.specs.connection_string_credentials import ConnectionStringCredentials
 from dlt.common.configuration.utils import get_resolved_traces
-from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
+from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContainer
 from dlt.common.typing import TSecretValue, StrAny
 from tests.utils import _inject_providers, _reset_providers, inject_providers
 
@@ -116,7 +116,7 @@ def env_provider() -> Iterator[ConfigProvider]:
 
 
 @pytest.fixture
-def toml_providers() -> Iterator[ConfigProvidersContext]:
+def toml_providers() -> Iterator[ConfigProvidersContainer]:
     yield from _reset_providers("./tests/common/cases/configuration/.dlt")
 
 

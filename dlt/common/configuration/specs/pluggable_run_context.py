@@ -2,8 +2,8 @@ from typing import Any, ClassVar, Dict, List, Optional, Protocol
 
 from dlt.common.configuration.providers.provider import ConfigProvider
 from dlt.common.configuration.specs.base_configuration import ContainerInjectableContext
-from dlt.common.configuration.specs.run_configuration import RuntimeConfiguration
-from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
+from dlt.common.configuration.specs.runtime_configuration import RuntimeConfiguration
+from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContainer
 
 
 class SupportsRunContext(Protocol):
@@ -41,14 +41,6 @@ class SupportsRunContext(Protocol):
     def initial_providers(self) -> List[ConfigProvider]:
         """Returns initial providers for this context"""
 
-    # @property
-    # def runtime_config(self) -> Optional[RuntimeConfiguration]:
-    #     """Returns current runtime configuration if initialized"""
-
-    # @runtime_config.setter
-    # def runtime_config(self, new_value: RuntimeConfiguration) -> None:
-    #    """Sets runtime configuration"""
-
     def get_data_entity(self, entity: str) -> str:
         """Gets path in data_dir where `entity` (ie. `pipelines`, `repos`) are stored"""
 
@@ -65,7 +57,7 @@ class PluggableRunContext(ContainerInjectableContext):
     global_affinity: ClassVar[bool] = True
 
     context: SupportsRunContext
-    providers: ConfigProvidersContext
+    providers: ConfigProvidersContainer
     runtime_config: RuntimeConfiguration
 
     def __init__(
@@ -78,7 +70,7 @@ class PluggableRunContext(ContainerInjectableContext):
         else:
             # autodetect run dir
             self._plug(run_dir=None)
-        self.providers = ConfigProvidersContext(self.context.initial_providers())
+        self.providers = ConfigProvidersContainer(self.context.initial_providers())
         self.runtime_config = runtime_config
 
     def reload(self, run_dir: Optional[str] = None, runtime_kwargs: Dict[str, Any] = None) -> None:
@@ -92,12 +84,12 @@ class PluggableRunContext(ContainerInjectableContext):
         self.runtime_config = None
         self._plug(run_dir, runtime_kwargs=runtime_kwargs)
 
-        self.providers = ConfigProvidersContext(self.context.initial_providers())
+        self.providers = ConfigProvidersContainer(self.context.initial_providers())
         # adds remaining providers and initializes runtime
         self.add_extras()
 
     def reload_providers(self) -> None:
-        self.providers = ConfigProvidersContext(self.context.initial_providers())
+        self.providers = ConfigProvidersContainer(self.context.initial_providers())
         self.providers.add_extras()
 
     def after_add(self) -> None:

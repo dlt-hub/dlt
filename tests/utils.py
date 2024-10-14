@@ -13,6 +13,7 @@ from requests import Response
 
 import dlt
 from dlt.common import known_env
+from dlt.common.runtime import telemetry
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.providers import (
     DictionaryProvider,
@@ -22,8 +23,8 @@ from dlt.common.configuration.providers import (
 )
 from dlt.common.configuration.providers.provider import ConfigProvider
 from dlt.common.configuration.resolve import resolve_configuration
-from dlt.common.configuration.specs import RuntimeConfiguration, PluggableRunContext
-from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
+from dlt.common.configuration.specs import RuntimeConfiguration, PluggableRunContext, configspec
+from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContainer
 from dlt.common.configuration.specs.pluggable_run_context import (
     SupportsRunContext,
 )
@@ -361,11 +362,39 @@ def init_test_logging(c: RuntimeConfiguration = None) -> None:
     Container()[PluggableRunContext].initialize_runtime(c)
 
 
+@configspec
+class SentryLoggerConfiguration(RuntimeConfiguration):
+    pipeline_name: str = "logger"
+    sentry_dsn: str = (
+        "https://6f6f7b6f8e0f458a89be4187603b55fe@o1061158.ingest.sentry.io/4504819859914752"
+    )
+
+
 def start_test_telemetry(c: RuntimeConfiguration = None):
     stop_telemetry()
     if not c:
         c = resolve_configuration(RuntimeConfiguration())
     start_telemetry(c)
+
+
+@pytest.fixture
+def temporary_telemetry() -> Iterator[RuntimeConfiguration]:
+    c = SentryLoggerConfiguration()
+    start_test_telemetry(c)
+    try:
+        yield c
+    finally:
+        stop_telemetry()
+
+
+@pytest.fixture
+def disable_temporary_telemetry() -> Iterator[None]:
+    try:
+        yield
+    finally:
+        # force stop telemetry
+        telemetry._TELEMETRY_STARTED = True
+        stop_telemetry()
 
 
 def clean_test_storage(
@@ -480,12 +509,12 @@ def assert_query_data(
 
 
 @contextlib.contextmanager
-def reset_providers(settings_dir: str) -> Iterator[ConfigProvidersContext]:
+def reset_providers(settings_dir: str) -> Iterator[ConfigProvidersContainer]:
     """Context manager injecting standard set of providers where toml providers are initialized from `settings_dir`"""
     return _reset_providers(settings_dir)
 
 
-def _reset_providers(settings_dir: str) -> Iterator[ConfigProvidersContext]:
+def _reset_providers(settings_dir: str) -> Iterator[ConfigProvidersContainer]:
     yield from _inject_providers(
         [
             EnvironProvider(),
@@ -496,13 +525,13 @@ def _reset_providers(settings_dir: str) -> Iterator[ConfigProvidersContext]:
 
 
 @contextlib.contextmanager
-def inject_providers(providers: List[ConfigProvider]) -> Iterator[ConfigProvidersContext]:
+def inject_providers(providers: List[ConfigProvider]) -> Iterator[ConfigProvidersContainer]:
     return _inject_providers(providers)
 
 
-def _inject_providers(providers: List[ConfigProvider]) -> Iterator[ConfigProvidersContext]:
+def _inject_providers(providers: List[ConfigProvider]) -> Iterator[ConfigProvidersContainer]:
     container = Container()
-    ctx = ConfigProvidersContext(initial_providers=providers)
+    ctx = ConfigProvidersContainer(initial_providers=providers)
     try:
         old_providers = container[PluggableRunContext].providers
         container[PluggableRunContext].providers = ctx
