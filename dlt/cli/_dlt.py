@@ -173,8 +173,8 @@ def main() -> int:
             # print exception if available
             if raiseable_exception:
                 click.secho(str(ex), err=True, fg="red")
-            
-            fmt.note(f"Please refer to our docs at '%s' for further assistance." % docs_url)
+
+            fmt.note("Please refer to our docs at '%s' for further assistance." % docs_url)
             if debug.is_debug_enabled() and raiseable_exception:
                 raise raiseable_exception
 

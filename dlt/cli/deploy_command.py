@@ -26,7 +26,6 @@ from dlt.version import DLT_PKG_NAME
 from dlt.common.destination.reference import Destination
 
 REQUIREMENTS_GITHUB_ACTION = "requirements_github_action.txt"
-DLT_DEPLOY_DOCS_URL = "https://dlthub.com/docs/walkthroughs/deploy-a-pipeline"
 DLT_AIRFLOW_GCP_DOCS_URL = (
     "https://dlthub.com/docs/walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer"
 )

@@ -30,10 +30,11 @@ try:
     from dlt.cli import deploy_command
     from dlt.cli.deploy_command import (
         PipelineWasNotRun,
-        DLT_DEPLOY_DOCS_URL,
     )
 except ModuleNotFoundError:
     pass
+
+DLT_DEPLOY_DOCS_URL = "https://dlthub.com/docs/walkthroughs/deploy-a-pipeline"
 
 
 @utils.track_command("init", False, "source_name", "destination_type")
