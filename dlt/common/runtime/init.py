@@ -27,7 +27,7 @@ def initialize_runtime(
     )
 
     # Init or update default requests client config
-    # requests.init(runtime_config)
+    requests.init(runtime_config)
 
 
 def restore_run_context(
@@ -46,10 +46,6 @@ def restore_run_context(
 def init_telemetry(runtime_config: RuntimeConfiguration) -> None:
     """Starts telemetry only once"""
     from dlt.common.runtime.telemetry import start_telemetry
-    from dlt.sources.helpers import requests
-
-    # Init or update default requests client config
-    requests.init(runtime_config)
 
     global _INITIALIZED
     # initialize only once

@@ -18,7 +18,7 @@ env:
 
   DLT_SECRETS_TOML: ${{ secrets.DLT_SECRETS_TOML }}
 
-  RUNTIME__SENTRY_DSN: https://6f6f7b6f8e0f458a89be4187603b55fe@o1061158.ingest.sentry.io/4504819859914752
+  # RUNTIME__SENTRY_DSN: https://6f6f7b6f8e0f458a89be4187603b55fe@o1061158.ingest.sentry.io/4504819859914752
   RUNTIME__LOG_LEVEL: ERROR
   RUNTIME__DLTHUB_TELEMETRY_ENDPOINT: ${{ secrets.RUNTIME__DLTHUB_TELEMETRY_ENDPOINT }}
 
@@ -70,7 +70,7 @@ jobs:
 
       - name: Upgrade pyarrow
         run: poetry run pip install pyarrow==17.0.0
-      
+
       - name: create secrets.toml
         run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
 
