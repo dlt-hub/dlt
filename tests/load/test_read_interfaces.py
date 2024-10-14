@@ -367,8 +367,7 @@ def test_delta_tables(destination_config: DestinationTestConfiguration) -> None:
     os.environ["DATA_WRITER__FILE_MAX_ITEMS"] = "700"
 
     pipeline = destination_config.setup_pipeline(
-        "read_pipeline",
-        dataset_name="read_test",
+        "read_pipeline", dataset_name="read_test", dev_mode=True
     )
 
     # in case of gcs we use the s3 compat layer for reading
