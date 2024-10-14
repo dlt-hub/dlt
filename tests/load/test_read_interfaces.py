@@ -221,7 +221,7 @@ def _run_dataset_checks(
     )
 
     # check dataset factory
-    dataset = dlt.dataset(destination=destination_for_dataset, dataset_name=pipeline.dataset_name)
+    dataset = dlt._dataset(destination=destination_for_dataset, dataset_name=pipeline.dataset_name)
     # verfiy that sql client and schema are lazy loaded
     assert not dataset.schema
     assert not dataset.sql_client
@@ -232,7 +232,7 @@ def _run_dataset_checks(
     # check that schema is loaded by name
     dataset = cast(
         ReadableDBAPIDataset,
-        dlt.dataset(
+        dlt._dataset(
             destination=destination_for_dataset,
             dataset_name=pipeline.dataset_name,
             schema=pipeline.default_schema_name,
@@ -244,7 +244,7 @@ def _run_dataset_checks(
     # check that schema is not loaded when wrong name given
     dataset = cast(
         ReadableDBAPIDataset,
-        dlt.dataset(
+        dlt._dataset(
             destination=destination_for_dataset,
             dataset_name=pipeline.dataset_name,
             schema="wrong_schema_name",
@@ -257,7 +257,7 @@ def _run_dataset_checks(
     # check that schema is loaded if no schema name given
     dataset = cast(
         ReadableDBAPIDataset,
-        dlt.dataset(
+        dlt._dataset(
             destination=destination_for_dataset,
             dataset_name=pipeline.dataset_name,
         ),
@@ -269,7 +269,7 @@ def _run_dataset_checks(
     # check that there is no error when creating dataset without schema table
     dataset = cast(
         ReadableDBAPIDataset,
-        dlt.dataset(
+        dlt._dataset(
             destination=destination_for_dataset,
             dataset_name="unknown_dataset",
         ),
@@ -292,7 +292,7 @@ def _run_dataset_checks(
 
     dataset = cast(
         ReadableDBAPIDataset,
-        dlt.dataset(
+        dlt._dataset(
             destination=destination_for_dataset,
             dataset_name=pipeline.dataset_name,
         ),
