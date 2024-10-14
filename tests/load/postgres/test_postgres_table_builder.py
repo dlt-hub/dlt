@@ -352,3 +352,5 @@ def test_read_from_geopandas_with_native_geodata_type(
             records = cur.fetchone()
             assert records
             assert records[0] == "geometry"
+
+    # TODO: read dataframe back into gpd frame and assert equal to original
