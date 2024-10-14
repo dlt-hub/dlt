@@ -525,7 +525,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
             {
                 "path": [p_schema_name],
                 "operator": "Equal",
-                "valueString": self.schema.name,
+                "valueString": schema_name,
             }
             if schema_name
             else None
