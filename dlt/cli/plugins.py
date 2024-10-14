@@ -266,7 +266,7 @@ class PipelineCommand(SupportsCliCommand):
 class SchemaCommand(SupportsCliCommand):
     command = "schema"
     help_string = "Shows, converts and upgrades schemas"
-    docs_url = "https://dlthub.com/docs/reference/command-line-interface"
+    docs_url = "https://dlthub.com/docs/reference/command-line-interface#dlt-schema"
 
     def configure_parser(self, parser: argparse.ArgumentParser) -> None:
         self.parser = parser
