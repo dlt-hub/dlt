@@ -649,12 +649,9 @@ WHERE """
         Delete all stored versions with the same name as given schema.
         Fails silently if versions table does not exist
         """
-        with suppress(DatabaseUndefinedRelation):
-            name = self.sql_client.make_qualified_table_name(self.schema.version_table_name)
-            (c_schema_name,) = self._norm_and_escape_columns("schema_name")
-            self.sql_client.execute_sql(
-                f"DELETE FROM {name} WHERE {c_schema_name} = %s;", schema.name
-            )
+        name = self.sql_client.make_qualified_table_name(self.schema.version_table_name)
+        (c_schema_name,) = self._norm_and_escape_columns("schema_name")
+        self.sql_client.execute_sql(f"DELETE FROM {name} WHERE {c_schema_name} = %s;", schema.name)
 
     def _update_schema_in_storage(self, schema: Schema) -> None:
         # get schema string or zip
