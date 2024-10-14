@@ -224,7 +224,11 @@ class Client:
         )
 
     @with_config(spec=RuntimeConfiguration)
-    def update_from_config(self, config: RuntimeConfiguration = ConfigValue) -> None:
+    def configure(self, config: RuntimeConfiguration = ConfigValue) -> None:
+        """Update session/retry settings via injected RunConfiguration"""
+        self.update_from_config(config)
+
+    def update_from_config(self, config: RuntimeConfiguration) -> None:
         """Update session/retry settings from RunConfiguration"""
         self._session_kwargs["timeout"] = config.request_timeout
         self._retry_kwargs["backoff_factor"] = config.request_backoff_factor

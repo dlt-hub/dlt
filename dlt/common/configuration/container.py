@@ -36,7 +36,7 @@ class Container:
 
     thread_contexts: Dict[int, Dict[Type[ContainerInjectableContext], ContainerInjectableContext]]
     """A thread aware mapping of injection context """
-    _context_container_locks: Dict[str, threading.Lock]
+    _context_container_locks: Dict[str, threading.RLock]
     """Locks for container types on threads."""
 
     main_context: Dict[Type[ContainerInjectableContext], ContainerInjectableContext]
@@ -159,8 +159,9 @@ class Container:
         if lock_context:
             lock_key = f"{id(context)}"
             if (lock := self._context_container_locks.get(lock_key)) is None:
+                # use multi-entrant locks so same thread can acquire this context several times
                 with Container._LOCK:
-                    self._context_container_locks[lock_key] = lock = threading.Lock()
+                    self._context_container_locks[lock_key] = lock = threading.RLock()
         else:
             lock = nullcontext()
 

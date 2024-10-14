@@ -230,7 +230,7 @@ def test_client_instance_with_config(existing_session: bool) -> None:
     os.environ.update({key: str(value) for key, value in cfg.items()})
 
     client = default_client if existing_session else Client()
-    client.update_from_config()
+    client.configure()
 
     session = client.session
     assert session.timeout == cfg["RUNTIME__REQUEST_TIMEOUT"]
