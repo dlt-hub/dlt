@@ -1,4 +1,9 @@
+import pytest
+
 from dlt.destinations.impl.clickhouse.utils import convert_storage_to_http_scheme
+
+# mark all tests as essential, do not remove
+pytestmark = pytest.mark.essential
 
 
 def test_convert_storage_scheme() -> None:
