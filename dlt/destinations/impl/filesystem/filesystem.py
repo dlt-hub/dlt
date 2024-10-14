@@ -650,7 +650,7 @@ class FilesystemClient(
             yield filepath, fileparts
 
     def _get_stored_schema_by_hash_or_newest(
-        self, version_hash: str = None, any_schema_name: bool = False
+        self, version_hash: str = None, schema_name: str = None
     ) -> Optional[StorageSchemaInfo]:
         """Get the schema by supplied hash, falls back to getting the newest version matching the existing schema name"""
         version_hash = self._to_path_safe_string(version_hash)
@@ -661,7 +661,7 @@ class FilesystemClient(
             for filepath, fileparts in self._iter_stored_schema_files():
                 if (
                     not version_hash
-                    and (fileparts[0] == self.schema.name or any_schema_name)
+                    and (fileparts[0] == schema_name or (not schema_name))
                     and fileparts[1] > newest_load_id
                 ):
                     newest_load_id = fileparts[1]
@@ -703,9 +703,9 @@ class FilesystemClient(
         # we always keep tabs on what the current schema is
         self._write_to_json_file(filepath, version_info)
 
-    def get_stored_schema(self, any_schema_name: bool = False) -> Optional[StorageSchemaInfo]:
+    def get_stored_schema(self, schema_name: str = None) -> Optional[StorageSchemaInfo]:
         """Retrieves newest schema from destination storage"""
-        return self._get_stored_schema_by_hash_or_newest(any_schema_name=any_schema_name)
+        return self._get_stored_schema_by_hash_or_newest(schema_name=schema_name)
 
     def get_stored_schema_by_hash(self, version_hash: str) -> Optional[StorageSchemaInfo]:
         return self._get_stored_schema_by_hash_or_newest(version_hash)

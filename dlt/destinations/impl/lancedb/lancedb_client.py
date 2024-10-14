@@ -539,7 +539,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
             return None
 
     @lancedb_error
-    def get_stored_schema(self, any_schema_name: bool = False) -> Optional[StorageSchemaInfo]:
+    def get_stored_schema(self, schema_name: str = None) -> Optional[StorageSchemaInfo]:
         """Retrieves newest schema from destination storage."""
         fq_version_table_name = self.make_qualified_table_name(self.schema.version_table_name)
 
@@ -554,8 +554,8 @@ class LanceDBClient(JobClientBase, WithStateSync):
 
         try:
             query = version_table.search()
-            if not any_schema_name:
-                query = query.where(f'`{p_schema_name}` = "{self.schema.name}"', prefilter=True)
+            if schema_name:
+                query = query.where(f'`{p_schema_name}` = "{schema_name}"', prefilter=True)
             schemas = query.to_list()
 
             # LanceDB's ORDER BY clause doesn't seem to work.

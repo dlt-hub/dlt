@@ -100,7 +100,7 @@ def test_get_schema_on_empty_storage(naming: str, client: SqlJobClientBase) -> N
     table_name, table_columns = list(client.get_storage_tables([version_table_name]))[0]
     assert table_name == version_table_name
     assert len(table_columns) == 0
-    schema_info = client.get_stored_schema()
+    schema_info = client.get_stored_schema(client.schema.name)
     assert schema_info is None
     schema_info = client.get_stored_schema_by_hash("8a0298298823928939")
     assert schema_info is None
@@ -128,7 +128,7 @@ def test_get_update_basic_schema(client: SqlJobClientBase) -> None:
     assert [len(table[1]) > 0 for table in storage_tables] == [True, True]
     # verify if schemas stored
     this_schema = client.get_stored_schema_by_hash(schema.version_hash)
-    newest_schema = client.get_stored_schema()
+    newest_schema = client.get_stored_schema(client.schema.name)
     # should point to the same schema
     assert this_schema == newest_schema
     # check fields
@@ -151,7 +151,7 @@ def test_get_update_basic_schema(client: SqlJobClientBase) -> None:
     client._update_schema_in_storage(schema)
     sleep(1)
     this_schema = client.get_stored_schema_by_hash(schema.version_hash)
-    newest_schema = client.get_stored_schema()
+    newest_schema = client.get_stored_schema(client.schema.name)
     assert this_schema == newest_schema
     assert this_schema.version == schema.version == 3
     assert this_schema.version_hash == schema.stored_version_hash
@@ -166,7 +166,7 @@ def test_get_update_basic_schema(client: SqlJobClientBase) -> None:
     sleep(1)
     client._update_schema_in_storage(first_schema)
     this_schema = client.get_stored_schema_by_hash(first_schema.version_hash)
-    newest_schema = client.get_stored_schema()
+    newest_schema = client.get_stored_schema(client.schema.name)
     assert this_schema == newest_schema  # error
     assert this_schema.version == first_schema.version == 3
     assert this_schema.version_hash == first_schema.stored_version_hash
@@ -176,17 +176,17 @@ def test_get_update_basic_schema(client: SqlJobClientBase) -> None:
 
     # mock other schema in client and get the newest schema. it should not exist...
     client.schema = Schema("ethereum")
-    assert client.get_stored_schema() is None
+    assert client.get_stored_schema(client.schema.name) is None
     client.schema._bump_version()
     schema_update = client.update_stored_schema()
     # no schema updates because schema has no tables
     assert schema_update == {}
-    that_info = client.get_stored_schema()
+    that_info = client.get_stored_schema(client.schema.name)
     assert that_info.schema_name == "ethereum"
 
     # get event schema again
     client.schema = Schema("event")
-    this_schema = client.get_stored_schema()
+    this_schema = client.get_stored_schema(client.schema.name)
     assert this_schema == newest_schema
 
 
@@ -990,33 +990,37 @@ def test_schema_retrieval(destination_config: DestinationTestConfiguration) -> N
     add_schema_to_pipeline(s1_v1)
     p.default_schema_name = s1_v1.name
     with p.destination_client() as client:  # type: ignore[assignment]
+        assert client.get_stored_schema("schema_1").version_hash == s1_v1.version_hash
         assert client.get_stored_schema().version_hash == s1_v1.version_hash
-        assert client.get_stored_schema(any_schema_name=True).version_hash == s1_v1.version_hash
+        assert not client.get_stored_schema("other_schema")
 
     # now we add a different schema
     # but keep default schema name at v1
     add_schema_to_pipeline(s2_v1)
     p.default_schema_name = s1_v1.name
     with p.destination_client() as client:  # type: ignore[assignment]
-        assert client.get_stored_schema().version_hash == s1_v1.version_hash
+        assert client.get_stored_schema("schema_1").version_hash == s1_v1.version_hash
         # here v2 will be selected as it is newer
-        assert client.get_stored_schema(any_schema_name=True).version_hash == s2_v1.version_hash
+        assert client.get_stored_schema(None).version_hash == s2_v1.version_hash
+        assert not client.get_stored_schema("other_schema")
 
     # add two more version,
     add_schema_to_pipeline(s1_v2)
     add_schema_to_pipeline(s2_v2)
     p.default_schema_name = s1_v1.name
     with p.destination_client() as client:  # type: ignore[assignment]
-        assert client.get_stored_schema().version_hash == s1_v2.version_hash
+        assert client.get_stored_schema("schema_1").version_hash == s1_v2.version_hash
         # here v2 will be selected as it is newer
-        assert client.get_stored_schema(any_schema_name=True).version_hash == s2_v2.version_hash
+        assert client.get_stored_schema(None).version_hash == s2_v2.version_hash
+        assert not client.get_stored_schema("other_schema")
 
     # check same setup with other default schema name
     p.default_schema_name = s2_v1.name
     with p.destination_client() as client:  # type: ignore[assignment]
-        assert client.get_stored_schema().version_hash == s2_v2.version_hash
+        assert client.get_stored_schema("schema_2").version_hash == s2_v2.version_hash
         # here v2 will be selected as it is newer
-        assert client.get_stored_schema(any_schema_name=True).version_hash == s2_v2.version_hash
+        assert client.get_stored_schema(None).version_hash == s2_v2.version_hash
+        assert not client.get_stored_schema("other_schema")
 
 
 def prepare_schema(client: SqlJobClientBase, case: str) -> Tuple[List[Dict[str, Any]], str]:

@@ -377,26 +377,30 @@ class QdrantClient(JobClientBase, WithStateSync):
                     raise DestinationUndefinedEntity(str(e)) from e
                 raise
 
-    def get_stored_schema(self, any_schema_name: bool = False) -> Optional[StorageSchemaInfo]:
+    def get_stored_schema(self, schema_name: str = None) -> Optional[StorageSchemaInfo]:
         """Retrieves newest schema from destination storage"""
         try:
             scroll_table_name = self._make_qualified_collection_name(self.schema.version_table_name)
             p_schema_name = self.schema.naming.normalize_identifier("schema_name")
             p_inserted_at = self.schema.naming.normalize_identifier("inserted_at")
 
-            name_filter = models.Filter(
-                must=[
-                    models.FieldCondition(
-                        key=p_schema_name,
-                        match=models.MatchValue(value=self.schema.name),
-                    )
-                ]
+            name_filter = (
+                models.Filter(
+                    must=[
+                        models.FieldCondition(
+                            key=p_schema_name,
+                            match=models.MatchValue(value=schema_name),
+                        )
+                    ]
+                )
+                if schema_name
+                else None
             )
 
             response = self.db_client.scroll(
                 scroll_table_name,
                 with_payload=True,
-                scroll_filter=None if any_schema_name else name_filter,
+                scroll_filter=name_filter,
                 limit=1,
                 order_by=models.OrderBy(
                     key=p_inserted_at,

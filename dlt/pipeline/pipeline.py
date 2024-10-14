@@ -1547,7 +1547,7 @@ class Pipeline(SupportsPipeline):
                             f" {self.destination.destination_name}"
                         )
                         return restored_schemas
-                    schema_info = job_client.get_stored_schema()
+                    schema_info = job_client.get_stored_schema(schema_name)
                     if schema_info is None:
                         logger.info(
                             f"The schema {schema.name} was not found in the destination"

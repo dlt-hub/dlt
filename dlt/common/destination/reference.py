@@ -659,8 +659,11 @@ class JobClientBase(ABC):
 
 class WithStateSync(ABC):
     @abstractmethod
-    def get_stored_schema(self, any_schema_name: bool = False) -> Optional[StorageSchemaInfo]:
-        """Retrieves newest schema from destination storage, setting any_schema_name to true will return the newest schema regardless of the schema name"""
+    def get_stored_schema(self, schema_name: str = None) -> Optional[StorageSchemaInfo]:
+        """
+        Retrieves newest schema with given name from destination storage
+        If no name is provided, the newest schema found is retrieved.
+        """
         pass
 
     @abstractmethod

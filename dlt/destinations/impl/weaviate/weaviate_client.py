@@ -516,22 +516,26 @@ class WeaviateClient(JobClientBase, WithStateSync):
                 if len(load_records):
                     return StateInfo(**state)
 
-    def get_stored_schema(self, any_schema_name: bool = False) -> Optional[StorageSchemaInfo]:
+    def get_stored_schema(self, schema_name: str = None) -> Optional[StorageSchemaInfo]:
         """Retrieves newest schema from destination storage"""
         p_schema_name = self.schema.naming.normalize_identifier("schema_name")
         p_inserted_at = self.schema.naming.normalize_identifier("inserted_at")
 
-        name_filter = {
-            "path": [p_schema_name],
-            "operator": "Equal",
-            "valueString": self.schema.name,
-        }
+        name_filter = (
+            {
+                "path": [p_schema_name],
+                "operator": "Equal",
+                "valueString": self.schema.name,
+            }
+            if schema_name
+            else None
+        )
 
         try:
             record = self.get_records(
                 self.schema.version_table_name,
                 sort={"path": [p_inserted_at], "order": "desc"},
-                where=None if any_schema_name else name_filter,
+                where=name_filter,
                 limit=1,
             )[0]
             return StorageSchemaInfo(**record)

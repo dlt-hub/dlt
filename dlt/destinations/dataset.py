@@ -108,7 +108,7 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
         elif not self.schema and isinstance(self._provided_schema, str):
             with self._destination_client(Schema(self._provided_schema)) as client:
                 if isinstance(client, WithStateSync):
-                    stored_schema = client.get_stored_schema()
+                    stored_schema = client.get_stored_schema(self._provided_schema)
                     if stored_schema:
                         self.schema = Schema.from_stored_schema(json.loads(stored_schema.schema))
 
@@ -116,7 +116,7 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
         elif not self.schema:
             with self._destination_client(Schema(self._dataset_name)) as client:
                 if isinstance(client, WithStateSync):
-                    stored_schema = client.get_stored_schema(any_schema_name=True)
+                    stored_schema = client.get_stored_schema()
                     if stored_schema:
                         self.schema = Schema.from_stored_schema(json.loads(stored_schema.schema))
 
