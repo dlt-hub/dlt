@@ -18,7 +18,7 @@ We'll learn:
 
 import os
 import re
-from datetime import datetime
+from dlt.common import pendulum as p
 from typing import Dict, List, Iterator
 
 import dlt
@@ -28,7 +28,7 @@ from dlt.sources.rest_api import RESTAPIConfig, rest_api_source
 
 
 @dlt.source
-def chess_com_source(username: str, months: List[Dict[str, str]]) -> Iterator[dlt.Resource]:
+def chess_com_source(username: str, months: List[Dict[str, str]]) -> Iterator[dlt.resource]:
     """
     Configures and yields resources to fetch chess game data for a given user across specified months.
 
@@ -96,8 +96,8 @@ def generate_months(start_year: int, start_month: int, end_year: int, end_month:
     Yields:
         Dict[str, str]: Dictionary containing 'year' and 'month' as strings.
     """
-    start_date = datetime(start_year, start_month, 1)
-    end_date = datetime(end_year, end_month, 1)
+    start_date = p.datetime(start_year, start_month, 1)
+    end_date = p.datetime(end_year, end_month, 1)
     current_date = start_date
     while current_date <= end_date:
         yield {
@@ -135,7 +135,7 @@ def delete_old_backfills(load_info: LoadInfo, p: dlt.Pipeline, table_name: str) 
     # Check if the table directory exists
     if fs_client.fs_client.exists(table_dir):
         # Traverse the table directory
-        for root, dirs, files in fs_client.fs_client.walk(table_dir, maxdepth=None):
+        for root, _dirs, files in fs_client.fs_client.walk(table_dir, maxdepth=None):
             for file in files:
                 # Construct the full file path
                 file_path = os.path.join(root, file)
@@ -149,7 +149,6 @@ def delete_old_backfills(load_info: LoadInfo, p: dlt.Pipeline, table_name: str) 
     else:
         # Inform if the table directory does not exist
         print(f"Table directory does not exist: {table_dir}")
-
 
 def load_chess_data():
     """
