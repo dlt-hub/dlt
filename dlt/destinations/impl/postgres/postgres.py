@@ -205,10 +205,3 @@ class PostgresClient(InsertValuesJobClient):
     ) -> TColumnType:
         return self.type_mapper.from_destination_type(pq_t, precision, scale)
 
-    @staticmethod
-    def _is_valid_hex(s: str) -> bool:
-        try:
-            int(s, 16)
-            return True
-        except ValueError:
-            return False
