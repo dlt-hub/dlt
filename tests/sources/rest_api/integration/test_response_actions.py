@@ -1,10 +1,14 @@
 from dlt.common import json
 from dlt.sources.helpers.requests import Response
+from dlt.sources.helpers.rest_client.exceptions import IgnoreResponseException
 from dlt.sources.rest_api import create_response_hooks, rest_api_source
 
 
 def test_response_action_on_status_code(mock_api_server, mocker):
-    mock_response_hook = mocker.Mock()
+    def custom_hook(response, *args, **kwargs):
+        raise IgnoreResponseException
+
+    mock_response_hook = mocker.Mock(side_effect=custom_hook)
     mock_source = rest_api_source(
         {
             "client": {"base_url": "https://api.example.com"},
@@ -108,7 +112,7 @@ def test_response_actions_called_in_order(mock_api_server, mocker):
         {"status_code": 200, "action": mock_response_hook_2},
     ]
     hooks = create_response_hooks(response_actions)
-    assert len(hooks.get("response")) == 2
+    assert len(hooks.get("response")) == 3  # 2 custom hooks + 1 fallback hook
 
     mock_source = rest_api_source(
         {
