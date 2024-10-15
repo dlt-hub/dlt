@@ -19,16 +19,17 @@ We'll learn:
 import os
 import re
 from dlt.common import pendulum as p
-from typing import Dict, List, Iterator
+from typing import Dict, List, Iterator, Sequence
 
 import dlt
+from dlt.sources import DltResource
 from dlt.common.pipeline import LoadInfo
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 from dlt.sources.rest_api import RESTAPIConfig, rest_api_source
 
 
 @dlt.source
-def chess_com_source(username: str, months: List[Dict[str, str]]) -> Iterator[dlt.resource]:
+def chess_com_source(username: str, months: List[Dict[str, str]]) -> Sequence[DltResource]:
     """
     Configures and yields resources to fetch chess game data for a given user across specified months.
 
