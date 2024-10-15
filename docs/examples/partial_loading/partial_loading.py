@@ -5,9 +5,9 @@ description: Load chess game data from Chess.com into a filesystem destination, 
 keywords: [incremental loading, REST API, dlt, chess.com, data pipeline, backfill management, filesystem]
 ---
 
-In this example, a Python script interacts with the Chess.com REST API to extract game data for a specific user on a 
-monthly basis. The script retrieves game data for a specified time range, and when additional data is loaded for a 
-different time range, it automatically handles de-duplication by deleting any previously loaded files for overlapping time range. 
+This script interacts with the Chess.com REST API to extract game data for a specific user on a monthly basis.
+The script retrieves game data for a specified time range, and when additional data is loaded for a different time range,
+it automatically handles de-duplication by deleting any previously loaded files for overlapping time range.
 
 We'll learn:
 
@@ -16,10 +16,10 @@ We'll learn:
 - How to use [Filesystem](../general-usage/filesystem_destination) as a destination for storing extracted data.
 """
 
-import os  
+import os
 import re
 from datetime import datetime
-from typing import Dict, List
+from typing import Dict, List, Iterator
 
 import dlt
 from dlt.common.pipeline import LoadInfo
@@ -43,7 +43,6 @@ def chess_com_source(username: str, months: List[Dict[str, str]]) -> Iterator[dl
     for month in months:
         year = month["year"]
         month_str = month["month"]
-        
         # Configure REST API endpoint for the specific month
         config = RESTAPIConfig(
             client={
