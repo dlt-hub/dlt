@@ -16,12 +16,12 @@ import dlt
 from dlt.common import git
 from dlt.common.configuration.exceptions import LookupTrace, ConfigFieldMissingException
 from dlt.common.configuration.providers import (
-    ConfigTomlProvider,
+    CONFIG_TOML,
     EnvironProvider,
     StringTomlProvider,
 )
 from dlt.common.git import get_origin, get_repo, Repo
-from dlt.common.configuration.specs.run_configuration import get_default_pipeline_name
+from dlt.common.configuration.specs.runtime_configuration import get_default_pipeline_name
 from dlt.common.typing import StrAny
 from dlt.common.reflection.utils import evaluate_node_literal
 from dlt.common.pipeline import LoadInfo, TPipelineState, get_dlt_repos_dir
@@ -71,7 +71,6 @@ class BaseDeployment(abc.ABC):
         self.working_directory: str
         self.state: TPipelineState
 
-        self.config_prov = ConfigTomlProvider()
         self.env_prov = EnvironProvider()
         self.envs: List[LookupTrace] = []
         self.secret_envs: List[LookupTrace] = []
@@ -190,7 +189,7 @@ class BaseDeployment(abc.ABC):
                 # fmt.echo(f"{resolved_value.key}:{resolved_value.value}{type(resolved_value.value)} in {resolved_value.sections} is SECRET")
             else:
                 # move all config values that are not in config.toml into env
-                if resolved_value.provider_name != self.config_prov.name:
+                if resolved_value.provider_name != CONFIG_TOML:
                     self.envs.append(
                         LookupTrace(
                             self.env_prov.name,

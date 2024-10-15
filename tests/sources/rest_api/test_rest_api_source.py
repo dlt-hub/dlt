@@ -1,7 +1,7 @@
 import dlt
 import pytest
 
-from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
+from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContainer
 
 from dlt.sources.rest_api.typing import RESTAPIConfig
 from dlt.sources.helpers.rest_client.paginators import SinglePagePaginator
@@ -20,7 +20,7 @@ def _make_pipeline(destination_name: str):
     )
 
 
-def test_rest_api_config_provider(toml_providers: ConfigProvidersContext) -> None:
+def test_rest_api_config_provider(toml_providers: ConfigProvidersContainer) -> None:
     # mock dicts in toml provider
     dlt.config["client"] = {
         "base_url": "https://pokeapi.co/api/v2/",

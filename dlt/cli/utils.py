@@ -5,7 +5,7 @@ from typing import Callable
 from dlt.common.reflection.utils import set_ast_parents
 from dlt.common.typing import TFun
 from dlt.common.configuration import resolve_configuration
-from dlt.common.configuration.specs import RunConfiguration
+from dlt.common.configuration.specs import RuntimeConfiguration
 from dlt.common.runtime.telemetry import with_telemetry
 from dlt.common.runtime import run_context
 
@@ -60,7 +60,7 @@ def track_command(command: str, track_before: bool, *args: str) -> Callable[[TFu
 
 
 def get_telemetry_status() -> bool:
-    c = resolve_configuration(RunConfiguration())
+    c = resolve_configuration(RuntimeConfiguration())
     return c.dlthub_telemetry
 
 
