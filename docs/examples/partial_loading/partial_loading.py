@@ -19,7 +19,7 @@ We'll learn:
 import os
 import re
 from dlt.common import pendulum as p
-from typing import Dict, List, Iterator, Sequence
+from typing import Dict, List, Iterator
 
 import dlt
 from dlt.sources import DltResource
@@ -29,7 +29,7 @@ from dlt.sources.rest_api import RESTAPIConfig, rest_api_source
 
 
 @dlt.source
-def chess_com_source(username: str, months: List[Dict[str, str]]) -> Sequence[DltResource]:
+def chess_com_source(username: str, months: List[Dict[str, str]]) -> Iterator[DltResource]:
     """
     Configures and yields resources to fetch chess game data for a given user across specified months.
 
