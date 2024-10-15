@@ -1,5 +1,5 @@
 import os
-from datetime import datetime  # noqa: I251
+from datetime import datetime, timedelta  # noqa: I251
 from typing import Generic, ClassVar, Any, Optional, Type, Dict
 from typing_extensions import get_origin, get_args
 
@@ -101,6 +101,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
             The values passed explicitly to Incremental will be ignored.
             Note that if logical "end date" is present then also "end_value" will be set which means that resource state is not used and exactly this range of date will be loaded
         on_cursor_value_missing: Specify what happens when the cursor_path does not exist in a record or a record has `None` at the cursor_path: raise, include, exclude
+        lag: Optional value used to define a lag or attribution window. For datetime cursors, this is interpreted as seconds. For other types, it uses the + or - operator depending on the last_value_func.
     """
 
     # this is config/dataclass so declare members
@@ -111,6 +112,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
     row_order: Optional[TSortOrder] = None
     allow_external_schedulers: bool = False
     on_cursor_value_missing: OnCursorValueMissing = "raise"
+    lag: Optional[float] = None
 
     # incremental acting as empty
     EMPTY: ClassVar["Incremental[Any]"] = None
@@ -126,6 +128,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         row_order: Optional[TSortOrder] = None,
         allow_external_schedulers: bool = False,
         on_cursor_value_missing: OnCursorValueMissing = "raise",
+        lag: Optional[float] = None,
     ) -> None:
         # make sure that path is valid
         if cursor_path:
@@ -149,6 +152,8 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
 
         self._cached_state: IncrementalColumnState = None
         """State dictionary cached on first access"""
+
+        self.lag = lag
         super().__init__(lambda x: x)  # TODO:
 
         self.end_out_of_range: bool = False
@@ -289,6 +294,47 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
             # Passing bare value `incremental=44` gets parsed as initial_value
             self.initial_value = native_value
 
+    def _apply_lag(self, value: TCursorValue) -> TCursorValue:
+        if self.lag is None:
+            return value
+
+        # parses string representation for datetime, int, or float
+        if isinstance(value, str):
+            try:
+                value = datetime.fromisoformat(value)  # type: ignore
+            except ValueError:
+                try:
+                    value = float(value)  # type: ignore
+                except ValueError:
+                    try:
+                        value = int(value)  # type: ignore
+                    except ValueError:
+                        logger.warning(
+                            "Failed to convert incremental string cursor to datetime, float, or int"
+                        )
+
+        if isinstance(value, datetime):
+            if self.last_value_func is max:
+                return value - timedelta(seconds=self.lag)  # type: ignore
+            elif self.last_value_func is min:
+                return value + timedelta(seconds=self.lag)  # type: ignore
+        elif isinstance(value, int):
+            if self.last_value_func is max:
+                return int(value - self.lag)  # type: ignore
+            elif self.last_value_func is min:
+                return int(value + self.lag)  # type: ignore
+        elif isinstance(value, float):
+            if self.last_value_func is max:
+                return value - self.lag  # type: ignore
+            elif self.last_value_func is min:
+                return value + self.lag  # type: ignore
+
+        logger.warning(
+            f"Lag is not supported for last_value_func: {self.last_value_func} and cursor type:"
+            f" {type(value)}"
+        )
+        return value
+
     def get_state(self) -> IncrementalColumnState:
         """Returns an Incremental state for a particular cursor column"""
         if self.end_value is not None:
@@ -335,6 +381,10 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
     @property
     def last_value(self) -> Optional[TCursorValue]:
         s = self.get_state()
+
+        if self.lag is not None:
+            return self._apply_lag(s["last_value"])
+
         return s["last_value"]  # type: ignore
 
     def _transform_item(

@@ -997,3 +997,122 @@ def test_dest_column_hint_timezone(destination_config: DestinationTestConfigurat
 
             values = [r[0].strftime("%Y-%m-%dT%H:%M:%S.%f") for r in rows]
             assert values == output_map[destination]["tables"][t]["timestamp_values"]  # type: ignore
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_staging_configs=True, default_sql_configs=True),
+    ids=lambda x: x.name,
+)
+def test_pipeline_resource_incremental_int_lag(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """
+    Test incremental lag behavior when updating previously loaded data.
+
+    Three resources (`r1`, `r2`, `r3`) share the primary key 'id'.
+    - `r1` loads `id=0` and `id=1`.
+    - `r2` adds `id=2` and `id=3`.
+    - `r3`, with lag=1, skips `id=1` and updates entries with `id=2`, `id=3`,
+      and adds a new entry `id=4`. The merge operation reflects these changes.
+
+    We validate that the final dataset correctly orders the updated and new entries,
+    excluding `id=1` from the updates due to the lag.
+    """
+
+    dataset_name = f"{destination_config.destination_name}{uniq_id()}"
+    pipeline = destination_config.setup_pipeline("pipeline", dataset_name=dataset_name)
+
+    name = "items"
+
+    @dlt.resource(name=name, primary_key="id")
+    def r1(_=dlt.sources.incremental("id")):
+        yield from [{"id": 0, "name": "bobby"}, {"id": 1, "name": "jeremy"}]
+
+    @dlt.resource(name=name, primary_key="id")
+    def r2(_=dlt.sources.incremental("id")):
+        yield from [{"id": 2, "name": "james"}, {"id": 3, "name": "john"}]
+
+    # r3 has lag=1, so id=1 is ignored, only id>=2 is updated
+    updated_items = [
+        {"id": 1, "name": "maria"},
+        {"id": 2, "name": "mark"},
+        {"id": 3, "name": "pablo"},
+    ]
+
+    @dlt.resource(name=name, primary_key="id", write_disposition="merge")
+    def r3(_=dlt.sources.incremental("id", lag=1)):
+        yield from [{"id": 4, "name": "max"}] + updated_items
+
+    pipeline.run(r1)
+    pipeline.run(r2)
+    pipeline.run(r3)
+
+    # Validate final dataset
+    with pipeline.sql_client() as sql_client:
+        assert [
+            row[0] for row in sql_client.execute_sql(f"SELECT name FROM {name} ORDER BY id")
+        ] == ["bobby", "jeremy", "mark", "pablo", "max"]
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_staging_configs=True, default_sql_configs=True),
+    ids=lambda x: x.name,
+)
+def test_pipeline_resource_incremental_datetime_lag(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """
+    Test incremental lag behavior for datetime data while using `id` as the primary key.
+
+    - `r1` loads entries with `id` and `created_at` timestamps.
+    - `r2` adds new entries.
+    - `r3`, with a lag of 3600 seconds (1 hour), updates entries but only considers records
+      where `created_at` is within the 1-hour lag window.
+
+    We validate that the final dataset reflects the correct data updates, taking the lag into account.
+    """
+
+    dataset_name = f"{destination_config.destination_name}{uniq_id()}"
+    pipeline = destination_config.setup_pipeline("pipeline", dataset_name=dataset_name)
+
+    name = "events"
+
+    @dlt.resource(name=name, primary_key="id")
+    def r1(_=dlt.sources.incremental("created_at")):
+        yield from [
+            {"id": 1, "created_at": "2023-03-03T00:00:00Z", "event": "event1"},
+            {"id": 2, "created_at": "2023-03-03T00:15:00Z", "event": "event2"},
+            {"id": 3, "created_at": "2023-03-03T00:30:00Z", "event": "event3"},
+            {"id": 4, "created_at": "2023-03-03T00:45:00Z", "event": "event4"},
+        ]
+
+    @dlt.resource(name=name, primary_key="id")
+    def r2(_=dlt.sources.incremental("created_at")):
+        yield from [
+            {"id": 5, "created_at": "2023-03-03T01:00:00Z", "event": "event5"},
+            {"id": 6, "created_at": "2023-03-03T01:15:00Z", "event": "event6"},
+        ]
+
+    # r3 with a lag of 3600 seconds (1 hour) will affect datetime updates
+    updated_events = [
+        {"id": 3, "created_at": "2023-03-03T06:00:00Z", "event": "changed"},
+        {"id": 5, "created_at": "2023-03-03T06:00:00Z", "event": "changed"},
+    ]
+
+    @dlt.resource(name=name, primary_key="id", write_disposition="merge")
+    def r3(_=dlt.sources.incremental("created_at", lag=3600)):  # 1-hour lag in seconds
+        yield from [
+            {"id": 7, "created_at": "2023-03-03T06:00:00Z", "event": "event7"}
+        ] + updated_events
+
+    pipeline.run(r1)
+    pipeline.run(r2)
+    pipeline.run(r3)
+
+    # Validate final dataset
+    with pipeline.sql_client() as sql_client:
+        assert [
+            row[0] for row in sql_client.execute_sql(f"SELECT event FROM {name} ORDER BY id")
+        ] == ["event1", "event2", "changed", "event4", "changed", "event6", "event7"]
