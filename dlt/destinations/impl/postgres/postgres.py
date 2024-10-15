@@ -18,6 +18,7 @@ from dlt.common.schema.typing import TColumnType
 from dlt.common.schema.utils import is_nullable_column
 from dlt.common.storages.file_storage import FileStorage
 from dlt.destinations.impl.postgres.configuration import PostgresClientConfiguration
+from dlt.destinations.impl.postgres.postgres_adapter import GEOMETRY_HINT, SRID_HINT
 from dlt.destinations.impl.postgres.sql_client import Psycopg2SqlClient
 from dlt.destinations.insert_job_client import InsertValuesJobClient
 from dlt.destinations.sql_client import SqlClientBase
@@ -25,7 +26,7 @@ from dlt.destinations.sql_jobs import SqlStagingCopyFollowupJob, SqlJobParams
 
 if TYPE_CHECKING:
     import geopandas as gpd  # type: ignore
-    import pandas as pd
+
 else:
     gpd = Any
     pd = Any
@@ -176,15 +177,21 @@ class PostgresClient(InsertValuesJobClient):
         return job
 
     def _get_column_def_sql(self, c: TColumnSchema, table: PreparedTableSchema = None) -> str:
-        hints_str = " ".join(
+        hints_ = " ".join(
             self.active_hints.get(h, "")
             for h in self.active_hints.keys()
             if c.get(h, False) is True
         )
         column_name = self.sql_client.escape_column_name(c["name"])
-        return (
-            f"{column_name} {self.type_mapper.to_destination_type(c,table)} {hints_str} {self._gen_not_null(c.get('nullable', True))}"
-        )
+        nullability = self._gen_not_null(c.get("nullable", True))
+
+        if c.get(GEOMETRY_HINT):
+            srid = c.get(SRID_HINT, 4326)
+            column_type = f"geometry(Geometry, {srid})"
+        else:
+            column_type = self.type_mapper.to_destination_type(c, table)
+
+        return f"{column_name} {column_type} {hints_} {nullability}"
 
     def _create_replace_followup_jobs(
         self, table_chain: Sequence[PreparedTableSchema]
@@ -198,24 +205,10 @@ class PostgresClient(InsertValuesJobClient):
     ) -> TColumnType:
         return self.type_mapper.from_destination_type(pq_t, precision, scale)
 
-
-def geopandas_to_wkb(gdf: "gpd.GeoDataFrame", default_epsg: int = 4326) -> "pd.DataFrame":
-    """
-    Converts geopandas to hexadecimal WKB representation and adds EPSG code.
-
-    Parameters:
-    -----------
-    gdf : gpd.GeoDataFrame
-        Input GeoDataFrame containing spatial data.
-    default_epsg : int
-        EPSG code to use if the GeoDataFrame doesn't have a defined CRS.
-
-    Returns:
-    --------
-    pd.DataFrame
-        DataFrame with geometry as hexadecimal WKB and EPSG code.
-    """
-    df = gdf.to_wkb(hex=True)
-    # TODO: write to reserved configured column name.
-    df["__epsg"] = gdf.crs.to_epsg() if gdf.crs else default_epsg
-    return df
+    @staticmethod
+    def _is_valid_hex(s: str) -> bool:
+        try:
+            int(s, 16)
+            return True
+        except ValueError:
+            return False
