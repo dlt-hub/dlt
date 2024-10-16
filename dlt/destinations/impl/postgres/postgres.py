@@ -1,4 +1,8 @@
-from typing import Dict, Optional, Sequence, List, Any, TYPE_CHECKING
+import contextlib
+from typing import Dict, Optional, Sequence, List, Any, Iterator
+
+from shapely import wkt, wkb
+from shapely.geometry.base import BaseGeometry
 
 from dlt.common import logger
 from dlt.common.data_writers.configuration import CsvFormatConfiguration
@@ -13,6 +17,7 @@ from dlt.common.destination.reference import (
     FollowupJobRequest,
     LoadJob,
 )
+from dlt.common.exceptions import TerminalValueError
 from dlt.common.schema import TColumnSchema, TColumnHint, Schema
 from dlt.common.schema.typing import TColumnType
 from dlt.common.schema.utils import is_nullable_column
@@ -20,16 +25,9 @@ from dlt.common.storages.file_storage import FileStorage
 from dlt.destinations.impl.postgres.configuration import PostgresClientConfiguration
 from dlt.destinations.impl.postgres.postgres_adapter import GEOMETRY_HINT, SRID_HINT
 from dlt.destinations.impl.postgres.sql_client import Psycopg2SqlClient
-from dlt.destinations.insert_job_client import InsertValuesJobClient
+from dlt.destinations.insert_job_client import InsertValuesJobClient, InsertValuesLoadJob
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.sql_jobs import SqlStagingCopyFollowupJob, SqlJobParams
-
-if TYPE_CHECKING:
-    import geopandas as gpd  # type: ignore
-
-else:
-    gpd = Any
-    pd = Any
 
 HINT_TO_POSTGRES_ATTR: Dict[TColumnHint, str] = {"unique": "UNIQUE"}
 
@@ -149,6 +147,64 @@ class PostgresCsvCopyJob(RunnableLoadJob, HasFollowupJobs):
                     cursor.copy_expert(copy_sql, f, size=8192)
 
 
+class PostgresInsertValuesWithGeometryTypesLoadJob(InsertValuesLoadJob):
+    def __init__(self, file_path: str, postgres_client: "PostgresClient") -> None:
+        super().__init__(file_path)
+        self._postgres_client = postgres_client
+
+    @staticmethod
+    def _parse_geometry(value: Any) -> Optional[str]:
+        if isinstance(value, (str, bytes)):
+            with contextlib.suppress(Exception):
+                geom = wkt.loads(value) if isinstance(value, str) else wkb.loads(value)
+                if isinstance(geom, BaseGeometry):
+                    return geom.wkb_hex
+        return None
+
+    def _insert(self, qualified_table_name: str, file_path: str) -> Iterator[List[str]]:
+        with FileStorage.open_zipsafe_ro(file_path, "r", encoding="utf-8") as f:
+            header = f.readline()
+            header = self._sql_client.capabilities.casefold_identifier(header).format(
+                qualified_table_name
+            )
+            values_mark = f.readline()
+            assert values_mark == "VALUES\n"
+            insert_sql = []
+            while content := f.read(self._sql_client.capabilities.max_query_length // 2):
+                until_nl = f.readline().strip("\n")
+                is_eof = len(until_nl) == 0 or until_nl[-1] == ";"
+                if not is_eof:
+                    until_nl = f"{until_nl[:-1]};"
+                values_rows = content.splitlines(keepends=True)
+                processed_rows = []
+                for row in values_rows:
+                    row_values = row.strip().strip("(),").split(",")
+                    processed_values = []
+                    for idx, value in enumerate(row_values):
+                        column = self._load_table["columns"][
+                            list(self._load_table["columns"].keys())[idx]
+                        ]
+                        if column.get(GEOMETRY_HINT):
+                            if geom_value := self._parse_geometry(value.strip()):
+                                srid = column.get(SRID_HINT, 4326)
+                                processed_values.append(
+                                    f"ST_SetSRID(ST_GeomFromWKB(decode('{geom_value}', 'hex')),"
+                                    f" {srid})"
+                                )
+                            else:
+                                processed_values.append(value)
+                        else:
+                            processed_values.append(value)
+                    processed_rows.append(f"({','.join(processed_values)})")
+                processed_content = ",\n".join(processed_rows)
+                insert_sql.extend([header, values_mark, processed_content + until_nl])
+                if not is_eof:
+                    yield insert_sql
+                    insert_sql = []
+            if insert_sql:
+                yield insert_sql
+
+
 class PostgresClient(InsertValuesJobClient):
     def __init__(
         self,
@@ -171,6 +227,14 @@ class PostgresClient(InsertValuesJobClient):
     def create_load_job(
         self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
+        if any(column.get(GEOMETRY_HINT) for column in table["columns"].values()):
+            if file_path.endswith("insert_values"):
+                return PostgresInsertValuesWithGeometryTypesLoadJob(file_path)
+            else:
+                # Only insert_values load jobs supported for geom types.
+                raise TerminalValueError(
+                    "CSV bulk loading is not supported for tables with geometry columns."
+                )
         job = super().create_load_job(table, file_path, load_id, restore)
         if not job and file_path.endswith("csv"):
             job = PostgresCsvCopyJob(file_path)
@@ -204,4 +268,3 @@ class PostgresClient(InsertValuesJobClient):
         self, pq_t: str, precision: Optional[int], scale: Optional[int]
     ) -> TColumnType:
         return self.type_mapper.from_destination_type(pq_t, precision, scale)
-
