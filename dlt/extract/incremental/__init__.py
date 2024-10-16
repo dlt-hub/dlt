@@ -1,6 +1,7 @@
 import os
-from datetime import datetime, timedelta  # noqa: I251
+from datetime import datetime, timedelta, date  # noqa: I251
 from typing import Generic, ClassVar, Any, Optional, Type, Dict
+import dateutil.parser
 from typing_extensions import get_origin, get_args
 
 import inspect
@@ -9,6 +10,7 @@ from functools import wraps
 from dlt.common import logger
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.pendulum import pendulum
+from dlt.common.time import ensure_pendulum_datetime, detect_datetime_format
 from dlt.common.jsonpath import compile_path
 from dlt.common.typing import (
     TDataItem,
@@ -298,41 +300,41 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         if self.lag is None:
             return value
 
-        # parses string representation for datetime, int, or float
-        if isinstance(value, str):
-            try:
-                value = datetime.fromisoformat(value)  # type: ignore
-            except ValueError:
-                try:
-                    value = float(value)  # type: ignore
-                except ValueError:
-                    try:
-                        value = int(value)  # type: ignore
-                    except ValueError:
-                        logger.warning(
-                            "Failed to convert incremental string cursor to datetime, float, or int"
-                        )
+        # Determine if the input is originally a string and capture its format
+        is_str = isinstance(value, str)
+        original_format = None
+        if is_str:
+            original_format = detect_datetime_format(value)
+            value = ensure_pendulum_datetime(value)  # type: ignore
 
-        if isinstance(value, datetime):
-            if self.last_value_func is max:
-                return value - timedelta(seconds=self.lag)  # type: ignore
-            elif self.last_value_func is min:
-                return value + timedelta(seconds=self.lag)  # type: ignore
+        # Apply lag based on the type of value
+        if isinstance(value, (datetime, date)):
+            delta = (
+                timedelta(seconds=self.lag)
+                if isinstance(value, datetime)
+                else timedelta(days=self.lag)
+            )
+            value = value - delta if self.last_value_func is max else value + delta  # type: ignore
+
+            # If originally a string, convert back to the original format
+            if is_str and original_format:
+                value = value.strftime(original_format)  # type: ignore
+
         elif isinstance(value, int):
-            if self.last_value_func is max:
-                return int(value - self.lag)  # type: ignore
-            elif self.last_value_func is min:
-                return int(value + self.lag)  # type: ignore
-        elif isinstance(value, float):
-            if self.last_value_func is max:
-                return value - self.lag  # type: ignore
-            elif self.last_value_func is min:
-                return value + self.lag  # type: ignore
+            # Ensure that int types remain integers
+            adjusted_value = value - self.lag if self.last_value_func is max else value + self.lag
+            value = int(adjusted_value)  # type: ignore
 
-        logger.warning(
-            f"Lag is not supported for last_value_func: {self.last_value_func} and cursor type:"
-            f" {type(value)}"
-        )
+        elif isinstance(value, float):
+            value = value - self.lag if self.last_value_func is max else value + self.lag  # type: ignore
+
+        else:
+            # Handle unsupported types
+            logger.warning(
+                f"Lag is not supported for last_value_func: {self.last_value_func} and cursor type:"
+                f" {type(value)}"
+            )
+
         return value
 
     def get_state(self) -> IncrementalColumnState:
