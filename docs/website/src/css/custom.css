@@ -71,6 +71,11 @@
   --docsearch-hit-color: #ffffff !important;
   --ifm-color-primary-light:#f3ff36;
   --ifm-footer-background-color: #191937;
+  --ifm-color-emphasis-200: #2e2e66 !important;
+  --ifm-color-emphasis-300: #414190 !important;
+  --ifm-background-surface-color: #111127 !important;
+  --ifm-color-secondary-contrast-background: #2c2c63 !important;
+  --ifm-color-warning-contrast-background: #584128 !important;
 }
 
 /* .navbar a{
