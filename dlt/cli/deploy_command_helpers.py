@@ -35,7 +35,7 @@ from dlt.reflection.script_visitor import PipelineScriptVisitor
 
 from dlt.cli import utils
 from dlt.cli import echo as fmt
-from dlt.cli.exceptions import CliCommandException
+from dlt.cli.exceptions import CliCommandInnerException
 
 GITHUB_URL = "https://github.com/"
 
@@ -98,14 +98,14 @@ class BaseDeployment(abc.ABC):
         try:
             origin = get_origin(self.repo)
             if "github.com" not in origin:
-                raise CliCommandException(
+                raise CliCommandInnerException(
                     "deploy",
                     f"Your current repository origin is not set to github but to {origin}.\nYou"
                     " must change it to be able to run the pipelines with github actions:"
                     " https://docs.github.com/en/get-started/getting-started-with-git/managing-remote-repositories",
                 )
         except ValueError:
-            raise CliCommandException(
+            raise CliCommandInnerException(
                 "deploy",
                 "Your current repository has no origin set. Please set it up to be able to run the"
                 " pipelines with github actions:"
@@ -292,7 +292,7 @@ def get_state_and_trace(pipeline: Pipeline) -> Tuple[TPipelineState, PipelineTra
 def get_visitors(pipeline_script: str, pipeline_script_path: str) -> PipelineScriptVisitor:
     visitor = utils.parse_init_script("deploy", pipeline_script, pipeline_script_path)
     if n.RUN not in visitor.known_calls:
-        raise CliCommandException(
+        raise CliCommandInnerException(
             "deploy",
             f"The pipeline script {pipeline_script_path} does not seem to run the pipeline.",
         )
@@ -322,13 +322,13 @@ def parse_pipeline_info(visitor: PipelineScriptVisitor) -> List[Tuple[str, Optio
                         " abort to set it to False?",
                         default=True,
                     ):
-                        raise CliCommandException("deploy", "Please set the dev_mode to False")
+                        raise CliCommandInnerException("deploy", "Please set the dev_mode to False")
 
             p_d_node = call_args.arguments.get("pipelines_dir")
             if p_d_node:
                 pipelines_dir = evaluate_node_literal(p_d_node)
                 if pipelines_dir is None:
-                    raise CliCommandException(
+                    raise CliCommandInnerException(
                         "deploy",
                         "The value of 'pipelines_dir' argument in call to `dlt_pipeline` cannot be"
                         f" determined from {unparse(p_d_node).strip()}. Pipeline working dir will"
@@ -339,7 +339,7 @@ def parse_pipeline_info(visitor: PipelineScriptVisitor) -> List[Tuple[str, Optio
             if p_n_node:
                 pipeline_name = evaluate_node_literal(p_n_node)
                 if pipeline_name is None:
-                    raise CliCommandException(
+                    raise CliCommandInnerException(
                         "deploy",
                         "The value of 'pipeline_name' argument in call to `dlt_pipeline` cannot be"
                         f" determined from {unparse(p_d_node).strip()}. Pipeline working dir will"
@@ -438,9 +438,9 @@ def ask_files_overwrite(files: Sequence[str]) -> None:
     if existing:
         fmt.echo("Following files will be overwritten: %s" % fmt.bold(str(existing)))
         if not fmt.confirm("Do you want to continue?", default=False):
-            raise CliCommandException("init", "Aborted")
+            raise CliCommandInnerException("init", "Aborted")
 
 
-class PipelineWasNotRun(CliCommandException):
+class PipelineWasNotRun(CliCommandInnerException):
     def __init__(self, msg: str) -> None:
         super().__init__("deploy", msg, None)
