@@ -1,6 +1,6 @@
 """Generic API Source"""
 from copy import deepcopy
-from typing import Type, Any, Dict, List, Optional, Generator, Callable, cast, Union
+from typing import Any, Dict, List, Optional, Generator, Callable, cast, Union
 import graphlib  # type: ignore[import,unused-ignore]
 from requests.auth import AuthBase
 
@@ -9,10 +9,8 @@ from dlt.common.validation import validate_dict
 from dlt.common import jsonpath
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import TSchemaContract
-from dlt.common.configuration.specs import BaseConfiguration
 
-from dlt.extract.incremental import Incremental
-from dlt.extract.source import DltResource, DltSource
+from dlt.extract import Incremental, DltResource, DltSource, decorators
 
 from dlt.sources.helpers.rest_client import RESTClient
 from dlt.sources.helpers.rest_client.paginators import BasePaginator
@@ -21,11 +19,13 @@ from dlt.sources.helpers.rest_client.auth import (
     BearerTokenAuth,
     APIKeyAuth,
     AuthConfigBase,
+    OAuth2ClientCredentials,
 )
 from dlt.sources.helpers.rest_client.typing import HTTPMethodBasic
 from .typing import (
     AuthConfig,
     ClientConfig,
+    EndpointResourceBase,
     ResolvedParam,
     ResolveParamConfig,
     Endpoint,
@@ -53,7 +53,22 @@ SENSITIVE_KEYS: List[str] = [
     "api_key",
     "username",
     "password",
+    "access_token",
+    "client_id",
+    "client_secret",
 ]
+
+
+@decorators.source
+def rest_api(
+    client: ClientConfig = dlt.config.value,
+    resources: List[Union[str, EndpointResource, DltResource]] = dlt.config.value,
+    resource_defaults: Optional[EndpointResourceBase] = None,
+) -> List[DltResource]:
+    """Creates and configures a REST API source with default settings"""
+    return rest_api_resources(
+        {"client": client, "resources": resources, "resource_defaults": resource_defaults}
+    )
 
 
 def rest_api_source(
@@ -64,7 +79,7 @@ def rest_api_source(
     root_key: bool = False,
     schema: Schema = None,
     schema_contract: TSchemaContract = None,
-    spec: Type[BaseConfiguration] = None,
+    parallelized: bool = False,
 ) -> DltSource:
     """Creates and configures a REST API source for data extraction.
 
@@ -85,8 +100,9 @@ def rest_api_source(
             will be loaded from file.
         schema_contract (TSchemaContract, optional): Schema contract settings
             that will be applied to this resource.
-        spec (Type[BaseConfiguration], optional): A specification of configuration
-            and secret values required by the source.
+        parallelized (bool, optional): If `True`, resource generators will be
+            extracted in parallel with other resources. Transformers that return items are also parallelized.
+            Non-eligible resources are ignored. Defaults to `False` which preserves resource settings.
 
     Returns:
         DltSource: A configured dlt source.
@@ -109,18 +125,20 @@ def rest_api_source(
             },
         })
     """
-    decorated = dlt.source(
-        rest_api_resources,
-        name,
-        section,
-        max_table_nesting,
-        root_key,
-        schema,
-        schema_contract,
-        spec,
+    # TODO: this must be removed when TypedDicts are supported by resolve_configuration
+    #   so secrets values are bound BEFORE validation. validation will happen during the resolve process
+    _validate_config(config)
+    decorated = rest_api.with_args(
+        name=name,
+        section=section,
+        max_table_nesting=max_table_nesting,
+        root_key=root_key,
+        schema=schema,
+        schema_contract=schema_contract,
+        parallelized=parallelized,
     )
 
-    return decorated(config)
+    return decorated(**config)
 
 
 def rest_api_resources(config: RESTAPIConfig) -> List[DltResource]:
@@ -186,7 +204,7 @@ def rest_api_resources(config: RESTAPIConfig) -> List[DltResource]:
     _validate_config(config)
 
     client_config = config["client"]
-    resource_defaults = config.get("resource_defaults", {})
+    resource_defaults = config.get("resource_defaults") or {}
     resource_list = config["resources"]
 
     (
@@ -212,7 +230,7 @@ def create_resources(
     client_config: ClientConfig,
     dependency_graph: graphlib.TopologicalSorter,
     endpoint_resource_map: Dict[str, Union[EndpointResource, DltResource]],
-    resolved_param_map: Dict[str, Optional[ResolvedParam]],
+    resolved_param_map: Dict[str, Optional[List[ResolvedParam]]],
 ) -> Dict[str, DltResource]:
     resources = {}
 
@@ -229,10 +247,10 @@ def create_resources(
         paginator = create_paginator(endpoint_config.get("paginator"))
         processing_steps = endpoint_resource.pop("processing_steps", [])
 
-        resolved_param: ResolvedParam = resolved_param_map[resource_name]
+        resolved_params: List[ResolvedParam] = resolved_param_map[resource_name]
 
         include_from_parent: List[str] = endpoint_resource.get("include_from_parent", [])
-        if not resolved_param and include_from_parent:
+        if not resolved_params and include_from_parent:
             raise ValueError(
                 f"Resource {resource_name} has include_from_parent but is not "
                 "dependent on another resource"
@@ -267,7 +285,7 @@ def create_resources(
                     resource.add_map(step["map"])
             return resource
 
-        if resolved_param is None:
+        if resolved_params is None:
 
             def paginate_resource(
                 method: HTTPMethodBasic,
@@ -318,9 +336,10 @@ def create_resources(
             resources[resource_name] = process(resources[resource_name], processing_steps)
 
         else:
-            predecessor = resources[resolved_param.resolve_config["resource"]]
+            first_param = resolved_params[0]
+            predecessor = resources[first_param.resolve_config["resource"]]
 
-            base_params = exclude_keys(request_params, {resolved_param.param_name})
+            base_params = exclude_keys(request_params, {x.param_name for x in resolved_params})
 
             def paginate_dependent_resource(
                 items: List[Dict[str, Any]],
@@ -331,7 +350,7 @@ def create_resources(
                 data_selector: Optional[jsonpath.TJsonPath],
                 hooks: Optional[Dict[str, Any]],
                 client: RESTClient = client,
-                resolved_param: ResolvedParam = resolved_param,
+                resolved_params: List[ResolvedParam] = resolved_params,
                 include_from_parent: List[str] = include_from_parent,
                 incremental_object: Optional[Incremental[Any]] = incremental_object,
                 incremental_param: Optional[IncrementalParam] = incremental_param,
@@ -349,7 +368,7 @@ def create_resources(
 
                 for item in items:
                     formatted_path, parent_record = process_parent_data_item(
-                        path, item, resolved_param, include_from_parent
+                        path, item, resolved_params, include_from_parent
                     )
 
                     for child_page in client.paginate(
@@ -395,15 +414,25 @@ def _validate_config(config: RESTAPIConfig) -> None:
 
 
 def _mask_secrets(auth_config: AuthConfig) -> AuthConfig:
-    if isinstance(auth_config, AuthBase) and not isinstance(auth_config, AuthConfigBase):
+    # skip AuthBase (derived from requests lib) or shorthand notation
+    if (
+        isinstance(auth_config, AuthBase)
+        and not isinstance(auth_config, AuthConfigBase)
+        or isinstance(auth_config, str)
+    ):
         return auth_config
 
     has_sensitive_key = any(key in auth_config for key in SENSITIVE_KEYS)
-    if isinstance(auth_config, (APIKeyAuth, BearerTokenAuth, HttpBasicAuth)) or has_sensitive_key:
+    if (
+        isinstance(
+            auth_config, (APIKeyAuth, BearerTokenAuth, HttpBasicAuth, OAuth2ClientCredentials)
+        )
+        or has_sensitive_key
+    ):
         return _mask_secrets_dict(auth_config)
     # Here, we assume that OAuth2 and other custom classes that don't implement __get__()
     # also don't print secrets in __str__()
-    # TODO: call auth_config.mask_secrets() when that is implemented in dlt-core
+    # TODO: call auth_config.mask_secrets() when that is implemented
     return auth_config
 
 
@@ -449,22 +478,3 @@ def _validate_param_type(
             raise ValueError(
                 f"Invalid param type: {value.get('type')}. Available options: {PARAM_TYPES}"
             )
-
-
-# XXX: This is a workaround pass test_dlt_init.py
-# since the source uses dlt.source as a function
-def _register_source(source_func: Callable[..., DltSource]) -> None:
-    import inspect
-    from dlt.common.configuration import get_fun_spec
-    from dlt.common.source import _SOURCES, SourceInfo
-
-    spec = get_fun_spec(source_func)
-    func_module = inspect.getmodule(source_func)
-    _SOURCES[source_func.__name__] = SourceInfo(
-        SPEC=spec,
-        f=source_func,
-        module=func_module,
-    )
-
-
-_register_source(rest_api_source)

@@ -1,5 +1,5 @@
 from inspect import Signature, isgenerator, isgeneratorfunction, unwrap
-from typing import Any, Set, Type
+from typing import Any, Sequence, Set, Type
 
 from dlt.common.exceptions import DltException
 from dlt.common.utils import get_callable_name
@@ -401,9 +401,26 @@ class ExplicitSourceNameInvalid(DltSourceException):
         self.source_name = source_name
         self.schema_name = schema_name
         super().__init__(
-            f"Your explicit source name {source_name} is not a valid schema name. Please use a"
-            f" valid schema name ie. '{schema_name}'."
+            f"Your explicit source name {source_name} does not match explicit schema name"
+            f" '{schema_name}'."
         )
+
+
+class UnknownSourceReference(DltSourceException):
+    def __init__(self, ref: Sequence[str]) -> None:
+        self.ref = ref
+        msg = (
+            f"{ref} is not one of registered sources and could not be imported as module with"
+            " source function"
+        )
+        super().__init__(msg)
+
+
+# class InvalidDestinationReference(DestinationException):
+#     def __init__(self, destination_module: Any) -> None:
+#         self.destination_module = destination_module
+#         msg = f"Destination {destination_module} is not a valid destination module."
+#         super().__init__(msg)
 
 
 class IncrementalUnboundError(DltResourceException):

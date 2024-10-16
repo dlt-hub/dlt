@@ -89,7 +89,7 @@ To load data into ClickHouse, you need to create a ClickHouse database. While we
 2. You can pass a database connection string similar to the one used by the `clickhouse-driver` library. The credentials above will look like this:
 
    ```toml
-   # Keep it at the top of your toml file before any section starts.
+   # Keep it at the top of your TOML file, before any section starts
    destination.clickhouse.credentials="clickhouse://dlt:Dlt*12345789234567@localhost:9000/dlt?secure=1"
    ```
 
@@ -102,6 +102,7 @@ You can set the following configuration options in the `.dlt/secrets.toml` file:
 dataset_table_separator = "___"                         # The default separator for dataset table names from the dataset.
 table_engine_type = "merge_tree"                        # The default table engine to use.
 dataset_sentinel_table_name = "dlt_sentinel_table"      # The default name for sentinel tables.
+staging_use_https = true                                # Wether to connecto to the staging bucket via https (defaults to True)
 ```
 
 ## Write disposition

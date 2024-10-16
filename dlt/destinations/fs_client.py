@@ -1,5 +1,6 @@
-import gzip
 from typing import Iterable, cast, Any, List
+
+import gzip
 from abc import ABC, abstractmethod
 from fsspec import AbstractFileSystem
 

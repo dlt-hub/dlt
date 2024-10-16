@@ -46,7 +46,7 @@ so pip does not fail on backtracking.
 
 To edit the `dlt` credentials file with your secret info, open `.dlt/secrets.toml`. You will need to provide a `bucket_url`, which holds the uploaded parquet files, a `query_result_bucket`, which Athena uses to write query results to, and credentials that have write and read access to these two buckets as well as the full Athena access AWS role.
 
-The toml file looks like this:
+The TOML file looks like this:
 
 ```toml
 [destination.filesystem]

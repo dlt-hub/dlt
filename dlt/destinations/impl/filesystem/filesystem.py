@@ -1,9 +1,23 @@
 import posixpath
 import os
 import base64
-
+from contextlib import contextmanager
 from types import TracebackType
-from typing import Dict, List, Type, Iterable, Iterator, Optional, Tuple, Sequence, cast, Any
+from typing import (
+    ContextManager,
+    List,
+    Type,
+    Iterable,
+    Iterator,
+    Optional,
+    Tuple,
+    Sequence,
+    cast,
+    Generator,
+    Literal,
+    Any,
+    Dict,
+)
 from fsspec import AbstractFileSystem
 from contextlib import contextmanager
 
@@ -23,10 +37,12 @@ from dlt.common.storages.load_package import (
     TPipelineStateDoc,
     load_package as current_load_package,
 )
+from dlt.destinations.sql_client import DBApiCursor, WithSqlClient, SqlClientBase
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
     FollowupJobRequest,
     PreparedTableSchema,
+    SupportsReadableRelation,
     TLoadJobState,
     RunnableLoadJob,
     JobClientBase,
@@ -38,6 +54,7 @@ from dlt.common.destination.reference import (
     LoadJob,
 )
 from dlt.common.destination.exceptions import DestinationUndefinedEntity
+
 from dlt.destinations.job_impl import (
     ReferenceFollowupJobRequest,
     FinalizedLoadJob,
@@ -46,6 +63,7 @@ from dlt.destinations.job_impl import (
 from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
 from dlt.destinations import path_utils
 from dlt.destinations.fs_client import FSClientBase
+from dlt.destinations.dataset import ReadableDBAPIDataset
 from dlt.destinations.utils import verify_schema_merge_disposition
 
 INIT_FILE_NAME = "init"
@@ -209,7 +227,9 @@ class FilesystemLoadJobWithFollowup(HasFollowupJobs, FilesystemLoadJob):
         return jobs
 
 
-class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStateSync):
+class FilesystemClient(
+    FSClientBase, WithSqlClient, JobClientBase, WithStagingDataset, WithStateSync
+):
     """filesystem client storing jobs in memory"""
 
     fs_client: AbstractFileSystem
@@ -238,6 +258,21 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
         # cannot be replaced and we cannot initialize folders consistently
         self.table_prefix_layout = path_utils.get_table_prefix_layout(config.layout)
         self.dataset_name = self.config.normalize_dataset_name(self.schema)
+        self._sql_client: SqlClientBase[Any] = None
+
+    @property
+    def sql_client(self) -> SqlClientBase[Any]:
+        # we use an inner import here, since the sql client depends on duckdb and will
+        # only be used for read access on data, some users will not need the dependency
+        from dlt.destinations.impl.filesystem.sql_client import FilesystemSqlClient
+
+        if not self._sql_client:
+            self._sql_client = FilesystemSqlClient(self)
+        return self._sql_client
+
+    @sql_client.setter
+    def sql_client(self, client: SqlClientBase[Any]) -> None:
+        self._sql_client = client
 
     def drop_storage(self) -> None:
         if self.is_storage_initialized():
@@ -615,29 +650,33 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
             yield filepath, fileparts
 
     def _get_stored_schema_by_hash_or_newest(
-        self, version_hash: str = None
+        self, version_hash: str = None, schema_name: str = None
     ) -> Optional[StorageSchemaInfo]:
         """Get the schema by supplied hash, falls back to getting the newest version matching the existing schema name"""
         version_hash = self._to_path_safe_string(version_hash)
         # find newest schema for pipeline or by version hash
-        selected_path = None
-        newest_load_id = "0"
-        for filepath, fileparts in self._iter_stored_schema_files():
-            if (
-                not version_hash
-                and fileparts[0] == self.schema.name
-                and fileparts[1] > newest_load_id
-            ):
-                newest_load_id = fileparts[1]
-                selected_path = filepath
-            elif fileparts[2] == version_hash:
-                selected_path = filepath
-                break
+        try:
+            selected_path = None
+            newest_load_id = "0"
+            for filepath, fileparts in self._iter_stored_schema_files():
+                if (
+                    not version_hash
+                    and (fileparts[0] == schema_name or (not schema_name))
+                    and fileparts[1] > newest_load_id
+                ):
+                    newest_load_id = fileparts[1]
+                    selected_path = filepath
+                elif fileparts[2] == version_hash:
+                    selected_path = filepath
+                    break
 
-        if selected_path:
-            return StorageSchemaInfo(
-                **json.loads(self.fs_client.read_text(selected_path, encoding="utf-8"))
-            )
+            if selected_path:
+                return StorageSchemaInfo(
+                    **json.loads(self.fs_client.read_text(selected_path, encoding="utf-8"))
+                )
+        except DestinationUndefinedEntity:
+            # ignore missing table
+            pass
 
         return None
 
@@ -664,9 +703,9 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
         # we always keep tabs on what the current schema is
         self._write_to_json_file(filepath, version_info)
 
-    def get_stored_schema(self) -> Optional[StorageSchemaInfo]:
+    def get_stored_schema(self, schema_name: str = None) -> Optional[StorageSchemaInfo]:
         """Retrieves newest schema from destination storage"""
-        return self._get_stored_schema_by_hash_or_newest()
+        return self._get_stored_schema_by_hash_or_newest(schema_name=schema_name)
 
     def get_stored_schema_by_hash(self, version_hash: str) -> Optional[StorageSchemaInfo]:
         return self._get_stored_schema_by_hash_or_newest(version_hash)
