@@ -139,7 +139,21 @@ def mock_api_server():
                 return {"id": post_id, "body": f"Post body {post_id}"}
             else:
                 context.status_code = 404
-                return {"error": "Post not found"}
+                return {"error": f"Post with id {post_id} not found"}
+
+        @router.get(r"/posts/\d+/some_details_404_others_422")
+        def post_detail_404_422(request, context):
+            """Return 404  No Content for post with id 1. Return 422 for post with id > 1.
+            Used to test ignoring 404 and 422 responses."""
+            post_id = int(request.url.split("/")[-2])
+            if post_id < 1:
+                return {"id": post_id, "body": f"Post body {post_id}"}
+            elif post_id == 1:
+                context.status_code = 404
+                return {"error": f"Post with id {post_id} not found"}
+            else:
+                context.status_code = 422
+                return None
 
         @router.get(r"/posts/\d+/some_details_204")
         def post_detail_204(request, context):
