@@ -64,7 +64,7 @@ To fix connection issues with ConnectorX and MS SQL Server, include both `Encryp
 ```py
 sources.sql_database.credentials="mssql://user:password@server:1433/database?driver=ODBC+Driver+17+for+SQL+Server&Encrypt=yes&encrypt=true"
 ```
-This approach can help resolve connection-related issues.
+This approach can help resolve connection-related issues. 
 
 ## Troubleshooting backends
 
