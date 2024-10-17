@@ -148,6 +148,44 @@ def test_make_query_incremental_on_cursor_value_missing_set(
 
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
+@pytest.mark.parametrize("cursor_value_missing", ["include", "exclude"])
+def test_make_query_incremental_on_cursor_value_missing_no_last_value(
+    sql_source_db: SQLAlchemySourceDB,
+    backend: TableBackend,
+    cursor_value_missing: str,
+) -> None:
+    class MockIncremental:
+        last_value = None
+        last_value_func = max
+        cursor_path = "created_at"
+        row_order = "asc"
+        end_value = None
+        on_cursor_value_missing = cursor_value_missing
+
+    table = sql_source_db.get_table("chat_message")
+    loader = TableLoader(
+        sql_source_db.engine,
+        backend,
+        table,
+        table_to_columns(table),
+        incremental=MockIncremental(),  # type: ignore[arg-type]
+    )
+
+    query = loader.make_query()
+
+    if cursor_value_missing == "include":
+        # There is no where clause for include without last
+        expected = table.select().order_by(table.c.created_at.asc())
+    else:
+        # exclude always has a where clause
+        expected = (
+            table.select().order_by(table.c.created_at.asc()).where(table.c.created_at.isnot(None))
+        )
+
+    assert query.compare(expected)
+
+
+@pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
 def test_make_query_incremental_end_value(
     sql_source_db: SQLAlchemySourceDB, backend: TableBackend
 ) -> None:

@@ -13,8 +13,6 @@ from typing import (
 )
 import operator
 
-from sqlalchemy import and_, or_
-
 import dlt
 from dlt.common.configuration.specs import (
     BaseConfiguration,
@@ -38,7 +36,7 @@ from .schema_types import (
     TTypeAdapter,
 )
 
-from dlt.common.libs.sql_alchemy import Engine, CompileError, create_engine
+from dlt.common.libs.sql_alchemy import Engine, CompileError, create_engine, sa
 
 
 TableBackend = Literal["sqlalchemy", "pyarrow", "pandas", "connectorx"]
@@ -99,15 +97,20 @@ class TableLoader:
         else:  # Custom last_value, load everything and let incremental handle filtering
             return query  # type: ignore[no-any-return]
 
+        where_clause = True
         if self.last_value is not None:
-            where_and_clauses = [filter_op(self.cursor_column, self.last_value)]
+            where_clause = filter_op(self.cursor_column, self.last_value)
             if self.end_value is not None:
-                where_and_clauses.append(filter_op_end(self.cursor_column, self.end_value))
-            where_clause = and_(*where_and_clauses)
+                where_clause = sa.and_(
+                    where_clause, filter_op_end(self.cursor_column, self.end_value)
+                )
+
             if self.on_cursor_value_missing == "include":
-                where_clause = or_(where_clause, self.cursor_column.is_(None))
-            elif self.on_cursor_value_missing == "exclude":
-                where_clause = and_(where_clause, self.cursor_column.isnot(None))
+                where_clause = sa.or_(where_clause, self.cursor_column.is_(None))
+        if self.on_cursor_value_missing == "exclude":
+            where_clause = sa.and_(where_clause, self.cursor_column.isnot(None))
+
+        if where_clause is not True:
             query = query.where(where_clause)
 
         # generate order by from declared row order
