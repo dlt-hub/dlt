@@ -173,13 +173,8 @@ def table_to_columns(
     }
 
 
-def get_table_references(
-    table: Table,
-    reflection_level: ReflectionLevel = "full",
-) -> Optional[List[TTableReference]]:
+def get_table_references(table: Table) -> Optional[List[TTableReference]]:
     """Resolve table references from SQLAlchemy foreign key constraints in the table"""
-    if reflection_level == "minimal":
-        return None
     ref_tables: Dict[str, TTableReference] = {}
     for fk_constraint in table.foreign_key_constraints:
         try:
@@ -217,14 +212,17 @@ def table_to_resource_hints(
     reflection_level: ReflectionLevel = "full",
     type_conversion_fallback: Optional[TTypeAdapter] = None,
     skip_nested_columns_on_minimal: bool = False,
+    resolve_foreign_keys: bool = False,
 ) -> TReflectedHints:
-    return {
+    result: TReflectedHints = {
         "columns": table_to_columns(
             table,
             reflection_level,
             type_conversion_fallback,
             skip_nested_columns_on_minimal,
         ),
-        "references": get_table_references(table, reflection_level),
         "primary_key": get_primary_key(table),
     }
+    if resolve_foreign_keys:
+        result["references"] = get_table_references(table)
+    return result

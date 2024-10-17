@@ -197,14 +197,26 @@ def table_rows(
     type_adapter_callback: Optional[TTypeAdapter] = None,
     included_columns: Optional[List[str]] = None,
     query_adapter_callback: Optional[TQueryAdapter] = None,
+    resolve_foreign_keys: bool = False,
 ) -> Iterator[TDataItem]:
     if isinstance(table, str):  # Reflection is deferred
-        table = Table(table, metadata, autoload_with=engine, extend_existing=True)
+        table = Table(
+            table,
+            metadata,
+            autoload_with=engine,
+            extend_existing=True,
+            resolve_fks=resolve_foreign_keys,
+        )
         default_table_adapter(table, included_columns)
         if table_adapter_callback:
             table_adapter_callback(table)
 
-        hints = table_to_resource_hints(table, reflection_level, type_adapter_callback)
+        hints = table_to_resource_hints(
+            table,
+            reflection_level,
+            type_adapter_callback,
+            resolve_foreign_keys=resolve_foreign_keys,
+        )
 
         # set the primary_key in the incremental
         if incremental and incremental.primary_key is None:
@@ -221,7 +233,12 @@ def table_rows(
         )
     else:
         # table was already reflected
-        hints = table_to_resource_hints(table, reflection_level, type_adapter_callback)
+        hints = table_to_resource_hints(
+            table,
+            reflection_level,
+            type_adapter_callback,
+            resolve_foreign_keys=resolve_foreign_keys,
+        )
 
     loader = TableLoader(
         engine,

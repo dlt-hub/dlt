@@ -41,6 +41,7 @@ def sql_database(
     include_views: bool = False,
     type_adapter_callback: Optional[TTypeAdapter] = None,
     query_adapter_callback: Optional[TQueryAdapter] = None,
+    resolve_foreign_keys: bool = False,
 ) -> Iterable[DltResource]:
     """
     A dlt source which loads data from an SQL database using SQLAlchemy.
@@ -71,6 +72,8 @@ def sql_database(
             Argument is a single sqlalchemy data type (`TypeEngine` instance) and it should return another sqlalchemy data type, or `None` (type will be inferred from data)
         query_adapter_callback(Optional[Callable[Select, Table], Select]): Callable to override the SELECT query used to fetch data from the table.
             The callback receives the sqlalchemy `Select` and corresponding `Table` objects and should return the modified `Select`.
+        resolve_foreign_keys (bool): Translate foreign keys in the same schema to `references` table hints.
+            May incur additional database calls as all referenced tables are reflected.
 
     Returns:
         Iterable[DltResource]: A list of DLT resources for each table to be loaded.
@@ -98,6 +101,7 @@ def sql_database(
             bind=engine,
             views=include_views or bool(table_names),  # Specified view names are always reflected
             only=table_names if table_names else None,
+            resolve_fks=resolve_foreign_keys,
         )
         tables = list(metadata.tables.values())
         # Some extra tables may be reflected in metadata due to foreign keys
@@ -121,6 +125,7 @@ def sql_database(
             backend_kwargs=backend_kwargs,
             type_adapter_callback=type_adapter_callback,
             query_adapter_callback=query_adapter_callback,
+            resolve_foreign_keys=resolve_foreign_keys,
         )
 
 
@@ -143,6 +148,7 @@ def sql_table(
     type_adapter_callback: Optional[TTypeAdapter] = None,
     included_columns: Optional[List[str]] = None,
     query_adapter_callback: Optional[TQueryAdapter] = None,
+    resolve_foreign_keys: bool = False,
 ) -> DltResource:
     """
     A dlt resource which loads data from an SQL database table using SQLAlchemy.
@@ -174,6 +180,8 @@ def sql_table(
         included_columns (Optional[List[str]): List of column names to select from the table. If not provided, all columns are loaded.
         query_adapter_callback(Optional[Callable[Select, Table], Select]): Callable to override the SELECT query used to fetch data from the table.
             The callback receives the sqlalchemy `Select` and corresponding `Table` objects and should return the modified `Select`.
+        resolve_foreign_keys (bool): Translate foreign keys in the same schema to `references` table hints.
+            May incur additional database calls as all referenced tables are reflected.
 
     Returns:
         DltResource: The dlt resource for loading data from the SQL database table.
@@ -194,7 +202,7 @@ def sql_table(
     # as it breaks foreign key resolution
     table_obj = metadata.tables.get(table)
     if table_obj is None and not defer_table_reflect:
-        table_obj = Table(table, metadata, autoload_with=engine)
+        table_obj = Table(table, metadata, autoload_with=engine, resolve_fks=resolve_foreign_keys)
 
     if table_obj is not None:
         if not defer_table_reflect:
@@ -202,7 +210,11 @@ def sql_table(
             if table_adapter_callback:
                 table_adapter_callback(table_obj)
         hints = table_to_resource_hints(
-            table_obj, reflection_level, type_adapter_callback, skip_nested_on_minimal
+            table_obj,
+            reflection_level,
+            type_adapter_callback,
+            skip_nested_on_minimal,
+            resolve_foreign_keys=resolve_foreign_keys,
         )
     else:
         hints = {}
@@ -220,4 +232,5 @@ def sql_table(
         type_adapter_callback=type_adapter_callback,
         included_columns=included_columns,
         query_adapter_callback=query_adapter_callback,
+        resolve_foreign_keys=resolve_foreign_keys,
     )

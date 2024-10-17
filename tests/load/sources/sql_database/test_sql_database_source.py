@@ -401,12 +401,14 @@ def test_reflection_levels(
 @pytest.mark.parametrize("reflection_level", ["minimal", "full", "full_with_precision"])
 @pytest.mark.parametrize("with_defer", [False, True])
 @pytest.mark.parametrize("standalone_resource", [True, False])
+@pytest.mark.parametrize("resolve_foreign_keys", [True, False])
 def test_reflect_foreign_keys_as_table_references(
     sql_source_db: SQLAlchemySourceDB,
     backend: TableBackend,
     reflection_level: ReflectionLevel,
     with_defer: bool,
     standalone_resource: bool,
+    resolve_foreign_keys: bool,
 ) -> None:
     """Test all reflection, correct schema is inferred"""
 
@@ -422,6 +424,7 @@ def test_reflect_foreign_keys_as_table_references(
                     backend=backend,
                     defer_table_reflect=with_defer,
                     reflection_level=reflection_level,
+                    resolve_foreign_keys=resolve_foreign_keys,
                 )
                 yield sql_table(  # Has no foreign keys
                     credentials=sql_source_db.credentials,
@@ -430,6 +433,7 @@ def test_reflect_foreign_keys_as_table_references(
                     backend=backend,
                     defer_table_reflect=with_defer,
                     reflection_level=reflection_level,
+                    resolve_foreign_keys=resolve_foreign_keys,
                 )
                 yield sql_table(
                     credentials=sql_source_db.credentials,
@@ -438,6 +442,7 @@ def test_reflect_foreign_keys_as_table_references(
                     backend=backend,
                     defer_table_reflect=with_defer,
                     reflection_level=reflection_level,
+                    resolve_foreign_keys=resolve_foreign_keys,
                 )
 
             return dummy_source()
@@ -449,6 +454,7 @@ def test_reflect_foreign_keys_as_table_references(
             reflection_level=reflection_level,
             defer_table_reflect=with_defer,
             backend=backend,
+            resolve_foreign_keys=resolve_foreign_keys,
         )
 
     source = prepare_source()
@@ -462,7 +468,7 @@ def test_reflect_foreign_keys_as_table_references(
     assert app_user.get("references") is None
 
     chat_message = schema.tables["chat_message"]
-    if reflection_level == "minimal":
+    if not resolve_foreign_keys:
         assert chat_message.get("references") is None
     else:
         assert sorted(chat_message["references"], key=lambda x: x["referenced_table"]) == [
@@ -475,7 +481,7 @@ def test_reflect_foreign_keys_as_table_references(
         ]
 
     has_composite_foreign_key = schema.tables["has_composite_foreign_key"]
-    if reflection_level == "minimal":
+    if not resolve_foreign_keys:
         assert has_composite_foreign_key.get("references") is None
 
     else:
