@@ -16,6 +16,7 @@ from typing import (
 from typing_extensions import Annotated
 from requests.auth import AuthBase
 from requests import PreparedRequest, Session as BaseSession  # noqa: I251
+from abc import abstractmethod
 
 from dlt.common import logger
 from dlt.common.exceptions import MissingDependencyException
@@ -44,6 +45,15 @@ class AuthConfigBase(AuthBase, CredentialsConfiguration):
         # to be evaluated as False in requests.sessions.Session.prepare_request()
         return True
 
+    def mask_secret(self, secret: Optional[str]) -> str:
+        if secret is None:
+            return "None"
+        return f"{secret[0]}*****{secret[-1]}"
+
+    @abstractmethod
+    def mask_secrets(self) -> str:
+        pass
+
 
 @configspec
 class BearerTokenAuth(AuthConfigBase):
@@ -64,6 +74,9 @@ class BearerTokenAuth(AuthConfigBase):
     def __call__(self, request: PreparedRequest) -> PreparedRequest:
         request.headers["Authorization"] = f"Bearer {self.token}"
         return request
+
+    def mask_secrets(self) -> str:
+        return self.mask_secret(self.token)
 
 
 @configspec
@@ -93,6 +106,9 @@ class APIKeyAuth(AuthConfigBase):
             raise NotImplementedError()
         return request
 
+    def mask_secrets(self) -> str:
+        return self.mask_secret(self.api_key)
+
 
 @configspec
 class HttpBasicAuth(AuthConfigBase):
@@ -115,9 +131,15 @@ class HttpBasicAuth(AuthConfigBase):
         )
 
     def __call__(self, request: PreparedRequest) -> PreparedRequest:
-        encoded = b64encode(f"{self.username}:{self.password}".encode()).decode()
+        encoded = b64encode(self._format().encode()).decode()
         request.headers["Authorization"] = f"Basic {encoded}"
         return request
+
+    def mask_secrets(self) -> str:
+        return self.mask_secret(self._format())
+
+    def _format(self) -> str:
+        return f"{self.username}:{self.password}"
 
 
 @configspec
@@ -139,6 +161,9 @@ class OAuth2AuthBase(AuthConfigBase):
     def __call__(self, request: PreparedRequest) -> PreparedRequest:
         request.headers["Authorization"] = f"Bearer {self.access_token}"
         return request
+
+    def mask_secrets(self) -> str:
+        return self.mask_secret(self.access_token)
 
 
 @configspec
@@ -205,6 +230,15 @@ class OAuth2ClientCredentials(OAuth2AuthBase):
 
     def parse_access_token(self, response_json: Any) -> str:
         return str(response_json.get("access_token"))
+
+    def mask_secrets(self) -> str:
+        return str(
+            {
+                "access_token": self.mask_secret(self.access_token),
+                "client_id": self.mask_secret(self.client_id),
+                "client_secret": self.mask_secret(self.client_secret),
+            }
+        )
 
 
 @configspec
