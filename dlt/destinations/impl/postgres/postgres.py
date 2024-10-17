@@ -178,9 +178,14 @@ class PostgresInsertValuesWithGeometryTypesLoadJob(InsertValuesLoadJob):
                     row_values = row.strip().strip("(),").split(",")
                     processed_values = []
                     for idx, value in enumerate(row_values):
-                        column = self._load_table["columns"][
-                            list(self._load_table["columns"].keys())[idx]
-                        ]
+                        try:
+                            column = self._load_table["columns"][
+                                list(self._load_table["columns"].keys())[idx]
+                            ]
+                        except IndexError:
+                            print(f"FAILED ROW: {row_values}")
+                            print(f"processed_values: {processed_values}")
+                            print(f"================")
                         if column.get(GEOMETRY_HINT):
                             if geom_value := self._parse_geometry(value.strip()):
                                 srid = column.get(SRID_HINT, 4326)

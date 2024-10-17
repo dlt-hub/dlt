@@ -1,3 +1,4 @@
+import os
 from copy import deepcopy
 from typing import Generator, Any, Dict, List
 
@@ -238,6 +239,9 @@ def test_geometry_types(
 ) -> None:
     from shapely import wkt, wkb
     from shapely import LinearRing
+
+    os.environ["LOAD__WORKERS"] = "1"
+
 
     @dlt.resource
     def geodata_default() -> Generator[List[Dict[str, Any]], Any, Any]:
