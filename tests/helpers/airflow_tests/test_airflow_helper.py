@@ -988,3 +988,35 @@ def test_on_before_run() -> None:
                 mock.call(f'on_before_run test: {pendulum.tomorrow().format("YYYY-MM-DD")}'),
             ]
         )
+
+
+def test_working_dir_clear():
+    @dag(
+        schedule_interval="@daily",
+        start_date=pendulum.datetime(2023, 7, 1),
+        catchup=False,
+        max_active_runs=1,
+    )
+    def load_data():
+        tasks = PipelineTasksGroup(
+            "pipeline_decomposed", use_data_folder=False, wipe_local_data=True
+        )
+
+        pipeline = dlt.pipeline(
+            pipeline_name="airflow_clear_test",
+            dataset_name="airflow_clear_test_ds",
+            destination="duckdb",
+            full_refresh=True,
+        )
+        tasks.run(
+            pipeline,
+            mock_data_source(),
+            trigger_rule="all_done",
+            retries=0,
+            provide_context=True,
+        )
+
+    dag_ref = load_data()
+    dag_ref.test()
+
+    assert not os.path.exists(os.environ["DLT_DATA_DIR"])
