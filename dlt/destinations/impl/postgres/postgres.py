@@ -178,6 +178,7 @@ class PostgresInsertValuesWithGeometryTypesLoadJob(InsertValuesLoadJob):
                 values_rows = content.splitlines(keepends=True)
                 processed_rows = []
                 for row in values_rows:
+                    # TODO: Fix splitting below.
                     row_values = row.strip().strip("(),").split(",")
                     processed_values = []
                     for idx, value in enumerate(row_values):
