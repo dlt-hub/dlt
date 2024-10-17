@@ -46,6 +46,7 @@ from dlt.common.schema.typing import (
     TLoaderMergeStrategy,
     TSchemaContract,
     TSortOrder,
+    TTableReference,
 )
 from dlt.common.schema.exceptions import (
     CannotCoerceColumnException,
@@ -373,6 +374,32 @@ def compare_complete_columns(a: TColumnSchema, b: TColumnSchema) -> bool:
     return a["data_type"] == b["data_type"] and a["name"] == b["name"]
 
 
+def compare_table_references(a: TTableReference, b: TTableReference) -> bool:
+    if a["referenced_table"] != b["referenced_table"]:
+        return False
+    a_col_map = dict(zip(a["columns"], a["referenced_columns"]))
+    b_col_map = dict(zip(b["columns"], b["referenced_columns"]))
+    return a_col_map == b_col_map
+
+
+def diff_table_references(
+    a: Sequence[TTableReference], b: Sequence[TTableReference]
+) -> List[TTableReference]:
+    """Return a list of references containing references matched by table:
+    * References from `b` that are not in `a`
+    * References from `b` that are different from the one in `a`
+    """
+    a_refs_mapping = {ref["referenced_table"]: ref for ref in a}
+    new_refs: List[TTableReference] = []
+    for b_ref in b:
+        table_name = b_ref["referenced_table"]
+        if table_name not in a_refs_mapping:
+            new_refs.append(b_ref)
+        elif not compare_table_references(a_refs_mapping[table_name], b_ref):
+            new_refs.append(b_ref)
+    return new_refs
+
+
 def merge_column(
     col_a: TColumnSchema, col_b: TColumnSchema, merge_defaults: bool = True
 ) -> TColumnSchema:
@@ -471,6 +498,11 @@ def diff_table(
         "name": table_name,
         "columns": {} if new_columns is None else {c["name"]: c for c in new_columns},
     }
+
+    new_references = diff_table_references(tab_a.get("references", []), tab_b.get("references", []))
+    if new_references:
+        partial_table["references"] = new_references
+
     for k, v in tab_b.items():
         if k in ["columns", None]:
             continue
@@ -559,6 +591,24 @@ def normalize_table_identifiers(table: TTableSchema, naming: NamingConvention) -
             else:
                 new_columns[new_col_name] = c
         table["columns"] = new_columns
+    references = table.get("references")
+    if references:
+        new_references = {}
+        for ref in references:
+            new_ref = copy(ref)
+            new_ref["referenced_table"] = naming.normalize_tables_path(ref["referenced_table"])
+            new_ref["columns"] = [naming.normalize_path(c) for c in ref["columns"]]
+            new_ref["referenced_columns"] = [
+                naming.normalize_path(c) for c in ref["referenced_columns"]
+            ]
+            if new_ref["referenced_table"] in new_references:
+                logger.warning(
+                    f"In schema {naming} table {table['name']} has multiple references to"
+                    f" {new_ref['referenced_table']}. Only the last one is preserved."
+                )
+            new_references[new_ref["referenced_table"]] = new_ref
+
+        table["references"] = list(new_references.values())
     return table
 
 
@@ -902,6 +952,7 @@ def new_table(
     schema_contract: TSchemaContract = None,
     table_format: TTableFormat = None,
     file_format: TFileFormat = None,
+    references: Sequence[TTableReference] = None,
 ) -> TTableSchema:
     table: TTableSchema = {
         "name": table_name,
@@ -918,6 +969,8 @@ def new_table(
         table["table_format"] = table_format
     if file_format:
         table["file_format"] = file_format
+    if references:
+        table["references"] = references
     if parent_table_name:
         table["parent"] = parent_table_name
     else:

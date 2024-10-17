@@ -18,7 +18,7 @@ from .helpers import (
 )
 from .schema_types import (
     default_table_adapter,
-    table_to_columns,
+    table_to_resource_hints,
     get_primary_key,
     ReflectionLevel,
     TTypeAdapter,
@@ -41,6 +41,7 @@ def sql_database(
     include_views: bool = False,
     type_adapter_callback: Optional[TTypeAdapter] = None,
     query_adapter_callback: Optional[TQueryAdapter] = None,
+    resolve_foreign_keys: bool = False,
 ) -> Iterable[DltResource]:
     """
     A dlt source which loads data from an SQL database using SQLAlchemy.
@@ -71,6 +72,8 @@ def sql_database(
             Argument is a single sqlalchemy data type (`TypeEngine` instance) and it should return another sqlalchemy data type, or `None` (type will be inferred from data)
         query_adapter_callback(Optional[Callable[Select, Table], Select]): Callable to override the SELECT query used to fetch data from the table.
             The callback receives the sqlalchemy `Select` and corresponding `Table` objects and should return the modified `Select`.
+        resolve_foreign_keys (bool): Translate foreign keys in the same schema to `references` table hints.
+            May incur additional database calls as all referenced tables are reflected.
 
     Returns:
         Iterable[DltResource]: A list of DLT resources for each table to be loaded.
@@ -88,23 +91,31 @@ def sql_database(
     engine.execution_options(stream_results=True, max_row_buffer=2 * chunk_size)
     metadata = metadata or MetaData(schema=schema)
 
-    # use provided tables or all tables
-    if table_names:
-        tables = [
-            Table(name, metadata, autoload_with=None if defer_table_reflect else engine)
-            for name in table_names
-        ]
-    else:
-        if defer_table_reflect:
+    if defer_table_reflect:
+        if not table_names:
             raise ValueError("You must pass table names to defer table reflection")
-        metadata.reflect(bind=engine, views=include_views)
+        table_infos = [(schema, table) for table in table_names]
+    else:
+        # reflect tables
+        metadata.reflect(
+            bind=engine,
+            views=include_views or bool(table_names),  # Specified view names are always reflected
+            only=table_names if table_names else None,
+            resolve_fks=resolve_foreign_keys,
+        )
         tables = list(metadata.tables.values())
+        # Some extra tables may be reflected in metadata due to foreign keys
+        table_infos = [
+            (table.schema, table.name)
+            for table in tables
+            if table_names is None or table.name in table_names
+        ]
 
-    for table in tables:
+    for table_schema, table_name in table_infos:
         yield sql_table(
             credentials=credentials,
-            table=table.name,
-            schema=table.schema,
+            table=table_name,
+            schema=table_schema,
             metadata=metadata,
             chunk_size=chunk_size,
             backend=backend,
@@ -114,6 +125,7 @@ def sql_database(
             backend_kwargs=backend_kwargs,
             type_adapter_callback=type_adapter_callback,
             query_adapter_callback=query_adapter_callback,
+            resolve_foreign_keys=resolve_foreign_keys,
         )
 
 
@@ -136,6 +148,7 @@ def sql_table(
     type_adapter_callback: Optional[TTypeAdapter] = None,
     included_columns: Optional[List[str]] = None,
     query_adapter_callback: Optional[TQueryAdapter] = None,
+    resolve_foreign_keys: bool = False,
 ) -> DltResource:
     """
     A dlt resource which loads data from an SQL database table using SQLAlchemy.
@@ -167,6 +180,8 @@ def sql_table(
         included_columns (Optional[List[str]): List of column names to select from the table. If not provided, all columns are loaded.
         query_adapter_callback(Optional[Callable[Select, Table], Select]): Callable to override the SELECT query used to fetch data from the table.
             The callback receives the sqlalchemy `Select` and corresponding `Table` objects and should return the modified `Select`.
+        resolve_foreign_keys (bool): Translate foreign keys in the same schema to `references` table hints.
+            May incur additional database calls as all referenced tables are reflected.
 
     Returns:
         DltResource: The dlt resource for loading data from the SQL database table.
@@ -182,33 +197,40 @@ def sql_table(
     engine.execution_options(stream_results=True, max_row_buffer=2 * chunk_size)
     metadata = metadata or MetaData(schema=schema)
 
-    table_obj = metadata.tables.get("table") or Table(
-        table, metadata, autoload_with=None if defer_table_reflect else engine
-    )
-    if not defer_table_reflect:
-        default_table_adapter(table_obj, included_columns)
-        if table_adapter_callback:
-            table_adapter_callback(table_obj)
-
     skip_nested_on_minimal = backend == "sqlalchemy"
-    return decorators.resource(
-        table_rows,
-        name=table_obj.name,
-        primary_key=get_primary_key(table_obj),
-        columns=table_to_columns(
-            table_obj, reflection_level, type_adapter_callback, skip_nested_on_minimal
-        ),
-    )(
+    # Table object is only created when reflecting, we don't want empty tables in metadata
+    # as it breaks foreign key resolution
+    table_obj = metadata.tables.get(table)
+    if table_obj is None and not defer_table_reflect:
+        table_obj = Table(table, metadata, autoload_with=engine, resolve_fks=resolve_foreign_keys)
+
+    if table_obj is not None:
+        if not defer_table_reflect:
+            default_table_adapter(table_obj, included_columns)
+            if table_adapter_callback:
+                table_adapter_callback(table_obj)
+        hints = table_to_resource_hints(
+            table_obj,
+            reflection_level,
+            type_adapter_callback,
+            skip_nested_on_minimal,
+            resolve_foreign_keys=resolve_foreign_keys,
+        )
+    else:
+        hints = {}
+
+    return decorators.resource(table_rows, name=table, **hints)(
         engine,
-        table_obj,
+        table_obj if table_obj is not None else table,  # Pass table name if reflection deferred
+        metadata,
         chunk_size,
         backend,
         incremental=incremental,
         reflection_level=reflection_level,
-        defer_table_reflect=defer_table_reflect,
         table_adapter_callback=table_adapter_callback,
         backend_kwargs=backend_kwargs,
         type_adapter_callback=type_adapter_callback,
         included_columns=included_columns,
         query_adapter_callback=query_adapter_callback,
+        resolve_foreign_keys=resolve_foreign_keys,
     )

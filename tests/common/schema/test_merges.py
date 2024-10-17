@@ -450,6 +450,87 @@ def test_merge_tables_incomplete_columns() -> None:
     assert list(table["columns"].keys()) == ["test_2", "test"]
 
 
+def test_merge_tables_references() -> None:
+    table: TTableSchema = {
+        "name": "table",
+        "columns": {"test_2": COL_2_HINTS, "test": COL_1_HINTS},
+        "references": [
+            {
+                "columns": ["test"],
+                "referenced_table": "other",
+                "referenced_columns": ["id"],
+            }
+        ],
+    }
+    changed: TTableSchema = deepcopy(table)
+
+    # add new references
+    changed["references"].append(  # type: ignore[attr-defined]
+        {
+            "columns": ["test_2"],
+            "referenced_table": "other_2",
+            "referenced_columns": ["id"],
+        }
+    )
+    changed["references"].append(  # type: ignore[attr-defined]
+        {
+            "columns": ["test"],
+            "referenced_table": "other_3",
+            "referenced_columns": ["id"],
+        }
+    )
+
+    partial = utils.merge_table("schema", table, changed)
+
+    assert partial["references"] == [
+        {
+            "columns": ["test"],
+            "referenced_table": "other",
+            "referenced_columns": ["id"],
+        },
+        {
+            "columns": ["test_2"],
+            "referenced_table": "other_2",
+            "referenced_columns": ["id"],
+        },
+        {
+            "columns": ["test"],
+            "referenced_table": "other_3",
+            "referenced_columns": ["id"],
+        },
+    ]
+
+    # Update existing reference
+
+    table = deepcopy(partial)
+    changed = deepcopy(partial)
+
+    changed["references"][1] = {  # type: ignore[index]
+        "columns": ["test_3"],
+        "referenced_table": "other_2",
+        "referenced_columns": ["id"],
+    }
+    partial = utils.merge_table("schema", partial, changed)
+
+    assert partial["references"] == [
+        {
+            "columns": ["test"],
+            "referenced_table": "other",
+            "referenced_columns": ["id"],
+        },
+        {
+            "columns": ["test_3"],
+            "referenced_table": "other_2",
+            "referenced_columns": ["id"],
+        },
+        {
+            "columns": ["test"],
+            "referenced_table": "other_3",
+            "referenced_columns": ["id"],
+        },
+    ]
+
+
 # def add_column_defaults(column: TColumnSchemaBase) -> TColumnSchema:
 #     """Adds default boolean hints to column"""
 #     return {
