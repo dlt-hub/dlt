@@ -148,10 +148,6 @@ class PostgresCsvCopyJob(RunnableLoadJob, HasFollowupJobs):
 
 
 class PostgresInsertValuesWithGeometryTypesLoadJob(InsertValuesLoadJob):
-    def __init__(self, file_path: str) -> None:
-        super().__init__(file_path)
-        self._job_client: PostgresClient = None
-
     @staticmethod
     def _parse_geometry(value: Any) -> Optional[str]:
         if isinstance(value, (str, bytes)):
