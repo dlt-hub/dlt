@@ -157,6 +157,31 @@ class PostgresInsertValuesWithGeometryTypesLoadJob(InsertValuesLoadJob):
                     return geom.wkb_hex
         return None
 
+    @staticmethod
+    def parse_row_values(row: str) -> List[str]:
+        values = []
+        current_value = ""
+        paren_count = 0
+        in_quotes = False
+
+        for char in row.strip().strip("(),"):
+            if char == "," and paren_count == 0 and not in_quotes:
+                values.append(current_value.strip())
+                current_value = ""
+            else:
+                if char == "(" and not in_quotes:
+                    paren_count += 1
+                elif char == ")" and not in_quotes:
+                    paren_count -= 1
+                elif char == "'":
+                    in_quotes = not in_quotes
+                current_value += char
+
+        if current_value:
+            values.append(current_value.strip())
+
+        return values
+
     def _insert(self, qualified_table_name: str, file_path: str) -> Iterator[List[str]]:
         with FileStorage.open_zipsafe_ro(file_path, "r", encoding="utf-8") as f:
             header = f.readline()
@@ -174,18 +199,12 @@ class PostgresInsertValuesWithGeometryTypesLoadJob(InsertValuesLoadJob):
                 values_rows = content.splitlines(keepends=True)
                 processed_rows = []
                 for row in values_rows:
-                    # TODO: Fix splitting below.
-                    row_values = row.strip().strip("(),").split(",")
+                    row_values = self.parse_row_values(row)
                     processed_values = []
                     for idx, value in enumerate(row_values):
-                        try:
-                            column = self._load_table["columns"][
-                                list(self._load_table["columns"].keys())[idx]
-                            ]
-                        except IndexError:
-                            print(f"FAILED ROW: {row_values}")
-                            print(f"processed_values: {processed_values}")
-                            print(f"================")
+                        column = self._load_table["columns"][
+                            list(self._load_table["columns"].keys())[idx]
+                        ]
                         if column.get(GEOMETRY_HINT):
                             if geom_value := self._parse_geometry(value.strip()):
                                 srid = column.get(SRID_HINT, 4326)
