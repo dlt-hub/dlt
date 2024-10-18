@@ -157,73 +157,10 @@ class PostgresInsertValuesWithGeometryTypesLoadJob(InsertValuesLoadJob):
                     return geom.wkb_hex
         return None
 
-    @staticmethod
-    def parse_row_values(row: str) -> List[str]:
-        values = []
-        current_value = ""
-        paren_count = 0
-        in_quotes = False
-
-        for char in row.strip().strip("(),"):
-            if char == "," and paren_count == 0 and not in_quotes:
-                values.append(current_value.strip())
-                current_value = ""
-            else:
-                if char == "(" and not in_quotes:
-                    paren_count += 1
-                elif char == ")" and not in_quotes:
-                    paren_count -= 1
-                elif char == "'":
-                    in_quotes = not in_quotes
-                current_value += char
-
-        if current_value:
-            values.append(current_value.strip())
-
-        return values
-
     def _insert(self, qualified_table_name: str, file_path: str) -> Iterator[List[str]]:
-        with FileStorage.open_zipsafe_ro(file_path, "r", encoding="utf-8") as f:
-            header = f.readline()
-            header = self._sql_client.capabilities.casefold_identifier(header).format(
-                qualified_table_name
-            )
-            values_mark = f.readline()
-            assert values_mark == "VALUES\n"
-            insert_sql = []
-            while content := f.read(self._sql_client.capabilities.max_query_length // 2):
-                until_nl = f.readline().strip("\n")
-                is_eof = len(until_nl) == 0 or until_nl[-1] == ";"
-                if not is_eof:
-                    until_nl = f"{until_nl[:-1]};"
-                values_rows = content.splitlines(keepends=True)
-                processed_rows = []
-                for row in values_rows:
-                    row_values = self.parse_row_values(row)
-                    processed_values = []
-                    for idx, value in enumerate(row_values):
-                        column = self._load_table["columns"][
-                            list(self._load_table["columns"].keys())[idx]
-                        ]
-                        if column.get(GEOMETRY_HINT):
-                            if geom_value := self._parse_geometry(value.strip()):
-                                srid = column.get(SRID_HINT, 4326)
-                                processed_values.append(
-                                    f"ST_SetSRID(ST_GeomFromWKB(decode('{geom_value}', 'hex')),"
-                                    f" {srid})"
-                                )
-                            else:
-                                processed_values.append(value)
-                        else:
-                            processed_values.append(value)
-                    processed_rows.append(f"({','.join(processed_values)})")
-                processed_content = ",\n".join(processed_rows)
-                insert_sql.extend([header, values_mark, processed_content + until_nl])
-                if not is_eof:
-                    yield insert_sql
-                    insert_sql = []
-            if insert_sql:
-                yield insert_sql
+        to_insert = super()._insert(qualified_table_name, file_path)
+        # TODO: parse geom values by geom column index
+        yield from to_insert
 
 
 class PostgresClient(InsertValuesJobClient):
