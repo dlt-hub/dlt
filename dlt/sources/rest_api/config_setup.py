@@ -19,7 +19,7 @@ from requests import Response
 from dlt.common import logger
 from dlt.common.configuration import resolve_configuration
 from dlt.common.schema.utils import merge_columns
-from dlt.common.utils import update_dict_nested
+from dlt.common.utils import update_dict_nested, exclude_keys
 from dlt.common import jsonpath
 
 from dlt.extract.incremental import Incremental
@@ -65,7 +65,6 @@ from .typing import (
     Endpoint,
     EndpointResource,
 )
-from .utils import exclude_keys
 
 
 PAGINATOR_MAP: Dict[str, Type[BasePaginator]] = {
