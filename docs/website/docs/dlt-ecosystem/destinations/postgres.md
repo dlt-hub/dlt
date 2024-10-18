@@ -25,7 +25,7 @@ pip install -r requirements.txt
 ```
 This will install dlt with the `postgres` extra, which contains the `psycopg2` client.
 
-**3. After setting up a Postgres instance and `psql` / query editor, create a new database by running:**
+**3. After setting up a Postgres instance and `psql` or a query editor, create a new database by running:**
 ```sql
 CREATE DATABASE dlt_data;
 ```
@@ -103,7 +103,7 @@ pipeline = dlt.pipeline(destination="postgres")
 pipeline.run(events())
 ```
 
-### Fast loading with arrow tables and CSV
+### Fast loading with Arrow tables and CSV
 You can use [Arrow tables](../verified-sources/arrow-pandas.md) and [CSV](../file-formats/csv.md) to quickly load tabular data. Pick the CSV loader file format like below:
 ```py
 info = pipeline.run(arrow_table, loader_file_format="csv")
@@ -127,14 +127,17 @@ The Postgres destination creates UNIQUE indexes by default on columns with the `
 create_indexes=false
 ```
 
-### Setting up `CSV` format
+### Setting up CSV format
 You can provide [non-default](../file-formats/csv.md#default-settings) CSV settings via a configuration file or explicitly.
+
 ```toml
 [destination.postgres.csv_format]
 delimiter="|"
 include_header=false
 ```
+
 or
+
 ```py
 from dlt.destinations import postgres
 from dlt.common.data_writers.configuration import CsvFormatConfiguration
@@ -152,7 +155,7 @@ You'll need those settings when [importing external files](../../general-usage/r
 ### dbt support
 This destination [integrates with dbt](../transformations/dbt/dbt.md) via dbt-postgres.
 
-### Syncing of `dlt` state
+### Syncing of dlt state
 This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination).
 
 <!--@@@DLT_TUBA postgres-->
