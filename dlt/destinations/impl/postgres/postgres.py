@@ -160,7 +160,17 @@ class PostgresInsertValuesWithGeometryTypesLoadJob(InsertValuesLoadJob):
     def _insert(self, qualified_table_name: str, file_path: str) -> Iterator[List[str]]:
         to_insert = super()._insert(qualified_table_name, file_path)
         # TODO: parse geom values by geom column index
-        yield from to_insert
+        for fragments in to_insert:
+            processed_fragments = []
+            for fragment in fragments:
+                if fragment == "VALUES\n" or fragment.strip().upper().startswith(
+                    "INSERT INTO "
+                ):
+                    processed_fragments.append(fragment)
+                else:
+                    # process geom
+                    processed_fragments.append(fragment)
+            yield processed_fragments
 
 
 class PostgresClient(InsertValuesJobClient):

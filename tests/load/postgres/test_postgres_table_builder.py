@@ -303,15 +303,19 @@ def test_geometry_types(
 
     @dlt.resource
     def geodata_default() -> Generator[List[Dict[str, Any]], Any, Any]:
-        yield generate_sample_geometry_records()
+        yield from generate_sample_geometry_records()
 
     @dlt.resource
     def geodata_3857() -> Generator[List[Dict[str, Any]], Any, Any]:
-        yield generate_sample_geometry_records()
+        yield from generate_sample_geometry_records()
 
     @dlt.resource
     def geodata_2163() -> Generator[List[Dict[str, Any]], Any, Any]:
-        yield generate_sample_geometry_records()
+        yield from generate_sample_geometry_records()
+
+    @dlt.resource
+    def no_geodata() -> Generator[List[Dict[str, Any]], Any, Any]:
+        yield from [{"a": 1}, {"a": 2}]
 
     postgres_adapter(geodata_default, geometry=["geom"])
     postgres_adapter(geodata_3857, geometry=["geom"], srid=3857)
@@ -319,7 +323,7 @@ def test_geometry_types(
 
     @dlt.source
     def geodata() -> List[DltResource]:
-        return [geodata_default, geodata_3857, geodata_2163]
+        return [geodata_default, geodata_3857, geodata_2163, no_geodata]
 
     pipeline = destination_config.setup_pipeline("test_geometry_types", dev_mode=True)
     info = pipeline.run(
