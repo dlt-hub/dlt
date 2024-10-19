@@ -94,6 +94,11 @@ html[data-theme='dark'] .markdown a:hover {
   text-decoration: underline;
 }
 
+/* No underline for cards */
+html[data-theme='dark'] .markdown a.card {
+  text-decoration: none;
+}
+
 .footer__title {
   color: #191937;
 }
