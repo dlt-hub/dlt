@@ -77,6 +77,7 @@ class DuckDbBaseCredentials(ConnectionStringCredentials):
         try:
             super().parse_native_representation(native_value)
         except InvalidConnectionString:
+            raise
             if native_value == ":pipeline:" or is_valid_filepath(native_value, platform="auto"):
                 self.database = native_value
             else:
