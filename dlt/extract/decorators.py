@@ -39,6 +39,7 @@ from dlt.common.schema.typing import (
     TAnySchemaColumns,
     TSchemaContract,
     TTableFormat,
+    TTableReferenceParam,
 )
 from dlt.common.storages.exceptions import SchemaNotFoundError
 from dlt.common.storages.schema_storage import SchemaStorage
@@ -441,6 +442,7 @@ def resource(
     schema_contract: TTableHintTemplate[TSchemaContract] = None,
     table_format: TTableHintTemplate[TTableFormat] = None,
     file_format: TTableHintTemplate[TFileFormat] = None,
+    references: TTableHintTemplate[TTableReferenceParam] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     parallelized: bool = False,
@@ -462,6 +464,7 @@ def resource(
     schema_contract: TTableHintTemplate[TSchemaContract] = None,
     table_format: TTableHintTemplate[TTableFormat] = None,
     file_format: TTableHintTemplate[TFileFormat] = None,
+    references: TTableHintTemplate[TTableReferenceParam] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     parallelized: bool = False,
@@ -483,6 +486,7 @@ def resource(
     schema_contract: TTableHintTemplate[TSchemaContract] = None,
     table_format: TTableHintTemplate[TTableFormat] = None,
     file_format: TTableHintTemplate[TFileFormat] = None,
+    references: TTableHintTemplate[TTableReferenceParam] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     parallelized: bool = False,
@@ -507,6 +511,7 @@ def resource(
     schema_contract: TTableHintTemplate[TSchemaContract] = None,
     table_format: TTableHintTemplate[TTableFormat] = None,
     file_format: TTableHintTemplate[TFileFormat] = None,
+    references: TTableHintTemplate[TTableReferenceParam] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     parallelized: bool = False,
@@ -527,6 +532,7 @@ def resource(
     schema_contract: TTableHintTemplate[TSchemaContract] = None,
     table_format: TTableHintTemplate[TTableFormat] = None,
     file_format: TTableHintTemplate[TFileFormat] = None,
+    references: TTableHintTemplate[TTableReferenceParam] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     parallelized: bool = False,
@@ -590,6 +596,10 @@ def resource(
         file_format (Literal["preferred", ...], optional): Format of the file in which resource data is stored. Useful when importing external files. Use `preferred` to force
             a file format that is preferred by the destination used. This setting superseded the `load_file_format` passed to pipeline `run` method.
 
+        references (TTableReferenceParam, optional): A list of references to other table's columns.
+            A list in the form of `[{'referenced_table': 'other_table', 'columns': ['other_col1', 'other_col2'], 'referenced_columns': ['col1', 'col2']}]`.
+            Table and column names will be normalized according to the configured naming convention.
+
         selected (bool, optional): When `True` `dlt pipeline` will extract and load this resource, if `False`, the resource will be ignored.
 
         spec (Type[BaseConfiguration], optional): A specification of configuration and secret values required by the source.
@@ -621,6 +631,7 @@ def resource(
             schema_contract=schema_contract,
             table_format=table_format,
             file_format=file_format,
+            references=references,
         )
 
         resource = _impl_cls.from_data(
