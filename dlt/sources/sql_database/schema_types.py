@@ -181,7 +181,8 @@ def get_table_references(table: Table) -> Optional[List[TTableReference]]:
             referenced_table = fk_constraint.referred_table.name
         except NoReferencedTableError as e:
             logger.warning(
-                "Foreign key constraint from table %s could not be resolved to a referenced table, error message: %s",
+                "Foreign key constraint from table %s could not be resolved to a referenced table,"
+                " error message: %s",
                 table.name,
                 e,
             )

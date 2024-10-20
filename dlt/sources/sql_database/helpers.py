@@ -35,8 +35,7 @@ from .schema_types import (
     table_to_resource_hints,
 )
 
-from dlt.common.libs.sql_alchemy import Engine, CompileError, create_engine, MetaData
-
+from dlt.common.libs.sql_alchemy import Engine, CompileError, create_engine, MetaData, sa
 
 TableBackend = Literal["sqlalchemy", "pyarrow", "pandas", "connectorx"]
 TQueryAdapter = Callable[[SelectAny, Table], SelectAny]
@@ -71,11 +70,13 @@ class TableLoader:
             self.last_value = incremental.last_value
             self.end_value = incremental.end_value
             self.row_order: TSortOrder = self.incremental.row_order
+            self.on_cursor_value_missing = self.incremental.on_cursor_value_missing
         else:
             self.cursor_column = None
             self.last_value = None
             self.end_value = None
             self.row_order = None
+            self.on_cursor_value_missing = None
 
     def _make_query(self) -> SelectAny:
         table = self.table
@@ -94,10 +95,21 @@ class TableLoader:
         else:  # Custom last_value, load everything and let incremental handle filtering
             return query  # type: ignore[no-any-return]
 
+        where_clause = True
         if self.last_value is not None:
-            query = query.where(filter_op(self.cursor_column, self.last_value))
+            where_clause = filter_op(self.cursor_column, self.last_value)
             if self.end_value is not None:
-                query = query.where(filter_op_end(self.cursor_column, self.end_value))
+                where_clause = sa.and_(
+                    where_clause, filter_op_end(self.cursor_column, self.end_value)
+                )
+
+            if self.on_cursor_value_missing == "include":
+                where_clause = sa.or_(where_clause, self.cursor_column.is_(None))
+        if self.on_cursor_value_missing == "exclude":
+            where_clause = sa.and_(where_clause, self.cursor_column.isnot(None))
+
+        if where_clause is not True:
+            query = query.where(where_clause)
 
         # generate order by from declared row order
         order_by = None
