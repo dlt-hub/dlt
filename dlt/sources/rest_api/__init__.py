@@ -9,6 +9,7 @@ from dlt.common.validation import validate_dict
 from dlt.common import jsonpath
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import TSchemaContract
+from dlt.common.utils import exclude_keys
 
 from dlt.extract import Incremental, DltResource, DltSource, decorators
 
@@ -44,7 +45,7 @@ from .config_setup import (
     setup_incremental_object,
     create_response_hooks,
 )
-from .utils import check_connection, exclude_keys  # noqa: F401
+from .utils import check_connection  # noqa: F401
 
 PARAM_TYPES: List[ParamBindType] = ["incremental", "resolve"]
 MIN_SECRET_MASKING_LENGTH = 3
