@@ -15,21 +15,21 @@ from dlt.common.configuration.providers import (
     ConfigTomlProvider,
 )
 from dlt.common.configuration.specs.config_providers_context import (
-    ConfigProvidersContext,
     ConfigProvidersConfiguration,
 )
+from dlt.common.runtime.run_context import RunContext
 
 
-def initial_providers() -> List[ConfigProvider]:
+def initial_providers(self) -> List[ConfigProvider]:
     # do not read the global config
     return [
         EnvironProvider(),
-        SecretsTomlProvider(settings_dir="tests/.dlt", add_global_config=False),
-        ConfigTomlProvider(settings_dir="tests/.dlt", add_global_config=False),
+        SecretsTomlProvider(settings_dir="tests/.dlt"),
+        ConfigTomlProvider(settings_dir="tests/.dlt"),
     ]
 
 
-ConfigProvidersContext.initial_providers = initial_providers  # type: ignore[method-assign]
+RunContext.initial_providers = initial_providers  # type: ignore[method-assign]
 # also disable extras
 ConfigProvidersConfiguration.enable_airflow_secrets = False
 ConfigProvidersConfiguration.enable_google_secrets = False
@@ -40,20 +40,20 @@ def pytest_configure(config):
     # the dataclass implementation will use those patched values when creating instances (the values present
     # in the declaration are not frozen allowing patching)
 
-    from dlt.common.configuration.specs import run_configuration
+    from dlt.common.configuration.specs import runtime_configuration
     from dlt.common.storages import configuration as storage_configuration
 
     test_storage_root = "_storage"
-    run_configuration.RunConfiguration.config_files_storage_path = os.path.join(
+    runtime_configuration.RuntimeConfiguration.config_files_storage_path = os.path.join(
         test_storage_root, "config/"
     )
     # always use CI track endpoint when running tests
-    run_configuration.RunConfiguration.dlthub_telemetry_endpoint = (
+    runtime_configuration.RuntimeConfiguration.dlthub_telemetry_endpoint = (
         "https://telemetry-tracker.services4758.workers.dev"
     )
-    delattr(run_configuration.RunConfiguration, "__init__")
-    run_configuration.RunConfiguration = dataclasses.dataclass(  # type: ignore[misc]
-        run_configuration.RunConfiguration, init=True, repr=False
+    delattr(runtime_configuration.RuntimeConfiguration, "__init__")
+    runtime_configuration.RuntimeConfiguration = dataclasses.dataclass(  # type: ignore[misc]
+        runtime_configuration.RuntimeConfiguration, init=True, repr=False
     )  # type: ignore
     # push telemetry to CI
 
@@ -82,10 +82,10 @@ def pytest_configure(config):
         storage_configuration.SchemaStorageConfiguration, init=True, repr=False
     )
 
-    assert run_configuration.RunConfiguration.config_files_storage_path == os.path.join(
+    assert runtime_configuration.RuntimeConfiguration.config_files_storage_path == os.path.join(
         test_storage_root, "config/"
     )
-    assert run_configuration.RunConfiguration().config_files_storage_path == os.path.join(
+    assert runtime_configuration.RuntimeConfiguration().config_files_storage_path == os.path.join(
         test_storage_root, "config/"
     )
 
@@ -97,8 +97,6 @@ def pytest_configure(config):
         return pendulum.now().format("_YYYYMMDDhhmmssSSSS")
 
     Pipeline._create_pipeline_instance_id = _create_pipeline_instance_id  # type: ignore[method-assign]
-    # push sentry to ci
-    # os.environ["RUNTIME__SENTRY_DSN"] = "https://6f6f7b6f8e0f458a89be4187603b55fe@o1061158.ingest.sentry.io/4504819859914752"
 
     # disable sqlfluff logging
     for log in ["sqlfluff.parser", "sqlfluff.linter", "sqlfluff.templater", "sqlfluff.lexer"]:

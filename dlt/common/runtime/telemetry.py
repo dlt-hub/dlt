@@ -4,7 +4,7 @@ import contextlib
 import inspect
 from typing import Any, Callable
 
-from dlt.common.configuration.specs import RunConfiguration
+from dlt.common.configuration.specs import RuntimeConfiguration
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.typing import TFun
 from dlt.common.configuration import resolve_configuration
@@ -18,7 +18,7 @@ from dlt.common.runtime.anon_tracker import (
 _TELEMETRY_STARTED = False
 
 
-def start_telemetry(config: RunConfiguration) -> None:
+def start_telemetry(config: RuntimeConfiguration) -> None:
     # enable telemetry only once
 
     global _TELEMETRY_STARTED
@@ -90,7 +90,7 @@ def with_telemetry(
                     props["success"] = success
                     # resolve runtime config and init telemetry
                     if not _TELEMETRY_STARTED:
-                        c = resolve_configuration(RunConfiguration())
+                        c = resolve_configuration(RuntimeConfiguration())
                         start_telemetry(c)
                     track(category, command, props)
 

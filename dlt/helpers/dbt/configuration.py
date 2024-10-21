@@ -3,7 +3,7 @@ from typing import Optional, Sequence
 
 from dlt.common.typing import StrAny, TSecretStrValue
 from dlt.common.configuration import configspec
-from dlt.common.configuration.specs import BaseConfiguration, RunConfiguration
+from dlt.common.configuration.specs import BaseConfiguration, RuntimeConfiguration
 
 
 @configspec
@@ -18,7 +18,7 @@ class DBTRunnerConfiguration(BaseConfiguration):
 
     package_additional_vars: Optional[StrAny] = None
 
-    runtime: RunConfiguration = None
+    runtime: RuntimeConfiguration = None
 
     def on_resolved(self) -> None:
         if not self.package_profiles_dir:

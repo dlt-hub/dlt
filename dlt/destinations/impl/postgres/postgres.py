@@ -1,4 +1,5 @@
 import contextlib
+import re
 from typing import Dict, Optional, Sequence, List, Any, Iterator
 
 from shapely import wkt, wkb
@@ -159,17 +160,37 @@ class PostgresInsertValuesWithGeometryTypesLoadJob(InsertValuesLoadJob):
 
     def _insert(self, qualified_table_name: str, file_path: str) -> Iterator[List[str]]:
         to_insert = super()._insert(qualified_table_name, file_path)
-        # TODO: parse geom values by geom column index
         for fragments in to_insert:
             processed_fragments = []
             for fragment in fragments:
-                if fragment == "VALUES\n" or fragment.strip().upper().startswith(
-                    "INSERT INTO "
-                ):
+                if fragment == "VALUES\n" or fragment.strip().upper().startswith("INSERT INTO "):
                     processed_fragments.append(fragment)
                 else:
-                    # process geom
-                    processed_fragments.append(fragment)
+                    columns = self._load_table["columns"]
+                    processed_fragment_lines: List[ str ] = re.findall(r"\(E'[^']+',E'[^']+',E'[^']+',E'[^']+'\)", fragment)
+
+                    for line in processed_fragment_lines:
+                        processed_fragment: List[str] = re.findall(r"", fragment)
+                        assert len(columns) == len(processed_fragments)
+
+                        for column, column_value in zip(columns, processed_fragment):
+                            if column.get(GEOMETRY_HINT):
+                                if geom_value := self._parse_geometry(column_value.strip()):
+                                    srid = column.get(SRID_HINT, 4326)
+                                    processed_fragment.append(
+                                        f"ST_SetSRID(ST_GeomFromWKB(decode('{geom_value}', 'hex')),"
+                                        f" {srid})"
+                                    )
+                                else:
+                                    logger.warning(
+                                        f"{column_value} couldn't be coerced to geometric type."
+                                    )
+                                    processed_fragment.append(column_value)
+                            else:
+                                processed_fragment.append(column_value)
+
+                        processed_fragments.append(processed_fragment)
+
             yield processed_fragments
 
 

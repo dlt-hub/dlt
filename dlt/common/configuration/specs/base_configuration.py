@@ -486,6 +486,9 @@ class CredentialsWithDefault:
         return None
 
 
+TInjectableContext = TypeVar("TInjectableContext", bound="ContainerInjectableContext")
+
+
 @configspec
 class ContainerInjectableContext(BaseConfiguration):
     """Base class for all configurations that may be injected from a Container. Injectable configuration is called a context"""
@@ -494,10 +497,24 @@ class ContainerInjectableContext(BaseConfiguration):
     """If True, `Container` is allowed to create default context instance, if none exists"""
     global_affinity: ClassVar[bool] = False
     """If True, `Container` will create context that will be visible in any thread. If False, per thread context is created"""
+    in_container: Annotated[bool, NotResolved()] = dataclasses.field(
+        default=False, init=False, repr=False, compare=False
+    )
+    """Current container, if None then not injected"""
+    extras_added: Annotated[bool, NotResolved()] = dataclasses.field(
+        default=False, init=False, repr=False, compare=False
+    )
+    """Tells if extras were already added to this context"""
 
     def add_extras(self) -> None:
-        """Called right after context was added to the container. Benefits mostly the config provider injection context which adds extra providers using the initial ones."""
+        """Called once after default context was created and added to the container. Benefits mostly the config provider injection context which adds extra providers using the initial ones."""
         pass
+
+    def after_add(self) -> None:
+        """Called each time after context is added to container"""
+
+    def before_remove(self) -> None:
+        """Called each time before context is removed from container"""
 
 
 _F_ContainerInjectableContext = ContainerInjectableContext

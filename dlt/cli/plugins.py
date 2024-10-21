@@ -9,6 +9,7 @@ from dlt.cli import SupportsCliCommand
 from dlt.cli.init_command import (
     DEFAULT_VERIFIED_SOURCES_REPO,
 )
+from dlt.cli.exceptions import CliCommandException
 from dlt.cli.command_wrappers import (
     init_command_wrapper,
     list_sources_command_wrapper,
@@ -17,7 +18,12 @@ from dlt.cli.command_wrappers import (
     telemetry_status_command_wrapper,
     deploy_command_wrapper,
 )
-from dlt.cli.pipeline_command import DLT_PIPELINE_COMMAND_DOCS_URL
+from dlt.cli.command_wrappers import (
+    DLT_PIPELINE_COMMAND_DOCS_URL,
+    DLT_INIT_DOCS_URL,
+    DLT_TELEMETRY_DOCS_URL,
+    DLT_DEPLOY_DOCS_URL,
+)
 
 try:
     from dlt.cli.deploy_command import (
@@ -42,6 +48,7 @@ class InitCommand(SupportsCliCommand):
         "Creates a pipeline project in the current folder by adding existing verified source or"
         " creating a new one from template."
     )
+    docs_url = DLT_INIT_DOCS_URL
 
     def configure_parser(self, parser: argparse.ArgumentParser) -> None:
         self.parser = parser
@@ -87,15 +94,15 @@ class InitCommand(SupportsCliCommand):
             ),
         )
 
-    def execute(self, args: argparse.Namespace) -> int:
+    def execute(self, args: argparse.Namespace) -> None:
         if args.list_sources:
-            return list_sources_command_wrapper(args.location, args.branch)
+            list_sources_command_wrapper(args.location, args.branch)
         else:
             if not args.source or not args.destination:
                 self.parser.print_usage()
-                return -1
+                raise CliCommandException()
             else:
-                return init_command_wrapper(
+                init_command_wrapper(
                     args.source,
                     args.destination,
                     args.location,
@@ -107,6 +114,7 @@ class InitCommand(SupportsCliCommand):
 class PipelineCommand(SupportsCliCommand):
     command = "pipeline"
     help_string = "Operations on pipelines that were ran locally"
+    docs_url = DLT_PIPELINE_COMMAND_DOCS_URL
 
     def configure_parser(self, pipe_cmd: argparse.ArgumentParser) -> None:
         self.parser = pipe_cmd
@@ -241,23 +249,24 @@ class PipelineCommand(SupportsCliCommand):
             help="Load id of completed or normalized package. Defaults to the most recent package.",
         )
 
-    def execute(self, args: argparse.Namespace) -> int:
+    def execute(self, args: argparse.Namespace) -> None:
         if args.list_pipelines:
-            return pipeline_command_wrapper("list", "-", args.pipelines_dir, args.verbosity)
+            pipeline_command_wrapper("list", "-", args.pipelines_dir, args.verbosity)
         else:
             command_kwargs = dict(args._get_kwargs())
             if not command_kwargs.get("pipeline_name"):
                 self.parser.print_usage()
-                return -1
+                raise CliCommandException(error_code=-1)
             command_kwargs["operation"] = args.operation or "info"
             del command_kwargs["command"]
             del command_kwargs["list_pipelines"]
-            return pipeline_command_wrapper(**command_kwargs)
+            pipeline_command_wrapper(**command_kwargs)
 
 
 class SchemaCommand(SupportsCliCommand):
     command = "schema"
     help_string = "Shows, converts and upgrades schemas"
+    docs_url = "https://dlthub.com/docs/reference/command-line-interface#dlt-schema"
 
     def configure_parser(self, parser: argparse.ArgumentParser) -> None:
         self.parser = parser
@@ -279,26 +288,26 @@ class SchemaCommand(SupportsCliCommand):
             default=True,
         )
 
-    def execute(self, args: argparse.Namespace) -> int:
-        return schema_command_wrapper(args.file, args.format, args.remove_defaults)
+    def execute(self, args: argparse.Namespace) -> None:
+        schema_command_wrapper(args.file, args.format, args.remove_defaults)
 
 
 class TelemetryCommand(SupportsCliCommand):
     command = "telemetry"
     help_string = "Shows telemetry status"
+    docs_url = DLT_TELEMETRY_DOCS_URL
 
     def configure_parser(self, parser: argparse.ArgumentParser) -> None:
         self.parser = parser
 
-    def execute(self, args: argparse.Namespace) -> int:
-        return telemetry_status_command_wrapper()
+    def execute(self, args: argparse.Namespace) -> None:
+        telemetry_status_command_wrapper()
 
 
-# TODO: ensure the command reacts the correct way if dependencies are not installed
-# thsi has changed a bit in this impl
 class DeployCommand(SupportsCliCommand):
     command = "deploy"
     help_string = "Creates a deployment package for a selected pipeline script"
+    docs_url = DLT_DEPLOY_DOCS_URL
 
     def configure_parser(self, parser: argparse.ArgumentParser) -> None:
         self.parser = parser
@@ -368,7 +377,7 @@ class DeployCommand(SupportsCliCommand):
             help="Format of the secrets",
         )
 
-    def execute(self, args: argparse.Namespace) -> int:
+    def execute(self, args: argparse.Namespace) -> None:
         # exit if deploy command is not available
         if not deploy_command_available:
             fmt.warning(
@@ -379,14 +388,14 @@ class DeployCommand(SupportsCliCommand):
                 "We ask you to install those dependencies separately to keep our core library small"
                 " and make it work everywhere."
             )
-            return -1
+            raise CliCommandException()
 
         deploy_args = vars(args)
         if deploy_args.get("deployment_method") is None:
             self.parser.print_help()
-            return -1
+            raise CliCommandException()
         else:
-            return deploy_command_wrapper(
+            deploy_command_wrapper(
                 pipeline_script_path=deploy_args.pop("pipeline_script_path"),
                 deployment_method=deploy_args.pop("deployment_method"),
                 repo_location=deploy_args.pop("location"),

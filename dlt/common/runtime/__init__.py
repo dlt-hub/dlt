@@ -1,3 +1,3 @@
-from .init import initialize_runtime
+from .init import apply_runtime_config, init_telemetry
 
-__all__ = ["initialize_runtime"]
+__all__ = ["apply_runtime_config", "init_telemetry"]

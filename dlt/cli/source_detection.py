@@ -10,7 +10,7 @@ from dlt.common.typing import is_optional_type
 
 from dlt.sources import SourceReference
 from dlt.cli.config_toml_writer import WritableConfigValue
-from dlt.cli.exceptions import CliCommandException
+from dlt.cli.exceptions import CliCommandInnerException
 from dlt.reflection.script_visitor import PipelineScriptVisitor
 
 
@@ -28,7 +28,7 @@ def find_call_arguments_to_replace(
                 dn_node: ast.AST = args.arguments.get(t_arg_name)
                 if dn_node is not None:
                     if not isinstance(dn_node, ast.Constant) or not isinstance(dn_node.value, str):
-                        raise CliCommandException(
+                        raise CliCommandInnerException(
                             "init",
                             f"The pipeline script {init_script_name} must pass the {t_arg_name} as"
                             f" string to '{arg_name}' function in line {dn_node.lineno}",
@@ -40,7 +40,7 @@ def find_call_arguments_to_replace(
     # there was at least one replacement
     for t_arg_name, _ in replace_nodes:
         if t_arg_name not in replaced_args:
-            raise CliCommandException(
+            raise CliCommandInnerException(
                 "init",
                 f"The pipeline script {init_script_name} is not explicitly passing the"
                 f" '{t_arg_name}' argument to 'pipeline' or 'run' function. In init script the"

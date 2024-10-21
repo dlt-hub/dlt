@@ -661,7 +661,7 @@ def test_recover_on_explicit_tx(client: SqlJobClientBase) -> None:
         client.sql_client.execute_sql(sql)
     # assert derives_from_class_of_name(term_ex.value.dbapi_exception, "ProgrammingError")
     # still can execute dml and selects
-    assert client.get_stored_schema() is not None
+    assert client.get_stored_schema(client.schema.name) is not None
     client.complete_load("ABC")
     assert_load_id(client.sql_client, "ABC")
 
@@ -670,7 +670,7 @@ def test_recover_on_explicit_tx(client: SqlJobClientBase) -> None:
     with pytest.raises(DatabaseTransientException):
         client.sql_client.execute_many(statements)
     # assert derives_from_class_of_name(term_ex.value.dbapi_exception, "ProgrammingError")
-    assert client.get_stored_schema() is not None
+    assert client.get_stored_schema(client.schema.name) is not None
     client.complete_load("EFG")
     assert_load_id(client.sql_client, "EFG")
 
@@ -685,7 +685,7 @@ def test_recover_on_explicit_tx(client: SqlJobClientBase) -> None:
         client.sql_client.execute_many(statements)
     # assert derives_from_class_of_name(term_ex.value.dbapi_exception, "IntegrityError")
     # assert isinstance(term_ex.value.dbapi_exception, (psycopg2.InternalError, psycopg2.))
-    assert client.get_stored_schema() is not None
+    assert client.get_stored_schema(client.schema.name) is not None
     client.complete_load("HJK")
     assert_load_id(client.sql_client, "HJK")
 

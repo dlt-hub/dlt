@@ -72,7 +72,7 @@ def test_basic_state_and_schema() -> None:
     client: WeaviateClient
     with pipeline.destination_client() as client:  # type: ignore[assignment]
         # check if we can get a stored schema and state
-        schema = client.get_stored_schema()
+        schema = client.get_stored_schema(client.schema.name)
         assert schema
         state = client.get_stored_state("test_pipeline_append")
         assert state
