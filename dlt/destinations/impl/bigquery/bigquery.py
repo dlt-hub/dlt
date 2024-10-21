@@ -35,6 +35,7 @@ from dlt.destinations.exceptions import (
 from dlt.destinations.impl.bigquery.bigquery_adapter import (
     AUTODETECT_SCHEMA_HINT,
     PARTITION_HINT,
+    PARTITION_EXPIRATION_DAYS_HINT,
     CLUSTER_HINT,
     TABLE_DESCRIPTION_HINT,
     ROUND_HALF_EVEN_HINT,
@@ -275,6 +276,11 @@ class BigQueryClient(SqlJobClientWithStagingDataset, SupportsStagingDestination)
             "expiration_timestamp": (
                 f"TIMESTAMP '{table.get(TABLE_EXPIRATION_HINT)}'"
                 if table.get(TABLE_EXPIRATION_HINT)
+                else None
+            ),
+            "partition_expiration_days": (
+                str(table.get(PARTITION_EXPIRATION_DAYS_HINT))
+                if table.get(PARTITION_EXPIRATION_DAYS_HINT)
                 else None
             ),
         }

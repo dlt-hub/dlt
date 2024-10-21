@@ -27,7 +27,7 @@ def write_load_status_page(pipeline: Pipeline) -> None:
         )
 
         if loads_df is not None:
-            selected_load_id = st.selectbox("Select load id", loads_df)
+            selected_load_id: str = st.selectbox("Select load id", loads_df)
             schema = pipeline.default_schema
 
             st.markdown("**Number of loaded rows:**")

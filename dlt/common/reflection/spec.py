@@ -1,9 +1,17 @@
 import re
 import inspect
-from typing import Dict, List, Tuple, Type, Any, Optional, NewType
+from typing import Dict, Tuple, Type, Any, Optional
 from inspect import Signature, Parameter
 
-from dlt.common.typing import AnyType, AnyFun, ConfigValueSentinel, NoneType, TSecretValue
+from dlt.common.typing import (
+    AnyType,
+    AnyFun,
+    ConfigValueSentinel,
+    NoneType,
+    TSecretValue,
+    Annotated,
+    SecretSentinel,
+)
 from dlt.common.configuration import configspec, is_valid_hint, is_secret_hint
 from dlt.common.configuration.specs import BaseConfiguration
 from dlt.common.utils import get_callable_name
@@ -87,7 +95,7 @@ def spec_from_signature(
                                 field_type = TSecretValue
                             else:
                                 # generate typed SecretValue
-                                field_type = NewType("TSecretValue", field_type)  # type: ignore
+                                field_type = Annotated[field_type, SecretSentinel]
                     # remove sentinel from default
                     p = p.replace(default=None)
                 elif field_type is AnyType:

@@ -16,6 +16,7 @@ from typing import (
     get_type_hints,
     ContextManager,
     Dict,
+    Literal,
 )
 
 from dlt import version
@@ -23,7 +24,7 @@ from dlt.common import logger
 from dlt.common.json import json
 from dlt.common.pendulum import pendulum
 from dlt.common.configuration import inject_section, known_sections
-from dlt.common.configuration.specs import RunConfiguration
+from dlt.common.configuration.specs import RuntimeConfiguration
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import (
     ConfigFieldMissingException,
@@ -38,7 +39,7 @@ from dlt.common.destination.exceptions import (
     DestinationCapabilitiesException,
 )
 from dlt.common.exceptions import MissingDependencyException
-from dlt.common.runtime import signals, initialize_runtime
+from dlt.common.runtime import signals, apply_runtime_config
 from dlt.common.schema.typing import (
     TColumnNames,
     TSchemaTables,
@@ -49,7 +50,7 @@ from dlt.common.schema.typing import (
 )
 from dlt.common.schema.utils import normalize_schema_name
 from dlt.common.storages.exceptions import LoadPackageNotFound
-from dlt.common.typing import ConfigValue, TFun, TSecretValue, is_optional_type
+from dlt.common.typing import ConfigValue, TFun, TSecretStrValue, is_optional_type
 from dlt.common.runners import pool_runner as runner
 from dlt.common.storages import (
     LiveSchemaStorage,
@@ -82,6 +83,8 @@ from dlt.common.destination.reference import (
     DestinationClientStagingConfiguration,
     DestinationClientStagingConfiguration,
     DestinationClientDwhWithStagingConfiguration,
+    SupportsReadableDataset,
+    TDatasetType,
 )
 from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.pipeline import (
@@ -108,9 +111,10 @@ from dlt.extract.exceptions import SourceExhausted
 from dlt.extract.extract import Extract, data_to_sources
 from dlt.normalize import Normalize
 from dlt.normalize.configuration import NormalizeConfiguration
-from dlt.destinations.sql_client import SqlClientBase
+from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.destinations.fs_client import FSClientBase
 from dlt.destinations.job_client_impl import SqlJobClientBase
+from dlt.destinations.dataset import dataset
 from dlt.load.configuration import LoaderConfiguration
 from dlt.load import Load
 
@@ -313,14 +317,14 @@ class Pipeline(SupportsPipeline):
     """Tells if instance is currently active and available via dlt.pipeline()"""
     collector: _Collector
     config: PipelineConfiguration
-    runtime_config: RunConfiguration
+    runtime_config: RuntimeConfiguration
     refresh: Optional[TRefreshMode] = None
 
     def __init__(
         self,
         pipeline_name: str,
         pipelines_dir: str,
-        pipeline_salt: TSecretValue,
+        pipeline_salt: TSecretStrValue,
         destination: TDestination,
         staging: TDestination,
         dataset_name: str,
@@ -330,7 +334,7 @@ class Pipeline(SupportsPipeline):
         progress: _Collector,
         must_attach_to_local_pipeline: bool,
         config: PipelineConfiguration,
-        runtime: RunConfiguration,
+        runtime: RuntimeConfiguration,
         refresh: Optional[TRefreshMode] = None,
     ) -> None:
         """Initializes the Pipeline class which implements `dlt` pipeline. Please use `pipeline` function in `dlt` module to create a new Pipeline instance."""
@@ -352,7 +356,6 @@ class Pipeline(SupportsPipeline):
         self._last_trace: PipelineTrace = None
         self._state_restored: bool = False
 
-        initialize_runtime(self.runtime_config)
         # initialize pipeline working dir
         self._init_working_dir(pipeline_name, pipelines_dir)
 
@@ -444,6 +447,7 @@ class Pipeline(SupportsPipeline):
                         workers,
                         refresh=refresh or self.refresh,
                     )
+
                 # this will update state version hash so it will not be extracted again by with_state_sync
                 self._bump_version_and_extract_state(
                     self._container[StateInjectableContext].state,
@@ -622,28 +626,28 @@ class Pipeline(SupportsPipeline):
         Next it will make sure that data from the previous is fully processed. If not, `run` method normalizes, loads pending data items and **exits**
         If there was no pending data, new data from `data` argument is extracted, normalized and loaded.
 
-        #### Args:
+        Args:
             data (Any): Data to be loaded to destination
 
             destination (str | DestinationReference, optional): A name of the destination to which dlt will load the data, or a destination module imported from `dlt.destination`.
-            If not provided, the value passed to `dlt.pipeline` will be used.
+                If not provided, the value passed to `dlt.pipeline` will be used.
 
-            dataset_name (str, optional):A name of the dataset to which the data will be loaded. A dataset is a logical group of tables ie. `schema` in relational databases or folder grouping many files.
-            If not provided, the value passed to `dlt.pipeline` will be used. If not provided at all then defaults to the `pipeline_name`
+            dataset_name (str, optional): A name of the dataset to which the data will be loaded. A dataset is a logical group of tables ie. `schema` in relational databases or folder grouping many files.
+                If not provided, the value passed to `dlt.pipeline` will be used. If not provided at all then defaults to the `pipeline_name`
 
             credentials (Any, optional): Credentials for the `destination` ie. database connection string or a dictionary with google cloud credentials.
-            In most cases should be set to None, which lets `dlt` to use `secrets.toml` or environment variables to infer right credentials values.
+                In most cases should be set to None, which lets `dlt` to use `secrets.toml` or environment variables to infer right credentials values.
 
             table_name (str, optional): The name of the table to which the data should be loaded within the `dataset`. This argument is required for a `data` that is a list/Iterable or Iterator without `__name__` attribute.
-            The behavior of this argument depends on the type of the `data`:
-            * generator functions: the function name is used as table name, `table_name` overrides this default
-            * `@dlt.resource`: resource contains the full table schema and that includes the table name. `table_name` will override this property. Use with care!
-            * `@dlt.source`: source contains several resources each with a table schema. `table_name` will override all table names within the source and load the data into single table.
+                The behavior of this argument depends on the type of the `data`:
+                * generator functions - the function name is used as table name, `table_name` overrides this default
+                * `@dlt.resource` - resource contains the full table schema and that includes the table name. `table_name` will override this property. Use with care!
+                * `@dlt.source` - source contains several resources each with a table schema. `table_name` will override all table names within the source and load the data into single table.
 
             write_disposition (TWriteDispositionConfig, optional): Controls how to write data to a table. Accepts a shorthand string literal or configuration dictionary.
-            Allowed shorthand string literals: `append` will always add new data at the end of the table. `replace` will replace existing data with new data. `skip` will prevent data from loading. "merge" will deduplicate and merge data based on "primary_key" and "merge_key" hints. Defaults to "append".
-            Write behaviour can be further customized through a configuration dictionary. For example, to obtain an SCD2 table provide `write_disposition={"disposition": "merge", "strategy": "scd2"}`.
-            Please note that in case of `dlt.resource` the table schema value will be overwritten and in case of `dlt.source`, the values in all resources will be overwritten.
+                Allowed shorthand string literals: `append` will always add new data at the end of the table. `replace` will replace existing data with new data. `skip` will prevent data from loading. "merge" will deduplicate and merge data based on "primary_key" and "merge_key" hints. Defaults to "append".
+                Write behaviour can be further customized through a configuration dictionary. For example, to obtain an SCD2 table provide `write_disposition={"disposition": "merge", "strategy": "scd2"}`.
+                Please note that in case of `dlt.resource` the table schema value will be overwritten and in case of `dlt.source`, the values in all resources will be overwritten.
 
             columns (Sequence[TColumnSchema], optional): A list of column schemas. Typed dictionary describing column names, data types, write disposition and performance hints that gives you full control over the created table schema.
 
@@ -651,19 +655,19 @@ class Pipeline(SupportsPipeline):
 
             schema (Schema, optional): An explicit `Schema` object in which all table schemas will be grouped. By default `dlt` takes the schema from the source (if passed in `data` argument) or creates a default one itself.
 
-            loader_file_format (Literal["jsonl", "insert_values", "parquet"], optional). The file format the loader will use to create the load package. Not all file_formats are compatible with all destinations. Defaults to the preferred file format of the selected destination.
+            loader_file_format (Literal["jsonl", "insert_values", "parquet"], optional): The file format the loader will use to create the load package. Not all file_formats are compatible with all destinations. Defaults to the preferred file format of the selected destination.
 
-            table_format (Literal["delta", "iceberg"], optional). The table format used by the destination to store tables. Currently you can select table format on filesystem and Athena destinations.
+            table_format (Literal["delta", "iceberg"], optional): The table format used by the destination to store tables. Currently you can select table format on filesystem and Athena destinations.
 
             schema_contract (TSchemaContract, optional): On override for the schema contract settings, this will replace the schema contract settings for all tables in the schema. Defaults to None.
 
             refresh (str | TRefreshMode): Fully or partially reset sources before loading new data in this run. The following refresh modes are supported:
-                * `drop_sources`: Drop tables and source and resource state for all sources currently being processed in `run` or `extract` methods of the pipeline. (Note: schema history is erased)
-                * `drop_resources`: Drop tables and resource state for all resources being processed. Source level state is not modified. (Note: schema history is erased)
-                * `drop_data`: Wipe all data and resource state for all resources being processed. Schema is not modified.
+                * `drop_sources` - Drop tables and source and resource state for all sources currently being processed in `run` or `extract` methods of the pipeline. (Note: schema history is erased)
+                * `drop_resources`-  Drop tables and resource state for all resources being processed. Source level state is not modified. (Note: schema history is erased)
+                * `drop_data` - Wipe all data and resource state for all resources being processed. Schema is not modified.
 
         Raises:
-            PipelineStepFailed when a problem happened during `extract`, `normalize` or `load` steps.
+            PipelineStepFailed: when a problem happened during `extract`, `normalize` or `load` steps.
         Returns:
             LoadInfo: Information on loaded data including the list of package ids and failed job statuses. Please not that `dlt` will not raise if a single job terminally fails. Such information is provided via LoadInfo.
         """
@@ -1005,7 +1009,12 @@ class Pipeline(SupportsPipeline):
         #         "Sql Client is not available in a pipeline without a default schema. Extract some data first or restore the pipeline from the destination using 'restore_from_destination' flag. There's also `_inject_schema` method for advanced users."
         #     )
         schema = self._get_schema_or_create(schema_name)
-        return self._sql_job_client(schema).sql_client
+        client_config = self._get_destination_client_initial_config()
+        client = self._get_destination_clients(schema, client_config)[0]
+        if isinstance(client, WithSqlClient):
+            return client.sql_client
+        else:
+            raise SqlClientNotAvailable(self.pipeline_name, self.destination.destination_name)
 
     def _fs_client(self, schema_name: str = None) -> FSClientBase:
         """Returns a filesystem client configured to point to the right folder / bucket for each table.
@@ -1315,6 +1324,10 @@ class Pipeline(SupportsPipeline):
         return Schema(normalize_schema_name(schema_name))
 
     def _set_context(self, is_active: bool) -> None:
+        if not self.is_active and is_active:
+            # initialize runtime if not active previously
+            apply_runtime_config(self.runtime_config)
+
         self.is_active = is_active
         if is_active:
             # set destination context on activation
@@ -1537,7 +1550,7 @@ class Pipeline(SupportsPipeline):
                             f" {self.destination.destination_name}"
                         )
                         return restored_schemas
-                    schema_info = job_client.get_stored_schema()
+                    schema_info = job_client.get_stored_schema(schema_name)
                     if schema_info is None:
                         logger.info(
                             f"The schema {schema.name} was not found in the destination"
@@ -1707,3 +1720,12 @@ class Pipeline(SupportsPipeline):
     def __getstate__(self) -> Any:
         # pickle only the SupportsPipeline protocol fields
         return {"pipeline_name": self.pipeline_name}
+
+    def _dataset(self, dataset_type: TDatasetType = "dbapi") -> SupportsReadableDataset:
+        """Access helper to dataset"""
+        return dataset(
+            self.destination,
+            self.dataset_name,
+            schema=(self.default_schema if self.default_schema_name else None),
+            dataset_type=dataset_type,
+        )

@@ -8,7 +8,7 @@ from typing import Mapping, Tuple, cast, Any, Dict
 import datetime  # noqa: 251
 
 from dlt.common import json
-from dlt.common.typing import StrAny
+from dlt.common.typing import StrAny, TSecretStrValue
 from dlt.common.schema import utils, Schema
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.configuration.providers import environ as environ_provider
@@ -64,9 +64,7 @@ def restore_secret_storage_path() -> None:
 
 def load_secret(name: str) -> str:
     environ_provider.SECRET_STORAGE_PATH = "./tests/common/cases/secrets/%s"
-    secret, _ = environ_provider.EnvironProvider().get_value(
-        name, environ_provider.TSecretValue, None
-    )
+    secret, _ = environ_provider.EnvironProvider().get_value(name, TSecretStrValue, None)
     if not secret:
         raise FileNotFoundError(environ_provider.SECRET_STORAGE_PATH % name)
     return secret

@@ -123,7 +123,7 @@ def test_schema_string_exceeds_max_text_length(client: RedshiftClient) -> None:
     schema_str = json.dumps(schema.to_dict())
     assert len(schema_str.encode("utf-8")) > client.capabilities.max_text_data_type_length
     client._update_schema_in_storage(schema)
-    schema_info = client.get_stored_schema()
+    schema_info = client.get_stored_schema(client.schema.name)
     assert schema_info.schema == schema_str
     # take base64 from db
     with client.sql_client.execute_query(

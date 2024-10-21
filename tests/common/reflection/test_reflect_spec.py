@@ -8,7 +8,7 @@ from dlt.common.configuration.inject import get_fun_spec, with_config
 from dlt.common.configuration.specs import (
     configspec,
     BaseConfiguration,
-    RunConfiguration,
+    RuntimeConfiguration,
     ConnectionStringCredentials,
 )
 from dlt.common.reflection.spec import spec_from_signature, _get_spec_name_from_f
@@ -17,7 +17,7 @@ from dlt.common.reflection.utils import get_func_def_node, get_literal_defaults
 
 _DECIMAL_DEFAULT = Decimal("0.01")
 _SECRET_DEFAULT = TSecretValue("PASS")
-_CONFIG_DEFAULT = RunConfiguration()
+_CONFIG_DEFAULT = RuntimeConfiguration()
 _CREDENTIALS_DEFAULT = ConnectionStringCredentials(
     "postgresql://loader:loader@localhost:5432/dlt_data"
 )
@@ -30,7 +30,7 @@ def test_synthesize_spec_from_sig() -> None:
         p1: str = None,
         p2: Decimal = None,
         p3: Any = None,
-        p4: Optional[RunConfiguration] = None,
+        p4: Optional[RuntimeConfiguration] = None,
         p5: TSecretValue = dlt.secrets.value,
     ) -> None:
         pass
@@ -47,7 +47,7 @@ def test_synthesize_spec_from_sig() -> None:
         "p1": Optional[str],
         "p2": Optional[Decimal],
         "p3": Optional[Any],
-        "p4": Optional[RunConfiguration],
+        "p4": Optional[RuntimeConfiguration],
         "p5": TSecretValue,
     }
 
@@ -57,7 +57,7 @@ def test_synthesize_spec_from_sig() -> None:
         t_p1: str = "str",
         t_p2: Decimal = _DECIMAL_DEFAULT,
         t_p3: Any = _SECRET_DEFAULT,
-        t_p4: RunConfiguration = _CONFIG_DEFAULT,
+        t_p4: RuntimeConfiguration = _CONFIG_DEFAULT,
         t_p5: str = None,
     ) -> None:
         pass
@@ -66,7 +66,7 @@ def test_synthesize_spec_from_sig() -> None:
     assert SPEC.t_p1 == "str"
     assert SPEC.t_p2 == _DECIMAL_DEFAULT
     assert SPEC.t_p3 == _SECRET_DEFAULT
-    assert isinstance(SPEC().t_p4, RunConfiguration)
+    assert isinstance(SPEC().t_p4, RuntimeConfiguration)
     assert SPEC.t_p5 is None
     fields = SPEC().get_resolvable_fields()
     # Any will not assume TSecretValue type because at runtime it's a str
@@ -75,7 +75,7 @@ def test_synthesize_spec_from_sig() -> None:
         "t_p1": str,
         "t_p2": Decimal,
         "t_p3": str,
-        "t_p4": RunConfiguration,
+        "t_p4": RuntimeConfiguration,
         "t_p5": Optional[str],
     }
 

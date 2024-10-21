@@ -85,7 +85,7 @@ See Airflow getting started: https://airflow.apache.org/docs/apache-airflow/stab
 
 If you are planning to run the pipeline with Google Cloud Composer, follow the next instructions:
 
-1. Read this doc and set up the environment: https://dlthub.com/docs/running-in-production/orchestrators/airflow-gcp-cloud-composer
+1. Read this doc and set up the environment: https://dlthub.com/docs/walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer
 2. Set _BUCKET_NAME up in the build/cloudbuild.yaml file.
 3. Add the following toml-string to the Airflow UI as the dlt_secrets_toml variable.
 

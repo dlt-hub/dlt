@@ -4,7 +4,6 @@ from typing import Final, Optional, Any, Dict, ClassVar, List
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.destination.reference import DestinationClientDwhWithStagingConfiguration
-from dlt.common.libs.sql_alchemy_shims import URL
 from dlt.common.typing import TSecretStrValue
 from dlt.common.utils import digest128
 
@@ -21,6 +20,8 @@ class DremioCredentials(ConnectionStringCredentials):
     __config_gen_annotations__: ClassVar[List[str]] = ["port"]
 
     def to_native_credentials(self) -> str:
+        from dlt.common.libs.sql_alchemy_compat import URL
+
         return URL.create(
             drivername=self.drivername, host=self.host, port=self.port
         ).render_as_string(hide_password=False)

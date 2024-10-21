@@ -56,7 +56,7 @@ from dlt.destinations.sql_client import (
     raise_database_error,
     raise_open_connection_error,
 )
-from dlt.destinations.typing import DBApiCursor
+from dlt.common.destination.reference import DBApiCursor
 from dlt.destinations.job_client_impl import SqlJobClientWithStagingDataset
 from dlt.destinations.job_impl import FinalizedLoadJobWithFollowupJobs, FinalizedLoadJob
 from dlt.destinations.impl.athena.configuration import AthenaClientConfiguration
@@ -318,11 +318,12 @@ class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
         # verify if staging layout is valid for Athena
         # this will raise if the table prefix is not properly defined
         # we actually that {table_name} is first, no {schema_name} is allowed
-        self.table_prefix_layout = path_utils.get_table_prefix_layout(
-            config.staging_config.layout,
-            supported_prefix_placeholders=[],
-            table_needs_own_folder=True,
-        )
+        if config.staging_config:
+            self.table_prefix_layout = path_utils.get_table_prefix_layout(
+                config.staging_config.layout,
+                supported_prefix_placeholders=[],
+                table_needs_own_folder=True,
+            )
 
         sql_client = AthenaSQLClient(
             config.normalize_dataset_name(schema),

@@ -8,7 +8,7 @@ from tests.utils import TEST_DICT_CONFIG_PROVIDER
 
 pytest.importorskip("snowflake")
 
-from dlt.common.libs.sql_alchemy_shims import make_url
+from dlt.common.libs.sql_alchemy_compat import make_url
 from dlt.common.configuration.resolve import resolve_configuration
 from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.common.utils import digest128
@@ -152,8 +152,8 @@ def test_overwrite_query_value_from_explicit() -> None:
 
 def test_to_connector_params_private_key() -> None:
     creds = SnowflakeCredentials()
-    creds.private_key = PKEY_PEM_STR  # type: ignore[assignment]
-    creds.private_key_passphrase = PKEY_PASSPHRASE  # type: ignore[assignment]
+    creds.private_key = PKEY_PEM_STR
+    creds.private_key_passphrase = PKEY_PASSPHRASE
     creds.username = "user1"
     creds.database = "db1"
     creds.host = "host1"
@@ -177,8 +177,8 @@ def test_to_connector_params_private_key() -> None:
     )
 
     creds = SnowflakeCredentials()
-    creds.private_key = PKEY_DER_STR  # type: ignore[assignment]
-    creds.private_key_passphrase = PKEY_PASSPHRASE  # type: ignore[assignment]
+    creds.private_key = PKEY_DER_STR
+    creds.private_key_passphrase = PKEY_PASSPHRASE
     creds.username = "user1"
     creds.database = "db1"
     creds.host = "host1"

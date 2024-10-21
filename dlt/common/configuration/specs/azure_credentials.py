@@ -39,7 +39,7 @@ class AzureCredentialsWithoutDefaults(CredentialsConfiguration):
     def create_sas_token(self) -> None:
         from azure.storage.blob import generate_account_sas, ResourceTypes
 
-        self.azure_storage_sas_token = generate_account_sas(  # type: ignore[assignment]
+        self.azure_storage_sas_token = generate_account_sas(
             account_name=self.azure_storage_account_name,
             account_key=self.azure_storage_account_key,
             resource_types=ResourceTypes(container=True, object=True),

@@ -22,7 +22,7 @@ For more detailed info, see https://dlthub.com/docs/getting-started
 
 from dlt.version import __version__
 from dlt.common.configuration.accessors import config, secrets
-from dlt.common.typing import TSecretValue as _TSecretValue
+from dlt.common.typing import TSecretValue as _TSecretValue, TSecretStrValue as _TSecretStrValue
 from dlt.common.configuration.specs import CredentialsConfiguration as _CredentialsConfiguration
 from dlt.common.pipeline import source_state as state
 from dlt.common.schema import Schema
@@ -42,6 +42,7 @@ from dlt.pipeline import (
 )
 from dlt.pipeline import progress
 from dlt import destinations
+from dlt.destinations.dataset import dataset as _dataset
 
 pipeline = _pipeline
 current = _current
@@ -50,9 +51,11 @@ mark = _mark
 TSecretValue = _TSecretValue
 "When typing source/resource function arguments it indicates that a given argument is a secret and should be taken from dlt.secrets."
 
+TSecretStrValue = _TSecretStrValue
+"When typing source/resource function arguments it indicates that a given argument is a secret STRING and should be taken from dlt.secrets."
+
 TCredentials = _CredentialsConfiguration
 "When typing source/resource function arguments it indicates that a given argument represents credentials and should be taken from dlt.secrets. Credentials may be a string, dictionary or any other type."
-
 
 __all__ = [
     "__version__",
@@ -77,4 +80,14 @@ __all__ = [
     "TCredentials",
     "sources",
     "destinations",
+    "_dataset",
 ]
+
+# verify that no injection context was created
+from dlt.common.configuration.container import Container as _Container
+
+assert (
+    _Container._INSTANCE is None
+), "Injection container should not be initialized during initial import"
+# create injection container
+_Container()

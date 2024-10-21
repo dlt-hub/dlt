@@ -79,7 +79,10 @@ else:
     REPattern = _REPattern
     PathLike = os.PathLike
 
+
 AnyType: TypeAlias = Any
+CallableAny = NewType("CallableAny", Any)  # type: ignore[valid-newtype]
+"""A special callable Any that returns argument but is recognized as Any type by dlt hint checkers"""
 NoneType = type(None)
 DictStrAny: TypeAlias = Dict[str, Any]
 DictStrStr: TypeAlias = Dict[str, str]
@@ -95,8 +98,20 @@ TAnyFunOrGenerator = TypeVar(
 TAnyClass = TypeVar("TAnyClass", bound=object)
 TimedeltaSeconds = Union[int, float, timedelta]
 # represent secret value ie. coming from Kubernetes/Docker secrets or other providers
-TSecretValue = NewType("TSecretValue", Any)  # type: ignore
-TSecretStrValue = NewType("TSecretValue", str)  # type: ignore
+
+
+class SecretSentinel:
+    """Marks a secret type when part of type annotations"""
+
+
+if TYPE_CHECKING:
+    TSecretValue = Annotated[Any, SecretSentinel]
+else:
+    # use callable Any type for backward compatibility at runtime
+    TSecretValue = Annotated[CallableAny, SecretSentinel]
+
+TSecretStrValue = Annotated[str, SecretSentinel]
+
 TDataItem: TypeAlias = Any
 """A single data item as extracted from data source"""
 TDataItems: TypeAlias = Union[TDataItem, List[TDataItem]]
@@ -184,8 +199,9 @@ def is_callable_type(hint: Type[Any]) -> bool:
     return False
 
 
-def extract_type_if_modifier(t: Type[Any]) -> Optional[Type[Any]]:
-    if get_origin(t) in (Final, ClassVar, Annotated):
+def extract_type_if_modifier(t: Type[Any], preserve_annotated: bool = False) -> Optional[Type[Any]]:
+    modifiers = (Final, ClassVar) if preserve_annotated else (Final, ClassVar, Annotated)
+    if get_origin(t) in modifiers:
         t = get_args(t)[0]
         if m_t := extract_type_if_modifier(t):
             return m_t
@@ -217,6 +233,11 @@ def is_union_type(hint: Type[Any]) -> bool:
         return is_union_type(inner_t)
 
     return False
+
+
+def is_any_type(t: Type[Any]) -> bool:
+    """Checks if `t` is one of recognized Any types"""
+    return t in (Any, CallableAny)
 
 
 def is_optional_type(t: Type[Any]) -> bool:
@@ -324,7 +345,10 @@ def is_dict_generic_type(t: Type[Any]) -> bool:
 
 
 def extract_inner_type(
-    hint: Type[Any], preserve_new_types: bool = False, preserve_literal: bool = False
+    hint: Type[Any],
+    preserve_new_types: bool = False,
+    preserve_literal: bool = False,
+    preserve_annotated: bool = False,
 ) -> Type[Any]:
     """Gets the inner type from Literal, Optional, Final and NewType
 
@@ -335,17 +359,23 @@ def extract_inner_type(
     Returns:
         Type[Any]: Inner type if hint was Literal, Optional or NewType, otherwise hint
     """
-    if maybe_modified := extract_type_if_modifier(hint):
-        return extract_inner_type(maybe_modified, preserve_new_types, preserve_literal)
+    if maybe_modified := extract_type_if_modifier(hint, preserve_annotated):
+        return extract_inner_type(
+            maybe_modified, preserve_new_types, preserve_literal, preserve_annotated
+        )
     # make sure we deal with optional directly
     if is_union_type(hint) and is_optional_type(hint):
-        return extract_inner_type(get_args(hint)[0], preserve_new_types, preserve_literal)
+        return extract_inner_type(
+            get_args(hint)[0], preserve_new_types, preserve_literal, preserve_annotated
+        )
     if is_literal_type(hint) and not preserve_literal:
         # assume that all literals are of the same type
         return type(get_args(hint)[0])
-    if is_newtype_type(hint) and not preserve_new_types:
+    if hasattr(hint, "__supertype__") and not preserve_new_types:
         # descend into supertypes of NewType
-        return extract_inner_type(hint.__supertype__, preserve_new_types, preserve_literal)
+        return extract_inner_type(
+            hint.__supertype__, preserve_new_types, preserve_literal, preserve_annotated
+        )
     return hint
 
 
@@ -408,7 +438,7 @@ def get_generic_type_argument_from_instance(
         cls_ = bases_[0]
     if cls_:
         orig_param_type = get_args(cls_)[0]
-    if orig_param_type is Any and sample_value is not None:
+    if orig_param_type in (Any, CallableAny) and sample_value is not None:
         orig_param_type = type(sample_value)
     return orig_param_type  # type: ignore
 

@@ -7,7 +7,7 @@ from dlt.common.pendulum import pendulum
 from dlt.common.configuration.specs import known_sections
 from dlt.common.configuration.specs.base_configuration import is_secret_hint
 
-from .toml import BaseDocProvider
+from .doc import BaseDocProvider
 
 SECRETS_TOML_KEY = "dlt_secrets_toml"
 

@@ -50,7 +50,7 @@ def destination(
     Here all incoming data will be sent to the destination function with the items in the requested format and the dlt table schema.
     The config and secret values will be resolved from the path destination.my_destination.api_url and destination.my_destination.api_secret.
 
-    #### Args:
+    Args:
         batch_size: defines how many items per function call are batched together and sent as an array. If you set a batch-size of 0, instead of passing in actual dataitems, you will receive one call per load job with the path of the file as the items argument. You can then open and process that file in any way you like.
         loader_file_format: defines in which format files are stored in the load package before being sent to the destination function, this can be puae-jsonl or parquet.
         name: defines the name of the destination that get's created by the destination decorator, defaults to the name of the function

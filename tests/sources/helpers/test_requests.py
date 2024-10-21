@@ -6,12 +6,11 @@ import random
 import pytest
 import requests
 import requests_mock
-from tenacity import wait_exponential, RetryCallState, RetryError
+from tenacity import wait_exponential
 
-from tests.utils import preserve_environ
 import dlt
-from dlt.common.configuration.specs import RunConfiguration
-from dlt.sources.helpers.requests import Session, Client, client as default_client
+from dlt.common.configuration.specs import RuntimeConfiguration
+from dlt.sources.helpers.requests import Client, client as default_client
 from dlt.sources.helpers.requests.retry import (
     DEFAULT_RETRY_EXCEPTIONS,
     DEFAULT_RETRY_STATUS,
@@ -21,11 +20,15 @@ from dlt.sources.helpers.requests.retry import (
     wait_exponential_retry_after,
 )
 
+from tests.utils import preserve_environ
+
 
 @pytest.fixture(scope="function", autouse=True)
 def mock_sleep() -> Iterator[mock.MagicMock]:
     with mock.patch("time.sleep") as m:
         yield m
+    # restore standard settings on default client
+    default_client.configure(RuntimeConfiguration())
 
 
 def test_default_session_retry_settings() -> None:
@@ -70,7 +73,7 @@ def test_retry_on_status_all_fails(mock_sleep: mock.MagicMock) -> None:
     with pytest.raises(requests.HTTPError):
         session.get(url)
 
-    assert m.call_count == RunConfiguration.request_max_attempts
+    assert m.call_count == RuntimeConfiguration.request_max_attempts
 
 
 def test_retry_on_status_success_after_2(mock_sleep: mock.MagicMock) -> None:
@@ -103,7 +106,7 @@ def test_retry_on_status_without_raise_for_status(mock_sleep: mock.MagicMock) ->
     response = session.get(url)
     assert response.status_code == 503
 
-    assert m.call_count == RunConfiguration.request_max_attempts
+    assert m.call_count == RuntimeConfiguration.request_max_attempts
 
 
 def test_hooks_with_raise_for_statue() -> None:
@@ -142,7 +145,7 @@ def test_retry_on_exception_all_fails(
     with pytest.raises(exception_class):
         session.get(url)
 
-    assert m.call_count == RunConfiguration.request_max_attempts
+    assert m.call_count == RuntimeConfiguration.request_max_attempts
 
 
 def test_retry_on_custom_condition(mock_sleep: mock.MagicMock) -> None:
@@ -158,7 +161,7 @@ def test_retry_on_custom_condition(mock_sleep: mock.MagicMock) -> None:
     response = session.get(url)
     assert response.content == b"error"
 
-    assert m.call_count == RunConfiguration.request_max_attempts
+    assert m.call_count == RuntimeConfiguration.request_max_attempts
 
 
 def test_retry_on_custom_condition_success_after_2(mock_sleep: mock.MagicMock) -> None:
@@ -195,8 +198,7 @@ def test_wait_retry_after_int(mock_sleep: mock.MagicMock) -> None:
     assert 4 <= mock_sleep.call_args[0][0] <= 5  # Adds jitter up to 1s
 
 
-@pytest.mark.parametrize("existing_session", (False, True))
-def test_init_default_client(existing_session: bool) -> None:
+def test_init_default_client() -> None:
     """Test that the default client config is updated from runtime configuration.
     Run twice. 1. Clean start with no existing session attached.
     2. With session in thread local (session is updated)
@@ -230,7 +232,11 @@ def test_client_instance_with_config(existing_session: bool) -> None:
     }
     os.environ.update({key: str(value) for key, value in cfg.items()})
 
-    client = Client()
+    if existing_session:
+        client = default_client
+        client.configure()
+    else:
+        client = Client()
 
     session = client.session
     assert session.timeout == cfg["RUNTIME__REQUEST_TIMEOUT"]

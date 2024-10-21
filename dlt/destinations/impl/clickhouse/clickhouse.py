@@ -61,11 +61,13 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
     def __init__(
         self,
         file_path: str,
+        config: ClickHouseClientConfiguration,
         staging_credentials: Optional[CredentialsConfiguration] = None,
     ) -> None:
         super().__init__(file_path)
         self._job_client: "ClickHouseClient" = None
         self._staging_credentials = staging_credentials
+        self._config = config
 
     def run(self) -> None:
         client = self._job_client.sql_client
@@ -138,7 +140,9 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
                 )
 
             bucket_http_url = convert_storage_to_http_scheme(
-                bucket_url, endpoint=self._staging_credentials.endpoint_url
+                bucket_url,
+                endpoint=self._staging_credentials.endpoint_url,
+                use_https=self._config.staging_use_https,
             )
             access_key_id = self._staging_credentials.aws_access_key_id
             secret_access_key = self._staging_credentials.aws_secret_access_key
@@ -255,6 +259,7 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
     ) -> LoadJob:
         return super().create_load_job(table, file_path, load_id, restore) or ClickHouseLoadJob(
             file_path,
+            config=self.config,
             staging_credentials=(
                 self.config.staging_config.credentials if self.config.staging_config else None
             ),

@@ -1,3 +1,4 @@
+import os
 import dataclasses
 import sys
 from typing import Any, ClassVar, Dict, Final, List, Optional
@@ -6,13 +7,14 @@ from dlt.version import __version__
 from dlt.common.configuration import configspec
 from dlt.common.destination.reference import DestinationClientDwhWithStagingConfiguration
 from dlt.common.destination.exceptions import DestinationTerminalException
-from dlt.common.typing import TSecretValue
+from dlt.common.typing import TSecretStrValue
 from dlt.common.utils import digest128
 
 from dlt.destinations.impl.duckdb.configuration import DuckDbBaseCredentials
 
 MOTHERDUCK_DRIVERNAME = "md"
 MOTHERDUCK_USER_AGENT = f"dlt/{__version__}({sys.platform})"
+MOTHERDUCK_DEFAULT_TOKEN_ENV = "motherduck_token"
 
 
 @configspec(init=False)
@@ -21,7 +23,7 @@ class MotherDuckCredentials(DuckDbBaseCredentials):
         default="md", init=False, repr=False, compare=False
     )
     username: str = "motherduck"
-    password: TSecretValue = None
+    password: TSecretStrValue = None
     database: str = "my_db"
     custom_user_agent: Optional[str] = MOTHERDUCK_USER_AGENT
 
@@ -30,12 +32,18 @@ class MotherDuckCredentials(DuckDbBaseCredentials):
     __config_gen_annotations__: ClassVar[List[str]] = ["password", "database"]
 
     def _conn_str(self) -> str:
-        return f"{MOTHERDUCK_DRIVERNAME}:{self.database}?token={self.password}"
+        _str = f"{MOTHERDUCK_DRIVERNAME}:{self.database}"
+        if self.password:
+            _str += f"?motherduck_token={self.password}"
+        return _str
 
     def _token_to_password(self) -> None:
-        # could be motherduck connection
-        if self.query and "token" in self.query:
-            self.password = TSecretValue(self.query.pop("token"))
+        if self.query:
+            # backward compat
+            if "token" in self.query:
+                self.password = self.query.pop("token")
+            if "motherduck_token" in self.query:
+                self.password = self.query.pop("motherduck_token")
 
     def borrow_conn(self, read_only: bool) -> Any:
         from duckdb import HTTPException, InvalidInputException
@@ -51,14 +59,23 @@ class MotherDuckCredentials(DuckDbBaseCredentials):
             raise
 
     def parse_native_representation(self, native_value: Any) -> None:
+        if isinstance(native_value, str):
+            # https://motherduck.com/docs/key-tasks/authenticating-and-connecting-to-motherduck/authenticating-to-motherduck/#storing-the-access-token-as-an-environment-variable
+            # ie. md:dlt_data_3?motherduck_token=<my service token>
+            if native_value.startswith("md:") and not native_value.startswith("md:/"):
+                native_value = "md:///" + native_value[3:]  # skip md:
         super().parse_native_representation(native_value)
         self._token_to_password()
 
     def on_partial(self) -> None:
         """Takes a token from query string and reuses it as a password"""
         self._token_to_password()
-        if not self.is_partial():
+        if not self.is_partial() or self._has_default_token():
             self.resolve()
+
+    def _has_default_token(self) -> bool:
+        # TODO: implement default connection interface
+        return MOTHERDUCK_DEFAULT_TOKEN_ENV in os.environ
 
     def _get_conn_config(self) -> Dict[str, Any]:
         # If it was explicitly set to None/null then we

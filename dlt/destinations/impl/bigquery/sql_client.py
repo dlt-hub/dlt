@@ -23,7 +23,8 @@ from dlt.destinations.sql_client import (
     raise_database_error,
     raise_open_connection_error,
 )
-from dlt.destinations.typing import DBApi, DBApiCursor, DBTransaction, DataFrame
+from dlt.destinations.typing import DBApi, DBTransaction, DataFrame, ArrowTable
+from dlt.common.destination.reference import DBApiCursor
 
 
 # terminal reasons as returned in BQ gRPC error response
@@ -44,32 +45,15 @@ class BigQueryDBApiCursorImpl(DBApiCursorImpl):
     """Use native BigQuery data frame support if available"""
 
     native_cursor: BQDbApiCursor  # type: ignore
-    df_iterator: Generator[Any, None, None]
 
     def __init__(self, curr: DBApiCursor) -> None:
         super().__init__(curr)
-        self.df_iterator = None
 
-    def df(self, chunk_size: Optional[int] = None, **kwargs: Any) -> DataFrame:
-        query_job: bigquery.QueryJob = getattr(
-            self.native_cursor, "_query_job", self.native_cursor.query_job
-        )
-        if self.df_iterator:
-            return next(self.df_iterator, None)
-        try:
-            if chunk_size is not None:
-                # create iterator with given page size
-                self.df_iterator = query_job.result(page_size=chunk_size).to_dataframe_iterable()
-                return next(self.df_iterator, None)
-            return query_job.to_dataframe(**kwargs)
-        except ValueError as ex:
-            # no pyarrow/db-types, fallback to our implementation
-            logger.warning(f"Native BigQuery pandas reader could not be used: {str(ex)}")
-            return super().df(chunk_size=chunk_size)
+    def iter_df(self, chunk_size: int) -> Generator[DataFrame, None, None]:
+        yield from self.native_cursor.query_job.result(page_size=chunk_size).to_dataframe_iterable()
 
-    def close(self) -> None:
-        if self.df_iterator:
-            self.df_iterator.close()
+    def iter_arrow(self, chunk_size: int) -> Generator[ArrowTable, None, None]:
+        yield from self.native_cursor.query_job.result(page_size=chunk_size).to_arrow_iterable()
 
 
 class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):

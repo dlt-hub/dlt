@@ -15,7 +15,7 @@ MONTH = 10
 BASE_PATH = "https://api.chess.com/pub/player"
 
 
-@dlt.resource(name="players", primary_key="player_id")
+@dlt.resource(primary_key="player_id")
 def players():
     """Load player profiles from the chess api."""
     for player_name in ["magnuscarlsen", "rpragchess"]:
@@ -37,7 +37,7 @@ def players_games(player: Any) -> Iterator[TDataItems]:
 
 
 @dlt.source(name="chess")
-def source():
+def chess():
     """A source function groups all resources into one schema."""
     return players(), players_games()
 
@@ -51,7 +51,7 @@ def load_chess_data() -> None:
         dataset_name="chess_data",
     )
 
-    load_info = p.run(source())
+    load_info = p.run(chess())
 
     # pretty print the information on data that was loaded
     print(load_info)  # noqa: T201

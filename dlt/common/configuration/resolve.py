@@ -26,7 +26,7 @@ from dlt.common.configuration.specs.base_configuration import (
 )
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.configuration.specs.exceptions import NativeValueError
-from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
+from dlt.common.configuration.specs.pluggable_run_context import PluggableRunContext
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.utils import log_traces, deserialize_value
 from dlt.common.configuration.exceptions import (
@@ -417,7 +417,7 @@ def _resolve_single_value(
 
     container = Container()
     # get providers from container
-    providers_context = container[ConfigProvidersContext]
+    providers_context = container[PluggableRunContext].providers
     # we may be resolving context
     if is_context_inner_hint(inner_hint):
         # resolve context with context provider and do not look further

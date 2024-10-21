@@ -3,7 +3,7 @@ import contextlib
 from dlt.common.exceptions import VenvNotFound
 from dlt.common.runners import Venv
 from dlt.common.schema import Schema
-from dlt.common.typing import ConfigValue, TSecretValue
+from dlt.common.typing import ConfigValue, TSecretStrValue
 from dlt.common.schema.utils import normalize_schema_name
 
 from dlt.helpers.dbt import (
@@ -53,7 +53,7 @@ def package(
     pipeline: Pipeline,
     package_location: str,
     package_repository_branch: str = ConfigValue,
-    package_repository_ssh_key: TSecretValue = TSecretValue(""),  # noqa
+    package_repository_ssh_key: TSecretStrValue = "",
     auto_full_refresh_when_out_of_sync: bool = ConfigValue,
     venv: Venv = None,
 ) -> DBTPackageRunner:

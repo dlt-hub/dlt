@@ -11,14 +11,14 @@ from dlt.common.exceptions import (
 )
 from dlt.common.schema import Schema
 from dlt.common.schema.utils import pipeline_state_table
-from dlt.common.source import get_current_pipe_name
+from dlt.common.pipeline import get_current_pipe_name, get_dlt_pipelines_dir
 from dlt.common.storages import FileStorage
 from dlt.common import pipeline as state_module
 from dlt.common.storages.load_package import TPipelineStateDoc
 from dlt.common.utils import uniq_id
 from dlt.common.destination.reference import Destination, StateInfo
-
 from dlt.common.validation import validate_dict
+
 from dlt.destinations.utils import get_pipeline_state_query_columns
 from dlt.pipeline.exceptions import PipelineStateEngineNoUpgradePathException, PipelineStepFailed
 from dlt.pipeline.pipeline import Pipeline
@@ -103,8 +103,10 @@ def test_restore_state_props() -> None:
         staging=Destination.from_reference("filesystem", destination_name="filesystem_name"),
         dataset_name="the_dataset",
     )
+    print(get_dlt_pipelines_dir())
     p.extract(some_data())
     state = p.state
+    print(p.state)
     assert state["dataset_name"] == "the_dataset"
     assert state["destination_type"].endswith("redshift")
     assert state["staging_type"].endswith("filesystem")
@@ -113,6 +115,7 @@ def test_restore_state_props() -> None:
 
     p = dlt.pipeline(pipeline_name="restore_state_props")
     state = p.state
+    print(p.state)
     assert state["dataset_name"] == "the_dataset"
     assert state["destination_type"].endswith("redshift")
     assert state["staging_type"].endswith("filesystem")

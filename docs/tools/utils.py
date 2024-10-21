@@ -6,7 +6,6 @@ import dlt.cli.echo as fmt
 
 
 DOCS_DIR = "../website/docs"
-BLOG_DIR = "../website/blog"
 
 
 def collect_markdown_files(verbose: bool) -> List[str]:
@@ -21,12 +20,6 @@ def collect_markdown_files(verbose: bool) -> List[str]:
             continue
         if "jaffle_shop" in filepath:
             continue
-        markdown_files.append(filepath)
-        if verbose:
-            fmt.echo(f"Discovered {filepath}")
-
-    # collect blog pages
-    for filepath in glob.glob(f"{BLOG_DIR}/**/*.md", recursive=True):
         markdown_files.append(filepath)
         if verbose:
             fmt.echo(f"Discovered {filepath}")

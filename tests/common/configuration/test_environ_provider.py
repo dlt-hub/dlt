@@ -8,7 +8,7 @@ from dlt.common.configuration import (
     ConfigFileNotFoundException,
     resolve,
 )
-from dlt.common.configuration.specs import RunConfiguration, BaseConfiguration
+from dlt.common.configuration.specs import RuntimeConfiguration, BaseConfiguration
 from dlt.common.configuration.providers import environ as environ_provider
 
 from tests.utils import preserve_environ
@@ -16,7 +16,7 @@ from tests.common.configuration.utils import WrongConfiguration, SecretConfigura
 
 
 @configspec
-class SimpleRunConfiguration(RunConfiguration):
+class SimpleRunConfiguration(RuntimeConfiguration):
     pipeline_name: str = "Some Name"
     test_bool: bool = False
 
@@ -28,7 +28,7 @@ class SecretKubeConfiguration(BaseConfiguration):
 
 
 @configspec
-class MockProdRunConfigurationVar(RunConfiguration):
+class MockProdRunConfigurationVar(RuntimeConfiguration):
     pipeline_name: str = "comp"
 
 

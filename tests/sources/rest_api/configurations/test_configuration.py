@@ -44,7 +44,7 @@ from .source_configs import (
 @pytest.mark.parametrize("expected_message, exception, invalid_config", INVALID_CONFIGS)
 def test_invalid_configurations(expected_message, exception, invalid_config):
     with pytest.raises(exception, match=expected_message):
-        rest_api_source(invalid_config)
+        rest_api_source(invalid_config, name="invalid_config")
 
 
 @pytest.mark.parametrize("valid_config", VALID_CONFIGS)

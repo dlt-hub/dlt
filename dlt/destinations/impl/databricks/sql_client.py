@@ -1,5 +1,17 @@
 from contextlib import contextmanager, suppress
-from typing import Any, AnyStr, ClassVar, Iterator, Optional, Sequence, List, Tuple, Union, Dict
+from typing import (
+    Any,
+    AnyStr,
+    ClassVar,
+    Generator,
+    Iterator,
+    Optional,
+    Sequence,
+    List,
+    Tuple,
+    Union,
+    Dict,
+)
 
 
 from databricks import sql as databricks_lib
@@ -21,25 +33,30 @@ from dlt.destinations.sql_client import (
     raise_database_error,
     raise_open_connection_error,
 )
-from dlt.destinations.typing import DBApi, DBApiCursor, DBTransaction, DataFrame
+from dlt.destinations.typing import ArrowTable, DBApi, DBTransaction, DataFrame
 from dlt.destinations.impl.databricks.configuration import DatabricksCredentials
+from dlt.common.destination.reference import DBApiCursor
 
 
 class DatabricksCursorImpl(DBApiCursorImpl):
     """Use native data frame support if available"""
 
     native_cursor: DatabricksSqlCursor  # type: ignore[assignment]
-    vector_size: ClassVar[int] = 2048
+    vector_size: ClassVar[int] = 2048  # vector size is 2048
 
-    def df(self, chunk_size: int = None, **kwargs: Any) -> DataFrame:
+    def iter_arrow(self, chunk_size: int) -> Generator[ArrowTable, None, None]:
         if chunk_size is None:
-            return self.native_cursor.fetchall_arrow().to_pandas()
-        else:
-            df = self.native_cursor.fetchmany_arrow(chunk_size).to_pandas()
-            if df.shape[0] == 0:
-                return None
-            else:
-                return df
+            yield self.native_cursor.fetchall_arrow()
+            return
+        while True:
+            table = self.native_cursor.fetchmany_arrow(chunk_size)
+            if table.num_rows == 0:
+                return
+            yield table
+
+    def iter_df(self, chunk_size: int) -> Generator[DataFrame, None, None]:
+        for table in self.iter_arrow(chunk_size=chunk_size):
+            yield table.to_pandas()
 
 
 class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction):

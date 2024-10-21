@@ -24,7 +24,7 @@ from dlt.common.configuration.specs import (
 )
 from dlt.common.configuration.container import Container
 from dlt.common.exceptions import PipelineException
-from dlt.common.source import unset_current_pipe_name, set_current_pipe_name
+from dlt.common.pipeline import unset_current_pipe_name, set_current_pipe_name
 from dlt.common.utils import get_callable_name
 
 from dlt.extract.exceptions import (

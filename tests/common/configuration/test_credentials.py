@@ -19,7 +19,7 @@ from dlt.common.configuration.specs.exceptions import (
     InvalidGoogleServicesJson,
     OAuth2ScopesRequired,
 )
-from dlt.common.configuration.specs.run_configuration import RunConfiguration
+from dlt.common.configuration.specs import RuntimeConfiguration
 
 from dlt.destinations.impl.snowflake.configuration import SnowflakeCredentials
 from tests.utils import TEST_DICT_CONFIG_PROVIDER, preserve_environ
@@ -350,17 +350,17 @@ def test_run_configuration_slack_credentials(environment: Any) -> None:
     hook = "https://im.slack.com/hook"
     environment["RUNTIME__SLACK_INCOMING_HOOK"] = hook
 
-    c = resolve_configuration(RunConfiguration())
+    c = resolve_configuration(RuntimeConfiguration())
     assert c.slack_incoming_hook == hook
 
     # and obfuscated
     environment["RUNTIME__SLACK_INCOMING_HOOK"] = "DBgAXQFPQVsAAEteXlFRWUoPG0BdHQEbAg=="
-    c = resolve_configuration(RunConfiguration())
+    c = resolve_configuration(RuntimeConfiguration())
     assert c.slack_incoming_hook == hook
 
     # and obfuscated-like but really not
     environment["RUNTIME__SLACK_INCOMING_HOOK"] = "DBgAXQFPQVsAAEteXlFRWUoPG0BdHQ-EbAg=="
-    c = resolve_configuration(RunConfiguration())
+    c = resolve_configuration(RuntimeConfiguration())
     assert c.slack_incoming_hook == "DBgAXQFPQVsAAEteXlFRWUoPG0BdHQ-EbAg=="
 
 

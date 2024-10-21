@@ -3,8 +3,8 @@ from itertools import chain
 
 from dlt.common.typing import DictStrAny
 
-from jsonpath_ng import parse as _parse, JSONPath, Fields as JSONPathFields
-
+from jsonpath_ng import JSONPath, Fields as JSONPathFields
+from jsonpath_ng.ext import parse as _parse
 
 TJsonPath = Union[str, JSONPath]  # Jsonpath compiled or str
 TAnyJsonPath = Union[TJsonPath, Iterable[TJsonPath]]  # A single or multiple jsonpaths

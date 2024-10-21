@@ -2,7 +2,7 @@ from os import environ
 from os.path import isdir
 from typing import Any, Optional, Type, Tuple
 
-from dlt.common.typing import TSecretValue
+from dlt.common.configuration.specs.base_configuration import is_secret_hint
 
 from .provider import ConfigProvider, get_key_name
 
@@ -23,10 +23,10 @@ class EnvironProvider(ConfigProvider):
     ) -> Tuple[Optional[Any], str]:
         # apply section to the key
         key = self.get_key_name(key, pipeline_name, *sections)
-        if hint is TSecretValue:
+        if is_secret_hint(hint):
             # try secret storage
             try:
-                # must conform to RFC1123
+                # must conform to RFC1123 DNS LABELS (https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#dns-label-names)
                 secret_name = key.lower().replace("_", "-")
                 secret_path = SECRET_STORAGE_PATH % secret_name
                 # kubernetes stores secrets as files in a dir, docker compose plainly

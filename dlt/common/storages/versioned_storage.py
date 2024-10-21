@@ -10,10 +10,10 @@ class VersionedStorage:
     VERSION_FILE = ".version"
 
     def __init__(
-        self, version: Union[semver.VersionInfo, str], is_owner: bool, storage: FileStorage
+        self, version: Union[semver.Version, str], is_owner: bool, storage: FileStorage
     ) -> None:
         if isinstance(version, str):
-            version = semver.VersionInfo.parse(version)
+            version = semver.Version.parse(version)
         self.storage = storage
         # read current version
         if self.storage.has_file(VersionedStorage.VERSION_FILE):
@@ -43,28 +43,26 @@ class VersionedStorage:
                 self._save_version(version)
             else:
                 raise WrongStorageVersionException(
-                    storage.storage_path, semver.VersionInfo.parse("0.0.0"), version
+                    storage.storage_path, semver.Version.parse("0.0.0"), version
                 )
 
-    def migrate_storage(
-        self, from_version: semver.VersionInfo, to_version: semver.VersionInfo
-    ) -> None:
+    def migrate_storage(self, from_version: semver.Version, to_version: semver.Version) -> None:
         # migration example:
         # # semver lib supports comparing both to string and other semvers
         # if from_version == "1.0.0" and from_version < to_version:
         #     # do migration
         #     # save migrated version
-        #     from_version = semver.VersionInfo.parse("1.1.0")
+        #     from_version = semver.Version.parse("1.1.0")
         #     self._save_version(from_version)
         pass
 
     @property
-    def version(self) -> semver.VersionInfo:
+    def version(self) -> semver.Version:
         return self._load_version()
 
-    def _load_version(self) -> semver.VersionInfo:
+    def _load_version(self) -> semver.Version:
         version_str = self.storage.load(VersionedStorage.VERSION_FILE)
-        return semver.VersionInfo.parse(version_str)
+        return semver.Version.parse(version_str)
 
-    def _save_version(self, version: semver.VersionInfo) -> None:
+    def _save_version(self, version: semver.Version) -> None:
         self.storage.save(VersionedStorage.VERSION_FILE, str(version))

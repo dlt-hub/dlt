@@ -18,7 +18,7 @@ env:
   # NOTE: this workflow can't use github secrets!
   # DLT_SECRETS_TOML: ${{ secrets.DLT_SECRETS_TOML }}
 
-  RUNTIME__SENTRY_DSN: https://6f6f7b6f8e0f458a89be4187603b55fe@o1061158.ingest.sentry.io/4504819859914752
+  # RUNTIME__SENTRY_DSN: https://6f6f7b6f8e0f458a89be4187603b55fe@o1061158.ingest.sentry.io/4504819859914752
   RUNTIME__LOG_LEVEL: ERROR
   RUNTIME__DLTHUB_TELEMETRY_ENDPOINT: ${{ secrets.RUNTIME__DLTHUB_TELEMETRY_ENDPOINT }}
   ACTIVE_DESTINATIONS: "[\"duckdb\", \"postgres\", \"filesystem\", \"weaviate\", \"qdrant\"]"
@@ -73,7 +73,7 @@ jobs:
         uses: actions/checkout@master
 
       - name: Start weaviate
-        run: docker compose -f ".github/weaviate-compose.yml" up -d
+        run:  docker compose -f "tests/load/weaviate/docker-compose.yml" up -d
 
       - name: Setup Python
         uses: actions/setup-python@v4
@@ -122,7 +122,7 @@ jobs:
 
       - name: Stop weaviate
         if: always()
-        run: docker compose -f ".github/weaviate-compose.yml" down -v
+        run:  docker compose -f "tests/load/weaviate/docker-compose.yml" down -v
 
       - name: Stop SFTP server
         if: always()

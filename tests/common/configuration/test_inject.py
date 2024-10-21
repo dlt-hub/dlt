@@ -14,7 +14,6 @@ from dlt.common.configuration.inject import (
     with_config,
     create_resolved_partial,
 )
-from dlt.common.configuration.container import Container
 from dlt.common.configuration.providers import EnvironProvider
 from dlt.common.configuration.providers.toml import SECRETS_TOML
 from dlt.common.configuration.resolve import inject_section
@@ -29,12 +28,19 @@ from dlt.common.configuration.specs.base_configuration import (
     is_secret_hint,
     is_valid_configspec_field,
 )
-from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
+from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContainer
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.reflection.spec import _get_spec_name_from_f
-from dlt.common.typing import StrAny, TSecretStrValue, TSecretValue, is_newtype_type
+from dlt.common.typing import (
+    StrAny,
+    TSecretStrValue,
+    TSecretValue,
+    is_annotated,
+    is_newtype_type,
+    is_subclass,
+)
 
-from tests.utils import preserve_environ
+from tests.utils import inject_providers, preserve_environ
 from tests.common.configuration.utils import environment, toml_providers
 
 
@@ -171,7 +177,7 @@ def test_dlt_literals_defaults_none() -> None:
     assert with_optional_none() == (None, None)
 
 
-def test_inject_from_argument_section(toml_providers: ConfigProvidersContext) -> None:
+def test_inject_from_argument_section(toml_providers: ConfigProvidersContainer) -> None:
     # `gcp_storage` is a key in `secrets.toml` and the default `credentials` section of GcpServiceAccountCredentialsWithoutDefaults must be replaced with it
 
     @with_config
@@ -199,7 +205,7 @@ def test_inject_secret_value_secret_type(environment: Any) -> None:
             f_type = spec.__dataclass_fields__[f].type
             assert is_secret_hint(f_type)
             assert cfg.get_resolvable_fields()[f] is f_type
-            assert is_newtype_type(f_type)
+            assert is_annotated(f_type)
 
     environment["_DICT"] = '{"a":1}'
     environment["_INT"] = "1234"
@@ -336,7 +342,7 @@ def test_partial() -> None:
 
     # no value in scope will fail
     with pytest.raises(ConfigFieldMissingException):
-        test_sections()
+        print(test_sections())
 
     # same for partial
     with pytest.raises(ConfigFieldMissingException):
@@ -412,16 +418,12 @@ def test_lock_context(lock, same_pool) -> None:
             time.sleep(0.5)
             return super().get_value(key, hint, pipeline_name, *sections)
 
-    ctx = ConfigProvidersContext()
-    ctx.providers.clear()
-    ctx.add_provider(SlowProvider())
-
     @with_config(sections=("test",), lock_context_on_injection=lock)
     def test_sections(value=dlt.config.value):
         return value
 
     os.environ["TEST__VALUE"] = "test_val"
-    with Container().injectable_context(ctx):
+    with inject_providers([SlowProvider()]):
         start = time.time()
 
         if same_pool:
@@ -613,7 +615,7 @@ def test_initial_spec_from_arg_with_spec_type(environment: Any) -> None:
 
 
 def test_use_most_specific_union_type(
-    environment: Any, toml_providers: ConfigProvidersContext
+    environment: Any, toml_providers: ConfigProvidersContainer
 ) -> None:
     @with_config
     def postgres_union(

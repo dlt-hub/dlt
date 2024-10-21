@@ -87,7 +87,7 @@ def _import_module(name: str, missing_modules: Tuple[str, ...] = ()) -> ModuleTy
         builtins.__import__ = real_import
 
 
-def load_script_module(
+def import_script_module(
     module_path: str, script_relative_path: str, ignore_missing_imports: bool = False
 ) -> ModuleType:
     """Loads a module in `script_relative_path` by splitting it into a script module (file part) and package (folders).  `module_path` is added to sys.path
@@ -95,9 +95,6 @@ def load_script_module(
     """
     if os.path.isabs(script_relative_path):
         raise ValueError(script_relative_path, f"Not relative path to {module_path}")
-    # script_path = os.path.join(module_path, script_relative_path)
-    # if not os.path.isfile(script_path) and not os.path:
-    #     raise FileNotFoundError(script_path)
 
     module, _ = os.path.splitext(script_relative_path)
     module = ".".join(Path(module).parts)
@@ -121,14 +118,14 @@ def load_script_module(
             sys.path.remove(sys_path)
 
 
-def inspect_pipeline_script(
+def import_pipeline_script(
     module_path: str, script_relative_path: str, ignore_missing_imports: bool = False
 ) -> ModuleType:
     # patch entry points to pipeline, sources and resources to prevent pipeline from running
     with patch.object(Pipeline, "__init__", patch__init__), patch.object(
         DltSource, "__init__", patch__init__
     ), patch.object(ManagedPipeIterator, "__init__", patch__init__):
-        return load_script_module(
+        return import_script_module(
             module_path, script_relative_path, ignore_missing_imports=ignore_missing_imports
         )
 

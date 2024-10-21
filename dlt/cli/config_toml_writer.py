@@ -104,6 +104,7 @@ def write_spec(toml_table: TOMLTable, config: BaseConfiguration, overwrite_exist
 def write_values(
     toml: TOMLContainer, values: Iterable[WritableConfigValue], overwrite_existing: bool
 ) -> None:
+    # TODO: decouple writers from a particular object model ie. TOML
     for value in values:
         toml_table: TOMLTable = toml  # type: ignore
         for section in value.sections:

@@ -1,13 +1,13 @@
 from dlt import TSecretValue
-from dlt.common.runtime.init import init_logging
 from dlt.common.configuration.specs import GcpServiceAccountCredentials
-from dlt.common.configuration.providers import GoogleSecretsProvider
+from dlt.common.configuration.providers.google_secrets import GoogleSecretsProvider
 from dlt.common.configuration.accessors import secrets
 from dlt.common.configuration.specs.config_providers_context import _google_secrets_provider
-from dlt.common.configuration.specs.run_configuration import RunConfiguration
 from dlt.common.configuration.specs import GcpServiceAccountCredentials, known_sections
 from dlt.common.typing import AnyType
 from dlt.common.configuration.resolve import resolve_configuration
+
+from tests.utils import init_test_logging
 
 
 DLT_SECRETS_TOML_CONTENT = """
@@ -23,7 +23,7 @@ project_id = "mock-credentials"
 
 
 def test_regular_keys() -> None:
-    init_logging(RunConfiguration())
+    init_test_logging()
     # copy bigquery credentials into providers credentials
     c = resolve_configuration(
         GcpServiceAccountCredentials(), sections=(known_sections.DESTINATION, "bigquery")

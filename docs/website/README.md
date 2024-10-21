@@ -2,7 +2,7 @@
 
 The website is a Node.js application.
 
-The documentation is generated using [Docusaurus 2](https://docusaurus.io/), a modern static website generator. 
+The documentation is generated using [Docusaurus 2](https://docusaurus.io/), a modern static website generator.
 Docusaurus consumes content from the `./docs` folder (at `./docs/website/docs` in this repo). The content includes:
 
 - markdown files
@@ -10,8 +10,6 @@ Docusaurus consumes content from the `./docs` folder (at `./docs/website/docs` i
 - API documentation, which pydoc generates into `./docs/api_reference` when the Node package is run.
 
 On the production website the documentation appears at https://dlthub.com/docs and the default documentation page is https://dlthub.com/docs/intro.
-
-Docusauraus also consumes blog posts (from `./blog`) and they appear at https://dlthub.com/docs/blog.
 
 ## Installation
 
@@ -83,7 +81,7 @@ This will execute the script at tools/update_versions.js. This tool will do the 
 * It will create a future version called "devel" from the current commit of this repo.
 * It will set up docusaurus to display all of these versions correctly.
 
-You can clear these versions with 
+You can clear these versions with
 
 ```
 npm run clear-versions

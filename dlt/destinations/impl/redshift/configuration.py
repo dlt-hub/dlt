@@ -1,7 +1,7 @@
 import dataclasses
 from typing import Final, Optional
 
-from dlt.common.typing import TSecretValue
+from dlt.common.typing import TSecretStrValue
 from dlt.common.configuration import configspec
 from dlt.common.utils import digest128
 
@@ -14,7 +14,7 @@ from dlt.destinations.impl.postgres.configuration import (
 @configspec(init=False)
 class RedshiftCredentials(PostgresCredentials):
     port: int = 5439
-    password: TSecretValue = None
+    password: TSecretStrValue = None
     username: str = None
     host: str = None
 

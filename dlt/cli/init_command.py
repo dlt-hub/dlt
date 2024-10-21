@@ -2,14 +2,10 @@ import os
 import ast
 import shutil
 import tomlkit
-from types import ModuleType
-from typing import Dict, List, Sequence, Tuple
-from importlib.metadata import version as pkg_version
+from typing import Dict, Sequence, Tuple
 from pathlib import Path
-from importlib import import_module
 
 from dlt.common import git
-from dlt.common.configuration.paths import get_dlt_settings_dir, make_dlt_settings_path
 from dlt.common.configuration.specs import known_sections
 from dlt.common.configuration.providers import (
     CONFIG_TOML,
@@ -18,28 +14,29 @@ from dlt.common.configuration.providers import (
     SecretsTomlProvider,
 )
 from dlt.common.pipeline import get_dlt_repos_dir
-from dlt.common.source import _SOURCES
 from dlt.version import DLT_PKG_NAME, __version__
 from dlt.common.destination import Destination
 from dlt.common.reflection.utils import rewrite_python_script
+from dlt.common.runtime import run_context
 from dlt.common.schema.utils import is_valid_schema_name
 from dlt.common.schema.exceptions import InvalidSchemaName
 from dlt.common.storages.file_storage import FileStorage
-from dlt.sources import pipeline_templates as init_module
+
+from dlt.sources import SourceReference
 
 import dlt.reflection.names as n
-from dlt.reflection.script_inspector import inspect_pipeline_script, load_script_module
+from dlt.reflection.script_inspector import import_pipeline_script
 
 from dlt.cli import echo as fmt, pipeline_files as files_ops, source_detection
 from dlt.cli import utils
 from dlt.cli.config_toml_writer import WritableConfigValue, write_values
 from dlt.cli.pipeline_files import (
+    TEMPLATE_FILES,
     SourceConfiguration,
     TVerifiedSourceFileEntry,
     TVerifiedSourceFileIndex,
 )
-from dlt.cli.exceptions import CliCommandException
-from dlt.cli.requirements import SourceRequirements
+from dlt.cli.exceptions import CliCommandInnerException
 
 
 DLT_INIT_DOCS_URL = "https://dlthub.com/docs/reference/command-line-interface#dlt-init"
@@ -213,7 +210,7 @@ def _welcome_message(
     if is_new_source:
         fmt.echo(
             "* Add credentials for %s and other secrets in %s"
-            % (fmt.bold(destination_type), fmt.bold(make_dlt_settings_path(SECRETS_TOML)))
+            % (fmt.bold(destination_type), fmt.bold(utils.make_dlt_settings_path(SECRETS_TOML)))
         )
 
     if destination_type == "destination":
@@ -308,6 +305,9 @@ def init_command(
     core_sources_storage = _get_core_sources_storage()
     templates_storage = _get_templates_storage()
 
+    # get current run context
+    run_ctx = run_context.current()
+
     # discover type of source
     source_type: files_ops.TSourceType = "template"
     if (
@@ -324,9 +324,9 @@ def init_command(
             source_type = "verified"
 
     # prepare destination storage
-    dest_storage = FileStorage(os.path.abspath("."))
-    if not dest_storage.has_folder(get_dlt_settings_dir()):
-        dest_storage.create_folder(get_dlt_settings_dir())
+    dest_storage = FileStorage(run_ctx.run_dir)
+    if not dest_storage.has_folder(run_ctx.settings_dir):
+        dest_storage.create_folder(run_ctx.settings_dir)
     # get local index of verified source files
     local_index = files_ops.load_verified_sources_local_index(source_name)
     # folder deleted at dest - full refresh
@@ -376,8 +376,6 @@ def init_command(
                 f"The verified sources repository is dirty. {source_name} source files may not"
                 " update correctly in the future."
             )
-        # add template files
-        source_configuration.files.extend(files_ops.TEMPLATE_FILES)
 
     else:
         if source_type == "core":
@@ -399,9 +397,9 @@ def init_command(
             return
 
     # add .dlt/*.toml files to be copied
-    source_configuration.files.extend(
-        [make_dlt_settings_path(CONFIG_TOML), make_dlt_settings_path(SECRETS_TOML)]
-    )
+    # source_configuration.files.extend(
+    #     [run_ctx.get_setting(CONFIG_TOML), run_ctx.get_setting(SECRETS_TOML)]
+    # )
 
     # add dlt extras line to requirements
     source_configuration.requirements.update_dlt_extras(destination_type)
@@ -430,14 +428,14 @@ def init_command(
         source_configuration.src_pipeline_script,
     )
     if visitor.is_destination_imported:
-        raise CliCommandException(
+        raise CliCommandInnerException(
             "init",
             f"The pipeline script {source_configuration.src_pipeline_script} imports a destination"
             " from dlt.destinations. You should specify destinations by name when calling"
             " dlt.pipeline or dlt.run in init scripts.",
         )
     if n.PIPELINE not in visitor.known_calls:
-        raise CliCommandException(
+        raise CliCommandInnerException(
             "init",
             f"The pipeline script {source_configuration.src_pipeline_script} does not seem to"
             " initialize a pipeline with dlt.pipeline. Please initialize pipeline explicitly in"
@@ -449,14 +447,12 @@ def init_command(
         visitor,
         [
             ("destination", destination_type),
-            ("pipeline_name", source_name),
-            ("dataset_name", source_name + "_data"),
         ],
         source_configuration.src_pipeline_script,
     )
 
     # inspect the script
-    inspect_pipeline_script(
+    import_pipeline_script(
         source_configuration.storage.storage_path,
         source_configuration.storage.to_relative_path(source_configuration.src_pipeline_script),
         ignore_missing_imports=True,
@@ -465,54 +461,48 @@ def init_command(
     # detect all the required secrets and configs that should go into tomls files
     if source_configuration.source_type == "template":
         # replace destination, pipeline_name and dataset_name in templates
-        transformed_nodes = source_detection.find_call_arguments_to_replace(
-            visitor,
-            [
-                ("destination", destination_type),
-                ("pipeline_name", source_name),
-                ("dataset_name", source_name + "_data"),
-            ],
-            source_configuration.src_pipeline_script,
-        )
+        # transformed_nodes = source_detection.find_call_arguments_to_replace(
+        #     visitor,
+        #     [
+        #         ("destination", destination_type),
+        #         ("pipeline_name", source_name),
+        #         ("dataset_name", source_name + "_data"),
+        #     ],
+        #     source_configuration.src_pipeline_script,
+        # )
         # template sources are always in module starting with "pipeline"
         # for templates, place config and secrets into top level section
         required_secrets, required_config, checked_sources = source_detection.detect_source_configs(
-            _SOURCES, source_configuration.source_module_prefix, ()
+            SourceReference.SOURCES, source_configuration.source_module_prefix, ()
         )
         # template has a strict rules where sources are placed
-        for source_q_name, source_config in checked_sources.items():
-            if source_q_name not in visitor.known_sources_resources:
-                raise CliCommandException(
-                    "init",
-                    f"The pipeline script {source_configuration.src_pipeline_script} imports a"
-                    f" source/resource {source_config.f.__name__} from module"
-                    f" {source_config.module.__name__}. In init scripts you must declare all"
-                    " sources and resources in single file.",
-                )
+        # for source_q_name, source_config in checked_sources.items():
+        #     if source_q_name not in visitor.known_sources_resources:
+        #         raise CliCommandException(
+        #             "init",
+        #             f"The pipeline script {source_configuration.src_pipeline_script} imports a"
+        #             f" source/resource {source_config.name} from section"
+        #             f" {source_config.section}. In init scripts you must declare all"
+        #             f" sources and resources in single file. Known names are {list(visitor.known_sources_resources.keys())}.",
+        #         )
         # rename sources and resources
-        transformed_nodes.extend(
-            source_detection.find_source_calls_to_replace(visitor, source_name)
-        )
+        # transformed_nodes.extend(
+        #     source_detection.find_source_calls_to_replace(visitor, source_name)
+        # )
     else:
-        # replace only destination for existing pipelines
-        transformed_nodes = source_detection.find_call_arguments_to_replace(
-            visitor, [("destination", destination_type)], source_configuration.src_pipeline_script
-        )
         # pipeline sources are in module with name starting from {pipeline_name}
         # for verified pipelines place in the specific source section
         required_secrets, required_config, checked_sources = source_detection.detect_source_configs(
-            _SOURCES,
+            SourceReference.SOURCES,
             source_configuration.source_module_prefix,
             (known_sections.SOURCES, source_name),
         )
-
-    # the intro template does not use sources, for now allow it to pass here
-    if len(checked_sources) == 0 and source_name != "intro":
-        raise CliCommandException(
-            "init",
-            f"The pipeline script {source_configuration.src_pipeline_script} is not creating or"
-            " importing any sources or resources. Exiting...",
-        )
+        if len(checked_sources) == 0:
+            raise CliCommandInnerException(
+                "init",
+                f"The pipeline script {source_configuration.src_pipeline_script} is not creating or"
+                " importing any sources or resources. Exiting...",
+            )
 
     # add destination spec to required secrets
     required_secrets["destinations:" + destination_type] = WritableConfigValue(
@@ -562,7 +552,7 @@ def init_command(
             )
 
         if not fmt.confirm("Do you want to proceed?", default=True):
-            raise CliCommandException("init", "Aborted")
+            raise CliCommandInnerException("init", "Aborted")
 
     dependency_system = _get_dependency_system(dest_storage)
     _welcome_message(
@@ -570,23 +560,32 @@ def init_command(
     )
 
     # copy files at the very end
-    for file_name in source_configuration.files:
+    copy_files = []
+    # copy template files
+    for file_name in TEMPLATE_FILES:
         dest_path = dest_storage.make_full_path(file_name)
-        # get files from init section first
         if templates_storage.has_file(file_name):
             if dest_storage.has_file(dest_path):
                 # do not overwrite any init files
                 continue
-            src_path = templates_storage.make_full_path(file_name)
-        else:
-            # only those that were modified should be copied from verified sources
-            if file_name in remote_modified:
-                src_path = source_configuration.storage.make_full_path(file_name)
-            else:
-                continue
+            copy_files.append((templates_storage.make_full_path(file_name), dest_path))
+
+    # only those that were modified should be copied from verified sources
+    for file_name in remote_modified:
+        copy_files.append(
+            (
+                source_configuration.storage.make_full_path(file_name),
+                # copy into where "sources" reside in run context, being root dir by default
+                dest_storage.make_full_path(
+                    os.path.join(run_ctx.get_run_entity("sources"), file_name)
+                ),
+            )
+        )
+
+    # modify storage at the end
+    for src_path, dest_path in copy_files:
         os.makedirs(os.path.dirname(dest_path), exist_ok=True)
         shutil.copy2(src_path, dest_path)
-
     if remote_index:
         # delete files
         for file_name in remote_deleted:
@@ -600,15 +599,11 @@ def init_command(
         dest_storage.save(source_configuration.dest_pipeline_script, dest_script_source)
 
     # generate tomls with comments
-    secrets_prov = SecretsTomlProvider()
-    secrets_toml = tomlkit.document()
-    write_values(secrets_toml, required_secrets.values(), overwrite_existing=False)
-    secrets_prov._config_doc = secrets_toml
+    secrets_prov = SecretsTomlProvider(settings_dir=run_ctx.settings_dir)
+    write_values(secrets_prov._config_toml, required_secrets.values(), overwrite_existing=False)
 
-    config_prov = ConfigTomlProvider()
-    config_toml = tomlkit.document()
-    write_values(config_toml, required_config.values(), overwrite_existing=False)
-    config_prov._config_doc = config_toml
+    config_prov = ConfigTomlProvider(settings_dir=run_ctx.settings_dir)
+    write_values(config_prov._config_toml, required_config.values(), overwrite_existing=False)
 
     # write toml files
     secrets_prov.write_toml()

@@ -107,6 +107,13 @@ test-build-images: build-library
 	docker build -f deploy/dlt/Dockerfile.airflow --build-arg=COMMIT_SHA="$(shell git log -1 --pretty=%h)" --build-arg=IMAGE_VERSION="$(shell poetry version -s)" .
 	# docker build -f deploy/dlt/Dockerfile --build-arg=COMMIT_SHA="$(shell git log -1 --pretty=%h)" --build-arg=IMAGE_VERSION="$(shell poetry version -s)" .
 
-preprocess-docs: 
+preprocess-docs:
 	# run docs preprocessing to run a few checks and ensure examples can be parsed
 	cd docs/website && npm i && npm run preprocess-docs
+
+start-test-containers:
+	docker compose -f "tests/load/dremio/docker-compose.yml" up -d
+	docker compose -f "tests/load/postgres/docker-compose.yml" up -d
+	docker compose -f "tests/load/weaviate/docker-compose.yml" up -d
+	docker compose -f "tests/load/filesystem_sftp/docker-compose.yml" up -d
+	docker compose -f "tests/load/sqlalchemy/docker-compose.yml" up -d

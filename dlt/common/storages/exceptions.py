@@ -13,9 +13,9 @@ class NoMigrationPathException(StorageException):
     def __init__(
         self,
         storage_path: str,
-        initial_version: semver.VersionInfo,
-        migrated_version: semver.VersionInfo,
-        target_version: semver.VersionInfo,
+        initial_version: semver.Version,
+        migrated_version: semver.Version,
+        target_version: semver.Version,
     ) -> None:
         self.storage_path = storage_path
         self.initial_version = initial_version
@@ -31,8 +31,8 @@ class WrongStorageVersionException(StorageException):
     def __init__(
         self,
         storage_path: str,
-        initial_version: semver.VersionInfo,
-        target_version: semver.VersionInfo,
+        initial_version: semver.Version,
+        target_version: semver.Version,
     ) -> None:
         self.storage_path = storage_path
         self.initial_version = initial_version
@@ -46,8 +46,8 @@ class StorageMigrationError(StorageException):
     def __init__(
         self,
         storage_path: str,
-        from_version: semver.VersionInfo,
-        target_version: semver.VersionInfo,
+        from_version: semver.Version,
+        target_version: semver.Version,
         info: str,
     ) -> None:
         self.storage_path = storage_path

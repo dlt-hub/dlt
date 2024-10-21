@@ -26,6 +26,7 @@ from sqlalchemy import (
     create_engine,
     func,
     text,
+    ForeignKeyConstraint,
 )
 
 try:
@@ -148,6 +149,19 @@ class SQLAlchemySourceDB:
             Column("a", Integer(), primary_key=True),
             Column("b", Integer(), primary_key=True),
             Column("c", Integer(), primary_key=True),
+        )
+
+        Table(
+            "has_composite_foreign_key",
+            self.metadata,
+            Column("other_a", Integer()),
+            Column("other_b", Integer()),
+            Column("other_c", Integer()),
+            Column("some_data", Text()),
+            ForeignKeyConstraint(
+                ["other_a", "other_b", "other_c"],
+                ["has_composite_key.a", "has_composite_key.b", "has_composite_key.c"],
+            ),
         )
 
         def _make_precision_table(table_name: str, nullable: bool) -> None:
@@ -344,10 +358,32 @@ class SQLAlchemySourceDB:
         with self.engine.begin() as conn:
             conn.execute(table.insert().values(rows))
 
+    def _fake_composite_foreign_key_data(self, n: int = 100) -> None:
+        self.table_infos.setdefault("has_composite_key", dict(row_count=n, is_view=False))  # type: ignore[call-overload]
+        self.table_infos.setdefault("has_composite_foreign_key", dict(row_count=n, is_view=False))  # type: ignore[call-overload]
+        # Insert pkey records into has_composite_key first
+        table_pk = self.metadata.tables[f"{self.schema}.has_composite_key"]
+        rows_pk = [dict(a=i, b=i + 1, c=i + 2) for i in range(n)]
+        # Insert fkey records into has_composite_foreign_key
+        table_fk = self.metadata.tables[f"{self.schema}.has_composite_foreign_key"]
+        rows_fk = [
+            dict(
+                other_a=i,
+                other_b=i + 1,
+                other_c=i + 2,
+                some_data=mimesis.Text().word(),
+            )
+            for i in range(n)
+        ]
+        with self.engine.begin() as conn:
+            conn.execute(table_pk.insert().values(rows_pk))
+            conn.execute(table_fk.insert().values(rows_fk))
+
     def insert_data(self) -> None:
         self._fake_chat_data()
         self._fake_precision_data("has_precision")
         self._fake_precision_data("has_precision_nullable", null_n=10)
+        self._fake_composite_foreign_key_data()
         if self.with_unsupported_types:
             self._fake_unsupported_data()
 

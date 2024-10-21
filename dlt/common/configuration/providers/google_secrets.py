@@ -23,7 +23,7 @@ def normalize_key(in_string: str) -> str:
         in_string(str): input string
 
     Returns:
-        (str): a string without punctuatio characters and whitespaces
+        (str): a string without punctuation characters and whitespaces
     """
 
     # Strip punctuation from the string

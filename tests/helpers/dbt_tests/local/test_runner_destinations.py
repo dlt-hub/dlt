@@ -164,7 +164,6 @@ def test_dbt_incremental_schema_out_of_sync_error(destination_info: DBTDestinati
         # allow count metrics to generate schema error
         additional_vars={},
     )
-    # metrics: StrStr = get_metrics_from_prometheus([runner.model_exec_info])["dbtrunner_model_status_info"]
     # full refresh on interactions
     assert find_run_result(results, "interactions").message.startswith(
         destination_info.replace_strategy

@@ -245,6 +245,25 @@ pending packages first. The command above removes such packages. Note that **pip
 were created. Using `dlt pipeline ... sync` is recommended if your destination supports state sync.
 
 
+## `dlt schema`
+
+Will load, validate and print out a dlt schema.
+
+```sh
+dlt schema path/to/my_schema_file.yaml
+```
+
+## `dlt telemetry`
+
+Shows the current status of dlt telemetry.
+
+```sh
+dlt telemetry
+```
+
+Lern more about telemetry on the [telemetry reference page](./telemetry)
+
+
 ## Show stack traces
 If the command fails and you want to see the full stack trace, add `--debug` just after the `dlt` executable.
 ```sh

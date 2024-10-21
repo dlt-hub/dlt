@@ -17,7 +17,8 @@ from dlt.destinations.exceptions import (
     DatabaseTransientException,
     DatabaseUndefinedRelation,
 )
-from dlt.destinations.typing import DBApi, DBApiCursor, DBTransaction
+from dlt.common.destination.reference import DBApiCursor
+from dlt.destinations.typing import DBApi, DBTransaction
 from dlt.destinations.sql_client import (
     DBApiCursorImpl,
     SqlClientBase,
