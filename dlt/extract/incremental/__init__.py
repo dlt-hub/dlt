@@ -502,7 +502,12 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
             # add directly computed hashes
             unique_hashes.update(transformer.unique_hashes)
             self._cached_state["unique_hashes"] = list(unique_hashes)
-
+            DEDUP_WARNING_THRESHOLD = 200
+            if len(self._cached_state["unique_hashes"]) > 200:
+                logger.warning(
+                    f"There are over {DEDUP_WARNING_THRESHOLD} records to be deduplicated because"
+                    f" they share the same primary key `{self.primary_key}`."
+                )
         return rows
 
 
