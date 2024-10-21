@@ -1,10 +1,10 @@
-from typing import Dict, Optional, Sequence, List, Any
+from typing import Dict, Optional, Sequence, List, Any, TYPE_CHECKING
 
 from dlt.common import logger
 from dlt.common.data_writers.configuration import CsvFormatConfiguration
+from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.exceptions import (
     DestinationInvalidFileFormat,
-    DestinationTerminalException,
 )
 from dlt.common.destination.reference import (
     HasFollowupJobs,
@@ -12,20 +12,23 @@ from dlt.common.destination.reference import (
     RunnableLoadJob,
     FollowupJobRequest,
     LoadJob,
-    TLoadJobState,
 )
-from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.exceptions import TerminalValueError
 from dlt.common.schema import TColumnSchema, TColumnHint, Schema
-from dlt.common.schema.typing import TColumnType, TTableFormat
+from dlt.common.schema.typing import TColumnType
 from dlt.common.schema.utils import is_nullable_column
 from dlt.common.storages.file_storage import FileStorage
-
-from dlt.destinations.sql_jobs import SqlStagingCopyFollowupJob, SqlJobParams
-from dlt.destinations.insert_job_client import InsertValuesJobClient
-from dlt.destinations.impl.postgres.sql_client import Psycopg2SqlClient
 from dlt.destinations.impl.postgres.configuration import PostgresClientConfiguration
+from dlt.destinations.impl.postgres.sql_client import Psycopg2SqlClient
+from dlt.destinations.insert_job_client import InsertValuesJobClient
 from dlt.destinations.sql_client import SqlClientBase
+from dlt.destinations.sql_jobs import SqlStagingCopyFollowupJob, SqlJobParams
+
+if TYPE_CHECKING:
+    import geopandas as gpd  # type: ignore
+    import pandas as pd
+else:
+    gpd = Any
+    pd = Any
 
 HINT_TO_POSTGRES_ATTR: Dict[TColumnHint, str] = {"unique": "UNIQUE"}
 
@@ -194,3 +197,25 @@ class PostgresClient(InsertValuesJobClient):
         self, pq_t: str, precision: Optional[int], scale: Optional[int]
     ) -> TColumnType:
         return self.type_mapper.from_destination_type(pq_t, precision, scale)
+
+
+def geopandas_to_wkb(gdf: "gpd.GeoDataFrame", default_epsg: int = 4326) -> "pd.DataFrame":
+    """
+    Converts geopandas to hexadecimal WKB representation and adds EPSG code.
+
+    Parameters:
+    -----------
+    gdf : gpd.GeoDataFrame
+        Input GeoDataFrame containing spatial data.
+    default_epsg : int
+        EPSG code to use if the GeoDataFrame doesn't have a defined CRS.
+
+    Returns:
+    --------
+    pd.DataFrame
+        DataFrame with geometry as hexadecimal WKB and EPSG code.
+    """
+    df = gdf.to_wkb(hex=True)
+    # TODO: write to reserved configured column name.
+    df["__epsg"] = gdf.crs.to_epsg() if gdf.crs else default_epsg
+    return df
