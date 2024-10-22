@@ -14,8 +14,8 @@ from typing import (
 )
 import graphlib  # type: ignore[import,unused-ignore]
 import string
+from requests import Response
 
-import dlt
 from dlt.common import logger
 from dlt.common.configuration import resolve_configuration
 from dlt.common.schema.utils import merge_columns
@@ -25,7 +25,6 @@ from dlt.common import jsonpath
 from dlt.extract.incremental import Incremental
 from dlt.extract.utils import ensure_table_schema_columns
 
-from dlt.sources.helpers.requests import Response
 from dlt.sources.helpers.rest_client.paginators import (
     BasePaginator,
     SinglePagePaginator,
@@ -51,6 +50,7 @@ from dlt.sources.helpers.rest_client.auth import (
     APIKeyAuth,
     OAuth2ClientCredentials,
 )
+from dlt.sources.helpers.rest_client.client import raise_for_status
 
 from dlt.extract.resource import DltResource
 
@@ -177,14 +177,14 @@ def create_auth(auth_config: Optional[AuthConfig]) -> Optional[AuthConfigBase]:
     if isinstance(auth_config, dict):
         auth_type = auth_config.get("type", "bearer")
         auth_class = get_auth_class(auth_type)
-        auth = auth_class(**exclude_keys(auth_config, {"type"}))
+        auth = auth_class.from_init_value(exclude_keys(auth_config, {"type"}))
 
-    if auth:
+    if auth and not auth.__is_resolved__:
         # TODO: provide explicitly (non-default) values as explicit explicit_value=dict(auth)
         # this will resolve auth which is a configuration using current section context
-        return resolve_configuration(auth, accept_partial=True)
+        auth = resolve_configuration(auth, accept_partial=False)
 
-    return None
+    return auth
 
 
 def setup_incremental_object(
@@ -196,7 +196,7 @@ def setup_incremental_object(
         if (
             isinstance(param_config, dict)
             and param_config.get("type") == "incremental"
-            or isinstance(param_config, dlt.sources.incremental)
+            or isinstance(param_config, Incremental)
         ):
             incremental_params.append(param_name)
     if len(incremental_params) > 1:
@@ -206,7 +206,7 @@ def setup_incremental_object(
         )
     convert: Optional[Callable[..., Any]]
     for param_name, param_config in request_params.items():
-        if isinstance(param_config, dlt.sources.incremental):
+        if isinstance(param_config, Incremental):
             if param_config.end_value is not None:
                 raise ValueError(
                     f"Only initial_value is allowed in the configuration of param: {param_name}. To"
@@ -228,7 +228,7 @@ def setup_incremental_object(
             config = exclude_keys(param_config, {"type", "convert", "transform"})
             # TODO: implement param type to bind incremental to
             return (
-                dlt.sources.incremental(**config),
+                Incremental(**config),
                 IncrementalParam(start=param_name, end=None),
                 convert,
             )
@@ -238,7 +238,7 @@ def setup_incremental_object(
             incremental_config, {"start_param", "end_param", "convert", "transform"}
         )
         return (
-            dlt.sources.incremental(**config),
+            Incremental(**config),
             IncrementalParam(
                 start=incremental_config["start_param"],
                 end=incremental_config.get("end_param"),
@@ -531,12 +531,6 @@ def _create_response_action_hook(
             )
             raise IgnoreResponseException
 
-        # If there are hooks, then the REST client does not raise for status
-        # If no action has been taken and the status code indicates an error,
-        # raise an HTTP error based on the response status
-        elif not action_type:
-            response.raise_for_status()
-
     return response_action_hook
 
 
@@ -571,7 +565,8 @@ def create_response_hooks(
     """
     if response_actions:
         hooks = [_create_response_action_hook(action) for action in response_actions]
-        return {"response": hooks}
+        fallback_hooks = [raise_for_status]
+        return {"response": hooks + fallback_hooks}
     return None
 
 

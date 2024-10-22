@@ -534,7 +534,7 @@ def test_adapter_hints_parsing_partitioning() -> None:
     def some_data() -> Iterator[Dict[str, str]]:
         yield from next(sequence_generator())
 
-    bigquery_adapter(some_data, partition="int_col")
+    bigquery_adapter(some_data, partition="int_col", partition_expiration_days=4)
     assert some_data.columns == {
         "int_col": {
             "name": "int_col",
@@ -542,6 +542,8 @@ def test_adapter_hints_parsing_partitioning() -> None:
             "x-bigquery-partition": True,
         },
     }
+    table_schema = some_data.compute_table_schema()
+    assert table_schema["x-bigquery-partition-expiration-days"] == 4  # type: ignore[typeddict-item]
 
 
 def test_adapter_on_data() -> None:
@@ -562,11 +564,20 @@ def test_adapter_hints_partitioning(
     def no_hints() -> Iterator[Dict[str, int]]:
         yield from [{"col1": i} for i in range(10)]
 
+    @dlt.resource(columns=[{"name": "col1", "data_type": "date"}])
+    def date_no_hints() -> Iterator[Dict[str, pendulum.Date]]:
+        yield from [{"col1": pendulum.now().add(days=i).date()} for i in range(10)]
+
     hints = bigquery_adapter(no_hints.with_name(new_name="hints"), partition="col1")
+    date_hints = bigquery_adapter(
+        date_no_hints.with_name(new_name="date_hints"),
+        partition="col1",
+        partition_expiration_days=3,
+    )
 
     @dlt.source(max_table_nesting=0)
     def sources() -> List[DltResource]:
-        return [no_hints, hints]
+        return [no_hints, hints, date_hints]
 
     pipeline = destination_config.setup_pipeline(
         f"bigquery_{uniq_id()}",
@@ -580,11 +591,14 @@ def test_adapter_hints_partitioning(
 
         fqtn_no_hints = c.make_qualified_table_name("no_hints", escape=False)
         fqtn_hints = c.make_qualified_table_name("hints", escape=False)
+        fqtn_date_hints = c.make_qualified_table_name("date_hints", escape=False)
 
         no_hints_table = nc.get_table(fqtn_no_hints)
         hints_table = nc.get_table(fqtn_hints)
+        date_hints_table = nc.get_table(fqtn_date_hints)
 
         assert not no_hints_table.range_partitioning, "`no_hints` table IS clustered on a column."
+        assert date_hints_table.time_partitioning.expiration_ms == 3 * 24 * 60 * 60 * 1000
 
         if not hints_table.range_partitioning:
             raise ValueError("`hints` table IS NOT clustered on a column.")

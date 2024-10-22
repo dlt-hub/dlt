@@ -65,7 +65,7 @@ def test_row_tuples_to_arrow_unknown_types(all_unknown: bool) -> None:
             col.pop("data_type", None)
 
     # Call the function
-    result = row_tuples_to_arrow(rows, columns, tz="UTC")  # type: ignore[arg-type]
+    result = row_tuples_to_arrow(rows, columns=columns, tz="UTC")  # type: ignore
 
     # Result is arrow table containing all columns in original order with correct types
     assert result.num_columns == len(columns)
@@ -98,7 +98,7 @@ def test_row_tuples_to_arrow_detects_range_type() -> None:
         (IntRange(3, 30),),
     ]
     result = row_tuples_to_arrow(
-        rows=rows,  # type: ignore[arg-type]
+        rows=rows,
         columns={"range_col": {"name": "range_col", "nullable": False}},
         tz="UTC",
     )

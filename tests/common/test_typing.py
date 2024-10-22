@@ -1,3 +1,4 @@
+import pytest
 from dataclasses import dataclass
 from typing import (
     Any,
@@ -20,6 +21,7 @@ from typing_extensions import Annotated, get_args
 from uuid import UUID
 
 
+from dlt import TSecretValue
 from dlt.common.configuration.specs.base_configuration import (
     BaseConfiguration,
     get_config_if_union_hint,
@@ -27,6 +29,7 @@ from dlt.common.configuration.specs.base_configuration import (
 from dlt.common.configuration.specs import GcpServiceAccountCredentialsWithoutDefaults
 from dlt.common.typing import (
     StrAny,
+    TSecretStrValue,
     extract_inner_type,
     extract_union_types,
     get_all_types_of_class_in_union,
@@ -270,3 +273,23 @@ def test_get_all_types_of_class_in_union() -> None:
     assert get_all_types_of_class_in_union(
         Union[BaseConfiguration, str], Incremental[float], with_superclass=True
     ) == [BaseConfiguration]
+
+
+def test_secret_type() -> None:
+    # typing must be ok
+    val: TSecretValue = 1  # noqa
+    val_2: TSecretValue = b"ABC"  # noqa
+
+    # must evaluate to self at runtime
+    assert TSecretValue("a") == "a"
+    assert TSecretValue(b"a") == b"a"
+    assert TSecretValue(7) == 7
+    assert isinstance(TSecretValue(7), int)
+
+    # secret str evaluates to str
+    val_str: TSecretStrValue = "x"  # noqa
+    # here we expect ignore!
+    val_str_err: TSecretStrValue = 1  # type: ignore[assignment] # noqa
+
+    assert TSecretStrValue("x_str") == "x_str"
+    assert TSecretStrValue({}) == "{}"

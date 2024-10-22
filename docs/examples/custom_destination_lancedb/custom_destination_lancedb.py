@@ -92,7 +92,7 @@ def spotify_shows(
     spotify_base_api_url = "https://api.spotify.com/v1"
     client = RESTClient(
         base_url=spotify_base_api_url,
-        auth=SpotifyAuth(client_id=client_id, client_secret=client_secret),  # type: ignore[arg-type]
+        auth=SpotifyAuth(client_id=client_id, client_secret=client_secret),
     )
 
     for show in fields(Shows):
