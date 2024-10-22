@@ -1,6 +1,7 @@
 import os
-from tests.pipeline.utils import assert_load_info
+
 import modal
+from tests.pipeline.utils import assert_load_info
 
 # @@@DLT_SNIPPET_START modal_image
 # Define the Modal Image
@@ -55,6 +56,13 @@ def load_tables() -> None:
     assert_load_info(load_info)
 
 
-def modal_snippet() -> None:
+def test_modal_snippet() -> None:
+    import pytest
+    from modal.exception import ExecutionError
+
     # Any additional logic or calling the function
-    pass
+    with pytest.raises(ExecutionError) as excinfo:
+        load_tables.remote()
+    # >>  modal.exception.ExecutionError:
+    # >>  Function has not been hydrated with the metadata it needs to run on Modal, because the App it is defined on is not running.
+    assert "hydrated" in str(excinfo.value)
