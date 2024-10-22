@@ -2586,3 +2586,15 @@ def test_cursor_date_coercion(item_type: TestDataItemFormat) -> None:
         pipeline.run(updated_is_int())
     assert isinstance(pip_ex.value.__cause__, IncrementalCursorInvalidCoercion)
     assert pip_ex.value.__cause__.cursor_path == "updated_at"
+
+
+def test_incremental_merge_native_representation():
+    incremental = Incremental(cursor_path="some_path", lag=10)  # type: ignore
+
+    native_value = Incremental(cursor_path="another_path", lag=5)  # type: ignore
+
+    incremental.parse_native_representation(native_value)
+
+    # Assert the expected changes in the incremental object
+    assert incremental.cursor_path == "another_path"
+    assert incremental.lag == 5

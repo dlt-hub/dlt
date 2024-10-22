@@ -114,7 +114,6 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
     row_order: Optional[TSortOrder] = None
     allow_external_schedulers: bool = False
     on_cursor_value_missing: OnCursorValueMissing = "raise"
-    lag: Optional[float] = None
 
     # incremental acting as empty
     EMPTY: ClassVar["Incremental[Any]"] = None
@@ -155,7 +154,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         self._cached_state: IncrementalColumnState = None
         """State dictionary cached on first access"""
 
-        self.lag = lag
+        self._lag = lag
         super().__init__(lambda x: x)  # TODO:
 
         self.end_out_of_range: bool = False
@@ -166,6 +165,10 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         self._transformers: Dict[str, IncrementalTransform] = {}
         self._bound_pipe: SupportsPipe = None
         """Bound pipe"""
+
+    @property
+    def lag(self) -> Optional[float]:
+        return self._lag
 
     @property
     def primary_key(self) -> Optional[TTableHintTemplate[TColumnNames]]:
@@ -194,7 +197,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
                 self.on_cursor_value_missing,
             )
 
-            if self.lag:
+            if self._lag:
                 self._transformers[dt].deduplication_disabled = True
 
     @classmethod
@@ -218,9 +221,14 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         >>> my_resource(updated=incremental(initial_value='2023-01-01', end_value='2023-02-01'))
         """
         # func, resource name and primary key are not part of the dict
-        kwargs = dict(self, last_value_func=self.last_value_func, primary_key=self._primary_key)
+        kwargs = dict(
+            self, last_value_func=self.last_value_func, primary_key=self._primary_key, lag=self._lag
+        )
         for key, value in dict(
-            other, last_value_func=other.last_value_func, primary_key=other.primary_key
+            other,
+            last_value_func=other.last_value_func,
+            primary_key=other.primary_key,
+            lag=other._lag,
         ).items():
             if value is not None:
                 kwargs[key] = value
@@ -294,14 +302,14 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
             self._primary_key = merged._primary_key
             self.allow_external_schedulers = merged.allow_external_schedulers
             self.row_order = merged.row_order
-            self.lag = merged.lag
+            self._lag = merged.lag
             self.__is_resolved__ = self.__is_resolved__
         else:  # TODO: Maybe check if callable(getattr(native_value, '__lt__', None))
             # Passing bare value `incremental=44` gets parsed as initial_value
             self.initial_value = native_value
 
     def _apply_lag(self, value: TCursorValue) -> TCursorValue:
-        if self.lag is None:
+        if self._lag is None:
             return value
 
         # Determine if the input is originally a string and capture its format
@@ -314,9 +322,9 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         # Apply lag based on the type of value
         if isinstance(value, (datetime, date)):
             delta = (
-                timedelta(seconds=self.lag)
+                timedelta(seconds=self._lag)
                 if isinstance(value, datetime)
-                else timedelta(days=self.lag)
+                else timedelta(days=self._lag)
             )
             value = value - delta if self.last_value_func is max else value + delta  # type: ignore
 
@@ -326,11 +334,11 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
 
         elif isinstance(value, int):
             # Ensure that int types remain integers
-            adjusted_value = value - self.lag if self.last_value_func is max else value + self.lag
+            adjusted_value = value - self._lag if self.last_value_func is max else value + self._lag
             value = int(adjusted_value)  # type: ignore
 
         elif isinstance(value, float):
-            value = value - self.lag if self.last_value_func is max else value + self.lag  # type: ignore
+            value = value - self._lag if self.last_value_func is max else value + self._lag  # type: ignore
 
         else:
             # Handle unsupported types
@@ -388,7 +396,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
     def last_value(self) -> Optional[TCursorValue]:
         s = self.get_state()
 
-        if self.lag is not None:
+        if self._lag is not None:
             return self._apply_lag(s["last_value"])
 
         return s["last_value"]  # type: ignore
