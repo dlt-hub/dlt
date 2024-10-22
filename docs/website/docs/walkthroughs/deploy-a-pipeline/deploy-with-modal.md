@@ -23,55 +23,58 @@ With Modal, you can perform tasks like running generative models, large-scale ba
 
 To know more, please refer to [Modals's documentation.](https://modal.com/docs)
 
-## Building data pipelines with dlt
-
-dlt is an open-source Python library that allows you to declaratively load data sources into well-structured tables or datasets. It does this through automatic schema inference and evolution. The library simplifies building data pipelines by providing functionality to support the entire extract and load process.
 
 ### How does dlt integrate with Modal for pipeline orchestration?
 
 As an example of how to set up a pipeline in Modal, we'll use the [building a cost-effective analytics stack with Modal, dlt, and dbt.](https://modal.com/blog/analytics-stack) case study.
 
-The example demonstrates automating a workflow to load data from Postgres to Snowflake using dlt.
+The article above demonstrates automating a workflow to load data from Postgres to Snowflake using dlt.
 
 ## How to run dlt on Modal
 
 Here’s a dlt project setup to copy data from our MySQL into DuckDB:
 
-1. Run the `dlt init` CLI command to initialize the SQL database source and set up the `sql_database_pipeline.py` template.
-   ```sh
-   dlt init sql_database duckdb
-   ```
-2. Open the file and define the Modal Image you want to run `dlt` in:
-   <!--@@@DLT_SNIPPET ./deploy_snippets/deploy-with-modal-snippets.py::modal_image-->
+### Step 1: Initialize source
+Run the `dlt init` CLI command to initialize the SQL database source and set up the `sql_database_pipeline.py` template.
+```sh
+dlt init sql_database duckdb
+```
 
-3. Define a Modal Function. A Modal Function is a containerized environment that runs tasks.
-   It can be scheduled (e.g., daily or on a Cron schedule), request more CPU/memory, and scale across
-   multiple containers.
+### Step 2: Define Modal Image
+Open the file and define the Modal Image you want to run `dlt` in:
+<!--@@@DLT_SNIPPET ./code/deploy-with-modal-snippets.py::modal_image-->
 
-   Here’s how to include your SQL pipeline in the Modal Function:
+### Step 3: Define Modal Function
+A Modal Function is a containerized environment that runs tasks.
+It can be scheduled (e.g., daily or on a Cron schedule), request more CPU/memory, and scale across
+multiple containers.
 
-   <!--@@@DLT_SNIPPET ./deploy_snippets/deploy-with-modal-snippets.py::modal_function-->
+Here’s how to include your SQL pipeline in the Modal Function:
 
-4. You can securely store your credentials using Modal secrets. When you reference secrets within a Modal script,
-   the defined secret is automatically set as an environment variable. dlt natively supports environment variables,
-   enabling seamless integration of your credentials. For example, to declare a connection string, you can define it as follows:
-   ```text
-   SOURCES__SQL_DATABASE__CREDENTIALS=mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam
-   ```
-   In the script above, the credentials specified are automatically utilized by dlt.
-   For more details, please refer to the [documentation.](../../general-usage/credentials/setup#environment-variables)
+<!--@@@DLT_SNIPPET ./code/deploy-with-modal-snippets.py::modal_function-->
 
-4. Execute the pipeline once:
-   To run your pipeline a single time, use the following command:
-   ```sh
-   modal run sql_pipeline.py
-   ```
+### Step 4: Set up credentials
+You can securely store your credentials using Modal secrets. When you reference secrets within a Modal script,
+the defined secret is automatically set as an environment variable. dlt natively supports environment variables,
+enabling seamless integration of your credentials. For example, to declare a connection string, you can define it as follows:
+```text
+SOURCES__SQL_DATABASE__CREDENTIALS=mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam
+```
+In the script above, the credentials specified are automatically utilized by dlt.
+For more details, please refer to the [documentation.](../../general-usage/credentials/setup#environment-variables)
 
-5. Deploy the pipeline
-   If you want to deploy your pipeline on Modal for continuous execution or scheduling, use this command:
-   ```sh
-   modal deploy sql_pipeline.py
-   ```
+### Step 5: Run pipeline
+Execute the pipeline once.
+To run your pipeline a single time, use the following command:
+```sh
+modal run sql_pipeline.py
+```
+
+### Step 6: Deploy
+If you want to deploy your pipeline on Modal for continuous execution or scheduling, use this command:
+```sh
+modal deploy sql_pipeline.py
+```
 
 ## Advanced configuration
 ### Modal Proxy
@@ -81,7 +84,6 @@ To connect to a production read replica, attach the proxy to the function defini
 ```py
 @app.function(
     secrets=[
-        modal.Secret.from_name("snowflake-secret"),
         modal.Secret.from_name("postgres-read-replica-prod"),
     ],
     schedule=modal.Cron("24 6 * * *"),
@@ -93,8 +95,8 @@ def task_pipeline(dev: bool = False) -> None:
 ```
 
 ### Capturing deletes
-To capture updates or deleted rows from your database, consider using dlt's [Postgres CDC replication feature](../../dlt-ecosystem/verified-sources/pg_replication), which is
- useful for tracking changes and deletions in the data.
+To capture updates or deleted rows from your Postgres database, consider using dlt's [Postgres CDC replication feature](../../dlt-ecosystem/verified-sources/pg_replication), which is
+useful for tracking changes and deletions in the data.
 
 ### Sync Multiple Tables in Parallel
 To sync multiple tables in parallel, map each table copy job to a separate container using [Modal.starmap](https://modal.com/docs/reference/modal.Function#starmap):

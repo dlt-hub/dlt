@@ -7,7 +7,7 @@ import modal
 image = modal.Image.debian_slim().pip_install(
     "dlt>=1.1.0",
     "dlt[duckdb]",  # destination
-    "dlt[sql_database]",  # source (postgres)
+    "dlt[sql_database]",  # source (MySQL)
     "pymysql",  # database driver for MySQL source
 )
 
@@ -23,7 +23,7 @@ vol = modal.Volume.from_name("duckdb-vol", create_if_missing=True)
     schedule=modal.Period(days=1),
     secrets=[modal.Secret.from_name("sql-secret")],
 )
-def load_tables():
+def load_tables() -> None:
     import dlt
     from dlt.sources.sql_database import sql_database
 
