@@ -42,7 +42,7 @@ dlt init sql_database duckdb
 
 ### Step 2: Define Modal Image
 Open the file and define the Modal Image you want to run `dlt` in:
-<!--@@@DLT_SNIPPET ./code/deploy-with-modal-snippets.py::modal_image-->
+<!--@@@DLT_SNIPPET ./deploy_snippets/deploy-with-modal-snippets.py::modal_image-->
 
 ### Step 3: Define Modal Function
 A Modal Function is a containerized environment that runs tasks.
@@ -51,7 +51,7 @@ multiple containers.
 
 Here’s how to include your SQL pipeline in the Modal Function:
 
-<!--@@@DLT_SNIPPET ./code/deploy-with-modal-snippets.py::modal_function-->
+<!--@@@DLT_SNIPPET ./deploy_snippets/deploy-with-modal-snippets.py::modal_function-->
 
 ### Step 4: Set up credentials
 You can securely store your credentials using Modal secrets. When you reference secrets within a Modal script,
