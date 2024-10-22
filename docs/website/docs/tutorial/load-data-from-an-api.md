@@ -561,7 +561,7 @@ That's it! Now you have a reusable source that can load data from any GitHub rep
 Congratulations on completing the tutorial! You've come a long way since the [getting started](../intro) guide. By now, you've mastered loading data from various GitHub API endpoints, organizing resources into sources, managing secrets securely, and creating reusable sources. You can use these skills to build your own pipelines and load data from any source.
 
 Interested in learning more? Here are some suggestions:
-1. You've been running your pipelines locally. Learn how to [deploy and run them in the cloud](../walkthroughs/deploy_a_pipeline/).
+1. You've been running your pipelines locally. Learn how to [deploy and run them in the cloud](../walkthroughs/deploy-a-pipeline/).
 2. Dive deeper into how dlt works by reading the [Using dlt](../general-usage) section. Some highlights:
     - [Set up "last value" incremental loading](../general-usage/incremental-loading#incremental_loading-with-last-value).
     - Learn about data loading strategies: [append, replace, and merge](../general-usage/incremental-loading).

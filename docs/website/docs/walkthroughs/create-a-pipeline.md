@@ -162,7 +162,7 @@ This will open a Streamlit app that gives you an overview of the data loaded.
 With a functioning pipeline, consider exploring:
 
 - Our [REST Client](../general-usage/http/rest-client).
-- [Deploy this pipeline with GitHub Actions](deploy_a_pipeline/deploy-with-github-actions), so that the data is automatically loaded on a schedule.
+- [Deploy this pipeline with GitHub Actions](deploy-a-pipeline/deploy-with-github-actions), so that the data is automatically loaded on a schedule.
 - Transform the [loaded data](../dlt-ecosystem/transformations) with dbt or in Pandas DataFrames.
 - Learn how to [run](../running-in-production/running), [monitor](../running-in-production/monitoring), and [alert](../running-in-production/alerting) when you put your pipeline in production.
 - Try loading data to a different destination like [Google BigQuery](../dlt-ecosystem/destinations/bigquery), [Amazon Redshift](../dlt-ecosystem/destinations/redshift), or [Postgres](../dlt-ecosystem/destinations/postgres).

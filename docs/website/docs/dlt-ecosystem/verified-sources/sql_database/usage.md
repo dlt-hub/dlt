@@ -98,11 +98,11 @@ Examples:
 
 ## Deploying the sql_database pipeline
 
-You can deploy the `sql_database` pipeline with any of the `dlt` deployment methods, such as [GitHub Actions](../../../walkthroughs/deploy_a_pipeline/deploy-with-github-actions), [Airflow](../../../walkthroughs/deploy_a_pipeline/deploy-with-airflow-composer), [Dagster](../../../walkthroughs/deploy_a_pipeline/deploy-with-dagster), etc. See [here](../../../walkthroughs/deploy_a_pipeline) for a full list of deployment methods.
+You can deploy the `sql_database` pipeline with any of the `dlt` deployment methods, such as [GitHub Actions](../../../walkthroughs/deploy-a-pipeline/deploy-with-github-actions), [Airflow](../../../walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer), [Dagster](../../../walkthroughs/deploy-a-pipeline/deploy-with-dagster), etc. See [here](../../../walkthroughs/deploy-a-pipeline) for a full list of deployment methods.
 
 ### Running on Airflow
 When running on Airflow:
-1. Use the `dlt` [Airflow Helper](../../../walkthroughs/deploy_a_pipeline/deploy-with-airflow-composer.md#2-modify-dag-file) to create tasks from the `sql_database` source. (If you want to run table extraction in parallel, you can do this by setting `decompose = "parallel-isolated"` when doing the source->DAG conversion. See [here](../../../walkthroughs/deploy_a_pipeline/deploy-with-airflow-composer#2-modify-dag-file) for a code example.)
+1. Use the `dlt` [Airflow Helper](../../../walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer.md#2-modify-dag-file) to create tasks from the `sql_database` source. (If you want to run table extraction in parallel, you can do this by setting `decompose = "parallel-isolated"` when doing the source->DAG conversion. See [here](../../../walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer#2-modify-dag-file) for a code example.)
 2. Reflect tables at runtime with the `defer_table_reflect` argument.
 3. Set `allow_external_schedulers` to load data using [Airflow intervals](../../../general-usage/incremental-loading.md#using-airflow-schedule-for-backfill-and-incremental-loading).
 

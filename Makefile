@@ -65,7 +65,7 @@ lint-and-test-snippets:
 	poetry run mypy --config-file mypy.ini docs/website docs/examples docs/tools --exclude docs/tools/lint_setup --exclude docs/website/docs_processed
 	poetry run flake8 --max-line-length=200 docs/website docs/examples docs/tools
 	cd docs/website/docs && poetry run pytest --ignore=node_modules
-	modal run docs/website/docs/walkthroughs/deploy_a_pipeline/deploy-with-modal-snippets.py
+	poetry run modal run docs/website/docs/walkthroughs/deploy-a-pipeline/deploy-with-modal-snippets.py
 
 lint-and-test-examples:
 	cd docs/tools && poetry run python prepare_examples_tests.py

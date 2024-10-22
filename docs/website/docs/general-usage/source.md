@@ -50,7 +50,7 @@ used when loading the source.
 
 Do not extract data in the source function. Leave that task to your resources if possible. The source function is executed immediately when called (contrary to resources which delay execution - like Python generators). There are several benefits (error handling, execution metrics, parallelization) you get when you extract data in `pipeline.run` or `pipeline.extract`.
 
-If this is impractical (for example, you want to reflect a database to create resources for tables), make sure you do not call the source function too often. [See this note if you plan to deploy on Airflow](../walkthroughs/deploy_a_pipeline/deploy-with-airflow-composer.md#2-modify-dag-file)
+If this is impractical (for example, you want to reflect a database to create resources for tables), make sure you do not call the source function too often. [See this note if you plan to deploy on Airflow](../walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer.md#2-modify-dag-file)
 
 
 ## Customize sources
