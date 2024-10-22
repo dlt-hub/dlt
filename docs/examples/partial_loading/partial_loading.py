@@ -11,9 +11,10 @@ it automatically handles de-duplication by deleting any previously loaded files 
 
 We'll learn:
 
-- How to configure a [REST API source](../general-usage/rest_api_source) using the `dlt` library.
+- How to configure a [REST API source](../dlt-ecosystem/verified-sources/rest_api/basic.md) using
+ the `dlt` library.
 - How to manage and delete old backfill files for de-duplication.
-- How to use [Filesystem](../general-usage/filesystem_destination) as a destination for storing extracted data.
+- How to use [Filesystem](../dlt-ecosystem/destinations/filesystem.md) as a destination for storing extracted data.
 """
 
 import os
