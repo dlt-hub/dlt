@@ -1006,86 +1006,107 @@ def test_dest_column_hint_timezone(destination_config: DestinationTestConfigurat
     ),
     ids=lambda x: x.name,
 )
+@pytest.mark.parametrize("lag", [-1, 10])
 def test_pipeline_resource_incremental_int_lag(
-    destination_config: DestinationTestConfiguration,
+    destination_config: DestinationTestConfiguration, lag: float
 ) -> None:
     """
-    Test incremental lag behavior when updating previously loaded data.
+    Test the behavior of incremental lag when updating previously loaded data using the append method, which may create duplicates.
 
-    Three resources (`r1`, `r2`, `r3`) share the primary key 'id'.
-    - `r1` loads `id=0` and `id=1`.
-    - `r2` adds `id=2` and `id=3`.
-    - `r3`, with lag=1, skips `id=1` and updates entries with `id=2`, `id=3`,
-      and adds a new entry `id=4`. The merge operation reflects these changes.
-
-    We validate that the final dataset correctly orders the updated and new entries,
-    excluding `id=1` from the updates due to the lag.
+    We validate that the final dataset correctly orders the updated and new entries.
     """
 
     dataset_name = f"{destination_config.destination_name}{uniq_id()}"
     pipeline = destination_config.setup_pipeline("pipeline", dataset_name=dataset_name)
 
     name = "items"
+    is_second_run = False
+    is_third_run = False
 
-    @dlt.resource(name=name, primary_key="id")
-    def r1(_=dlt.sources.incremental("id")):
-        yield from [{"id": 0, "name": "bobby"}, {"id": 1, "name": "jeremy"}]
+    @dlt.resource(name=name, primary_key="id", write_disposition="append")
+    def items_resource(_=dlt.sources.incremental("id", lag=lag)):
+        nonlocal is_second_run
+        nonlocal is_third_run
 
-    @dlt.resource(name=name, primary_key="id")
-    def r2(_=dlt.sources.incremental("id")):
-        yield from [{"id": 2, "name": "james"}, {"id": 3, "name": "john"}]
+        # Initial entries
+        initial_entries = [
+            {"id": 100, "name": "maria"},
+            {"id": 200, "name": "john"},
+            {"id": 300, "name": "bobby"},  # the lag will be applied here
+        ]
 
-    # r3 has lag=1, so id=1 is ignored, only id>=2 is updated
-    updated_items = [
-        {"id": 1, "name": "maria"},
-        {"id": 2, "name": "mark"},
-        {"id": 3, "name": "pablo"},
-    ]
+        # Updated entries in second call
+        second_run_events = [
+            {"id": 100, "name": "updated"},
+            {"id": 200, "name": "updated"},
+            {"id": 300, "name": "updated"},
+            {"id": 400, "name": "mark"},
+        ]
 
-    @dlt.resource(name=name, primary_key="id", write_disposition="merge")
-    def r3(_=dlt.sources.incremental("id", lag=1)):
-        yield from [{"id": 4, "name": "max"}] + updated_items
+        third_run_events = [
+            {"id": 100, "name": "updated"},
+            {"id": 200, "name": "updated"},
+            {"id": 300, "name": "updated"},
+            {"id": 400, "name": "updated"},
+            {"id": 500, "name": "nicolas"},
+        ]
 
-    pipeline.run(r1)
-    pipeline.run(r2)
-    pipeline.run(r3)
+        if is_second_run:
+            yield from second_run_events
+        elif is_third_run:
+            yield from third_run_events
+        else:
+            yield from initial_entries
+
+    pipeline.run(items_resource)
+    is_second_run = True
+    pipeline.run(items_resource)
+    is_second_run = False
+    is_third_run = True
+    pipeline.run(items_resource)
+
+    expected_results = {
+        10: ["maria", "john", "bobby", "mark", "nicolas"],
+        -1: ["maria", "john", "bobby", "mark", "nicolas"],
+    }
 
     # Validate final dataset
     with pipeline.sql_client() as sql_client:
         assert [
             row[0] for row in sql_client.execute_sql(f"SELECT name FROM {name} ORDER BY id")
-        ] == ["bobby", "jeremy", "mark", "pablo", "max"]
+        ] == expected_results[int(lag)]
 
 
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
-        default_staging_configs=True, default_sql_configs=True, subset=["duckdb", "postgres"]
+        default_staging_configs=True, default_sql_configs=True, subset=["postgres", "duckdb"]
     ),
     ids=lambda x: x.name,
 )
-@pytest.mark.parametrize("lag", [3602, 3601, 3600, 3599, -1])
+@pytest.mark.parametrize("lag", [3602, 3601, 3600, 3599, 60, -1])
 def test_pipeline_resource_incremental_datetime_lag(
     destination_config: DestinationTestConfiguration, lag: float
 ) -> None:
     """
     Test incremental lag behavior for datetime data while using `id` as the primary key.
 
-    - `r1` loads entries with `id` and `created_at` timestamps.
-    - `r2`, with different lag values, updates entries but only considers records
-      where `created_at` is within the lag window.
-
-    We validate that the final dataset reflects the correct data updates, taking the lag into account.
+    We validate that the final dataset reflects the correct data updates, taking the lag into account,
+    and ensure deduplication is disabled when lag is set.
     """
 
     dataset_name = f"{destination_config.destination_name}{uniq_id()}"
     pipeline = destination_config.setup_pipeline("pipeline", dataset_name=dataset_name)
 
     name = "events"
+    is_second_run = False
 
-    @dlt.resource(name=name, primary_key="id")
-    def r1(_=dlt.sources.incremental("created_at")):
-        yield from [
+    @dlt.resource(name=name, primary_key="id", write_disposition="merge")
+    def events_resource(_=dlt.sources.incremental("created_at", lag=lag)):
+        nonlocal is_second_run
+
+        # Initial entries
+        initial_entries = [
             {"id": 1, "created_at": "2023-03-03T01:00:00Z", "event": "1"},
             {"id": 2, "created_at": "2023-03-03T01:00:01Z", "event": "2"},
             {
@@ -1095,28 +1116,36 @@ def test_pipeline_resource_incremental_datetime_lag(
             },  # the lag will be applied here
         ]
 
-    updated_events = [
-        {"id": 1, "created_at": "2023-03-03T01:00:00Z", "event": "updated"},
-        {"id": 2, "created_at": "2023-03-03T01:00:01Z", "event": "updated"},
-    ]
+        # Updated entries in second call
+        updated_events = [
+            {"id": 1, "created_at": "2023-03-03T01:00:00Z", "event": "updated"},
+            {"id": 2, "created_at": "2023-03-03T01:00:01Z", "event": "updated"},
+            {
+                "id": 3,
+                "created_at": "2023-03-03T02:00:01Z",
+                "event": "updated",  # This should not be deduplicated
+            },
+            {"id": 4, "created_at": "2023-03-03T03:00:00Z", "event": "4"},
+        ]
 
-    @dlt.resource(name=name, primary_key="id", write_disposition="merge")
-    def r2(_=dlt.sources.incremental("created_at", lag=lag)):
-        yield from [{"id": 4, "created_at": "2023-03-03T03:00:00Z", "event": "4"}] + updated_events
+        # First run returns initial entries, second run returns updates
+        yield from updated_events if is_second_run else initial_entries
 
-    pipeline.run(r1)
-    pipeline.run(r2)
+    # Run the pipeline twice: first for initial entries, then with updated events
+    pipeline.run(events_resource)
+    is_second_run = True
+    pipeline.run(events_resource)
 
     # Validate final dataset
-    results = {
-        3602: ["updated", "updated", "3", "4"],
-        3601: ["updated", "updated", "3", "4"],
-        3600: ["1", "updated", "3", "4"],
+    expected_results = {
+        3602: ["updated", "updated", "updated", "4"],
+        3601: ["updated", "updated", "updated", "4"],
+        3600: ["1", "updated", "updated", "4"],
         3599: ["1", "2", "3", "4"],
+        60: ["1", "2", "3", "4"],
         -1: ["1", "2", "3", "4"],
     }
 
     with pipeline.sql_client() as sql_client:
-        assert [
-            row[0] for row in sql_client.execute_sql(f"SELECT event FROM {name} ORDER BY id")
-        ] == results[int(lag)]
+        result = [row[0] for row in sql_client.execute_sql(f"SELECT event FROM {name} ORDER BY id")]
+        assert result == expected_results[int(lag)]

@@ -70,6 +70,9 @@ class IncrementalTransform:
         self.unique_hashes = unique_hashes
         self.start_unique_hashes = set(unique_hashes)
         self.on_cursor_value_missing = on_cursor_value_missing
+        self._deduplication_disabled = (
+            isinstance(self.primary_key, (list, tuple)) and len(self.primary_key) == 0
+        )  # Skip deduplication when length of the key is 0
 
         # compile jsonpath
         self._compiled_cursor_path = compile_path(cursor_path)
@@ -109,8 +112,11 @@ class IncrementalTransform:
 
     @property
     def deduplication_disabled(self) -> bool:
-        """Skip deduplication when length of the key is 0"""
-        return isinstance(self.primary_key, (list, tuple)) and len(self.primary_key) == 0
+        return self._deduplication_disabled
+
+    @deduplication_disabled.setter
+    def deduplication_disabled(self, value: bool) -> None:
+        self._deduplication_disabled = value
 
 
 class JsonIncremental(IncrementalTransform):

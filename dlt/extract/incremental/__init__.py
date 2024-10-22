@@ -194,6 +194,9 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
                 self.on_cursor_value_missing,
             )
 
+            if self.lag:
+                self._transformers[dt].deduplication_disabled = True
+
     @classmethod
     def from_existing_state(
         cls, resource_name: str, cursor_path: str
