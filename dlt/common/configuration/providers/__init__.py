@@ -12,7 +12,6 @@ from .toml import (
 )
 from .doc import CustomLoaderDocProvider
 from .vault import SECRETS_TOML_KEY
-from .google_secrets import GoogleSecretsProvider
 from .context import ContextProvider
 
 __all__ = [
@@ -26,7 +25,6 @@ __all__ = [
     "SECRETS_TOML",
     "StringTomlProvider",
     "SECRETS_TOML_KEY",
-    "GoogleSecretsProvider",
     "ContextProvider",
     "CustomLoaderDocProvider",
 ]

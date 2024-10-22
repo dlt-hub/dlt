@@ -5,13 +5,13 @@ from typing import Callable
 from dlt.common.reflection.utils import set_ast_parents
 from dlt.common.typing import TFun
 from dlt.common.configuration import resolve_configuration
-from dlt.common.configuration.specs import RunConfiguration
+from dlt.common.configuration.specs import RuntimeConfiguration
 from dlt.common.runtime.telemetry import with_telemetry
 from dlt.common.runtime import run_context
 
 from dlt.reflection.script_visitor import PipelineScriptVisitor
 
-from dlt.cli.exceptions import CliCommandException
+from dlt.cli.exceptions import CliCommandInnerException
 
 
 REQUIREMENTS_TXT = "requirements.txt"
@@ -32,7 +32,7 @@ def parse_init_script(
     visitor = PipelineScriptVisitor(script_source)
     visitor.visit_passes(tree)
     if len(visitor.mod_aliases) == 0:
-        raise CliCommandException(
+        raise CliCommandInnerException(
             command,
             f"The pipeline script {init_script_name} does not import dlt and does not seem to run"
             " any pipelines",
@@ -47,7 +47,7 @@ def ensure_git_command(command: str) -> None:
     except ImportError as imp_ex:
         if "Bad git executable" not in str(imp_ex):
             raise
-        raise CliCommandException(
+        raise CliCommandInnerException(
             command,
             "'git' command is not available. Install and setup git with the following the guide %s"
             % "https://docs.github.com/en/get-started/quickstart/set-up-git",
@@ -60,7 +60,7 @@ def track_command(command: str, track_before: bool, *args: str) -> Callable[[TFu
 
 
 def get_telemetry_status() -> bool:
-    c = resolve_configuration(RunConfiguration())
+    c = resolve_configuration(RuntimeConfiguration())
     return c.dlthub_telemetry
 
 

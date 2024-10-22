@@ -198,12 +198,15 @@ def _double_as_decimal_adapter(table: sa.Table) -> None:
 sql_alchemy_source = sql_database(
     "mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam?&binary_prefix=true",
     backend="pyarrow",
+    backend_kwargs={"tz": "UTC"},
     table_adapter_callback=_double_as_decimal_adapter
 ).with_resources("family", "genome")
 
 info = pipeline.run(sql_alchemy_source)
 print(info)
 ```
+For more information on the `tz` parameter within `backend_kwargs` supported by PyArrow, please refer to the 
+[official documentation.](https://arrow.apache.org/docs/python/generated/pyarrow.timestamp.html)
 
 ### Pandas
 

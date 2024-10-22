@@ -31,9 +31,16 @@ def test_motherduck_configuration() -> None:
     assert cred.is_resolved() is False
 
     cred = MotherDuckCredentials()
-    cred.parse_native_representation("md:///?token=TOKEN")
+    cred.parse_native_representation("md:///?motherduck_token=TOKEN")
     assert cred.password == "TOKEN"
     assert cred.database == ""
+    assert cred.is_partial() is False
+    assert cred.is_resolved() is False
+
+    cred = MotherDuckCredentials()
+    cred.parse_native_representation("md:xdb?motherduck_token=TOKEN2")
+    assert cred.password == "TOKEN2"
+    assert cred.database == "xdb"
     assert cred.is_partial() is False
     assert cred.is_resolved() is False
 
@@ -50,6 +57,28 @@ def test_motherduck_configuration() -> None:
     os.environ["CREDENTIALS__QUERY"] = '{"token": "tok"}'
     config = resolve_configuration(MotherDuckCredentials())
     assert config.password == "tok"
+
+
+def test_motherduck_connect_default_token() -> None:
+    import dlt
+
+    credentials = dlt.secrets.get(
+        "destination.motherduck.credentials", expected_type=MotherDuckCredentials
+    )
+    assert credentials.password
+    os.environ["motherduck_token"] = credentials.password
+
+    credentials = MotherDuckCredentials()
+    assert credentials._has_default_token() is True
+    credentials.on_partial()
+    assert credentials.is_resolved()
+
+    config = MotherDuckClientConfiguration(credentials=credentials)
+    print(config.credentials._conn_str())
+    # connect
+    con = config.credentials.borrow_conn(read_only=False)
+    con.sql("SHOW DATABASES")
+    config.credentials.return_conn(con)
 
 
 @pytest.mark.parametrize("custom_user_agent", [MOTHERDUCK_USER_AGENT, "patates", None, ""])

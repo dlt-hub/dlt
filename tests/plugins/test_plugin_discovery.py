@@ -57,10 +57,29 @@ def test_example_plugin() -> None:
 def test_cli_hook(script_runner: ScriptRunner) -> None:
     # new command
     result = script_runner.run(["dlt", "example", "--name", "John"])
-    assert result.returncode == 33
+    assert result.returncode == 0
     assert "Example command executed with name: John" in result.stdout
+
+    # raise
+    result = script_runner.run(["dlt", "example", "--name", "John", "--result", "known_error"])
+    assert result.returncode == -33
+    assert "MODIFIED_DOCS_URL" in result.stdout
+
+    result = script_runner.run(["dlt", "example", "--name", "John", "--result", "unknown_error"])
+    assert result.returncode == -1
+    assert "DEFAULT_DOCS_URL" in result.stdout
+    assert "No one knows what is going on" in result.stderr
+    assert "Traceback" not in result.stderr  # stack trace is not there
+
+    # raise with trace
+    result = script_runner.run(
+        ["dlt", "--debug", "example", "--name", "John", "--result", "unknown_error"]
+    )
+    assert "No one knows what is going on" in result.stderr
+    assert "Traceback" in result.stderr  # stacktrace is there
 
     # overwritten pipeline command
     result = script_runner.run(["dlt", "init"])
-    assert result.returncode == 55
+    assert result.returncode == -55
     assert "Plugin overwrote init command" in result.stdout
+    assert "INIT_DOCS_URL" in result.stdout
