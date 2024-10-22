@@ -35,40 +35,40 @@ The example demonstrates automating a workflow to load data from Postgres to Sno
 
 ## How to run dlt on Modal
 
-Here’s a dlt project setup to copy data from our MySQL into DuckDB:  
+Here’s a dlt project setup to copy data from our MySQL into DuckDB:
 
 1. Run the `dlt init` CLI command to initialize the SQL database source and set up the `sql_database_pipeline.py` template.
    ```sh
    dlt init sql_database duckdb
    ```
 2. Open the file and define the Modal Image you want to run `dlt` in:
-   <!--@@@DLT_SNIPPET modal_image-->
+   <!--@@@DLT_SNIPPET ./snippets/deploy-with-modal-snippets.py::modal_image-->
 
-3. Define a Modal Function. A Modal Function is a containerized environment that runs tasks. 
+3. Define a Modal Function. A Modal Function is a containerized environment that runs tasks.
    It can be scheduled (e.g., daily or on a Cron schedule), request more CPU/memory, and scale across
    multiple containers.
-   
+
    Here’s how to include your SQL pipeline in the Modal Function:
-   
-   <!--@@@DLT_SNIPPET modal_function-->
-   
-4. You can securely store your credentials using Modal secrets. When you reference secrets within a Modal script, 
-   the defined secret is automatically set as an environment variable. dlt natively supports environment variables, 
+
+   <!--@@@DLT_SNIPPET ./snippets/deploy-with-modal-snippets.py::modal_function-->
+
+4. You can securely store your credentials using Modal secrets. When you reference secrets within a Modal script,
+   the defined secret is automatically set as an environment variable. dlt natively supports environment variables,
    enabling seamless integration of your credentials. For example, to declare a connection string, you can define it as follows:
    ```text
    SOURCES__SQL_DATABASE__CREDENTIALS=mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam
    ```
-   In the script above, the credentials specified are automatically utilized by dlt. 
+   In the script above, the credentials specified are automatically utilized by dlt.
    For more details, please refer to the [documentation.](../../general-usage/credentials/setup#environment-variables)
-   
+
 4. Execute the pipeline once:
    To run your pipeline a single time, use the following command:
    ```sh
    modal run sql_pipeline.py
    ```
 
-5. Deploy the pipeline 
-   If you want to deploy your pipeline on Modal for continuous execution or scheduling, use this command:   
+5. Deploy the pipeline
+   If you want to deploy your pipeline on Modal for continuous execution or scheduling, use this command:
    ```sh
    modal deploy sql_pipeline.py
    ```
@@ -76,7 +76,7 @@ Here’s a dlt project setup to copy data from our MySQL into DuckDB:
 ## Advanced configuration
 ### Modal Proxy
 
-If your database is in a private VPN, you can use [Modal Proxy](https://modal.com/docs/reference/modal.Proxy) as a bastion server (available for Enterprise customers). 
+If your database is in a private VPN, you can use [Modal Proxy](https://modal.com/docs/reference/modal.Proxy) as a bastion server (available for Enterprise customers).
 To connect to a production read replica, attach the proxy to the function definition and change the hostname to localhost:
 ```py
 @app.function(
