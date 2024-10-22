@@ -17,6 +17,7 @@ app = modal.App("example-dlt", image=image)
 vol = modal.Volume.from_name("duckdb-vol", create_if_missing=True)
 # @@@DLT_SNIPPET_END modal_image
 
+
 # @@@DLT_SNIPPET_START modal_function
 @app.function(
     volumes={"/data/": vol},
@@ -28,8 +29,9 @@ def load_tables() -> None:
     from dlt.sources.sql_database import sql_database
 
     # Define the source database credentials; in production, you would save this as a Modal Secret which can be referenced here as an environment variable
-    os.environ['SOURCES__SQL_DATABASE__CREDENTIALS']="mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam"
-
+    os.environ["SOURCES__SQL_DATABASE__CREDENTIALS"] = (
+        "mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam"
+    )
     # Load tables "family" and "genome"
     source = sql_database().with_resources("family", "genome")
 
@@ -51,6 +53,7 @@ def load_tables() -> None:
     # @@@DLT_SNIPPET_END modal_function
 
     assert_load_info(load_info)
+
 
 def modal_snippet() -> None:
     # Any additional logic or calling the function
