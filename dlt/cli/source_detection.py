@@ -7,10 +7,10 @@ from dlt.common.configuration import is_secret_hint
 from dlt.common.configuration.specs import BaseConfiguration
 from dlt.common.reflection.utils import creates_func_def_name_node
 from dlt.common.typing import is_optional_type
-from dlt.common.source import SourceInfo
 
+from dlt.sources import SourceReference
 from dlt.cli.config_toml_writer import WritableConfigValue
-from dlt.cli.exceptions import CliCommandException
+from dlt.cli.exceptions import CliCommandInnerException
 from dlt.reflection.script_visitor import PipelineScriptVisitor
 
 
@@ -28,7 +28,7 @@ def find_call_arguments_to_replace(
                 dn_node: ast.AST = args.arguments.get(t_arg_name)
                 if dn_node is not None:
                     if not isinstance(dn_node, ast.Constant) or not isinstance(dn_node.value, str):
-                        raise CliCommandException(
+                        raise CliCommandInnerException(
                             "init",
                             f"The pipeline script {init_script_name} must pass the {t_arg_name} as"
                             f" string to '{arg_name}' function in line {dn_node.lineno}",
@@ -40,7 +40,7 @@ def find_call_arguments_to_replace(
     # there was at least one replacement
     for t_arg_name, _ in replace_nodes:
         if t_arg_name not in replaced_args:
-            raise CliCommandException(
+            raise CliCommandInnerException(
                 "init",
                 f"The pipeline script {init_script_name} is not explicitly passing the"
                 f" '{t_arg_name}' argument to 'pipeline' or 'run' function. In init script the"
@@ -72,19 +72,23 @@ def find_source_calls_to_replace(
 
 
 def detect_source_configs(
-    sources: Dict[str, SourceInfo], module_prefix: str, section: Tuple[str, ...]
-) -> Tuple[Dict[str, WritableConfigValue], Dict[str, WritableConfigValue], Dict[str, SourceInfo]]:
+    sources: Dict[str, SourceReference], module_prefix: str, section: Tuple[str, ...]
+) -> Tuple[
+    Dict[str, WritableConfigValue], Dict[str, WritableConfigValue], Dict[str, SourceReference]
+]:
+    """Creates sample secret and configs for `sources` belonging to `module_prefix`. Assumes that
+    all sources belong to a single section so only source name is used to create sample layouts"""
     # all detected secrets with sections
     required_secrets: Dict[str, WritableConfigValue] = {}
     # all detected configs with sections
     required_config: Dict[str, WritableConfigValue] = {}
-    # all sources checked
-    checked_sources: Dict[str, SourceInfo] = {}
+    # all sources checked, indexed by source name
+    checked_sources: Dict[str, SourceReference] = {}
 
-    for source_name, source_info in sources.items():
+    for _, source_info in sources.items():
         # accept only sources declared in the `init` or `pipeline` modules
         if source_info.module.__name__.startswith(module_prefix):
-            checked_sources[source_name] = source_info
+            checked_sources[source_info.name] = source_info
             source_config = source_info.SPEC() if source_info.SPEC else BaseConfiguration()
             spec_fields = source_config.get_resolvable_fields()
             for field_name, field_type in spec_fields.items():
@@ -99,8 +103,8 @@ def detect_source_configs(
                     val_store = required_config
 
                 if val_store is not None:
-                    # we are sure that all resources come from single file so we can put them in single section
-                    val_store[source_name + ":" + field_name] = WritableConfigValue(
+                    # we are sure that all sources come from single file so we can put them in single section
+                    val_store[source_info.name + ":" + field_name] = WritableConfigValue(
                         field_name, field_type, None, section
                     )
 

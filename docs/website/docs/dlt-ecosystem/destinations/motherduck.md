@@ -46,11 +46,21 @@ Paste your **service token** into the password field. The `database` field is op
 Alternatively, you can use the connection string syntax.
 ```toml
 [destination]
-motherduck.credentials="md:///dlt_data_3?token=<my service token>"
+motherduck.credentials="md:dlt_data_3?motherduck_token=<my service token>"
 ```
 
 :::tip
 Motherduck now supports configurable **access tokens**. Please refer to the [documentation](https://motherduck.com/docs/key-tasks/authenticating-to-motherduck/#authentication-using-an-access-token)
+
+You can pass token in a native Motherduck environment variable:
+```sh
+export motherduck_token='<token>'
+```
+in that case you can skip **password** / **motherduck_token** secret.
+
+**database** defaults to `my_db`.
+
+More in Motherduck [documentation](https://motherduck.com/docs/key-tasks/authenticating-and-connecting-to-motherduck/authenticating-to-motherduck/#storing-the-access-token-as-an-environment-variable)
 :::
 
 **4. Run the pipeline**

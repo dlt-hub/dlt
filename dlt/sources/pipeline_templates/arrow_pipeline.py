@@ -24,7 +24,7 @@ def add_updated_at(item: pa.Table):
     return item.set_column(column_count, "updated_at", [[time.time()] * item.num_rows])
 
 
-# apply tranformer to resource
+# apply transformer to resource
 resource.add_map(add_updated_at)
 
 

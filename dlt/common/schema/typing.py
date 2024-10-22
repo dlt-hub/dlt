@@ -248,6 +248,19 @@ TWriteDispositionConfig = Union[
 ]
 
 
+class TTableReference(TypedDict):
+    """Describes a reference to another table's columns.
+    `columns` corresponds to the `referenced_columns` in the referenced table and their order should match.
+    """
+
+    columns: Sequence[str]
+    referenced_table: str
+    referenced_columns: Sequence[str]
+
+
+TTableReferenceParam = Sequence[TTableReference]
+
+
 class _TTableSchemaBase(TTableProcessingHints, total=False):
     name: Optional[str]
     description: Optional[str]
@@ -265,6 +278,7 @@ class TTableSchema(_TTableSchemaBase, total=False):
     """TypedDict that defines properties of a table"""
 
     write_disposition: Optional[TWriteDisposition]
+    references: Optional[TTableReferenceParam]
 
 
 class TPartialTableSchema(TTableSchema):

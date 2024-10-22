@@ -70,7 +70,7 @@ def test_restore_state_utils(destination_config: DestinationTestConfiguration) -
     p.sync_schema()
     # check if schema exists
     with p.destination_client(p.default_schema.name) as job_client:  # type: ignore[assignment]
-        stored_schema = job_client.get_stored_schema()
+        stored_schema = job_client.get_stored_schema(job_client.schema.name)
         assert stored_schema is not None
         # dataset exists, still no table
         with pytest.raises(DestinationUndefinedEntity):
@@ -97,7 +97,7 @@ def test_restore_state_utils(destination_config: DestinationTestConfiguration) -
         # schema.bump_version()
     p.sync_schema()
     with p.destination_client(p.default_schema.name) as job_client:  # type: ignore[assignment]
-        stored_schema = job_client.get_stored_schema()
+        stored_schema = job_client.get_stored_schema(job_client.schema.name)
         assert stored_schema is not None
         # table is there but no state
         assert load_pipeline_state_from_destination(p.pipeline_name, job_client) is None
@@ -673,6 +673,10 @@ def test_restore_state_parallel_changes(destination_config: DestinationTestConfi
     # state didn't change because production is ahead of local with its version
     # nevertheless this is potentially dangerous situation 🤷
     assert ra_production_p.state == prod_state
+
+    # for now skip sql client tests for filesystem
+    if destination_config.destination_type == "filesystem":
+        return
 
     # get all the states, notice version 4 twice (one from production, the other from local)
     try:

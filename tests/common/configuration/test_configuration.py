@@ -7,6 +7,7 @@ from typing import (
     Final,
     Generic,
     List,
+    Literal,
     Mapping,
     MutableMapping,
     NewType,
@@ -25,9 +26,12 @@ from dlt.common.configuration.specs.gcp_credentials import (
 from dlt.common.utils import custom_environ, get_exception_trace, get_exception_trace_chain
 from dlt.common.typing import (
     AnyType,
+    CallableAny,
     ConfigValue,
     DictStrAny,
+    SecretSentinel,
     StrAny,
+    TSecretStrValue,
     TSecretValue,
     extract_inner_type,
 )
@@ -49,7 +53,7 @@ from dlt.common.configuration import (
 )
 from dlt.common.configuration.specs import (
     BaseConfiguration,
-    RunConfiguration,
+    RuntimeConfiguration,
     ConnectionStringCredentials,
 )
 from dlt.common.configuration.providers import environ as environ_provider, toml
@@ -117,7 +121,7 @@ class VeryWrongConfiguration(WrongConfiguration):
 
 
 @configspec
-class ConfigurationWithOptionalTypes(RunConfiguration):
+class ConfigurationWithOptionalTypes(RuntimeConfiguration):
     pipeline_name: str = "Some Name"
 
     str_val: Optional[str] = None
@@ -131,12 +135,12 @@ class ProdConfigurationWithOptionalTypes(ConfigurationWithOptionalTypes):
 
 
 @configspec
-class MockProdConfiguration(RunConfiguration):
+class MockProdConfiguration(RuntimeConfiguration):
     pipeline_name: str = "comp"
 
 
 @configspec
-class FieldWithNoDefaultConfiguration(RunConfiguration):
+class FieldWithNoDefaultConfiguration(RuntimeConfiguration):
     no_default: str = None
 
 
@@ -601,13 +605,13 @@ def test_provider_values_over_embedded_default(environment: Any) -> None:
 
 
 def test_run_configuration_gen_name(environment: Any) -> None:
-    C = resolve.resolve_configuration(RunConfiguration())
+    C = resolve.resolve_configuration(RuntimeConfiguration())
     assert C.pipeline_name.startswith("dlt_")
 
 
 def test_configuration_is_mutable_mapping(environment: Any, env_provider: ConfigProvider) -> None:
     @configspec
-    class _SecretCredentials(RunConfiguration):
+    class _SecretCredentials(RuntimeConfiguration):
         pipeline_name: Optional[str] = "secret"
         secret_value: TSecretValue = None
         config_files_storage_path: str = "storage"
@@ -985,8 +989,8 @@ def test_coercion_rules() -> None:
 def test_is_valid_hint() -> None:
     assert is_valid_hint(Any) is True  # type: ignore[arg-type]
     assert is_valid_hint(Optional[Any]) is True  # type: ignore[arg-type]
-    assert is_valid_hint(RunConfiguration) is True
-    assert is_valid_hint(Optional[RunConfiguration]) is True  # type: ignore[arg-type]
+    assert is_valid_hint(RuntimeConfiguration) is True
+    assert is_valid_hint(Optional[RuntimeConfiguration]) is True  # type: ignore[arg-type]
     assert is_valid_hint(TSecretValue) is True
     assert is_valid_hint(Optional[TSecretValue]) is True  # type: ignore[arg-type]
     # in case of generics, origin will be used and args are not checked
@@ -1090,7 +1094,7 @@ def test_do_not_resolve_twice(environment: Any) -> None:
     c = resolve.resolve_configuration(SecretConfiguration())
     assert c.secret_value == "password"
     c2 = SecretConfiguration()
-    c2.secret_value = "other"  # type: ignore[assignment]
+    c2.secret_value = "other"
     c2.__is_resolved__ = True
     assert c2.is_resolved()
     # will not overwrite with env
@@ -1103,7 +1107,7 @@ def test_do_not_resolve_twice(environment: Any) -> None:
     assert c4.secret_value == "password"
     assert c2 is c3 is c4
     # also c is resolved so
-    c.secret_value = "else"  # type: ignore[assignment]
+    c.secret_value = "else"
     assert resolve.resolve_configuration(c).secret_value == "else"
 
 
@@ -1112,7 +1116,7 @@ def test_do_not_resolve_embedded(environment: Any) -> None:
     c = resolve.resolve_configuration(EmbeddedSecretConfiguration())
     assert c.secret.secret_value == "password"
     c2 = SecretConfiguration()
-    c2.secret_value = "other"  # type: ignore[assignment]
+    c2.secret_value = "other"
     c2.__is_resolved__ = True
     embed_c = EmbeddedSecretConfiguration()
     embed_c.secret = c2
@@ -1210,13 +1214,23 @@ def test_extract_inner_hint() -> None:
     # extracts new types
     assert resolve.extract_inner_hint(TSecretValue) is AnyType
     # preserves new types on extract
-    assert resolve.extract_inner_hint(TSecretValue, preserve_new_types=True) is TSecretValue
+    assert resolve.extract_inner_hint(CallableAny, preserve_new_types=True) is CallableAny
+    # extracts and preserves annotated
+    assert resolve.extract_inner_hint(Optional[Annotated[int, "X"]]) is int  # type: ignore[arg-type]
+    TAnnoInt = Annotated[int, "X"]
+    assert resolve.extract_inner_hint(Optional[TAnnoInt], preserve_annotated=True) is TAnnoInt  # type: ignore[arg-type]
+    # extracts and preserves literals
+    TLit = Literal["a", "b"]
+    TAnnoLit = Annotated[TLit, "X"]
+    assert resolve.extract_inner_hint(TAnnoLit, preserve_literal=True) is TLit  # type: ignore[arg-type]
+    assert resolve.extract_inner_hint(TAnnoLit, preserve_literal=False) is str  # type: ignore[arg-type]
 
 
 def test_is_secret_hint() -> None:
     assert resolve.is_secret_hint(GcpServiceAccountCredentialsWithoutDefaults) is True
     assert resolve.is_secret_hint(Optional[GcpServiceAccountCredentialsWithoutDefaults]) is True  # type: ignore[arg-type]
     assert resolve.is_secret_hint(TSecretValue) is True
+    assert resolve.is_secret_hint(TSecretStrValue) is True
     assert resolve.is_secret_hint(Optional[TSecretValue]) is True  # type: ignore[arg-type]
     assert resolve.is_secret_hint(InstrumentedConfiguration) is False
     # do not recognize new types
@@ -1232,9 +1246,8 @@ def test_is_secret_hint() -> None:
 
 
 def test_is_secret_hint_custom_type() -> None:
-    # any new type named TSecretValue is a secret
-    assert resolve.is_secret_hint(NewType("TSecretValue", int)) is True
-    assert resolve.is_secret_hint(NewType("TSecretValueX", int)) is False
+    # any type annotated with SecretSentinel is secret
+    assert resolve.is_secret_hint(Annotated[int, SecretSentinel]) is True  # type: ignore[arg-type]
 
 
 def coerce_single_value(key: str, value: str, hint: Type[Any]) -> Any:

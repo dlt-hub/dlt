@@ -9,7 +9,7 @@ from dlt.common.configuration.providers import EnvironProvider
 from dlt.common.configuration.specs import CredentialsConfiguration, BaseConfiguration
 from dlt.common.configuration import configspec, resolve_configuration
 from dlt.common.configuration.specs.gcp_credentials import GcpServiceAccountCredentials
-from dlt.common.typing import TSecretValue
+from dlt.common.typing import TSecretStrValue
 from dlt.common.configuration.specs.connection_string_credentials import ConnectionStringCredentials
 from dlt.common.configuration.resolve import initialize_credentials
 from dlt.common.configuration.specs.exceptions import NativeValueError
@@ -27,14 +27,14 @@ class ZenCredentials(CredentialsConfiguration):
 @configspec
 class ZenEmailCredentials(ZenCredentials):
     email: str = None
-    password: TSecretValue = None
+    password: TSecretStrValue = None
 
     def parse_native_representation(self, native_value: Any) -> None:
         assert isinstance(native_value, str)
         if native_value.startswith("email:"):
             parts = native_value.split(":")
             self.email = parts[-2]
-            self.password = parts[-1]  # type: ignore[assignment]
+            self.password = parts[-1]
         else:
             raise NativeValueError(self.__class__, native_value, "invalid email NV")
 
@@ -45,14 +45,14 @@ class ZenEmailCredentials(ZenCredentials):
 @configspec
 class ZenApiKeyCredentials(ZenCredentials):
     api_key: str = None
-    api_secret: TSecretValue = None
+    api_secret: TSecretStrValue = None
 
     def parse_native_representation(self, native_value: Any) -> None:
         assert isinstance(native_value, str)
         if native_value.startswith("secret:"):
             parts = native_value.split(":")
             self.api_key = parts[-2]
-            self.api_secret = parts[-1]  # type: ignore[assignment]
+            self.api_secret = parts[-1]
         else:
             raise NativeValueError(self.__class__, native_value, "invalid secret NV")
 
@@ -201,10 +201,10 @@ class GoogleAnalyticsCredentialsOAuth(GoogleAnalyticsCredentialsBase):
     """
 
     client_id: str = None
-    client_secret: TSecretValue = None
-    project_id: TSecretValue = None
-    refresh_token: TSecretValue = None
-    access_token: Optional[TSecretValue] = None
+    client_secret: TSecretStrValue = None
+    project_id: TSecretStrValue = None
+    refresh_token: TSecretStrValue = None
+    access_token: Optional[TSecretStrValue] = None
 
 
 @dlt.source(max_table_nesting=2)

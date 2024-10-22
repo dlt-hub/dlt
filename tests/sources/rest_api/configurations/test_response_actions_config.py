@@ -31,14 +31,14 @@ def test_create_multiple_response_actions():
         {"status_code": 200, "content": "some text", "action": "ignore"},
     ]
     hooks = create_response_hooks(response_actions)
-    assert len(hooks["response"]) == 4
+    assert len(hooks["response"]) == 5
 
     response_actions_2: List[ResponseAction] = [
         custom_hook,
         {"status_code": 200, "action": custom_hook},
     ]
     hooks_2 = create_response_hooks(response_actions_2)
-    assert len(hooks_2["response"]) == 2
+    assert len(hooks_2["response"]) == 3
 
 
 def test_response_action_raises_type_error(mocker):

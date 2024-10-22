@@ -12,9 +12,9 @@ from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.configuration.inject import get_fun_spec
 from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
+from dlt.common.configuration.specs.pluggable_run_context import PluggableRunContext
 from dlt.common.exceptions import ArgumentsOverloadException, DictValidationException
 from dlt.common.pipeline import StateInjectableContext, TPipelineState
-from dlt.common.source import _SOURCES
 from dlt.common.schema import Schema
 from dlt.common.schema.utils import new_table, new_column
 from dlt.common.schema.typing import TTableSchemaColumns
@@ -23,9 +23,12 @@ from dlt.common.typing import TDataItem
 
 from dlt.cli.source_detection import detect_source_configs
 from dlt.common.utils import custom_environ
+from dlt.extract.decorators import DltSourceFactoryWrapper
+from dlt.extract.source import SourceReference
 from dlt.extract import DltResource, DltSource
 from dlt.extract.exceptions import (
     DynamicNameNotStandaloneResource,
+    ExplicitSourceNameInvalid,
     InvalidResourceDataTypeFunctionNotAGenerator,
     InvalidResourceDataTypeIsNone,
     InvalidResourceDataTypeMultiplePipes,
@@ -39,10 +42,12 @@ from dlt.extract.exceptions import (
     SourceNotAFunction,
     CurrentSourceSchemaNotAvailable,
     InvalidParallelResourceDataType,
+    UnknownSourceReference,
 )
 from dlt.extract.items import TableNameMeta
 
 from tests.common.utils import load_yml_case
+from tests.utils import MockableRunContext
 
 
 def test_default_resource() -> None:
@@ -297,6 +302,29 @@ def test_apply_hints_columns() -> None:
     # delete columns by passing empty
     users.apply_hints(columns={})
     assert users.columns == {}
+
+
+def test_apply_hints_reference() -> None:
+    @dlt.resource(
+        references=[
+            {
+                "columns": ["User ID", "user_name"],
+                "referenced_table": "users",
+                "referenced_columns": ["id", "name"],
+            }
+        ]
+    )
+    def campaigns():
+        yield []
+
+    table_schema = campaigns().compute_table_schema()
+    assert table_schema["references"] == [
+        {
+            "columns": ["User ID", "user_name"],
+            "referenced_table": "users",
+            "referenced_columns": ["id", "name"],
+        }
+    ]
 
 
 def test_columns_from_pydantic() -> None:
@@ -660,6 +688,201 @@ def test_source_schema_modified() -> None:
     assert "table" not in s.discover_schema().tables
 
 
+@dlt.source(name="shorthand", section="shorthand")
+def with_shorthand_registry(data):
+    return dlt.resource(data, name="alpha")
+
+
+@dlt.source
+def test_decorators():
+    return dlt.resource(["A", "B"], name="alpha")
+
+
+@dlt.resource
+def res_reg_with_secret(secretz: str = dlt.secrets.value):
+    yield [secretz] * 3
+
+
+def test_source_reference() -> None:
+    # shorthand works when name  == section
+    ref = SourceReference.from_reference("shorthand")
+    assert list(ref(["A", "B"])) == ["A", "B"]
+    ref = SourceReference.from_reference("shorthand.shorthand")
+    assert list(ref(["A", "B"])) == ["A", "B"]
+    # same for test_decorators
+    ref = SourceReference.from_reference("test_decorators")
+    assert list(ref()) == ["A", "B"]
+    ref = SourceReference.from_reference("test_decorators.test_decorators")
+    assert list(ref()) == ["A", "B"]
+
+    # inner sources are registered
+    @dlt.source
+    def _inner_source():
+        return dlt.resource(["C", "D"], name="beta")
+
+    ref = SourceReference.from_reference("test_decorators._inner_source")
+    assert list(ref()) == ["C", "D"]
+
+    # duplicate section / name will replace registration
+    @dlt.source(name="_inner_source")
+    def _inner_source_2():
+        return dlt.resource(["E", "F"], name="beta")
+
+    ref = SourceReference.from_reference("test_decorators._inner_source")
+    assert list(ref()) == ["E", "F"]
+
+    # unknown reference
+    with pytest.raises(UnknownSourceReference) as ref_ex:
+        SourceReference.from_reference("$ref")
+    assert ref_ex.value.ref == ["dlt.$ref.$ref"]
+
+    @dlt.source(section="special")
+    def absolute_config(init: int, mark: str = dlt.config.value, secret: str = dlt.secrets.value):
+        # will need to bind secret
+        return (res_reg_with_secret, dlt.resource([init, mark, secret], name="dump"))
+
+    ref = SourceReference.from_reference("special.absolute_config")
+    os.environ["SOURCES__SPECIAL__MARK"] = "ma"
+    os.environ["SOURCES__SPECIAL__SECRET"] = "sourse"
+    # resource when in source adopts source section
+    os.environ["SOURCES__SPECIAL__RES_REG_WITH_SECRET__SECRETZ"] = "resourse"
+    source = ref(init=100)
+    assert list(source) == ["resourse", "resourse", "resourse", 100, "ma", "sourse"]
+
+
+def test_source_reference_with_context() -> None:
+    ctx = PluggableRunContext()
+    mock = MockableRunContext.from_context(ctx.context)
+    mock._name = "mock"
+    ctx.context = mock
+
+    with Container().injectable_context(ctx):
+        # should be able to import things from dlt package
+        ref = SourceReference.from_reference("shorthand")
+        assert list(ref(["A", "B"])) == ["A", "B"]
+        ref = SourceReference.from_reference("shorthand.shorthand")
+        assert list(ref(["A", "B"])) == ["A", "B"]
+        # unknown reference
+        with pytest.raises(UnknownSourceReference) as ref_ex:
+            SourceReference.from_reference("$ref")
+        assert ref_ex.value.ref == ["mock.$ref.$ref", "dlt.$ref.$ref"]
+        with pytest.raises(UnknownSourceReference) as ref_ex:
+            SourceReference.from_reference("mock.$ref.$ref")
+        assert ref_ex.value.ref == ["mock.$ref.$ref"]
+
+        # create a "shorthand" source in this context
+        @dlt.source(name="shorthand", section="shorthand")
+        def with_shorthand_registry(data):
+            return dlt.resource(list(reversed(data)), name="alpha")
+
+        ref = SourceReference.from_reference("shorthand")
+        assert list(ref(["C", "x"])) == ["x", "C"]
+        ref = SourceReference.from_reference("mock.shorthand.shorthand")
+        assert list(ref(["C", "x"])) == ["x", "C"]
+        # from dlt package
+        ref = SourceReference.from_reference("dlt.shorthand.shorthand")
+        assert list(ref(["C", "x"])) == ["C", "x"]
+
+
+def test_source_reference_from_module() -> None:
+    ref = SourceReference.from_reference("tests.extract.test_decorators.with_shorthand_registry")
+    assert list(ref(["C", "x"])) == ["C", "x"]
+
+    # module exists but attr is not a factory
+    with pytest.raises(UnknownSourceReference) as ref_ex:
+        SourceReference.from_reference(
+            "tests.extract.test_decorators.test_source_reference_from_module"
+        )
+    assert ref_ex.value.ref == ["tests.extract.test_decorators.test_source_reference_from_module"]
+
+    # wrong module
+    with pytest.raises(UnknownSourceReference) as ref_ex:
+        SourceReference.from_reference(
+            "test.extract.test_decorators.test_source_reference_from_module"
+        )
+    assert ref_ex.value.ref == ["test.extract.test_decorators.test_source_reference_from_module"]
+
+
+def test_source_factory_with_args() -> None:
+    # check typing - no type ignore below!
+    factory = with_shorthand_registry.with_args
+    # do not override anything
+    source = factory()(data=["AXA"])
+    assert list(source) == ["AXA"]
+
+    # there are some overrides from decorator
+    assert with_shorthand_registry.name == "shorthand"  # type: ignore
+    assert with_shorthand_registry.section == "shorthand"  # type: ignore
+
+    # with_args creates clones
+    source_f_1: DltSourceFactoryWrapper[Any, DltSource] = factory(  # type: ignore
+        max_table_nesting=1, root_key=True
+    )
+    source_f_2: DltSourceFactoryWrapper[Any, DltSource] = factory(  # type: ignore
+        max_table_nesting=1, root_key=False, schema_contract="discard_value"
+    )
+    assert source_f_1 is not source_f_2
+
+    # check if props are set
+    assert source_f_1.name == source_f_2.name == "shorthand"
+    assert source_f_1.section == source_f_2.section == "shorthand"
+    assert source_f_1.max_table_nesting == source_f_2.max_table_nesting == 1
+    assert source_f_1.root_key is True
+    assert source_f_2.root_key is False
+    assert source_f_2.schema_contract == "discard_value"
+
+    # check if props are preserved when not set
+    incompat_schema = Schema("incompat")
+    with pytest.raises(ExplicitSourceNameInvalid):
+        source_f_1.with_args(
+            section="special", schema=incompat_schema, parallelized=True, schema_contract="evolve"
+        )
+
+    compat_schema = Schema("shorthand")
+    compat_schema.tables["alpha"] = new_table("alpha")
+    source_f_3 = source_f_1.with_args(
+        section="special", schema=compat_schema, parallelized=True, schema_contract="evolve"
+    )
+    assert source_f_3.name == "shorthand"
+    assert source_f_3.section == "special"
+    assert source_f_3.max_table_nesting == 1
+    assert source_f_3.root_key is True
+    assert source_f_3.schema is compat_schema
+    assert source_f_3.parallelized is True
+    assert source_f_3.schema_contract == "evolve"
+    source_f_3 = source_f_3.with_args()
+    assert source_f_3.name == "shorthand"
+    assert source_f_3.section == "special"
+    assert source_f_3.max_table_nesting == 1
+    assert source_f_3.root_key is True
+    assert source_f_3.schema is compat_schema
+    assert source_f_3.parallelized is True
+    assert source_f_3.schema_contract == "evolve"
+
+    # create source
+    source = source_f_3(["A", "X"])
+    assert source.root_key is True
+    assert source.schema.tables["alpha"] == compat_schema.tables["alpha"]
+    assert source.name == "shorthand"
+    assert source.section == "special"
+    assert source.max_table_nesting == 1
+    assert source.schema_contract == "evolve"
+
+    # when section / name are changed, config location follows
+    @dlt.source
+    def absolute_config(init: int, mark: str = dlt.config.value, secret: str = dlt.secrets.value):
+        # will need to bind secret
+        return (res_reg_with_secret, dlt.resource([init, mark, secret], name="dump"))
+
+    absolute_config = absolute_config.with_args(name="absolute", section="special")
+    os.environ["SOURCES__SPECIAL__ABSOLUTE__MARK"] = "ma"
+    os.environ["SOURCES__SPECIAL__ABSOLUTE__SECRET"] = "sourse"
+    # resource when in source adopts source section
+    os.environ["SOURCES__SPECIAL__RES_REG_WITH_SECRET__SECRETZ"] = "resourse"
+    source = absolute_config(init=100)
+    assert list(source) == ["resourse", "resourse", "resourse", 100, "ma", "sourse"]
+
+
 @dlt.resource
 def standalone_resource(secret=dlt.secrets.value, config=dlt.config.value, opt: str = "A"):
     yield 1
@@ -701,7 +924,7 @@ def test_spec_generation() -> None:
     def inner_source(secret=dlt.secrets.value, config=dlt.config.value, opt: str = "A"):
         return standalone_resource
 
-    SPEC = _SOURCES[inner_source.__qualname__].SPEC
+    SPEC = SourceReference.find("test_decorators.inner_source").SPEC
     fields = SPEC.get_resolvable_fields()
     assert {"secret", "config", "opt"} == set(fields.keys())
 
@@ -717,21 +940,23 @@ def test_sources_no_arguments() -> None:
         return dlt.resource([1, 2], name="data")
 
     # there is a spec even if no arguments
-    SPEC = _SOURCES[no_args.__qualname__].SPEC
+    SPEC = SourceReference.find("dlt.test_decorators.no_args").SPEC
     assert SPEC
-    _, _, checked = detect_source_configs(_SOURCES, "", ())
-    assert no_args.__qualname__ in checked
 
-    SPEC = _SOURCES[no_args.__qualname__].SPEC
+    # source names are used to index detected sources
+    _, _, checked = detect_source_configs(SourceReference.SOURCES, "", ())
+    assert "no_args" in checked
+
+    SPEC = SourceReference.find("dlt.test_decorators.not_args_r").SPEC
     assert SPEC
-    _, _, checked = detect_source_configs(_SOURCES, "", ())
-    assert not_args_r.__qualname__ in checked
+    _, _, checked = detect_source_configs(SourceReference.SOURCES, "", ())
+    assert "not_args_r" in checked
 
     @dlt.resource
     def not_args_r_i():
         yield from [1, 2, 3]
 
-    assert not_args_r_i.__qualname__ not in _SOURCES
+    assert "dlt.test_decorators.not_args_r_i" not in SourceReference.SOURCES
 
     # you can call those
     assert list(no_args()) == [1, 2]
@@ -764,6 +989,7 @@ def test_custom_source_impl() -> None:
         return users
 
     s = all_users()
+    assert isinstance(s, TypedSource)
     assert list(s.users("group")) == ["group"]
 
 
@@ -853,9 +1079,74 @@ def test_standalone_resource() -> None:
     assert list(standalone_signature(1)) == [1, 2, 3, 4]
 
 
+@pytest.mark.parametrize("res", (standalone_signature, regular_signature))
+def test_reference_registered_resource(res: DltResource) -> None:
+    if isinstance(res, DltResource):
+        ref = res(1, 2).name
+        # find reference
+        res_ref = SourceReference.find(f"test_decorators.{ref}")
+        assert res_ref.SPEC is res.SPEC
+    else:
+        ref = res.__name__
+    # create source with single res.
+    factory = SourceReference.from_reference(f"test_decorators.{ref}")
+    # pass explicit config
+    source = factory(init=1, secret_end=3)
+    assert source.name == ref
+    assert source.section == ""
+    assert ref in source.resources
+    assert list(source) == [1, 2]
+
+    # use regular config
+    os.environ[f"SOURCES__TEST_DECORATORS__{ref.upper()}__SECRET_END"] = "5"
+    source = factory(init=1)
+    assert list(source) == [1, 2, 3, 4]
+
+    # use config with override
+    # os.environ["SOURCES__SECTION__SIGNATURE__INIT"] = "-1"
+    os.environ["SOURCES__SECTION__SIGNATURE__SECRET_END"] = "7"
+    source = factory.with_args(
+        name="signature",
+        section="section",
+        max_table_nesting=1,
+        root_key=True,
+        schema_contract="freeze",
+        parallelized=True,
+    )(-1)
+    assert list(source) == [-1, 0, 1, 2, 3, 4, 5, 6]
+    # use renamed name
+    resource = source.signature
+    assert resource.section == "section"
+    assert resource.name == "signature"
+    assert resource.max_table_nesting == 1
+    assert resource.schema_contract == "freeze"
+
+
+def test_inner_resource_not_registered() -> None:
+    # inner resources are not registered
+    @dlt.resource(standalone=True)
+    def inner_data_std():
+        yield [1, 2, 3]
+
+    with pytest.raises(UnknownSourceReference):
+        SourceReference.from_reference("test_decorators.inner_data_std")
+
+    @dlt.resource()
+    def inner_data_reg():
+        yield [1, 2, 3]
+
+    with pytest.raises(UnknownSourceReference):
+        SourceReference.from_reference("test_decorators.inner_data_reg")
+
+
 @dlt.transformer(standalone=True)
 def standalone_transformer(item: TDataItem, init: int, secret_end: int = dlt.secrets.value):
     """Has fine transformer docstring"""
+    yield from range(item + init, secret_end)
+
+
+@dlt.transformer
+def regular_transformer(item: TDataItem, init: int, secret_end: int = dlt.secrets.value):
     yield from range(item + init, secret_end)
 
 
@@ -863,6 +1154,32 @@ def standalone_transformer(item: TDataItem, init: int, secret_end: int = dlt.sec
 def standalone_transformer_returns(item: TDataItem, init: int = dlt.config.value):
     """Has fine transformer docstring"""
     return "A" * item * init
+
+
+@pytest.mark.parametrize("ref", ("standalone_transformer", "regular_transformer"))
+def test_reference_registered_transformer(ref: str) -> None:
+    factory = SourceReference.from_reference(f"test_decorators.{ref}")
+    bound_tx = standalone_signature(1, 3) | factory(5, 10).resources.detach()
+    print(bound_tx)
+    assert list(bound_tx) == [6, 7, 7, 8, 8, 9, 9]
+
+    # use regular config
+    os.environ[f"SOURCES__TEST_DECORATORS__{ref.upper()}__SECRET_END"] = "7"
+    bound_tx = standalone_signature(1, 3) | factory(5).resources.detach()
+    assert list(bound_tx) == [6]
+
+    # use config with override
+    os.environ["SOURCES__SECTION__SIGNATURE__SECRET_END"] = "8"
+    source = factory.with_args(
+        name="signature",
+        section="section",
+        max_table_nesting=1,
+        root_key=True,
+        schema_contract="freeze",
+        parallelized=True,
+    )(5)
+    bound_tx = standalone_signature(1, 3) | source.resources.detach()
+    assert list(bound_tx) == [6, 7, 7]
 
 
 @pytest.mark.parametrize("next_item_mode", ["fifo", "round_robin"])
@@ -1067,7 +1384,6 @@ async def test_async_source() -> None:
     async def _assert_source(source_coro_f, expected_data) -> None:
         # test various forms of source decorator, parens, no parens, yield, return
         source_coro = source_coro_f()
-        assert inspect.iscoroutinefunction(source_coro_f)
         assert inspect.iscoroutine(source_coro)
         source = await source_coro
         assert "data" in source.resources
