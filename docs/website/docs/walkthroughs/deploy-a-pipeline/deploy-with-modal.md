@@ -42,7 +42,7 @@ Here’s a dlt project setup to copy data from our MySQL into DuckDB:
    dlt init sql_database duckdb
    ```
 2. Open the file and define the Modal Image you want to run `dlt` in:
-   <!--@@@DLT_SNIPPET ./snippets/deploy-with-modal-snippets.py::modal_image-->
+   <!--@@@DLT_SNIPPET ./deploy_snippets/deploy-with-modal-snippets.py::modal_image-->
 
 3. Define a Modal Function. A Modal Function is a containerized environment that runs tasks.
    It can be scheduled (e.g., daily or on a Cron schedule), request more CPU/memory, and scale across
@@ -50,7 +50,7 @@ Here’s a dlt project setup to copy data from our MySQL into DuckDB:
 
    Here’s how to include your SQL pipeline in the Modal Function:
 
-   <!--@@@DLT_SNIPPET ./snippets/deploy-with-modal-snippets.py::modal_function-->
+   <!--@@@DLT_SNIPPET ./deploy_snippets/deploy-with-modal-snippets.py::modal_function-->
 
 4. You can securely store your credentials using Modal secrets. When you reference secrets within a Modal script,
    the defined secret is automatically set as an environment variable. dlt natively supports environment variables,
