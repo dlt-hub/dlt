@@ -2,7 +2,9 @@ from typing import Any, List, Optional
 from unittest import mock
 
 import pytest
-from requests import Request, Response, Session
+from requests import Request, Response, Session as BaseSession
+
+from dlt.sources.helpers.requests import Session
 
 import dlt
 from dlt.common import pendulum
@@ -352,3 +354,39 @@ def test_DltResource_gets_called(mock_api_server, mocker) -> None:
         for i in range(3):
             _, kwargs = mock_paginate.call_args_list[i]
             assert kwargs["path"] == f"posts/{i}/comments"
+
+
+def test_logs_full_response_on_http_error(mock_api_server, mocker):
+    my_session = Session()
+    mocked_send = mocker.spy(my_session, "_log_full_response_if_error")
+    logger_spy = mocker.spy(dlt.common.logger, "error")
+
+    source = rest_api_source(
+        {
+            "client": {
+                "base_url": "https://api.example.com",
+                "session": my_session,
+            },
+            "resources": [
+                {
+                    "name": "crash",
+                    "endpoint": {
+                        "path": "/posts/2/some_details_404",
+                    },
+                },
+            ],
+        }
+    )
+
+    with pytest.raises(dlt.extract.exceptions.ResourceExtractionError):
+        list(source.with_resources("crash"))
+
+    mocked_send.assert_called_once()
+    logger_spy.assert_called_once_with(
+        "404 Client Error: None for url: https://api.example.com/posts/2/some_details_404. Full"
+        ' response: {"error":"Post not found"}'
+    )
+
+    assert mocked_send.call_args[0][0].status_code == 404
+    assert mocked_send.call_args[0][0].text == '{"error":"Post not found"}'
+    assert mocked_send.call_args[0][0].url == "https://api.example.com/posts/2/some_details_404"
