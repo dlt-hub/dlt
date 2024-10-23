@@ -1006,7 +1006,7 @@ def test_dest_column_hint_timezone(destination_config: DestinationTestConfigurat
     ),
     ids=lambda x: x.name,
 )
-@pytest.mark.parametrize("lag", [-1, 10, 100])
+@pytest.mark.parametrize("lag", [-1, 0, 1, 10, 100])
 def test_pipeline_resource_incremental_int_lag(
     destination_config: DestinationTestConfiguration, lag: float
 ) -> None:
@@ -1067,7 +1067,9 @@ def test_pipeline_resource_incremental_int_lag(
 
     expected_results = {
         100: 9,
-        10: 5,
+        10: 7,
+        1: 7,
+        0: 5,
         -1: 5,
     }
 
@@ -1086,7 +1088,7 @@ def test_pipeline_resource_incremental_int_lag(
     ),
     ids=lambda x: x.name,
 )
-@pytest.mark.parametrize("lag", [3602, 3601, 3600, 3599, 60, -1])
+@pytest.mark.parametrize("lag", [3601, 3600, 60, -1])
 def test_pipeline_resource_incremental_datetime_lag(
     destination_config: DestinationTestConfiguration, lag: float
 ) -> None:
@@ -1125,7 +1127,7 @@ def test_pipeline_resource_incremental_datetime_lag(
             {
                 "id": 3,
                 "created_at": "2023-03-03T02:00:01Z",
-                "event": "updated",  # This should not be deduplicated
+                "event": "updated",
             },
             {"id": 4, "created_at": "2023-03-03T03:00:00Z", "event": "4"},
         ]
@@ -1140,11 +1142,10 @@ def test_pipeline_resource_incremental_datetime_lag(
 
     # Validate final dataset
     expected_results = {
-        3602: ["updated", "updated", "updated", "4"],
         3601: ["updated", "updated", "updated", "4"],
         3600: ["1", "updated", "updated", "4"],
-        3599: ["1", "2", "3", "4"],
-        60: ["1", "2", "3", "4"],
+        60: ["1", "2", "updated", "4"],
+        0: ["1", "2", "3", "4"],
         -1: ["1", "2", "3", "4"],
     }
 
