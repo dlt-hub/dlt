@@ -1006,7 +1006,7 @@ def test_dest_column_hint_timezone(destination_config: DestinationTestConfigurat
     ),
     ids=lambda x: x.name,
 )
-@pytest.mark.parametrize("lag", [-1, 10])
+@pytest.mark.parametrize("lag", [-1, 10, 100])
 def test_pipeline_resource_incremental_int_lag(
     destination_config: DestinationTestConfiguration, lag: float
 ) -> None:
@@ -1040,7 +1040,7 @@ def test_pipeline_resource_incremental_int_lag(
             {"id": 100, "name": "updated"},
             {"id": 200, "name": "updated"},
             {"id": 300, "name": "updated"},
-            {"id": 400, "name": "mark"},
+            {"id": 400, "name": "mark"},  # the lag will be applied here
         ]
 
         third_run_events = [
@@ -1066,15 +1066,17 @@ def test_pipeline_resource_incremental_int_lag(
     pipeline.run(items_resource)
 
     expected_results = {
-        10: ["maria", "john", "bobby", "mark", "nicolas"],
-        -1: ["maria", "john", "bobby", "mark", "nicolas"],
+        100: 9,
+        10: 5,
+        -1: 5,
     }
 
     # Validate final dataset
     with pipeline.sql_client() as sql_client:
-        assert [
-            row[0] for row in sql_client.execute_sql(f"SELECT name FROM {name} ORDER BY id")
-        ] == expected_results[int(lag)]
+        assert (
+            sql_client.execute_sql(f"SELECT count(*) FROM {name}")[0][0]
+            == expected_results[int(lag)]
+        )
 
 
 @pytest.mark.parametrize(

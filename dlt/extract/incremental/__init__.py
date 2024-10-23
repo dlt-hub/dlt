@@ -195,10 +195,8 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
                 self._primary_key,
                 set(self._cached_state["unique_hashes"]),
                 self.on_cursor_value_missing,
+                self.lag,
             )
-
-            if self._lag:
-                self._transformers[dt].deduplication_disabled = True
 
     @classmethod
     def from_existing_state(
