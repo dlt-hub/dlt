@@ -1,6 +1,6 @@
 import os
 from copy import deepcopy
-from typing import Generator, Any, Dict, List
+from typing import Generator, Any, Dict, List, Tuple
 
 import pytest
 import sqlfluff
@@ -258,7 +258,9 @@ def test_parse_geometry_func():
     expected_hex = wkb.dumps(wkt.loads(valid_polygon_wkt)).hex()
     assert result.lower() == expected_hex.lower()
 
-    valid_multipolygon_wkt = "MULTIPOLYGON(((0 0, 0 1, 1 1, 1 0, 0 0)), ((2 2, 2 3, 3 3, 3 2, 2 2)))"
+    valid_multipolygon_wkt = (
+        "MULTIPOLYGON(((0 0, 0 1, 1 1, 1 0, 0 0)), ((2 2, 2 3, 3 3, 3 2, 2 2)))"
+    )
     result = geom_func(valid_multipolygon_wkt)
     assert result is not None
     assert isinstance(result, str)
@@ -282,10 +284,32 @@ def test_parse_geometry_func():
     result = geom_func(non_geometric_integer)
     assert result is None
 
-    empty_bytes_input = b''
+    empty_bytes_input = b""
     result = geom_func(empty_bytes_input)
     assert result is None
 
+
+@pytest.mark.parametrize(
+    "data, expected",
+    [
+        (
+            "(E'Point_wkt',E'POINT (1 1)',E'1729364788.3912747',E'vl/uvFjm2QFrDQ');",
+            [("Point_wkt", "POINT (1 1)", "1729364788.3912747", "vl/uvFjm2QFrDQ")],
+        ),
+        ("(a,b,c),(d,e,f);", [("a", "b", "c"), ("d", "e", "f")]),
+        ("((a,b),c);", [("(a,b)", "c")]),
+        (
+            "(1, 2.5, true, false, NULL, 'string', E'escaped\\nstring');",
+            [(1, 2.5, True, False, None, "string", "escaped\nstring")],
+        ),
+        ("(E'\\tTabbed\\nNewline', E'\\\\Backslash');", [("\tTabbed\nNewline", "\\Backslash")]),
+        ("('nested,(parentheses)', simple);", [("nested,(parentheses)", "simple")]),
+    ],
+)
+def test_extract_records_from_fragment(data: str, expected: List[Tuple[Any, ...]]):
+    assert (
+        PostgresInsertValuesWithGeometryTypesLoadJob.extract_records_from_fragment(data) == expected
+    )
 
 
 @pytest.mark.parametrize(

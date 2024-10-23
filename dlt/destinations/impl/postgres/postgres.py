@@ -1,6 +1,6 @@
 import contextlib
 import re
-from typing import Dict, Optional, Sequence, List, Any, Iterator
+from typing import Dict, Optional, Sequence, List, Any, Iterator, Tuple
 
 from shapely import wkt, wkb
 from shapely.geometry.base import BaseGeometry
@@ -158,6 +158,60 @@ class PostgresInsertValuesWithGeometryTypesLoadJob(InsertValuesLoadJob):
                     return geom.wkb_hex
         return None
 
+    @staticmethod
+    def extract_records_from_fragment(fragment: str) -> List[Tuple[Any, ...]]:
+        def parse_value(value: str) -> Any:
+            value = value.strip()
+            if value.startswith("E'") and value.endswith("'"):
+                return bytes(value[2:-1], "utf-8").decode("unicode_escape")
+            if value.startswith("'") and value.endswith("'"):
+                return value[1:-1]
+            if value.lower() in ('true', 'false'):
+                return value.lower()=='true'
+            if value.lower()=='null':
+                return None
+            try:
+                return int(value)
+            except ValueError:
+                try:
+                    return float(value)
+                except ValueError:
+                    return value
+
+        def split_record(record: str) -> List[str]:
+            fields, current_field, paren_level, in_quotes = [], [], 0, False
+            escape = False
+            for char in record:
+                if escape:
+                    current_field.append(char)
+                    escape = False
+                    continue
+                if char=='\\':
+                    escape = True
+                    current_field.append(char)
+                    continue
+                if char=="'" and not in_quotes:
+                    in_quotes = True
+                elif char=="'" and in_quotes:
+                    in_quotes = False
+                elif char in '([{':
+                    paren_level += 1
+                elif char in ')]}':
+                    paren_level -= 1
+                elif char==',' and paren_level==0 and not in_quotes:
+                    fields.append(''.join(current_field).strip())
+                    current_field = []
+                    continue
+                current_field.append(char)
+            fields.append(''.join(current_field).strip())
+            return fields
+
+            # Match top-level records using regex with non-greedy matching for nested structures
+
+        record_strings = re.findall(r'\((.*?)\)(?=,|\Z)', fragment)
+        records = [tuple(parse_value(field) for field in split_record(record)) for record in record_strings]
+        return records
+
     def _insert(self, qualified_table_name: str, file_path: str) -> Iterator[List[str]]:
         to_insert = super()._insert(qualified_table_name, file_path)
         for fragments in to_insert:
@@ -167,7 +221,9 @@ class PostgresInsertValuesWithGeometryTypesLoadJob(InsertValuesLoadJob):
                     processed_fragments.append(fragment)
                 else:
                     columns = self._load_table["columns"]
-                    processed_fragment_lines: List[ str ] = re.findall(r"\(E'[^']+',E'[^']+',E'[^']+',E'[^']+'\)", fragment)
+                    processed_fragment_lines: List[str] = re.findall(
+                        r"\(E'[^']+',E'[^']+',E'[^']+',E'[^']+'\)", fragment
+                    )
 
                     for line in processed_fragment_lines:
                         processed_fragment: List[str] = re.findall(r"", fragment)
