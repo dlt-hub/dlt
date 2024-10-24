@@ -1,0 +1,2 @@
+[destination.filesystem]
+bucket_url_s3="s3://dlt-ci-test-bucket"
