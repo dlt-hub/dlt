@@ -344,7 +344,8 @@ Some things to note with the adapter's behavior:
 - You can cluster on as many columns as you would like.
 - Sequential adapter calls on the same resource accumulate parameters, akin to an OR operation, for a unified execution.
 
-> ❗ At the time of writing, table level options aren't supported for `ALTER` operations.
+:::caution
+At the time of writing, table level options aren't supported for `ALTER` operations.
 
 Note that `bigquery_adapter` updates the resource *in place*, but returns the resource for convenience, i.e., both the following are valid:
 
@@ -354,6 +355,7 @@ my_resource = bigquery_adapter(my_resource, partition="partition_column_name")
 ```
 
 Refer to the [full API specification](../../api_reference/destinations/impl/bigquery/bigquery_adapter) for more details.
+:::
 
 <!--@@@DLT_TUBA bigquery-->
 

@@ -74,13 +74,17 @@ profile_name="dlt-ci-user"
 - `replace`
 - `merge`
 
-> The `merge` write disposition uses the default DELETE/UPDATE/INSERT strategy to merge data into the destination. Be aware that Dremio does not support transactions, so a partial pipeline failure can result in the destination table being in an inconsistent state. The `merge` write disposition will eventually be implemented using [MERGE INTO](https://docs.dremio.com/current/reference/sql/commands/apache-iceberg-tables/apache-iceberg-merge/) to resolve this issue.
+:::note
+The `merge` write disposition uses the default DELETE/UPDATE/INSERT strategy to merge data into the destination. Be aware that Dremio does not support transactions, so a partial pipeline failure can result in the destination table being in an inconsistent state. The `merge` write disposition will eventually be implemented using [MERGE INTO](https://docs.dremio.com/current/reference/sql/commands/apache-iceberg-tables/apache-iceberg-merge/) to resolve this issue.
+:::
 
 ## Data loading
 
 Data loading happens by copying staged parquet files from an object storage bucket to the destination table in Dremio using [COPY INTO](https://docs.dremio.com/cloud/reference/sql/commands/copy-into-table/) statements. The destination table format is specified by the storage format for the data source in Dremio. Typically, this will be Apache Iceberg.
 
-> ❗ **Dremio cannot load `fixed_len_byte_array` columns from Parquet files**.
+:::caution
+Dremio cannot load `fixed_len_byte_array` columns from Parquet files.
+:::
 
 ## Dataset creation
 

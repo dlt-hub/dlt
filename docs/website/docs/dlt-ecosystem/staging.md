@@ -48,7 +48,7 @@ Currently, only one destination, the [filesystem](destinations/filesystem.md), c
 6. [Snowflake](destinations/snowflake.md#staging-support)
 
 ### How to use
-In essence, you need to set up two destinations and then pass them to `dlt.pipeline`. Below, we'll use `filesystem` staging with [Parquet](./file-formats/parquet) files to load into the `Redshift` destination.
+In essence, you need to set up two destinations and then pass them to `dlt.pipeline`. Below, we'll use `filesystem` staging with [Parquet](./file-formats/parquet) files to load into the `redshift` destination.
 
 1. **Set up the S3 bucket and filesystem staging.**
 
