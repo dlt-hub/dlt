@@ -24,9 +24,7 @@ Let's start by initializing a new `dlt` project as follows:
 dlt init chess clickhouse
 ```
 
-:::info
-This command will initialize your pipeline with chess as the source and ClickHouse as the destination.
-:::
+`dlt init` command will initialize your pipeline with chess as the source and ClickHouse as the destination.
 
 The above command generates several files and directories, including `.dlt/secrets.toml` and a requirements file for ClickHouse. You can install the necessary dependencies specified in the requirements file by executing it as follows:
 
