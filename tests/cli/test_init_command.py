@@ -37,7 +37,7 @@ from dlt.cli.init_command import (
     _list_template_sources,
     _list_verified_sources,
 )
-from dlt.cli.exceptions import CliCommandException
+from dlt.cli.exceptions import CliCommandInnerException
 from dlt.cli.requirements import SourceRequirements
 from dlt.reflection.script_visitor import PipelineScriptVisitor
 from dlt.reflection import names as n
@@ -633,7 +633,7 @@ def assert_common_files(
     for args in visitor.known_calls[n.PIPELINE]:
         assert args.arguments["destination"].value == destination_name
     # load secrets
-    secrets = SecretsTomlProvider()
+    secrets = SecretsTomlProvider(settings_dir=dlt.current.run().settings_dir)
     if destination_name not in ["duckdb", "dummy"]:
         # destination is there
         assert secrets.get_value(destination_name, type, None, "destination") is not None

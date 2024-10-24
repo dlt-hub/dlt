@@ -533,3 +533,21 @@ def test_refresh_staging_dataset(destination_config: DestinationTestConfiguratio
         with pytest.raises(DestinationUndefinedEntity):
             load_table_counts(pipeline, "data_1", "data_2")
     load_table_counts(pipeline, "data_1_v2", "data_1_v2")
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True, default_staging_configs=True, all_buckets_filesystem_configs=True
+    ),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize("refresh", ["drop_source", "drop_resource", "drop_data"])
+def test_changing_write_disposition_with_refresh(
+    destination_config: DestinationTestConfiguration, refresh: str
+):
+    """NOTE: this test simply tests wether truncating of tables and deleting schema versions will produce"""
+    """errors on a non-existing dataset (it should not)"""
+    pipeline = destination_config.setup_pipeline("test", dev_mode=True, refresh=refresh)
+    pipeline.run([1, 2, 3], table_name="items", write_disposition="append")
+    pipeline.run([1, 2, 3], table_name="items", write_disposition="merge")

@@ -66,6 +66,8 @@ from dlt.common.exceptions import MissingDependencyException
 TDestinationConfig = TypeVar("TDestinationConfig", bound="DestinationClientConfiguration")
 TDestinationClient = TypeVar("TDestinationClient", bound="JobClientBase")
 TDestinationDwhClient = TypeVar("TDestinationDwhClient", bound="DestinationClientDwhConfiguration")
+TDatasetType = Literal["dbapi", "ibis"]
+
 
 DEFAULT_FILE_LAYOUT = "{table_name}/{load_id}.{file_id}.{ext}"
 
@@ -657,8 +659,11 @@ class JobClientBase(ABC):
 
 class WithStateSync(ABC):
     @abstractmethod
-    def get_stored_schema(self) -> Optional[StorageSchemaInfo]:
-        """Retrieves newest schema from destination storage"""
+    def get_stored_schema(self, schema_name: str = None) -> Optional[StorageSchemaInfo]:
+        """
+        Retrieves newest schema with given name from destination storage
+        If no name is provided, the newest schema found is retrieved.
+        """
         pass
 
     @abstractmethod

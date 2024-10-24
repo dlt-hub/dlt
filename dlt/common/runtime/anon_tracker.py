@@ -8,7 +8,7 @@ from requests import Session
 
 from dlt.common import logger
 from dlt.common.managed_thread_pool import ManagedThreadPool
-from dlt.common.configuration.specs import RunConfiguration
+from dlt.common.configuration.specs import RuntimeConfiguration
 from dlt.common.runtime.exec_info import get_execution_context, TExecutionContext
 from dlt.common.runtime import run_context
 from dlt.common.typing import DictStrAny, StrAny
@@ -26,7 +26,7 @@ _TRACKER_CONTEXT: TExecutionContext = None
 requests: Session = None
 
 
-def init_anon_tracker(config: RunConfiguration) -> None:
+def init_anon_tracker(config: RuntimeConfiguration) -> None:
     if config.dlthub_telemetry_endpoint is None:
         raise ValueError("dlthub_telemetry_endpoint not specified in RunConfiguration")
 

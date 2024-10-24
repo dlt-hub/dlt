@@ -78,10 +78,13 @@ class RESTClient:
         self.auth = auth
 
         if session:
-            # dlt.sources.helpers.requests.session.Session
-            # has raise_for_status=True by default
+            # If the `session` is provided (for example, an instance of
+            # dlt.sources.helpers.requests.session.Session), warn if
+            # it has raise_for_status=True by default
             self.session = _warn_if_raise_for_status_and_return(session)
         else:
+            # Otherwise, create a new Client with disabled raise_for_status
+            # to allow for custom error handling in the hooks
             from dlt.sources.helpers.requests.retry import Client
 
             self.session = Client(raise_for_status=False).session
@@ -182,9 +185,9 @@ class RESTClient:
             **kwargs (Any): Optional arguments to that the Request library accepts, such as
                 `stream`, `verify`, `proxies`, `cert`, `timeout`, and `allow_redirects`.
 
-
         Yields:
-            PageData[Any]: A page of data from the paginated API response, along with request and response context.
+            PageData[Any]: A page of data from the paginated API response, along with request
+                and response context.
 
         Raises:
             HTTPError: If the response status code is not a success code. This is raised
@@ -200,9 +203,9 @@ class RESTClient:
         data_selector = data_selector or self.data_selector
         hooks = hooks or {}
 
-        def raise_for_status(response: Response, *args: Any, **kwargs: Any) -> None:
-            response.raise_for_status()
-
+        # Add the raise_for_status hook to ensure an exception is raised on
+        # HTTP error status codes. This is a fallback to handle errors
+        # unless explicitly overridden in the provided hooks.
         if "response" not in hooks:
             hooks["response"] = [raise_for_status]
 
@@ -303,6 +306,10 @@ class RESTClient:
                 " instance of the paginator as some settings may not be guessed correctly."
             )
         return paginator
+
+
+def raise_for_status(response: Response, *args: Any, **kwargs: Any) -> None:
+    response.raise_for_status()
 
 
 def _warn_if_raise_for_status_and_return(session: BaseSession) -> BaseSession:

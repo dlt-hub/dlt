@@ -504,6 +504,20 @@ def without_none(d: Mapping[TKey, Optional[TValue]]) -> Mapping[TKey, TValue]:
     return {k: v for k, v in d.items() if v is not None}
 
 
+def exclude_keys(mapping: Mapping[str, Any], keys: Iterable[str]) -> Dict[str, Any]:
+    """Create a new dictionary from the input mapping, excluding specified keys.
+
+    Args:
+        mapping (Mapping[str, Any]): The input mapping from which keys will be excluded.
+        keys (Iterable[str]): The keys to exclude.
+
+    Returns:
+        Dict[str, Any]: A new dictionary containing all key-value pairs from the original
+                        mapping except those with keys specified in `keys`.
+    """
+    return {k: v for k, v in mapping.items() if k not in keys}
+
+
 def get_full_class_name(obj: Any) -> str:
     cls = obj.__class__
     module = cls.__module__

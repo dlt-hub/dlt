@@ -2,7 +2,7 @@ from typing import Any, Optional
 
 import dlt
 from dlt.common.configuration import configspec
-from dlt.common.configuration.specs import RunConfiguration, BaseConfiguration
+from dlt.common.configuration.specs import RuntimeConfiguration, BaseConfiguration
 from dlt.common.typing import AnyFun, TSecretStrValue
 from dlt.common.utils import digest256
 from dlt.common.destination import TLoaderFileFormat
@@ -34,7 +34,7 @@ class PipelineConfiguration(BaseConfiguration):
     dev_mode: bool = False
     """When set to True, each instance of the pipeline with the `pipeline_name` starts from scratch when run and loads the data to a separate dataset."""
     progress: Optional[str] = None
-    runtime: RunConfiguration = None
+    runtime: RuntimeConfiguration = None
     refresh: Optional[TRefreshMode] = None
     """Refresh mode for the pipeline to fully or partially reset a source during run. See docstring of `dlt.pipeline` for more details."""
 

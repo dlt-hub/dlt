@@ -19,7 +19,7 @@ from requests import Response
 from dlt.common import logger
 from dlt.common.configuration import resolve_configuration
 from dlt.common.schema.utils import merge_columns
-from dlt.common.utils import update_dict_nested
+from dlt.common.utils import update_dict_nested, exclude_keys
 from dlt.common import jsonpath
 
 from dlt.extract.incremental import Incremental
@@ -50,6 +50,7 @@ from dlt.sources.helpers.rest_client.auth import (
     APIKeyAuth,
     OAuth2ClientCredentials,
 )
+from dlt.sources.helpers.rest_client.client import raise_for_status
 
 from dlt.extract.resource import DltResource
 
@@ -64,7 +65,6 @@ from .typing import (
     Endpoint,
     EndpointResource,
 )
-from .utils import exclude_keys
 
 
 PAGINATOR_MAP: Dict[str, Type[BasePaginator]] = {
@@ -530,12 +530,6 @@ def _create_response_action_hook(
             )
             raise IgnoreResponseException
 
-        # If there are hooks, then the REST client does not raise for status
-        # If no action has been taken and the status code indicates an error,
-        # raise an HTTP error based on the response status
-        elif not action_type:
-            response.raise_for_status()
-
     return response_action_hook
 
 
@@ -570,7 +564,8 @@ def create_response_hooks(
     """
     if response_actions:
         hooks = [_create_response_action_hook(action) for action in response_actions]
-        return {"response": hooks}
+        fallback_hooks = [raise_for_status]
+        return {"response": hooks + fallback_hooks}
     return None
 
 

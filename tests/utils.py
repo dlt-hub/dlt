@@ -13,6 +13,7 @@ from requests import Response
 
 import dlt
 from dlt.common import known_env
+from dlt.common.runtime import telemetry
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.providers import (
     DictionaryProvider,
@@ -20,24 +21,21 @@ from dlt.common.configuration.providers import (
     SecretsTomlProvider,
     ConfigTomlProvider,
 )
+from dlt.common.configuration.providers.provider import ConfigProvider
 from dlt.common.configuration.resolve import resolve_configuration
-from dlt.common.configuration.specs import RunConfiguration
-from dlt.common.configuration.specs.config_providers_context import (
-    ConfigProvidersContext,
-)
+from dlt.common.configuration.specs import RuntimeConfiguration, PluggableRunContext, configspec
+from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContainer
 from dlt.common.configuration.specs.pluggable_run_context import (
-    PluggableRunContext,
     SupportsRunContext,
 )
 from dlt.common.pipeline import LoadInfo, PipelineContext, SupportsPipeline
-from dlt.common.runtime.init import init_logging
 from dlt.common.runtime.run_context import DOT_DLT, RunContext
 from dlt.common.runtime.telemetry import start_telemetry, stop_telemetry
 from dlt.common.schema import Schema
 from dlt.common.storages import FileStorage
 from dlt.common.storages.versioned_storage import VersionedStorage
 from dlt.common.typing import DictStrAny, StrAny, TDataItem
-from dlt.common.utils import custom_environ, uniq_id
+from dlt.common.utils import custom_environ, set_working_dir, uniq_id
 
 TEST_STORAGE_ROOT = "_storage"
 
@@ -112,7 +110,7 @@ ALL_TEST_DATA_ITEM_FORMATS = get_args(TestDataItemFormat)
 
 def TEST_DICT_CONFIG_PROVIDER():
     # add test dictionary provider
-    providers_context = Container()[ConfigProvidersContext]
+    providers_context = Container()[PluggableRunContext].providers
     try:
         return providers_context[DictionaryProvider.NAME]
     except KeyError:
@@ -199,7 +197,7 @@ class MockableRunContext(RunContext):
 
     @classmethod
     def from_context(cls, ctx: SupportsRunContext) -> "MockableRunContext":
-        cls_ = cls()
+        cls_ = cls(ctx.run_dir)
         cls_._name = ctx.name
         cls_._global_dir = ctx.global_dir
         cls_._run_dir = ctx.run_dir
@@ -223,12 +221,12 @@ def patch_home_dir() -> Iterator[None]:
 def patch_random_home_dir() -> Iterator[None]:
     ctx = PluggableRunContext()
     mock = MockableRunContext.from_context(ctx.context)
-    mock._global_dir = mock._data_dir = os.path.join(
-        os.path.join(TEST_STORAGE_ROOT, "global_" + uniq_id()), DOT_DLT
+    mock._global_dir = mock._data_dir = os.path.abspath(
+        os.path.join(TEST_STORAGE_ROOT, "global_" + uniq_id(), DOT_DLT)
     )
     ctx.context = mock
 
-    os.makedirs(mock.global_dir, exist_ok=True)
+    os.makedirs(ctx.context.global_dir, exist_ok=True)
     with Container().injectable_context(ctx):
         yield
 
@@ -257,6 +255,36 @@ def wipe_pipeline(preserve_environ) -> Iterator[None]:
         # p._wipe_working_folder()
         # deactivate context
         container[PipelineContext].deactivate()
+
+
+@pytest.fixture(autouse=True)
+def setup_secret_providers_to_current_module(request):
+    """Creates set of config providers where secrets are loaded from cwd()/.dlt and
+    configs are loaded from the .dlt/ in the same folder as module being tested
+    """
+    secret_dir = os.path.abspath("./.dlt")
+    dname = os.path.dirname(request.module.__file__)
+    config_dir = dname + "/.dlt"
+
+    # inject provider context so the original providers are restored at the end
+    def _initial_providers(self):
+        return [
+            EnvironProvider(),
+            SecretsTomlProvider(settings_dir=secret_dir),
+            ConfigTomlProvider(settings_dir=config_dir),
+        ]
+
+    with set_working_dir(dname), patch(
+        "dlt.common.runtime.run_context.RunContext.initial_providers",
+        _initial_providers,
+    ):
+        Container()[PluggableRunContext].reload_providers()
+
+        try:
+            sys.path.insert(0, dname)
+            yield
+        finally:
+            sys.path.pop(0)
 
 
 def data_to_item_format(
@@ -328,17 +356,45 @@ def arrow_item_from_table(
     raise ValueError("Unknown item type: " + object_format)
 
 
-def init_test_logging(c: RunConfiguration = None) -> None:
+def init_test_logging(c: RuntimeConfiguration = None) -> None:
     if not c:
-        c = resolve_configuration(RunConfiguration())
-    init_logging(c)
+        c = resolve_configuration(RuntimeConfiguration())
+    Container()[PluggableRunContext].initialize_runtime(c)
 
 
-def start_test_telemetry(c: RunConfiguration = None):
+@configspec
+class SentryLoggerConfiguration(RuntimeConfiguration):
+    pipeline_name: str = "logger"
+    sentry_dsn: str = (
+        "https://6f6f7b6f8e0f458a89be4187603b55fe@o1061158.ingest.sentry.io/4504819859914752"
+    )
+
+
+def start_test_telemetry(c: RuntimeConfiguration = None):
     stop_telemetry()
     if not c:
-        c = resolve_configuration(RunConfiguration())
+        c = resolve_configuration(RuntimeConfiguration())
     start_telemetry(c)
+
+
+@pytest.fixture
+def temporary_telemetry() -> Iterator[RuntimeConfiguration]:
+    c = SentryLoggerConfiguration()
+    start_test_telemetry(c)
+    try:
+        yield c
+    finally:
+        stop_telemetry()
+
+
+@pytest.fixture
+def disable_temporary_telemetry() -> Iterator[None]:
+    try:
+        yield
+    finally:
+        # force stop telemetry
+        telemetry._TELEMETRY_STARTED = True
+        stop_telemetry()
 
 
 def clean_test_storage(
@@ -375,9 +431,14 @@ def skip_if_not_active(destination: str) -> None:
 
 def is_running_in_github_fork() -> bool:
     """Check if executed by GitHub Actions, in a repo fork."""
-    is_github_actions = os.environ.get("GITHUB_ACTIONS") == "true"
+    is_github_actions = is_running_in_github_ci()
     is_fork = os.environ.get("IS_FORK") == "true"  # custom var set by us in the workflow's YAML
     return is_github_actions and is_fork
+
+
+def is_running_in_github_ci() -> bool:
+    """Check if executed by GitHub Actions"""
+    return os.environ.get("GITHUB_ACTIONS") == "true"
 
 
 skipifspawn = pytest.mark.skipif(
@@ -396,6 +457,10 @@ skipifwindows = pytest.mark.skipif(
 
 skipifgithubfork = pytest.mark.skipif(
     is_running_in_github_fork(), reason="Skipping test because it runs on a PR coming from fork"
+)
+
+skipifgithubci = pytest.mark.skipif(
+    is_running_in_github_ci(), reason="This test does not work on github CI"
 )
 
 
@@ -444,16 +509,32 @@ def assert_query_data(
 
 
 @contextlib.contextmanager
-def reset_providers(settings_dir: str) -> Iterator[ConfigProvidersContext]:
+def reset_providers(settings_dir: str) -> Iterator[ConfigProvidersContainer]:
     """Context manager injecting standard set of providers where toml providers are initialized from `settings_dir`"""
     return _reset_providers(settings_dir)
 
 
-def _reset_providers(settings_dir: str) -> Iterator[ConfigProvidersContext]:
-    ctx = ConfigProvidersContext()
-    ctx.providers.clear()
-    ctx.add_provider(EnvironProvider())
-    ctx.add_provider(SecretsTomlProvider(settings_dir=settings_dir))
-    ctx.add_provider(ConfigTomlProvider(settings_dir=settings_dir))
-    with Container().injectable_context(ctx):
+def _reset_providers(settings_dir: str) -> Iterator[ConfigProvidersContainer]:
+    yield from _inject_providers(
+        [
+            EnvironProvider(),
+            SecretsTomlProvider(settings_dir=settings_dir),
+            ConfigTomlProvider(settings_dir=settings_dir),
+        ]
+    )
+
+
+@contextlib.contextmanager
+def inject_providers(providers: List[ConfigProvider]) -> Iterator[ConfigProvidersContainer]:
+    return _inject_providers(providers)
+
+
+def _inject_providers(providers: List[ConfigProvider]) -> Iterator[ConfigProvidersContainer]:
+    container = Container()
+    ctx = ConfigProvidersContainer(initial_providers=providers)
+    try:
+        old_providers = container[PluggableRunContext].providers
+        container[PluggableRunContext].providers = ctx
         yield ctx
+    finally:
+        container[PluggableRunContext].providers = old_providers

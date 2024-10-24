@@ -129,7 +129,7 @@ class Venv:
             Venv.PIP_TOOL = "uv" if shutil.which("uv") else "pip"
 
         if Venv.PIP_TOOL == "uv":
-            cmd = ["uv", "pip", "install", "--python", context.env_exe]
+            cmd = ["uv", "pip", "install", "--prerelease=allow", "--python", context.env_exe]
         else:
             cmd = [context.env_exe, "-Im", Venv.PIP_TOOL, "install"]
 

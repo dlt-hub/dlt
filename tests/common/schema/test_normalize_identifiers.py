@@ -10,7 +10,7 @@ from dlt.common.normalizers.naming.naming import NamingConvention
 from dlt.common.storages import SchemaStorageConfiguration
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.normalizers.naming import snake_case, direct
-from dlt.common.schema import TColumnSchema, Schema, TStoredSchema, utils
+from dlt.common.schema import TColumnSchema, Schema, TStoredSchema, utils, TTableSchema
 from dlt.common.schema.exceptions import TableIdentifiersFrozen
 from dlt.common.schema.typing import SIMPLE_REGEX_PREFIX
 from dlt.common.storages import SchemaStorage
@@ -235,6 +235,39 @@ def test_normalize_table_identifiers_merge_columns() -> None:
         "data_type": "double",
         "x-description": "desc",
     }
+
+
+def test_normalize_table_identifiers_table_reference() -> None:
+    table: TTableSchema = {
+        "name": "playlist_track",
+        "columns": {
+            "TRACK ID": {"name": "id", "data_type": "bigint", "nullable": False},
+            "Playlist ID": {"name": "table_id", "data_type": "bigint", "nullable": False},
+            "Position": {"name": "position", "data_type": "bigint", "nullable": False},
+        },
+        "references": [
+            {
+                "referenced_table": "PLAYLIST",
+                "columns": ["Playlist ID", "Position"],
+                "referenced_columns": ["ID", "Position"],
+            },
+            {
+                "referenced_table": "Track",
+                "columns": ["TRACK ID"],
+                "referenced_columns": ["id"],
+            },
+        ],
+    }
+
+    norm_table = utils.normalize_table_identifiers(table, Schema("norm").naming)
+
+    assert norm_table["references"][0]["referenced_table"] == "playlist"
+    assert norm_table["references"][0]["columns"] == ["playlist_id", "position"]
+    assert norm_table["references"][0]["referenced_columns"] == ["id", "position"]
+
+    assert norm_table["references"][1]["referenced_table"] == "track"
+    assert norm_table["references"][1]["columns"] == ["track_id"]
+    assert norm_table["references"][1]["referenced_columns"] == ["id"]
 
 
 def test_update_normalizers() -> None:
