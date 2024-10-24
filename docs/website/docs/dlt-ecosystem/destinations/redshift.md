@@ -75,16 +75,18 @@ All [write dispositions](../../general-usage/incremental-loading#choosing-a-writ
 [SQL Insert](../file-formats/insert-format) is used by default.
 
 When staging is enabled:
-* [jsonl](../file-formats/jsonl.md) is used by default.
-* [parquet](../file-formats/parquet.md) is supported.
+* [JSONL](../file-formats/jsonl.md) is used by default.
+* [Parquet](../file-formats/parquet.md) is supported.
 
-> ❗ **Redshift cannot load `VARBYTE` columns from `json` files**. `dlt` will fail such jobs permanently. Switch to `parquet` to load binaries.
+:::caution
+- **Redshift cannot load `VARBYTE` columns from JSON files**. `dlt` will fail such jobs permanently. Switch to Parquet to load binaries.
 
-> ❗ **Redshift cannot load `TIME` columns from `json` or `parquet` files**. `dlt` will fail such jobs permanently. Switch to direct `insert_values` to load time columns.
+- **Redshift cannot load `TIME` columns from JSON or Parquet files**. `dlt` will fail such jobs permanently. Switch to direct `insert_values` to load time columns.
 
-> ❗ **Redshift cannot detect compression type from `json` files**. `dlt` assumes that `jsonl` files are gzip compressed, which is the default.
+- **Redshift cannot detect compression type from JSON files**. `dlt` assumes that JSONL files are gzip compressed, which is the default.
 
-> ❗ **Redshift loads `json` types as strings into SUPER with `parquet`**. Use `jsonl` format to store JSON in SUPER natively or transform your SUPER columns with `PARSE_JSON`.
+- **Redshift loads JSON types as strings into SUPER with Parquet**. Use JSONL format to store JSON in SUPER natively or transform your SUPER columns with `PARSE_JSON`.
+:::
 
 ## Supported column hints
 
@@ -147,7 +149,7 @@ pipeline = dlt.pipeline(
 
 ## Supported loader file formats
 
-Supported loader file formats for Redshift are `sql` and `insert_values` (default). When using a staging location, Redshift supports `parquet` and `jsonl`.
+Supported loader file formats for Redshift are `sql` and `insert_values` (default). When using a staging location, Redshift supports Parquet and JSONL.
 
 <!--@@@DLT_TUBA redshift-->
 

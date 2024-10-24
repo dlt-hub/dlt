@@ -388,7 +388,7 @@ This will display a structured YAML representation of your schema, showing detai
 
 ## Export and import schema files
 
-Please follow the guide on [how to adjust a schema](../walkthroughs/adjust-a-schema.md) to export and import `yaml`
+Please follow the guide on [how to adjust a schema](../walkthroughs/adjust-a-schema.md) to export and import YAML
 schema files in your pipeline.
 
 ## Attaching schemas to sources

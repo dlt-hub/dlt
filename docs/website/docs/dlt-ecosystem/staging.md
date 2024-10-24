@@ -48,7 +48,7 @@ Currently, only one destination, the [filesystem](destinations/filesystem.md), c
 6. [Snowflake](destinations/snowflake.md#staging-support)
 
 ### How to use
-In essence, you need to set up two destinations and then pass them to `dlt.pipeline`. Below, we'll use `filesystem` staging with `parquet` files to load into the `Redshift` destination.
+In essence, you need to set up two destinations and then pass them to `dlt.pipeline`. Below, we'll use `filesystem` staging with [Parquet](./file-formats/parquet) files to load into the `redshift` destination.
 
 1. **Set up the S3 bucket and filesystem staging.**
 
@@ -74,7 +74,7 @@ In essence, you need to set up two destinations and then pass them to `dlt.pipel
 
     By default, `dlt` will forward the credentials configured for `filesystem` to the `Redshift` COPY command. If you are fine with this, move to the next step.
 
-4. **Chain staging to destination and request `parquet` file format.**
+4. **Chain staging to destination and request Parquet file format.**
 
     Pass the `staging` argument to `dlt.pipeline`. It works like the destination `argument`:
     ```py
@@ -88,7 +88,7 @@ In essence, you need to set up two destinations and then pass them to `dlt.pipel
         dataset_name='player_data'
     )
     ```
-    `dlt` will automatically select an appropriate loader file format for the staging files. Below, we explicitly specify the `parquet` file format (just to demonstrate how to do it):
+    `dlt` will automatically select an appropriate loader file format for the staging files. Below, we explicitly specify the Parquet file format (just to demonstrate how to do it):
     ```py
     info = pipeline.run(chess(), loader_file_format="parquet")
     ```
