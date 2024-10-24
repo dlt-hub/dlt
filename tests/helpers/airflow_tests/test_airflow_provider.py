@@ -9,15 +9,10 @@ from airflow.utils.types import DagRunType
 import dlt
 from dlt.common import pendulum
 from dlt.common.configuration.container import Container
-from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
+from dlt.common.configuration.specs import PluggableRunContext
 from dlt.common.configuration.providers.vault import SECRETS_TOML_KEY
 
 DEFAULT_DATE = pendulum.datetime(2023, 4, 18, tz="Europe/Berlin")
-# Test data
-SECRETS_TOML_CONTENT = """
-[sources]
-api_key = "test_value"
-"""
 
 
 def test_airflow_secrets_toml_provider() -> None:
@@ -25,7 +20,6 @@ def test_airflow_secrets_toml_provider() -> None:
     def test_dag():
         from dlt.common.configuration.providers.airflow import AirflowSecretsTomlProvider
 
-        Variable.set(SECRETS_TOML_KEY, SECRETS_TOML_CONTENT)
         # make sure provider works while creating DAG
         provider = AirflowSecretsTomlProvider()
         assert provider.get_value("api_key", str, None, "sources")[0] == "test_value"
@@ -72,9 +66,6 @@ def test_airflow_secrets_toml_provider_import_dlt_dag() -> None:
 
     @dag(start_date=DEFAULT_DATE)
     def test_dag():
-        Variable.set(SECRETS_TOML_KEY, SECRETS_TOML_CONTENT)
-
-        import dlt
         from dlt.common.configuration.accessors import secrets
 
         # this will initialize provider context
@@ -114,8 +105,6 @@ def test_airflow_secrets_toml_provider_import_dlt_task() -> None:
     def test_dag():
         @task()
         def test_task():
-            Variable.set(SECRETS_TOML_KEY, SECRETS_TOML_CONTENT)
-
             from dlt.common.configuration.accessors import secrets
 
             # this will initialize provider context
@@ -151,24 +140,15 @@ def test_airflow_secrets_toml_provider_is_loaded():
     def test_task():
         from dlt.common.configuration.providers.airflow import AirflowSecretsTomlProvider
 
-        Variable.set(SECRETS_TOML_KEY, SECRETS_TOML_CONTENT)
-
-        providers_context = Container()[ConfigProvidersContext]
+        providers_context = Container()[PluggableRunContext].providers
 
         astp_is_loaded = any(
             isinstance(provider, AirflowSecretsTomlProvider)
             for provider in providers_context.providers
         )
 
-        # insert provider into context, in tests this will not happen automatically
-        # providers_context = Container()[ConfigProvidersContext]
-        # providers_context.add_provider(providers[0])
-
         # get secret value using accessor
         api_key = dlt.secrets["sources.api_key"]
-
-        # remove provider for clean context
-        # providers_context.providers.remove(providers[0])
 
         # There's no pytest context here in the task, so we need to return
         # the results as a dict and assert them in the test function.

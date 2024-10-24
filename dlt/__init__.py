@@ -42,6 +42,7 @@ from dlt.pipeline import (
 )
 from dlt.pipeline import progress
 from dlt import destinations
+from dlt.destinations.dataset import dataset as _dataset
 
 pipeline = _pipeline
 current = _current
@@ -79,6 +80,7 @@ __all__ = [
     "TCredentials",
     "sources",
     "destinations",
+    "_dataset",
 ]
 
 # verify that no injection context was created

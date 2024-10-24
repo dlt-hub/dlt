@@ -1,17 +1,18 @@
 import binascii
-from os.path import isfile, join
+from os.path import isfile, join, abspath
 from pathlib import Path
 from typing import Any, ClassVar, Optional, IO
-from dlt.common.typing import TSecretStrValue
+import warnings
 
+from dlt.common.typing import TSecretStrValue
 from dlt.common.utils import encoding_for_mode, main_module_file_path, reveal_pseudo_secret
 from dlt.common.configuration.specs.base_configuration import BaseConfiguration, configspec
 from dlt.common.configuration.exceptions import ConfigFileNotFoundException
+from dlt.common.warnings import Dlt100DeprecationWarning
 
 
 @configspec
-class RunConfiguration(BaseConfiguration):
-    # TODO: deprecate pipeline_name, it is not used in any reasonable way
+class RuntimeConfiguration(BaseConfiguration):
     pipeline_name: Optional[str] = None
     sentry_dsn: Optional[str] = None  # keep None to disable Sentry
     slack_incoming_hook: Optional[TSecretStrValue] = None
@@ -40,6 +41,16 @@ class RunConfiguration(BaseConfiguration):
         # generate pipeline name from the entry point script name
         if not self.pipeline_name:
             self.pipeline_name = get_default_pipeline_name(main_module_file_path())
+        else:
+            warnings.warn(
+                "pipeline_name in RuntimeConfiguration is deprecated. Use `pipeline_name` in"
+                " PipelineConfiguration config",
+                Dlt100DeprecationWarning,
+                stacklevel=1,
+            )
+        # always use abs path for data_dir
+        # if self.data_dir:
+        #     self.data_dir = abspath(self.data_dir)
         if self.slack_incoming_hook:
             # it may be obfuscated base64 value
             # TODO: that needs to be removed ASAP
@@ -68,3 +79,7 @@ def get_default_pipeline_name(entry_point_file: str) -> str:
     if entry_point_file:
         entry_point_file = Path(entry_point_file).stem
     return "dlt_" + (entry_point_file or "pipeline")
+
+
+# backward compatibility
+RunConfiguration = RuntimeConfiguration

@@ -1134,8 +1134,8 @@ def test_state_files(destination_config: DestinationTestConfiguration) -> None:
         "_dlt_pipeline_state": 2,
         "_dlt_version": 2,
     }
-    sc1_old = c1.get_stored_schema()
-    sc2_old = c2.get_stored_schema()
+    sc1_old = c1.get_stored_schema(c1.schema.name)
+    sc2_old = c2.get_stored_schema(c2.schema.name)
     s1_old = c1.get_stored_state("p1")
     s2_old = c1.get_stored_state("p2")
 
@@ -1172,8 +1172,8 @@ def test_state_files(destination_config: DestinationTestConfiguration) -> None:
     assert s2_old.version == s2.version
 
     # test accessors for schema
-    sc1 = c1.get_stored_schema()
-    sc2 = c2.get_stored_schema()
+    sc1 = c1.get_stored_schema(c1.schema.name)
+    sc2 = c2.get_stored_schema(c2.schema.name)
     assert sc1.version_hash != sc1_old.version_hash
     assert sc2.version_hash == sc2_old.version_hash
     assert sc1.version_hash != sc2.version_hash

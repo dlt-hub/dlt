@@ -650,29 +650,33 @@ class FilesystemClient(
             yield filepath, fileparts
 
     def _get_stored_schema_by_hash_or_newest(
-        self, version_hash: str = None
+        self, version_hash: str = None, schema_name: str = None
     ) -> Optional[StorageSchemaInfo]:
         """Get the schema by supplied hash, falls back to getting the newest version matching the existing schema name"""
         version_hash = self._to_path_safe_string(version_hash)
         # find newest schema for pipeline or by version hash
-        selected_path = None
-        newest_load_id = "0"
-        for filepath, fileparts in self._iter_stored_schema_files():
-            if (
-                not version_hash
-                and fileparts[0] == self.schema.name
-                and fileparts[1] > newest_load_id
-            ):
-                newest_load_id = fileparts[1]
-                selected_path = filepath
-            elif fileparts[2] == version_hash:
-                selected_path = filepath
-                break
+        try:
+            selected_path = None
+            newest_load_id = "0"
+            for filepath, fileparts in self._iter_stored_schema_files():
+                if (
+                    not version_hash
+                    and (fileparts[0] == schema_name or (not schema_name))
+                    and fileparts[1] > newest_load_id
+                ):
+                    newest_load_id = fileparts[1]
+                    selected_path = filepath
+                elif fileparts[2] == version_hash:
+                    selected_path = filepath
+                    break
 
-        if selected_path:
-            return StorageSchemaInfo(
-                **json.loads(self.fs_client.read_text(selected_path, encoding="utf-8"))
-            )
+            if selected_path:
+                return StorageSchemaInfo(
+                    **json.loads(self.fs_client.read_text(selected_path, encoding="utf-8"))
+                )
+        except DestinationUndefinedEntity:
+            # ignore missing table
+            pass
 
         return None
 
@@ -699,9 +703,9 @@ class FilesystemClient(
         # we always keep tabs on what the current schema is
         self._write_to_json_file(filepath, version_info)
 
-    def get_stored_schema(self) -> Optional[StorageSchemaInfo]:
+    def get_stored_schema(self, schema_name: str = None) -> Optional[StorageSchemaInfo]:
         """Retrieves newest schema from destination storage"""
-        return self._get_stored_schema_by_hash_or_newest()
+        return self._get_stored_schema_by_hash_or_newest(schema_name=schema_name)
 
     def get_stored_schema_by_hash(self, version_hash: str) -> Optional[StorageSchemaInfo]:
         return self._get_stored_schema_by_hash_or_newest(version_hash)

@@ -38,7 +38,7 @@ def test_invoke_basic(script_runner: ScriptRunner) -> None:
 def test_invoke_list_pipelines(script_runner: ScriptRunner) -> None:
     result = script_runner.run(["dlt", "pipeline", "--list-pipelines"])
     # directory does not exist (we point to TEST_STORAGE)
-    assert result.returncode == -2
+    assert result.returncode == -1
 
     # create empty
     os.makedirs(get_dlt_pipelines_dir())
@@ -50,7 +50,7 @@ def test_invoke_list_pipelines(script_runner: ScriptRunner) -> None:
 def test_invoke_pipeline(script_runner: ScriptRunner) -> None:
     # info on non existing pipeline
     result = script_runner.run(["dlt", "pipeline", "debug_pipeline", "info"])
-    assert result.returncode == -1
+    assert result.returncode == -2
     assert "the pipeline was not found in" in result.stderr
 
     # copy dummy pipeline
@@ -75,7 +75,7 @@ def test_invoke_pipeline(script_runner: ScriptRunner) -> None:
     result = script_runner.run(
         ["dlt", "pipeline", "dummy_pipeline", "load-package", "NON EXISTENT"]
     )
-    assert result.returncode == -2
+    assert result.returncode == -1
     try:
         # use debug flag to raise an exception
         result = script_runner.run(
@@ -118,10 +118,10 @@ def test_invoke_deploy_project(script_runner: ScriptRunner) -> None:
             result = script_runner.run(
                 ["dlt", "deploy", "debug_pipeline.py", "github-action", "--schedule", "@daily"]
             )
-            assert result.returncode == -4
+            assert result.returncode == -5
             assert "The pipeline script does not exist" in result.stderr
             result = script_runner.run(["dlt", "deploy", "debug_pipeline.py", "airflow-composer"])
-            assert result.returncode == -4
+            assert result.returncode == -5
             assert "The pipeline script does not exist" in result.stderr
             # now init
             result = script_runner.run(["dlt", "init", "chess", "dummy"])

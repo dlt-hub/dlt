@@ -30,7 +30,7 @@ from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import ContextDefaultCannotBeCreated
 from dlt.common.configuration.specs import ContainerInjectableContext
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
-from dlt.common.configuration.specs import RunConfiguration
+from dlt.common.configuration.specs import RuntimeConfiguration
 from dlt.common.destination import TDestinationReferenceArg, TDestination
 from dlt.common.destination.exceptions import DestinationHasFailedJobs
 from dlt.common.exceptions import (
@@ -484,7 +484,7 @@ class SupportsPipeline(Protocol):
     """The destination reference which is ModuleType. `destination.__name__` returns the name string"""
     dataset_name: str
     """Name of the dataset to which pipeline will be loaded to"""
-    runtime_config: RunConfiguration
+    runtime_config: RuntimeConfiguration
     """A configuration of runtime options like logging level and format and various tracing options"""
     working_dir: str
     """A working directory of the pipeline"""

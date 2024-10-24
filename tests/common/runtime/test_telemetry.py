@@ -12,27 +12,20 @@ from dlt.common import logger
 from dlt.common.runtime.anon_tracker import get_anonymous_id, track, disable_anon_tracker
 from dlt.common.typing import DictStrAny, DictStrStr
 from dlt.common.configuration import configspec
-from dlt.common.configuration.specs import RunConfiguration
+from dlt.common.configuration.specs import RuntimeConfiguration
 from dlt.version import DLT_PKG_NAME, __version__
 
 from tests.common.runtime.utils import mock_image_env, mock_github_env, mock_pod_env
 from tests.common.configuration.utils import environment
 from tests.utils import (
     preserve_environ,
+    SentryLoggerConfiguration,
+    disable_temporary_telemetry,
     skipifspawn,
     skipifwindows,
     init_test_logging,
     start_test_telemetry,
 )
-
-
-@configspec
-class SentryLoggerConfiguration(RunConfiguration):
-    pipeline_name: str = "logger"
-    sentry_dsn: str = (
-        "https://6f6f7b6f8e0f458a89be4187603b55fe@o1061158.ingest.sentry.io/4504819859914752"
-    )
-    # dlthub_telemetry_segment_write_key: str = "TLJiyRkGVZGCi2TtjClamXpFcxAA1rSB"
 
 
 @configspec
@@ -73,13 +66,14 @@ def test_sentry_log_level() -> None:
         ),
     ],
 )
-@pytest.mark.forked
-def test_telemetry_endpoint(endpoint, write_key, expectation) -> None:
+def test_telemetry_endpoint(
+    endpoint, write_key, expectation, disable_temporary_telemetry: RuntimeConfiguration
+) -> None:
     from dlt.common.runtime import anon_tracker
 
     with expectation:
         anon_tracker.init_anon_tracker(
-            RunConfiguration(
+            RuntimeConfiguration(
                 dlthub_telemetry_endpoint=endpoint, dlthub_telemetry_segment_write_key=write_key
             )
         )
@@ -106,20 +100,22 @@ def test_telemetry_endpoint(endpoint, write_key, expectation) -> None:
         ),
     ],
 )
-@pytest.mark.forked
-def test_telemetry_endpoint_exceptions(endpoint, write_key, expectation) -> None:
+def test_telemetry_endpoint_exceptions(
+    endpoint, write_key, expectation, disable_temporary_telemetry: RuntimeConfiguration
+) -> None:
     from dlt.common.runtime import anon_tracker
 
     with expectation:
         anon_tracker.init_anon_tracker(
-            RunConfiguration(
+            RuntimeConfiguration(
                 dlthub_telemetry_endpoint=endpoint, dlthub_telemetry_segment_write_key=write_key
             )
         )
 
 
-@pytest.mark.forked
-def test_sentry_init(environment: DictStrStr) -> None:
+def test_sentry_init(
+    environment: DictStrStr, disable_temporary_telemetry: RuntimeConfiguration
+) -> None:
     with patch("dlt.common.runtime.sentry.before_send", _mock_before_send):
         mock_image_env(environment)
         mock_pod_env(environment)
@@ -134,13 +130,15 @@ def test_sentry_init(environment: DictStrStr) -> None:
         assert len(SENT_ITEMS) == 1
 
 
-@pytest.mark.forked
-def test_track_anon_event(mocker: MockerFixture) -> None:
+def test_track_anon_event(
+    mocker: MockerFixture, disable_temporary_telemetry: RuntimeConfiguration
+) -> None:
     from dlt.sources.helpers import requests
     from dlt.common.runtime import anon_tracker
 
     mock_github_env(os.environ)
     mock_pod_env(os.environ)
+    SENT_ITEMS.clear()
     config = SentryLoggerConfiguration()
 
     requests_post = mocker.spy(requests, "post")

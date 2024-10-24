@@ -35,7 +35,7 @@ from dlt.common.schema.typing import TWriteDispositionConfig, TSchemaContract
 from dlt.common.utils import uniq_id
 from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCaseNamingConvention
 from dlt.common.configuration.container import Container
-from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
+from dlt.common.configuration.specs.pluggable_run_context import PluggableRunContext
 from dlt.common.runtime.collector import NULL_COLLECTOR
 
 from dlt.extract import DltSource
@@ -125,9 +125,9 @@ class PipelineTasksGroup(TaskGroup):
             data_dir = os.path.join(local_data_folder or gettempdir(), f"dlt_{uniq_id(8)}")
         os.environ[DLT_DATA_DIR] = data_dir
 
-        # delete existing config providers in container, they will get reloaded on next use
-        if ConfigProvidersContext in Container():
-            del Container()[ConfigProvidersContext]
+        # reload config providers
+        if PluggableRunContext in Container():
+            Container()[PluggableRunContext].reload_providers()
 
     def _task_name(self, pipeline: Pipeline, data: Any) -> str:
         """Generate a task name.

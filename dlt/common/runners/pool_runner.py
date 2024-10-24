@@ -6,6 +6,7 @@ from typing_extensions import ParamSpec
 
 from dlt.common import logger
 from dlt.common.configuration.container import Container
+from dlt.common.configuration.specs.pluggable_run_context import PluggableRunContext
 from dlt.common.runtime import init
 from dlt.common.runners.runnable import Runnable, TExecutor
 from dlt.common.runners.configuration import PoolRunnerConfiguration
@@ -41,11 +42,12 @@ def create_pool(config: PoolRunnerConfiguration) -> Executor:
     if config.pool_type == "process":
         # if not fork method, provide initializer for logs and configuration
         start_method = config.start_method or multiprocessing.get_start_method()
-        if start_method != "fork" and init._INITIALIZED:
+        if start_method != "fork":
+            ctx = Container()[PluggableRunContext]
             return ProcessPoolExecutor(
                 max_workers=config.workers,
-                initializer=init.initialize_runtime,
-                initargs=(init._RUN_CONFIGURATION,),
+                initializer=init.restore_run_context,
+                initargs=(ctx.context, ctx.runtime_config),
                 mp_context=multiprocessing.get_context(method=start_method),
             )
         else:

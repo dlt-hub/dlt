@@ -107,7 +107,7 @@ test-build-images: build-library
 	docker build -f deploy/dlt/Dockerfile.airflow --build-arg=COMMIT_SHA="$(shell git log -1 --pretty=%h)" --build-arg=IMAGE_VERSION="$(shell poetry version -s)" .
 	# docker build -f deploy/dlt/Dockerfile --build-arg=COMMIT_SHA="$(shell git log -1 --pretty=%h)" --build-arg=IMAGE_VERSION="$(shell poetry version -s)" .
 
-preprocess-docs: 
+preprocess-docs:
 	# run docs preprocessing to run a few checks and ensure examples can be parsed
 	cd docs/website && npm i && npm run preprocess-docs
 

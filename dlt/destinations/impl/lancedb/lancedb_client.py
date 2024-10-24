@@ -539,7 +539,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
             return None
 
     @lancedb_error
-    def get_stored_schema(self) -> Optional[StorageSchemaInfo]:
+    def get_stored_schema(self, schema_name: str = None) -> Optional[StorageSchemaInfo]:
         """Retrieves newest schema from destination storage."""
         fq_version_table_name = self.make_qualified_table_name(self.schema.version_table_name)
 
@@ -553,11 +553,10 @@ class LanceDBClient(JobClientBase, WithStateSync):
         p_schema = self.schema.naming.normalize_identifier("schema")
 
         try:
-            schemas = (
-                version_table.search().where(
-                    f'`{p_schema_name}` = "{self.schema.name}"', prefilter=True
-                )
-            ).to_list()
+            query = version_table.search()
+            if schema_name:
+                query = query.where(f'`{p_schema_name}` = "{schema_name}"', prefilter=True)
+            schemas = query.to_list()
 
             # LanceDB's ORDER BY clause doesn't seem to work.
             # See https://github.com/dlt-hub/dlt/pull/1375#issuecomment-2171909341
