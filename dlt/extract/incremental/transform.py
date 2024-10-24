@@ -111,11 +111,7 @@ class IncrementalTransform:
     @property
     def deduplication_disabled(self) -> bool:
         """Skip deduplication when length of the key is 0 or lag is set"""
-        return (
-            True
-            if self.lag
-            else isinstance(self.primary_key, (list, tuple)) and len(self.primary_key) == 0
-        )
+        return isinstance(self.primary_key, (list, tuple)) and len(self.primary_key) == 0
 
 
 class JsonIncremental(IncrementalTransform):

@@ -2598,3 +2598,173 @@ def test_incremental_merge_native_representation():
     # Assert the expected changes in the incremental object
     assert incremental.cursor_path == "another_path"
     assert incremental.lag == 5
+
+
+@pytest.mark.parametrize("lag", [0, 1, 100, 200])
+def test_incremental_lag_int(lag: float) -> None:
+    """
+    Test the behavior of incremental lag when updating previously loaded data using the append method, which may create duplicates.
+
+    We validate that the final dataset correctly orders the updated and new entries.
+    """
+
+    pipeline = dlt.pipeline(
+        pipeline_name=uniq_id(),
+        destination=dlt.destinations.duckdb(credentials=duckdb.connect(":memory:")),
+    )
+
+    name = "events"
+    is_second_run = False
+    is_third_run = False
+
+    @dlt.resource(name=name, primary_key="id", write_disposition="append")
+    def events_resource(_=dlt.sources.incremental("id", lag=lag)):
+        nonlocal is_second_run
+        nonlocal is_third_run
+
+        initial_entries = [
+            {"id": 100, "event": "100"},
+            {"id": 200, "event": "200"},
+            {"id": 300, "event": "300"},
+        ]
+
+        second_run_events = [
+            {"id": 100, "event": "100_updated_1"},
+            {"id": 200, "event": "200_updated_1"},
+            {"id": 300, "event": "300_updated_1"},
+            {"id": 400, "event": "400"},
+        ]
+
+        third_run_events = [
+            {"id": 100, "event": "100_updated_2"},
+            {"id": 200, "event": "200_updated_2"},
+            {"id": 300, "event": "300_updated_2"},
+            {"id": 400, "event": "400_updated_2"},
+            {"id": 500, "event": "500"},
+        ]
+
+        if is_second_run:
+            yield from second_run_events
+        elif is_third_run:
+            yield from third_run_events
+        else:
+            yield from initial_entries
+
+    # Run the pipeline three times
+    pipeline.run(events_resource)
+    is_second_run = True
+    pipeline.run(events_resource)
+    is_second_run = False
+    is_third_run = True
+    pipeline.run(events_resource)
+
+    # Results using APPEND write disposition
+    expected_results = {
+        200: [
+            "100",
+            "200",
+            "300",
+            "100_updated_1",
+            "200_updated_1",
+            "300_updated_1",
+            "400",
+            "200_updated_2",
+            "300_updated_2",
+            "400_updated_2",
+            "500",
+        ],
+        100: [
+            "100",
+            "200",
+            "300",
+            "200_updated_1",
+            "300_updated_1",
+            "400",
+            "300_updated_2",
+            "400_updated_2",
+            "500",
+        ],
+        1: ["100", "200", "300", "300_updated_1", "400", "400_updated_2", "500"],
+        0: ["100", "200", "300", "400", "500"],
+    }
+
+    with pipeline.sql_client() as sql_client:
+        result = [
+            row[0]
+            for row in sql_client.execute_sql(f"SELECT event FROM {name} ORDER BY _dlt_load_id, id")
+        ]
+        assert result == expected_results[int(lag)]
+
+
+@pytest.mark.parametrize("lag", [3601, 3600, 60, 0])
+def test_incremental_lag_datetime(lag: float) -> None:
+    """
+    Test incremental lag behavior for datetime data while using `id` as the primary key.
+
+    We validate that the final dataset reflects the correct data updates, taking the lag into account,
+    and ensure deduplication is disabled when lag is set.
+    """
+
+    pipeline = dlt.pipeline(
+        pipeline_name=uniq_id(),
+        destination=dlt.destinations.duckdb(credentials=duckdb.connect(":memory:")),
+    )
+
+    name = "events"
+    is_second_run = False
+    is_third_run = False
+
+    @dlt.resource(name=name, primary_key="id", write_disposition="merge")
+    def events_resource(_=dlt.sources.incremental("created_at", lag=lag)):
+        nonlocal is_second_run
+
+        initial_entries = [
+            {"id": 1, "created_at": "2023-03-03T01:00:00Z", "event": "1"},
+            {"id": 2, "created_at": "2023-03-03T01:00:01Z", "event": "2"},
+            {"id": 3, "created_at": "2023-03-03T02:00:01Z", "event": "3"},
+        ]
+
+        second_run_events = [
+            {"id": 1, "created_at": "2023-03-03T01:00:00Z", "event": "1_updated_1"},
+            {"id": 2, "created_at": "2023-03-03T01:00:01Z", "event": "2_updated_1"},
+            {"id": 3, "created_at": "2023-03-03T02:00:01Z", "event": "3_updated_1"},
+            {"id": 4, "created_at": "2023-03-03T03:00:00Z", "event": "4"},
+        ]
+
+        third_run_events = [
+            {"id": 1, "created_at": "2023-03-03T01:00:00Z", "event": "1_updated_2"},
+            {"id": 2, "created_at": "2023-03-03T01:00:01Z", "event": "2_updated_2"},
+            {"id": 3, "created_at": "2023-03-03T02:00:01Z", "event": "3_updated_2"},
+            {"id": 4, "created_at": "2023-03-03T03:00:00Z", "event": "4_updated_2"},
+            {"id": 5, "created_at": "2023-03-03T03:00:00Z", "event": "5"},
+        ]
+
+        if is_second_run:
+            yield from second_run_events
+        elif is_third_run:
+            yield from third_run_events
+        else:
+            yield from initial_entries
+
+    # Run the pipeline three times
+    pipeline.run(events_resource)
+    is_second_run = True
+    pipeline.run(events_resource)
+    is_second_run = False
+    is_third_run = True
+    pipeline.run(events_resource)
+
+    # Results using MERGE write disposition
+    expected_results = {
+        3601: ["1_updated_1", "2_updated_1", "3_updated_2", "4_updated_2", "5"],
+        3600: ["1", "2_updated_1", "3_updated_2", "4_updated_2", "5"],
+        60: ["1", "2", "3_updated_1", "4_updated_2", "5"],
+        0: ["1", "2", "3", "4", "5"],
+    }
+
+    with pipeline.sql_client() as sql_client:
+        result = [
+            row[0]
+            for row in sql_client.execute_sql(f"SELECT event FROM {name} ORDER BY _dlt_load_id, id")
+        ]
+        assert result == expected_results[int(lag)]
