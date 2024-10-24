@@ -1,10 +1,15 @@
-from typing import Dict, Optional, Sequence, List, Any
+import contextlib
+import re
+from typing import Dict, Optional, Sequence, List, Any, Iterator, Tuple
+
+from shapely import wkt, wkb
+from shapely.geometry.base import BaseGeometry
 
 from dlt.common import logger
 from dlt.common.data_writers.configuration import CsvFormatConfiguration
+from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.exceptions import (
     DestinationInvalidFileFormat,
-    DestinationTerminalException,
 )
 from dlt.common.destination.reference import (
     HasFollowupJobs,
@@ -12,20 +17,18 @@ from dlt.common.destination.reference import (
     RunnableLoadJob,
     FollowupJobRequest,
     LoadJob,
-    TLoadJobState,
 )
-from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.schema import TColumnSchema, TColumnHint, Schema
-from dlt.common.schema.typing import TColumnType, TTableFormat
+from dlt.common.schema.typing import TColumnType
 from dlt.common.schema.utils import is_nullable_column
 from dlt.common.storages.file_storage import FileStorage
-
-from dlt.destinations.sql_jobs import SqlStagingCopyFollowupJob, SqlJobParams
-from dlt.destinations.insert_job_client import InsertValuesJobClient
-from dlt.destinations.impl.postgres.sql_client import Psycopg2SqlClient
 from dlt.destinations.impl.postgres.configuration import PostgresClientConfiguration
+from dlt.destinations.impl.postgres.postgres_adapter import GEOMETRY_HINT, SRID_HINT
+from dlt.destinations.impl.postgres.sql_client import Psycopg2SqlClient
+from dlt.destinations.insert_job_client import InsertValuesJobClient, InsertValuesLoadJob
 from dlt.destinations.sql_client import SqlClientBase
+from dlt.destinations.sql_jobs import SqlStagingCopyFollowupJob, SqlJobParams
 
 HINT_TO_POSTGRES_ATTR: Dict[TColumnHint, str] = {"unique": "UNIQUE"}
 
@@ -145,6 +148,108 @@ class PostgresCsvCopyJob(RunnableLoadJob, HasFollowupJobs):
                     cursor.copy_expert(copy_sql, f, size=8192)
 
 
+class PostgresInsertValuesWithGeometryTypesLoadJob(InsertValuesLoadJob):
+    @staticmethod
+    def _parse_geometry(value: Any) -> Optional[str]:
+        if isinstance(value, (str, bytes)):
+            with contextlib.suppress(Exception):
+                geom = wkt.loads(value) if isinstance(value, str) else wkb.loads(value)
+                if isinstance(geom, BaseGeometry):
+                    return geom.wkb_hex
+        return None
+
+    @staticmethod
+    def extract_records_from_fragment(fragment: str) -> List[Tuple[Any, ...]]:
+        def parse_value(value: str) -> Any:
+            value = value.strip()
+            if value.startswith("E'") and value.endswith("'"):
+                return bytes(value[2:-1], "utf-8").decode("unicode_escape")
+            if value.startswith("'") and value.endswith("'"):
+                return value[1:-1]
+            if value.lower() in ('true', 'false'):
+                return value.lower()=='true'
+            if value.lower()=='null':
+                return None
+            try:
+                return int(value)
+            except ValueError:
+                try:
+                    return float(value)
+                except ValueError:
+                    return value
+
+        def split_record(record: str) -> List[str]:
+            fields, current_field, paren_level, in_quotes = [], [], 0, False
+            escape = False
+            for char in record:
+                if escape:
+                    current_field.append(char)
+                    escape = False
+                    continue
+                if char=='\\':
+                    escape = True
+                    current_field.append(char)
+                    continue
+                if char=="'" and not in_quotes:
+                    in_quotes = True
+                elif char=="'" and in_quotes:
+                    in_quotes = False
+                elif char in '([{':
+                    paren_level += 1
+                elif char in ')]}':
+                    paren_level -= 1
+                elif char==',' and paren_level==0 and not in_quotes:
+                    fields.append(''.join(current_field).strip())
+                    current_field = []
+                    continue
+                current_field.append(char)
+            fields.append(''.join(current_field).strip())
+            return fields
+
+            # Match top-level records using regex with non-greedy matching for nested structures
+
+        record_strings = re.findall(r'\((.*?)\)(?=,|\Z)', fragment)
+        records = [tuple(parse_value(field) for field in split_record(record)) for record in record_strings]
+        return records
+
+    def _insert(self, qualified_table_name: str, file_path: str) -> Iterator[List[str]]:
+        to_insert = super()._insert(qualified_table_name, file_path)
+        for fragments in to_insert:
+            processed_fragments = []
+            for fragment in fragments:
+                if fragment == "VALUES\n" or fragment.strip().upper().startswith("INSERT INTO "):
+                    processed_fragments.append(fragment)
+                else:
+                    columns = self._load_table["columns"]
+                    processed_fragment_lines: List[str] = re.findall(
+                        r"\(E'[^']+',E'[^']+',E'[^']+',E'[^']+'\)", fragment
+                    )
+
+                    for line in processed_fragment_lines:
+                        processed_fragment: List[str] = re.findall(r"", fragment)
+                        assert len(columns) == len(processed_fragments)
+
+                        for column, column_value in zip(columns, processed_fragment):
+                            if column.get(GEOMETRY_HINT):
+                                if geom_value := self._parse_geometry(column_value.strip()):
+                                    srid = column.get(SRID_HINT, 4326)
+                                    processed_fragment.append(
+                                        f"ST_SetSRID(ST_GeomFromWKB(decode('{geom_value}', 'hex')),"
+                                        f" {srid})"
+                                    )
+                                else:
+                                    logger.warning(
+                                        f"{column_value} couldn't be coerced to geometric type."
+                                    )
+                                    processed_fragment.append(column_value)
+                            else:
+                                processed_fragment.append(column_value)
+
+                        processed_fragments.append(processed_fragment)
+
+            yield processed_fragments
+
+
 class PostgresClient(InsertValuesJobClient):
     def __init__(
         self,
@@ -167,21 +272,35 @@ class PostgresClient(InsertValuesJobClient):
     def create_load_job(
         self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
+        if any(column.get(GEOMETRY_HINT) for column in table["columns"].values()):
+            if file_path.endswith("insert_values"):
+                return PostgresInsertValuesWithGeometryTypesLoadJob(file_path)
+            else:
+                # Only insert_values load jobs supported for geom types.
+                raise TerminalValueError(
+                    "CSV bulk loading is not supported for tables with geometry columns."
+                )
         job = super().create_load_job(table, file_path, load_id, restore)
         if not job and file_path.endswith("csv"):
             job = PostgresCsvCopyJob(file_path)
         return job
 
     def _get_column_def_sql(self, c: TColumnSchema, table: PreparedTableSchema = None) -> str:
-        hints_str = " ".join(
+        hints_ = " ".join(
             self.active_hints.get(h, "")
             for h in self.active_hints.keys()
             if c.get(h, False) is True
         )
         column_name = self.sql_client.escape_column_name(c["name"])
-        return (
-            f"{column_name} {self.type_mapper.to_destination_type(c,table)} {hints_str} {self._gen_not_null(c.get('nullable', True))}"
-        )
+        nullability = self._gen_not_null(c.get("nullable", True))
+
+        if c.get(GEOMETRY_HINT):
+            srid = c.get(SRID_HINT, 4326)
+            column_type = f"geometry(Geometry, {srid})"
+        else:
+            column_type = self.type_mapper.to_destination_type(c, table)
+
+        return f"{column_name} {column_type} {hints_} {nullability}"
 
     def _create_replace_followup_jobs(
         self, table_chain: Sequence[PreparedTableSchema]

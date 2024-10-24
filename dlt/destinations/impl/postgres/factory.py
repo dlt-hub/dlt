@@ -1,19 +1,19 @@
 import typing as t
 
-from dlt.common.data_writers.configuration import CsvFormatConfiguration
-from dlt.common.destination import Destination, DestinationCapabilitiesContext
-from dlt.common.data_writers.escape import escape_postgres_identifier, escape_postgres_literal
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
+from dlt.common.data_writers.configuration import CsvFormatConfiguration
+from dlt.common.data_writers.escape import escape_postgres_identifier, escape_postgres_literal
+from dlt.common.destination import Destination, DestinationCapabilitiesContext
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.schema.typing import TColumnSchema, TColumnType
 from dlt.common.wei import EVM_DECIMAL_PRECISION
-
-from dlt.destinations.type_mapping import TypeMapperImpl
 from dlt.destinations.impl.postgres.configuration import (
     PostgresCredentials,
     PostgresClientConfiguration,
 )
+from dlt.destinations.impl.postgres.postgres_adapter import GEOMETRY_HINT, SRID_HINT
+from dlt.destinations.type_mapping import TypeMapperImpl
 
 if t.TYPE_CHECKING:
     from dlt.destinations.impl.postgres.postgres import PostgresClient
@@ -55,6 +55,7 @@ class PostgresTypeMapper(TypeMapperImpl):
         "character varying": "text",
         "smallint": "bigint",
         "integer": "bigint",
+        "geometry": "text",
     }
 
     def to_db_integer_type(self, column: TColumnSchema, table: PreparedTableSchema = None) -> str:
@@ -108,10 +109,17 @@ class PostgresTypeMapper(TypeMapperImpl):
     def from_destination_type(
         self, db_type: str, precision: t.Optional[int] = None, scale: t.Optional[int] = None
     ) -> TColumnType:
-        if db_type == "numeric":
-            if (precision, scale) == self.capabilities.wei_precision:
-                return dict(data_type="wei")
+        if db_type == "numeric" and (precision, scale) == self.capabilities.wei_precision:
+            return dict(data_type="wei")
+        if db_type.startswith("geometry"):
+            return dict(data_type="text")
         return super().from_destination_type(db_type, precision, scale)
+
+    def to_destination_type(self, column: TColumnSchema, table: PreparedTableSchema) -> str:
+        if column.get(GEOMETRY_HINT):
+            srid = column.get(SRID_HINT, 4326)
+            return f"geometry(Geometry, {srid})"
+        return super().to_destination_type(column, table)
 
 
 class postgres(Destination[PostgresClientConfiguration, "PostgresClient"]):

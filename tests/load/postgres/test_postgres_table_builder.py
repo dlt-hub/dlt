@@ -1,24 +1,38 @@
-import pytest
+import os
 from copy import deepcopy
+from typing import Generator, Any, Dict, List, Tuple
+
+import pytest
 import sqlfluff
+from shapely import wkb, wkt
 
+import dlt
 from dlt.common.exceptions import TerminalValueError
-from dlt.common.utils import uniq_id
 from dlt.common.schema import Schema, utils
-
+from dlt.common.typing import DictStrStr
+from dlt.common.utils import uniq_id
 from dlt.destinations import postgres
-from dlt.destinations.impl.postgres.postgres import PostgresClient
 from dlt.destinations.impl.postgres.configuration import (
     PostgresClientConfiguration,
     PostgresCredentials,
 )
-
+from dlt.destinations.impl.postgres.postgres import (
+    PostgresClient,
+    PostgresInsertValuesWithGeometryTypesLoadJob,
+)
+from dlt.destinations.impl.postgres.postgres_adapter import (
+    postgres_adapter,
+    SRID_HINT,
+    GEOMETRY_HINT,
+)
+from dlt.extract import DltResource
 from tests.cases import (
     TABLE_UPDATE,
     TABLE_UPDATE_ALL_INT_PRECISIONS,
-    TABLE_UPDATE_ALL_TIMESTAMP_PRECISIONS,
 )
-from tests.load.utils import empty_schema
+from tests.load.postgres.utils import generate_sample_geometry_records
+from tests.load.utils import destinations_configs, DestinationTestConfiguration, sequence_generator
+from tests.utils import assert_load_info
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential
@@ -182,3 +196,251 @@ def test_create_dlt_table(client: PostgresClient) -> None:
     sqlfluff.parse(sql, dialect="postgres")
     qualified_name = client.sql_client.make_qualified_table_name("_dlt_version")
     assert f"CREATE TABLE IF NOT EXISTS {qualified_name}" in sql
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["postgres"]),
+    ids=lambda x: x.name,
+)
+def test_adapter_geometry_hint_config(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    @dlt.resource(columns=[{"name": "content", "data_type": "text"}])
+    def some_data() -> Generator[DictStrStr, Any, None]:
+        yield from next(sequence_generator())
+
+    assert some_data.columns["content"] == {"name": "content", "data_type": "text"}  # type: ignore[index]
+
+    # Default SRID.
+    postgres_adapter(some_data, geometry=["content"])
+
+    assert some_data.columns["content"] == {  # type: ignore
+        "name": "content",
+        "data_type": "text",
+        GEOMETRY_HINT: True,
+        SRID_HINT: 4326,
+    }
+
+    # Nonstandard SRID.
+    postgres_adapter(some_data, geometry="content", srid=8232)
+
+    assert some_data.columns["content"] == {  # type: ignore
+        "name": "content",
+        "data_type": "text",
+        GEOMETRY_HINT: True,
+        SRID_HINT: 8232,
+    }
+
+
+def test_parse_geometry_func():
+    geom_func = PostgresInsertValuesWithGeometryTypesLoadJob._parse_geometry
+
+    # Geometric representations
+    valid_point_wkt = "POINT(0 0)"
+    result = geom_func(valid_point_wkt)
+    assert result is not None
+    assert isinstance(result, str)
+    expected_hex = wkb.dumps(wkt.loads(valid_point_wkt)).hex()
+    assert result.lower() == expected_hex.lower()
+
+    valid_linestring_wkt = "LINESTRING(0 0, 1 1, 2 2)"
+    linestring_wkb = wkb.dumps(wkt.loads(valid_linestring_wkt))
+    result = geom_func(linestring_wkb)
+    assert result is not None
+    assert isinstance(result, str)
+    assert result.lower() == linestring_wkb.hex().lower()
+
+    valid_polygon_wkt = "POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))"
+    result = geom_func(valid_polygon_wkt)
+    assert result is not None
+    assert isinstance(result, str)
+    expected_hex = wkb.dumps(wkt.loads(valid_polygon_wkt)).hex()
+    assert result.lower() == expected_hex.lower()
+
+    valid_multipolygon_wkt = (
+        "MULTIPOLYGON(((0 0, 0 1, 1 1, 1 0, 0 0)), ((2 2, 2 3, 3 3, 3 2, 2 2)))"
+    )
+    result = geom_func(valid_multipolygon_wkt)
+    assert result is not None
+    assert isinstance(result, str)
+    expected_hex = wkb.dumps(wkt.loads(valid_multipolygon_wkt)).hex()
+    assert result.lower() == expected_hex.lower()
+
+    # Non-geometric literals
+    invalid_wkt_string = "NOT A VALID WKT STRING"
+    result = geom_func(invalid_wkt_string)
+    assert result is None
+
+    null_input = None
+    result = geom_func(null_input)
+    assert result is None
+
+    empty_string_input = ""
+    result = geom_func(empty_string_input)
+    assert result is None
+
+    non_geometric_integer = 42
+    result = geom_func(non_geometric_integer)
+    assert result is None
+
+    empty_bytes_input = b""
+    result = geom_func(empty_bytes_input)
+    assert result is None
+
+
+@pytest.mark.parametrize(
+    "data, expected",
+    [
+        (
+            "(E'Point_wkt',E'POINT (1 1)',E'1729364788.3912747',E'vl/uvFjm2QFrDQ');",
+            [("Point_wkt", "POINT (1 1)", "1729364788.3912747", "vl/uvFjm2QFrDQ")],
+        ),
+        ("(a,b,c),(d,e,f);", [("a", "b", "c"), ("d", "e", "f")]),
+        ("((a,b),c);", [("(a,b)", "c")]),
+        (
+            "(1, 2.5, true, false, NULL, 'string', E'escaped\\nstring');",
+            [(1, 2.5, True, False, None, "string", "escaped\nstring")],
+        ),
+        ("(E'\\tTabbed\\nNewline', E'\\\\Backslash');", [("\tTabbed\nNewline", "\\Backslash")]),
+        ("('nested,(parentheses)', simple);", [("nested,(parentheses)", "simple")]),
+    ],
+)
+def test_extract_records_from_fragment(data: str, expected: List[Tuple[Any, ...]]):
+    assert (
+        PostgresInsertValuesWithGeometryTypesLoadJob.extract_records_from_fragment(data) == expected
+    )
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["postgres"]),
+    ids=lambda x: x.name,
+)
+def test_geometry_types(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    from shapely import wkt, wkb
+    from shapely import LinearRing
+
+    os.environ["LOAD__WORKERS"] = "1"
+
+    @dlt.resource
+    def geodata_default() -> Generator[List[Dict[str, Any]], Any, Any]:
+        yield from generate_sample_geometry_records()
+
+    @dlt.resource
+    def geodata_3857() -> Generator[List[Dict[str, Any]], Any, Any]:
+        yield from generate_sample_geometry_records()
+
+    @dlt.resource
+    def geodata_2163() -> Generator[List[Dict[str, Any]], Any, Any]:
+        yield from generate_sample_geometry_records()
+
+    @dlt.resource
+    def no_geodata() -> Generator[List[Dict[str, Any]], Any, Any]:
+        yield from [{"a": 1}, {"a": 2}]
+
+    postgres_adapter(geodata_default, geometry=["geom"])
+    postgres_adapter(geodata_3857, geometry=["geom"], srid=3857)
+    postgres_adapter(geodata_2163, geometry=["geom"], srid=2163)
+
+    @dlt.source
+    def geodata() -> List[DltResource]:
+        return [geodata_default, geodata_3857, geodata_2163, no_geodata]
+
+    pipeline = destination_config.setup_pipeline("test_geometry_types", dev_mode=True)
+    info = pipeline.run(
+        geodata(),
+    )
+    assert_load_info(info)
+
+    # Assert that types were read in as PostGIS geometry types.
+    with pipeline.sql_client() as c:
+        with c.execute_query(f"""SELECT f_geometry_column
+            FROM geometry_columns
+            WHERE f_table_name in ('geodata_3857', 'geodata_2163', 'geodata_default')
+              AND f_table_schema = '{pipeline.default_schema.name}' """) as cur:
+            records = cur.fetchall()
+            assert records
+            assert {record[0] for record in records} == {"geom"}
+
+    # Verify round-trip integrity.
+    with pipeline.sql_client() as c:
+        for resource in ["geodata_default", "geodata_3857", "geodata_2163"]:
+            srid = 4326 if resource == "geodata_default" else int(resource.split("_")[1])
+
+            query = f"""
+             SELECT type, ST_AsText(geom) as wkt, ST_SRID(geom) as srid, ST_AsBinary(geom) as wkb
+             FROM {pipeline.default_schema.name}.{resource}
+             """
+
+            with c.execute_query(query) as cur:
+                results = cur.fetchall()
+
+            original_geometries = generate_sample_geometry_records()
+
+            for result in results:
+                db_type, db_wkt, db_srid, db_wkb = result
+                orig_geom = next((g for g in original_geometries if g["type"] == db_type), None)
+
+                assert orig_geom is not None, f"No matching original geometry found for {db_type}"
+
+                assert (
+                    db_srid == srid
+                ), f"SRID mismatch for {db_type}: expected {srid}, got {db_srid}"
+
+                if "Empty" in db_type:
+                    assert wkt.loads(db_wkt).is_empty, f"Expected empty geometry for {db_type}"
+                else:
+                    if "_wkt" in db_type:
+                        orig_geom = wkt.loads(orig_geom["geom"])
+                        db_geom = wkt.loads(db_wkt)
+                    elif "_wkb" in db_type:
+                        orig_geom = wkb.loads(orig_geom["geom"])
+                        db_geom = wkb.loads(bytes(db_wkb))
+                    elif "_wkb_hex" in db_type:
+                        orig_geom = wkb.loads(bytes.fromhex(orig_geom["geom"]))
+                        db_geom = wkb.loads(bytes(db_wkb))
+
+                    tolerance = 1e-8
+                    if isinstance(orig_geom, LinearRing):
+                        assert LinearRing(db_geom.exterior.coords).equals_exact(
+                            orig_geom, tolerance
+                        ), f"Geometry mismatch for {db_type}"
+                    else:
+                        assert orig_geom.equals_exact(
+                            db_geom, tolerance
+                        ), f"Geometry mismatch for {db_type}"
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["postgres"]),
+    ids=lambda x: x.name,
+)
+def test_read_from_geopandas_with_native_geodata_type(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Test geopandas geo columns are automatically identified as such and cast to postgis geotype."""
+    import geopandas as gpd  # type: ignore
+
+    pipeline = destination_config.setup_pipeline("geodata_pandas_pipeline", dev_mode=True)
+    gdf = gpd.read_file("tests/load/cases/loading/sample_geodata.xml")
+
+    info = pipeline.run(gdf, table_name="geodata_pandas")
+    assert_load_info(info)
+
+    # Check the 'geometry' field has been cast to a PostGIS geometry type.
+    with pipeline.sql_client() as c:
+        fqtn_geodata_pandas = c.make_qualified_table_name("geodata_pandas", escape=False)
+        with c.execute_query(f"""
+            SELECT f_geometry_column, type
+            FROM geometry_columns
+            WHERE f_table_name = '{fqtn_geodata_pandas}' AND f_geometry_column = 'geometry';
+            """) as cur:
+            records = cur.fetchone()
+            assert records
+            assert records[0] == "geometry"
+
+    # TODO: read dataframe back into gpd frame and assert equal to original
