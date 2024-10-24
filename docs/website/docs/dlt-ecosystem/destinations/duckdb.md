@@ -97,7 +97,7 @@ You can configure the following file formats to load data into duckdb:
 * [insert-values](../file-formats/insert-format.md) is used by default.
 * [Parquet](../file-formats/parquet.md) is supported.
 :::note
-`duckdb` cannot COPY many parquet files to a single table from multiple threads. In this situation, `dlt` serializes the loads. Still, that may be faster than INSERT.
+`duckdb` cannot COPY many Parquet files to a single table from multiple threads. In this situation, dlt serializes the loads. Still, that may be faster than INSERT.
 :::
 * [JSONL](../file-formats/jsonl.md)
 
