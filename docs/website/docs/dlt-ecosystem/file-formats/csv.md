@@ -11,7 +11,7 @@ import SetTheFormat from './_set_the_format.mdx';
 `dlt` uses it for specific use cases - mostly for performance and compatibility reasons.
 
 Internally, we use two implementations:
-- **pyarrow** csv writer - a very fast, multithreaded writer for [Arrow tables](../verified-sources/arrow-pandas.md)
+- **pyarrow** CSV writer - a very fast, multithreaded writer for [Arrow tables](../verified-sources/arrow-pandas.md)
 - **python stdlib writer** - a csv writer included in the Python standard library for Python objects
 
 ## Supported destinations
