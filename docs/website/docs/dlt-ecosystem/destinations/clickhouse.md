@@ -127,8 +127,8 @@ destination.
 
 ## Supported file formats
 
-- [jsonl](../file-formats/jsonl.md) is the preferred format for both direct loading and staging.
-- [parquet](../file-formats/parquet.md) is supported for both direct loading and staging.
+- [JSONL](../file-formats/jsonl.md) is the preferred format for both direct loading and staging.
+- [Parquet](../file-formats/parquet.md) is supported for both direct loading and staging.
 
 The `clickhouse` destination has a few specific deviations from the default SQL destinations:
 
@@ -136,7 +136,7 @@ The `clickhouse` destination has a few specific deviations from the default SQL 
    If you need
    this feature, get in touch with our Slack community, and we will consider adding it.
 2. `Clickhouse` does not support the `time` datatype. Time will be loaded to a `text` column.
-3. `Clickhouse` does not support the `binary` datatype. Binary will be loaded to a `text` column. When loading from `jsonl`, this will be a base64 string; when loading from parquet, this will be
+3. `Clickhouse` does not support the `binary` datatype. Binary will be loaded to a `text` column. When loading from JSONL, this will be a base64 string; when loading from parquet, this will be
    the `binary` object converted to `text`.
 4. `Clickhouse` accepts adding columns to a populated table that aren’t null.
 5. `Clickhouse` can produce rounding errors under certain conditions when using the float/double datatype. Make sure to use decimal if you can’t afford to have rounding errors. Loading the value

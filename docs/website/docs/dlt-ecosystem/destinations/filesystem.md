@@ -612,9 +612,9 @@ Adopting this layout offers several advantages:
 ## Supported file formats
 
 You can choose the following file formats:
-* [jsonl](../file-formats/jsonl.md) is used by default
-* [parquet](../file-formats/parquet.md) is supported
-* [csv](../file-formats/csv.md) is supported
+* [JSONL](../file-formats/jsonl.md) is used by default
+* [Parquet](../file-formats/parquet.md) is supported
+* [CSV](../file-formats/csv.md) is supported
 
 ## Supported table formats
 
@@ -643,7 +643,7 @@ def my_delta_resource():
     ...
 ```
 
-> `dlt` always uses `parquet` as `loader_file_format` when using the `delta` table format. Any setting of `loader_file_format` is disregarded.
+> `dlt` always uses Parquet as `loader_file_format` when using the `delta` table format. Any setting of `loader_file_format` is disregarded.
 
 #### Delta table partitioning
 A Delta table can be partitioned ([Hive-style partitioning](https://delta.io/blog/pros-cons-hive-style-partionining/)) by specifying one or more `partition` column hints. This example partitions the Delta table by the `foo` column:
@@ -709,7 +709,7 @@ When a load generates a new state, for example when using incremental loads, a n
 When running your pipeline, you might encounter an error like `[Errno 36] File name too long Error`. This error occurs because the generated file name exceeds the maximum allowed length on your filesystem.
 
 To prevent the file name length error, set the `max_identifier_length` parameter for your destination. This truncates all identifiers (including filenames) to a specified maximum length.
-For example: 
+For example:
 
 ```py
 from dlt.destinations import duckdb

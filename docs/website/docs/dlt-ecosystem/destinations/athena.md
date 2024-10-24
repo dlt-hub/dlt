@@ -156,8 +156,7 @@ aws_data_catalog="awsdatacatalog"
 
 ## Supported file formats
 
-You can choose the following file formats:
-* [parquet](../file-formats/parquet.md) is used by default
+* [Parquet](../file-formats/parquet.md) is used by default.
 
 ## Athena adapter
 

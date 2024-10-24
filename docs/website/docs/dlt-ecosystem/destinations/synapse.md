@@ -138,10 +138,10 @@ Data is loaded via `INSERT` statements by default.
 
 ## Supported file formats
 * [insert-values](../file-formats/insert-format.md) is used by default
-* [parquet](../file-formats/parquet.md) is used when [staging](#staging-support) is enabled
+* [Parquet](../file-formats/parquet.md) is used when [staging](#staging-support) is enabled
 
 ## Data type limitations
-* **Synapse cannot load `TIME` columns from `parquet` files**. `dlt` will fail such jobs permanently. Use the `insert_values` file format instead, or convert `datetime.time` objects to `str` or `datetime.datetime` to load `TIME` columns.
+* **Synapse cannot load `TIME` columns from Parquet files**. `dlt` will fail such jobs permanently. Use the `insert_values` file format instead, or convert `datetime.time` objects to `str` or `datetime.datetime` to load `TIME` columns.
 * **Synapse does not have a nested/JSON/struct data type**. The `dlt` `json` data type is mapped to the `nvarchar` type in Synapse.
 
 ## Table index type
