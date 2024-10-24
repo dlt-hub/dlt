@@ -11,6 +11,7 @@ from dlt.common.time import (
     ensure_pendulum_date,
     datetime_to_timestamp,
     datetime_to_timestamp_ms,
+    detect_datetime_format,
 )
 from dlt.common.typing import TAnyDateTime
 
@@ -124,3 +125,43 @@ def test_datetime_to_timestamp_helpers(
 ) -> None:
     assert datetime_to_timestamp(datetime_obj) == timestamp
     assert datetime_to_timestamp_ms(datetime_obj) == timestamp_ms
+
+
+@pytest.mark.parametrize(
+    "value, expected_format",
+    [
+        ("2024-10-20T15:30:00Z", "%Y-%m-%dT%H:%M:%SZ"),  # UTC 'Z'
+        ("2024-10-20T15:30:00.123456Z", "%Y-%m-%dT%H:%M:%S.%fZ"),  # UTC 'Z' with fractional seconds
+        ("2024-10-20T15:30:00+02:00", "%Y-%m-%dT%H:%M:%S%z"),  # Timezone offset
+        ("2024-10-20T15:30:00+0200", "%Y-%m-%dT%H:%M:%S%z"),  # Timezone without colon
+        ("2024-10-20T15:30:00", "%Y-%m-%dT%H:%M:%S"),  # No timezone
+        ("2024-10-20T15:30", "%Y-%m-%dT%H:%M"),  # Minute precision
+        ("2024-10-20T15", "%Y-%m-%dT%H"),  # Hour precision
+        ("2024-10-20", "%Y-%m-%d"),  # Date only
+        ("2024-10", "%Y-%m"),  # Year and month
+        ("2024", "%Y"),  # Year only
+        ("2024-W42", "%Y-W%W"),  # Week-based date
+        ("2024-W42-5", "%Y-W%W-%u"),  # Week-based date with day
+        ("2024-293", "%Y-%j"),  # Ordinal date
+        ("20241020", "%Y%m%d"),  # Compact date format
+        ("202410", "%Y%m"),  # Compact year and month format
+    ],
+)
+def test_detect_datetime_format(value, expected_format) -> None:
+    assert detect_datetime_format(value) == expected_format
+    assert ensure_pendulum_datetime(value) is not None
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "invalid-format",  # Invalid format
+        "2024/10/32",  # Invalid format
+        "2024-10-W",  # Invalid week format
+        "2024-10-W42-8",  # Invalid day of the week
+    ],
+)
+def test_detect_datetime_format_invalid(value) -> None:
+    assert detect_datetime_format(value) is None
+    with pytest.raises(ValueError):
+        ensure_pendulum_datetime(value)

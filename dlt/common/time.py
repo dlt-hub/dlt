@@ -1,5 +1,6 @@
 import contextlib
 import datetime  # noqa: I251
+import re
 from typing import Any, Optional, Union, overload, TypeVar, Callable  # noqa
 
 from pendulum.parsing import (
@@ -152,6 +153,53 @@ def ensure_pendulum_time(value: Union[str, datetime.time]) -> pendulum.Time:
             value.microseconds,
         )
     raise TypeError(f"Cannot coerce {value} to a pendulum.Time object.")
+
+
+def detect_datetime_format(value: str) -> Optional[str]:
+    format_patterns = {
+        # Full datetime with 'Z' (UTC) or timezone offset
+        re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$"): "%Y-%m-%dT%H:%M:%SZ",  # UTC 'Z'
+        re.compile(
+            r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z$"
+        ): "%Y-%m-%dT%H:%M:%S.%fZ",  # UTC with fractional seconds
+        re.compile(
+            r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\+\d{2}:\d{2}$"
+        ): "%Y-%m-%dT%H:%M:%S%z",  # Timezone offset
+        re.compile(
+            r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\+\d{4}$"
+        ): "%Y-%m-%dT%H:%M:%S%z",  # Timezone without colon
+        # Full datetime with fractional seconds and timezone
+        re.compile(
+            r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+\+\d{2}:\d{2}$"
+        ): "%Y-%m-%dT%H:%M:%S.%f%z",
+        re.compile(
+            r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+\+\d{4}$"
+        ): "%Y-%m-%dT%H:%M:%S.%f%z",  # Timezone without colon
+        # Datetime without timezone
+        re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$"): "%Y-%m-%dT%H:%M:%S",  # No timezone
+        re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$"): "%Y-%m-%dT%H:%M",  # Minute precision
+        re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}$"): "%Y-%m-%dT%H",  # Hour precision
+        # Date-only formats
+        re.compile(r"^\d{4}-\d{2}-\d{2}$"): "%Y-%m-%d",  # Date only
+        re.compile(r"^\d{4}-\d{2}$"): "%Y-%m",  # Year and month
+        re.compile(r"^\d{4}$"): "%Y",  # Year only
+        # Week-based date formats
+        re.compile(r"^\d{4}-W\d{2}$"): "%Y-W%W",  # Week-based date
+        re.compile(r"^\d{4}-W\d{2}-\d{1}$"): "%Y-W%W-%u",  # Week-based date with day
+        # Ordinal date formats (day of year)
+        re.compile(r"^\d{4}-\d{3}$"): "%Y-%j",  # Ordinal date
+        # Compact formats (no dashes)
+        re.compile(r"^\d{8}$"): "%Y%m%d",  # Compact date format
+        re.compile(r"^\d{6}$"): "%Y%m",  # Compact year and month format
+    }
+
+    # Match against each compiled regular expression
+    for pattern, format_str in format_patterns.items():
+        if pattern.match(value):
+            return format_str
+
+    # Return None if no pattern matches
+    return None
 
 
 def to_py_datetime(value: datetime.datetime) -> datetime.datetime:
