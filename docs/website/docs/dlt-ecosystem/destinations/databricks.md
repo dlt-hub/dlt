@@ -123,15 +123,17 @@ See [staging support](#staging-support) for authentication options when `dlt` co
 All write dispositions are supported.
 
 ## Data loading
-Data is loaded using `INSERT VALUES` statements by default.
+To load data into Databricks, you must set up a staging filesystem by configuring an Amazon S3 or Azure Blob Storage bucket. `parquet` is the default file format used for data uploads. As an alternative to `parquet`, you can switch to using `JSONL`.
 
-Efficient loading from a staging filesystem is also supported by configuring an Amazon S3 or Azure Blob Storage bucket as a staging destination. When staging is enabled, `dlt` will upload data in `parquet` files to the bucket and then use `COPY INTO` statements to ingest the data into Databricks.
+dlt will upload the data in `parquet` files (or `JSONL`, if configured) to the bucket and then use `COPY INTO` statements to ingest the data into Databricks.
+
 For more information on staging, see the [staging support](#staging-support) section below.
 
+
 ## Supported file formats
-* [insert-values](../file-formats/insert-format.md) is used by default.
-* [jsonl](../file-formats/jsonl.md) supported when staging is enabled (see limitations below).
 * [parquet](../file-formats/parquet.md) supported when staging is enabled.
+* [jsonl](../file-formats/jsonl.md) supported when staging is enabled (see limitations below).
+
 
 The `jsonl` format has some limitations when used with Databricks:
 
