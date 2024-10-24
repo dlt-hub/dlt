@@ -201,7 +201,7 @@ def partitioned_data():
 
 # Add partitioning hints to the table
 athena_adapter(
-    partitioned_table,
+    partitioned_data,
     partition=[
         # Partition per category and month
         "category",
