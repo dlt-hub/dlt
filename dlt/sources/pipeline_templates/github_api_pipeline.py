@@ -13,12 +13,11 @@ from dlt.sources.helpers.rest_client.paginators import HeaderLinkPaginator
 def github_api_resource(api_secret_key: Optional[str] = None):
     # Fallback to environment variable if no API secret key is provided
     api_secret_key = api_secret_key or os.getenv("GITHUB_API_TOKEN")
-    
     url = "https://api.github.com/repos/dlt-hub/dlt/issues"
 
     # Use BearerTokenAuth for authenticated requests if the token is available
     auth = BearerTokenAuth(api_secret_key) if api_secret_key else None
-    
+
     # Paginate through the GitHub API results
     for page in paginate(
         url, auth=auth, paginator=HeaderLinkPaginator(), params={"state": "open", "per_page": "100"}
