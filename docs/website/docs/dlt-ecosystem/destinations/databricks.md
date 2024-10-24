@@ -224,11 +224,17 @@ import dlt
 bricks = dlt.destinations.databricks(staging_credentials_name="credential_x")
 ```
 
+## Additional destination capabilities
+
 ### dbt support
 This destination [integrates with dbt](../transformations/dbt/dbt.md) via [dbt-databricks](https://github.com/databricks/dbt-databricks).
 
 ### Syncing of `dlt` state
 This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination).
+
+### Databricks User Agent
+We enable Databricks to identify that the connection is created by dlt.
+Databricks will use this user agent identifier to better understand the usage patterns associated with dlt integration. The connection identifier is `dltHub_dlt`.
 
 <!--@@@DLT_TUBA databricks-->
 
