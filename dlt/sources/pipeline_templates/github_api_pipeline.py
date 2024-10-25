@@ -9,6 +9,7 @@ from dlt.sources.helpers.rest_client import paginate
 from dlt.sources.helpers.rest_client.auth import BearerTokenAuth
 from dlt.sources.helpers.rest_client.paginators import HeaderLinkPaginator
 
+
 @dlt.resource(write_disposition="replace")
 def github_api_resource(api_secret_key: Optional[str] = None):
     # Fallback to environment variable if no API secret key is provided
