@@ -47,18 +47,16 @@ def chess_com_source(username: str, months: List[Dict[str, str]]) -> Iterator[Dl
         month_str = month["month"]
         # Configure REST API endpoint for the specific month
         config = RESTAPIConfig(
-            client={
-                "base_url": "https://api.chess.com/pub/"  # Base URL for Chess.com API
-            },
+            client={"base_url": "https://api.chess.com/pub/"},  # Base URL for Chess.com API
             resources=[
                 {
                     "name": f"chess_com_games_{year}_{month_str}",  # Unique resource name
                     "endpoint": {
                         "path": f"player/{username}/games/{year}/{month_str}",  # API endpoint path
                     },
-                    "primary_key": ["url"]  # Primary key to prevent duplicates
+                    "primary_key": ["url"],  # Primary key to prevent duplicates
                 }
-            ]
+            ],
         )
 
         # Fetch data from the API using the configured REST API source
@@ -73,7 +71,7 @@ def chess_com_source(username: str, months: List[Dict[str, str]]) -> Iterator[Dl
             resource = dlt.resource(
                 data,
                 name=f"chess_com_games_{year}_{month_str}",
-                write_disposition='append'  # Append new data without overwriting
+                write_disposition="append",  # Append new data without overwriting
             )
             resources.append(resource)
         else:
@@ -85,7 +83,9 @@ def chess_com_source(username: str, months: List[Dict[str, str]]) -> Iterator[Dl
         yield resource
 
 
-def generate_months(start_year: int, start_month: int, end_year: int, end_month: int) ->Iterator[Dict[str, str]]:
+def generate_months(
+    start_year: int, start_month: int, end_year: int, end_month: int
+) -> Iterator[Dict[str, str]]:
     """
     Generates a list of months between the start and end dates.
 
@@ -102,10 +102,7 @@ def generate_months(start_year: int, start_month: int, end_year: int, end_month:
     end_date = p.datetime(end_year, end_month, 1)
     current_date = start_date
     while current_date <= end_date:
-        yield {
-            "year": str(current_date.year),
-            "month": f"{current_date.month:02d}"
-        }
+        yield {"year": str(current_date.year), "month": f"{current_date.month:02d}"}
         # Move to the next month
         if current_date.month == 12:
             current_date = current_date.replace(year=current_date.year + 1, month=1)
@@ -152,15 +149,14 @@ def delete_old_backfills(load_info: LoadInfo, p: dlt.Pipeline, table_name: str) 
         # Inform if the table directory does not exist
         print(f"Table directory does not exist: {table_dir}")
 
+
 def load_chess_data():
     """
     Sets up and runs the dlt pipeline to load chess game data, then manages backfills.
     """
     # Initialize the dlt pipeline with filesystem destination
     pipeline = dlt.pipeline(
-        pipeline_name="chess_com_data",
-        destination="filesystem",
-        dataset_name="chess_games"
+        pipeline_name="chess_com_data", destination="filesystem", dataset_name="chess_games"
     )
 
     # Generate the list of months for the desired date range
