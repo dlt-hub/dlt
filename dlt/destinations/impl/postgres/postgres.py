@@ -1,6 +1,8 @@
+import base64
 import contextlib
-from typing import Dict, Optional, Sequence, List, Any, Iterator, Literal, get_args
+from typing import Dict, Optional, Sequence, List, Any, Iterator, Literal
 
+import binascii
 from shapely import wkt, wkb
 from shapely.geometry.base import BaseGeometry
 
@@ -55,15 +57,16 @@ class PostgresStagingCopyJob(SqlStagingCopyFollowupJob):
             with sql_client.with_staging_dataset():
                 staging_table_name = sql_client.make_qualified_table_name(table["name"])
             table_name = sql_client.make_qualified_table_name(table["name"])
-            # drop destination table
-            sql.append(f"DROP TABLE IF EXISTS {table_name};")
-            # moving staging table to destination schema
-            sql.append(
-                f"ALTER TABLE {staging_table_name} SET SCHEMA"
-                f" {sql_client.fully_qualified_dataset_name()};"
+            sql.extend(
+                (
+                    f"DROP TABLE IF EXISTS {table_name};",
+                    (
+                        f"ALTER TABLE {staging_table_name} SET SCHEMA"
+                        f" {sql_client.fully_qualified_dataset_name()};"
+                    ),
+                    f"CREATE TABLE {staging_table_name} (like {table_name} including all);",
+                )
             )
-            # recreate staging table
-            sql.append(f"CREATE TABLE {staging_table_name} (like {table_name} including all);")
         return sql
 
 
@@ -123,8 +126,7 @@ class PostgresCsvCopyJob(RunnableLoadJob, HasFollowupJobs):
                 split_columns.append(norm_col)
                 if norm_col in split_headers and is_nullable_column(col):
                     split_null_headers.append(norm_col)
-            split_unknown_headers = set(split_headers).difference(split_columns)
-            if split_unknown_headers:
+            if split_unknown_headers := set(split_headers).difference(split_columns):
                 raise DestinationInvalidFileFormat(
                     "postgres",
                     "csv",
@@ -142,15 +144,8 @@ class PostgresCsvCopyJob(RunnableLoadJob, HasFollowupJobs):
 
             qualified_table_name = sql_client.make_qualified_table_name(table_name)
             copy_sql = (
-                "COPY %s (%s) FROM STDIN WITH (FORMAT CSV, DELIMITER '%s', NULL '',"
-                " %s ENCODING '%s')"
-                % (
-                    qualified_table_name,
-                    headers,
-                    sep,
-                    null_headers,
-                    csv_format.encoding,
-                )
+                f"COPY {qualified_table_name} ({headers}) FROM STDIN WITH (FORMAT CSV, DELIMITER"
+                f" '{sep}', NULL '', {null_headers} ENCODING '{csv_format.encoding}')"
             )
             with sql_client.begin_transaction():
                 with sql_client.native_connection.cursor() as cursor:
@@ -160,11 +155,36 @@ class PostgresCsvCopyJob(RunnableLoadJob, HasFollowupJobs):
 class PostgresInsertValuesWithGeometryTypesLoadJob(InsertValuesLoadJob):
     @staticmethod
     def _parse_geometry(value: Any) -> Optional[str]:
-        if isinstance(value, (str, bytes)):
-            with contextlib.suppress(Exception):
-                geom = wkt.loads(value) if isinstance(value, str) else wkb.loads(value)
-                if isinstance(geom, BaseGeometry):
-                    return geom.wkb_hex
+        """Parse geometry from various formats into a PostgreSQL WKB statement."""
+        if value is None or not isinstance(value, (str, bytes)):
+            return None
+
+        with contextlib.suppress(Exception):
+            if isinstance(value, str) and len(value) >= 16:  # Min WKB hex length
+                with contextlib.suppress(binascii.Error, Exception):
+                    raw_bytes = binascii.unhexlify(value.strip())
+                    geom = wkb.loads(raw_bytes)
+                    if isinstance(geom, BaseGeometry):
+                        return f"decode('{value.strip()}', 'hex')"
+            if isinstance(value, str):
+                with contextlib.suppress(binascii.Error, Exception):
+                    raw_bytes = base64.b64decode(value.strip())
+                    geom = wkb.loads(raw_bytes)
+                    if isinstance(geom, BaseGeometry):
+                        hex_ = binascii.hexlify(raw_bytes).decode("ascii")
+                        return f"decode('{hex_}', 'hex')"
+            if isinstance(value, str):
+                with contextlib.suppress(Exception):
+                    geom = wkt.loads(value)
+                    if isinstance(geom, BaseGeometry):
+                        hex_ = binascii.hexlify(geom.wkb).decode("ascii")
+                        return f"decode('{hex_}', 'hex')"
+            if isinstance(value, bytes):
+                with contextlib.suppress(Exception):
+                    geom = wkb.loads(value)
+                    if isinstance(geom, BaseGeometry):
+                        hex_ = binascii.hexlify(value).decode("ascii")
+                        return f"decode('{hex_}', 'hex')"
         return None
 
     @staticmethod
@@ -308,40 +328,40 @@ class PostgresInsertValuesWithGeometryTypesLoadJob(InsertValuesLoadJob):
                     processed_fragment: List[str] = []
 
                     columns = self._load_table["columns"]
-                    processed_fragment_records: List[str] = (
-                        PostgresInsertValuesWithGeometryTypesLoadJob._split_fragment_to_records(
-                            fragment
-                        )
+                    processed_fragment_records: List[str] = self._split_fragment_to_records(
+                        fragment
                     )
 
-                    for record in processed_fragment_records:
-                        processed_record: List[str] = (
-                            PostgresInsertValuesWithGeometryTypesLoadJob._split_record_to_datums(
-                                record
-                            )
-                        )
+                    for record_num, record in enumerate(processed_fragment_records):
+                        processed_record: List[str] = self._split_record_to_datums(record)
                         assert len(columns) == len(processed_record)
 
-                        for column, column_value in zip(columns, processed_record):
+                        for i, (column, column_value) in enumerate(zip(columns, processed_record)):
                             if columns[column].get(GEOMETRY_HINT):
                                 if geom_value := self._parse_geometry(column_value.strip()):
                                     srid = columns[column].get(SRID_HINT, 4326)
-                                    processed_record.append(
-                                        f"ST_SetSRID(ST_GeomFromWKB(decode('{geom_value}', 'hex')),"
-                                        f" {srid})"
+                                    processed_record[i] = (
+                                        f"ST_SetSRID(ST_GeomFromWKB({geom_value}), {srid})"
                                     )
                                 else:
                                     logger.warning(
                                         f"{column_value} couldn't be coerced to geometric type."
                                     )
-                                    processed_record.append(column_value)
+                                    processed_record[i] = column_value
                             else:
-                                processed_record.append(column_value)
+                                processed_record[i] = column_value
 
-                        processed_fragment.append(processed_record)
+                        processed_record = [
+                            (
+                                f"'{datum}'"
+                                if not datum.startswith("ST_") and datum != "NULL"
+                                else datum
+                            )
+                            for datum in processed_record
+                        ]
+                        processed_fragment.append(f"({','.join(processed_record)})")
 
-                    processed_fragments.append(processed_fragment)
-
+                    processed_fragments.append(",\n".join(processed_fragment) + ";")
 
             yield processed_fragments
 

@@ -4,7 +4,7 @@ from typing import Generator, Any, Dict, List, Tuple
 
 import pytest
 import sqlfluff
-from shapely import wkb, wkt
+from shapely import wkb, wkt, Polygon
 
 import dlt
 from dlt.common.exceptions import TerminalValueError
@@ -355,24 +355,23 @@ def test_geometry_types(
     )
     assert_load_info(info)
 
-    # Assert that types were read in as PostGIS geometry types.
+    # Assert that types were read in as PostGIS geometry types
     with pipeline.sql_client() as c:
         with c.execute_query(f"""SELECT f_geometry_column
             FROM geometry_columns
             WHERE f_table_name in ('geodata_3857', 'geodata_2163', 'geodata_default')
-              AND f_table_schema = '{pipeline.default_schema.name}' """) as cur:
+              AND f_table_schema = '{c.fully_qualified_dataset_name(escape=False)}'""") as cur:
             records = cur.fetchall()
             assert records
             assert {record[0] for record in records} == {"geom"}
 
-    # Verify round-trip integrity.
-    with pipeline.sql_client() as c:
+        # Verify round-trip integrity
         for resource in ["geodata_default", "geodata_3857", "geodata_2163"]:
             srid = 4326 if resource == "geodata_default" else int(resource.split("_")[1])
 
             query = f"""
              SELECT type, ST_AsText(geom) as wkt, ST_SRID(geom) as srid, ST_AsBinary(geom) as wkb
-             FROM {pipeline.default_schema.name}.{resource}
+             FROM {c.make_qualified_table_name(resource)}
              """
 
             with c.execute_query(query) as cur:
@@ -405,6 +404,8 @@ def test_geometry_types(
 
                     tolerance = 1e-8
                     if isinstance(orig_geom, LinearRing):
+                        # LinearRing geometries are converted to Polygons for PostGIS compatibility.
+                        db_geom = Polygon(orig_geom)
                         assert LinearRing(db_geom.exterior.coords).equals_exact(
                             orig_geom, tolerance
                         ), f"Geometry mismatch for {db_type}"
