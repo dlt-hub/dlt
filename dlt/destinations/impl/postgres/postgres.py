@@ -1,6 +1,5 @@
 import contextlib
-import re
-from typing import Dict, Optional, Sequence, List, Any, Iterator, Tuple
+from typing import Dict, Optional, Sequence, List, Any, Iterator, Literal, get_args
 
 from shapely import wkt, wkb
 from shapely.geometry.base import BaseGeometry
@@ -31,6 +30,16 @@ from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.sql_jobs import SqlStagingCopyFollowupJob, SqlJobParams
 
 HINT_TO_POSTGRES_ATTR: Dict[TColumnHint, str] = {"unique": "UNIQUE"}
+TPOSTGIS_GEOMETRY = Literal[
+    "POINT",
+    "LINESTRING",
+    "POLYGON",
+    "MULTIPOINT",
+    "MULTILINESTRING",
+    "MULTIPOLYGON",
+    "GEOMETRYCOLLECTION",
+    "LINEARRING",
+]
 
 
 class PostgresStagingCopyJob(SqlStagingCopyFollowupJob):
@@ -159,58 +168,134 @@ class PostgresInsertValuesWithGeometryTypesLoadJob(InsertValuesLoadJob):
         return None
 
     @staticmethod
-    def extract_records_from_fragment(fragment: str) -> List[Tuple[Any, ...]]:
-        def parse_value(value: str) -> Any:
-            value = value.strip()
-            if value.startswith("E'") and value.endswith("'"):
-                return bytes(value[2:-1], "utf-8").decode("unicode_escape")
-            if value.startswith("'") and value.endswith("'"):
-                return value[1:-1]
-            if value.lower() in ('true', 'false'):
-                return value.lower()=='true'
-            if value.lower()=='null':
-                return None
-            try:
-                return int(value)
-            except ValueError:
-                try:
-                    return float(value)
-                except ValueError:
-                    return value
+    def _clean_value(value: str) -> str:
+        value = value.strip()
+        while value.startswith("("):
+            value = value[1:]
+        while value.endswith(")"):
+            value = value[:-1]
+        return value.strip()
 
-        def split_record(record: str) -> List[str]:
-            fields, current_field, paren_level, in_quotes = [], [], 0, False
-            escape = False
-            for char in record:
-                if escape:
-                    current_field.append(char)
-                    escape = False
-                    continue
-                if char=='\\':
-                    escape = True
-                    current_field.append(char)
-                    continue
-                if char=="'" and not in_quotes:
-                    in_quotes = True
-                elif char=="'" and in_quotes:
-                    in_quotes = False
-                elif char in '([{':
-                    paren_level += 1
-                elif char in ')]}':
-                    paren_level -= 1
-                elif char==',' and paren_level==0 and not in_quotes:
-                    fields.append(''.join(current_field).strip())
-                    current_field = []
-                    continue
-                current_field.append(char)
-            fields.append(''.join(current_field).strip())
-            return fields
+    @staticmethod
+    def _parse_value(value: str) -> str:
+        """Parse a single value, converting geometries to WKB hex."""
+        value = PostgresInsertValuesWithGeometryTypesLoadJob._clean_value(value)
 
-            # Match top-level records using regex with non-greedy matching for nested structures
+        if not value or value == "NULL":
+            return "NULL"
+        if value.startswith("E'") and value.endswith("'"):
+            return value[2:-1]
 
-        record_strings = re.findall(r'\((.*?)\)(?=,|\Z)', fragment)
-        records = [tuple(parse_value(field) for field in split_record(record)) for record in record_strings]
+        return value[1:-1] if value.startswith("'") and value.endswith("'") else value
+
+    @staticmethod
+    def _split_fragment_to_records(text: str) -> List[str]:
+        text = text.strip().rstrip(";").strip()
+
+        records = []
+        current_record = []
+        paren_count = 0
+        in_quote = False
+        escape_next = False
+
+        for char in text:
+            if escape_next:
+                current_record.append(char)
+                escape_next = False
+                continue
+
+            if char == "\\":
+                escape_next = True
+                current_record.append(char)
+                continue
+
+            if char == "'" and not escape_next:
+                in_quote = not in_quote
+                current_record.append(char)
+                continue
+
+            if char == "(" and not in_quote:
+                paren_count += 1
+                if paren_count == 1:
+                    continue
+                current_record.append(char)
+                continue
+
+            if char == ")" and not in_quote:
+                paren_count -= 1
+                if paren_count == 0:
+                    records.append("".join(current_record))
+                    current_record = []
+                    continue
+                current_record.append(char)
+                continue
+
+            if paren_count > 0 or in_quote:
+                current_record.append(char)
+
         return records
+
+    @staticmethod
+    def _split_record_to_datums(record: str) -> List[str]:
+        """Parse a single record into a list of values/datums."""
+        values = []
+        current = []
+        paren_count = 0
+        in_quote = False
+        escape_next = False
+        in_array = False
+
+        for char in record:
+            if escape_next:
+                current.append(char)
+                escape_next = False
+                continue
+
+            if char == "\\":
+                escape_next = True
+                current.append(char)
+                continue
+
+            if char == "'" and not escape_next:
+                in_quote = not in_quote
+                current.append(char)
+                continue
+
+            if char == "[":
+                in_array = True
+                current.append(char)
+                continue
+
+            if char == "]":
+                in_array = False
+                current.append(char)
+                continue
+
+            if char == "(" and not in_quote:
+                paren_count += 1
+                current.append(char)
+                continue
+
+            if char == ")" and not in_quote:
+                paren_count -= 1
+                current.append(char)
+                continue
+
+            if char == "," and not in_quote and paren_count == 0 and not in_array:
+                values.append(
+                    PostgresInsertValuesWithGeometryTypesLoadJob._parse_value("".join(current))
+                )
+                current = []
+                continue
+
+            current.append(char)
+
+        if current:
+            values.append(
+                PostgresInsertValuesWithGeometryTypesLoadJob._parse_value("".join(current))
+            )
+
+        return values
 
     def _insert(self, qualified_table_name: str, file_path: str) -> Iterator[List[str]]:
         to_insert = super()._insert(qualified_table_name, file_path)
@@ -220,20 +305,28 @@ class PostgresInsertValuesWithGeometryTypesLoadJob(InsertValuesLoadJob):
                 if fragment == "VALUES\n" or fragment.strip().upper().startswith("INSERT INTO "):
                     processed_fragments.append(fragment)
                 else:
+                    processed_fragment: List[str] = []
+
                     columns = self._load_table["columns"]
-                    processed_fragment_lines: List[str] = re.findall(
-                        r"\(E'[^']+',E'[^']+',E'[^']+',E'[^']+'\)", fragment
+                    processed_fragment_records: List[str] = (
+                        PostgresInsertValuesWithGeometryTypesLoadJob._split_fragment_to_records(
+                            fragment
+                        )
                     )
 
-                    for line in processed_fragment_lines:
-                        processed_fragment: List[str] = re.findall(r"", fragment)
-                        assert len(columns) == len(processed_fragments)
+                    for record in processed_fragment_records:
+                        processed_record: List[str] = (
+                            PostgresInsertValuesWithGeometryTypesLoadJob._split_record_to_datums(
+                                record
+                            )
+                        )
+                        assert len(columns) == len(processed_record)
 
-                        for column, column_value in zip(columns, processed_fragment):
-                            if column.get(GEOMETRY_HINT):
+                        for column, column_value in zip(columns, processed_record):
+                            if columns[column].get(GEOMETRY_HINT):
                                 if geom_value := self._parse_geometry(column_value.strip()):
-                                    srid = column.get(SRID_HINT, 4326)
-                                    processed_fragment.append(
+                                    srid = columns[column].get(SRID_HINT, 4326)
+                                    processed_record.append(
                                         f"ST_SetSRID(ST_GeomFromWKB(decode('{geom_value}', 'hex')),"
                                         f" {srid})"
                                     )
@@ -241,11 +334,14 @@ class PostgresInsertValuesWithGeometryTypesLoadJob(InsertValuesLoadJob):
                                     logger.warning(
                                         f"{column_value} couldn't be coerced to geometric type."
                                     )
-                                    processed_fragment.append(column_value)
+                                    processed_record.append(column_value)
                             else:
-                                processed_fragment.append(column_value)
+                                processed_record.append(column_value)
 
-                        processed_fragments.append(processed_fragment)
+                        processed_fragment.append(processed_record)
+
+                    processed_fragments.append(processed_fragment)
+
 
             yield processed_fragments
 
