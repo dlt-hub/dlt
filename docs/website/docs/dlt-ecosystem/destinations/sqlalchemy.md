@@ -154,7 +154,7 @@ For example, SQLite does not have `DATETIME` or `TIMESTAMP` types, so `timestamp
 ## Supported file formats
 
 * [typed-jsonl](../file-formats/jsonl.md) is used by default. JSON-encoded data with typing information included.
-* [parquet](../file-formats/parquet.md) is supported.
+* [Parquet](../file-formats/parquet.md) is supported.
 
 ## Supported column hints
 

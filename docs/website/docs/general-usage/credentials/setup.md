@@ -270,7 +270,7 @@ dlt.config.register_provider(provider)
 ```
 
 :::tip
-Check out an [example](../../examples/custom_config_provider) for a `yaml` based config provider that supports switchable profiles.
+Check out an [example](../../examples/custom_config_provider) for a YAML based config provider that supports switchable profiles.
 :::
 
 ## Examples

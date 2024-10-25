@@ -582,7 +582,7 @@ def generate_rows(nr):
     for i in range(nr):
         yield {'id': i, 'example_string': 'abc'}
 ```
-The resource above will be saved and loaded from a `parquet` file (if the destination supports it).
+The resource above will be saved and loaded from a Parquet file (if the destination supports it).
 
 :::note
 A special `file_format`: **preferred** will load the resource using a format that is preferred by a destination. This setting supersedes the `loader_file_format` passed to the `run` method.
