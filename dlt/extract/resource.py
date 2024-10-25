@@ -28,6 +28,7 @@ from dlt.common.pipeline import (
     pipeline_state,
 )
 from dlt.common.utils import flatten_list_or_items, get_callable_name, uniq_id
+from dlt.common.schema.typing import TTableSchema
 from dlt.extract.utils import wrap_async_iterator, wrap_parallel_iterator
 
 from dlt.extract.items import (
@@ -450,6 +451,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         if not create_table_variant:
             incremental = self.incremental
             # try to late assign incremental
+
             if table_schema_template.get("incremental") is not None:
                 new_incremental = table_schema_template["incremental"]
                 # remove incremental if empty
@@ -479,6 +481,17 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
 
             if table_schema_template.get("validator") is not None:
                 self.validator = table_schema_template["validator"]
+
+    def compute_table_schema(self, item: TDataItem = None, meta: Any = None) -> TTableSchema:
+        table_schema = super().compute_table_schema(item, meta)
+        if self.incremental and "incremental" not in table_schema:
+            incremental = self.incremental
+            if isinstance(incremental, IncrementalResourceWrapper):
+                incremental = incremental.incremental  # type: ignore[assignment]
+            if incremental:
+                table_schema["incremental"] = incremental.to_table_hint()  # type: ignore[attr-defined]
+
+        return table_schema
 
     def bind(self: TDltResourceImpl, *args: Any, **kwargs: Any) -> TDltResourceImpl:
         """Binds the parametrized resource to passed arguments. Modifies resource pipe in place. Does not evaluate generators or iterators."""

@@ -1,6 +1,6 @@
 import os
 from datetime import datetime  # noqa: I251
-from typing import Generic, ClassVar, Any, Optional, Type, Dict
+from typing import Generic, ClassVar, Any, Optional, Type, Dict, Union
 from typing_extensions import get_origin, get_args
 
 import inspect
@@ -20,7 +20,7 @@ from dlt.common.typing import (
     is_optional_type,
     is_subclass,
 )
-from dlt.common.schema.typing import TColumnNames
+from dlt.common.schema.typing import TColumnNames, TIncrementalHint
 from dlt.common.configuration import configspec, ConfigurationValueError
 from dlt.common.configuration.specs import BaseConfiguration
 from dlt.common.pipeline import resource_state
@@ -159,6 +159,25 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         self._transformers: Dict[str, IncrementalTransform] = {}
         self._bound_pipe: SupportsPipe = None
         """Bound pipe"""
+
+    def to_table_hint(self) -> Optional[TIncrementalHint]:
+        """Table hint is only returned when all properties are serializable"""
+        if self.last_value_func not in (min, max):
+            logger.warning(
+                "Custom last_value_func %s is not serializable. Incremental hint will not be saved"
+                " in schema.",
+                self.last_value_func,
+            )
+            return None
+        return {
+            "cursor_path": self.cursor_path,
+            "initial_value": self.initial_value,
+            "last_value_func": self.last_value_func.__name__,  # type: ignore[typeddict-item]
+            "end_value": self.end_value,
+            "row_order": self.row_order,
+            "allow_external_schedulers": self.allow_external_schedulers,
+            "on_cursor_value_missing": self.on_cursor_value_missing,
+        }
 
     @property
     def primary_key(self) -> Optional[TTableHintTemplate[TColumnNames]]:

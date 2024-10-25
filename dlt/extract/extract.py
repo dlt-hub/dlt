@@ -2,7 +2,7 @@ import contextlib
 from collections.abc import Sequence as C_Sequence
 from copy import copy
 import itertools
-from typing import Iterator, List, Dict, Any, Optional
+from typing import Iterator, List, Dict, Any, Optional, Mapping
 import yaml
 
 from dlt.common.configuration.container import Container
@@ -238,7 +238,10 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                         hint = hint.incremental
                     # sometimes internal incremental is not bound
                     if hint:
-                        hints[name] = dict(hint)  # type: ignore[call-overload]
+                        if isinstance(hint, Mapping):
+                            hints[name] = dict(hint)
+                        else:
+                            hints[name] = hint.to_table_hint()
                     continue
                 if name == "original_columns":
                     # this is original type of the columns ie. Pydantic model

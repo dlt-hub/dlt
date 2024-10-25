@@ -204,6 +204,11 @@ class DltResourceHints:
             for k, v in table_template.items()
             if k not in NATURAL_CALLABLES
         }  # type: ignore
+        if "incremental" in table_template:
+            incremental = table_template["incremental"]
+            if isinstance(incremental, Incremental):
+                # TODO: method on incremental
+                resolved_template["incremental"] = dict(incremental)
         table_schema = self._create_table_schema(resolved_template, self.name)
         migrate_complex_types(table_schema, warn=True)
         validate_dict_ignoring_xkeys(

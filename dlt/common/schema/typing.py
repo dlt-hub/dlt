@@ -261,6 +261,16 @@ class TTableReference(TypedDict):
 TTableReferenceParam = Sequence[TTableReference]
 
 
+class TIncrementalHint(TypedDict, total=False):
+    cursor_path: str
+    initial_value: Optional[Any]
+    last_value_func: Optional[Literal["min", "max"]]
+    end_value: Optional[Any]
+    row_order: Optional[TSortOrder]
+    allow_external_schedulers: Optional[bool]
+    on_cursor_value_missing: Optional[Literal["raise", "include", "exclude"]]
+
+
 class _TTableSchemaBase(TTableProcessingHints, total=False):
     name: Optional[str]
     description: Optional[str]
@@ -279,6 +289,7 @@ class TTableSchema(_TTableSchemaBase, total=False):
 
     write_disposition: Optional[TWriteDisposition]
     references: Optional[TTableReferenceParam]
+    incremental: Optional[TIncrementalHint]
 
 
 class TPartialTableSchema(TTableSchema):
