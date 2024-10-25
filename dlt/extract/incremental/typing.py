@@ -10,6 +10,8 @@ TCursorValue = TypeVar("TCursorValue", bound=Any)
 LastValueFunc = Callable[[Sequence[TCursorValue]], Any]
 OnCursorValueMissing = Literal["raise", "include", "exclude"]
 
+TIncrementalRange = Literal["open", "closed"]
+
 
 class IncrementalColumnState(TypedDict):
     initial_value: Optional[Any]

@@ -40,6 +40,7 @@ from dlt.extract.incremental.typing import (
     TCursorValue,
     LastValueFunc,
     OnCursorValueMissing,
+    TIncrementalRange,
 )
 from dlt.extract.pipe import Pipe
 from dlt.extract.items import SupportsPipe, TTableHintTemplate, ItemTransform
@@ -111,6 +112,8 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
     row_order: Optional[TSortOrder] = None
     allow_external_schedulers: bool = False
     on_cursor_value_missing: OnCursorValueMissing = "raise"
+    range_start: TIncrementalRange = "closed"
+    range_end: TIncrementalRange = "open"
 
     # incremental acting as empty
     EMPTY: ClassVar["Incremental[Any]"] = None
@@ -126,6 +129,8 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         row_order: Optional[TSortOrder] = None,
         allow_external_schedulers: bool = False,
         on_cursor_value_missing: OnCursorValueMissing = "raise",
+        range_start: TIncrementalRange = "closed",
+        range_end: TIncrementalRange = "open",
     ) -> None:
         # make sure that path is valid
         if cursor_path:
@@ -159,6 +164,8 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         self._transformers: Dict[str, IncrementalTransform] = {}
         self._bound_pipe: SupportsPipe = None
         """Bound pipe"""
+        self.range_start = range_start
+        self.range_end = range_end
 
     @property
     def primary_key(self) -> Optional[TTableHintTemplate[TColumnNames]]:
@@ -185,6 +192,8 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
                 self._primary_key,
                 set(self._cached_state["unique_hashes"]),
                 self.on_cursor_value_missing,
+                self.range_start,
+                self.range_end,
             )
 
     @classmethod
