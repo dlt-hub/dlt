@@ -2603,9 +2603,7 @@ def test_incremental_merge_native_representation():
 @pytest.mark.parametrize("lag", [0, 1, 100, 200])
 def test_incremental_lag_int(lag: float) -> None:
     """
-    Test the behavior of incremental lag when updating previously loaded data using the append method, which may create duplicates.
-
-    We validate that the final dataset correctly orders the updated and new entries.
+    Test incremental lag behavior for int data while using `id` as the primary key using append write disposition.
     """
 
     pipeline = dlt.pipeline(
@@ -2699,10 +2697,7 @@ def test_incremental_lag_int(lag: float) -> None:
 @pytest.mark.parametrize("lag", [3601, 3600, 60, 0])
 def test_incremental_lag_datetime(lag: float) -> None:
     """
-    Test incremental lag behavior for datetime data while using `id` as the primary key.
-
-    We validate that the final dataset reflects the correct data updates, taking the lag into account,
-    and ensure deduplication is disabled when lag is set.
+    Test incremental lag behavior for datetime data while using `id` as the primary key using merge write disposition.
     """
 
     pipeline = dlt.pipeline(
@@ -2768,3 +2763,52 @@ def test_incremental_lag_datetime(lag: float) -> None:
             for row in sql_client.execute_sql(f"SELECT event FROM {name} ORDER BY _dlt_load_id, id")
         ]
         assert result == expected_results[int(lag)]
+
+
+@pytest.mark.parametrize("lag", [3601, 3600, 60, 0])
+def test_incremental_lag_disabled_with_custom_last_value_func(lag: float) -> None:
+    """
+    Test incremental lag is disabled when not using min or max as incremental last_value_func
+    """
+
+    pipeline = dlt.pipeline(
+        pipeline_name=uniq_id(),
+        destination=dlt.destinations.duckdb(credentials=duckdb.connect(":memory:")),
+    )
+
+    name = "events"
+    is_second_run = False
+
+    def custom_function(values):
+        return max(values)
+
+    @dlt.resource(name=name, primary_key="id", write_disposition="append")
+    def events_resource(_=dlt.sources.incremental("id", lag=lag, last_value_func=custom_function)):
+        nonlocal is_second_run
+
+        initial_entries = [
+            {"id": 100, "event": "100"},
+            {"id": 200, "event": "200"},
+            {"id": 300, "event": "300"},
+        ]
+
+        second_run_events = [
+            {"id": 100, "event": "100_updated_1"},
+            {"id": 200, "event": "200_updated_1"},
+            {"id": 300, "event": "300_updated_1"},
+            {"id": 400, "event": "400"},
+        ]
+
+        yield second_run_events if is_second_run else initial_entries
+
+    # Run the pipeline three times
+    pipeline.run(events_resource)
+    is_second_run = True
+    pipeline.run(events_resource)
+
+    with pipeline.sql_client() as sql_client:
+        result = [
+            row[0]
+            for row in sql_client.execute_sql(f"SELECT event FROM {name} ORDER BY _dlt_load_id, id")
+        ]
+        assert result == ["100", "200", "300", "400"]

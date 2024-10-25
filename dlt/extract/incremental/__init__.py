@@ -1,6 +1,6 @@
 import os
 from datetime import datetime, timedelta, date  # noqa: I251
-from typing import Generic, ClassVar, Any, Optional, Type, Dict
+from typing import Generic, ClassVar, Any, Optional, Type, Dict, Union
 import dateutil.parser
 from typing_extensions import get_origin, get_args
 
@@ -310,42 +310,47 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         if self._lag is None:
             return value
 
+        # Check if last_value_func is either max or min
+        if self.last_value_func not in (max, min):
+            logger.warning(
+                "Lag is only supported for max or min last_value_func. Provided:"
+                f" {self.last_value_func}"
+            )
+            return value
+
         # Determine if the input is originally a string and capture its format
         is_str = isinstance(value, str)
-        original_format = None
-        if is_str:
-            original_format = detect_datetime_format(value)
-            value = ensure_pendulum_datetime(value)  # type: ignore
+        original_format = detect_datetime_format(value) if is_str else None
+        value = ensure_pendulum_datetime(value) if is_str else value  # type: ignore
 
-        # Apply lag based on the type of value
+        # Apply lag depending on value type
         if isinstance(value, (datetime, date)):
-            delta = (
-                timedelta(seconds=self._lag)
-                if isinstance(value, datetime)
-                else timedelta(days=self._lag)
-            )
-            value = value - delta if self.last_value_func is max else value + delta  # type: ignore
-
-            # If originally a string, convert back to the original format
+            value = self._apply_lag_to_datetime(value)  # type: ignore
             if is_str and original_format:
                 value = value.strftime(original_format)  # type: ignore
 
-        elif isinstance(value, int):
-            # Ensure that int types remain integers
-            adjusted_value = value - self._lag if self.last_value_func is max else value + self._lag
-            value = int(adjusted_value)  # type: ignore
-
-        elif isinstance(value, float):
-            value = value - self._lag if self.last_value_func is max else value + self._lag  # type: ignore
+        elif isinstance(value, (int, float)):
+            value = self._apply_lag_to_number(value)  # type: ignore
 
         else:
-            # Handle unsupported types
             logger.warning(
-                f"Lag is not supported for last_value_func: {self.last_value_func} and cursor type:"
-                f" {type(value)}"
+                f"Lag is not supported for cursor type: {type(value)} with last_value_func:"
+                f" {self.last_value_func}"
             )
 
         return value
+
+    def _apply_lag_to_datetime(self, value: Union[datetime, date]) -> Union[datetime, date]:
+        delta = (
+            timedelta(seconds=self._lag)
+            if isinstance(value, datetime)
+            else timedelta(days=self._lag)
+        )
+        return value - delta if self.last_value_func is max else value + delta
+
+    def _apply_lag_to_number(self, value: Union[int, float]) -> Union[int, float]:
+        adjusted_value = value - self._lag if self.last_value_func is max else value + self._lag
+        return int(adjusted_value) if isinstance(value, int) else adjusted_value
 
     def get_state(self) -> IncrementalColumnState:
         """Returns an Incremental state for a particular cursor column"""
