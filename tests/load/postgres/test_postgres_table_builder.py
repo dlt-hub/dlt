@@ -1,10 +1,8 @@
-import os
 from copy import deepcopy
-from typing import Generator, Any, Dict, List, Tuple
+from typing import Generator, Any, Dict, List
 
 import pytest
 import sqlfluff
-from shapely import wkb, wkt, Polygon
 
 import dlt
 from dlt.common.exceptions import TerminalValueError
@@ -18,7 +16,6 @@ from dlt.destinations.impl.postgres.configuration import (
 )
 from dlt.destinations.impl.postgres.postgres import (
     PostgresClient,
-    PostgresInsertValuesWithGeometryTypesLoadJob,
 )
 from dlt.destinations.impl.postgres.postgres_adapter import (
     postgres_adapter,
@@ -233,85 +230,6 @@ def test_adapter_geometry_hint_config(
     }
 
 
-def test_parse_geometry_func():
-    geom_func = PostgresInsertValuesWithGeometryTypesLoadJob._parse_geometry
-
-    # Geometric representations
-    valid_point_wkt = "POINT(0 0)"
-    result = geom_func(valid_point_wkt)
-    assert result is not None
-    assert isinstance(result, str)
-    expected_hex = wkb.dumps(wkt.loads(valid_point_wkt)).hex()
-    assert result.lower() == expected_hex.lower()
-
-    valid_linestring_wkt = "LINESTRING(0 0, 1 1, 2 2)"
-    linestring_wkb = wkb.dumps(wkt.loads(valid_linestring_wkt))
-    result = geom_func(linestring_wkb)
-    assert result is not None
-    assert isinstance(result, str)
-    assert result.lower() == linestring_wkb.hex().lower()
-
-    valid_polygon_wkt = "POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))"
-    result = geom_func(valid_polygon_wkt)
-    assert result is not None
-    assert isinstance(result, str)
-    expected_hex = wkb.dumps(wkt.loads(valid_polygon_wkt)).hex()
-    assert result.lower() == expected_hex.lower()
-
-    valid_multipolygon_wkt = (
-        "MULTIPOLYGON(((0 0, 0 1, 1 1, 1 0, 0 0)), ((2 2, 2 3, 3 3, 3 2, 2 2)))"
-    )
-    result = geom_func(valid_multipolygon_wkt)
-    assert result is not None
-    assert isinstance(result, str)
-    expected_hex = wkb.dumps(wkt.loads(valid_multipolygon_wkt)).hex()
-    assert result.lower() == expected_hex.lower()
-
-    # Non-geometric literals
-    invalid_wkt_string = "NOT A VALID WKT STRING"
-    result = geom_func(invalid_wkt_string)
-    assert result is None
-
-    null_input = None
-    result = geom_func(null_input)
-    assert result is None
-
-    empty_string_input = ""
-    result = geom_func(empty_string_input)
-    assert result is None
-
-    non_geometric_integer = 42
-    result = geom_func(non_geometric_integer)
-    assert result is None
-
-    empty_bytes_input = b""
-    result = geom_func(empty_bytes_input)
-    assert result is None
-
-
-@pytest.mark.parametrize(
-    "data, expected",
-    [
-        (
-            "(E'Point_wkt',E'POINT (1 1)',E'1729364788.3912747',E'vl/uvFjm2QFrDQ');",
-            [("Point_wkt", "POINT (1 1)", "1729364788.3912747", "vl/uvFjm2QFrDQ")],
-        ),
-        ("(a,b,c),(d,e,f);", [("a", "b", "c"), ("d", "e", "f")]),
-        ("((a,b),c);", [("(a,b)", "c")]),
-        (
-            "(1, 2.5, true, false, NULL, 'string', E'escaped\\nstring');",
-            [(1, 2.5, True, False, None, "string", "escaped\nstring")],
-        ),
-        ("(E'\\tTabbed\\nNewline', E'\\\\Backslash');", [("\tTabbed\nNewline", "\\Backslash")]),
-        ("('nested,(parentheses)', simple);", [("nested,(parentheses)", "simple")]),
-    ],
-)
-def test_extract_records_from_fragment(data: str, expected: List[Tuple[Any, ...]]):
-    assert (
-        PostgresInsertValuesWithGeometryTypesLoadJob.extract_records_from_fragment(data) == expected
-    )
-
-
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(default_sql_configs=True, subset=["postgres"]),
@@ -320,10 +238,7 @@ def test_extract_records_from_fragment(data: str, expected: List[Tuple[Any, ...]
 def test_geometry_types(
     destination_config: DestinationTestConfiguration,
 ) -> None:
-    from shapely import wkt, wkb
-    from shapely import LinearRing
-
-    os.environ["LOAD__WORKERS"] = "1"
+    from shapely import wkt, wkb, LinearRing, Polygon
 
     @dlt.resource
     def geodata_default() -> Generator[List[Dict[str, Any]], Any, Any]:
