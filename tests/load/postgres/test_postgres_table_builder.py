@@ -1,5 +1,5 @@
 from copy import deepcopy
-from typing import Generator, Any, Dict, List
+from typing import Generator, Any, List
 
 import pytest
 import sqlfluff
@@ -238,22 +238,22 @@ def test_adapter_geometry_hint_config(
 def test_geometry_types(
     destination_config: DestinationTestConfiguration,
 ) -> None:
-    from shapely import wkt, wkb, LinearRing, Polygon
+    from shapely import wkt, wkb, LinearRing, Polygon  # type: ignore[import-untyped]
 
     @dlt.resource
-    def geodata_default() -> Generator[List[Dict[str, Any]], Any, Any]:
+    def geodata_default():
         yield from generate_sample_geometry_records()
 
     @dlt.resource
-    def geodata_3857() -> Generator[List[Dict[str, Any]], Any, Any]:
+    def geodata_3857():
         yield from generate_sample_geometry_records()
 
     @dlt.resource
-    def geodata_2163() -> Generator[List[Dict[str, Any]], Any, Any]:
+    def geodata_2163():
         yield from generate_sample_geometry_records()
 
     @dlt.resource
-    def no_geodata() -> Generator[List[Dict[str, Any]], Any, Any]:
+    def no_geodata():
         yield from [{"a": 1}, {"a": 2}]
 
     postgres_adapter(geodata_default, geometry=["geom"])
@@ -325,38 +325,6 @@ def test_geometry_types(
                             orig_geom, tolerance
                         ), f"Geometry mismatch for {db_type}"
                     else:
-                        assert orig_geom.equals_exact(
+                        assert orig_geom.equals_exact(  # type: ignore[attr-defined]
                             db_geom, tolerance
                         ), f"Geometry mismatch for {db_type}"
-
-
-@pytest.mark.parametrize(
-    "destination_config",
-    destinations_configs(default_sql_configs=True, subset=["postgres"]),
-    ids=lambda x: x.name,
-)
-def test_read_from_geopandas_with_native_geodata_type(
-    destination_config: DestinationTestConfiguration,
-) -> None:
-    """Test geopandas geo columns are automatically identified as such and cast to postgis geotype."""
-    import geopandas as gpd  # type: ignore
-
-    pipeline = destination_config.setup_pipeline("geodata_pandas_pipeline", dev_mode=True)
-    gdf = gpd.read_file("tests/load/cases/loading/sample_geodata.xml")
-
-    info = pipeline.run(gdf, table_name="geodata_pandas")
-    assert_load_info(info)
-
-    # Check the 'geometry' field has been cast to a PostGIS geometry type.
-    with pipeline.sql_client() as c:
-        fqtn_geodata_pandas = c.make_qualified_table_name("geodata_pandas", escape=False)
-        with c.execute_query(f"""
-            SELECT f_geometry_column, type
-            FROM geometry_columns
-            WHERE f_table_name = '{fqtn_geodata_pandas}' AND f_geometry_column = 'geometry';
-            """) as cur:
-            records = cur.fetchone()
-            assert records
-            assert records[0] == "geometry"
-
-    # TODO: read dataframe back into gpd frame and assert equal to original

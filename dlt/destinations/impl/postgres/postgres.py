@@ -3,8 +3,8 @@ import contextlib
 from typing import Dict, Optional, Sequence, List, Any, Iterator, Literal
 
 import binascii
-from shapely import wkt, wkb
-from shapely.geometry.base import BaseGeometry
+from shapely import wkt, wkb  # type: ignore[import-untyped]
+from shapely.geometry.base import BaseGeometry  # type: ignore[import-untyped]
 
 from dlt.common import logger
 from dlt.common.data_writers.configuration import CsvFormatConfiguration
@@ -332,7 +332,7 @@ class PostgresInsertValuesWithGeometryTypesLoadJob(InsertValuesLoadJob):
                         fragment
                     )
 
-                    for record_num, record in enumerate(processed_fragment_records):
+                    for record in processed_fragment_records:
                         processed_record: List[str] = self._split_record_to_datums(record)
                         assert len(columns) == len(processed_record)
 
