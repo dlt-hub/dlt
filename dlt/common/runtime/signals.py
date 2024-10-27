@@ -47,6 +47,11 @@ def sleep(sleep_seconds: float) -> None:
     raise_if_signalled()
 
 
+def wake_all() -> None:
+    """Wakes all threads sleeping on event"""
+    exit_event.set()
+
+
 @contextmanager
 def delayed_signals() -> Iterator[None]:
     """Will delay signalling until `raise_if_signalled` is used or signalled `sleep`"""

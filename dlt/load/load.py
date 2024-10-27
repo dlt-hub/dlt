@@ -92,7 +92,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         self._loaded_packages: List[LoadPackageInfo] = []
         self._job_metrics: Dict[str, LoadJobMetrics] = {}
         self._run_loop_sleep_duration: float = (
-            1.0  # amount of time to sleep between querying completed jobs
+            5.0  # amount of time to sleep between querying completed jobs
         )
         super().__init__()
 

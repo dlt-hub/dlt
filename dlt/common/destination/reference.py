@@ -1,7 +1,6 @@
 from abc import ABC, abstractmethod
 import dataclasses
 from importlib import import_module
-from contextlib import contextmanager
 
 from types import TracebackType
 from typing import (
@@ -407,6 +406,8 @@ class RunnableLoadJob(LoadJob, ABC):
         """
         wrapper around the user implemented run method
         """
+        from dlt.common.runtime import signals
+
         # only jobs that are not running or have not reached a final state
         # may be started
         assert self._state in ("ready", "retry")
@@ -433,6 +434,8 @@ class RunnableLoadJob(LoadJob, ABC):
             self._finished_at = pendulum.now()
             # sanity check
             assert self._state in ("completed", "retry", "failed")
+            # wake up waiting threads
+            signals.wake_all()
 
     @abstractmethod
     def run(self) -> None:
