@@ -17,6 +17,7 @@ class ConfigSectionContext(ContainerInjectableContext):
         """Merges existing context into incoming using a merge style function"""
         merge_style_f = self.merge_style or self.prefer_incoming
         merge_style_f(self, existing)
+        assert self.sections is not None
 
     def source_name(self) -> str:
         """Gets name of a source from `sections`"""
