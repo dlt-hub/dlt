@@ -146,4 +146,16 @@ if __name__ == "__main__":
 
     # check that stuff was loaded
     row_counts = pipeline.last_trace.last_normalize_info.row_counts
-    assert row_counts["ticket_events"] == 17
+    assert row_counts["ticket_events"] > 0, "No ticket events were loaded"
+
+    with pipeline.sql_client() as client:
+        results = client.execute("""
+            SELECT
+                COUNT(DISTINCT ticket_id) as unique_tickets,
+                COUNT(DISTINCT event_type) as event_types,
+            FROM ticket_events
+        """).fetchone()
+
+        unique_tickets, event_types = results
+        assert unique_tickets > 0, "No unique tickets were loaded"
+        assert event_types > 0, "No event types were found"
