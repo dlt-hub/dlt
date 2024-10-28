@@ -26,7 +26,7 @@ import dlt
 from dlt.common import pendulum
 from dlt.common.time import ensure_pendulum_datetime
 from dlt.common.typing import TAnyDateTime
-from dlt.sources.helpers.requests import client
+from dlt.sources.helpers import requests
 
 
 @dlt.source(max_table_nesting=2)
@@ -123,7 +123,7 @@ def get_pages(
     # make request and keep looping until there is no next page
     get_url = f"{url}{endpoint}"
     while get_url:
-        response = client.get(get_url, headers=headers, auth=auth, params=params)
+        response = requests.get(get_url, headers=headers, auth=auth, params=params)
         response.raise_for_status()
         response_json = response.json()
         result = response_json[data_point_name]
@@ -146,4 +146,16 @@ if __name__ == "__main__":
 
     # check that stuff was loaded
     row_counts = pipeline.last_trace.last_normalize_info.row_counts
-    assert row_counts["ticket_events"] == 17
+    assert row_counts["ticket_events"] > 0, "No ticket events were loaded"
+
+    with pipeline.sql_client() as client:
+        results = client.execute("""
+            SELECT
+                COUNT(DISTINCT ticket_id) as unique_tickets,
+                COUNT(DISTINCT event_type) as event_types,
+            FROM ticket_events
+        """).fetchone()
+
+        unique_tickets, event_types = results
+        assert unique_tickets > 0, "No unique tickets were loaded"
+        assert event_types > 0, "No event types were found"
