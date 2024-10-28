@@ -26,7 +26,7 @@ import dlt
 from dlt.common import pendulum
 from dlt.common.time import ensure_pendulum_datetime
 from dlt.common.typing import TAnyDateTime
-from dlt.sources.helpers.requests import client
+from dlt.sources.helpers import requests
 
 
 @dlt.source(max_table_nesting=2)
@@ -123,7 +123,7 @@ def get_pages(
     # make request and keep looping until there is no next page
     get_url = f"{url}{endpoint}"
     while get_url:
-        response = client.get(get_url, headers=headers, auth=auth, params=params)
+        response = requests.get(get_url, headers=headers, auth=auth, params=params)
         response.raise_for_status()
         response_json = response.json()
         result = response_json[data_point_name]
