@@ -307,14 +307,6 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
             self.initial_value = native_value
 
     def _apply_lag(self, value: TCursorValue) -> TCursorValue:
-        # Check if last_value_func is either max or min
-        if self.last_value_func not in (max, min):
-            logger.warning(
-                "Lag is only supported for max or min last_value_func. Provided:"
-                f" {self.last_value_func}"
-            )
-            return value
-
         # Determine if the input is originally a string and capture its format
         is_str = isinstance(value, str)
         value_format = detect_datetime_format(value) if is_str else None
@@ -399,9 +391,27 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         s = self.get_state()
 
         last_value = s["last_value"]
+        initial_value = s["initial_value"]
+
+        # Skip lag adjustment when using min function with initial_value to avoid out-of-bounds issues
+        if last_value == initial_value or initial_value and self.last_value_func == min:
+            return last_value  # type: ignore
 
         if self._lag and last_value and not self.end_value:
-            return self._apply_lag(last_value)
+            if self.last_value_func not in (max, min):
+                logger.warning(
+                    "Lag is only supported for max or min last_value_func. Provided:"
+                    f" {self.last_value_func}"
+                )
+                return last_value  # type: ignore
+
+            lagged_last_value = self._apply_lag(last_value)
+
+            # If using max function, return initial_value if lagged_last_value falls below it (to maintain bounds)
+            if initial_value and self.last_value_func == max and lagged_last_value < initial_value:
+                return initial_value  # type: ignore
+
+            return lagged_last_value
 
         return last_value  # type: ignore
 
