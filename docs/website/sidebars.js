@@ -256,7 +256,8 @@ const sidebars = {
             'walkthroughs/add-incremental-configuration',
             'general-usage/full-loading',
           ]
-        }
+        },
+        'dlt-ecosystem/notebooks'
       ]
     },
     {

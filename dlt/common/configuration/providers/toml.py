@@ -1,5 +1,6 @@
 import os
 import tomlkit
+import tomlkit.exceptions
 import tomlkit.items
 from typing import Any, Optional
 
@@ -65,6 +66,10 @@ class SettingsTomlProvider(CustomLoaderDocProvider):
         Raises:
             TomlProviderReadException: File could not be read, most probably `toml` parsing error
         """
+        # set supports_secrets early, we need this flag to read config
+        self._supports_secrets = supports_secrets
+        # read toml file from local or from various environments
+
         self._toml_path = os.path.join(settings_dir, file_name)
         self._global_dir = os.path.join(global_dir, file_name) if global_dir else None
         self._config_toml = self._read_toml_files(
@@ -111,27 +116,79 @@ class SettingsTomlProvider(CustomLoaderDocProvider):
     def to_toml(self) -> str:
         return tomlkit.dumps(self._config_toml)
 
-    @staticmethod
-    def _read_toml_files(
-        name: str, file_name: str, toml_path: str, global_path: str
-    ) -> tomlkit.TOMLDocument:
+    def _read_google_colab_secrets(self, name: str, file_name: str) -> tomlkit.TOMLDocument:
+        """Try to load the toml from google colab userdata object"""
         try:
-            project_toml = SettingsTomlProvider._read_toml(toml_path)
-            if global_path:
-                global_toml = SettingsTomlProvider._read_toml(global_path)
-                project_toml = update_dict_nested(global_toml, project_toml)
-            return project_toml
-        except Exception as ex:
-            raise TomlProviderReadException(name, file_name, toml_path, str(ex))
+            from google.colab import userdata
 
-    @staticmethod
-    def _read_toml(toml_path: str) -> tomlkit.TOMLDocument:
+            try:
+                return tomlkit.loads(userdata.get(file_name))
+            except (userdata.SecretNotFoundError, userdata.NotebookAccessError):
+                # document not found if secret does not exist or we have no permission
+                return None
+        except ImportError:
+            # document not found if google colab context does not exist
+            return None
+
+    def _read_streamlit_secrets(self, name: str, file_name: str) -> tomlkit.TOMLDocument:
+        """Try to load the toml from Streamlit secrets."""
+        # only secrets can come from streamlit
+        if not self.supports_secrets:
+            return None
+
+        try:
+            import streamlit as st
+            import streamlit.runtime as st_r  # type: ignore
+
+            if not st_r.exists():
+                return None
+
+            # Access the entire secrets store
+            secrets_ = st.secrets
+            if secrets_.load_if_toml_exists():
+                # Convert the dictionary to a TOML string
+                toml_str = tomlkit.dumps(secrets_.to_dict())
+
+                # Parse the TOML string into a TOMLDocument
+                toml_doc = tomlkit.parse(toml_str)
+                return toml_doc
+            else:
+                return None
+        except tomlkit.exceptions.TOMLKitError:
+            raise
+        except Exception:
+            # Not in a Streamlit context
+            return None
+
+    def _read_toml_file(self, toml_path: str) -> tomlkit.TOMLDocument:
         if os.path.isfile(toml_path):
             with open(toml_path, "r", encoding="utf-8") as f:
                 # use whitespace preserving parser
                 return tomlkit.load(f)
         else:
-            return tomlkit.document()
+            return None
+
+    def _read_toml_files(
+        self, name: str, file_name: str, toml_path: str, global_path: str
+    ) -> tomlkit.TOMLDocument:
+        try:
+            if project_toml := self._read_toml_file(toml_path):
+                pass
+            elif project_toml := self._read_google_colab_secrets(name, file_name):
+                pass
+            elif project_toml := self._read_streamlit_secrets(name, file_name):
+                pass
+            else:
+                # empty doc
+                project_toml = tomlkit.document()
+            if global_path:
+                global_toml = self._read_toml_file(global_path)
+                if global_toml:
+                    project_toml = update_dict_nested(global_toml, project_toml)
+            assert project_toml is not None
+            return project_toml
+        except Exception as ex:
+            raise TomlProviderReadException(name, file_name, toml_path, str(ex))
 
 
 class ConfigTomlProvider(SettingsTomlProvider):
