@@ -1519,6 +1519,16 @@ def test_drop_with_new_name() -> None:
     assert new_pipeline.pipeline_name == new_test_name
 
 
+def test_drop_defunct() -> None:
+    pipeline = dlt.pipeline(pipeline_name="test_drop_defunct", destination="duckdb")
+    clean_pipeline = pipeline.drop()
+    assert clean_pipeline.pipeline_name == "test_drop_defunct"
+    with pytest.raises(RuntimeError):
+        pipeline.pipeline_name
+    with pytest.raises(RuntimeError):
+        pipeline.run([1, 2, 3])
+
+
 def test_schema_version_increase_and_source_update() -> None:
     now = pendulum.now()
 

@@ -24,6 +24,7 @@ from typing import (
     Sequence,
     Set,
     Tuple,
+    Type,
     TypeVar,
     Mapping,
     List,
@@ -41,6 +42,7 @@ from dlt.common.typing import AnyFun, StrAny, DictStrAny, StrStr, TAny, TFun
 
 
 T = TypeVar("T")
+TObj = TypeVar("TObj", bound=object)
 TDict = TypeVar("TDict", bound=MutableMapping[Any, Any])
 
 TKey = TypeVar("TKey")
@@ -619,3 +621,17 @@ def assert_min_pkg_version(pkg_name: str, version: str, msg: str = "") -> None:
             version_required=">=" + version,
             appendix=msg,
         )
+
+
+def make_defunct_class(cls: TObj) -> Type[TObj]:
+    class DefunctClass(cls.__class__):  # type: ignore[name-defined]
+        """A defunct class to replace __class__ when we want to destroy current instance"""
+
+        def __getattribute__(self, name: str) -> Any:
+            if name == "__class__":
+                # Allow access to __class__
+                return object.__getattribute__(self, name)
+            else:
+                raise RuntimeError("This instance has been dropped and cannot be used anymore.")
+
+    return DefunctClass

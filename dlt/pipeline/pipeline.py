@@ -15,8 +15,6 @@ from typing import (
     cast,
     get_type_hints,
     ContextManager,
-    Dict,
-    Literal,
 )
 
 from dlt import version
@@ -29,14 +27,12 @@ from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import (
     ConfigFieldMissingException,
     ContextDefaultCannotBeCreated,
-    ConfigurationValueError,
 )
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.destination.exceptions import (
     DestinationIncompatibleLoaderFileFormatException,
     DestinationNoStagingMode,
     DestinationUndefinedEntity,
-    DestinationCapabilitiesException,
 )
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.runtime import signals, apply_runtime_config
@@ -102,7 +98,7 @@ from dlt.common.pipeline import (
     TRefreshMode,
 )
 from dlt.common.schema import Schema
-from dlt.common.utils import is_interactive
+from dlt.common.utils import make_defunct_class, is_interactive
 from dlt.common.warnings import deprecated, Dlt04DeprecationWarning
 from dlt.common.versioned_state import json_encode_state, json_decode_state
 
@@ -374,10 +370,12 @@ class Pipeline(SupportsPipeline):
         Args:
             pipeline_name (str): Optional. New pipeline name.
         """
+        if self.is_active:
+            self.deactivate()
         # reset the pipeline working dir
         self._create_pipeline()
         # clone the pipeline
-        return Pipeline(
+        new_pipeline = Pipeline(
             pipeline_name or self.pipeline_name,
             self.pipelines_dir,
             self.pipeline_salt,
@@ -392,6 +390,12 @@ class Pipeline(SupportsPipeline):
             self.config,
             self.runtime_config,
         )
+        new_pipeline.activate()
+
+        # defunct self
+        self.__dict__.clear()
+        self.__class__ = make_defunct_class(self)
+        return new_pipeline
 
     @with_runtime_trace()
     @with_schemas_sync  # this must precede with_state_sync
