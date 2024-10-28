@@ -143,7 +143,7 @@ credentials = ConnectionStringCredentials(
     "mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam"
 )
 
-source = sql_database(credentials).with_resource("family")
+source = sql_database(credentials).with_resources("family")
 ```
 
 :::note
