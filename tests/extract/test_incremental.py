@@ -2600,8 +2600,9 @@ def test_incremental_merge_native_representation():
     assert incremental.lag == 5
 
 
-@pytest.mark.parametrize("lag", [0, 1, 100, 200])
-def test_incremental_lag_int(lag: float) -> None:
+@pytest.mark.parametrize("lag", [0, 1, 100, 200, 1000])
+@pytest.mark.parametrize("last_value_func", [min, max])
+def test_incremental_lag_int(lag: float, last_value_func) -> None:
     """
     Test incremental lag behavior for int data while using `id` as the primary key using append write disposition.
     """
@@ -2616,7 +2617,7 @@ def test_incremental_lag_int(lag: float) -> None:
     is_third_run = False
 
     @dlt.resource(name=name, primary_key="id", write_disposition="append")
-    def events_resource(_=dlt.sources.incremental("id", lag=lag)):
+    def events_resource(_=dlt.sources.incremental("id", lag=lag, last_value_func=last_value_func)):
         nonlocal is_second_run
         nonlocal is_third_run
 
@@ -2657,34 +2658,89 @@ def test_incremental_lag_int(lag: float) -> None:
     pipeline.run(events_resource)
 
     # Results using APPEND write disposition
-    expected_results = {
-        200: [
-            "100",
-            "200",
-            "300",
-            "100_updated_1",
-            "200_updated_1",
-            "300_updated_1",
-            "400",
-            "200_updated_2",
-            "300_updated_2",
-            "400_updated_2",
-            "500",
-        ],
-        100: [
-            "100",
-            "200",
-            "300",
-            "200_updated_1",
-            "300_updated_1",
-            "400",
-            "300_updated_2",
-            "400_updated_2",
-            "500",
-        ],
-        1: ["100", "200", "300", "300_updated_1", "400", "400_updated_2", "500"],
-        0: ["100", "200", "300", "400", "500"],
-    }
+    # Expected results based on `last_value_func`
+    if last_value_func == max:
+        expected_results = {
+            1000: [
+                "100",
+                "200",
+                "300",
+                "100_updated_1",
+                "200_updated_1",
+                "300_updated_1",
+                "400",
+                "100_updated_2",
+                "200_updated_2",
+                "300_updated_2",
+                "400_updated_2",
+                "500",
+            ],
+            200: [
+                "100",
+                "200",
+                "300",
+                "100_updated_1",
+                "200_updated_1",
+                "300_updated_1",
+                "400",
+                "200_updated_2",
+                "300_updated_2",
+                "400_updated_2",
+                "500",
+            ],
+            100: [
+                "100",
+                "200",
+                "300",
+                "200_updated_1",
+                "300_updated_1",
+                "400",
+                "300_updated_2",
+                "400_updated_2",
+                "500",
+            ],
+            1: ["100", "200", "300", "300_updated_1", "400", "400_updated_2", "500"],
+            0: ["100", "200", "300", "400", "500"],
+        }
+    else:
+        expected_results = {
+            1000: [
+                "100",
+                "200",
+                "300",
+                "100_updated_1",
+                "200_updated_1",
+                "300_updated_1",
+                "400",
+                "100_updated_2",
+                "200_updated_2",
+                "300_updated_2",
+                "400_updated_2",
+                "500",
+            ],
+            200: [
+                "100",
+                "200",
+                "300",
+                "100_updated_1",
+                "200_updated_1",
+                "300_updated_1",
+                "100_updated_2",
+                "200_updated_2",
+                "300_updated_2",
+            ],
+            100: [
+                "100",
+                "200",
+                "300",
+                "100_updated_1",
+                "200_updated_1",
+                "100_updated_2",
+                "200_updated_2",
+            ],
+            1: ["100", "200", "300", "100_updated_1", "100_updated_2"],
+            0: ["100", "200", "300"],
+        }
 
     with pipeline.sql_client() as sql_client:
         result = [
@@ -2694,8 +2750,9 @@ def test_incremental_lag_int(lag: float) -> None:
         assert result == expected_results[int(lag)]
 
 
-@pytest.mark.parametrize("lag", [3601, 3600, 60, 0])
-def test_incremental_lag_datetime(lag: float) -> None:
+@pytest.mark.parametrize("lag", [7200, 3601, 3600, 60, 0])
+@pytest.mark.parametrize("last_value_func", [min, max])
+def test_incremental_lag_datetime(lag: float, last_value_func) -> None:
     """
     Test incremental lag behavior for datetime data while using `id` as the primary key using merge write disposition.
     """
@@ -2710,7 +2767,9 @@ def test_incremental_lag_datetime(lag: float) -> None:
     is_third_run = False
 
     @dlt.resource(name=name, primary_key="id", write_disposition="merge")
-    def events_resource(_=dlt.sources.incremental("created_at", lag=lag)):
+    def events_resource(
+        _=dlt.sources.incremental("created_at", lag=lag, last_value_func=last_value_func)
+    ):
         nonlocal is_second_run
 
         initial_entries = [
@@ -2750,12 +2809,23 @@ def test_incremental_lag_datetime(lag: float) -> None:
     pipeline.run(events_resource)
 
     # Results using MERGE write disposition
-    expected_results = {
-        3601: ["1_updated_1", "2_updated_1", "3_updated_2", "4_updated_2", "5"],
-        3600: ["1", "2_updated_1", "3_updated_2", "4_updated_2", "5"],
-        60: ["1", "2", "3_updated_1", "4_updated_2", "5"],
-        0: ["1", "2", "3", "4", "5"],
-    }
+    # Expected results based on `last_value_func`
+    if last_value_func == max:
+        expected_results = {
+            7200: ["1_updated_2", "2_updated_2", "3_updated_2", "4_updated_2", "5"],
+            3601: ["1_updated_1", "2_updated_1", "3_updated_2", "4_updated_2", "5"],
+            3600: ["1", "2_updated_1", "3_updated_2", "4_updated_2", "5"],
+            60: ["1", "2", "3_updated_1", "4_updated_2", "5"],
+            0: ["1", "2", "3", "4", "5"],
+        }
+    else:
+        expected_results = {
+            7200: ["1_updated_2", "2_updated_2", "3_updated_2", "4_updated_2", "5"],
+            3601: ["1_updated_2", "2_updated_2", "3_updated_2"],
+            3600: ["3", "1_updated_2", "2_updated_2"],
+            60: ["3", "1_updated_2", "2_updated_2"],
+            0: ["1", "2", "3"],
+        }
 
     with pipeline.sql_client() as sql_client:
         result = [
