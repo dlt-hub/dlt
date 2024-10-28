@@ -2884,6 +2884,63 @@ def test_incremental_lag_disabled_with_custom_last_value_func(lag: float) -> Non
         assert result == ["100", "200", "300", "400"]
 
 
+@pytest.mark.parametrize("lag", [3601, 3600, 60, 0])
+def test_incremental_lag_disabled_with_end_values(lag: float) -> None:
+    """
+    Test incremental lag is disabled when not using end_value
+    """
+
+    pipeline = dlt.pipeline(
+        pipeline_name=uniq_id(),
+        destination=dlt.destinations.duckdb(credentials=duckdb.connect(":memory:")),
+    )
+
+    name = "events"
+    is_second_run = False
+
+    @dlt.resource(name=name, primary_key="id", write_disposition="append")
+    def events_resource(_=dlt.sources.incremental("id", lag=lag, initial_value=100, end_value=500)):
+        nonlocal is_second_run
+
+        initial_entries = [
+            {"id": 100, "event": "100"},
+            {"id": 200, "event": "200"},
+            {"id": 300, "event": "300"},
+        ]
+
+        second_run_events = [
+            {"id": 100, "event": "100_updated_1"},
+            {"id": 200, "event": "200_updated_1"},
+            {"id": 300, "event": "300_updated_1"},
+            {"id": 400, "event": "400"},
+            {"id": 500, "event": "500"},
+            {"id": 600, "event": "600"},
+            {"id": 700, "event": "700"},
+        ]
+
+        yield second_run_events if is_second_run else initial_entries
+
+    # Run the pipeline three times
+    pipeline.run(events_resource)
+    is_second_run = True
+    pipeline.run(events_resource)
+
+    with pipeline.sql_client() as sql_client:
+        result = [
+            row[0]
+            for row in sql_client.execute_sql(f"SELECT event FROM {name} ORDER BY _dlt_load_id, id")
+        ]
+        assert result == [
+            "100",
+            "200",
+            "300",
+            "100_updated_1",
+            "200_updated_1",
+            "300_updated_1",
+            "400",
+        ]
+
+
 @pytest.mark.parametrize("lag", [3, 2, 1, 0])  # Lag in days
 @pytest.mark.parametrize("last_value_func", [min, max])
 def test_incremental_lag_date_str(lag: int, last_value_func) -> None:

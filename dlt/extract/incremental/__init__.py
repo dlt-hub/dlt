@@ -400,7 +400,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
 
         last_value = s["last_value"]
 
-        if self._lag and last_value:
+        if self._lag and last_value and not self.end_value:
             return self._apply_lag(last_value)
 
         return last_value  # type: ignore
