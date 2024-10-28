@@ -124,15 +124,17 @@ class BigQueryLoadJob(RunnableLoadJob, HasFollowupJobs):
                 )
 
     def exception(self) -> str:
-        return json.dumps(
-            {
-                "error_result": self._bq_load_job.error_result,
-                "errors": self._bq_load_job.errors,
-                "job_start": self._bq_load_job.started,
-                "job_end": self._bq_load_job.ended,
-                "job_id": self._bq_load_job.job_id,
-            }
-        )
+        if self._bq_load_job:
+            return json.dumps(
+                {
+                    "error_result": self._bq_load_job.error_result,
+                    "errors": self._bq_load_job.errors,
+                    "job_start": self._bq_load_job.started,
+                    "job_end": self._bq_load_job.ended,
+                    "job_id": self._bq_load_job.job_id,
+                }
+            )
+        return super().exception()
 
     @staticmethod
     def get_job_id_from_file_path(file_path: str) -> str:
