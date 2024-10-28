@@ -307,9 +307,6 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
             self.initial_value = native_value
 
     def _apply_lag(self, value: TCursorValue) -> TCursorValue:
-        if self._lag is None:
-            return value
-
         # Check if last_value_func is either max or min
         if self.last_value_func not in (max, min):
             logger.warning(
@@ -320,14 +317,14 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
 
         # Determine if the input is originally a string and capture its format
         is_str = isinstance(value, str)
-        original_format = detect_datetime_format(value) if is_str else None
+        value_format = detect_datetime_format(value) if is_str else None
+        is_str_date = value_format in ("%Y%m%d", "%Y-%m-%d") if value_format else None
         value = ensure_pendulum_datetime(value) if is_str else value  # type: ignore
 
-        # Apply lag depending on value type
         if isinstance(value, (datetime, date)):
-            value = self._apply_lag_to_datetime(value)  # type: ignore
-            if is_str and original_format:
-                value = value.strftime(original_format)  # type: ignore
+            value = self._apply_lag_to_datetime(value, is_str_date)  # type: ignore
+            if is_str and value_format:
+                value = value.strftime(value_format)  # type: ignore
 
         elif isinstance(value, (int, float)):
             value = self._apply_lag_to_number(value)  # type: ignore
@@ -340,12 +337,14 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
 
         return value
 
-    def _apply_lag_to_datetime(self, value: Union[datetime, date]) -> Union[datetime, date]:
-        delta = (
-            timedelta(seconds=self._lag)
-            if isinstance(value, datetime)
-            else timedelta(days=self._lag)
-        )
+    def _apply_lag_to_datetime(
+        self, value: Union[datetime, date], is_str_date: bool
+    ) -> Union[datetime, date]:
+        if isinstance(value, datetime) and not is_str_date:
+            delta = timedelta(seconds=self._lag)
+        elif is_str_date or isinstance(value, date):
+            delta = timedelta(days=self._lag)
+
         return value - delta if self.last_value_func is max else value + delta
 
     def _apply_lag_to_number(self, value: Union[int, float]) -> Union[int, float]:
@@ -399,10 +398,12 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
     def last_value(self) -> Optional[TCursorValue]:
         s = self.get_state()
 
-        if self._lag is not None:
-            return self._apply_lag(s["last_value"])
+        last_value = s["last_value"]
 
-        return s["last_value"]  # type: ignore
+        if self._lag and last_value:
+            return self._apply_lag(last_value)
+
+        return last_value  # type: ignore
 
     def _transform_item(
         self, transformer: IncrementalTransform, row: TDataItem
