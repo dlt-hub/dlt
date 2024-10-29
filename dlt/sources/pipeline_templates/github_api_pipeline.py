@@ -12,11 +12,11 @@ from dlt.sources.helpers.rest_client.paginators import HeaderLinkPaginator
 
 
 @dlt.resource(write_disposition="replace")
-def github_api_resource(api_secret_key: Optional[str] = dlt.secrets.value):
+def github_api_resource(access_token: Optional[str] = dlt.secrets.value):
     url = "https://api.github.com/repos/dlt-hub/dlt/issues"
 
     # Github allows both authenticated and non-authenticated requests (with low rate limits)
-    auth = BearerTokenAuth(api_secret_key) if api_secret_key else None
+    auth = BearerTokenAuth(access_token) if access_token else None
     for page in paginate(
         url, auth=auth, paginator=HeaderLinkPaginator(), params={"state": "open", "per_page": "100"}
     ):
@@ -24,8 +24,8 @@ def github_api_resource(api_secret_key: Optional[str] = dlt.secrets.value):
 
 
 @dlt.source
-def github_api_source(api_secret_key: Optional[str] = dlt.secrets.value):
-    return github_api_resource(api_secret_key=api_secret_key)
+def github_api_source(access_token: Optional[str] = dlt.secrets.value):
+    return github_api_resource(access_token=access_token)
 
 
 def run_source() -> None:
