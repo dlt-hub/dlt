@@ -1395,8 +1395,11 @@ class Pipeline(SupportsPipeline):
             if not initializing:
                 self._set_context(is_active=True)
         # apply explicit credentials
-        if self.destination and destination_credentials:
-            self.destination.config_params["credentials"] = destination_credentials
+        if self.destination:
+            if destination_credentials:
+                self.destination.config_params["credentials"] = destination_credentials
+            # bind pipeline to factory
+            self.destination.config_params["bound_to_pipeline"] = self
 
     @contextmanager
     def _maybe_destination_capabilities(
@@ -1478,17 +1481,21 @@ class Pipeline(SupportsPipeline):
     def _get_state(self) -> TPipelineState:
         try:
             state = json_decode_state(self._pipeline_storage.load(Pipeline.STATE_FILE))
-            return migrate_pipeline_state(
+            migrated_state = migrate_pipeline_state(
                 self.pipeline_name,
                 state,
                 state["_state_engine_version"],
                 PIPELINE_STATE_ENGINE_VERSION,
             )
+            # TODO: move to a migration. this change is local and too small to justify
+            # engine upgrade
+            _local = migrated_state["_local"]
+            if "initial_cwd" not in _local:
+                _local["initial_cwd"] = os.path.abspath(os.path.curdir)
+            return migrated_state
         except FileNotFoundError:
             # do not set the state hash, this will happen on first merge
             return default_pipeline_state()
-            # state["_version_hash"] = generate_version_hash(state)
-            # return state
 
     def _optional_sql_job_client(self, schema_name: str) -> Optional[SqlJobClientBase]:
         try:

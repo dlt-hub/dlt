@@ -446,6 +446,8 @@ class TPipelineLocalState(TypedDict, total=False):
     """Timestamp indicating when the state was synced with the destination."""
     _last_extracted_hash: str
     """Hash of state that was recently synced with destination"""
+    initial_cwd: str
+    """Current working dir when pipeline was instantiated for a first time"""
 
 
 class TPipelineState(TVersionedState, total=False):
