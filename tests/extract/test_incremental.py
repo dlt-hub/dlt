@@ -2773,6 +2773,7 @@ def test_incremental_lag_datetime_str(lag: float, last_value_func) -> None:
         _=dlt.sources.incremental("created_at", lag=lag, last_value_func=last_value_func)
     ):
         nonlocal is_second_run
+        nonlocal is_third_run
 
         initial_entries = [
             {"id": 1, "created_at": "2023-03-03T01:00:00Z", "event": "1"},
@@ -2971,6 +2972,7 @@ def test_incremental_lag_date_str(lag: int, last_value_func) -> None:
         _=dlt.sources.incremental("created_at", lag=lag, last_value_func=last_value_func)
     ):
         nonlocal is_second_run
+        nonlocal is_third_run
 
         initial_entries = [
             {"id": 1, "created_at": "2023-03-01", "event": "1"},
@@ -3110,6 +3112,7 @@ def test_incremental_lag_date_datetime(lag: int, last_value_func) -> None:
         _=dlt.sources.incremental("created_at", lag=lag, last_value_func=last_value_func)
     ):
         nonlocal is_second_run
+        nonlocal is_third_run
 
         initial_entries = [
             {"id": 1, "created_at": date(2023, 3, 1), "event": "1"},
