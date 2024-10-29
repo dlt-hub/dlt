@@ -117,7 +117,48 @@ In the example above, `arrow_table` will be converted to CSV with **pyarrow** an
 ## Supported column hints
 `postgres` will create unique indexes for all columns with `unique` hints. This behavior **may be disabled**.
 
-### Table and column identifiers
+### Spatial Types
+
+To enable GIS capabilities in your Postgres destination, use the `x-postgres-geometry` and `x-postgres-srid` hints for columns containing geometric data.
+The `postgres_adapter` facilitates applying these hints conveniently, with a default SRID of `4326`.
+
+**Supported Geometry Types:**
+
+- WKT (Well-Known Text)
+- WKB (Well-Known Binary)
+- Hex Representation
+
+**Example:** Using `postgres_adapter` with Different Geometry Types
+
+```python
+from dlt.destinations.impl.postgres.postgres_adapter import postgres_adapter
+
+# Sample data with various geometry types
+data = [
+  {"type": "Point_wkt", "geom": "POINT (1 1)"},
+  {"type": "Point_wkb_hex", "geom": "0101000000000000000000F03F000000000000F03F"},
+  {
+    "type": "Point_wkb",
+    "geom": b"\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\xf0?\x00\x00\x00\x00\x00\x00\xf0?",
+  },
+]
+
+# Apply postgres_adapter to the 'geom' column with default SRID 4326
+resource = postgres_adapter(data, geometry="geom")
+
+# If you need a different SRID
+resource = postgres_adapter(data, geometry="geom", srid=3242)
+```
+
+Ensure that the PostGIS extension is enabled in your Postgres database:
+
+```sql
+CREATE EXTENSION postgis;
+```
+
+This configuration allows `dlt` to map the `geom` column to the PostGIS `geometry` type for spatial queries and analyses.
+
+## Table and column identifiers
 Postgres supports both case-sensitive and case-insensitive identifiers. All unquoted and lowercase identifiers resolve case-insensitively in SQL statements. Case insensitive [naming conventions](../../general-usage/naming-convention.md#case-sensitive-and-insensitive-destinations) like the default **snake_case** will generate case-insensitive identifiers. Case sensitive (like **sql_cs_v1**) will generate case-sensitive identifiers that must be quoted in SQL statements.
 
 ## Additional destination options

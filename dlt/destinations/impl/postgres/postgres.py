@@ -344,10 +344,9 @@ class PostgresInsertValuesWithGeometryTypesLoadJob(InsertValuesLoadJob):
                                         f"ST_SetSRID(ST_GeomFromWKB({geom_value}), {srid})"
                                     )
                                 else:
-                                    logger.warning(
-                                        f"{column_value} couldn't be coerced to geometric type."
+                                    raise TerminalValueError(
+                                        f"{column_value} couldn't be coerced to geometric type!"
                                     )
-                                    processed_record[i] = column_value
                             else:
                                 processed_record[i] = column_value
 
