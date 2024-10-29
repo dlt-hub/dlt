@@ -191,7 +191,10 @@ def test_regular_run() -> None:
     dag_def.test()
     # we should be able to attach to pipeline state created within Airflow
 
-    pipeline_dag_regular = dlt.attach(pipeline_name="pipeline_dag_regular")
+    pipeline_dag_regular = dlt.attach(
+        pipeline_name="pipeline_dag_regular",
+        destination=dlt.destinations.duckdb(credentials=":pipeline:"),
+    )
     pipeline_dag_regular_counts = load_table_counts(
         pipeline_dag_regular,
         *[t["name"] for t in pipeline_dag_regular.default_schema.data_tables()],
@@ -230,7 +233,10 @@ def test_regular_run() -> None:
     assert tasks_list[1].task_id == "pipeline_dag_decomposed.mock_data_source__t1-_t2-_t3"
     assert tasks_list[2].task_id == "pipeline_dag_decomposed.mock_data_source__r_isolee"
     dag_def.test()
-    pipeline_dag_decomposed = dlt.attach(pipeline_name="pipeline_dag_decomposed")
+    pipeline_dag_decomposed = dlt.attach(
+        pipeline_name="pipeline_dag_decomposed",
+        destination=dlt.destinations.duckdb(credentials=quackdb_path),
+    )
     pipeline_dag_decomposed_counts = load_table_counts(
         pipeline_dag_decomposed,
         *[t["name"] for t in pipeline_dag_decomposed.default_schema.data_tables()],

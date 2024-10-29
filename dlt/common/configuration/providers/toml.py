@@ -172,20 +172,19 @@ class SettingsTomlProvider(CustomLoaderDocProvider):
         self, name: str, file_name: str, toml_path: str, global_path: str
     ) -> tomlkit.TOMLDocument:
         try:
-            if project_toml := self._read_toml_file(toml_path):
+            if (project_toml := self._read_toml_file(toml_path)) is not None:
                 pass
-            elif project_toml := self._read_google_colab_secrets(name, file_name):
+            elif (project_toml := self._read_google_colab_secrets(name, file_name)) is not None:
                 pass
-            elif project_toml := self._read_streamlit_secrets(name, file_name):
+            elif (project_toml := self._read_streamlit_secrets(name, file_name)) is not None:
                 pass
             else:
                 # empty doc
                 project_toml = tomlkit.document()
             if global_path:
                 global_toml = self._read_toml_file(global_path)
-                if global_toml:
+                if global_toml is not None:
                     project_toml = update_dict_nested(global_toml, project_toml)
-            assert project_toml is not None
             return project_toml
         except Exception as ex:
             raise TomlProviderReadException(name, file_name, toml_path, str(ex))
