@@ -73,7 +73,10 @@ class ReadableDBAPIRelation(SupportsReadableRelation):
         selector = "*"
         if self._selected_columns:
             selector = ",".join(
-                [self._naming.normalize_identifier(c) for c in self._selected_columns]
+                [
+                    self._client.escape_column_name(self._naming.normalize_identifier(c))
+                    for c in self._selected_columns
+                ]
             )
 
         return f"SELECT {selector} FROM {table_name} {maybe_limit_clause}"
