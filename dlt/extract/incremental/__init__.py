@@ -1,8 +1,7 @@
 import os
-from datetime import datetime, timedelta, date  # noqa: I251
+from datetime import datetime  # noqa: I251
 from typing import Generic, ClassVar, Any, Optional, Type, Dict, Union
-import dateutil.parser
-from typing_extensions import get_origin, get_args
+from typing_extensions import get_args
 
 import inspect
 from functools import wraps
@@ -10,7 +9,6 @@ from functools import wraps
 from dlt.common import logger
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.pendulum import pendulum
-from dlt.common.time import ensure_pendulum_datetime, detect_datetime_format
 from dlt.common.jsonpath import compile_path
 from dlt.common.typing import (
     TDataItem,
@@ -43,13 +41,13 @@ from dlt.extract.incremental.typing import (
     LastValueFunc,
     OnCursorValueMissing,
 )
-from dlt.extract.pipe import Pipe
 from dlt.extract.items import SupportsPipe, TTableHintTemplate, ItemTransform
 from dlt.extract.incremental.transform import (
     JsonIncremental,
     ArrowIncremental,
     IncrementalTransform,
 )
+from dlt.extract.incremental.lag import apply_lag
 
 try:
     from dlt.common.libs.pyarrow import is_arrow_item
@@ -114,6 +112,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
     row_order: Optional[TSortOrder] = None
     allow_external_schedulers: bool = False
     on_cursor_value_missing: OnCursorValueMissing = "raise"
+    lag: Optional[float] = None
 
     # incremental acting as empty
     EMPTY: ClassVar["Incremental[Any]"] = None
@@ -154,7 +153,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         self._cached_state: IncrementalColumnState = None
         """State dictionary cached on first access"""
 
-        self._lag = lag
+        self.lag = lag
         super().__init__(lambda x: x)  # TODO:
 
         self.end_out_of_range: bool = False
@@ -165,10 +164,6 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         self._transformers: Dict[str, IncrementalTransform] = {}
         self._bound_pipe: SupportsPipe = None
         """Bound pipe"""
-
-    @property
-    def lag(self) -> Optional[float]:
-        return self._lag
 
     @property
     def primary_key(self) -> Optional[TTableHintTemplate[TColumnNames]]:
@@ -220,13 +215,13 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         """
         # func, resource name and primary key are not part of the dict
         kwargs = dict(
-            self, last_value_func=self.last_value_func, primary_key=self._primary_key, lag=self._lag
+            self, last_value_func=self.last_value_func, primary_key=self._primary_key, lag=self.lag
         )
         for key, value in dict(
             other,
             last_value_func=other.last_value_func,
             primary_key=other.primary_key,
-            lag=other._lag,
+            lag=other.lag,
         ).items():
             if value is not None:
                 kwargs[key] = value
@@ -300,48 +295,11 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
             self._primary_key = merged._primary_key
             self.allow_external_schedulers = merged.allow_external_schedulers
             self.row_order = merged.row_order
-            self._lag = merged.lag
+            self.lag = merged.lag
             self.__is_resolved__ = self.__is_resolved__
         else:  # TODO: Maybe check if callable(getattr(native_value, '__lt__', None))
             # Passing bare value `incremental=44` gets parsed as initial_value
             self.initial_value = native_value
-
-    def _apply_lag(self, value: TCursorValue) -> TCursorValue:
-        # Determine if the input is originally a string and capture its format
-        is_str = isinstance(value, str)
-        value_format = detect_datetime_format(value) if is_str else None
-        is_str_date = value_format in ("%Y%m%d", "%Y-%m-%d") if value_format else None
-        value = ensure_pendulum_datetime(value) if is_str else value  # type: ignore
-
-        if isinstance(value, (datetime, date)):
-            value = self._apply_lag_to_datetime(value, is_str_date)  # type: ignore
-            if is_str and value_format:
-                value = value.strftime(value_format)  # type: ignore
-
-        elif isinstance(value, (int, float)):
-            value = self._apply_lag_to_number(value)  # type: ignore
-
-        else:
-            logger.warning(
-                f"Lag is not supported for cursor type: {type(value)} with last_value_func:"
-                f" {self.last_value_func}"
-            )
-
-        return value
-
-    def _apply_lag_to_datetime(
-        self, value: Union[datetime, date], is_str_date: bool
-    ) -> Union[datetime, date]:
-        if isinstance(value, datetime) and not is_str_date:
-            delta = timedelta(seconds=self._lag)
-        elif is_str_date or isinstance(value, date):
-            delta = timedelta(days=self._lag)
-
-        return value - delta if self.last_value_func is max else value + delta
-
-    def _apply_lag_to_number(self, value: Union[int, float]) -> Union[int, float]:
-        adjusted_value = value - self._lag if self.last_value_func is max else value + self._lag
-        return int(adjusted_value) if isinstance(value, int) else adjusted_value
 
     def get_state(self) -> IncrementalColumnState:
         """Returns an Incremental state for a particular cursor column"""
@@ -389,31 +347,25 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
     @property
     def last_value(self) -> Optional[TCursorValue]:
         s = self.get_state()
+        last_value: TCursorValue = s["last_value"]
 
-        last_value = s["last_value"]
-        initial_value = s["initial_value"]
-
-        # Skip lag adjustment when using min function with initial_value to avoid out-of-bounds issues
-        if last_value == initial_value or initial_value and self.last_value_func == min:
-            return last_value  # type: ignore
-
-        if self._lag and last_value and not self.end_value:
+        if self.lag:
             if self.last_value_func not in (max, min):
                 logger.warning(
-                    "Lag is only supported for max or min last_value_func. Provided:"
-                    f" {self.last_value_func}"
+                    f"Lag on {self.resource_name} is only supported for max or min last_value_func."
+                    f" Provided: {self.last_value_func}"
                 )
-                return last_value  # type: ignore
+            elif self.end_value is not None:
+                logger.info(
+                    f"Lag on {self.resource_name} is deactivated if end_value is set in"
+                    " incremental."
+                )
+            elif last_value is not None:
+                last_value = apply_lag(
+                    self.lag, s["initial_value"], last_value, self.last_value_func
+                )
 
-            lagged_last_value = self._apply_lag(last_value)
-
-            # If using max function, return initial_value if lagged_last_value falls below it (to maintain bounds)
-            if initial_value and self.last_value_func == max and lagged_last_value < initial_value:
-                return initial_value  # type: ignore
-
-            return lagged_last_value
-
-        return last_value  # type: ignore
+        return last_value
 
     def _transform_item(
         self, transformer: IncrementalTransform, row: TDataItem

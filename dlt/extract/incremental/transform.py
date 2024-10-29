@@ -111,8 +111,13 @@ class IncrementalTransform:
     @property
     def deduplication_disabled(self) -> bool:
         """Skip deduplication when length of the key is 0 or if lag is applied."""
-        if self.lag and self.last_value_func in (min, max) and not self.end_value:
+        # disable deduplication if end value is set - state is not saved
+        if self.end_value is not None:
             return True
+        # disable deduplication if lag is applied - destination must deduplicate ranges
+        if self.lag and self.last_value_func in (min, max):
+            return True
+        # disable deduplication if primary_key = ()
         return isinstance(self.primary_key, (list, tuple)) and len(self.primary_key) == 0
 
 

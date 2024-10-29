@@ -34,10 +34,12 @@ from dlt.extract.incremental.exceptions import (
     IncrementalCursorPathMissing,
     IncrementalPrimaryKeyMissing,
 )
+from dlt.extract.incremental.lag import apply_lag
 from dlt.extract.items import ValidateItem
 from dlt.extract.resource import DltResource
 from dlt.pipeline.exceptions import PipelineStepFailed
 from dlt.sources.helpers.transform import take_first
+
 from tests.extract.utils import AssertItems, data_item_to_list
 from tests.pipeline.utils import assert_query_data
 from tests.utils import (
@@ -2884,8 +2886,9 @@ def test_incremental_lag_disabled_with_custom_last_value_func(lag: float) -> Non
         assert result == ["100", "200", "300", "400"]
 
 
-@pytest.mark.parametrize("lag", [3601, 3600, 60, 0])
-def test_incremental_lag_disabled_with_end_values(lag: float) -> None:
+@pytest.mark.parametrize("lag", [-3601, -3600, -60, 0])
+@pytest.mark.parametrize("end_value", [-1, 0, 500])
+def test_incremental_lag_disabled_with_end_values(lag: float, end_value: float) -> None:
     """
     Test incremental lag is disabled when not using end_value
     """
@@ -2899,23 +2902,27 @@ def test_incremental_lag_disabled_with_end_values(lag: float) -> None:
     is_second_run = False
 
     @dlt.resource(name=name, primary_key="id", write_disposition="append")
-    def events_resource(_=dlt.sources.incremental("id", lag=lag, initial_value=100, end_value=500)):
+    def events_resource(
+        _=dlt.sources.incremental("id", lag=lag, initial_value=-450, end_value=end_value)
+    ):
         nonlocal is_second_run
 
+        # prepare negative ids so for all end_values we load the table with cutoff at -450
+        # lag, if present would skip values even from initial load (lag==-3600)
         initial_entries = [
-            {"id": 100, "event": "100"},
-            {"id": 200, "event": "200"},
-            {"id": 300, "event": "300"},
+            {"id": -100, "event": "100"},
+            {"id": -200, "event": "200"},
+            {"id": -300, "event": "300"},
         ]
 
         second_run_events = [
-            {"id": 100, "event": "100_updated_1"},
-            {"id": 200, "event": "200_updated_1"},
-            {"id": 300, "event": "300_updated_1"},
-            {"id": 400, "event": "400"},
-            {"id": 500, "event": "500"},
-            {"id": 600, "event": "600"},
-            {"id": 700, "event": "700"},
+            {"id": -100, "event": "100_updated_1"},
+            {"id": -200, "event": "200_updated_1"},
+            {"id": -300, "event": "300_updated_1"},
+            {"id": -400, "event": "400"},
+            {"id": -500, "event": "500"},
+            {"id": -600, "event": "600"},
+            {"id": -700, "event": "700"},
         ]
 
         yield second_run_events if is_second_run else initial_entries
@@ -2928,7 +2935,9 @@ def test_incremental_lag_disabled_with_end_values(lag: float) -> None:
     with pipeline.sql_client() as sql_client:
         result = [
             row[0]
-            for row in sql_client.execute_sql(f"SELECT event FROM {name} ORDER BY _dlt_load_id, id")
+            for row in sql_client.execute_sql(
+                f"SELECT event FROM {name} ORDER BY _dlt_load_id ASC, id DESC"
+            )
         ]
         assert result == [
             "100",
@@ -3311,13 +3320,17 @@ def test_incremental_lag_int_with_initial_values(lag: float, last_value_func) ->
                 "100",
                 "200",
                 "100_updated_1",
+                "200_updated_1",
                 "100_updated_2",
+                "200_updated_2",
             ],
             200: [
                 "100",
                 "200",
                 "100_updated_1",
+                "200_updated_1",
                 "100_updated_2",
+                "200_updated_2",
             ],
         }
 
@@ -3454,3 +3467,72 @@ def test_incremental_lag_float(lag: float, last_value_func) -> None:
             for row in sql_client.execute_sql(f"SELECT event FROM {name} ORDER BY _dlt_load_id, id")
         ]
         assert result == expected_results[lag]
+
+
+def test_apply_lag() -> None:
+    # test date lag
+    assert apply_lag(1, None, date(2023, 3, 2), max) == date(2023, 3, 1)
+    assert apply_lag(1, None, date(2023, 3, 2), min) == date(2023, 3, 3)
+    # can't go below initial_value
+    assert apply_lag(1, date(2023, 3, 2), date(2023, 3, 2), max) == date(2023, 3, 2)
+    assert apply_lag(-1, date(2023, 3, 2), date(2023, 3, 2), max) == date(2023, 3, 3)
+    # can't go above initial_value
+    assert apply_lag(1, date(2023, 3, 2), date(2023, 3, 2), min) == date(2023, 3, 2)
+    assert apply_lag(-1, date(2023, 3, 2), date(2023, 3, 2), min) == date(2023, 3, 1)
+
+    # test str date lag
+    assert apply_lag(1, None, "2023-03-02", max) == "2023-03-01"
+    assert apply_lag(1, None, "2023-03-02", min) == "2023-03-03"
+    # initial value
+    assert apply_lag(1, "2023-03-01", "2023-03-02", max) == "2023-03-01"
+    assert apply_lag(2, "2023-03-01", "2023-03-02", max) == "2023-03-01"
+
+    assert apply_lag(1, "2023-03-03", "2023-03-02", min) == "2023-03-03"
+    assert apply_lag(2, "2023-03-03", "2023-03-02", min) == "2023-03-03"
+
+    # test datetime lag
+    assert apply_lag(1, None, datetime(2023, 3, 2, 1, 15, 30), max) == datetime(
+        2023, 3, 2, 1, 15, 29
+    )
+    assert apply_lag(1, None, datetime(2023, 3, 2, 1, 15, 30), min) == datetime(
+        2023, 3, 2, 1, 15, 31
+    )
+    # initial value
+    assert apply_lag(
+        1, datetime(2023, 3, 2, 1, 15, 29), datetime(2023, 3, 2, 1, 15, 30), max
+    ) == datetime(2023, 3, 2, 1, 15, 29)
+    assert apply_lag(
+        2, datetime(2023, 3, 2, 1, 15, 29), datetime(2023, 3, 2, 1, 15, 30), max
+    ) == datetime(2023, 3, 2, 1, 15, 29)
+    assert apply_lag(
+        1, datetime(2023, 3, 2, 1, 15, 31), datetime(2023, 3, 2, 1, 15, 30), min
+    ) == datetime(2023, 3, 2, 1, 15, 31)
+    assert apply_lag(
+        2, datetime(2023, 3, 2, 1, 15, 31), datetime(2023, 3, 2, 1, 15, 30), min
+    ) == datetime(2023, 3, 2, 1, 15, 31)
+
+    # datetime str
+    assert apply_lag(1, None, "2023-03-03T01:15:30Z", max) == "2023-03-03T01:15:29Z"
+    assert apply_lag(1, None, "2023-03-03T01:15:30Z", min) == "2023-03-03T01:15:31Z"
+    # initial value
+    assert (
+        apply_lag(1, "2023-03-03T01:15:29Z", "2023-03-03T01:15:30Z", max) == "2023-03-03T01:15:29Z"
+    )
+    assert (
+        apply_lag(2, "2023-03-03T01:15:29Z", "2023-03-03T01:15:30Z", max) == "2023-03-03T01:15:29Z"
+    )
+    assert (
+        apply_lag(1, "2023-03-03T01:15:31Z", "2023-03-03T01:15:30Z", min) == "2023-03-03T01:15:31Z"
+    )
+    assert (
+        apply_lag(2, "2023-03-03T01:15:31Z", "2023-03-03T01:15:30Z", min) == "2023-03-03T01:15:31Z"
+    )
+
+    # int/float
+    assert apply_lag(1, None, 1, max) == 0
+    assert apply_lag(1, None, 1, min) == 2
+    # initial
+    assert apply_lag(1, 0, 1, max) == 0
+    assert apply_lag(2, 0, 1, max) == 0
+    assert apply_lag(1, 2, 1, min) == 2
+    assert apply_lag(2, 2, 1, min) == 2
