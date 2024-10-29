@@ -21,7 +21,7 @@ from tests.load.utils import (
 from dlt.destinations import filesystem
 from tests.utils import TEST_STORAGE_ROOT
 from dlt.common.destination.reference import TDestinationReferenceArg
-from dlt.destinations.dataset import ReadableDBAPIDataset
+from dlt.destinations.dataset import ReadableDBAPIDataset, ReadableRelationUnknownColumnException
 from tests.load.utils import drop_pipeline_data
 
 EXPECTED_COLUMNS = ["id", "decimal", "other_decimal", "_dlt_load_id", "_dlt_id"]
@@ -375,7 +375,8 @@ def test_column_selection(populated_pipeline: Pipeline) -> None:
     assert arrow_table.schema.field("decimal").type.precision == expected_decimal_precision
     assert arrow_table.schema.field("other_decimal").type.precision == expected_decimal_precision_2
 
-    # arrow_table = table_relationship.select(["unknown_column"]).head().arrow()
+    with pytest.raises(ReadableRelationUnknownColumnException):
+        arrow_table = table_relationship.select(["unknown_column"]).head().arrow()
 
 
 @pytest.mark.no_load

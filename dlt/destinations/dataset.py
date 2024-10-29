@@ -19,6 +19,28 @@ from dlt.common.destination.reference import (
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.common.schema import Schema
+from dlt.common.exceptions import DltException
+
+
+class DatasetException(DltException):
+    pass
+
+
+class ReadableRelationHasQueryException(DatasetException):
+    def __init__(self, attempted_change: str) -> None:
+        msg = (
+            "This readable relation was created with a provided sql query. You cannot change"
+            f" {attempted_change}. Please change the orignal sql query."
+        )
+        super().__init__(msg)
+
+
+class ReadableRelationUnknownColumnException(DatasetException):
+    def __init__(self, column_name: str) -> None:
+        msg = (
+            f"The selected column {column_name} is not known in the dlt schema for this releation."
+        )
+        super().__init__(msg)
 
 
 class ReadableDBAPIRelation(SupportsReadableRelation):
@@ -35,6 +57,7 @@ class ReadableDBAPIRelation(SupportsReadableRelation):
     ) -> None:
         """Create a lazy evaluated relation to for the dataset of a destination"""
 
+        # NOTE: we can keep an assertion here, this class will not be created by the user
         assert bool(table_name) != bool(
             provided_query
         ), "Please provide either an sql query OR a table_name"
@@ -64,7 +87,9 @@ class ReadableDBAPIRelation(SupportsReadableRelation):
         if self._provided_query:
             return self._provided_query
 
-        table_name = self._client.make_qualified_table_name(self._table_name)
+        table_name = self._client.make_qualified_table_name(
+            self._naming.normalize_identifier(self._table_name)
+        )
 
         maybe_limit_clause = ""
         if self._limit:
@@ -91,9 +116,8 @@ class ReadableDBAPIRelation(SupportsReadableRelation):
         filtered_columns: TTableSchemaColumns = {}
         for sc in self._selected_columns:
             sc = self._naming.normalize_identifier(sc)
-            assert (
-                sc in self._schema_columns.keys()
-            ), f"Could not find column {sc} in provided dlt schema"
+            if sc not in self._schema_columns.keys():
+                raise ReadableRelationUnknownColumnException(sc)
             filtered_columns[sc] = self._schema_columns[sc]
 
         return filtered_columns
@@ -142,15 +166,15 @@ class ReadableDBAPIRelation(SupportsReadableRelation):
         )
 
     def limit(self, limit: int) -> "ReadableDBAPIRelation":
-        assert not self._provided_query, "Cannot change limit on relation with provided query"
+        if self._provided_query:
+            raise ReadableRelationHasQueryException("limit")
         rel = self.__copy__()
         rel._limit = limit
         return rel
 
     def select(self, selected_columns: List[str]) -> "ReadableDBAPIRelation":
-        assert (
-            not self._provided_query
-        ), "Cannot change selected columns on relation with provided query"
+        if self._provided_query:
+            raise ReadableRelationHasQueryException("select")
         rel = self.__copy__()
         rel._selected_columns = selected_columns
         # NOTE: the line below will ensure that no unknown columns are selected if
@@ -159,7 +183,6 @@ class ReadableDBAPIRelation(SupportsReadableRelation):
         return rel
 
     def head(self) -> "ReadableDBAPIRelation":
-        assert not self._provided_query, "Cannot fetch head on relation with provided query"
         return self.limit(5)
 
 
