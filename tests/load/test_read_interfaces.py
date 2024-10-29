@@ -29,18 +29,18 @@ EXPECTED_COLUMNS = ["id", "decimal", "other_decimal", "_dlt_load_id", "_dlt_id"]
 
 def _total_records(p: Pipeline) -> int:
     """how many records to load for a given pipeline"""
-    if p.destination.destination_type == "bigquery":
+    if p.destination.destination_type == "dlt.destinations.bigquery":
         return 80
-    elif p.destination.destination_type == "mssql":
+    elif p.destination.destination_type == "dlt.destinations.mssql":
         return 1000
     return 3000
 
 
 def _chunk_size(p: Pipeline) -> int:
     """chunk size for a given pipeline"""
-    if p.destination.destination_type == "bigquery":
+    if p.destination.destination_type == "dlt.destinations.bigquery":
         return 50
-    elif p.destination.destination_type == "mssql":
+    elif p.destination.destination_type == "dlt.destinations.mssql":
         return 700
     return 2048
 
@@ -191,7 +191,9 @@ def test_dataframe_access(populated_pipeline: Pipeline) -> None:
     total_records = _total_records(populated_pipeline)
     chunk_size = _chunk_size(populated_pipeline)
     expected_chunk_counts = _expected_chunk_count(populated_pipeline)
-    skip_df_chunk_size_check = populated_pipeline.destination.destination_type == "filesystem"
+    skip_df_chunk_size_check = (
+        populated_pipeline.destination.destination_type == "dlt.destinations.filesystem"
+    )
 
     # full frame
     df = table_relationship.df()
@@ -262,7 +264,7 @@ def test_hint_preservation(populated_pipeline: Pipeline) -> None:
     # check that hints are carried over to arrow table
     expected_decimal_precision = 10
     expected_decimal_precision_2 = 12
-    if populated_pipeline.destination.destination_type == "bigquery":
+    if populated_pipeline.destination.destination_type == "dlt.destinations.bigquery":
         # bigquery does not allow precision configuration..
         expected_decimal_precision = 38
         expected_decimal_precision_2 = 38
@@ -319,6 +321,61 @@ def test_sql_queries(populated_pipeline: Pipeline) -> None:
     assert list(table[0]) == [0, 0]
     assert list(table[5]) == [5, 10]
     assert list(table[10]) == [10, 20]
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
+def test_limit_and_head(populated_pipeline: Pipeline) -> None:
+    table_relationship = populated_pipeline._dataset().items
+
+    assert len(table_relationship.head().fetchall()) == 5
+    assert len(table_relationship.limit(24).fetchall()) == 24
+
+    assert len(table_relationship.head().df().index) == 5
+    assert len(table_relationship.limit(24).df().index) == 24
+
+    assert table_relationship.head().arrow().num_rows == 5
+    assert table_relationship.limit(24).arrow().num_rows == 24
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
+def test_column_selection(populated_pipeline: Pipeline) -> None:
+    table_relationship = populated_pipeline._dataset().items
+
+    columns = ["_dlt_load_id", "other_decimal"]
+    data_frame = table_relationship.select(columns).head().df()
+    assert list(data_frame.columns.values) == columns
+    assert len(data_frame.index) == 5
+
+    columns = ["decimal", "other_decimal"]
+    arrow_table = table_relationship.select(columns).head().arrow()
+    assert arrow_table.column_names == columns
+    assert arrow_table.num_rows == 5
+
+    # hints should also be preserved via computed reduced schema
+    expected_decimal_precision = 10
+    expected_decimal_precision_2 = 12
+    if populated_pipeline.destination.destination_type == "dlt.destinations.bigquery":
+        # bigquery does not allow precision configuration..
+        expected_decimal_precision = 38
+        expected_decimal_precision_2 = 38
+    assert arrow_table.schema.field("decimal").type.precision == expected_decimal_precision
+    assert arrow_table.schema.field("other_decimal").type.precision == expected_decimal_precision_2
+
+    # arrow_table = table_relationship.select(["unknown_column"]).head().arrow()
 
 
 @pytest.mark.no_load

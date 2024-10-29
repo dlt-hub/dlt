@@ -85,7 +85,6 @@ class ReadableDBAPIRelation(SupportsReadableRelation):
             return None
         if not self._selected_columns:
             return self._schema_columns
-
         filtered_columns: TTableSchemaColumns = {}
         for sc in self._selected_columns:
             sc = self._naming.normalize_identifier(sc)
@@ -151,6 +150,9 @@ class ReadableDBAPIRelation(SupportsReadableRelation):
         ), "Cannot change selected columns on relation with provided query"
         rel = self.__copy__()
         rel._selected_columns = selected_columns
+        # NOTE: the line below will ensure that no unknown columns are selected if
+        # schema is known
+        rel.computed_schema_columns
         return rel
 
     def head(self) -> "ReadableDBAPIRelation":
