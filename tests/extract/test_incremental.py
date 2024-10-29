@@ -2,7 +2,7 @@ import asyncio
 import inspect
 import os
 import random
-from datetime import datetime  # noqa: I251
+from datetime import datetime, date  # noqa: I251
 from itertools import chain, count
 from time import sleep
 from typing import Any, Optional
@@ -34,10 +34,12 @@ from dlt.extract.incremental.exceptions import (
     IncrementalCursorPathMissing,
     IncrementalPrimaryKeyMissing,
 )
+from dlt.extract.incremental.lag import apply_lag
 from dlt.extract.items import ValidateItem
 from dlt.extract.resource import DltResource
 from dlt.pipeline.exceptions import PipelineStepFailed
 from dlt.sources.helpers.transform import take_first
+
 from tests.extract.utils import AssertItems, data_item_to_list
 from tests.pipeline.utils import assert_query_data
 from tests.utils import (
@@ -2586,3 +2588,954 @@ def test_cursor_date_coercion(item_type: TestDataItemFormat) -> None:
         pipeline.run(updated_is_int())
     assert isinstance(pip_ex.value.__cause__, IncrementalCursorInvalidCoercion)
     assert pip_ex.value.__cause__.cursor_path == "updated_at"
+
+
+def test_incremental_merge_native_representation():
+    incremental = Incremental(cursor_path="some_path", lag=10)  # type: ignore
+
+    native_value = Incremental(cursor_path="another_path", lag=5)  # type: ignore
+
+    incremental.parse_native_representation(native_value)
+
+    # Assert the expected changes in the incremental object
+    assert incremental.cursor_path == "another_path"
+    assert incremental.lag == 5
+
+
+@pytest.mark.parametrize("lag", [0, 1, 100, 200, 1000])
+@pytest.mark.parametrize("last_value_func", [min, max])
+def test_incremental_lag_int(lag: float, last_value_func) -> None:
+    """
+    Test incremental lag behavior for int data while using `id` as the primary key using append write disposition.
+    """
+
+    pipeline = dlt.pipeline(
+        pipeline_name=uniq_id(),
+        destination=dlt.destinations.duckdb(credentials=duckdb.connect(":memory:")),
+    )
+
+    name = "events"
+    is_second_run = False
+    is_third_run = False
+
+    @dlt.resource(name=name, primary_key="id", write_disposition="append")
+    def events_resource(_=dlt.sources.incremental("id", lag=lag, last_value_func=last_value_func)):
+        nonlocal is_second_run
+        nonlocal is_third_run
+
+        initial_entries = [
+            {"id": 100, "event": "100"},
+            {"id": 200, "event": "200"},
+            {"id": 300, "event": "300"},
+        ]
+
+        second_run_events = [
+            {"id": 100, "event": "100_updated_1"},
+            {"id": 200, "event": "200_updated_1"},
+            {"id": 300, "event": "300_updated_1"},
+            {"id": 400, "event": "400"},
+        ]
+
+        third_run_events = [
+            {"id": 100, "event": "100_updated_2"},
+            {"id": 200, "event": "200_updated_2"},
+            {"id": 300, "event": "300_updated_2"},
+            {"id": 400, "event": "400_updated_2"},
+            {"id": 500, "event": "500"},
+        ]
+
+        if is_second_run:
+            yield from second_run_events
+        elif is_third_run:
+            yield from third_run_events
+        else:
+            yield from initial_entries
+
+    # Run the pipeline three times
+    pipeline.run(events_resource)
+    is_second_run = True
+    pipeline.run(events_resource)
+    is_second_run = False
+    is_third_run = True
+    pipeline.run(events_resource)
+
+    # Results using APPEND write disposition
+    # Expected results based on `last_value_func`
+    if last_value_func == max:
+        expected_results = {
+            1000: [
+                "100",
+                "200",
+                "300",
+                "100_updated_1",
+                "200_updated_1",
+                "300_updated_1",
+                "400",
+                "100_updated_2",
+                "200_updated_2",
+                "300_updated_2",
+                "400_updated_2",
+                "500",
+            ],
+            200: [
+                "100",
+                "200",
+                "300",
+                "100_updated_1",
+                "200_updated_1",
+                "300_updated_1",
+                "400",
+                "200_updated_2",
+                "300_updated_2",
+                "400_updated_2",
+                "500",
+            ],
+            100: [
+                "100",
+                "200",
+                "300",
+                "200_updated_1",
+                "300_updated_1",
+                "400",
+                "300_updated_2",
+                "400_updated_2",
+                "500",
+            ],
+            1: ["100", "200", "300", "300_updated_1", "400", "400_updated_2", "500"],
+            0: ["100", "200", "300", "400", "500"],
+        }
+    else:
+        expected_results = {
+            1000: [
+                "100",
+                "200",
+                "300",
+                "100_updated_1",
+                "200_updated_1",
+                "300_updated_1",
+                "400",
+                "100_updated_2",
+                "200_updated_2",
+                "300_updated_2",
+                "400_updated_2",
+                "500",
+            ],
+            200: [
+                "100",
+                "200",
+                "300",
+                "100_updated_1",
+                "200_updated_1",
+                "300_updated_1",
+                "100_updated_2",
+                "200_updated_2",
+                "300_updated_2",
+            ],
+            100: [
+                "100",
+                "200",
+                "300",
+                "100_updated_1",
+                "200_updated_1",
+                "100_updated_2",
+                "200_updated_2",
+            ],
+            1: ["100", "200", "300", "100_updated_1", "100_updated_2"],
+            0: ["100", "200", "300"],
+        }
+
+    with pipeline.sql_client() as sql_client:
+        result = [
+            row[0]
+            for row in sql_client.execute_sql(f"SELECT event FROM {name} ORDER BY _dlt_load_id, id")
+        ]
+        assert result == expected_results[int(lag)]
+
+
+@pytest.mark.parametrize("lag", [7200, 3601, 3600, 60, 0])
+@pytest.mark.parametrize("last_value_func", [min, max])
+def test_incremental_lag_datetime_str(lag: float, last_value_func) -> None:
+    """
+    Test incremental lag behavior for datetime data while using `id` as the primary key using merge write disposition.
+    """
+
+    pipeline = dlt.pipeline(
+        pipeline_name=uniq_id(),
+        destination=dlt.destinations.duckdb(credentials=duckdb.connect(":memory:")),
+    )
+
+    name = "events"
+    is_second_run = False
+    is_third_run = False
+
+    @dlt.resource(name=name, primary_key="id", write_disposition="merge")
+    def events_resource(
+        _=dlt.sources.incremental("created_at", lag=lag, last_value_func=last_value_func)
+    ):
+        nonlocal is_second_run
+        nonlocal is_third_run
+
+        initial_entries = [
+            {"id": 1, "created_at": "2023-03-03T01:00:00Z", "event": "1"},
+            {"id": 2, "created_at": "2023-03-03T01:00:01Z", "event": "2"},
+            {"id": 3, "created_at": "2023-03-03T02:00:01Z", "event": "3"},
+        ]
+
+        second_run_events = [
+            {"id": 1, "created_at": "2023-03-03T01:00:00Z", "event": "1_updated_1"},
+            {"id": 2, "created_at": "2023-03-03T01:00:01Z", "event": "2_updated_1"},
+            {"id": 3, "created_at": "2023-03-03T02:00:01Z", "event": "3_updated_1"},
+            {"id": 4, "created_at": "2023-03-03T03:00:00Z", "event": "4"},
+        ]
+
+        third_run_events = [
+            {"id": 1, "created_at": "2023-03-03T01:00:00Z", "event": "1_updated_2"},
+            {"id": 2, "created_at": "2023-03-03T01:00:01Z", "event": "2_updated_2"},
+            {"id": 3, "created_at": "2023-03-03T02:00:01Z", "event": "3_updated_2"},
+            {"id": 4, "created_at": "2023-03-03T03:00:00Z", "event": "4_updated_2"},
+            {"id": 5, "created_at": "2023-03-03T03:00:00Z", "event": "5"},
+        ]
+
+        if is_second_run:
+            yield from second_run_events
+        elif is_third_run:
+            yield from third_run_events
+        else:
+            yield from initial_entries
+
+    # Run the pipeline three times
+    pipeline.run(events_resource)
+    is_second_run = True
+    pipeline.run(events_resource)
+    is_second_run = False
+    is_third_run = True
+    pipeline.run(events_resource)
+
+    # Results using MERGE write disposition
+    # Expected results based on `last_value_func`
+    if last_value_func == max:
+        expected_results = {
+            7200: ["1_updated_2", "2_updated_2", "3_updated_2", "4_updated_2", "5"],
+            3601: ["1_updated_1", "2_updated_1", "3_updated_2", "4_updated_2", "5"],
+            3600: ["1", "2_updated_1", "3_updated_2", "4_updated_2", "5"],
+            60: ["1", "2", "3_updated_1", "4_updated_2", "5"],
+            0: ["1", "2", "3", "4", "5"],
+        }
+    else:
+        expected_results = {
+            7200: ["1_updated_2", "2_updated_2", "3_updated_2", "4_updated_2", "5"],
+            3601: ["1_updated_2", "2_updated_2", "3_updated_2"],
+            3600: ["3", "1_updated_2", "2_updated_2"],
+            60: ["3", "1_updated_2", "2_updated_2"],
+            0: ["1", "2", "3"],
+        }
+
+    with pipeline.sql_client() as sql_client:
+        result = [
+            row[0]
+            for row in sql_client.execute_sql(f"SELECT event FROM {name} ORDER BY _dlt_load_id, id")
+        ]
+        assert result == expected_results[int(lag)]
+
+
+@pytest.mark.parametrize("lag", [3601, 3600, 60, 0])
+def test_incremental_lag_disabled_with_custom_last_value_func(lag: float) -> None:
+    """
+    Test incremental lag is disabled when not using min or max as incremental last_value_func
+    """
+
+    pipeline = dlt.pipeline(
+        pipeline_name=uniq_id(),
+        destination=dlt.destinations.duckdb(credentials=duckdb.connect(":memory:")),
+    )
+
+    name = "events"
+    is_second_run = False
+
+    def custom_function(values):
+        return max(values)
+
+    @dlt.resource(name=name, primary_key="id", write_disposition="append")
+    def events_resource(_=dlt.sources.incremental("id", lag=lag, last_value_func=custom_function)):
+        nonlocal is_second_run
+
+        initial_entries = [
+            {"id": 100, "event": "100"},
+            {"id": 200, "event": "200"},
+            {"id": 300, "event": "300"},
+        ]
+
+        second_run_events = [
+            {"id": 100, "event": "100_updated_1"},
+            {"id": 200, "event": "200_updated_1"},
+            {"id": 300, "event": "300_updated_1"},
+            {"id": 400, "event": "400"},
+        ]
+
+        yield second_run_events if is_second_run else initial_entries
+
+    # Run the pipeline three times
+    pipeline.run(events_resource)
+    is_second_run = True
+    pipeline.run(events_resource)
+
+    with pipeline.sql_client() as sql_client:
+        result = [
+            row[0]
+            for row in sql_client.execute_sql(f"SELECT event FROM {name} ORDER BY _dlt_load_id, id")
+        ]
+        assert result == ["100", "200", "300", "400"]
+
+
+@pytest.mark.parametrize("lag", [-3601, -3600, -60, 0])
+@pytest.mark.parametrize("end_value", [-1, 0, 500])
+def test_incremental_lag_disabled_with_end_values(lag: float, end_value: float) -> None:
+    """
+    Test incremental lag is disabled when not using end_value
+    """
+
+    pipeline = dlt.pipeline(
+        pipeline_name=uniq_id(),
+        destination=dlt.destinations.duckdb(credentials=duckdb.connect(":memory:")),
+    )
+
+    name = "events"
+    is_second_run = False
+
+    @dlt.resource(name=name, primary_key="id", write_disposition="append")
+    def events_resource(
+        _=dlt.sources.incremental("id", lag=lag, initial_value=-450, end_value=end_value)
+    ):
+        nonlocal is_second_run
+
+        # prepare negative ids so for all end_values we load the table with cutoff at -450
+        # lag, if present would skip values even from initial load (lag==-3600)
+        initial_entries = [
+            {"id": -100, "event": "100"},
+            {"id": -200, "event": "200"},
+            {"id": -300, "event": "300"},
+        ]
+
+        second_run_events = [
+            {"id": -100, "event": "100_updated_1"},
+            {"id": -200, "event": "200_updated_1"},
+            {"id": -300, "event": "300_updated_1"},
+            {"id": -400, "event": "400"},
+            {"id": -500, "event": "500"},
+            {"id": -600, "event": "600"},
+            {"id": -700, "event": "700"},
+        ]
+
+        yield second_run_events if is_second_run else initial_entries
+
+    # Run the pipeline three times
+    pipeline.run(events_resource)
+    is_second_run = True
+    pipeline.run(events_resource)
+
+    with pipeline.sql_client() as sql_client:
+        result = [
+            row[0]
+            for row in sql_client.execute_sql(
+                f"SELECT event FROM {name} ORDER BY _dlt_load_id ASC, id DESC"
+            )
+        ]
+        assert result == [
+            "100",
+            "200",
+            "300",
+            "100_updated_1",
+            "200_updated_1",
+            "300_updated_1",
+            "400",
+        ]
+
+
+@pytest.mark.parametrize("lag", [3, 2, 1, 0])  # Lag in days
+@pytest.mark.parametrize("last_value_func", [min, max])
+def test_incremental_lag_date_str(lag: int, last_value_func) -> None:
+    """
+    Test incremental lag behavior for date data while using `id` as the primary key using merge write disposition.
+    """
+
+    pipeline = dlt.pipeline(
+        pipeline_name=uniq_id(),
+        destination=dlt.destinations.duckdb(credentials=duckdb.connect(":memory:")),
+    )
+
+    name = "events"
+    is_second_run = False
+    is_third_run = False
+
+    @dlt.resource(name=name, primary_key="id", write_disposition="append")
+    def events_resource(
+        _=dlt.sources.incremental("created_at", lag=lag, last_value_func=last_value_func)
+    ):
+        nonlocal is_second_run
+        nonlocal is_third_run
+
+        initial_entries = [
+            {"id": 1, "created_at": "2023-03-01", "event": "1"},
+            {"id": 2, "created_at": "2023-03-02", "event": "2"},
+            {"id": 3, "created_at": "2023-03-03", "event": "3"},
+        ]
+
+        second_run_events = [
+            {"id": 1, "created_at": "2023-03-01", "event": "1_updated_1"},
+            {"id": 2, "created_at": "2023-03-02", "event": "2_updated_1"},
+            {"id": 3, "created_at": "2023-03-03", "event": "3_updated_1"},
+            {"id": 4, "created_at": "2023-03-04", "event": "4"},
+        ]
+
+        third_run_events = [
+            {"id": 1, "created_at": "2023-03-01", "event": "1_updated_2"},
+            {"id": 2, "created_at": "2023-03-02", "event": "2_updated_2"},
+            {"id": 3, "created_at": "2023-03-03", "event": "3_updated_2"},
+            {"id": 4, "created_at": "2023-03-04", "event": "4_updated_2"},
+            {"id": 5, "created_at": "2023-03-05", "event": "5"},
+        ]
+
+        if is_second_run:
+            yield from second_run_events
+        elif is_third_run:
+            yield from third_run_events
+        else:
+            yield from initial_entries
+
+    # Run the pipeline three times
+    pipeline.run(events_resource)
+    is_second_run = True
+    pipeline.run(events_resource)
+    is_second_run = False
+    is_third_run = True
+    pipeline.run(events_resource)
+
+    # Expected results based on `last_value_func` and lag (in days)
+    if last_value_func == max:
+        expected_results = {
+            3: [
+                "1",
+                "2",
+                "3",
+                "1_updated_1",
+                "2_updated_1",
+                "3_updated_1",
+                "4",
+                "1_updated_2",
+                "2_updated_2",
+                "3_updated_2",
+                "4_updated_2",
+                "5",
+            ],
+            2: [
+                "1",
+                "2",
+                "3",
+                "1_updated_1",
+                "2_updated_1",
+                "3_updated_1",
+                "4",
+                "2_updated_2",
+                "3_updated_2",
+                "4_updated_2",
+                "5",
+            ],
+            1: [
+                "1",
+                "2",
+                "3",
+                "2_updated_1",
+                "3_updated_1",
+                "4",
+                "3_updated_2",
+                "4_updated_2",
+                "5",
+            ],
+            0: ["1", "2", "3", "4", "5"],
+        }
+    else:
+        expected_results = {
+            3: [
+                "1",
+                "2",
+                "3",
+                "1_updated_1",
+                "2_updated_1",
+                "3_updated_1",
+                "4",
+                "1_updated_2",
+                "2_updated_2",
+                "3_updated_2",
+                "4_updated_2",
+            ],
+            2: [
+                "1",
+                "2",
+                "3",
+                "1_updated_1",
+                "2_updated_1",
+                "3_updated_1",
+                "1_updated_2",
+                "2_updated_2",
+                "3_updated_2",
+            ],
+            1: ["1", "2", "3", "1_updated_1", "2_updated_1", "1_updated_2", "2_updated_2"],
+            0: ["1", "2", "3"],
+        }
+
+    with pipeline.sql_client() as sql_client:
+        result = [
+            row[0]
+            for row in sql_client.execute_sql(f"SELECT event FROM {name} ORDER BY _dlt_load_id, id")
+        ]
+        assert result == expected_results[lag]
+
+
+@pytest.mark.parametrize("lag", [3, 2, 1, 0])  # Lag in days
+@pytest.mark.parametrize("last_value_func", [min, max])
+def test_incremental_lag_date_datetime(lag: int, last_value_func) -> None:
+    """
+    Test incremental lag behavior for date data while using `id` as the primary key using merge write disposition.
+    """
+
+    pipeline = dlt.pipeline(
+        pipeline_name=uniq_id(),
+        destination=dlt.destinations.duckdb(credentials=duckdb.connect(":memory:")),
+    )
+
+    name = "events"
+    is_second_run = False
+    is_third_run = False
+
+    @dlt.resource(name=name, primary_key="id", write_disposition="append")
+    def events_resource(
+        _=dlt.sources.incremental("created_at", lag=lag, last_value_func=last_value_func)
+    ):
+        nonlocal is_second_run
+        nonlocal is_third_run
+
+        initial_entries = [
+            {"id": 1, "created_at": date(2023, 3, 1), "event": "1"},
+            {"id": 2, "created_at": date(2023, 3, 2), "event": "2"},
+            {"id": 3, "created_at": date(2023, 3, 3), "event": "3"},
+        ]
+
+        second_run_events = [
+            {"id": 1, "created_at": date(2023, 3, 1), "event": "1_updated_1"},
+            {"id": 2, "created_at": date(2023, 3, 2), "event": "2_updated_1"},
+            {"id": 3, "created_at": date(2023, 3, 3), "event": "3_updated_1"},
+            {"id": 4, "created_at": date(2023, 3, 4), "event": "4"},
+        ]
+
+        third_run_events = [
+            {"id": 1, "created_at": date(2023, 3, 1), "event": "1_updated_2"},
+            {"id": 2, "created_at": date(2023, 3, 2), "event": "2_updated_2"},
+            {"id": 3, "created_at": date(2023, 3, 3), "event": "3_updated_2"},
+            {"id": 4, "created_at": date(2023, 3, 4), "event": "4_updated_2"},
+            {"id": 5, "created_at": date(2023, 3, 5), "event": "5"},
+        ]
+
+        if is_second_run:
+            yield from second_run_events
+        elif is_third_run:
+            yield from third_run_events
+        else:
+            yield from initial_entries
+
+    # Run the pipeline three times
+    pipeline.run(events_resource)
+    is_second_run = True
+    pipeline.run(events_resource)
+    is_second_run = False
+    is_third_run = True
+    pipeline.run(events_resource)
+
+    # Expected results based on `last_value_func` and lag (in days)
+    if last_value_func == max:
+        expected_results = {
+            3: [
+                "1",
+                "2",
+                "3",
+                "1_updated_1",
+                "2_updated_1",
+                "3_updated_1",
+                "4",
+                "1_updated_2",
+                "2_updated_2",
+                "3_updated_2",
+                "4_updated_2",
+                "5",
+            ],
+            2: [
+                "1",
+                "2",
+                "3",
+                "1_updated_1",
+                "2_updated_1",
+                "3_updated_1",
+                "4",
+                "2_updated_2",
+                "3_updated_2",
+                "4_updated_2",
+                "5",
+            ],
+            1: [
+                "1",
+                "2",
+                "3",
+                "2_updated_1",
+                "3_updated_1",
+                "4",
+                "3_updated_2",
+                "4_updated_2",
+                "5",
+            ],
+            0: ["1", "2", "3", "4", "5"],
+        }
+    else:
+        expected_results = {
+            3: [
+                "1",
+                "2",
+                "3",
+                "1_updated_1",
+                "2_updated_1",
+                "3_updated_1",
+                "4",
+                "1_updated_2",
+                "2_updated_2",
+                "3_updated_2",
+                "4_updated_2",
+            ],
+            2: [
+                "1",
+                "2",
+                "3",
+                "1_updated_1",
+                "2_updated_1",
+                "3_updated_1",
+                "1_updated_2",
+                "2_updated_2",
+                "3_updated_2",
+            ],
+            1: ["1", "2", "3", "1_updated_1", "2_updated_1", "1_updated_2", "2_updated_2"],
+            0: ["1", "2", "3"],
+        }
+
+    with pipeline.sql_client() as sql_client:
+        result = [
+            row[0]
+            for row in sql_client.execute_sql(f"SELECT event FROM {name} ORDER BY _dlt_load_id, id")
+        ]
+        assert result == expected_results[lag]
+
+
+@pytest.mark.parametrize("lag", [200, 1000])
+@pytest.mark.parametrize("last_value_func", [min, max])
+def test_incremental_lag_int_with_initial_values(lag: float, last_value_func) -> None:
+    """
+    Test incremental lag behavior with initial_values for int data while using `id` as the primary key using append write disposition.
+    """
+
+    pipeline = dlt.pipeline(
+        pipeline_name=uniq_id(),
+        destination=dlt.destinations.duckdb(credentials=duckdb.connect(":memory:")),
+    )
+
+    name = "events"
+    is_second_run = False
+    is_third_run = False
+
+    @dlt.resource(name=name, primary_key="id", write_disposition="append")
+    def events_resource(
+        _=dlt.sources.incremental("id", lag=lag, initial_value=200, last_value_func=last_value_func)
+    ):
+        nonlocal is_second_run
+        nonlocal is_third_run
+
+        initial_entries = [
+            {"id": 100, "event": "100"},
+            {"id": 200, "event": "200"},
+            {"id": 300, "event": "300"},
+        ]
+
+        second_run_events = [
+            {"id": 100, "event": "100_updated_1"},
+            {"id": 200, "event": "200_updated_1"},
+            {"id": 300, "event": "300_updated_1"},
+            {"id": 400, "event": "400"},
+        ]
+
+        third_run_events = [
+            {"id": 100, "event": "100_updated_2"},
+            {"id": 200, "event": "200_updated_2"},
+            {"id": 300, "event": "300_updated_2"},
+            {"id": 400, "event": "400_updated_2"},
+            {"id": 500, "event": "500"},
+        ]
+
+        if is_second_run:
+            yield from second_run_events
+        elif is_third_run:
+            yield from third_run_events
+        else:
+            yield from initial_entries
+
+    # Run the pipeline three times
+    pipeline.run(events_resource)
+    is_second_run = True
+    pipeline.run(events_resource)
+    is_second_run = False
+    is_third_run = True
+    pipeline.run(events_resource)
+
+    # Results using APPEND write disposition
+    # Expected results based on `last_value_func`
+    if last_value_func == max:
+        expected_results = {
+            1000: [
+                "200",
+                "300",
+                "200_updated_1",
+                "300_updated_1",
+                "400",
+                "200_updated_2",
+                "300_updated_2",
+                "400_updated_2",
+                "500",
+            ],
+            200: [
+                "200",
+                "300",
+                "200_updated_1",
+                "300_updated_1",
+                "400",
+                "200_updated_2",
+                "300_updated_2",
+                "400_updated_2",
+                "500",
+            ],
+        }
+    else:
+        expected_results = {
+            1000: [
+                "100",
+                "200",
+                "100_updated_1",
+                "200_updated_1",
+                "100_updated_2",
+                "200_updated_2",
+            ],
+            200: [
+                "100",
+                "200",
+                "100_updated_1",
+                "200_updated_1",
+                "100_updated_2",
+                "200_updated_2",
+            ],
+        }
+
+    with pipeline.sql_client() as sql_client:
+        result = [
+            row[0]
+            for row in sql_client.execute_sql(f"SELECT event FROM {name} ORDER BY _dlt_load_id, id")
+        ]
+        assert result == expected_results[int(lag)]
+
+
+@pytest.mark.parametrize("lag", [0, 1.0, 1.5, 2.0])
+@pytest.mark.parametrize("last_value_func", [min, max])
+def test_incremental_lag_float(lag: float, last_value_func) -> None:
+    """
+    Test incremental lag behavior for int data while using `id` as the primary key using append write disposition.
+    """
+
+    pipeline = dlt.pipeline(
+        pipeline_name=uniq_id(),
+        destination=dlt.destinations.duckdb(credentials=duckdb.connect(":memory:")),
+    )
+
+    name = "events"
+    is_second_run = False
+    is_third_run = False
+
+    @dlt.resource(name=name, primary_key="id", write_disposition="append")
+    def events_resource(_=dlt.sources.incremental("id", lag=lag, last_value_func=last_value_func)):
+        nonlocal is_second_run
+        nonlocal is_third_run
+
+        initial_entries = [
+            {"id": 1.0, "event": "1"},
+            {"id": 2.0, "event": "2"},
+        ]
+
+        second_run_events = [
+            {"id": 1.0, "event": "1_updated_1"},
+            {"id": 2.0, "event": "2_updated_1"},
+            {"id": 2.5, "event": "2-5"},
+        ]
+
+        third_run_events = [
+            {"id": 1.0, "event": "1_updated_2"},
+            {"id": 2.0, "event": "2_updated_2"},
+            {"id": 2.5, "event": "2-5_updated_2"},
+            {"id": 3.0, "event": "3"},
+        ]
+
+        if is_second_run:
+            yield from second_run_events
+        elif is_third_run:
+            yield from third_run_events
+        else:
+            yield from initial_entries
+
+    # Run the pipeline three times
+    pipeline.run(events_resource)
+    is_second_run = True
+    pipeline.run(events_resource)
+    is_second_run = False
+    is_third_run = True
+    pipeline.run(events_resource)
+
+    # Results using APPEND write disposition
+    # Expected results based on `last_value_func`
+    if last_value_func == max:
+        expected_results = {
+            2.0: [
+                "1",
+                "2",
+                "1_updated_1",
+                "2_updated_1",
+                "2-5",
+                "1_updated_2",
+                "2_updated_2",
+                "2-5_updated_2",
+                "3",
+            ],
+            1.5: [
+                "1",
+                "2",
+                "1_updated_1",
+                "2_updated_1",
+                "2-5",
+                "1_updated_2",
+                "2_updated_2",
+                "2-5_updated_2",
+                "3",
+            ],
+            1.0: [
+                "1",
+                "2",
+                "1_updated_1",
+                "2_updated_1",
+                "2-5",
+                "2_updated_2",
+                "2-5_updated_2",
+                "3",
+            ],
+            0: ["1", "2", "2-5", "3"],
+        }
+    else:
+        expected_results = {
+            2.0: [
+                "1",
+                "2",
+                "1_updated_1",
+                "2_updated_1",
+                "2-5",
+                "1_updated_2",
+                "2_updated_2",
+                "2-5_updated_2",
+                "3",
+            ],
+            1.5: [
+                "1",
+                "2",
+                "1_updated_1",
+                "2_updated_1",
+                "2-5",
+                "1_updated_2",
+                "2_updated_2",
+                "2-5_updated_2",
+            ],
+            1.0: ["1", "2", "1_updated_1", "2_updated_1", "1_updated_2", "2_updated_2"],
+            0: ["1", "2"],
+        }
+
+    with pipeline.sql_client() as sql_client:
+        result = [
+            row[0]
+            for row in sql_client.execute_sql(f"SELECT event FROM {name} ORDER BY _dlt_load_id, id")
+        ]
+        assert result == expected_results[lag]
+
+
+def test_apply_lag() -> None:
+    # test date lag
+    assert apply_lag(1, None, date(2023, 3, 2), max) == date(2023, 3, 1)
+    assert apply_lag(1, None, date(2023, 3, 2), min) == date(2023, 3, 3)
+    # can't go below initial_value
+    assert apply_lag(1, date(2023, 3, 2), date(2023, 3, 2), max) == date(2023, 3, 2)
+    assert apply_lag(-1, date(2023, 3, 2), date(2023, 3, 2), max) == date(2023, 3, 3)
+    # can't go above initial_value
+    assert apply_lag(1, date(2023, 3, 2), date(2023, 3, 2), min) == date(2023, 3, 2)
+    assert apply_lag(-1, date(2023, 3, 2), date(2023, 3, 2), min) == date(2023, 3, 1)
+
+    # test str date lag
+    assert apply_lag(1, None, "2023-03-02", max) == "2023-03-01"
+    assert apply_lag(1, None, "2023-03-02", min) == "2023-03-03"
+    # initial value
+    assert apply_lag(1, "2023-03-01", "2023-03-02", max) == "2023-03-01"
+    assert apply_lag(2, "2023-03-01", "2023-03-02", max) == "2023-03-01"
+
+    assert apply_lag(1, "2023-03-03", "2023-03-02", min) == "2023-03-03"
+    assert apply_lag(2, "2023-03-03", "2023-03-02", min) == "2023-03-03"
+
+    # test datetime lag
+    assert apply_lag(1, None, datetime(2023, 3, 2, 1, 15, 30), max) == datetime(
+        2023, 3, 2, 1, 15, 29
+    )
+    assert apply_lag(1, None, datetime(2023, 3, 2, 1, 15, 30), min) == datetime(
+        2023, 3, 2, 1, 15, 31
+    )
+    # initial value
+    assert apply_lag(
+        1, datetime(2023, 3, 2, 1, 15, 29), datetime(2023, 3, 2, 1, 15, 30), max
+    ) == datetime(2023, 3, 2, 1, 15, 29)
+    assert apply_lag(
+        2, datetime(2023, 3, 2, 1, 15, 29), datetime(2023, 3, 2, 1, 15, 30), max
+    ) == datetime(2023, 3, 2, 1, 15, 29)
+    assert apply_lag(
+        1, datetime(2023, 3, 2, 1, 15, 31), datetime(2023, 3, 2, 1, 15, 30), min
+    ) == datetime(2023, 3, 2, 1, 15, 31)
+    assert apply_lag(
+        2, datetime(2023, 3, 2, 1, 15, 31), datetime(2023, 3, 2, 1, 15, 30), min
+    ) == datetime(2023, 3, 2, 1, 15, 31)
+
+    # datetime str
+    assert apply_lag(1, None, "2023-03-03T01:15:30Z", max) == "2023-03-03T01:15:29Z"
+    assert apply_lag(1, None, "2023-03-03T01:15:30Z", min) == "2023-03-03T01:15:31Z"
+    # initial value
+    assert (
+        apply_lag(1, "2023-03-03T01:15:29Z", "2023-03-03T01:15:30Z", max) == "2023-03-03T01:15:29Z"
+    )
+    assert (
+        apply_lag(2, "2023-03-03T01:15:29Z", "2023-03-03T01:15:30Z", max) == "2023-03-03T01:15:29Z"
+    )
+    assert (
+        apply_lag(1, "2023-03-03T01:15:31Z", "2023-03-03T01:15:30Z", min) == "2023-03-03T01:15:31Z"
+    )
+    assert (
+        apply_lag(2, "2023-03-03T01:15:31Z", "2023-03-03T01:15:30Z", min) == "2023-03-03T01:15:31Z"
+    )
+
+    # int/float
+    assert apply_lag(1, None, 1, max) == 0
+    assert apply_lag(1, None, 1, min) == 2
+    # initial
+    assert apply_lag(1, 0, 1, max) == 0
+    assert apply_lag(2, 0, 1, max) == 0
+    assert apply_lag(1, 2, 1, min) == 2
+    assert apply_lag(2, 2, 1, min) == 2
