@@ -1,5 +1,8 @@
-from typing import Any, Generator, Optional, Union
+from typing import Any, Generator, Optional, Union, List
 from dlt.common.json import json
+from copy import deepcopy
+
+from dlt.common.normalizers.naming.naming import NamingConvention
 
 from contextlib import contextmanager
 from dlt.common.destination.reference import (
@@ -23,13 +26,26 @@ class ReadableDBAPIRelation(SupportsReadableRelation):
         self,
         *,
         client: SqlClientBase[Any],
-        query: Any,
+        naming: NamingConvention,
+        provided_query: Any = None,
+        table_name: str = None,
         schema_columns: TTableSchemaColumns = None,
+        limit: int = None,
+        selected_columns: List[str] = None,
     ) -> None:
         """Create a lazy evaluated relation to for the dataset of a destination"""
-        self.client = client
-        self.schema_columns = schema_columns
-        self.query = query
+
+        assert bool(table_name) != bool(
+            provided_query
+        ), "Please provide either an sql query OR a table_name"
+
+        self._client = client
+        self._naming = naming
+        self._schema_columns = schema_columns
+        self._provided_query = provided_query
+        self._table_name = table_name
+        self._limit = limit
+        self._selected_columns = selected_columns
 
         # wire protocol functions
         self.df = self._wrap_func("df")  # type: ignore
@@ -42,18 +58,56 @@ class ReadableDBAPIRelation(SupportsReadableRelation):
         self.iter_arrow = self._wrap_iter("iter_arrow")  # type: ignore
         self.iter_fetch = self._wrap_iter("iter_fetch")  # type: ignore
 
+    @property
+    def query(self) -> Any:
+        """build the query"""
+        if self._provided_query:
+            return self._provided_query
+
+        table_name = self._client.make_qualified_table_name(self._table_name)
+
+        maybe_limit_clause = ""
+        if self._limit:
+            maybe_limit_clause = f"LIMIT {self._limit}"
+
+        selector = "*"
+        if self._selected_columns:
+            selector = ",".join(
+                [self._naming.normalize_identifier(c) for c in self._selected_columns]
+            )
+
+        return f"SELECT {selector} FROM {table_name} {maybe_limit_clause}"
+
+    @property
+    def schema_columns(self) -> TTableSchemaColumns:
+        """provide schema columns for the cursor, may be filtered by selected columns"""
+        if not self._schema_columns:
+            return None
+        if not self._selected_columns:
+            return self._schema_columns
+
+        filtered_columns: TTableSchemaColumns = {}
+        for sc in self._selected_columns:
+            sc = self._naming.normalize_identifier(sc)
+            assert (
+                sc in self._schema_columns.keys()
+            ), f"Could not find column {sc} in provided dlt schema"
+            filtered_columns[sc] = self._schema_columns[sc]
+
+        return filtered_columns
+
     @contextmanager
     def cursor(self) -> Generator[SupportsReadableRelation, Any, Any]:
         """Gets a DBApiCursor for the current relation"""
-        with self.client as client:
+        with self._client as client:
             # this hacky code is needed for mssql to disable autocommit, read iterators
             # will not work otherwise. in the future we should be able to create a readony
             # client which will do this automatically
-            if hasattr(self.client, "_conn") and hasattr(self.client._conn, "autocommit"):
-                self.client._conn.autocommit = False
+            if hasattr(self._client, "_conn") and hasattr(self._client._conn, "autocommit"):
+                self._client._conn.autocommit = False
             with client.execute_query(self.query) as cursor:
-                if self.schema_columns:
-                    cursor.schema_columns = self.schema_columns
+                if schema_columns := self.schema_columns:
+                    cursor.schema_columns = schema_columns
                 yield cursor
 
     def _wrap_iter(self, func_name: str) -> Any:
@@ -73,6 +127,35 @@ class ReadableDBAPIRelation(SupportsReadableRelation):
                 return getattr(cursor, func_name)(*args, **kwargs)
 
         return _wrap
+
+    def __copy__(self) -> "ReadableDBAPIRelation":
+        return self.__class__(
+            client=self._client,
+            naming=self._naming,
+            provided_query=self._provided_query,
+            schema_columns=self._schema_columns,
+            table_name=self._table_name,
+            limit=self._limit,
+            selected_columns=self._selected_columns,
+        )
+
+    def limit(self, limit: int) -> "ReadableDBAPIRelation":
+        assert not self._provided_query, "Cannot change limit on relation with provided query"
+        rel = self.__copy__()
+        rel._limit = limit
+        return rel
+
+    def select(self, selected_columns: List[str]) -> "ReadableDBAPIRelation":
+        assert (
+            not self._provided_query
+        ), "Cannot change selected columns on relation with provided query"
+        rel = self.__copy__()
+        rel._selected_columns = selected_columns
+        return rel
+
+    def head(self) -> "ReadableDBAPIRelation":
+        assert not self._provided_query, "Cannot fetch head on relation with provided query"
+        return self.limit(5)
 
 
 class ReadableDBAPIDataset(SupportsReadableDataset):
@@ -149,16 +232,19 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
         self, query: Any, schema_columns: TTableSchemaColumns = None
     ) -> ReadableDBAPIRelation:
         schema_columns = schema_columns or {}
-        return ReadableDBAPIRelation(client=self.sql_client, query=query, schema_columns=schema_columns)  # type: ignore[abstract]
+        return ReadableDBAPIRelation(client=self.sql_client, naming=self.schema.naming, provided_query=query, schema_columns=schema_columns)  # type: ignore[abstract]
 
     def table(self, table_name: str) -> SupportsReadableRelation:
         # prepare query for table relation
         schema_columns = (
             self.schema.tables.get(table_name, {}).get("columns", {}) if self.schema else {}
         )
-        table_name = self.sql_client.make_qualified_table_name(table_name)
-        query = f"SELECT * FROM {table_name}"
-        return self(query, schema_columns)
+        return ReadableDBAPIRelation(
+            client=self.sql_client,
+            naming=self.schema.naming,
+            table_name=table_name,
+            schema_columns=schema_columns,
+        )  # type: ignore[abstract]
 
     def __getitem__(self, table_name: str) -> SupportsReadableRelation:
         """access of table via dict notation"""
