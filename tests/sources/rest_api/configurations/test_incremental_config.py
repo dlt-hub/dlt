@@ -112,11 +112,13 @@ def test_constructs_incremental_from_request_param() -> None:
             "type": "incremental",
             "cursor_path": "updated_at",
             "initial_value": "2024-01-01T00:00:00Z",
+            "lag": 360.5,
         },
     }
-    (incremental_config, incremental_param, _) = setup_incremental_object(request_params)
-    assert incremental_config == dlt.sources.incremental(
-        cursor_path="updated_at", initial_value="2024-01-01T00:00:00Z"
+    (incremental, incremental_param, _) = setup_incremental_object(request_params)
+    # incremental is a dataclass so you can compare field-wise
+    assert incremental == dlt.sources.incremental(
+        cursor_path="updated_at", initial_value="2024-01-01T00:00:00Z", lag=360.5
     )
     assert incremental_param == IncrementalParam(start="since", end=None)
 
