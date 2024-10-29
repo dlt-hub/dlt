@@ -79,7 +79,7 @@ class ReadableDBAPIRelation(SupportsReadableRelation):
         return f"SELECT {selector} FROM {table_name} {maybe_limit_clause}"
 
     @property
-    def schema_columns(self) -> TTableSchemaColumns:
+    def computed_schema_columns(self) -> TTableSchemaColumns:
         """provide schema columns for the cursor, may be filtered by selected columns"""
         if not self._schema_columns:
             return None
@@ -106,7 +106,7 @@ class ReadableDBAPIRelation(SupportsReadableRelation):
             if hasattr(self._client, "_conn") and hasattr(self._client._conn, "autocommit"):
                 self._client._conn.autocommit = False
             with client.execute_query(self.query) as cursor:
-                if schema_columns := self.schema_columns:
+                if schema_columns := self.computed_schema_columns:
                     cursor.schema_columns = schema_columns
                 yield cursor
 
