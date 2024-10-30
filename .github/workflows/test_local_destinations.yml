@@ -48,7 +48,7 @@ jobs:
       # Label used to access the service container
       postgres:
         # Docker Hub image
-        image: postgis
+        image: postgis/postgis
         # Provide the password for postgres
         env:
           POSTGRES_DB: dlt_data
