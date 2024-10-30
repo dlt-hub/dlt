@@ -18,6 +18,8 @@ env:
   # we need the secrets only for the rest_api_pipeline tests which are in tests/sources
   # so we inject them only at the end
   SOURCES__GITHUB__ACCESS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  # and also for the github_api_pipeline tests
+  SOURCES__GITHUB_API_PIPELINE__ACCESS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
   get_docs_changes:

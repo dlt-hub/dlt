@@ -57,6 +57,7 @@ class IncrementalTransform:
         primary_key: Optional[TTableHintTemplate[TColumnNames]],
         unique_hashes: Set[str],
         on_cursor_value_missing: OnCursorValueMissing = "raise",
+        lag: Optional[float] = None,
     ) -> None:
         self.resource_name = resource_name
         self.cursor_path = cursor_path
@@ -70,7 +71,7 @@ class IncrementalTransform:
         self.unique_hashes = unique_hashes
         self.start_unique_hashes = set(unique_hashes)
         self.on_cursor_value_missing = on_cursor_value_missing
-
+        self.lag = lag
         # compile jsonpath
         self._compiled_cursor_path = compile_path(cursor_path)
         # for simple column name we'll fallback to search in dict
@@ -109,7 +110,14 @@ class IncrementalTransform:
 
     @property
     def deduplication_disabled(self) -> bool:
-        """Skip deduplication when length of the key is 0"""
+        """Skip deduplication when length of the key is 0 or if lag is applied."""
+        # disable deduplication if end value is set - state is not saved
+        if self.end_value is not None:
+            return True
+        # disable deduplication if lag is applied - destination must deduplicate ranges
+        if self.lag and self.last_value_func in (min, max):
+            return True
+        # disable deduplication if primary_key = ()
         return isinstance(self.primary_key, (list, tuple)) and len(self.primary_key) == 0
 
 
