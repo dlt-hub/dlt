@@ -130,7 +130,7 @@ The `postgres_adapter` facilitates applying these hints conveniently, with a def
 
 **Example:** Using `postgres_adapter` with Different Geometry Types
 
-```python
+```py
 from dlt.destinations.impl.postgres.postgres_adapter import postgres_adapter
 
 # Sample data with various geometry types
