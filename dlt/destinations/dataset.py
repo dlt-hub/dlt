@@ -25,10 +25,13 @@ from dlt.common.exceptions import DltException
 if TYPE_CHECKING:
     try:
         from dlt.common.libs.ibis import Table as IbisTable
+        from dlt.common.libs.ibis import BaseBackend as IbisBackend
     except MissingDependencyException:
         IbisTable = Any
+        IbisBackend = Any
 else:
     IbisTable = Any
+    IbisBackend = Any
 
 
 class DatasetException(DltException):
@@ -334,3 +337,29 @@ def dataset(
     if dataset_type == "dbapi":
         return ReadableDBAPIDataset(destination, dataset_name, schema)
     raise NotImplementedError(f"Dataset of type {dataset_type} not implemented")
+
+
+def create_ibis_backend(
+    destination: TDestinationReferenceArg, dataset_name: str, schema: Schema
+) -> IbisBackend:
+    from dlt.common.libs.ibis import ibis
+
+    # TODO: abstract out destination client related stuff
+    destination = Destination.from_reference(destination)
+    client_spec = destination.spec()
+    if isinstance(client_spec, DestinationClientDwhConfiguration):
+        client_spec._bind_dataset_name(dataset_name=dataset_name, default_schema_name=schema.name)
+    client = destination.client(schema, client_spec)
+
+    if destination.destination_type not in [
+        "dlt.destinations.postgres",
+        "dlt.destinations.duckdb",
+        "dlt.destinations.filesystem",
+    ]:
+        raise NotImplementedError()
+
+    ibis = ibis.connect(client.config.credentials.to_native_representation())
+    # NOTE: there seems to be no standardized way to set the current dataset / schema in ibis
+    ibis.raw_sql(f"SET search_path TO {dataset_name};")
+
+    return ibis

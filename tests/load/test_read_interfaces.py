@@ -131,7 +131,7 @@ def populated_pipeline(request) -> Any:
     yield pipeline
 
     # NOTE: we need to drop pipeline data here since we are keeping the pipelines around for the whole module
-    drop_pipeline_data(pipeline)
+    # drop_pipeline_data(pipeline)
 
 
 # NOTE: we collect all destination configs centrally, this way the session based
@@ -259,7 +259,7 @@ def test_db_cursor_access(populated_pipeline: Pipeline) -> None:
     indirect=True,
     ids=lambda x: x.name,
 )
-def test_ibis_access(populated_pipeline: Pipeline) -> None:
+def test_ibis_tables_access(populated_pipeline: Pipeline) -> None:
     table_relationship = populated_pipeline._dataset().items
     total_records = _total_records(populated_pipeline)
     chunk_size = _chunk_size(populated_pipeline)
@@ -281,6 +281,31 @@ def test_ibis_access(populated_pipeline: Pipeline) -> None:
     # check all items are present
     ids = reduce(lambda a, b: a + b, [t[EXPECTED_COLUMNS[0]].to_pandas().tolist() for t in tables])
     assert set(ids) == set(range(total_records))
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
+def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
+    total_records = _total_records(populated_pipeline)
+    ibis_connection = populated_pipeline._ibis()
+
+    assert ibis_connection.list_tables() == [
+        "_dlt_loads",
+        "_dlt_pipeline_state",
+        "_dlt_version",
+        "double_items",
+        "items",
+        "items__children",
+    ]
+
+    items_table = ibis_connection.table("items")
+    assert items_table.count().to_pandas() == total_records
 
 
 @pytest.mark.no_load
