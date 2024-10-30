@@ -294,9 +294,9 @@ class Pipeline(SupportsPipeline):
 
     pipeline_name: str
     """Name of the pipeline"""
-    default_schema_name: str = None
-    schema_names: List[str] = []
-    first_run: bool = False
+    default_schema_name: str
+    schema_names: List[str]
+    first_run: bool
     """Indicates a first run of the pipeline, where run ends with successful loading of the data"""
     dev_mode: bool
     must_attach_to_local_pipeline: bool
@@ -304,17 +304,17 @@ class Pipeline(SupportsPipeline):
     """A directory where the pipelines' working directories are created"""
     working_dir: str
     """A working directory of the pipeline"""
-    destination: TDestination = None
-    staging: TDestination = None
+    destination: TDestination
+    staging: TDestination
     """The destination reference which is the Destination Class. `destination.destination_name` returns the name string"""
-    dataset_name: str = None
+    dataset_name: str
     """Name of the dataset to which pipeline will be loaded to"""
-    is_active: bool = False
+    is_active: bool
     """Tells if instance is currently active and available via dlt.pipeline()"""
     collector: _Collector
     config: PipelineConfiguration
     runtime_config: RuntimeConfiguration
-    refresh: Optional[TRefreshMode] = None
+    refresh: Optional[TRefreshMode]
 
     def __init__(
         self,
@@ -334,6 +334,12 @@ class Pipeline(SupportsPipeline):
         refresh: Optional[TRefreshMode] = None,
     ) -> None:
         """Initializes the Pipeline class which implements `dlt` pipeline. Please use `pipeline` function in `dlt` module to create a new Pipeline instance."""
+        self.default_schema_name = None
+        self.schema_names = []
+        self.first_run = False
+        self.dataset_name: str = None
+        self.is_active = False
+
         self.pipeline_salt = pipeline_salt
         self.config = config
         self.runtime_config = runtime
@@ -365,18 +371,20 @@ class Pipeline(SupportsPipeline):
             self._set_dataset_name(dataset_name)
 
     def drop(self, pipeline_name: str = None) -> "Pipeline":
-        """Deletes local pipeline state, schemas and any working files.
+        """Deletes local pipeline state, schemas and any working files. Re-initializes
+           all internal fields via __init__. If `pipeline_name` is specified that is
+           different from the current name, new pipeline instance is created, activated and returned.
+           Note that original pipeline is still dropped.
 
         Args:
-            pipeline_name (str): Optional. New pipeline name.
+            pipeline_name (str): Optional. New pipeline name. Creates and activates new instance
         """
         if self.is_active:
             self.deactivate()
         # reset the pipeline working dir
         self._create_pipeline()
-        # clone the pipeline
-        new_pipeline = Pipeline(
-            pipeline_name or self.pipeline_name,
+        self.__init__(  # type: ignore[misc]
+            self.pipeline_name,
             self.pipelines_dir,
             self.pipeline_salt,
             self.destination,
@@ -390,12 +398,25 @@ class Pipeline(SupportsPipeline):
             self.config,
             self.runtime_config,
         )
-        new_pipeline.activate()
-
-        # defunct self
-        self.__dict__.clear()
-        self.__class__ = make_defunct_class(self)
-        return new_pipeline
+        if pipeline_name is not None and pipeline_name != self.pipeline_name:
+            self = self.__class__(
+                pipeline_name,
+                self.pipelines_dir,
+                self.pipeline_salt,
+                deepcopy(self.destination),
+                deepcopy(self.staging),
+                self.dataset_name,
+                self._schema_storage.config.import_schema_path,
+                self._schema_storage.config.export_schema_path,
+                self.dev_mode,
+                deepcopy(self.collector),
+                False,
+                self.config,
+                self.runtime_config,
+            )
+        # activate (possibly new) self
+        self.activate()
+        return self
 
     @with_runtime_trace()
     @with_schemas_sync  # this must precede with_state_sync

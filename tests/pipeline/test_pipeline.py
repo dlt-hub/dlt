@@ -1518,15 +1518,20 @@ def test_drop_with_new_name() -> None:
 
     assert new_pipeline.pipeline_name == new_test_name
 
+    # load to old pipeline
+    pipeline.run([1, 2, 3], table_name="p1")
+    new_pipeline.run([1, 2, 3], table_name="p2")
 
-def test_drop_defunct() -> None:
-    pipeline = dlt.pipeline(pipeline_name="test_drop_defunct", destination="duckdb")
+    assert_data_table_counts(pipeline, {"p1": 3})
+    assert_data_table_counts(new_pipeline, {"p2": 3})
+
+
+def test_drop() -> None:
+    pipeline = dlt.pipeline(pipeline_name="test_drop", destination="duckdb")
     clean_pipeline = pipeline.drop()
-    assert clean_pipeline.pipeline_name == "test_drop_defunct"
-    with pytest.raises(RuntimeError):
-        pipeline.pipeline_name
-    with pytest.raises(RuntimeError):
-        pipeline.run([1, 2, 3])
+    assert clean_pipeline is pipeline
+    assert clean_pipeline.pipeline_name == "test_drop"
+    pipeline.run([1, 2, 3], table_name="numbers")
 
 
 def test_schema_version_increase_and_source_update() -> None:

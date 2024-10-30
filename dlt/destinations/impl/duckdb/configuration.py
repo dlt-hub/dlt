@@ -173,13 +173,17 @@ class DuckDbCredentials(DuckDbBaseCredentials):
                 pipeline_path = explicit_path or DUCK_DB_NAME % self.bound_to_pipeline.pipeline_name
                 # if explicit_path was an absolute path it will be used
                 pipeline_path = os.path.join(initial_cwd, pipeline_path)
-                if not self.bound_to_pipeline.first_run:
-                    if not os.path.exists(pipeline_path):
-                        logger.warning(
-                            f"Duckdb attached to pipeline {self.bound_to_pipeline.pipeline_name} in"
-                            f" path {os.path.relpath(pipeline_path)} was could not be found but"
-                            " pipeline is marked as used.  so database is expected to be present."
-                        )
+            if not self.bound_to_pipeline.first_run:
+                if not os.path.exists(pipeline_path):
+                    logger.warning(
+                        f"Duckdb attached to pipeline {self.bound_to_pipeline.pipeline_name} in"
+                        f" path {os.path.relpath(pipeline_path)} was could not be found but"
+                        " pipeline has already ran. This may be a result of (1) recreating or"
+                        " attaching pipeline  without or with changed explicit path to database"
+                        " that was used when creating the pipeline. (2) keeping the path to to"
+                        " database in secrets and changing the current working folder so  dlt"
+                        " cannot see them. (3) you deleting the database."
+                    )
             return pipeline_path
 
         return os.path.abspath(explicit_path or default_path)
