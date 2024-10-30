@@ -91,9 +91,10 @@ class ReadableDBAPIRelation(SupportsReadableRelation):
             self._naming.normalize_identifier(self._table_name)
         )
 
-        maybe_limit_clause = ""
+        maybe_limit_clause_1 = ""
+        maybe_limit_clause_2 = ""
         if self._limit:
-            maybe_limit_clause = f"LIMIT {self._limit}"
+            maybe_limit_clause_1, maybe_limit_clause_2 = self._client._limit_clause_sql(self._limit)
 
         selector = "*"
         if self._selected_columns:
@@ -104,7 +105,7 @@ class ReadableDBAPIRelation(SupportsReadableRelation):
                 ]
             )
 
-        return f"SELECT {selector} FROM {table_name} {maybe_limit_clause}"
+        return f"SELECT {maybe_limit_clause_1} {selector} FROM {table_name} {maybe_limit_clause_2}"
 
     @property
     def computed_schema_columns(self) -> TTableSchemaColumns:
@@ -113,6 +114,7 @@ class ReadableDBAPIRelation(SupportsReadableRelation):
             return None
         if not self._selected_columns:
             return self._schema_columns
+
         filtered_columns: TTableSchemaColumns = {}
         for sc in self._selected_columns:
             sc = self._naming.normalize_identifier(sc)

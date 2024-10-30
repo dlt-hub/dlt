@@ -203,6 +203,7 @@ def test_dataframe_access(populated_pipeline: Pipeline) -> None:
     df = table_relationship.df(chunk_size=chunk_size)
     if not skip_df_chunk_size_check:
         assert len(df.index) == chunk_size
+
     # lowercase results for the snowflake case
     assert set(df.columns.values) == set(EXPECTED_COLUMNS)
 
@@ -357,7 +358,7 @@ def test_column_selection(populated_pipeline: Pipeline) -> None:
 
     columns = ["_dlt_load_id", "other_decimal"]
     data_frame = table_relationship.select(columns).head().df()
-    assert list(data_frame.columns.values) == columns
+    assert [v.lower() for v in data_frame.columns.values] == columns
     assert len(data_frame.index) == 5
 
     columns = ["decimal", "other_decimal"]

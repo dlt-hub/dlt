@@ -12,36 +12,36 @@ def test_query_builder() -> None:
     dataset = dlt.pipeline(destination="duckdb", pipeline_name="pipeline")._dataset()
 
     # default query for a table
-    assert dataset.my_table.query.strip() == 'SELECT * FROM "pipeline_dataset"."my_table"'  # type: ignore[attr-defined]
+    assert dataset.my_table.query.strip() == 'SELECT  * FROM "pipeline_dataset"."my_table"'  # type: ignore[attr-defined]
 
     # head query
     assert (
         dataset.my_table.head().query.strip()  # type: ignore[attr-defined]
-        == 'SELECT * FROM "pipeline_dataset"."my_table" LIMIT 5'
+        == 'SELECT  * FROM "pipeline_dataset"."my_table" LIMIT 5'
     )
 
     # limit query
     assert (
         dataset.my_table.limit(24).query.strip()  # type: ignore[attr-defined]
-        == 'SELECT * FROM "pipeline_dataset"."my_table" LIMIT 24'
+        == 'SELECT  * FROM "pipeline_dataset"."my_table" LIMIT 24'
     )
 
     # select columns
     assert (
         dataset.my_table.select(["col1", "col2"]).query.strip()  # type: ignore[attr-defined]
-        == 'SELECT "col1","col2" FROM "pipeline_dataset"."my_table"'
+        == 'SELECT  "col1","col2" FROM "pipeline_dataset"."my_table"'
     )
 
     # identifiers are normalized
     assert (
         dataset["MY_TABLE"].select(["CoL1", "cOl2"]).query.strip()  # type: ignore[attr-defined]
-        == 'SELECT "co_l1","c_ol2" FROM "pipeline_dataset"."my_table"'
+        == 'SELECT  "co_l1","c_ol2" FROM "pipeline_dataset"."my_table"'
     )
 
     # limit and select chained
     assert (
         dataset.my_table.select(["col1", "col2"]).limit(24).query.strip()  # type: ignore[attr-defined]
-        == 'SELECT "col1","col2" FROM "pipeline_dataset"."my_table" LIMIT 24'
+        == 'SELECT  "col1","col2" FROM "pipeline_dataset"."my_table" LIMIT 24'
     )
 
 
