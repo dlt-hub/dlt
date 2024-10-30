@@ -189,8 +189,10 @@ class FilesystemSqlClient(DuckDbSqlClient):
             if view_name in existing_tables:
                 continue
 
+            # NOTE: if this is staging configuration then `prepare_load_table` will remove some info
+            # from table schema, if we ever extend this to handle staging destination, this needs to change
+            schema_table = self.fs_client.prepare_load_table(table_name)
             # discover file type
-            schema_table = cast(PreparedTableSchema, self.fs_client.schema.tables[table_name])
             folder = self.fs_client.get_table_dir(table_name)
             files = self.fs_client.list_table_files(table_name)
             first_file_type = os.path.splitext(files[0])[1][1:]

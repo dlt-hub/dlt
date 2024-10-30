@@ -793,7 +793,7 @@ def test_destination_caps_context(sql_source_db: SQLAlchemySourceDB, backend: Ta
     columns = pipeline.default_schema.get_table("has_precision")["columns"]
     assert columns["datetime_tz_col"]["precision"] == columns["datetime_ntz_col"]["precision"] == 3
     # prevent drop
-    pipeline.destination = None
+    pipeline._destination = None
 
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])

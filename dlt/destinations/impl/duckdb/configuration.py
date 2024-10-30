@@ -1,15 +1,18 @@
 import os
 import dataclasses
 import threading
-
 from typing import Any, ClassVar, Dict, Final, List, Optional, Tuple, Type, Union
-
 from pathvalidate import is_valid_filepath
+
 from dlt.common import logger
+from dlt.common.typing import Annotated
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ConnectionStringCredentials
+from dlt.common.configuration.specs.base_configuration import NotResolved
 from dlt.common.configuration.specs.exceptions import InvalidConnectionString
 from dlt.common.destination.reference import DestinationClientDwhWithStagingConfiguration
+from dlt.common.pipeline import SupportsPipeline
+
 from dlt.destinations.impl.duckdb.exceptions import InvalidInMemoryDuckdbCredentials
 
 try:
@@ -19,7 +22,7 @@ except ModuleNotFoundError:
 
 DUCK_DB_NAME = "%s.duckdb"
 DEFAULT_DUCK_DB_NAME = DUCK_DB_NAME % "quack"
-LOCAL_STATE_KEY = "duckdb_database"
+LEGACY_DB_PATH_LOCAL_STATE_KEY = "duckdb_database"
 
 
 @configspec(init=False)
@@ -91,7 +94,7 @@ class DuckDbBaseCredentials(ConnectionStringCredentials):
         return {}
 
     def _conn_str(self) -> str:
-        return self.database
+        raise NotImplementedError()
 
     def _delete_conn(self) -> None:
         self._conn.close()
@@ -106,6 +109,7 @@ class DuckDbBaseCredentials(ConnectionStringCredentials):
 class DuckDbCredentials(DuckDbBaseCredentials):
     drivername: Final[str] = dataclasses.field(default="duckdb", init=False, repr=False, compare=False)  # type: ignore
     username: Optional[str] = None
+    bound_to_pipeline: Annotated[Optional[SupportsPipeline], NotResolved()] = None
 
     __config_gen_annotations__: ClassVar[List[str]] = []
 
@@ -120,49 +124,24 @@ class DuckDbCredentials(DuckDbBaseCredentials):
         if isinstance(self.database, str) and self.database == ":memory:":
             raise InvalidInMemoryDuckdbCredentials()
 
+    def setup_database(self) -> None:
         # do not set any paths for external database
         if self.database == ":external:":
             return
         # try the pipeline context
-        is_default_path = False
         if self.database == ":pipeline:":
             self.database = self._path_in_pipeline(DEFAULT_DUCK_DB_NAME)
         else:
-            # maybe get database
-            maybe_database, maybe_is_default_path = self._path_from_pipeline(DEFAULT_DUCK_DB_NAME)
-            # if pipeline context was not present or database was not set
-            if not self.database or not maybe_is_default_path:
-                # create database locally
-                is_default_path = maybe_is_default_path
-                self.database = maybe_database
-
-        # always make database an abs path
-        self.database = os.path.abspath(self.database)
-        # do not save the default path into pipeline's local state
-        if not is_default_path:
-            self._path_to_pipeline(self.database)
+            self.database = self._path_from_pipeline(self.database, DEFAULT_DUCK_DB_NAME)
 
     def _path_in_pipeline(self, rel_path: str) -> str:
-        from dlt.common.configuration.container import Container
-        from dlt.common.pipeline import PipelineContext
-
-        context = Container()[PipelineContext]
-        if context.is_active():
-            # pipeline is active, get the working directory
-            return os.path.join(context.pipeline().working_dir, rel_path)
+        if self.bound_to_pipeline:
+            return os.path.join(self.bound_to_pipeline.working_dir, rel_path)
         raise RuntimeError(
             "Attempting to use special duckdb database :pipeline: outside of pipeline context."
         )
 
-    def _path_to_pipeline(self, abspath: str) -> None:
-        from dlt.common.configuration.container import Container
-        from dlt.common.pipeline import PipelineContext
-
-        context = Container()[PipelineContext]
-        if context.is_active():
-            context.pipeline().set_local_state_val(LOCAL_STATE_KEY, abspath)
-
-    def _path_from_pipeline(self, default_path: str) -> Tuple[str, bool]:
+    def _path_from_pipeline(self, explicit_path: str, default_path: str) -> str:
         """
         Returns path to DuckDB as stored in the active pipeline's local state and a boolean flag.
 
@@ -176,33 +155,42 @@ class DuckDbCredentials(DuckDbBaseCredentials):
             Tuple[str, bool]: The path to the DuckDB as stored in the active pipeline's local state or the default path if not available,
             and a boolean flag set to True when the default path is returned.
         """
-        from dlt.common.configuration.container import Container
-        from dlt.common.pipeline import PipelineContext
-
-        context = Container()[PipelineContext]
-        if context.is_active():
-            try:
+        if self.bound_to_pipeline:
+            # backward compat - paths to duckdb were stored in local state and used if explicit path was not provided
+            pipeline_path: str = None
+            if not explicit_path:
+                try:
+                    pipeline_path = self.bound_to_pipeline.get_local_state_val(
+                        LEGACY_DB_PATH_LOCAL_STATE_KEY
+                    )
+                except KeyError:
+                    # no local state: default_path will be used
+                    pass
+            if not pipeline_path:
+                # get initial cwd
+                initial_cwd = self.bound_to_pipeline.get_local_state_val("initial_cwd")
                 # use pipeline name as default
-                pipeline = context.pipeline()
-                default_path = DUCK_DB_NAME % pipeline.pipeline_name
-                # get pipeline path from local state
-                pipeline_path = pipeline.get_local_state_val(LOCAL_STATE_KEY)
-                # make sure that path exists
+                pipeline_path = explicit_path or DUCK_DB_NAME % self.bound_to_pipeline.pipeline_name
+                # if explicit_path was an absolute path it will be used
+                pipeline_path = os.path.join(initial_cwd, pipeline_path)
+            if not self.bound_to_pipeline.first_run:
                 if not os.path.exists(pipeline_path):
                     logger.warning(
-                        f"Duckdb attached to pipeline {pipeline.pipeline_name} in path"
-                        f" {os.path.relpath(pipeline_path)} was deleted. Attaching to duckdb"
-                        f" database '{default_path}' in current folder."
+                        f"Duckdb attached to pipeline {self.bound_to_pipeline.pipeline_name} in"
+                        f" path {os.path.relpath(pipeline_path)} was could not be found but"
+                        " pipeline has already ran. This may be a result of (1) recreating or"
+                        " attaching pipeline  without or with changed explicit path to database"
+                        " that was used when creating the pipeline. (2) keeping the path to to"
+                        " database in secrets and changing the current working folder so  dlt"
+                        " cannot see them. (3) you deleting the database."
                     )
-                else:
-                    return pipeline_path, False
-            except KeyError:
-                # no local state: default_path will be used
-                pass
+            return pipeline_path
 
-        return default_path, True
+        return os.path.abspath(explicit_path or default_path)
 
     def _conn_str(self) -> str:
+        if not self.database or not os.path.abspath(self.database):
+            self.setup_database()
         return self.database
 
     def __init__(self, conn_or_path: Union[str, DuckDBPyConnection] = None) -> None:
@@ -214,6 +202,7 @@ class DuckDbCredentials(DuckDbBaseCredentials):
 class DuckDbClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     destination_type: Final[str] = dataclasses.field(default="duckdb", init=False, repr=False, compare=False)  # type: ignore
     credentials: DuckDbCredentials = None
+    bound_to_pipeline: Annotated[Optional[SupportsPipeline], NotResolved()] = None
 
     create_indexes: bool = (
         False  # should unique indexes be created, this slows loading down massively
@@ -226,10 +215,18 @@ class DuckDbClientConfiguration(DestinationClientDwhWithStagingConfiguration):
         create_indexes: bool = False,
         destination_name: str = None,
         environment: str = None,
+        bound_to_pipeline: Optional[SupportsPipeline] = None,
     ) -> None:
         super().__init__(
             credentials=credentials,  # type: ignore[arg-type]
             destination_name=destination_name,
             environment=environment,
         )
+        self.bound_to_pipeline = bound_to_pipeline
         self.create_indexes = create_indexes
+
+    def on_resolved(self) -> None:
+        # pass bound pipeline to duckdb credentials
+        # TODO: find a better way to pass and bind explicit pipeline context
+        self.credentials.bound_to_pipeline = self.bound_to_pipeline
+        self.credentials.setup_database()

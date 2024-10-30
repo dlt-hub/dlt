@@ -131,9 +131,8 @@ def pipeline_command(
 
             streamlit_cmd.append("--")
             streamlit_cmd.append(pipeline_name)
-            if pipelines_dir:
-                streamlit_cmd.append("--pipelines-dir")
-                streamlit_cmd.append(pipelines_dir)
+            streamlit_cmd.append("--pipelines-dir")
+            streamlit_cmd.append(p.pipelines_dir)
 
             venv = Venv.restore_current()
             for line in iter_stdout(venv, *streamlit_cmd):

@@ -19,7 +19,6 @@ from tests.load.utils import (
     MEMORY_BUCKET,
 )
 from dlt.destinations import filesystem
-from tests.utils import TEST_STORAGE_ROOT
 from dlt.common.destination.reference import TDestinationReferenceArg
 from dlt.destinations.dataset import ReadableDBAPIDataset
 
@@ -215,14 +214,12 @@ def _run_dataset_checks(
     loads_table.fetchall()
 
     destination_for_dataset: TDestinationReferenceArg = (
-        alternate_access_pipeline.destination
-        if alternate_access_pipeline
-        else destination_config.destination_type
+        alternate_access_pipeline.destination if alternate_access_pipeline else pipeline.destination
     )
 
     # check dataset factory
     dataset = dlt._dataset(destination=destination_for_dataset, dataset_name=pipeline.dataset_name)
-    # verfiy that sql client and schema are lazy loaded
+    # verify that sql client and schema are lazy loaded
     assert not dataset._schema
     assert not dataset._sql_client
     table_relationship = dataset.items

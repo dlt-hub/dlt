@@ -480,6 +480,19 @@ def test_live_schema_getter_when_committed(live_storage: LiveSchemaStorage) -> N
     assert id(set_schema_2) == id(set_schema)
 
 
+def test_live_schema_getter_when_committed_not_saved(live_storage: LiveSchemaStorage) -> None:
+    # getter on committed is aware of changes to storage (also import)
+    schema = Schema("simple")
+    live_storage.set_live_schema(schema)
+    set_schema = live_storage["simple"]
+    assert schema is set_schema
+    # clear is modified flag so schema is not committed without saving
+    schema._bump_version()
+    assert not schema.is_modified
+    set_schema = live_storage["simple"]
+    assert set_schema is schema
+
+
 def test_new_live_schema_committed(live_storage: LiveSchemaStorage) -> None:
     with pytest.raises(SchemaNotFoundError):
         live_storage.is_live_schema_committed("simple")

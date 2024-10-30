@@ -62,7 +62,7 @@ class RunContext(SupportsRunContext):
             return os.path.join("/var", "dlt")
 
         home = os.path.expanduser("~")
-        if home is None:
+        if home is None or not is_folder_writable(home):
             # no home dir - use temp
             return os.path.join(tempfile.gettempdir(), "dlt")
         else:
@@ -116,6 +116,21 @@ def plug_run_context_impl(
     run_dir: Optional[str], runtime_kwargs: Optional[Dict[str, Any]]
 ) -> SupportsRunContext:
     return RunContext(run_dir)
+
+
+def is_folder_writable(path: str) -> bool:
+    import tempfile
+
+    try:
+        # Ensure the path exists
+        if not os.path.exists(path):
+            return False
+        # Attempt to create a temporary file
+        with tempfile.TemporaryFile(dir=path):
+            pass
+        return True
+    except OSError:
+        return False
 
 
 def current() -> SupportsRunContext:
