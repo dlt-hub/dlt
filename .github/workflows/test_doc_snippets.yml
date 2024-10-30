@@ -39,7 +39,7 @@ jobs:
       # Label used to access the service container
       postgres:
         # Docker Hub image
-        image: postgres
+        image: postgis
         # Provide the password for postgres
         env:
           POSTGRES_DB: dlt_data
@@ -91,7 +91,7 @@ jobs:
 
       - name: Install dependencies
         # if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction -E duckdb -E weaviate -E parquet -E qdrant -E bigquery -E postgres -E lancedb --with docs,sentry-sdk --without airflow
+        run: poetry install --no-interaction -E duckdb -E weaviate -E parquet -E qdrant -E bigquery -E postgres -E postgis -E lancedb --with docs,sentry-sdk --without airflow
 
       - name: create secrets.toml for examples
         run: pwd && echo "$DLT_SECRETS_TOML" > docs/examples/.dlt/secrets.toml
