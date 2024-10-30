@@ -49,6 +49,10 @@ def test_main_telemetry_command(test_storage: FileStorage) -> None:
         # make sure no config.toml exists in project (it is not created if it was not already there)
         project_dot = os.path.join("project", DOT_DLT)
         assert not test_storage.has_folder(project_dot)
+        # load global config
+        global_toml = ConfigTomlProvider(run_context.global_dir)
+        assert global_toml._config_doc["runtime"]["dlthub_telemetry"] is False
+
         # enable telemetry
         with io.StringIO() as buf, contextlib.redirect_stdout(buf):
             change_telemetry_status_command(True)
@@ -56,6 +60,10 @@ def test_main_telemetry_command(test_storage: FileStorage) -> None:
             output = buf.getvalue()
             assert "ON" in output
             assert "ENABLED" in output
+        # load global config
+        global_toml = ConfigTomlProvider(run_context.global_dir)
+        assert global_toml._config_doc["runtime"]["dlthub_telemetry"] is True
+
         # create config toml in project dir
         test_storage.create_folder(project_dot)
         test_storage.save(os.path.join("project", DOT_DLT, CONFIG_TOML), "# empty")
@@ -67,10 +75,14 @@ def test_main_telemetry_command(test_storage: FileStorage) -> None:
             output = buf.getvalue()
             assert "OFF" in output
             assert "DISABLED" in output
-            # load local config provider
-            project_toml = ConfigTomlProvider(run_context.settings_dir)
-            # local project toml was modified
-            assert project_toml._config_doc["runtime"]["dlthub_telemetry"] is False
+
+        # load global config provider
+        global_toml = ConfigTomlProvider(run_context.global_dir)
+        assert global_toml._config_doc["runtime"]["dlthub_telemetry"] is False
+        # load local config provider
+        project_toml = ConfigTomlProvider(run_context.settings_dir)
+        # local project toml was modified
+        assert project_toml._config_doc["runtime"]["dlthub_telemetry"] is False
 
 
 def test_command_instrumentation() -> None:

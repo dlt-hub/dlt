@@ -7,7 +7,7 @@ from dlt.common import logger
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs import RuntimeConfiguration, PluggableRunContext
 from dlt.common.runtime.init import _INITIALIZED, apply_runtime_config, restore_run_context
-from dlt.common.runtime.run_context import RunContext
+from dlt.common.runtime.run_context import RunContext, is_folder_writable
 
 from tests.utils import MockableRunContext
 
@@ -128,3 +128,9 @@ def test_context_switch_restores_logger() -> None:
         with Container().injectable_context(ctx):
             assert logger.LOGGER.name == "dlt-tests-2"
         assert logger.LOGGER.name == "dlt-tests"
+
+
+def test_tmp_folder_writable() -> None:
+    import tempfile
+
+    assert is_folder_writable(tempfile.gettempdir()) is True

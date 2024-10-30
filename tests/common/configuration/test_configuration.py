@@ -374,7 +374,7 @@ def test_default_values(environment: Any) -> None:
     assert c.none_val == type(environment)
 
 
-def test_raises_on_final_value_change(environment: Any) -> None:
+def test_final_ignores_value_change(environment: Any) -> None:
     @configspec
     class FinalConfiguration(BaseConfiguration):
         pipeline_name: Final[str] = "comp"
@@ -387,12 +387,65 @@ def test_raises_on_final_value_change(environment: Any) -> None:
     # config providers are ignored for final fields
     assert c.pipeline_name == "comp"
 
+    # explicit values always work
+    c = resolve.resolve_configuration(FinalConfiguration(), explicit_value={"pipeline_name": "exp"})
+    assert c.pipeline_name == "exp"
+    with pytest.raises(ConfigFieldMissingException):
+        resolve.resolve_configuration(FinalConfiguration(), explicit_value={"pipeline_name": None})
+
     @configspec
     class FinalConfiguration2(BaseConfiguration):
         pipeline_name: Final[str] = None
 
     c2 = resolve.resolve_configuration(FinalConfiguration2())
     assert dict(c2) == {"pipeline_name": None}
+
+    c2 = resolve.resolve_configuration(
+        FinalConfiguration2(), explicit_value={"pipeline_name": "exp"}
+    )
+    assert c.pipeline_name == "exp"
+    with pytest.raises(ConfigFieldMissingException):
+        resolve.resolve_configuration(FinalConfiguration2(), explicit_value={"pipeline_name": None})
+
+
+def test_not_resolved_ignores_value_change(environment: Any) -> None:
+    @configspec
+    class NotResolvedConfiguration(BaseConfiguration):
+        pipeline_name: Annotated[str, NotResolved()] = "comp"
+
+    c = resolve.resolve_configuration(NotResolvedConfiguration())
+    assert dict(c) == {"pipeline_name": "comp"}
+
+    environment["PIPELINE_NAME"] = "env name"
+    c = resolve.resolve_configuration(NotResolvedConfiguration())
+    # config providers are ignored for final fields
+    assert c.pipeline_name == "comp"
+
+    # explicit values always work
+    c = resolve.resolve_configuration(
+        NotResolvedConfiguration(), explicit_value={"pipeline_name": "exp"}
+    )
+    assert c.pipeline_name == "exp"
+    with pytest.raises(ConfigFieldMissingException):
+        resolve.resolve_configuration(
+            NotResolvedConfiguration(), explicit_value={"pipeline_name": None}
+        )
+
+    @configspec
+    class NotResolvedConfiguration2(BaseConfiguration):
+        pipeline_name: Annotated[str, NotResolved()] = None
+
+    c2 = resolve.resolve_configuration(NotResolvedConfiguration2())
+    assert dict(c2) == {"pipeline_name": None}
+
+    c2 = resolve.resolve_configuration(
+        NotResolvedConfiguration2(), explicit_value={"pipeline_name": "exp"}
+    )
+    assert c.pipeline_name == "exp"
+    with pytest.raises(ConfigFieldMissingException):
+        resolve.resolve_configuration(
+            NotResolvedConfiguration2(), explicit_value={"pipeline_name": None}
+        )
 
 
 def test_explicit_native_always_skips_resolve(environment: Any) -> None:
@@ -1052,6 +1105,13 @@ def test_not_resolved_hint() -> None:
         resolve.resolve_configuration(NotResolveConfiguration(traces=[s2]))
 
     c2 = resolve.resolve_configuration(NotResolveConfiguration(s1, [s2]))
+    assert c2.trace is s1
+    assert c2.traces[0] is s2
+
+    # also explicit values will write to NotResolvable
+    c2 = resolve.resolve_configuration(
+        NotResolveConfiguration(), explicit_value={"trace": s1, "traces": [s2]}
+    )
     assert c2.trace is s1
     assert c2.traces[0] is s2
 

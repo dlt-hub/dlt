@@ -12,12 +12,20 @@ class LiveSchemaStorage(SchemaStorage):
         super().__init__(config, makedirs)
 
     def __getitem__(self, name: str) -> Schema:
+        schema: Schema = None
         if name in self.live_schemas:
             schema = self.live_schemas[name]
             if not self.is_live_schema_committed(name):
                 return schema
         # return new schema instance
-        schema = self.load_schema(name)
+        try:
+            schema = self.load_schema(name)
+        except SchemaNotFoundError:
+            # a committed live schema found that is not yet written to storage
+            # may happen when schema is passed explicitly via schema arg to run / pipeline
+            if schema:
+                return schema
+            raise
         schema = self.set_live_schema(schema)
         return schema
 
