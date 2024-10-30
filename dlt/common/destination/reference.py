@@ -949,4 +949,4 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
         return dest
 
 
-TDestination = Destination[DestinationClientConfiguration, JobClientBase]
+AnyDestination = Destination[DestinationClientConfiguration, JobClientBase]
