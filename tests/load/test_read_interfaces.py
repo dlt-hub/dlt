@@ -259,6 +259,38 @@ def test_db_cursor_access(populated_pipeline: Pipeline) -> None:
     indirect=True,
     ids=lambda x: x.name,
 )
+def test_ibis_access(populated_pipeline: Pipeline) -> None:
+    table_relationship = populated_pipeline._dataset().items
+    total_records = _total_records(populated_pipeline)
+    chunk_size = _chunk_size(populated_pipeline)
+    expected_chunk_counts = _expected_chunk_count(populated_pipeline)
+
+    # full table
+    t = table_relationship.ibis()
+    assert t.count().to_pandas() == total_records
+
+    # chunk
+    t = table_relationship.ibis(chunk_size=chunk_size)
+    assert set(t.columns) == set(EXPECTED_COLUMNS)
+    assert t.count().to_pandas() == chunk_size
+
+    # check frame amount and items counts
+    tables = list(table_relationship.iter_ibis(chunk_size=chunk_size))
+    assert [t.count().to_pandas() for t in tables] == expected_chunk_counts
+
+    # check all items are present
+    ids = reduce(lambda a, b: a + b, [t[EXPECTED_COLUMNS[0]].to_pandas().tolist() for t in tables])
+    assert set(ids) == set(range(total_records))
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
 def test_hint_preservation(populated_pipeline: Pipeline) -> None:
     table_relationship = populated_pipeline._dataset().items
     # check that hints are carried over to arrow table
