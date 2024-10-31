@@ -90,6 +90,9 @@ class FilesystemSqlClient(DuckDbSqlClient):
         # add secrets required for creating views
         if self.fs_client.config.protocol == "s3":
             aws_creds = cast(AwsCredentials, self.fs_client.config.credentials)
+            session_token = (
+                "" if aws_creds.aws_session_token is None else aws_creds.aws_session_token
+            )
             endpoint = (
                 aws_creds.endpoint_url.replace("https://", "")
                 if aws_creds.endpoint_url
@@ -100,6 +103,7 @@ class FilesystemSqlClient(DuckDbSqlClient):
                 TYPE S3,
                 KEY_ID '{aws_creds.aws_access_key_id}',
                 SECRET '{aws_creds.aws_secret_access_key}',
+                SESSION_TOKEN '{session_token}',
                 REGION '{aws_creds.region_name}',
                 ENDPOINT '{endpoint}',
                 SCOPE '{scope}'
