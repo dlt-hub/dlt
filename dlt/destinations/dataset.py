@@ -47,11 +47,9 @@ class ReadableDBAPIRelation(SupportsReadableRelation):
     def __init__(
         self,
         *,
-        client: SqlClientBase[Any],
-        naming: NamingConvention,
+        readable_dataset: "ReadableDBAPIDataset",
         provided_query: Any = None,
         table_name: str = None,
-        schema_columns: TTableSchemaColumns = None,
         limit: int = None,
         selected_columns: List[str] = None,
     ) -> None:
@@ -62,9 +60,8 @@ class ReadableDBAPIRelation(SupportsReadableRelation):
             provided_query
         ), "Please provide either an sql query OR a table_name"
 
-        self._client = client
-        self._naming = naming
-        self._schema_columns = schema_columns
+        self._dataset = readable_dataset
+
         self._provided_query = provided_query
         self._table_name = table_name
         self._limit = limit
@@ -82,25 +79,35 @@ class ReadableDBAPIRelation(SupportsReadableRelation):
         self.iter_fetch = self._wrap_iter("iter_fetch")  # type: ignore
 
     @property
+    def sql_client(self) -> SqlClientBase[Any]:
+        return self._dataset.sql_client
+
+    @property
+    def schema(self) -> Schema:
+        return self._dataset.schema
+
+    @property
     def query(self) -> Any:
         """build the query"""
         if self._provided_query:
             return self._provided_query
 
-        table_name = self._client.make_qualified_table_name(
-            self._naming.normalize_identifier(self._table_name)
+        table_name = self.sql_client.make_qualified_table_name(
+            self.schema.naming.normalize_identifier(self._table_name)
         )
 
         maybe_limit_clause_1 = ""
         maybe_limit_clause_2 = ""
         if self._limit:
-            maybe_limit_clause_1, maybe_limit_clause_2 = self._client._limit_clause_sql(self._limit)
+            maybe_limit_clause_1, maybe_limit_clause_2 = self.sql_client._limit_clause_sql(
+                self._limit
+            )
 
         selector = "*"
         if self._selected_columns:
             selector = ",".join(
                 [
-                    self._client.escape_column_name(self._naming.normalize_identifier(c))
+                    self.sql_client.escape_column_name(self.schema.naming.normalize_identifier(c))
                     for c in self._selected_columns
                 ]
             )
@@ -110,29 +117,34 @@ class ReadableDBAPIRelation(SupportsReadableRelation):
     @property
     def computed_schema_columns(self) -> TTableSchemaColumns:
         """provide schema columns for the cursor, may be filtered by selected columns"""
-        if not self._schema_columns:
+
+        schema_columns = (
+            self.schema.tables.get(self._table_name, {}).get("columns", {}) if self.schema else {}
+        )
+
+        if not schema_columns:
             return None
         if not self._selected_columns:
-            return self._schema_columns
+            return schema_columns
 
         filtered_columns: TTableSchemaColumns = {}
         for sc in self._selected_columns:
-            sc = self._naming.normalize_identifier(sc)
-            if sc not in self._schema_columns.keys():
+            sc = self.schema.naming.normalize_identifier(sc)
+            if sc not in schema_columns.keys():
                 raise ReadableRelationUnknownColumnException(sc)
-            filtered_columns[sc] = self._schema_columns[sc]
+            filtered_columns[sc] = schema_columns[sc]
 
         return filtered_columns
 
     @contextmanager
     def cursor(self) -> Generator[SupportsReadableRelation, Any, Any]:
         """Gets a DBApiCursor for the current relation"""
-        with self._client as client:
+        with self.sql_client as client:
             # this hacky code is needed for mssql to disable autocommit, read iterators
             # will not work otherwise. in the future we should be able to create a readony
             # client which will do this automatically
-            if hasattr(self._client, "_conn") and hasattr(self._client._conn, "autocommit"):
-                self._client._conn.autocommit = False
+            if hasattr(self.sql_client, "_conn") and hasattr(self.sql_client._conn, "autocommit"):
+                self.sql_client._conn.autocommit = False
             with client.execute_query(self.query) as cursor:
                 if schema_columns := self.computed_schema_columns:
                     cursor.schema_columns = schema_columns
@@ -158,10 +170,8 @@ class ReadableDBAPIRelation(SupportsReadableRelation):
 
     def __copy__(self) -> "ReadableDBAPIRelation":
         return self.__class__(
-            client=self._client,
-            naming=self._naming,
+            readable_dataset=self._dataset,
             provided_query=self._provided_query,
-            schema_columns=self._schema_columns,
             table_name=self._table_name,
             limit=self._limit,
             selected_columns=self._selected_columns,
@@ -258,22 +268,13 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
                     " SqlClient."
                 )
 
-    def __call__(
-        self, query: Any, schema_columns: TTableSchemaColumns = None
-    ) -> ReadableDBAPIRelation:
-        schema_columns = schema_columns or {}
-        return ReadableDBAPIRelation(client=self.sql_client, naming=self.schema.naming, provided_query=query, schema_columns=schema_columns)  # type: ignore[abstract]
+    def __call__(self, query: Any) -> ReadableDBAPIRelation:
+        return ReadableDBAPIRelation(readable_dataset=self, provided_query=query)  # type: ignore[abstract]
 
     def table(self, table_name: str) -> SupportsReadableRelation:
-        # prepare query for table relation
-        schema_columns = (
-            self.schema.tables.get(table_name, {}).get("columns", {}) if self.schema else {}
-        )
         return ReadableDBAPIRelation(
-            client=self.sql_client,
-            naming=self.schema.naming,
+            readable_dataset=self,
             table_name=table_name,
-            schema_columns=schema_columns,
         )  # type: ignore[abstract]
 
     def __getitem__(self, table_name: str) -> SupportsReadableRelation:

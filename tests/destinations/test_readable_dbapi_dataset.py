@@ -58,8 +58,6 @@ def test_copy_and_chaining() -> None:
     assert relation != relation2
     assert relation._limit == relation2._limit  # type: ignore[attr-defined]
     assert relation._table_name == relation2._table_name  # type: ignore[attr-defined]
-    assert relation._naming == relation2._naming  # type: ignore[attr-defined]
-    assert relation._client == relation2._client  # type: ignore[attr-defined]
     assert relation._provided_query == relation2._provided_query  # type: ignore[attr-defined]
     assert relation._selected_columns == relation2._selected_columns  # type: ignore[attr-defined]
 
@@ -84,7 +82,9 @@ def test_computed_schema_columns() -> None:
 
     # now add columns
     relation = dataset.items
-    relation._schema_columns = {"one": {"data_type": "text"}, "two": {"data_type": "json"}}  # type: ignore[attr-defined]
+    dataset.schema.tables["items"] = {  # type: ignore[attr-defined]
+        "columns": {"one": {"data_type": "text"}, "two": {"data_type": "json"}}
+    }
 
     # computed columns are same as above
     assert relation.computed_schema_columns == {"one": {"data_type": "text"}, "two": {"data_type": "json"}}  # type: ignore[attr-defined]
