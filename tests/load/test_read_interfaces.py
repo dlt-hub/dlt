@@ -260,6 +260,11 @@ def test_db_cursor_access(populated_pipeline: Pipeline) -> None:
     ids=lambda x: x.name,
 )
 def test_ibis_tables_access(populated_pipeline: Pipeline) -> None:
+    # NOTE: we should generalize this with a context for certain deps
+    import subprocess
+
+    subprocess.check_call(["pip", "install", "ibis-framework[duckdb,postgres,bigquery]"])
+
     table_relationship = populated_pipeline._dataset().items
     total_records = _total_records(populated_pipeline)
     chunk_size = _chunk_size(populated_pipeline)
@@ -292,6 +297,11 @@ def test_ibis_tables_access(populated_pipeline: Pipeline) -> None:
     ids=lambda x: x.name,
 )
 def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
+    # NOTE: we should generalize this with a context for certain deps
+    import subprocess
+
+    subprocess.check_call(["pip", "install", "ibis-framework[duckdb,postgres,bigquery]"])
+
     total_records = _total_records(populated_pipeline)
     ibis_connection = populated_pipeline._ibis()
 
