@@ -171,12 +171,17 @@ class FilesystemSqlClient(DuckDbSqlClient):
             # set up dataset
             if not self.has_dataset():
                 self.create_dataset()
+                print("CREATE")
+                print(self.fully_qualified_dataset_name())
             self._conn.sql(f"USE {self.fully_qualified_dataset_name()}")
 
             # create authentication to data provider
             self.create_authentication()
 
         return self._conn
+
+    def create_views_for_all_tables(self) -> None:
+        self.create_views_for_tables({v: v for v in self.fs_client.schema.tables.keys()})
 
     @raise_database_error
     def create_views_for_tables(self, tables: Dict[str, str]) -> None:

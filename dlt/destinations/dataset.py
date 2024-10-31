@@ -1,4 +1,4 @@
-from typing import Any, Generator, Optional, Sequence, Union, List, TYPE_CHECKING
+from typing import Any, Generator, Optional, Sequence, Union, List, TYPE_CHECKING, cast
 from dlt.common.json import json
 from copy import deepcopy
 
@@ -266,12 +266,7 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
         return self._sql_client
 
     def _destination_client(self, schema: Schema) -> JobClientBase:
-        client_spec = self._destination.spec()
-        if isinstance(client_spec, DestinationClientDwhConfiguration):
-            client_spec._bind_dataset_name(
-                dataset_name=self._dataset_name, default_schema_name=schema.name
-            )
-        return self._destination.client(schema, client_spec)
+        return _get_client_for_destination(self._destination, schema, self._dataset_name)
 
     def _ensure_client_and_schema(self) -> None:
         """Lazy load schema and client"""
@@ -339,27 +334,56 @@ def dataset(
     raise NotImplementedError(f"Dataset of type {dataset_type} not implemented")
 
 
+from dlt.common.destination.reference import JobClientBase
+
+
 def create_ibis_backend(
     destination: TDestinationReferenceArg, dataset_name: str, schema: Schema
 ) -> IbisBackend:
     from dlt.common.libs.ibis import ibis
+    import duckdb
+    from dlt.destinations.impl.duckdb.factory import DuckDbCredentials
 
-    # TODO: abstract out destination client related stuff
     destination = Destination.from_reference(destination)
-    client_spec = destination.spec()
-    if isinstance(client_spec, DestinationClientDwhConfiguration):
-        client_spec._bind_dataset_name(dataset_name=dataset_name, default_schema_name=schema.name)
-    client = destination.client(schema, client_spec)
+    client = _get_client_for_destination(destination, schema, dataset_name)
 
-    if destination.destination_type not in [
-        "dlt.destinations.postgres",
-        "dlt.destinations.duckdb",
-        "dlt.destinations.filesystem",
-    ]:
+    if destination.destination_type in ["dlt.destinations.postgres", "dlt.destinations.duckdb"]:
+        credentials = client.config.credentials.to_native_representation()
+        ibis = ibis.connect(credentials)
+    elif destination.destination_type == "dlt.destinations.filesystem":
+        from dlt.destinations.impl.filesystem.sql_client import (
+            FilesystemClient,
+            FilesystemSqlClient,
+        )
+
+        # we create an in memory duckdb and create all tables on there
+        duck = duckdb.connect(":memory:")
+        fs_client = cast(FilesystemClient, client)
+        creds = DuckDbCredentials(duck)
+        sql_client = FilesystemSqlClient(
+            fs_client, dataset_name=fs_client.dataset_name, credentials=creds
+        )
+
+        # NOTE: we should probably have the option for the user to only select a subset of tables here
+        with sql_client as _:
+            sql_client.create_views_for_all_tables()
+        ibis = ibis.duckdb.from_connection(duck)
+
+    else:
         raise NotImplementedError()
 
-    ibis = ibis.connect(client.config.credentials.to_native_representation())
     # NOTE: there seems to be no standardized way to set the current dataset / schema in ibis
     ibis.raw_sql(f"SET search_path TO {dataset_name};")
 
     return ibis
+
+
+# helpers
+def _get_client_for_destination(
+    destination: TDestinationReferenceArg, schema: Schema, dataset_name: str
+) -> JobClientBase:
+    destination = Destination.from_reference(destination)
+    client_spec = destination.spec()
+    if isinstance(client_spec, DestinationClientDwhConfiguration):
+        client_spec._bind_dataset_name(dataset_name=dataset_name, default_schema_name=schema.name)
+    return destination.client(schema, client_spec)

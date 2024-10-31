@@ -305,6 +305,7 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
     total_records = _total_records(populated_pipeline)
     ibis_connection = populated_pipeline._ibis()
 
+    # just do a basic check to see wether ibis can connect
     assert ibis_connection.list_tables() == [
         "_dlt_loads",
         "_dlt_pipeline_state",
