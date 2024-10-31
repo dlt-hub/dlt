@@ -182,12 +182,24 @@ record = items_relation.fetchone()
 records = items_relation.fetchmany(chunk_size=10)
 ```
 
-### Iterate Over Data with Modifications
+### Iterate Over Data with Limit and Column Selection
+
+**Note:** When iterating over filesystem tables, the underlying DuckDB may give you a different chunksize depending on the size of the parquet files the table is based on.
 
 ```python
+
+# dataframes
 for df_chunk in items_relation.select(["col1", "col2"]).limit(100).iter_df(chunk_size=20):
+    ...
+
+# arrow tables
+for arrow_table in items_relation.select(["col1", "col2"]).limit(100).iter_arrow(chunk_size=20):
+    ...
+
+# python tuples
+for records in items_relation.select(["col1", "col2"]).limit(100).iter_fetch(chunk_size=20):
     # Process each modified DataFrame chunk
-    pass
+    ...
 ```
 
 ## Important Considerations
