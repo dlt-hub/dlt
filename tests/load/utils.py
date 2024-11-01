@@ -211,8 +211,11 @@ class DestinationTestConfiguration:
             os.environ[f"DESTINATION__{k.upper()}"] = str(v)
 
         # For the filesystem destinations we disable compression to make analyzing the result easier
-        if self.destination_type == "filesystem" or self.disable_compression:
-            os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "True"
+        os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = str(
+            self.destination_type == "filesystem"
+            if self.disable_compression is None
+            else self.disable_compression
+        )
 
         if self.credentials is not None:
             if isinstance(self.credentials, str):

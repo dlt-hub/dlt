@@ -27,6 +27,13 @@ class _Accessor(abc.ABC):
         key = sections.pop()
         self.writable_provider.set_value(key, value, None, *sections)
 
+    def __contains__(self, field: str) -> bool:
+        try:
+            self[field]
+            return True
+        except KeyError:
+            return False
+
     def get(self, field: str, expected_type: Type[TConfigAny] = None) -> TConfigAny:
         value: TConfigAny
         value, _ = self._get_value(field, expected_type)

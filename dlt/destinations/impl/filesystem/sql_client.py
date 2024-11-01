@@ -3,8 +3,6 @@ from typing import Any, Iterator, AnyStr, List, cast, TYPE_CHECKING, Dict
 import os
 import re
 
-import dlt
-
 import duckdb
 
 import sqlglot
@@ -25,6 +23,7 @@ from dlt.common.configuration.specs import (
     AzureServicePrincipalCredentialsWithoutDefaults,
     AzureCredentialsWithoutDefaults,
 )
+from dlt.destinations.utils import is_compression_disabled
 
 SUPPORTED_PROTOCOLS = ["gs", "gcs", "s3", "file", "memory", "az", "abfss"]
 
@@ -223,12 +222,8 @@ class FilesystemSqlClient(DuckDbSqlClient):
                 )
             )
 
-            # discover wether compression is enabled
-            compression = (
-                ""
-                if dlt.config.get("data_writer.disable_compression")
-                else ", compression = 'gzip'"
-            )
+            # discover whether compression is enabled
+            compression = "" if is_compression_disabled() else ", compression = 'gzip'"
 
             # dlt tables are never compressed for now...
             if table_name in self.fs_client.schema.dlt_table_names():

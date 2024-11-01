@@ -435,18 +435,26 @@ def test_pipeline_data_writer_compression(
     # Ensure pipeline works without compression
     data = ["a", "b", "c"]
     dataset_name = "compression_data_" + uniq_id()
-    dlt.config["data_writer"] = {
-        "disable_compression": disable_compression
-    }  # not sure how else to set this
+    destination_config.disable_compression = disable_compression
+
     p = destination_config.setup_pipeline("compression_test", dataset_name=dataset_name)
     p.extract(dlt.resource(data, name="data"), table_format=destination_config.table_format)
     s = p._get_normalize_storage()
     # check that files are not compressed if compression is disabled
-    if disable_compression:
-        for f in s.list_files_to_normalize_sorted():
+    for name in s.list_files_to_normalize_sorted():
+        full_path = s.extracted_packages.storage.make_full_path(name)
+        if disable_compression:
             with pytest.raises(gzip.BadGzipFile):
-                gzip.open(s.extracted_packages.storage.make_full_path(f), "rb").read()
+                with gzip.open(full_path, "rb") as f:
+                    f.read()
+        else:
+            # wont' decode zip file as utf
+            with pytest.raises(UnicodeDecodeError):
+                with open(full_path, "rt", encoding="utf-8") as f:
+                    f.readline()
+
     p.normalize(loader_file_format=destination_config.file_format)
+
     info = p.load()
     assert_table(p, "data", data, info=info)
 
