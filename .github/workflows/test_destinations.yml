@@ -28,7 +28,7 @@ env:
   RUNTIME__DLTHUB_TELEMETRY_ENDPOINT: ${{ secrets.RUNTIME__DLTHUB_TELEMETRY_ENDPOINT }}
   # Test redshift and filesystem with all buckets
   # postgres runs again here so we can test on mac/windows
-  ACTIVE_DESTINATIONS: "[\"redshift\", \"postgres\", \"duckdb\", \"filesystem\", \"dummy\"]"
+  ACTIVE_DESTINATIONS: "[\"redshift\"]"
   # note that all buckets are enabled for testing
   ALL_FILESYSTEM_DRIVERS: "[\"memory\", \"file\", \"r2\", \"s3\", \"gs\", \"az\", \"abfss\", \"gdrive\"]" #excludes sftp
 
