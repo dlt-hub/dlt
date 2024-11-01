@@ -361,7 +361,8 @@ def test_column_selection(populated_pipeline: Pipeline) -> None:
     assert [v.lower() for v in data_frame.columns.values] == columns
     assert len(data_frame.index) == 5
 
-    arrow_table = table_relationship["decimal", "other_decimal"].head().arrow()
+    columns = ["decimal", "other_decimal"]
+    arrow_table = table_relationship[columns].head().arrow()
     assert arrow_table.column_names == columns
     assert arrow_table.num_rows == 5
 
