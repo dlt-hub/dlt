@@ -28,19 +28,28 @@ def test_query_builder() -> None:
 
     # select columns
     assert (
-        dataset.my_table.select(["col1", "col2"]).query.strip()  # type: ignore[attr-defined]
+        dataset.my_table.select("col1", "col2").query.strip()  # type: ignore[attr-defined]
+        == 'SELECT  "col1","col2" FROM "pipeline_dataset"."my_table"'
+    )
+    # also indexer notation
+    assert (
+        dataset.my_table[["col1", "col2"]].query.strip()  # type: ignore[attr-defined]
         == 'SELECT  "col1","col2" FROM "pipeline_dataset"."my_table"'
     )
 
     # identifiers are normalized
     assert (
-        dataset["MY_TABLE"].select(["CoL1", "cOl2"]).query.strip()  # type: ignore[attr-defined]
+        dataset["MY_TABLE"].select("CoL1", "cOl2").query.strip()  # type: ignore[attr-defined]
         == 'SELECT  "co_l1","c_ol2" FROM "pipeline_dataset"."my_table"'
+    )
+    assert (
+        dataset["MY__TABLE"].select("Co__L1", "cOl2").query.strip()  # type: ignore[attr-defined]
+        == 'SELECT  "co__l1","c_ol2" FROM "pipeline_dataset"."my__table"'
     )
 
     # limit and select chained
     assert (
-        dataset.my_table.select(["col1", "col2"]).limit(24).query.strip()  # type: ignore[attr-defined]
+        dataset.my_table.select("col1", "col2").limit(24).query.strip()  # type: ignore[attr-defined]
         == 'SELECT  "col1","col2" FROM "pipeline_dataset"."my_table" LIMIT 24'
     )
 
@@ -51,7 +60,7 @@ def test_copy_and_chaining() -> None:
     # create releation and set some stuff on it
     relation = dataset.items
     relation = relation.limit(34)
-    relation = relation.select(["one", "two"])
+    relation = relation[["one", "two"]]
     relation._schema_columns = {"one": {}, "two": {}}  # type: ignore[attr-defined]
 
     relation2 = relation.__copy__()
@@ -78,7 +87,7 @@ def test_computed_schema_columns() -> None:
     assert relation.computed_schema_columns is None  # type: ignore[attr-defined]
 
     # we can select any columns because it can't be verified
-    relation.select(["one", "two"])
+    relation["one", "two"]
 
     # now add columns
     relation = dataset.items
@@ -90,11 +99,11 @@ def test_computed_schema_columns() -> None:
     assert relation.computed_schema_columns == {"one": {"data_type": "text"}, "two": {"data_type": "json"}}  # type: ignore[attr-defined]
 
     # when selecting only one column, computing schema columns will only show that one
-    assert relation.select(["one"]).computed_schema_columns == {"one": {"data_type": "text"}}  # type: ignore[attr-defined]
+    assert relation.select("one").computed_schema_columns == {"one": {"data_type": "text"}}  # type: ignore[attr-defined]
 
     # selecting unkonwn column fails
     with pytest.raises(ReadableRelationUnknownColumnException):
-        relation.select(["unknown_columns"])
+        relation["unknown_columns"]
 
 
 def test_prevent_changing_relation_with_query() -> None:
@@ -108,4 +117,4 @@ def test_prevent_changing_relation_with_query() -> None:
         relation.head()
 
     with pytest.raises(ReadableRelationHasQueryException):
-        relation.select(["hello", "hillo"])
+        relation.select("hello", "hillo")

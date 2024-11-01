@@ -357,12 +357,11 @@ def test_column_selection(populated_pipeline: Pipeline) -> None:
     table_relationship = populated_pipeline._dataset().items
 
     columns = ["_dlt_load_id", "other_decimal"]
-    data_frame = table_relationship.select(columns).head().df()
+    data_frame = table_relationship.select(*columns).head().df()
     assert [v.lower() for v in data_frame.columns.values] == columns
     assert len(data_frame.index) == 5
 
-    columns = ["decimal", "other_decimal"]
-    arrow_table = table_relationship.select(columns).head().arrow()
+    arrow_table = table_relationship["decimal", "other_decimal"].head().arrow()
     assert arrow_table.column_names == columns
     assert arrow_table.num_rows == 5
 
@@ -377,7 +376,7 @@ def test_column_selection(populated_pipeline: Pipeline) -> None:
     assert arrow_table.schema.field("other_decimal").type.precision == expected_decimal_precision_2
 
     with pytest.raises(ReadableRelationUnknownColumnException):
-        arrow_table = table_relationship.select(["unknown_column"]).head().arrow()
+        arrow_table = table_relationship.select("unknown_column").head().arrow()
 
 
 @pytest.mark.no_load

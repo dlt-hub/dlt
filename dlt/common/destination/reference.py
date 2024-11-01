@@ -24,6 +24,7 @@ from typing import (
     Protocol,
     Tuple,
     AnyStr,
+    overload,
 )
 from typing_extensions import Annotated
 import datetime  # noqa: 251
@@ -527,11 +528,21 @@ class SupportsReadableRelation(Protocol):
         """limit the result to 'limit' items"""
         ...
 
-    def head(self) -> "SupportsReadableRelation":
-        """limit the result to 5 items"""
+    def head(self, limit: int = 5) -> "SupportsReadableRelation":
+        """limit the result to 5 items by default"""
         ...
 
-    def select(self, columns: List[str]) -> "SupportsReadableRelation":
+    def select(self, *columns: str) -> "SupportsReadableRelation":
+        """set which columns will be selected"""
+        ...
+
+    @overload
+    def __getitem__(self, column: str) -> "SupportsReadableRelation": ...
+
+    @overload
+    def __getitem__(self, columns: Sequence[str]) -> "SupportsReadableRelation": ...
+
+    def __getitem__(self, columns: Union[str, Sequence[str]]) -> "SupportsReadableRelation":
         """set which columns will be selected"""
         ...
 

@@ -1,4 +1,4 @@
-from typing import Any, Generator, Optional, Union, List
+from typing import Any, Generator, Optional, Sequence, Union, List
 from dlt.common.json import json
 from copy import deepcopy
 
@@ -51,7 +51,7 @@ class ReadableDBAPIRelation(SupportsReadableRelation):
         provided_query: Any = None,
         table_name: str = None,
         limit: int = None,
-        selected_columns: List[str] = None,
+        selected_columns: Sequence[str] = None,
     ) -> None:
         """Create a lazy evaluated relation to for the dataset of a destination"""
 
@@ -93,7 +93,7 @@ class ReadableDBAPIRelation(SupportsReadableRelation):
             return self._provided_query
 
         table_name = self.sql_client.make_qualified_table_name(
-            self.schema.naming.normalize_identifier(self._table_name)
+            self.schema.naming.normalize_path(self._table_name)
         )
 
         maybe_limit_clause_1 = ""
@@ -107,7 +107,7 @@ class ReadableDBAPIRelation(SupportsReadableRelation):
         if self._selected_columns:
             selector = ",".join(
                 [
-                    self.sql_client.escape_column_name(self.schema.naming.normalize_identifier(c))
+                    self.sql_client.escape_column_name(self.schema.naming.normalize_path(c))
                     for c in self._selected_columns
                 ]
             )
@@ -129,7 +129,7 @@ class ReadableDBAPIRelation(SupportsReadableRelation):
 
         filtered_columns: TTableSchemaColumns = {}
         for sc in self._selected_columns:
-            sc = self.schema.naming.normalize_identifier(sc)
+            sc = self.schema.naming.normalize_path(sc)
             if sc not in schema_columns.keys():
                 raise ReadableRelationUnknownColumnException(sc)
             filtered_columns[sc] = schema_columns[sc]
@@ -184,18 +184,26 @@ class ReadableDBAPIRelation(SupportsReadableRelation):
         rel._limit = limit
         return rel
 
-    def select(self, selected_columns: List[str]) -> "ReadableDBAPIRelation":
+    def select(self, *columns: str) -> "ReadableDBAPIRelation":
         if self._provided_query:
             raise ReadableRelationHasQueryException("select")
         rel = self.__copy__()
-        rel._selected_columns = selected_columns
+        rel._selected_columns = columns
         # NOTE: the line below will ensure that no unknown columns are selected if
         # schema is known
         rel.computed_schema_columns
         return rel
 
-    def head(self) -> "ReadableDBAPIRelation":
-        return self.limit(5)
+    def __getitem__(self, columns: Union[str, Sequence[str]]) -> "SupportsReadableRelation":
+        if isinstance(columns, str):
+            return self.select(columns)
+        elif isinstance(columns, Sequence):
+            return self.select(*columns)
+        else:
+            raise TypeError(f"Invalid argument type: {type(columns).__name__}")
+
+    def head(self, limit: int = 5) -> "ReadableDBAPIRelation":
+        return self.limit(limit)
 
 
 class ReadableDBAPIDataset(SupportsReadableDataset):
