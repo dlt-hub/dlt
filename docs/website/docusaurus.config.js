@@ -93,9 +93,6 @@ const config = {
         theme: {
           customCss: require.resolve('./src/css/custom.css'),
         },
-        gtag: {
-          trackingID: ['G-7F1SE12JLR', 'G-PRHSCL1CMK'],
-        },
       }),
     ],
   ],
@@ -201,6 +198,10 @@ const config = {
       src: 'https://dlt-static.s3.eu-central-1.amazonaws.com/dhelp.js',
       async: true,
       defer: true,
+    },
+    {
+      src: 'https://dlthub.com/js/tm.js',
+      async: true,
     },
   ],
 };
