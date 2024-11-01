@@ -417,7 +417,12 @@ class ArrowExtractor(Extractor):
             dlt_load_id = self.naming.normalize_identifier(C_DLT_LOAD_ID)
             if self._normalize_config.add_dlt_load_id and dlt_load_id not in arrow_table["columns"]:
                 # will be normalized line below
-                arrow_table["columns"][C_DLT_LOAD_ID] = utils.dlt_load_id_column()
+                load_id_col = computed_table["columns"].get(C_DLT_LOAD_ID)
+                if load_id_col is not None and utils.is_complete_column(load_id_col):
+                    load_id_col["x-user-provided"] = True  # type: ignore[typeddict-unknown-key]
+                else:
+                    load_id_col = utils.dlt_load_id_column()
+                arrow_table["columns"][C_DLT_LOAD_ID] = load_id_col
 
             # normalize arrow table before merging
             arrow_table = utils.normalize_table_identifiers(arrow_table, self.schema.naming)
@@ -446,7 +451,6 @@ class ArrowExtractor(Extractor):
             utils.merge_columns(
                 arrow_table["columns"], computed_table["columns"], merge_columns=True
             )
-
         return arrow_table
 
     def _compute_and_update_table(

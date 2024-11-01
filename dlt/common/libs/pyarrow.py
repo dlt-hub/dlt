@@ -243,8 +243,11 @@ def should_normalize_arrow_schema(
     schema: pyarrow.Schema,
     columns: TTableSchemaColumns,
     naming: NamingConvention,
+    caps: DestinationCapabilitiesContext = None,
     add_load_id: bool = False,
-) -> Tuple[bool, Mapping[str, str], Dict[str, str], Dict[str, bool], bool, TTableSchemaColumns]:
+) -> Tuple[
+    bool, Mapping[str, str], Dict[str, str], Dict[str, bool], bool, Any, TTableSchemaColumns
+]:
     """Figure out if any of the normalization steps must be executed. This prevents
     from rewriting arrow tables when no changes are needed. Refer to `normalize_py_arrow_item`
     for a list of normalizations. Note that `column` must be already normalized.
@@ -266,12 +269,16 @@ def should_normalize_arrow_schema(
     dlt_columns = {dlt_load_id_col, dlt_id_col}
 
     # Do we need to add a load id column?
+    load_id_type = None
     if add_load_id and dlt_load_id_col in columns:
         try:
             schema.field(dlt_load_id_col)
             needs_load_id = False
         except KeyError:
             needs_load_id = True
+            load_id_type = pyarrow.dictionary(pyarrow.int8(), pyarrow.string())
+            if columns[dlt_load_id_col].get("x-user-provided"):
+                load_id_type = get_py_arrow_datatype(columns[dlt_load_id_col], caps, "UTC")
     else:
         needs_load_id = False
 
@@ -295,6 +302,7 @@ def should_normalize_arrow_schema(
         rev_mapping,
         nullable_updates,
         needs_load_id,
+        load_id_type,
         columns,
     )
 
@@ -316,9 +324,15 @@ def normalize_py_arrow_item(
     5. Add `_dlt_load_id` column if it is missing and `load_id` is provided
     """
     schema = item.schema
-    should_normalize, rename_mapping, rev_mapping, nullable_updates, needs_load_id, columns = (
-        should_normalize_arrow_schema(schema, columns, naming, load_id is not None)
-    )
+    (
+        should_normalize,
+        rename_mapping,
+        rev_mapping,
+        nullable_updates,
+        needs_load_id,
+        load_id_type,
+        columns,
+    ) = should_normalize_arrow_schema(schema, columns, naming, caps, load_id is not None)
     if not should_normalize:
         return item
 
@@ -356,7 +370,6 @@ def normalize_py_arrow_item(
 
     if needs_load_id and load_id:
         # Storage efficient type for a column with constant value
-        load_id_type = pyarrow.dictionary(pyarrow.int8(), pyarrow.string())
         new_fields.append(
             pyarrow.field(
                 naming.normalize_identifier(C_DLT_LOAD_ID),
