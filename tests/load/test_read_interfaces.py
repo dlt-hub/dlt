@@ -6,7 +6,6 @@ import os
 
 from dlt import Pipeline
 from dlt.common import Decimal
-from dlt.common.utils import uniq_id
 
 from typing import List
 from functools import reduce

@@ -569,7 +569,7 @@ class SourceReference:
     def register(cls, ref_obj: "SourceReference") -> None:
         ref = f"{ref_obj.context.name}.{ref_obj.section}.{ref_obj.name}"
         if ref in cls.SOURCES:
-            logger.warning(f"A source with ref {ref} is already registered and will be overwritten")
+            logger.info(f"A source with ref {ref} is already registered and will be overwritten")
         cls.SOURCES[ref] = ref_obj
 
     @classmethod

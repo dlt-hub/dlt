@@ -195,6 +195,10 @@ def _run_dataset_checks(
 
     # NOTE: when running this on CI, there seem to be some kind of race conditions that prevent
     # secrets from being removed as it does not find the file... We'll need to investigate this.
+    # TODO: you must provide explicit location for persistent secrets, (duckdb SET command). there
+    # is a bug that they sometimes cannot find them on subsequent connection (home dir expansion or so)
+    # TODO: create a fixture that will always store secrets in tmp test storage (_storage) and wipe them before
+    #  and after use
     return
 
     # now drop the secrets again
@@ -223,10 +227,13 @@ def _run_dataset_checks(
     ),  # TODO: make SFTP work
     ids=lambda x: x.name,
 )
-def test_read_interfaces_filesystem(destination_config: DestinationTestConfiguration) -> None:
+@pytest.mark.parametrize("disable_compression", [True, False])
+def test_read_interfaces_filesystem(
+    destination_config: DestinationTestConfiguration, disable_compression: bool
+) -> None:
     # we force multiple files per table, they may only hold 700 items
     os.environ["DATA_WRITER__FILE_MAX_ITEMS"] = "700"
-
+    destination_config.disable_compression = disable_compression
     if destination_config.file_format not in ["parquet", "jsonl"]:
         pytest.skip(
             f"Test only works for jsonl and parquet, given: {destination_config.file_format}"
@@ -296,9 +303,12 @@ def test_delta_tables(destination_config: DestinationTestConfiguration) -> None:
     destinations_configs(local_filesystem_configs=True),
     ids=lambda x: x.name,
 )
-def test_evolving_filesystem(destination_config: DestinationTestConfiguration) -> None:
+@pytest.mark.parametrize("disable_compression", [True, False])
+def test_evolving_filesystem(
+    destination_config: DestinationTestConfiguration, disable_compression: bool
+) -> None:
     """test that files with unequal schemas still work together"""
-
+    destination_config.disable_compression = disable_compression
     if destination_config.file_format not in ["parquet", "jsonl"]:
         pytest.skip(
             f"Test only works for jsonl and parquet, given: {destination_config.file_format}"

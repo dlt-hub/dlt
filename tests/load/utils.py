@@ -160,7 +160,7 @@ class DestinationTestConfiguration:
     supports_merge: bool = True  # TODO: take it from client base class
     force_iceberg: bool = None  # used only to test deprecation
     supports_dbt: bool = True
-    disable_compression: bool = False
+    disable_compression: bool = None  # use default value
     dev_mode: bool = False
     credentials: Optional[Union[CredentialsConfiguration, Dict[str, Any], str]] = None
     env_vars: Optional[Dict[str, str]] = None
