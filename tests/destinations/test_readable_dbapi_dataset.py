@@ -84,7 +84,7 @@ def test_computed_schema_columns() -> None:
     relation = dataset.items
 
     # no schema present
-    assert relation.computed_schema_columns is None  # type: ignore[attr-defined]
+    assert relation.columns_schema is None
 
     # we can select any columns because it can't be verified
     relation["one", "two"]
@@ -96,10 +96,10 @@ def test_computed_schema_columns() -> None:
     }
 
     # computed columns are same as above
-    assert relation.computed_schema_columns == {"one": {"data_type": "text"}, "two": {"data_type": "json"}}  # type: ignore[attr-defined]
+    assert relation.columns_schema == {"one": {"data_type": "text"}, "two": {"data_type": "json"}}
 
     # when selecting only one column, computing schema columns will only show that one
-    assert relation.select("one").computed_schema_columns == {"one": {"data_type": "text"}}  # type: ignore[attr-defined]
+    assert relation.select("one").columns_schema == {"one": {"data_type": "text"}}
 
     # selecting unkonwn column fails
     with pytest.raises(ReadableRelationUnknownColumnException):
