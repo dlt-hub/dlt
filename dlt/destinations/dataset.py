@@ -115,24 +115,31 @@ class ReadableDBAPIRelation(SupportsReadableRelation):
         return f"SELECT {maybe_limit_clause_1} {selector} FROM {table_name} {maybe_limit_clause_2}"
 
     @property
-    def computed_schema_columns(self) -> TTableSchemaColumns:
+    def columns_schema(self) -> TTableSchemaColumns:
+        return self.compute_columns_schema()
+
+    @columns_schema.setter
+    def columns_schema(self, new_value: TTableSchemaColumns) -> None:
+        raise NotImplementedError("columns schema in ReadableDBAPIRelation can only be computed")
+
+    def compute_columns_schema(self) -> TTableSchemaColumns:
         """provide schema columns for the cursor, may be filtered by selected columns"""
 
-        schema_columns = (
+        columns_schema = (
             self.schema.tables.get(self._table_name, {}).get("columns", {}) if self.schema else {}
         )
 
-        if not schema_columns:
+        if not columns_schema:
             return None
         if not self._selected_columns:
-            return schema_columns
+            return columns_schema
 
         filtered_columns: TTableSchemaColumns = {}
         for sc in self._selected_columns:
             sc = self.schema.naming.normalize_path(sc)
-            if sc not in schema_columns.keys():
+            if sc not in columns_schema.keys():
                 raise ReadableRelationUnknownColumnException(sc)
-            filtered_columns[sc] = schema_columns[sc]
+            filtered_columns[sc] = columns_schema[sc]
 
         return filtered_columns
 
@@ -146,8 +153,8 @@ class ReadableDBAPIRelation(SupportsReadableRelation):
             if hasattr(self.sql_client, "_conn") and hasattr(self.sql_client._conn, "autocommit"):
                 self.sql_client._conn.autocommit = False
             with client.execute_query(self.query) as cursor:
-                if schema_columns := self.computed_schema_columns:
-                    cursor.schema_columns = schema_columns
+                if columns_schema := self.columns_schema:
+                    cursor.columns_schema = columns_schema
                 yield cursor
 
     def _wrap_iter(self, func_name: str) -> Any:
@@ -191,7 +198,7 @@ class ReadableDBAPIRelation(SupportsReadableRelation):
         rel._selected_columns = columns
         # NOTE: the line below will ensure that no unknown columns are selected if
         # schema is known
-        rel.computed_schema_columns
+        rel.compute_columns_schema()
         return rel
 
     def __getitem__(self, columns: Union[str, Sequence[str]]) -> "SupportsReadableRelation":
