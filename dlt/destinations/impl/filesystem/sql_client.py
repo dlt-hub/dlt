@@ -75,9 +75,7 @@ class FilesystemSqlClient(DuckDbSqlClient):
             secret_name = self._create_default_secret_name()
         self._conn.sql(f"DROP PERSISTENT SECRET IF EXISTS {secret_name}")
 
-    def create_authentication(
-        self, persistent: bool = False, secret_name: str = None, secret_directory: str = None
-    ) -> None:
+    def create_authentication(self, persistent: bool = False, secret_name: str = None) -> None:
         #  home dir is a bad choice, it should be more explicit
         if not secret_name:
             secret_name = self._create_default_secret_name()
@@ -88,14 +86,16 @@ class FilesystemSqlClient(DuckDbSqlClient):
         current_secret_directory = self._conn.sql(
             "SELECT current_setting('secret_directory') AS secret_directory;"
         ).fetchone()[0]
+
         # TODO: what is with windows?
         is_default_secrets_directory = current_secret_directory.endswith("/.duckdb/stored_secrets")
 
-        if not secret_directory and is_default_secrets_directory:
-            logger.warn("TODO: warning message")
-
-        if secret_directory and secret_directory != current_secret_directory:
-            self._conn.sql(f"SET secret_directory = '{secret_directory}';")
+        if is_default_secrets_directory and persistent:
+            logger.warn(
+                "You are persisting duckdb secrets but are storing them in the default folder"
+                f" {current_secret_directory}. These secrets are saved there unencrypted, we"
+                " recommend using a custom secret directory."
+            )
 
         persistent_stmt = ""
         if persistent:
