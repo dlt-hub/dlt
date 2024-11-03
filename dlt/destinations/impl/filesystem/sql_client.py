@@ -48,9 +48,6 @@ class FilesystemSqlClient(DuckDbSqlClient):
             self.memory_db = duckdb.connect(":memory:")
             credentials = DuckDbCredentials(self.memory_db)
 
-        # remember wether we have set the non_persistent_authentication_created
-        self.non_persistent_authentication_created = False
-
         super().__init__(
             dataset_name=dataset_name or fs_client.dataset_name,
             staging_dataset_name=None,
@@ -189,6 +186,7 @@ class FilesystemSqlClient(DuckDbSqlClient):
             if not self.has_dataset():
                 self.create_dataset()
             self._conn.sql(f"USE {self.fully_qualified_dataset_name()}")
+            self.create_authentication()
 
         return self._conn
 
@@ -270,10 +268,6 @@ class FilesystemSqlClient(DuckDbSqlClient):
     @contextmanager
     @raise_database_error
     def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> Iterator[DBApiCursor]:
-        if not self.non_persistent_authentication_created:
-            # create authentication to data provider
-            self.create_authentication()
-            self.non_persistent_authentication_created = True
 
         # skip parametrized queries, we could also render them but currently user is not able to
         # do parametrized queries via dataset interface
