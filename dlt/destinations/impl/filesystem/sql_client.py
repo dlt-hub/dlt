@@ -268,7 +268,6 @@ class FilesystemSqlClient(DuckDbSqlClient):
     @contextmanager
     @raise_database_error
     def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> Iterator[DBApiCursor]:
-
         # skip parametrized queries, we could also render them but currently user is not able to
         # do parametrized queries via dataset interface
         if not args and not kwargs:
