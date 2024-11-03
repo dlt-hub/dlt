@@ -222,3 +222,12 @@ def _convert_to_old_pyformat(
     if count != len(args):
         raise DatabaseTransientException(operational_error_cls())
     return old_style_string, mapping
+
+
+def is_compression_disabled() -> bool:
+    from dlt import config
+
+    key_ = "normalize.data_writer.disable_compression"
+    if key_ not in config:
+        key_ = "data_writer.disable_compression"
+    return config.get(key_, bool)
