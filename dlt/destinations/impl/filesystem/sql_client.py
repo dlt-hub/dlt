@@ -192,8 +192,6 @@ class FilesystemSqlClient(DuckDbSqlClient):
             # set up dataset
             if not self.has_dataset():
                 self.create_dataset()
-                print("CREATE")
-                print(self.fully_qualified_dataset_name())
             self._conn.sql(f"USE {self.fully_qualified_dataset_name()}")
             self.create_authentication()
 
