@@ -12,7 +12,6 @@ from dlt.common import logger
 from contextlib import contextmanager
 
 from dlt.common.destination.reference import DBApiCursor
-from dlt.common.destination.typing import PreparedTableSchema
 
 from dlt.destinations.sql_client import raise_database_error
 
@@ -49,6 +48,9 @@ class FilesystemSqlClient(DuckDbSqlClient):
             self.memory_db = duckdb.connect(":memory:")
             credentials = DuckDbCredentials(self.memory_db)
 
+        # remember wether we have set the non_persistent_authentication_created
+        self.non_persistent_authentication_created = False
+
         super().__init__(
             dataset_name=dataset_name or fs_client.dataset_name,
             staging_dataset_name=None,
@@ -73,12 +75,27 @@ class FilesystemSqlClient(DuckDbSqlClient):
             secret_name = self._create_default_secret_name()
         self._conn.sql(f"DROP PERSISTENT SECRET IF EXISTS {secret_name}")
 
-    def create_authentication(self, persistent: bool = False, secret_name: str = None) -> None:
-        # TODO: allow users to set explicit path on filesystem where secrets are stored
-        #  https://duckdb.org/docs/configuration/secrets_manager.html#persistent-secrets
+    def create_authentication(
+        self, persistent: bool = False, secret_name: str = None, secret_directory: str = None
+    ) -> None:
         #  home dir is a bad choice, it should be more explicit
         if not secret_name:
             secret_name = self._create_default_secret_name()
+
+        if persistent and self.memory_db:
+            raise Exception("Creating persistent secrets for in memory db is not allowed.")
+
+        current_secret_directory = self._conn.sql(
+            "SELECT current_setting('secret_directory') AS secret_directory;"
+        ).fetchone()[0]
+        # TODO: what is with windows?
+        is_default_secrets_directory = current_secret_directory.endswith("/.duckdb/stored_secrets")
+
+        if not secret_directory and is_default_secrets_directory:
+            logger.warn("TODO: warning message")
+
+        if secret_directory and secret_directory != current_secret_directory:
+            self._conn.sql(f"SET secret_directory = '{secret_directory}';")
 
         persistent_stmt = ""
         if persistent:
@@ -173,9 +190,6 @@ class FilesystemSqlClient(DuckDbSqlClient):
                 self.create_dataset()
             self._conn.sql(f"USE {self.fully_qualified_dataset_name()}")
 
-            # create authentication to data provider
-            self.create_authentication()
-
         return self._conn
 
     @raise_database_error
@@ -256,6 +270,11 @@ class FilesystemSqlClient(DuckDbSqlClient):
     @contextmanager
     @raise_database_error
     def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> Iterator[DBApiCursor]:
+        if not self.non_persistent_authentication_created:
+            # create authentication to data provider
+            self.create_authentication()
+            self.non_persistent_authentication_created = True
+
         # skip parametrized queries, we could also render them but currently user is not able to
         # do parametrized queries via dataset interface
         if not args and not kwargs:
