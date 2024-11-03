@@ -19,7 +19,7 @@ This guide explains how to access and manipulate data that has been loaded into 
 
 Here's a full example of how to retrieve data from a pipeline and load it into a Pandas DataFrame or a PyArrow Table.
 
-```python
+```py
 # Assuming you have a Pipeline object named 'pipeline'
 # and you have loaded data to a table named 'items' in the destination
 
@@ -44,7 +44,7 @@ Assuming you have a `Pipeline` object (let's call it `pipeline`), you can obtain
 
 ### Access the `ReadableDataset`
 
-```python
+```py
 # Get the readable dataset from the pipeline
 dataset = pipeline._dataset()
 ```
@@ -53,7 +53,7 @@ dataset = pipeline._dataset()
 
 You can access tables in your dataset using either attribute access or item access.
 
-```python
+```py
 # Using attribute access
 items_relation = dataset.items
 
@@ -71,19 +71,19 @@ Once you have a `ReadableRelation`, you can read data in various formats and siz
 
 #### As a Pandas DataFrame
 
-```python
+```py
 df = items_relation.df()
 ```
 
 #### As a PyArrow Table
 
-```python
+```py
 arrow_table = items_relation.arrow()
 ```
 
 #### As a List of Python Tuples
 
-```python
+```py
 items_list = items_relation.fetchall()
 ```
 
@@ -97,7 +97,7 @@ To handle large datasets efficiently, you can process data in smaller chunks.
 
 ### Iterate as Pandas DataFrames
 
-```python
+```py
 for df_chunk in items_relation.iter_df(chunk_size=500):
     # Process each DataFrame chunk
     pass
@@ -105,7 +105,7 @@ for df_chunk in items_relation.iter_df(chunk_size=500):
 
 ### Iterate as PyArrow Tables
 
-```python
+```py
 for arrow_chunk in items_relation.iter_arrow(chunk_size=500):
     # Process each PyArrow chunk
     pass
@@ -113,7 +113,7 @@ for arrow_chunk in items_relation.iter_arrow(chunk_size=500):
 
 ### Iterate as Lists of Tuples
 
-```python
+```py
 for items_chunk in items_relation.iter_fetch(chunk_size=500):
     # Process each chunk of tuples
     pass
@@ -125,38 +125,45 @@ You can refine your data retrieval by limiting the number of records, selecting 
 
 ### Limit the Number of Records
 
-```python
+```py
 # Get the first 50 items as a PyArrow table
 arrow_table = items_relation.limit(50).arrow()
 ```
 
 #### Using `head()` to Get the First 5 Records
 
-```python
+```py
 df = items_relation.head().df()
 ```
 
 ### Select Specific Columns
 
-```python
+```py
 # Select only 'col1' and 'col2' columns
-items_list = items_relation.select(["col1", "col2"]).fetchall()
+items_list = items_relation.select("col1", "col2").fetchall()
+
+# alternate notation with brackets
+items_list = items_relation[["col1", "col2"]].fetchall()
+
+# only get one column
+items_list = items_relation["col1"].fetchall()
+
 ```
 
 ### Chain Operations
 
 You can combine `select`, `limit`, and other methods.
 
-```python
+```py
 # Select columns and limit the number of records
-arrow_table = items_relation.select(["col1", "col2"]).limit(50).arrow()
+arrow_table = items_relation.select("col1", "col2").limit(50).arrow()
 ```
 
 ## Executing Custom SQL Queries
 
 You can execute custom SQL queries directly on the dataset.
 
-```python
+```py
 # Join 'items' and 'other_items' tables
 custom_relation = dataset("SELECT * FROM items JOIN other_items ON items.id = other_items.id")
 arrow_table = custom_relation.arrow()
@@ -172,13 +179,13 @@ All SQL and filesystem destinations supported by `dlt` can utilize this data acc
 
 ### Fetch One Record as a Tuple
 
-```python
+```py
 record = items_relation.fetchone()
 ```
 
 ### Fetch Many Records as Tuples
 
-```python
+```py
 records = items_relation.fetchmany(chunk_size=10)
 ```
 
@@ -186,7 +193,7 @@ records = items_relation.fetchmany(chunk_size=10)
 
 **Note:** When iterating over filesystem tables, the underlying DuckDB may give you a different chunksize depending on the size of the parquet files the table is based on.
 
-```python
+```py
 
 # dataframes
 for df_chunk in items_relation.select(["col1", "col2"]).limit(100).iter_df(chunk_size=20):
