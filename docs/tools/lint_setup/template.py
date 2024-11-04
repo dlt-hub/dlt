@@ -21,9 +21,10 @@ import os
 import duckdb
 import urllib
 import itertools
-import pendulum
 import airflow
-import datetime
+import datetime  # noqa: I251
+import pendulum  # noqa: I251
+
 
 from airflow.decorators import dag
 
