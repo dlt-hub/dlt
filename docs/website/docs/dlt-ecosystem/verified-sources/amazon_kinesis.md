@@ -251,8 +251,8 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
    # Load the state if it exists.
    if os.path.exists(STATE_FILE):
-       with open(STATE_FILE, "rb") as f:
-           state = json.typed_loadb(f.read())
+       with open(STATE_FILE, "rb") as rf:
+           state = json.typed_loadb(rf.read())
    else:
        # Provide new state.
        state = {}
@@ -266,8 +266,8 @@ If you wish to create your own pipelines, you can leverage source and resource m
            print(message)
            # Save state after each message to have full transaction load.
            # DynamoDB is also OK.
-           with open(STATE_FILE, "wb") as f:
-               json.typed_dump(managed_state.state, f)
+           with open(STATE_FILE, "wb") as wf:
+               json.typed_dump(managed_state.state, wf)
            print(managed_state.state)
    ```
 

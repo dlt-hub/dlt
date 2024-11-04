@@ -135,14 +135,14 @@ These steps ensure that the column order in your dataset matches your specificat
 
 ```py
 # Define the data source and reorder columns using add_map
-data_source = resource().add_map(lambda row: {
+my_resource = resource().add_map(lambda row: {
     'column3': row['column3'],
     'column1': row['column1'],
     'column2': row['column2']
 })
 
 # Run the pipeline
-load_info = pipeline.run(data_source)
+load_info = pipeline.run(my_resource)
 ```
 
 In this example, the `add_map` function reorders columns by defining a new mapping. The lambda function specifies the desired order by rearranging the key-value pairs. When the pipeline runs, the data will load with the columns in the new order.

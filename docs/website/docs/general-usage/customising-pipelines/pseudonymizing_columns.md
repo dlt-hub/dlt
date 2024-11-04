@@ -46,14 +46,14 @@ for row in dummy_source().dummy_data.add_map(pseudonymize_name):
 # Or create an instance of the data source, modify the resource and run the source.
 
 # 1. Create an instance of the source so you can edit it.
-data_source = dummy_source()
+source_instance = dummy_source()
 # 2. Modify this source instance's resource
-data_resource = data_source.dummy_data.add_map(pseudonymize_name)
+data_resource = source_instance.dummy_data.add_map(pseudonymize_name)
 # 3. Inspect your result
-for row in data_resource:
+for row in source_instance:
     print(row)
 
 pipeline = dlt.pipeline(pipeline_name='example', destination='bigquery', dataset_name='normalized_data')
-load_info = pipeline.run(data_resource)
+load_info = pipeline.run(source_instance)
 ```
 

@@ -213,6 +213,8 @@ pipeline = dlt.pipeline(
 You can fully configure the progress monitor. See two examples below:
 
 ```py
+from airflow.operators.python import get_current_context  # noqa
+
 # log each minute to Airflow task logger
 ti = get_current_context()["ti"]
 pipeline = dlt.pipeline(

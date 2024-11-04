@@ -421,7 +421,7 @@ Let's handle this by changing our `fetch_github_data()` function first:
 ```py
 from dlt.sources.helpers.rest_client.auth import BearerTokenAuth
 
-def fetch_github_data(endpoint, params={}, access_token=None):
+def fetch_github_data_with_token(endpoint, params={}, access_token=None):
     url = f"{BASE_GITHUB_URL}/{endpoint}"
     return paginate(
         url,
@@ -431,11 +431,11 @@ def fetch_github_data(endpoint, params={}, access_token=None):
 
 
 @dlt.source
-def github_source(access_token):
+def github_source_with_token(access_token: str):
     for endpoint in ["issues", "comments", "traffic/clones"]:
         params = {"per_page": 100}
         yield dlt.resource(
-            fetch_github_data(endpoint, params, access_token),
+            fetch_github_data_with_token(endpoint, params, access_token),
             name=endpoint,
             write_disposition="merge",
             primary_key="id",
@@ -447,7 +447,7 @@ def github_source(access_token):
 Here, we added an `access_token` parameter and now we can use it to pass the access token to the request:
 
 ```py
-load_info = pipeline.run(github_source(access_token="ghp_XXXXX"))
+load_info = pipeline.run(github_source_with_token(access_token="ghp_XXXXX"))
 ```
 
 It's a good start. But we'd want to follow the best practices and not hardcode the token in the script. One option is to set the token as an environment variable, load it with `os.getenv()`, and pass it around as a parameter. dlt offers a more convenient way to handle secrets and credentials: it lets you inject the arguments using a special `dlt.secrets.value` argument value.
@@ -456,7 +456,7 @@ To use it, change the `github_source()` function to:
 
 ```py
 @dlt.source
-def github_source(
+def github_source_with_token(
     access_token: str = dlt.secrets.value,
 ):
     ...
@@ -482,13 +482,13 @@ Now we can run the script and it will load the data from the `traffic/clones` en
 ...
 
 @dlt.source
-def github_source(
+def github_source_with_token(
     access_token: str = dlt.secrets.value,
 ):
     for endpoint in ["issues", "comments", "traffic/clones"]:
         params = {"per_page": 100}
         yield dlt.resource(
-            fetch_github_data(endpoint, params, access_token),
+            fetch_github_data_with_token(endpoint, params, access_token),
             name=endpoint,
             write_disposition="merge",
             primary_key="id",
@@ -514,7 +514,7 @@ from dlt.sources.helpers.rest_client import paginate
 BASE_GITHUB_URL = "https://api.github.com/repos/{repo_name}"
 
 
-def fetch_github_data(repo_name, endpoint, params={}, access_token=None):
+def fetch_github_data_with_token_and_params(repo_name, endpoint, params={}, access_token=None):
     """Fetch data from the GitHub API based on repo_name, endpoint, and params."""
     url = BASE_GITHUB_URL.format(repo_name=repo_name) + f"/{endpoint}"
     return paginate(
@@ -525,14 +525,14 @@ def fetch_github_data(repo_name, endpoint, params={}, access_token=None):
 
 
 @dlt.source
-def github_source(
+def github_source_with_token_and_repo(
     repo_name: str = dlt.config.value,
     access_token: str = dlt.secrets.value,
 ):
     for endpoint in ["issues", "comments", "traffic/clones"]:
         params = {"per_page": 100}
         yield dlt.resource(
-            fetch_github_data(repo_name, endpoint, params, access_token),
+            fetch_github_data_with_token_and_params(repo_name, endpoint, params, access_token),
             name=endpoint,
             write_disposition="merge",
             primary_key="id",

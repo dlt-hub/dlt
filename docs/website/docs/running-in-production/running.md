@@ -10,12 +10,11 @@ When running the pipeline in production, you may consider a few additions to you
 
 ```py
 import dlt
-from chess import chess
 
 if __name__ == "__main__":
     pipeline = dlt.pipeline(pipeline_name="chess_pipeline", destination='duckdb', dataset_name="games_data")
     # get data for a few famous players
-    data = chess(['magnuscarlsen', 'vincentkeymer', 'dommarajugukesh', 'rpragchess'], start_month="2022/11", end_month="2022/12")
+    data = chess_source(['magnuscarlsen', 'vincentkeymer', 'dommarajugukesh', 'rpragchess'], start_month="2022/11", end_month="2022/12")
     load_info = pipeline.run(data)
 ```
 
@@ -174,21 +173,22 @@ handler = logging.FileHandler('dlt.log')
 logger.addHandler(handler)
 ```
 You can intercept logs by using [loguru](https://loguru.readthedocs.io/en/stable/api/logger.html). To do so, follow the instructions below:
+
 ```py
 import logging
 import sys
 
 import dlt
-from loguru import logger
+from loguru import logger as loguru_logger
 
 
 class InterceptHandler(logging.Handler):
 
-    @logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    @loguru_logger.catch(default=True, onerror=lambda _: sys.exit(1))
     def emit(self, record):
         # Get the corresponding Loguru level if it exists.
         try:
-            level = logger.level(record.levelname).name
+            level = loguru_logger.level(record.levelname).name
         except ValueError:
             level = record.levelno
 
@@ -198,12 +198,12 @@ class InterceptHandler(logging.Handler):
             frame = frame.f_back
             depth += 1
 
-        logger.opt(depth=depth, exception=record.exc_info).log(level, record.getMessage())
+        loguru_logger.opt(depth=depth, exception=record.exc_info).log(level, record.getMessage())
 
 logger_dlt = logging.getLogger("dlt")
 logger_dlt.addHandler(InterceptHandler())
 
-logger.add("dlt_loguru.log")
+loguru_logger.add("dlt_loguru.log")
 ```
 
 ## Handle exceptions, failed jobs, and retry the pipeline
@@ -291,14 +291,14 @@ the [tenacity](https://tenacity.readthedocs.io/en/latest/) library. The snippet 
 steps (`extract`, `normalize`) and for terminal exceptions.
 
 ```py
-from tenacity import stop_after_attempt, retry_if_exception, Retrying, retry
+from tenacity import stop_after_attempt, retry_if_exception, Retrying, retry, wait_exponential
 from dlt.common.runtime.slack import send_slack_message
 from dlt.pipeline.helpers import retry_load
 
 if __name__ == "__main__":
     pipeline = dlt.pipeline(pipeline_name="chess_pipeline", destination='duckdb', dataset_name="games_data")
     # get data for a few famous players
-    data = chess(['magnuscarlsen', 'rpragchess'], start_month="2022/11", end_month="2022/12")
+    data = chess_source(['magnuscarlsen', 'rpragchess'], start_month="2022/11", end_month="2022/12")
     try:
 
         for attempt in Retrying(stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1.5, min=4, max=10), retry=retry_if_exception(retry_load()), reraise=True):
@@ -319,7 +319,7 @@ if __name__ == "__main__":
 
     @retry(stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1.5, min=4, max=10), retry=retry_if_exception(retry_load(("extract", "load"))), reraise=True)
     def load():
-        data = chess(['magnuscarlsen', 'vincentkeymer', 'dommarajugukesh', 'rpragchess'], start_month="2022/11", end_month="2022/12")
+        data = chess_source(['magnuscarlsen', 'vincentkeymer', 'dommarajugukesh', 'rpragchess'], start_month="2022/11", end_month="2022/12")
         return pipeline.run(data)
 
     load_info = load()

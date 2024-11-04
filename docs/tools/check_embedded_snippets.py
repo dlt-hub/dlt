@@ -5,10 +5,11 @@ import os
 import ast
 import subprocess
 import argparse
+import shutil
 
 from dataclasses import dataclass
 from textwrap import dedent
-from typing import List
+from typing import List, Dict
 
 import tomlkit
 import yaml
@@ -24,6 +25,7 @@ ALLOWED_LANGUAGES = ["py", "toml", "json", "yaml", "text", "sh", "bat", "sql"]
 
 LINT_TEMPLATE = "./lint_setup/template.py"
 LINT_FILE = "./lint_setup/lint_me.py"
+LINT_FOLDER = "./lint_setup/lint_me"
 
 ENABLE_MYPY = True
 
@@ -178,16 +180,38 @@ def parse_snippets(snippets: List[Snippet], verbose: bool) -> None:
         fmt.note("All snippets could be parsed")
 
 
-def prepare_for_linting(snippet: Snippet) -> None:
+def prepare_for_linting(snippets: List[Snippet]) -> None:
     """
     Prepare the lintme file with the snippet code and the template header
     """
+
     with open(LINT_TEMPLATE, "r", encoding="utf-8") as f:
         lint_template = f.read()
-    with open(LINT_FILE, "w", encoding="utf-8") as f:
-        f.write(lint_template)
-        f.write("# Snippet start\n\n")
-        f.write(snippet.code)
+
+    # prepare folder
+    shutil.rmtree(LINT_FOLDER, ignore_errors=True)
+
+    # assemble files
+    files: Dict[str, str] = {}
+
+    for snippet in snippets:
+        if snippet.file not in files:
+            files[snippet.file] = lint_template
+        existing = files[snippet.file]
+        existing += "\n\n"
+        existing += f"# Snippet start (Line {snippet.line})\n\n"
+        existing += snippet.code
+        files[snippet.file] = existing
+
+    count = 0
+    for filename, content in files.items():
+        count += 1
+        target_file_name = LINT_FOLDER + filename
+        target_file_name = target_file_name.replace(".md", "").replace("..", "")
+        target_file_name += "_" + str(count) + ".py"
+        os.makedirs(os.path.dirname(target_file_name), exist_ok=True)
+        with open(target_file_name, "w", encoding="utf-8") as f:
+            f.write(content)
 
 
 def lint_snippets(snippets: List[Snippet], verbose: bool) -> None:
@@ -195,50 +219,36 @@ def lint_snippets(snippets: List[Snippet], verbose: bool) -> None:
     Lint all python snippets with ruff
     """
     fmt.secho(fmt.bold("Linting Python snippets"))
-    failed_count = 0
-    count = 0
-    for snippet in snippets:
-        count += 1
-        prepare_for_linting(snippet)
-        result = subprocess.run(["ruff", "check", LINT_FILE], capture_output=True, text=True)
-        if verbose:
-            fmt.echo(f"Linting {snippet} ({count} of {len(snippets)})")
-        if "error" in result.stdout.lower():
-            failed_count += 1
-            fmt.warning(f"Failed to lint {str(snippet)}")
-            fmt.echo(result.stdout.strip())
 
-    if failed_count:
-        fmt.error(f"Failed to lint {failed_count} snippets")
+    prepare_for_linting(snippets)
+    result = subprocess.run(["ruff", "check", LINT_FOLDER], capture_output=True, text=True)
+
+    if "error" in result.stdout.lower():
+        fmt.echo(result.stdout.strip())
+        fmt.error("Failed to lint some snippets")
         exit(1)
-    else:
-        fmt.note("All snippets could be linted")
+
+    fmt.note("All snippets could be linted")
 
 
 def typecheck_snippets(snippets: List[Snippet], verbose: bool) -> None:
     """
-    TODO: Type check all python snippets with mypy
+    Type check all python snippets with mypy
     """
     fmt.secho(fmt.bold("Type checking Python snippets"))
-    failed_count = 0
-    count = 0
-    for snippet in snippets:
-        count += 1
-        if verbose:
-            fmt.echo(f"Type checking {snippet} ({count} of {len(snippets)})")
-        prepare_for_linting(snippet)
-        result = subprocess.run(["mypy", LINT_FILE], capture_output=True, text=True)
-        if "no issues found" not in result.stdout.lower():
-            failed_count += 1
-            fmt.warning(f"Failed to type check {str(snippet)}")
-            fmt.echo(result.stdout.strip())
-            fmt.echo(result.stderr.strip())
 
-    if failed_count:
-        fmt.error(f"Failed to type check {failed_count} snippets")
+    prepare_for_linting(snippets)
+    result = subprocess.run(
+        ["mypy", LINT_FOLDER, "--check-untyped-defs"], capture_output=True, text=True
+    )
+
+    if "no issues found" not in result.stdout.lower():
+        fmt.echo(result.stdout.strip())
+        fmt.echo(result.stderr.strip())
+        fmt.error("Failed to type check some snippets")
         exit(1)
-    else:
-        fmt.note("All snippets passed type checking")
+
+    fmt.note("All snippets passed type checking")
 
 
 if __name__ == "__main__":
@@ -309,5 +319,8 @@ if __name__ == "__main__":
     # unlink lint_me file
     if os.path.exists(LINT_FILE):
         os.unlink(LINT_FILE)
+
+    fmt.note("Deleting temporary files...")
+    shutil.rmtree(LINT_FOLDER, ignore_errors=True)
 
     fmt.note("All selected checks passed. Snippet Checker 3000 signing off.")
