@@ -1,8 +1,10 @@
-from typing import Optional, Final
+from typing import ClassVar, List, Optional, Final
 import pytest
 import tomlkit
 
 from dlt.cli.config_toml_writer import write_value, WritableConfigValue, write_values
+from dlt.common.configuration.specs import configspec
+from dlt.common.destination.reference import DEFAULT_FILE_LAYOUT
 
 EXAMPLE_COMMENT = "# please set me up!"
 
@@ -159,3 +161,95 @@ def test_write_values_without_defaults(example_toml):
 
     assert example_toml["genomic_info"]["gene_data"]["genes"] == {"key": "value"}
     assert example_toml["genomic_info"]["gene_data"]["genes"].trivia.comment == EXAMPLE_COMMENT
+
+
+def test_write_spec_without_defaults(example_toml) -> None:
+    from dlt.destinations.impl.snowflake.configuration import SnowflakeClientConfiguration
+    from dlt.destinations.impl.filesystem.configuration import (
+        FilesystemDestinationClientConfiguration,
+    )
+
+    write_value(
+        example_toml, "snowflake", SnowflakeClientConfiguration, False, is_default_of_interest=True
+    )
+    # nothing of interest in "snowflake"
+    # host, database, username are required and will be included
+    # "password", "warehouse", "role" are explicitly of interest
+    assert example_toml.as_string() == """[snowflake.credentials]
+database = "database" # please set me up!
+password = "password" # please set me up!
+username = "username" # please set me up!
+host = "host" # please set me up!
+warehouse = "warehouse" # please set me up!
+role = "role" # please set me up!
+"""
+    example_toml = tomlkit.parse("")
+    write_value(
+        example_toml,
+        "filesystem",
+        FilesystemDestinationClientConfiguration,
+        False,
+        is_default_of_interest=True,
+    )
+
+    # bucket_url is mandatory, same for aws credentials
+    assert example_toml.as_string() == """[filesystem]
+bucket_url = "bucket_url" # please set me up!
+
+[filesystem.credentials]
+aws_access_key_id = "aws_access_key_id" # please set me up!
+aws_secret_access_key = "aws_secret_access_key" # please set me up!
+"""
+
+    @configspec
+    class SnowflakeDatabaseConfiguration(SnowflakeClientConfiguration):
+        database: str = "dlt_db"
+
+        __config_gen_annotations__: ClassVar[List[str]] = ["database"]
+
+    example_toml = tomlkit.parse("")
+    write_value(
+        example_toml,
+        "snowflake",
+        SnowflakeDatabaseConfiguration,
+        False,
+        is_default_of_interest=True,
+    )
+
+    # uses default value
+    assert example_toml["snowflake"]["database"] == "dlt_db"
+
+    # use initial values
+    example_toml = tomlkit.parse("")
+    write_value(
+        example_toml,
+        "filesystem",
+        FilesystemDestinationClientConfiguration,
+        False,
+        is_default_of_interest=True,
+        default_value={
+            "bucket_url": "az://test-az-bucket",
+            "layout": DEFAULT_FILE_LAYOUT,
+            "credentials": {"region_name": "eu"},
+        },
+    )
+    assert example_toml["filesystem"]["bucket_url"] == "az://test-az-bucket"
+    # TODO: choose right credentials based on bucket_url
+    assert example_toml["filesystem"]["credentials"]["aws_access_key_id"] == "aws_access_key_id"
+    # if initial value is different from the default then it is included
+    assert example_toml["filesystem"]["credentials"]["region_name"] == "eu"
+    # this is same as default so not included
+    assert "layout" not in example_toml["filesystem"]
+
+    example_toml = tomlkit.parse("")
+    write_value(
+        example_toml,
+        "snowflake",
+        SnowflakeDatabaseConfiguration,
+        False,
+        is_default_of_interest=True,
+        default_value={"database": "dlt_db"},
+    )
+
+    # still here because marked specifically as of interest
+    assert example_toml["snowflake"]["database"] == "dlt_db"

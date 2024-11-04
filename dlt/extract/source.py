@@ -495,6 +495,9 @@ class SourceFactory(Protocol, Generic[TSourceFunParams, TDltSourceImpl]):
         """Makes dlt source"""
         pass
 
+    # TODO: make factory to expose SourceReference with actual spec, name and section
+    # model after Destination, which also needs to be broken down into reference and factory
+
     def with_args(
         self,
         *,
@@ -511,6 +514,9 @@ class SourceFactory(Protocol, Generic[TSourceFunParams, TDltSourceImpl]):
         """Overrides default decorator arguments that will be used to when DltSource instance and returns modified clone."""
 
 
+AnySourceFactory = SourceFactory[Any, DltSource]
+
+
 class SourceReference:
     """Runtime information on the source/resource"""
 
@@ -518,7 +524,7 @@ class SourceReference:
     """A registry of all the decorated sources and resources discovered when importing modules"""
 
     SPEC: Type[BaseConfiguration]
-    f: SourceFactory[Any, DltSource]
+    f: AnySourceFactory
     module: ModuleType
     section: str
     name: str
@@ -527,7 +533,7 @@ class SourceReference:
     def __init__(
         self,
         SPEC: Type[BaseConfiguration],
-        f: SourceFactory[Any, DltSource],
+        f: AnySourceFactory,
         module: ModuleType,
         section: str,
         name: str,
@@ -582,7 +588,7 @@ class SourceReference:
         raise KeyError(refs)
 
     @classmethod
-    def from_reference(cls, ref: str) -> SourceFactory[Any, DltSource]:
+    def from_reference(cls, ref: str) -> AnySourceFactory:
         """Returns registered source factory or imports source module and returns a function.
         Expands shorthand notation into section.name eg. "sql_database" is expanded into "sql_database.sql_database"
         """
