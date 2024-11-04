@@ -111,7 +111,6 @@ The first step is to register on [SerpAPI](https://serpapi.com/) and obtain the 
 
 1. Create the `fetch_average_price()` function as follows:
    ```py
-   from datetime import datetime, timedelta
    import requests
 
    # Uncomment transformer function if it is to be used as a transformer,
@@ -159,7 +158,7 @@ The first step is to register on [SerpAPI](https://serpapi.com/) and obtain the 
            device_data.get('timestamp', datetime.datetime.min)
        )
        # Check if the device is not in state or data is older than 180 days
-       if device not in device_info or last_updated > timedelta(days=180):
+       if device not in device_info or last_updated > datetime.timedelta(days=180):
            try:
                # Make an API request to fetch device prices
                response = requests.get("https://serpapi.com/search", params={

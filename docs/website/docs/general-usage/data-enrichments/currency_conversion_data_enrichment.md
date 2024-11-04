@@ -159,7 +159,7 @@ API token.
 
         # Update the exchange rate if it's older than 12 hours
         if (currency_pair_state.get("rate") is None or
-            (datetime.datetime.utcnow() - currency_pair_state["last_update"] >= timedelta(hours=12))):
+            (datetime.datetime.utcnow() - currency_pair_state["last_update"] >= datetime.timedelta(hours=12))):
             url = f"https://v6.exchangerate-api.com/v6/{api_key}/pair/{base_currency}/{target_currency}"
             response = requests.get(url)
             if response.status_code == 200:

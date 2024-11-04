@@ -354,7 +354,7 @@ verified source.
     min_start_date = pendulum.DateTime(year=2023, month=1, day=1).in_timezone("UTC")
     max_end_date = pendulum.today()
     # Generate tuples of date ranges, each with 1 week in between.
-    ranges = make_date_ranges(min_start_date, max_end_date, timedelta(weeks=1))
+    ranges = make_date_ranges(min_start_date, max_end_date, datetime.timedelta(weeks=1))
 
     # Run the pipeline in a loop for each 1-week range
     for start, end in ranges:
