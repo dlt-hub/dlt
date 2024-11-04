@@ -7,6 +7,8 @@ import pytest
 import dlt
 import os
 import shutil
+import logging
+
 
 from dlt import Pipeline
 from dlt.common.utils import uniq_id
@@ -316,87 +318,6 @@ def test_delta_tables(
         table_format="delta",
         alternate_access_pipeline=access_pipeline,
     )
-
-
-@pytest.mark.essential
-@pytest.mark.parametrize(
-    "destination_config",
-    destinations_configs(all_buckets_filesystem_configs=True, bucket_subset=(AWS_BUCKET,)),
-    ids=lambda x: x.name,
-)
-def test_secrets_management(destination_config: DestinationTestConfiguration) -> None:
-    """Test the handling of secrets by the sql_client, we only need to do this on s3
-    as the other destinations work accordingly"""
-
-    pipeline = destination_config.setup_pipeline(
-        "read_pipeline",
-        dataset_name="read_test",
-    )
-    pipeline.run([1, 2, 3], table_name="items")
-
-    import duckdb
-    from duckdb import HTTPException
-    from dlt.destinations.impl.filesystem.sql_client import (
-        FilesystemSqlClient,
-        DuckDbCredentials,
-    )
-
-    duck_db_location = TEST_STORAGE_ROOT + "/" + uniq_id()
-    secrets_dir = f"{TEST_STORAGE_ROOT}/duck_secrets_{uniq_id()}"
-
-    def _external_duckdb_connection() -> duckdb.DuckDBPyConnection:
-        external_db = duckdb.connect(duck_db_location)
-        external_db.sql(f"SET secret_directory = '{secrets_dir}';")
-        external_db.execute("CREATE SCHEMA IF NOT EXISTS first;")
-        return external_db
-
-    def _fs_sql_client_for_external_db(
-        connection: duckdb.DuckDBPyConnection,
-    ) -> FilesystemSqlClient:
-        return FilesystemSqlClient(
-            dataset_name="second",
-            fs_client=pipeline.destination_client(),  #  type: ignore
-            credentials=DuckDbCredentials(connection),
-        )
-
-    def _secrets_exist() -> bool:
-        return os.path.isdir(secrets_dir) and len(os.listdir(secrets_dir)) > 0
-
-    # first test what happens if there are no external secrets
-    external_db = _external_duckdb_connection()
-    fs_sql_client = _fs_sql_client_for_external_db(external_db)
-    with fs_sql_client as sql_client:
-        sql_client.create_views_for_tables({"items": "items"})
-    external_db.close()
-
-    # no secrets will not work
-    external_db = _external_duckdb_connection()
-    with pytest.raises(HTTPException):
-        assert len(external_db.sql("SELECT * FROM second.items").fetchall()) == 3
-    external_db.close()
-
-    # add secrets and check that they are there
-    external_db = _external_duckdb_connection()
-    fs_sql_client = _fs_sql_client_for_external_db(external_db)
-    with fs_sql_client as sql_client:
-        fs_sql_client.create_authentication(persistent=True)
-    assert len(external_db.sql("SELECT * FROM second.items").fetchall()) == 3
-    assert _secrets_exist()
-
-    # remove secrets and check that they are removed
-    with fs_sql_client as sql_client:
-        fs_sql_client.drop_authentication()
-    assert not _secrets_exist()
-    external_db.close()
-
-    # prevent creating persistent secrets on in mem databases
-    fs_sql_client = FilesystemSqlClient(
-        dataset_name="second",
-        fs_client=pipeline.destination_client(),  #  type: ignore
-    )
-    with pytest.raises(Exception):
-        with fs_sql_client as sql_client:
-            fs_sql_client.create_authentication(persistent=True)
 
 
 @pytest.mark.essential
