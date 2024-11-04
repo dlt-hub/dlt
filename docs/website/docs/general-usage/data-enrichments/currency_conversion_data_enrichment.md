@@ -153,20 +153,20 @@ API token.
         rates_state = dlt.current.resource_state().setdefault("rates", {})
         currency_pair_key = f"{base_currency}-{target_currency}"
         currency_pair_state = rates_state.setdefault(currency_pair_key, {
-            "last_update": datetime.min,
+            "last_update": datetime.datetime.min,
             "rate": None
         })
 
         # Update the exchange rate if it's older than 12 hours
         if (currency_pair_state.get("rate") is None or
-            (datetime.utcnow() - currency_pair_state["last_update"] >= timedelta(hours=12))):
+            (datetime.datetime.utcnow() - currency_pair_state["last_update"] >= timedelta(hours=12))):
             url = f"https://v6.exchangerate-api.com/v6/{api_key}/pair/{base_currency}/{target_currency}"
             response = requests.get(url)
             if response.status_code == 200:
                 data = response.json()
                 currency_pair_state.update({
                     "rate": data.get("conversion_rate"),
-                    "last_update": datetime.fromtimestamp(data.get("time_last_update_unix"))
+                    "last_update": datetime.datetime.fromtimestamp(data.get("time_last_update_unix"))
                 })
                 print(f"The latest rate of {data.get('conversion_rate')} for the currency pair {currency_pair_key} is fetched and updated.")
             else:

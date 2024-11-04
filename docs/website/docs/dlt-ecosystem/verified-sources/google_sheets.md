@@ -585,7 +585,7 @@ from dlt.helpers.airflow_helper import PipelineTasksGroup
 
 @dag(
     schedule_interval='@daily',
-    start_date=pendulum.datetime(2023, 2, 1),
+    start_date=pendulum.DateTime(2023, 2, 1),
     catchup=False,
     max_active_runs=1,
     default_args=default_task_args

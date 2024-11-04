@@ -192,8 +192,8 @@ If you wish to create your own pipelines, you can leverage source and resource m
    ```py
    source_single = stripe_source(
        endpoints=("Plan", "Charge"),
-       start_date=DateTime(2022, 1, 1),
-       end_date=DateTime(2022, 12, 31),
+       start_date=pendulum.DateTime(2022, 1, 1),
+       end_date=pendulum.DateTime(2022, 12, 31),
    )
    load_info = pipeline.run(source_single)
    print(load_info)
@@ -205,8 +205,8 @@ If you wish to create your own pipelines, you can leverage source and resource m
     # Load all data on the first run that was created after start_date and before end_date
     source_incremental = incremental_stripe_source(
         endpoints=("Invoice", ),
-        initial_start_date=DateTime(2022, 1, 1),
-        end_date=DateTime(2022, 12, 31),
+        initial_start_date=pendulum.DateTime(2022, 1, 1),
+        end_date=pendulum.DateTime(2022, 12, 31),
     )
     load_info = pipeline.run(source_incremental)
     print(load_info)
@@ -218,7 +218,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
     ```py
     source_single = stripe_source(
         endpoints=("Plan", "Charge"),
-        start_date=DateTime(2022, 12, 31),
+        start_date=pendulum.DateTime(2022, 12, 31),
     )
     source_incremental = incremental_stripe_source(
         endpoints=("Invoice", ),

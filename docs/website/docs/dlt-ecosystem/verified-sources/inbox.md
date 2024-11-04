@@ -240,7 +240,7 @@ verified source.
 
 2. To load messages from "mycreditcard@bank.com" starting "2023-10-1":
 
-    - Set `START_DATE = pendulum.datetime(2023, 10, 1)` in `./inbox/settings.py`.
+    - Set `START_DATE = pendulum.DateTime(2023, 10, 1)` in `./inbox/settings.py`.
     - Use the following code:
       ```py
       # Retrieve messages from the specified email address.

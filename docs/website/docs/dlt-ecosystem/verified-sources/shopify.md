@@ -269,7 +269,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
    ```py
    # Load all orders from 2023-01-01 to now
-   min_start_date = current_start_date = pendulum.datetime(2023, 1, 1)
+   min_start_date = current_start_date = pendulum.DateTime(2023, 1, 1)
    max_end_date = pendulum.now()
    # Create a list of time ranges of 1 week each, we'll use this to load the data in chunks
    ranges: List[Tuple[pendulum.DateTime, pendulum.DateTime]] = []

@@ -857,8 +857,8 @@ from dlt.helpers.airflow_helper import PipelineTasksGroup
 
 @dag(
     schedule_interval='@weekly',
-    start_date=pendulum.datetime(2023, 2, 1),
-    end_date=pendulum.datetime(2023, 8, 1),
+    start_date=pendulum.DateTime(2023, 2, 1),
+    end_date=pendulum.DateTime(2023, 8, 1),
     catchup=True,
     max_active_runs=1,
     default_args=default_task_args
@@ -895,7 +895,7 @@ You can repurpose the DAG above to start loading new data incrementally after (o
 ```py
 @dag(
     schedule_interval='@daily',
-    start_date=pendulum.datetime(2023, 2, 1),
+    start_date=pendulum.DateTime(2023, 2, 1),
     catchup=False,
     max_active_runs=1,
     default_args=default_task_args

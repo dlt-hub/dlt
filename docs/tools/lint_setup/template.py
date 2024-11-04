@@ -21,9 +21,9 @@ import os
 import duckdb
 import urllib
 import itertools
-
-from datetime import datetime, timedelta  # noqa: I251
-from pendulum import DateTime  # noqa: I251
+import pendulum
+import airflow
+import datetime
 
 from airflow.decorators import dag
 
@@ -60,6 +60,7 @@ from dlt.extract import DltResource, DltSource
 from dlt.common.storages.configuration import FileSystemCredentials
 from dlt.pipeline.exceptions import PipelineStepFailed
 from dlt.common.schema import DataValidationError
+
 #
 # dlt core sources
 #
@@ -117,7 +118,6 @@ _get_path_with_retry: Callable[..., Any] = None  # type: ignore[assignment]
 #
 #
 
-
 #
 # Some snippet specific constants (NOTE: please only use these if you can't use one of the above)
 #
@@ -129,9 +129,9 @@ TENANT_ID: str = ""
 REPO_NAME: str = ""
 MAX_PAGE_SIZE: int = 100
 API_VERSION: str = ""
-FIRST_DAY_OF_MILLENNIUM: TAnyDateTime = pendulum.datetime(2000, 1, 1)
-START_DATE: DateTime = pendulum.datetime(2024, 1, 1)
-END_DATE: DateTime = pendulum.datetime(2024, 12, 31)
+FIRST_DAY_OF_MILLENNIUM: TAnyDateTime = pendulum.DateTime(2000, 1, 1)
+START_DATE: DateTime = pendulum.DateTime(2024, 1, 1)
+END_DATE: DateTime = pendulum.DateTime(2024, 12, 31)
 START_DATE_STRING: str = ""
 API_KEY: str = ""
 ITEMS_PER_PAGE: int = 100

@@ -144,7 +144,7 @@ The first step is to register on [SerpAPI](https://serpapi.com/) and obtain the 
        device_info = dlt.current.resource_state().setdefault("devices", {})
 
        # Current timestamp for checking the last update
-       current_timestamp = datetime.now()
+       current_timestamp = datetime.datetime.now()
 
        # Print the current device information
        # print(device_info) # if you need to check state
@@ -156,7 +156,7 @@ The first step is to register on [SerpAPI](https://serpapi.com/) and obtain the 
        # Calculate the time since the last update
        last_updated = (
            current_timestamp -
-           device_data.get('timestamp', datetime.min)
+           device_data.get('timestamp', datetime.datetime.min)
        )
        # Check if the device is not in state or data is older than 180 days
        if device not in device_info or last_updated > timedelta(days=180):

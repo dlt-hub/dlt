@@ -188,7 +188,7 @@ this offset.
 4. To extract messages, starting from a timestamp:
 
    ```py
-    resource = kafka_consumer("topic", start_from=pendulum.datetime(2023, 12, 15))
+    resource = kafka_consumer("topic", start_from=pendulum.DateTime(2023, 12, 15))
     pipeline.run(resource)
    ```
 
