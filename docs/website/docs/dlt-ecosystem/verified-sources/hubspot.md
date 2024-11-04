@@ -156,8 +156,8 @@ This resource function fetches data from the "companies" endpoint and loads it t
 ```py
 @dlt.resource(name="companies", write_disposition="replace")
 def companies(
-   api_key: str = api_key,
-   include_history: bool = include_history,
+   api_key: str = API_KEY,
+   include_history: bool = False,
    props: Sequence[str] = DEFAULT_COMPANY_PROPS,
    include_custom_props: bool = True,
 ) -> Iterator[TDataItems]:

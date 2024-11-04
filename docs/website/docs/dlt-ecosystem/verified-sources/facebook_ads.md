@@ -208,7 +208,7 @@ def ads(
     chunk_size: int = 50
 ) -> Iterator[TDataItems]:
 
-  yield get_data_chunked(account.get_ads, fields, states, chunk_size)
+  yield _get_data_chunked(account.get_ads, fields, states, chunk_size)
 ```
 
 `fields`: Retrieves fields for each ad. For example, “id”, “name”, “adset_id”, etc.

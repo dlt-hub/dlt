@@ -52,6 +52,7 @@ from dlt.common.configuration.specs import (
     GcpServiceAccountCredentials,
 )
 from dlt.common.libs.pyarrow import Table as ArrowTable
+from dlt.common.data_writers import TDataItemFormat
 
 from dlt.extract.source import SourceFactory
 from dlt.extract.items import DataItemWithMeta
@@ -73,7 +74,6 @@ from dlt.sources.helpers.rest_client.paginators import (
     PageNumberPaginator,
 )
 from dlt.sources.helpers.rest_client.auth import BearerTokenAuth, AuthConfigBase
-
 from dlt.sources.helpers import requests
 
 #
@@ -88,8 +88,30 @@ url: str = None  # type: ignore[assignment]
 resource: DltResource = None  # type: ignore[assignment]
 data: List[Any] = None  # type: ignore[assignment]
 item: Any = None  # type: ignore[assignment]
-my_callable: Callable[..., Any] = None  # type: ignore[assignment]
 arrow_table: ArrowTable = None  # type: ignore[assignment]
+
+my_callable: Callable[..., Any] = None  # type: ignore[assignment]
+
+# getters for items
+_get_event_pages: Callable[..., Any] = None  # type: ignore[assignment]
+_get_rest_pages: Callable[..., Any] = None  # type: ignore[assignment]
+_get_issues_page: Callable[..., Any] = None  # type: ignore[assignment]
+_get_data: Callable[..., Any] = None  # type: ignore[assignment]
+_get_data_chunked: Callable[..., Any] = None  # type: ignore[assignment]
+_get_players_archives: Callable[..., Any] = None  # type: ignore[assignment]
+_get_paginated: Callable[..., Any] = None  # type: ignore[assignment]
+_get_users: Callable[..., Any] = None  # type: ignore[assignment]
+_get_orders: Callable[..., Any] = None  # type: ignore[assignment]
+_get_users: Callable[..., Any] = None  # type: ignore[assignment]
+_get_details: Callable[..., Any] = None  # type: ignore[assignment]
+_get_records: Callable[..., Any] = None  # type: ignore[assignment]
+_get_sheet: Callable[..., Any] = None  # type: ignore[assignment]
+
+# helpers
+_hash_str: Callable[..., Any] = None  # type: ignore[assignment]
+_get_batch_from_bucket: Callable[..., Any] = None  # type: ignore[assignment]
+_get_primary_key: Callable[..., Any] = None  # type: ignore[assignment]
+_get_path_with_retry: Callable[..., Any] = None  # type: ignore[assignment]
 
 #
 #
@@ -102,8 +124,8 @@ arrow_table: ArrowTable = None  # type: ignore[assignment]
 SERVER_NAME: str = ""
 DATABASE_NAME: str = ""
 SERVICE_PRINCIPAL_ID: str = ""
-TENANT_ID: str = ""
 SERVICE_PRINCIPAL_SECRETS: str = ""
+TENANT_ID: str = ""
 REPO_NAME: str = ""
 MAX_PAGE_SIZE: int = 100
 API_VERSION: str = ""
@@ -111,7 +133,7 @@ FIRST_DAY_OF_MILLENNIUM: TAnyDateTime = pendulum.datetime(2000, 1, 1)
 START_DATE: DateTime = pendulum.datetime(2024, 1, 1)
 END_DATE: DateTime = pendulum.datetime(2024, 12, 31)
 START_DATE_STRING: str = ""
-MY_API_KEY: str = ""
+API_KEY: str = ""
 ITEMS_PER_PAGE: int = 100
 CHUNK_SIZE: int = 500
 ENDPOINTS: List[str] = []
@@ -148,3 +170,6 @@ TASK_FIELDS: List[str] = []
 # docs/website/docs/dlt-ecosystem/destinations/weaviate.md
 vectorize: List[str] = []
 tokenization: Dict[str, Any] = {}
+
+# docs/website/docs/dlt-ecosystem/verified-sources/chess.md
+players_online_status: DltResource = None  # type: ignore[assignment]

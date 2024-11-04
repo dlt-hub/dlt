@@ -581,6 +581,8 @@ Below is the correct way to set up an Airflow DAG for this purpose:
 - When adding the Google Spreadsheet task to the pipeline, avoid decomposing it; run it as a single task for efficiency.
 
 ```py
+from dlt.helpers.airflow_helper import PipelineTasksGroup
+
 @dag(
     schedule_interval='@daily',
     start_date=pendulum.datetime(2023, 2, 1),

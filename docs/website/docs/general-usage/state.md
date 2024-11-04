@@ -21,7 +21,7 @@ def players_games(chess_url, player, start_month=None, end_month=None):
     # create or request a list of archives from resource-scoped state
     checked_archives = dlt.current.resource_state().setdefault("archives", [])
     # get a list of archives for a particular player
-    archives = player_archives(chess_url, player)
+    archives = _get_players_archives(chess_url, player)
     for url in archives:
         if url in checked_archives:
             print(f"skipping archive {url}")

@@ -317,8 +317,8 @@ Here's our script that defines transformations and loads the data:
 from pipedrive import users
 
 def anonymize_user(user_data):
-    user_data["user_id"] = hash_str(user_data["user_id"])
-    user_data["user_email"] = hash_str(user_data["user_email"])
+    user_data["user_id"] = _hash_str(user_data["user_id"])
+    user_data["user_email"] = _hash_str(user_data["user_email"])
     return user_data
 
 # add the filter and anonymize function to users resource and enumerate
@@ -452,11 +452,11 @@ def sql_table(credentials, schema, table):
 
     for idx, batch in enumerate(table_rows(engine, table_obj)):
       if idx == 0:
-        # Emit the first row with hints, table_to_columns and get_primary_key are helpers that extract dlt schema from
+        # Emit the first row with hints, table_to_columns and _get_primary_key are helpers that extract dlt schema from
         # SqlAlchemy model
         yield dlt.mark.with_hints(
             batch,
-            dlt.mark.make_hints(columns=table_to_columns(table_obj), primary_key=get_primary_key(table_obj)),
+            dlt.mark.make_hints(columns=table_to_columns(table_obj), primary_key=_get_primary_key(table_obj)),
         )
       else:
         # Just yield all the other rows

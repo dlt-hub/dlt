@@ -27,7 +27,7 @@ And use it just like you would use `requests`:
 ```py
 response = requests.get(
     'https://example.com/api/contacts',
-    headers={'Authorization': MY_API_KEY}
+    headers={'Authorization': API_KEY}
 )
 data = response.json()
 ...

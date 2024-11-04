@@ -182,7 +182,7 @@ def google_sheets(
     sheets = build('sheets', 'v4', credentials=ServiceAccountCredentials.from_service_account_info(credentials))
     tabs = []
     for tab_name in tab_names:
-        data = get_sheet(sheets, spreadsheet_id, tab_name)
+        data = _get_sheet(sheets, spreadsheet_id, tab_name)
         tabs.append(dlt.resource(data, name=tab_name))
     return tabs
 ```

@@ -853,6 +853,8 @@ We opt-in to the Airflow scheduler by setting `allow_external_schedulers` to `Tr
 Let's generate a deployment with `dlt deploy zendesk_pipeline.py airflow-composer` and customize the DAG:
 
 ```py
+from dlt.helpers.airflow_helper import PipelineTasksGroup
+
 @dag(
     schedule_interval='@weekly',
     start_date=pendulum.datetime(2023, 2, 1),
@@ -1166,7 +1168,7 @@ def tweets():
     # Get the last value from loaded metadata. If it does not exist, get None
     last_val = dlt.current.resource_state().setdefault("last_updated", None)
     # Get data and yield it
-    data = get_data(start_from=last_val)
+    data = _get_data(start_from=last_val)
     yield data
     # Change the state to the new value
     dlt.current.resource_state()["last_updated"] = data["last_timestamp"]
@@ -1217,7 +1219,7 @@ def players_games(chess_url, players, start_month=None, end_month=None):
     # when the data is loaded, the cache is updated with our loaded_archives_cache
 
     # Get archives for a given player
-    archives = get_players_archives(chess_url, players)
+    archives = _get_players_archives(chess_url, players)
     for url in archives:
         # If not in cache, yield the data and cache the URL
         if url not in loaded_archives_cache:
@@ -1242,7 +1244,7 @@ def search_tweets(twitter_bearer_token=dlt.secrets.value, search_terms=None, sta
         print(f'last_value_cache: {last_value_cache}')
         params = {...}
         url = "https://api.twitter.com/2/tweets/search/recent"
-        response = _paginated_get(url, headers=headers, params=params)
+        response = _get_paginated(url, headers=headers, params=params)
         for page in response:
             page['search_term'] = search_term
             last_id = page.get('meta', {}).get('newest_id', 0)

@@ -123,7 +123,7 @@ def players_profiles(players: List[str]) -> Iterator[TDataItem]:
 
     @dlt.defer
     def _get_profile(username: str) -> TDataItem:
-        return get_path_with_retry(f"player/{username}")
+        return _get_path_with_retry(f"player/{username}")
     
     for username in players:
         yield _get_profile(username)
