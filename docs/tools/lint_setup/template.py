@@ -49,8 +49,7 @@ from dlt.common.configuration.specs import (
     BaseConfiguration,
     AwsCredentials,
     GcpOAuthCredentials,
-    GcpServiceAccountCredentials,#
-    
+    GcpServiceAccountCredentials,
 )
 from dlt.common.libs.pyarrow import Table as ArrowTable
 

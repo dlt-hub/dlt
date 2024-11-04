@@ -225,7 +225,7 @@ def lint_snippets(snippets: List[Snippet], verbose: bool) -> None:
 
     if "error" in result.stdout.lower():
         fmt.echo(result.stdout.strip())
-        fmt.error(f"Failed to lint some snippets")
+        fmt.error("Failed to lint some snippets")
         exit(1)
 
     fmt.note("All snippets could be linted")
@@ -245,7 +245,7 @@ def typecheck_snippets(snippets: List[Snippet], verbose: bool) -> None:
     if "no issues found" not in result.stdout.lower():
         fmt.echo(result.stdout.strip())
         fmt.echo(result.stderr.strip())
-        fmt.error(f"Failed to type check some snippets")
+        fmt.error("Failed to type check some snippets")
         exit(1)
 
     fmt.note("All snippets passed type checking")
