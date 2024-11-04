@@ -40,13 +40,14 @@ def ensure_delta_compatible_arrow_schema(
     }
 
     # partition fields can't be dictionary: https://github.com/delta-io/delta-rs/issues/2969
-    if isinstance(partition_by, str):
-        partition_by = [partition_by]
-    if any(pa.types.is_dictionary(schema.field(col).type) for col in partition_by):
-        # cast all dictionary fields to string — this is rogue because
-        # 1. dictionary value type is disregarded
-        # 2. any non-partition dictionary fields are cast too
-        ARROW_TO_DELTA_COMPATIBLE_ARROW_TYPE_MAP[pa.types.is_dictionary] = pa.string()
+    if partition_by is not None:
+        if isinstance(partition_by, str):
+            partition_by = [partition_by]
+        if any(pa.types.is_dictionary(schema.field(col).type) for col in partition_by):
+            # cast all dictionary fields to string — this is rogue because
+            # 1. dictionary value type is disregarded
+            # 2. any non-partition dictionary fields are cast too
+            ARROW_TO_DELTA_COMPATIBLE_ARROW_TYPE_MAP[pa.types.is_dictionary] = pa.string()
 
     # NOTE: also consider calling _convert_pa_schema_to_delta() from delta.schema which casts unsigned types
     return cast_arrow_schema_types(schema, ARROW_TO_DELTA_COMPATIBLE_ARROW_TYPE_MAP)
