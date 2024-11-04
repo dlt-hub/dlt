@@ -13,8 +13,7 @@ If certain columns should not be normalized, you can mark them as `json`. This c
 
 1. When fetching the source data.
    ```py
-   source_data = my_source()
-   source_data.resource3.apply_hints(
+   my_source.resource3.apply_hints(
        columns={
            "column_name": {
                "data_type": "json"
@@ -61,7 +60,7 @@ p = dlt.pipeline(
 )
 
 # Extract data using the predefined source `my_source`
-p.extract(my_source().add_limit(10))
+p.extract(my_source.add_limit(10))
 
 # Normalize the data structure for consistency
 p.normalize()

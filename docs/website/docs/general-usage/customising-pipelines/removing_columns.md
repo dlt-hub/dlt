@@ -59,7 +59,7 @@ Let's create a sample pipeline demonstrating the process of removing a column.
    data_source = dummy_source()
 
    # Modify this source instance's resource
-   data_source = data_source.dummy_data.add_map(
+   data_source.dummy_data.add_map(
        lambda doc: remove_columns(doc, remove_columns_list)
    )
    ```

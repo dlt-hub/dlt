@@ -252,7 +252,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
    ```py
    load_data = github_repo_events(
-       "duckdb", "duckdb", access_token=os.getenv(ACCESS_TOKEN)
+       "duckdb", "duckdb", access_token=os.getenv("ACCESS_TOKEN_ENV_VAR")
    )
    load_info = pipeline.run(load_data)
    print(load_info)

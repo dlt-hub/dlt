@@ -113,7 +113,7 @@ API token.
    information securely, like access tokens. Keep this file safe. Here's its format for service
    account authentication:
 
-   ```py
+   ```toml
    [sources]
    api_key= "Please set me up!"  # ExchangeRate-API key
    ```
@@ -147,7 +147,7 @@ API token.
         target_currency = "EUR"
 
         # Retrieve the API key from DLT secrets
-        api_key = dlt.secrets.get("sources.api_key")
+        api_key: str = dlt.secrets.get("sources.api_key")
 
         # Initialize or retrieve the state for currency rates
         rates_state = dlt.current.resource_state().setdefault("rates", {})

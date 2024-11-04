@@ -181,7 +181,7 @@ def items():
 The below code will raise an error on any encountered schema change. Note: You can always set a string which will be interpreted as though all keys are set to these values.
 
 ```py
-pipeline.run(my_source(), schema_contract="freeze")
+pipeline.run(my_source, schema_contract="freeze")
 ```
 
 The below code defines some settings on the source which can be overwritten on the resource, which in turn can be overwritten by the global override on the `run` method.
@@ -198,15 +198,15 @@ def other_items():
     ...
 
 @dlt.source(schema_contract={"columns": "freeze", "data_type": "freeze"})
-def source():
+def frozen_source():
   return [items(), other_items()]
 
 
 # this will use the settings defined by the decorators
-pipeline.run(source())
+pipeline.run(frozen_source())
 
 # this will freeze the whole schema, regardless of the decorator settings
-pipeline.run(source(), schema_contract="freeze")
+pipeline.run(frozen_source(), schema_contract="freeze")
 
 ```
 

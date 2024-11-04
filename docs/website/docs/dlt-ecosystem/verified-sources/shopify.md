@@ -145,6 +145,7 @@ For more information, read the guide on [how to run a pipeline](../../walkthroug
 This function returns a list of resources to load products, orders, and customers data from the Shopify API.
 
 ```py
+@dlt.source()
 def shopify_source(
     private_app_password: str = dlt.secrets.value,
     api_version: str = DEFAULT_API_VERSION,
@@ -258,9 +259,8 @@ If you wish to create your own pipelines, you can leverage source and resource m
    ```py
    # Add your desired resources to the list...
    resources = ["products", "orders", "customers"]
-   start_date="2023-01-01"
 
-   load_data = shopify_source(start_date=start_date).with_resources(*resources)
+   load_data = shopify_source(start_date="2023-01-01").with_resources(*resources)
    load_info = pipeline.run(load_data)
    print(load_info)
    ```

@@ -180,7 +180,7 @@ For more information, read the guide on [how to add a verified source.](../../wa
    information securely, like access tokens. Keep this file safe. Here's its format for service
    account authentication:
 
-   ```py
+   ```toml
    #Zendesk support credentials
    [sources.zendesk.credentials]
    subdomain = "subdomain" # Zendesk subdomain

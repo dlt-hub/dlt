@@ -189,7 +189,7 @@ def prepare_for_linting(snippets: List[Snippet]) -> None:
         lint_template = f.read()
 
     # prepare folder
-    # shutil.rmtree(LINT_FOLDER, ignore_errors=True)
+    shutil.rmtree(LINT_FOLDER, ignore_errors=True)
 
     # assemble files
     files: Dict[str, str] = {}
@@ -238,7 +238,9 @@ def typecheck_snippets(snippets: List[Snippet], verbose: bool) -> None:
     fmt.secho(fmt.bold("Type checking Python snippets"))
 
     prepare_for_linting(snippets)
-    result = subprocess.run(["mypy", LINT_FOLDER], capture_output=True, text=True)
+    result = subprocess.run(
+        ["mypy", LINT_FOLDER, "--check-untyped-defs"], capture_output=True, text=True
+    )
 
     if "no issues found" not in result.stdout.lower():
         fmt.echo(result.stdout.strip())

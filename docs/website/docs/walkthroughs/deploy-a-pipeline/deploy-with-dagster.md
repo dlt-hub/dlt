@@ -256,12 +256,12 @@ For a complete picture of Dagster's integration with dlt, please refer to their 
       for query in queries:
           dimensions = query["dimensions"]
           if "date" not in dimensions:
-              dimensions.append("date")
+              dimensions.append("date") # type: ignore[attr-defined]
 
-          resource_name = query["resource_name"]
+          resource_name: str = query["resource_name"] # type: ignore[assignment]
           resource_list.append(
               bigquery_adapter(
-                  dlt.resource(basic_report, name=resource_name, write_disposition="append")(
+                  dlt.resource(data, name=resource_name, write_disposition="append")(
                       client=client,
                       rows_per_page=rows_per_page,
                       property_id=property_id,

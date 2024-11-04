@@ -232,12 +232,12 @@ print(list([1,2] | pokemon()))
 A standalone resource is defined on a function that is top-level in a module (not an inner function) that accepts config and secrets values. Additionally, if the `standalone` flag is specified, the decorated function signature and docstring will be preserved. `dlt.resource` will just wrap the decorated function, and the user must call the wrapper to get the actual resource. Below we declare a `filesystem` resource that must be called before use.
 ```py
 @dlt.resource(standalone=True)
-def filesystem(bucket_url=dlt.config.value):
+def fs_resource(bucket_url=dlt.config.value):
   """List and yield files in `bucket_url`."""
   ...
 
 # `filesystem` must be called before it is extracted or used in any other way.
-pipeline.run(filesystem("s3://my-bucket/reports"), table_name="reports")
+pipeline.run(fs_resource("s3://my-bucket/reports"), table_name="reports")
 ```
 
 Standalone may have a dynamic name that depends on the arguments passed to the decorated function. For example:
@@ -306,7 +306,7 @@ import dlt
 @dlt.resource(write_disposition="replace")
 def users():
     ...
-    users = requests.get(...)
+    users = requests.get(RESOURCE_URL)
     ...
     yield users
 ```
@@ -477,8 +477,7 @@ You can import external files, i.e., CSV, Parquet, and JSONL, by yielding items 
 ```py
 import os
 import dlt
-
-from filesystem import filesystem
+from dlt.sources.filesystem import filesystem
 
 columns: List[TColumnSchema] = [
     {"name": "id", "data_type": "bigint"},
@@ -501,7 +500,8 @@ def orders(items: Iterator[FileItemDict]):
       yield dlt.mark.with_file_import(dest_file, "csv")
 
 
-# use the filesystem verified source to glob a bucket
+# use the filesystem core source to glob a bucket
+
 downloader = filesystem(
   bucket_url="s3://my_bucket/csv",
   file_glob="today/*.csv.gz") | orders
@@ -527,9 +527,10 @@ You can sniff the schema from the data, i.e., using DuckDB to infer the table sc
 
 ### Duplicate and rename resources
 There are cases when your resources are generic (i.e., bucket filesystem) and you want to load several instances of it (i.e., files from different folders) into separate tables. In the example below, we use the `filesystem` source to load csvs from two different folders into separate tables:
+
 ```py
 @dlt.resource(standalone=True)
-def filesystem(bucket_url):
+def fs_resource(bucket_url):
   # list and yield files in bucket_url
   ...
 
@@ -540,8 +541,8 @@ def csv_reader(file_item):
 
 # create two extract pipes that list files from the bucket and send them to the reader.
 # by default, both pipes will load data to the same table (csv_reader)
-reports_pipe = filesystem("s3://my-bucket/reports") | load_csv()
-transactions_pipe = filesystem("s3://my-bucket/transactions") | load_csv()
+reports_pipe = fs_resource("s3://my-bucket/reports") | csv_reader()
+transactions_pipe = fs_resource("s3://my-bucket/transactions") | csv_reader()
 
 # so we rename resources to load to "reports" and "transactions" tables
 pipeline.run(

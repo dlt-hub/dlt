@@ -90,7 +90,7 @@ In essence, you need to set up two destinations and then pass them to `dlt.pipel
     ```
     `dlt` will automatically select an appropriate loader file format for the staging files. Below, we explicitly specify the Parquet file format (just to demonstrate how to do it):
     ```py
-    info = pipeline.run(chess(), loader_file_format="parquet")
+    info = pipeline.run(chess_source(), loader_file_format="parquet")
     ```
 
 5. **Run the pipeline script.**

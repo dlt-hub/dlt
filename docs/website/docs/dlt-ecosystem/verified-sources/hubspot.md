@@ -140,6 +140,7 @@ This function returns a list of resources to load companies, contacts, deals, ti
 def hubspot(
     api_key: str = dlt.secrets.value,
     include_history: bool = False,
+    include_custom_props=include_custom_props,
 ) -> Sequence[DltResource]:
    ...
 ```
@@ -182,7 +183,7 @@ def hubspot_events_for_objects(
      object_type: THubspotObjectType,
      object_ids: List[str],
      api_key: str = dlt.secrets.value,
-     start_date: pendulum.DateTime = STARTDATE,
+     start_date: DateTime = START_DATE,
 ) -> DltResource:
    ...
 ```

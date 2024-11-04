@@ -200,7 +200,7 @@ To create your data loading pipeline for players and load data, follow these ste
 
    ```py
    # Loads games for Nov 2022
-   data = source(
+   source_instance = chess_source(
        ["magnuscarlsen", "vincentkeymer", "dommarajugukesh", "rpragchess"],
        start_month="2022/11",
        end_month="2022/11",
@@ -210,7 +210,7 @@ To create your data loading pipeline for players and load data, follow these ste
 1. Use the method `pipeline.run()` to execute the pipeline.
 
    ```py
-   info = pipeline.run(data)
+   info = pipeline.run(source_instance)
    # print the information on data that was loaded
    print(info)
    ```
@@ -218,7 +218,7 @@ To create your data loading pipeline for players and load data, follow these ste
 1. To load data from specific resources like "players_games" and "player_profiles", modify the above code as:
 
    ```py
-   info = pipeline.run(data.with_resources("players_games", "players_profiles"))
+   info = pipeline.run(source_instance.with_resources("players_games", "players_profiles"))
    # print the information on data that was loaded
    print(info)
    ```

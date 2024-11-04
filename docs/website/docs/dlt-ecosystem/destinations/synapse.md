@@ -99,10 +99,10 @@ To use **Active Directory Principal**, you can use the `sqlalchemy.engine.URL.cr
 ```py
 conn_str = (
     f"DRIVER={{ODBC Driver 18 for SQL Server}};"
-    f"SERVER={server_name};"
-    f"DATABASE={database_name};"
-    f"UID={service_principal_id}@{tenant_id};"
-    f"PWD={service_principal_secret};"
+    f"SERVER={SERVER_NAME};"
+    f"DATABASE={DATABASE_NAME};"
+    f"UID={SERVICE_PRINCIPAL_ID}@{TENANT_ID};"
+    f"PWD={SERVICE_PRINCIPAL_SECRETS};"
     f"Authentication=ActiveDirectoryServicePrincipal"
 )
 ```

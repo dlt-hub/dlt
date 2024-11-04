@@ -235,8 +235,10 @@ To create your data pipeline using single loading and [incremental data loading]
 1. To load data from all the endpoints, use the `salesforce_source` method as follows:
 
    ```py
+   from dlt.common.schema.typing import TSimpleRegex
+
    load_data = salesforce_source()
-   source.schema.merge_hints({"not_null": ["id"]})  # Hint for id field not null
+   source.schema.merge_hints({"not_null": [TSimpleRegex("id")]})  # Hint for id field not null
    load_info = pipeline.run(load_data)
    # print the information on data that was loaded
    print(load_info)

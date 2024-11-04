@@ -197,7 +197,7 @@ def tasks(
     project_array: t.List[TDataItem],
     access_token: str = dlt.secrets.value,
     modified_at: dlt.sources.incremental[str] = dlt.sources.incremental(
-        "modified_at", initial_value=DEFAULT_START_DATE
+        "modified_at", initial_value=DEFAULT_START_DATE_STRING
     ),
     fields: Iterable[str] = TASK_FIELDS,
 ) -> Iterable[TDataItem]:

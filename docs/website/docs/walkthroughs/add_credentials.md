@@ -115,7 +115,7 @@ import dlt
 from dlt.sources.helpers import requests
 from dlt.common.configuration.inject import with_config
 from dlt.common.configuration.specs import GcpServiceAccountCredentials
-from google.cloud import secretmanager
+from google.cloud import secretmanager # type: ignore[attr-defined]
 
 @with_config(sections=("google_secrets",))
 def get_secret_dict(secret_id: str, credentials: GcpServiceAccountCredentials = dlt.secrets.value) -> dict:

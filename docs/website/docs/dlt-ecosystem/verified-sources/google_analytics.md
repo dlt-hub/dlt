@@ -249,10 +249,10 @@ the Google Analytics API.
 ```py
 @dlt.source(max_table_nesting=2)
 def google_analytics(
-    credentials: Union[ GcpOAuthCredentials, GcpServiceAccountCredential ] = dlt.secrets.value,
+    credentials: Union[ GcpOAuthCredentials, GcpServiceAccountCredentials ] = dlt.secrets.value,
     property_id: int = dlt.config.value,
     queries: List[DictStrAny] = dlt.config.value,
-    start_date: Optional[str] = START_DATE,
+    start_date: Optional[str] = START_DATE_STRING,
     rows_per_page: int = 1000,
 ) -> List[DltResource]:
    ...

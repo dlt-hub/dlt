@@ -1097,7 +1097,7 @@ is_second_run = False
 def events_resource(
     _=dlt.sources.incremental("created_at", lag=3600, last_value_func=max)
 ):
-    nonlocal is_second_run
+    global is_second_run
 
     # Data for the initial run
     initial_entries = [

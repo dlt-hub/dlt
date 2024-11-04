@@ -120,7 +120,7 @@ You can write your own pipelines to load data to a destination using this verifi
 
 ```py
 # The most popular Stripe API's endpoints
-ENDPOINTS = ("Subscription", "Account", "Coupon", "Customer", "Product", "Price")
+STRIPE_ENDPOINTS = ("Subscription", "Account", "Coupon", "Customer", "Product", "Price")
 # Possible incremental endpoints
 # The incremental endpoints default to Stripe API endpoints with uneditable data.
 INCREMENTAL_ENDPOINTS = ("Event", "Invoice", "BalanceTransaction")
@@ -134,7 +134,7 @@ This function retrieves data from the Stripe API for the specified endpoint:
 ```py
 @dlt.source
 def stripe_source(
-    endpoints: Tuple[str, ...] = ENDPOINTS,
+    endpoints: Tuple[str, ...] = STRIPE_ENDPOINTS,
     stripe_secret_key: str = dlt.secrets.value,
     start_date: Optional[DateTime] = None,
     end_date: Optional[DateTime] = None,
@@ -192,8 +192,8 @@ If you wish to create your own pipelines, you can leverage source and resource m
    ```py
    source_single = stripe_source(
        endpoints=("Plan", "Charge"),
-       start_date=datetime(2022, 1, 1),
-       end_date=datetime(2022, 12, 31),
+       start_date=DateTime(2022, 1, 1),
+       end_date=DateTime(2022, 12, 31),
    )
    load_info = pipeline.run(source_single)
    print(load_info)
@@ -205,8 +205,8 @@ If you wish to create your own pipelines, you can leverage source and resource m
     # Load all data on the first run that was created after start_date and before end_date
     source_incremental = incremental_stripe_source(
         endpoints=("Invoice", ),
-        initial_start_date=datetime(2022, 1, 1),
-        end_date=datetime(2022, 12, 31),
+        initial_start_date=DateTime(2022, 1, 1),
+        end_date=DateTime(2022, 12, 31),
     )
     load_info = pipeline.run(source_incremental)
     print(load_info)
@@ -218,7 +218,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
     ```py
     source_single = stripe_source(
         endpoints=("Plan", "Charge"),
-        start_date=datetime(2022, 12, 31),
+        start_date=DateTime(2022, 12, 31),
     )
     source_incremental = incremental_stripe_source(
         endpoints=("Invoice", ),

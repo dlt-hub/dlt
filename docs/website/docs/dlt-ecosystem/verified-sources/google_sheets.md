@@ -369,6 +369,7 @@ This function loads data from a Google Spreadsheet. It retrieves data from all s
 whether explicitly defined or named, and obtains metadata for the first two rows within each range.
 
 ```py
+@dlt.source()
 def google_spreadsheet(
       spreadsheet_url_or_id: str = dlt.config.value,
       range_names: Sequence[str] = dlt.config.value,
@@ -547,7 +548,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
      get_named_ranges=False,
    )
 
-   data.resources["Sheet 1!A1:B10"].apply_hints(table_name="loaded_data_1")
+   load_data.resources["Sheet 1!A1:B10"].apply_hints(table_name="loaded_data_1")
 
    load_info = pipeline.run(load_data)
    print(load_info)
