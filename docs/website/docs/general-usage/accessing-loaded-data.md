@@ -196,15 +196,15 @@ records = items_relation.fetchmany(chunk_size=10)
 ```py
 
 # dataframes
-for df_chunk in items_relation.select(["col1", "col2"]).limit(100).iter_df(chunk_size=20):
+for df_chunk in items_relation.select("col1", "col2").limit(100).iter_df(chunk_size=20):
     ...
 
 # arrow tables
-for arrow_table in items_relation.select(["col1", "col2"]).limit(100).iter_arrow(chunk_size=20):
+for arrow_table in items_relation.select("col1", "col2").limit(100).iter_arrow(chunk_size=20):
     ...
 
 # python tuples
-for records in items_relation.select(["col1", "col2"]).limit(100).iter_fetch(chunk_size=20):
+for records in items_relation.select("col1", "col2").limit(100).iter_fetch(chunk_size=20):
     # Process each modified DataFrame chunk
     ...
 ```
