@@ -610,6 +610,7 @@ def test_delta_table_partitioning_arrow_load_id(
 
     pipeline = destination_config.setup_pipeline("fs_pipe", dev_mode=True)
 
+    # append write disposition
     info = pipeline.run(
         pyarrow.table({"foo": [1]}),
         table_name="delta_table",
@@ -620,6 +621,20 @@ def test_delta_table_partitioning_arrow_load_id(
     dt = get_delta_tables(pipeline, "delta_table")["delta_table"]
     assert dt.metadata().partition_columns == ["_dlt_load_id"]
     assert load_table_counts(pipeline, "delta_table")["delta_table"] == 1
+
+    # merge write disposition
+    info = pipeline.run(
+        pyarrow.table({"foo": [1, 2]}),
+        table_name="delta_table",
+        write_disposition={"disposition": "merge", "strategy": "upsert"},
+        columns={"_dlt_load_id": {"partition": True}},
+        primary_key="foo",
+        table_format="delta",
+    )
+    assert_load_info(info)
+    dt = get_delta_tables(pipeline, "delta_table")["delta_table"]
+    assert dt.metadata().partition_columns == ["_dlt_load_id"]
+    assert load_table_counts(pipeline, "delta_table")["delta_table"] == 2
 
 
 @pytest.mark.essential

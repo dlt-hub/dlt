@@ -131,9 +131,10 @@ def merge_delta_table(
             primary_keys = get_columns_names_with_prop(schema, "primary_key")
             predicate = " AND ".join([f"target.{c} = source.{c}" for c in primary_keys])
 
+        partition_by = get_columns_names_with_prop(schema, "partition")
         qry = (
             table.merge(
-                source=ensure_delta_compatible_arrow_data(data),
+                source=ensure_delta_compatible_arrow_data(data, partition_by),
                 predicate=predicate,
                 source_alias="source",
                 target_alias="target",
