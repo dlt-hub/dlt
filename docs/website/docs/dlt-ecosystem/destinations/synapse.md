@@ -109,6 +109,8 @@ conn_str = (
 
 Next, create the connection URL:
 ```py
+from sqlalchemy.engine import URL
+
 connection_url = URL.create(
     "mssql+pyodbc",
     query={"odbc_connect": conn_str}
@@ -152,7 +154,7 @@ from dlt.destinations.adapters import synapse_adapter
 
 info = pipeline.run(
     synapse_adapter(
-        data=your_resource,
+        data=my_resource,
         table_index_type="clustered_columnstore_index",
     )
 )

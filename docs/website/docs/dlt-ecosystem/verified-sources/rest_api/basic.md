@@ -539,6 +539,8 @@ config = {
     "client": {
         "auth": BearerTokenAuth(dlt.secrets["your_api_token"]),
     },
+    "resources": [
+    ]
     # ...
 }
 ```
@@ -715,7 +717,7 @@ Instead of defining three different issues resources, one for each of the paths 
 from dlt.sources.rest_api import RESTAPIConfig
 
 @dlt.resource()
-def repositories() -> Generator[List[Dict[str, Any]]]:
+def repositories() -> Generator[List[Dict[str, Any]], Any, Any]:
     """A seed list of repositories to fetch"""
     yield [{"name": "dlt"}, {"name": "verified-sources"}, {"name": "dlthub-education"}]
 
@@ -745,7 +747,7 @@ Be careful that the parent resource needs to return `Generator[List[Dict[str, An
 
 ```py
 @dlt.resource
-def repositories() -> Generator[Dict[str, Any]]:
+def repositories() -> Generator[Dict[str, Any], Any, Any]:
     """Not working seed list of repositories to fetch"""
     yield from [{"name": "dlt"}, {"name": "verified-sources"}, {"name": "dlthub-education"}]
 ```

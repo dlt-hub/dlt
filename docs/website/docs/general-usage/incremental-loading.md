@@ -806,7 +806,6 @@ def stripe():
         created: dlt.sources.incremental=dlt.sources.incremental("created")
     ):
         ...
-        yield data
 
     # create resources for several endpoints on a single decorator function
     for endpoint in endpoints:

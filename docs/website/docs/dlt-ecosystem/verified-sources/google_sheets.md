@@ -399,7 +399,7 @@ separate tables in the destination.
 
 ```py
 dlt.resource(
-     process_range(rows_data, headers=headers, data_types=data_types),
+     process_range(data, headers=headers, data_types=data_types),
      name=name,
      write_disposition="replace",
 )

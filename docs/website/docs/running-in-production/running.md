@@ -292,7 +292,7 @@ the [tenacity](https://tenacity.readthedocs.io/en/latest/) library. The snippet 
 steps (`extract`, `normalize`) and for terminal exceptions.
 
 ```py
-from tenacity import stop_after_attempt, retry_if_exception, Retrying, retry
+from tenacity import stop_after_attempt, retry_if_exception, Retrying, retry, wait_exponential
 from dlt.common.runtime.slack import send_slack_message
 from dlt.pipeline.helpers import retry_load
 

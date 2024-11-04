@@ -189,8 +189,7 @@ def prepare_for_linting(snippets: List[Snippet]) -> None:
         lint_template = f.read()
 
     # prepare folder
-    shutil.rmtree(LINT_FOLDER, ignore_errors=True)
-    os.mkdir(LINT_FOLDER)
+    # shutil.rmtree(LINT_FOLDER, ignore_errors=True)
 
     # assemble files
     files: Dict[str, str] = {}
@@ -200,7 +199,7 @@ def prepare_for_linting(snippets: List[Snippet]) -> None:
             files[snippet.file] = lint_template
         existing = files[snippet.file]
         existing += "\n\n"
-        existing += f"# Snippet start \n\n"
+        existing += f"# Snippet start (Line {snippet.line})\n\n"
         existing += snippet.code
         files[snippet.file] = existing
 

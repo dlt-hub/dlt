@@ -90,7 +90,7 @@ The destination decorator supports settings and secrets variables. If you, for e
 
 ```py
 @dlt.destination(batch_size=10, loader_file_format="jsonl", name="my_destination")
-def my_destination(items: TDataItems, table: TTableSchema, api_key: dlt.secrets.value) -> None:
+def my_destination(items: TDataItems, table: TTableSchema, api_key: str = dlt.secrets.value) -> None:
     ...
 ```
 
@@ -121,10 +121,10 @@ There are multiple ways to pass the custom destination function to the `dlt` pip
   explicitly to the destination function.
   ```py
   @dlt.destination(batch_size=10, loader_file_format="jsonl", name="my_destination")
-  def my_destination(items: TDataItems, table: TTableSchema, api_key: dlt.secrets.value) -> None:
+  def my_destination(items: TDataItems, table: TTableSchema, api_key: str = dlt.secrets.value) -> None:
       ...
 
-  p = dlt.pipeline("my_pipe", destination=my_destination(api_key=os.getenv("MY_API_KEY")))
+  p = dlt.pipeline("my_pipe", destination=my_destination(api_key=os.getenv("MY_API_KEY"))) # type: ignore[call-arg]
   ```
 
 - Directly via destination reference. In this case, don't use the decorator for the destination function.
