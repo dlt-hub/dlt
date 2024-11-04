@@ -205,6 +205,7 @@ states.
 def ads(
     fields: Sequence[str] = DEFAULT_AD_FIELDS,
     states: Sequence[str] = None,
+    chunk_size: int = 50
 ) -> Iterator[TDataItems]:
 
   yield get_data_chunked(account.get_ads, fields, states, chunk_size)
@@ -288,7 +289,7 @@ This function fetches Facebook insights data incrementally from a specified star
 @dlt.resource(primary_key=INSIGHTS_PRIMARY_KEY, write_disposition="merge")
 def facebook_insights(
     date_start: dlt.sources.incremental[str] = dlt.sources.incremental(
-        "date_start", initial_value=initial_load_start_date_str
+        "date_start", initial_value=START_DATE_STRING
     )
 ) -> Iterator[TDataItems]:
    ...

@@ -132,7 +132,20 @@ def github_reactions(
     max_items: int = None,
     max_item_age_seconds: float = None,
 ) -> Sequence[DltResource]:
-   ...
+
+   return dlt.resource(
+      _get_reactions_data(
+         "issues",
+         owner,
+         name,
+         access_token,
+         items_per_page,
+         max_items,
+         max_item_age_seconds,
+      ),
+      name="issues",
+      write_disposition="replace",
+   )
 ```
 
 `owner`: Refers to the owner of the repository.
@@ -150,22 +163,6 @@ def github_reactions(
 ### Resource `_get_reactions_data` ("issues")
 
 The `dlt.resource` function employs the `_get_reactions_data` method to retrieve data about issues, their associated comments, and subsequent reactions.
-
-```py
-dlt.resource(
-    _get_reactions_data(
-        "issues",
-        owner,
-        name,
-        access_token,
-        items_per_page,
-        max_items,
-        max_item_age_seconds,
-    ),
-    name="issues",
-    write_disposition="replace",
-),
-```
 
 ### Source `github_repo_events`
 

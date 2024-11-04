@@ -42,7 +42,7 @@ keywords: [credentials, secrets.toml, secrets, config, configuration, environmen
   def slack_source(
     page_size: int = MAX_PAGE_SIZE,
     access_token: str = dlt.secrets.value,
-    start_date: Optional[TAnyDateTime] = DEFAULT_START_DATE
+    start_date: Optional[TAnyDateTime] = START_DATE
   ):
     ...
   ```
@@ -133,13 +133,13 @@ Additionally, you can store custom settings within the same configuration files.
 ```py
 # use `dlt.secrets` and `dlt.config` to explicitly take
 # those values from providers from the explicit keys
-data_source = google_sheets(
+source_instance = google_sheets(
     dlt.config["sheet_id"],
     dlt.config["my_section.tabs"],
     dlt.secrets["my_section.gcp_credentials"]
 )
 
-data_source.run(destination="bigquery")
+source_instance.run(destination="bigquery")
 ```
 
 `dlt.config` and `dlt.secrets` behave like dictionaries from which you can request a value with any key name. `dlt` will look in all [config providers](setup) - environment variables, TOML files, etc. to create these dictionaries. You can also use `dlt.config.get()` or `dlt.secrets.get()` to

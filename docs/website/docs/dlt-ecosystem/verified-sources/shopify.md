@@ -148,12 +148,12 @@ This function returns a list of resources to load products, orders, and customer
 @dlt.source()
 def shopify_source(
     private_app_password: str = dlt.secrets.value,
-    api_version: str = DEFAULT_API_VERSION,
+    api_version: str = API_VERSION,
     shop_url: str = dlt.config.value,
     start_date: TAnyDateTime = FIRST_DAY_OF_MILLENNIUM,
     end_date: Optional[TAnyDateTime] = None,
     created_at_min: TAnyDateTime = FIRST_DAY_OF_MILLENNIUM,
-    items_per_page: int = DEFAULT_ITEMS_PER_PAGE,
+    items_per_page: int = ITEMS_PER_PAGE,
     order_status: TOrderStatus = "any",
 ) -> Iterable[DltResource]:
    ...
@@ -186,12 +186,12 @@ def products(
         pendulum.DateTime
     ] = dlt.sources.incremental(
         "updated_at",
-        initial_value=start_date_obj,
-        end_value=end_date_obj,
+        initial_value=START_DATE,
+        end_value=END_DATE,
         allow_external_schedulers=True,
     ),
     created_at_min: pendulum.DateTime = created_at_min_obj,
-    items_per_page: int = items_per_page,
+    items_per_page: int = ITEMS_PER_PAGE,
 ) -> Iterable[TDataItem]:
    ...
 ```
@@ -213,7 +213,7 @@ def shopify_partner_query(
     variables: Optional[Dict[str, Any]] = None,
     access_token: str = dlt.secrets.value,
     organization_id: str = dlt.config.value,
-    api_version: str = DEFAULT_PARTNER_API_VERSION,
+    api_version: str = API_VERSION,
 ) -> Iterable[TDataItem]:
    ...
 ```

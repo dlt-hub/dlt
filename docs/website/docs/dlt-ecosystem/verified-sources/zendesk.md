@@ -247,7 +247,7 @@ This function retrieves data from Zendesk Talk for phone calls and voicemails.
 @dlt.source(max_table_nesting=2)
 def zendesk_talk(
     credentials: TZendeskCredentials = dlt.secrets.value,
-    start_date: Optional[TAnyDateTime] = DEFAULT_START_DATE,
+    start_date: Optional[TAnyDateTime] = START_DATE,
     end_date: Optional[TAnyDateTime] = None,
 ) -> Iterable[DltResource]:
    ...
@@ -335,9 +335,9 @@ verified source.
         dev_mode=False,
         dataset_name="sample_zendesk_data"  # Use a custom name if desired
    )
-   data = zendesk_support(load_all=True, start_date=start_date)
-   data_chat = zendesk_chat(start_date=start_date)
-   data_talk = zendesk_talk(start_date=start_date)
+   data = zendesk_support(load_all=True, start_date=START_DATE)
+   data_chat = zendesk_chat(start_date=START_DATE)
+   data_talk = zendesk_talk(start_date=START_DATE)
    info = pipeline.run(data=[data, data_chat, data_talk])
    print(info)
    ```

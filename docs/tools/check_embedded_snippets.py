@@ -320,4 +320,7 @@ if __name__ == "__main__":
     if os.path.exists(LINT_FILE):
         os.unlink(LINT_FILE)
 
+    fmt.note("Deleting temporary files...")
+    shutil.rmtree(LINT_FOLDER, ignore_errors=True)
+
     fmt.note("All selected checks passed. Snippet Checker 3000 signing off.")

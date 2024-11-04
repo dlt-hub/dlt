@@ -298,7 +298,7 @@ from dlt.pipeline.helpers import retry_load
 if __name__ == "__main__":
     pipeline = dlt.pipeline(pipeline_name="chess_pipeline", destination='duckdb', dataset_name="games_data")
     # get data for a few famous players
-    data = chess(['magnuscarlsen', 'rpragchess'], start_month="2022/11", end_month="2022/12")
+    data = chess_source(['magnuscarlsen', 'rpragchess'], start_month="2022/11", end_month="2022/12")
     try:
 
         for attempt in Retrying(stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1.5, min=4, max=10), retry=retry_if_exception(retry_load()), reraise=True):
@@ -319,7 +319,7 @@ if __name__ == "__main__":
 
     @retry(stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1.5, min=4, max=10), retry=retry_if_exception(retry_load(("extract", "load"))), reraise=True)
     def load():
-        data = chess(['magnuscarlsen', 'vincentkeymer', 'dommarajugukesh', 'rpragchess'], start_month="2022/11", end_month="2022/12")
+        data = chess_source(['magnuscarlsen', 'vincentkeymer', 'dommarajugukesh', 'rpragchess'], start_month="2022/11", end_month="2022/12")
         return pipeline.run(data)
 
     load_info = load()

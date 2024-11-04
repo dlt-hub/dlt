@@ -54,7 +54,7 @@ progress bar libraries, Python loggers, or just a text console. To demonstrate, 
 script to get a year of chess games data:
 
 ```py
-data = chess(['magnuscarlsen', 'rpragchess'], start_month="2021/11", end_month="2022/12")
+data = chess_source(['magnuscarlsen', 'rpragchess'], start_month="2021/11", end_month="2022/12")
 ```
 
 Install [enlighten](https://github.com/Rockhopper-Technologies/enlighten). Enlighten displays

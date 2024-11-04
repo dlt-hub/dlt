@@ -140,7 +140,7 @@ It retrieves data from Slack's API and fetches the Slack data such as channels, 
 def slack_source(
     page_size: int = MAX_PAGE_SIZE,
     access_token: str = dlt.secrets.value,
-    start_date: Optional[TAnyDateTime] = DEFAULT_START_DATE,
+    start_date: Optional[TAnyDateTime] = START_DATE,
     end_date: Optional[TAnyDateTime] = None,
     selected_channels: Optional[List[str]] = dlt.config.value,
 ) -> Iterable[DltResource]:
@@ -186,8 +186,8 @@ def get_messages_resource(
     channel_data: Dict[str, Any],
     created_at: dlt.sources.incremental[DateTime] = dlt.sources.incremental(
         "ts",
-        initial_value=start_dt,
-        end_value=end_dt,
+        initial_value=START_DATE,
+        end_value=END_DATE,
         allow_external_schedulers=True,
     ),
 ) -> Iterable[TDataItem]:

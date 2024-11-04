@@ -197,17 +197,17 @@ def users_details(user_item):
     for detail in _get_details(user_item["user_id"]):
         yield detail
 
-# Just load the user_details.
+# Just load the users_details.
 # dlt figures out dependencies for you.
-pipeline.run(user_details)
+pipeline.run(users_details)
 ```
-In the example above, `user_details` will receive data from the default instance of the `users` resource (with `limit` set to `None`). You can also use the **pipe |** operator to bind resources dynamically.
+In the example above, `users_details` will receive data from the default instance of the `users` resource (with `limit` set to `None`). You can also use the **pipe |** operator to bind resources dynamically.
 ```py
 # You can be more explicit and use a pipe operator.
 # With it, you can create dynamic pipelines where the dependencies
 # are set at run time and resources are parametrized, i.e.,
 # below we want to load only 100 users from the `users` endpoint.
-pipeline.run(users(limit=100) | user_details)
+pipeline.run(users(limit=100) | users_details)
 ```
 
 :::tip
@@ -372,8 +372,6 @@ tables of a nested table). Typical settings:
 You can achieve the same effect after the resource instance is created:
 
 ```py
-from my_resource import my_awesome_module
-
 resource = my_resource()
 resource.max_table_nesting = 0
 ```

@@ -22,7 +22,7 @@ import duckdb
 import urllib
 import itertools
 
-from datetime import datetime  # noqa: I251
+from datetime import datetime, timedelta  # noqa: I251
 from pendulum import DateTime  # noqa: I251
 
 from airflow.decorators import dag
@@ -40,7 +40,7 @@ from dlt.common.typing import (
     StrStr,
     DictStrAny,
 )
-from dlt.common.schema.typing import TTableSchema, TTableSchemaColumns
+from dlt.common.schema.typing import TTableSchema, TTableSchemaColumns, TColumnSchema
 from dlt.common.pipeline import LoadInfo
 from dlt.common.configuration.specs import (
     GcpServiceAccountCredentials,
@@ -49,16 +49,17 @@ from dlt.common.configuration.specs import (
     BaseConfiguration,
     AwsCredentials,
     GcpOAuthCredentials,
-    GcpServiceAccountCredentials,
+    GcpServiceAccountCredentials,#
+    
 )
 from dlt.common.libs.pyarrow import Table as ArrowTable
 
 from dlt.extract.source import SourceFactory
+from dlt.extract.items import DataItemWithMeta
 from dlt.extract import DltResource, DltSource
 from dlt.common.storages.configuration import FileSystemCredentials
 from dlt.pipeline.exceptions import PipelineStepFailed
 from dlt.common.schema import DataValidationError
-
 #
 # dlt core sources
 #
@@ -87,6 +88,7 @@ load_info: LoadInfo = None  # type: ignore[assignment]
 url: str = None  # type: ignore[assignment]
 resource: DltResource = None  # type: ignore[assignment]
 data: List[Any] = None  # type: ignore[assignment]
+item: Any = None  # type: ignore[assignment]
 my_callable: Callable[..., Any] = None  # type: ignore[assignment]
 arrow_table: ArrowTable = None  # type: ignore[assignment]
 
@@ -105,18 +107,17 @@ TENANT_ID: str = ""
 SERVICE_PRINCIPAL_SECRETS: str = ""
 REPO_NAME: str = ""
 MAX_PAGE_SIZE: int = 100
-DEFAULT_API_VERSION: str = ""
+API_VERSION: str = ""
 FIRST_DAY_OF_MILLENNIUM: TAnyDateTime = pendulum.datetime(2000, 1, 1)
 START_DATE: DateTime = pendulum.datetime(2024, 1, 1)
-START_DATE_STRING: str = ""
 END_DATE: DateTime = pendulum.datetime(2024, 12, 31)
-DEFAULT_START_DATE: DateTime = pendulum.datetime(2024, 1, 1)
-DEFAULT_START_DATE_STRING: str = ""
+START_DATE_STRING: str = ""
 MY_API_KEY: str = ""
-DEFAULT_ITEMS_PER_PAGE: int = 100
-DEFAULT_CHUNK_SIZE: int = 500
+ITEMS_PER_PAGE: int = 100
+CHUNK_SIZE: int = 500
 ENDPOINTS: List[str] = []
 RESOURCE_URL: str = ""
+BASE_URL: str = ""
 
 # functions
 hash_string: Callable[[str], str] = None  # type: ignore[assignment]
@@ -130,6 +131,8 @@ facebook_ads_source: SourceFactory[Any, Any] = None  # type: ignore[assignment]
 chess_source: SourceFactory[Any, Any] = None  # type: ignore[assignment]
 airtable_emojis: SourceFactory[Any, Any] = None  # type: ignore[assignment]
 merge_source: SourceFactory[Any, Any] = None  # type: ignore[assignment]
+sql_source: SourceFactory[Any, Any] = None  # type: ignore[assignment]
+data_source: SourceFactory[Any, Any] = None  # type: ignore[assignment]
 
 # resources
 my_resource: DltResource = None  # type: ignore[assignment]

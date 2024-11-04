@@ -294,7 +294,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
    ```py
    load_data = matomo_visits(initial_load_past_days=1, get_live_event_visitors=True)
-   load_info = pipeline_events.run(load_data)
+   load_info = pipeline.run(load_data)
    print(load_info)
    ```
 

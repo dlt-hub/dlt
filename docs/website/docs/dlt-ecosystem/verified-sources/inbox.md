@@ -141,10 +141,10 @@ def inbox_source(
     password: str = dlt.secrets.value,
     folder: str = "INBOX",
     gmail_group: Optional[str] = GMAIL_GROUP,
-    start_date: pendulum.DateTime = DEFAULT_START_DATE,
+    start_date: pendulum.DateTime = START_DATE,
     filter_emails: Sequence[str] = None,
     filter_by_mime_type: Sequence[str] = None,
-    chunksize: int = DEFAULT_CHUNK_SIZE,
+    chunksize: int = CHUNK_SIZE,
 ) -> Sequence[DltResource]:
    ...
 ```
@@ -159,13 +159,13 @@ def inbox_source(
 
 `gmail_group`: Google Group email for filtering. Default: `/inbox/settings.py` 'GMAIL_GROUP'.
 
-`start_date`: Start date to collect emails. Default: `/inbox/settings.py` 'DEFAULT_START_DATE'.
+`start_date`: Start date to collect emails. Default: `/inbox/settings.py` 'START_DATE'.
 
 `filter_emails`: Email addresses for 'FROM' filtering. Default: `/inbox/settings.py` 'FILTER_EMAILS'.
 
 `filter_by_mime_type`: MIME types for attachment filtering. Default: None.
 
-`chunksize`: UIDs collected per batch. Default: `/inbox/settings.py` 'DEFAULT_CHUNK_SIZE'.
+`chunksize`: UIDs collected per batch. Default: `/inbox/settings.py` 'CHUNK_SIZE'.
 
 ### Resource `get_messages_uids`
 
@@ -240,7 +240,7 @@ verified source.
 
 2. To load messages from "mycreditcard@bank.com" starting "2023-10-1":
 
-    - Set `DEFAULT_START_DATE = pendulum.datetime(2023, 10, 1)` in `./inbox/settings.py`.
+    - Set `START_DATE = pendulum.datetime(2023, 10, 1)` in `./inbox/settings.py`.
     - Use the following code:
       ```py
       # Retrieve messages from the specified email address.
