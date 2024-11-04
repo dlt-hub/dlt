@@ -48,7 +48,7 @@ def load_setuptools_entrypoints(m: pluggy.PluginManager) -> None:
 
     for dist in list(importlib.metadata.distributions()):
         # skip named dists that do not start with dlt-
-        if hasattr(dist, "name") and not dist.name.startswith("dlt-"):
+        if hasattr(dist, "name") and (dist.name is None or not dist.name.startswith("dlt-")):
             continue
         for ep in dist.entry_points:
             if (
