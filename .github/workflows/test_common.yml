@@ -106,11 +106,11 @@ jobs:
         run: poetry install --no-interaction -E duckdb -E filesystem -E s3 --with sentry-sdk
 
       - run: |
-          poetry run pytest tests/pipeline/test_pipeline.py tests/pipeline/test_import_export_schema.py tests/pipeline/test_filesystem_sql_secrets.py
+          poetry run pytest tests/pipeline/test_pipeline.py tests/pipeline/test_import_export_schema.py
         if: runner.os != 'Windows'
         name: Run pipeline smoke tests with minimum deps Linux/MAC
       - run: |
-          poetry run pytest tests/pipeline/test_pipeline.py tests/pipeline/test_import_export_schema.py tests/pipeline/test_filesystem_sql_secrets.py -m "not forked"
+          poetry run pytest tests/pipeline/test_pipeline.py tests/pipeline/test_import_export_schema.py -m "not forked"
         if: runner.os == 'Windows'
         name: Run smoke tests with minimum deps Windows
         shell: cmd
@@ -129,7 +129,7 @@ jobs:
         shell: cmd
 
       - name: Install pipeline and sources dependencies
-        run: poetry install --no-interaction -E duckdb -E cli -E parquet -E deltalake -E sql_database --with sentry-sdk,pipeline,sources
+        run: poetry install --no-interaction -E duckdb -E cli -E parquet -E deltalake -E sql_database  -E s3 -E filesystem --with sentry-sdk,pipeline,sources
 
       - run: |
           poetry run pytest tests/extract tests/pipeline tests/libs tests/cli/common tests/destinations tests/sources
