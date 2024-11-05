@@ -109,3 +109,4 @@ def test_secrets_management(
         sql_client.create_authentication(persistent=True)
     logger_spy.assert_called_once()
     assert warning_mesage in logger_spy.call_args_list[0][0][0]
+    duck_db.close()
