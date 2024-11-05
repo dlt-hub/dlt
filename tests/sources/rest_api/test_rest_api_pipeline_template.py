@@ -12,7 +12,7 @@ from dlt.common.typing import TSecretStrValue
     ),
 )
 def test_all_examples(example_name: str) -> None:
-    from dlt.sources.rest_api import default_pipeline
+    from dlt.sources._core_source_templates import rest_api_pipeline
 
     # reroute token location from secrets
     github_token: TSecretStrValue = dlt.secrets.get("sources.github.access_token")
@@ -20,4 +20,4 @@ def test_all_examples(example_name: str) -> None:
         # try to get GITHUB TOKEN which is available on github actions, fallback to None if not available
         github_token = os.environ.get("GITHUB_TOKEN", None)
     dlt.secrets["sources.rest_api_pipeline.github.access_token"] = github_token
-    getattr(default_pipeline, example_name)()
+    getattr(rest_api_pipeline, example_name)()
