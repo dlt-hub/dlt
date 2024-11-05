@@ -42,9 +42,15 @@ def sleep(sleep_seconds: float) -> None:
     # do not allow sleeping if signal was received
     raise_if_signalled()
     # sleep or wait for signal
+    exit_event.clear()
     exit_event.wait(sleep_seconds)
     # if signal then raise
     raise_if_signalled()
+
+
+def wake_all() -> None:
+    """Wakes all threads sleeping on event"""
+    exit_event.set()
 
 
 @contextmanager

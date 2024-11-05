@@ -712,11 +712,11 @@ To prevent the file name length error, set the `max_identifier_length` parameter
 For example:
 
 ```py
-from dlt.destinations import duckdb
+from dlt.destinations import duckdb as duckdb_destination
 
 pipeline = dlt.pipeline(
     pipeline_name="your_pipeline_name",
-    destination=duckdb(
+    destination=duckdb_destination(
         max_identifier_length=200,  # Adjust the length as needed
     ),
 )

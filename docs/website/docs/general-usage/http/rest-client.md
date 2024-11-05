@@ -546,7 +546,7 @@ class OAuth2ClientCredentialsHTTPBasic(OAuth2ClientCredentials):
             "data": self.access_token_request_data,
         }
 
-auth = OAuth2ClientCredentialsHTTPBasic(
+oauth = OAuth2ClientCredentialsHTTPBasic(
     access_token_url=dlt.secrets["sources.zoom.access_token_url"],  # "https://zoom.us/oauth/token"
     client_id=dlt.secrets["sources.zoom.client_id"],
     client_secret=dlt.secrets["sources.zoom.client_secret"],
@@ -555,7 +555,7 @@ auth = OAuth2ClientCredentialsHTTPBasic(
         "account_id": dlt.secrets["sources.zoom.account_id"],
     },
 )
-client = RESTClient(base_url="https://api.zoom.us/v2", auth=auth)
+client = RESTClient(base_url="https://api.zoom.us/v2", auth=oauth)
 
 response = client.get("/users")
 ```
@@ -593,7 +593,7 @@ client = RESTClient(
 `RESTClient.paginate()` allows you to specify a [custom hook function](https://requests.readthedocs.io/en/latest/user/advanced/#event-hooks) that can be used to modify the response objects. For example, to handle specific HTTP status codes gracefully:
 
 ```py
-def custom_response_handler(response):
+def custom_response_handler(response, *args):
     if response.status_code == 404:
         # Handle not found
         pass
@@ -680,7 +680,7 @@ for page in client.paginate("/posts"):
 ```py
 from dlt.sources.helpers.rest_client.auth import BearerTokenAuth
 
-def response_hook(response, **kwargs):
+def response_hook(response, *args):
     print(response.status_code)
     print(f"Content: {response.content}")
     print(f"Request: {response.request.body}")

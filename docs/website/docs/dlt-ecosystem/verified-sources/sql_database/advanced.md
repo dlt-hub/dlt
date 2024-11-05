@@ -44,8 +44,8 @@ Incremental loading uses a cursor column (e.g., timestamp or auto-incrementing I
   )
 
   pipeline = dlt.pipeline(destination="duckdb")
-  info = pipeline.extract(table, write_disposition="merge")
-  print(info)
+  extract_info = pipeline.extract(table, write_disposition="merge")
+  print(extract_info)
   ```
 
   Behind the scene, the loader generates a SQL query filtering rows with `last_modified` values greater than the incremental value. In the first run, this is the initial value (midnight (00:00:00) January 1, 2024).
@@ -65,8 +65,8 @@ Incremental loading uses a cursor column (e.g., timestamp or auto-incrementing I
 
   # Running the pipeline
   pipeline = dlt.pipeline(destination="duckdb")
-  info = pipeline.run(source, write_disposition="merge")
-  print(info)
+  load_info = pipeline.run(source, write_disposition="merge")
+  print(load_info)
   ```
 
   :::info

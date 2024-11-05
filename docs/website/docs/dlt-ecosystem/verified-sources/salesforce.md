@@ -168,7 +168,7 @@ This resource function retrieves records from the Salesforce "User" endpoint.
 ```py
 @dlt.resource(write_disposition="replace")
 def sf_user() -> Iterator[Dict[str, Any]]:
-    yield from get_records(client, "User")
+    yield from _get_records(client, "User")
 ```
 
 Besides "sf_user", there are several resources that use replace mode for data writing to the
@@ -193,14 +193,14 @@ def opportunity(
     )
 ) -> Iterator[Dict[str, Any]]:
 
-    yield from get_records(
+    yield from _get_records(
         client, "Opportunity", last_timestamp.last_value, "SystemModstamp"
     )
 ```
 
 `last_timestamp`: Argument that will receive [incremental](../../general-usage/incremental-loading)
 state, initialized with "initial_value". It is configured to track the "SystemModstamp" field in data
-items returned by "get_records" and then yielded. It will store the newest "SystemModstamp" value in
+items returned by "_get_records" and then yielded. It will store the newest "SystemModstamp" value in
 dlt state and make it available in "last_timestamp.last_value" on the next pipeline run.
 
 Besides "opportunity", there are several resources that use replace mode for data writing to the
@@ -235,8 +235,10 @@ To create your data pipeline using single loading and [incremental data loading]
 1. To load data from all the endpoints, use the `salesforce_source` method as follows:
 
    ```py
+   from dlt.common.schema.typing import TSimpleRegex
+
    load_data = salesforce_source()
-   source.schema.merge_hints({"not_null": ["id"]})  # Hint for id field not null
+   source.schema.merge_hints({"not_null": [TSimpleRegex("id")]})  # Hint for id field not null
    load_info = pipeline.run(load_data)
    # print the information on data that was loaded
    print(load_info)

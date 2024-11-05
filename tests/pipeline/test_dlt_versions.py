@@ -247,7 +247,7 @@ def test_filesystem_pipeline_with_dlt_update(test_storage: FileStorage) -> None:
             # attach to existing pipeline
             pipeline = dlt.attach(GITHUB_PIPELINE_NAME, destination=filesystem("_storage/data"))
             # assert end state
-            assert_github_pipeline_end_state(pipeline, github_schema, 2)
+            pipeline = assert_github_pipeline_end_state(pipeline, github_schema, 2)
             # load new state
             fs_client = pipeline._fs_client()
             state_files = sorted(fs_client.list_table_files("_dlt_pipeline_state"))
@@ -261,7 +261,7 @@ def test_filesystem_pipeline_with_dlt_update(test_storage: FileStorage) -> None:
 
 def assert_github_pipeline_end_state(
     pipeline: dlt.Pipeline, orig_schema: TStoredSchema, schema_updates: int
-) -> None:
+) -> dlt.Pipeline:
     # get tables counts
     table_counts = load_table_counts(pipeline, *pipeline.default_schema.data_table_names())
     assert table_counts == {"issues": 100, "issues__assignees": 31, "issues__labels": 34}
@@ -285,6 +285,8 @@ def assert_github_pipeline_end_state(
     assert pipeline.default_schema.ENGINE_VERSION == SCHEMA_ENGINE_VERSION
     # make sure that schema hash retrieved from the destination is exactly the same as the schema hash that was in storage before the schema was wiped
     assert pipeline.default_schema.stored_version_hash == orig_schema["version_hash"]
+
+    return pipeline
 
 
 def test_load_package_with_dlt_update(test_storage: FileStorage) -> None:

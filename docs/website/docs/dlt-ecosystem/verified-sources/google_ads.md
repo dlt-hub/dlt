@@ -224,6 +224,7 @@ This function returns a list of resources including metadata, fields, and metric
 the Google Ads API.
 
 ```py
+@dlt.source()
 def google_ads(
     credentials: Union[
         GcpOAuthCredentials, GcpServiceAccountCredentials

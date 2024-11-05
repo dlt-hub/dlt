@@ -39,7 +39,7 @@ from dlt.common.destination.reference import (
     TLoadJobState,
     DestinationClientConfiguration,
     SupportsStagingDestination,
-    TDestination,
+    AnyDestination,
 )
 from dlt.common.destination.exceptions import (
     DestinationTerminalException,
@@ -73,8 +73,8 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
     @with_config(spec=LoaderConfiguration, sections=(known_sections.LOAD,))
     def __init__(
         self,
-        destination: TDestination,
-        staging_destination: TDestination = None,
+        destination: AnyDestination,
+        staging_destination: AnyDestination = None,
         collector: Collector = NULL_COLLECTOR,
         is_storage_owner: bool = False,
         config: LoaderConfiguration = config.value,

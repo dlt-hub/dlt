@@ -283,7 +283,7 @@ def _resolve_config_fields(
             unresolved_fields[key] = traces
         # set resolved value in config
         if default_value != current_value:
-            if not is_hint_not_resolvable(hint):
+            if not is_hint_not_resolvable(hint) or explicit_value is not None or explicit_none:
                 # ignore final types
                 setattr(config, key, current_value)
 

@@ -15,6 +15,7 @@ TExecInfoNames = Literal[
     "colab",
     "aws_lambda",
     "gcp_cloud_function",
+    "streamlit",
 ]
 
 

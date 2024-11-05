@@ -100,7 +100,7 @@ issues = []
 reactions = ["%2B1", "-1", "smile", "tada", "thinking_face", "heart", "rocket", "eyes"]
 for reaction in reactions:
     for page_no in range(1, 3):
-      page = requests.get(f"https://api.github.com/repos/{repo}/issues?state=all&sort=reactions-{reaction}&per_page=100&page={page_no}", headers=headers)
+      page = requests.get(f"https://api.github.com/repos/{REPO_NAME}/issues?state=all&sort=reactions-{reaction}&per_page=100&page={page_no}", headers=headers)
       print(f"got page for {reaction} page {page_no}, requests left", page.headers["x-ratelimit-remaining"])
       issues.extend(page.json())
 p.run(issues, write_disposition="merge", primary_key="id", table_name="issues")
@@ -655,30 +655,6 @@ def get_events(last_created_at = dlt.sources.incremental("$", last_value_func=by
         yield json.load(f)
 ```
 
-### Using `last_value_func` for lookback
-The example below uses the `last_value_func` to load data from the past month.
-```py
-def lookback(event):
-    last_value = None
-    if len(event) == 1:
-        item, = event
-    else:
-        item, last_value = event
-
-    if last_value is None:
-        last_value = {}
-    else:
-        last_value = dict(last_value)
-
-    last_value["created_at"] = pendulum.from_timestamp(item["created_at"]).subtract(months=1)
-    return last_value
-
-@dlt.resource(primary_key="id")
-def get_events(last_created_at = dlt.sources.incremental("created_at", last_value_func=lookback)):
-    with open("tests/normalize/cases/github.events.load_page_1_duck.json", "r", encoding="utf-8") as f:
-        yield json.load(f)
-```
-
 ### Using `end_value` for backfill
 
 You can specify both initial and end dates when defining incremental loading. Let's go back to our Github example:
@@ -826,11 +802,10 @@ When resources are [created dynamically](source.md#create-resources-dynamically)
 def stripe():
     # declare a generator function
     def get_resource(
-        endpoint: Endpoints,
+        endpoints: List[str] = ENDPOINTS,
         created: dlt.sources.incremental=dlt.sources.incremental("created")
     ):
         ...
-        yield data
 
     # create resources for several endpoints on a single decorator function
     for endpoint in endpoints:
@@ -878,10 +853,12 @@ We opt-in to the Airflow scheduler by setting `allow_external_schedulers` to `Tr
 Let's generate a deployment with `dlt deploy zendesk_pipeline.py airflow-composer` and customize the DAG:
 
 ```py
+from dlt.helpers.airflow_helper import PipelineTasksGroup
+
 @dag(
     schedule_interval='@weekly',
-    start_date=pendulum.datetime(2023, 2, 1),
-    end_date=pendulum.datetime(2023, 8, 1),
+    start_date=pendulum.DateTime(2023, 2, 1),
+    end_date=pendulum.DateTime(2023, 8, 1),
     catchup=True,
     max_active_runs=1,
     default_args=default_task_args
@@ -918,7 +895,7 @@ You can repurpose the DAG above to start loading new data incrementally after (o
 ```py
 @dag(
     schedule_interval='@daily',
-    start_date=pendulum.datetime(2023, 2, 1),
+    start_date=pendulum.DateTime(2023, 2, 1),
     catchup=False,
     max_active_runs=1,
     default_args=default_task_args
@@ -1087,6 +1064,65 @@ result_filtered = list(without_none)
 assert len(result_filtered) == 2
 ```
 
+##  Lag / Attribution Window
+In many cases, certain data should be reacquired during incremental loading. For example, you may want to always capture the last 7 days of data when fetching daily analytics reports, or refresh Slack message replies with a moving window of 7 days. This is where the concept of "lag" or "attribution window" comes into play.
+
+The `lag` parameter is a float that supports several types of incremental cursors: `datetime`, `date`, `integer`, and `float`. It can only be used with `last_value_func` set to `min` or `max` (default is `max`).
+
+### How `lag` Works
+
+- **Datetime cursors**: `lag` is the number of seconds added or subtracted from the `last_value` loaded.
+- **Date cursors**: `lag` represents days.
+- **Numeric cursors (integer or float)**: `lag` respects the given unit of the cursor.
+
+This flexibility allows `lag` to adapt to different data contexts.
+
+
+### Example using `datetime` incremental cursor with `merge` as `write_disposition`
+
+This example demonstrates how to use a `datetime` cursor with a `lag` parameter, applying `merge` as the `write_disposition`. The setup runs twice, and during the second run, the `lag` parameter re-fetches recent entries to capture updates.
+
+1. **First Run**: Loads `initial_entries`.
+2. **Second Run**: Loads `second_run_events` with the specified lag, refreshing previously loaded entries.
+
+This setup demonstrates how `lag` ensures that a defined period of data remains refreshed, capturing updates or changes within the attribution window.
+
+```py
+pipeline = dlt.pipeline(
+    destination=dlt.destinations.duckdb(credentials=duckdb.connect(":memory:")),
+)
+
+# Flag to indicate the second run
+is_second_run = False
+
+@dlt.resource(name="events", primary_key="id", write_disposition="merge")
+def events_resource(
+    _=dlt.sources.incremental("created_at", lag=3600, last_value_func=max)
+):
+    global is_second_run
+
+    # Data for the initial run
+    initial_entries = [
+        {"id": 1, "created_at": "2023-03-03T01:00:00Z", "event": "1"},
+        {"id": 2, "created_at": "2023-03-03T02:00:00Z", "event": "2"},  # lag applied during second run
+    ]
+
+    # Data for the second run
+    second_run_events = [
+        {"id": 1, "created_at": "2023-03-03T01:00:00Z", "event": "1_updated"},
+        {"id": 2, "created_at": "2023-03-03T02:00:01Z", "event": "2_updated"},
+        {"id": 3, "created_at": "2023-03-03T03:00:00Z", "event": "3"},
+    ]
+
+    # Yield data based on the current run
+    yield from second_run_events if is_second_run else initial_entries
+
+# Run the pipeline twice
+pipeline.run(events_resource)
+is_second_run = True  # Update flag for second run
+pipeline.run(events_resource)
+```
+
 
 ## Doing a full refresh
 
@@ -1132,7 +1168,7 @@ def tweets():
     # Get the last value from loaded metadata. If it does not exist, get None
     last_val = dlt.current.resource_state().setdefault("last_updated", None)
     # Get data and yield it
-    data = get_data(start_from=last_val)
+    data = _get_data(start_from=last_val)
     yield data
     # Change the state to the new value
     dlt.current.resource_state()["last_updated"] = data["last_timestamp"]
@@ -1183,7 +1219,7 @@ def players_games(chess_url, players, start_month=None, end_month=None):
     # when the data is loaded, the cache is updated with our loaded_archives_cache
 
     # Get archives for a given player
-    archives = get_players_archives(chess_url, players)
+    archives = _get_players_archives(chess_url, players)
     for url in archives:
         # If not in cache, yield the data and cache the URL
         if url not in loaded_archives_cache:
@@ -1208,7 +1244,7 @@ def search_tweets(twitter_bearer_token=dlt.secrets.value, search_terms=None, sta
         print(f'last_value_cache: {last_value_cache}')
         params = {...}
         url = "https://api.twitter.com/2/tweets/search/recent"
-        response = _paginated_get(url, headers=headers, params=params)
+        response = _get_paginated(url, headers=headers, params=params)
         for page in response:
             page['search_term'] = search_term
             last_id = page.get('meta', {}).get('newest_id', 0)

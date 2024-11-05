@@ -187,7 +187,7 @@ Here’s a walkthrough:
         # Load table "contact", incrementally starting at a given timestamp
         source = sql_database().with_resources("contact")
         source.contact.apply_hints(incremental=dlt.sources.incremental(
-            "created_at", initial_value=datetime(2024, 4, 1, 0, 0, 0)))
+            "created_at", initial_value=datetime.datetime(2024, 4, 1, 0, 0, 0)))
 
         # Run the pipeline
         info = pipeline.run(source, write_disposition="append")
@@ -253,7 +253,7 @@ Here’s a walkthrough:
         # Merge records, 'contact' table, based on ID and last_modified_at timestamp
         source = sql_database().with_resources("contact")
         source.contact.apply_hints(incremental=dlt.sources.incremental(
-            "last_modified_at", initial_value=datetime(2024, 4, 1, 0, 0, 0)),
+            "last_modified_at", initial_value=datetime.datetime(2024, 4, 1, 0, 0, 0)),
             primary_key="id")
 
         # Run the pipeline

@@ -1,17 +1,21 @@
 from typing import Optional, Dict, Any, Union
 
 from dlt.common.pendulum import pendulum
+from dlt.common.exceptions import MissingDependencyException
 from dlt.common.typing import TSecretStrValue
 from dlt.common.configuration.specs import (
     CredentialsConfiguration,
     CredentialsWithDefault,
     configspec,
 )
+from dlt import version
+
+_AZURE_STORAGE_EXTRA = f"{version.DLT_PKG_NAME}[az]"
 
 
 @configspec
 class AzureCredentialsWithoutDefaults(CredentialsConfiguration):
-    """Credentials for azure blob storage, compatible with adlfs"""
+    """Credentials for Azure Blob Storage, compatible with adlfs"""
 
     azure_storage_account_name: str = None
     azure_storage_account_key: Optional[TSecretStrValue] = None
@@ -37,7 +41,10 @@ class AzureCredentialsWithoutDefaults(CredentialsConfiguration):
         return creds
 
     def create_sas_token(self) -> None:
-        from azure.storage.blob import generate_account_sas, ResourceTypes
+        try:
+            from azure.storage.blob import generate_account_sas, ResourceTypes
+        except ModuleNotFoundError:
+            raise MissingDependencyException(self.__class__.__name__, [_AZURE_STORAGE_EXTRA])
 
         self.azure_storage_sas_token = generate_account_sas(
             account_name=self.azure_storage_account_name,
@@ -78,7 +85,10 @@ class AzureServicePrincipalCredentialsWithoutDefaults(CredentialsConfiguration):
 @configspec
 class AzureCredentials(AzureCredentialsWithoutDefaults, CredentialsWithDefault):
     def on_partial(self) -> None:
-        from azure.identity import DefaultAzureCredential
+        try:
+            from azure.identity import DefaultAzureCredential
+        except ModuleNotFoundError:
+            raise MissingDependencyException(self.__class__.__name__, [_AZURE_STORAGE_EXTRA])
 
         if not self.azure_storage_account_key and not self.azure_storage_sas_token:
             self._set_default_credentials(DefaultAzureCredential())
@@ -99,7 +109,10 @@ class AzureServicePrincipalCredentials(
     AzureServicePrincipalCredentialsWithoutDefaults, CredentialsWithDefault
 ):
     def on_partial(self) -> None:
-        from azure.identity import DefaultAzureCredential
+        try:
+            from azure.identity import DefaultAzureCredential
+        except ModuleNotFoundError:
+            raise MissingDependencyException(self.__class__.__name__, [_AZURE_STORAGE_EXTRA])
 
         self._set_default_credentials(DefaultAzureCredential())
         if self.azure_storage_account_name:
