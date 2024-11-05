@@ -302,6 +302,9 @@ SELECT 1
         else:
             return f"DELETE FROM {qualified_table_name} WHERE 1=1;"
 
+    def _limit_clause_sql(self, limit: int) -> Tuple[str, str]:
+        return "", f"LIMIT {limit}"
+
 
 class WithSqlClient(JobClientBase):
     @property
@@ -329,7 +332,7 @@ class DBApiCursorImpl(DBApiCursor):
         self.fetchmany = curr.fetchmany  # type: ignore
         self.fetchone = curr.fetchone  # type: ignore
 
-        self.set_default_schema_columns()
+        self._set_default_schema_columns()
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self.native_cursor, name)
@@ -339,8 +342,8 @@ class DBApiCursorImpl(DBApiCursor):
             return [c[0] for c in self.native_cursor.description]
         return []
 
-    def set_default_schema_columns(self) -> None:
-        self.schema_columns = cast(
+    def _set_default_schema_columns(self) -> None:
+        self.columns_schema = cast(
             TTableSchemaColumns, {c: {"name": c, "nullable": True} for c in self._get_columns()}
         )
 
@@ -394,11 +397,11 @@ class DBApiCursorImpl(DBApiCursor):
 
         if not chunk_size:
             result = self.fetchall()
-            yield row_tuples_to_arrow(result, caps, self.schema_columns, tz="UTC")
+            yield row_tuples_to_arrow(result, caps, self.columns_schema, tz="UTC")
             return
 
         for result in self.iter_fetch(chunk_size=chunk_size):
-            yield row_tuples_to_arrow(result, caps, self.schema_columns, tz="UTC")
+            yield row_tuples_to_arrow(result, caps, self.columns_schema, tz="UTC")
 
 
 def raise_database_error(f: TFun) -> TFun:

@@ -105,7 +105,7 @@ As a consequence, `discard_row` will drop the whole data item - even if a nested
 
 ### Set contracts on Arrow tables and Pandas
 
-All contract settings apply to [arrow tables and panda frames](../dlt-ecosystem/verified-sources/arrow-pandas.md) as well.
+All contract settings apply to [Arrow tables and pandas frames](../dlt-ecosystem/verified-sources/arrow-pandas.md) as well.
 1. **tables** mode is the same - no matter what the data item type is.
 2. **columns** will allow new columns, raise an exception, or modify tables/frames still in the extract step to avoid rewriting Parquet files.
 3. **data_type** changes to data types in tables/frames are not allowed and will result in a data type schema clash. We could allow for more modes (evolving data types in Arrow tables sounds weird but ping us on Slack if you need it.)
@@ -181,7 +181,7 @@ def items():
 The below code will raise an error on any encountered schema change. Note: You can always set a string which will be interpreted as though all keys are set to these values.
 
 ```py
-pipeline.run(my_source(), schema_contract="freeze")
+pipeline.run(my_source, schema_contract="freeze")
 ```
 
 The below code defines some settings on the source which can be overwritten on the resource, which in turn can be overwritten by the global override on the `run` method.
@@ -198,15 +198,15 @@ def other_items():
     ...
 
 @dlt.source(schema_contract={"columns": "freeze", "data_type": "freeze"})
-def source():
+def frozen_source():
   return [items(), other_items()]
 
 
 # this will use the settings defined by the decorators
-pipeline.run(source())
+pipeline.run(frozen_source())
 
 # this will freeze the whole schema, regardless of the decorator settings
-pipeline.run(source(), schema_contract="freeze")
+pipeline.run(frozen_source(), schema_contract="freeze")
 
 ```
 

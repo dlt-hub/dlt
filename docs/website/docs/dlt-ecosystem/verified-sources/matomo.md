@@ -148,6 +148,7 @@ def matomo_reports(
 The function loads visits from the current day and the past `initial_load_past_days` on the first run. In subsequent runs, it continues from the last load and skips active visits until they are closed.
 
 ```py
+@dlt.source()
 def matomo_visits(
     api_token: str = dlt.secrets.value,
     url: str = dlt.config.value,
@@ -254,7 +255,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
    ```py
    data_reports = matomo_reports()
-   load_info = pipeline_reports.run(data_reports)
+   load_info = pipeline.run(data_reports)
    print(load_info)
    ```
    > "site_id" defined in ".dlt/config.toml"
@@ -275,7 +276,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
    site_id = 1 # ID of the site for which reports are being loaded
 
    load_data = matomo_reports(queries=queries, site_id=site_id)
-   load_info = pipeline_reports.run(load_data)
+   load_info = pipeline.run(load_data)
    print(load_info)
    ```
    > You can pass queries and site_id in the ".dlt/config.toml" as well.
@@ -285,7 +286,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
    ```py
    data_reports = matomo_reports()
    data_events = matomo_visits()
-   load_info = pipeline_reports.run([data_reports, data_events])
+   load_info = pipeline.run([data_reports, data_events])
    print(load_info)
    ```
 
@@ -293,7 +294,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
    ```py
    load_data = matomo_visits(initial_load_past_days=1, get_live_event_visitors=True)
-   load_info = pipeline_events.run(load_data)
+   load_info = pipeline.run(load_data)
    print(load_info)
    ```
 

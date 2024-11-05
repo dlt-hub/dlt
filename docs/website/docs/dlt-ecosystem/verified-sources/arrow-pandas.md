@@ -10,10 +10,10 @@ import Header from './_source-info-header.md';
 <Header/>
 
 You can load data directly from an Arrow table or Pandas dataframe.
-This is supported by all destinations, but it is especially recommended when using destinations that support the `parquet` file format natively (e.g., [Snowflake](../destinations/snowflake.md) and [Filesystem](../destinations/filesystem.md)).
+This is supported by all destinations, but it is especially recommended when using destinations that support the Parquet file format natively (e.g., [Snowflake](../destinations/snowflake.md) and [Filesystem](../destinations/filesystem.md)).
 See the [destination support](#destination-support-and-fallback) section for more information.
 
-When used with a `parquet` supported destination, this is a more performant way to load structured data since `dlt` bypasses many processing steps normally involved in passing JSON objects through the pipeline.
+When used with a Parquet supported destination, this is a more performant way to load structured data since `dlt` bypasses many processing steps normally involved in passing JSON objects through the pipeline.
 `dlt` automatically translates the Arrow table's schema to the destination table's schema and writes the table to a parquet file, which gets uploaded to the destination without any further processing.
 
 ## Usage
@@ -56,9 +56,9 @@ Note: The data in the table must be compatible with the destination database as 
 
 ## Destination support
 
-Destinations that support the `parquet` format natively will have the data files uploaded directly as possible. Rewriting files can be avoided completely in many cases.
+Destinations that support the Parquet format natively will have the data files uploaded directly as possible. Rewriting files can be avoided completely in many cases.
 
-When the destination does not support `parquet`, the rows are extracted from the table and written in the destination's native format (usually `insert_values`), and this is generally much slower
+When the destination does not support Parquet, the rows are extracted from the table and written in the destination's native format (usually `insert_values`), and this is generally much slower
 as it requires processing the table row by row and rewriting data to disk.
 
 The output file format is chosen automatically based on the destination's capabilities, so you can load arrow or pandas frames to any destination, but performance will vary.
@@ -110,7 +110,7 @@ def orders(ordered_at = dlt.sources.incremental('ordered_at')):
     # Get a dataframe/arrow table from somewhere
     # If your database supports it, you can use the last_value to filter data at the source.
     # Otherwise, it will be filtered automatically after loading the data.
-    df = get_orders(since=ordered_at.last_value)
+    df = _get_orders(since=ordered_at.last_value)
     yield df
 
 pipeline = dlt.pipeline("orders_pipeline", destination="snowflake")
@@ -133,7 +133,7 @@ If you want to skip the default `dlt` JSON normalizer, you can use any available
 import duckdb
 
 conn = duckdb.connect()
-table = conn.execute(f"SELECT * FROM read_json_auto('{json_file_path}')").fetch_arrow_table()
+table = conn.execute("SELECT * FROM read_json_auto('./json_file_path')").fetch_arrow_table()
 ```
 
 Note that **duckdb** and **pyarrow** methods will generate [nested types](#loading-nested-types) for nested data, which are only partially supported by `dlt`.

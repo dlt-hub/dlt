@@ -2,9 +2,11 @@ import dataclasses
 from typing import ClassVar, Final, Optional, Any, Dict, List
 
 from dlt.common.typing import TSecretStrValue
-from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.common.configuration.specs.base_configuration import CredentialsConfiguration, configspec
 from dlt.common.destination.reference import DestinationClientDwhWithStagingConfiguration
+
+
+DATABRICKS_APPLICATION_ID = "dltHub_dlt"
 
 
 @configspec
@@ -19,6 +21,7 @@ class DatabricksCredentials(CredentialsConfiguration):
     connection_parameters: Optional[Dict[str, Any]] = None
     """Additional keyword arguments that are passed to `databricks.sql.connect`"""
     socket_timeout: Optional[int] = 180
+    user_agent_entry: Optional[str] = DATABRICKS_APPLICATION_ID
 
     __config_gen_annotations__: ClassVar[List[str]] = [
         "server_hostname",
@@ -28,7 +31,7 @@ class DatabricksCredentials(CredentialsConfiguration):
     ]
 
     def to_connector_params(self) -> Dict[str, Any]:
-        return dict(
+        conn_params = dict(
             catalog=self.catalog,
             server_hostname=self.server_hostname,
             http_path=self.http_path,
@@ -37,6 +40,13 @@ class DatabricksCredentials(CredentialsConfiguration):
             _socket_timeout=self.socket_timeout,
             **(self.connection_parameters or {}),
         )
+
+        if self.user_agent_entry:
+            conn_params["_user_agent_entry"] = (
+                conn_params.get("_user_agent_entry") or self.user_agent_entry
+            )
+
+        return conn_params
 
 
 @configspec

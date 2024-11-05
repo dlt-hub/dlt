@@ -6,6 +6,7 @@ from dlt.common.data_writers.escape import escape_postgres_identifier, escape_du
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.exceptions import TerminalValueError
+from dlt.common.pipeline import SupportsPipeline
 from dlt.common.schema.typing import TColumnSchema, TColumnType
 from dlt.destinations.type_mapping import TypeMapperImpl
 from dlt.destinations.impl.duckdb.configuration import DuckDbCredentials, DuckDbClientConfiguration
@@ -86,7 +87,7 @@ class DuckDbTypeMapper(TypeMapperImpl):
         timezone = column.get("timezone", True)
         precision = column.get("precision")
 
-        if timezone and precision is not None:
+        if timezone and precision is not None and precision != 6:
             logger.warn(
                 f"DuckDB does not support both timezone and precision for column '{column_name}' in"
                 f" table '{table_name}'. Will default to timezone. Please set timezone to False to"
@@ -166,6 +167,7 @@ class duckdb(Destination[DuckDbClientConfiguration, "DuckDbClient"]):
         create_indexes: bool = False,
         destination_name: t.Optional[str] = None,
         environment: t.Optional[str] = None,
+        bound_to_pipeline: t.Optional[SupportsPipeline] = None,
         **kwargs: t.Any,
     ) -> None:
         """Configure the DuckDB destination to use in a pipeline.
@@ -177,6 +179,7 @@ class duckdb(Destination[DuckDbClientConfiguration, "DuckDbClient"]):
                 a path to a database file. Use :pipeline: to create a duckdb
                 in the working folder of the pipeline
             create_indexes: Should unique indexes be created, defaults to False
+            bound_to_pipeline: Bind the connections generates by this factory to this pipeline, to enable :pipeline: path
             **kwargs: Additional arguments passed to the destination config
         """
         super().__init__(
@@ -184,5 +187,6 @@ class duckdb(Destination[DuckDbClientConfiguration, "DuckDbClient"]):
             create_indexes=create_indexes,
             destination_name=destination_name,
             environment=environment,
+            bound_to_pipeline=bound_to_pipeline,
             **kwargs,
         )

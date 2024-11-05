@@ -167,7 +167,7 @@ from dlt.sources.filesystem import filesystem
 
 def _copy(item: FileItemDict) -> FileItemDict:
     # Instantiate fsspec and copy file
-    dest_file = os.path.join(local_folder, item["file_name"])
+    dest_file = os.path.join("./local_folder", item["file_name"])
     # Create destination folder
     os.makedirs(os.path.dirname(dest_file), exist_ok=True)
     # Download file

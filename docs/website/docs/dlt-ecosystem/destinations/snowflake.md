@@ -170,17 +170,17 @@ pipeline.run(events())
 
 ## Supported file formats
 * [insert-values](../file-formats/insert-format.md) is used by default.
-* [parquet](../file-formats/parquet.md) is supported.
-* [jsonl](../file-formats/jsonl.md) is supported.
-* [csv](../file-formats/csv.md) is supported.
+* [Parquet](../file-formats/parquet.md) is supported.
+* [JSONL](../file-formats/jsonl.md) is supported.
+* [CSV](../file-formats/csv.md) is supported.
 
 When staging is enabled:
-* [jsonl](../file-formats/jsonl.md) is used by default.
-* [parquet](../file-formats/parquet.md) is supported.
-* [csv](../file-formats/csv.md) is supported.
+* [JSONL](../file-formats/jsonl.md) is used by default.
+* [Parquet](../file-formats/parquet.md) is supported.
+* [CSV](../file-formats/csv.md) is supported.
 
 :::caution
-When loading from `parquet`, Snowflake will store `json` types (JSON) in `VARIANT` as a string. Use the `jsonl` format instead or use `PARSE_JSON` to update the `VARIANT` field after loading.
+When loading from Parquet, Snowflake will store `json` types (JSON) in `VARIANT` as a string. Use the JSONL format instead or use `PARSE_JSON` to update the `VARIANT` field after loading.
 :::
 
 ### Custom CSV formats

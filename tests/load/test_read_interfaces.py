@@ -6,7 +6,6 @@ import os
 
 from dlt import Pipeline
 from dlt.common import Decimal
-from dlt.common.utils import uniq_id
 
 from typing import List
 from functools import reduce
@@ -21,40 +20,58 @@ from tests.load.utils import (
 from dlt.destinations import filesystem
 from tests.utils import TEST_STORAGE_ROOT
 from dlt.common.destination.reference import TDestinationReferenceArg
-from dlt.destinations.dataset import ReadableDBAPIDataset
+from dlt.destinations.dataset import ReadableDBAPIDataset, ReadableRelationUnknownColumnException
+from tests.load.utils import drop_pipeline_data
+
+EXPECTED_COLUMNS = ["id", "decimal", "other_decimal", "_dlt_load_id", "_dlt_id"]
 
 
-def _run_dataset_checks(
-    pipeline: Pipeline,
-    destination_config: DestinationTestConfiguration,
-    table_format: Any = None,
-    alternate_access_pipeline: Pipeline = None,
-) -> None:
-    destination_type = pipeline.destination_client().config.destination_type
+def _total_records(p: Pipeline) -> int:
+    """how many records to load for a given pipeline"""
+    if p.destination.destination_type == "dlt.destinations.bigquery":
+        return 80
+    elif p.destination.destination_type == "dlt.destinations.mssql":
+        return 1000
+    return 3000
 
-    skip_df_chunk_size_check = False
-    expected_columns = ["id", "decimal", "other_decimal", "_dlt_load_id", "_dlt_id"]
-    if destination_type == "bigquery":
-        chunk_size = 50
-        total_records = 80
-    elif destination_type == "mssql":
-        chunk_size = 700
-        total_records = 1000
-    else:
-        chunk_size = 2048
-        total_records = 3000
 
-    # on filesystem one chunk is one file and not the default vector size
-    if destination_type == "filesystem":
-        skip_df_chunk_size_check = True
+def _chunk_size(p: Pipeline) -> int:
+    """chunk size for a given pipeline"""
+    if p.destination.destination_type == "dlt.destinations.bigquery":
+        return 50
+    elif p.destination.destination_type == "dlt.destinations.mssql":
+        return 700
+    return 2048
 
-    # we always expect 2 chunks based on the above setup
-    expected_chunk_counts = [chunk_size, total_records - chunk_size]
+
+def _expected_chunk_count(p: Pipeline) -> List[int]:
+    return [_chunk_size(p), _total_records(p) - _chunk_size(p)]
+
+
+@pytest.fixture(scope="session")
+def populated_pipeline(request) -> Any:
+    """fixture that returns a pipeline object populated with the example data"""
+    destination_config = cast(DestinationTestConfiguration, request.param)
+
+    if (
+        destination_config.file_format not in ["parquet", "jsonl"]
+        and destination_config.destination_type == "filesystem"
+    ):
+        pytest.skip(
+            "Test only works for jsonl and parquet on filesystem destination, given:"
+            f" {destination_config.file_format}"
+        )
+
+    pipeline = destination_config.setup_pipeline(
+        "read_pipeline", dataset_name="read_test", dev_mode=True
+    )
+    os.environ["DATA_WRITER__FILE_MAX_ITEMS"] = "700"
+    total_records = _total_records(pipeline)
 
     @dlt.source()
     def source():
         @dlt.resource(
-            table_format=table_format,
+            table_format=destination_config.table_format,
             write_disposition="replace",
             columns={
                 "id": {"data_type": "bigint"},
@@ -75,7 +92,7 @@ def _run_dataset_checks(
             ]
 
         @dlt.resource(
-            table_format=table_format,
+            table_format=destination_config.table_format,
             write_disposition="replace",
             columns={
                 "id": {"data_type": "bigint"},
@@ -97,42 +114,49 @@ def _run_dataset_checks(
     s = source()
     pipeline.run(s, loader_file_format=destination_config.file_format)
 
-    if alternate_access_pipeline:
-        pipeline.destination = alternate_access_pipeline.destination
+    # in case of delta on gcs we use the s3 compat layer for reading
+    # for writing we still need to use the gc authentication, as delta_rs seems to use
+    # methods on the s3 interface that are not implemented by gcs
+    if destination_config.bucket_url == GCS_BUCKET and destination_config.table_format == "delta":
+        gcp_bucket = filesystem(
+            GCS_BUCKET.replace("gs://", "s3://"), destination_name="filesystem_s3_gcs_comp"
+        )
+        access_pipeline = destination_config.setup_pipeline(
+            "read_pipeline", dataset_name="read_test", destination=gcp_bucket
+        )
 
-    # access via key
-    table_relationship = pipeline._dataset()["items"]
+        pipeline.destination = access_pipeline.destination
 
-    # full frame
-    df = table_relationship.df()
-    assert len(df.index) == total_records
+    # return pipeline to test
+    yield pipeline
 
-    #
-    # check dataframes
-    #
+    # NOTE: we need to drop pipeline data here since we are keeping the pipelines around for the whole module
+    drop_pipeline_data(pipeline)
 
-    # chunk
-    df = table_relationship.df(chunk_size=chunk_size)
-    if not skip_df_chunk_size_check:
-        assert len(df.index) == chunk_size
-    # lowercase results for the snowflake case
-    assert set(df.columns.values) == set(expected_columns)
 
-    # iterate all dataframes
-    frames = list(table_relationship.iter_df(chunk_size=chunk_size))
-    if not skip_df_chunk_size_check:
-        assert [len(df.index) for df in frames] == expected_chunk_counts
+# NOTE: we collect all destination configs centrally, this way the session based
+# pipeline population per fixture setup will work and save a lot of time
+configs = destinations_configs(
+    default_sql_configs=True,
+    all_buckets_filesystem_configs=True,
+    table_format_filesystem_configs=True,
+    bucket_exclude=[SFTP_BUCKET, MEMORY_BUCKET],
+)
 
-    # check all items are present
-    ids = reduce(lambda a, b: a + b, [f[expected_columns[0]].to_list() for f in frames])
-    assert set(ids) == set(range(total_records))
 
-    # access via prop
-    table_relationship = pipeline._dataset().items
-
-    #
-    # check arrow tables
-    #
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
+def test_arrow_access(populated_pipeline: Pipeline) -> None:
+    table_relationship = populated_pipeline._dataset().items
+    total_records = _total_records(populated_pipeline)
+    chunk_size = _chunk_size(populated_pipeline)
+    expected_chunk_counts = _expected_chunk_count(populated_pipeline)
 
     # full table
     table = table_relationship.arrow()
@@ -140,7 +164,7 @@ def _run_dataset_checks(
 
     # chunk
     table = table_relationship.arrow(chunk_size=chunk_size)
-    assert set(table.column_names) == set(expected_columns)
+    assert set(table.column_names) == set(EXPECTED_COLUMNS)
     assert table.num_rows == chunk_size
 
     # check frame amount and items counts
@@ -148,11 +172,64 @@ def _run_dataset_checks(
     assert [t.num_rows for t in tables] == expected_chunk_counts
 
     # check all items are present
-    ids = reduce(lambda a, b: a + b, [t.column(expected_columns[0]).to_pylist() for t in tables])
+    ids = reduce(lambda a, b: a + b, [t.column(EXPECTED_COLUMNS[0]).to_pylist() for t in tables])
     assert set(ids) == set(range(total_records))
 
+
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
+def test_dataframe_access(populated_pipeline: Pipeline) -> None:
+    # access via key
+    table_relationship = populated_pipeline._dataset()["items"]
+    total_records = _total_records(populated_pipeline)
+    chunk_size = _chunk_size(populated_pipeline)
+    expected_chunk_counts = _expected_chunk_count(populated_pipeline)
+    skip_df_chunk_size_check = (
+        populated_pipeline.destination.destination_type == "dlt.destinations.filesystem"
+    )
+
+    # full frame
+    df = table_relationship.df()
+    assert len(df.index) == total_records
+
+    # chunk
+    df = table_relationship.df(chunk_size=chunk_size)
+    if not skip_df_chunk_size_check:
+        assert len(df.index) == chunk_size
+
+    # lowercase results for the snowflake case
+    assert set(df.columns.values) == set(EXPECTED_COLUMNS)
+
+    # iterate all dataframes
+    frames = list(table_relationship.iter_df(chunk_size=chunk_size))
+    if not skip_df_chunk_size_check:
+        assert [len(df.index) for df in frames] == expected_chunk_counts
+
+    # check all items are present
+    ids = reduce(lambda a, b: a + b, [f[EXPECTED_COLUMNS[0]].to_list() for f in frames])
+    assert set(ids) == set(range(total_records))
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
+def test_db_cursor_access(populated_pipeline: Pipeline) -> None:
     # check fetch accessors
-    table_relationship = pipeline._dataset().items
+    table_relationship = populated_pipeline._dataset().items
+    total_records = _total_records(populated_pipeline)
+    chunk_size = _chunk_size(populated_pipeline)
+    expected_chunk_counts = _expected_chunk_count(populated_pipeline)
 
     # check accessing one item
     one = table_relationship.fetchone()
@@ -173,10 +250,21 @@ def _run_dataset_checks(
     ids = reduce(lambda a, b: a + b, [[item[0] for item in chunk] for chunk in chunks])
     assert set(ids) == set(range(total_records))
 
+
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
+def test_hint_preservation(populated_pipeline: Pipeline) -> None:
+    table_relationship = populated_pipeline._dataset().items
     # check that hints are carried over to arrow table
     expected_decimal_precision = 10
     expected_decimal_precision_2 = 12
-    if destination_config.destination_type == "bigquery":
+    if populated_pipeline.destination.destination_type == "dlt.destinations.bigquery":
         # bigquery does not allow precision configuration..
         expected_decimal_precision = 38
         expected_decimal_precision_2 = 38
@@ -189,39 +277,123 @@ def _run_dataset_checks(
         == expected_decimal_precision_2
     )
 
+
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
+def test_loads_table_access(populated_pipeline: Pipeline) -> None:
+    # check loads table access, we should have one entry
+    loads_table = populated_pipeline._dataset()[populated_pipeline.default_schema.loads_table_name]
+    assert len(loads_table.fetchall()) == 1
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
+def test_sql_queries(populated_pipeline: Pipeline) -> None:
     # simple check that query also works
-    tname = pipeline.sql_client().make_qualified_table_name("items")
-    query_relationship = pipeline._dataset()(f"select * from {tname} where id < 20")
+    tname = populated_pipeline.sql_client().make_qualified_table_name("items")
+    query_relationship = populated_pipeline._dataset()(f"select * from {tname} where id < 20")
 
     # we selected the first 20
     table = query_relationship.arrow()
     assert table.num_rows == 20
 
     # check join query
-    tdname = pipeline.sql_client().make_qualified_table_name("double_items")
+    tdname = populated_pipeline.sql_client().make_qualified_table_name("double_items")
     query = (
         f"SELECT i.id, di.double_id FROM {tname} as i JOIN {tdname} as di ON (i.id = di.id) WHERE"
         " i.id < 20 ORDER BY i.id ASC"
     )
-    join_relationship = pipeline._dataset()(query)
+    join_relationship = populated_pipeline._dataset()(query)
     table = join_relationship.fetchall()
     assert len(table) == 20
     assert list(table[0]) == [0, 0]
     assert list(table[5]) == [5, 10]
     assert list(table[10]) == [10, 20]
 
-    # check loads table access
-    loads_table = pipeline._dataset()[pipeline.default_schema.loads_table_name]
-    loads_table.fetchall()
 
-    destination_for_dataset: TDestinationReferenceArg = (
-        alternate_access_pipeline.destination
-        if alternate_access_pipeline
-        else destination_config.destination_type
-    )
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
+def test_limit_and_head(populated_pipeline: Pipeline) -> None:
+    table_relationship = populated_pipeline._dataset().items
+
+    assert len(table_relationship.head().fetchall()) == 5
+    assert len(table_relationship.limit(24).fetchall()) == 24
+
+    assert len(table_relationship.head().df().index) == 5
+    assert len(table_relationship.limit(24).df().index) == 24
+
+    assert table_relationship.head().arrow().num_rows == 5
+    assert table_relationship.limit(24).arrow().num_rows == 24
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
+def test_column_selection(populated_pipeline: Pipeline) -> None:
+    table_relationship = populated_pipeline._dataset().items
+
+    columns = ["_dlt_load_id", "other_decimal"]
+    data_frame = table_relationship.select(*columns).head().df()
+    assert [v.lower() for v in data_frame.columns.values] == columns
+    assert len(data_frame.index) == 5
+
+    columns = ["decimal", "other_decimal"]
+    arrow_table = table_relationship[columns].head().arrow()
+    assert arrow_table.column_names == columns
+    assert arrow_table.num_rows == 5
+
+    # hints should also be preserved via computed reduced schema
+    expected_decimal_precision = 10
+    expected_decimal_precision_2 = 12
+    if populated_pipeline.destination.destination_type == "dlt.destinations.bigquery":
+        # bigquery does not allow precision configuration..
+        expected_decimal_precision = 38
+        expected_decimal_precision_2 = 38
+    assert arrow_table.schema.field("decimal").type.precision == expected_decimal_precision
+    assert arrow_table.schema.field("other_decimal").type.precision == expected_decimal_precision_2
+
+    with pytest.raises(ReadableRelationUnknownColumnException):
+        arrow_table = table_relationship.select("unknown_column").head().arrow()
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
+def test_standalone_dataset(populated_pipeline: Pipeline) -> None:
+    total_records = _total_records(populated_pipeline)
 
     # check dataset factory
-    dataset = dlt._dataset(destination=destination_for_dataset, dataset_name=pipeline.dataset_name)
+    dataset = dlt._dataset(
+        destination=populated_pipeline.destination, dataset_name=populated_pipeline.dataset_name
+    )
     # verfiy that sql client and schema are lazy loaded
     assert not dataset._schema
     assert not dataset._sql_client
@@ -233,9 +405,9 @@ def _run_dataset_checks(
     dataset = cast(
         ReadableDBAPIDataset,
         dlt._dataset(
-            destination=destination_for_dataset,
-            dataset_name=pipeline.dataset_name,
-            schema=pipeline.default_schema_name,
+            destination=populated_pipeline.destination,
+            dataset_name=populated_pipeline.dataset_name,
+            schema=populated_pipeline.default_schema_name,
         ),
     )
     assert dataset.schema.tables["items"]["write_disposition"] == "replace"
@@ -244,30 +416,30 @@ def _run_dataset_checks(
     dataset = cast(
         ReadableDBAPIDataset,
         dlt._dataset(
-            destination=destination_for_dataset,
-            dataset_name=pipeline.dataset_name,
+            destination=populated_pipeline.destination,
+            dataset_name=populated_pipeline.dataset_name,
             schema="wrong_schema_name",
         ),
     )
     assert "items" not in dataset.schema.tables
-    assert dataset.schema.name == pipeline.dataset_name
+    assert dataset.schema.name == populated_pipeline.dataset_name
 
     # check that schema is loaded if no schema name given
     dataset = cast(
         ReadableDBAPIDataset,
         dlt._dataset(
-            destination=destination_for_dataset,
-            dataset_name=pipeline.dataset_name,
+            destination=populated_pipeline.destination,
+            dataset_name=populated_pipeline.dataset_name,
         ),
     )
-    assert dataset.schema.name == pipeline.default_schema_name
+    assert dataset.schema.name == populated_pipeline.default_schema_name
     assert dataset.schema.tables["items"]["write_disposition"] == "replace"
 
     # check that there is no error when creating dataset without schema table
     dataset = cast(
         ReadableDBAPIDataset,
         dlt._dataset(
-            destination=destination_for_dataset,
+            destination=populated_pipeline.destination,
             dataset_name="unknown_dataset",
         ),
     )
@@ -281,105 +453,17 @@ def _run_dataset_checks(
     other_schema = Schema("some_other_schema")
     other_schema.tables["other_table"] = utils.new_table("other_table")
 
-    pipeline._inject_schema(other_schema)
-    pipeline.default_schema_name = other_schema.name
-    with pipeline.destination_client() as client:
+    populated_pipeline._inject_schema(other_schema)
+    populated_pipeline.default_schema_name = other_schema.name
+    with populated_pipeline.destination_client() as client:
         client.update_stored_schema()
 
     dataset = cast(
         ReadableDBAPIDataset,
         dlt._dataset(
-            destination=destination_for_dataset,
-            dataset_name=pipeline.dataset_name,
+            destination=populated_pipeline.destination,
+            dataset_name=populated_pipeline.dataset_name,
         ),
     )
     assert dataset.schema.name == "some_other_schema"
     assert "other_table" in dataset.schema.tables
-
-
-@pytest.mark.essential
-@pytest.mark.parametrize(
-    "destination_config",
-    destinations_configs(default_sql_configs=True),
-    ids=lambda x: x.name,
-)
-def test_read_interfaces_sql(destination_config: DestinationTestConfiguration) -> None:
-    pipeline = destination_config.setup_pipeline(
-        "read_pipeline", dataset_name="read_test", dev_mode=True
-    )
-    _run_dataset_checks(pipeline, destination_config)
-
-
-@pytest.mark.essential
-@pytest.mark.parametrize(
-    "destination_config",
-    destinations_configs(
-        local_filesystem_configs=True,
-        all_buckets_filesystem_configs=True,
-        bucket_exclude=[SFTP_BUCKET, MEMORY_BUCKET],
-    ),  # TODO: make SFTP work
-    ids=lambda x: x.name,
-)
-def test_read_interfaces_filesystem(destination_config: DestinationTestConfiguration) -> None:
-    # we force multiple files per table, they may only hold 700 items
-    os.environ["DATA_WRITER__FILE_MAX_ITEMS"] = "700"
-
-    if destination_config.file_format not in ["parquet", "jsonl"]:
-        pytest.skip(
-            f"Test only works for jsonl and parquet, given: {destination_config.file_format}"
-        )
-
-    pipeline = destination_config.setup_pipeline(
-        "read_pipeline",
-        dataset_name="read_test",
-        dev_mode=True,
-    )
-
-    _run_dataset_checks(pipeline, destination_config)
-
-    # for gcs buckets we additionally test the s3 compat layer
-    if destination_config.bucket_url == GCS_BUCKET:
-        gcp_bucket = filesystem(
-            GCS_BUCKET.replace("gs://", "s3://"), destination_name="filesystem_s3_gcs_comp"
-        )
-        pipeline = destination_config.setup_pipeline(
-            "read_pipeline", dataset_name="read_test", dev_mode=True, destination=gcp_bucket
-        )
-        _run_dataset_checks(pipeline, destination_config)
-
-
-@pytest.mark.essential
-@pytest.mark.parametrize(
-    "destination_config",
-    destinations_configs(
-        table_format_filesystem_configs=True,
-        with_table_format="delta",
-        bucket_exclude=[SFTP_BUCKET, MEMORY_BUCKET],
-    ),
-    ids=lambda x: x.name,
-)
-def test_delta_tables(destination_config: DestinationTestConfiguration) -> None:
-    os.environ["DATA_WRITER__FILE_MAX_ITEMS"] = "700"
-
-    pipeline = destination_config.setup_pipeline(
-        "read_pipeline", dataset_name="read_test", dev_mode=True
-    )
-
-    # in case of gcs we use the s3 compat layer for reading
-    # for writing we still need to use the gc authentication, as delta_rs seems to use
-    # methods on the s3 interface that are not implemented by gcs
-    access_pipeline = pipeline
-    if destination_config.bucket_url == GCS_BUCKET:
-        gcp_bucket = filesystem(
-            GCS_BUCKET.replace("gs://", "s3://"), destination_name="filesystem_s3_gcs_comp"
-        )
-        access_pipeline = destination_config.setup_pipeline(
-            "read_pipeline", dataset_name="read_test", destination=gcp_bucket
-        )
-
-    _run_dataset_checks(
-        pipeline,
-        destination_config,
-        table_format="delta",
-        alternate_access_pipeline=access_pipeline,
-    )

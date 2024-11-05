@@ -530,6 +530,12 @@ class TestJSONResponseCursorPaginator:
         assert paginator._next_reference == "cursor-2"
         assert paginator.has_next_page is True
 
+    def test_update_state_when_cursor_path_is_empty_string(self):
+        paginator = JSONResponseCursorPaginator(cursor_path="next_cursor")
+        response = Mock(Response, json=lambda: {"next_cursor": "", "results": []})
+        paginator.update_state(response)
+        assert paginator.has_next_page is False
+
     def test_update_request(self):
         paginator = JSONResponseCursorPaginator(cursor_path="next_cursor")
         paginator._next_reference = "cursor-2"

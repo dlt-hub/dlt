@@ -231,6 +231,7 @@ def mongodb_collection(
     collection: str = dlt.config.value,
     incremental: Optional[dlt.sources.incremental] = None,  # type: ignore[type-arg]
     write_disposition: Optional[str] = dlt.config.value,
+    data_item_format: Optional[TDataItemFormat] = "object",
 ) -> Any:
    ...
 ```

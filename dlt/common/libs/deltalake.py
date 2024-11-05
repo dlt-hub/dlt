@@ -24,7 +24,10 @@ except ModuleNotFoundError:
     )
 
 
-def ensure_delta_compatible_arrow_schema(schema: pa.Schema) -> pa.Schema:
+def ensure_delta_compatible_arrow_schema(
+    schema: pa.Schema,
+    partition_by: Optional[Union[List[str], str]] = None,
+) -> pa.Schema:
     """Returns Arrow schema compatible with Delta table format.
 
     Casts schema to replace data types not supported by Delta.
@@ -35,12 +38,24 @@ def ensure_delta_compatible_arrow_schema(schema: pa.Schema) -> pa.Schema:
         pa.types.is_time: pa.string(),
         pa.types.is_decimal256: pa.string(),  # pyarrow does not allow downcasting to decimal128
     }
+
+    # partition fields can't be dictionary: https://github.com/delta-io/delta-rs/issues/2969
+    if partition_by is not None:
+        if isinstance(partition_by, str):
+            partition_by = [partition_by]
+        if any(pa.types.is_dictionary(schema.field(col).type) for col in partition_by):
+            # cast all dictionary fields to string — this is rogue because
+            # 1. dictionary value type is disregarded
+            # 2. any non-partition dictionary fields are cast too
+            ARROW_TO_DELTA_COMPATIBLE_ARROW_TYPE_MAP[pa.types.is_dictionary] = pa.string()
+
     # NOTE: also consider calling _convert_pa_schema_to_delta() from delta.schema which casts unsigned types
     return cast_arrow_schema_types(schema, ARROW_TO_DELTA_COMPATIBLE_ARROW_TYPE_MAP)
 
 
 def ensure_delta_compatible_arrow_data(
-    data: Union[pa.Table, pa.RecordBatchReader]
+    data: Union[pa.Table, pa.RecordBatchReader],
+    partition_by: Optional[Union[List[str], str]] = None,
 ) -> Union[pa.Table, pa.RecordBatchReader]:
     """Returns Arrow data compatible with Delta table format.
 
@@ -53,7 +68,7 @@ def ensure_delta_compatible_arrow_data(
         version="17.0.0",
         msg="`pyarrow>=17.0.0` is needed for `delta` table format on `filesystem` destination.",
     )
-    schema = ensure_delta_compatible_arrow_schema(data.schema)
+    schema = ensure_delta_compatible_arrow_schema(data.schema, partition_by)
     return data.cast(schema)
 
 
@@ -87,7 +102,7 @@ def write_delta_table(
     # is released
     write_deltalake(  # type: ignore[call-overload]
         table_or_uri=table_or_uri,
-        data=ensure_delta_compatible_arrow_data(data),
+        data=ensure_delta_compatible_arrow_data(data, partition_by),
         partition_by=partition_by,
         mode=get_delta_write_mode(write_disposition),
         schema_mode="merge",  # enable schema evolution (adding new columns)
@@ -116,9 +131,10 @@ def merge_delta_table(
             primary_keys = get_columns_names_with_prop(schema, "primary_key")
             predicate = " AND ".join([f"target.{c} = source.{c}" for c in primary_keys])
 
+        partition_by = get_columns_names_with_prop(schema, "partition")
         qry = (
             table.merge(
-                source=ensure_delta_compatible_arrow_data(data),
+                source=ensure_delta_compatible_arrow_data(data, partition_by),
                 predicate=predicate,
                 source_alias="source",
                 target_alias="target",

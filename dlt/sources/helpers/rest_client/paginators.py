@@ -651,7 +651,7 @@ class JSONResponseCursorPaginator(BaseReferencePaginator):
     def update_state(self, response: Response, data: Optional[List[Any]] = None) -> None:
         """Extracts the cursor value from the JSON response."""
         values = jsonpath.find_values(self.cursor_path, response.json())
-        self._next_reference = values[0] if values else None
+        self._next_reference = values[0] if values and values[0] else None
 
     def update_request(self, request: Request) -> None:
         """Updates the request with the cursor query parameter."""

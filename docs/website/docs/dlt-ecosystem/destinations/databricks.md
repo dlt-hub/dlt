@@ -128,21 +128,22 @@ See [staging support](#staging-support) for authentication options when `dlt` co
 All write dispositions are supported.
 
 ## Data loading
-Data is loaded using `INSERT VALUES` statements by default.
+To load data into Databricks, you must set up a staging filesystem by configuring an Amazon S3 or Azure Blob Storage bucket. Parquet is the default file format used for data uploads. As an alternative to Parquet, you can switch to using JSONL.
 
-Efficient loading from a staging filesystem is also supported by configuring an Amazon S3 or Azure Blob Storage bucket as a staging destination. When staging is enabled, `dlt` will upload data in `parquet` files to the bucket and then use `COPY INTO` statements to ingest the data into Databricks.
+dlt will upload the data in Parquet files (or JSONL, if configured) to the bucket and then use `COPY INTO` statements to ingest the data into Databricks.
+
 For more information on staging, see the [staging support](#staging-support) section below.
 
+
 ## Supported file formats
-* [insert-values](../file-formats/insert-format.md) is used by default.
-* [JSONL](../file-formats/jsonl.md) supported when staging is enabled (see limitations below).
 * [Parquet](../file-formats/parquet.md) supported when staging is enabled.
+* [JSONL](../file-formats/jsonl.md) supported when staging is enabled (see limitations below).
 
 The JSONL format has some limitations when used with Databricks:
 
 1. Compression must be disabled to load jsonl files in Databricks. Set `data_writer.disable_compression` to `true` in the dlt config when using this format.
 2. The following data types are not supported when using the JSONL format with `databricks`: `decimal`, `json`, `date`, `binary`. Use `parquet` if your data contains these types.
-3. The `bigint` data type with precision is not supported with the `jsonl` format.
+3. The `bigint` data type with precision is not supported with the JSONL format.
 
 ## Staging support
 
@@ -224,11 +225,17 @@ import dlt
 bricks = dlt.destinations.databricks(staging_credentials_name="credential_x")
 ```
 
+## Additional destination capabilities
+
 ### dbt support
 This destination [integrates with dbt](../transformations/dbt/dbt.md) via [dbt-databricks](https://github.com/databricks/dbt-databricks).
 
 ### Syncing of `dlt` state
 This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination).
+
+### Databricks User Agent
+We enable Databricks to identify that the connection is created by dlt.
+Databricks will use this user agent identifier to better understand the usage patterns associated with dlt integration. The connection identifier is `dltHub_dlt`.
 
 <!--@@@DLT_TUBA databricks-->
 

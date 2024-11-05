@@ -1518,6 +1518,21 @@ def test_drop_with_new_name() -> None:
 
     assert new_pipeline.pipeline_name == new_test_name
 
+    # load to old pipeline
+    pipeline.run([1, 2, 3], table_name="p1")
+    new_pipeline.run([1, 2, 3], table_name="p2")
+
+    assert_data_table_counts(pipeline, {"p1": 3})
+    assert_data_table_counts(new_pipeline, {"p2": 3})
+
+
+def test_drop() -> None:
+    pipeline = dlt.pipeline(pipeline_name="test_drop", destination="duckdb")
+    clean_pipeline = pipeline.drop()
+    assert clean_pipeline is pipeline
+    assert clean_pipeline.pipeline_name == "test_drop"
+    pipeline.run([1, 2, 3], table_name="numbers")
+
 
 def test_schema_version_increase_and_source_update() -> None:
     now = pendulum.now()
@@ -2806,3 +2821,32 @@ def test_duckdb_column_invalid_timestamp() -> None:
 
     pipeline = dlt.pipeline(destination="duckdb")
     pipeline.run(events())
+
+
+def test_push_table_with_upfront_schema() -> None:
+    # infer schema
+    pipeline = dlt.pipeline(pipeline_name="push_table_infer_pipeline", destination="duckdb")
+    info = pipeline.run(_get_shuffled_events())
+    assert_load_info(info)
+
+    # get resource as table
+    data = list(_get_shuffled_events())
+
+    # save into other pipeline
+    infer_hash = pipeline.default_schema.version_hash
+    copy_pipeline = dlt.pipeline(pipeline_name="push_table_copy_pipeline", destination="duckdb")
+    info = copy_pipeline.run(
+        data, table_name="_get_shuffled_events", schema=pipeline.default_schema
+    )
+    copy_schema = copy_pipeline.default_schema
+    # make sure that schema hash didn't change - we didn't change anything in the data
+    assert copy_pipeline.default_schema.version_hash == infer_hash
+    copy_pipeline = dlt.pipeline(pipeline_name="push_table_copy_pipeline", destination="duckdb")
+    info = copy_pipeline.run(data, table_name="_get_shuffled_events", schema=copy_schema)
+    assert copy_pipeline.default_schema.version_hash == infer_hash
+    copy_schema = copy_pipeline.default_schema
+
+    # another table
+    copy_pipeline = dlt.pipeline(pipeline_name="push_table_copy_pipeline", destination="duckdb")
+    info = copy_pipeline.run(data, table_name="events", schema=copy_schema)
+    assert copy_pipeline.default_schema.version_hash != infer_hash
