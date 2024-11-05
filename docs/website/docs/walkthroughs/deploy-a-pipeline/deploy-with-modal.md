@@ -24,15 +24,9 @@ With Modal, you can perform tasks like running generative models, large-scale ba
 To know more, please refer to [Modals's documentation.](https://modal.com/docs)
 
 
-### How does dlt integrate with Modal for pipeline orchestration?
-
-As an example of how to set up a pipeline in Modal, we'll use the [building a cost-effective analytics stack with Modal, dlt, and dbt.](https://modal.com/blog/analytics-stack) case study.
-
-The article above demonstrates automating a workflow to load data from Postgres to Snowflake using dlt.
-
 ## How to run dlt on Modal
 
-Here’s a dlt project setup to copy data from our MySQL into DuckDB:
+Here’s a dlt project setup to copy data from public MySQL database into DuckDB as a destination:
 
 ### Step 1: Initialize source
 Run the `dlt init` CLI command to initialize the SQL database source and set up the `sql_database_pipeline.py` template.
@@ -111,3 +105,9 @@ def main(dev: bool = False):
     ]
     list(load_table_from_database.starmap(tables))
 ```
+
+## More examples
+
+For a practical, real-world example, check out the article ["Building a Cost-Effective Analytics Stack with Modal, dlt, and dbt"](https://modal.com/blog/analytics-stack).
+
+This article illustrates how to automate a workflow for loading data from Postgres into Snowflake using dlt, providing valuable insights into building an efficient analytics pipeline.
