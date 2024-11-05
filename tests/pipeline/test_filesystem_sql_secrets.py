@@ -2,6 +2,7 @@ from typing import Any
 
 import pytest
 import os
+from pytest_mock import MockerFixture
 
 from tests.utils import TEST_STORAGE_ROOT
 from tests.load.utils import (
@@ -10,6 +11,7 @@ from tests.load.utils import (
     AWS_BUCKET,
 )
 from dlt.common.utils import uniq_id
+from dlt.common import logger
 
 
 @pytest.mark.essential
@@ -19,7 +21,7 @@ from dlt.common.utils import uniq_id
     ids=lambda x: x.name,
 )
 def test_secrets_management(
-    destination_config: DestinationTestConfiguration, capfd: pytest.CaptureFixture[Any]
+    destination_config: DestinationTestConfiguration, mocker: MockerFixture
 ) -> None:
     """Test the handling of secrets by the sql_client, we only need to do this on s3
     as the other destinations work accordingly"""
@@ -29,6 +31,8 @@ def test_secrets_management(
     os.environ["DESTINATION__FILESYSTEM__CREDENTIALS__AWS_ACCESS_KEY_ID"] = "key"
 
     warning_mesage = "You are persisting duckdb secrets but are storing them in the default folder"
+
+    logger_spy = mocker.spy(logger, "warn")
 
     pipeline = destination_config.setup_pipeline(
         "read_pipeline",
@@ -94,7 +98,7 @@ def test_secrets_management(
             fs_sql_client.create_authentication(persistent=True)
 
     # check that no warning was logged
-    assert warning_mesage not in capfd.readouterr().err
+    logger_spy.assert_not_called()
 
     # check that warning is logged when secrets are persisted in the default folder
     duck_db_location = TEST_STORAGE_ROOT + "/" + uniq_id()
@@ -103,4 +107,5 @@ def test_secrets_management(
     fs_sql_client = _fs_sql_client_for_external_db(duck_db)
     with fs_sql_client as sql_client:
         sql_client.create_authentication(persistent=True)
-    assert warning_mesage in capfd.readouterr().err
+    logger_spy.assert_called_once()
+    assert warning_mesage in logger_spy.call_args_list[0][0][0]
