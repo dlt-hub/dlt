@@ -4,9 +4,10 @@ from typing import Union, Dict, List
 import pyarrow as pa
 
 from dlt.common import logger
+from dlt.common.data_writers.escape import escape_lancedb_literal
 from dlt.common.destination.exceptions import DestinationTerminalException
 from dlt.common.schema import TTableSchema
-from dlt.common.schema.utils import get_columns_names_with_prop
+from dlt.common.schema.utils import get_columns_names_with_prop, get_first_column_name_with_prop
 from dlt.destinations.impl.lancedb.configuration import TEmbeddingProvider
 
 EMPTY_STRING_PLACEHOLDER = "0uEoDNBpQUBwsxKbmxxB"
@@ -28,14 +29,8 @@ def set_non_standard_providers_environment_variables(
 def get_canonical_vector_database_doc_id_merge_key(
     load_table: TTableSchema,
 ) -> str:
-    if merge_key := get_columns_names_with_prop(load_table, "merge_key"):
-        if len(merge_key) > 1:
-            raise DestinationTerminalException(
-                "You cannot specify multiple merge keys with LanceDB orphan remove enabled:"
-                f" {merge_key}"
-            )
-        else:
-            return merge_key[0]
+    if merge_key := get_first_column_name_with_prop(load_table, "merge_key"):
+        return merge_key
     elif primary_key := get_columns_names_with_prop(load_table, "primary_key"):
         # No merge key defined, warn and assume the first element of the primary key is `doc_id`.
         logger.warning(
@@ -74,9 +69,5 @@ def fill_empty_source_column_values_with_placeholder(
 
 
 def create_filter_condition(field_name: str, array: pa.Array) -> str:
-    def format_value(element: Union[str, int, float, pa.Scalar]) -> str:
-        if isinstance(element, pa.Scalar):
-            element = element.as_py()
-        return "'" + element.replace("'", "''") + "'" if isinstance(element, str) else str(element)
-
-    return f"{field_name} IN ({', '.join(map(format_value, array))})"
+    array_py = array.to_pylist()
+    return f"{field_name} IN ({', '.join(map(escape_lancedb_literal, array_py))})"
