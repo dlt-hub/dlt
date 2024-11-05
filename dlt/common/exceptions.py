@@ -1,5 +1,7 @@
 from typing import Any, AnyStr, Dict, List, Sequence, Optional, Iterable, Type, TypedDict
 
+from dlt.common.typing import StrAny
+
 
 class ExceptionTrace(TypedDict, total=False):
     """Exception trace. NOTE: we intend to change it with an extended line by line trace with code snippets"""
@@ -97,18 +99,22 @@ class DictValidationException(DltException):
     def __init__(
         self,
         msg: str,
+        doc: StrAny,
         path: str,
         expected_type: Type[Any] = None,
         field: str = None,
         value: Any = None,
         nested_exceptions: List["DictValidationException"] = None,
     ) -> None:
+        from dlt.common.utils import obfuscate_values_in_string
+
+        self.doc = doc
         self.path = path
         self.expected_type = expected_type
         self.field = field
         self.value = value
         self.nested_exceptions = nested_exceptions
-        self.msg = msg
+        self.msg = obfuscate_values_in_string(doc, msg)
         super().__init__(msg)
 
     def __str__(self) -> str:

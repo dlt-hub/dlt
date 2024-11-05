@@ -243,6 +243,7 @@ def simple_regex_validator(path: str, pk: str, pv: Any, t: Any) -> bool:
         if not isinstance(pv, str):
             raise DictValidationException(
                 f"field {pk} value {pv} has invalid type {type(pv).__name__} while str is expected",
+                {},
                 path,
                 t,
                 pk,
@@ -255,6 +256,7 @@ def simple_regex_validator(path: str, pk: str, pv: Any, t: Any) -> bool:
             except Exception as e:
                 raise DictValidationException(
                     f"field {pk} value {pv[3:]} does not compile as regex: {str(e)}",
+                    {},
                     path,
                     t,
                     pk,
@@ -264,6 +266,7 @@ def simple_regex_validator(path: str, pk: str, pv: Any, t: Any) -> bool:
             if RE_NON_ALPHANUMERIC_UNDERSCORE.match(pv):
                 raise DictValidationException(
                     f"field {pk} value {pv} looks like a regex, please prefix with re:",
+                    {},
                     path,
                     t,
                     pk,
@@ -283,6 +286,7 @@ def column_name_validator(naming: NamingConvention) -> TCustomValidator:
                 raise DictValidationException(
                     f"field {pk} value {pv} has invalid type {type(pv).__name__} while"
                     " str is expected",
+                    {},
                     path,
                     t,
                     pk,
@@ -291,11 +295,11 @@ def column_name_validator(naming: NamingConvention) -> TCustomValidator:
             try:
                 if naming.normalize_path(pv) != pv:
                     raise DictValidationException(
-                        f"field {pk}: {pv} is not a valid column name", path, t, pk, pv
+                        f"field {pk}: {pv} is not a valid column name", {}, path, t, pk, pv
                     )
             except ValueError:
                 raise DictValidationException(
-                    f"field {pk}: {pv} is not a valid column name", path, t, pk, pv
+                    f"field {pk}: {pv} is not a valid column name", {}, path, t, pk, pv
                 )
             return True
         else:

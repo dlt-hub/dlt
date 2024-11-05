@@ -15,6 +15,7 @@ from typing import (
     Optional,
     Union,
 )
+from dlt.common.configuration.specs import BaseConfiguration
 
 from dlt.common import Decimal, jsonpath
 from dlt.common.exceptions import DictValidationException
@@ -404,6 +405,21 @@ def test_class() -> None:
     test_item_2 = {"prop": Decimal(1)}
     with pytest.raises(DictValidationException):
         validate_dict(TTestRecordClassUnion, test_item_2, path=".")
+
+
+def test_secrets_obfuscation() -> None:
+    class Config(TypedDict):
+        a: str
+        b: int
+
+    with pytest.raises(DictValidationException) as e:
+        validate_dict(Config, {"a": "123456", "b": {"c": "inner_value"}}, ".")
+    assert "inner_value" not in e.value.msg
+    assert "123456" not in e.value.msg
+    # NOTE: message before this change was:
+    # "field 'b' with value {'c': 'inner_value'} has invalid type 'dict' while 'int' is expected"
+    # "inner_value" is now obfuscated
+    assert "{'c': 'i*********e'}" in e.value.msg
 
 
 # def test_union_merge() -> None:

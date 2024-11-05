@@ -635,3 +635,42 @@ def make_defunct_class(cls: TObj) -> Type[TObj]:
                 raise RuntimeError("This instance has been dropped and cannot be used anymore.")
 
     return DefunctClass
+
+
+def obfuscate_string(s: str) -> str:
+    """Obfuscates string by replacing some or all characters with asterisks"""
+    if len(s) < 6:
+        return "*" * len(s)
+    return s[0] + "*" * (len(s) - 2) + s[-1]
+
+
+def all_strings(d: StrAny) -> List[str]:
+    """Returns all string values found in the given object"""
+    strings = []
+
+    if isinstance(d, str):
+        return [d]
+    if isinstance(d, dict):
+        for v in d.values():
+            if isinstance(v, str):
+                strings.append(v)
+            elif isinstance(v, dict):
+                strings.extend(all_strings(v))
+    elif isinstance(d, list):
+        for v in d:
+            strings.extend(all_strings(v))
+    else:
+        return []
+    return strings
+
+
+def obfuscate_values_in_string(d: StrAny, msg: str) -> str:
+    """Obfuscates all string values found in the dictionary and its nested dictionaries in the message"""
+
+    # create mapping of obfuscated strings
+    obfuscated_strings = {s: obfuscate_string(s) for s in all_strings(d)}
+
+    for s in obfuscated_strings:
+        msg = msg.replace(s, obfuscated_strings[s])
+
+    return msg
