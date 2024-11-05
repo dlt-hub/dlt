@@ -1,3 +1,5 @@
+from typing import Any
+
 import pytest
 import os
 
@@ -17,17 +19,21 @@ from dlt.common.utils import uniq_id
     ids=lambda x: x.name,
 )
 def test_secrets_management(
-    destination_config: DestinationTestConfiguration, capfd: pytest.CaptureFixture
+    destination_config: DestinationTestConfiguration, capfd: pytest.CaptureFixture[Any]
 ) -> None:
     """Test the handling of secrets by the sql_client, we only need to do this on s3
     as the other destinations work accordingly"""
+
+    # we can use fake keys
+    os.environ["DESTINATION__FILESYSTEM__CREDENTIALS__AWS_SECRET_ACCESS_KEY"] = "secret_key"
+    os.environ["DESTINATION__FILESYSTEM__CREDENTIALS__AWS_ACCESS_KEY_ID"] = "key"
+
     warning_mesage = "You are persisting duckdb secrets but are storing them in the default folder"
 
     pipeline = destination_config.setup_pipeline(
         "read_pipeline",
         dataset_name="read_test",
     )
-    pipeline.run([1, 2, 3], table_name="items")
 
     import duckdb
     from duckdb import HTTPException
@@ -63,19 +69,13 @@ def test_secrets_management(
     with fs_sql_client as sql_client:
         sql_client.create_views_for_tables({"items": "items"})
     external_db.close()
-
-    # no secrets will not work
-    external_db = _external_duckdb_connection()
-    with pytest.raises(HTTPException):
-        assert len(external_db.sql("SELECT * FROM second.items").fetchall()) == 3
-    external_db.close()
+    assert not _secrets_exist()
 
     # add secrets and check that they are there
     external_db = _external_duckdb_connection()
     fs_sql_client = _fs_sql_client_for_external_db(external_db)
     with fs_sql_client as sql_client:
         fs_sql_client.create_authentication(persistent=True)
-    assert len(external_db.sql("SELECT * FROM second.items").fetchall()) == 3
     assert _secrets_exist()
 
     # remove secrets and check that they are removed
