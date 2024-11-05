@@ -96,7 +96,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         # self.primary_keys = Dict[str, ]
 
     def _flatten(
-        self, table: str, dict_row: DictStrAny, _r_lvl: int
+        self, table: str, dict_row: DictStrAny, parent_path: Tuple[str, ...], _r_lvl: int
     ) -> Tuple[DictStrAny, Dict[Tuple[str, ...], Sequence[Any]]]:
         out_rec_row: DictStrAny = {}
         out_rec_list: Dict[Tuple[str, ...], Sequence[Any]] = {}
@@ -117,7 +117,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
                 # for lists and dicts we must check if type is possibly nested
                 if isinstance(v, (dict, list)):
                     if not self._is_nested_type(
-                        self.schema, table, nested_name, self.max_nesting, __r_lvl
+                        self.schema, table, nested_name, self.max_nesting, parent_path, __r_lvl
                     ):
                         # TODO: if schema contains table {table}__{nested_name} then convert v into single element list
                         if isinstance(v, dict):
@@ -268,7 +268,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         schema = self.schema
         table = schema.naming.shorten_fragments(*parent_path, *ident_path)
         # flatten current row and extract all lists to recur into
-        flattened_row, lists = self._flatten(table, dict_row, _r_lvl)
+        flattened_row, lists = self._flatten(table, dict_row, parent_path, _r_lvl)
         # always extend row
         DataItemNormalizer._extend_row(extend, flattened_row)
         # infer record hash or leave existing primary key if present
@@ -423,10 +423,21 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         )
 
     @staticmethod
-    def _get_table_nesting_level(schema: Schema, table_name: str) -> Optional[int]:
+    def _get_table_nesting_level(
+        schema: Schema, table_name: str, parent_path: Tuple[str, ...]
+    ) -> Optional[int]:
+        """gets table nesting level, will inherit from parent if not set"""
+
+        # try go get table directly
         table = schema.tables.get(table_name)
+
+        # if table is not found, try to get it from root path
+        if not table and parent_path:
+            table = schema.tables.get(parent_path[0])
+
         if table:
-            return table.get("x-normalizer", {}).get("max_nesting")  # type: ignore
+            return cast(int, table.get("x-normalizer", {}).get("max_nesting"))
+
         return None
 
     @staticmethod
@@ -440,13 +451,20 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
     @staticmethod
     @lru_cache(maxsize=None)
     def _is_nested_type(
-        schema: Schema, table_name: str, field_name: str, max_nesting: int, _r_lvl: int
+        schema: Schema,
+        table_name: str,
+        field_name: str,
+        max_nesting: int,
+        parent_path: Tuple[str, ...],
+        _r_lvl: int,
     ) -> bool:
         """For those paths the nested objects should be left in place.
         Cache perf: max_nesting < _r_lvl: ~2x faster, full check 10x faster
         """
         # turn everything at the recursion level into nested type
-        max_table_nesting = DataItemNormalizer._get_table_nesting_level(schema, table_name)
+        max_table_nesting = DataItemNormalizer._get_table_nesting_level(
+            schema, table_name, parent_path
+        )
         if max_table_nesting is not None:
             max_nesting = max_table_nesting
 
