@@ -123,7 +123,7 @@ Out of the box, LanceDB will act as a normal database. To use LanceDB's embeddin
 The `lancedb_adapter` is a helper function that configures the resource for the LanceDB destination:
 
 ```py
-lancedb_adapter(data, embed)
+lancedb_adapter(data, embed="title")
 ```
 
 It accepts the following arguments:

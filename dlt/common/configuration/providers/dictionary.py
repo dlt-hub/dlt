@@ -4,7 +4,7 @@ from typing import ClassVar, Iterator
 from dlt.common.typing import DictStrAny
 
 from .provider import get_key_name
-from .toml import BaseDocProvider
+from .doc import BaseDocProvider
 
 
 class DictionaryProvider(BaseDocProvider):

@@ -1,9 +1,10 @@
 import warnings
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
-from urllib.parse import urlparse, urljoin
+from urllib.parse import urljoin, urlparse
 
-from requests import Response, Request
+from requests import Request, Response
+
 from dlt.common import jsonpath
 
 
@@ -127,6 +128,7 @@ class RangePaginator(BasePaginator):
                 " provided."
             )
         self.param_name = param_name
+        self.initial_value = initial_value
         self.current_value = initial_value
         self.value_step = value_step
         self.base_index = base_index
@@ -136,6 +138,8 @@ class RangePaginator(BasePaginator):
         self.stop_after_empty_page = stop_after_empty_page
 
     def init_request(self, request: Request) -> None:
+        self._has_next_page = True
+        self.current_value = self.initial_value
         if request.params is None:
             request.params = {}
 
@@ -647,7 +651,7 @@ class JSONResponseCursorPaginator(BaseReferencePaginator):
     def update_state(self, response: Response, data: Optional[List[Any]] = None) -> None:
         """Extracts the cursor value from the JSON response."""
         values = jsonpath.find_values(self.cursor_path, response.json())
-        self._next_reference = values[0] if values else None
+        self._next_reference = values[0] if values and values[0] else None
 
     def update_request(self, request: Request) -> None:
         """Updates the request with the cursor query parameter."""

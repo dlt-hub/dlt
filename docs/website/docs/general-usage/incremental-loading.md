@@ -100,7 +100,7 @@ issues = []
 reactions = ["%2B1", "-1", "smile", "tada", "thinking_face", "heart", "rocket", "eyes"]
 for reaction in reactions:
     for page_no in range(1, 3):
-      page = requests.get(f"https://api.github.com/repos/{repo}/issues?state=all&sort=reactions-{reaction}&per_page=100&page={page_no}", headers=headers)
+      page = requests.get(f"https://api.github.com/repos/{REPO_NAME}/issues?state=all&sort=reactions-{reaction}&per_page=100&page={page_no}", headers=headers)
       print(f"got page for {reaction} page {page_no}, requests left", page.headers["x-ratelimit-remaining"])
       issues.extend(page.json())
 p.run(issues, write_disposition="merge", primary_key="id", table_name="issues")
@@ -223,7 +223,7 @@ info = pipeline.run(fb_ads.with_resources("ads"), write_disposition="merge")
 In the example above, we enforce the root key propagation with `fb_ads.root_key = True`. This ensures that the correct data is propagated on the initial `replace` load so the future `merge` load can be executed. You can achieve the same in the decorator `@dlt.source(root_key=True)`.
 
 ### `scd2` strategy
-`dlt` can create [Slowly Changing Dimension Type 2](https://en.wikipedia.org/wiki/Slowly_changing_dimension#Type_2:_add_new_row) (SCD2) destination tables for dimension tables that change in the source. The resource is expected to provide a full extract of the source table each run. A row hash is stored in `_dlt_id` and used as a surrogate key to identify source records that have been inserted, updated, or deleted. A `NULL` value is used by default to indicate an active record, but it's possible to use a configurable high timestamp (e.g., 9999-12-31 00:00:00.000000) instead.
+`dlt` can create [Slowly Changing Dimension Type 2](https://en.wikipedia.org/wiki/Slowly_changing_dimension#Type_2:_add_new_row) (SCD2) destination tables for dimension tables that change in the source. By default, the resource is expected to provide a full extract of the source table each run, but [incremental extracts](#example-incremental-scd2) are also possible. A row hash is stored in `_dlt_id` and used as surrogate key to identify source records that have been inserted, updated, or deleted. A `NULL` value is used by default to indicate an active record, but it's possible to use a configurable high timestamp (e.g. 9999-12-31 00:00:00.000000) instead.
 
 :::note
 The `unique` hint for `_dlt_id` in the root table is set to `false` when using `scd2`. This differs from [default behavior](./destination-tables.md#child-and-parent-tables). The reason is that the surrogate key stored in `_dlt_id` contains duplicates after an _insert-delete-reinsert_ pattern:
@@ -299,6 +299,131 @@ pipeline.run(dim_customer())  # third run — 2024-04-10 06:45:22.847403
 | 2024-04-09 18:27:53.734235 | 2024-04-09 22:13:07.943703 | 1 | foo | 1 |
 | 2024-04-09 18:27:53.734235 | **2024-04-10 06:45:22.847403** | 2 | bar | 2 |
 | 2024-04-09 22:13:07.943703 | NULL | 1 | foo_updated | 1 |
+
+#### Example: incremental `scd2`
+A `merge_key` can be provided to work with incremental extracts instead of full extracts. The `merge_key` lets you define which absent rows are considered "deleted". Compound natural keys are allowed and can be specified by providing a list of column names as `merge_key`.
+
+*Case 1: do not retire absent records*
+
+You can set the natural key as `merge_key` to prevent retirement of absent rows. In this case you don't consider any absent row deleted. Records are not retired in the destination if their corresponding natural keys are not present in the source extract. This allows for incremental extracts that only contain updated records.
+
+```py
+@dlt.resource(
+    merge_key="customer_key",
+    write_disposition={"disposition": "merge", "strategy": "scd2"}
+)
+def dim_customer():
+    # initial load
+    yield [
+        {"customer_key": 1, "c1": "foo", "c2": 1},
+        {"customer_key": 2, "c1": "bar", "c2": 2}
+    ]
+
+pipeline.run(dim_customer())  # first run — 2024-04-09 18:27:53.734235
+...
+```
+*`dim_customer` destination table after first run:*
+
+| `_dlt_valid_from` | `_dlt_valid_to` | `customer_key` | `c1` | `c2` |
+| -- | -- | -- | -- | -- |
+| 2024-04-09 18:27:53.734235 | NULL | 1 | foo | 1 |
+| 2024-04-09 18:27:53.734235 | NULL | 2 | bar | 2 |
+
+```py
+...
+def dim_customer():
+    # second load — record for customer_key 1 got updated, customer_key 2 absent
+    yield [
+        {"customer_key": 1, "c1": "foo_updated", "c2": 1},
+]
+
+pipeline.run(dim_customer())  # second run — 2024-04-09 22:13:07.943703
+```
+
+*`dim_customer` destination table after second run—customer key 2 was not retired:*
+
+| `_dlt_valid_from` | `_dlt_valid_to` | `customer_key` | `c1` | `c2` |
+| -- | -- | -- | -- | -- |
+| 2024-04-09 18:27:53.734235 | **2024-04-09 22:13:07.943703** | 1 | foo | 1 |
+| 2024-04-09 18:27:53.734235 | NULL | 2 | bar | 2 |
+| **2024-04-09 22:13:07.943703** | **NULL** | **1** | **foo_updated** | **1** |
+
+*Case 2: only retire records for given partitions*
+
+:::note
+Technically this is not SCD2 because the key used to merge records is not a natural key.
+:::
+
+You can set a "partition" column as `merge_key` to retire absent rows for given partitions. In this case you only consider absent rows deleted if their partition value is present in the extract. Physical partitioning of the table is not required—the word "partition" is used conceptually here.
+
+```py
+@dlt.resource(
+    merge_key="date",
+    write_disposition={"disposition": "merge", "strategy": "scd2"}
+)
+def some_data():
+    # load 1 — "2024-01-01" partition
+    yield [
+        {"date": "2024-01-01", "name": "a"},
+        {"date": "2024-01-01", "name": "b"},
+    ]
+
+pipeline.run(some_data())  # first run — 2024-01-02 03:03:35.854305
+...
+```
+
+*`some_data` destination table after first run:*
+
+| `_dlt_valid_from` | `_dlt_valid_to` | `date` | `name` |
+| -- | -- | -- | -- |
+| 2024-01-02 03:03:35.854305 | NULL | 2024-01-01 | a |
+| 2024-01-02 03:03:35.854305 | NULL | 2024-01-01 | b |
+
+```py
+...
+def some_data():
+    # load 2 — "2024-01-02" partition
+    yield [
+        {"date": "2024-01-02", "name": "c"},
+        {"date": "2024-01-02", "name": "d"},
+    ]
+
+pipeline.run(some_data())  # second run — 2024-01-03 03:01:11.943703
+...
+```
+
+*`some_data` destination table after second run—added 2024-01-02 records, did not touch 2024-01-01 records:*
+
+| `_dlt_valid_from` | `_dlt_valid_to` | `date` | `name` |
+| -- | -- | -- | -- |
+| 2024-01-02 03:03:35.854305 | NULL | 2024-01-01 | a |
+| 2024-01-02 03:03:35.854305 | NULL | 2024-01-01 | b |
+| **2024-01-03 03:01:11.943703** | **NULL** | **2024-01-02** | **c** |
+| **2024-01-03 03:01:11.943703** | **NULL** | **2024-01-02** | **d** |
+
+```py
+...
+def some_data():
+    # load 3 — reload "2024-01-01" partition
+    yield [
+        {"date": "2024-01-01", "name": "a"},  # unchanged
+        {"date": "2024-01-01", "name": "bb"},  # new
+    ]
+
+pipeline.run(some_data())  # third run — 2024-01-03 10:30:05.750356
+...
+```
+
+*`some_data` destination table after third run—retired b, added bb, did not touch 2024-01-02 partition:*
+
+| `_dlt_valid_from` | `_dlt_valid_to` | `date` | `name` |
+| -- | -- | -- | -- |
+| 2024-01-02 03:03:35.854305 | NULL | 2024-01-01 | a |
+| 2024-01-02 03:03:35.854305 | **2024-01-03 10:30:05.750356** | 2024-01-01 | b |
+| 2024-01-03 03:01:11.943703 | NULL | 2024-01-02 | c |
+| 2024-01-03 03:01:11.943703 | NULL | 2024-01-02 | d |
+| **2024-01-03 10:30:05.750356** | **NULL** | **2024-01-01** | **bb** |
+
 
 #### Example: configure validity column names
 `_dlt_valid_from` and `_dlt_valid_to` are used by default as validity column names. Other names can be configured as follows:
@@ -530,30 +655,6 @@ def get_events(last_created_at = dlt.sources.incremental("$", last_value_func=by
         yield json.load(f)
 ```
 
-### Using `last_value_func` for lookback
-The example below uses the `last_value_func` to load data from the past month.
-```py
-def lookback(event):
-    last_value = None
-    if len(event) == 1:
-        item, = event
-    else:
-        item, last_value = event
-
-    if last_value is None:
-        last_value = {}
-    else:
-        last_value = dict(last_value)
-
-    last_value["created_at"] = pendulum.from_timestamp(item["created_at"]).subtract(months=1)
-    return last_value
-
-@dlt.resource(primary_key="id")
-def get_events(last_created_at = dlt.sources.incremental("created_at", last_value_func=lookback)):
-    with open("tests/normalize/cases/github.events.load_page_1_duck.json", "r", encoding="utf-8") as f:
-        yield json.load(f)
-```
-
 ### Using `end_value` for backfill
 
 You can specify both initial and end dates when defining incremental loading. Let's go back to our Github example:
@@ -682,7 +783,7 @@ def tickets(
 
 `Incremental` **does not** deduplicate datasets like the **merge** write disposition does. However, it ensures that when another portion of data is extracted, records that were previously loaded won't be included again. `dlt` assumes that you load a range of data, where the lower bound is inclusive (i.e., greater than or equal). This ensures that you never lose any data but will also re-acquire some rows. For example, if you have a database table with a cursor field on `updated_at` which has a day resolution, then there's a high chance that after you extract data on a given day, more records will still be added. When you extract on the next day, you should reacquire data from the last day to ensure all records are present; however, this will create overlap with data from the previous extract.
 
-By default, a content hash (a hash of the `json` representation of a row) will be used to deduplicate. This may be slow, so `dlt.sources.incremental` will inherit the primary key that is set on the resource. You can optionally set a `primary_key` that is used exclusively to deduplicate and which does not become a table hint. The same setting lets you disable the deduplication altogether when an empty tuple is passed. Below, we pass `primary_key` directly to `incremental` to disable deduplication. That overrides the `delta` primary_key set in the resource:
+By default, a content hash (a hash of the JSON representation of a row) will be used to deduplicate. This may be slow, so `dlt.sources.incremental` will inherit the primary key that is set on the resource. You can optionally set a `primary_key` that is used exclusively to deduplicate and which does not become a table hint. The same setting lets you disable the deduplication altogether when an empty tuple is passed. Below, we pass `primary_key` directly to `incremental` to disable deduplication. That overrides the `delta` primary_key set in the resource:
 
 ```py
 @dlt.resource(primary_key="delta")
@@ -701,11 +802,10 @@ When resources are [created dynamically](source.md#create-resources-dynamically)
 def stripe():
     # declare a generator function
     def get_resource(
-        endpoint: Endpoints,
+        endpoints: List[str] = ENDPOINTS,
         created: dlt.sources.incremental=dlt.sources.incremental("created")
     ):
         ...
-        yield data
 
     # create resources for several endpoints on a single decorator function
     for endpoint in endpoints:
@@ -753,10 +853,12 @@ We opt-in to the Airflow scheduler by setting `allow_external_schedulers` to `Tr
 Let's generate a deployment with `dlt deploy zendesk_pipeline.py airflow-composer` and customize the DAG:
 
 ```py
+from dlt.helpers.airflow_helper import PipelineTasksGroup
+
 @dag(
     schedule_interval='@weekly',
-    start_date=pendulum.datetime(2023, 2, 1),
-    end_date=pendulum.datetime(2023, 8, 1),
+    start_date=pendulum.DateTime(2023, 2, 1),
+    end_date=pendulum.DateTime(2023, 8, 1),
     catchup=True,
     max_active_runs=1,
     default_args=default_task_args
@@ -793,7 +895,7 @@ You can repurpose the DAG above to start loading new data incrementally after (o
 ```py
 @dag(
     schedule_interval='@daily',
-    start_date=pendulum.datetime(2023, 2, 1),
+    start_date=pendulum.DateTime(2023, 2, 1),
     catchup=False,
     max_active_runs=1,
     default_args=default_task_args
@@ -962,6 +1064,65 @@ result_filtered = list(without_none)
 assert len(result_filtered) == 2
 ```
 
+##  Lag / Attribution Window
+In many cases, certain data should be reacquired during incremental loading. For example, you may want to always capture the last 7 days of data when fetching daily analytics reports, or refresh Slack message replies with a moving window of 7 days. This is where the concept of "lag" or "attribution window" comes into play.
+
+The `lag` parameter is a float that supports several types of incremental cursors: `datetime`, `date`, `integer`, and `float`. It can only be used with `last_value_func` set to `min` or `max` (default is `max`).
+
+### How `lag` Works
+
+- **Datetime cursors**: `lag` is the number of seconds added or subtracted from the `last_value` loaded.
+- **Date cursors**: `lag` represents days.
+- **Numeric cursors (integer or float)**: `lag` respects the given unit of the cursor.
+
+This flexibility allows `lag` to adapt to different data contexts.
+
+
+### Example using `datetime` incremental cursor with `merge` as `write_disposition`
+
+This example demonstrates how to use a `datetime` cursor with a `lag` parameter, applying `merge` as the `write_disposition`. The setup runs twice, and during the second run, the `lag` parameter re-fetches recent entries to capture updates.
+
+1. **First Run**: Loads `initial_entries`.
+2. **Second Run**: Loads `second_run_events` with the specified lag, refreshing previously loaded entries.
+
+This setup demonstrates how `lag` ensures that a defined period of data remains refreshed, capturing updates or changes within the attribution window.
+
+```py
+pipeline = dlt.pipeline(
+    destination=dlt.destinations.duckdb(credentials=duckdb.connect(":memory:")),
+)
+
+# Flag to indicate the second run
+is_second_run = False
+
+@dlt.resource(name="events", primary_key="id", write_disposition="merge")
+def events_resource(
+    _=dlt.sources.incremental("created_at", lag=3600, last_value_func=max)
+):
+    global is_second_run
+
+    # Data for the initial run
+    initial_entries = [
+        {"id": 1, "created_at": "2023-03-03T01:00:00Z", "event": "1"},
+        {"id": 2, "created_at": "2023-03-03T02:00:00Z", "event": "2"},  # lag applied during second run
+    ]
+
+    # Data for the second run
+    second_run_events = [
+        {"id": 1, "created_at": "2023-03-03T01:00:00Z", "event": "1_updated"},
+        {"id": 2, "created_at": "2023-03-03T02:00:01Z", "event": "2_updated"},
+        {"id": 3, "created_at": "2023-03-03T03:00:00Z", "event": "3"},
+    ]
+
+    # Yield data based on the current run
+    yield from second_run_events if is_second_run else initial_entries
+
+# Run the pipeline twice
+pipeline.run(events_resource)
+is_second_run = True  # Update flag for second run
+pipeline.run(events_resource)
+```
+
 
 ## Doing a full refresh
 
@@ -1007,7 +1168,7 @@ def tweets():
     # Get the last value from loaded metadata. If it does not exist, get None
     last_val = dlt.current.resource_state().setdefault("last_updated", None)
     # Get data and yield it
-    data = get_data(start_from=last_val)
+    data = _get_data(start_from=last_val)
     yield data
     # Change the state to the new value
     dlt.current.resource_state()["last_updated"] = data["last_timestamp"]
@@ -1058,7 +1219,7 @@ def players_games(chess_url, players, start_month=None, end_month=None):
     # when the data is loaded, the cache is updated with our loaded_archives_cache
 
     # Get archives for a given player
-    archives = get_players_archives(chess_url, players)
+    archives = _get_players_archives(chess_url, players)
     for url in archives:
         # If not in cache, yield the data and cache the URL
         if url not in loaded_archives_cache:
@@ -1083,7 +1244,7 @@ def search_tweets(twitter_bearer_token=dlt.secrets.value, search_terms=None, sta
         print(f'last_value_cache: {last_value_cache}')
         params = {...}
         url = "https://api.twitter.com/2/tweets/search/recent"
-        response = _paginated_get(url, headers=headers, params=params)
+        response = _get_paginated(url, headers=headers, params=params)
         for page in response:
             page['search_term'] = search_term
             last_id = page.get('meta', {}).get('newest_id', 0)

@@ -3,7 +3,7 @@ from typing import Iterator
 import pytest
 
 from dlt.common.configuration.resolve import resolve_configuration
-from dlt.common.libs.sql_alchemy_shims import make_url
+from dlt.common.libs.sql_alchemy_compat import make_url
 from dlt.common.utils import digest128
 from dlt.destinations.impl.clickhouse.clickhouse import ClickHouseClient
 from dlt.destinations.impl.clickhouse.configuration import (

@@ -4,19 +4,16 @@ description: Questions asked frequently by users in technical help or github iss
 keywords: [faq, usage information, technical help]
 ---
 
-
 ## Can I configure different nesting levels for each resource?
 
-Yes, [this feature is available](../general-usage/resource.md#reduce-the-nesting-level-of-generated-tables). You can also control the nesting
-on a level of a particular column:
+Yes, [this feature is available](../general-usage/resource.md#reduce-the-nesting-level-of-generated-tables). You can also control the nesting on a level of a particular column:
 
 **Apply hints for nested columns**
 If certain columns should not be normalized, you can mark them as `json`. This can be done in two ways.
 
 1. When fetching the source data.
    ```py
-   source_data = my_source()
-   source_data.resource3.apply_hints(
+   my_source.resource3.apply_hints(
        columns={
            "column_name": {
                "data_type": "json"
@@ -38,7 +35,7 @@ These methods allow for a degree of customization in handling data structure and
 
 ## Can I configure dlt to load data in chunks of 10,000 records for more efficient processing, and how does this affect data resumption and retries in case of failures?
 
-`dlt` buffers to disk, and has built-in resume and retry mechanisms. This makes it less beneficial to manually manage atomicity after the fact unless you're running serverless. If you choose to load every 10k records instead, you could potentially see benefits like quicker data arrival if you're actively reading, and easier resumption from the last loaded point in case of failure, assuming that state is well-managed and records are sorted.
+`dlt` buffers to disk and has built-in resume and retry mechanisms. This makes it less beneficial to manually manage atomicity after the fact unless you're running serverless. If you choose to load every 10k records instead, you could potentially see benefits like quicker data arrival if you're actively reading, and easier resumption from the last loaded point in case of failure, assuming that state is well-managed and records are sorted.
 
 It's worth noting that `dlt` includes a request library replacement with [built-in retries](../reference/performance#using-the-built-in-requests-client). This means if you pull 10 million records individually, your data should remain safe even in the face of network issues. To resume jobs after a failure, however, it's necessary to run the pipeline in its own virtual machine (VM). Ephemeral storage solutions like Cloud Run don't support job resumption.
 
@@ -63,7 +60,7 @@ p = dlt.pipeline(
 )
 
 # Extract data using the predefined source `my_source`
-p.extract(my_source().add_limit(10))
+p.extract(my_source.add_limit(10))
 
 # Normalize the data structure for consistency
 p.normalize()
@@ -76,8 +73,8 @@ This method ensures you obtain the full schema details, including all columns, a
 
 ## Is truncating or deleting a staging table safe?
 
-You can safely truncate those or even drop the whole staging dataset. However, it will have to be recreated on the next load and might incur extra loading time or cost.
-You can also delete it with Python using [Bigquery client.](https://cloud.google.com/bigquery/docs/samples/bigquery-delete-dataset#bigquery_delete_dataset-python)
+You can safely truncate or even drop the whole staging dataset. However, it will have to be recreated on the next load and might incur extra loading time or cost.
+You can also delete it with Python using the [Bigquery client](https://cloud.google.com/bigquery/docs/samples/bigquery-delete-dataset#bigquery_delete_dataset-python).
 
 ## How can I develop a "custom" pagination tracker?
 

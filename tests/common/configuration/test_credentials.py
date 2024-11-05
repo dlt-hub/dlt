@@ -19,12 +19,12 @@ from dlt.common.configuration.specs.exceptions import (
     InvalidGoogleServicesJson,
     OAuth2ScopesRequired,
 )
-from dlt.common.configuration.specs.run_configuration import RunConfiguration
+from dlt.common.configuration.specs import RuntimeConfiguration
 
 from dlt.destinations.impl.snowflake.configuration import SnowflakeCredentials
 from tests.utils import TEST_DICT_CONFIG_PROVIDER, preserve_environ
 from tests.common.utils import json_case_path
-from tests.common.configuration.utils import environment
+from tests.common.configuration.utils import ConnectionStringCompatCredentials, environment
 
 
 SERVICE_JSON = """
@@ -125,7 +125,7 @@ def test_connection_string_letter_case(environment: Any) -> None:
 
 def test_connection_string_resolved_from_native_representation(environment: Any) -> None:
     destination_dsn = "mysql+pymsql://localhost:5432/dlt_data"
-    c = ConnectionStringCredentials()
+    c = ConnectionStringCompatCredentials()
     c.parse_native_representation(destination_dsn)
     assert c.is_partial()
     assert not c.is_resolved()
@@ -141,7 +141,7 @@ def test_connection_string_resolved_from_native_representation(environment: Any)
     assert c.password is None
 
     # password must resolve
-    c = ConnectionStringCredentials()
+    c = ConnectionStringCompatCredentials()
     c.parse_native_representation("mysql+pymsql://USER@/dlt_data")
     # not partial! password is optional
     assert not c.is_partial()
@@ -350,17 +350,17 @@ def test_run_configuration_slack_credentials(environment: Any) -> None:
     hook = "https://im.slack.com/hook"
     environment["RUNTIME__SLACK_INCOMING_HOOK"] = hook
 
-    c = resolve_configuration(RunConfiguration())
+    c = resolve_configuration(RuntimeConfiguration())
     assert c.slack_incoming_hook == hook
 
     # and obfuscated
     environment["RUNTIME__SLACK_INCOMING_HOOK"] = "DBgAXQFPQVsAAEteXlFRWUoPG0BdHQEbAg=="
-    c = resolve_configuration(RunConfiguration())
+    c = resolve_configuration(RuntimeConfiguration())
     assert c.slack_incoming_hook == hook
 
     # and obfuscated-like but really not
     environment["RUNTIME__SLACK_INCOMING_HOOK"] = "DBgAXQFPQVsAAEteXlFRWUoPG0BdHQ-EbAg=="
-    c = resolve_configuration(RunConfiguration())
+    c = resolve_configuration(RuntimeConfiguration())
     assert c.slack_incoming_hook == "DBgAXQFPQVsAAEteXlFRWUoPG0BdHQ-EbAg=="
 
 

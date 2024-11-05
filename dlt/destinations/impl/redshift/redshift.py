@@ -1,6 +1,8 @@
 import platform
 import os
 
+from dlt.destinations.utils import is_compression_disabled
+
 if platform.python_implementation() == "PyPy":
     import psycopg2cffi as psycopg2
 
@@ -10,8 +12,7 @@ else:
 
     # from psycopg2.sql import SQL, Composed
 
-from typing import Dict, List, Optional, Sequence, Any, Tuple
-
+from typing import Dict, List, Optional, Sequence
 
 from dlt.common.destination.reference import (
     FollowupJobRequest,
@@ -93,7 +94,7 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
         if ext == "jsonl":
             file_type = "FORMAT AS JSON 'auto'"
             dateformat = "dateformat 'auto' timeformat 'auto'"
-            compression = "GZIP"
+            compression = "" if is_compression_disabled() else "GZIP"
         elif ext == "parquet":
             file_type = "PARQUET"
             # if table contains json types then SUPER field will be used.

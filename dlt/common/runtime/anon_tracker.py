@@ -8,9 +8,9 @@ from requests import Session
 
 from dlt.common import logger
 from dlt.common.managed_thread_pool import ManagedThreadPool
-from dlt.common.configuration.specs import RunConfiguration
-from dlt.common.configuration.paths import get_dlt_data_dir
+from dlt.common.configuration.specs import RuntimeConfiguration
 from dlt.common.runtime.exec_info import get_execution_context, TExecutionContext
+from dlt.common.runtime import run_context
 from dlt.common.typing import DictStrAny, StrAny
 from dlt.common.utils import uniq_id
 
@@ -26,7 +26,7 @@ _TRACKER_CONTEXT: TExecutionContext = None
 requests: Session = None
 
 
-def init_anon_tracker(config: RunConfiguration) -> None:
+def init_anon_tracker(config: RuntimeConfiguration) -> None:
     if config.dlthub_telemetry_endpoint is None:
         raise ValueError("dlthub_telemetry_endpoint not specified in RunConfiguration")
 
@@ -113,7 +113,8 @@ def _tracker_request_header(write_key: str) -> StrAny:
 
 def get_anonymous_id() -> str:
     """Creates or reads a anonymous user id"""
-    home_dir = get_dlt_data_dir()
+    home_dir = run_context.current().global_dir
+
     if not os.path.isdir(home_dir):
         os.makedirs(home_dir, exist_ok=True)
     anonymous_id_file = os.path.join(home_dir, ".anonymous_id")
@@ -155,7 +156,7 @@ def _default_context_fields() -> TExecutionContext:
     global _TRACKER_CONTEXT
 
     if not _TRACKER_CONTEXT:
-        # Make sure to update the example in docs/docs/telemetry/telemetry.mdx
+        # Make sure to update the example in docs/reference/telemetry.md
         # if you change / add context
         _TRACKER_CONTEXT = get_execution_context()
 

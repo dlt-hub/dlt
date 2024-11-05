@@ -14,18 +14,17 @@ from typing import (
 )
 import graphlib  # type: ignore[import,unused-ignore]
 import string
+from requests import Response
 
-import dlt
 from dlt.common import logger
 from dlt.common.configuration import resolve_configuration
 from dlt.common.schema.utils import merge_columns
-from dlt.common.utils import update_dict_nested
+from dlt.common.utils import update_dict_nested, exclude_keys
 from dlt.common import jsonpath
 
 from dlt.extract.incremental import Incremental
 from dlt.extract.utils import ensure_table_schema_columns
 
-from dlt.sources.helpers.requests import Response
 from dlt.sources.helpers.rest_client.paginators import (
     BasePaginator,
     SinglePagePaginator,
@@ -51,6 +50,9 @@ from dlt.sources.helpers.rest_client.auth import (
     APIKeyAuth,
     OAuth2ClientCredentials,
 )
+from dlt.sources.helpers.rest_client.client import raise_for_status
+
+from dlt.extract.resource import DltResource
 
 from .typing import (
     EndpointResourceBase,
@@ -63,7 +65,6 @@ from .typing import (
     Endpoint,
     EndpointResource,
 )
-from .utils import exclude_keys
 
 
 PAGINATOR_MAP: Dict[str, Type[BasePaginator]] = {
@@ -175,14 +176,14 @@ def create_auth(auth_config: Optional[AuthConfig]) -> Optional[AuthConfigBase]:
     if isinstance(auth_config, dict):
         auth_type = auth_config.get("type", "bearer")
         auth_class = get_auth_class(auth_type)
-        auth = auth_class(**exclude_keys(auth_config, {"type"}))
+        auth = auth_class.from_init_value(exclude_keys(auth_config, {"type"}))
 
-    if auth:
+    if auth and not auth.__is_resolved__:
         # TODO: provide explicitly (non-default) values as explicit explicit_value=dict(auth)
         # this will resolve auth which is a configuration using current section context
-        return resolve_configuration(auth, accept_partial=True)
+        auth = resolve_configuration(auth, accept_partial=False)
 
-    return None
+    return auth
 
 
 def setup_incremental_object(
@@ -194,7 +195,7 @@ def setup_incremental_object(
         if (
             isinstance(param_config, dict)
             and param_config.get("type") == "incremental"
-            or isinstance(param_config, dlt.sources.incremental)
+            or isinstance(param_config, Incremental)
         ):
             incremental_params.append(param_name)
     if len(incremental_params) > 1:
@@ -204,7 +205,7 @@ def setup_incremental_object(
         )
     convert: Optional[Callable[..., Any]]
     for param_name, param_config in request_params.items():
-        if isinstance(param_config, dlt.sources.incremental):
+        if isinstance(param_config, Incremental):
             if param_config.end_value is not None:
                 raise ValueError(
                     f"Only initial_value is allowed in the configuration of param: {param_name}. To"
@@ -226,7 +227,7 @@ def setup_incremental_object(
             config = exclude_keys(param_config, {"type", "convert", "transform"})
             # TODO: implement param type to bind incremental to
             return (
-                dlt.sources.incremental(**config),
+                Incremental(**config),
                 IncrementalParam(start=param_name, end=None),
                 convert,
             )
@@ -236,7 +237,7 @@ def setup_incremental_object(
             incremental_config, {"start_param", "end_param", "convert", "transform"}
         )
         return (
-            dlt.sources.incremental(**config),
+            Incremental(**config),
             IncrementalParam(
                 start=incremental_config["start_param"],
                 end=incremental_config.get("end_param"),
@@ -269,20 +270,63 @@ def make_parent_key_name(resource_name: str, field_name: str) -> str:
 
 def build_resource_dependency_graph(
     resource_defaults: EndpointResourceBase,
-    resource_list: List[Union[str, EndpointResource]],
-) -> Tuple[Any, Dict[str, EndpointResource], Dict[str, Optional[ResolvedParam]]]:
+    resource_list: List[Union[str, EndpointResource, DltResource]],
+) -> Tuple[
+    Any, Dict[str, Union[EndpointResource, DltResource]], Dict[str, Optional[List[ResolvedParam]]]
+]:
     dependency_graph = graphlib.TopologicalSorter()
-    endpoint_resource_map: Dict[str, EndpointResource] = {}
-    resolved_param_map: Dict[str, ResolvedParam] = {}
+    resolved_param_map: Dict[str, Optional[List[ResolvedParam]]] = {}
+    endpoint_resource_map = expand_and_index_resources(resource_list, resource_defaults)
 
-    # expand all resources and index them
-    for resource_kwargs in resource_list:
-        if isinstance(resource_kwargs, dict):
+    # create dependency graph
+    for resource_name, endpoint_resource in endpoint_resource_map.items():
+        if isinstance(endpoint_resource, DltResource):
+            dependency_graph.add(resource_name)
+            resolved_param_map[resource_name] = None
+            break
+        assert isinstance(endpoint_resource["endpoint"], dict)
+        # connect transformers to resources via resolved params
+        resolved_params = _find_resolved_params(endpoint_resource["endpoint"])
+
+        # set of resources in resolved params
+        named_resources = {rp.resolve_config["resource"] for rp in resolved_params}
+
+        if len(named_resources) > 1:
+            raise ValueError(f"Multiple parent resources for {resource_name}: {resolved_params}")
+        elif len(named_resources) == 1:
+            # validate the first parameter (note the resource is the same for all params)
+            first_param = resolved_params[0]
+            predecessor = first_param.resolve_config["resource"]
+            if predecessor not in endpoint_resource_map:
+                raise ValueError(
+                    f"A transformer resource {resource_name} refers to non existing parent resource"
+                    f" {predecessor} on {first_param}"
+                )
+
+            dependency_graph.add(resource_name, predecessor)
+            resolved_param_map[resource_name] = resolved_params
+        else:
+            dependency_graph.add(resource_name)
+            resolved_param_map[resource_name] = None
+
+    return dependency_graph, endpoint_resource_map, resolved_param_map
+
+
+def expand_and_index_resources(
+    resource_list: List[Union[str, EndpointResource, DltResource]],
+    resource_defaults: EndpointResourceBase,
+) -> Dict[str, Union[EndpointResource, DltResource]]:
+    endpoint_resource_map: Dict[str, Union[EndpointResource, DltResource]] = {}
+    for resource in resource_list:
+        if isinstance(resource, DltResource):
+            endpoint_resource_map[resource.name] = resource
+            break
+        elif isinstance(resource, dict):
             # clone resource here, otherwise it needs to be cloned in several other places
             # note that this clones only dict structure, keeping all instances without deepcopy
-            resource_kwargs = update_dict_nested({}, resource_kwargs)  # type: ignore
+            resource = update_dict_nested({}, resource)  # type: ignore
 
-        endpoint_resource = _make_endpoint_resource(resource_kwargs, resource_defaults)
+        endpoint_resource = _make_endpoint_resource(resource, resource_defaults)
         assert isinstance(endpoint_resource["endpoint"], dict)
         _setup_single_entity_endpoint(endpoint_resource["endpoint"])
         _bind_path_params(endpoint_resource)
@@ -296,30 +340,7 @@ def build_resource_dependency_graph(
             raise ValueError(f"Resource {resource_name} has already been defined")
         endpoint_resource_map[resource_name] = endpoint_resource
 
-    # create dependency graph
-    for resource_name, endpoint_resource in endpoint_resource_map.items():
-        assert isinstance(endpoint_resource["endpoint"], dict)
-        # connect transformers to resources via resolved params
-        resolved_params = _find_resolved_params(endpoint_resource["endpoint"])
-        if len(resolved_params) > 1:
-            raise ValueError(
-                f"Multiple resolved params for resource {resource_name}: {resolved_params}"
-            )
-        elif len(resolved_params) == 1:
-            resolved_param = resolved_params[0]
-            predecessor = resolved_param.resolve_config["resource"]
-            if predecessor not in endpoint_resource_map:
-                raise ValueError(
-                    f"A transformer resource {resource_name} refers to non existing parent resource"
-                    f" {predecessor} on {resolved_param}"
-                )
-            dependency_graph.add(resource_name, predecessor)
-            resolved_param_map[resource_name] = resolved_param
-        else:
-            dependency_graph.add(resource_name)
-            resolved_param_map[resource_name] = None
-
-    return dependency_graph, endpoint_resource_map, resolved_param_map
+    return endpoint_resource_map
 
 
 def _make_endpoint_resource(
@@ -509,12 +530,6 @@ def _create_response_action_hook(
             )
             raise IgnoreResponseException
 
-        # If there are hooks, then the REST client does not raise for status
-        # If no action has been taken and the status code indicates an error,
-        # raise an HTTP error based on the response status
-        elif not action_type:
-            response.raise_for_status()
-
     return response_action_hook
 
 
@@ -549,28 +564,36 @@ def create_response_hooks(
     """
     if response_actions:
         hooks = [_create_response_action_hook(action) for action in response_actions]
-        return {"response": hooks}
+        fallback_hooks = [raise_for_status]
+        return {"response": hooks + fallback_hooks}
     return None
 
 
 def process_parent_data_item(
     path: str,
     item: Dict[str, Any],
-    resolved_param: ResolvedParam,
+    resolved_params: List[ResolvedParam],
     include_from_parent: List[str],
 ) -> Tuple[str, Dict[str, Any]]:
-    parent_resource_name = resolved_param.resolve_config["resource"]
+    parent_resource_name = resolved_params[0].resolve_config["resource"]
 
-    field_values = jsonpath.find_values(resolved_param.field_path, item)
+    param_values = {}
 
-    if not field_values:
-        field_path = resolved_param.resolve_config["field"]
-        raise ValueError(
-            f"Transformer expects a field '{field_path}' to be present in the incoming data from"
-            f" resource {parent_resource_name} in order to bind it to path param"
-            f" {resolved_param.param_name}. Available parent fields are {', '.join(item.keys())}"
-        )
-    bound_path = path.format(**{resolved_param.param_name: field_values[0]})
+    for resolved_param in resolved_params:
+        field_values = jsonpath.find_values(resolved_param.field_path, item)
+
+        if not field_values:
+            field_path = resolved_param.resolve_config["field"]
+            raise ValueError(
+                f"Transformer expects a field '{field_path}' to be present in the incoming data"
+                f" from resource {parent_resource_name} in order to bind it to path param"
+                f" {resolved_param.param_name}. Available parent fields are"
+                f" {', '.join(item.keys())}"
+            )
+
+        param_values[resolved_param.param_name] = field_values[0]
+
+    bound_path = path.format(**param_values)
 
     parent_record: Dict[str, Any] = {}
     if include_from_parent:

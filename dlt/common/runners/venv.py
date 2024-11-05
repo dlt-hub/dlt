@@ -4,8 +4,9 @@ import shutil
 import venv
 import types
 import subprocess
-from typing import Any, List, Type
+from typing import Any, ClassVar, List, Type
 
+from dlt.common import known_env
 from dlt.common.exceptions import CannotInstallDependencies, VenvNotFound
 
 
@@ -21,6 +22,8 @@ class DLTEnvBuilder(venv.EnvBuilder):
 
 class Venv:
     """Creates and wraps the Python Virtual Environment to allow for code execution"""
+
+    PIP_TOOL: ClassVar[str] = os.environ.get(known_env.DLT_PIP_TOOL, None)
 
     def __init__(self, context: types.SimpleNamespace, current: bool = False) -> None:
         """Please use `Venv.create`, `Venv.restore` or `Venv.restore_current` methods to create Venv instance"""
@@ -119,7 +122,17 @@ class Venv:
 
     @staticmethod
     def _install_deps(context: types.SimpleNamespace, dependencies: List[str]) -> None:
-        cmd = [context.env_exe, "-Im", "pip", "install"]
+        if Venv.PIP_TOOL is None:
+            # autodetect tool
+            import shutil
+
+            Venv.PIP_TOOL = "uv" if shutil.which("uv") else "pip"
+
+        if Venv.PIP_TOOL == "uv":
+            cmd = ["uv", "pip", "install", "--prerelease=allow", "--python", context.env_exe]
+        else:
+            cmd = [context.env_exe, "-Im", Venv.PIP_TOOL, "install"]
+
         try:
             subprocess.check_output(cmd + dependencies, stderr=subprocess.STDOUT)
         except subprocess.CalledProcessError as exc:

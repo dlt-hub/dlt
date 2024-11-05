@@ -17,6 +17,7 @@ from pathlib import Path
 
 import sqlalchemy as sa
 from sqlalchemy.engine import Connection
+from sqlalchemy.exc import ResourceClosedError
 
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import PreparedTableSchema
@@ -27,11 +28,13 @@ from dlt.destinations.exceptions import (
     LoadClientNotConnected,
     DatabaseException,
 )
-from dlt.destinations.typing import DBTransaction, DBApiCursor
-from dlt.destinations.sql_client import SqlClientBase, DBApiCursorImpl
+from dlt.common.destination.reference import DBApiCursor
+from dlt.destinations.typing import DBTransaction
+from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.impl.sqlalchemy.configuration import SqlalchemyCredentials
 from dlt.destinations.impl.sqlalchemy.alter_table import MigrationMaker
 from dlt.common.typing import TFun
+from dlt.destinations.sql_client import DBApiCursorImpl
 
 
 class SqlaTransactionWrapper(DBTransaction):
@@ -77,8 +80,14 @@ class SqlaDbApiCursor(DBApiCursorImpl):
         self.fetchone = curr.fetchone  # type: ignore[assignment]
         self.fetchmany = curr.fetchmany  # type: ignore[assignment]
 
+        self._set_default_schema_columns()
+
     def _get_columns(self) -> List[str]:
-        return list(self.native_cursor.keys())  # type: ignore[attr-defined]
+        try:
+            return list(self.native_cursor.keys())  # type: ignore[attr-defined]
+        except ResourceClosedError:
+            # this happens if now rows are returned
+            return []
 
     # @property
     # def description(self) -> Any:
@@ -238,16 +247,16 @@ class SqlalchemyClient(SqlClientBase[Connection]):
         """Mimic multiple schemas in sqlite using ATTACH DATABASE to
         attach a new database file to the current connection.
         """
-        if dataset_name == "main":
-            # main always exists
-            return
         if self._sqlite_is_memory_db():
             new_db_fn = ":memory:"
         else:
             new_db_fn = self._sqlite_dataset_filename(dataset_name)
 
-        statement = "ATTACH DATABASE :fn AS :name"
-        self.execute_sql(statement, fn=new_db_fn, name=dataset_name)
+        if dataset_name != "main":  # main is the current file, it is always attached
+            statement = "ATTACH DATABASE :fn AS :name"
+            self.execute_sql(statement, fn=new_db_fn, name=dataset_name)
+        # WAL mode is applied to all currently attached databases
+        self.execute_sql("PRAGMA journal_mode=WAL")
         self._sqlite_attached_datasets.add(dataset_name)
 
     def _sqlite_drop_dataset(self, dataset_name: str) -> None:

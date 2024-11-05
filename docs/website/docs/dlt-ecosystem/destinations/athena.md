@@ -46,7 +46,7 @@ so pip does not fail on backtracking.
 
 To edit the `dlt` credentials file with your secret info, open `.dlt/secrets.toml`. You will need to provide a `bucket_url`, which holds the uploaded parquet files, a `query_result_bucket`, which Athena uses to write query results to, and credentials that have write and read access to these two buckets as well as the full Athena access AWS role.
 
-The toml file looks like this:
+The TOML file looks like this:
 
 ```toml
 [destination.filesystem]
@@ -100,7 +100,9 @@ Athena tables store timestamps with millisecond precision, and with that precisi
 
 Athena does not support JSON fields, so JSON is stored as a string.
 
-> ❗**Athena does not support TIME columns in parquet files**. `dlt` will fail such jobs permanently. Convert `datetime.time` objects to `str` or `datetime.datetime` to load them.
+:::caution
+**Athena does not support TIME columns in parquet files**. `dlt` will fail such jobs permanently. Convert `datetime.time` objects to `str` or `datetime.datetime` to load them.
+:::
 
 ### Table and column identifiers
 
@@ -137,9 +139,10 @@ For every table created as an Iceberg table, the Athena destination will create 
 
 The `merge` write disposition is supported for Athena when using Iceberg tables.
 
-> Note that:
-> 1. There is a risk of tables ending up in an inconsistent state in case a pipeline run fails mid-flight because Athena doesn't support transactions, and `dlt` uses multiple DELETE/UPDATE/INSERT statements to implement `merge`.
-> 2. `dlt` creates additional helper tables called `insert_<table name>` and `delete_<table name>` in the staging schema to work around Athena's lack of temporary tables.
+:::note
+1. There is a risk of tables ending up in an inconsistent state in case a pipeline run fails mid-flight because Athena doesn't support transactions, and `dlt` uses multiple DELETE/UPDATE/INSERT statements to implement `merge`.
+2. `dlt` creates additional helper tables called `insert_<table name>` and `delete_<table name>` in the staging schema to work around Athena's lack of temporary tables.
+:::
 
 ### dbt support
 
@@ -156,8 +159,7 @@ aws_data_catalog="awsdatacatalog"
 
 ## Supported file formats
 
-You can choose the following file formats:
-* [parquet](../file-formats/parquet.md) is used by default
+* [Parquet](../file-formats/parquet.md) is used by default.
 
 ## Athena adapter
 
@@ -201,7 +203,7 @@ def partitioned_data():
 
 # Add partitioning hints to the table
 athena_adapter(
-    partitioned_table,
+    partitioned_data,
     partition=[
         # Partition per category and month
         "category",

@@ -21,10 +21,11 @@ from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.providers import ConfigProvider, EnvironProvider
+from dlt.common.configuration.specs.connection_string_credentials import ConnectionStringCredentials
 from dlt.common.configuration.utils import get_resolved_traces
-from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
+from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContainer
 from dlt.common.typing import TSecretValue, StrAny
-from tests.utils import _reset_providers
+from tests.utils import _inject_providers, _reset_providers, inject_providers
 
 
 @configspec
@@ -78,6 +79,12 @@ class SectionedConfiguration(BaseConfiguration):
     password: str = None
 
 
+@configspec
+class ConnectionStringCompatCredentials(ConnectionStringCredentials):
+    database: str = None
+    username: str = None
+
+
 @pytest.fixture(scope="function")
 def environment() -> Any:
     saved_environ = environ.copy()
@@ -94,26 +101,22 @@ def reset_resolved_traces() -> None:
 
 @pytest.fixture(scope="function")
 def mock_provider() -> Iterator["MockProvider"]:
-    container = Container()
-    with container.injectable_context(ConfigProvidersContext()) as providers:
-        # replace all providers with MockProvider that does not support secrets
-        mock_provider = MockProvider()
-        providers.providers = [mock_provider]
+    mock_provider = MockProvider()
+    # replace all providers with MockProvider that does not support secrets
+    with inject_providers([mock_provider]):
         yield mock_provider
 
 
 @pytest.fixture(scope="function")
 def env_provider() -> Iterator[ConfigProvider]:
-    container = Container()
-    with container.injectable_context(ConfigProvidersContext()) as providers:
-        # inject only env provider
-        env_provider = EnvironProvider()
-        providers.providers = [env_provider]
+    env_provider = EnvironProvider()
+    # inject only env provider
+    with inject_providers([env_provider]):
         yield env_provider
 
 
 @pytest.fixture
-def toml_providers() -> Iterator[ConfigProvidersContext]:
+def toml_providers() -> Iterator[ConfigProvidersContainer]:
     yield from _reset_providers("./tests/common/cases/configuration/.dlt")
 
 

@@ -232,15 +232,33 @@ class TWriteDispositionDict(TypedDict):
     disposition: TWriteDisposition
 
 
-class TMergeDispositionDict(TWriteDispositionDict, total=False):
+class TMergeDispositionDict(TWriteDispositionDict):
     strategy: Optional[TLoaderMergeStrategy]
+
+
+class TScd2StrategyDict(TMergeDispositionDict, total=False):
     validity_column_names: Optional[List[str]]
     active_record_timestamp: Optional[TAnyDateTime]
     boundary_timestamp: Optional[TAnyDateTime]
     row_version_column_name: Optional[str]
 
 
-TWriteDispositionConfig = Union[TWriteDisposition, TWriteDispositionDict, TMergeDispositionDict]
+TWriteDispositionConfig = Union[
+    TWriteDisposition, TWriteDispositionDict, TMergeDispositionDict, TScd2StrategyDict
+]
+
+
+class TTableReference(TypedDict):
+    """Describes a reference to another table's columns.
+    `columns` corresponds to the `referenced_columns` in the referenced table and their order should match.
+    """
+
+    columns: Sequence[str]
+    referenced_table: str
+    referenced_columns: Sequence[str]
+
+
+TTableReferenceParam = Sequence[TTableReference]
 
 
 class _TTableSchemaBase(TTableProcessingHints, total=False):
@@ -260,6 +278,7 @@ class TTableSchema(_TTableSchemaBase, total=False):
     """TypedDict that defines properties of a table"""
 
     write_disposition: Optional[TWriteDisposition]
+    references: Optional[TTableReferenceParam]
 
 
 class TPartialTableSchema(TTableSchema):

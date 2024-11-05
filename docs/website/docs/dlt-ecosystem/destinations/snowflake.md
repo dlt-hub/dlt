@@ -80,7 +80,7 @@ The **password authentication** is not any different from other databases like P
 
 You can also pass credentials as a database connection string. For example:
 ```toml
-# keep it at the top of your toml file! before any section starts
+# Keep it at the top of your TOML file, before any section starts
 destination.snowflake.credentials="snowflake://loader:<password>@kgiotue-wn98412/dlt_data?warehouse=COMPUTE_WH&role=DLT_LOADER_ROLE"
 
 ```
@@ -98,7 +98,7 @@ private_key_passphrase="passphrase"
 
 If you pass a passphrase in the connection string, please URL encode it.
 ```toml
-# keep it at the top of your toml file! before any section starts
+# Keep it at the top of your TOML file, before any section starts
 destination.snowflake.credentials="snowflake://loader:<password>@kgiotue-wn98412/dlt_data?private_key=<base64 encoded pem>&private_key_passphrase=<url encoded passphrase>"
 ```
 
@@ -117,6 +117,7 @@ In the case of external authentication, you need to find documentation for your 
 ### Additional connection options
 
 We pass all query parameters to the `connect` function of the Snowflake Python Connector. For example:
+
 ```toml
 [destination.snowflake.credentials]
 database = "dlt_data"
@@ -126,7 +127,8 @@ timezone="UTC"
 # keep session alive beyond 4 hours
 client_session_keep_alive=true
 ```
-This will set the timezone and session keep alive. Mind that if you use `toml`, your configuration is typed. The alternative:
+
+This will set the timezone and session keep alive. Mind that if you use TOML, your configuration is typed. The alternative:
 `"snowflake://loader/dlt_data?authenticator=oauth&timezone=UTC&client_session_keep_alive=true"`
 will pass `client_session_keep_alive` as a string to the connect method (which we didn't verify if it works).
 
@@ -168,17 +170,17 @@ pipeline.run(events())
 
 ## Supported file formats
 * [insert-values](../file-formats/insert-format.md) is used by default.
-* [parquet](../file-formats/parquet.md) is supported.
-* [jsonl](../file-formats/jsonl.md) is supported.
-* [csv](../file-formats/csv.md) is supported.
+* [Parquet](../file-formats/parquet.md) is supported.
+* [JSONL](../file-formats/jsonl.md) is supported.
+* [CSV](../file-formats/csv.md) is supported.
 
 When staging is enabled:
-* [jsonl](../file-formats/jsonl.md) is used by default.
-* [parquet](../file-formats/parquet.md) is supported.
-* [csv](../file-formats/csv.md) is supported.
+* [JSONL](../file-formats/jsonl.md) is used by default.
+* [Parquet](../file-formats/parquet.md) is supported.
+* [CSV](../file-formats/csv.md) is supported.
 
 :::caution
-When loading from `parquet`, Snowflake will store `json` types (JSON) in `VARIANT` as a string. Use the `jsonl` format instead or use `PARSE_JSON` to update the `VARIANT` field after loading.
+When loading from Parquet, Snowflake will store `json` types (JSON) in `VARIANT` as a string. Use the JSONL format instead or use `PARSE_JSON` to update the `VARIANT` field after loading.
 :::
 
 ### Custom CSV formats

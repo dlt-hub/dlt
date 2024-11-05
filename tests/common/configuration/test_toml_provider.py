@@ -1,4 +1,5 @@
 import os
+import sys
 import pytest
 import yaml
 from typing import Any, Dict, Type
@@ -10,18 +11,20 @@ from dlt.common.configuration import configspec, ConfigFieldMissingException, re
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.inject import with_config
 from dlt.common.configuration.exceptions import LookupTrace
+from dlt.common.configuration.specs.pluggable_run_context import PluggableRunContext
 from dlt.common.known_env import DLT_DATA_DIR, DLT_PROJECT_DIR
 from dlt.common.configuration.providers.toml import (
     SECRETS_TOML,
     CONFIG_TOML,
     BaseDocProvider,
     CustomLoaderDocProvider,
+    SettingsTomlProvider,
     SecretsTomlProvider,
     ConfigTomlProvider,
     StringTomlProvider,
     TomlProviderReadException,
 )
-from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
+from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContainer
 from dlt.common.configuration.specs import (
     BaseConfiguration,
     GcpServiceAccountCredentialsWithoutDefaults,
@@ -30,8 +33,9 @@ from dlt.common.configuration.specs import (
 from dlt.common.runners.configuration import PoolRunnerConfiguration
 from dlt.common.typing import TSecretValue
 
-from tests.utils import preserve_environ
+from tests.utils import preserve_environ, unload_modules
 from tests.common.configuration.utils import (
+    ConnectionStringCompatCredentials,
     SecretCredentials,
     WithCredentialsConfiguration,
     CoercionTestConfiguration,
@@ -52,7 +56,7 @@ class EmbeddedWithGcpCredentials(BaseConfiguration):
     credentials: GcpServiceAccountCredentialsWithoutDefaults = None
 
 
-def test_secrets_from_toml_secrets(toml_providers: ConfigProvidersContext) -> None:
+def test_secrets_from_toml_secrets(toml_providers: ConfigProvidersContainer) -> None:
     # remove secret_value to trigger exception
 
     del toml_providers["secrets.toml"]._config_doc["secret_value"]  # type: ignore[attr-defined]
@@ -71,7 +75,7 @@ def test_secrets_from_toml_secrets(toml_providers: ConfigProvidersContext) -> No
         resolve.resolve_configuration(WithCredentialsConfiguration())
 
 
-def test_toml_types(toml_providers: ConfigProvidersContext) -> None:
+def test_toml_types(toml_providers: ConfigProvidersContainer) -> None:
     # resolve CoercionTestConfiguration from typecheck section
     c = resolve.resolve_configuration(CoercionTestConfiguration(), sections=("typecheck",))
     for k, v in COERCIONS.items():
@@ -83,7 +87,7 @@ def test_toml_types(toml_providers: ConfigProvidersContext) -> None:
         assert v == c[k]
 
 
-def test_config_provider_order(toml_providers: ConfigProvidersContext, environment: Any) -> None:
+def test_config_provider_order(toml_providers: ConfigProvidersContainer, environment: Any) -> None:
     # add env provider
 
     @with_config(sections=("api",))
@@ -101,7 +105,7 @@ def test_config_provider_order(toml_providers: ConfigProvidersContext, environme
     assert single_val() == "1025"
 
 
-def test_toml_mixed_config_inject(toml_providers: ConfigProvidersContext) -> None:
+def test_toml_mixed_config_inject(toml_providers: ConfigProvidersContainer) -> None:
     # get data from both providers
 
     @with_config
@@ -123,14 +127,16 @@ def test_toml_mixed_config_inject(toml_providers: ConfigProvidersContext) -> Non
     assert isinstance(_tup[2], dict)
 
 
-def test_toml_sections(toml_providers: ConfigProvidersContext) -> None:
+def test_toml_sections(toml_providers: ConfigProvidersContainer) -> None:
     cfg = toml_providers["config.toml"]
     assert cfg.get_value("api_type", str, None) == ("REST", "api_type")
     assert cfg.get_value("port", int, None, "api") == (1024, "api.port")
     assert cfg.get_value("param1", str, None, "api", "params") == ("a", "api.params.param1")
 
 
-def test_secrets_toml_credentials(environment: Any, toml_providers: ConfigProvidersContext) -> None:
+def test_secrets_toml_credentials(
+    environment: Any, toml_providers: ConfigProvidersContainer
+) -> None:
     # there are credentials exactly under destination.bigquery.credentials
     c = resolve.resolve_configuration(
         GcpServiceAccountCredentialsWithoutDefaults(), sections=("destination", "bigquery")
@@ -150,19 +156,19 @@ def test_secrets_toml_credentials(environment: Any, toml_providers: ConfigProvid
     with pytest.raises(ConfigFieldMissingException):
         print(dict(resolve.resolve_configuration(GcpServiceAccountCredentialsWithoutDefaults())))
     # also try postgres credentials
-    c2 = ConnectionStringCredentials()
+    c2 = ConnectionStringCompatCredentials()
     c2.update({"drivername": "postgres"})
     c2 = resolve.resolve_configuration(c2, sections=("destination", "redshift"))
     assert c2.database == "destination.redshift.credentials"
     # bigquery credentials do not match redshift credentials
-    c3 = ConnectionStringCredentials()
+    c3 = ConnectionStringCompatCredentials()
     c3.update({"drivername": "postgres"})
     with pytest.raises(ConfigFieldMissingException):
         resolve.resolve_configuration(c3, sections=("destination", "bigquery"))
 
 
 def test_secrets_toml_embedded_credentials(
-    environment: Any, toml_providers: ConfigProvidersContext
+    environment: Any, toml_providers: ConfigProvidersContainer
 ) -> None:
     # will try destination.bigquery.credentials
     c = resolve.resolve_configuration(
@@ -206,7 +212,7 @@ def test_dicts_are_not_enumerated() -> None:
 
 
 def test_secrets_toml_credentials_from_native_repr(
-    environment: Any, toml_providers: ConfigProvidersContext
+    environment: Any, toml_providers: ConfigProvidersContainer
 ) -> None:
     # cfg = toml_providers["secrets.toml"]
     # print(cfg._config_doc)
@@ -234,7 +240,7 @@ def test_secrets_toml_credentials_from_native_repr(
     assert c2.query == {"conn_timeout": "15", "search_path": "a,b,c"}
 
 
-def test_toml_get_key_as_section(toml_providers: ConfigProvidersContext) -> None:
+def test_toml_get_key_as_section(toml_providers: ConfigProvidersContainer) -> None:
     cfg = toml_providers["secrets.toml"]
     # [credentials]
     # secret_value="2137"
@@ -245,25 +251,25 @@ def test_toml_get_key_as_section(toml_providers: ConfigProvidersContext) -> None
 def test_toml_read_exception() -> None:
     pipeline_root = "./tests/common/cases/configuration/.wrong.dlt"
     with pytest.raises(TomlProviderReadException) as py_ex:
-        ConfigTomlProvider(project_dir=pipeline_root)
+        ConfigTomlProvider(settings_dir=pipeline_root)
     assert py_ex.value.file_name == "config.toml"
 
 
 def test_toml_global_config() -> None:
     # get current providers
-    providers = Container()[ConfigProvidersContext]
+    providers = Container()[PluggableRunContext].providers
     secrets = providers[SECRETS_TOML]
     config = providers[CONFIG_TOML]
     # in pytest should be false
-    assert secrets._add_global_config is False  # type: ignore[attr-defined]
-    assert config._add_global_config is False  # type: ignore[attr-defined]
+    assert secrets._global_dir is None  # type: ignore[attr-defined]
+    assert config._global_dir is None  # type: ignore[attr-defined]
 
     # set dlt data and settings dir
-    os.environ[DLT_DATA_DIR] = "./tests/common/cases/configuration/dlt_home"
-    os.environ[DLT_PROJECT_DIR] = "./tests/common/cases/configuration/"
+    global_dir = "./tests/common/cases/configuration/dlt_home"
+    settings_dir = "./tests/common/cases/configuration/.dlt"
     # create instance with global toml enabled
-    config = ConfigTomlProvider(add_global_config=True)
-    assert config._add_global_config is True
+    config = ConfigTomlProvider(settings_dir=settings_dir, global_dir=global_dir)
+    assert config._global_dir == os.path.join(global_dir, CONFIG_TOML)
     assert isinstance(config._config_doc, dict)
     assert len(config._config_doc) > 0
     # kept from global
@@ -279,15 +285,15 @@ def test_toml_global_config() -> None:
     v, _ = config.get_value("param1", bool, None, "api", "params")
     assert v == "a"
 
-    secrets = SecretsTomlProvider(add_global_config=True)
-    assert secrets._add_global_config is True
+    secrets = SecretsTomlProvider(settings_dir=settings_dir, global_dir=global_dir)
+    assert secrets._global_dir == os.path.join(global_dir, SECRETS_TOML)
     # check if values from project exist
-    secrets_project = SecretsTomlProvider(add_global_config=False)
+    secrets_project = SecretsTomlProvider(settings_dir=settings_dir)
     assert secrets._config_doc == secrets_project._config_doc
 
 
-def test_write_value(toml_providers: ConfigProvidersContext) -> None:
-    provider: BaseDocProvider
+def test_write_value(toml_providers: ConfigProvidersContainer) -> None:
+    provider: SettingsTomlProvider
     for provider in toml_providers.providers:  # type: ignore[assignment]
         if not provider.is_writable:
             continue
@@ -350,9 +356,10 @@ def test_write_value(toml_providers: ConfigProvidersContext) -> None:
             "dict_test.deep_dict.embed.inner_2",
         )
         # write a dict over non dict
-        provider.set_value("deep_list", test_d1, None, "deep", "deep", "deep")
+        ovr_dict = {"ovr": 1, "ocr": {"ovr": 2}}
+        provider.set_value("deep_list", ovr_dict, None, "deep", "deep", "deep")
         assert provider.get_value("deep_list", TAny, None, "deep", "deep", "deep") == (
-            test_d1,
+            ovr_dict,
             "deep.deep.deep.deep_list",
         )
         # merge dicts
@@ -367,7 +374,8 @@ def test_write_value(toml_providers: ConfigProvidersContext) -> None:
             test_m_d1_d2,
             "dict_test.deep_dict",
         )
-        # print(provider.get_value("deep_dict", Any, None, "dict_test"))
+        # compare toml and doc repr
+        assert provider._config_doc == provider._config_toml.unwrap()
 
         # write configuration
         pool = PoolRunnerConfiguration(pool_type="none", workers=10)
@@ -379,7 +387,7 @@ def test_write_value(toml_providers: ConfigProvidersContext) -> None:
         assert provider._config_doc["new_pipeline"]["runner_config"] == expected_pool
 
 
-def test_set_spec_value(toml_providers: ConfigProvidersContext) -> None:
+def test_set_spec_value(toml_providers: ConfigProvidersContainer) -> None:
     provider: BaseDocProvider
     for provider in toml_providers.providers:  # type: ignore[assignment]
         if not provider.is_writable:
@@ -401,8 +409,8 @@ def test_set_spec_value(toml_providers: ConfigProvidersContext) -> None:
         assert resolved_config.credentials.secret_value == "***** ***"
 
 
-def test_set_fragment(toml_providers: ConfigProvidersContext) -> None:
-    provider: BaseDocProvider
+def test_set_fragment(toml_providers: ConfigProvidersContainer) -> None:
+    provider: SettingsTomlProvider
     for provider in toml_providers.providers:  # type: ignore[assignment]
         if not isinstance(provider, BaseDocProvider):
             continue
@@ -499,7 +507,7 @@ key1 = \"other_value\"
 """
 
 
-def test_custom_loader(toml_providers: ConfigProvidersContext) -> None:
+def test_custom_loader(toml_providers: ConfigProvidersContainer) -> None:
     def loader() -> Dict[str, Any]:
         with open("tests/common/cases/configuration/config.yml", "r", encoding="utf-8") as f:
             return yaml.safe_load(f)
@@ -527,3 +535,20 @@ def test_custom_loader(toml_providers: ConfigProvidersContext) -> None:
         ),
     )
     assert config.username == "dlt-loader"
+
+
+def test_colab_toml() -> None:
+    # use a path without any settings files
+    try:
+        sys.path.append("tests/common/cases/modules")
+        # secrets are in user data
+        provider: SettingsTomlProvider = SecretsTomlProvider("tests/common/null", global_dir=None)
+        assert provider.to_toml() == 'api_key="api"'
+        # config is not in userdata
+        provider = ConfigTomlProvider("tests/common/null", "unknown")
+        assert provider.is_empty
+        # prefers files
+        provider = SecretsTomlProvider("tests/common/cases/configuration/.dlt", global_dir=None)
+        assert provider.get_value("secret_value", str, None) == ("2137", "secret_value")
+    finally:
+        sys.path.pop()

@@ -23,14 +23,14 @@ Resources that can be loaded using this verified source are:
 
 | S.No. | Name      | Description                                                                               |
 | ----- | --------- | ----------------------------------------------------------------------------------------- |
-| 1.    | agents    |  Users responsible for managing and resolving customer inquiries and support tickets.     |
-| 2.    | companies |  Customer organizations or groups that agents support.                                    |
-| 3.    | contacts  |  Individuals or customers who reach out for support.                                      |
-| 4.    | groups    |  Agents organized based on specific criteria.                                             |
-| 5.    | roles     |  Predefined sets of permissions that determine what actions an agent can perform.         |
-| 6.    | tickets   |  Customer inquiries or issues submitted via various channels like email, chat, phone, etc. |
+| 1.    | agents    | Users responsible for managing and resolving customer inquiries and support tickets.       |
+| 2.    | companies | Customer organizations or groups that agents support.                                      |
+| 3.    | contacts  | Individuals or customers who reach out for support.                                        |
+| 4.    | groups    | Agents organized based on specific criteria.                                               |
+| 5.    | roles     | Predefined sets of permissions that determine what actions an agent can perform.           |
+| 6.    | tickets   | Customer inquiries or issues submitted via various channels like email, chat, phone, etc.  |
 
-## Setup Guide
+## Setup guide
 
 ### Grab credentials
 
@@ -76,8 +76,8 @@ For more information, read the guide on [how to add a verified source](../../wal
    # Put your secret values and credentials here
    # Github access token (must be classic for reactions source)
    [sources.freshdesk]
-   domain = "please set me up!" # Enter the freshdesk domain here
-   api_secret_key = "please set me up!" # Enter the freshdesk API key here
+   domain = "please set me up!" # Enter the Freshdesk domain here
+   api_secret_key = "please set me up!" # Enter the Freshdesk API key here
    ```
 1. In the `domain`, enter the domain of your Freshdesk account.
 
@@ -90,17 +90,17 @@ For more information, read the guide on [how to add a verified source](../../wal
    ```sh
    pip install -r requirements.txt
    ```
-1. You're now ready to run the pipeline! To get started, run the following command:
+2. You're now ready to run the pipeline! To get started, run the following command:
    ```sh
    python freshdesk_pipeline.py
    ```
-1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
+3. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
    ```sh
    dlt pipeline <pipeline_name> show
    ```
    For example, the `pipeline_name` for the above pipeline example is
-   `freshdesk_pipeline`, you may also use any custom name instead.
+   `freshdesk_pipeline`. You may also use any custom name instead.
 
 For more information, read the guide on [how to run a pipeline](../../walkthroughs/run-a-pipeline).
 
@@ -111,7 +111,7 @@ For more information, read the guide on [how to run a pipeline](../../walkthroug
 
 ### Source `freshdesk_source`
 
-This function retrives the data from specified Freshdesk API endpoints.
+This function retrieves the data from specified Freshdesk API endpoints.
 
 ```py
 @dlt.source()
@@ -145,7 +145,7 @@ This function creates and yields a dlt resource for each endpoint in
 def freshdesk_source(
     #args as defined above
 ) -> Iterable[DltResource]:
-    for endpoint in endpoints:
+    for endpoint in ENDPOINTS:
         yield dlt.resource(
             incremental_resource,
             name=endpoint,
@@ -160,7 +160,7 @@ def freshdesk_source(
 
 `write_disposition`: Specifies the write disposition to load data.
 
-`primary_key`: Specifies "id" as primary key of the resource.
+`primary_key`: Specifies "id" as the primary key of the resource.
 
 ## Customization
 ### Create your own pipeline
@@ -180,7 +180,7 @@ verified source.
    To read more about pipeline configuration, please refer to our
    [documentation](../../general-usage/pipeline).
 
-1. To load data from all the endpoints, specified in ["settings.py".](https://github.com/dlt-hub/verified-sources/blob/master/sources/freshdesk/settings.py)
+2. To load data from all the endpoints, specified in ["settings.py".](https://github.com/dlt-hub/verified-sources/blob/master/sources/freshdesk/settings.py)
    ```py
    load_data = freshdesk_source()
    # Run the pipeline
@@ -189,7 +189,7 @@ verified source.
    print(load_info)
    ```
 
-1. To load the data from "agents", "contacts", and "tickets":
+3. To load the data from "agents", "contacts", and "tickets":
    ```py
    load_data = freshdesk_source().with_resources("agents", "contacts", "tickets")
    # Run the pipeline

@@ -27,7 +27,7 @@ List available sources to see their names and descriptions:
 dlt init --list-sources
 ```
 
-Now pick one of the source names, for example `pipedrive` and a destination i.e. `bigquery`:
+Now pick one of the source names, for example, `pipedrive` and a destination, i.e., `bigquery`:
 
 ```sh
 dlt init pipedrive bigquery
@@ -80,7 +80,7 @@ For adding them locally or on your orchestrator, please see the following guide
 
 ## 3. Customize or write a pipeline script
 
-Once you initialized the pipeline, you will have a sample file `pipedrive_pipeline.py`.
+Once you have initialized the pipeline, you will have a sample file `pipedrive_pipeline.py`.
 
 This is the developer's suggested way to use the pipeline, so you can use it as a starting point -
 in our case, we can choose to run a method that loads all data, or we can choose which endpoints
@@ -95,7 +95,7 @@ You can modify an existing verified source in place.
 - If that modification is generally useful for anyone using this source, consider contributing it
   back via a PR. This way, we can ensure it is tested and maintained.
 - If that modification is not a generally shared case, then you are responsible for maintaining it.
-  We suggest making any of your own customisations modular is possible, so you can keep pulling the
+  We suggest making any of your own customizations modular if possible, so you can keep pulling the
   updated source from the community repo in the event of source maintenance.
 
 ## 5. Add more sources to your project
@@ -120,7 +120,7 @@ the parent folder:
 dlt init pipedrive bigquery
 ```
 
-## 7. Advanced: Using dlt init with branches, local folders or git repos
+## 7. Advanced: Using dlt init with branches, local folders, or git repos
 
 To find out more info about this command, use --help:
 
@@ -134,9 +134,9 @@ To deploy from a branch of the `verified-sources` repo, you can use the followin
 dlt init source destination --branch <branch_name>
 ```
 
-To deploy from another repo, you could fork the verified-sources repo and then provide the new repo
-url as below, replacing `dlt-hub` with your fork name:
+To deploy from another repo, you could fork the verified-sources repo and then provide the new repo URL as below, replacing `dlt-hub` with your fork name:
 
 ```sh
 dlt init pipedrive bigquery --location "https://github.com/dlt-hub/verified-sources"
 ```
+

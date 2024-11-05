@@ -30,10 +30,13 @@ else:
 
 from dlt.common.typing import (
     AnyType,
+    SecretSentinel,
     ConfigValueSentinel,
     TAnyClass,
+    Annotated,
     extract_inner_type,
     is_annotated,
+    is_any_type,
     is_final_type,
     is_optional_type,
     is_subclass,
@@ -111,7 +114,7 @@ def is_valid_hint(hint: Type[Any]) -> bool:
     hint = get_config_if_union_hint(hint) or hint
     hint = get_origin(hint) or hint
 
-    if hint is Any:
+    if is_any_type(hint):
         return True
     if is_base_configuration_inner_hint(hint):
         return True
@@ -122,27 +125,31 @@ def is_valid_hint(hint: Type[Any]) -> bool:
 
 
 def extract_inner_hint(
-    hint: Type[Any], preserve_new_types: bool = False, preserve_literal: bool = False
+    hint: Type[Any],
+    preserve_new_types: bool = False,
+    preserve_literal: bool = False,
+    preserve_annotated: bool = False,
 ) -> Type[Any]:
     # extract hint from Optional / Literal / NewType hints
-    inner_hint = extract_inner_type(hint, preserve_new_types, preserve_literal)
+    inner_hint = extract_inner_type(hint, preserve_new_types, preserve_literal, preserve_annotated)
     # get base configuration from union type
     inner_hint = get_config_if_union_hint(inner_hint) or inner_hint
     # extract origin from generic types (ie List[str] -> List)
     origin = get_origin(inner_hint) or inner_hint
-    if preserve_literal and origin is Literal:
+    if preserve_literal and origin is Literal or preserve_annotated and origin is Annotated:
         return inner_hint
     return origin or inner_hint
 
 
 def is_secret_hint(hint: Type[Any]) -> bool:
     is_secret = False
-    if hasattr(hint, "__name__"):
-        is_secret = hint.__name__ == "TSecretValue"
+    if is_annotated(hint):
+        _, *a_m = get_args(hint)
+        is_secret = SecretSentinel in a_m
     if not is_secret:
         is_secret = is_credentials_inner_hint(hint)
     if not is_secret:
-        inner_hint = extract_inner_hint(hint, preserve_new_types=True)
+        inner_hint = extract_inner_hint(hint, preserve_annotated=True, preserve_new_types=True)
         # something was encapsulated
         if inner_hint is not hint:
             is_secret = is_secret_hint(inner_hint)
@@ -319,7 +326,7 @@ class BaseConfiguration(MutableMapping[str, Any]):
         """Initialize the configuration fields by parsing the `native_value` which should be a native representation of the configuration
         or credentials, for example database connection string or JSON serialized GCP service credentials file.
 
-        #### Args:
+        Args:
             native_value (Any): A native representation of the configuration
 
         Raises:
@@ -479,6 +486,9 @@ class CredentialsWithDefault:
         return None
 
 
+TInjectableContext = TypeVar("TInjectableContext", bound="ContainerInjectableContext")
+
+
 @configspec
 class ContainerInjectableContext(BaseConfiguration):
     """Base class for all configurations that may be injected from a Container. Injectable configuration is called a context"""
@@ -487,10 +497,24 @@ class ContainerInjectableContext(BaseConfiguration):
     """If True, `Container` is allowed to create default context instance, if none exists"""
     global_affinity: ClassVar[bool] = False
     """If True, `Container` will create context that will be visible in any thread. If False, per thread context is created"""
+    in_container: Annotated[bool, NotResolved()] = dataclasses.field(
+        default=False, init=False, repr=False, compare=False
+    )
+    """Current container, if None then not injected"""
+    extras_added: Annotated[bool, NotResolved()] = dataclasses.field(
+        default=False, init=False, repr=False, compare=False
+    )
+    """Tells if extras were already added to this context"""
 
     def add_extras(self) -> None:
-        """Called right after context was added to the container. Benefits mostly the config provider injection context which adds extra providers using the initial ones."""
+        """Called once after default context was created and added to the container. Benefits mostly the config provider injection context which adds extra providers using the initial ones."""
         pass
+
+    def after_add(self) -> None:
+        """Called each time after context is added to container"""
+
+    def before_remove(self) -> None:
+        """Called each time before context is removed from container"""
 
 
 _F_ContainerInjectableContext = ContainerInjectableContext

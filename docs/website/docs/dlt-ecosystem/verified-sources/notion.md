@@ -14,7 +14,7 @@ professional tasks, offering customizable notes, documents, databases, and more.
 
 This Notion `dlt` verified source and
 [pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/notion_pipeline.py)
-loads data using “Notion API” to the destination of your choice.
+loads data using the “Notion API” to the destination of your choice.
 
 Sources that can be loaded using this verified source are:
 
@@ -22,7 +22,7 @@ Sources that can be loaded using this verified source are:
 |------------------|---------------------------------------|
 | notion_databases | Retrieves data from Notion databases. |
 
-## Setup Guide
+## Setup guide
 
 ### Grab credentials
 
@@ -90,7 +90,7 @@ For more information, read the guide on [how to add a verified source.](../../wa
    your chosen destination. This will ensure that your data is properly routed to its final
    destination.
 
-For more information, read the [General Usage: Credentials.](../../general-usage/credentials)
+For more information, read the [General usage: Credentials.](../../general-usage/credentials)
 
 ## Run the pipeline
 
@@ -99,11 +99,11 @@ For more information, read the [General Usage: Credentials.](../../general-usage
    ```sh
    pip install -r requirements.txt
    ```
-1. You're now ready to run the pipeline! To get started, run the following command:
+2. You're now ready to run the pipeline! To get started, run the following command:
    ```sh
    python notion_pipeline.py
    ```
-1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
+3. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
    ```sh
    dlt pipeline <pipeline_name> show
@@ -120,7 +120,7 @@ For more information, read the guide on [how to run a pipeline](../../walkthroug
 
 ### Source `notion_databases`
 
-This function loads notion databases from notion into the destination.
+This function loads notion databases from Notion into the destination.
 
 ```py
 @dlt.source
@@ -131,7 +131,7 @@ def notion_databases(
    ...
 ```
 
-`database_ids`: A list of dictionaries each containing a database id and a name.
+`database_ids`: A list of dictionaries, each containing a database ID and a name.
 
 `api_key`: The Notion API secret key.
 
@@ -161,7 +161,7 @@ verified source.
    To read more about pipeline configuration, please refer to our
    [documentation](../../general-usage/pipeline).
 
-1. To load all the integrated databases:
+2. To load all the integrated databases:
 
    ```py
    load_data = notion_databases()
@@ -169,7 +169,7 @@ verified source.
    print(load_info)
    ```
 
-1. To load the custom databases:
+3. To load the custom databases:
 
    ```py
    selected_database_ids = [{"id": "0517dae9409845cba7d","use_name":"db_one"}, {"id": "d8ee2d159ac34cfc"}]
@@ -178,7 +178,7 @@ verified source.
    print(load_info)
    ```
 
-   The Database ID can be retrieved from the URL. For example if the URL is:
+   The Database ID can be retrieved from the URL. For example, if the URL is:
 
    ```sh
    https://www.notion.so/d8ee2d159ac34cfc85827ba5a0a8ae71?v=c714dec3742440cc91a8c38914f83b6b
@@ -193,3 +193,4 @@ The database name ("use_name") is optional; if skipped, the pipeline will fetch 
 automatically.
 
 <!--@@@DLT_TUBA notion-->
+

@@ -102,7 +102,7 @@ The first step is to register on [SerpAPI](https://serpapi.com/) and obtain the 
 
 1. In the `.dlt` folder, there's a file called `secrets.toml`. It's where you store sensitive information securely, like access tokens. Keep this file safe. Here's its format for service account authentication:
 
-   ```py
+   ```toml
    [sources]
    api_key= "Please set me up!"  # Serp Api key.
    ```
@@ -111,7 +111,6 @@ The first step is to register on [SerpAPI](https://serpapi.com/) and obtain the 
 
 1. Create the `fetch_average_price()` function as follows:
    ```py
-   from datetime import datetime, timedelta
    import requests
 
    # Uncomment transformer function if it is to be used as a transformer,
@@ -138,13 +137,13 @@ The first step is to register on [SerpAPI](https://serpapi.com/) and obtain the 
        """
 
        # Retrieve the API key from dlt secrets
-       api_key = dlt.secrets.get("sources.api_key")
+       api_key: str = dlt.secrets.get("sources.api_key")
 
        # Get the current resource state for device information
        device_info = dlt.current.resource_state().setdefault("devices", {})
 
        # Current timestamp for checking the last update
-       current_timestamp = datetime.now()
+       current_timestamp = datetime.datetime.now()
 
        # Print the current device information
        # print(device_info) # if you need to check state
@@ -156,10 +155,10 @@ The first step is to register on [SerpAPI](https://serpapi.com/) and obtain the 
        # Calculate the time since the last update
        last_updated = (
            current_timestamp -
-           device_data.get('timestamp', datetime.min)
+           device_data.get('timestamp', datetime.datetime.min)
        )
        # Check if the device is not in state or data is older than 180 days
-       if device not in device_info or last_updated > timedelta(days=180):
+       if device not in device_info or last_updated > datetime.timedelta(days=180):
            try:
                # Make an API request to fetch device prices
                response = requests.get("https://serpapi.com/search", params={

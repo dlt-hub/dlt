@@ -1,7 +1,7 @@
 import yaml
 from typing import Any, Optional, Sequence, Tuple
 import dlt
-from dlt.cli.exceptions import CliCommandException
+from dlt.cli.exceptions import CliCommandInnerException
 
 from dlt.common.json import json
 from dlt.common.pipeline import resource_state, get_dlt_pipelines_dir, TSourceState
@@ -21,7 +21,9 @@ from dlt.pipeline.exceptions import CannotRestorePipelineException
 from dlt.cli import echo as fmt
 
 
-DLT_PIPELINE_COMMAND_DOCS_URL = "https://dlthub.com/docs/reference/command-line-interface"
+DLT_PIPELINE_COMMAND_DOCS_URL = (
+    "https://dlthub.com/docs/reference/command-line-interface#dlt-pipeline"
+)
 
 
 def pipeline_command(
@@ -129,9 +131,8 @@ def pipeline_command(
 
             streamlit_cmd.append("--")
             streamlit_cmd.append(pipeline_name)
-            if pipelines_dir:
-                streamlit_cmd.append("--pipelines-dir")
-                streamlit_cmd.append(pipelines_dir)
+            streamlit_cmd.append("--pipelines-dir")
+            streamlit_cmd.append(p.pipelines_dir)
 
             venv = Venv.restore_current()
             for line in iter_stdout(venv, *streamlit_cmd):
@@ -294,7 +295,7 @@ def pipeline_command(
             if not packages:
                 packages = sorted(p.list_completed_load_packages())
             if not packages:
-                raise CliCommandException(
+                raise CliCommandInnerException(
                     "pipeline", "There are no load packages for that pipeline"
                 )
             load_id = packages[-1]

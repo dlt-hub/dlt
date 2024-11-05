@@ -4,7 +4,6 @@ from typing import Final, Optional, Any, Dict, ClassVar, List
 
 from dlt import version
 from dlt.common.data_writers.configuration import CsvFormatConfiguration
-from dlt.common.libs.sql_alchemy_shims import URL
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.typing import TSecretStrValue
 from dlt.common.configuration.specs import ConnectionStringCredentials
@@ -56,9 +55,9 @@ SNOWFLAKE_APPLICATION_ID = "dltHub_dlt"
 @configspec(init=False)
 class SnowflakeCredentials(ConnectionStringCredentials):
     drivername: Final[str] = dataclasses.field(default="snowflake", init=False, repr=False, compare=False)  # type: ignore[misc]
-    password: Optional[TSecretStrValue] = None
     host: str = None
     database: str = None
+    username: str = None
     warehouse: Optional[str] = None
     role: Optional[str] = None
     authenticator: Optional[str] = None

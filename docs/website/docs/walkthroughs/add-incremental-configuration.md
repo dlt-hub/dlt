@@ -7,12 +7,12 @@ slug: sql-incremental-configuration
 
 # Add incremental configuration to SQL resources
 Incremental loading is the act of loading only new or changed data and not old records that have already been loaded.
-For example, a bank loading only the latest transactions or a company updating its database with new or modified user
+For example, a bank loads only the latest transactions, or a company updates its database with new or modified user
 information. In this article, we’ll discuss a few incremental loading strategies.
 
 :::important
 Processing data incrementally, or in batches, enhances efficiency, reduces costs, lowers latency, improves scalability,
- and optimizes resource utilization.
+and optimizes resource utilization.
 :::
 
 ### Incremental loading strategies
@@ -28,10 +28,11 @@ In this guide, we will discuss various incremental loading methods using `dlt`, 
 
 ## Code examples
 
+
+
 ### 1. Full load (replace)
 
-A full load strategy completely overwrites the existing data with the new dataset. This is useful when you want to
-refresh the entire table with the latest data.
+A full load strategy completely overwrites the existing data with the new dataset. This is useful when you want to refresh the entire table with the latest data.
 
 :::note
 This strategy technically does not load only new data but instead reloads all data: old and new.
@@ -39,14 +40,14 @@ This strategy technically does not load only new data but instead reloads all da
 
 Here’s a walkthrough:
 
-1. The initial table, named "contact", in the SQL source looks like this:
+1. The initial table, named "contact," in the SQL source looks like this:
 
     | id | name | created_at |
     | --- | --- | --- |
     | 1 | Alice | 2024-07-01 |
     | 2 | Bob | 2024-07-02 |
 
-2. The python code illustrates the process of loading data from an SQL source into BigQuery using the `dlt` pipeline. Please note the `write_disposition = "replace”` used below.
+2. The Python code illustrates the process of loading data from an SQL source into BigQuery using the `dlt` pipeline. Please note the `write_disposition = "replace"` used below.
 
     ```py
     def load_full_table_resource() -> None:
@@ -94,9 +95,7 @@ Here’s a walkthrough:
 
 **What happened?**
 
-After running the pipeline, the original data in the "contact" table (Alice and Bob) is completely replaced with the new
-updated table with data “Charlie” and “Dave” added and “Bob” removed. This strategy is useful for scenarios where the entire
-dataset needs to be refreshed/replaced with the latest information.
+After running the pipeline, the original data in the "contact" table (Alice and Bob) is completely replaced with the new updated table with data “Charlie” and “Dave” added and “Bob” removed. This strategy is useful for scenarios where the entire dataset needs to be refreshed or replaced with the latest information.
 
 ### 2. Append new records based on incremental ID
 
@@ -104,14 +103,14 @@ This strategy appends only new records to the table based on an incremental ID. 
 
 Here’s a walkthrough:
 
-1. The initial table, named "contact", in the SQL source looks like this:
+1. The initial table, named "contact," in the SQL source looks like this:
 
     | id | name | created_at |
     | --- | --- | --- |
     | 1 | Alice | 2024-07-01 |
     | 2 | Bob | 2024-07-02 |
 
-2. The python code demonstrates loading data from an SQL source into BigQuery using an incremental variable, `id`. This variable tracks new or updated records in the `dlt` pipeline. Please note the `write_disposition = "append”` used below.
+2. The Python code demonstrates loading data from an SQL source into BigQuery using an incremental variable, `id`. This variable tracks new or updated records in the `dlt` pipeline. Please note the `write_disposition = "append"` used below.
 
     ```py
     def load_incremental_id_table_resource() -> None:
@@ -133,7 +132,7 @@ Here’s a walkthrough:
         print(info)
     ```
 
-3. After running the `dlt` pipeline, the data loaded into BigQuery "contact" table looks like:
+3. After running the `dlt` pipeline, the data loaded into the BigQuery "contact" table looks like:
 
     | Row | id | name | created_at | _dlt_load_id | _dlt_id |
     | --- | --- | --- | --- | --- | --- |
@@ -161,20 +160,20 @@ Here’s a walkthrough:
 
 In this scenario, the pipeline appends new records (Charlie and Dave) to the existing data (Alice and Bob) without affecting the pre-existing entries. This strategy is ideal when only new data needs to be added, preserving the historical data.
 
-### 3. Append new records based on timestamp ("created_at")
+### Append new records based on timestamp ("created_at")
 
 This strategy appends only new records to the table based on a date/timestamp field. It is useful for scenarios where records are created with a timestamp, and you want to load only those records created after a certain date.
 
 Here’s a walkthrough:
 
-1. The initial dataset, named "contact", in the SQL source looks like this:
+1. The initial dataset, named "contact," in the SQL source looks like this:
 
     | id | name | created_at |
     | --- | --- | --- |
     | 1 | Alice | 2024-07-01 00:00:00 |
     | 2 | Bob | 2024-07-02 00:00:00 |
 
-2. The python code illustrates the process of loading data from an SQL source into BigQuery using the `dlt` pipeline. Please note the `write_disposition = "append"`, with `created_at` being used as the incremental parameter.
+2. The Python code illustrates the process of loading data from an SQL source into BigQuery using the `dlt` pipeline. Please note the `write_disposition = "append"`, with `created_at` being used as the incremental parameter.
 
     ```py
     def load_incremental_timestamp_table_resource() -> None:
@@ -188,7 +187,7 @@ Here’s a walkthrough:
         # Load table "contact", incrementally starting at a given timestamp
         source = sql_database().with_resources("contact")
         source.contact.apply_hints(incremental=dlt.sources.incremental(
-            "created_at", initial_value=datetime(2024, 4, 1, 0, 0, 0)))
+            "created_at", initial_value=datetime.datetime(2024, 4, 1, 0, 0, 0)))
 
         # Run the pipeline
         info = pipeline.run(source, write_disposition="append")
@@ -199,7 +198,7 @@ Here’s a walkthrough:
     load_incremental_timestamp_table_resource()
     ```
 
-3. After running the `dlt` pipeline, the data loaded into BigQuery "contact" table looks like:
+3. After running the `dlt` pipeline, the data loaded into the BigQuery "contact" table looks like:
 
     | Row | id | name | created_at | _dlt_load_id | _dlt_id |
     | --- | --- | --- | --- | --- | --- |
@@ -225,13 +224,11 @@ Here’s a walkthrough:
 
 **What happened?**
 
-The pipeline adds new records (Charlie and Dave) that have a `created_at` timestamp after the specified initial value while
-retaining the existing data (Alice and Bob). This approach is useful for loading data incrementally based on when it was created.
+The pipeline adds new records (Charlie and Dave) that have a `created_at` timestamp after the specified initial value while retaining the existing data (Alice and Bob). This approach is useful for loading data incrementally based on when it was created.
 
-### 4. Merge (Update/Insert) records based on timestamp ("last_modified_at") and ID
+### 4. Merge (update/insert) records based on timestamp ("last_modified_at") and ID
 
-This strategy merges records based on a composite key of ID and a timestamp field. It updates existing records and inserts
-new ones as necessary.
+This strategy merges records based on a composite key of ID and a timestamp field. It updates existing records and inserts new ones as necessary.
 
 Here’s a walkthrough:
 
@@ -242,7 +239,7 @@ Here’s a walkthrough:
     | 1 | Alice | 2024-07-01 00:00:00 |
     | 2 | Bob | 2024-07-02 00:00:00 |
 
-2. The Python code illustrates the process of loading data from an SQL source into BigQuery using the `dlt` pipeline Please note the `write_disposition = "merge"`, with `last_modified_at` being used as the incremental parameter.
+2. The Python code illustrates the process of loading data from an SQL source into BigQuery using the `dlt` pipeline. Please note the `write_disposition = "merge"`, with `last_modified_at` being used as the incremental parameter.
 
     ```py
     def load_merge_table_resource() -> None:
@@ -256,7 +253,7 @@ Here’s a walkthrough:
         # Merge records, 'contact' table, based on ID and last_modified_at timestamp
         source = sql_database().with_resources("contact")
         source.contact.apply_hints(incremental=dlt.sources.incremental(
-            "last_modified_at", initial_value=datetime(2024, 4, 1, 0, 0, 0)),
+            "last_modified_at", initial_value=datetime.datetime(2024, 4, 1, 0, 0, 0)),
             primary_key="id")
 
         # Run the pipeline
@@ -292,9 +289,7 @@ Here’s a walkthrough:
 
 **What happened?**
 
-The pipeline updates the record for Alice with the new data, including the updated `last_modified_at` timestamp, and adds a
-new record for Hank. This method is beneficial when you need to ensure that records are both updated and inserted based on a
-specific timestamp and ID.
+The pipeline updates the record for Alice with the new data, including the updated `last_modified_at` timestamp, and adds a new record for Hank. This method is beneficial when you need to ensure that records are both updated and inserted based on a specific timestamp and ID.
 
-The examples provided explain how to use `dlt` to achieve different incremental loading scenarios, highlighting the changes
-before and after running each pipeline.
+The examples provided explain how to use `dlt` to achieve different incremental loading scenarios, highlighting the changes before and after running each pipeline.
+

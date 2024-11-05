@@ -5,20 +5,15 @@ keywords: [google ads api, google ads verified source, google ads]
 ---
 import Header from './_source-info-header.md';
 
-# Google Ads
+# Google ads
 
-[Google Ads](https://ads.google.com/home/) is a digital advertising service by Google that allows advertisers
-to display ads across Google's search results, websites, and other platforms.
+[Google Ads](https://ads.google.com/home/) is a digital advertising service by Google that allows advertisers to display ads across Google's search results, websites, and other platforms.
 
 :::warning Alert!
-Please note that we are unable to conduct regular testing on the specified source due to difficulties
-in obtaining the necessary credentials. We confirmed this source works at creation, and it is being used by the community.
-We anticipate that the source should operate smoothly over time given Google's best pratices in versioning apis.
+Please note that we are unable to conduct regular testing on the specified source due to difficulties in obtaining the necessary credentials. We confirmed this source works at creation, and it is being used by the community. We anticipate that the source should operate smoothly over time given Google's best practices in versioning APIs.
 :::
 
-This Google Ads `dlt` verified source and
-[pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/google_ads_pipeline.py)
-loads data using the "Google Ads API" to the destination of your choice.
+This Google Ads `dlt` verified source and [pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/google_ads_pipeline.py) loads data using the "Google Ads API" to the destination of your choice.
 
 Resources that can be loaded using this verified source are:
 
@@ -29,42 +24,33 @@ Resources that can be loaded using this verified source are:
 | change_events    | Modifications made to an account's ads, campaigns, and related settings |
 | customer_clients | Accounts that are managed by a given account                            |
 
-## Setup Guide
+## Setup guide
 
 ### Grab credentials
 
-To access Google Ads verified sources, you'll need a developer token. For instructions on obtaining
-one, you can search online or ask GPT.
+To access Google Ads verified sources, you'll need a developer token. For instructions on obtaining one, you can search online or ask GPT.
 
 Next, there are two methods to get authenticated for using this verified source:
 
 - OAuth credentials
 - Service account credentials
 
-Let's go over how to set up both OAuth tokens and service account credentials. In general, OAuth
-tokens are preferred when user consent is required, while service account credentials are better
-suited for server-to-server interactions. You can choose the method of authentication as per your
-requirement.
+Let's go over how to set up both OAuth tokens and service account credentials. In general, OAuth tokens are preferred when user consent is required, while service account credentials are better suited for server-to-server interactions. You can choose the method of authentication as per your requirement.
 
 ### Grab Google service account credentials
 
-You need to create a GCP service account to get API credentials if you don't have one. To create
-one, follow these steps:
+You need to create a GCP service account to get API credentials if you don't have one. To create one, follow these steps:
 
 1. Sign in to [console.cloud.google.com](http://console.cloud.google.com/).
 
-1. [Create a service account](https://cloud.google.com/iam/docs/service-accounts-create#creating) if
-   needed.
+1. [Create a service account](https://cloud.google.com/iam/docs/service-accounts-create#creating) if needed.
 
-1. Enable the "Google Ads API". Refer to the
-   [Google documentation](https://support.google.com/googleapi/answer/6158841?hl=en) for
-   comprehensive instructions on this process.
+1. Enable the "Google Ads API". Refer to the [Google documentation](https://support.google.com/googleapi/answer/6158841?hl=en) for comprehensive instructions on this process.
 
 1. Generate credentials:
 
    1. Navigate to IAM & Admin in the console's left panel, and then select Service Accounts.
-   1. Identify the service account you intend to use, and click on the three-dot menu under the
-      "Actions" column next to it.
+   1. Identify the service account you intend to use, and click on the three-dot menu under the "Actions" column next to it.
    1. Create a new JSON key by selecting "Manage Keys" > "ADD KEY" > "CREATE".
    1. You can download the ".json" file containing the necessary credentials for future use.
 
@@ -110,7 +96,7 @@ python google_ads/setup_script_gcp_oauth.py
 Once you have executed the script and completed the authentication, you will receive a "refresh
 token" that can be used to set up the "secrets.toml".
 
-### Share the Google Ads Account with the API:
+### Share the Google Ads account with the API:
 
 :::note
 For service account authentication, use the client_email. For OAuth authentication, use the
@@ -162,8 +148,8 @@ For more information, read the guide on [how to add a verified source](../../wal
 ### Add credentials
 
 1. In the `.dlt` folder, there's a file called `secrets.toml`. It's where you store sensitive
-   information securely, like access tokens. Keep this file safe. In this file setup the "developer
-   token", "customer ID" and "impersonated_email" as follows:
+   information securely, like access tokens. Keep this file safe. In this file, set up the "developer
+   token", "customer ID", and "impersonated_email" as follows:
    ```toml
    [sources.google_ads]
    dev_token = "please set me up!"
@@ -238,6 +224,7 @@ This function returns a list of resources including metadata, fields, and metric
 the Google Ads API.
 
 ```py
+@dlt.source()
 def google_ads(
     credentials: Union[
         GcpOAuthCredentials, GcpServiceAccountCredentials
@@ -275,11 +262,11 @@ def customers(
     """
 ```
 
-`client`: refers to a Google API Resource object used to interact with Google services.
+`client`: Refers to a Google API Resource object used to interact with Google services.
 
-`customer_id`: Individual identifier for google ads account.
+`customer_id`: Individual identifier for a Google Ads account.
 
-Similarly, there are resource functions called `campaigns`, `change_events` and `customer_clients` that populate
+Similarly, there are resource functions called `campaigns`, `change_events`, and `customer_clients` that populate
 respective dimensions.
 
 ## Customization
@@ -318,3 +305,4 @@ verified source.
    ```
 
 <!--@@@DLT_TUBA hubspot-->
+

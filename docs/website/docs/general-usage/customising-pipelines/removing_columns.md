@@ -56,17 +56,17 @@ Let's create a sample pipeline demonstrating the process of removing a column.
    remove_columns_list = ["country_code"]
 
    # Create an instance of the source so you can edit it.
-   data_source = dummy_source()
+   source_instance = dummy_source()
 
    # Modify this source instance's resource
-   data_source = data_source.dummy_data.add_map(
+   source_instance.dummy_data.add_map(
        lambda doc: remove_columns(doc, remove_columns_list)
    )
    ```
 4. You can optionally inspect the result:
 
    ```py
-   for row in data_source:
+   for row in source_instance:
        print(row)
    #{'id': 0, 'name': 'Jane Washington 0'}
    #{'id': 1, 'name': 'Jane Washington 1'}

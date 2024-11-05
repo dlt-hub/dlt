@@ -17,7 +17,7 @@ issues = []
 reactions = ["%2B1", "-1", "smile", "tada", "thinking_face", "heart", "rocket", "eyes"]
 for reaction in reactions:
     for page_no in range(1, 3):
-      page = requests.get(f"https://api.github.com/repos/{repo}/issues?state=all&sort=reactions-{reaction}&per_page=100&page={page_no}", headers=headers)
+      page = requests.get(f"https://api.github.com/repos/{REPO_NAME}/issues?state=all&sort=reactions-{reaction}&per_page=100&page={page_no}", headers=headers)
       print(f"Got page for {reaction} page {page_no}, requests left", page.headers["x-ratelimit-remaining"])
       issues.extend(page.json())
 p.run(issues, write_disposition="replace", primary_key="id", table_name="issues")

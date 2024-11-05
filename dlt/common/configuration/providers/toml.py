@@ -1,112 +1,16 @@
 import os
 import tomlkit
-import yaml
-import functools
-from tomlkit.items import Item as TOMLItem
-from tomlkit.container import Container as TOMLContainer
-from typing import Any, Callable, Dict, Optional, Tuple, Type
+import tomlkit.exceptions
+import tomlkit.items
+from typing import Any, Optional
 
-from dlt.common.configuration.paths import get_dlt_settings_dir, get_dlt_data_dir
-from dlt.common.configuration.utils import auto_cast, auto_config_fragment
 from dlt.common.utils import update_dict_nested
 
-from .provider import ConfigProvider, ConfigProviderException, get_key_name
+from .provider import ConfigProviderException
+from .doc import BaseDocProvider, CustomLoaderDocProvider
 
 CONFIG_TOML = "config.toml"
 SECRETS_TOML = "secrets.toml"
-
-
-class BaseDocProvider(ConfigProvider):
-    def __init__(self, config_doc: Dict[str, Any]) -> None:
-        self._config_doc = config_doc
-
-    @staticmethod
-    def get_key_name(key: str, *sections: str) -> str:
-        return get_key_name(key, ".", *sections)
-
-    def get_value(
-        self, key: str, hint: Type[Any], pipeline_name: str, *sections: str
-    ) -> Tuple[Optional[Any], str]:
-        full_path = sections + (key,)
-        if pipeline_name:
-            full_path = (pipeline_name,) + full_path
-        full_key = self.get_key_name(key, pipeline_name, *sections)
-        node = self._config_doc
-        try:
-            for k in full_path:
-                if not isinstance(node, dict):
-                    raise KeyError(k)
-                node = node[k]
-            return node, full_key
-        except KeyError:
-            return None, full_key
-
-    def set_value(self, key: str, value: Any, pipeline_name: Optional[str], *sections: str) -> None:
-        """Sets `value` under `key` in `sections` and optionally for `pipeline_name`
-
-        If key already has value of type dict and value to set is also of type dict, the new value
-        is merged with old value.
-        """
-        if pipeline_name:
-            sections = (pipeline_name,) + sections
-        if key is None:
-            raise ValueError("dlt_secrets_toml must contain toml document")
-
-        master: Dict[str, Any]
-        # descend from root, create tables if necessary
-        master = self._config_doc
-        for k in sections:
-            if not isinstance(master, dict):
-                raise KeyError(k)
-            if k not in master:
-                master[k] = {}
-            master = master[k]
-        if isinstance(value, dict):
-            # remove none values, TODO: we need recursive None removal
-            value = {k: v for k, v in value.items() if v is not None}
-            # if target is also dict then merge recursively
-            if isinstance(master.get(key), dict):
-                update_dict_nested(master[key], value)
-                return
-        master[key] = value
-
-    def set_fragment(
-        self, key: Optional[str], value_or_fragment: str, pipeline_name: str, *sections: str
-    ) -> None:
-        """Tries to interpret `value_or_fragment` as a fragment of toml, yaml or json string and replace/merge into config doc.
-
-        If `key` is not provided, fragment is considered a full document and will replace internal config doc. Otherwise
-        fragment is merged with config doc from the root element and not from the element under `key`!
-
-        For simple values it falls back to `set_value` method.
-        """
-        fragment = auto_config_fragment(value_or_fragment)
-        if fragment is not None:
-            # always update the top document
-            if key is None:
-                self._config_doc = fragment
-            else:
-                # TODO: verify that value contains only the elements under key
-                update_dict_nested(self._config_doc, fragment)
-        else:
-            # set value using auto_cast
-            self.set_value(key, auto_cast(value_or_fragment), pipeline_name, *sections)
-
-    def to_toml(self) -> str:
-        return tomlkit.dumps(self._config_doc)
-
-    def to_yaml(self) -> str:
-        return yaml.dump(
-            self._config_doc, allow_unicode=True, default_flow_style=False, sort_keys=False
-        )
-
-    @property
-    def supports_sections(self) -> bool:
-        return True
-
-    @property
-    def is_empty(self) -> bool:
-        return len(self._config_doc) == 0
 
 
 class StringTomlProvider(BaseDocProvider):
@@ -132,54 +36,27 @@ class StringTomlProvider(BaseDocProvider):
         return "memory"
 
 
-class CustomLoaderDocProvider(BaseDocProvider):
-    def __init__(
-        self, name: str, loader: Callable[[], Dict[str, Any]], supports_secrets: bool = True
-    ) -> None:
-        """Provider that calls `loader` function to get a Python dict with config/secret values to be queried.
-        The `loader` function typically loads a string (ie. from file), parses it (ie. as toml or yaml), does additional
-        processing and returns a Python dict to be queried.
+class SettingsTomlProvider(CustomLoaderDocProvider):
+    _config_toml: tomlkit.TOMLDocument
+    """Holds tomlkit document with config values that is in sync with _config_doc"""
 
-        Instance of CustomLoaderDocProvider must be registered for the returned dict to be used to resolve config values.
-        >>> import dlt
-        >>> dlt.config.register_provider(provider)
-
-        Args:
-            name(str): name of the provider that will be visible ie. in exceptions
-            loader(Callable[[], Dict[str, Any]]): user-supplied function that will load the document with config/secret values
-            supports_secrets(bool): allows to store secret values in this provider
-
-        """
-        self._name = name
-        self._supports_secrets = supports_secrets
-        super().__init__(loader())
-
-    @property
-    def name(self) -> str:
-        return self._name
-
-    @property
-    def supports_secrets(self) -> bool:
-        return self._supports_secrets
-
-    @property
-    def is_writable(self) -> bool:
-        return True
-
-
-class ProjectDocProvider(CustomLoaderDocProvider):
     def __init__(
         self,
         name: str,
         supports_secrets: bool,
         file_name: str,
-        project_dir: str = None,
-        add_global_config: bool = False,
+        settings_dir: str,
+        global_dir: str = None,
     ) -> None:
         """Creates config provider from a `toml` file
 
-        The provider loads the `toml` file with specified name and from specified folder. If `add_global_config` flags is specified,
-        it will look for `file_name` in `dlt` home dir. The "project" (`project_dir`) values overwrite the "global" values.
+        The provider loads the `toml` file with specified name and from specified folder. If `global_dir` is specified,
+        it will additionally look for `file_name` in `dlt` global dir (home dir by default) and merge the content.
+        The "settings" (`settings_dir`) values overwrite the "global" values.
+
+        If toml file under `settings_dir` is not found it will look into Google Colab userdata object for a value
+        with name `file_name` and load toml file from it.
+        If that one is not found, it will try to load Streamlit `secrets.toml` file.
 
         If none of the files exist, an empty provider is created.
 
@@ -187,67 +64,144 @@ class ProjectDocProvider(CustomLoaderDocProvider):
             name(str): name of the provider when registering in context
             supports_secrets(bool): allows to store secret values in this provider
             file_name (str): The name of `toml` file to load
-            project_dir (str, optional): The location of `file_name`. If not specified, defaults to $cwd/.dlt
-            add_global_config (bool, optional): Looks for `file_name` in `dlt` home directory which in most cases is $HOME/.dlt
+            settings_dir (str, optional): The location of `file_name`. If not specified, defaults to $cwd/.dlt
+            global_dir (bool, optional): Looks for `file_name` in global_dir (defaults to `dlt` home directory which in most cases is $HOME/.dlt)
 
         Raises:
             TomlProviderReadException: File could not be read, most probably `toml` parsing error
         """
-        self._toml_path = os.path.join(project_dir or get_dlt_settings_dir(), file_name)
-        self._add_global_config = add_global_config
+        # set supports_secrets early, we need this flag to read config
+        self._supports_secrets = supports_secrets
+        # read toml file from local or from various environments
+
+        self._toml_path = os.path.join(settings_dir, file_name)
+        self._global_dir = os.path.join(global_dir, file_name) if global_dir else None
+        self._config_toml = self._read_toml_files(
+            name, file_name, self._toml_path, self._global_dir
+        )
 
         super().__init__(
             name,
-            functools.partial(
-                self._read_toml_files, name, file_name, self._toml_path, add_global_config
-            ),
+            self._config_toml.unwrap,
             supports_secrets,
         )
 
-    @staticmethod
-    def global_config_path() -> str:
-        return get_dlt_data_dir()
-
     def write_toml(self) -> None:
-        assert (
-            not self._add_global_config
-        ), "Will not write configs when `add_global_config` flag was set"
+        assert not self._global_dir, "Will not write configs when `global_dir` was set"
         with open(self._toml_path, "w", encoding="utf-8") as f:
-            tomlkit.dump(self._config_doc, f)
+            tomlkit.dump(self._config_toml, f)
 
-    @staticmethod
-    def _read_toml_files(
-        name: str, file_name: str, toml_path: str, add_global_config: bool
-    ) -> Dict[str, Any]:
+    def set_value(self, key: str, value: Any, pipeline_name: Optional[str], *sections: str) -> None:
+        # write both into tomlkit and dict representations
         try:
-            project_toml = ProjectDocProvider._read_toml(toml_path).unwrap()
-            if add_global_config:
-                global_toml = ProjectDocProvider._read_toml(
-                    os.path.join(ProjectDocProvider.global_config_path(), file_name)
-                ).unwrap()
-                project_toml = update_dict_nested(global_toml, project_toml)
-            return project_toml
-        except Exception as ex:
-            raise TomlProviderReadException(name, file_name, toml_path, str(ex))
+            self._set_value(self._config_toml, key, value, pipeline_name, *sections)
+        except tomlkit.items._ConvertError:
+            pass
+        if hasattr(value, "unwrap"):
+            value = value.unwrap()
+        super().set_value(key, value, pipeline_name, *sections)
 
-    @staticmethod
-    def _read_toml(toml_path: str) -> tomlkit.TOMLDocument:
+    @property
+    def is_empty(self) -> bool:
+        return len(self._config_toml.body) == 0 and super().is_empty
+
+    def set_fragment(
+        self, key: Optional[str], value_or_fragment: str, pipeline_name: str, *sections: str
+    ) -> None:
+        # write both into tomlkit and dict representations
+        try:
+            self._config_toml = self._set_fragment(
+                self._config_toml, key, value_or_fragment, pipeline_name, *sections
+            )
+        except tomlkit.items._ConvertError:
+            pass
+        super().set_fragment(key, value_or_fragment, pipeline_name, *sections)
+
+    def to_toml(self) -> str:
+        return tomlkit.dumps(self._config_toml)
+
+    def _read_google_colab_secrets(self, name: str, file_name: str) -> tomlkit.TOMLDocument:
+        """Try to load the toml from google colab userdata object"""
+        try:
+            from google.colab import userdata
+
+            try:
+                return tomlkit.loads(userdata.get(file_name))
+            except (userdata.SecretNotFoundError, userdata.NotebookAccessError):
+                # document not found if secret does not exist or we have no permission
+                return None
+        except ImportError:
+            # document not found if google colab context does not exist
+            return None
+
+    def _read_streamlit_secrets(self, name: str, file_name: str) -> tomlkit.TOMLDocument:
+        """Try to load the toml from Streamlit secrets."""
+        # only secrets can come from streamlit
+        if not self.supports_secrets:
+            return None
+
+        try:
+            import streamlit as st
+            import streamlit.runtime as st_r  # type: ignore
+
+            if not st_r.exists():
+                return None
+
+            # Access the entire secrets store
+            secrets_ = st.secrets
+            if secrets_.load_if_toml_exists():
+                # Convert the dictionary to a TOML string
+                toml_str = tomlkit.dumps(secrets_.to_dict())
+
+                # Parse the TOML string into a TOMLDocument
+                toml_doc = tomlkit.parse(toml_str)
+                return toml_doc
+            else:
+                return None
+        except tomlkit.exceptions.TOMLKitError:
+            raise
+        except Exception:
+            # Not in a Streamlit context
+            return None
+
+    def _read_toml_file(self, toml_path: str) -> tomlkit.TOMLDocument:
         if os.path.isfile(toml_path):
             with open(toml_path, "r", encoding="utf-8") as f:
                 # use whitespace preserving parser
                 return tomlkit.load(f)
         else:
-            return tomlkit.document()
+            return None
+
+    def _read_toml_files(
+        self, name: str, file_name: str, toml_path: str, global_path: str
+    ) -> tomlkit.TOMLDocument:
+        try:
+            if (project_toml := self._read_toml_file(toml_path)) is not None:
+                pass
+            elif (project_toml := self._read_google_colab_secrets(name, file_name)) is not None:
+                pass
+            elif (project_toml := self._read_streamlit_secrets(name, file_name)) is not None:
+                pass
+            else:
+                # empty doc
+                project_toml = tomlkit.document()
+            if global_path:
+                global_toml = self._read_toml_file(global_path)
+                if global_toml is not None:
+                    project_toml = update_dict_nested(global_toml, project_toml)
+            return project_toml
+        except Exception as ex:
+            raise TomlProviderReadException(name, file_name, toml_path, str(ex))
 
 
-class ConfigTomlProvider(ProjectDocProvider):
-    def __init__(self, project_dir: str = None, add_global_config: bool = False) -> None:
+class ConfigTomlProvider(SettingsTomlProvider):
+    def __init__(self, settings_dir: str, global_dir: str = None) -> None:
         super().__init__(
             CONFIG_TOML,
             False,
             CONFIG_TOML,
-            project_dir=project_dir,
-            add_global_config=add_global_config,
+            settings_dir=settings_dir,
+            global_dir=global_dir,
         )
 
     @property
@@ -255,14 +209,14 @@ class ConfigTomlProvider(ProjectDocProvider):
         return True
 
 
-class SecretsTomlProvider(ProjectDocProvider):
-    def __init__(self, project_dir: str = None, add_global_config: bool = False) -> None:
+class SecretsTomlProvider(SettingsTomlProvider):
+    def __init__(self, settings_dir: str, global_dir: str = None) -> None:
         super().__init__(
             SECRETS_TOML,
             True,
             SECRETS_TOML,
-            project_dir=project_dir,
-            add_global_config=add_global_config,
+            settings_dir=settings_dir,
+            global_dir=global_dir,
         )
 
     @property

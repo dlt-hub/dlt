@@ -25,7 +25,7 @@ pip install -r requirements.txt
 ```
 This will install dlt with the `postgres` extra, which contains the `psycopg2` client.
 
-**3. After setting up a Postgres instance and `psql` / query editor, create a new database by running:**
+**3. After setting up a Postgres instance and `psql` or a query editor, create a new database by running:**
 ```sql
 CREATE DATABASE dlt_data;
 ```
@@ -61,7 +61,7 @@ connect_timeout = 15
 
 You can also pass a database connection string similar to the one used by the `psycopg2` library or [SQLAlchemy](https://docs.sqlalchemy.org/en/20/core/engines.html#postgresql). The credentials above will look like this:
 ```toml
-# keep it at the top of your toml file! before any section starts
+# Keep it at the top of your TOML file, before any section starts
 destination.postgres.credentials="postgresql://loader:<password>@localhost/dlt_data?connect_timeout=15"
 ```
 
@@ -86,11 +86,11 @@ If you set the [`replace` strategy](../../general-usage/full-loading.md) to `sta
 `postgres` supports various timestamp types, which can be configured using the column flags `timezone` and `precision` in the `dlt.resource` decorator or the `pipeline.run` method.
 
 - **Precision**: allows you to specify the number of decimal places for fractional seconds, ranging from 0 to 6. It can be used in combination with the `timezone` flag.
-- **Timezone**: 
+- **Timezone**:
   - Setting `timezone=False` maps to `TIMESTAMP WITHOUT TIME ZONE`.
   - Setting `timezone=True` (or omitting the flag, which defaults to `True`) maps to `TIMESTAMP WITH TIME ZONE`.
 
-#### Example precision and timezone: TIMESTAMP (3) WITHOUT TIME ZONE 
+#### Example precision and timezone: TIMESTAMP (3) WITHOUT TIME ZONE
 ```py
 @dlt.resource(
     columns={"event_tstamp": {"data_type": "timestamp", "precision": 3, "timezone": False}},
@@ -103,7 +103,7 @@ pipeline = dlt.pipeline(destination="postgres")
 pipeline.run(events())
 ```
 
-### Fast loading with arrow tables and CSV
+### Fast loading with Arrow tables and CSV
 You can use [Arrow tables](../verified-sources/arrow-pandas.md) and [CSV](../file-formats/csv.md) to quickly load tabular data. Pick the CSV loader file format like below:
 ```py
 info = pipeline.run(arrow_table, loader_file_format="csv")
@@ -127,14 +127,17 @@ The Postgres destination creates UNIQUE indexes by default on columns with the `
 create_indexes=false
 ```
 
-### Setting up `CSV` format
+### Setting up CSV format
 You can provide [non-default](../file-formats/csv.md#default-settings) CSV settings via a configuration file or explicitly.
+
 ```toml
 [destination.postgres.csv_format]
 delimiter="|"
 include_header=false
 ```
+
 or
+
 ```py
 from dlt.destinations import postgres
 from dlt.common.data_writers.configuration import CsvFormatConfiguration
@@ -152,7 +155,7 @@ You'll need those settings when [importing external files](../../general-usage/r
 ### dbt support
 This destination [integrates with dbt](../transformations/dbt/dbt.md) via dbt-postgres.
 
-### Syncing of `dlt` state
+### Syncing of dlt state
 This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination).
 
 <!--@@@DLT_TUBA postgres-->

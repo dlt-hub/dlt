@@ -34,6 +34,7 @@ from dlt.common.schema.typing import (
 
 from dlt.extract.items import TTableHintTemplate
 from dlt.extract.incremental.typing import LastValueFunc
+from dlt.extract.resource import DltResource
 
 from requests import Session
 
@@ -61,6 +62,7 @@ from dlt.sources.helpers.rest_client.auth import (
     HttpBasicAuth,
     BearerTokenAuth,
     APIKeyAuth,
+    OAuth2ClientCredentials,
 )
 
 PaginatorType = Literal[
@@ -138,7 +140,7 @@ PaginatorConfig = Union[
 ]
 
 
-AuthType = Literal["bearer", "api_key", "http_basic"]
+AuthType = Literal["bearer", "api_key", "http_basic", "oauth2_client_credentials"]
 
 
 class AuthTypeConfig(TypedDict, total=True):
@@ -168,6 +170,18 @@ class HttpBasicAuthConfig(AuthTypeConfig, total=True):
     password: str
 
 
+class OAuth2ClientCredentialsConfig(AuthTypeConfig, total=False):
+    """Uses OAuth 2.0 client credential authorization"""
+
+    access_token: Optional[str]
+    access_token_url: str
+    client_id: str
+    client_secret: str
+    access_token_request_data: Optional[Dict[str, Any]]
+    default_token_expiration: Optional[int]
+    session: Optional[Session]
+
+
 # TODO: add later
 # class OAuthJWTAuthConfig(AuthTypeConfig, total=True):
 
@@ -175,12 +189,14 @@ class HttpBasicAuthConfig(AuthTypeConfig, total=True):
 AuthConfig = Union[
     AuthConfigBase,
     AuthType,
-    BearerTokenAuthConfig,
-    ApiKeyAuthConfig,
-    HttpBasicAuthConfig,
     BearerTokenAuth,
+    BearerTokenAuthConfig,
     APIKeyAuth,
+    ApiKeyAuthConfig,
     HttpBasicAuth,
+    HttpBasicAuthConfig,
+    OAuth2ClientCredentials,
+    OAuth2ClientCredentialsConfig,
 ]
 
 
@@ -276,7 +292,7 @@ class EndpointResource(EndpointResourceBase, total=False):
 
 class RESTAPIConfigBase(TypedDict):
     client: ClientConfig
-    resources: List[Union[str, EndpointResource]]
+    resources: List[Union[str, EndpointResource, DltResource]]
 
 
 class RESTAPIConfig(RESTAPIConfigBase, total=False):

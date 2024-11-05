@@ -15,7 +15,6 @@ from typing import (
     cast,
     get_type_hints,
     ContextManager,
-    Dict,
 )
 
 from dlt import version
@@ -23,22 +22,20 @@ from dlt.common import logger
 from dlt.common.json import json
 from dlt.common.pendulum import pendulum
 from dlt.common.configuration import inject_section, known_sections
-from dlt.common.configuration.specs import RunConfiguration
+from dlt.common.configuration.specs import RuntimeConfiguration
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import (
     ConfigFieldMissingException,
     ContextDefaultCannotBeCreated,
-    ConfigurationValueError,
 )
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.destination.exceptions import (
     DestinationIncompatibleLoaderFileFormatException,
     DestinationNoStagingMode,
     DestinationUndefinedEntity,
-    DestinationCapabilitiesException,
 )
 from dlt.common.exceptions import MissingDependencyException
-from dlt.common.runtime import signals, initialize_runtime
+from dlt.common.runtime import signals, apply_runtime_config
 from dlt.common.schema.typing import (
     TColumnNames,
     TSchemaTables,
@@ -49,7 +46,7 @@ from dlt.common.schema.typing import (
 )
 from dlt.common.schema.utils import normalize_schema_name
 from dlt.common.storages.exceptions import LoadPackageNotFound
-from dlt.common.typing import ConfigValue, TFun, TSecretValue, is_optional_type
+from dlt.common.typing import ConfigValue, TFun, TSecretStrValue, is_optional_type
 from dlt.common.runners import pool_runner as runner
 from dlt.common.storages import (
     LiveSchemaStorage,
@@ -68,7 +65,7 @@ from dlt.common.storages.load_package import TPipelineStateDoc
 from dlt.common.destination import (
     DestinationCapabilitiesContext,
     merge_caps_file_formats,
-    TDestination,
+    AnyDestination,
     LOADER_FILE_FORMATS,
     TLoaderFileFormat,
 )
@@ -82,6 +79,8 @@ from dlt.common.destination.reference import (
     DestinationClientStagingConfiguration,
     DestinationClientStagingConfiguration,
     DestinationClientDwhWithStagingConfiguration,
+    SupportsReadableDataset,
+    TDatasetType,
 )
 from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.pipeline import (
@@ -99,7 +98,7 @@ from dlt.common.pipeline import (
     TRefreshMode,
 )
 from dlt.common.schema import Schema
-from dlt.common.utils import is_interactive
+from dlt.common.utils import make_defunct_class, is_interactive
 from dlt.common.warnings import deprecated, Dlt04DeprecationWarning
 from dlt.common.versioned_state import json_encode_state, json_decode_state
 
@@ -108,9 +107,10 @@ from dlt.extract.exceptions import SourceExhausted
 from dlt.extract.extract import Extract, data_to_sources
 from dlt.normalize import Normalize
 from dlt.normalize.configuration import NormalizeConfiguration
-from dlt.destinations.sql_client import SqlClientBase
+from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.destinations.fs_client import FSClientBase
 from dlt.destinations.job_client_impl import SqlJobClientBase
+from dlt.destinations.dataset import dataset
 from dlt.load.configuration import LoaderConfiguration
 from dlt.load import Load
 
@@ -257,13 +257,17 @@ def with_runtime_trace(send_state: bool = False) -> Callable[[TFun], TFun]:
     return decorator
 
 
-def with_config_section(sections: Tuple[str, ...]) -> Callable[[TFun], TFun]:
+def with_config_section(
+    sections: Tuple[str, ...], merge_func: ConfigSectionContext.TMergeFunc = None
+) -> Callable[[TFun], TFun]:
     def decorator(f: TFun) -> TFun:
         @wraps(f)
         def _wrap(self: "Pipeline", *args: Any, **kwargs: Any) -> Any:
             # add section context to the container to be used by all configuration without explicit sections resolution
             with inject_section(
-                ConfigSectionContext(pipeline_name=self.pipeline_name, sections=sections)
+                ConfigSectionContext(
+                    pipeline_name=self.pipeline_name, sections=sections, merge_style=merge_func
+                )
             ):
                 return f(self, *args, **kwargs)
 
@@ -290,9 +294,9 @@ class Pipeline(SupportsPipeline):
 
     pipeline_name: str
     """Name of the pipeline"""
-    default_schema_name: str = None
-    schema_names: List[str] = []
-    first_run: bool = False
+    default_schema_name: str
+    schema_names: List[str]
+    first_run: bool
     """Indicates a first run of the pipeline, where run ends with successful loading of the data"""
     dev_mode: bool
     must_attach_to_local_pipeline: bool
@@ -300,25 +304,25 @@ class Pipeline(SupportsPipeline):
     """A directory where the pipelines' working directories are created"""
     working_dir: str
     """A working directory of the pipeline"""
-    destination: TDestination = None
-    staging: TDestination = None
+    _destination: AnyDestination
+    _staging: AnyDestination
     """The destination reference which is the Destination Class. `destination.destination_name` returns the name string"""
-    dataset_name: str = None
+    dataset_name: str
     """Name of the dataset to which pipeline will be loaded to"""
-    is_active: bool = False
+    is_active: bool
     """Tells if instance is currently active and available via dlt.pipeline()"""
     collector: _Collector
     config: PipelineConfiguration
-    runtime_config: RunConfiguration
-    refresh: Optional[TRefreshMode] = None
+    runtime_config: RuntimeConfiguration
+    refresh: Optional[TRefreshMode]
 
     def __init__(
         self,
         pipeline_name: str,
         pipelines_dir: str,
-        pipeline_salt: TSecretValue,
-        destination: TDestination,
-        staging: TDestination,
+        pipeline_salt: TSecretStrValue,
+        destination: AnyDestination,
+        staging: AnyDestination,
         dataset_name: str,
         import_schema_path: str,
         export_schema_path: str,
@@ -326,17 +330,23 @@ class Pipeline(SupportsPipeline):
         progress: _Collector,
         must_attach_to_local_pipeline: bool,
         config: PipelineConfiguration,
-        runtime: RunConfiguration,
+        runtime: RuntimeConfiguration,
         refresh: Optional[TRefreshMode] = None,
     ) -> None:
         """Initializes the Pipeline class which implements `dlt` pipeline. Please use `pipeline` function in `dlt` module to create a new Pipeline instance."""
+        self.default_schema_name = None
+        self.schema_names = []
+        self.first_run = False
+        self.dataset_name: str = None
+        self.is_active = False
+
         self.pipeline_salt = pipeline_salt
         self.config = config
         self.runtime_config = runtime
         self.dev_mode = dev_mode
         self.collector = progress or _NULL_COLLECTOR
-        self.destination = None
-        self.staging = None
+        self._destination = None
+        self._staging = None
         self.refresh = refresh
 
         self._container = Container()
@@ -348,7 +358,6 @@ class Pipeline(SupportsPipeline):
         self._last_trace: PipelineTrace = None
         self._state_restored: bool = False
 
-        initialize_runtime(self.runtime_config)
         # initialize pipeline working dir
         self._init_working_dir(pipeline_name, pipelines_dir)
 
@@ -362,20 +371,24 @@ class Pipeline(SupportsPipeline):
             self._set_dataset_name(dataset_name)
 
     def drop(self, pipeline_name: str = None) -> "Pipeline":
-        """Deletes local pipeline state, schemas and any working files.
+        """Deletes local pipeline state, schemas and any working files. Re-initializes
+           all internal fields via __init__. If `pipeline_name` is specified that is
+           different from the current name, new pipeline instance is created, activated and returned.
+           Note that original pipeline is still dropped.
 
         Args:
-            pipeline_name (str): Optional. New pipeline name.
+            pipeline_name (str): Optional. New pipeline name. Creates and activates new instance
         """
+        if self.is_active:
+            self.deactivate()
         # reset the pipeline working dir
         self._create_pipeline()
-        # clone the pipeline
-        return Pipeline(
-            pipeline_name or self.pipeline_name,
+        self.__init__(  # type: ignore[misc]
+            self.pipeline_name,
             self.pipelines_dir,
             self.pipeline_salt,
-            self.destination,
-            self.staging,
+            self._destination,
+            self._staging,
             self.dataset_name,
             self._schema_storage.config.import_schema_path,
             self._schema_storage.config.export_schema_path,
@@ -385,6 +398,25 @@ class Pipeline(SupportsPipeline):
             self.config,
             self.runtime_config,
         )
+        if pipeline_name is not None and pipeline_name != self.pipeline_name:
+            self = self.__class__(
+                pipeline_name,
+                self.pipelines_dir,
+                self.pipeline_salt,
+                deepcopy(self._destination),
+                deepcopy(self._staging),
+                self.dataset_name,
+                self._schema_storage.config.import_schema_path,
+                self._schema_storage.config.export_schema_path,
+                self.dev_mode,
+                deepcopy(self.collector),
+                False,
+                self.config,
+                self.runtime_config,
+            )
+        # activate (possibly new) self
+        self.activate()
+        return self
 
     @with_runtime_trace()
     @with_schemas_sync  # this must precede with_state_sync
@@ -440,6 +472,7 @@ class Pipeline(SupportsPipeline):
                         workers,
                         refresh=refresh or self.refresh,
                     )
+
                 # this will update state version hash so it will not be extracted again by with_state_sync
                 self._bump_version_and_extract_state(
                     self._container[StateInjectableContext].state,
@@ -469,8 +502,8 @@ class Pipeline(SupportsPipeline):
         # verify loader file format
         if loader_file_format and loader_file_format not in caps.supported_loader_file_formats:
             raise DestinationIncompatibleLoaderFileFormatException(
-                self.destination.destination_name,
-                (self.staging.destination_name if self.staging else None),
+                self._destination.destination_name,
+                (self._staging.destination_name if self._staging else None),
                 loader_file_format,
                 set(caps.supported_loader_file_formats),
             )
@@ -559,8 +592,8 @@ class Pipeline(SupportsPipeline):
             _load_storage_config=self._load_storage_config(),
         )
         load_step: Load = Load(
-            self.destination,
-            staging_destination=self.staging,
+            self._destination,
+            staging_destination=self._staging,
             collector=self.collector,
             is_storage_owner=False,
             config=load_config,
@@ -618,28 +651,28 @@ class Pipeline(SupportsPipeline):
         Next it will make sure that data from the previous is fully processed. If not, `run` method normalizes, loads pending data items and **exits**
         If there was no pending data, new data from `data` argument is extracted, normalized and loaded.
 
-        #### Args:
+        Args:
             data (Any): Data to be loaded to destination
 
             destination (str | DestinationReference, optional): A name of the destination to which dlt will load the data, or a destination module imported from `dlt.destination`.
-            If not provided, the value passed to `dlt.pipeline` will be used.
+                If not provided, the value passed to `dlt.pipeline` will be used.
 
-            dataset_name (str, optional):A name of the dataset to which the data will be loaded. A dataset is a logical group of tables ie. `schema` in relational databases or folder grouping many files.
-            If not provided, the value passed to `dlt.pipeline` will be used. If not provided at all then defaults to the `pipeline_name`
+            dataset_name (str, optional): A name of the dataset to which the data will be loaded. A dataset is a logical group of tables ie. `schema` in relational databases or folder grouping many files.
+                If not provided, the value passed to `dlt.pipeline` will be used. If not provided at all then defaults to the `pipeline_name`
 
             credentials (Any, optional): Credentials for the `destination` ie. database connection string or a dictionary with google cloud credentials.
-            In most cases should be set to None, which lets `dlt` to use `secrets.toml` or environment variables to infer right credentials values.
+                In most cases should be set to None, which lets `dlt` to use `secrets.toml` or environment variables to infer right credentials values.
 
             table_name (str, optional): The name of the table to which the data should be loaded within the `dataset`. This argument is required for a `data` that is a list/Iterable or Iterator without `__name__` attribute.
-            The behavior of this argument depends on the type of the `data`:
-            * generator functions: the function name is used as table name, `table_name` overrides this default
-            * `@dlt.resource`: resource contains the full table schema and that includes the table name. `table_name` will override this property. Use with care!
-            * `@dlt.source`: source contains several resources each with a table schema. `table_name` will override all table names within the source and load the data into single table.
+                The behavior of this argument depends on the type of the `data`:
+                * generator functions - the function name is used as table name, `table_name` overrides this default
+                * `@dlt.resource` - resource contains the full table schema and that includes the table name. `table_name` will override this property. Use with care!
+                * `@dlt.source` - source contains several resources each with a table schema. `table_name` will override all table names within the source and load the data into single table.
 
             write_disposition (TWriteDispositionConfig, optional): Controls how to write data to a table. Accepts a shorthand string literal or configuration dictionary.
-            Allowed shorthand string literals: `append` will always add new data at the end of the table. `replace` will replace existing data with new data. `skip` will prevent data from loading. "merge" will deduplicate and merge data based on "primary_key" and "merge_key" hints. Defaults to "append".
-            Write behaviour can be further customized through a configuration dictionary. For example, to obtain an SCD2 table provide `write_disposition={"disposition": "merge", "strategy": "scd2"}`.
-            Please note that in case of `dlt.resource` the table schema value will be overwritten and in case of `dlt.source`, the values in all resources will be overwritten.
+                Allowed shorthand string literals: `append` will always add new data at the end of the table. `replace` will replace existing data with new data. `skip` will prevent data from loading. "merge" will deduplicate and merge data based on "primary_key" and "merge_key" hints. Defaults to "append".
+                Write behaviour can be further customized through a configuration dictionary. For example, to obtain an SCD2 table provide `write_disposition={"disposition": "merge", "strategy": "scd2"}`.
+                Please note that in case of `dlt.resource` the table schema value will be overwritten and in case of `dlt.source`, the values in all resources will be overwritten.
 
             columns (Sequence[TColumnSchema], optional): A list of column schemas. Typed dictionary describing column names, data types, write disposition and performance hints that gives you full control over the created table schema.
 
@@ -647,19 +680,19 @@ class Pipeline(SupportsPipeline):
 
             schema (Schema, optional): An explicit `Schema` object in which all table schemas will be grouped. By default `dlt` takes the schema from the source (if passed in `data` argument) or creates a default one itself.
 
-            loader_file_format (Literal["jsonl", "insert_values", "parquet"], optional). The file format the loader will use to create the load package. Not all file_formats are compatible with all destinations. Defaults to the preferred file format of the selected destination.
+            loader_file_format (Literal["jsonl", "insert_values", "parquet"], optional): The file format the loader will use to create the load package. Not all file_formats are compatible with all destinations. Defaults to the preferred file format of the selected destination.
 
-            table_format (Literal["delta", "iceberg"], optional). The table format used by the destination to store tables. Currently you can select table format on filesystem and Athena destinations.
+            table_format (Literal["delta", "iceberg"], optional): The table format used by the destination to store tables. Currently you can select table format on filesystem and Athena destinations.
 
             schema_contract (TSchemaContract, optional): On override for the schema contract settings, this will replace the schema contract settings for all tables in the schema. Defaults to None.
 
             refresh (str | TRefreshMode): Fully or partially reset sources before loading new data in this run. The following refresh modes are supported:
-                * `drop_sources`: Drop tables and source and resource state for all sources currently being processed in `run` or `extract` methods of the pipeline. (Note: schema history is erased)
-                * `drop_resources`: Drop tables and resource state for all resources being processed. Source level state is not modified. (Note: schema history is erased)
-                * `drop_data`: Wipe all data and resource state for all resources being processed. Schema is not modified.
+                * `drop_sources` - Drop tables and source and resource state for all sources currently being processed in `run` or `extract` methods of the pipeline. (Note: schema history is erased)
+                * `drop_resources`-  Drop tables and resource state for all resources being processed. Source level state is not modified. (Note: schema history is erased)
+                * `drop_data` - Wipe all data and resource state for all resources being processed. Schema is not modified.
 
         Raises:
-            PipelineStepFailed when a problem happened during `extract`, `normalize` or `load` steps.
+            PipelineStepFailed: when a problem happened during `extract`, `normalize` or `load` steps.
         Returns:
             LoadInfo: Information on loaded data including the list of package ids and failed job statuses. Please not that `dlt` will not raise if a single job terminally fails. Such information is provided via LoadInfo.
         """
@@ -676,9 +709,9 @@ class Pipeline(SupportsPipeline):
             self.config.restore_from_destination
             and not self.dev_mode
             and not self._state_restored
-            and (self.destination or destination)
+            and (self._destination or destination)
         ):
-            self.sync_destination(destination, staging, dataset_name)
+            self._sync_destination(destination, staging, dataset_name)
             # sync only once
             self._state_restored = True
         # normalize and load pending data
@@ -712,7 +745,7 @@ class Pipeline(SupportsPipeline):
         else:
             return None
 
-    @with_schemas_sync
+    @with_config_section(sections=(), merge_func=ConfigSectionContext.prefer_existing)
     def sync_destination(
         self,
         destination: TDestinationReferenceArg = None,
@@ -730,6 +763,17 @@ class Pipeline(SupportsPipeline):
         Note: this method is executed by the `run` method before any operation on data. Use `restore_from_destination` configuration option to disable that behavior.
 
         """
+        return self._sync_destination(
+            destination=destination, staging=staging, dataset_name=dataset_name
+        )
+
+    @with_schemas_sync
+    def _sync_destination(
+        self,
+        destination: TDestinationReferenceArg = None,
+        staging: TDestinationReferenceArg = None,
+        dataset_name: str = None,
+    ) -> None:
         self._set_destinations(destination=destination, staging=staging)
         self._set_dataset_name(dataset_name)
 
@@ -969,6 +1013,7 @@ class Pipeline(SupportsPipeline):
             state = self._get_state()
         return state["_local"][key]  # type: ignore
 
+    @with_config_section(sections=(), merge_func=ConfigSectionContext.prefer_existing)
     def sql_client(self, schema_name: str = None) -> SqlClientBase[Any]:
         """Returns a sql client configured to query/change the destination and dataset that were used to load the data.
         Use the client with `with` statement to manage opening and closing connection to the destination:
@@ -989,7 +1034,12 @@ class Pipeline(SupportsPipeline):
         #         "Sql Client is not available in a pipeline without a default schema. Extract some data first or restore the pipeline from the destination using 'restore_from_destination' flag. There's also `_inject_schema` method for advanced users."
         #     )
         schema = self._get_schema_or_create(schema_name)
-        return self._sql_job_client(schema).sql_client
+        client_config = self._get_destination_client_initial_config()
+        client = self._get_destination_clients(schema, client_config)[0]
+        if isinstance(client, WithSqlClient):
+            return client.sql_client
+        else:
+            raise SqlClientNotAvailable(self.pipeline_name, self._destination.destination_name)
 
     def _fs_client(self, schema_name: str = None) -> FSClientBase:
         """Returns a filesystem client configured to point to the right folder / bucket for each table.
@@ -1006,8 +1056,9 @@ class Pipeline(SupportsPipeline):
         client = self.destination_client(schema_name)
         if isinstance(client, FSClientBase):
             return client
-        raise FSClientNotAvailable(self.pipeline_name, self.destination.destination_name)
+        raise FSClientNotAvailable(self.pipeline_name, self._destination.destination_name)
 
+    @with_config_section(sections=(), merge_func=ConfigSectionContext.prefer_existing)
     def destination_client(self, schema_name: str = None) -> JobClientBase:
         """Get the destination job client for the configured destination
         Use the client with `with` statement to manage opening and closing connection to the destination:
@@ -1019,6 +1070,28 @@ class Pipeline(SupportsPipeline):
         """
         schema = self._get_schema_or_create(schema_name)
         return self._get_destination_clients(schema)[0]
+
+    @property
+    def destination(self) -> AnyDestination:
+        return self._destination
+
+    @destination.setter
+    def destination(self, new_value: AnyDestination) -> None:
+        self._destination = new_value
+        # bind pipeline to factory
+        if self._destination:
+            self._destination.config_params["bound_to_pipeline"] = self
+
+    @property
+    def staging(self) -> AnyDestination:
+        return self._staging
+
+    @staging.setter
+    def staging(self, new_value: AnyDestination) -> None:
+        self._staging = new_value
+        # bind pipeline to factory
+        if self._staging:
+            self._staging.config_params["bound_to_pipeline"] = self
 
     def _get_schema_or_create(self, schema_name: str = None) -> Schema:
         if schema_name:
@@ -1034,7 +1107,7 @@ class Pipeline(SupportsPipeline):
         if isinstance(client, SqlJobClientBase):
             return client
         else:
-            raise SqlClientNotAvailable(self.pipeline_name, self.destination.destination_name)
+            raise SqlClientNotAvailable(self.pipeline_name, self._destination.destination_name)
 
     def _get_normalize_storage(self) -> NormalizeStorage:
         return NormalizeStorage(True, self._normalize_storage_config())
@@ -1177,9 +1250,9 @@ class Pipeline(SupportsPipeline):
         return load_id
 
     def _get_destination_client_initial_config(
-        self, destination: TDestination = None, as_staging: bool = False
+        self, destination: AnyDestination = None, as_staging: bool = False
     ) -> DestinationClientConfiguration:
-        destination = destination or self.destination
+        destination = destination or self._destination
         if not destination:
             raise PipelineConfigMissing(
                 self.pipeline_name,
@@ -1222,29 +1295,29 @@ class Pipeline(SupportsPipeline):
         try:
             # resolve staging config in order to pass it to destination client config
             staging_client = None
-            if self.staging:
+            if self._staging:
                 if not initial_staging_config:
                     # this is just initial config - without user configuration injected
                     initial_staging_config = self._get_destination_client_initial_config(
-                        self.staging, as_staging=True
+                        self._staging, as_staging=True
                     )
                 # create the client - that will also resolve the config
-                staging_client = self.staging.client(schema, initial_staging_config)
+                staging_client = self._staging.client(schema, initial_staging_config)
             if not initial_config:
                 # config is not provided then get it with injected credentials
-                initial_config = self._get_destination_client_initial_config(self.destination)
+                initial_config = self._get_destination_client_initial_config(self._destination)
             # attach the staging client config to destination client config - if its type supports it
             if (
-                self.staging
+                self._staging
                 and isinstance(initial_config, DestinationClientDwhWithStagingConfiguration)
                 and isinstance(staging_client.config, DestinationClientStagingConfiguration)
             ):
                 initial_config.staging_config = staging_client.config
             # create instance with initial_config properly set
-            client = self.destination.client(schema, initial_config)
+            client = self._destination.client(schema, initial_config)
             return client, staging_client
         except ModuleNotFoundError:
-            client_spec = self.destination.spec()
+            client_spec = self._destination.spec()
             raise MissingDependencyException(
                 f"{client_spec.destination_type} destination",
                 [f"{version.DLT_PKG_NAME}[{client_spec.destination_type}]"],
@@ -1252,7 +1325,7 @@ class Pipeline(SupportsPipeline):
             )
 
     def _get_destination_capabilities(self) -> DestinationCapabilitiesContext:
-        if not self.destination:
+        if not self._destination:
             raise PipelineConfigMissing(
                 self.pipeline_name,
                 "destination",
@@ -1268,10 +1341,10 @@ class Pipeline(SupportsPipeline):
             naming = self.default_schema.naming
         else:
             naming = None
-        return self.destination.capabilities(naming=naming)
+        return self._destination.capabilities(naming=naming)
 
     def _get_staging_capabilities(self) -> Optional[DestinationCapabilitiesContext]:
-        if self.staging is None:
+        if self._staging is None:
             return None
         # check if default schema is present
         if (
@@ -1281,7 +1354,7 @@ class Pipeline(SupportsPipeline):
             naming = self.default_schema.naming
         else:
             naming = None
-        return self.staging.capabilities(naming=naming)
+        return self._staging.capabilities(naming=naming)
 
     def _validate_pipeline_name(self) -> None:
         try:
@@ -1298,10 +1371,14 @@ class Pipeline(SupportsPipeline):
         return Schema(normalize_schema_name(schema_name))
 
     def _set_context(self, is_active: bool) -> None:
+        if not self.is_active and is_active:
+            # initialize runtime if not active previously
+            apply_runtime_config(self.runtime_config)
+
         self.is_active = is_active
         if is_active:
             # set destination context on activation
-            if self.destination:
+            if self._destination:
                 # inject capabilities context
                 self._container[DestinationCapabilitiesContext] = (
                     self._get_destination_capabilities()
@@ -1320,34 +1397,35 @@ class Pipeline(SupportsPipeline):
         initializing: bool = False,
         destination_credentials: Any = None,
     ) -> None:
-        destination_changed = destination is not None and destination != self.destination
+        destination_changed = destination is not None and destination != self._destination
         # set destination if provided but do not swap if factory is the same
         if destination_changed:
-            self.destination = Destination.from_reference(
+            self._destination = Destination.from_reference(
                 destination, destination_name=destination_name
             )
 
         if (
-            self.destination
-            and not self.destination.capabilities().supported_loader_file_formats
+            self._destination
+            and not self._destination.capabilities().supported_loader_file_formats
             and not staging
-            and not self.staging
+            and not self._staging
         ):
             logger.warning(
-                f"The destination {self.destination.destination_name} requires the filesystem"
+                f"The destination {self._destination.destination_name} requires the filesystem"
                 " staging destination to be set, but it was not provided. Setting it to"
                 " 'filesystem'."
             )
             staging = "filesystem"
             staging_name = "filesystem"
 
-        staging_changed = staging is not None and staging != self.staging
+        staging_changed = staging is not None and staging != self._staging
         if staging_changed:
             staging_module = Destination.from_reference(staging, destination_name=staging_name)
             if staging_module and not issubclass(
                 staging_module.spec, DestinationClientStagingConfiguration
             ):
                 raise DestinationNoStagingMode(staging_module.destination_name)
+            # set via property
             self.staging = staging_module
 
         if staging_changed or destination_changed:
@@ -1361,8 +1439,11 @@ class Pipeline(SupportsPipeline):
             if not initializing:
                 self._set_context(is_active=True)
         # apply explicit credentials
-        if self.destination and destination_credentials:
-            self.destination.config_params["credentials"] = destination_credentials
+        if self._destination:
+            if destination_credentials:
+                self._destination.config_params["credentials"] = destination_credentials
+            # set via property
+            self.destination = self._destination
 
     @contextmanager
     def _maybe_destination_capabilities(
@@ -1371,7 +1452,7 @@ class Pipeline(SupportsPipeline):
         caps: DestinationCapabilitiesContext = None
         injected_caps: ContextManager[DestinationCapabilitiesContext] = None
         try:
-            if self.destination:
+            if self._destination:
                 destination_caps = self._get_destination_capabilities()
                 stage_caps = self._get_staging_capabilities()
                 injected_caps = self._container.injectable_context(destination_caps)
@@ -1379,8 +1460,8 @@ class Pipeline(SupportsPipeline):
 
                 caps.preferred_loader_file_format, caps.supported_loader_file_formats = (
                     merge_caps_file_formats(
-                        self.destination.destination_name,
-                        (self.staging.destination_name if self.staging else None),
+                        self._destination.destination_name,
+                        (self._staging.destination_name if self._staging else None),
                         destination_caps,
                         stage_caps,
                     )
@@ -1394,15 +1475,15 @@ class Pipeline(SupportsPipeline):
         if not new_dataset_name and not self.dataset_name:
             # dataset name is required but not provided - generate the default now
             destination_needs_dataset = False
-            if self.destination:
-                fields = self.destination.spec().get_resolvable_fields()
+            if self._destination:
+                fields = self._destination.spec().get_resolvable_fields()
                 dataset_name_type = fields.get("dataset_name")
                 # if dataset is required (default!) we create a default dataset name
                 destination_needs_dataset = dataset_name_type is not None and not is_optional_type(
                     dataset_name_type
                 )
             # if destination is not specified - generate dataset
-            if not self.destination or destination_needs_dataset:
+            if not self._destination or destination_needs_dataset:
                 new_dataset_name = self.pipeline_name + self.DEFAULT_DATASET_SUFFIX
 
         if not new_dataset_name:
@@ -1444,17 +1525,21 @@ class Pipeline(SupportsPipeline):
     def _get_state(self) -> TPipelineState:
         try:
             state = json_decode_state(self._pipeline_storage.load(Pipeline.STATE_FILE))
-            return migrate_pipeline_state(
+            migrated_state = migrate_pipeline_state(
                 self.pipeline_name,
                 state,
                 state["_state_engine_version"],
                 PIPELINE_STATE_ENGINE_VERSION,
             )
+            # TODO: move to a migration. this change is local and too small to justify
+            # engine upgrade
+            _local = migrated_state["_local"]
+            if "initial_cwd" not in _local:
+                _local["initial_cwd"] = os.path.abspath(os.path.curdir)
+            return migrated_state
         except FileNotFoundError:
             # do not set the state hash, this will happen on first merge
             return default_pipeline_state()
-            # state["_version_hash"] = generate_version_hash(state)
-            # return state
 
     def _optional_sql_job_client(self, schema_name: str) -> Optional[SqlJobClientBase]:
         try:
@@ -1486,18 +1571,18 @@ class Pipeline(SupportsPipeline):
                     if state is None:
                         logger.info(
                             "The state was not found in the destination"
-                            f" {self.destination.destination_description}:{dataset_name}"
+                            f" {self._destination.destination_description}:{dataset_name}"
                         )
                     else:
                         logger.info(
                             "The state was restored from the destination"
-                            f" {self.destination.destination_description}:{dataset_name}"
+                            f" {self._destination.destination_description}:{dataset_name}"
                         )
                 else:
                     state = None
                     logger.info(
                         "Destination does not support state sync"
-                        f" {self.destination.destination_description}:{dataset_name}"
+                        f" {self._destination.destination_description}:{dataset_name}"
                     )
             return state
         finally:
@@ -1517,14 +1602,14 @@ class Pipeline(SupportsPipeline):
                     if not isinstance(job_client, WithStateSync):
                         logger.info(
                             "Destination does not support restoring of pipeline state"
-                            f" {self.destination.destination_name}"
+                            f" {self._destination.destination_name}"
                         )
                         return restored_schemas
-                    schema_info = job_client.get_stored_schema()
+                    schema_info = job_client.get_stored_schema(schema_name)
                     if schema_info is None:
                         logger.info(
                             f"The schema {schema.name} was not found in the destination"
-                            f" {self.destination.destination_name}:{self.dataset_name}"
+                            f" {self._destination.destination_name}:{self.dataset_name}"
                         )
                         # try to import schema
                         with contextlib.suppress(FileNotFoundError):
@@ -1534,7 +1619,7 @@ class Pipeline(SupportsPipeline):
                         logger.info(
                             f"The schema {schema.name} version {schema.version} hash"
                             f" {schema.stored_version_hash} was restored from the destination"
-                            f" {self.destination.destination_name}:{self.dataset_name}"
+                            f" {self._destination.destination_name}:{self.dataset_name}"
                         )
                         restored_schemas.append(schema)
         return restored_schemas
@@ -1571,7 +1656,7 @@ class Pipeline(SupportsPipeline):
             if prop in state["_local"] and not prop.startswith("_"):
                 setattr(self, prop, state["_local"][prop])  # type: ignore
         # staging and destination are taken from state only if not yet set in the pipeline
-        if not self.destination:
+        if not self._destination:
             self._set_destinations(
                 destination=state.get("destination_type"),
                 destination_name=state.get("destination_name"),
@@ -1582,11 +1667,11 @@ class Pipeline(SupportsPipeline):
             # issue warnings that state destination/staging got ignored
             state_destination = state.get("destination_type")
             if state_destination:
-                if self.destination.destination_type != state_destination:
+                if self._destination.destination_type != state_destination:
                     logger.warning(
                         f"The destination {state_destination}:{state.get('destination_name')} in"
                         " state differs from destination"
-                        f" {self.destination.destination_type}:{self.destination.destination_name} in"
+                        f" {self._destination.destination_type}:{self._destination.destination_name} in"
                         " pipeline and will be ignored"
                     )
                     state_staging = state.get("staging_type")
@@ -1604,12 +1689,12 @@ class Pipeline(SupportsPipeline):
         for prop in Pipeline.LOCAL_STATE_PROPS:
             if not prop.startswith("_"):
                 state["_local"][prop] = getattr(self, prop)  # type: ignore
-        if self.destination:
-            state["destination_type"] = self.destination.destination_type
-            state["destination_name"] = self.destination.destination_name
-        if self.staging:
-            state["staging_type"] = self.staging.destination_type
-            state["staging_name"] = self.staging.destination_name
+        if self._destination:
+            state["destination_type"] = self._destination.destination_type
+            state["destination_name"] = self._destination.destination_name
+        if self._staging:
+            state["staging_type"] = self._staging.destination_type
+            state["staging_name"] = self._staging.destination_name
         state["schema_names"] = self._list_schemas_sorted()
         return state
 
@@ -1690,3 +1775,12 @@ class Pipeline(SupportsPipeline):
     def __getstate__(self) -> Any:
         # pickle only the SupportsPipeline protocol fields
         return {"pipeline_name": self.pipeline_name}
+
+    def _dataset(self, dataset_type: TDatasetType = "dbapi") -> SupportsReadableDataset:
+        """Access helper to dataset"""
+        return dataset(
+            self._destination,
+            self.dataset_name,
+            schema=(self.default_schema if self.default_schema_name else None),
+            dataset_type=dataset_type,
+        )

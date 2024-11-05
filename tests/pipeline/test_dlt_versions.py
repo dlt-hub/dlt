@@ -13,7 +13,6 @@ from dlt.common.json import custom_pua_decode
 from dlt.common.runners import Venv
 from dlt.common.storages.exceptions import StorageMigrationError
 from dlt.common.utils import custom_environ, set_working_dir
-from dlt.common.configuration.paths import get_dlt_data_dir
 from dlt.common.storages import FileStorage
 from dlt.common.schema.typing import (
     LOADS_TABLE_NAME,
@@ -77,7 +76,7 @@ def test_pipeline_with_dlt_update(test_storage: FileStorage) -> None:
     # execute in test storage
     with set_working_dir(TEST_STORAGE_ROOT):
         # store dlt data in test storage (like patch_home_dir)
-        with custom_environ({DLT_DATA_DIR: get_dlt_data_dir()}):
+        with custom_environ({DLT_DATA_DIR: dlt.current.run().data_dir}):
             # save database outside of pipeline dir
             with custom_environ(
                 {"DESTINATION__DUCKDB__CREDENTIALS": "duckdb:///test_github_3.duckdb"}
@@ -222,7 +221,7 @@ def test_filesystem_pipeline_with_dlt_update(test_storage: FileStorage) -> None:
     # execute in test storage
     with set_working_dir(TEST_STORAGE_ROOT):
         # store dlt data in test storage (like patch_home_dir)
-        with custom_environ({DLT_DATA_DIR: get_dlt_data_dir()}):
+        with custom_environ({DLT_DATA_DIR: dlt.current.run().data_dir}):
             # create virtual env with (0.4.9) where filesystem started to store state
             with Venv.create(tempfile.mkdtemp(), ["dlt==0.4.9"]) as venv:
                 try:
@@ -248,7 +247,7 @@ def test_filesystem_pipeline_with_dlt_update(test_storage: FileStorage) -> None:
             # attach to existing pipeline
             pipeline = dlt.attach(GITHUB_PIPELINE_NAME, destination=filesystem("_storage/data"))
             # assert end state
-            assert_github_pipeline_end_state(pipeline, github_schema, 2)
+            pipeline = assert_github_pipeline_end_state(pipeline, github_schema, 2)
             # load new state
             fs_client = pipeline._fs_client()
             state_files = sorted(fs_client.list_table_files("_dlt_pipeline_state"))
@@ -262,7 +261,7 @@ def test_filesystem_pipeline_with_dlt_update(test_storage: FileStorage) -> None:
 
 def assert_github_pipeline_end_state(
     pipeline: dlt.Pipeline, orig_schema: TStoredSchema, schema_updates: int
-) -> None:
+) -> dlt.Pipeline:
     # get tables counts
     table_counts = load_table_counts(pipeline, *pipeline.default_schema.data_table_names())
     assert table_counts == {"issues": 100, "issues__assignees": 31, "issues__labels": 34}
@@ -287,6 +286,8 @@ def assert_github_pipeline_end_state(
     # make sure that schema hash retrieved from the destination is exactly the same as the schema hash that was in storage before the schema was wiped
     assert pipeline.default_schema.stored_version_hash == orig_schema["version_hash"]
 
+    return pipeline
+
 
 def test_load_package_with_dlt_update(test_storage: FileStorage) -> None:
     shutil.copytree("tests/pipeline/cases/github_pipeline", TEST_STORAGE_ROOT, dirs_exist_ok=True)
@@ -294,7 +295,7 @@ def test_load_package_with_dlt_update(test_storage: FileStorage) -> None:
     # execute in test storage
     with set_working_dir(TEST_STORAGE_ROOT):
         # store dlt data in test storage (like patch_home_dir)
-        with custom_environ({DLT_DATA_DIR: get_dlt_data_dir()}):
+        with custom_environ({DLT_DATA_DIR: dlt.current.run().data_dir}):
             # save database outside of pipeline dir
             with custom_environ(
                 {"DESTINATION__DUCKDB__CREDENTIALS": "duckdb:///test_github_3.duckdb"}
@@ -369,7 +370,7 @@ def test_normalize_package_with_dlt_update(test_storage: FileStorage) -> None:
     # execute in test storage
     with set_working_dir(TEST_STORAGE_ROOT):
         # store dlt data in test storage (like patch_home_dir)
-        with custom_environ({DLT_DATA_DIR: get_dlt_data_dir()}):
+        with custom_environ({DLT_DATA_DIR: dlt.current.run().data_dir}):
             # save database outside of pipeline dir
             with custom_environ(
                 {"DESTINATION__DUCKDB__CREDENTIALS": "duckdb:///test_github_3.duckdb"}
@@ -404,7 +405,7 @@ def test_scd2_pipeline_update(test_storage: FileStorage) -> None:
     # execute in test storage
     with set_working_dir(TEST_STORAGE_ROOT):
         # store dlt data in test storage (like patch_home_dir)
-        with custom_environ({DLT_DATA_DIR: get_dlt_data_dir()}):
+        with custom_environ({DLT_DATA_DIR: dlt.current.run().data_dir}):
             # save database outside of pipeline dir
             with custom_environ(
                 {"DESTINATION__DUCKDB__CREDENTIALS": "duckdb:///test_github_3.duckdb"}
