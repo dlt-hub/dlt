@@ -26,7 +26,7 @@ import dlt
 from dlt.sources import DltResource
 from dlt.common.pipeline import LoadInfo
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
-from dlt.sources.rest_api import RESTAPIConfig, rest_api_source
+from dlt.sources.rest_api import RESTAPIConfig, rest_api_resources
 
 
 @dlt.source
@@ -39,48 +39,28 @@ def chess_com_source(username: str, months: List[Dict[str, str]]) -> Iterator[Dl
         months (List[Dict[str, str]]): List of dictionaries containing 'year' and 'month' keys.
 
     Yields:
-        dlt.resource: Resource objects containing fetched game data.
+        dlt.Resource: Resource objects containing fetched game data.
     """
-    resources = []
     for month in months:
         year = month["year"]
         month_str = month["month"]
         # Configure REST API endpoint for the specific month
-        config = RESTAPIConfig(
-            client={"base_url": "https://api.chess.com/pub/"},  # Base URL for Chess.com API
-            resources=[
+        config: RESTAPIConfig = {
+            "client": {
+                "base_url": "https://api.chess.com/pub/",  # Base URL for Chess.com API
+            },
+            "resources": [
                 {
                     "name": f"chess_com_games_{year}_{month_str}",  # Unique resource name
+                    "write_disposition": "append",
                     "endpoint": {
                         "path": f"player/{username}/games/{year}/{month_str}",  # API endpoint path
                     },
                     "primary_key": ["url"],  # Primary key to prevent duplicates
                 }
             ],
-        )
-
-        # Fetch data from the API using the configured REST API source
-        data = list(rest_api_source(config))
-
-        # Ensure the fetched data is a list
-        if isinstance(data, dict):
-            data = [data]  # Wrap single dict in a list
-
-        if data:
-            # Create a resource with write_disposition='append' to add new data
-            resource = dlt.resource(
-                data,
-                name=f"chess_com_games_{year}_{month_str}",
-                write_disposition="append",  # Append new data without overwriting
-            )
-            resources.append(resource)
-        else:
-            # Inform if no data was returned for the specified month
-            print(f"No data returned for {username} in {year}-{month_str}")
-
-    # Yield all configured resources
-    for resource in resources:
-        yield resource
+        }
+        yield from rest_api_resources(config)
 
 
 def generate_months(
