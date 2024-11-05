@@ -18,6 +18,11 @@ from dlt.cli.requirements import SourceRequirements
 TSourceType = Literal["core", "verified", "template"]
 
 SOURCES_INIT_INFO_ENGINE_VERSION = 1
+
+SOURCES_MODULE_NAME = "sources"
+CORE_SOURCE_TEMPLATE_MODULE_NAME = "_core_source_templates"
+SINGLE_FILE_TEMPLATE_MODULE_NAME = "_single_file_templates"
+
 SOURCES_INIT_INFO_FILE = ".sources"
 IGNORE_FILES = ["*.py[cod]", "*$py.class", "__pycache__", "py.typed", "requirements.txt"]
 IGNORE_VERIFIED_SOURCES = [".*", "_*"]
@@ -25,10 +30,10 @@ IGNORE_CORE_SOURCES = [
     ".*",
     "_*",
     "helpers",
-    "pipeline_templates",
+    SINGLE_FILE_TEMPLATE_MODULE_NAME,
+    CORE_SOURCE_TEMPLATE_MODULE_NAME,
 ]
 PIPELINE_FILE_SUFFIX = "_pipeline.py"
-
 # hardcode default template files here
 TEMPLATE_FILES = [".gitignore", ".dlt/config.toml"]
 DEFAULT_PIPELINE_TEMPLATE = "default_pipeline.py"
@@ -224,7 +229,7 @@ def get_template_configuration(
 def get_core_source_configuration(
     sources_storage: FileStorage, source_name: str
 ) -> SourceConfiguration:
-    src_pipeline_file = source_name + "/" + DEFAULT_PIPELINE_TEMPLATE
+    src_pipeline_file = CORE_SOURCE_TEMPLATE_MODULE_NAME + "/" + source_name + PIPELINE_FILE_SUFFIX
     dest_pipeline_file = source_name + PIPELINE_FILE_SUFFIX
 
     return SourceConfiguration(
