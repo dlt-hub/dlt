@@ -103,7 +103,7 @@ jobs:
         shell: cmd
 
       - name: Install duckdb dependencies
-        run: poetry install --no-interaction -E duckdb -E filesystem --with sentry-sdk
+        run: poetry install --no-interaction -E duckdb -E filesystem -E s3 --with sentry-sdk
 
       - run: |
           poetry run pytest tests/pipeline/test_pipeline.py tests/pipeline/test_import_export_schema.py tests/pipeline/test_filesystem_sql_secrets.py
