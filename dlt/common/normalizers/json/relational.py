@@ -430,9 +430,13 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
 
         # try go get table directly
         table = schema.tables.get(table_name)
+        max_nesting = None
+
+        if table and (max_nesting := cast(int, table.get("x-normalizer", {}).get("max_nesting"))):
+            return max_nesting
 
         # if table is not found, try to get it from root path
-        if not table and parent_path:
+        if max_nesting is None and parent_path:
             table = schema.tables.get(parent_path[0])
 
         if table:
