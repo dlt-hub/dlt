@@ -56,15 +56,19 @@ def test_adapter_and_hints() -> None:
 
     lancedb_adapter(
         some_data,
-        merge_key=["content"],
+        merge_key="content",
     )
+
+    # via merge_key
+    assert some_data._hints["merge_key"] == "content"
 
     assert some_data.columns["content"] == {  # type: ignore
         "name": "content",
         "data_type": "text",
         "x-lancedb-embed": True,
-        "merge_key": True,
     }
+
+    assert some_data.compute_table_schema()["columns"]["content"]["merge_key"] is True
 
 
 def test_basic_state_and_schema() -> None:

@@ -52,7 +52,7 @@ from dlt.common.schema.typing import (
     TColumnSchema,
     TTableSchema,
 )
-from dlt.common.schema.utils import get_columns_names_with_prop
+from dlt.common.schema.utils import get_columns_names_with_prop, is_nested_table
 from dlt.common.storages import FileStorage, LoadJobInfo, ParsedLoadJobFileName
 from dlt.destinations.impl.lancedb.configuration import (
     LanceDBClientConfiguration,
@@ -92,7 +92,6 @@ else:
 TIMESTAMP_PRECISION_TO_UNIT: Dict[int, str] = {0: "s", 3: "ms", 6: "us", 9: "ns"}
 UNIT_TO_TIMESTAMP_PRECISION: Dict[str, int] = {v: k for k, v in TIMESTAMP_PRECISION_TO_UNIT.items()}
 BATCH_PROCESS_CHUNK_SIZE = 10_000
-EMPTY_STRING_PLACEHOLDER = "0uEoDNBpQUBwsxKbmxxB"
 
 
 class LanceDBTypeMapper(TypeMapperImpl):
@@ -297,7 +296,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
         Args:
             schema: The table schema to create.
             table_name: The name of the table to create.
-            mode (): The mode to use when creating the table. Can be either "create" or "overwrite".
+            mode (str): The mode to use when creating the table. Can be either "create" or "overwrite".
                 By default, if the table already exists, an exception is raised.
                 If you want to overwrite the table, use mode="overwrite".
         """
@@ -377,6 +376,21 @@ class LanceDBClient(JobClientBase, WithStateSync):
     def is_storage_initialized(self) -> bool:
         return self.table_exists(self.sentinel_table)
 
+    def verify_schema(
+        self, only_tables: Iterable[str] = None, new_jobs: Iterable[ParsedLoadJobFileName] = None
+    ) -> List[PreparedTableSchema]:
+        loaded_tables = super().verify_schema(only_tables, new_jobs)
+        # verify merge keys early
+        for load_table in loaded_tables:
+            if not is_nested_table(load_table) and not load_table.get(NO_REMOVE_ORPHANS_HINT):
+                if merge_key := get_columns_names_with_prop(load_table, "merge_key"):
+                    if len(merge_key) > 1:
+                        raise DestinationTerminalException(
+                            "You cannot specify multiple merge keys with LanceDB orphan remove"
+                            f" enabled: {merge_key}"
+                        )
+        return loaded_tables
+
     def _create_sentinel_table(self) -> "lancedb.table.Table":
         """Create an empty table to indicate that the storage is initialized."""
         return self.create_table(schema=NULL_SCHEMA, table_name=self.sentinel_table)
@@ -405,7 +419,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
             # TODO: return a real updated table schema (like in SQL job client)
             self._execute_schema_update(only_tables)
         else:
-            logger.info(
+            logger.debug(
                 f"Schema with hash {self.schema.stored_version_hash} "
                 f"inserted at {schema_info.inserted_at} found "
                 "in storage, no upgrade required"
@@ -567,7 +581,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
         p_created_at = self.schema.naming.normalize_identifier("created_at")
         p_version_hash = self.schema.naming.normalize_identifier("version_hash")
 
-        # Read the tables into memory as Arrow tables, with pushdown predicates, so we pull as less
+        # Read the tables into memory as Arrow tables, with pushdown predicates, so we pull as little
         # data into memory as possible.
         state_table = (
             state_table_.search()
@@ -765,7 +779,7 @@ class LanceDBLoadJob(RunnableLoadJob, HasFollowupJobs):
         # Hence, we require at least a primary key on the root table if the merge disposition is chosen.
         if (
             (self._load_table not in self._schema.dlt_table_names())
-            and not self._load_table.get("parent")  # Is root table.
+            and not is_nested_table(self._load_table)  # Is root table.
             and (write_disposition == "merge")
             and (not get_columns_names_with_prop(self._load_table, "primary_key"))
         ):
@@ -797,15 +811,9 @@ class LanceDBRemoveOrphansJob(RunnableLoadJob):
         self.references = ReferenceFollowupJobRequest.resolve_references(file_path)
 
     def run(self) -> None:
-        dlt_load_id = self._schema.naming.normalize_identifier(
-            self._schema.data_item_normalizer.c_dlt_load_id  # type: ignore[attr-defined]
-        )
-        dlt_id = self._schema.naming.normalize_identifier(
-            self._schema.data_item_normalizer.c_dlt_id  # type: ignore[attr-defined]
-        )
-        dlt_root_id = self._schema.naming.normalize_identifier(
-            self._schema.data_item_normalizer.c_dlt_root_id  # type: ignore[attr-defined]
-        )
+        dlt_load_id = self._schema.data_item_normalizer.c_dlt_load_id  # type: ignore[attr-defined]
+        dlt_id = self._schema.data_item_normalizer.c_dlt_id  # type: ignore[attr-defined]
+        dlt_root_id = self._schema.data_item_normalizer.c_dlt_root_id  # type: ignore[attr-defined]
 
         db_client: DBConnection = self._job_client.db_client
         table_lineage: TTableLineage = [
@@ -820,7 +828,7 @@ class LanceDBRemoveOrphansJob(RunnableLoadJob):
         ]
 
         for job in table_lineage:
-            target_is_root_table = "parent" not in job.table_schema
+            target_is_root_table = not is_nested_table(job.table_schema)
             fq_table_name = self._job_client.make_qualified_table_name(job.table_name)
             file_path = job.file_path
             with FileStorage.open_zipsafe_ro(file_path, mode="rb") as f:

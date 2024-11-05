@@ -43,7 +43,7 @@ def lancedb_adapter(
     resource = get_resource_for_adapter(data)
 
     additional_table_hints: Dict[str, TTableHintTemplate[Any]] = {}
-    column_hints: TTableSchemaColumns = {}
+    column_hints: TTableSchemaColumns = None
 
     if embed:
         if isinstance(embed, str):
@@ -52,6 +52,7 @@ def lancedb_adapter(
             raise ValueError(
                 "'embed' must be a list of column names or a single column name as a string."
             )
+        column_hints = {}
 
         for column_name in embed:
             column_hints[column_name] = {
@@ -59,24 +60,12 @@ def lancedb_adapter(
                 VECTORIZE_HINT: True,  # type: ignore[misc]
             }
 
-    if merge_key:
-        if isinstance(merge_key, str):
-            merge_key = [merge_key]
-        if not isinstance(merge_key, list):
-            raise ValueError(
-                "'merge_key' must be a list of column names or a single column name as a string."
-            )
-
-        for column_name in merge_key:
-            column_hints[column_name] = {
-                "name": column_name,
-                "merge_key": True,
-            }
-
     additional_table_hints[NO_REMOVE_ORPHANS_HINT] = no_remove_orphans
 
-    if column_hints or additional_table_hints:
-        resource.apply_hints(columns=column_hints, additional_table_hints=additional_table_hints)
+    if column_hints or additional_table_hints or merge_key:
+        resource.apply_hints(
+            merge_key=merge_key, columns=column_hints, additional_table_hints=additional_table_hints
+        )
     else:
         raise ValueError(
             "You must must provide at least either the 'embed' or 'merge_key' or 'remove_orphans'"
