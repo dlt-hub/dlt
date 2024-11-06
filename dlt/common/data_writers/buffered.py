@@ -113,6 +113,7 @@ class BufferedDataWriter(Generic[TWriter]):
         # rotate the file if max_bytes exceeded
         if self._file:
             # rotate on max file size
+            print(self._file.tell())
             if self.file_max_bytes and self._file.tell() >= self.file_max_bytes:
                 self._rotate_file()
             # rotate on max items

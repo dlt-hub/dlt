@@ -22,6 +22,8 @@ class FilesystemDestinationClientConfiguration(FilesystemConfiguration, Destinat
     )
     current_datetime: Optional[TCurrentDateTime] = None
     extra_placeholders: Optional[TExtraPlaceholders] = None
+    delta_jobs_per_write: Optional[int] = None
+    """how many jobs to write in a single commit for Delta tables"""
 
     @resolve_type("credentials")
     def resolve_credentials_type(self) -> Type[CredentialsConfiguration]:

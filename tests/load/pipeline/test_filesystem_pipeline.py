@@ -377,8 +377,10 @@ def test_delta_table_does_not_contain_job_files(
     ),
     ids=lambda x: x.name,
 )
+@pytest.mark.parametrize("delta_jobs_per_write", [None, 3])
 def test_delta_table_multiple_files(
     destination_config: DestinationTestConfiguration,
+    delta_jobs_per_write: int,
 ) -> None:
     """Tests loading multiple files into a Delta table.
 
@@ -388,10 +390,14 @@ def test_delta_table_multiple_files(
     from dlt.common.libs.deltalake import get_delta_tables
 
     os.environ["DATA_WRITER__FILE_MAX_ITEMS"] = "2"  # force multiple files
+    if delta_jobs_per_write is not None:
+        os.environ["DELTA_JOBS_PER_WRITE"] = str(
+            delta_jobs_per_write
+        )  # only write 3 jobs at a time
 
     @dlt.resource(table_format="delta")
     def delta_table():
-        yield [{"foo": True}] * 10
+        yield [{"foo": True}] * 20
 
     pipeline = destination_config.setup_pipeline("fs_pipe", dev_mode=True)
 
@@ -406,12 +412,26 @@ def test_delta_table_multiple_files(
         if job.job_file_info.table_name == "delta_table"
         and job.job_file_info.file_format == "parquet"
     ]
-    assert len(delta_table_parquet_jobs) == 5  # 10 records, max 2 per file
+    assert len(delta_table_parquet_jobs) == 10  # 20 records, max 2 per file
+
+    delta_table_reference_jobs = [
+        job
+        for job in completed_jobs
+        if job.job_file_info.table_name == "delta_table"
+        and job.job_file_info.file_format == "reference"
+    ]
+    assert (
+        len(delta_table_reference_jobs) == 1 if not delta_jobs_per_write else 4
+    )  # amount of reference jobs to load the items
 
     # all 10 records should have been loaded into a Delta table in a single commit
-    assert get_delta_tables(pipeline, "delta_table")["delta_table"].version() == 0
+    assert (
+        get_delta_tables(pipeline, "delta_table")["delta_table"].version() == 0
+        if not delta_jobs_per_write
+        else 3
+    )
     rows = load_tables_to_dicts(pipeline, "delta_table", exclude_system_cols=True)["delta_table"]
-    assert len(rows) == 10
+    assert len(rows) == 20
 
 
 @pytest.mark.parametrize(

@@ -726,13 +726,20 @@ class FilesystemClient(
                     for job in completed_table_chain_jobs
                     if job.job_file_info.table_name == table["name"]
                 ]
-                if table_job_paths:
-                    file_name = FileStorage.get_file_name_from_file_path(table_job_paths[0])
-                    jobs.append(ReferenceFollowupJobRequest(file_name, table_job_paths))
-                else:
+                files_per_job = self.config.delta_jobs_per_write or len(table_job_paths)
+                for i in range(0, len(table_job_paths), files_per_job):
+                    jobs_chunk = table_job_paths[i : i + files_per_job]
+                    file_name = FileStorage.get_file_name_from_file_path(jobs_chunk[0])
+                    jobs.append(ReferenceFollowupJobRequest(file_name, jobs_chunk))
+                if len(table_job_paths) == 0:
                     # file_name = ParsedLoadJobFileName(table["name"], "empty", 0, "reference").file_name()
                     # TODO: if we implement removal od orphaned rows, we may need to propagate such job without files
                     # to the delta load job
                     pass
 
         return jobs
+
+    def _iter_chunks(self, lst: List[Any], n: int) -> Iterator[List[Any]]:
+        """Yield successive n-sized chunks from lst."""
+        for i in range(0, len(lst), n):
+            yield lst[i : i + n]
