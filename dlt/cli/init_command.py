@@ -383,11 +383,12 @@ def init_command(
                 core_sources_storage, source_name
             )
             from importlib.metadata import Distribution
+
             dist = Distribution.from_name(DLT_PKG_NAME)
-            extras = dist.metadata.get_all('Provides-Extra') or []
+            extras = dist.metadata.get_all("Provides-Extra") or []
 
             # Match the extra name to the source name
-            canonical_source_name = source_name.replace('_', '-').lower()
+            canonical_source_name = source_name.replace("_", "-").lower()
 
             if canonical_source_name in extras:
                 source_configuration.requirements.update_dlt_extras(canonical_source_name)
