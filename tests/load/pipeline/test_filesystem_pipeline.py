@@ -397,7 +397,8 @@ def test_delta_table_multiple_files(
 
     @dlt.resource(table_format="delta")
     def delta_table():
-        yield [{"foo": True}] * 20
+        for i in range(0, 20):
+            yield [{"foo": i}]
 
     pipeline = destination_config.setup_pipeline("fs_pipe", dev_mode=True)
 
@@ -424,7 +425,7 @@ def test_delta_table_multiple_files(
         len(delta_table_reference_jobs) == 1 if not delta_jobs_per_write else 4
     )  # amount of reference jobs to load the items
 
-    # all 10 records should have been loaded into a Delta table in a single commit
+    # all 20 records should have been loaded into a Delta table in a single commit
     assert (
         get_delta_tables(pipeline, "delta_table")["delta_table"].version() == 0
         if not delta_jobs_per_write
@@ -432,6 +433,7 @@ def test_delta_table_multiple_files(
     )
     rows = load_tables_to_dicts(pipeline, "delta_table", exclude_system_cols=True)["delta_table"]
     assert len(rows) == 20
+    assert {row["foo"] for row in rows} == set(range(0, 20))
 
 
 @pytest.mark.parametrize(
