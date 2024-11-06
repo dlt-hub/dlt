@@ -1,6 +1,6 @@
 """
 ---
-title: Load data to Filesystem destination with partial replace using backfill management
+title: Backfill to Filesystem with partial replace
 description: Load chess game data from Chess.com into a filesystem destination, while deleting old backfill files.
 keywords: [incremental loading, REST API, dlt, chess.com, data pipeline, backfill management, filesystem]
 ---
