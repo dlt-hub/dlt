@@ -4,7 +4,7 @@ import hashlib
 import os
 import contextlib
 from subprocess import CalledProcessError
-from typing import Any, List, Tuple, Optional
+from typing import List, Tuple, Optional
 from hexbytes import HexBytes
 import pytest
 from unittest import mock
