@@ -29,7 +29,7 @@ def test_flatten_fix_field_name(norm: RelationalNormalizer) -> None:
         "f 2": [],
         "f!3": {"f4": "a", "f-5": "b", "f*6": {"c": 7, "c v": 8, "c x": []}},
     }
-    flattened_row, lists = norm._flatten("mock_table", row, (), 0)
+    flattened_row, lists = norm._flatten("mock_table", row, 0)
     assert "f_1" in flattened_row
     # assert "f_2" in flattened_row
     assert "f_3__f4" in flattened_row
@@ -62,11 +62,11 @@ def test_preserve_json_value(norm: RelationalNormalizer) -> None:
         )
     )
     row_1 = {"value": 1}
-    flattened_row, _ = norm._flatten("with_json", row_1, (), 0)
+    flattened_row, _ = norm._flatten("with_json", row_1, 0)
     assert flattened_row["value"] == 1
 
     row_2 = {"value": {"json": True}}
-    flattened_row, _ = norm._flatten("with_json", row_2, (), 0)
+    flattened_row, _ = norm._flatten("with_json", row_2, 0)
     assert flattened_row["value"] == row_2["value"]
     # json value is not flattened
     assert "value__json" not in flattened_row
@@ -78,11 +78,11 @@ def test_preserve_json_value_with_hint(norm: RelationalNormalizer) -> None:
     norm.schema._compile_settings()
 
     row_1 = {"value": 1}
-    flattened_row, _ = norm._flatten("any_table", row_1, (), 0)
+    flattened_row, _ = norm._flatten("any_table", row_1, 0)
     assert flattened_row["value"] == 1
 
     row_2 = {"value": {"json": True}}
-    flattened_row, _ = norm._flatten("any_table", row_2, (), 0)
+    flattened_row, _ = norm._flatten("any_table", row_2, 0)
     assert flattened_row["value"] == row_2["value"]
     # json value is not flattened
     assert "value__json" not in flattened_row
@@ -884,7 +884,7 @@ def test_caching_perf(norm: RelationalNormalizer) -> None:
     table["x-normalizer"] = {}
     start = time()
     for _ in range(100000):
-        norm._is_nested_type(norm.schema, "test", "field", 0, (), 0)
+        norm._is_nested_type(norm.schema, "test", "field", 0, 0)
         # norm._get_table_nesting_level(norm.schema, "test")
     print(f"{time() - start}")
 
