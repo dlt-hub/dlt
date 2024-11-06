@@ -317,6 +317,33 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
 
     items_table = ibis_connection.table("items")
     assert items_table.count().to_pandas() == total_records
+    
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
+def test_ibis_dlt_backend(populated_pipeline: Pipeline) -> None:
+    # NOTE: we should generalize this with a context for certain deps
+    from dlt.common.libs.ibis import DltBackend
+    
+    backend_dataset = cast(DltBackend, populated_pipeline._dataset(dataset_type="dbapi"))
+    # just do a basic check to see wether ibis can connect
+    assert set(backend_dataset.list_tables()) == {
+        "_dlt_loads",
+        "_dlt_pipeline_state",
+        "_dlt_version",
+        "double_items",
+        "items",
+        "items__children",
+    }
+    
+    r = backend_dataset.table("items")
+    print(r.sql())
+
 
 
 @pytest.mark.no_load

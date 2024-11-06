@@ -308,11 +308,11 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
     def __call__(self, query: Any) -> ReadableDBAPIRelation:
         return ReadableDBAPIRelation(readable_dataset=self, provided_query=query)  # type: ignore[abstract]
 
-    def table(self, table_name: str) -> SupportsReadableRelation:
-        return ReadableDBAPIRelation(
-            readable_dataset=self,
-            table_name=table_name,
-        )  # type: ignore[abstract]
+    # def table(self, table_name: str) -> SupportsReadableRelation:
+    #     return ReadableDBAPIRelation(
+    #         readable_dataset=self,
+    #         table_name=table_name,
+    #     )  # type: ignore[abstract]
 
     def __getitem__(self, table_name: str) -> SupportsReadableRelation:
         """access of table via dict notation"""
@@ -329,8 +329,9 @@ def dataset(
     schema: Union[Schema, str, None] = None,
     dataset_type: TDatasetType = "dbapi",
 ) -> SupportsReadableDataset:
+    from dlt.common.libs.ibis import DltBackend
     if dataset_type == "dbapi":
-        return ReadableDBAPIDataset(destination, dataset_name, schema)
+        return DltBackend(destination, dataset_name, schema)
     raise NotImplementedError(f"Dataset of type {dataset_type} not implemented")
 
 
