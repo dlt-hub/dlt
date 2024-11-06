@@ -99,12 +99,11 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
     ) -> Tuple[DictStrAny, Dict[Tuple[str, ...], Sequence[Any]]]:
         out_rec_row: DictStrAny = {}
         out_rec_list: Dict[Tuple[str, ...], Sequence[Any]] = {}
-        naming = self.schema.naming
 
         def norm_row_dicts(dict_row: StrAny, __r_lvl: int, path: Tuple[str, ...] = ()) -> None:
             for k, v in dict_row.items():
                 if k.strip():
-                    norm_k = naming.normalize_identifier(k)
+                    norm_k = self._normalize_identifier(self.schema, k)
                 else:
                     # for empty keys in the data use _
                     norm_k = self.EMPTY_KEY_IDENTIFIER
@@ -122,7 +121,9 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
                             norm_row_dicts(v, __r_lvl - 1, path + (norm_k,))
                         else:
                             # pass the list to out_rec_list
-                            out_rec_list[path + (naming.normalize_table_identifier(k),)] = v
+                            out_rec_list[
+                                path + (self._normalize_table_identifier(self.schema, k),)
+                            ] = v
                         continue
                     else:
                         # pass the nested value to out_rec_row
@@ -360,7 +361,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         # identify load id if loaded data must be processed after loading incrementally
         row[self.c_dlt_load_id] = load_id
         # get table name and nesting level
-        root_table_name = self.schema.naming.normalize_table_identifier(table_name)
+        root_table_name = self._normalize_table_identifier(self.schema, table_name)
         max_nesting = self._get_table_nesting_level(self.schema, root_table_name, self.max_nesting)
 
         yield from self._normalize_row(
@@ -433,6 +434,16 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
     @lru_cache(maxsize=None)
     def _shorten_fragments(schema: Schema, *idents: str) -> str:
         return schema.naming.shorten_fragments(*idents)
+
+    @staticmethod
+    @lru_cache(maxsize=None)
+    def _normalize_table_identifier(schema: Schema, table_name: str) -> str:
+        return schema.naming.normalize_table_identifier(table_name)
+
+    @staticmethod
+    @lru_cache(maxsize=None)
+    def _normalize_identifier(schema: Schema, identifier: str) -> str:
+        return schema.naming.normalize_path(identifier)
 
     @staticmethod
     @lru_cache(maxsize=None)
