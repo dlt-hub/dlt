@@ -1004,7 +1004,7 @@ def prepare_load_package(
 def sequence_generator() -> Generator[List[Dict[str, str]], None, None]:
     count = 1
     while True:
-        yield [{"content": str(count + i)} for i in range(3)]
+        yield [{"content": str(count + i)} for i in range(2000)]
         count += 3
 
 
