@@ -32,18 +32,16 @@ def test_lancedb_ollama_endpoint_configuration() -> None:
     )
     assert config.embedding_model_provider == "ollama"
     assert config.embedding_model == "nomic-embed-text"
-    assert config.embedding_model_provider_host == "localhost"
-    assert config.embedding_model_provider_port == "11434"
+    assert config.embedding_model_provider_host is None
 
-    os.environ["DESTINATION__LANCEDB__EMBEDDING_MODEL_PROVIDER_HOST"] = "198.163.194.3"
-    os.environ["DESTINATION__LANCEDB__EMBEDDING_MODEL_PROVIDER_PORT"] = "24233"
+    os.environ["DESTINATION__LANCEDB__EMBEDDING_MODEL_PROVIDER_HOST"] = "http://198.163.194.3:24233"
 
     config = resolve_configuration(
         LanceDBClientConfiguration()._bind_dataset_name(dataset_name="dataset"),
         sections=("destination", "lancedb"),
     )
-    assert config.embedding_model_provider_host == "198.163.194.3"
-    assert config.embedding_model_provider_port == "24233"
+
+    assert config.embedding_model_provider_host == "http://198.163.194.3:24233"
 
 
 # def test_lancedb_ollama() -> None:
