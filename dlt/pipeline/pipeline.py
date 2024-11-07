@@ -149,11 +149,6 @@ from dlt.pipeline.state_sync import (
 from dlt.common.storages.load_package import TLoadPackageState
 from dlt.pipeline.helpers import refresh_source
 
-try:
-    from dlt.common.libs.ibis import BaseBackend as IbisBackend
-except MissingDependencyException:
-    IbisBackend = None
-
 
 def with_state_sync(may_extract_state: bool = False) -> Callable[[TFun], TFun]:
     def decorator(f: TFun) -> TFun:
@@ -1802,12 +1797,4 @@ class Pipeline(SupportsPipeline):
             self.dataset_name,
             schema=(self.default_schema if self.default_schema_name else None),
             dataset_type=dataset_type,
-        )
-
-    def _ibis(self) -> IbisBackend:
-        """return a connected ibis backend"""
-        return create_ibis_backend(
-            self.destination,
-            self.dataset_name,
-            schema=(self.default_schema if self.default_schema_name else None),
         )

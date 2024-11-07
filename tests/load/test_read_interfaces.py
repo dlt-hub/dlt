@@ -266,7 +266,7 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
     subprocess.check_call(["pip", "install", "ibis-framework[duckdb,postgres,bigquery]"])
 
     total_records = _total_records(populated_pipeline)
-    ibis_connection = populated_pipeline._ibis()
+    ibis_connection = populated_pipeline._dataset().ibis()
 
     # just do a basic check to see wether ibis can connect
     assert ibis_connection.list_tables() == [

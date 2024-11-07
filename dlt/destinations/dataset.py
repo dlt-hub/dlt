@@ -240,6 +240,14 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
         self._sql_client: SqlClientBase[Any] = None
         self._schema: Schema = None
 
+    def ibis(self) -> IbisBackend:
+        """return a connected ibis backend"""
+        return create_ibis_backend(
+            self._destination,
+            self._dataset_name,
+            schema=self.schema,
+        )
+
     @property
     def schema(self) -> Schema:
         self._ensure_client_and_schema()
