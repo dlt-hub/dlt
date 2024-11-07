@@ -21,7 +21,7 @@ With Modal, you can perform tasks like running generative models, large-scale ba
 - Web Endpoints: Expose any function as an HTTPS API endpoint quickly.
 - Scheduled Jobs: Convert Python functions into scheduled tasks effortlessly.
 
-To know more, please refer to [Modals's documentation.](https://modal.com/docs)
+To learn more, please refer to [Modal's documentation.](https://modal.com/docs)
 
 
 ## How to run dlt on Modal
@@ -71,40 +71,9 @@ modal deploy sql_pipeline.py
 ```
 
 ## Advanced configuration
-### Modal Proxy
+* Use [Proxy IPs](https://modal.com/docs/guide/proxy-ips) to connect to resources in your private network
+* Sync tables in parallel using [map()](https://modal.com/docs/guide/scale)
 
-If your database is in a private VPN, you can use [Modal Proxy](https://modal.com/docs/reference/modal.Proxy) as a bastion server (available for Enterprise customers).
-To connect to a production read replica, attach the proxy to the function definition and change the hostname to localhost:
-```py
-@app.function(
-    secrets=[
-        modal.Secret.from_name("postgres-read-replica-prod"),
-    ],
-    schedule=modal.Cron("24 6 * * *"),
-    proxy=modal.Proxy.from_name("prod-postgres-proxy", environment_name="main"),
-    timeout=3000,
-)
-def task_pipeline(dev: bool = False) -> None:
-    pg_url = f'postgresql://{os.environ["PGUSER"]}:{os.environ["PGPASSWORD"]}@localhost:{os.environ["PGPORT"]}/{os.environ["PGDATABASE"]}'
-```
-
-### Capturing deletes
-To capture updates or deleted rows from your Postgres database, consider using dlt's [Postgres CDC replication feature](../../dlt-ecosystem/verified-sources/pg_replication), which is
-useful for tracking changes and deletions in the data.
-
-### Sync Multiple Tables in Parallel
-To sync multiple tables in parallel, map each table copy job to a separate container using [Modal.starmap](https://modal.com/docs/reference/modal.Function#starmap):
-
-```py
-@app.function(timeout=3000, schedule=modal.Cron("29 11 * * *"))
-def main(dev: bool = False):
-    tables = [
-        ("task", "enqueued_at", dev),
-        ("worker", "launched_at", dev),
-        ...
-    ]
-    list(load_table_from_database.starmap(tables))
-```
 
 ## More examples
 
