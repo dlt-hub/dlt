@@ -199,6 +199,7 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
     def execute_sql(
         self, sql: AnyStr, *args: Any, **kwargs: Any
     ) -> Optional[Sequence[Sequence[Any]]]:
+        print(sql)
         with self.execute_query(sql, *args, **kwargs) as curr:
             if not curr.description:
                 return None
@@ -274,6 +275,7 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
         return DatabaseTransientException(ex)
 
     def truncate_tables(self, *tables: str) -> None:
+        """NOTE: We only truncate tables that exist, for auto-detect schema we don't know which tables exist"""
         statements: List[str] = ["DECLARE table_exists BOOL;"]
         for t in tables:
             table_name = self.make_qualified_table_name(t)
@@ -282,9 +284,8 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
                 f" `{self.project_id}.{self.dataset_name}.INFORMATION_SCHEMA.TABLES` WHERE"
                 f" table_name = '{t}');"
             )
-            statements.append(
-                f"IF table_exists THEN EXECUTE IMMEDIATE 'TRUNCATE TABLE `{table_name}`'; END IF;"
-            )
+            truncate_stmt = self._truncate_table_sql(table_name).replace(";", "")
+            statements.append(f"IF table_exists THEN EXECUTE IMMEDIATE '{truncate_stmt}'; END IF;")
         self.execute_many(statements)
 
     @staticmethod

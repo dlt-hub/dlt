@@ -501,6 +501,12 @@ class SqlMergeFollowupJob(SqlFollowupJob):
             root_table["name"]
         )
 
+        # NOTE: this is bigquery specific code! Move to bigquery merge job
+        # NOTE: we also need to create all child tables
+        # NOTE: this will not work if the schema of the staging table changes in the next run..
+        # in some cases we need to create final tables here
+        sql.append(f"CREATE TABLE IF NOT EXISTS {root_table_name} LIKE {staging_root_table_name};")
+
         # get merge and primary keys from top level
         primary_keys = cls._escape_list(
             get_columns_names_with_prop(root_table, "primary_key"),
