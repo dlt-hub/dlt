@@ -273,6 +273,20 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
         # anything else is transient
         return DatabaseTransientException(ex)
 
+    def truncate_tables(self, *tables: str) -> None:
+        statements: List[str] = ["DECLARE table_exists BOOL;"]
+        for t in tables:
+            table_name = self.make_qualified_table_name(t)
+            statements.append(
+                "SET table_exists = (SELECT COUNT(*) > 0 FROM"
+                f" `{self.project_id}.{self.dataset_name}.INFORMATION_SCHEMA.TABLES` WHERE"
+                f" table_name = '{t}');"
+            )
+            statements.append(
+                f"IF table_exists THEN EXECUTE IMMEDIATE 'TRUNCATE TABLE `{table_name}`'; END IF;"
+            )
+        self.execute_many(statements)
+
     @staticmethod
     def _get_reason_from_errors(gace: api_core_exceptions.GoogleAPICallError) -> Optional[str]:
         errors: List[StrAny] = getattr(gace, "errors", None)
