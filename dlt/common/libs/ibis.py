@@ -6,7 +6,7 @@ from dlt.common.schema import Schema
 from dlt.common.destination.reference import TDestinationReferenceArg, Destination, JobClientBase
 
 try:
-    import ibis  # type: ignore[import-untyped]
+    import ibis  # type: ignore[import-not-found]
     from ibis import BaseBackend
 except ModuleNotFoundError:
     raise MissingDependencyException("dlt ibis Helpers", ["ibis"])
