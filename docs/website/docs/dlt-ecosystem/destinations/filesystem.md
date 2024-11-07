@@ -646,7 +646,7 @@ def my_delta_resource():
 > `dlt` always uses Parquet as `loader_file_format` when using the `delta` table format. Any setting of `loader_file_format` is disregarded.
 
 :::caution
-Beware than when loading a big amount of data for one table, the underlying rust implementation will consume a lot of memory. This is a known issue and the maintainers are actively working on a solution. You can track the progress [here](https://github.com/delta-io/delta-rs/pull/2289). Until the issue is resolved, you can mitigate the memory consumption by doing multiple smaller incremental pipeline runs.
+Beware that when loading a large amount of data for one table, the underlying rust implementation will consume a lot of memory. This is a known issue and the maintainers are actively working on a solution. You can track the progress [here](https://github.com/delta-io/delta-rs/pull/2289). Until the issue is resolved, you can mitigate the memory consumption by doing multiple smaller incremental pipeline runs.
 :::
 
 #### Delta table partitioning
