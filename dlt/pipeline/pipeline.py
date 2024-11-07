@@ -110,7 +110,7 @@ from dlt.normalize.configuration import NormalizeConfiguration
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.destinations.fs_client import FSClientBase
 from dlt.destinations.job_client_impl import SqlJobClientBase
-from dlt.destinations.dataset import dataset, create_ibis_backend
+from dlt.destinations.dataset import dataset
 from dlt.load.configuration import LoaderConfiguration
 from dlt.load import Load
 

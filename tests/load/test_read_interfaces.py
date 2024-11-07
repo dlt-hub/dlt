@@ -260,10 +260,18 @@ def test_db_cursor_access(populated_pipeline: Pipeline) -> None:
     ids=lambda x: x.name,
 )
 def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
-    # NOTE: we should generalize this with a context for certain deps
+    # NOTE: we could generalize this with a context for certain deps
     import subprocess
 
     subprocess.check_call(["pip", "install", "ibis-framework[duckdb,postgres,bigquery]"])
+
+    from dlt.common.libs.ibis import SUPPORTED_DESTINATIONS
+
+    # check correct error if not supported
+    if populated_pipeline.destination.destination_type not in SUPPORTED_DESTINATIONS:
+        with pytest.raises(NotImplementedError):
+            populated_pipeline._dataset().ibis()
+        return
 
     total_records = _total_records(populated_pipeline)
     ibis_connection = populated_pipeline._dataset().ibis()
