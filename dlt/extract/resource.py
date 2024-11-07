@@ -493,7 +493,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
                     table_schema_template["incremental"], from_hints=True
                 )
             else:
-                incremental = self.incremental
+                incremental = self.incremental  # type: ignore[assignment]
 
             if incremental:
                 primary_key = table_schema_template.get("primary_key", incremental.primary_key)

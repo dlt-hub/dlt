@@ -240,7 +240,7 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                         if isinstance(hint, Incremental):
                             hints[name] = hint.to_table_hint()
                         else:
-                            hints[name] = dict(hint)
+                            hints[name] = dict(hint)  # type: ignore[call-overload]
                     continue
                 if name == "original_columns":
                     # this is original type of the columns ie. Pydantic model
