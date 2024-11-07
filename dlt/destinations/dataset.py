@@ -24,13 +24,10 @@ from dlt.common.exceptions import DltException
 
 if TYPE_CHECKING:
     try:
-        from dlt.common.libs.ibis import Table as IbisTable
         from dlt.common.libs.ibis import BaseBackend as IbisBackend
     except MissingDependencyException:
-        IbisTable = Any
         IbisBackend = Any
 else:
-    IbisTable = Any
     IbisBackend = Any
 
 
