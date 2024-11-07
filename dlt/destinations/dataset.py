@@ -90,21 +90,6 @@ class ReadableDBAPIRelation(SupportsReadableRelation):
         self.iter_arrow = self._wrap_iter("iter_arrow")  # type: ignore
         self.iter_fetch = self._wrap_iter("iter_fetch")  # type: ignore
 
-    # TODO: where should this go, should cursors support "native" ibis or do we do a conversion somewhere
-    def ibis(self, chunk_size: int = None) -> Optional[IbisTable]:
-        from dlt.common.libs.ibis import memtable
-
-        if arrow := self.arrow(chunk_size=chunk_size):
-            return memtable(arrow)
-        return None
-
-    # TODO: where should this go, should cursors support "native" ibis or do we do a conversion somewhere
-    def iter_ibis(self, chunk_size: int) -> Generator[IbisTable, None, None]:
-        from dlt.common.libs.ibis import memtable
-
-        for arrow in self.iter_arrow(chunk_size=chunk_size):
-            yield memtable(arrow)
-
     @property
     def sql_client(self) -> SqlClientBase[Any]:
         return self._dataset.sql_client

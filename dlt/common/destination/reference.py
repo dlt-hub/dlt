@@ -511,8 +511,6 @@ class SupportsReadableRelation(Protocol):
         """fetch arrow table of first 'chunk_size' items"""
         ...
 
-    def ibis(self, chunk_size: int = None) -> Optional[IbisTable]: ...
-
     def iter_df(self, chunk_size: int) -> Generator[DataFrame, None, None]:
         """iterate over data frames tables of 'chunk_size' items"""
         ...
@@ -520,8 +518,6 @@ class SupportsReadableRelation(Protocol):
     def iter_arrow(self, chunk_size: int) -> Generator[ArrowTable, None, None]:
         """iterate over arrow tables of 'chunk_size' items"""
         ...
-
-    def iter_ibis(self, chunk_size: int) -> Generator[IbisTable, None, None]: ...
 
     def fetchall(self) -> List[Tuple[Any, ...]]:
         """fetch all items as list of python tuples"""
