@@ -2,6 +2,7 @@
 
 from typing import Any, Dict
 
+import json  # noqa: I251
 import pytest
 from deltalake import DeltaTable
 from deltalake.exceptions import TableNotFoundError
@@ -14,9 +15,13 @@ from dlt.common.configuration.specs import (
     AzureCredentialsWithoutDefaults,
     AwsCredentials,
     AwsCredentialsWithoutDefaults,
+    GcpCredentials,
     GcpServiceAccountCredentialsWithoutDefaults,
     GcpOAuthCredentialsWithoutDefaults,
 )
+from dlt.common.utils import custom_environ
+from dlt.common.configuration.resolve import resolve_configuration
+from dlt.common.configuration.specs.gcp_credentials import GcpDefaultCredentials
 from dlt.common.configuration.specs.exceptions import ObjectStoreRsCredentialsException
 
 from tests.load.utils import (
@@ -169,6 +174,9 @@ def test_aws_object_store_rs_credentials(driver: str) -> None:
     "driver", [driver for driver in ALL_FILESYSTEM_DRIVERS if driver in ("gs")]
 )
 def test_gcp_object_store_rs_credentials(driver) -> None:
+    creds: GcpCredentials
+
+    # GcpServiceAccountCredentialsWithoutDefaults
     creds = GcpServiceAccountCredentialsWithoutDefaults(
         project_id=FS_CREDS["project_id"],
         private_key=FS_CREDS["private_key"],
@@ -177,6 +185,17 @@ def test_gcp_object_store_rs_credentials(driver) -> None:
         client_email=FS_CREDS["client_email"],
     )
     assert can_connect(GCS_BUCKET, creds.to_object_store_rs_credentials())
+
+    # GcpDefaultCredentials
+    # write service account key to JSON file
+    service_json = json.loads(creds.to_object_store_rs_credentials()["service_account_key"])
+    path = "_secrets/service.json"
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(service_json, f)
+    with custom_environ({"GOOGLE_APPLICATION_CREDENTIALS": path}):
+        creds = GcpDefaultCredentials()
+        resolve_configuration(creds)
+        can_connect(GCS_BUCKET, creds.to_object_store_rs_credentials())
 
     # GcpOAuthCredentialsWithoutDefaults is currently not supported
     with pytest.raises(NotImplementedError):
