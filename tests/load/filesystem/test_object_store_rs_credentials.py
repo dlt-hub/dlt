@@ -32,6 +32,9 @@ from tests.load.utils import (
     ALL_FILESYSTEM_DRIVERS,
 )
 
+
+pytestmark = pytest.mark.essential
+
 if all(driver not in ALL_FILESYSTEM_DRIVERS for driver in ("az", "s3", "gs", "r2")):
     pytest.skip(
         "Requires at least one of `az`, `s3`, `gs`, `r2` in `ALL_FILESYSTEM_DRIVERS`.",
