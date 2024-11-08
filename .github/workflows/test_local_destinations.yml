@@ -110,15 +110,14 @@ jobs:
       - name: Run tests Linux
         run: |
           eval "$(ssh-agent -s)"
-          poetry run pytest --durations=0 tests/load --ignore tests/load/sources
-          poetry run pytest --durations=0 tests/cli
+          poetry run pytest tests/load --ignore tests/load/sources
+          poetry run pytest tests/cli
         env:
           DESTINATION__POSTGRES__CREDENTIALS: postgresql://loader:loader@localhost:5432/dlt_data
           DESTINATION__QDRANT__CREDENTIALS__location: http://localhost:6333
           DESTINATION__FILESYSTEM__CREDENTIALS__SFTP_PORT: 2222
           DESTINATION__FILESYSTEM__CREDENTIALS__SFTP_USERNAME: foo
           DESTINATION__FILESYSTEM__CREDENTIALS__SFTP_PASSWORD: pass
-
 
       - name: Stop weaviate
         if: always()

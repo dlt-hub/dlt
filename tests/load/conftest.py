@@ -42,3 +42,12 @@ def all_buckets_env(request) -> Iterator[str]:
         bucket_url = request.param
     os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = bucket_url
     yield bucket_url
+
+
+# temporary log duration of each test
+def pytest_runtest_logreport(report):
+    if report.when == 'call':
+        duration = report.duration
+        nodeid = report.nodeid
+        status = report.outcome
+        print(f"\n{nodeid} {status.upper()} in {duration:.2f} seconds")
