@@ -279,6 +279,7 @@ const sidebars = {
             'walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer',
             'reference/explainers/airflow-gcp-cloud-composer',
             'walkthroughs/deploy-a-pipeline/deploy-with-google-cloud-functions',
+            'walkthroughs/deploy-a-pipeline/deploy-with-google-cloud-run',
             'walkthroughs/deploy-a-pipeline/deploy-gcp-cloud-function-as-webhook',
             'walkthroughs/deploy-a-pipeline/deploy-with-kestra',
             'walkthroughs/deploy-a-pipeline/deploy-with-dagster',
