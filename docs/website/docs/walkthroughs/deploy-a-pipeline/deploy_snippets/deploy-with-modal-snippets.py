@@ -26,6 +26,7 @@ def test_modal_snippet() -> None:
         volumes={"/data/": vol},
         schedule=modal.Period(days=1),
         secrets=[modal.Secret.from_name("sql-secret")],
+        serialized=True,
     )
     def load_tables() -> None:
         import dlt
