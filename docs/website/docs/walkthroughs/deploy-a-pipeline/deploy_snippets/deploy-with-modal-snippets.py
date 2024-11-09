@@ -54,10 +54,9 @@ def test_modal_snippet() -> None:
 
         # Print run statistics
         print(load_info)
-    # @@@DLT_SNIPPET_END modal_function
+        # @@@DLT_SNIPPET_END modal_function
 
         assert_load_info(load_info)
-
 
     import pytest
     from modal.exception import ExecutionError
