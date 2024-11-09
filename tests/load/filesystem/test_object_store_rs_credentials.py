@@ -2,6 +2,7 @@
 
 from typing import Any, Dict
 
+import os
 import json  # noqa: I251
 import pytest
 from deltalake import DeltaTable
@@ -193,6 +194,7 @@ def test_gcp_object_store_rs_credentials(driver) -> None:
     # write service account key to JSON file
     service_json = json.loads(creds.to_object_store_rs_credentials()["service_account_key"])
     path = "_secrets/service.json"
+    os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(service_json, f)
     with custom_environ({"GOOGLE_APPLICATION_CREDENTIALS": path}):
