@@ -46,6 +46,7 @@ def test_lancedb_ollama_endpoint_configuration() -> None:
 
 def test_lancedb_ollama_defaults() -> None:
     os.environ["DESTINATION__LANCEDB__EMBEDDING_MODEL_PROVIDER"] = "ollama"
+    os.environ["DESTINATION__LANCEDB__EMBEDDING_MODEL"] = "nomic-embed-text"
 
     @dlt.resource
     def some_data() -> Generator[DictStrStr, Any, None]:
