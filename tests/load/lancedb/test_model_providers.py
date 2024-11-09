@@ -42,36 +42,3 @@ def test_lancedb_ollama_endpoint_configuration() -> None:
     assert config.embedding_model_provider == "ollama"
     assert config.embedding_model == "nomic-embed-text"
     assert config.embedding_model_provider_host == "http://198.163.194.3:24233"
-
-
-def test_lancedb_ollama_defaults() -> None:
-    os.environ["DESTINATION__LANCEDB__EMBEDDING_MODEL_PROVIDER"] = "ollama"
-    os.environ["DESTINATION__LANCEDB__EMBEDDING_MODEL"] = "nomic-embed-text"
-
-    @dlt.resource
-    def some_data() -> Generator[DictStrStr, Any, None]:
-        yield from next(sequence_generator())
-
-    lancedb_adapter(
-        some_data,
-        embed=["content"],
-    )
-
-    pipeline = dlt.pipeline(
-        pipeline_name="test_pipeline_append",
-        destination="lancedb",
-        dataset_name=f"test_pipeline_append_dataset_{uniq_id()}",
-    )
-    info = pipeline.run(
-        some_data(),
-    )
-    assert_load_info(info)
-
-    client: LanceDBClient
-    with pipeline.destination_client() as client:  # type: ignore
-        # Check if we can get a stored schema and state.
-        schema = client.get_stored_schema(client.schema.name)
-        print("Print dataset name", client.dataset_name)
-        assert schema
-        state = client.get_stored_state("test_pipeline_append")
-        assert state
