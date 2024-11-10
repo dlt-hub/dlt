@@ -1287,7 +1287,7 @@ class Pipeline(SupportsPipeline):
             #   to store it.
             dataset_name = self.dataset_name
             if not dataset_name and as_staging:
-                dataset_name = self._gen_dataset_name(None, destination)
+                dataset_name = self._make_dataset_name(None, destination)
             spec._bind_dataset_name(dataset_name, default_schema_name)
             return spec
 
@@ -1480,24 +1480,24 @@ class Pipeline(SupportsPipeline):
 
     def _set_dataset_name(self, new_dataset_name: Optional[str]) -> None:
         if new_dataset_name or not self.dataset_name:
-            self.dataset_name = self._gen_dataset_name(new_dataset_name, self._destination)
+            self.dataset_name = self._make_dataset_name(new_dataset_name, self._destination)
 
-    def _gen_dataset_name(
-        self, new_dataset_name: Optional[str], destination: AnyDestination
+    def _make_dataset_name(
+        self, new_dataset_name: Optional[str], destination: Optional[AnyDestination]
     ) -> str:
         """Generates dataset name for the pipeline based on `new_dataset_name`
-        1. if name not provided, default name is created
+        1. if name is not provided, default name is created
         2. for destinations that do not need dataset names, def. name is not created
         3. we add serial number in dev mode
         4. we apply layout from pipeline config if present
         """
         if not new_dataset_name:
             # dataset name is required but not provided - generate the default now
-            destination_needs_dataset = True
+            destination_needs_dataset = False
             if destination and issubclass(destination.spec, DestinationClientDwhConfiguration):
                 destination_needs_dataset = destination.spec.needs_dataset_name()
             # if destination is not specified - generate dataset
-            if not destination or destination_needs_dataset:
+            if destination_needs_dataset:
                 new_dataset_name = self.pipeline_name + self.DEFAULT_DATASET_SUFFIX
 
         if not new_dataset_name:
