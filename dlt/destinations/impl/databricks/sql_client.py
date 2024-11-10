@@ -41,7 +41,7 @@ from dlt.common.destination.reference import DBApiCursor
 class DatabricksCursorImpl(DBApiCursorImpl):
     """Use native data frame support if available"""
 
-    native_cursor: DatabricksSqlCursor
+    native_cursor: DatabricksSqlCursor  # type: ignore[assignment]
     vector_size: ClassVar[int] = 2048  # vector size is 2048
 
     def iter_arrow(self, chunk_size: int) -> Generator[ArrowTable, None, None]:
@@ -124,7 +124,7 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
     @contextmanager
     @raise_database_error
     def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> Iterator[DBApiCursor]:
-        curr: DBApiCursor
+        # curr: DBApiCursor
         # TODO: Inline param support will be dropped in future databricks driver, switch to :named paramstyle
         # This will drop support for cluster runtime v13.x
         # db_args: Optional[Dict[str, Any]]
@@ -142,11 +142,11 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
         #         db_args[key] = db_arg
         # else:
         #     db_args = kwargs or None
-
+        assert isinstance(query, str)
         db_args = args or kwargs or None
         with self._conn.cursor() as curr:
             curr.execute(query, db_args)
-            yield DatabricksCursorImpl(curr)  # type: ignore[abstract]
+            yield DatabricksCursorImpl(curr)  # type: ignore[arg-type, abstract]
 
     def catalog_name(self, escape: bool = True) -> Optional[str]:
         catalog = self.capabilities.casefold_identifier(self.credentials.catalog)

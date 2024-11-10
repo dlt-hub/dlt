@@ -23,11 +23,10 @@ from dlt.common.schema import TColumnSchema, Schema
 from dlt.common.schema.typing import TColumnType
 from dlt.common.storages import FilesystemConfiguration, fsspec_from_config
 
-
-from dlt.destinations.insert_job_client import InsertValuesJobClient
 from dlt.destinations.exceptions import LoadJobTerminalException
 from dlt.destinations.impl.databricks.configuration import DatabricksClientConfiguration
 from dlt.destinations.impl.databricks.sql_client import DatabricksSqlClient
+from dlt.destinations.job_client_impl import SqlJobClientWithStagingDataset
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest
 from dlt.destinations.utils import is_compression_disabled
@@ -209,7 +208,7 @@ class DatabricksMergeJob(SqlMergeFollowupJob):
         """
 
 
-class DatabricksClient(InsertValuesJobClient, SupportsStagingDestination):
+class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
     def __init__(
         self,
         schema: Schema,
@@ -224,7 +223,7 @@ class DatabricksClient(InsertValuesJobClient, SupportsStagingDestination):
         )
         super().__init__(schema, config, sql_client)
         self.config: DatabricksClientConfiguration = config
-        self.sql_client: DatabricksSqlClient = sql_client
+        self.sql_client: DatabricksSqlClient = sql_client  # type: ignore[assignment]
         self.type_mapper = self.capabilities.get_type_mapper()
 
     def create_load_job(
