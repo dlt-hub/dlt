@@ -93,7 +93,7 @@ jobs:
         run: poetry install --no-interaction --with sentry-sdk
 
       - run: |
-          poetry run pytest tests/common tests/normalize tests/reflection tests/load/test_dummy_client.py tests/extract/test_extract.py tests/extract/test_sources.py tests/pipeline/test_pipeline_state.py 
+          poetry run pytest tests/common tests/normalize tests/reflection tests/load/test_dummy_client.py tests/extract/test_extract.py tests/extract/test_sources.py tests/pipeline/test_pipeline_state.py
         if: runner.os != 'Windows'
         name: Run common tests with minimum dependencies Linux/MAC
       - run: |
@@ -103,7 +103,7 @@ jobs:
         shell: cmd
 
       - name: Install duckdb dependencies
-        run: poetry install --no-interaction -E duckdb -E filesystem -E s3 --with sentry-sdk
+        run: poetry install --no-interaction -E duckdb --with sentry-sdk
 
       - run: |
           poetry run pytest tests/pipeline/test_pipeline.py tests/pipeline/test_import_export_schema.py
@@ -129,7 +129,7 @@ jobs:
         shell: cmd
 
       - name: Install pipeline and sources dependencies
-        run: poetry install --no-interaction -E duckdb -E cli -E parquet -E deltalake -E sql_database  -E s3 -E filesystem --with sentry-sdk,pipeline,sources
+        run: poetry install --no-interaction -E duckdb -E cli -E parquet -E deltalake -E sql_database --with sentry-sdk,pipeline,sources
 
       - run: |
           poetry run pytest tests/extract tests/pipeline tests/libs tests/cli/common tests/destinations tests/sources
