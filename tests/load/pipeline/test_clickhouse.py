@@ -1,4 +1,4 @@
-from typing import Iterator
+from typing import Any, Iterator
 
 import pytest
 
@@ -7,6 +7,9 @@ from dlt.common.typing import TDataItem
 from dlt.common.utils import uniq_id
 from tests.load.utils import destinations_configs, DestinationTestConfiguration
 from tests.pipeline.utils import load_table_counts
+
+# mark all tests as essential, do not remove
+pytestmark = pytest.mark.essential
 
 
 @pytest.mark.parametrize(
@@ -78,3 +81,30 @@ def test_clickhouse_destination_append(destination_config: DestinationTestConfig
     finally:
         with pipeline.sql_client() as client:
             client.drop_dataset()
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["clickhouse"]),
+    ids=lambda x: x.name,
+)
+def test_clickhouse_no_dataset_name(destination_config: DestinationTestConfiguration) -> None:
+    # create explicitly empty dataset
+    pipeline = destination_config.setup_pipeline("test_clickhouse_no_dataset_name", dataset_name="")
+
+    @dlt.resource(name="items", write_disposition="merge", primary_key="id")
+    def items() -> Iterator[Any]:
+        yield {
+            "id": 1,
+            "name": "item",
+            "sub_items": [{"id": 101, "name": "sub item 101"}, {"id": 101, "name": "sub item 102"}],
+        }
+
+    print(pipeline.run([items], **destination_config.run_kwargs))
+
+    table_counts = load_table_counts(
+        pipeline, *[t["name"] for t in pipeline.default_schema._schema_tables.values()]
+    )
+    assert table_counts["items"] == 1
+    assert table_counts["items__sub_items"] == 2
+    assert table_counts["_dlt_loads"] == 1
