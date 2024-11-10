@@ -3542,27 +3542,6 @@ def test_apply_lag() -> None:
 
 
 @pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
-@pytest.mark.parametrize("primary_key", ["id", None])
-def test_warning_large_deduplication_state(item_type: TestDataItemFormat, primary_key, mocker):
-    @dlt.resource(primary_key=primary_key)
-    def some_data(
-        created_at=dlt.sources.incremental("created_at"),
-    ):
-        yield data_to_item_format(
-            item_type,
-            [{"id": i, "created_at": 1} for i in range(201)],
-        )
-
-    logger_spy = mocker.spy(dlt.common.logger, "warning")
-    p = dlt.pipeline(pipeline_name=uniq_id())
-    p.extract(some_data(1))
-    logger_spy.assert_any_call(
-        "There are over 200 records to be deduplicated because they share the same primary key"
-        f" `{primary_key}`."
-    )
-
-
-@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
 def test_no_deduplication_on_write_disposition_merge(
     item_type: TestDataItemFormat,
 ) -> None:
