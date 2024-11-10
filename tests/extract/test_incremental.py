@@ -3548,15 +3548,23 @@ def test_warning_large_deduplication_state(item_type: TestDataItemFormat, primar
     def some_data(
         created_at=dlt.sources.incremental("created_at"),
     ):
+        # Cross the default threshold of 200
         yield data_to_item_format(
             item_type,
             [{"id": i, "created_at": 1} for i in range(201)],
+        )
+        # Second batch adds more items but shouldn't trigger warning
+        yield data_to_item_format(
+            item_type,
+            [{"id": i, "created_at": 1} for i in range(201, 301)],
         )
 
     logger_spy = mocker.spy(dlt.common.logger, "warning")
     p = dlt.pipeline(pipeline_name=uniq_id())
     p.extract(some_data(1))
-    logger_spy.assert_any_call(
-        "There are 201 records to be deduplicated because they share the same primary key"
-        f" `{primary_key}`."
-    )
+
+    # Verify warning was called exactly once
+    warning_calls = [
+        call for call in logger_spy.call_args_list if "Large number of records" in call.args[0]
+    ]
+    assert len(warning_calls) == 1
