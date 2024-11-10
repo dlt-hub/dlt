@@ -1,5 +1,14 @@
 import datetime  # noqa: I251
+
 from clickhouse_driver import dbapi as clickhouse_dbapi  # type: ignore[import-untyped]
+import clickhouse_driver
+import clickhouse_driver.errors  # type: ignore[import-untyped]
+from clickhouse_driver.dbapi import OperationalError  # type: ignore[import-untyped]
+from clickhouse_driver.dbapi.extras import DictCursor  # type: ignore[import-untyped]
+import clickhouse_connect
+from clickhouse_connect.driver.tools import insert_file as clk_insert_file
+from clickhouse_connect.driver.summary import QuerySummary
+
 from contextlib import contextmanager
 from typing import (
     Iterator,
@@ -14,14 +23,12 @@ from typing import (
     cast,
 )
 
-import clickhouse_driver
-import clickhouse_driver.errors  # type: ignore[import-untyped]
-from clickhouse_driver.dbapi import OperationalError  # type: ignore[import-untyped]
-from clickhouse_driver.dbapi.extras import DictCursor  # type: ignore[import-untyped]
 from pendulum import DateTime  # noqa: I251
 
+from dlt.common import logger
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.typing import DictStrAny
+
 from dlt.destinations.exceptions import (
     DatabaseUndefinedRelation,
     DatabaseTransientException,
@@ -160,8 +167,12 @@ class ClickHouseSqlClient(
                 f"DROP TABLE {catalog_name}.{self.capabilities.escape_identifier(table)} SYNC"
             )
 
-        # drop a sentinel table only for main dataset, staging does not have a separate sentinel
-        if not self.is_staging_dataset_active:
+        # drop a sentinel table only when dataset name was empty (was not included in the schema)
+        if not self.dataset_name:
+            logger.warning(
+                "Dataset without name (tables without prefix) got dropped. Only tables known in the"
+                " current dlt schema and sentinel tables were removed."
+            )
             self.execute_sql(f"DROP TABLE {sentinel_table_name} SYNC")
 
     def drop_tables(self, *tables: str) -> None:
@@ -173,6 +184,30 @@ class ClickHouseSqlClient(
             for table in tables
         ]
         self.execute_many(statements)
+
+    def insert_file(
+        self, file_path: str, table_name: str, file_format: str, compression: str
+    ) -> QuerySummary:
+        with clickhouse_connect.create_client(
+            host=self.credentials.host,
+            port=self.credentials.http_port,
+            database=self.credentials.database,
+            user_name=self.credentials.username,
+            password=self.credentials.password,
+            secure=bool(self.credentials.secure),
+        ) as clickhouse_connect_client:
+            return clk_insert_file(
+                clickhouse_connect_client,
+                self.make_qualified_table_name(table_name),
+                file_path,
+                fmt=file_format,
+                settings={
+                    "allow_experimental_lightweight_delete": 1,
+                    "enable_http_compression": 1,
+                    "date_time_input_format": "best_effort",
+                },
+                compression=compression,
+            )
 
     def _list_tables(self) -> List[str]:
         catalog_name, table_name = self.make_qualified_table_name_path("%", escape=False)
