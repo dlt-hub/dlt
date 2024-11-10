@@ -130,6 +130,8 @@ def mux_source() -> Iterable[DltResource]:
 The assets_resource function fetches metadata about video assets from the Mux API's "assets" endpoint.
 
 ```py
+DEFAULT_LIMIT = 100
+
 @dlt.resource(write_disposition="merge")
 def assets_resource(
     mux_api_access_token: str = dlt.secrets.value,

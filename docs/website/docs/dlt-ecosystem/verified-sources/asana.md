@@ -194,10 +194,10 @@ This [incremental](../../general-usage/incremental-loading.md) resource-transfor
 ```py
 @dlt.transformer(data_from=projects, write_disposition="merge", primary_key="gid")
 def tasks(
-    project_array: t.List[TDataItem],
+    project_array: List[TDataItem],
     access_token: str = dlt.secrets.value,
     modified_at: dlt.sources.incremental[str] = dlt.sources.incremental(
-        "modified_at", initial_value=DEFAULT_START_DATE
+        "modified_at", initial_value=START_DATE_STRING
     ),
     fields: Iterable[str] = TASK_FIELDS,
 ) -> Iterable[TDataItem]:

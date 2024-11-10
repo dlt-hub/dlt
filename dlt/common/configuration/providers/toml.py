@@ -54,6 +54,10 @@ class SettingsTomlProvider(CustomLoaderDocProvider):
         it will additionally look for `file_name` in `dlt` global dir (home dir by default) and merge the content.
         The "settings" (`settings_dir`) values overwrite the "global" values.
 
+        If toml file under `settings_dir` is not found it will look into Google Colab userdata object for a value
+        with name `file_name` and load toml file from it.
+        If that one is not found, it will try to load Streamlit `secrets.toml` file.
+
         If none of the files exist, an empty provider is created.
 
         Args:

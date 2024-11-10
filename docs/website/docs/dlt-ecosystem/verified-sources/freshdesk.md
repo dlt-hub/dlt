@@ -145,7 +145,7 @@ This function creates and yields a dlt resource for each endpoint in
 def freshdesk_source(
     #args as defined above
 ) -> Iterable[DltResource]:
-    for endpoint in endpoints:
+    for endpoint in ENDPOINTS:
         yield dlt.resource(
             incremental_resource,
             name=endpoint,

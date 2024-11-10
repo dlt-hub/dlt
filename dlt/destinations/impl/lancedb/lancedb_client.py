@@ -1,4 +1,3 @@
-import uuid
 from types import TracebackType
 from typing import (
     List,
@@ -12,15 +11,17 @@ from typing import (
     Dict,
     Sequence,
     TYPE_CHECKING,
+    Set,
 )
 
-from dlt.common.destination.capabilities import DataTypeMapper
 import lancedb  # type: ignore
+import lancedb.table  # type: ignore
 import pyarrow as pa
+import pyarrow.parquet as pq
 from lancedb import DBConnection
+from lancedb.common import DATA  # type: ignore
 from lancedb.embeddings import EmbeddingFunctionRegistry, TextEmbeddingFunction  # type: ignore
 from lancedb.query import LanceQueryBuilder  # type: ignore
-from lancedb.table import Table  # type: ignore
 from numpy import ndarray
 from pyarrow import Array, ChunkedArray, ArrowInvalid
 
@@ -39,53 +40,142 @@ from dlt.common.destination.reference import (
     StorageSchemaInfo,
     StateInfo,
     LoadJob,
+    HasFollowupJobs,
+    FollowupJobRequest,
 )
 from dlt.common.pendulum import timedelta
 from dlt.common.schema import Schema, TSchemaTables
 from dlt.common.schema.typing import (
-    C_DLT_LOAD_ID,
+    TColumnType,
     TTableSchemaColumns,
     TWriteDisposition,
+    TColumnSchema,
+    TTableSchema,
 )
-from dlt.common.schema.utils import get_columns_names_with_prop
-from dlt.common.storages import FileStorage
-from dlt.common.typing import DictStrAny
+from dlt.common.schema.utils import get_columns_names_with_prop, is_nested_table
+from dlt.common.storages import FileStorage, LoadJobInfo, ParsedLoadJobFileName
 from dlt.destinations.impl.lancedb.configuration import (
     LanceDBClientConfiguration,
 )
 from dlt.destinations.impl.lancedb.exceptions import (
     lancedb_error,
 )
-from dlt.destinations.impl.lancedb.lancedb_adapter import VECTORIZE_HINT
+from dlt.destinations.impl.lancedb.lancedb_adapter import (
+    VECTORIZE_HINT,
+    NO_REMOVE_ORPHANS_HINT,
+)
 from dlt.destinations.impl.lancedb.schema import (
     make_arrow_field_schema,
     make_arrow_table_schema,
     TArrowSchema,
     NULL_SCHEMA,
     TArrowField,
+    arrow_datatype_to_fusion_datatype,
+    TTableLineage,
+    TableJob,
 )
 from dlt.destinations.impl.lancedb.utils import (
-    list_merge_identifiers,
-    generate_uuid,
     set_non_standard_providers_environment_variables,
+    EMPTY_STRING_PLACEHOLDER,
+    fill_empty_source_column_values_with_placeholder,
+    get_canonical_vector_database_doc_id_merge_key,
+    create_filter_condition,
 )
+from dlt.destinations.job_impl import ReferenceFollowupJobRequest
+from dlt.destinations.type_mapping import TypeMapperImpl
 
 if TYPE_CHECKING:
     NDArray = ndarray[Any, Any]
 else:
     NDArray = ndarray
 
-EMPTY_STRING_PLACEHOLDER = "0uEoDNBpQUBwsxKbmxxB"
+TIMESTAMP_PRECISION_TO_UNIT: Dict[int, str] = {0: "s", 3: "ms", 6: "us", 9: "ns"}
+UNIT_TO_TIMESTAMP_PRECISION: Dict[str, int] = {v: k for k, v in TIMESTAMP_PRECISION_TO_UNIT.items()}
+BATCH_PROCESS_CHUNK_SIZE = 10_000
 
 
-def upload_batch(
-    records: List[DictStrAny],
+class LanceDBTypeMapper(TypeMapperImpl):
+    sct_to_unbound_dbt = {
+        "text": pa.string(),
+        "double": pa.float64(),
+        "bool": pa.bool_(),
+        "bigint": pa.int64(),
+        "binary": pa.binary(),
+        "date": pa.date32(),
+        "json": pa.string(),
+    }
+
+    sct_to_dbt = {}
+
+    dbt_to_sct = {
+        pa.string(): "text",
+        pa.float64(): "double",
+        pa.bool_(): "bool",
+        pa.int64(): "bigint",
+        pa.binary(): "binary",
+        pa.date32(): "date",
+    }
+
+    def to_db_decimal_type(self, column: TColumnSchema) -> pa.Decimal128Type:
+        precision, scale = self.decimal_precision(column.get("precision"), column.get("scale"))
+        return pa.decimal128(precision, scale)
+
+    def to_db_datetime_type(
+        self,
+        column: TColumnSchema,
+        table: TTableSchema = None,
+    ) -> pa.TimestampType:
+        column_name = column.get("name")
+        timezone = column.get("timezone")
+        precision = column.get("precision")
+        if timezone is not None or precision is not None:
+            logger.warning(
+                "LanceDB does not currently support column flags for timezone or precision."
+                f" These flags were used in column '{column_name}'."
+            )
+        unit: str = TIMESTAMP_PRECISION_TO_UNIT[self.capabilities.timestamp_precision]
+        return pa.timestamp(unit, "UTC")
+
+    def to_db_time_type(self, column: TColumnSchema, table: TTableSchema = None) -> pa.Time64Type:
+        unit: str = TIMESTAMP_PRECISION_TO_UNIT[self.capabilities.timestamp_precision]
+        return pa.time64(unit)
+
+    def from_db_type(
+        self,
+        db_type: pa.DataType,
+        precision: Optional[int] = None,
+        scale: Optional[int] = None,
+    ) -> TColumnType:
+        if isinstance(db_type, pa.TimestampType):
+            return dict(
+                data_type="timestamp",
+                precision=UNIT_TO_TIMESTAMP_PRECISION[db_type.unit],
+                scale=scale,
+            )
+        if isinstance(db_type, pa.Time64Type):
+            return dict(
+                data_type="time",
+                precision=UNIT_TO_TIMESTAMP_PRECISION[db_type.unit],
+                scale=scale,
+            )
+        if isinstance(db_type, pa.Decimal128Type):
+            precision, scale = db_type.precision, db_type.scale
+            if (precision, scale) == self.capabilities.wei_precision:
+                return cast(TColumnType, dict(data_type="wei"))
+            return dict(data_type="decimal", precision=precision, scale=scale)
+        return super().from_db_type(cast(str, db_type), precision, scale)  # type: ignore
+
+
+def write_records(
+    records: DATA,
     /,
     *,
     db_client: DBConnection,
     table_name: str,
-    write_disposition: TWriteDisposition,
-    id_field_name: Optional[str] = None,
+    write_disposition: Optional[TWriteDisposition] = "append",
+    merge_key: Optional[str] = None,
+    remove_orphans: Optional[bool] = False,
+    filter_condition: Optional[str] = None,
 ) -> None:
     """Inserts records into a LanceDB table with automatic embedding computation.
 
@@ -93,8 +183,11 @@ def upload_batch(
         records: The data to be inserted as payload.
         db_client: The LanceDB client connection.
         table_name: The name of the table to insert into.
-        id_field_name: The name of the ID field for update/merge operations.
+        merge_key: Keys for update/merge operations.
         write_disposition: The write disposition - one of 'skip', 'append', 'replace', 'merge'.
+        remove_orphans (bool): Whether to remove orphans after insertion or not (only merge disposition).
+        filter_condition (str): If None, then all such rows will be deleted.
+            Otherwise, the condition will be used as an SQL filter to limit what rows are deleted.
 
     Raises:
         ValueError: If the write disposition is unsupported, or `id_field_name` is not
@@ -110,16 +203,17 @@ def upload_batch(
         ) from e
 
     try:
-        if write_disposition in ("append", "skip"):
+        if write_disposition in ("append", "skip", "replace"):
             tbl.add(records)
-        elif write_disposition == "replace":
-            tbl.add(records, mode="overwrite")
         elif write_disposition == "merge":
-            if not id_field_name:
-                raise ValueError("To perform a merge update, 'id_field_name' must be specified.")
-            tbl.merge_insert(
-                id_field_name
-            ).when_matched_update_all().when_not_matched_insert_all().execute(records)
+            if remove_orphans:
+                tbl.merge_insert(merge_key).when_not_matched_by_source_delete(
+                    filter_condition
+                ).execute(records)
+            else:
+                tbl.merge_insert(
+                    merge_key
+                ).when_matched_update_all().when_not_matched_insert_all().execute(records)
         else:
             raise DestinationTerminalException(
                 f"Unsupported write disposition {write_disposition} for LanceDB Destination - batch"
@@ -135,6 +229,8 @@ class LanceDBClient(JobClientBase, WithStateSync):
     """LanceDB destination handler."""
 
     model_func: TextEmbeddingFunction
+    """The embedder callback used for each chunk."""
+    dataset_name: str
 
     def __init__(
         self,
@@ -152,6 +248,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
         self.registry = EmbeddingFunctionRegistry.get_instance()
         self.type_mapper = self.capabilities.get_type_mapper()
         self.sentinel_table_name = config.sentinel_table_name
+        self.dataset_name = self.config.normalize_dataset_name(self.schema)
 
         embedding_model_provider = self.config.embedding_model_provider
 
@@ -169,11 +266,6 @@ class LanceDBClient(JobClientBase, WithStateSync):
         )
 
         self.vector_field_name = self.config.vector_field_name
-        self.id_field_name = self.config.id_field_name
-
-    @property
-    def dataset_name(self) -> str:
-        return self.config.normalize_dataset_name(self.schema)
 
     @property
     def sentinel_table(self) -> str:
@@ -187,7 +279,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
         )
 
     def get_table_schema(self, table_name: str) -> TArrowSchema:
-        schema_table: Table = self.db_client.open_table(table_name)
+        schema_table: "lancedb.table.Table" = self.db_client.open_table(table_name)
         schema_table.checkout_latest()
         schema = schema_table.schema
         return cast(
@@ -196,13 +288,15 @@ class LanceDBClient(JobClientBase, WithStateSync):
         )
 
     @lancedb_error
-    def create_table(self, table_name: str, schema: TArrowSchema, mode: str = "create") -> Table:
+    def create_table(
+        self, table_name: str, schema: TArrowSchema, mode: str = "create"
+    ) -> "lancedb.table.Table":
         """Create a LanceDB Table from the provided LanceModel or PyArrow schema.
 
         Args:
             schema: The table schema to create.
             table_name: The name of the table to create.
-            mode (): The mode to use when creating the table. Can be either "create" or "overwrite".
+            mode (str): The mode to use when creating the table. Can be either "create" or "overwrite".
                 By default, if the table already exists, an exception is raised.
                 If you want to overwrite the table, use mode="overwrite".
         """
@@ -230,7 +324,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
         Returns:
             A LanceDB query builder.
         """
-        query_table: Table = self.db_client.open_table(table_name)
+        query_table: "lancedb.table.Table" = self.db_client.open_table(table_name)
         query_table.checkout_latest()
         return query_table.search(query=query)
 
@@ -255,7 +349,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
 
         Deletes all tables in the dataset and all data, as well as sentinel table associated with them.
 
-        If the dataset name was not provided, it deletes all the tables in the current schema.
+        If the dataset name wasn't provided, it deletes all the tables in the current schema.
         """
         for table_name in self._get_table_names():
             self.db_client.drop_table(table_name)
@@ -282,7 +376,22 @@ class LanceDBClient(JobClientBase, WithStateSync):
     def is_storage_initialized(self) -> bool:
         return self.table_exists(self.sentinel_table)
 
-    def _create_sentinel_table(self) -> Table:
+    def verify_schema(
+        self, only_tables: Iterable[str] = None, new_jobs: Iterable[ParsedLoadJobFileName] = None
+    ) -> List[PreparedTableSchema]:
+        loaded_tables = super().verify_schema(only_tables, new_jobs)
+        # verify merge keys early
+        for load_table in loaded_tables:
+            if not is_nested_table(load_table) and not load_table.get(NO_REMOVE_ORPHANS_HINT):
+                if merge_key := get_columns_names_with_prop(load_table, "merge_key"):
+                    if len(merge_key) > 1:
+                        raise DestinationTerminalException(
+                            "You cannot specify multiple merge keys with LanceDB orphan remove"
+                            f" enabled: {merge_key}"
+                        )
+        return loaded_tables
+
+    def _create_sentinel_table(self) -> "lancedb.table.Table":
         """Create an empty table to indicate that the storage is initialized."""
         return self.create_table(schema=NULL_SCHEMA, table_name=self.sentinel_table)
 
@@ -310,7 +419,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
             # TODO: return a real updated table schema (like in SQL job client)
             self._execute_schema_update(only_tables)
         else:
-            logger.info(
+            logger.debug(
                 f"Schema with hash {self.schema.stored_version_hash} "
                 f"inserted at {schema_info.inserted_at} found "
                 "in storage, no upgrade required"
@@ -325,7 +434,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
         try:
             fq_table_name = self.make_qualified_table_name(table_name)
 
-            table: Table = self.db_client.open_table(fq_table_name)
+            table: "lancedb.table.Table" = self.db_client.open_table(fq_table_name)
             table.checkout_latest()
             arrow_schema: TArrowSchema = table.schema
         except FileNotFoundError:
@@ -341,34 +450,33 @@ class LanceDBClient(JobClientBase, WithStateSync):
         return True, table_schema
 
     @lancedb_error
-    def add_table_fields(
-        self, table_name: str, field_schemas: List[TArrowField]
-    ) -> Optional[Table]:
-        """Add multiple fields to the LanceDB table at once.
+    def extend_lancedb_table_schema(self, table_name: str, field_schemas: List[pa.Field]) -> None:
+        """Extend LanceDB table schema with empty columns.
 
         Args:
-            table_name: The name of the table to create the fields on.
-            field_schemas: The list of fields to create.
+        table_name: The name of the table to create the fields on.
+        field_schemas: The list of PyArrow Fields to create in the target LanceDB table.
         """
-        table: Table = self.db_client.open_table(table_name)
+        table: "lancedb.table.Table" = self.db_client.open_table(table_name)
         table.checkout_latest()
-        arrow_table = table.to_arrow()
-
-        # Check if any of the new fields already exist in the table.
-        existing_fields = set(arrow_table.schema.names)
-        new_fields = [field for field in field_schemas if field.name not in existing_fields]
-
-        if not new_fields:
-            # All fields already present, skip.
-            return None
-
-        null_arrays = [pa.nulls(len(arrow_table), type=field.type) for field in new_fields]
-
-        for field, null_array in zip(new_fields, null_arrays):
-            arrow_table = arrow_table.append_column(field, null_array)
 
         try:
-            return self.db_client.create_table(table_name, arrow_table, mode="overwrite")
+            # Use DataFusion SQL syntax to alter fields without loading data into client memory.
+            # Now, the most efficient way to modify column values is in LanceDB.
+            new_fields = {
+                field.name: f"CAST(NULL AS {arrow_datatype_to_fusion_datatype(field.type)})"
+                for field in field_schemas
+            }
+            table.add_columns(new_fields)
+
+            # Make new columns nullable in the Arrow schema.
+            # Necessary because the Datafusion SQL API doesn't set new columns as nullable by default.
+            for field in field_schemas:
+                table.alter_columns({"path": field.name, "nullable": field.nullable})
+
+                # TODO: Update method below doesn't work for bulk NULL assignments, raise with LanceDB developers.
+                # table.update(values={field.name: None})
+
         except OSError:
             # Error occurred while creating the table, skip.
             return None
@@ -376,36 +484,31 @@ class LanceDBClient(JobClientBase, WithStateSync):
     def _execute_schema_update(self, only_tables: Iterable[str]) -> None:
         for table_name in only_tables or self.schema.tables:
             exists, existing_columns = self.get_storage_table(table_name)
-            new_columns = self.schema.get_new_table_columns(
+            new_columns: List[TColumnSchema] = self.schema.get_new_table_columns(
                 table_name,
                 existing_columns,
                 self.capabilities.generates_case_sensitive_identifiers(),
             )
-            embedding_fields: List[str] = get_columns_names_with_prop(
-                self.schema.get_table(table_name), VECTORIZE_HINT
-            )
             logger.info(f"Found {len(new_columns)} updates for {table_name} in {self.schema.name}")
-            if len(new_columns) > 0:
+            if new_columns:
                 if exists:
                     field_schemas: List[TArrowField] = [
                         make_arrow_field_schema(column["name"], column, self.type_mapper)
                         for column in new_columns
                     ]
                     fq_table_name = self.make_qualified_table_name(table_name)
-                    self.add_table_fields(fq_table_name, field_schemas)
+                    self.extend_lancedb_table_schema(fq_table_name, field_schemas)
                 else:
                     if table_name not in self.schema.dlt_table_names():
                         embedding_fields = get_columns_names_with_prop(
                             self.schema.get_table(table_name=table_name), VECTORIZE_HINT
                         )
                         vector_field_name = self.vector_field_name
-                        id_field_name = self.id_field_name
                         embedding_model_func = self.model_func
                         embedding_model_dimensions = self.config.embedding_model_dimensions
                     else:
                         embedding_fields = None
                         vector_field_name = None
-                        id_field_name = None
                         embedding_model_func = None
                         embedding_model_dimensions = None
 
@@ -417,7 +520,6 @@ class LanceDBClient(JobClientBase, WithStateSync):
                         embedding_model_func=embedding_model_func,
                         embedding_model_dimensions=embedding_model_dimensions,
                         vector_field_name=vector_field_name,
-                        id_field_name=id_field_name,
                     )
                     fq_table_name = self.make_qualified_table_name(table_name)
                     self.create_table(fq_table_name, table_schema)
@@ -446,7 +548,8 @@ class LanceDBClient(JobClientBase, WithStateSync):
         write_disposition = self.schema.get_table(self.schema.version_table_name).get(
             "write_disposition"
         )
-        upload_batch(
+
+        write_records(
             records,
             db_client=self.db_client,
             table_name=fq_version_table_name,
@@ -459,15 +562,17 @@ class LanceDBClient(JobClientBase, WithStateSync):
         fq_state_table_name = self.make_qualified_table_name(self.schema.state_table_name)
         fq_loads_table_name = self.make_qualified_table_name(self.schema.loads_table_name)
 
-        state_table_: Table = self.db_client.open_table(fq_state_table_name)
+        state_table_: "lancedb.table.Table" = self.db_client.open_table(fq_state_table_name)
         state_table_.checkout_latest()
 
-        loads_table_: Table = self.db_client.open_table(fq_loads_table_name)
+        loads_table_: "lancedb.table.Table" = self.db_client.open_table(fq_loads_table_name)
         loads_table_.checkout_latest()
 
         # normalize property names
         p_load_id = self.schema.naming.normalize_identifier("load_id")
-        p_dlt_load_id = self.schema.naming.normalize_identifier(C_DLT_LOAD_ID)
+        p_dlt_load_id = self.schema.naming.normalize_identifier(
+            self.schema.data_item_normalizer.c_dlt_load_id  # type: ignore[attr-defined]
+        )
         p_pipeline_name = self.schema.naming.normalize_identifier("pipeline_name")
         p_status = self.schema.naming.normalize_identifier("status")
         p_version = self.schema.naming.normalize_identifier("version")
@@ -476,7 +581,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
         p_created_at = self.schema.naming.normalize_identifier("created_at")
         p_version_hash = self.schema.naming.normalize_identifier("version_hash")
 
-        # Read the tables into memory as Arrow tables, with pushdown predicates, so we pull as less
+        # Read the tables into memory as Arrow tables, with pushdown predicates, so we pull as little
         # data into memory as possible.
         state_table = (
             state_table_.search()
@@ -508,7 +613,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
     def get_stored_schema_by_hash(self, schema_hash: str) -> Optional[StorageSchemaInfo]:
         fq_version_table_name = self.make_qualified_table_name(self.schema.version_table_name)
 
-        version_table: Table = self.db_client.open_table(fq_version_table_name)
+        version_table: "lancedb.table.Table" = self.db_client.open_table(fq_version_table_name)
         version_table.checkout_latest()
         p_version_hash = self.schema.naming.normalize_identifier("version_hash")
         p_inserted_at = self.schema.naming.normalize_identifier("inserted_at")
@@ -524,8 +629,6 @@ class LanceDBClient(JobClientBase, WithStateSync):
                 )
             ).to_list()
 
-            # LanceDB's ORDER BY clause doesn't seem to work.
-            # See https://github.com/dlt-hub/dlt/pull/1375#issuecomment-2171909341
             most_recent_schema = sorted(schemas, key=lambda x: x[p_inserted_at], reverse=True)[0]
             return StorageSchemaInfo(
                 version_hash=most_recent_schema[p_version_hash],
@@ -543,7 +646,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
         """Retrieves newest schema from destination storage."""
         fq_version_table_name = self.make_qualified_table_name(self.schema.version_table_name)
 
-        version_table: Table = self.db_client.open_table(fq_version_table_name)
+        version_table: "lancedb.table.Table" = self.db_client.open_table(fq_version_table_name)
         version_table.checkout_latest()
         p_version_hash = self.schema.naming.normalize_identifier("version_hash")
         p_inserted_at = self.schema.naming.normalize_identifier("inserted_at")
@@ -558,8 +661,6 @@ class LanceDBClient(JobClientBase, WithStateSync):
                 query = query.where(f'`{p_schema_name}` = "{schema_name}"', prefilter=True)
             schemas = query.to_list()
 
-            # LanceDB's ORDER BY clause doesn't seem to work.
-            # See https://github.com/dlt-hub/dlt/pull/1375#issuecomment-2171909341
             most_recent_schema = sorted(schemas, key=lambda x: x[p_inserted_at], reverse=True)[0]
             return StorageSchemaInfo(
                 version_hash=most_recent_schema[p_version_hash],
@@ -591,16 +692,14 @@ class LanceDBClient(JobClientBase, WithStateSync):
                 self.schema.naming.normalize_identifier("schema_name"): self.schema.name,
                 self.schema.naming.normalize_identifier("status"): 0,
                 self.schema.naming.normalize_identifier("inserted_at"): str(pendulum.now()),
-                self.schema.naming.normalize_identifier(
-                    "schema_version_hash"
-                ): None,  # Payload schema must match the target schema.
+                self.schema.naming.normalize_identifier("schema_version_hash"): None,
             }
         ]
         fq_loads_table_name = self.make_qualified_table_name(self.schema.loads_table_name)
         write_disposition = self.schema.get_table(self.schema.loads_table_name).get(
             "write_disposition"
         )
-        upload_batch(
+        write_records(
             records,
             db_client=self.db_client,
             table_name=fq_loads_table_name,
@@ -610,80 +709,152 @@ class LanceDBClient(JobClientBase, WithStateSync):
     def create_load_job(
         self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
-        return LanceDBLoadJob(
-            file_path=file_path,
-            type_mapper=self.type_mapper,
-            model_func=self.model_func,
-            fq_table_name=self.make_qualified_table_name(table["name"]),
+        if ReferenceFollowupJobRequest.is_reference_job(file_path):
+            return LanceDBRemoveOrphansJob(file_path)
+        else:
+            return LanceDBLoadJob(file_path, table)
+
+    def create_table_chain_completed_followup_jobs(
+        self,
+        table_chain: Sequence[TTableSchema],
+        completed_table_chain_jobs: Optional[Sequence[LoadJobInfo]] = None,
+    ) -> List[FollowupJobRequest]:
+        jobs = super().create_table_chain_completed_followup_jobs(
+            table_chain, completed_table_chain_jobs  # type: ignore[arg-type]
         )
+        # Orphan removal is only supported for upsert strategy because we need a deterministic key hash.
+        first_table_in_chain = table_chain[0]
+        if first_table_in_chain.get(
+            "write_disposition"
+        ) == "merge" and not first_table_in_chain.get(NO_REMOVE_ORPHANS_HINT):
+            all_job_paths_ordered = [
+                job.file_path
+                for table in table_chain
+                for job in completed_table_chain_jobs
+                if job.job_file_info.table_name == table.get("name")
+            ]
+            root_table_file_name = FileStorage.get_file_name_from_file_path(
+                all_job_paths_ordered[0]
+            )
+            jobs.append(ReferenceFollowupJobRequest(root_table_file_name, all_job_paths_ordered))
+        return jobs
 
     def table_exists(self, table_name: str) -> bool:
         return table_name in self.db_client.table_names()
 
 
-class LanceDBLoadJob(RunnableLoadJob):
+class LanceDBLoadJob(RunnableLoadJob, HasFollowupJobs):
     arrow_schema: TArrowSchema
 
     def __init__(
         self,
         file_path: str,
-        type_mapper: DataTypeMapper,
-        model_func: TextEmbeddingFunction,
-        fq_table_name: str,
+        table_schema: TTableSchema,
     ) -> None:
         super().__init__(file_path)
-        self._type_mapper = type_mapper
-        self._fq_table_name: str = fq_table_name
-        self._model_func = model_func
         self._job_client: "LanceDBClient" = None
+        self._table_schema: TTableSchema = table_schema
 
     def run(self) -> None:
-        self._db_client: DBConnection = self._job_client.db_client
-        self._embedding_model_func: TextEmbeddingFunction = self._model_func
-        self._embedding_model_dimensions: int = self._job_client.config.embedding_model_dimensions
-        self._id_field_name: str = self._job_client.config.id_field_name
-
-        unique_identifiers: Sequence[str] = list_merge_identifiers(self._load_table)
+        db_client: DBConnection = self._job_client.db_client
+        fq_table_name: str = self._job_client.make_qualified_table_name(self._table_schema["name"])
         write_disposition: TWriteDisposition = cast(
             TWriteDisposition, self._load_table.get("write_disposition", "append")
         )
 
-        with FileStorage.open_zipsafe_ro(self._file_path) as f:
-            records: List[DictStrAny] = [json.loads(line) for line in f]
+        with FileStorage.open_zipsafe_ro(self._file_path, mode="rb") as f:
+            arrow_table: pa.Table = pq.read_table(f)
 
         # Replace empty strings with placeholder string if OpenAI is used.
         # https://github.com/lancedb/lancedb/issues/1577#issuecomment-2318104218.
         if (self._job_client.config.embedding_model_provider == "openai") and (
             source_columns := get_columns_names_with_prop(self._load_table, VECTORIZE_HINT)
         ):
-            records = [
-                {
-                    k: EMPTY_STRING_PLACEHOLDER if k in source_columns and v in ("", None) else v
-                    for k, v in record.items()
-                }
-                for record in records
-            ]
+            arrow_table = fill_empty_source_column_values_with_placeholder(
+                arrow_table, source_columns, EMPTY_STRING_PLACEHOLDER
+            )
 
-        if self._load_table not in self._schema.dlt_tables():
-            for record in records:
-                # Add reserved ID fields.
-                uuid_id = (
-                    generate_uuid(record, unique_identifiers, self._fq_table_name)
-                    if unique_identifiers
-                    else str(uuid.uuid4())
-                )
-                record.update({self._id_field_name: uuid_id})
+        # We need upsert merge's deterministic _dlt_id to perform orphan removal.
+        # Hence, we require at least a primary key on the root table if the merge disposition is chosen.
+        if (
+            (self._load_table not in self._schema.dlt_table_names())
+            and not is_nested_table(self._load_table)  # Is root table.
+            and (write_disposition == "merge")
+            and (not get_columns_names_with_prop(self._load_table, "primary_key"))
+        ):
+            raise DestinationTerminalException(
+                "LanceDB's write disposition requires at least one explicit primary key."
+            )
 
-                # LanceDB expects all fields in the target arrow table to be present in the data payload.
-                # We add and set these missing fields, that are fields not present in the target schema, to NULL.
-                missing_fields = set(self._load_table["columns"]) - set(record)
-                for field in missing_fields:
-                    record[field] = None
-
-        upload_batch(
-            records,
-            db_client=self._db_client,
-            table_name=self._fq_table_name,
-            write_disposition=write_disposition,
-            id_field_name=self._id_field_name,
+        dlt_id = self._schema.naming.normalize_identifier(
+            self._schema.data_item_normalizer.c_dlt_id  # type: ignore[attr-defined]
         )
+        write_records(
+            arrow_table,
+            db_client=db_client,
+            table_name=fq_table_name,
+            write_disposition=write_disposition,
+            merge_key=dlt_id,
+        )
+
+
+class LanceDBRemoveOrphansJob(RunnableLoadJob):
+    orphaned_ids: Set[str]
+
+    def __init__(
+        self,
+        file_path: str,
+    ) -> None:
+        super().__init__(file_path)
+        self._job_client: "LanceDBClient" = None
+        self.references = ReferenceFollowupJobRequest.resolve_references(file_path)
+
+    def run(self) -> None:
+        dlt_load_id = self._schema.data_item_normalizer.c_dlt_load_id  # type: ignore[attr-defined]
+        dlt_id = self._schema.data_item_normalizer.c_dlt_id  # type: ignore[attr-defined]
+        dlt_root_id = self._schema.data_item_normalizer.c_dlt_root_id  # type: ignore[attr-defined]
+
+        db_client: DBConnection = self._job_client.db_client
+        table_lineage: TTableLineage = [
+            TableJob(
+                table_schema=self._schema.get_table(
+                    ParsedLoadJobFileName.parse(file_path_).table_name
+                ),
+                table_name=ParsedLoadJobFileName.parse(file_path_).table_name,
+                file_path=file_path_,
+            )
+            for file_path_ in self.references
+        ]
+
+        for job in table_lineage:
+            target_is_root_table = not is_nested_table(job.table_schema)
+            fq_table_name = self._job_client.make_qualified_table_name(job.table_name)
+            file_path = job.file_path
+            with FileStorage.open_zipsafe_ro(file_path, mode="rb") as f:
+                payload_arrow_table: pa.Table = pq.read_table(f)
+
+            if target_is_root_table:
+                canonical_doc_id_field = get_canonical_vector_database_doc_id_merge_key(
+                    job.table_schema
+                )
+                filter_condition = create_filter_condition(
+                    canonical_doc_id_field, payload_arrow_table[canonical_doc_id_field]
+                )
+                merge_key = dlt_load_id
+
+            else:
+                filter_condition = create_filter_condition(
+                    dlt_root_id,
+                    payload_arrow_table[dlt_root_id],
+                )
+                merge_key = dlt_id
+
+            write_records(
+                payload_arrow_table,
+                db_client=db_client,
+                table_name=fq_table_name,
+                write_disposition="merge",
+                merge_key=merge_key,
+                remove_orphans=True,
+                filter_condition=filter_condition,
+            )

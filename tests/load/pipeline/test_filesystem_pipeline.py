@@ -586,6 +586,57 @@ def test_delta_table_partitioning(
     assert dt.metadata().partition_columns == []
 
 
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        table_format_filesystem_configs=True,
+        with_table_format="delta",
+        bucket_subset=(FILE_BUCKET),
+    ),
+    ids=lambda x: x.name,
+)
+def test_delta_table_partitioning_arrow_load_id(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Tests partitioning on load id column added by Arrow normalizer.
+
+    Case needs special handling because of bug in delta-rs:
+    https://github.com/delta-io/delta-rs/issues/2969
+    """
+    from dlt.common.libs.pyarrow import pyarrow
+    from dlt.common.libs.deltalake import get_delta_tables
+
+    os.environ["NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_LOAD_ID"] = "true"
+
+    pipeline = destination_config.setup_pipeline("fs_pipe", dev_mode=True)
+
+    # append write disposition
+    info = pipeline.run(
+        pyarrow.table({"foo": [1]}),
+        table_name="delta_table",
+        columns={"_dlt_load_id": {"partition": True}},
+        table_format="delta",
+    )
+    assert_load_info(info)
+    dt = get_delta_tables(pipeline, "delta_table")["delta_table"]
+    assert dt.metadata().partition_columns == ["_dlt_load_id"]
+    assert load_table_counts(pipeline, "delta_table")["delta_table"] == 1
+
+    # merge write disposition
+    info = pipeline.run(
+        pyarrow.table({"foo": [1, 2]}),
+        table_name="delta_table",
+        write_disposition={"disposition": "merge", "strategy": "upsert"},
+        columns={"_dlt_load_id": {"partition": True}},
+        primary_key="foo",
+        table_format="delta",
+    )
+    assert_load_info(info)
+    dt = get_delta_tables(pipeline, "delta_table")["delta_table"]
+    assert dt.metadata().partition_columns == ["_dlt_load_id"]
+    assert load_table_counts(pipeline, "delta_table")["delta_table"] == 2
+
+
 @pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",

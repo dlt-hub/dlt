@@ -135,7 +135,7 @@ default_task_args = {
 
 @dag(
     schedule=None,
-    start_date=pendulum.datetime(2021, 1, 1),
+    start_date=pendulum.DateTime(2021, 1, 1),
     catchup=False,
     max_active_runs=1,
     default_args=default_task_args
@@ -308,7 +308,7 @@ default_task_args = {
 
 @dag(
     schedule=None,
-    start_date=pendulum.datetime(2021, 1, 1),
+    start_date=pendulum.DateTime(2021, 1, 1),
     catchup=False,
     max_active_runs=1,
     default_args=default_task_args

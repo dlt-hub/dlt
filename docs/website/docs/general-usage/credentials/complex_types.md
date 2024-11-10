@@ -58,9 +58,9 @@ dsn.password="loader"
 You can explicitly provide credentials in various forms:
 
 ```py
-query("SELECT * FROM customers", "postgres://loader@localhost:5432/dlt_data")
+query("SELECT * FROM customers", "postgres://loader@localhost:5432/dlt_data") # type: ignore[arg-type]
 # or
-query("SELECT * FROM customers", {"database": "dlt_data", "username": "loader"})
+query("SELECT * FROM customers", {"database": "dlt_data", "username": "loader"}) # type: ignore[arg-type]
 ```
 
 ## Built-in credentials
@@ -109,7 +109,7 @@ The `OAuth2Credentials` class handles OAuth 2.0 credentials, including client ID
 
 Usage:
 ```py
-credentials = OAuth2Credentials(
+oauth_credentials = OAuth2Credentials(
     client_id="CLIENT_ID",
     client_secret="CLIENT_SECRET",  # type: ignore
     refresh_token="REFRESH_TOKEN",  # type: ignore
@@ -117,10 +117,10 @@ credentials = OAuth2Credentials(
 )
 
 # Authorize the client
-credentials.auth()
+oauth_credentials.auth()
 
 # Add additional scopes
-credentials.add_scopes(["scope3", "scope4"])
+oauth_credentials.add_scopes(["scope3", "scope4"])
 ```
 
 `OAuth2Credentials` is a base class to implement actual OAuth; for example, it is a base class for [GcpOAuthCredentials](#gcpoauthcredentials).
@@ -146,18 +146,19 @@ The `GcpServiceAccountCredentials` class manages GCP Service Account credentials
 - Or default credentials will be used.
 
 ```py
-credentials = GcpServiceAccountCredentials()
+gcp_credentials = GcpServiceAccountCredentials()
 # Parse a native value (ServiceAccountCredentials)
 # Accepts a native value, which can be either an instance of ServiceAccountCredentials
 # or a serialized services.json.
 # Parses the native value and updates the credentials.
-native_value = {"private_key": ".."} # or "path/to/services.json"
-credentials.parse_native_representation(native_value)
+gcp_native_value = {"private_key": ".."} # or "path/to/services.json"
+gcp_credentials.parse_native_representation(gcp_native_value)
 ```
 or more preferred use:
 ```py
 import dlt
 from dlt.sources.credentials import GcpServiceAccountCredentials
+from google.analytics import BetaAnalyticsDataClient
 
 @dlt.source
 def google_analytics(
@@ -255,21 +256,21 @@ The `AwsCredentials` class is responsible for handling AWS credentials, includin
 
 #### Usage
 ```py
-credentials = AwsCredentials()
+aws_credentials = AwsCredentials()
 # Set the necessary attributes
-credentials.aws_access_key_id = "ACCESS_KEY_ID"
-credentials.aws_secret_access_key = "SECRET_ACCESS_KEY"
-credentials.region_name = "us-east-1"
+aws_credentials.aws_access_key_id = "ACCESS_KEY_ID"
+aws_credentials.aws_secret_access_key = "SECRET_ACCESS_KEY"
+aws_credentials.region_name = "us-east-1"
 ```
 or
 ```py
 # Imports an external botocore session and sets the credentials properties accordingly.
 import botocore.session
 
-credentials = AwsCredentials()
+aws_credentials = AwsCredentials()
 session = botocore.session.get_session()
-credentials.parse_native_representation(session)
-print(credentials.aws_access_key_id)
+aws_credentials.parse_native_representation(session)
+print(aws_credentials.aws_access_key_id)
 ```
 or more preferred use:
 ```py
@@ -314,10 +315,10 @@ The `AzureCredentials` class is responsible for handling Azure Blob Storage cred
 
 #### Usage
 ```py
-credentials = AzureCredentials()
+az_credentials = AzureCredentials()
 # Set the necessary attributes
-credentials.azure_storage_account_name = "ACCOUNT_NAME"
-credentials.azure_storage_account_key = "ACCOUNT_KEY"
+az_credentials.azure_storage_account_name = "ACCOUNT_NAME"
+az_credentials.azure_storage_account_key = "ACCOUNT_KEY"
 ```
 or more preferred use:
 ```py
@@ -364,7 +365,7 @@ Example:
 @dlt.source
 def zen_source(credentials: Union[ZenApiKeyCredentials, ZenEmailCredentials, str] = dlt.secrets.value, some_option: bool = False):
   # Depending on what the user provides in config, ZenApiKeyCredentials or ZenEmailCredentials will be injected into the `credentials` argument. Both classes implement `auth` so you can always call it.
-  credentials.auth()
+  credentials.auth() # type: ignore[union-attr]
   return dlt.resource([credentials], name="credentials")
 
 # Pass native value

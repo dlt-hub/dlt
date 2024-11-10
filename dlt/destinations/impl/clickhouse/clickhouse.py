@@ -1,5 +1,4 @@
 import os
-import re
 from copy import deepcopy
 from textwrap import dedent
 from typing import Optional, List, Sequence, cast
@@ -8,7 +7,6 @@ from urllib.parse import urlparse
 import clickhouse_connect
 from clickhouse_connect.driver.tools import insert_file
 
-from dlt import config
 from dlt.common.configuration.specs import (
     CredentialsConfiguration,
     AzureCredentialsWithoutDefaults,
@@ -55,6 +53,7 @@ from dlt.destinations.job_client_impl import (
 )
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest, FinalizedLoadJobWithFollowupJobs
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
+from dlt.destinations.utils import is_compression_disabled
 
 
 class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
@@ -124,7 +123,7 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
         # NOTE: we should not really be accessing the config this way, but for
         # now it is ok...
         if ext == "jsonl":
-            compression = "none" if config.get("data_writer.disable_compression") else "gz"
+            compression = "none" if is_compression_disabled() else "gz"
 
         if bucket_scheme in ("s3", "gs", "gcs"):
             if not isinstance(self._staging_credentials, AwsCredentialsWithoutDefaults):

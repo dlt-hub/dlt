@@ -100,7 +100,7 @@ issues = []
 reactions = ["%2B1", "-1", "smile", "tada", "thinking_face", "heart", "rocket", "eyes"]
 for reaction in reactions:
     for page_no in range(1, 3):
-      page = requests.get(f"https://api.github.com/repos/{repo}/issues?state=all&sort=reactions-{reaction}&per_page=100&page={page_no}", headers=headers)
+      page = requests.get(f"https://api.github.com/repos/{REPO_NAME}/issues?state=all&sort=reactions-{reaction}&per_page=100&page={page_no}", headers=headers)
       print(f"got page for {reaction} page {page_no}, requests left", page.headers["x-ratelimit-remaining"])
       issues.extend(page.json())
 p.run(issues, write_disposition="merge", primary_key="id", table_name="issues")
@@ -802,11 +802,10 @@ When resources are [created dynamically](source.md#create-resources-dynamically)
 def stripe():
     # declare a generator function
     def get_resource(
-        endpoint: Endpoints,
+        endpoints: List[str] = ENDPOINTS,
         created: dlt.sources.incremental=dlt.sources.incremental("created")
     ):
         ...
-        yield data
 
     # create resources for several endpoints on a single decorator function
     for endpoint in endpoints:
@@ -854,10 +853,12 @@ We opt-in to the Airflow scheduler by setting `allow_external_schedulers` to `Tr
 Let's generate a deployment with `dlt deploy zendesk_pipeline.py airflow-composer` and customize the DAG:
 
 ```py
+from dlt.helpers.airflow_helper import PipelineTasksGroup
+
 @dag(
     schedule_interval='@weekly',
-    start_date=pendulum.datetime(2023, 2, 1),
-    end_date=pendulum.datetime(2023, 8, 1),
+    start_date=pendulum.DateTime(2023, 2, 1),
+    end_date=pendulum.DateTime(2023, 8, 1),
     catchup=True,
     max_active_runs=1,
     default_args=default_task_args
@@ -894,7 +895,7 @@ You can repurpose the DAG above to start loading new data incrementally after (o
 ```py
 @dag(
     schedule_interval='@daily',
-    start_date=pendulum.datetime(2023, 2, 1),
+    start_date=pendulum.DateTime(2023, 2, 1),
     catchup=False,
     max_active_runs=1,
     default_args=default_task_args
@@ -1098,7 +1099,7 @@ is_second_run = False
 def events_resource(
     _=dlt.sources.incremental("created_at", lag=3600, last_value_func=max)
 ):
-    nonlocal is_second_run
+    global is_second_run
 
     # Data for the initial run
     initial_entries = [
@@ -1167,7 +1168,7 @@ def tweets():
     # Get the last value from loaded metadata. If it does not exist, get None
     last_val = dlt.current.resource_state().setdefault("last_updated", None)
     # Get data and yield it
-    data = get_data(start_from=last_val)
+    data = _get_data(start_from=last_val)
     yield data
     # Change the state to the new value
     dlt.current.resource_state()["last_updated"] = data["last_timestamp"]
@@ -1218,7 +1219,7 @@ def players_games(chess_url, players, start_month=None, end_month=None):
     # when the data is loaded, the cache is updated with our loaded_archives_cache
 
     # Get archives for a given player
-    archives = get_players_archives(chess_url, players)
+    archives = _get_players_archives(chess_url, players)
     for url in archives:
         # If not in cache, yield the data and cache the URL
         if url not in loaded_archives_cache:
@@ -1243,7 +1244,7 @@ def search_tweets(twitter_bearer_token=dlt.secrets.value, search_terms=None, sta
         print(f'last_value_cache: {last_value_cache}')
         params = {...}
         url = "https://api.twitter.com/2/tweets/search/recent"
-        response = _paginated_get(url, headers=headers, params=params)
+        response = _get_paginated(url, headers=headers, params=params)
         for page in response:
             page['search_term'] = search_term
             last_id = page.get('meta', {}).get('newest_id', 0)

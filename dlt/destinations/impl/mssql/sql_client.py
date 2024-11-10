@@ -6,7 +6,7 @@ from dlt.common.destination import DestinationCapabilitiesContext
 import pyodbc
 
 from contextlib import contextmanager
-from typing import Any, AnyStr, ClassVar, Iterator, Optional, Sequence
+from typing import Any, AnyStr, ClassVar, Iterator, Optional, Sequence, Tuple
 
 from dlt.destinations.exceptions import (
     DatabaseTerminalException,
@@ -183,3 +183,6 @@ class PyOdbcMsSqlClient(SqlClientBase[pyodbc.Connection], DBTransaction):
     @staticmethod
     def is_dbapi_exception(ex: Exception) -> bool:
         return isinstance(ex, pyodbc.Error)
+
+    def _limit_clause_sql(self, limit: int) -> Tuple[str, str]:
+        return f"TOP ({limit})", ""

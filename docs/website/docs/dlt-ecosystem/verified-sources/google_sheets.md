@@ -369,6 +369,7 @@ This function loads data from a Google Spreadsheet. It retrieves data from all s
 whether explicitly defined or named, and obtains metadata for the first two rows within each range.
 
 ```py
+@dlt.source()
 def google_spreadsheet(
       spreadsheet_url_or_id: str = dlt.config.value,
       range_names: Sequence[str] = dlt.config.value,
@@ -399,7 +400,7 @@ separate tables in the destination.
 
 ```py
 dlt.resource(
-     process_range(rows_data, headers=headers, data_types=data_types),
+     process_range(data, headers=headers, data_types=data_types),
      name=name,
      write_disposition="replace",
 )
@@ -547,7 +548,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
      get_named_ranges=False,
    )
 
-   data.resources["Sheet 1!A1:B10"].apply_hints(table_name="loaded_data_1")
+   load_data.resources["Sheet 1!A1:B10"].apply_hints(table_name="loaded_data_1")
 
    load_info = pipeline.run(load_data)
    print(load_info)
@@ -580,9 +581,11 @@ Below is the correct way to set up an Airflow DAG for this purpose:
 - When adding the Google Spreadsheet task to the pipeline, avoid decomposing it; run it as a single task for efficiency.
 
 ```py
+from dlt.helpers.airflow_helper import PipelineTasksGroup
+
 @dag(
     schedule_interval='@daily',
-    start_date=pendulum.datetime(2023, 2, 1),
+    start_date=pendulum.DateTime(2023, 2, 1),
     catchup=False,
     max_active_runs=1,
     default_args=default_task_args

@@ -180,7 +180,7 @@ For more information, read the guide on [how to add a verified source.](../../wa
    information securely, like access tokens. Keep this file safe. Here's its format for service
    account authentication:
 
-   ```py
+   ```toml
    #Zendesk support credentials
    [sources.zendesk.credentials]
    subdomain = "subdomain" # Zendesk subdomain
@@ -247,7 +247,7 @@ This function retrieves data from Zendesk Talk for phone calls and voicemails.
 @dlt.source(max_table_nesting=2)
 def zendesk_talk(
     credentials: TZendeskCredentials = dlt.secrets.value,
-    start_date: Optional[TAnyDateTime] = DEFAULT_START_DATE,
+    start_date: Optional[TAnyDateTime] = START_DATE,
     end_date: Optional[TAnyDateTime] = None,
 ) -> Iterable[DltResource]:
    ...
@@ -335,9 +335,9 @@ verified source.
         dev_mode=False,
         dataset_name="sample_zendesk_data"  # Use a custom name if desired
    )
-   data = zendesk_support(load_all=True, start_date=start_date)
-   data_chat = zendesk_chat(start_date=start_date)
-   data_talk = zendesk_talk(start_date=start_date)
+   data = zendesk_support(load_all=True, start_date=START_DATE)
+   data_chat = zendesk_chat(start_date=START_DATE)
+   data_talk = zendesk_talk(start_date=START_DATE)
    info = pipeline.run(data=[data, data_chat, data_talk])
    print(info)
    ```
@@ -354,7 +354,7 @@ verified source.
     min_start_date = pendulum.DateTime(year=2023, month=1, day=1).in_timezone("UTC")
     max_end_date = pendulum.today()
     # Generate tuples of date ranges, each with 1 week in between.
-    ranges = make_date_ranges(min_start_date, max_end_date, timedelta(weeks=1))
+    ranges = make_date_ranges(min_start_date, max_end_date, datetime.timedelta(weeks=1))
 
     # Run the pipeline in a loop for each 1-week range
     for start, end in ranges:

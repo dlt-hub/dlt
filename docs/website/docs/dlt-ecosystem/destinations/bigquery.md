@@ -304,7 +304,6 @@ The adapter updates the DltResource with metadata about the destination column a
 Here is an example of how to use the `bigquery_adapter` method to apply hints to a resource on both the column level and table level:
 
 ```py
-from datetime import date, timedelta
 
 import dlt
 from dlt.destinations.adapters import bigquery_adapter
@@ -319,7 +318,7 @@ from dlt.destinations.adapters import bigquery_adapter
 )
 def event_data():
     yield from [
-        {"event_date": date.today() + timedelta(days=i)} for i in range(100)
+        {"event_date": datetime.date.today() + datetime.timedelta(days=i)} for i in range(100)
     ]
 
 
