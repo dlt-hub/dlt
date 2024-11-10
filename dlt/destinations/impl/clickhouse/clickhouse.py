@@ -29,6 +29,7 @@ from dlt.common.schema.typing import (
 )
 from dlt.common.schema.utils import is_nullable_column
 from dlt.common.storages import FileStorage
+from dlt.common.storages.configuration import FilesystemConfiguration
 from dlt.destinations.exceptions import LoadJobTerminalException
 from dlt.destinations.impl.clickhouse.configuration import (
     ClickHouseClientConfiguration,
@@ -87,31 +88,17 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
         compression = "auto"
 
         # Don't use the DBAPI driver for local files.
-        if not bucket_path:
+        if not bucket_path or bucket_scheme == "file":
+            file_path = (
+                self._file_path
+                if not bucket_path
+                else FilesystemConfiguration.make_local_path(bucket_path)
+            )
             # Local filesystem.
             if ext == "jsonl":
-                compression = "gz" if FileStorage.is_gzipped(self._file_path) else "none"
+                compression = "gz" if FileStorage.is_gzipped(file_path) else "none"
             try:
-                with clickhouse_connect.create_client(
-                    host=client.credentials.host,
-                    port=client.credentials.http_port,
-                    database=client.credentials.database,
-                    user_name=client.credentials.username,
-                    password=client.credentials.password,
-                    secure=bool(client.credentials.secure),
-                ) as clickhouse_connect_client:
-                    insert_file(
-                        clickhouse_connect_client,
-                        qualified_table_name,
-                        self._file_path,
-                        fmt=clickhouse_format,
-                        settings={
-                            "allow_experimental_lightweight_delete": 1,
-                            "enable_http_compression": 1,
-                            "date_time_input_format": "best_effort",
-                        },
-                        compression=compression,
-                    )
+                client.insert_file(file_path, self.load_table_name, clickhouse_format, compression)
             except clickhouse_connect.driver.exceptions.Error as e:
                 raise LoadJobTerminalException(
                     self._file_path,
