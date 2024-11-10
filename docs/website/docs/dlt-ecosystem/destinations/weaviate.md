@@ -305,7 +305,7 @@ Below is an example that configures the **contextionary** vectorizer. You can pu
 vectorizer="text2vec-contextionary"
 module_config={text2vec-contextionary = { vectorizeClassName = false, vectorizePropertyName = true}}
 ```
-You can find Docker Compose with the instructions to run [here](https://github.com/dlt-hub/dlt/tree/devel/dlt/destinations/weaviate/README.md).
+You can find Docker Compose with the instructions to run [here](https://github.com/dlt-hub/dlt/tree/devel/dlt/destinations/impl/weaviate/README.md).
 
 ### dbt support
 

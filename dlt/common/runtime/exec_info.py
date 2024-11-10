@@ -52,6 +52,8 @@ def exec_info_names() -> List[TExecInfoNames]:
         names.append("aws_lambda")
     if is_gcp_cloud_function():
         names.append("gcp_cloud_function")
+    if is_streamlit():
+        names.append("streamlit")
     return names
 
 
@@ -61,6 +63,10 @@ def is_codespaces() -> bool:
 
 def is_github_actions() -> bool:
     return "GITHUB_ACTIONS" in os.environ
+
+
+def is_streamlit() -> bool:
+    return "STREAMLIT_SERVER_PORT" in os.environ
 
 
 def is_notebook() -> bool:

@@ -13,7 +13,7 @@ from dlt.common.configuration.specs.exceptions import (
     OAuth2ScopesRequired,
 )
 from dlt.common.exceptions import MissingDependencyException
-from dlt.common.typing import DictStrAny, TSecretValue, StrAny
+from dlt.common.typing import DictStrAny, TSecretStrValue, StrAny
 from dlt.common.configuration.specs.base_configuration import (
     CredentialsConfiguration,
     CredentialsWithDefault,
@@ -67,7 +67,7 @@ class GcpCredentials(CredentialsConfiguration):
 
 @configspec
 class GcpServiceAccountCredentialsWithoutDefaults(GcpCredentials):
-    private_key: TSecretValue = None
+    private_key: TSecretStrValue = None
     private_key_id: Optional[str] = None
     client_email: str = None
     type: Final[str] = dataclasses.field(  # noqa: A003
@@ -105,7 +105,7 @@ class GcpServiceAccountCredentialsWithoutDefaults(GcpCredentials):
     def on_resolved(self) -> None:
         if self.private_key and self.private_key[-1] != "\n":
             # must end with new line, otherwise won't be parsed by Crypto
-            self.private_key = TSecretValue(self.private_key + "\n")
+            self.private_key = self.private_key + "\n"
 
     def to_native_credentials(self) -> Any:
         """Returns google.oauth2.service_account.Credentials"""
@@ -128,7 +128,7 @@ class GcpServiceAccountCredentialsWithoutDefaults(GcpCredentials):
 @configspec
 class GcpOAuthCredentialsWithoutDefaults(GcpCredentials, OAuth2Credentials):
     # only desktop app supported
-    refresh_token: TSecretValue = None
+    refresh_token: TSecretStrValue = None
     client_type: Final[str] = dataclasses.field(
         default="installed", init=False, repr=False, compare=False
     )
@@ -195,13 +195,13 @@ class GcpOAuthCredentialsWithoutDefaults(GcpCredentials, OAuth2Credentials):
     def on_partial(self) -> None:
         """Allows for an empty refresh token if the session is interactive or tty is attached"""
         if sys.stdin.isatty() or is_interactive():
-            self.refresh_token = TSecretValue("")
+            self.refresh_token = ""
             # still partial - raise
             if not self.is_partial():
                 self.resolve()
             self.refresh_token = None
 
-    def _get_access_token(self) -> TSecretValue:
+    def _get_access_token(self) -> str:
         try:
             from requests_oauthlib import OAuth2Session
         except ModuleNotFoundError:
@@ -209,19 +209,19 @@ class GcpOAuthCredentialsWithoutDefaults(GcpCredentials, OAuth2Credentials):
 
         google = OAuth2Session(client_id=self.client_id, scope=self.scopes)
         extra = {"client_id": self.client_id, "client_secret": self.client_secret}
-        token = google.refresh_token(
+        token: str = google.refresh_token(
             token_url=self.token_uri, refresh_token=self.refresh_token, **extra
         )["access_token"]
-        return TSecretValue(token)
+        return token
 
-    def _get_refresh_token(self, redirect_url: str) -> Tuple[TSecretValue, TSecretValue]:
+    def _get_refresh_token(self, redirect_url: str) -> Tuple[str, str]:
         try:
             from google_auth_oauthlib.flow import InstalledAppFlow
         except ModuleNotFoundError:
             raise MissingDependencyException("GcpOAuthCredentials", ["google-auth-oauthlib"])
         flow = InstalledAppFlow.from_client_config(self._installed_dict(redirect_url), self.scopes)
         credentials = flow.run_local_server(port=0)
-        return TSecretValue(credentials.refresh_token), TSecretValue(credentials.token)
+        return credentials.refresh_token, credentials.token
 
     def to_native_credentials(self) -> Any:
         """Returns google.oauth2.credentials.Credentials"""

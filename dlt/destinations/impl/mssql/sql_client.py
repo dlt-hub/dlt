@@ -6,14 +6,14 @@ from dlt.common.destination import DestinationCapabilitiesContext
 import pyodbc
 
 from contextlib import contextmanager
-from typing import Any, AnyStr, ClassVar, Iterator, Optional, Sequence
+from typing import Any, AnyStr, ClassVar, Iterator, Optional, Sequence, Tuple
 
 from dlt.destinations.exceptions import (
     DatabaseTerminalException,
     DatabaseTransientException,
     DatabaseUndefinedRelation,
 )
-from dlt.destinations.typing import DBApi, DBApiCursor, DBTransaction
+from dlt.destinations.typing import DBApi, DBTransaction
 from dlt.destinations.sql_client import (
     DBApiCursorImpl,
     SqlClientBase,
@@ -22,6 +22,7 @@ from dlt.destinations.sql_client import (
 )
 
 from dlt.destinations.impl.mssql.configuration import MsSqlCredentials
+from dlt.common.destination.reference import DBApiCursor
 
 
 def handle_datetimeoffset(dto_value: bytes) -> datetime:
@@ -182,3 +183,6 @@ class PyOdbcMsSqlClient(SqlClientBase[pyodbc.Connection], DBTransaction):
     @staticmethod
     def is_dbapi_exception(ex: Exception) -> bool:
         return isinstance(ex, pyodbc.Error)
+
+    def _limit_clause_sql(self, limit: int) -> Tuple[str, str]:
+        return f"TOP ({limit})", ""

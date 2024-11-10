@@ -15,7 +15,7 @@ from tests.common.storages.utils import TEST_SAMPLE_FILES
     ),
 )
 def test_all_examples(example_name: str) -> None:
-    from dlt.sources import filesystem_pipeline
+    from dlt.sources._core_source_templates import filesystem_pipeline
 
     filesystem_pipeline.TESTS_BUCKET_URL = TEST_SAMPLE_FILES
 

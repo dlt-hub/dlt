@@ -81,7 +81,7 @@ host = "your_synapse_workspace_name.sql.azuresynapse.net"
 Equivalently, you can also pass a connection string as follows:
 
 ```toml
-# keep it at the top of your toml file! before any section starts
+# Keep it at the top of your TOML file, before any section starts
 destination.synapse.credentials = "synapse://loader:your_loader_password@your_synapse_workspace_name.azuresynapse.net/yourpool"
 ```
 
@@ -99,16 +99,18 @@ To use **Active Directory Principal**, you can use the `sqlalchemy.engine.URL.cr
 ```py
 conn_str = (
     f"DRIVER={{ODBC Driver 18 for SQL Server}};"
-    f"SERVER={server_name};"
-    f"DATABASE={database_name};"
-    f"UID={service_principal_id}@{tenant_id};"
-    f"PWD={service_principal_secret};"
+    f"SERVER={SERVER_NAME};"
+    f"DATABASE={DATABASE_NAME};"
+    f"UID={SERVICE_PRINCIPAL_ID}@{TENANT_ID};"
+    f"PWD={SERVICE_PRINCIPAL_SECRETS};"
     f"Authentication=ActiveDirectoryServicePrincipal"
 )
 ```
 
 Next, create the connection URL:
 ```py
+from sqlalchemy.engine import URL
+
 connection_url = URL.create(
     "mssql+pyodbc",
     query={"odbc_connect": conn_str}
@@ -138,10 +140,10 @@ Data is loaded via `INSERT` statements by default.
 
 ## Supported file formats
 * [insert-values](../file-formats/insert-format.md) is used by default
-* [parquet](../file-formats/parquet.md) is used when [staging](#staging-support) is enabled
+* [Parquet](../file-formats/parquet.md) is used when [staging](#staging-support) is enabled
 
 ## Data type limitations
-* **Synapse cannot load `TIME` columns from `parquet` files**. `dlt` will fail such jobs permanently. Use the `insert_values` file format instead, or convert `datetime.time` objects to `str` or `datetime.datetime` to load `TIME` columns.
+* **Synapse cannot load `TIME` columns from Parquet files**. `dlt` will fail such jobs permanently. Use the `insert_values` file format instead, or convert `datetime.time` objects to `str` or `datetime.datetime` to load `TIME` columns.
 * **Synapse does not have a nested/JSON/struct data type**. The `dlt` `json` data type is mapped to the `nvarchar` type in Synapse.
 
 ## Table index type
@@ -152,7 +154,7 @@ from dlt.destinations.adapters import synapse_adapter
 
 info = pipeline.run(
     synapse_adapter(
-        data=your_resource,
+        data=my_resource,
         table_index_type="clustered_columnstore_index",
     )
 )
@@ -215,7 +217,7 @@ connect_timeout = 15
 `port` and `connect_timeout` can also be included in the connection string:
 
 ```toml
-# keep it at the top of your toml file! before any section starts
+# Keep it at the top of your TOML file, before any section starts
 destination.synapse.credentials = "synapse://loader:your_loader_password@your_synapse_workspace_name.azuresynapse.net:1433/yourpool?connect_timeout=15"
 ```
 

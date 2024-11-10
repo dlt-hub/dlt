@@ -68,12 +68,11 @@ feat/4922-add-avro-support
 * **fix** - a change that fixes a bug (ticket required)
 * **exp** - an experiment where we are testing a new  idea or want to demonstrate something to the team, might turn into a `feat` later (ticket encouraged)
 * **test** - anything related to the tests (ticket encouraged)
-* **blogs** - a new entry to our blog (ticket optional)
 * **docs** - a change to our docs (ticket optional)
 
 #### Ticket Numbers
 
-We encourage you to attach your branches to a ticket, if none exists, create one and explain what you are doing. For `feat` and `fix` branches, tickets are mandatory, for `exp` and `test` branches encouraged and for `blogs` and `docs` branches optional.
+We encourage you to attach your branches to a ticket, if none exists, create one and explain what you are doing. For `feat` and `fix` branches, tickets are mandatory, for `exp` and `test` branches encouraged and for `docs` branches optional.
 
 ### Submitting a hotfix
 We'll fix critical bugs and release `dlt` out of the schedule. Follow the regular procedure, but make your PR against **master** branch. Please ping us on Slack if you do it.

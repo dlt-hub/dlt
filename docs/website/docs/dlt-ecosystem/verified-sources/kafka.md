@@ -164,8 +164,8 @@ this offset.
    ```py
    topics = ["topic1", "topic2", "topic3"]
 
-   source = kafka_consumer(topics)
-   pipeline.run(source, write_disposition="replace")
+   resource = kafka_consumer(topics)
+   pipeline.run(resource, write_disposition="replace")
    ```
 
 3. To extract messages and process them in a custom way:
@@ -181,15 +181,15 @@ this offset.
             "data": msg.value().decode("utf-8"),
         }
 
-    data = kafka_consumer("topic", msg_processor=custom_msg_processor)
-    pipeline.run(data)
+    resource = kafka_consumer("topic", msg_processor=custom_msg_processor)
+    pipeline.run(resource)
    ```
 
 4. To extract messages, starting from a timestamp:
 
    ```py
-    data = kafka_consumer("topic", start_from=pendulum.datetime(2023, 12, 15))
-    pipeline.run(data)
+    resource = kafka_consumer("topic", start_from=pendulum.DateTime(2023, 12, 15))
+    pipeline.run(resource)
    ```
 
 <!--@@@DLT_TUBA kafka-->

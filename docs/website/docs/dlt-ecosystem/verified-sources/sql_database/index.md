@@ -5,12 +5,11 @@ keywords: [sql connector, sql database pipeline, sql database]
 ---
 import Header from '../_source-info-header.md';
 
-# 30+ SQL Databases
+# 30+ SQL databases
 
 <Header/>
 
-SQL databases are management systems (DBMS) that store data in a structured format, commonly used
-for efficient and reliable data retrieval.
+SQL databases are management systems (DBMS) that store data in a structured format, commonly used for efficient and reliable data retrieval.
 
 The SQL Database verified source loads data to your specified destination using one of the following backends: SQLAlchemy, PyArrow, pandas, or ConnectorX.
 
@@ -18,7 +17,7 @@ Sources and resources that can be loaded using this verified source are:
 
 | Name         | Description                                                          |
 | ------------ | -------------------------------------------------------------------- |
-| sql_database | Reflects the tables and views in SQL database and retrieves the data |
+| sql_database | Reflects the tables and views in an SQL database and retrieves the data |
 | sql_table    | Retrieves data from a particular SQL database table                  |
 |              |                                                                      |
 
@@ -47,5 +46,6 @@ We support all [SQLAlchemy dialects](https://docs.sqlalchemy.org/en/20/dialects/
 * Teradata Vantage
 
 :::note
-Note that there many unofficial dialects, such as [DuckDB](https://duckdb.org/).
+Note that there are many unofficial dialects, such as [DuckDB](https://duckdb.org/).
 :::
+

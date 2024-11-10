@@ -135,8 +135,7 @@ The following write dispositions are supported:
 
 - `append`
 - `replace` with `truncate-and-insert` and `insert-from-staging` replace strategies. `staging-optimized` falls back to `insert-from-staging`.
-
-The `merge` disposition is not supported and falls back to `append`.
+- `merge` with `delete-insert` and `scd2` merge strategies.
 
 ## Data loading
 
@@ -155,7 +154,7 @@ For example, SQLite does not have `DATETIME` or `TIMESTAMP` types, so `timestamp
 ## Supported file formats
 
 * [typed-jsonl](../file-formats/jsonl.md) is used by default. JSON-encoded data with typing information included.
-* [parquet](../file-formats/parquet.md) is supported.
+* [Parquet](../file-formats/parquet.md) is supported.
 
 ## Supported column hints
 

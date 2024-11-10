@@ -60,10 +60,13 @@ format:
 	poetry run black dlt docs tests --exclude=".*syntax_error.py|\.venv.*|_storage/.*"
 	# poetry run isort ./
 
-lint-and-test-snippets:
+lint-snippets:
 	cd docs/tools && poetry run python check_embedded_snippets.py full
-	poetry run mypy --config-file mypy.ini docs/website docs/examples docs/tools --exclude docs/tools/lint_setup --exclude docs/website/docs_processed
-	poetry run flake8 --max-line-length=200 docs/website docs/examples docs/tools
+
+
+lint-and-test-snippets: lint-snippets
+	poetry run mypy --config-file mypy.ini docs/website docs/tools --exclude docs/tools/lint_setup --exclude docs/website/docs_processed
+	poetry run flake8 --max-line-length=200 docs/website docs/tools --exclude docs/website/.dlt-repo
 	cd docs/website/docs && poetry run pytest --ignore=node_modules
 
 lint-and-test-examples:
@@ -71,7 +74,6 @@ lint-and-test-examples:
 	poetry run flake8 --max-line-length=200 docs/examples
 	poetry run mypy --config-file mypy.ini docs/examples
 	cd docs/examples && poetry run pytest
-
 
 test-examples:
 	cd docs/examples && poetry run pytest
@@ -107,6 +109,13 @@ test-build-images: build-library
 	docker build -f deploy/dlt/Dockerfile.airflow --build-arg=COMMIT_SHA="$(shell git log -1 --pretty=%h)" --build-arg=IMAGE_VERSION="$(shell poetry version -s)" .
 	# docker build -f deploy/dlt/Dockerfile --build-arg=COMMIT_SHA="$(shell git log -1 --pretty=%h)" --build-arg=IMAGE_VERSION="$(shell poetry version -s)" .
 
-preprocess-docs: 
+preprocess-docs:
 	# run docs preprocessing to run a few checks and ensure examples can be parsed
 	cd docs/website && npm i && npm run preprocess-docs
+
+start-test-containers:
+	docker compose -f "tests/load/dremio/docker-compose.yml" up -d
+	docker compose -f "tests/load/postgres/docker-compose.yml" up -d
+	docker compose -f "tests/load/weaviate/docker-compose.yml" up -d
+	docker compose -f "tests/load/filesystem_sftp/docker-compose.yml" up -d
+	docker compose -f "tests/load/sqlalchemy/docker-compose.yml" up -d

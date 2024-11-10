@@ -132,7 +132,20 @@ def github_reactions(
     max_items: int = None,
     max_item_age_seconds: float = None,
 ) -> Sequence[DltResource]:
-   ...
+
+   return dlt.resource(
+      _get_reactions_data(
+         "issues",
+         owner,
+         name,
+         access_token,
+         items_per_page,
+         max_items,
+         max_item_age_seconds,
+      ),
+      name="issues",
+      write_disposition="replace",
+   )
 ```
 
 `owner`: Refers to the owner of the repository.
@@ -150,22 +163,6 @@ def github_reactions(
 ### Resource `_get_reactions_data` ("issues")
 
 The `dlt.resource` function employs the `_get_reactions_data` method to retrieve data about issues, their associated comments, and subsequent reactions.
-
-```py
-dlt.resource(
-    _get_reactions_data(
-        "issues",
-        owner,
-        name,
-        access_token,
-        items_per_page,
-        max_items,
-        max_item_age_seconds,
-    ),
-    name="issues",
-    write_disposition="replace",
-),
-```
 
 ### Source `github_repo_events`
 
@@ -252,7 +249,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
    ```py
    load_data = github_repo_events(
-       "duckdb", "duckdb", access_token=os.getenv(ACCESS_TOKEN)
+       "duckdb", "duckdb", access_token=os.getenv("ACCESS_TOKEN_ENV_VAR")
    )
    load_info = pipeline.run(load_data)
    print(load_info)

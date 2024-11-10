@@ -10,18 +10,18 @@ import Header from './_source-info-header.md';
 <Header/>
 
 HubSpot is a customer relationship management (CRM) software and inbound marketing platform that
-helps businesses to attract visitors, engage customers, and close leads.
+helps businesses attract visitors, engage customers, and close leads.
 
-This Hubspot `dlt` verified source and
+This HubSpot `dlt` verified source and
 [pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/hubspot_pipeline.py)
-loads data using “Hubspot API” to the destination of your choice.
+loads data using the “HubSpot API” to the destination of your choice.
 
 | Name                       | Description                                                            |
 | -------------------------- | ---------------------------------------------------------------------- |
 | contacts                   | visitors, potential customers, leads                                   |
 | companies                  | information about organizations                                        |
 | deals                      | deal records, deal tracking                                            |
-| tickets                    | request for help from customers or users                               |
+| tickets                    | requests for help from customers or users                              |
 | products                   | pricing information of a product                                       |
 | quotes                     | price proposals that salespeople can create and send to their contacts |
 | hubspot_events_for_objects | web analytics events for a given object type and object ids            |
@@ -29,12 +29,12 @@ loads data using “Hubspot API” to the destination of your choice.
 To get details about endpoints that can be loaded, see
 [hubspot/settings.py.](https://github.com/dlt-hub/verified-sources/blob/master/sources/hubspot/settings.py)
 
-## Setup Guide
+## Setup guide
 
 ### Grab credentials
 
 > Note: As of November 30, 2022, HubSpot API Keys are being deprecated and are no longer supported.
-Instead, we recommend to authenticate using a private app access token or OAuth access token.
+Instead, we recommend authenticating using a private app access token or OAuth access token.
 
 Create a private app and get an authentication token before running the
 [pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/hubspot_pipeline.py).
@@ -61,7 +61,7 @@ Follow these steps:
 1. Click "Show token" and store it for ".dlt/secrets.toml".
 
 
-> Note: The Hubspot UI, which is described here, might change.
+> Note: The HubSpot UI, which is described here, might change.
 The full guide is available at [this link.](https://knowledge.hubspot.com/integrations/how-do-i-get-my-hubspot-api-key)
 
 
@@ -77,7 +77,7 @@ To get started with your data pipeline, follow these steps:
 
    [This command](../../reference/command-line-interface) will initialize
    [the pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/hubspot_pipeline.py)
-   with Hubspot as the [source](../../general-usage/source) and [duckdb](../destinations/duckdb.md)
+   with HubSpot as the [source](../../general-usage/source) and [duckdb](../destinations/duckdb.md)
    as the [destination](../destinations).
 
 1. If you'd like to use a different destination, simply replace `duckdb` with the name of your
@@ -90,19 +90,16 @@ For more information, read the guide on [how to add a verified source](../../wal
 
 ### Add credentials
 
-1. Inside the `.dlt` folder, you'll find a file called `secrets.toml`, which is where you can
-   securely store your access tokens and other sensitive information. It's important to handle this
-   file with care and keep it safe. Here's what the file looks like:
+1. Inside the `.dlt` folder, you'll find a file called `secrets.toml`, which is where you can securely store your access tokens and other sensitive information. It's important to handle this file with care and keep it safe. Here's what the file looks like:
 
    ```toml
    # put your secret values and credentials here
-   # do not share this file and do not push it to github
+   # do not share this file and do not push it to GitHub
    [sources.hubspot]
     api_key = "api_key" # please set me up!
    ```
 
-1. Replace the access_token value with the [previously copied one](hubspot.md#grab-credentials) to
-   ensure secure access to your Hubspot resources.
+1. Replace the access_token value with the [previously copied one](hubspot.md#grab-credentials) to ensure secure access to your Hubspot resources.
 
 1. Enter credentials for your chosen destination as per the [docs](../destinations/).
 
@@ -110,8 +107,7 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 
 ## Run the pipeline
 
-1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
-   running the command:
+1. Before running the pipeline, ensure that you have installed all the necessary dependencies by running the command:
    ```sh
    pip install -r requirements.txt
    ```
@@ -119,56 +115,49 @@ For more information, read the [General Usage: Credentials.](../../general-usage
    ```sh
    python hubspot_pipeline.py
    ```
-1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
-   the following command:
+1. Once the pipeline has finished running, you can verify that everything loaded correctly by using the following command:
    ```sh
    dlt pipeline <pipeline_name> show
    ```
-   For example, the `pipeline_name` for the above pipeline example is `hubspot_pipeline`, you may
-   also use any custom name instead.
+   For example, the `pipeline_name` for the above pipeline example is `hubspot_pipeline`, you may also use any custom name instead.
 
 For more information, read the guide on [how to run a pipeline](../../walkthroughs/run-a-pipeline).
 
 ## Sources and resources
 
-`dlt` works on the principle of [sources](../../general-usage/source) and
-[resources](../../general-usage/resource).
+`dlt` works on the principle of [sources](../../general-usage/source) and [resources](../../general-usage/resource).
 
 ### Default endpoints
 
-You can write your own pipelines to load data to a destination using this verified source. However,
-it is important to note the complete list of the default endpoints given in
-[hubspot/settings.py.](https://github.com/dlt-hub/verified-sources/blob/master/sources/hubspot/settings.py)
+You can write your own pipelines to load data to a destination using this verified source. However, it is important to note the complete list of the default endpoints given in [hubspot/settings.py.](https://github.com/dlt-hub/verified-sources/blob/master/sources/hubspot/settings.py)
 
 ### Source `hubspot`
 
-This function returns a list of resources to load companies, contacts, deals, tickets, products, and
-web analytics events data into the destination.
+This function returns a list of resources to load companies, contacts, deals, tickets, products, and web analytics events data into the destination.
 
 ```py
 @dlt.source(name="hubspot")
 def hubspot(
     api_key: str = dlt.secrets.value,
     include_history: bool = False,
+    include_custom_props: bool = False,
 ) -> Sequence[DltResource]:
    ...
 ```
 
 `api_key`: The key used to authenticate with the HubSpot API. Configured in "secrets.toml".
 
-`include_history`: This parameter, when set to "True", loads the history of property changes for the
-specified entities.
+`include_history`: This parameter, when set to "True", loads the history of property changes for the specified entities.
 
 ### Resource `companies`
 
-This resource function fetches data from the "companies" endpoint and loads it to
-the destination, replacing any existing data.
+This resource function fetches data from the "companies" endpoint and loads it to the destination, replacing any existing data.
 
 ```py
 @dlt.resource(name="companies", write_disposition="replace")
 def companies(
-   api_key: str = api_key,
-   include_history: bool = include_history,
+   api_key: str = API_KEY,
+   include_history: bool = False,
    props: Sequence[str] = DEFAULT_COMPANY_PROPS,
    include_custom_props: bool = True,
 ) -> Iterator[TDataItems]:
@@ -182,16 +171,11 @@ def companies(
    )
 ```
 
-This resource function takes the same arguments, `api_key` and `include_history` as the "husbpot"
-source described [above](hubspot.md#source-hubspot), but also supports two additional.
-`include_custom_props` - indicates if all the properties of CRM objects, except Hubspot driven
-(prefixed with `hs_`), are to be extracted. `props` - the list of properties to extract
-in addition to the custom properties. Similar to this, resource functions "contacts",
-"deals", "tickets", "products", and "quotes" retrieve data from the Hubspot API.
+This resource function takes the same arguments, `api_key` and `include_history` as the "hubspot" source described [above](hubspot.md#source-hubspot), but also supports two additional parameters. `include_custom_props` - indicates if all the properties of CRM objects, except Hubspot driven (prefixed with `hs_`), are to be extracted. `props` - the list of properties to extract in addition to the custom properties. Similar to this, resource functions "contacts", "deals", "tickets", "products", and "quotes" retrieve data from the Hubspot API.
 
 ### Resource `hubspot_events_for_objects`
 
-This function loads web analytics events for specific objects from Hubspot API into the destination.
+This function loads web analytics events for specific objects from the Hubspot API into the destination.
 
 ```py
 @dlt.resource
@@ -199,7 +183,7 @@ def hubspot_events_for_objects(
      object_type: THubspotObjectType,
      object_ids: List[str],
      api_key: str = dlt.secrets.value,
-     start_date: pendulum.DateTime = STARTDATE,
+     start_date: DateTime = START_DATE,
 ) -> DltResource:
    ...
 ```
@@ -207,11 +191,11 @@ def hubspot_events_for_objects(
 `object_type`: One of the Hubspot object types as defined in
 [hubspot/settings.py.](https://github.com/dlt-hub/verified-sources/blob/master/sources/hubspot/settings.py).
 
-`object_ids`: List of object ids to track events.
+`object_ids`: List of object IDs to track events.
 
 `api_key`: The key used to authenticate with the HubSpot API. Configured in "secrets.toml".
 
-`start_date`: The initial date time from which start getting events, default to "01-01-2000",
+`start_date`: The initial date time from which to start getting events, default to "01-01-2000",
 configured in
 [hubspot/settings.py.](https://github.com/dlt-hub/verified-sources/blob/master/sources/hubspot/settings.py).
 
@@ -243,14 +227,14 @@ verified source.
    print(load_info)
    ```
 
-1. To load data from contacts and companies, with time history using "with_resources" method.
+1. To load data from contacts and companies, with time history using the "with_resources" method.
 
    ```py
    load_data = hubspot(include_history=True).with_resources("companies","contacts")
    load_info = pipeline.run(load_data)
    print(load_info)
    ```
-    1. `include_history` loads property change history and entities as separate tables. By default set as False.
+    1. `include_history` loads property change history and entities as separate tables. By default, it is set as False.
 
 1. By default, all the custom properties of a CRM object are extracted. If you want only particular fields,
     set the flag `include_custom_props=False` and add a list of properties with the `props` arg.
@@ -261,7 +245,7 @@ verified source.
    load_info = pipeline.run(load_data.with_resources("contacts"))
    ```
 
-1. If you want to read all the custom properties of CRM objects and some additional (e.g. Hubspot driven) properties.
+1. If you want to read all the custom properties of CRM objects and some additional (e.g., Hubspot driven) properties.
 
    ```py
    load_data = hubspot()
@@ -274,7 +258,7 @@ verified source.
 
    ```py
    resource = hubspot_events_for_objects("company", ["7086461639", "7086464459"])
-   # Here, object type : company, and object ids : 7086461639 and 7086464459
+   # Here, object type: company, and object IDs: 7086461639 and 7086464459
    load_info = pipeline.run([resource])
    print(load_info)
    ```
@@ -286,7 +270,7 @@ verified source.
 ### Additional info
 If you encounter the following error while processing your request:
 :::warning ERROR
-Your request to HubSpot is too long to process. Maximum allowed query length is 2000 symbols, ... while your list is
+Your request to HubSpot is too long to process. The maximum allowed query length is 2000 symbols, while your list is
 2125 symbols long.
 :::
 
@@ -305,3 +289,4 @@ info = p.run(hubspot(include_custom_props=False))
 Or, if you wish to include them, you can modify `settings.py`.
 
 <!--@@@DLT_TUBA hubspot-->
+

@@ -1,6 +1,6 @@
 from typing_extensions import TypedDict
 
-from typing import Any, Callable, List, Literal, Optional, Sequence, TypeVar
+from typing import Any, Callable, List, Literal, Optional, Sequence, TypeVar, Union
 
 from dlt.common.schema.typing import TColumnNames
 from dlt.common.typing import TSortOrder
@@ -25,3 +25,4 @@ class IncrementalArgs(TypedDict, total=False):
     end_value: Optional[str]
     row_order: Optional[TSortOrder]
     allow_external_schedulers: Optional[bool]
+    lag: Optional[Union[float, int]]

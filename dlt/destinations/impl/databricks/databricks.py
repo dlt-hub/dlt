@@ -1,7 +1,6 @@
 from typing import Optional, Sequence, List, cast
 from urllib.parse import urlparse, urlunparse
 
-from dlt import config
 from dlt.common.configuration.specs.azure_credentials import (
     AzureServicePrincipalCredentialsWithoutDefaults,
 )
@@ -31,8 +30,10 @@ from dlt.destinations.impl.databricks.configuration import DatabricksClientConfi
 from dlt.destinations.impl.databricks.sql_client import DatabricksSqlClient
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest
+from dlt.destinations.utils import is_compression_disabled
 
 AZURE_BLOB_STORAGE_PROTOCOLS = ["az", "abfss", "abfs"]
+SUPPORTED_BLOB_STORAGE_PROTOCOLS = AZURE_BLOB_STORAGE_PROTOCOLS + ["s3", "gs", "gcs"]
 
 
 class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
@@ -69,11 +70,12 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
             bucket_url = urlparse(bucket_path)
             bucket_scheme = bucket_url.scheme
 
-            if bucket_scheme not in AZURE_BLOB_STORAGE_PROTOCOLS + ["s3"]:
+            if bucket_scheme not in SUPPORTED_BLOB_STORAGE_PROTOCOLS:
                 raise LoadJobTerminalException(
                     self._file_path,
-                    f"Databricks cannot load data from staging bucket {bucket_path}. Only s3 and"
-                    " azure buckets are supported",
+                    f"Databricks cannot load data from staging bucket {bucket_path}. Only s3, azure"
+                    " and gcs buckets are supported. Please note that gcs buckets are supported"
+                    " only via named credential",
                 )
 
             if self._job_client.config.is_staging_external_location:
@@ -106,6 +108,12 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
                     bucket_path = self.ensure_databricks_abfss_url(
                         bucket_path, staging_credentials.azure_storage_account_name
                     )
+                else:
+                    raise LoadJobTerminalException(
+                        self._file_path,
+                        "You need to use Databricks named credential to use google storage."
+                        " Passing explicit Google credentials is not supported by Databricks.",
+                    )
 
             if bucket_scheme in AZURE_BLOB_STORAGE_PROTOCOLS:
                 assert isinstance(
@@ -125,14 +133,14 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
             raise LoadJobTerminalException(
                 self._file_path,
                 "Cannot load from local file. Databricks does not support loading from local files."
-                " Configure staging with an s3 or azure storage bucket.",
+                " Configure staging with an s3, azure or google storage bucket.",
             )
 
         # decide on source format, stage_file_path will either be a local file or a bucket path
         if file_name.endswith(".parquet"):
             source_format = "PARQUET"  # Only parquet is supported
         elif file_name.endswith(".jsonl"):
-            if not config.get("data_writer.disable_compression"):
+            if not is_compression_disabled():
                 raise LoadJobTerminalException(
                     self._file_path,
                     "Databricks loader does not support gzip compressed JSON files. Please disable"
@@ -216,7 +224,7 @@ class DatabricksClient(InsertValuesJobClient, SupportsStagingDestination):
         )
         super().__init__(schema, config, sql_client)
         self.config: DatabricksClientConfiguration = config
-        self.sql_client: DatabricksSqlClient = sql_client  # type: ignore[assignment]
+        self.sql_client: DatabricksSqlClient = sql_client
         self.type_mapper = self.capabilities.get_type_mapper()
 
     def create_load_job(

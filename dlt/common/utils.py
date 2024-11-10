@@ -24,6 +24,7 @@ from typing import (
     Sequence,
     Set,
     Tuple,
+    Type,
     TypeVar,
     Mapping,
     List,
@@ -41,6 +42,7 @@ from dlt.common.typing import AnyFun, StrAny, DictStrAny, StrStr, TAny, TFun
 
 
 T = TypeVar("T")
+TObj = TypeVar("TObj", bound=object)
 TDict = TypeVar("TDict", bound=MutableMapping[Any, Any])
 
 TKey = TypeVar("TKey")
@@ -271,7 +273,6 @@ def update_dict_nested(dst: TDict, src: TDict, copy_src_dicts: bool = False) -> 
             dst[key] = update_dict_nested({}, src_val, True)
         else:
             dst[key] = src_val
-
     return dst
 
 
@@ -505,6 +506,20 @@ def without_none(d: Mapping[TKey, Optional[TValue]]) -> Mapping[TKey, TValue]:
     return {k: v for k, v in d.items() if v is not None}
 
 
+def exclude_keys(mapping: Mapping[str, Any], keys: Iterable[str]) -> Dict[str, Any]:
+    """Create a new dictionary from the input mapping, excluding specified keys.
+
+    Args:
+        mapping (Mapping[str, Any]): The input mapping from which keys will be excluded.
+        keys (Iterable[str]): The keys to exclude.
+
+    Returns:
+        Dict[str, Any]: A new dictionary containing all key-value pairs from the original
+                        mapping except those with keys specified in `keys`.
+    """
+    return {k: v for k, v in mapping.items() if k not in keys}
+
+
 def get_full_class_name(obj: Any) -> str:
     cls = obj.__class__
     module = cls.__module__
@@ -606,3 +621,17 @@ def assert_min_pkg_version(pkg_name: str, version: str, msg: str = "") -> None:
             version_required=">=" + version,
             appendix=msg,
         )
+
+
+def make_defunct_class(cls: TObj) -> Type[TObj]:
+    class DefunctClass(cls.__class__):  # type: ignore[name-defined]
+        """A defunct class to replace __class__ when we want to destroy current instance"""
+
+        def __getattribute__(self, name: str) -> Any:
+            if name == "__class__":
+                # Allow access to __class__
+                return object.__getattribute__(self, name)
+            else:
+                raise RuntimeError("This instance has been dropped and cannot be used anymore.")
+
+    return DefunctClass

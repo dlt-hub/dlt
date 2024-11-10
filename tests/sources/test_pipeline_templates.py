@@ -1,61 +1,20 @@
 import pytest
+import importlib
 
 
 @pytest.mark.parametrize(
-    "example_name",
-    ("load_all_datatypes",),
+    "template_name,examples",
+    [
+        ("debug_pipeline", ("load_all_datatypes",)),
+        ("default_pipeline", ("load_api_data", "load_sql_data", "load_pandas_data")),
+        ("arrow_pipeline", ("load_arrow_tables",)),
+        ("dataframe_pipeline", ("load_dataframe",)),
+        ("requests_pipeline", ("load_chess_data",)),
+        ("github_api_pipeline", ("run_source",)),
+        ("fruitshop_pipeline", ("load_shop",)),
+    ],
 )
-def test_debug_pipeline(example_name: str) -> None:
-    from dlt.sources.pipeline_templates import debug_pipeline
-
-    getattr(debug_pipeline, example_name)()
-
-
-@pytest.mark.parametrize(
-    "example_name",
-    ("load_arrow_tables",),
-)
-def test_arrow_pipeline(example_name: str) -> None:
-    from dlt.sources.pipeline_templates import arrow_pipeline
-
-    getattr(arrow_pipeline, example_name)()
-
-
-@pytest.mark.parametrize(
-    "example_name",
-    ("load_dataframe",),
-)
-def test_dataframe_pipeline(example_name: str) -> None:
-    from dlt.sources.pipeline_templates import dataframe_pipeline
-
-    getattr(dataframe_pipeline, example_name)()
-
-
-@pytest.mark.parametrize(
-    "example_name",
-    ("load_stuff",),
-)
-def test_default_pipeline(example_name: str) -> None:
-    from dlt.sources.pipeline_templates import default_pipeline
-
-    getattr(default_pipeline, example_name)()
-
-
-@pytest.mark.parametrize(
-    "example_name",
-    ("load_chess_data",),
-)
-def test_requests_pipeline(example_name: str) -> None:
-    from dlt.sources.pipeline_templates import requests_pipeline
-
-    getattr(requests_pipeline, example_name)()
-
-
-@pytest.mark.parametrize(
-    "example_name",
-    ("load_api_data", "load_sql_data", "load_pandas_data"),
-)
-def test_intro_pipeline(example_name: str) -> None:
-    from dlt.sources.pipeline_templates import intro_pipeline
-
-    getattr(intro_pipeline, example_name)()
+def test_debug_pipeline(template_name: str, examples: str) -> None:
+    demo_module = importlib.import_module(f"dlt.sources._single_file_templates.{template_name}")
+    for example_name in examples:
+        getattr(demo_module, example_name)()

@@ -438,11 +438,10 @@ The available authentication methods are defined in the `dlt.sources.helpers.res
 - [BearerTokenAuth](#bearer-token-authentication)
 - [APIKeyAuth](#api-key-authentication)
 - [HttpBasicAuth](#http-basic-authentication)
-- [OAuth2ClientCredentials](#oauth20-authorization)
+- [OAuth2ClientCredentials](#oauth-20-authorization)
 
-For specific use cases, you can [implement custom authentication](#implementing-custom-authentication) by subclassing the `AuthBase` class from the Requests library.
-For specific flavors of OAuth 2.0, you can [implement custom OAuth 2.0](#oauth2-authorization)
-by subclassing `OAuth2ClientCredentials`.
+For specific use cases, you can [implement custom authentication](#implementing-custom-authentication) by subclassing the `AuthConfigBase` class from the `dlt.sources.helpers.rest_client.auth` module.
+For specific flavors of OAuth 2.0, you can [implement custom OAuth 2.0](#oauth-20-authorization) by subclassing `OAuth2ClientCredentials`.
 
 ### Bearer token authentication
 
@@ -521,7 +520,7 @@ Unfortunately, most OAuth 2.0 implementations vary, and thus you might need to s
 
 **Parameters:**
 - `access_token_url`: The URL to obtain the temporary access token.
-- `client_id`: Client credential to obtain authorization. Usually issued via a developer portal.
+- `client_id`: Client identifier to obtain authorization. Usually issued via a developer portal.
 - `client_secret`: Client credential to obtain authorization. Usually issued via a developer portal.
 - `access_token_request_data`: A dictionary with data required by the authorization server apart from the `client_id`, `client_secret`, and `"grant_type": "client_credentials"`. Defaults to `None`.
 - `default_token_expiration`: The time in seconds after which the temporary access token expires. Defaults to 3600.
@@ -547,7 +546,7 @@ class OAuth2ClientCredentialsHTTPBasic(OAuth2ClientCredentials):
             "data": self.access_token_request_data,
         }
 
-auth = OAuth2ClientCredentialsHTTPBasic(
+oauth = OAuth2ClientCredentialsHTTPBasic(
     access_token_url=dlt.secrets["sources.zoom.access_token_url"],  # "https://zoom.us/oauth/token"
     client_id=dlt.secrets["sources.zoom.client_id"],
     client_secret=dlt.secrets["sources.zoom.client_secret"],
@@ -556,7 +555,7 @@ auth = OAuth2ClientCredentialsHTTPBasic(
         "account_id": dlt.secrets["sources.zoom.account_id"],
     },
 )
-client = RESTClient(base_url="https://api.zoom.us/v2", auth=auth)
+client = RESTClient(base_url="https://api.zoom.us/v2", auth=oauth)
 
 response = client.get("/users")
 ```
@@ -565,12 +564,12 @@ response = client.get("/users")
 
 ### Implementing custom authentication
 
-You can implement custom authentication by subclassing the `AuthBase` class and implementing the `__call__` method:
+You can implement custom authentication by subclassing the `AuthConfigBase` class and implementing the `__call__` method:
 
 ```py
-from requests.auth import AuthBase
+from dlt.sources.helpers.rest_client.auth import AuthConfigBase
 
-class CustomAuth(AuthBase):
+class CustomAuth(AuthConfigBase):
     def __init__(self, token):
         self.token = token
 
@@ -594,7 +593,7 @@ client = RESTClient(
 `RESTClient.paginate()` allows you to specify a [custom hook function](https://requests.readthedocs.io/en/latest/user/advanced/#event-hooks) that can be used to modify the response objects. For example, to handle specific HTTP status codes gracefully:
 
 ```py
-def custom_response_handler(response):
+def custom_response_handler(response, *args):
     if response.status_code == 404:
         # Handle not found
         pass
@@ -681,7 +680,7 @@ for page in client.paginate("/posts"):
 ```py
 from dlt.sources.helpers.rest_client.auth import BearerTokenAuth
 
-def response_hook(response, **kwargs):
+def response_hook(response, *args):
     print(response.status_code)
     print(f"Content: {response.content}")
     print(f"Request: {response.request.body}")
@@ -694,4 +693,3 @@ for page in client.paginate(
 ):
     print(page)
 ```
-

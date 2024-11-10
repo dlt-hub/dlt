@@ -14,9 +14,12 @@ from typing import (
     Type,
     Iterable,
     Iterator,
+    Generator,
 )
 import zlib
 import re
+from contextlib import contextmanager
+from contextlib import suppress
 
 from dlt.common import pendulum, logger
 from dlt.common.json import json
@@ -41,6 +44,7 @@ from dlt.common.destination.reference import (
     PreparedTableSchema,
     StateInfo,
     StorageSchemaInfo,
+    SupportsReadableDataset,
     WithStateSync,
     DestinationClientConfiguration,
     DestinationClientDwhConfiguration,
@@ -51,7 +55,9 @@ from dlt.common.destination.reference import (
     JobClientBase,
     HasFollowupJobs,
     CredentialsConfiguration,
+    SupportsReadableRelation,
 )
+from dlt.destinations.dataset import ReadableDBAPIDataset
 
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
 from dlt.destinations.job_impl import (
@@ -59,7 +65,7 @@ from dlt.destinations.job_impl import (
 )
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob, SqlStagingCopyFollowupJob
 from dlt.destinations.typing import TNativeConn
-from dlt.destinations.sql_client import SqlClientBase
+from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.destinations.utils import (
     get_pipeline_state_query_columns,
     info_schema_null_to_bool,
@@ -123,7 +129,7 @@ class CopyRemoteFileLoadJob(RunnableLoadJob, HasFollowupJobs):
         self._bucket_path = ReferenceFollowupJobRequest.resolve_reference(file_path)
 
 
-class SqlJobClientBase(JobClientBase, WithStateSync):
+class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
     INFO_TABLES_QUERY_THRESHOLD: ClassVar[int] = 1000
     """Fallback to querying all tables in the information schema if checking more than threshold"""
 
@@ -153,8 +159,19 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
         assert isinstance(config, DestinationClientDwhConfiguration)
         self.config: DestinationClientDwhConfiguration = config
 
+    @property
+    def sql_client(self) -> SqlClientBase[TNativeConn]:
+        return self._sql_client
+
+    @sql_client.setter
+    def sql_client(self, client: SqlClientBase[TNativeConn]) -> None:
+        self._sql_client = client
+
     def drop_storage(self) -> None:
         self.sql_client.drop_dataset()
+        with contextlib.suppress(DatabaseUndefinedRelation):
+            with self.sql_client.with_staging_dataset():
+                self.sql_client.drop_dataset()
 
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
         if not self.is_storage_initialized():
@@ -384,14 +401,21 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
     ) -> TColumnType:
         pass
 
-    def get_stored_schema(self) -> StorageSchemaInfo:
+    def get_stored_schema(self, schema_name: str = None) -> StorageSchemaInfo:
         name = self.sql_client.make_qualified_table_name(self.schema.version_table_name)
         c_schema_name, c_inserted_at = self._norm_and_escape_columns("schema_name", "inserted_at")
-        query = (
-            f"SELECT {self.version_table_schema_columns} FROM {name} WHERE {c_schema_name} = %s"
-            f" ORDER BY {c_inserted_at} DESC;"
-        )
-        return self._row_to_schema_info(query, self.schema.name)
+        if not schema_name:
+            query = (
+                f"SELECT {self.version_table_schema_columns} FROM {name}"
+                f" ORDER BY {c_inserted_at} DESC;"
+            )
+            return self._row_to_schema_info(query)
+        else:
+            query = (
+                f"SELECT {self.version_table_schema_columns} FROM {name} WHERE {c_schema_name} = %s"
+                f" ORDER BY {c_inserted_at} DESC;"
+            )
+            return self._row_to_schema_info(query, schema_name)
 
     def get_stored_state(self, pipeline_name: str) -> StateInfo:
         state_table = self.sql_client.make_qualified_table_name(self.schema.state_table_name)
@@ -632,7 +656,8 @@ WHERE """
 
     def _delete_schema_in_storage(self, schema: Schema) -> None:
         """
-        Delete all stored versions with the same name as given schema
+        Delete all stored versions with the same name as given schema.
+        Fails silently if versions table does not exist
         """
         name = self.sql_client.make_qualified_table_name(self.schema.version_table_name)
         (c_schema_name,) = self._norm_and_escape_columns("schema_name")

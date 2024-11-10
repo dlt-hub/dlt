@@ -6,7 +6,7 @@ from dlt.common.configuration.exceptions import ConfigFieldMissingException, Loo
 from dlt.common.configuration.providers.provider import ConfigProvider
 from dlt.common.configuration.specs import BaseConfiguration, is_base_configuration_inner_hint
 from dlt.common.configuration.utils import deserialize_value, log_traces, auto_cast
-from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
+from dlt.common.configuration.specs import PluggableRunContext
 from dlt.common.typing import AnyType, ConfigValue, SecretValue, TSecretValue
 
 TConfigAny = TypeVar("TConfigAny", bound=Any)
@@ -26,6 +26,13 @@ class _Accessor(abc.ABC):
         sections = field.split(".")
         key = sections.pop()
         self.writable_provider.set_value(key, value, None, *sections)
+
+    def __contains__(self, field: str) -> bool:
+        try:
+            self[field]
+            return True
+        except KeyError:
+            return False
 
     def get(self, field: str, expected_type: Type[TConfigAny] = None) -> TConfigAny:
         value: TConfigAny
@@ -54,7 +61,7 @@ class _Accessor(abc.ABC):
         pass
 
     def _get_providers_from_context(self) -> Sequence[ConfigProvider]:
-        return Container()[ConfigProvidersContext].providers
+        return Container()[PluggableRunContext].providers.providers
 
     def _get_value(self, field: str, type_hint: Type[Any] = None) -> Tuple[Any, List[LookupTrace]]:
         # get default hint type, in case of dlt.secrets it it TSecretValue
@@ -85,7 +92,7 @@ class _Accessor(abc.ABC):
         """Registers `provider` to participate in the configuration resolution. `provider`
         is added after all existing providers and will be used if all others do not resolve.
         """
-        Container()[ConfigProvidersContext].add_provider(provider)
+        Container()[PluggableRunContext].providers.add_provider(provider)
 
 
 class _ConfigAccessor(_Accessor):

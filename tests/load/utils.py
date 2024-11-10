@@ -160,9 +160,9 @@ class DestinationTestConfiguration:
     supports_merge: bool = True  # TODO: take it from client base class
     force_iceberg: bool = None  # used only to test deprecation
     supports_dbt: bool = True
-    disable_compression: bool = False
+    disable_compression: bool = None  # use default value
     dev_mode: bool = False
-    credentials: Optional[Union[CredentialsConfiguration, Dict[str, Any]]] = None
+    credentials: Optional[Union[CredentialsConfiguration, Dict[str, Any], str]] = None
     env_vars: Optional[Dict[str, str]] = None
     destination_name: Optional[str] = None
 
@@ -211,12 +211,18 @@ class DestinationTestConfiguration:
             os.environ[f"DESTINATION__{k.upper()}"] = str(v)
 
         # For the filesystem destinations we disable compression to make analyzing the result easier
-        if self.destination_type == "filesystem" or self.disable_compression:
-            os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "True"
+        os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = str(
+            self.destination_type == "filesystem"
+            if self.disable_compression is None
+            else self.disable_compression
+        )
 
         if self.credentials is not None:
-            for key, value in dict(self.credentials).items():
-                os.environ[f"DESTINATION__CREDENTIALS__{key.upper()}"] = str(value)
+            if isinstance(self.credentials, str):
+                os.environ["DESTINATION__CREDENTIALS"] = self.credentials
+            else:
+                for key, value in dict(self.credentials).items():
+                    os.environ[f"DESTINATION__CREDENTIALS__{key.upper()}"] = str(value)
 
         if self.env_vars is not None:
             for k, v in self.env_vars.items():
@@ -331,15 +337,19 @@ def destinations_configs(
         destination_configs += [
             DestinationTestConfiguration(
                 destination_type="sqlalchemy",
-                supports_merge=False,
+                supports_merge=True,
                 supports_dbt=False,
                 destination_name="sqlalchemy_mysql",
+                credentials=(  # Use root cause we need to create databases,
+                    "mysql://root:root@127.0.0.1:3306/dlt_data"
+                ),
             ),
             DestinationTestConfiguration(
                 destination_type="sqlalchemy",
-                supports_merge=False,
+                supports_merge=True,
                 supports_dbt=False,
                 destination_name="sqlalchemy_sqlite",
+                credentials="sqlite:///_storage/dl_data.sqlite",
             ),
         ]
 
@@ -589,6 +599,7 @@ def destinations_configs(
                     bucket_url=bucket,
                     extra_info=bucket,
                     supports_merge=False,
+                    file_format="parquet",
                 )
             ]
 
@@ -598,7 +609,7 @@ def destinations_configs(
                 DestinationTestConfiguration(
                     destination_type="filesystem",
                     bucket_url=bucket,
-                    extra_info=bucket,
+                    extra_info=bucket + "-delta",
                     table_format="delta",
                     supports_merge=True,
                     env_vars=(
@@ -671,6 +682,7 @@ def destinations_configs(
 
     # add marks
     destination_configs = [
+        # TODO: fix this, probably via pytest plugin that processes parametrize params
         cast(
             DestinationTestConfiguration,
             pytest.param(
@@ -680,7 +692,6 @@ def destinations_configs(
         )
         for conf in destination_configs
     ]
-
     return destination_configs
 
 
@@ -698,40 +709,44 @@ def drop_pipeline(request, preserve_environ) -> Iterator[None]:
         pass
 
 
+def drop_pipeline_data(p: dlt.Pipeline) -> None:
+    """Drops all the datasets for a given pipeline"""
+
+    def _drop_dataset(schema_name: str) -> None:
+        with p.destination_client(schema_name) as client:
+            try:
+                client.drop_storage()
+                print("dropped")
+            except Exception as exc:
+                print(exc)
+            if isinstance(client, WithStagingDataset):
+                with client.with_staging_dataset():
+                    try:
+                        client.drop_storage()
+                        print("staging dropped")
+                    except Exception as exc:
+                        print(exc)
+
+    # drop_func = _drop_dataset_fs if _is_filesystem(p) else _drop_dataset_sql
+    # take all schemas and if destination was set
+    if p.destination:
+        if p.config.use_single_dataset:
+            # drop just the dataset for default schema
+            if p.default_schema_name:
+                _drop_dataset(p.default_schema_name)
+        else:
+            # for each schema, drop the dataset
+            for schema_name in p.schema_names:
+                _drop_dataset(schema_name)
+
+
 def drop_active_pipeline_data() -> None:
     """Drops all the datasets for currently active pipeline, wipes the working folder and then deactivated it."""
     if Container()[PipelineContext].is_active():
         try:
             # take existing pipeline
             p = dlt.pipeline()
-
-            def _drop_dataset(schema_name: str) -> None:
-                with p.destination_client(schema_name) as client:
-                    try:
-                        client.drop_storage()
-                        print("dropped")
-                    except Exception as exc:
-                        print(exc)
-                    if isinstance(client, WithStagingDataset):
-                        with client.with_staging_dataset():
-                            try:
-                                client.drop_storage()
-                                print("staging dropped")
-                            except Exception as exc:
-                                print(exc)
-
-            # drop_func = _drop_dataset_fs if _is_filesystem(p) else _drop_dataset_sql
-            # take all schemas and if destination was set
-            if p.destination:
-                if p.config.use_single_dataset:
-                    # drop just the dataset for default schema
-                    if p.default_schema_name:
-                        _drop_dataset(p.default_schema_name)
-                else:
-                    # for each schema, drop the dataset
-                    for schema_name in p.schema_names:
-                        _drop_dataset(schema_name)
-
+            drop_pipeline_data(p)
             # p._wipe_working_folder()
         finally:
             # always deactivate context, working directory will be wiped when the next test starts
@@ -989,7 +1004,7 @@ def prepare_load_package(
 def sequence_generator() -> Generator[List[Dict[str, str]], None, None]:
     count = 1
     while True:
-        yield [{"content": str(count + i)} for i in range(3)]
+        yield [{"content": str(count + i)} for i in range(2000)]
         count += 3
 
 

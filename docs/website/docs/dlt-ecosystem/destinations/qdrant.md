@@ -87,7 +87,7 @@ To use vector search after the data has been loaded, you must specify which fiel
 The `qdrant_adapter` is a helper function that configures the resource for the Qdrant destination:
 
 ```py
-qdrant_adapter(data, embed)
+qdrant_adapter(data, embed="title")
 ```
 
 It accepts the following arguments:

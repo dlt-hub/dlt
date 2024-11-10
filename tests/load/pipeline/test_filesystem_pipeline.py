@@ -586,6 +586,57 @@ def test_delta_table_partitioning(
     assert dt.metadata().partition_columns == []
 
 
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        table_format_filesystem_configs=True,
+        with_table_format="delta",
+        bucket_subset=(FILE_BUCKET),
+    ),
+    ids=lambda x: x.name,
+)
+def test_delta_table_partitioning_arrow_load_id(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Tests partitioning on load id column added by Arrow normalizer.
+
+    Case needs special handling because of bug in delta-rs:
+    https://github.com/delta-io/delta-rs/issues/2969
+    """
+    from dlt.common.libs.pyarrow import pyarrow
+    from dlt.common.libs.deltalake import get_delta_tables
+
+    os.environ["NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_LOAD_ID"] = "true"
+
+    pipeline = destination_config.setup_pipeline("fs_pipe", dev_mode=True)
+
+    # append write disposition
+    info = pipeline.run(
+        pyarrow.table({"foo": [1]}),
+        table_name="delta_table",
+        columns={"_dlt_load_id": {"partition": True}},
+        table_format="delta",
+    )
+    assert_load_info(info)
+    dt = get_delta_tables(pipeline, "delta_table")["delta_table"]
+    assert dt.metadata().partition_columns == ["_dlt_load_id"]
+    assert load_table_counts(pipeline, "delta_table")["delta_table"] == 1
+
+    # merge write disposition
+    info = pipeline.run(
+        pyarrow.table({"foo": [1, 2]}),
+        table_name="delta_table",
+        write_disposition={"disposition": "merge", "strategy": "upsert"},
+        columns={"_dlt_load_id": {"partition": True}},
+        primary_key="foo",
+        table_format="delta",
+    )
+    assert_load_info(info)
+    dt = get_delta_tables(pipeline, "delta_table")["delta_table"]
+    assert dt.metadata().partition_columns == ["_dlt_load_id"]
+    assert load_table_counts(pipeline, "delta_table")["delta_table"] == 2
+
+
 @pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
@@ -1134,8 +1185,8 @@ def test_state_files(destination_config: DestinationTestConfiguration) -> None:
         "_dlt_pipeline_state": 2,
         "_dlt_version": 2,
     }
-    sc1_old = c1.get_stored_schema()
-    sc2_old = c2.get_stored_schema()
+    sc1_old = c1.get_stored_schema(c1.schema.name)
+    sc2_old = c2.get_stored_schema(c2.schema.name)
     s1_old = c1.get_stored_state("p1")
     s2_old = c1.get_stored_state("p2")
 
@@ -1172,8 +1223,8 @@ def test_state_files(destination_config: DestinationTestConfiguration) -> None:
     assert s2_old.version == s2.version
 
     # test accessors for schema
-    sc1 = c1.get_stored_schema()
-    sc2 = c2.get_stored_schema()
+    sc1 = c1.get_stored_schema(c1.schema.name)
+    sc2 = c2.get_stored_schema(c2.schema.name)
     assert sc1.version_hash != sc1_old.version_hash
     assert sc2.version_hash == sc2_old.version_hash
     assert sc1.version_hash != sc2.version_hash

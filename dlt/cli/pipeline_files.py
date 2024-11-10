@@ -8,7 +8,6 @@ from typing import Dict, NamedTuple, Sequence, Tuple, TypedDict, List, Literal
 from dlt.cli.exceptions import VerifiedSourceRepoError
 
 from dlt.common import git
-from dlt.common.configuration.paths import make_dlt_settings_path
 from dlt.common.storages import FileStorage
 
 from dlt.common.reflection.utils import get_module_docstring
@@ -19,6 +18,11 @@ from dlt.cli.requirements import SourceRequirements
 TSourceType = Literal["core", "verified", "template"]
 
 SOURCES_INIT_INFO_ENGINE_VERSION = 1
+
+SOURCES_MODULE_NAME = "sources"
+CORE_SOURCE_TEMPLATE_MODULE_NAME = "_core_source_templates"
+SINGLE_FILE_TEMPLATE_MODULE_NAME = "_single_file_templates"
+
 SOURCES_INIT_INFO_FILE = ".sources"
 IGNORE_FILES = ["*.py[cod]", "*$py.class", "__pycache__", "py.typed", "requirements.txt"]
 IGNORE_VERIFIED_SOURCES = [".*", "_*"]
@@ -26,12 +30,12 @@ IGNORE_CORE_SOURCES = [
     ".*",
     "_*",
     "helpers",
-    "pipeline_templates",
+    SINGLE_FILE_TEMPLATE_MODULE_NAME,
+    CORE_SOURCE_TEMPLATE_MODULE_NAME,
 ]
 PIPELINE_FILE_SUFFIX = "_pipeline.py"
-
 # hardcode default template files here
-TEMPLATE_FILES = [".gitignore", ".dlt/config.toml", ".dlt/secrets.toml"]
+TEMPLATE_FILES = [".gitignore", ".dlt/config.toml"]
 DEFAULT_PIPELINE_TEMPLATE = "default_pipeline.py"
 
 
@@ -67,13 +71,13 @@ class TVerifiedSourcesFileIndex(TypedDict):
 
 
 def _save_dot_sources(index: TVerifiedSourcesFileIndex) -> None:
-    with open(make_dlt_settings_path(SOURCES_INIT_INFO_FILE), "w", encoding="utf-8") as f:
+    with open(utils.make_dlt_settings_path(SOURCES_INIT_INFO_FILE), "w", encoding="utf-8") as f:
         yaml.dump(index, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
 
 
 def _load_dot_sources() -> TVerifiedSourcesFileIndex:
     try:
-        with open(make_dlt_settings_path(SOURCES_INIT_INFO_FILE), "r", encoding="utf-8") as f:
+        with open(utils.make_dlt_settings_path(SOURCES_INIT_INFO_FILE), "r", encoding="utf-8") as f:
             index: TVerifiedSourcesFileIndex = yaml.safe_load(f)
             if not index:
                 raise FileNotFoundError(SOURCES_INIT_INFO_FILE)
@@ -215,7 +219,7 @@ def get_template_configuration(
         sources_storage,
         source_pipeline_file_name,
         destination_pipeline_file_name,
-        TEMPLATE_FILES,
+        [],
         SourceRequirements([]),
         docstring,
         source_pipeline_file_name == DEFAULT_PIPELINE_TEMPLATE,
@@ -225,14 +229,15 @@ def get_template_configuration(
 def get_core_source_configuration(
     sources_storage: FileStorage, source_name: str
 ) -> SourceConfiguration:
-    pipeline_file = source_name + "_pipeline.py"
+    src_pipeline_file = CORE_SOURCE_TEMPLATE_MODULE_NAME + "/" + source_name + PIPELINE_FILE_SUFFIX
+    dest_pipeline_file = source_name + PIPELINE_FILE_SUFFIX
 
     return SourceConfiguration(
         "core",
         "dlt.sources." + source_name,
         sources_storage,
-        pipeline_file,
-        pipeline_file,
+        src_pipeline_file,
+        dest_pipeline_file,
         [".gitignore"],
         SourceRequirements([]),
         _get_docstring_for_module(sources_storage, source_name),
@@ -248,7 +253,7 @@ def get_verified_source_configuration(
             f"Verified source {source_name} could not be found in the repository", source_name
         )
     # find example script
-    example_script = f"{source_name}_pipeline.py"
+    example_script = f"{source_name}{PIPELINE_FILE_SUFFIX}"
     if not sources_storage.has_file(example_script):
         raise VerifiedSourceRepoError(
             f"Pipeline example script {example_script} could not be found in the repository",

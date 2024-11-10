@@ -6,7 +6,7 @@ import dlt
 from dlt.common import Decimal
 
 
-@dlt.resource(name="customers", primary_key="id")
+@dlt.resource(primary_key="id")
 def customers():
     """Load customer data from a simple python list."""
     yield [
@@ -16,7 +16,7 @@ def customers():
     ]
 
 
-@dlt.resource(name="inventory", primary_key="id")
+@dlt.resource(primary_key="id")
 def inventory():
     """Load inventory data from a simple python list."""
     yield [
@@ -26,13 +26,13 @@ def inventory():
     ]
 
 
-@dlt.source(name="my_fruitshop")
-def source():
+@dlt.source
+def fruitshop():
     """A source function groups all resources into one schema."""
     return customers(), inventory()
 
 
-def load_stuff() -> None:
+def load_shop() -> None:
     # specify the pipeline name, destination and dataset name when configuring pipeline,
     # otherwise the defaults will be used that are derived from the current script name
     p = dlt.pipeline(
@@ -41,11 +41,11 @@ def load_stuff() -> None:
         dataset_name="fruitshop_data",
     )
 
-    load_info = p.run(source())
+    load_info = p.run(fruitshop())
 
     # pretty print the information on data that was loaded
     print(load_info)  # noqa: T201
 
 
 if __name__ == "__main__":
-    load_stuff()
+    load_shop()

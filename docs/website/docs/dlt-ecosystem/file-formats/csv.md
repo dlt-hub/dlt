@@ -1,22 +1,22 @@
 ---
-title: csv
-description: The csv file format
+title: CSV
+description: The CSV file format
 keywords: [csv, file formats]
 ---
 import SetTheFormat from './_set_the_format.mdx';
 
 # CSV file format
 
-**csv** is the most basic file format for storing tabular data, where all values are strings and are separated by a delimiter (typically a comma).
+**CSV** is the most basic file format for storing tabular data, where all values are strings and are separated by a delimiter (typically a comma).
 `dlt` uses it for specific use cases - mostly for performance and compatibility reasons.
 
 Internally, we use two implementations:
-- **pyarrow** csv writer - a very fast, multithreaded writer for [arrow tables](../verified-sources/arrow-pandas.md)
+- **pyarrow** CSV writer - a very fast, multithreaded writer for [Arrow tables](../verified-sources/arrow-pandas.md)
 - **python stdlib writer** - a csv writer included in the Python standard library for Python objects
 
 ## Supported destinations
 
-The `csv` format is supported by the following destinations: **Postgres**, **Filesystem**, **Snowflake**
+The CSV format is supported by the following destinations: **Postgres**, **Filesystem**, **Snowflake**
 
 ## How to configure
 

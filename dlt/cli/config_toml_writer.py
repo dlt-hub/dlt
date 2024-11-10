@@ -1,4 +1,4 @@
-from typing import Any, NamedTuple, Tuple, Iterable
+from typing import Any, NamedTuple, Tuple, Iterable, Mapping
 import tomlkit
 from tomlkit.items import Table as TOMLTable
 from tomlkit.container import Container as TOMLContainer
@@ -72,7 +72,7 @@ def write_value(
     hint = extract_inner_hint(hint)
     if is_base_configuration_inner_hint(hint):
         inner_table = tomlkit.table(is_super_table=True)
-        write_spec(inner_table, hint(), overwrite_existing)
+        write_spec(inner_table, hint(), default_value, overwrite_existing)
         if len(inner_table) > 0:
             toml_table[name] = inner_table
     else:
@@ -86,17 +86,31 @@ def write_value(
             toml_table[name] = default_value
 
 
-def write_spec(toml_table: TOMLTable, config: BaseConfiguration, overwrite_existing: bool) -> None:
+def write_spec(
+    toml_table: TOMLTable,
+    config: BaseConfiguration,
+    initial_value: Mapping[str, Any],
+    overwrite_existing: bool,
+) -> None:
     for name, hint in config.get_resolvable_fields().items():
+        # use initial value
+        initial_ = initial_value.get(name) if initial_value else None
+        # use default value stored in config
         default_value = getattr(config, name, None)
+
         # check if field is of particular interest and should be included if it has default
         is_default_of_interest = name in config.__config_gen_annotations__
+
+        # if initial is different from default, it is of interest as well
+        if initial_ is not None:
+            is_default_of_interest = is_default_of_interest or (initial_ != default_value)
+
         write_value(
             toml_table,
             name,
             hint,
             overwrite_existing,
-            default_value=default_value,
+            default_value=initial_ or default_value,
             is_default_of_interest=is_default_of_interest,
         )
 
@@ -104,6 +118,7 @@ def write_spec(toml_table: TOMLTable, config: BaseConfiguration, overwrite_exist
 def write_values(
     toml: TOMLContainer, values: Iterable[WritableConfigValue], overwrite_existing: bool
 ) -> None:
+    # TODO: decouple writers from a particular object model ie. TOML
     for value in values:
         toml_table: TOMLTable = toml  # type: ignore
         for section in value.sections:

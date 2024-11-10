@@ -35,6 +35,7 @@ from dlt.destinations.exceptions import (
 from dlt.destinations.impl.bigquery.bigquery_adapter import (
     AUTODETECT_SCHEMA_HINT,
     PARTITION_HINT,
+    PARTITION_EXPIRATION_DAYS_HINT,
     CLUSTER_HINT,
     TABLE_DESCRIPTION_HINT,
     ROUND_HALF_EVEN_HINT,
@@ -123,15 +124,17 @@ class BigQueryLoadJob(RunnableLoadJob, HasFollowupJobs):
                 )
 
     def exception(self) -> str:
-        return json.dumps(
-            {
-                "error_result": self._bq_load_job.error_result,
-                "errors": self._bq_load_job.errors,
-                "job_start": self._bq_load_job.started,
-                "job_end": self._bq_load_job.ended,
-                "job_id": self._bq_load_job.job_id,
-            }
-        )
+        if self._bq_load_job:
+            return json.dumps(
+                {
+                    "error_result": self._bq_load_job.error_result,
+                    "errors": self._bq_load_job.errors,
+                    "job_start": self._bq_load_job.started,
+                    "job_end": self._bq_load_job.ended,
+                    "job_id": self._bq_load_job.job_id,
+                }
+            )
+        return super().exception()
 
     @staticmethod
     def get_job_id_from_file_path(file_path: str) -> str:
@@ -275,6 +278,11 @@ class BigQueryClient(SqlJobClientWithStagingDataset, SupportsStagingDestination)
             "expiration_timestamp": (
                 f"TIMESTAMP '{table.get(TABLE_EXPIRATION_HINT)}'"
                 if table.get(TABLE_EXPIRATION_HINT)
+                else None
+            ),
+            "partition_expiration_days": (
+                str(table.get(PARTITION_EXPIRATION_DAYS_HINT))
+                if table.get(PARTITION_EXPIRATION_DAYS_HINT)
                 else None
             ),
         }

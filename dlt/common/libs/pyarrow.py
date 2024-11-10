@@ -18,6 +18,8 @@ from dlt import version
 from dlt.common.pendulum import pendulum
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.schema.typing import C_DLT_ID, C_DLT_LOAD_ID, TTableSchemaColumns
+from dlt.common import logger, json
+from dlt.common.json import custom_encode, map_nested_in_place
 
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.schema.typing import TColumnType
@@ -31,6 +33,7 @@ try:
     import pyarrow.compute
     import pyarrow.dataset
     from pyarrow.parquet import ParquetFile
+    from pyarrow import Table
 except ModuleNotFoundError:
     raise MissingDependencyException(
         "dlt pyarrow helpers",
@@ -242,7 +245,12 @@ def should_normalize_arrow_schema(
     naming: NamingConvention,
     add_load_id: bool = False,
 ) -> Tuple[bool, Mapping[str, str], Dict[str, str], Dict[str, bool], bool, TTableSchemaColumns]:
+    """Figure out if any of the normalization steps must be executed. This prevents
+    from rewriting arrow tables when no changes are needed. Refer to `normalize_py_arrow_item`
+    for a list of normalizations. Note that `column` must be already normalized.
+    """
     rename_mapping = get_normalized_arrow_fields_mapping(schema, naming)
+    # no clashes in rename ensured above
     rev_mapping = {v: k for k, v in rename_mapping.items()}
     nullable_mapping = {k: is_nullable_column(v) for k, v in columns.items()}
     # All fields from arrow schema that have nullable set to different value than in columns
@@ -298,7 +306,8 @@ def normalize_py_arrow_item(
     caps: DestinationCapabilitiesContext,
     load_id: Optional[str] = None,
 ) -> TAnyArrowItem:
-    """Normalize arrow `item` schema according to the `columns`.
+    """Normalize arrow `item` schema according to the `columns`. Note that
+    columns must be already normalized.
 
     1. arrow schema field names will be normalized according to `naming`
     2. arrows columns will be reordered according to `columns`
@@ -363,13 +372,14 @@ def normalize_py_arrow_item(
 
 def get_normalized_arrow_fields_mapping(schema: pyarrow.Schema, naming: NamingConvention) -> StrStr:
     """Normalizes schema field names and returns mapping from original to normalized name. Raises on name collisions"""
-    norm_f = naming.normalize_identifier
+    # use normalize_path to be compatible with how regular columns are normalized in dlt.Schema
+    norm_f = naming.normalize_path
     name_mapping = {n.name: norm_f(n.name) for n in schema}
     # verify if names uniquely normalize
     normalized_names = set(name_mapping.values())
     if len(name_mapping) != len(normalized_names):
         raise NameNormalizationCollision(
-            f"Arrow schema fields normalized from {list(name_mapping.keys())} to"
+            f"Arrow schema fields normalized from:\n{list(name_mapping.keys())}:\nto:\n"
             f" {list(normalized_names)}"
         )
     return name_mapping
@@ -392,6 +402,37 @@ def py_arrow_to_table_schema_columns(schema: pyarrow.Schema) -> TTableSchemaColu
             **get_column_type_from_py_arrow(field.type),
         }
     return result
+
+
+def columns_to_arrow(
+    columns: TTableSchemaColumns,
+    caps: DestinationCapabilitiesContext,
+    timestamp_timezone: str = "UTC",
+) -> pyarrow.Schema:
+    """Convert a table schema columns dict to a pyarrow schema.
+
+    Args:
+        columns (TTableSchemaColumns): table schema columns
+
+    Returns:
+        pyarrow.Schema: pyarrow schema
+
+    """
+    return pyarrow.schema(
+        [
+            pyarrow.field(
+                name,
+                get_py_arrow_datatype(
+                    schema_item,
+                    caps or DestinationCapabilitiesContext.generic_capabilities(),
+                    timestamp_timezone,
+                ),
+                nullable=schema_item.get("nullable", True),
+            )
+            for name, schema_item in columns.items()
+            if schema_item.get("data_type") is not None
+        ]
+    )
 
 
 def get_parquet_metadata(parquet_file: TFileOrPath) -> Tuple[int, pyarrow.Schema]:
@@ -529,6 +570,119 @@ def concat_batches_and_tables_in_order(
         tables.append(pyarrow.Table.from_batches(batches))
     # "none" option ensures 0 copy concat
     return pyarrow.concat_tables(tables, promote_options="none")
+
+
+def row_tuples_to_arrow(
+    rows: Sequence[Any], caps: DestinationCapabilitiesContext, columns: TTableSchemaColumns, tz: str
+) -> Any:
+    """Converts the rows to an arrow table using the columns schema.
+    Columns missing `data_type` will be inferred from the row data.
+    Columns with object types not supported by arrow are excluded from the resulting table.
+    """
+    from dlt.common.libs.pyarrow import pyarrow as pa
+    import numpy as np
+
+    try:
+        from pandas._libs import lib
+
+        pivoted_rows = lib.to_object_array_tuples(rows).T
+    except ImportError:
+        logger.info(
+            "Pandas not installed, reverting to numpy.asarray to create a table which is slower"
+        )
+        pivoted_rows = np.asarray(rows, dtype="object", order="k").T  # type: ignore[call-overload]
+
+    columnar = {
+        col: dat.ravel() for col, dat in zip(columns, np.vsplit(pivoted_rows, len(columns)))
+    }
+    columnar_known_types = {
+        col["name"]: columnar[col["name"]]
+        for col in columns.values()
+        if col.get("data_type") is not None
+    }
+    columnar_unknown_types = {
+        col["name"]: columnar[col["name"]]
+        for col in columns.values()
+        if col.get("data_type") is None
+    }
+
+    arrow_schema = columns_to_arrow(columns, caps, tz)
+
+    for idx in range(0, len(arrow_schema.names)):
+        field = arrow_schema.field(idx)
+        py_type = type(rows[0][idx])
+        # cast double / float ndarrays to decimals if type mismatch, looks like decimals and floats are often mixed up in dialects
+        if pa.types.is_decimal(field.type) and issubclass(py_type, (str, float)):
+            logger.warning(
+                f"Field {field.name} was reflected as decimal type, but rows contains"
+                f" {py_type.__name__}. Additional cast is required which may slow down arrow table"
+                " generation."
+            )
+            float_array = pa.array(columnar_known_types[field.name], type=pa.float64())
+            columnar_known_types[field.name] = float_array.cast(field.type, safe=False)
+        if issubclass(py_type, (dict, list)):
+            logger.warning(
+                f"Field {field.name} was reflected as JSON type and needs to be serialized back to"
+                " string to be placed in arrow table. This will slow data extraction down. You"
+                " should cast JSON field to STRING in your database system ie. by creating and"
+                " extracting an SQL VIEW that selects with cast."
+            )
+            json_str_array = pa.array(
+                [None if s is None else json.dumps(s) for s in columnar_known_types[field.name]]
+            )
+            columnar_known_types[field.name] = json_str_array
+
+    # If there are unknown type columns, first create a table to infer their types
+    if columnar_unknown_types:
+        new_schema_fields = []
+        for key in list(columnar_unknown_types):
+            arrow_col: Optional[pa.Array] = None
+            try:
+                arrow_col = pa.array(columnar_unknown_types[key])
+                if pa.types.is_null(arrow_col.type):
+                    logger.warning(
+                        f"Column {key} contains only NULL values and data type could not be"
+                        " inferred. This column is removed from a arrow table"
+                    )
+                    continue
+
+            except pa.ArrowInvalid as e:
+                # Try coercing types not supported by arrow to a json friendly format
+                # E.g. dataclasses -> dict, UUID -> str
+                try:
+                    arrow_col = pa.array(
+                        map_nested_in_place(custom_encode, list(columnar_unknown_types[key]))
+                    )
+                    logger.warning(
+                        f"Column {key} contains a data type which is not supported by pyarrow and"
+                        f" got converted into {arrow_col.type}. This slows down arrow table"
+                        " generation."
+                    )
+                except (pa.ArrowInvalid, TypeError):
+                    logger.warning(
+                        f"Column {key} contains a data type which is not supported by pyarrow. This"
+                        f" column will be ignored. Error: {e}"
+                    )
+            if arrow_col is not None:
+                columnar_known_types[key] = arrow_col
+                new_schema_fields.append(
+                    pa.field(
+                        key,
+                        arrow_col.type,
+                        nullable=columns[key]["nullable"],
+                    )
+                )
+
+        # New schema
+        column_order = {name: idx for idx, name in enumerate(columns)}
+        arrow_schema = pa.schema(
+            sorted(
+                list(arrow_schema) + new_schema_fields,
+                key=lambda x: column_order[x.name],
+            )
+        )
+
+    return pa.Table.from_pydict(columnar_known_types, schema=arrow_schema)
 
 
 class NameNormalizationCollision(ValueError):

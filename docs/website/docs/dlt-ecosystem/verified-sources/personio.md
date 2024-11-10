@@ -129,7 +129,7 @@ This `dlt` source returns data resources like `employees`, `absences`, `absence_
 def personio_source(
     client_id: str = dlt.secrets.value,
     client_secret: str = dlt.secrets.value,
-    items_per_page: int = DEFAULT_ITEMS_PER_PAGE,
+    items_per_page: int = ITEMS_PER_PAGE,
 ) -> Iterable[DltResource]:
     ...
     return (
@@ -163,7 +163,7 @@ def employees(
     ] = dlt.sources.incremental(
         "last_modified_at", initial_value=None, allow_external_schedulers=True
     ),
-    items_per_page: int = items_per_page,
+    items_per_page: int = ITEMS_PER_PAGE,
 ) -> Iterable[TDataItem]:
     ...
 ```
@@ -183,7 +183,7 @@ data incrementally from the Personio API to your preferred destination.
 Simple resource, which retrieves a list of various types of employee absences.
 ```py
 @dlt.resource(primary_key="id", write_disposition="replace")
-def absence_types(items_per_page: int = items_per_page) -> Iterable[TDataItem]:
+def absence_types(items_per_page: int = ITEMS_PER_PAGE) -> Iterable[TDataItem]:
    ...
 ...
 ```

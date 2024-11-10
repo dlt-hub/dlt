@@ -1,7 +1,7 @@
 import os
 from datetime import datetime  # noqa: I251
-from typing import Generic, ClassVar, Any, Optional, Type, Dict
-from typing_extensions import get_origin, get_args
+from typing import Generic, ClassVar, Any, Optional, Type, Dict, Union
+from typing_extensions import get_args
 
 import inspect
 from functools import wraps
@@ -41,13 +41,13 @@ from dlt.extract.incremental.typing import (
     LastValueFunc,
     OnCursorValueMissing,
 )
-from dlt.extract.pipe import Pipe
 from dlt.extract.items import SupportsPipe, TTableHintTemplate, ItemTransform
 from dlt.extract.incremental.transform import (
     JsonIncremental,
     ArrowIncremental,
     IncrementalTransform,
 )
+from dlt.extract.incremental.lag import apply_lag
 
 try:
     from dlt.common.libs.pyarrow import is_arrow_item
@@ -101,6 +101,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
             The values passed explicitly to Incremental will be ignored.
             Note that if logical "end date" is present then also "end_value" will be set which means that resource state is not used and exactly this range of date will be loaded
         on_cursor_value_missing: Specify what happens when the cursor_path does not exist in a record or a record has `None` at the cursor_path: raise, include, exclude
+        lag: Optional value used to define a lag or attribution window. For datetime cursors, this is interpreted as seconds. For other types, it uses the + or - operator depending on the last_value_func.
     """
 
     # this is config/dataclass so declare members
@@ -111,6 +112,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
     row_order: Optional[TSortOrder] = None
     allow_external_schedulers: bool = False
     on_cursor_value_missing: OnCursorValueMissing = "raise"
+    lag: Optional[float] = None
 
     # incremental acting as empty
     EMPTY: ClassVar["Incremental[Any]"] = None
@@ -126,6 +128,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         row_order: Optional[TSortOrder] = None,
         allow_external_schedulers: bool = False,
         on_cursor_value_missing: OnCursorValueMissing = "raise",
+        lag: Optional[float] = None,
     ) -> None:
         # make sure that path is valid
         if cursor_path:
@@ -149,6 +152,8 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
 
         self._cached_state: IncrementalColumnState = None
         """State dictionary cached on first access"""
+
+        self.lag = lag
         super().__init__(lambda x: x)  # TODO:
 
         self.end_out_of_range: bool = False
@@ -185,6 +190,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
                 self._primary_key,
                 set(self._cached_state["unique_hashes"]),
                 self.on_cursor_value_missing,
+                self.lag,
             )
 
     @classmethod
@@ -208,9 +214,14 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         >>> my_resource(updated=incremental(initial_value='2023-01-01', end_value='2023-02-01'))
         """
         # func, resource name and primary key are not part of the dict
-        kwargs = dict(self, last_value_func=self.last_value_func, primary_key=self._primary_key)
+        kwargs = dict(
+            self, last_value_func=self.last_value_func, primary_key=self._primary_key, lag=self.lag
+        )
         for key, value in dict(
-            other, last_value_func=other.last_value_func, primary_key=other.primary_key
+            other,
+            last_value_func=other.last_value_func,
+            primary_key=other.primary_key,
+            lag=other.lag,
         ).items():
             if value is not None:
                 kwargs[key] = value
@@ -284,6 +295,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
             self._primary_key = merged._primary_key
             self.allow_external_schedulers = merged.allow_external_schedulers
             self.row_order = merged.row_order
+            self.lag = merged.lag
             self.__is_resolved__ = self.__is_resolved__
         else:  # TODO: Maybe check if callable(getattr(native_value, '__lt__', None))
             # Passing bare value `incremental=44` gets parsed as initial_value
@@ -335,7 +347,25 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
     @property
     def last_value(self) -> Optional[TCursorValue]:
         s = self.get_state()
-        return s["last_value"]  # type: ignore
+        last_value: TCursorValue = s["last_value"]
+
+        if self.lag:
+            if self.last_value_func not in (max, min):
+                logger.warning(
+                    f"Lag on {self.resource_name} is only supported for max or min last_value_func."
+                    f" Provided: {self.last_value_func}"
+                )
+            elif self.end_value is not None:
+                logger.info(
+                    f"Lag on {self.resource_name} is deactivated if end_value is set in"
+                    " incremental."
+                )
+            elif last_value is not None:
+                last_value = apply_lag(
+                    self.lag, s["initial_value"], last_value, self.last_value_func
+                )
+
+        return last_value
 
     def _transform_item(
         self, transformer: IncrementalTransform, row: TDataItem

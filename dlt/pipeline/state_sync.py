@@ -1,3 +1,4 @@
+import os
 from copy import copy
 from typing import Tuple, cast
 
@@ -129,5 +130,5 @@ def default_pipeline_state() -> TPipelineState:
     return {
         **default_versioned_state(),
         "_state_engine_version": PIPELINE_STATE_ENGINE_VERSION,
-        "_local": {"first_run": True},
+        "_local": {"first_run": True, "initial_cwd": os.path.abspath(os.path.curdir)},
     }

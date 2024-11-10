@@ -7,6 +7,7 @@ from typing import (
     Callable,
     Iterable,
     Iterator,
+    Type,
     Union,
     Any,
     Optional,
@@ -16,7 +17,7 @@ from typing_extensions import TypeVar, Self
 from dlt.common import logger
 from dlt.common.configuration.inject import get_fun_spec, with_config
 from dlt.common.configuration.resolve import inject_section
-from dlt.common.configuration.specs import known_sections
+from dlt.common.configuration.specs import BaseConfiguration, known_sections
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.typing import AnyFun, DictStrAny, StrAny, TDataItem, TDataItems, NoneType
 from dlt.common.configuration.container import Container
@@ -89,20 +90,25 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
     """Name of the source that contains this instance of the source, set when added to DltResourcesDict"""
     section: str
     """A config section name"""
+    SPEC: Type[BaseConfiguration]
+    """A SPEC that defines signature of callable(parametrized) resource/transformer"""
 
     def __init__(
         self,
         pipe: Pipe,
         hints: TResourceHints,
         selected: bool,
+        *,
         section: str = None,
         args_bound: bool = False,
+        SPEC: Type[BaseConfiguration] = None,
     ) -> None:
         self.section = section
         self.selected = selected
         self._pipe = pipe
         self._args_bound = args_bound
         self._explicit_args: DictStrAny = None
+        self.SPEC = SPEC
         self.source_name = None
         super().__init__(hints)
 
@@ -132,7 +138,8 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             return data  # type: ignore[return-value]
 
         if isinstance(data, Pipe):
-            r_ = cls(data, hints, selected, section=section)
+            SPEC_ = None if data.is_empty else get_fun_spec(data.gen)  # type: ignore[arg-type]
+            r_ = cls(data, hints, selected, section=section, SPEC=SPEC_)
             if inject_config:
                 r_._inject_config()
             return r_
@@ -170,6 +177,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
                 selected,
                 section=section,
                 args_bound=not callable(data),
+                SPEC=get_fun_spec(data),
             )
             if inject_config:
                 r_._inject_config()
@@ -654,6 +662,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             selected=self.selected,
             section=self.section,
             args_bound=self._args_bound,
+            SPEC=self.SPEC,
         )
         # try to eject and then inject configuration and incremental wrapper when resource is cloned
         # this makes sure that a take config values from a right section and wrapper has a separated
