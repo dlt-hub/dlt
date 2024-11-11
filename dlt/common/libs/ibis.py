@@ -1,7 +1,6 @@
 from typing import cast
 
 from dlt.common.exceptions import MissingDependencyException
-from dlt.common.schema import Schema
 
 from dlt.common.destination.reference import TDestinationReferenceArg, Destination, JobClientBase
 
