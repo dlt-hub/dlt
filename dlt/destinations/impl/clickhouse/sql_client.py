@@ -159,6 +159,21 @@ class ClickHouseSqlClient(
             ]
 
         catalog_name = self.catalog_name()
+        # drop a sentinel table only when dataset name was empty (was not included in the schema)
+        if not self.dataset_name:
+            self.execute_sql(f"DROP TABLE {sentinel_table_name} SYNC")
+            logger.warning(
+                "Dataset without name (tables without prefix) got dropped. Only tables known in the"
+                " current dlt schema and sentinel tables were removed."
+            )
+        else:
+            sentinel_table_name = self.make_qualified_table_name_path(
+                self.config.dataset_sentinel_table_name, escape=False
+            )[-1]
+            if sentinel_table_name not in all_ds_tables:
+                # no sentinel table, dataset does not exist
+                self.execute_sql(f"SELECT 1 FROM {sentinel_table_name}")
+                raise AssertionError(f"{sentinel_table_name} must not exist")
         for table in to_drop_results:
             # The "DROP TABLE" clause is discarded if we allow clickhouse_driver to handle parameter substitution.
             # This is because the driver incorrectly substitutes the entire query string, causing the "DROP TABLE" keyword to be omitted.
@@ -166,14 +181,6 @@ class ClickHouseSqlClient(
             self.execute_sql(
                 f"DROP TABLE {catalog_name}.{self.capabilities.escape_identifier(table)} SYNC"
             )
-
-        # drop a sentinel table only when dataset name was empty (was not included in the schema)
-        if not self.dataset_name:
-            logger.warning(
-                "Dataset without name (tables without prefix) got dropped. Only tables known in the"
-                " current dlt schema and sentinel tables were removed."
-            )
-            self.execute_sql(f"DROP TABLE {sentinel_table_name} SYNC")
 
     def drop_tables(self, *tables: str) -> None:
         """Drops a set of tables if they exist"""

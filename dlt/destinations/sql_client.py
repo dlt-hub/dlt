@@ -72,7 +72,6 @@ class SqlClientBase(ABC, Generic[TNativeConn]):
     ) -> None:
         self.dataset_name = dataset_name
         self.staging_dataset_name = staging_dataset_name
-        assert self.dataset_name != self.staging_dataset_name
         self.database_name = database_name
         self.capabilities = capabilities
         self._query_tags: TJobQueryTags = None
