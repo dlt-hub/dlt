@@ -191,12 +191,17 @@ def test_gcp_object_store_rs_credentials(driver) -> None:
     assert can_connect(GCS_BUCKET, creds.to_object_store_rs_credentials())
 
     # GcpDefaultCredentials
+
+    # reset failed default credentials timeout so we resolve below
+    GcpDefaultCredentials._LAST_FAILED_DEFAULT = 0
+
     # write service account key to JSON file
     service_json = json.loads(creds.to_object_store_rs_credentials()["service_account_key"])
     path = "_secrets/service.json"
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(service_json, f)
+
     with custom_environ({"GOOGLE_APPLICATION_CREDENTIALS": path}):
         creds = GcpDefaultCredentials()
         resolve_configuration(creds)
