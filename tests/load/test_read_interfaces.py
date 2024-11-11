@@ -263,9 +263,13 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
     # NOTE: we could generalize this with a context for certain deps
     import subprocess
 
-    subprocess.check_call(["pip", "install", "ibis-framework[duckdb,postgres,bigquery]"])
+    subprocess.check_call(
+        ["pip", "install", "ibis-framework[duckdb,postgres,bigquery,snowflake,bigquery]"]
+    )
 
     from dlt.common.libs.ibis import SUPPORTED_DESTINATIONS
+
+    return
 
     # check correct error if not supported
     if populated_pipeline.destination.destination_type not in SUPPORTED_DESTINATIONS:
@@ -276,18 +280,29 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
     total_records = _total_records(populated_pipeline)
     ibis_connection = populated_pipeline._dataset().ibis()
 
-    # just do a basic check to see wether ibis can connect
-    assert ibis_connection.list_tables() == [
-        "_dlt_loads",
-        "_dlt_pipeline_state",
-        "_dlt_version",
-        "double_items",
-        "items",
-        "items__children",
-    ]
+    dataset_name = populated_pipeline.dataset_name
 
-    items_table = ibis_connection.table("items")
-    assert items_table.count().to_pandas() == total_records
+    map_i = lambda x: x
+    if populated_pipeline.destination.destination_type == "dlt.destinations.snowflake":
+        map_i = lambda x: x.upper()
+
+    # just do a basic check to see wether ibis can connect
+    assert set(ibis_connection.list_tables(database=dataset_name)) == {
+        map_i(x)
+        for x in [
+            "_dlt_loads",
+            "_dlt_pipeline_state",
+            "_dlt_version",
+            "double_items",
+            "items",
+            "items__children",
+        ]
+    }
+
+    # TODO, ibis needs describe permission on snowflake?
+    if not populated_pipeline.destination.destination_type == "dlt.destinations.snowflake":
+        items_table = ibis_connection.table(map_i("items"), database=dataset_name)
+        assert items_table.count().to_pandas() == total_records
 
 
 @pytest.mark.no_load

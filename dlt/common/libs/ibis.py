@@ -16,6 +16,8 @@ SUPPORTED_DESTINATIONS = [
     "dlt.destinations.postgres",
     "dlt.destinations.duckdb",
     "dlt.destinations.filesystem",
+    "dlt.destinations.bigquery",
+    "dlt.destinations.snowflake",
 ]
 
 
@@ -29,11 +31,21 @@ def create_ibis_backend(
     # check if destination is supported
     destination_type = Destination.from_reference(destination).destination_type
     if destination_type not in SUPPORTED_DESTINATIONS:
-        raise NotImplementedError(f"Destination of type {destination_type} not supported")
+        raise NotImplementedError(f"Destination of type {destination_type} not supported by ibis.")
 
     if destination_type in ["dlt.destinations.postgres", "dlt.destinations.duckdb"]:
         credentials = client.config.credentials.to_native_representation()
         con = ibis.connect(credentials)
+    elif destination_type == "dlt.destinations.snowflake":
+        credentials = client.config.credentials.to_connector_params()
+        con = ibis.snowflake.connect(**credentials)
+    elif destination_type == "dlt.destinations.bigquery":
+        credentials = client.config.credentials.to_native_credentials()
+        con = ibis.bigquery.connect(
+            credentials=credentials,
+            project_id=client.sql_client.project_id,
+            location=client.sql_client.location,
+        )
     elif destination_type == "dlt.destinations.filesystem":
         from dlt.destinations.impl.filesystem.sql_client import (
             FilesystemClient,
@@ -52,8 +64,5 @@ def create_ibis_backend(
         with sql_client as _:
             sql_client.create_views_for_all_tables()
         con = ibis.duckdb.from_connection(duck)
-
-    # NOTE: there seems to be no standardized way to set the current dataset / schema in ibis
-    con.raw_sql(f"SET search_path TO {dataset_name};")
 
     return con
