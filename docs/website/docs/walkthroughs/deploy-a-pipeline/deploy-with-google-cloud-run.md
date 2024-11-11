@@ -75,7 +75,7 @@ Environment variables can be set in Cloud Run in two ways:
 - In the "Environment Variable" field, enter the environment variable's name that corresponds
   to the argument required by the pipeline. Remember to capitalize the variable name if it is
   required by the pipeline and specified in secrets.toml. For example, if the variable name is
-  `api_key`, you would declare the environment variable as `API_KEY`.
+  `sources.notion.api_key`, you would declare the environment variable as `SOURCES__NOTION__API_KEY`.
 - Select the secret to reference.
 - Click "Done" and update the function.
 - “Assign the Secret Manager Secret Accessor role to the Cloud Run service account.
