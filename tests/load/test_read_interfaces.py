@@ -131,7 +131,7 @@ def populated_pipeline(request) -> Any:
     yield pipeline
 
     # NOTE: we need to drop pipeline data here since we are keeping the pipelines around for the whole module
-    # drop_pipeline_data(pipeline)
+    drop_pipeline_data(pipeline)
 
 
 # NOTE: we collect all destination configs centrally, this way the session based
