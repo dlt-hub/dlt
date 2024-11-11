@@ -418,7 +418,6 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         table_chain: Sequence[PreparedTableSchema],
         sql_client: SqlClientBase[Any],
         table: PreparedTableSchema,
-        primary_key_fallback: bool = False,
     ) -> str:
         """Returns name of first column in `table` with `row_key` property. If not found first `unique` hint will be used.
         If `primary_key_fallback` is `True` and no unique columns exist, will attempt to use a single primary key column.
@@ -438,25 +437,24 @@ class SqlMergeFollowupJob(SqlFollowupJob):
             return col
 
         # Try to use a single primary key column as a fallback
-        if primary_key_fallback:
-            primary_key_cols = get_columns_names_with_prop(table, "primary_key")
-            if len(primary_key_cols) == 1:
-                return primary_key_cols[0]
-            elif len(primary_key_cols) > 1:
-                raise MergeDispositionException(
-                    sql_client.fully_qualified_dataset_name(),
-                    sql_client.fully_qualified_dataset_name(staging=True),
-                    [t["name"] for t in table_chain],
-                    f"Multiple primary key columns found in table `{table['name']}`. Cannot use as"
-                    " row_key.",
-                )
+        primary_key_cols = get_columns_names_with_prop(table, "primary_key")
+        if len(primary_key_cols) == 1:
+            return primary_key_cols[0]
+        elif len(primary_key_cols) > 1:
+            raise MergeDispositionException(
+                sql_client.fully_qualified_dataset_name(),
+                sql_client.fully_qualified_dataset_name(staging=True),
+                [t["name"] for t in table_chain],
+                f"Multiple primary key columns found in table `{table['name']}`. "
+                "Cannot use as row_key.",
+            )
 
         raise MergeDispositionException(
             sql_client.fully_qualified_dataset_name(),
             sql_client.fully_qualified_dataset_name(staging=True),
             [t["name"] for t in table_chain],
-            f"No {'`row_key`, `unique`' if not primary_key_fallback else '`row_key`, `unique`, or single primary key'} column"
-            f" (e.g. `_dlt_id`) in table `{table['name']}`.",
+            "No `row_key`, `unique`, or single primary key column (e.g. `_dlt_id`) "
+            f"in table `{table['name']}`.",
         )
 
     @classmethod
@@ -556,9 +554,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                 )
                 # use row_key or unique hint to create temp table with all identifiers to delete
                 row_key_column = escape_column_id(
-                    cls._get_row_key_col(
-                        table_chain, sql_client, root_table, primary_key_fallback=True
-                    )
+                    cls._get_row_key_col(table_chain, sql_client, root_table)
                 )
                 create_delete_temp_table_sql, delete_temp_table_name = (
                     cls.gen_delete_temp_table_sql(
