@@ -6,8 +6,8 @@ from dlt.common.schema import Schema
 from dlt.common.destination.reference import TDestinationReferenceArg, Destination, JobClientBase
 
 try:
-    import ibis  # type: ignore[import-not-found]
-    from ibis import BaseBackend
+    import ibis  # type: ignore
+    from ibis import BaseBackend  # type: ignore
 except ModuleNotFoundError:
     raise MissingDependencyException("dlt ibis Helpers", ["ibis"])
 
@@ -18,6 +18,7 @@ SUPPORTED_DESTINATIONS = [
     "dlt.destinations.filesystem",
     "dlt.destinations.bigquery",
     "dlt.destinations.snowflake",
+    "dlt.destinations.redshift",
 ]
 
 
@@ -33,18 +34,28 @@ def create_ibis_backend(
     if destination_type not in SUPPORTED_DESTINATIONS:
         raise NotImplementedError(f"Destination of type {destination_type} not supported by ibis.")
 
-    if destination_type in ["dlt.destinations.postgres", "dlt.destinations.duckdb"]:
+    if destination_type in [
+        "dlt.destinations.postgres",
+        "dlt.destinations.duckdb",
+        "dlt.destinations.redshift",
+    ]:
         credentials = client.config.credentials.to_native_representation()
         con = ibis.connect(credentials)
     elif destination_type == "dlt.destinations.snowflake":
-        credentials = client.config.credentials.to_connector_params()
+        from dlt.destinations.impl.snowflake.snowflake import SnowflakeClient
+
+        sf_client = cast(SnowflakeClient, client)
+        credentials = sf_client.config.credentials.to_connector_params()
         con = ibis.snowflake.connect(**credentials)
     elif destination_type == "dlt.destinations.bigquery":
-        credentials = client.config.credentials.to_native_credentials()
+        from dlt.destinations.impl.bigquery.bigquery import BigQueryClient
+
+        bq_client = cast(BigQueryClient, client)
+        credentials = bq_client.config.credentials.to_native_credentials()
         con = ibis.bigquery.connect(
             credentials=credentials,
-            project_id=client.sql_client.project_id,
-            location=client.sql_client.location,
+            project_id=bq_client.sql_client.project_id,
+            location=bq_client.sql_client.location,
         )
     elif destination_type == "dlt.destinations.filesystem":
         from dlt.destinations.impl.filesystem.sql_client import (

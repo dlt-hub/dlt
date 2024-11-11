@@ -761,7 +761,7 @@ files = [
 name = "atpublic"
 version = "5.0"
 description = "Keep all y'all's __all__'s in sync"
-optional = false
+optional = true
 python-versions = ">=3.8"
 files = [
     {file = "atpublic-5.0-py3-none-any.whl", hash = "sha256:b651dcd886666b1042d1e38158a22a4f2c267748f4e97fde94bc492a4a28a3f3"},
@@ -4463,7 +4463,7 @@ files = [
 name = "ibis-framework"
 version = "10.0.0.dev231"
 description = "The portable Python dataframe library"
-optional = false
+optional = true
 python-versions = "<4.0,>=3.10"
 files = [
     {file = "ibis_framework-10.0.0.dev231-py3-none-any.whl", hash = "sha256:8689cbcd55c3680bdb5fd51ff0d2a10260372c1b15661c123b0460087cfdbda2"},
@@ -6586,7 +6586,7 @@ future = "*"
 name = "parsy"
 version = "2.1"
 description = "Easy-to-use parser combinators, for parsing in pure Python"
-optional = false
+optional = true
 python-versions = ">=3.7"
 files = [
     {file = "parsy-2.1-py3-none-any.whl", hash = "sha256:8f18e7b11985e7802e7e3ecbd8291c6ca243d29820b1186e4c84605db4efffa0"},
@@ -9381,7 +9381,7 @@ files = [
 name = "toolz"
 version = "1.0.0"
 description = "List processing tools and functional utilities"
-optional = false
+optional = true
 python-versions = ">=3.8"
 files = [
     {file = "toolz-1.0.0-py3-none-any.whl", hash = "sha256:292c8f1c4e7516bf9086f8850935c799a874039c8bcf959d47b600e4c44a6236"},
@@ -10323,4 +10323,4 @@ weaviate = ["weaviate-client"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.8.1,<3.13"
-content-hash = "18cd8f3bd2a10b5cc206e6b12fc9fe6d7af20d92891ada7080751856149439a4"
+content-hash = "301bd844ec665836d72611e77a549b1d6d3398445d25b4daaf6ffc22a7bcaa30"
