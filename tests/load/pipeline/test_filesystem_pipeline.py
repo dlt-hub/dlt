@@ -33,6 +33,7 @@ from tests.load.utils import (
     MEMORY_BUCKET,
     FILE_BUCKET,
     AZ_BUCKET,
+    SFTP_BUCKET,
 )
 
 from tests.pipeline.utils import load_table_counts, assert_load_info, load_tables_to_dicts
@@ -255,7 +256,7 @@ def test_delta_table_pyarrow_version_check() -> None:
     destinations_configs(
         table_format_filesystem_configs=True,
         with_table_format="delta",
-        bucket_exclude=(MEMORY_BUCKET),
+        bucket_exclude=(MEMORY_BUCKET, SFTP_BUCKET),
     ),
     ids=lambda x: x.name,
 )
@@ -328,7 +329,7 @@ def test_delta_table_core(
     destinations_configs(
         table_format_filesystem_configs=True,
         with_table_format="delta",
-        bucket_subset=(FILE_BUCKET),
+        bucket_subset=(FILE_BUCKET, SFTP_BUCKET),
     ),
     ids=lambda x: x.name,
 )
@@ -373,7 +374,7 @@ def test_delta_table_does_not_contain_job_files(
     destinations_configs(
         table_format_filesystem_configs=True,
         with_table_format="delta",
-        bucket_subset=(FILE_BUCKET),
+        bucket_subset=(FILE_BUCKET, SFTP_BUCKET),
     ),
     ids=lambda x: x.name,
 )
@@ -419,7 +420,7 @@ def test_delta_table_multiple_files(
     destinations_configs(
         table_format_filesystem_configs=True,
         with_table_format="delta",
-        bucket_subset=(FILE_BUCKET),
+        bucket_subset=(FILE_BUCKET, SFTP_BUCKET),
     ),
     ids=lambda x: x.name,
 )
@@ -506,7 +507,7 @@ def test_delta_table_child_tables(
     destinations_configs(
         table_format_filesystem_configs=True,
         with_table_format="delta",
-        bucket_subset=(FILE_BUCKET),
+        bucket_subset=(FILE_BUCKET, SFTP_BUCKET),
     ),
     ids=lambda x: x.name,
 )
@@ -591,7 +592,7 @@ def test_delta_table_partitioning(
     destinations_configs(
         table_format_filesystem_configs=True,
         with_table_format="delta",
-        bucket_subset=(FILE_BUCKET),
+        bucket_subset=(FILE_BUCKET, SFTP_BUCKET),
     ),
     ids=lambda x: x.name,
 )
@@ -643,7 +644,7 @@ def test_delta_table_partitioning_arrow_load_id(
     destinations_configs(
         table_format_filesystem_configs=True,
         with_table_format="delta",
-        bucket_subset=(FILE_BUCKET),
+        bucket_subset=(FILE_BUCKET, SFTP_BUCKET),
     ),
     ids=lambda x: x.name,
 )
@@ -740,7 +741,7 @@ def test_delta_table_schema_evolution(
     destinations_configs(
         table_format_filesystem_configs=True,
         with_table_format="delta",
-        bucket_subset=(FILE_BUCKET, AZ_BUCKET),
+        bucket_subset=(FILE_BUCKET, AZ_BUCKET, SFTP_BUCKET),
     ),
     ids=lambda x: x.name,
 )
@@ -825,7 +826,7 @@ def test_delta_table_empty_source(
     destinations_configs(
         table_format_filesystem_configs=True,
         with_table_format="delta",
-        bucket_subset=(FILE_BUCKET),
+        bucket_subset=(FILE_BUCKET, SFTP_BUCKET),
     ),
     ids=lambda x: x.name,
 )
@@ -874,7 +875,7 @@ def test_delta_table_mixed_source(
     destinations_configs(
         table_format_filesystem_configs=True,
         with_table_format="delta",
-        bucket_subset=(FILE_BUCKET),
+        bucket_subset=(FILE_BUCKET, SFTP_BUCKET),
     ),
     ids=lambda x: x.name,
 )
@@ -902,7 +903,7 @@ def test_delta_table_dynamic_dispatch(
     destinations_configs(
         table_format_filesystem_configs=True,
         with_table_format="delta",
-        bucket_subset=(FILE_BUCKET, AZ_BUCKET),
+        bucket_subset=(FILE_BUCKET, AZ_BUCKET, SFTP_BUCKET),
     ),
     ids=lambda x: x.name,
 )
@@ -982,7 +983,7 @@ def test_delta_table_get_delta_tables_helper(
     destinations_configs(
         table_format_filesystem_configs=True,
         with_table_format="delta",
-        bucket_subset=(FILE_BUCKET,),
+        bucket_subset=(FILE_BUCKET, SFTP_BUCKET),
     ),
     ids=lambda x: x.name,
 )
