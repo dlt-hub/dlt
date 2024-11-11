@@ -2,7 +2,7 @@ from typing import Any, List, Optional
 from unittest import mock
 
 import pytest
-from requests import Request, Response, Session as BaseSession
+from requests import Request, Response
 
 from dlt.sources.helpers.requests import Session
 

@@ -1,8 +1,11 @@
-from typing import Optional, Dict, Any
+from typing import Optional, Type, Any
+from types import TracebackType
+
+#
 from requests.exceptions import HTTPError
 
 
-def find_http_error(exception: Exception) -> Optional[Dict[str, Any]]:
+def find_http_error(exception: BaseException) -> Optional[HTTPError]:
     """Recursively searches through exception chain to find and extract HTTPError.
 
     Args:
@@ -22,7 +25,7 @@ def find_http_error(exception: Exception) -> Optional[Dict[str, Any]]:
                 raise
     """
 
-    def _get_next_cause(e: Exception) -> Optional[Exception]:
+    def _get_next_cause(e: BaseException) -> Optional[BaseException]:
         # Handle both __cause__ (from raise ... from) and __context__ (from bare raise)
         return e.__cause__ if e.__cause__ is not None else e.__context__
 
@@ -36,23 +39,28 @@ def find_http_error(exception: Exception) -> Optional[Dict[str, Any]]:
 
 
 class HTTPErrorCatcher:
-    def __init__(self):
+    def __init__(self) -> None:
         self.http_error: Optional[HTTPError] = None
 
     def __enter__(self) -> "HTTPErrorCatcher":
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb) -> bool:
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> bool:
         if exc_val is not None:
             self.http_error = find_http_error(exc_val)
             # Suppress exception if we found an HTTPError
             return bool(self.http_error)
         return False
 
-    def __bool__(self):
+    def __bool__(self) -> bool:
         return self.http_error is not None
 
-    def __getattr__(self, attr):
+    def __getattr__(self, attr: str) -> Any:
         if self.http_error:
             return getattr(self.http_error, attr)
         raise AttributeError(f"{attr} not found in {self.__class__.__name__}")
