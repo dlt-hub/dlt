@@ -420,7 +420,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         table: PreparedTableSchema,
     ) -> str:
         """Returns name of first column in `table` with `row_key` property. If not found first `unique` hint will be used.
-        If `primary_key_fallback` is `True` and no unique columns exist, will attempt to use a single primary key column.
+        If no `unique` columns exist, will attempt to use a single primary key column.
 
         Returns:
             str: Name of the column to be used as row key
