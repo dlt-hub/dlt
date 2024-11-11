@@ -40,6 +40,7 @@ from tests.load.utils import (
     DestinationTestConfiguration,
     FILE_BUCKET,
     AZ_BUCKET,
+    SFTP_BUCKET
 )
 
 
@@ -63,7 +64,7 @@ def skip_if_not_supported(
         all_buckets_filesystem_configs=True,
         table_format_filesystem_configs=True,
         supports_merge=True,
-        bucket_subset=(FILE_BUCKET, AZ_BUCKET),  # test one local, one remote
+        bucket_subset=(FILE_BUCKET, AZ_BUCKET, SFTP_BUCKET),  # test one local, one remote
     ),
     ids=lambda x: x.name,
 )
@@ -158,7 +159,7 @@ def test_merge_on_keys_in_schema(
         local_filesystem_configs=True,
         table_format_filesystem_configs=True,
         supports_merge=True,
-        bucket_subset=(FILE_BUCKET),
+        bucket_subset=(FILE_BUCKET, SFTP_BUCKET),
     ),
     ids=lambda x: x.name,
 )
@@ -272,7 +273,7 @@ def test_merge_record_updates(
         local_filesystem_configs=True,
         table_format_filesystem_configs=True,
         supports_merge=True,
-        bucket_subset=(FILE_BUCKET),
+        bucket_subset=(FILE_BUCKET, SFTP_BUCKET),
     ),
     ids=lambda x: x.name,
 )
@@ -409,7 +410,7 @@ def test_merge_nested_records_inserted_deleted(
         local_filesystem_configs=True,
         table_format_filesystem_configs=True,
         supports_merge=True,
-        bucket_subset=(FILE_BUCKET),
+        bucket_subset=(FILE_BUCKET, SFTP_BUCKET),
     ),
     ids=lambda x: x.name,
 )
@@ -516,7 +517,7 @@ def test_bring_your_own_dlt_id(
         local_filesystem_configs=True,
         table_format_filesystem_configs=True,
         supports_merge=True,
-        bucket_subset=(FILE_BUCKET),
+        bucket_subset=(FILE_BUCKET, SFTP_BUCKET),
     ),
     ids=lambda x: x.name,
 )
@@ -971,7 +972,7 @@ def test_no_deduplicate_only_merge_key(destination_config: DestinationTestConfig
         local_filesystem_configs=True,
         table_format_filesystem_configs=True,
         supports_merge=True,
-        bucket_subset=(FILE_BUCKET),
+        bucket_subset=(FILE_BUCKET, SFTP_BUCKET),
     ),
     ids=lambda x: x.name,
 )
