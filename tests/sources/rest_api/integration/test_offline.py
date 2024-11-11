@@ -10,6 +10,7 @@ import dlt
 from dlt.common import pendulum
 from dlt.pipeline.exceptions import PipelineStepFailed
 from dlt.sources.helpers.rest_client.paginators import BaseReferencePaginator
+from dlt.sources.helpers.rest_client import catch_http_error
 from dlt.sources.rest_api import (
     ClientConfig,
     Endpoint,
@@ -356,16 +357,11 @@ def test_DltResource_gets_called(mock_api_server, mocker) -> None:
             assert kwargs["path"] == f"posts/{i}/comments"
 
 
-def test_logs_full_response_on_http_error(mock_api_server, mocker):
-    my_session = Session()
-    mocked_send = mocker.spy(my_session, "_log_full_response_if_error")
-    logger_spy = mocker.spy(dlt.common.logger, "error")
-
+def test_catch_http_error_with_error(mock_api_server, mocker):
     source = rest_api_source(
         {
             "client": {
                 "base_url": "https://api.example.com",
-                "session": my_session,
             },
             "resources": [
                 {
@@ -378,15 +374,36 @@ def test_logs_full_response_on_http_error(mock_api_server, mocker):
         }
     )
 
-    with pytest.raises(dlt.extract.exceptions.ResourceExtractionError):
+    with catch_http_error() as http_error:
         list(source.with_resources("crash"))
 
-    mocked_send.assert_called_once()
-    logger_spy.assert_called_once_with(
-        "404 Client Error: None for url: https://api.example.com/posts/2/some_details_404. Full"
-        ' response: {"error":"Post not found"}'
+    assert http_error is not None
+    assert http_error.response.status_code == 404
+    assert http_error.response.text == '{"error":"Post with id 2 not found"}'
+    assert http_error.response.url == "https://api.example.com/posts/2/some_details_404"
+
+
+def test_catch_http_error_without_error(mock_api_server):
+    source = rest_api_source(
+        {
+            "client": {
+                "base_url": "https://api.example.com",
+            },
+            "resources": [
+                {
+                    "name": "posts",
+                    "endpoint": {
+                        "path": "/posts",
+                    },
+                },
+            ],
+        }
     )
 
-    assert mocked_send.call_args[0][0].status_code == 404
-    assert mocked_send.call_args[0][0].text == '{"error":"Post not found"}'
-    assert mocked_send.call_args[0][0].url == "https://api.example.com/posts/2/some_details_404"
+    with catch_http_error() as http_error:
+        data = list(source.with_resources("posts"))
+
+    assert not http_error
+    assert len(data) > 0
+    assert data[0]["id"] == 0
+    assert data[0]["title"] == "Post 0"

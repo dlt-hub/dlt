@@ -7,6 +7,7 @@ from .client import PageData
 from .auth import AuthConfigBase
 from .paginators import BasePaginator
 from .typing import HTTPMethodBasic, Hooks
+from .error_handlers import find_http_error, catch_http_error
 
 
 def paginate(
