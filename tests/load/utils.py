@@ -374,6 +374,7 @@ def destinations_configs(
                 file_format="parquet",
                 bucket_url=AWS_BUCKET,
                 supports_dbt=False,
+                extra_info="minio",
             )
         ]
         destination_configs += [
@@ -439,7 +440,7 @@ def destinations_configs(
                 file_format="jsonl",
                 bucket_url=AWS_BUCKET,
                 stage_name="PUBLIC.dlt_s3_stage",
-                extra_info="s3-integration",
+                extra_info="s3-integration-public-stage",
             ),
             DestinationTestConfiguration(
                 destination_type="snowflake",
@@ -514,13 +515,6 @@ def destinations_configs(
                 file_format="jsonl",
                 bucket_url=AWS_BUCKET,
                 extra_info="s3-authorization",
-            ),
-            DestinationTestConfiguration(
-                destination_type="dremio",
-                staging=filesystem(destination_name="minio"),
-                file_format="parquet",
-                bucket_url=AWS_BUCKET,
-                supports_dbt=False,
             ),
         ]
 
@@ -612,6 +606,7 @@ def destinations_configs(
                     extra_info=bucket + "-delta",
                     table_format="delta",
                     supports_merge=True,
+                    file_format="parquet",
                     env_vars=(
                         {
                             "DESTINATION__FILESYSTEM__DELTALAKE_STORAGE_OPTIONS": (
