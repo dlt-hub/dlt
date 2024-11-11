@@ -71,12 +71,11 @@ def test_default_pipeline() -> None:
     p = dlt.pipeline()
     # this is a name of executing test harness or blank pipeline on windows
     possible_names = ["dlt_pytest", "dlt_pipeline"]
-    possible_dataset_names = ["dlt_pytest_dataset", "dlt_pipeline_dataset"]
     assert p.pipeline_name in possible_names
     assert p.pipelines_dir == os.path.abspath(os.path.join(TEST_STORAGE_ROOT, ".dlt", "pipelines"))
     assert p.runtime_config.pipeline_name == p.pipeline_name
-    # dataset that will be used to load data is the pipeline name
-    assert p.dataset_name in possible_dataset_names
+    # default dataset name is not created until a destination that requires it is set
+    assert p.dataset_name is None
     assert p.destination is None
     assert p.default_schema_name is None
 
@@ -259,9 +258,9 @@ def test_pipeline_with_non_alpha_name() -> None:
         p = dlt.pipeline(pipeline_name=name)
 
     name = "another pipeline __8329イロハニホヘト"
-    p = dlt.pipeline(pipeline_name=name)
+    p = dlt.pipeline(pipeline_name=name, destination="filesystem")
     assert p.pipeline_name == name
-    # default dataset is set
+    # default dataset is set (we used filesystem destination that requires dataset)
     assert p.dataset_name == f"{name}_dataset"
     # also pipeline name in runtime must be correct
     assert p.runtime_config.pipeline_name == p.pipeline_name
