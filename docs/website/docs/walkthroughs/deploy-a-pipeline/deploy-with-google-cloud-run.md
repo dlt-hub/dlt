@@ -62,7 +62,7 @@ Environment variables can be set in Cloud Run in two ways:
 - In the "CONTAINERS" > "VARIABLE AND SECRETS" > "ADD VARIABLE".
 - Enter a name for the variable according to the pipeline's requirements. Make sure
   to capitalize the variable name if it is specified in "secrets.toml". For example, if the variable
-  name is `api_key`, set the variable name to `API_KEY`.
+  name is `sources.notion.api_key`, set the variable name to `SOURCES__NOTION__API_KEY`.
 - Enter the value for the Notion API key.
 - Click "Done" and update the function.
 
