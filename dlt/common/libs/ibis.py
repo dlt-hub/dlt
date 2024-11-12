@@ -19,6 +19,7 @@ SUPPORTED_DESTINATIONS = [
     "dlt.destinations.snowflake",
     "dlt.destinations.redshift",
     "dlt.destinations.mssql",
+    "dlt.destinations.synapse",
 ]
 
 
@@ -47,7 +48,7 @@ def create_ibis_backend(
         sf_client = cast(SnowflakeClient, client)
         credentials = sf_client.config.credentials.to_connector_params()
         con = ibis.snowflake.connect(**credentials)
-    elif destination_type == "dlt.destinations.mssql":
+    elif destination_type in ["dlt.destinations.mssql", "dlt.destinations.synapse"]:
         from dlt.destinations.impl.mssql.mssql import MsSqlJobClient
 
         mssql_client = cast(MsSqlJobClient, client)
