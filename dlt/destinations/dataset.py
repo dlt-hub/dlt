@@ -244,7 +244,6 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
         self._ensure_client_and_schema()
         return create_ibis_backend(
             self._destination,
-            self._dataset_name,
             self._destination_client(self.schema),
         )
 

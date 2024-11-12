@@ -30,7 +30,7 @@ SUPPORTED_DESTINATIONS = [
 
 
 def create_ibis_backend(
-    destination: TDestinationReferenceArg, dataset_name: str, client: JobClientBase
+    destination: TDestinationReferenceArg, client: JobClientBase
 ) -> BaseBackend:
     """Create a given ibis backend for a destination client and dataset"""
 
