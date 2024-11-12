@@ -372,14 +372,14 @@ def test_adapter_autodetect_schema_with_merge(
 ) -> None:
     """simple test that merging works with autodetect schema"""
     pipeline = destination_config.setup_pipeline(
-        f"bigquery_autodetect_schema_with_merge",
+        "bigquery_autodetect_schema_with_merge",
         dev_mode=True,
     )
 
     @dlt.resource(primary_key="id", table_name="items", write_disposition="merge")
     def resource():
-        for id in range(0, 5):
-            yield {"id": id, "value": id, "nested": [{"id": id, "value": id}]}
+        for _id in range(0, 5):
+            yield {"id": _id, "value": _id, "nested": [{"id": _id, "value": _id}]}
 
     bigquery_adapter(resource, autodetect_schema=True)
     pipeline.run(resource)
@@ -389,8 +389,8 @@ def test_adapter_autodetect_schema_with_merge(
 
     @dlt.resource(primary_key="id", table_name="items", write_disposition="merge")
     def resource2():
-        for id in range(2, 7):
-            yield {"id": id, "value": id, "nested": [{"id": id, "value": id}]}
+        for _id in range(2, 7):
+            yield {"id": _id, "value": _id, "nested": [{"id": _id, "value": _id}]}
 
     bigquery_adapter(resource2, autodetect_schema=True)
     pipeline.run(resource2)
