@@ -263,7 +263,9 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
     # NOTE: we could generalize this with a context for certain deps
     import subprocess
 
-    subprocess.check_call(["pip", "install", "ibis-framework[duckdb,postgres,bigquery,snowflake]"])
+    subprocess.check_call(
+        ["pip", "install", "ibis-framework[duckdb,postgres,bigquery,snowflake,mssql]"]
+    )
 
     from dlt.common.libs.ibis import SUPPORTED_DESTINATIONS
 

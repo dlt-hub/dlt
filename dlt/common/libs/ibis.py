@@ -18,6 +18,7 @@ SUPPORTED_DESTINATIONS = [
     "dlt.destinations.bigquery",
     "dlt.destinations.snowflake",
     "dlt.destinations.redshift",
+    "dlt.destinations.mssql",
 ]
 
 
@@ -46,6 +47,18 @@ def create_ibis_backend(
         sf_client = cast(SnowflakeClient, client)
         credentials = sf_client.config.credentials.to_connector_params()
         con = ibis.snowflake.connect(**credentials)
+    elif destination_type == "dlt.destinations.mssql":
+        from dlt.destinations.impl.mssql.mssql import MsSqlJobClient
+
+        mssql_client = cast(MsSqlJobClient, client)
+        con = ibis.mssql.connect(
+            host=mssql_client.config.credentials.host,
+            port=mssql_client.config.credentials.port,
+            database=mssql_client.config.credentials.database,
+            user=mssql_client.config.credentials.username,
+            password=mssql_client.config.credentials.password,
+            driver=mssql_client.config.credentials.driver,
+        )
     elif destination_type == "dlt.destinations.bigquery":
         from dlt.destinations.impl.bigquery.bigquery import BigQueryClient
 
