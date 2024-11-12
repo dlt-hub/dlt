@@ -274,7 +274,7 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
         # anything else is transient
         return DatabaseTransientException(ex)
 
-    def truncate_tables(self, *tables: str) -> None:
+    def truncate_tables_if_exist(self, *tables: str) -> None:
         """NOTE: We only truncate tables that exist, for auto-detect schema we don't know which tables exist"""
         statements: List[str] = ["DECLARE table_exists BOOL;"]
         for t in tables:

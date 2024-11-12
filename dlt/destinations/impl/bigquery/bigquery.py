@@ -185,6 +185,19 @@ class BigQueryClient(SqlJobClientWithStagingDataset, SupportsStagingDestination)
     ) -> List[FollowupJobRequest]:
         return [BigQueryMergeJob.from_table_chain(table_chain, self.sql_client)]
 
+    def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
+        truncate_tables = truncate_tables or []
+
+        # split array into tables that have autodetect schema and those that don't
+        autodetect_tables = [
+            t for t in truncate_tables if should_autodetect_schema(self.prepare_load_table(t))
+        ]
+        non_autodetect_tables = [t for t in truncate_tables if t not in autodetect_tables]
+
+        # if any table has schema autodetect, we need to make sure to only truncate tables that exist
+        super().initialize_storage(truncate_tables=non_autodetect_tables)
+        self.sql_client.truncate_tables_if_exist(*autodetect_tables)
+
     def create_load_job(
         self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
