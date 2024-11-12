@@ -1,11 +1,15 @@
-from typing import Any, Generator, Optional, Sequence, Union, List, TYPE_CHECKING, cast
+from typing import Any, Generator, Sequence, Union, TYPE_CHECKING, Tuple
+
+from contextlib import contextmanager
+
+from dlt import version
+
 from dlt.common.json import json
-from copy import deepcopy
 
 from dlt.common.normalizers.naming.naming import NamingConvention
 from dlt.common.exceptions import MissingDependencyException
 
-from contextlib import contextmanager
+from dlt.common.destination import AnyDestination
 from dlt.common.destination.reference import (
     SupportsReadableRelation,
     SupportsReadableDataset,
@@ -15,6 +19,9 @@ from dlt.common.destination.reference import (
     JobClientBase,
     WithStateSync,
     DestinationClientDwhConfiguration,
+    DestinationClientStagingConfiguration,
+    DestinationClientConfiguration,
+    DestinationClientDwhWithStagingConfiguration,
 )
 
 from dlt.common.schema.typing import TTableSchemaColumns
@@ -258,7 +265,9 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
         return self._sql_client
 
     def _destination_client(self, schema: Schema) -> JobClientBase:
-        return _get_client_for_destination(self._destination, schema, self._dataset_name)
+        return get_destination_clients(
+            schema, destination=self._destination, destination_dataset_name=self._dataset_name
+        )[0]
 
     def _ensure_client_and_schema(self) -> None:
         """Lazy load schema and client"""
@@ -327,11 +336,79 @@ def dataset(
 
 
 # helpers
-def _get_client_for_destination(
-    destination: TDestinationReferenceArg, schema: Schema, dataset_name: str
-) -> JobClientBase:
-    destination = Destination.from_reference(destination)
-    client_spec = destination.spec()
-    if isinstance(client_spec, DestinationClientDwhConfiguration):
-        client_spec._bind_dataset_name(dataset_name=dataset_name, default_schema_name=schema.name)
-    return destination.client(schema, client_spec)
+def get_destination_client_initial_config(
+    destination: AnyDestination,
+    schema_name: str,
+    dataset_name: str,
+    as_staging: bool = False,
+    use_single_dataset: bool = False,
+) -> DestinationClientConfiguration:
+    client_spec = destination.spec
+
+    # this client supports many schemas and datasets
+    if issubclass(client_spec, DestinationClientDwhConfiguration):
+        if issubclass(client_spec, DestinationClientStagingConfiguration):
+            spec: DestinationClientDwhConfiguration = client_spec(as_staging_destination=as_staging)
+        else:
+            spec = client_spec()
+
+        spec._bind_dataset_name(dataset_name, schema_name if not use_single_dataset else None)
+        return spec
+
+    return client_spec()
+
+
+def get_destination_clients(
+    schema: Schema,
+    destination: AnyDestination = None,
+    destination_dataset_name: str = None,
+    destination_initial_config: DestinationClientConfiguration = None,
+    staging: AnyDestination = None,
+    staging_dataset_name: str = None,
+    staging_initial_config: DestinationClientConfiguration = None,
+    use_single_dataset: bool = False,
+) -> Tuple[JobClientBase, JobClientBase]:
+    destination = Destination.from_reference(destination) if destination else None
+    staging = Destination.from_reference(staging) if staging else None
+    try:
+        # resolve staging config in order to pass it to destination client config
+        staging_client = None
+        if staging:
+            if not staging_initial_config:
+                # this is just initial config - without user configuration injected
+                staging_initial_config = get_destination_client_initial_config(
+                    staging,
+                    dataset_name=staging_dataset_name,
+                    schema_name=schema.name,
+                    as_staging=True,
+                    use_single_dataset=use_single_dataset,
+                )
+            # create the client - that will also resolve the config
+            staging_client = staging.client(schema, staging_initial_config)
+
+        if not destination_initial_config:
+            # config is not provided then get it with injected credentials
+            initial_config = get_destination_client_initial_config(
+                destination,
+                dataset_name=destination_dataset_name,
+                schema_name=schema.name,
+                use_single_dataset=use_single_dataset,
+            )
+
+        # attach the staging client config to destination client config - if its type supports it
+        if (
+            staging_client
+            and isinstance(initial_config, DestinationClientDwhWithStagingConfiguration)
+            and isinstance(staging_client.config, DestinationClientStagingConfiguration)
+        ):
+            initial_config.staging_config = staging_client.config
+        # create instance with initial_config properly set
+        client = destination.client(schema, initial_config)
+        return client, staging_client
+    except ModuleNotFoundError:
+        client_spec = destination.spec()
+        raise MissingDependencyException(
+            f"{client_spec.destination_type} destination",
+            [f"{version.DLT_PKG_NAME}[{client_spec.destination_type}]"],
+            "Dependencies for specific destinations are available as extras of dlt",
+        )
