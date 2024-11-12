@@ -49,6 +49,7 @@ from dlt.destinations.job_client_impl import SqlJobClientWithStagingDataset
 from dlt.destinations.job_impl import DestinationJsonlLoadJob, DestinationParquetLoadJob
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
+from dlt.destinations.sql_client import SqlClientBase
 
 
 class BigQueryLoadJob(RunnableLoadJob, HasFollowupJobs):
@@ -142,6 +143,18 @@ class BigQueryLoadJob(RunnableLoadJob, HasFollowupJobs):
 
 
 class BigQueryMergeJob(SqlMergeFollowupJob):
+    @classmethod
+    def _gen_table_setup_clauses(
+        cls, table_chain: Sequence[PreparedTableSchema], sql_client: SqlClientBase[Any]
+    ) -> List[str]:
+        """generate final tables from staging table schema for autodetect tables"""
+        sql: List[str] = []
+        for table in table_chain:
+            if should_autodetect_schema(table):
+                table_name, staging_table_name = sql_client.get_qualified_table_names(table["name"])
+                sql.append(f"CREATE TABLE IF NOT EXISTS {table_name} LIKE {staging_table_name};")
+        return sql
+
     @classmethod
     def gen_key_table_clauses(
         cls,

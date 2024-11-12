@@ -167,12 +167,24 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         merge_strategy = resolve_merge_strategy(
             {root_table["name"]: root_table}, root_table, sql_client.capabilities
         )
+
+        merge_sql = None
         if merge_strategy == "delete-insert":
-            return cls.gen_merge_sql(table_chain, sql_client)
+            merge_sql = cls.gen_merge_sql(table_chain, sql_client)
         elif merge_strategy == "upsert":
-            return cls.gen_upsert_sql(table_chain, sql_client)
+            merge_sql = cls.gen_upsert_sql(table_chain, sql_client)
         elif merge_strategy == "scd2":
-            return cls.gen_scd2_sql(table_chain, sql_client)
+            merge_sql = cls.gen_scd2_sql(table_chain, sql_client)
+
+        # prepend setup code
+        return cls._gen_table_setup_clauses(table_chain, sql_client) + merge_sql
+
+    @classmethod
+    def _gen_table_setup_clauses(
+        cls, table_chain: Sequence[PreparedTableSchema], sql_client: SqlClientBase[Any]
+    ) -> List[str]:
+        """Subclasses may override this method to generate additional sql statements to run before the merge"""
+        return []
 
     @classmethod
     def _gen_key_table_clauses(
@@ -500,12 +512,6 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         root_table_name, staging_root_table_name = sql_client.get_qualified_table_names(
             root_table["name"]
         )
-
-        # NOTE: this is bigquery specific code! Move to bigquery merge job
-        # NOTE: we also need to create all child tables
-        # NOTE: this will not work if the schema of the staging table changes in the next run..
-        # in some cases we need to create final tables here
-        sql.append(f"CREATE TABLE IF NOT EXISTS {root_table_name} LIKE {staging_root_table_name};")
 
         # get merge and primary keys from top level
         primary_keys = cls._escape_list(
