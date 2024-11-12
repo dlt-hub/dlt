@@ -33,19 +33,26 @@ def create_ibis_backend(
     destination: TDestinationReferenceArg, dataset_name: str, client: JobClientBase
 ) -> BaseBackend:
     """Create a given ibis backend for a destination client and dataset"""
-    import duckdb
-    from dlt.destinations.impl.duckdb.factory import DuckDbCredentials
 
     # check if destination is supported
     destination_type = Destination.from_reference(destination).destination_type
     if destination_type not in SUPPORTED_DESTINATIONS:
         raise NotImplementedError(f"Destination of type {destination_type} not supported by ibis.")
 
-    if destination_type in [
+    if destination_type in ["dlt.destinations.motherduck", "dlt.destinations.duckdb"]:
+        import duckdb
+        from dlt.destinations.impl.duckdb.duck import DuckDbClient
+
+        duck_client = cast(DuckDbClient, client)
+        duck = duckdb.connect(
+            database=duck_client.config.credentials._conn_str(),
+            read_only=duck_client.config.credentials.read_only,
+            config=duck_client.config.credentials._get_conn_config(),
+        )
+        con = ibis.duckdb.from_connection(duck)
+    elif destination_type in [
         "dlt.destinations.postgres",
-        "dlt.destinations.duckdb",
         "dlt.destinations.redshift",
-        "dlt.destinations.motherduck",
     ]:
         credentials = client.config.credentials.to_native_representation()
         con = ibis.connect(credentials)
@@ -91,10 +98,12 @@ def create_ibis_backend(
             # compression=True,
         )
     elif destination_type == "dlt.destinations.filesystem":
+        import duckdb
         from dlt.destinations.impl.filesystem.sql_client import (
             FilesystemClient,
             FilesystemSqlClient,
         )
+        from dlt.destinations.impl.duckdb.factory import DuckDbCredentials
 
         # we create an in memory duckdb and create all tables on there
         duck = duckdb.connect(":memory:")
