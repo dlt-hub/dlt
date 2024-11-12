@@ -52,7 +52,7 @@ class GcpCredentials(CredentialsConfiguration):
 
     def to_gcs_credentials(self) -> Dict[str, Any]:
         """
-        Dict of keyword arguments can be passed to gcsfs.
+        Dict of keyword arguments that can be passed to gcsfs.
         Delegates default GCS credential handling to gcsfs.
         """
         return {
@@ -63,6 +63,15 @@ class GcpCredentials(CredentialsConfiguration):
                 else dict(self)
             ),
         }
+
+    def to_object_store_rs_credentials(self) -> Dict[str, str]:
+        """
+        Dict of keyword arguments that can be passed to `object_store` Rust crate.
+        Delegates default GCS credential handling to `object_store` Rust crate.
+        """
+        if isinstance(self, CredentialsWithDefault) and self.has_default_credentials():
+            return {}
+        return {"service_account_key": json.dumps(dict(self))}
 
 
 @configspec
@@ -116,10 +125,6 @@ class GcpServiceAccountCredentialsWithoutDefaults(GcpCredentials):
             return self.private_key
         else:
             return ServiceAccountCredentials.from_service_account_info(self)
-
-    def to_object_store_rs_credentials(self) -> Dict[str, str]:
-        # https://docs.rs/object_store/latest/object_store/gcp
-        return {"service_account_key": json.dumps(dict(self))}
 
     def __str__(self) -> str:
         return f"{self.client_email}@{self.project_id}"
