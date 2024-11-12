@@ -40,6 +40,7 @@ from tests.load.utils import (
     DestinationTestConfiguration,
     FILE_BUCKET,
     AZ_BUCKET,
+    SFTP_BUCKET,
 )
 
 
