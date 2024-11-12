@@ -135,6 +135,21 @@ def get_pyarrow_int(precision: Optional[int]) -> Any:
     return pyarrow.int64()
 
 
+# def minimal_integer_type(max_value: int, signed: bool = True) -> pyarrow.DataType:
+#     num_bits = max_value.bit_length() or 1  # Ensure at least 1 bit
+#     if signed:
+#         num_bits += 1  # Add 1 bit for the sign
+
+#     # Standard bit widths for integer types
+#     bit_widths = [8, 16, 32, 64]
+
+#     # Find the minimal bit width that can accommodate num_bits
+#     bit_width = next((bw for bw in bit_widths if num_bits <= bw), 64)
+
+#     # Create the integer type using pa.int_()
+#     return pyarrow.int_(bit_width, signed=signed)
+
+
 def get_column_type_from_py_arrow(dtype: pyarrow.DataType) -> TColumnType:
     """Returns (data_type, precision, scale) tuple from pyarrow.DataType"""
     if pyarrow.types.is_string(dtype) or pyarrow.types.is_large_string(dtype):

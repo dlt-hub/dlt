@@ -6,6 +6,9 @@ from typing import Any
 import pytest
 import dlt
 import os
+import shutil
+import logging
+
 
 from dlt import Pipeline
 from dlt.common.utils import uniq_id
@@ -16,15 +19,24 @@ from tests.load.utils import (
     GCS_BUCKET,
     SFTP_BUCKET,
     MEMORY_BUCKET,
+    AWS_BUCKET,
 )
 from dlt.destinations import filesystem
 from tests.utils import TEST_STORAGE_ROOT
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
 
 
+@pytest.fixture(scope="function", autouse=True)
+def secret_directory():
+    secrets_dir = f"{TEST_STORAGE_ROOT}/duck_secrets_{uniq_id()}"
+    yield secrets_dir
+    shutil.rmtree(secrets_dir, ignore_errors=True)
+
+
 def _run_dataset_checks(
     pipeline: Pipeline,
     destination_config: DestinationTestConfiguration,
+    secret_directory: str,
     table_format: Any = None,
     alternate_access_pipeline: Pipeline = None,
 ) -> None:
@@ -131,6 +143,7 @@ def _run_dataset_checks(
         external_db = duckdb.connect(duck_db_location)
         # the line below solves problems with certificate path lookup on linux, see duckdb docs
         external_db.sql("SET azure_transport_option_type = 'curl';")
+        external_db.sql(f"SET secret_directory = '{secret_directory}';")
         return external_db
 
     def _fs_sql_client_for_external_db(
@@ -160,7 +173,7 @@ def _run_dataset_checks(
     assert len(external_db.sql("SELECT * FROM first.items").fetchall()) == 3
     external_db.close()
 
-    # in case we are not connecting to a bucket, views should still be here after connection reopen
+    # in case we are not connecting to a bucket that needs secrets, views should still be here after connection reopen
     if not needs_persistent_secrets and not unsupported_persistent_secrets:
         external_db = _external_duckdb_connection()
         assert (
@@ -232,7 +245,9 @@ def _run_dataset_checks(
 )
 @pytest.mark.parametrize("disable_compression", [True, False])
 def test_read_interfaces_filesystem(
-    destination_config: DestinationTestConfiguration, disable_compression: bool
+    destination_config: DestinationTestConfiguration,
+    disable_compression: bool,
+    secret_directory: str,
 ) -> None:
     # we force multiple files per table, they may only hold 700 items
     os.environ["DATA_WRITER__FILE_MAX_ITEMS"] = "700"
@@ -250,7 +265,7 @@ def test_read_interfaces_filesystem(
         dev_mode=True,
     )
 
-    _run_dataset_checks(pipeline, destination_config)
+    _run_dataset_checks(pipeline, destination_config, secret_directory=secret_directory)
 
     # for gcs buckets we additionally test the s3 compat layer
     if destination_config.bucket_url == GCS_BUCKET:
@@ -260,7 +275,7 @@ def test_read_interfaces_filesystem(
         pipeline = destination_config.setup_pipeline(
             "read_pipeline", dataset_name="read_test", dev_mode=True, destination=gcp_bucket
         )
-        _run_dataset_checks(pipeline, destination_config)
+        _run_dataset_checks(pipeline, destination_config, secret_directory=secret_directory)
 
 
 @pytest.mark.essential
@@ -274,7 +289,9 @@ def test_read_interfaces_filesystem(
     ),
     ids=lambda x: x.name,
 )
-def test_delta_tables(destination_config: DestinationTestConfiguration) -> None:
+def test_delta_tables(
+    destination_config: DestinationTestConfiguration, secret_directory: str
+) -> None:
     os.environ["DATA_WRITER__FILE_MAX_ITEMS"] = "700"
 
     pipeline = destination_config.setup_pipeline(
@@ -297,6 +314,7 @@ def test_delta_tables(destination_config: DestinationTestConfiguration) -> None:
     _run_dataset_checks(
         pipeline,
         destination_config,
+        secret_directory=secret_directory,
         table_format="delta",
         alternate_access_pipeline=access_pipeline,
     )

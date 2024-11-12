@@ -27,6 +27,7 @@ packages = [
 python = ">=3.8.1,<3.14"
 requests = ">=2.26.0"
 pendulum = ">=2.1.2"
+"backports.zoneinfo" = { "version" = ">=0.2.1", "python" = "<3.9"}
 simplejson = ">=3.17.5"
 PyYAML = ">=5.4.1"
 semver = ">=2.13.0"
@@ -40,7 +41,7 @@ click = ">=7.1"
 requirements-parser = ">=0.5.0"
 setuptools = ">=65.6.0"
 humanize = ">=4.4.0"
-astunparse = ">=1.6.3"
+astunparse = { "version" = ">=1.6.3", "python" = "<3.9"}
 gitpython = ">=3.1.29"
 pytz = ">=2022.6"
 giturlparse = ">=0.10.0"
@@ -92,6 +93,7 @@ alembic = {version = ">1.10.0", optional = true}
 paramiko = {version = ">=3.3.0", optional = true}
 sqlglot = {version = ">=20.0.0", optional = true}
 db-dtypes = { version = ">=1.2.0", optional = true }
+aiohttp = { version = ">=3.9", optional = true }
 
 [tool.poetry.extras]
 gcp = ["grpcio", "google-cloud-bigquery", "db-dtypes", "gcsfs"]
@@ -248,8 +250,8 @@ pymongo = ">=4.3.3"
 pandas = ">2"
 alive-progress = ">=3.0.1"
 pyarrow = [
-    {version = ">=17.0.0", markers = "python_version == '3.8'"},
-    {version = ">=18.0.0", markers = "python_version > '3.8'"}
+    {version = ">=17.0.0", markers = "python_version >= '3.8'"},
+    {version = ">=18.0.0", markers = "python_version >= '3.13'"}
 ]
 psycopg2-binary = ">=2.9"
 lancedb = [
