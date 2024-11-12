@@ -264,7 +264,7 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
     import subprocess
 
     subprocess.check_call(
-        ["pip", "install", "ibis-framework[duckdb,postgres,bigquery,snowflake,mssql]"]
+        ["pip", "install", "ibis-framework[duckdb,postgres,bigquery,snowflake,mssql,clickhouse]"]
     )
 
     from dlt.common.libs.ibis import SUPPORTED_DESTINATIONS
@@ -283,21 +283,36 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
         map_i = lambda x: x.upper()
 
     dataset_name = map_i(populated_pipeline.dataset_name)
+    table_like_statement = None
+    table_name_prefix = ""
+    addtional_tables = []
+
+    # clickhouse has no datasets, but table prefixes and a sentinel table
+    if populated_pipeline.destination.destination_type == "dlt.destinations.clickhouse":
+        table_like_statement = dataset_name + "."
+        table_name_prefix = dataset_name + "___"
+        dataset_name = None
+        addtional_tables = ["dlt_sentinel_table"]
+
+    add_table_prefix = lambda x: table_name_prefix + x
 
     # just do a basic check to see wether ibis can connect
-    assert set(ibis_connection.list_tables(database=dataset_name)) == {
-        map_i(x)
-        for x in [
-            "_dlt_loads",
-            "_dlt_pipeline_state",
-            "_dlt_version",
-            "double_items",
-            "items",
-            "items__children",
-        ]
+    assert set(ibis_connection.list_tables(database=dataset_name, like=table_like_statement)) == {
+        add_table_prefix(map_i(x))
+        for x in (
+            [
+                "_dlt_loads",
+                "_dlt_pipeline_state",
+                "_dlt_version",
+                "double_items",
+                "items",
+                "items__children",
+            ]
+            + addtional_tables
+        )
     }
 
-    items_table = ibis_connection.table(map_i("items"), database=dataset_name)
+    items_table = ibis_connection.table(add_table_prefix(map_i("items")), database=dataset_name)
     assert items_table.count().to_pandas() == total_records
 
 

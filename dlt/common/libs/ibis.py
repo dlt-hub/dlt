@@ -20,6 +20,11 @@ SUPPORTED_DESTINATIONS = [
     "dlt.destinations.redshift",
     "dlt.destinations.mssql",
     "dlt.destinations.synapse",
+    "dlt.destinations.clickhouse",
+    # NOTE: Athena could theoretically work with trino backend, but according to
+    # https://github.com/ibis-project/ibis/issues/7682 connecting with aws credentials
+    # does not work yet.
+    # "dlt.destinations.athena",
 ]
 
 
@@ -69,6 +74,19 @@ def create_ibis_backend(
             credentials=credentials,
             project_id=bq_client.sql_client.project_id,
             location=bq_client.sql_client.location,
+        )
+    elif destination_type == "dlt.destinations.clickhouse":
+        from dlt.destinations.impl.clickhouse.clickhouse import ClickHouseClient
+
+        ch_client = cast(ClickHouseClient, client)
+        con = ibis.clickhouse.connect(
+            host=ch_client.config.credentials.host,
+            port=ch_client.config.credentials.http_port,
+            database=ch_client.config.credentials.database,
+            user=ch_client.config.credentials.username,
+            password=ch_client.config.credentials.password,
+            secure=bool(ch_client.config.credentials.secure),
+            # compression=True,
         )
     elif destination_type == "dlt.destinations.filesystem":
         from dlt.destinations.impl.filesystem.sql_client import (
