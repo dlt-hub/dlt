@@ -33,6 +33,7 @@ from tests.load.utils import (
     MEMORY_BUCKET,
     FILE_BUCKET,
     AZ_BUCKET,
+    SFTP_BUCKET,
 )
 
 from tests.pipeline.utils import load_table_counts, assert_load_info, load_tables_to_dicts
@@ -222,6 +223,9 @@ def test_pipeline_parquet_filesystem_destination() -> None:
         assert table.column("value").to_pylist() == [1, 2, 3, 4, 5]
 
 
+@pytest.mark.skip(
+    reason="pyarrow version check not needed anymore, since we have 17 as a dependency"
+)
 def test_delta_table_pyarrow_version_check() -> None:
     """Tests pyarrow version checking for `delta` table format.
 
@@ -255,7 +259,7 @@ def test_delta_table_pyarrow_version_check() -> None:
     destinations_configs(
         table_format_filesystem_configs=True,
         with_table_format="delta",
-        bucket_exclude=(MEMORY_BUCKET),
+        bucket_exclude=(MEMORY_BUCKET, SFTP_BUCKET),
     ),
     ids=lambda x: x.name,
 )
@@ -982,7 +986,7 @@ def test_delta_table_get_delta_tables_helper(
     destinations_configs(
         table_format_filesystem_configs=True,
         with_table_format="delta",
-        bucket_subset=(FILE_BUCKET,),
+        bucket_subset=(FILE_BUCKET),
     ),
     ids=lambda x: x.name,
 )
