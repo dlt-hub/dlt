@@ -276,11 +276,11 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
     total_records = _total_records(populated_pipeline)
     ibis_connection = populated_pipeline._dataset().ibis()
 
-    dataset_name = populated_pipeline.dataset_name
-
     map_i = lambda x: x
     if populated_pipeline.destination.destination_type == "dlt.destinations.snowflake":
         map_i = lambda x: x.upper()
+
+    dataset_name = map_i(populated_pipeline.dataset_name)
 
     # just do a basic check to see wether ibis can connect
     assert set(ibis_connection.list_tables(database=dataset_name)) == {
@@ -295,10 +295,8 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
         ]
     }
 
-    # TODO, ibis needs describe permission on snowflake?
-    if not populated_pipeline.destination.destination_type == "dlt.destinations.snowflake":
-        items_table = ibis_connection.table(map_i("items"), database=dataset_name)
-        assert items_table.count().to_pandas() == total_records
+    items_table = ibis_connection.table(map_i("items"), database=dataset_name)
+    assert items_table.count().to_pandas() == total_records
 
 
 @pytest.mark.no_load
