@@ -14,6 +14,7 @@ except ModuleNotFoundError:
 SUPPORTED_DESTINATIONS = [
     "dlt.destinations.postgres",
     "dlt.destinations.duckdb",
+    "dlt.destinations.motherduck",
     "dlt.destinations.filesystem",
     "dlt.destinations.bigquery",
     "dlt.destinations.snowflake",
@@ -44,6 +45,7 @@ def create_ibis_backend(
         "dlt.destinations.postgres",
         "dlt.destinations.duckdb",
         "dlt.destinations.redshift",
+        "dlt.destinations.motherduck",
     ]:
         credentials = client.config.credentials.to_native_representation()
         con = ibis.connect(credentials)
