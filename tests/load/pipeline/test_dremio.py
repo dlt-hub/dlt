@@ -5,6 +5,9 @@ import dlt
 from tests.pipeline.utils import load_table_counts
 from tests.load.utils import DestinationTestConfiguration, destinations_configs
 
+# mark all tests as essential, do not remove
+pytestmark = pytest.mark.essential
+
 
 @pytest.mark.parametrize(
     "destination_config",

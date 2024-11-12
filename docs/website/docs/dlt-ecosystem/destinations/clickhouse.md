@@ -125,6 +125,11 @@ Additionally, a special sentinel table that doesn't contain any data will be cre
 clickhouse
 destination.
 
+:::tip
+`dataset_name` is optional for Clikchouse. When skipped `dlt` will create all tables without prefix. Note that staging dataset
+tables will still be prefixed with `_staging` (or other name that you configure).
+:::
+
 ## Supported file formats
 
 - [JSONL](../file-formats/jsonl.md) is the preferred format for both direct loading and staging.

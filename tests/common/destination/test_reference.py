@@ -390,12 +390,12 @@ def test_normalize_staging_dataset_name() -> None:
         .normalize_staging_dataset_name(Schema("private"))
         == "static_staging"
     )
-    # empty dataset -> empty staging
+    # empty dataset -> placeholder still applied
     assert (
         DestinationClientDwhConfiguration()
         ._bind_dataset_name(dataset_name=None, default_schema_name="private")
         .normalize_staging_dataset_name(Schema("private"))
-        is None
+        == "_staging"
     )
     assert (
         DestinationClientDwhConfiguration(staging_dataset_name_layout="static_staging")

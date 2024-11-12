@@ -70,8 +70,6 @@ class SqlClientBase(ABC, Generic[TNativeConn]):
         staging_dataset_name: str,
         capabilities: DestinationCapabilitiesContext,
     ) -> None:
-        if not dataset_name:
-            raise ValueError(dataset_name)
         self.dataset_name = dataset_name
         self.staging_dataset_name = staging_dataset_name
         self.database_name = database_name
@@ -260,7 +258,13 @@ SELECT 1
             self.dataset_name = current_dataset_name
 
     def with_staging_dataset(self) -> ContextManager["SqlClientBase[TNativeConn]"]:
+        """Temporarily switch sql client to staging dataset name"""
         return self.with_alternative_dataset_name(self.staging_dataset_name)
+
+    @property
+    def is_staging_dataset_active(self) -> bool:
+        """Checks if staging dataset is currently active"""
+        return self.dataset_name == self.staging_dataset_name
 
     def set_query_tags(self, tags: TJobQueryTags) -> None:
         """Sets current schema (source), resource, load_id and table name when a job starts"""
