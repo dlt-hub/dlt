@@ -295,7 +295,6 @@ class DestinationClientDwhConfiguration(DestinationClientConfiguration):
         # if default schema is None then suffix is not added
         if self.default_schema_name is not None and schema_name != self.default_schema_name:
             return (self.dataset_name or "") + "_" + schema_name
-
         return self.dataset_name
 
 

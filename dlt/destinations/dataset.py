@@ -338,10 +338,9 @@ def dataset(
 # helpers
 def get_destination_client_initial_config(
     destination: AnyDestination,
-    schema_name: str,
+    default_schema_name: str,
     dataset_name: str,
     as_staging: bool = False,
-    use_single_dataset: bool = False,
 ) -> DestinationClientConfiguration:
     client_spec = destination.spec
 
@@ -352,7 +351,7 @@ def get_destination_client_initial_config(
         else:
             spec = client_spec()
 
-        spec._bind_dataset_name(dataset_name, schema_name if not use_single_dataset else None)
+        spec._bind_dataset_name(dataset_name, default_schema_name)
         return spec
 
     return client_spec()
@@ -366,10 +365,12 @@ def get_destination_clients(
     staging: AnyDestination = None,
     staging_dataset_name: str = None,
     staging_initial_config: DestinationClientConfiguration = None,
-    use_single_dataset: bool = False,
+    # pipeline specific settings
+    default_schema_name: str = None,
 ) -> Tuple[JobClientBase, JobClientBase]:
     destination = Destination.from_reference(destination) if destination else None
     staging = Destination.from_reference(staging) if staging else None
+
     try:
         # resolve staging config in order to pass it to destination client config
         staging_client = None
@@ -379,9 +380,8 @@ def get_destination_clients(
                 staging_initial_config = get_destination_client_initial_config(
                     staging,
                     dataset_name=staging_dataset_name,
-                    schema_name=schema.name,
+                    default_schema_name=default_schema_name,
                     as_staging=True,
-                    use_single_dataset=use_single_dataset,
                 )
             # create the client - that will also resolve the config
             staging_client = staging.client(schema, staging_initial_config)
@@ -391,8 +391,7 @@ def get_destination_clients(
             initial_config = get_destination_client_initial_config(
                 destination,
                 dataset_name=destination_dataset_name,
-                schema_name=schema.name,
-                use_single_dataset=use_single_dataset,
+                default_schema_name=default_schema_name,
             )
 
         # attach the staging client config to destination client config - if its type supports it

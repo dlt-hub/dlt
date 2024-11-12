@@ -112,7 +112,6 @@ from dlt.destinations.fs_client import FSClientBase
 from dlt.destinations.job_client_impl import SqlJobClientBase
 from dlt.destinations.dataset import (
     dataset,
-    get_destination_client_initial_config,
     get_destination_clients,
 )
 from dlt.load.configuration import LoaderConfiguration
@@ -1266,10 +1265,11 @@ class Pipeline(SupportsPipeline):
                 " directly or via .dlt config.toml file or environment variable.",
             )
 
-        schema = schema or self.default_schema
-
         destination_client, staging_client = get_destination_clients(
-            schema=schema,
+            schema=schema or self.default_schema,
+            default_schema_name=(
+                self.default_schema_name if not self.config.use_single_dataset else None
+            ),
             destination=self._destination,
             destination_dataset_name=self.dataset_name,
             destination_initial_config=initial_config,
@@ -1281,7 +1281,6 @@ class Pipeline(SupportsPipeline):
             staging_dataset_name=self.dataset_name
             or self._make_dataset_name(None, self._destination),
             staging_initial_config=initial_staging_config,
-            use_single_dataset=self.config.use_single_dataset,
         )
 
         if isinstance(destination_client.config, DestinationClientStagingConfiguration):
