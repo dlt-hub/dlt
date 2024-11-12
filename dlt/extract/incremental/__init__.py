@@ -113,12 +113,11 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
     allow_external_schedulers: bool = False
     on_cursor_value_missing: OnCursorValueMissing = "raise"
     lag: Optional[float] = None
+    duplicate_cursor_warning_threshold: ClassVar[int] = 200
 
     # incremental acting as empty
     EMPTY: ClassVar["Incremental[Any]"] = None
     placement_affinity: ClassVar[float] = 1  # stick to end
-
-    DEFAULT_DUPLICATE_CURSOR_WARNING_THRESHOLD: ClassVar[int] = 200
 
     def __init__(
         self,
@@ -131,7 +130,6 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         allow_external_schedulers: bool = False,
         on_cursor_value_missing: OnCursorValueMissing = "raise",
         lag: Optional[float] = None,
-        duplicate_cursor_warning_threshold: Optional[int] = None,
     ) -> None:
         # make sure that path is valid
         if cursor_path:
@@ -167,12 +165,6 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         self._transformers: Dict[str, IncrementalTransform] = {}
         self._bound_pipe: SupportsPipe = None
         """Bound pipe"""
-
-        self.duplicate_cursor_warning_threshold = (
-            duplicate_cursor_warning_threshold
-            if duplicate_cursor_warning_threshold is not None
-            else self.DEFAULT_DUPLICATE_CURSOR_WARNING_THRESHOLD
-        )
 
     @property
     def primary_key(self) -> Optional[TTableHintTemplate[TColumnNames]]:
@@ -550,7 +542,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
     def _check_duplicate_cursor_threshold(
         self, initial_hash_count: int, final_hash_count: int
     ) -> None:
-        if initial_hash_count <= self.duplicate_cursor_warning_threshold < final_hash_count:
+        if initial_hash_count <= Incremental.duplicate_cursor_warning_threshold < final_hash_count:
             logger.warning(
                 f"Large number of records ({final_hash_count}) sharing the same value of "
                 f"cursor field '{self.cursor_path}'. This can happen if the cursor "
