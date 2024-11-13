@@ -360,3 +360,40 @@ def test_adapter_autodetect_schema_with_hints(
         table: Table = nc.get_table(table_fqtn)  # type: ignore[no-redef]
         assert table.time_partitioning.field == "my_date_column"
         assert table.time_partitioning.type_ == "DAY"
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["bigquery"]),
+    ids=lambda x: x.name,
+)
+def test_adapter_autodetect_schema_with_merge(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """simple test that merging works with autodetect schema"""
+    pipeline = destination_config.setup_pipeline(
+        "bigquery_autodetect_schema_with_merge",
+        dev_mode=True,
+    )
+
+    @dlt.resource(primary_key="id", table_name="items", write_disposition="merge")
+    def resource():
+        for _id in range(0, 5):
+            yield {"id": _id, "value": _id, "nested": [{"id": _id, "value": _id}]}
+
+    bigquery_adapter(resource, autodetect_schema=True)
+    pipeline.run(resource)
+
+    assert len(pipeline._dataset().items.df()) == 5
+    assert len(pipeline._dataset().items__nested.df()) == 5
+
+    @dlt.resource(primary_key="id", table_name="items", write_disposition="merge")
+    def resource2():
+        for _id in range(2, 7):
+            yield {"id": _id, "value": _id, "nested": [{"id": _id, "value": _id}]}
+
+    bigquery_adapter(resource2, autodetect_schema=True)
+    pipeline.run(resource2)
+
+    assert len(pipeline._dataset().items.df()) == 7
+    assert len(pipeline._dataset().items__nested.df()) == 7

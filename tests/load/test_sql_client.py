@@ -152,7 +152,9 @@ def test_create_drop_dataset(naming: str, client: SqlJobClientBase) -> None:
     # Dataset is already create in fixture, so next time it fails
     with pytest.raises(DatabaseException):
         client.sql_client.create_dataset()
+    assert client.is_storage_initialized() is True
     client.sql_client.drop_dataset()
+    assert client.is_storage_initialized() is False
     with pytest.raises(DatabaseUndefinedRelation):
         client.sql_client.drop_dataset()
 

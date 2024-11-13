@@ -1,5 +1,14 @@
 import datetime  # noqa: I251
+
 from clickhouse_driver import dbapi as clickhouse_dbapi  # type: ignore[import-untyped]
+import clickhouse_driver
+import clickhouse_driver.errors  # type: ignore[import-untyped]
+from clickhouse_driver.dbapi import OperationalError  # type: ignore[import-untyped]
+from clickhouse_driver.dbapi.extras import DictCursor  # type: ignore[import-untyped]
+import clickhouse_connect
+from clickhouse_connect.driver.tools import insert_file as clk_insert_file
+from clickhouse_connect.driver.summary import QuerySummary
+
 from contextlib import contextmanager
 from typing import (
     Iterator,
@@ -14,14 +23,12 @@ from typing import (
     cast,
 )
 
-import clickhouse_driver
-import clickhouse_driver.errors  # type: ignore[import-untyped]
-from clickhouse_driver.dbapi import OperationalError  # type: ignore[import-untyped]
-from clickhouse_driver.dbapi.extras import DictCursor  # type: ignore[import-untyped]
 from pendulum import DateTime  # noqa: I251
 
+from dlt.common import logger
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.typing import DictStrAny
+
 from dlt.destinations.exceptions import (
     DatabaseUndefinedRelation,
     DatabaseTransientException,
@@ -62,14 +69,16 @@ class ClickHouseSqlClient(
 
     def __init__(
         self,
-        dataset_name: str,
+        dataset_name: Optional[str],
         staging_dataset_name: str,
+        known_table_names: List[str],
         credentials: ClickHouseCredentials,
         capabilities: DestinationCapabilitiesContext,
         config: ClickHouseClientConfiguration,
     ) -> None:
         super().__init__(credentials.database, dataset_name, staging_dataset_name, capabilities)
         self._conn: clickhouse_driver.dbapi.connection = None
+        self.known_table_names = known_table_names
         self.credentials = credentials
         self.database_name = credentials.database
         self.config = config
@@ -77,9 +86,14 @@ class ClickHouseSqlClient(
     def has_dataset(self) -> bool:
         # we do not need to normalize dataset_sentinel_table_name.
         sentinel_table = self.config.dataset_sentinel_table_name
-        return sentinel_table in [
-            t.split(self.config.dataset_table_separator)[1] for t in self._list_tables()
-        ]
+        all_ds_tables = self._list_tables()
+        if self.dataset_name:
+            return sentinel_table in [
+                t.split(self.config.dataset_table_separator)[1] for t in all_ds_tables
+            ]
+        else:
+            # if no dataset specified we look for sentinel table
+            return sentinel_table in all_ds_tables
 
     def open_connection(self) -> clickhouse_driver.dbapi.connection.Connection:
         self._conn = clickhouse_driver.connect(dsn=self.credentials.to_native_representation())
@@ -131,20 +145,42 @@ class ClickHouseSqlClient(
         sentinel_table_name = self.make_qualified_table_name(
             self.config.dataset_sentinel_table_name
         )
-        # drop a sentinel table
-        self.execute_sql(f"DROP TABLE {sentinel_table_name} SYNC")
 
-        # Since ClickHouse doesn't have schemas, we need to drop all tables in our virtual schema,
-        # or collection of tables, that has the `dataset_name` as a prefix.
-        to_drop_results = [
-            f"{self.catalog_name()}.{self.capabilities.escape_identifier(table)}"
-            for table in self._list_tables()
-        ]
+        all_ds_tables = self._list_tables()
+
+        if self.dataset_name:
+            # Since ClickHouse doesn't have schemas, we need to drop all tables in our virtual schema,
+            # or collection of tables, that has the `dataset_name` as a prefix.
+            to_drop_results = all_ds_tables
+        else:
+            # drop only tables known in logical (dlt) schema
+            to_drop_results = [
+                table_name for table_name in self.known_table_names if table_name in all_ds_tables
+            ]
+
+        catalog_name = self.catalog_name()
+        # drop a sentinel table only when dataset name was empty (was not included in the schema)
+        if not self.dataset_name:
+            self.execute_sql(f"DROP TABLE {sentinel_table_name} SYNC")
+            logger.warning(
+                "Dataset without name (tables without prefix) got dropped. Only tables known in the"
+                " current dlt schema and sentinel tables were removed."
+            )
+        else:
+            sentinel_table_name = self.make_qualified_table_name_path(
+                self.config.dataset_sentinel_table_name, escape=False
+            )[-1]
+            if sentinel_table_name not in all_ds_tables:
+                # no sentinel table, dataset does not exist
+                self.execute_sql(f"SELECT 1 FROM {sentinel_table_name}")
+                raise AssertionError(f"{sentinel_table_name} must not exist")
         for table in to_drop_results:
             # The "DROP TABLE" clause is discarded if we allow clickhouse_driver to handle parameter substitution.
             # This is because the driver incorrectly substitutes the entire query string, causing the "DROP TABLE" keyword to be omitted.
             # To resolve this, we are forced to provide the full query string here.
-            self.execute_sql(f"DROP TABLE {table} SYNC")
+            self.execute_sql(
+                f"DROP TABLE {catalog_name}.{self.capabilities.escape_identifier(table)} SYNC"
+            )
 
     def drop_tables(self, *tables: str) -> None:
         """Drops a set of tables if they exist"""
@@ -155,6 +191,30 @@ class ClickHouseSqlClient(
             for table in tables
         ]
         self.execute_many(statements)
+
+    def insert_file(
+        self, file_path: str, table_name: str, file_format: str, compression: str
+    ) -> QuerySummary:
+        with clickhouse_connect.create_client(
+            host=self.credentials.host,
+            port=self.credentials.http_port,
+            database=self.credentials.database,
+            user_name=self.credentials.username,
+            password=self.credentials.password,
+            secure=bool(self.credentials.secure),
+        ) as clickhouse_connect_client:
+            return clk_insert_file(
+                clickhouse_connect_client,
+                self.make_qualified_table_name(table_name),
+                file_path,
+                fmt=file_format,
+                settings={
+                    "allow_experimental_lightweight_delete": 1,
+                    "enable_http_compression": 1,
+                    "date_time_input_format": "best_effort",
+                },
+                compression=compression,
+            )
 
     def _list_tables(self) -> List[str]:
         catalog_name, table_name = self.make_qualified_table_name_path("%", escape=False)
@@ -217,9 +277,13 @@ class ClickHouseSqlClient(
         path = super().make_qualified_table_name_path(None, escape=escape)
         if table_name:
             # table name combines dataset name and table name
-            table_name = self.capabilities.casefold_identifier(
-                f"{self.dataset_name}{self.config.dataset_table_separator}{table_name}"
-            )
+            if self.dataset_name:
+                table_name = self.capabilities.casefold_identifier(
+                    f"{self.dataset_name}{self.config.dataset_table_separator}{table_name}"
+                )
+            else:
+                # without dataset just use the table name
+                table_name = self.capabilities.casefold_identifier(table_name)
             if escape:
                 table_name = self.capabilities.escape_identifier(table_name)
             # we have only two path components

@@ -71,12 +71,11 @@ def test_default_pipeline() -> None:
     p = dlt.pipeline()
     # this is a name of executing test harness or blank pipeline on windows
     possible_names = ["dlt_pytest", "dlt_pipeline"]
-    possible_dataset_names = ["dlt_pytest_dataset", "dlt_pipeline_dataset"]
     assert p.pipeline_name in possible_names
     assert p.pipelines_dir == os.path.abspath(os.path.join(TEST_STORAGE_ROOT, ".dlt", "pipelines"))
     assert p.runtime_config.pipeline_name == p.pipeline_name
-    # dataset that will be used to load data is the pipeline name
-    assert p.dataset_name in possible_dataset_names
+    # default dataset name is not created until a destination that requires it is set
+    assert p.dataset_name is None
     assert p.destination is None
     assert p.default_schema_name is None
 
@@ -95,7 +94,8 @@ def test_default_pipeline_dataset_layout(environment) -> None:
     dataset_name_layout = "bobby_%s"
     environment["DATASET_NAME_LAYOUT"] = dataset_name_layout
 
-    p = dlt.pipeline()
+    # use destination that needs a dataset
+    p = dlt.pipeline(destination="filesystem")
     # this is a name of executing test harness or blank pipeline on windows
     possible_names = ["dlt_pytest", "dlt_pipeline"]
     possible_dataset_names = [
@@ -107,7 +107,6 @@ def test_default_pipeline_dataset_layout(environment) -> None:
     assert p.runtime_config.pipeline_name == p.pipeline_name
     # dataset that will be used to load data is the pipeline name
     assert p.dataset_name in possible_dataset_names
-    assert p.destination is None
     assert p.default_schema_name is None
 
     # this is the same pipeline
@@ -121,14 +120,42 @@ def test_default_pipeline_dataset_layout(environment) -> None:
 
 
 def test_default_pipeline_dataset() -> None:
-    # dummy does not need a dataset
-    p = dlt.pipeline(destination="dummy")
+    # no dataset and no destination
+    p = dlt.pipeline(pipeline_name="test_default_pipeline")
+    assert p.dataset_name is None
+    p._wipe_working_folder()
+
+    # dummy does not need a dataset (is schemaless)
+    p = dlt.pipeline(pipeline_name="test_default_pipeline", destination="dummy")
     assert p.dataset_name is None  # so it is none
+    p._wipe_working_folder()
+
+    # clickhouse has optional dataset
+    p = dlt.pipeline(pipeline_name="test_default_pipeline", destination="clickhouse")
+    assert p.dataset_name is None
+    p._wipe_working_folder()
 
     # filesystem needs one
-    possible_dataset_names = ["dlt_pytest_dataset", "dlt_pipeline_dataset"]
-    p = dlt.pipeline(destination="filesystem")
-    assert p.dataset_name in possible_dataset_names
+    p = dlt.pipeline(pipeline_name="test_default_pipeline", destination="filesystem")
+    assert p.dataset_name == "test_default_pipeline_dataset"
+    p._wipe_working_folder()
+
+
+def test_default_pipeline_dataset_late_destination() -> None:
+    # no dataset and no destination
+    p = dlt.pipeline(pipeline_name="test_default_pipeline")
+    assert p.dataset_name is None
+
+    # default dataset name will be created
+    p.sync_destination(destination=dlt.destinations.filesystem(TEST_STORAGE_ROOT))
+    assert p.dataset_name == "test_default_pipeline_dataset"
+    p._wipe_working_folder()
+
+    p = dlt.pipeline(pipeline_name="test_default_pipeline")
+    # dummy won't set dataset
+    p.sync_destination(destination="dummy")
+    print(p.dataset_name)
+    assert p.dataset_name is None
 
 
 def test_default_pipeline_dataset_name(environment) -> None:
@@ -231,9 +258,9 @@ def test_pipeline_with_non_alpha_name() -> None:
         p = dlt.pipeline(pipeline_name=name)
 
     name = "another pipeline __8329イロハニホヘト"
-    p = dlt.pipeline(pipeline_name=name)
+    p = dlt.pipeline(pipeline_name=name, destination="filesystem")
     assert p.pipeline_name == name
-    # default dataset is set
+    # default dataset is set (we used filesystem destination that requires dataset)
     assert p.dataset_name == f"{name}_dataset"
     # also pipeline name in runtime must be correct
     assert p.runtime_config.pipeline_name == p.pipeline_name

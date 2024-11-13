@@ -71,7 +71,7 @@ def test_default_pipeline_names(
     possible_dataset_names = ["dlt_pytest_dataset", "dlt_pipeline_dataset"]
     assert p.pipeline_name in possible_names
     assert p.pipelines_dir == os.path.abspath(os.path.join(TEST_STORAGE_ROOT, ".dlt", "pipelines"))
-    assert p.dataset_name in possible_dataset_names
+    assert p.dataset_name is None
     assert p.destination is None
     assert p.default_schema_name is None
 
@@ -107,13 +107,19 @@ def test_default_pipeline_names(
                 else None
             ),
         )
-        # does not reset the dataset name
-        assert p.dataset_name in possible_dataset_names
-        # never do that in production code
-        p.dataset_name = None
-        # set no dataset name -> if destination does not support it we revert to default
         p._set_dataset_name(None)
-        assert p.dataset_name in possible_dataset_names
+
+        if p.destination.spec().needs_dataset_name():  # type: ignore
+            # sets dataset names for destinations that require it
+            assert p.dataset_name in possible_dataset_names
+            # never do that in production code
+            p.dataset_name = None
+            # set no dataset name -> if destination does not support it we revert to default
+            p._set_dataset_name(None)
+            assert p.dataset_name in possible_dataset_names
+        else:
+            # does not need dataset
+            assert p.dataset_name is None
     # the last package contains just the state (we added a new schema)
     last_load_id = p.list_extracted_load_packages()[-1]
     state_package = p.get_load_package_info(last_load_id)

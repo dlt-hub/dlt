@@ -12,7 +12,6 @@ from typing import (
     Iterable,
     List,
 )
-import os
 import time
 from dlt.common.metrics import LoadJobMetrics
 from dlt.common.pendulum import pendulum

@@ -34,8 +34,10 @@ You instantiate a pipeline by calling the `dlt.pipeline` function with the follo
   will load the data. It may also be provided to the `run` method of the `pipeline`.
 - `dataset_name`: a name of the dataset to which the data will be loaded. A dataset is a logical
   group of tables, i.e., `schema` in relational databases or a folder grouping many files. It may also be
-  provided later to the `run` or `load` methods of the pipeline. If not provided at all, then
-  it defaults to the `pipeline_name`.
+  provided later to the `run` or `load` methods of the pipeline. If not provided, then
+  it defaults to the `{pipeline_name}_dataset` on destinations that require datasets (most of the warehouses).
+  It will stay empty on destinations that do not separate tables into datasets (or database schemas) ie.
+  on vector databases or Clikchouse.
 
 To load the data, you call the `run` method and pass your data in the `data` argument.
 

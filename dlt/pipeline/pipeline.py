@@ -1281,7 +1281,14 @@ class Pipeline(SupportsPipeline):
                 )
             else:
                 spec = client_spec()
-            spec._bind_dataset_name(self.dataset_name, default_schema_name)
+            # in case of destination that does not need dataset name, we still must
+            # provide one to staging
+            # TODO: allow for separate staging_dataset_name, that will require to migrate pipeline state
+            #   to store it.
+            dataset_name = self.dataset_name
+            if not dataset_name and as_staging:
+                dataset_name = self._make_dataset_name(None, destination)
+            spec._bind_dataset_name(dataset_name, default_schema_name)
             return spec
 
         return client_spec()
@@ -1471,23 +1478,30 @@ class Pipeline(SupportsPipeline):
             if injected_caps:
                 injected_caps.__exit__(None, None, None)
 
-    def _set_dataset_name(self, new_dataset_name: str) -> None:
-        if not new_dataset_name and not self.dataset_name:
+    def _set_dataset_name(self, new_dataset_name: Optional[str]) -> None:
+        if new_dataset_name or not self.dataset_name:
+            self.dataset_name = self._make_dataset_name(new_dataset_name, self._destination)
+
+    def _make_dataset_name(
+        self, new_dataset_name: Optional[str], destination: Optional[AnyDestination]
+    ) -> str:
+        """Generates dataset name for the pipeline based on `new_dataset_name`
+        1. if name is not provided, default name is created
+        2. for destinations that do not need dataset names, def. name is not created
+        3. we add serial number in dev mode
+        4. we apply layout from pipeline config if present
+        """
+        if not new_dataset_name:
             # dataset name is required but not provided - generate the default now
             destination_needs_dataset = False
-            if self._destination:
-                fields = self._destination.spec().get_resolvable_fields()
-                dataset_name_type = fields.get("dataset_name")
-                # if dataset is required (default!) we create a default dataset name
-                destination_needs_dataset = dataset_name_type is not None and not is_optional_type(
-                    dataset_name_type
-                )
+            if destination and issubclass(destination.spec, DestinationClientDwhConfiguration):
+                destination_needs_dataset = destination.spec.needs_dataset_name()
             # if destination is not specified - generate dataset
-            if not self._destination or destination_needs_dataset:
+            if destination_needs_dataset:
                 new_dataset_name = self.pipeline_name + self.DEFAULT_DATASET_SUFFIX
 
         if not new_dataset_name:
-            return
+            return new_dataset_name
 
         # in case of dev_mode add unique suffix
         if self.dev_mode:
@@ -1497,11 +1511,11 @@ class Pipeline(SupportsPipeline):
                 new_dataset_name += self._pipeline_instance_id[1:]
             else:
                 new_dataset_name += self._pipeline_instance_id
-        self.dataset_name = new_dataset_name
 
         # normalizes the dataset name using the dataset_name_layout
         if self.config.dataset_name_layout:
-            self.dataset_name = self.config.dataset_name_layout % self.dataset_name
+            new_dataset_name = self.config.dataset_name_layout % new_dataset_name
+        return new_dataset_name
 
     def _set_default_schema_name(self, schema: Schema) -> None:
         assert self.default_schema_name is None
