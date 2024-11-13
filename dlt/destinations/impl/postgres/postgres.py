@@ -1,10 +1,4 @@
-import base64
-import contextlib
-from typing import Dict, Optional, Sequence, List, Any, Iterator, Literal
-
-import binascii
-from shapely import wkt, wkb  # type: ignore[import-untyped]
-from shapely.geometry.base import BaseGeometry  # type: ignore[import-untyped]
+from typing import Dict, Optional, Sequence, List, Any, Literal
 
 from dlt.common import logger
 from dlt.common.data_writers.configuration import CsvFormatConfiguration
@@ -19,29 +13,17 @@ from dlt.common.destination.reference import (
     FollowupJobRequest,
     LoadJob,
 )
-from dlt.common.exceptions import TerminalValueError
 from dlt.common.schema import TColumnSchema, TColumnHint, Schema
 from dlt.common.schema.typing import TColumnType
 from dlt.common.schema.utils import is_nullable_column
 from dlt.common.storages.file_storage import FileStorage
 from dlt.destinations.impl.postgres.configuration import PostgresClientConfiguration
-from dlt.destinations.impl.postgres.postgres_adapter import GEOMETRY_HINT, SRID_HINT
 from dlt.destinations.impl.postgres.sql_client import Psycopg2SqlClient
-from dlt.destinations.insert_job_client import InsertValuesJobClient, InsertValuesLoadJob
+from dlt.destinations.insert_job_client import InsertValuesJobClient
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.sql_jobs import SqlStagingCopyFollowupJob, SqlJobParams
 
 HINT_TO_POSTGRES_ATTR: Dict[TColumnHint, str] = {"unique": "UNIQUE"}
-TPOSTGIS_GEOMETRY = Literal[
-    "POINT",
-    "LINESTRING",
-    "POLYGON",
-    "MULTIPOINT",
-    "MULTILINESTRING",
-    "MULTIPOLYGON",
-    "GEOMETRYCOLLECTION",
-    "LINEARRING",
-]
 
 
 class PostgresStagingCopyJob(SqlStagingCopyFollowupJob):
@@ -152,219 +134,6 @@ class PostgresCsvCopyJob(RunnableLoadJob, HasFollowupJobs):
                     cursor.copy_expert(copy_sql, f, size=8192)
 
 
-class PostgresInsertValuesWithGeometryTypesLoadJob(InsertValuesLoadJob):
-    @staticmethod
-    def _parse_geometry(value: Any) -> Optional[str]:
-        """Parse geometry from various formats into a PostgreSQL WKB statement."""
-        if value is None or not isinstance(value, (str, bytes)):
-            return None
-
-        with contextlib.suppress(Exception):
-            if isinstance(value, str) and len(value) >= 16:  # Min WKB hex length
-                with contextlib.suppress(binascii.Error, Exception):
-                    raw_bytes = binascii.unhexlify(value.strip())
-                    geom = wkb.loads(raw_bytes)
-                    if isinstance(geom, BaseGeometry):
-                        return f"decode('{value.strip()}', 'hex')"
-            if isinstance(value, str):
-                with contextlib.suppress(binascii.Error, Exception):
-                    raw_bytes = base64.b64decode(value.strip())
-                    geom = wkb.loads(raw_bytes)
-                    if isinstance(geom, BaseGeometry):
-                        hex_ = binascii.hexlify(raw_bytes).decode("ascii")
-                        return f"decode('{hex_}', 'hex')"
-            if isinstance(value, str):
-                with contextlib.suppress(Exception):
-                    geom = wkt.loads(value)
-                    if isinstance(geom, BaseGeometry):
-                        hex_ = binascii.hexlify(geom.wkb).decode("ascii")
-                        return f"decode('{hex_}', 'hex')"
-            if isinstance(value, bytes):
-                with contextlib.suppress(Exception):
-                    geom = wkb.loads(value)
-                    if isinstance(geom, BaseGeometry):
-                        hex_ = binascii.hexlify(value).decode("ascii")
-                        return f"decode('{hex_}', 'hex')"
-        return None
-
-    @staticmethod
-    def _clean_value(value: str) -> str:
-        value = value.strip()
-        while value.startswith("("):
-            value = value[1:]
-        while value.endswith(")"):
-            value = value[:-1]
-        return value.strip()
-
-    @staticmethod
-    def _parse_value(value: str) -> str:
-        """Parse a single value, converting geometries to WKB hex."""
-        value = PostgresInsertValuesWithGeometryTypesLoadJob._clean_value(value)
-
-        if not value or value == "NULL":
-            return "NULL"
-        if value.startswith("E'") and value.endswith("'"):
-            return value[2:-1]
-
-        return value[1:-1] if value.startswith("'") and value.endswith("'") else value
-
-    @staticmethod
-    def _split_fragment_to_records(text: str) -> List[str]:
-        text = text.strip().rstrip(";").strip()
-
-        records = []
-        current_record = []
-        paren_count = 0
-        in_quote = False
-        escape_next = False
-
-        for char in text:
-            if escape_next:
-                current_record.append(char)
-                escape_next = False
-                continue
-
-            if char == "\\":
-                escape_next = True
-                current_record.append(char)
-                continue
-
-            if char == "'" and not escape_next:
-                in_quote = not in_quote
-                current_record.append(char)
-                continue
-
-            if char == "(" and not in_quote:
-                paren_count += 1
-                if paren_count == 1:
-                    continue
-                current_record.append(char)
-                continue
-
-            if char == ")" and not in_quote:
-                paren_count -= 1
-                if paren_count == 0:
-                    records.append("".join(current_record))
-                    current_record = []
-                    continue
-                current_record.append(char)
-                continue
-
-            if paren_count > 0 or in_quote:
-                current_record.append(char)
-
-        return records
-
-    @staticmethod
-    def _split_record_to_datums(record: str) -> List[str]:
-        """Parse a single record into a list of values/datums."""
-        values = []
-        current = []
-        paren_count = 0
-        in_quote = False
-        escape_next = False
-        in_array = False
-
-        for char in record:
-            if escape_next:
-                current.append(char)
-                escape_next = False
-                continue
-
-            if char == "\\":
-                escape_next = True
-                current.append(char)
-                continue
-
-            if char == "'" and not escape_next:
-                in_quote = not in_quote
-                current.append(char)
-                continue
-
-            if char == "[":
-                in_array = True
-                current.append(char)
-                continue
-
-            if char == "]":
-                in_array = False
-                current.append(char)
-                continue
-
-            if char == "(" and not in_quote:
-                paren_count += 1
-                current.append(char)
-                continue
-
-            if char == ")" and not in_quote:
-                paren_count -= 1
-                current.append(char)
-                continue
-
-            if char == "," and not in_quote and paren_count == 0 and not in_array:
-                values.append(
-                    PostgresInsertValuesWithGeometryTypesLoadJob._parse_value("".join(current))
-                )
-                current = []
-                continue
-
-            current.append(char)
-
-        if current:
-            values.append(
-                PostgresInsertValuesWithGeometryTypesLoadJob._parse_value("".join(current))
-            )
-
-        return values
-
-    def _insert(self, qualified_table_name: str, file_path: str) -> Iterator[List[str]]:
-        to_insert = super()._insert(qualified_table_name, file_path)
-        for fragments in to_insert:
-            processed_fragments = []
-            for fragment in fragments:
-                if fragment == "VALUES\n" or fragment.strip().upper().startswith("INSERT INTO "):
-                    processed_fragments.append(fragment)
-                else:
-                    processed_fragment: List[str] = []
-
-                    columns = self._load_table["columns"]
-                    processed_fragment_records: List[str] = self._split_fragment_to_records(
-                        fragment
-                    )
-
-                    for record in processed_fragment_records:
-                        processed_record: List[str] = self._split_record_to_datums(record)
-                        assert len(columns) == len(processed_record)
-
-                        for i, (column, column_value) in enumerate(zip(columns, processed_record)):
-                            if columns[column].get(GEOMETRY_HINT):
-                                if geom_value := self._parse_geometry(column_value.strip()):
-                                    srid = columns[column].get(SRID_HINT, 4326)
-                                    processed_record[i] = (
-                                        f"ST_SetSRID(ST_GeomFromWKB({geom_value}), {srid})"
-                                    )
-                                else:
-                                    raise TerminalValueError(
-                                        f"{column_value} couldn't be coerced to geometric type!"
-                                    )
-                            else:
-                                processed_record[i] = column_value
-
-                        processed_record = [
-                            (
-                                f"'{datum}'"
-                                if not datum.startswith("ST_") and datum != "NULL"
-                                else datum
-                            )
-                            for datum in processed_record
-                        ]
-                        processed_fragment.append(f"({','.join(processed_record)})")
-
-                    processed_fragments.append(",\n".join(processed_fragment) + ";")
-
-            yield processed_fragments
-
-
 class PostgresClient(InsertValuesJobClient):
     def __init__(
         self,
@@ -408,12 +177,7 @@ class PostgresClient(InsertValuesJobClient):
         )
         column_name = self.sql_client.escape_column_name(c["name"])
         nullability = self._gen_not_null(c.get("nullable", True))
-
-        if c.get(GEOMETRY_HINT):
-            srid = c.get(SRID_HINT, 4326)
-            column_type = f"geometry(Geometry, {srid})"
-        else:
-            column_type = self.type_mapper.to_destination_type(c, table)
+        column_type = self.type_mapper.to_destination_type(c, table)
 
         return f"{column_name} {column_type} {hints_} {nullability}"
 
