@@ -51,21 +51,25 @@ class AwsCredentialsWithoutDefaults(CredentialsConfiguration):
 
     def to_object_store_rs_credentials(self) -> Dict[str, str]:
         # https://docs.rs/object_store/latest/object_store/aws
+        # NOTE: we are passing empty strings to reset env variables
+        # that delta-rs sets (for some reason) based on those credentials
+        # those variables will be preserved if in next call we just skip the
+        # field
         creds = cast(
             Dict[str, str],
             without_none(
                 dict(
-                    aws_access_key_id=self.aws_access_key_id,
-                    aws_secret_access_key=self.aws_secret_access_key,
-                    aws_session_token=self.aws_session_token,
-                    region=self.region_name,
+                    aws_access_key_id=self.aws_access_key_id or "",
+                    aws_secret_access_key=self.aws_secret_access_key or "",
+                    aws_session_token=self.aws_session_token or "",
+                    region=self.region_name or "",
                     endpoint_url=self.endpoint_url,
                 )
             ),
         )
 
-        if "endpoint_url" not in creds:  # AWS S3
-            if "region" not in creds:
+        if not self.endpoint_url:  # AWS S3
+            if not self.region_name:
                 raise ObjectStoreRsCredentialsException(
                     "`object_store` Rust crate requires AWS region when using AWS S3."
                 )
