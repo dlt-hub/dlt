@@ -45,6 +45,10 @@ jobs:
             os: "ubuntu-latest"
           - python-version: "3.12.x"
             os: "ubuntu-latest"
+          - python-version: "3.13.x"
+            os: "ubuntu-latest"
+          - python-version: "3.12.x"
+            os: "windows-latest"
 
     defaults:
       run:

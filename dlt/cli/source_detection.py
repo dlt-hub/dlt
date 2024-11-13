@@ -1,11 +1,10 @@
 import ast
 import inspect
-from astunparse import unparse
 from typing import Dict, Tuple, Set, List
 
 from dlt.common.configuration import is_secret_hint
 from dlt.common.configuration.specs import BaseConfiguration
-from dlt.common.reflection.utils import creates_func_def_name_node
+from dlt.common.reflection.utils import creates_func_def_name_node, ast_unparse
 from dlt.common.typing import is_optional_type
 
 from dlt.sources import SourceReference
@@ -65,7 +64,7 @@ def find_source_calls_to_replace(
     for calls in visitor.known_sources_resources_calls.values():
         for call in calls:
             transformed_nodes.append(
-                (call.func, ast.Name(id=pipeline_name + "_" + unparse(call.func)))
+                (call.func, ast.Name(id=pipeline_name + "_" + ast_unparse(call.func)))
             )
 
     return transformed_nodes

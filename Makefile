@@ -46,6 +46,9 @@ has-poetry:
 dev: has-poetry
 	poetry install --all-extras --with docs,providers,pipeline,sources,sentry-sdk,airflow
 
+dev-common: has-poetry
+	poetry install -E duckdb -E cli -E parquet -E deltalake -E sql_database --with sentry-sdk,pipeline,sources
+
 lint:
 	./tools/check-package.sh
 	poetry run python ./tools/check-lockfile.py

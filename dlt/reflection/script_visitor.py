@@ -1,10 +1,9 @@
 import inspect
 import ast
-import astunparse
 from ast import NodeVisitor
 from typing import Any, Dict, List
-from dlt.common.reflection.utils import find_outer_func_def
 
+from dlt.common.reflection.utils import find_outer_func_def, ast_unparse
 
 import dlt.reflection.names as n
 
@@ -68,9 +67,9 @@ class PipelineScriptVisitor(NodeVisitor):
             for deco in node.decorator_list:
                 # decorators can be function calls, attributes or names
                 if isinstance(deco, (ast.Name, ast.Attribute)):
-                    alias_name = astunparse.unparse(deco).strip()
+                    alias_name = ast_unparse(deco).strip()
                 elif isinstance(deco, ast.Call):
-                    alias_name = astunparse.unparse(deco.func).strip()
+                    alias_name = ast_unparse(deco.func).strip()
                 else:
                     raise ValueError(
                         self.source_segment(deco), type(deco), "Unknown decorator form"
@@ -87,7 +86,7 @@ class PipelineScriptVisitor(NodeVisitor):
     def visit_Call(self, node: ast.Call) -> Any:
         if self._curr_pass == 2:
             # check if this is a call to any of known functions
-            alias_name = astunparse.unparse(node.func).strip()
+            alias_name = ast_unparse(node.func).strip()
             fn = self.func_aliases.get(alias_name)
             if not fn:
                 # try a fallback to "run" function that may be called on pipeline or source
