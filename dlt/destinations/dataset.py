@@ -1,4 +1,4 @@
-from typing import Any, Generator, Optional, Sequence, Union, List
+from typing import Any, Generator, Optional, Sequence, Union, List, Dict
 from dlt.common.json import json
 from copy import deepcopy
 
@@ -299,6 +299,33 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
     def __getattr__(self, table_name: str) -> SupportsReadableRelation:
         """access of table via property notation"""
         return self.table(table_name)
+
+    def row_counts(
+        self, *, data_tables: bool = True, dlt_tables: bool = False, table_names: List[str] = None
+    ) -> Dict[str, int]:
+        """Returns a dictionary of table names and their row counts, returns counts of all data tables by default"""
+        """If table_names is provided, only the tables in the list are returned regardless of the data_tables and dlt_tables flags"""
+
+        selected_tables = table_names or []
+        if not selected_tables:
+            if data_tables:
+                selected_tables += self.schema.data_table_names(seen_data_only=True)
+            if dlt_tables:
+                selected_tables += self.schema.dlt_table_names()
+
+        # Build UNION ALL query to get row counts for all selected tables
+        queries = []
+        for table in selected_tables:
+            queries.append(
+                f"SELECT '{table}' as table_name, COUNT(*) as row_count FROM"
+                f" {self.sql_client.make_qualified_table_name(table)}"
+            )
+
+        query = " UNION ALL ".join(queries)
+
+        # Execute query and build result dict
+        with self(query).cursor() as cursor:
+            return {row[0]: row[1] for row in cursor.fetchall()}
 
 
 def dataset(
