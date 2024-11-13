@@ -120,6 +120,7 @@ R2_BUCKET_CONFIG = dict(
         aws_access_key_id=dlt.config.get("tests.r2_aws_access_key_id", str),
         aws_secret_access_key=dlt.config.get("tests.r2_aws_secret_access_key", str),
         endpoint_url=dlt.config.get("tests.r2_endpoint_url", str),
+        region_name=dlt.config.get("tests.r2_region_name", str),
     ),
 )
 
