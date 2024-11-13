@@ -419,7 +419,7 @@ def test_destination_staging_config(environment: Any) -> None:
     fs_dest = filesystem("file:///testing-bucket")
     p = dlt.pipeline(
         pipeline_name="staging_pipeline",
-        destination=redshift(credentials="redshift://loader:loader@localhost:5432/dlt_data"),
+        destination=dummy(),
         staging=fs_dest,
     )
     schema = Schema("foo")

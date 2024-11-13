@@ -1278,8 +1278,7 @@ class Pipeline(SupportsPipeline):
             # provide one to staging
             # TODO: allow for separate staging_dataset_name, that will require to migrate pipeline state
             #   to store it.
-            staging_dataset_name=self.dataset_name
-            or self._make_dataset_name(None, self._destination),
+            staging_dataset_name=self.dataset_name or self._make_dataset_name(None, self._staging),
             staging_initial_config=initial_staging_config,
         )
 
