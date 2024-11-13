@@ -144,14 +144,13 @@ class ReadableIbisRelation(SupportsReadableRelation):
         # try to trace columns to original table columns
         def get_column_origin(column_name: str) -> Tuple[str, str]:
             column_expr = self._expression[column_name]
-            print(column_expr)
+            # print(column_expr)
 
             return "Unknown origin", "Unknown column"
 
         for column_name in column_names:
-            print(column_name, get_column_origin(column_name))
-
-        assert False
+            pass
+            # print(column_name, get_column_origin(column_name))
 
     def _proxy_expression_method(self, method_name: str, *args: Any, **kwargs: Any) -> Any:
         """Proxy method calls to the underlying ibis expression, allowing to wrap the resulting expression in a new relation"""
@@ -308,7 +307,10 @@ class ReadableIbisDataset(SupportsReadableDataset):
         # and if this is not present, this will not be fully lazy bc the dataset needs to be
         # queried to get the schema
         if table_name not in self.schema.tables:
-            raise Exception(f"Table {table_name} not found in schema. Available tables: {self.schema.tables.keys()}")
+            raise Exception(
+                f"Table {table_name} not found in schema. Available tables:"
+                f" {self.schema.tables.keys()}"
+            )
         table_schema = self.schema.tables[table_name]
 
         # Convert dlt table schema columns to ibis schema
