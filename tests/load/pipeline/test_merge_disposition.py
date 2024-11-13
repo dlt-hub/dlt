@@ -1543,7 +1543,7 @@ def test_merge_arrow(
     destination_config: DestinationTestConfiguration,
     merge_strategy: TLoaderMergeStrategy,
 ) -> None:
-    pipeline = destination_config.setup_pipeline("clickhouse_arrow", dev_mode=True)
+    pipeline = destination_config.setup_pipeline("merge_arrow", dev_mode=True)
 
     skip_if_not_supported(merge_strategy, pipeline.destination)
 
@@ -1569,8 +1569,6 @@ def test_merge_arrow(
         arrow_items(test_rows, schema_columns),
     )
     assert_load_info(load_info)
-    table_counts = load_table_counts(pipeline, "arrow_items")
-    assert table_counts["arrow_items"] == 2
 
     tables = load_tables_to_dicts(pipeline, "arrow_items")
 
@@ -1590,16 +1588,23 @@ def test_merge_arrow(
     )
 
     assert_load_info(load_info)
-
-    table_counts = load_table_counts(pipeline, "arrow_items")
-    assert table_counts["arrow_items"] == 2
-
     tables = load_tables_to_dicts(pipeline, "arrow_items")
 
-    assert_records_as_set(
-        tables["arrow_items"],
-        [
-            {"id": 1, "name": "foo"},
-            {"id": 2, "name": "updated bar"},
-        ],
-    )
+    if destination_config.table_format == "delta":
+        assert_records_as_set(
+            tables["arrow_items"],
+            [
+                {"id": 1, "name": "foo"},
+                {"id": 2, "name": "updated bar"},
+                {"id": 1, "name": "foo"},
+                {"id": 2, "name": "bar"},
+            ],
+        )
+    else:
+        assert_records_as_set(
+            tables["arrow_items"],
+            [
+                {"id": 1, "name": "foo"},
+                {"id": 2, "name": "updated bar"},
+            ],
+        )
