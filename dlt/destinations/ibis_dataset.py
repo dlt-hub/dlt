@@ -308,7 +308,7 @@ class ReadableIbisDataset(SupportsReadableDataset):
         # and if this is not present, this will not be fully lazy bc the dataset needs to be
         # queried to get the schema
         if table_name not in self.schema.tables:
-            raise Exception(f"Table {table_name} not found in schema")
+            raise Exception(f"Table {table_name} not found in schema. Available tables: {self.schema.tables.keys()}")
         table_schema = self.schema.tables[table_name]
 
         # Convert dlt table schema columns to ibis schema
