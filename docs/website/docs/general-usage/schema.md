@@ -295,9 +295,11 @@ settings:
 ```
 Above, we add a `partition` hint to all columns ending with `_timestamp`. You can do the same thing in the code:
 ```py
+  from dlt.common.schema.typing import TSimpleRegex
+  
   source = data_source()
   # this will update existing hints with the hints passed
-  source.schema.merge_hints({"partition": ["re:_timestamp$"]})
+  source.schema.merge_hints({"partition": [TSimpleRegex("re:_timestamp$")]})
 ```
 
 ### Preferred data types
@@ -321,10 +323,10 @@ Here's the same thing in code:
   source = data_source()
   source.schema.update_preferred_types(
     {
-      "re:timestamp": "timestamp",
-      "inserted_at": "timestamp",
-      "created_at": "timestamp",
-      "updated_at": "timestamp",
+      TSimpleRegex("re:timestamp"): "timestamp",
+      TSimpleRegex("inserted_at"): "timestamp",
+      TSimpleRegex("created_at"): "timestamp",
+      TSimpleRegex("updated_at"): "timestamp",
     }
   )
 ```
@@ -335,6 +337,7 @@ Here's the same thing in code:
 Directly define data types and their properties, such as nullability, within the `@dlt.resource` decorator. This eliminates the dependency on external schema files. For example:
 
 ```py
+
 @dlt.resource(name='my_table', columns={"my_column": {"data_type": "bool", "nullable": True}})
 def my_resource():
     for i in range(10):
@@ -388,7 +391,7 @@ This will display a structured YAML representation of your schema, showing detai
 
 ## Export and import schema files
 
-Please follow the guide on [how to adjust a schema](../walkthroughs/adjust-a-schema.md) to export and import `yaml`
+Please follow the guide on [how to adjust a schema](../walkthroughs/adjust-a-schema.md) to export and import YAML
 schema files in your pipeline.
 
 ## Attaching schemas to sources

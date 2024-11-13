@@ -47,7 +47,7 @@ import_schema_path="schemas/import"
 ## 2. Run the pipeline to see the schemas
 
 To see the schemas, you must run your pipeline again. The `schemas` and `import`/`export`
-directories will be created. In each directory, you'll see a `yaml` file (e.g., `chess.schema.yaml`).
+directories will be created. In each directory, you'll see a YAML file (e.g., `chess.schema.yaml`).
 
 Look at the export schema (in the export folder): this is the schema that got inferred from the data
 and was used to load it into the destination (e.g., `duckdb`).
@@ -75,7 +75,7 @@ In the next steps, we'll experiment a lot; you will be warned to set `dev_mode=T
 
 :::caution
 `dlt` will **not modify** tables after they are created.
-So if you have a `yaml` file, and you change it (e.g., change a data type or add a hint),
+So if you have a YAML file, and you change it (e.g., change a data type or add a hint),
 then you need to **delete the dataset**
 or set `dev_mode=True`:
 ```py
@@ -135,14 +135,14 @@ These steps ensure that the column order in your dataset matches your specificat
 
 ```py
 # Define the data source and reorder columns using add_map
-data_source = resource().add_map(lambda row: {
+my_resource = resource().add_map(lambda row: {
     'column3': row['column3'],
     'column1': row['column1'],
     'column2': row['column2']
 })
 
 # Run the pipeline
-load_info = pipeline.run(data_source)
+load_info = pipeline.run(my_resource)
 ```
 
 In this example, the `add_map` function reorders columns by defining a new mapping. The lambda function specifies the desired order by rearranging the key-value pairs. When the pipeline runs, the data will load with the columns in the new order.

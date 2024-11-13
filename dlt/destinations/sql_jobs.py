@@ -78,7 +78,6 @@ class SqlFollowupJob(FollowupJobRequestImpl):
             job = cls(file_info.file_name())
             job._save_text_file("\n".join(sql))
         except Exception as e:
-            # raise exception with some context
             raise SqlJobCreationException(e, table_chain) from e
 
         return job
@@ -168,12 +167,24 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         merge_strategy = resolve_merge_strategy(
             {root_table["name"]: root_table}, root_table, sql_client.capabilities
         )
+
+        merge_sql = None
         if merge_strategy == "delete-insert":
-            return cls.gen_merge_sql(table_chain, sql_client)
+            merge_sql = cls.gen_merge_sql(table_chain, sql_client)
         elif merge_strategy == "upsert":
-            return cls.gen_upsert_sql(table_chain, sql_client)
+            merge_sql = cls.gen_upsert_sql(table_chain, sql_client)
         elif merge_strategy == "scd2":
-            return cls.gen_scd2_sql(table_chain, sql_client)
+            merge_sql = cls.gen_scd2_sql(table_chain, sql_client)
+
+        # prepend setup code
+        return cls._gen_table_setup_clauses(table_chain, sql_client) + merge_sql
+
+    @classmethod
+    def _gen_table_setup_clauses(
+        cls, table_chain: Sequence[PreparedTableSchema], sql_client: SqlClientBase[Any]
+    ) -> List[str]:
+        """Subclasses may override this method to generate additional sql statements to run before the merge"""
+        return []
 
     @classmethod
     def _gen_key_table_clauses(

@@ -104,7 +104,7 @@ The [Filesystem](./tutorial/filesystem) source extracts data from AWS S3, Google
 ```py
 from dlt.sources.filesystem import filesystem
 
-source = filesystem(
+resource = filesystem(
     bucket_url="s3://example-bucket",
     file_glob="*.csv"
 )
@@ -115,7 +115,7 @@ pipeline = dlt.pipeline(
     dataset_name="filesystem_data",
 )
 
-load_info = pipeline.run(source)
+load_info = pipeline.run(resource)
 ```
 
 Follow the [filesystem source tutorial](./tutorial/filesystem) to learn more about the source configuration and supported storage services.

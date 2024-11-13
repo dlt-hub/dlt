@@ -87,6 +87,7 @@ def weaviate_adapter(
                     TOKENIZATION_HINT: method,  # type: ignore
                 }
 
+    # this makes sure that {} as column_hints never gets into apply_hints (that would reset existing columns)
     if not column_hints:
         raise ValueError("Either 'vectorize' or 'tokenization' must be specified.")
     else:

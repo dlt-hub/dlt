@@ -36,7 +36,7 @@ processing.
 
 ### Controlling intermediary file size and rotation
 `dlt` writes data to intermediary files. You can control the file size and the number of created files by setting the maximum number of data items stored in a single file or the maximum single file size. Keep in mind that the file size is computed after compression has been performed.
-* `dlt` uses a custom version of the [`jsonl` file format](../dlt-ecosystem/file-formats/jsonl.md) between the **extract** and **normalize** stages.
+* `dlt` uses a custom version of the [JSON file format](../dlt-ecosystem/file-formats/jsonl.md) between the **extract** and **normalize** stages.
 * Files created between the **normalize** and **load** stages are the same files that will be loaded to the destination.
 
 :::tip

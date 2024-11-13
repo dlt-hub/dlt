@@ -1,7 +1,6 @@
 from typing import Optional, Sequence, List, cast
 from urllib.parse import urlparse, urlunparse
 
-from dlt import config
 from dlt.common.configuration.specs.azure_credentials import (
     AzureServicePrincipalCredentialsWithoutDefaults,
 )
@@ -31,6 +30,7 @@ from dlt.destinations.impl.databricks.configuration import DatabricksClientConfi
 from dlt.destinations.impl.databricks.sql_client import DatabricksSqlClient
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest
+from dlt.destinations.utils import is_compression_disabled
 
 AZURE_BLOB_STORAGE_PROTOCOLS = ["az", "abfss", "abfs"]
 SUPPORTED_BLOB_STORAGE_PROTOCOLS = AZURE_BLOB_STORAGE_PROTOCOLS + ["s3", "gs", "gcs"]
@@ -140,7 +140,7 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
         if file_name.endswith(".parquet"):
             source_format = "PARQUET"  # Only parquet is supported
         elif file_name.endswith(".jsonl"):
-            if not config.get("data_writer.disable_compression"):
+            if not is_compression_disabled():
                 raise LoadJobTerminalException(
                     self._file_path,
                     "Databricks loader does not support gzip compressed JSON files. Please disable"
@@ -224,7 +224,7 @@ class DatabricksClient(InsertValuesJobClient, SupportsStagingDestination):
         )
         super().__init__(schema, config, sql_client)
         self.config: DatabricksClientConfiguration = config
-        self.sql_client: DatabricksSqlClient = sql_client  # type: ignore[assignment]
+        self.sql_client: DatabricksSqlClient = sql_client
         self.type_mapper = self.capabilities.get_type_mapper()
 
     def create_load_job(

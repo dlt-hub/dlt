@@ -586,8 +586,16 @@ def test_trace_telemetry(temporary_telemetry: RuntimeConfiguration) -> None:
         assert event["properties"]["destination_name"] is None
         assert event["properties"]["destination_type"] is None
         assert event["properties"]["pipeline_name_hash"] == digest128("fresh")
-        assert event["properties"]["dataset_name_hash"] == digest128(p.dataset_name)
+        assert event["properties"]["dataset_name_hash"] is None
         assert event["properties"]["default_schema_name_hash"] == digest128(p.default_schema_name)
+
+        # trace with dataset name
+        p = dlt.pipeline(pipeline_name="fresh", dataset_name="fresh_dataset").drop()
+        ANON_TRACKER_SENT_ITEMS.clear()
+        SENTRY_SENT_ITEMS.clear()
+        p.extract([1, 2, 3], table_name="data")
+        event = ANON_TRACKER_SENT_ITEMS[0]
+        assert event["properties"]["dataset_name_hash"] == digest128(p.dataset_name)
 
 
 def test_extract_data_describe() -> None:

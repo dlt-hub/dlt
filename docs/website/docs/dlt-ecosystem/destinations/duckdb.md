@@ -33,7 +33,7 @@ python3 chess_pipeline.py
 All write dispositions are supported.
 
 ## Data loading
-`dlt` will load data using large INSERT VALUES statements by default. Loading is multithreaded (20 threads by default). If you are okay with installing `pyarrow`, we suggest switching to `parquet` as the file format. Loading is faster (and also multithreaded).
+`dlt` will load data using large INSERT VALUES statements by default. Loading is multithreaded (20 threads by default). If you are okay with installing `pyarrow`, we suggest switching to Parquet as the file format. Loading is faster (and also multithreaded).
 
 ### Data types
 `duckdb` supports various [timestamp types](https://duckdb.org/docs/sql/data_types/timestamp.html). These can be configured using the column flags `timezone` and `precision` in the `dlt.resource` decorator or the `pipeline.run` method.
@@ -95,11 +95,11 @@ dlt.config["schema.naming"] = "duck_case"
 ## Supported file formats
 You can configure the following file formats to load data into duckdb:
 * [insert-values](../file-formats/insert-format.md) is used by default.
-* [parquet](../file-formats/parquet.md) is supported.
+* [Parquet](../file-formats/parquet.md) is supported.
 :::note
-`duckdb` cannot COPY many parquet files to a single table from multiple threads. In this situation, `dlt` serializes the loads. Still, that may be faster than INSERT.
+`duckdb` cannot COPY many Parquet files to a single table from multiple threads. In this situation, dlt serializes the loads. Still, that may be faster than INSERT.
 :::
-* [jsonl](../file-formats/jsonl.md)
+* [JSONL](../file-formats/jsonl.md)
 
 :::tip
 `duckdb` has [timestamp types](https://duckdb.org/docs/sql/data_types/timestamp.html) with resolutions from milliseconds to nanoseconds. However,

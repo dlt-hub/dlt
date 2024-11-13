@@ -80,7 +80,7 @@ class SqlaDbApiCursor(DBApiCursorImpl):
         self.fetchone = curr.fetchone  # type: ignore[assignment]
         self.fetchmany = curr.fetchmany  # type: ignore[assignment]
 
-        self.set_default_schema_columns()
+        self._set_default_schema_columns()
 
     def _get_columns(self) -> List[str]:
         try:

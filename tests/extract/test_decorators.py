@@ -304,6 +304,29 @@ def test_apply_hints_columns() -> None:
     assert users.columns == {}
 
 
+def test_apply_hints_reference() -> None:
+    @dlt.resource(
+        references=[
+            {
+                "columns": ["User ID", "user_name"],
+                "referenced_table": "users",
+                "referenced_columns": ["id", "name"],
+            }
+        ]
+    )
+    def campaigns():
+        yield []
+
+    table_schema = campaigns().compute_table_schema()
+    assert table_schema["references"] == [
+        {
+            "columns": ["User ID", "user_name"],
+            "referenced_table": "users",
+            "referenced_columns": ["id", "name"],
+        }
+    ]
+
+
 def test_columns_from_pydantic() -> None:
     class Columns(BaseModel):
         tags: List[str]

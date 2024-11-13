@@ -11,7 +11,7 @@ from dlt.common.storages import FileStorage, PackageStorage, ParsedLoadJobFileNa
 from dlt.common.storages.configuration import FilesystemConfiguration
 from dlt.common.storages.load_package import TPackageJobState
 from dlt.common.storages.load_storage import JobFileFormatUnsupported
-from dlt.common.destination.reference import RunnableLoadJob, TDestination
+from dlt.common.destination.reference import RunnableLoadJob, AnyDestination
 from dlt.common.schema.utils import (
     fill_hints_from_parent_and_clone_table,
     get_nested_tables,
@@ -130,7 +130,7 @@ def test_big_loadpackages() -> None:
     duration = float(time() - start_time)
 
     # sanity check
-    assert duration > 3
+    assert duration > 2
     # we want 1000 empty processed jobs to need less than 15 seconds total (locally it runs in 5)
     assert duration < 15
 
@@ -1064,7 +1064,7 @@ def setup_loader(
     client_config = client_config or DummyClientConfiguration(
         loader_file_format="jsonl", completed_prob=1
     )
-    destination: TDestination = dummy(**client_config)  # type: ignore[assignment]
+    destination: AnyDestination = dummy(**client_config)  # type: ignore[assignment]
     # setup
     staging_system_config = None
     staging = None

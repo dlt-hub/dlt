@@ -71,7 +71,7 @@ def test_default_pipeline_names(
     possible_dataset_names = ["dlt_pytest_dataset", "dlt_pipeline_dataset"]
     assert p.pipeline_name in possible_names
     assert p.pipelines_dir == os.path.abspath(os.path.join(TEST_STORAGE_ROOT, ".dlt", "pipelines"))
-    assert p.dataset_name in possible_dataset_names
+    assert p.dataset_name is None
     assert p.destination is None
     assert p.default_schema_name is None
 
@@ -107,13 +107,19 @@ def test_default_pipeline_names(
                 else None
             ),
         )
-        # does not reset the dataset name
-        assert p.dataset_name in possible_dataset_names
-        # never do that in production code
-        p.dataset_name = None
-        # set no dataset name -> if destination does not support it we revert to default
         p._set_dataset_name(None)
-        assert p.dataset_name in possible_dataset_names
+
+        if p.destination.spec().needs_dataset_name():  # type: ignore
+            # sets dataset names for destinations that require it
+            assert p.dataset_name in possible_dataset_names
+            # never do that in production code
+            p.dataset_name = None
+            # set no dataset name -> if destination does not support it we revert to default
+            p._set_dataset_name(None)
+            assert p.dataset_name in possible_dataset_names
+        else:
+            # does not need dataset
+            assert p.dataset_name is None
     # the last package contains just the state (we added a new schema)
     last_load_id = p.list_extracted_load_packages()[-1]
     state_package = p.get_load_package_info(last_load_id)
@@ -435,18 +441,26 @@ def test_pipeline_data_writer_compression(
     # Ensure pipeline works without compression
     data = ["a", "b", "c"]
     dataset_name = "compression_data_" + uniq_id()
-    dlt.config["data_writer"] = {
-        "disable_compression": disable_compression
-    }  # not sure how else to set this
+    destination_config.disable_compression = disable_compression
+
     p = destination_config.setup_pipeline("compression_test", dataset_name=dataset_name)
     p.extract(dlt.resource(data, name="data"), table_format=destination_config.table_format)
     s = p._get_normalize_storage()
     # check that files are not compressed if compression is disabled
-    if disable_compression:
-        for f in s.list_files_to_normalize_sorted():
+    for name in s.list_files_to_normalize_sorted():
+        full_path = s.extracted_packages.storage.make_full_path(name)
+        if disable_compression:
             with pytest.raises(gzip.BadGzipFile):
-                gzip.open(s.extracted_packages.storage.make_full_path(f), "rb").read()
+                with gzip.open(full_path, "rb") as f:
+                    f.read()
+        else:
+            # wont' decode zip file as utf
+            with pytest.raises(UnicodeDecodeError):
+                with open(full_path, "rt", encoding="utf-8") as f:
+                    f.readline()
+
     p.normalize(loader_file_format=destination_config.file_format)
+
     info = p.load()
     assert_table(p, "data", data, info=info)
 

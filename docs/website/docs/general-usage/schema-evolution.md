@@ -119,7 +119,7 @@ from dlt.common.runtime.slack import send_slack_message
 hook = "https://hooks.slack.com/services/xxx/xxx/xxx"
 
 # Iterate over each package in the load_info object
-for package in info.load_packages:
+for package in load_info.load_packages:
     # Iterate over each table in the schema_update of the current package
     for table_name, table in package.schema_update.items():
         # Iterate over each column in the current table

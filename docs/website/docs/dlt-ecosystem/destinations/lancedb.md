@@ -123,7 +123,7 @@ Out of the box, LanceDB will act as a normal database. To use LanceDB's embeddin
 The `lancedb_adapter` is a helper function that configures the resource for the LanceDB destination:
 
 ```py
-lancedb_adapter(data, embed)
+lancedb_adapter(data, embed="title")
 ```
 
 It accepts the following arguments:
@@ -179,18 +179,60 @@ info = pipeline.run(
 
 ### Merge
 
-The [merge](../../general-usage/incremental-loading.md) write disposition merges the data from the resource with the data at the destination based on a unique identifier.
+The [merge](../../general-usage/incremental-loading.md) write disposition merges the data from the resource with the data at the destination based on a unique identifier. The LanceDB destination merge write disposition only supports upsert strategy. This updates existing records and inserts new ones based on a unique identifier.
+
+You can specify the merge disposition, primary key, and merge key either in a resource or adapter:
+
+```py
+@dlt.resource(
+  primary_key=["doc_id", "chunk_id"],
+  merge_key=["doc_id"],
+  write_disposition={"disposition": "merge", "strategy": "upsert"},
+)
+def my_rag_docs(
+  data: List[DictStrAny],
+) -> Generator[List[DictStrAny], None, None]:
+    yield data
+```
+
+Or:
+
+```py
+pipeline.run(
+  lancedb_adapter(
+    my_new_rag_docs,
+    merge_key="doc_id"
+  ),
+  write_disposition={"disposition": "merge", "strategy": "upsert"},
+  primary_key=["doc_id", "chunk_id"],
+)
+```
+
+The `primary_key` uniquely identifies each record, typically comprising a document ID and a chunk ID.
+The `merge_key`, which cannot be compound, should correspond to the canonical `doc_id` used in vector databases and represent the document identifier in your data model.
+It must be the first element of the `primary_key`.
+This `merge_key` is crucial for document identification and orphan removal during merge operations.
+This structure ensures proper record identification and maintains consistency with vector database concepts.
+
+
+#### Orphan Removal
+
+LanceDB **automatically removes orphaned chunks** when updating or deleting parent documents during a merge operation. To disable this feature:
 
 ```py
 pipeline.run(
   lancedb_adapter(
     movies,
     embed="title",
+    no_remove_orphans=True # Disable with the `no_remove_orphans` flag.
   ),
-  write_disposition="merge",
-  primary_key="id",
+  write_disposition={"disposition": "merge", "strategy": "upsert"},
+  primary_key=["doc_id", "chunk_id"],
 )
 ```
+
+Note: While it's possible to omit the `merge_key` for brevity (in which case it is assumed to be the first entry of `primary_key`),
+explicitly specifying both is recommended for clarity.
 
 ### Append
 
@@ -200,7 +242,6 @@ This is the default disposition. It will append the data to the existing data in
 
 - `dataset_separator`: The character used to separate the dataset name from table names. Defaults to "___".
 - `vector_field_name`: The name of the special field to store vector embeddings. Defaults to "vector".
-- `id_field_name`: The name of the special field used for deduplication and merging. Defaults to "id__".
 - `max_retries`: The maximum number of retries for embedding operations. Set to 0 to disable retries. Defaults to 3.
 
 ## dbt support

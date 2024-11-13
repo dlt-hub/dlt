@@ -20,7 +20,7 @@ from dlt.common.schema.exceptions import (
 from dlt.common.schema.typing import TLoaderMergeStrategy
 from dlt.common.typing import StrAny
 from dlt.common.utils import digest128
-from dlt.common.destination import TDestination
+from dlt.common.destination import AnyDestination
 from dlt.common.destination.exceptions import DestinationCapabilitiesException
 from dlt.extract import DltResource
 from dlt.sources.helpers.transform import skip_first, take_first
@@ -40,12 +40,13 @@ from tests.load.utils import (
     DestinationTestConfiguration,
     FILE_BUCKET,
     AZ_BUCKET,
+    SFTP_BUCKET,
 )
 
 
 def skip_if_not_supported(
     merge_strategy: TLoaderMergeStrategy,
-    destination: TDestination,
+    destination: AnyDestination,
 ) -> None:
     # resolve_merge_strategy
     if merge_strategy not in destination.capabilities().supported_merge_strategies:

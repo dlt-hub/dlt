@@ -19,6 +19,7 @@ from typing import (
 import zlib
 import re
 from contextlib import contextmanager
+from contextlib import suppress
 
 from dlt.common import pendulum, logger
 from dlt.common.json import json
@@ -168,6 +169,9 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
 
     def drop_storage(self) -> None:
         self.sql_client.drop_dataset()
+        with contextlib.suppress(DatabaseUndefinedRelation):
+            with self.sql_client.with_staging_dataset():
+                self.sql_client.drop_dataset()
 
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
         if not self.is_storage_initialized():
@@ -652,7 +656,8 @@ WHERE """
 
     def _delete_schema_in_storage(self, schema: Schema) -> None:
         """
-        Delete all stored versions with the same name as given schema
+        Delete all stored versions with the same name as given schema.
+        Fails silently if versions table does not exist
         """
         name = self.sql_client.make_qualified_table_name(self.schema.version_table_name)
         (c_schema_name,) = self._norm_and_escape_columns("schema_name")

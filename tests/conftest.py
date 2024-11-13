@@ -117,6 +117,9 @@ def pytest_configure(config):
     # disable httpx request logging (too verbose when testing qdrant)
     logging.getLogger("httpx").setLevel("WARNING")
 
+    # disable googleapiclient logging
+    logging.getLogger("googleapiclient.discovery_cache").setLevel("WARNING")
+
     # reset and init airflow db
     import warnings
 

@@ -1,4 +1,5 @@
 import os
+import sys
 import pytest
 import yaml
 from typing import Any, Dict, Type
@@ -32,7 +33,7 @@ from dlt.common.configuration.specs import (
 from dlt.common.runners.configuration import PoolRunnerConfiguration
 from dlt.common.typing import TSecretValue
 
-from tests.utils import preserve_environ
+from tests.utils import preserve_environ, unload_modules
 from tests.common.configuration.utils import (
     ConnectionStringCompatCredentials,
     SecretCredentials,
@@ -534,3 +535,20 @@ def test_custom_loader(toml_providers: ConfigProvidersContainer) -> None:
         ),
     )
     assert config.username == "dlt-loader"
+
+
+def test_colab_toml() -> None:
+    # use a path without any settings files
+    try:
+        sys.path.append("tests/common/cases/modules")
+        # secrets are in user data
+        provider: SettingsTomlProvider = SecretsTomlProvider("tests/common/null", global_dir=None)
+        assert provider.to_toml() == 'api_key="api"'
+        # config is not in userdata
+        provider = ConfigTomlProvider("tests/common/null", "unknown")
+        assert provider.is_empty
+        # prefers files
+        provider = SecretsTomlProvider("tests/common/cases/configuration/.dlt", global_dir=None)
+        assert provider.get_value("secret_value", str, None) == ("2137", "secret_value")
+    finally:
+        sys.path.pop()
