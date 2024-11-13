@@ -61,6 +61,7 @@ from dlt.common.storages import FileStorage
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.common.storages.load_package import LoadJobInfo, TPipelineStateDoc
 from dlt.common.exceptions import MissingDependencyException
+from dlt.common.typing import is_optional_type
 
 
 TDestinationConfig = TypeVar("TDestinationConfig", bound="DestinationClientConfiguration")
@@ -260,12 +261,10 @@ class DestinationClientDwhConfiguration(DestinationClientConfiguration):
     def normalize_staging_dataset_name(self, schema: Schema) -> str:
         """Builds staging dataset name out of dataset_name and staging_dataset_name_layout."""
         if "%s" in self.staging_dataset_name_layout:
-            # if dataset name is empty, staging dataset name is also empty
+            # staging dataset name is never empty, otherwise table names must clash
             dataset_name = self._make_dataset_name(schema.name)
-            if not dataset_name:
-                return dataset_name
             # fill the placeholder
-            dataset_name = self.staging_dataset_name_layout % dataset_name
+            dataset_name = self.staging_dataset_name_layout % (dataset_name or "")
         else:
             # no placeholder, then layout is a full name. so you can have a single staging dataset
             dataset_name = self.staging_dataset_name_layout
@@ -275,6 +274,15 @@ class DestinationClientDwhConfiguration(DestinationClientConfiguration):
             if self.enable_dataset_name_normalization
             else dataset_name
         )
+
+    @classmethod
+    def needs_dataset_name(cls) -> bool:
+        """Checks if configuration requires dataset name to be present. Empty datasets are allowed
+        ie. for schema-less destinations like weaviate or clickhouse
+        """
+        fields = cls.get_resolvable_fields()
+        dataset_name_type = fields["dataset_name"]
+        return not is_optional_type(dataset_name_type)
 
     def _make_dataset_name(self, schema_name: str) -> str:
         if not schema_name:

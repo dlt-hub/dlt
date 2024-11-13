@@ -113,6 +113,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
     allow_external_schedulers: bool = False
     on_cursor_value_missing: OnCursorValueMissing = "raise"
     lag: Optional[float] = None
+    duplicate_cursor_warning_threshold: ClassVar[int] = 200
 
     # incremental acting as empty
     EMPTY: ClassVar["Incremental[Any]"] = None
@@ -529,11 +530,27 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
                 transformer.compute_unique_value(row, self.primary_key)
                 for row in transformer.last_rows
             )
+            initial_hash_count = len(self._cached_state.get("unique_hashes", []))
             # add directly computed hashes
             unique_hashes.update(transformer.unique_hashes)
             self._cached_state["unique_hashes"] = list(unique_hashes)
+            final_hash_count = len(self._cached_state["unique_hashes"])
 
+            self._check_duplicate_cursor_threshold(initial_hash_count, final_hash_count)
         return rows
+
+    def _check_duplicate_cursor_threshold(
+        self, initial_hash_count: int, final_hash_count: int
+    ) -> None:
+        if initial_hash_count <= Incremental.duplicate_cursor_warning_threshold < final_hash_count:
+            logger.warning(
+                f"Large number of records ({final_hash_count}) sharing the same value of "
+                f"cursor field '{self.cursor_path}'. This can happen if the cursor "
+                "field has a low resolution (e.g., only stores dates without times), "
+                "causing many records to share the same cursor value. "
+                "Consider using a cursor column with higher resolution to reduce "
+                "the deduplication state size."
+            )
 
 
 Incremental.EMPTY = Incremental[Any]()

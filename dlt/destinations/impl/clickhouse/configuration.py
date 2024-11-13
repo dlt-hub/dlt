@@ -1,8 +1,10 @@
 import dataclasses
 from typing import ClassVar, Dict, List, Any, Final, cast, Optional
+from typing_extensions import Annotated
 
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ConnectionStringCredentials
+from dlt.common.configuration.specs.base_configuration import NotResolved
 from dlt.common.destination.reference import (
     DestinationClientDwhWithStagingConfiguration,
 )
@@ -68,6 +70,10 @@ class ClickHouseCredentials(ConnectionStringCredentials):
 class ClickHouseClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     destination_type: Final[str] = dataclasses.field(  # type: ignore[misc]
         default="clickhouse", init=False, repr=False, compare=False
+    )
+    # allow empty dataset names
+    dataset_name: Annotated[Optional[str], NotResolved()] = dataclasses.field(
+        default=None, init=False, repr=False, compare=False
     )
     credentials: ClickHouseCredentials = None
 

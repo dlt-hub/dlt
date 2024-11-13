@@ -4,7 +4,7 @@ import hashlib
 import os
 import contextlib
 from subprocess import CalledProcessError
-from typing import Any, List, Tuple, Optional
+from typing import List, Tuple, Optional
 from hexbytes import HexBytes
 import pytest
 from unittest import mock
@@ -55,7 +55,12 @@ from tests.utils import IMPLEMENTED_DESTINATIONS, clean_test_storage
 
 # we hardcode the core sources here so we can check that the init script picks
 # up the right source
-CORE_SOURCES = ["filesystem", "rest_api", "sql_database"]
+CORE_SOURCES_CONFIG = {
+    "rest_api": {"requires_extra": False},
+    "sql_database": {"requires_extra": True},
+    "filesystem": {"requires_extra": True},
+}
+CORE_SOURCES = list(CORE_SOURCES_CONFIG.keys())
 
 # we also hardcode all the templates here for testing
 TEMPLATES = ["debug", "default", "arrow", "requests", "dataframe", "fruitshop", "github_api"]
@@ -165,6 +170,37 @@ def test_init_list_sources(repo_dir: str) -> None:
 
     for source in SOME_KNOWN_VERIFIED_SOURCES + TEMPLATES + CORE_SOURCES:
         assert source in _out
+
+
+@pytest.mark.parametrize(
+    "source_name",
+    [name for name in CORE_SOURCES_CONFIG if CORE_SOURCES_CONFIG[name]["requires_extra"]],
+)
+def test_init_command_core_source_requirements_with_extras(
+    source_name: str, repo_dir: str, project_files: FileStorage
+) -> None:
+    init_command.init_command(source_name, "duckdb", repo_dir)
+    source_requirements = SourceRequirements.from_string(
+        project_files.load(cli_utils.REQUIREMENTS_TXT)
+    )
+    canonical_name = source_name.replace("_", "-")
+    assert canonical_name in source_requirements.dlt_requirement.extras
+
+
+@pytest.mark.parametrize(
+    "source_name",
+    [name for name in CORE_SOURCES_CONFIG if not CORE_SOURCES_CONFIG[name]["requires_extra"]],
+)
+def test_init_command_core_source_requirements_without_extras(
+    source_name: str, repo_dir: str, project_files: FileStorage
+) -> None:
+    init_command.init_command(source_name, "duckdb", repo_dir)
+    source_requirements = SourceRequirements.from_string(
+        project_files.load(cli_utils.REQUIREMENTS_TXT)
+    )
+    assert source_requirements.dlt_requirement.extras == {
+        "duckdb"
+    }, "Only duckdb should be in extras"
 
 
 def test_init_list_sources_update_warning(repo_dir: str, project_files: FileStorage) -> None:
@@ -571,7 +607,7 @@ def assert_requirements_txt(project_files: FileStorage, destination_name: str) -
         project_files.load(cli_utils.REQUIREMENTS_TXT)
     )
     assert destination_name in source_requirements.dlt_requirement.extras
-    # Check that atleast some version range is specified
+    # Check that at least some version range is specified
     assert len(source_requirements.dlt_requirement.specifier) >= 1
 
 

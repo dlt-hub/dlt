@@ -3539,3 +3539,32 @@ def test_apply_lag() -> None:
     assert apply_lag(2, 0, 1, max) == 0
     assert apply_lag(1, 2, 1, min) == 2
     assert apply_lag(2, 2, 1, min) == 2
+
+
+@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
+@pytest.mark.parametrize("primary_key", ["id", None])
+def test_warning_large_deduplication_state(item_type: TestDataItemFormat, primary_key, mocker):
+    @dlt.resource(primary_key=primary_key)
+    def some_data(
+        created_at=dlt.sources.incremental("created_at"),
+    ):
+        # Cross the default threshold of 200
+        yield data_to_item_format(
+            item_type,
+            [{"id": i, "created_at": 1} for i in range(201)],
+        )
+        # Second batch adds more items but shouldn't trigger warning
+        yield data_to_item_format(
+            item_type,
+            [{"id": i, "created_at": 1} for i in range(201, 301)],
+        )
+
+    logger_spy = mocker.spy(dlt.common.logger, "warning")
+    p = dlt.pipeline(pipeline_name=uniq_id())
+    p.extract(some_data(1))
+
+    # Verify warning was called exactly once
+    warning_calls = [
+        call for call in logger_spy.call_args_list if "Large number of records" in call.args[0]
+    ]
+    assert len(warning_calls) == 1

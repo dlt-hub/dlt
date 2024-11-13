@@ -12,7 +12,6 @@ from dlt.common import logger
 from contextlib import contextmanager
 
 from dlt.common.destination.reference import DBApiCursor
-from dlt.common.destination.typing import PreparedTableSchema
 
 from dlt.destinations.sql_client import raise_database_error
 
@@ -24,6 +23,8 @@ from dlt.common.configuration.specs import (
     AzureCredentialsWithoutDefaults,
 )
 from dlt.destinations.utils import is_compression_disabled
+
+from pathlib import Path
 
 SUPPORTED_PROTOCOLS = ["gs", "gcs", "s3", "file", "memory", "az", "abfss"]
 
@@ -74,11 +75,31 @@ class FilesystemSqlClient(DuckDbSqlClient):
         self._conn.sql(f"DROP PERSISTENT SECRET IF EXISTS {secret_name}")
 
     def create_authentication(self, persistent: bool = False, secret_name: str = None) -> None:
-        # TODO: allow users to set explicit path on filesystem where secrets are stored
-        #  https://duckdb.org/docs/configuration/secrets_manager.html#persistent-secrets
         #  home dir is a bad choice, it should be more explicit
         if not secret_name:
             secret_name = self._create_default_secret_name()
+
+        if persistent and self.memory_db:
+            raise Exception("Creating persistent secrets for in memory db is not allowed.")
+
+        secrets_path = Path(
+            self._conn.sql(
+                "SELECT current_setting('secret_directory') AS secret_directory;"
+            ).fetchone()[0]
+        )
+
+        is_default_secrets_directory = (
+            len(secrets_path.parts) >= 2
+            and secrets_path.parts[-1] == "stored_secrets"
+            and secrets_path.parts[-2] == ".duckdb"
+        )
+
+        if is_default_secrets_directory and persistent:
+            logger.warn(
+                "You are persisting duckdb secrets but are storing them in the default folder"
+                f" {secrets_path}. These secrets are saved there unencrypted, we"
+                " recommend using a custom secret directory."
+            )
 
         persistent_stmt = ""
         if persistent:
@@ -172,8 +193,6 @@ class FilesystemSqlClient(DuckDbSqlClient):
             if not self.has_dataset():
                 self.create_dataset()
             self._conn.sql(f"USE {self.fully_qualified_dataset_name()}")
-
-            # create authentication to data provider
             self.create_authentication()
 
         return self._conn
