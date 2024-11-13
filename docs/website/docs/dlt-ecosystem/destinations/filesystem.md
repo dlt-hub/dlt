@@ -377,11 +377,11 @@ The filesystem destination handles the write dispositions as follows:
 - `replace` - all files that belong to such tables are deleted from the dataset folder, and then the current set of files is added.
 - `merge` - falls back to `append`
 
-### 🧪 Merge with delta table format
-The [`upsert`](../../general-usage/incremental-loading.md#upsert-strategy) merge strategy is supported when using the [`delta`](#delta-table-format) table format.
+### Merge with Delta table format (experimental)
+The [`upsert`](../../general-usage/incremental-loading.md#upsert-strategy) merge strategy is supported when using the [Delta table format](#delta-table-format).
 
 :::caution
-The `upsert` merge strategy for the `filesystem` destination with `delta` table format is considered experimental.
+The `upsert` merge strategy for the filesystem destination with Delta table format is experimental.
 :::
 
 ```py
@@ -619,7 +619,7 @@ You can choose the following file formats:
 ## Supported table formats
 
 You can choose the following table formats:
-* [Delta](../table-formats/delta.md) is supported
+* [Delta table](../table-formats/delta.md) is supported
 
 ### Delta table format
 
@@ -643,7 +643,9 @@ def my_delta_resource():
     ...
 ```
 
-> `dlt` always uses Parquet as `loader_file_format` when using the `delta` table format. Any setting of `loader_file_format` is disregarded.
+:::note
+`dlt` always uses Parquet as `loader_file_format` when using the `delta` table format. Any setting of `loader_file_format` is disregarded.
+:::
 
 :::caution
 Beware that when loading a large amount of data for one table, the underlying rust implementation will consume a lot of memory. This is a known issue and the maintainers are actively working on a solution. You can track the progress [here](https://github.com/delta-io/delta-rs/pull/2289). Until the issue is resolved, you can mitigate the memory consumption by doing multiple smaller incremental pipeline runs.
@@ -699,7 +701,7 @@ delta_tables["another_delta_table"].optimize.z_order(["col_a", "col_b"])
 
 ```
 
-## Syncing of `dlt` state
+## Syncing of dlt state
 This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination). To this end, special folders and files will be created at your destination which hold information about your pipeline state, schemas, and completed loads. These folders DO NOT respect your settings in the layout section. When using filesystem as a staging destination, not all of these folders are created, as the state and schemas are managed in the regular way by the final destination you have configured.
 
 You will also notice `init` files being present in the root folder and the special `dlt` folders. In the absence of the concepts of schemas and tables in blob storages and directories, `dlt` uses these special files to harmonize the behavior of the `filesystem` destination with the other implemented destinations.
