@@ -238,31 +238,72 @@ def test_adapter_geometry_hint_config(
 def test_geometry_types(
     destination_config: DestinationTestConfiguration,
 ) -> None:
-    from shapely import wkt, wkb, LinearRing, Polygon  # type: ignore[import-untyped]
+    from shapely import wkt, wkb, LinearRing, Polygon  # type: ignore
 
     @dlt.resource
-    def geodata_default():
-        yield from generate_sample_geometry_records()
+    def geodata_default_wkb():
+        yield from generate_sample_geometry_records("wkb")
 
     @dlt.resource
-    def geodata_3857():
-        yield from generate_sample_geometry_records()
+    def geodata_3857_wkb():
+        yield from generate_sample_geometry_records("wkb")
 
     @dlt.resource
-    def geodata_2163():
-        yield from generate_sample_geometry_records()
+    def geodata_2163_wkb():
+        yield from generate_sample_geometry_records("wkb")
+
+    @dlt.resource
+    def geodata_default_wkt():
+        yield from generate_sample_geometry_records("wkt")
+
+    @dlt.resource
+    def geodata_3857_wkt():
+        yield from generate_sample_geometry_records("wkt")
+
+    @dlt.resource
+    def geodata_2163_wkt():
+        yield from generate_sample_geometry_records("wkt")
+
+    @dlt.resource
+    def geodata_default_wkb_hex():
+        yield from generate_sample_geometry_records("wkb_hex")
+
+    @dlt.resource
+    def geodata_3857_wkb_hex():
+        yield from generate_sample_geometry_records("wkb_hex")
+
+    @dlt.resource
+    def geodata_2163_wkb_hex():
+        yield from generate_sample_geometry_records("wkb_hex")
 
     @dlt.resource
     def no_geodata():
         yield from [{"a": 1}, {"a": 2}]
 
-    postgres_adapter(geodata_default, geometry=["geom"])
-    postgres_adapter(geodata_3857, geometry=["geom"], srid=3857)
-    postgres_adapter(geodata_2163, geometry=["geom"], srid=2163)
+    postgres_adapter(geodata_default_wkb, geometry=["geom"])
+    postgres_adapter(geodata_3857_wkb, geometry=["geom"], srid=3857)
+    postgres_adapter(geodata_2163_wkb, geometry=["geom"], srid=2163)
+    postgres_adapter(geodata_default_wkt, geometry=["geom"])
+    postgres_adapter(geodata_3857_wkt, geometry=["geom"], srid=3857)
+    postgres_adapter(geodata_2163_wkt, geometry=["geom"], srid=2163)
+    postgres_adapter(geodata_default_wkb_hex, geometry=["geom"])
+    postgres_adapter(geodata_3857_wkb_hex, geometry=["geom"], srid=3857)
+    postgres_adapter(geodata_2163_wkb_hex, geometry=["geom"], srid=2163)
 
     @dlt.source
     def geodata() -> List[DltResource]:
-        return [geodata_default, geodata_3857, geodata_2163, no_geodata]
+        return [
+            geodata_default_wkb,
+            geodata_3857_wkb,
+            geodata_2163_wkb,
+            geodata_default_wkt,
+            geodata_3857_wkt,
+            geodata_2163_wkt,
+            geodata_default_wkb_hex,
+            geodata_3857_wkb_hex,
+            geodata_2163_wkb_hex,
+            no_geodata,
+        ]
 
     pipeline = destination_config.setup_pipeline("test_geometry_types", dev_mode=True)
     info = pipeline.run(
@@ -274,15 +315,29 @@ def test_geometry_types(
     with pipeline.sql_client() as c:
         with c.execute_query(f"""SELECT f_geometry_column
             FROM geometry_columns
-            WHERE f_table_name in ('geodata_3857', 'geodata_2163', 'geodata_default')
+            WHERE f_table_name in (
+            'geodata_default_wkb', 'geodata_3857_wkb', 'geodata_2163_wkb',
+            'geodata_default_wkt', 'geodata_3857_wkt', 'geodata_2163_wkt',
+            'geodata_default_wkb_hex', 'geodata_3857_wkb_hex', 'geodata_2163_wkb_hex'
+            )
               AND f_table_schema = '{c.fully_qualified_dataset_name(escape=False)}'""") as cur:
             records = cur.fetchall()
             assert records
             assert {record[0] for record in records} == {"geom"}
 
         # Verify round-trip integrity
-        for resource in ["geodata_default", "geodata_3857", "geodata_2163"]:
-            srid = 4326 if resource == "geodata_default" else int(resource.split("_")[1])
+        for resource in [
+            "geodata_default_wkb",
+            "geodata_3857_wkb",
+            "geodata_2163_wkb",
+            "geodata_default_wkt",
+            "geodata_3857_wkt",
+            "geodata_2163_wkt",
+            "geodata_default_wkb_hex",
+            "geodata_3857_wkb_hex",
+            "geodata_2163_wkb_hex",
+        ]:
+            srid = 4326 if resource.startswith("geodata_default") else int(resource.split("_")[1])
 
             query = f"""
              SELECT type, ST_AsText(geom) as wkt, ST_SRID(geom) as srid, ST_AsBinary(geom) as wkb
@@ -292,7 +347,12 @@ def test_geometry_types(
             with c.execute_query(query) as cur:
                 results = cur.fetchall()
 
-            original_geometries = generate_sample_geometry_records()
+            def get_format(column_name):
+                if column_name.endswith("wkb_hex"):
+                    return "wkb_hex"
+                return column_name.split("_")[-1]
+
+            original_geometries = generate_sample_geometry_records(get_format(resource))
 
             for result in results:
                 db_type, db_wkt, db_srid, db_wkb = result
@@ -310,7 +370,7 @@ def test_geometry_types(
                     if "_wkt" in db_type:
                         orig_geom = wkt.loads(orig_geom["geom"])
                         db_geom = wkt.loads(db_wkt)
-                    elif "_wkb" in db_type:
+                    elif "_wkb" in db_type and "_wkb_hex" not in db_type:
                         orig_geom = wkb.loads(orig_geom["geom"])
                         db_geom = wkb.loads(bytes(db_wkb))
                     elif "_wkb_hex" in db_type:

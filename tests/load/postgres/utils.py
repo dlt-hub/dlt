@@ -15,7 +15,7 @@ from shapely.wkb import dumps as wkb_dumps  # type: ignore
 from dlt.common.typing import DictStrStr
 
 
-def generate_sample_geometry_records() -> List[DictStrStr]:
+def generate_sample_geometry_records(geometry_type: str) -> List[DictStrStr]:
     """
     Generate sample geometry records including WKT and WKB representations.
 
@@ -42,7 +42,6 @@ def generate_sample_geometry_records() -> List[DictStrStr]:
             "GeometryCollection",
             GeometryCollection([Point(1, 1), LineString([(0, 0), (1, 1), (2, 2)])]),
         ),
-        ("LinearRing", LinearRing([(0, 0), (1, 0), (1, 1), (0, 1), (0, 0)])),
         (
             "ComplexPolygon",
             Polygon(
@@ -58,8 +57,12 @@ def generate_sample_geometry_records() -> List[DictStrStr]:
         ("EmptyMultiPolygon", MultiPolygon()),
         ("EmptyGeometryCollection", GeometryCollection()),
     ]
+
+    # LinearRing only works with wkb types
+    if geometry_type == "wkb":
+        geometries += [("LinearRing", LinearRing([(0, 0), (1, 0), (1, 1), (0, 1), (0, 0)]))]
+
     return [
-        {"type": f"{name}_{format_}", "geom": getattr(geom, format_)}
+        {"type": f"{name}_{geometry_type}", "geom": getattr(geom, geometry_type)}
         for name, geom in geometries
-        for format_ in ("wkt", "wkb", "wkb_hex")
     ]

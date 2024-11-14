@@ -3,6 +3,8 @@ import base64
 from typing import Any, Dict
 from datetime import date, datetime, time  # noqa: I251
 
+from shapely import wkb  # type: ignore
+
 from dlt.common.json import json
 from dlt.common.pendulum import pendulum
 from dlt.common.time import reduce_pendulum_datetime_precision
@@ -47,6 +49,14 @@ def escape_redshift_literal(v: Any) -> Any:
     return str(v)
 
 
+def is_valid_wkb(data: bytes) -> bool:
+    try:
+        wkb.loads(data)
+        return True
+    except Exception:
+        return False
+
+
 def escape_postgres_literal(v: Any) -> Any:
     if isinstance(v, str):
         # we escape extended string which behave like the redshift string
@@ -56,7 +66,11 @@ def escape_postgres_literal(v: Any) -> Any:
     if isinstance(v, (list, dict)):
         return _escape_extended(json.dumps(v))
     if isinstance(v, bytes):
-        return f"'\\x{v.hex()}'"
+        if is_valid_wkb(v):
+            # Skip \x prefix for WKB (OGC/ISO geometry standard format)
+            return f"'{v.hex()}'"
+        else:
+            return f"'\\x{v.hex()}'"
     if v is None:
         return "NULL"
 
