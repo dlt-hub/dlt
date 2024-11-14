@@ -1,49 +1,167 @@
 """Test schema lineage with sqlglot"""
+import pytest
+from dlt.common.schema.lineage import get_result_column_names_from_select, get_result_origins
+from sqlglot.lineage import lineage
 
 
-def test_lineage_with_sqlglot():
-    from sqlglot.lineage import lineage
-    import sqlglot
+# TODO: if we are working with schemas and catalogs, we need to implement this here too
+EXAMPLE_SCHEMA = {
+    "orders": {
+        "order_id": "INTEGER",
+        "customer_id": "INTEGER",
+        "total": "FLOAT",
+    },
+    "customers": {
+        "customer_id": "INTEGER",
+        "name": "STRING",
+    },
+    "items": {
+        "item_id": "INTEGER",
+        "name": "STRING",
+        "price": "FLOAT",
+    },
+    "order_items": {
+        "order_id": "INTEGER",
+        "item_id": "INTEGER",
+        "quantity": "INTEGER",
+        "spot_price": "FLOAT",
+    },
+}
 
-    # Define the SQL query with a join and column renaming
-    sql_query = """
-    SELECT * FROM 
-    (
-    SELECT c.name, of.amount AS total_amount, of.more
-    FROM orders of
-    JOIN customers c ON o.customer_id = c.customer_id
-    )
+
+def test_result_column_names_from_select():
+    # simple select, no schema
+    sql = "SELECT total FROM orders"
+    column_names = get_result_column_names_from_select(sql)
+    assert column_names == ["total"]
+
+    # star select, no schema, will not know the column names
+    sql = "SELECT * FROM orders"
+    column_names = get_result_column_names_from_select(sql)
+    assert column_names == ["*"]
+
+    # simple select, with schema
+    sql = "SELECT total, order_id FROM orders"
+    column_names = get_result_column_names_from_select(sql, EXAMPLE_SCHEMA)
+    assert column_names == ["total", "order_id"]
+
+    # star select, with schema, will know the column names
+    sql = "SELECT * FROM orders"
+    column_names = get_result_column_names_from_select(sql, EXAMPLE_SCHEMA)
+    assert column_names == ["order_id", "customer_id", "total"]
+
+    # select unknown column (works, could be not known column)
+    sql = "SELECT unknown FROM orders"
+    column_names = get_result_column_names_from_select(sql, EXAMPLE_SCHEMA)
+    assert column_names == ["unknown"]
+
+    # star select from joined tables
+    sql = "SELECT * FROM orders JOIN customers ON orders.customer_id = customers.customer_id"
+    column_names = get_result_column_names_from_select(sql, EXAMPLE_SCHEMA)
+    assert column_names == ["order_id", "customer_id", "total", "customer_id", "name"]
+
+    # nested star select
+    sql = """
+    SELECT *
+    FROM (SELECT order_id, customer_id FROM orders)
     """
+    column_names = get_result_column_names_from_select(sql, EXAMPLE_SCHEMA)
+    assert column_names == ["order_id", "customer_id"]
 
-    # Specify the column to trace lineage for
-    column_name = "total_amount"
+    # select with alias
+    sql = """
+    SELECT * FROM (SELECT name AS renamed_name FROM customers)
+    """
+    column_names = get_result_column_names_from_select(sql, EXAMPLE_SCHEMA)
+    assert column_names == ["renamed_name"]
 
-    # Define the schema for the tables
-    schema = {
-        "orders": {
-            "order_id": "INTEGER",
-            "customer_id": "INTEGER",
-            "amount": "FLOAT",
-            "more": "FLOAT",
-        },
-        "customers": {"customer_id": "INTEGER", "name": "STRING"},
-    }
+    # aggregate select
+    sql = """
+    SELECT SUM(total) as total_sum FROM orders
+    """
+    column_names = get_result_column_names_from_select(sql, EXAMPLE_SCHEMA)
+    assert column_names == ["total_sum"]
 
-    # Generate the lineage graph
-    lineage_graph = lineage(column=column_name, sql=sql_query, schema=schema)
-    print(lineage_graph)
+    # triple nested subquery with join
+    sql = """
+    SELECT * FROM (SELECT * FROM (SELECT order_id, spot_price FROM orders o JOIN order_items i ON o.order_id = i.order_id)) LIMIT 5
+    """
+    column_names = get_result_column_names_from_select(sql, EXAMPLE_SCHEMA)
+    assert column_names == ["order_id", "spot_price"]
 
-    table_name = None
-    column_name = None
-    for node in lineage_graph.walk():
-        # Check if the node has `table` and `column` attributes, which would indicate an origin column
-        if type(node.expression) == sqlglot.expressions.Table:
-            table_name = node.expression.name
+    # test simple alias (this fails, as nested subquery it will work)
+    sql = """
+    SELECT order_id AS alias_order_id FROM orders
+    """
+    column_names = get_result_column_names_from_select(sql, EXAMPLE_SCHEMA)
+    assert column_names == ["alias_order_id"]
 
-        if type(node.expression) == sqlglot.expressions.Alias:
-            print(type(node.expression.this))
-            column_name = node.expression.this.this.this
+    # group by aggregate
+    sql = """
+    SELECT customer_id, SUM(total) as sum FROM orders GROUP BY customer_id
+    """
+    column_names = get_result_column_names_from_select(sql, EXAMPLE_SCHEMA)
+    assert column_names == ["customer_id", "sum"]
 
-    print("Origin Columns:", table_name, column_name)
 
-    assert False
+def test_result_origins():
+    # simple select no schema
+    sql = "SELECT total FROM orders"
+    origins = get_result_origins(sql)
+    assert origins == [("total", ("orders", "total"))]
+
+    # star select no schema, will not know what comes from where
+    sql = "SELECT * FROM orders JOIN customers"
+    origins = get_result_origins(sql)
+    assert origins == []
+
+    # join no schema, will not know what comes from where
+    sql = "SELECT o.order_id, c.name FROM orders o JOIN customers c"
+    origins = get_result_origins(sql)
+    assert origins == [("order_id", ("orders", "order_id")), ("name", ("customers", "name"))]
+
+    # simple select
+    sql = "SELECT total, customer_id FROM orders"
+    origins = get_result_origins(sql, EXAMPLE_SCHEMA)
+    assert origins == [("total", ("orders", "total")), ("customer_id", ("orders", "customer_id"))]
+
+    # star select
+    sql = "SELECT * FROM orders"
+    origins = get_result_origins(sql, EXAMPLE_SCHEMA)
+    assert origins == [
+        ("order_id", ("orders", "order_id")),
+        ("customer_id", ("orders", "customer_id")),
+        ("total", ("orders", "total")),
+    ]
+
+    # join
+    sql = (
+        "SELECT o.order_id, c.name FROM orders o JOIN customers c ON o.customer_id = c.customer_id"
+    )
+    origins = get_result_origins(sql, EXAMPLE_SCHEMA)
+    assert origins == [
+        ("order_id", ("orders", "order_id")),
+        ("name", ("customers", "name")),
+    ]
+
+    # triple nested subquery with join and rename
+    sql = """
+    SELECT * FROM (SELECT * FROM (SELECT o.order_id, i.spot_price as price FROM orders o JOIN order_items i ON o.order_id = i.order_id)) LIMIT 5
+    """
+    column_names = get_result_origins(sql, EXAMPLE_SCHEMA)
+    assert column_names == [
+        ("order_id", ("orders", "order_id")),
+        ("price", ("order_items", "spot_price")),
+    ]
+
+    # group by with aggregate
+    sql = """
+    SELECT customer_id, SUM(total) as sum FROM orders GROUP BY customer_id
+    """
+    origins = get_result_origins(sql, EXAMPLE_SCHEMA)
+    assert origins == [("customer_id", ("orders", "customer_id")), ("sum", ("orders", "total"))]
+
+    # select unknown column
+    sql = "SELECT unknown FROM orders"
+    origins = get_result_origins(sql, EXAMPLE_SCHEMA)
+    assert origins == [("unknown", (None, None))]
