@@ -43,12 +43,14 @@ if all(driver not in ALL_FILESYSTEM_DRIVERS for driver in ("az", "s3", "gs", "r2
     )
 
 
-FS_CREDS: Dict[str, Any] = dlt.secrets.get("destination.filesystem.credentials")
-if FS_CREDS is None:
-    pytest.skip(
-        msg="`destination.filesystem.credentials` must be configured for these tests.",
-        allow_module_level=True,
-    )
+@pytest.fixture
+def fs_creds() -> Dict[str, Any]:
+    creds: Dict[str, Any] = dlt.secrets.get("destination.filesystem.credentials")
+    if creds is None:
+        pytest.skip(
+            msg="`destination.filesystem.credentials` must be configured for these tests.",
+        )
+    return creds
 
 
 def can_connect(bucket_url: str, object_store_rs_credentials: Dict[str, str]) -> bool:
@@ -62,7 +64,7 @@ def can_connect(bucket_url: str, object_store_rs_credentials: Dict[str, str]) ->
             storage_options=object_store_rs_credentials,
         )
     except TableNotFoundError:
-        # this error implies the connection was succesful
+        # this error implies the connection was successful
         # there is no Delta table at `bucket_url`
         return True
     return False
@@ -71,7 +73,7 @@ def can_connect(bucket_url: str, object_store_rs_credentials: Dict[str, str]) ->
 @pytest.mark.parametrize(
     "driver", [driver for driver in ALL_FILESYSTEM_DRIVERS if driver in ("az")]
 )
-def test_azure_object_store_rs_credentials(driver: str) -> None:
+def test_azure_object_store_rs_credentials(driver: str, fs_creds: Dict[str, Any]) -> None:
     creds: AnyAzureCredentials
 
     creds = AzureServicePrincipalCredentialsWithoutDefaults(
@@ -81,8 +83,8 @@ def test_azure_object_store_rs_credentials(driver: str) -> None:
 
     # without SAS token
     creds = AzureCredentialsWithoutDefaults(
-        azure_storage_account_name=FS_CREDS["azure_storage_account_name"],
-        azure_storage_account_key=FS_CREDS["azure_storage_account_key"],
+        azure_storage_account_name=fs_creds["azure_storage_account_name"],
+        azure_storage_account_key=fs_creds["azure_storage_account_key"],
     )
     assert creds.azure_storage_sas_token is None
     assert can_connect(AZ_BUCKET, creds.to_object_store_rs_credentials())
@@ -96,10 +98,9 @@ def test_azure_object_store_rs_credentials(driver: str) -> None:
 @pytest.mark.parametrize(
     "driver", [driver for driver in ALL_FILESYSTEM_DRIVERS if driver in ("s3", "r2")]
 )
-def test_aws_object_store_rs_credentials(driver: str) -> None:
+def test_aws_object_store_rs_credentials(driver: str, fs_creds: Dict[str, Any]) -> None:
     creds: AwsCredentialsWithoutDefaults
 
-    fs_creds = FS_CREDS
     if driver == "r2":
         fs_creds = R2_BUCKET_CONFIG["credentials"]  # type: ignore[assignment]
 
@@ -177,16 +178,16 @@ def test_aws_object_store_rs_credentials(driver: str) -> None:
 @pytest.mark.parametrize(
     "driver", [driver for driver in ALL_FILESYSTEM_DRIVERS if driver in ("gs")]
 )
-def test_gcp_object_store_rs_credentials(driver) -> None:
+def test_gcp_object_store_rs_credentials(driver, fs_creds: Dict[str, Any]) -> None:
     creds: GcpCredentials
 
     # GcpServiceAccountCredentialsWithoutDefaults
     creds = GcpServiceAccountCredentialsWithoutDefaults(
-        project_id=FS_CREDS["project_id"],
-        private_key=FS_CREDS["private_key"],
+        project_id=fs_creds["project_id"],
+        private_key=fs_creds["private_key"],
         # private_key_id must be configured in order for data lake to work
-        private_key_id=FS_CREDS["private_key_id"],
-        client_email=FS_CREDS["client_email"],
+        private_key_id=fs_creds["private_key_id"],
+        client_email=fs_creds["client_email"],
     )
     assert can_connect(GCS_BUCKET, creds.to_object_store_rs_credentials())
 
