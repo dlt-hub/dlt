@@ -115,12 +115,12 @@ def test_result_origins():
     origins = get_result_origins(sql)
     assert origins == []
 
-    # join no schema, will not know what comes from where
+    # join no schema, will still know columns from tables if given in statement
     sql = "SELECT o.order_id, c.name FROM orders o JOIN customers c"
     origins = get_result_origins(sql)
     assert origins == [("order_id", ("orders", "order_id")), ("name", ("customers", "name"))]
 
-    # simple select
+    # simple select with schema
     sql = "SELECT total, customer_id FROM orders"
     origins = get_result_origins(sql, EXAMPLE_SCHEMA)
     assert origins == [("total", ("orders", "total")), ("customer_id", ("orders", "customer_id"))]
