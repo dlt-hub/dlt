@@ -1,4 +1,4 @@
-from typing import Tuple, Dict, Any, Mapping, Iterable
+from typing import Tuple
 
 from dlt.common import logger
 from dlt.extract.source import DltSource
@@ -8,19 +8,6 @@ def join_url(base_url: str, path: str) -> str:
     if not base_url.endswith("/"):
         base_url += "/"
     return base_url + path.lstrip("/")
-
-
-def exclude_keys(d: Mapping[str, Any], keys: Iterable[str]) -> Dict[str, Any]:
-    """Removes specified keys from a dictionary and returns a new dictionary.
-
-    Args:
-        d (Mapping[str, Any]): The dictionary to remove keys from.
-        keys (Iterable[str]): The keys to remove.
-
-    Returns:
-        Dict[str, Any]: A new dictionary with the specified keys removed.
-    """
-    return {k: v for k, v in d.items() if k not in keys}
 
 
 def check_connection(

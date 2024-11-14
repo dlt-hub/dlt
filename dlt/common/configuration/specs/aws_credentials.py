@@ -51,6 +51,8 @@ class AwsCredentialsWithoutDefaults(CredentialsConfiguration):
 
     def to_object_store_rs_credentials(self) -> Dict[str, str]:
         # https://docs.rs/object_store/latest/object_store/aws
+        # NOTE: delta rs will set the values below in env variables of the current process
+        # https://github.com/delta-io/delta-rs/blob/bdf1c4e765ca457e49d4fa53335d42736220f57f/rust/src/storage/s3.rs#L257
         creds = cast(
             Dict[str, str],
             without_none(
@@ -64,8 +66,8 @@ class AwsCredentialsWithoutDefaults(CredentialsConfiguration):
             ),
         )
 
-        if "endpoint_url" not in creds:  # AWS S3
-            if "region" not in creds:
+        if not self.endpoint_url:  # AWS S3
+            if not self.region_name:
                 raise ObjectStoreRsCredentialsException(
                     "`object_store` Rust crate requires AWS region when using AWS S3."
                 )

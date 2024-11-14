@@ -18,6 +18,8 @@ env:
   # we need the secrets only for the rest_api_pipeline tests which are in tests/sources
   # so we inject them only at the end
   SOURCES__GITHUB__ACCESS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  # and also for the github_api_pipeline tests
+  SOURCES__GITHUB_API_PIPELINE__ACCESS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
   get_docs_changes:
@@ -114,7 +116,7 @@ jobs:
         shell: cmd
 
       - name: Install pyarrow
-        run: poetry install --no-interaction -E duckdb -E cli -E parquet --with sentry-sdk
+        run: poetry install --no-interaction -E duckdb -E cli -E parquet --with sentry-sdk && poetry run pip install pyarrow==15.0.2
 
       - run: |
           poetry run pytest tests/pipeline/test_pipeline_extra.py -k arrow
@@ -127,7 +129,7 @@ jobs:
         shell: cmd
 
       - name: Install pipeline and sources dependencies
-        run: poetry install --no-interaction -E duckdb -E cli -E parquet -E deltalake -E sql_database --with sentry-sdk,pipeline,sources
+        run: poetry install --no-interaction -E duckdb -E cli -E parquet -E deltalake -E sql_database --with sentry-sdk,pipeline,sources && poetry run pip install pyarrow==15.0.2
 
       - run: |
           poetry run pytest tests/extract tests/pipeline tests/libs tests/cli/common tests/destinations tests/sources
@@ -151,6 +153,20 @@ jobs:
           poetry run pytest tests/sources/sql_database
         if: runner.os == 'Windows'
         name: Run extract tests Windows
+        shell: cmd
+
+      # here we upgrade pyarrow to 17 and run the libs tests again
+      - name: Install pyarrow 17
+        run: poetry run pip install pyarrow==17.0.0
+
+      - run: |
+          poetry run pytest tests/libs
+        if: runner.os != 'Windows'
+        name: Run libs tests Linux/MAC
+      - run: |
+          poetry run pytest tests/libs
+        if: runner.os == 'Windows'
+        name: Run libs tests Windows
         shell: cmd
 
       # - name: Install Pydantic 1.0

@@ -32,6 +32,8 @@ from dlt.cli import utils
 from dlt.cli.config_toml_writer import WritableConfigValue, write_values
 from dlt.cli.pipeline_files import (
     TEMPLATE_FILES,
+    SOURCES_MODULE_NAME,
+    SINGLE_FILE_TEMPLATE_MODULE_NAME,
     SourceConfiguration,
     TVerifiedSourceFileEntry,
     TVerifiedSourceFileIndex,
@@ -41,8 +43,6 @@ from dlt.cli.exceptions import CliCommandInnerException
 
 DLT_INIT_DOCS_URL = "https://dlthub.com/docs/reference/command-line-interface#dlt-init"
 DEFAULT_VERIFIED_SOURCES_REPO = "https://github.com/dlt-hub/verified-sources.git"
-TEMPLATES_MODULE_NAME = "pipeline_templates"
-SOURCES_MODULE_NAME = "sources"
 
 
 def _get_core_sources_storage() -> FileStorage:
@@ -57,7 +57,7 @@ def _get_templates_storage() -> FileStorage:
     init_path = (
         Path(os.path.dirname(os.path.realpath(__file__))).parent
         / SOURCES_MODULE_NAME
-        / TEMPLATES_MODULE_NAME
+        / SINGLE_FILE_TEMPLATE_MODULE_NAME
     )
     return FileStorage(str(init_path))
 
@@ -382,6 +382,16 @@ def init_command(
             source_configuration = files_ops.get_core_source_configuration(
                 core_sources_storage, source_name
             )
+            from importlib.metadata import Distribution
+
+            dist = Distribution.from_name(DLT_PKG_NAME)
+            extras = dist.metadata.get_all("Provides-Extra") or []
+
+            # Match the extra name to the source name
+            canonical_source_name = source_name.replace("_", "-").lower()
+
+            if canonical_source_name in extras:
+                source_configuration.requirements.update_dlt_extras(canonical_source_name)
         else:
             if not is_valid_schema_name(source_name):
                 raise InvalidSchemaName(source_name)

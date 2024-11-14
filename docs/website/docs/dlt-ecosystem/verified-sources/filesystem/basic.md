@@ -252,8 +252,8 @@ bucket_url='~\Documents\csv_files\'
 You can also specify the credentials using environment variables. The name of the corresponding environment variable should be slightly different from the corresponding name in the TOML file. Simply replace dots `.` with double underscores `__`:
 
 ```sh
-export SOURCES__FILESYSTEM__AWS_ACCESS_KEY_ID = "Please set me up!"
-export SOURCES__FILESYSTEM__AWS_SECRET_ACCESS_KEY = "Please set me up!"
+export SOURCES__FILESYSTEM__CREDENTIALS__AWS_ACCESS_KEY_ID = "Please set me up!"
+export SOURCES__FILESYSTEM__CREDENTIALS__AWS_SECRET_ACCESS_KEY = "Please set me up!"
 ```
 
 :::tip

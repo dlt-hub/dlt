@@ -256,7 +256,8 @@ const sidebars = {
             'walkthroughs/add-incremental-configuration',
             'general-usage/full-loading',
           ]
-        }
+        },
+        'dlt-ecosystem/notebooks'
       ]
     },
     {
@@ -278,10 +279,12 @@ const sidebars = {
             'walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer',
             'reference/explainers/airflow-gcp-cloud-composer',
             'walkthroughs/deploy-a-pipeline/deploy-with-google-cloud-functions',
+            'walkthroughs/deploy-a-pipeline/deploy-with-google-cloud-run',
             'walkthroughs/deploy-a-pipeline/deploy-gcp-cloud-function-as-webhook',
             'walkthroughs/deploy-a-pipeline/deploy-with-kestra',
             'walkthroughs/deploy-a-pipeline/deploy-with-dagster',
             'walkthroughs/deploy-a-pipeline/deploy-with-prefect',
+            'walkthroughs/deploy-a-pipeline/deploy-with-modal',
           ]
         },
         {
@@ -343,13 +346,27 @@ const sidebars = {
             title: 'File formats',
             description: 'Overview of our loader file formats',
             slug: 'dlt-ecosystem/file-formats',
-            keywords: ['destination'],
+            keywords: ['destination', 'file formats'],
           },
           items: [
             'dlt-ecosystem/file-formats/jsonl',
             'dlt-ecosystem/file-formats/parquet',
             'dlt-ecosystem/file-formats/csv',
             'dlt-ecosystem/file-formats/insert-format',
+          ]
+        },
+        {
+          type: 'category',
+          label: 'Table formats',
+          link: {
+            type: 'generated-index',
+            title: 'Table formats',
+            slug: 'dlt-ecosystem/table-formats',
+            keywords: ['destination, table formats'],
+          },
+          items: [
+            'dlt-ecosystem/table-formats/delta',
+            'dlt-ecosystem/table-formats/iceberg',
           ]
         },
         'reference/frequently-asked-questions',

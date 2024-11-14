@@ -1,7 +1,7 @@
 import os
 import pytest
 from unittest import mock
-from typing import List
+from typing import Iterator, List
 from airflow import DAG
 from airflow.decorators import dag
 from airflow.operators.python import PythonOperator, get_current_context
@@ -11,7 +11,7 @@ from airflow.utils.types import DagRunType
 
 import dlt
 from dlt.common import logger, pendulum
-from dlt.common.utils import uniq_id
+from dlt.common.utils import set_working_dir, uniq_id
 from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCaseNamingConvention
 
 from dlt.helpers.airflow_helper import PipelineTasksGroup, DEFAULT_RETRY_BACKOFF
@@ -19,6 +19,12 @@ from dlt.pipeline.exceptions import CannotRestorePipelineException, PipelineStep
 
 from tests.pipeline.utils import load_table_counts
 from tests.utils import TEST_STORAGE_ROOT
+
+
+@pytest.fixture(autouse=True)
+def run_in_storage(autouse_test_storage) -> Iterator[None]:
+    with set_working_dir("_storage"):
+        yield
 
 
 DEFAULT_DATE = pendulum.datetime(2023, 4, 18, tz="Europe/Berlin")
@@ -191,7 +197,10 @@ def test_regular_run() -> None:
     dag_def.test()
     # we should be able to attach to pipeline state created within Airflow
 
-    pipeline_dag_regular = dlt.attach(pipeline_name="pipeline_dag_regular")
+    pipeline_dag_regular = dlt.attach(
+        pipeline_name="pipeline_dag_regular",
+        destination=dlt.destinations.duckdb(credentials=":pipeline:"),
+    )
     pipeline_dag_regular_counts = load_table_counts(
         pipeline_dag_regular,
         *[t["name"] for t in pipeline_dag_regular.default_schema.data_tables()],
@@ -230,7 +239,10 @@ def test_regular_run() -> None:
     assert tasks_list[1].task_id == "pipeline_dag_decomposed.mock_data_source__t1-_t2-_t3"
     assert tasks_list[2].task_id == "pipeline_dag_decomposed.mock_data_source__r_isolee"
     dag_def.test()
-    pipeline_dag_decomposed = dlt.attach(pipeline_name="pipeline_dag_decomposed")
+    pipeline_dag_decomposed = dlt.attach(
+        pipeline_name="pipeline_dag_decomposed",
+        destination=dlt.destinations.duckdb(credentials=quackdb_path),
+    )
     pipeline_dag_decomposed_counts = load_table_counts(
         pipeline_dag_decomposed,
         *[t["name"] for t in pipeline_dag_decomposed.default_schema.data_tables()],
@@ -273,7 +285,14 @@ def test_run() -> None:
 
     dag_def.test()
 
-    pipeline_dag_regular = dlt.attach(pipeline_name="pipeline_dag_regular")
+    pipeline_dag_regular = dlt.attach(
+        pipeline_name="pipeline_dag_regular",
+        destination=dlt.destinations.duckdb(credentials=quackdb_path),
+    )
+    assert pipeline_dag_regular.first_run is False
+    assert (
+        pipeline_dag_regular.destination.config_params["bound_to_pipeline"] is pipeline_dag_regular
+    )
     pipeline_dag_regular_counts = load_table_counts(
         pipeline_dag_regular,
         *[t["name"] for t in pipeline_dag_regular.default_schema.data_tables()],
@@ -324,7 +343,10 @@ def test_parallel_run():
     assert len(tasks_list) == 4
     dag_def.test()
 
-    pipeline_dag_parallel = dlt.attach(pipeline_name="pipeline_dag_parallel")
+    pipeline_dag_parallel = dlt.attach(
+        pipeline_name="pipeline_dag_parallel",
+        destination=dlt.destinations.duckdb(credentials=quackdb_path),
+    )
     results = load_table_counts(
         pipeline_dag_parallel,
         *[t["name"] for t in pipeline_dag_parallel.default_schema.data_tables()],
@@ -435,7 +457,8 @@ def test_parallel_isolated_run():
         pipeline_dag_parallel = dlt.attach(
             pipeline_name=snake_case.normalize_identifier(
                 dag_def.tasks[i].task_id.replace("pipeline_dag_parallel.", "")[:-2]
-            )
+            ),
+            destination=dlt.destinations.duckdb(credentials=quackdb_path),
         )
         pipeline_dag_decomposed_counts = load_table_counts(
             pipeline_dag_parallel,
@@ -491,7 +514,10 @@ def test_parallel_run_single_resource():
     dag_def = dag_parallel()
     assert len(tasks_list) == 2
     dag_def.test()
-    pipeline_dag_parallel = dlt.attach(pipeline_name="pipeline_dag_parallel")
+    pipeline_dag_parallel = dlt.attach(
+        pipeline_name="pipeline_dag_parallel",
+        destination=dlt.destinations.duckdb(credentials=quackdb_path),
+    )
     pipeline_dag_decomposed_counts = load_table_counts(
         pipeline_dag_parallel,
         *[t["name"] for t in pipeline_dag_parallel.default_schema.data_tables()],
@@ -946,7 +972,9 @@ def test_run_callable() -> None:
     dag_def: DAG = dag_regular()
     dag_def.test()
 
-    pipeline_dag = dlt.attach(pipeline_name="callable_dag")
+    pipeline_dag = dlt.attach(
+        pipeline_name="callable_dag", destination=dlt.destinations.duckdb(credentials=quackdb_path)
+    )
 
     with pipeline_dag.sql_client() as client:
         with client.execute_query("SELECT * FROM test_res") as result:

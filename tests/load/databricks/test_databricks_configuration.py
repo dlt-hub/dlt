@@ -8,7 +8,10 @@ from dlt.destinations.impl.databricks.databricks import DatabricksLoadJob
 from dlt.common.configuration import resolve_configuration
 
 from dlt.destinations import databricks
-from dlt.destinations.impl.databricks.configuration import DatabricksClientConfiguration
+from dlt.destinations.impl.databricks.configuration import (
+    DatabricksClientConfiguration,
+    DATABRICKS_APPLICATION_ID,
+)
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential
@@ -37,6 +40,7 @@ def test_databricks_credentials_to_connector_params():
     assert params["extra_a"] == "a"
     assert params["extra_b"] == "b"
     assert params["_socket_timeout"] == credentials.socket_timeout
+    assert params["_user_agent_entry"] == DATABRICKS_APPLICATION_ID
 
 
 def test_databricks_configuration() -> None:

@@ -92,7 +92,7 @@ class Container:
             return self.main_context
         else:
             # thread pool names used in dlt contain originating thread id. use this id over pool id
-            if m := re.match(r"dlt-pool-(\d+)-", threading.currentThread().getName()):
+            if m := re.match(r"dlt-pool-(\d+)-", threading.current_thread().name):
                 thread_id = int(m.group(1))
             else:
                 thread_id = threading.get_ident()

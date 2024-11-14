@@ -1,5 +1,4 @@
 import os
-import re
 from copy import deepcopy
 from textwrap import dedent
 from typing import Optional, List, Sequence, cast
@@ -8,7 +7,6 @@ from urllib.parse import urlparse
 import clickhouse_connect
 from clickhouse_connect.driver.tools import insert_file
 
-from dlt import config
 from dlt.common.configuration.specs import (
     CredentialsConfiguration,
     AzureCredentialsWithoutDefaults,
@@ -31,6 +29,7 @@ from dlt.common.schema.typing import (
 )
 from dlt.common.schema.utils import is_nullable_column
 from dlt.common.storages import FileStorage
+from dlt.common.storages.configuration import FilesystemConfiguration
 from dlt.destinations.exceptions import LoadJobTerminalException
 from dlt.destinations.impl.clickhouse.configuration import (
     ClickHouseClientConfiguration,
@@ -55,6 +54,7 @@ from dlt.destinations.job_client_impl import (
 )
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest, FinalizedLoadJobWithFollowupJobs
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
+from dlt.destinations.utils import is_compression_disabled
 
 
 class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
@@ -88,31 +88,17 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
         compression = "auto"
 
         # Don't use the DBAPI driver for local files.
-        if not bucket_path:
+        if not bucket_path or bucket_scheme == "file":
+            file_path = (
+                self._file_path
+                if not bucket_path
+                else FilesystemConfiguration.make_local_path(bucket_path)
+            )
             # Local filesystem.
             if ext == "jsonl":
-                compression = "gz" if FileStorage.is_gzipped(self._file_path) else "none"
+                compression = "gz" if FileStorage.is_gzipped(file_path) else "none"
             try:
-                with clickhouse_connect.create_client(
-                    host=client.credentials.host,
-                    port=client.credentials.http_port,
-                    database=client.credentials.database,
-                    user_name=client.credentials.username,
-                    password=client.credentials.password,
-                    secure=bool(client.credentials.secure),
-                ) as clickhouse_connect_client:
-                    insert_file(
-                        clickhouse_connect_client,
-                        qualified_table_name,
-                        self._file_path,
-                        fmt=clickhouse_format,
-                        settings={
-                            "allow_experimental_lightweight_delete": 1,
-                            "enable_http_compression": 1,
-                            "date_time_input_format": "best_effort",
-                        },
-                        compression=compression,
-                    )
+                client.insert_file(file_path, self.load_table_name, clickhouse_format, compression)
             except clickhouse_connect.driver.exceptions.Error as e:
                 raise LoadJobTerminalException(
                     self._file_path,
@@ -124,7 +110,7 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
         # NOTE: we should not really be accessing the config this way, but for
         # now it is ok...
         if ext == "jsonl":
-            compression = "none" if config.get("data_writer.disable_compression") else "gz"
+            compression = "none" if is_compression_disabled() else "gz"
 
         if bucket_scheme in ("s3", "gs", "gcs"):
             if not isinstance(self._staging_credentials, AwsCredentialsWithoutDefaults):
@@ -216,6 +202,7 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
         self.sql_client: ClickHouseSqlClient = ClickHouseSqlClient(
             config.normalize_dataset_name(schema),
             config.normalize_staging_dataset_name(schema),
+            list(schema.tables.keys()),
             config.credentials,
             capabilities,
             config,

@@ -228,4 +228,6 @@ def add_config_dict_to_env(
                         destructure_dicts=destructure_dicts,
                     )
                 else:
-                    os.environ[env_key] = serialize_value(v)
+                    # skip non-serializable fields
+                    with contextlib.suppress(TypeError):
+                        os.environ[env_key] = serialize_value(v)

@@ -12,7 +12,7 @@ from dlt.common.typing import TSecretStrValue
     ),
 )
 def test_all_examples(example_name: str) -> None:
-    from dlt.sources import rest_api_pipeline
+    from dlt.sources._core_source_templates import rest_api_pipeline
 
     # reroute token location from secrets
     github_token: TSecretStrValue = dlt.secrets.get("sources.github.access_token")

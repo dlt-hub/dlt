@@ -3,8 +3,6 @@ from typing import Any, Iterator, AnyStr, List, cast, TYPE_CHECKING, Dict
 import os
 import re
 
-import dlt
-
 import duckdb
 
 import sqlglot
@@ -14,7 +12,6 @@ from dlt.common import logger
 from contextlib import contextmanager
 
 from dlt.common.destination.reference import DBApiCursor
-from dlt.common.destination.typing import PreparedTableSchema
 
 from dlt.destinations.sql_client import raise_database_error
 
@@ -25,6 +22,9 @@ from dlt.common.configuration.specs import (
     AzureServicePrincipalCredentialsWithoutDefaults,
     AzureCredentialsWithoutDefaults,
 )
+from dlt.destinations.utils import is_compression_disabled
+
+from pathlib import Path
 
 SUPPORTED_PROTOCOLS = ["gs", "gcs", "s3", "file", "memory", "az", "abfss"]
 
@@ -75,8 +75,31 @@ class FilesystemSqlClient(DuckDbSqlClient):
         self._conn.sql(f"DROP PERSISTENT SECRET IF EXISTS {secret_name}")
 
     def create_authentication(self, persistent: bool = False, secret_name: str = None) -> None:
+        #  home dir is a bad choice, it should be more explicit
         if not secret_name:
             secret_name = self._create_default_secret_name()
+
+        if persistent and self.memory_db:
+            raise Exception("Creating persistent secrets for in memory db is not allowed.")
+
+        secrets_path = Path(
+            self._conn.sql(
+                "SELECT current_setting('secret_directory') AS secret_directory;"
+            ).fetchone()[0]
+        )
+
+        is_default_secrets_directory = (
+            len(secrets_path.parts) >= 2
+            and secrets_path.parts[-1] == "stored_secrets"
+            and secrets_path.parts[-2] == ".duckdb"
+        )
+
+        if is_default_secrets_directory and persistent:
+            logger.warn(
+                "You are persisting duckdb secrets but are storing them in the default folder"
+                f" {secrets_path}. These secrets are saved there unencrypted, we"
+                " recommend using a custom secret directory."
+            )
 
         persistent_stmt = ""
         if persistent:
@@ -90,6 +113,9 @@ class FilesystemSqlClient(DuckDbSqlClient):
         # add secrets required for creating views
         if self.fs_client.config.protocol == "s3":
             aws_creds = cast(AwsCredentials, self.fs_client.config.credentials)
+            session_token = (
+                "" if aws_creds.aws_session_token is None else aws_creds.aws_session_token
+            )
             endpoint = (
                 aws_creds.endpoint_url.replace("https://", "")
                 if aws_creds.endpoint_url
@@ -100,6 +126,7 @@ class FilesystemSqlClient(DuckDbSqlClient):
                 TYPE S3,
                 KEY_ID '{aws_creds.aws_access_key_id}',
                 SECRET '{aws_creds.aws_secret_access_key}',
+                SESSION_TOKEN '{session_token}',
                 REGION '{aws_creds.region_name}',
                 ENDPOINT '{endpoint}',
                 SCOPE '{scope}'
@@ -166,8 +193,6 @@ class FilesystemSqlClient(DuckDbSqlClient):
             if not self.has_dataset():
                 self.create_dataset()
             self._conn.sql(f"USE {self.fully_qualified_dataset_name()}")
-
-            # create authentication to data provider
             self.create_authentication()
 
         return self._conn
@@ -189,8 +214,10 @@ class FilesystemSqlClient(DuckDbSqlClient):
             if view_name in existing_tables:
                 continue
 
+            # NOTE: if this is staging configuration then `prepare_load_table` will remove some info
+            # from table schema, if we ever extend this to handle staging destination, this needs to change
+            schema_table = self.fs_client.prepare_load_table(table_name)
             # discover file type
-            schema_table = cast(PreparedTableSchema, self.fs_client.schema.tables[table_name])
             folder = self.fs_client.get_table_dir(table_name)
             files = self.fs_client.list_table_files(table_name)
             first_file_type = os.path.splitext(files[0])[1][1:]
@@ -217,12 +244,8 @@ class FilesystemSqlClient(DuckDbSqlClient):
                 )
             )
 
-            # discover wether compression is enabled
-            compression = (
-                ""
-                if dlt.config.get("data_writer.disable_compression")
-                else ", compression = 'gzip'"
-            )
+            # discover whether compression is enabled
+            compression = "" if is_compression_disabled() else ", compression = 'gzip'"
 
             # dlt tables are never compressed for now...
             if table_name in self.fs_client.schema.dlt_table_names():
@@ -236,7 +259,7 @@ class FilesystemSqlClient(DuckDbSqlClient):
                 from_statement = f"read_parquet([{resolved_files_string}])"
             elif first_file_type == "jsonl":
                 from_statement = (
-                    f"read_json([{resolved_files_string}], columns = {{{columns}}}) {compression}"
+                    f"read_json([{resolved_files_string}], columns = {{{columns}}}{compression})"
                 )
             else:
                 raise NotImplementedError(

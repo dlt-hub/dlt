@@ -120,6 +120,7 @@ R2_BUCKET_CONFIG = dict(
         aws_access_key_id=dlt.config.get("tests.r2_aws_access_key_id", str),
         aws_secret_access_key=dlt.config.get("tests.r2_aws_secret_access_key", str),
         endpoint_url=dlt.config.get("tests.r2_endpoint_url", str),
+        region_name=dlt.config.get("tests.r2_region_name", str),
     ),
 )
 
@@ -160,7 +161,7 @@ class DestinationTestConfiguration:
     supports_merge: bool = True  # TODO: take it from client base class
     force_iceberg: bool = None  # used only to test deprecation
     supports_dbt: bool = True
-    disable_compression: bool = False
+    disable_compression: bool = None  # use default value
     dev_mode: bool = False
     credentials: Optional[Union[CredentialsConfiguration, Dict[str, Any], str]] = None
     env_vars: Optional[Dict[str, str]] = None
@@ -211,8 +212,11 @@ class DestinationTestConfiguration:
             os.environ[f"DESTINATION__{k.upper()}"] = str(v)
 
         # For the filesystem destinations we disable compression to make analyzing the result easier
-        if self.destination_type == "filesystem" or self.disable_compression:
-            os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "True"
+        os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = str(
+            self.destination_type == "filesystem"
+            if self.disable_compression is None
+            else self.disable_compression
+        )
 
         if self.credentials is not None:
             if isinstance(self.credentials, str):
@@ -240,7 +244,7 @@ class DestinationTestConfiguration:
             pipeline_name=pipeline_name,
             destination=destination,
             staging=kwargs.pop("staging", self.staging),
-            dataset_name=dataset_name or pipeline_name,
+            dataset_name=dataset_name if dataset_name is not None else pipeline_name,
             dev_mode=dev_mode,
             **kwargs,
         )
@@ -371,6 +375,7 @@ def destinations_configs(
                 file_format="parquet",
                 bucket_url=AWS_BUCKET,
                 supports_dbt=False,
+                extra_info="minio",
             )
         ]
         destination_configs += [
@@ -436,7 +441,7 @@ def destinations_configs(
                 file_format="jsonl",
                 bucket_url=AWS_BUCKET,
                 stage_name="PUBLIC.dlt_s3_stage",
-                extra_info="s3-integration",
+                extra_info="s3-integration-public-stage",
             ),
             DestinationTestConfiguration(
                 destination_type="snowflake",
@@ -511,13 +516,6 @@ def destinations_configs(
                 file_format="jsonl",
                 bucket_url=AWS_BUCKET,
                 extra_info="s3-authorization",
-            ),
-            DestinationTestConfiguration(
-                destination_type="dremio",
-                staging=filesystem(destination_name="minio"),
-                file_format="parquet",
-                bucket_url=AWS_BUCKET,
-                supports_dbt=False,
             ),
         ]
 
@@ -606,9 +604,10 @@ def destinations_configs(
                 DestinationTestConfiguration(
                     destination_type="filesystem",
                     bucket_url=bucket,
-                    extra_info=bucket,
+                    extra_info=bucket + "-delta",
                     table_format="delta",
                     supports_merge=True,
+                    file_format="parquet",
                     env_vars=(
                         {
                             "DESTINATION__FILESYSTEM__DELTALAKE_STORAGE_OPTIONS": (
@@ -706,40 +705,44 @@ def drop_pipeline(request, preserve_environ) -> Iterator[None]:
         pass
 
 
+def drop_pipeline_data(p: dlt.Pipeline) -> None:
+    """Drops all the datasets for a given pipeline"""
+
+    def _drop_dataset(schema_name: str) -> None:
+        with p.destination_client(schema_name) as client:
+            try:
+                client.drop_storage()
+                print("dropped")
+            except Exception as exc:
+                print(exc)
+            if isinstance(client, WithStagingDataset):
+                with client.with_staging_dataset():
+                    try:
+                        client.drop_storage()
+                        print("staging dropped")
+                    except Exception as exc:
+                        print(exc)
+
+    # drop_func = _drop_dataset_fs if _is_filesystem(p) else _drop_dataset_sql
+    # take all schemas and if destination was set
+    if p.destination:
+        if p.config.use_single_dataset:
+            # drop just the dataset for default schema
+            if p.default_schema_name:
+                _drop_dataset(p.default_schema_name)
+        else:
+            # for each schema, drop the dataset
+            for schema_name in p.schema_names:
+                _drop_dataset(schema_name)
+
+
 def drop_active_pipeline_data() -> None:
     """Drops all the datasets for currently active pipeline, wipes the working folder and then deactivated it."""
     if Container()[PipelineContext].is_active():
         try:
             # take existing pipeline
             p = dlt.pipeline()
-
-            def _drop_dataset(schema_name: str) -> None:
-                with p.destination_client(schema_name) as client:
-                    try:
-                        client.drop_storage()
-                        print("dropped")
-                    except Exception as exc:
-                        print(exc)
-                    if isinstance(client, WithStagingDataset):
-                        with client.with_staging_dataset():
-                            try:
-                                client.drop_storage()
-                                print("staging dropped")
-                            except Exception as exc:
-                                print(exc)
-
-            # drop_func = _drop_dataset_fs if _is_filesystem(p) else _drop_dataset_sql
-            # take all schemas and if destination was set
-            if p.destination:
-                if p.config.use_single_dataset:
-                    # drop just the dataset for default schema
-                    if p.default_schema_name:
-                        _drop_dataset(p.default_schema_name)
-                else:
-                    # for each schema, drop the dataset
-                    for schema_name in p.schema_names:
-                        _drop_dataset(schema_name)
-
+            drop_pipeline_data(p)
             # p._wipe_working_folder()
         finally:
             # always deactivate context, working directory will be wiped when the next test starts

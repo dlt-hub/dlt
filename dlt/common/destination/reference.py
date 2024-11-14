@@ -1,7 +1,6 @@
 from abc import ABC, abstractmethod
 import dataclasses
 from importlib import import_module
-from contextlib import contextmanager
 
 from types import TracebackType
 from typing import (
@@ -25,6 +24,7 @@ from typing import (
     Protocol,
     Tuple,
     AnyStr,
+    overload,
 )
 from typing_extensions import Annotated
 import datetime  # noqa: 251
@@ -61,6 +61,7 @@ from dlt.common.storages import FileStorage
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.common.storages.load_package import LoadJobInfo, TPipelineStateDoc
 from dlt.common.exceptions import MissingDependencyException
+from dlt.common.typing import is_optional_type
 
 
 TDestinationConfig = TypeVar("TDestinationConfig", bound="DestinationClientConfiguration")
@@ -260,12 +261,10 @@ class DestinationClientDwhConfiguration(DestinationClientConfiguration):
     def normalize_staging_dataset_name(self, schema: Schema) -> str:
         """Builds staging dataset name out of dataset_name and staging_dataset_name_layout."""
         if "%s" in self.staging_dataset_name_layout:
-            # if dataset name is empty, staging dataset name is also empty
+            # staging dataset name is never empty, otherwise table names must clash
             dataset_name = self._make_dataset_name(schema.name)
-            if not dataset_name:
-                return dataset_name
             # fill the placeholder
-            dataset_name = self.staging_dataset_name_layout % dataset_name
+            dataset_name = self.staging_dataset_name_layout % (dataset_name or "")
         else:
             # no placeholder, then layout is a full name. so you can have a single staging dataset
             dataset_name = self.staging_dataset_name_layout
@@ -275,6 +274,15 @@ class DestinationClientDwhConfiguration(DestinationClientConfiguration):
             if self.enable_dataset_name_normalization
             else dataset_name
         )
+
+    @classmethod
+    def needs_dataset_name(cls) -> bool:
+        """Checks if configuration requires dataset name to be present. Empty datasets are allowed
+        ie. for schema-less destinations like weaviate or clickhouse
+        """
+        fields = cls.get_resolvable_fields()
+        dataset_name_type = fields["dataset_name"]
+        return not is_optional_type(dataset_name_type)
 
     def _make_dataset_name(self, schema_name: str) -> str:
         if not schema_name:
@@ -407,6 +415,8 @@ class RunnableLoadJob(LoadJob, ABC):
         """
         wrapper around the user implemented run method
         """
+        from dlt.common.runtime import signals
+
         # only jobs that are not running or have not reached a final state
         # may be started
         assert self._state in ("ready", "retry")
@@ -433,6 +443,8 @@ class RunnableLoadJob(LoadJob, ABC):
             self._finished_at = pendulum.now()
             # sanity check
             assert self._state in ("completed", "retry", "failed")
+            # wake up waiting threads
+            signals.wake_all()
 
     @abstractmethod
     def run(self) -> None:
@@ -471,7 +483,7 @@ class HasFollowupJobs:
 class SupportsReadableRelation(Protocol):
     """A readable relation retrieved from a destination that supports it"""
 
-    schema_columns: TTableSchemaColumns
+    columns_schema: TTableSchemaColumns
     """Known dlt table columns for this relation"""
 
     def df(self, chunk_size: int = None) -> Optional[DataFrame]:
@@ -490,19 +502,61 @@ class SupportsReadableRelation(Protocol):
         """
         ...
 
-    def arrow(self, chunk_size: int = None) -> Optional[ArrowTable]: ...
+    # accessing data
+    def arrow(self, chunk_size: int = None) -> Optional[ArrowTable]:
+        """fetch arrow table of first 'chunk_size' items"""
+        ...
 
-    def iter_df(self, chunk_size: int) -> Generator[DataFrame, None, None]: ...
+    def iter_df(self, chunk_size: int) -> Generator[DataFrame, None, None]:
+        """iterate over data frames tables of 'chunk_size' items"""
+        ...
 
-    def iter_arrow(self, chunk_size: int) -> Generator[ArrowTable, None, None]: ...
+    def iter_arrow(self, chunk_size: int) -> Generator[ArrowTable, None, None]:
+        """iterate over arrow tables of 'chunk_size' items"""
+        ...
 
-    def fetchall(self) -> List[Tuple[Any, ...]]: ...
+    def fetchall(self) -> List[Tuple[Any, ...]]:
+        """fetch all items as list of python tuples"""
+        ...
 
-    def fetchmany(self, chunk_size: int) -> List[Tuple[Any, ...]]: ...
+    def fetchmany(self, chunk_size: int) -> List[Tuple[Any, ...]]:
+        """fetch first 'chunk_size' items  as list of python tuples"""
+        ...
 
-    def iter_fetch(self, chunk_size: int) -> Generator[List[Tuple[Any, ...]], Any, Any]: ...
+    def iter_fetch(self, chunk_size: int) -> Generator[List[Tuple[Any, ...]], Any, Any]:
+        """iterate in lists of python tuples in 'chunk_size' chunks"""
+        ...
 
-    def fetchone(self) -> Optional[Tuple[Any, ...]]: ...
+    def fetchone(self) -> Optional[Tuple[Any, ...]]:
+        """fetch first item as python tuple"""
+        ...
+
+    # modifying access parameters
+    def limit(self, limit: int) -> "SupportsReadableRelation":
+        """limit the result to 'limit' items"""
+        ...
+
+    def head(self, limit: int = 5) -> "SupportsReadableRelation":
+        """limit the result to 5 items by default"""
+        ...
+
+    def select(self, *columns: str) -> "SupportsReadableRelation":
+        """set which columns will be selected"""
+        ...
+
+    @overload
+    def __getitem__(self, column: str) -> "SupportsReadableRelation": ...
+
+    @overload
+    def __getitem__(self, columns: Sequence[str]) -> "SupportsReadableRelation": ...
+
+    def __getitem__(self, columns: Union[str, Sequence[str]]) -> "SupportsReadableRelation":
+        """set which columns will be selected"""
+        ...
+
+    def __copy__(self) -> "SupportsReadableRelation":
+        """create a copy of the relation object"""
+        ...
 
 
 class DBApiCursor(SupportsReadableRelation):
@@ -946,4 +1000,4 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
         return dest
 
 
-TDestination = Destination[DestinationClientConfiguration, JobClientBase]
+AnyDestination = Destination[DestinationClientConfiguration, JobClientBase]

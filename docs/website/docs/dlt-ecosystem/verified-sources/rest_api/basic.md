@@ -234,13 +234,13 @@ The configuration object passed to the REST API Generic Source has three main el
 ```py
 config: RESTAPIConfig = {
     "client": {
-        ...
+        # ...
     },
     "resource_defaults": {
-        ...
+        # ...
     },
     "resources": [
-        ...
+        # ...
     ],
 }
 ```
@@ -277,15 +277,13 @@ config = {
     "resources": [
         "resource1",
         {
-            "resource2": {
-                "name": "resource2_name",
-                "write_disposition": "append",
-                "endpoint": {
-                    "params": {
-                        "param1": "value1",
-                    },
+            "name": "resource2_name",
+            "write_disposition": "append",
+            "endpoint": {
+                "params": {
+                    "param1": "value1",
                 },
-            }
+            },
         }
     ],
 }
@@ -419,7 +417,13 @@ For more complex pagination methods, you can implement a [custom paginator](../.
 Alternatively, you can use the dictionary configuration syntax also for custom paginators. For this, you need to register your custom paginator:
 
 ```py
-rest_api.config_setup.register_paginator("custom_paginator", CustomPaginator)
+from dlt.sources.rest_api.config_setup import register_paginator
+
+class CustomPaginator(SinglePagePaginator):
+    # custom implementation of SinglePagePaginator
+    pass
+
+register_paginator("custom_paginator", CustomPaginator)
 
 {
     # ...
@@ -539,6 +543,8 @@ config = {
     "client": {
         "auth": BearerTokenAuth(dlt.secrets["your_api_token"]),
     },
+    "resources": [
+    ]
     # ...
 }
 ```
@@ -562,7 +568,12 @@ For more complex authentication methods, you can implement a [custom authenticat
 You can use the dictionary configuration syntax also for custom authentication classes after registering them as follows:
 
 ```py
-rest_api.config_setup.register_auth("custom_auth", CustomAuth)
+from dlt.sources.rest_api.config_setup import register_auth
+
+class CustomAuth(AuthConfigBase):
+    pass
+
+register_auth("custom_auth", CustomAuth)
 
 {
     # ...
@@ -715,7 +726,7 @@ Instead of defining three different issues resources, one for each of the paths 
 from dlt.sources.rest_api import RESTAPIConfig
 
 @dlt.resource()
-def repositories() -> Generator[List[Dict[str, Any]]]:
+def repositories() -> Generator[List[Dict[str, Any]], Any, Any]:
     """A seed list of repositories to fetch"""
     yield [{"name": "dlt"}, {"name": "verified-sources"}, {"name": "dlthub-education"}]
 
@@ -745,7 +756,7 @@ Be careful that the parent resource needs to return `Generator[List[Dict[str, An
 
 ```py
 @dlt.resource
-def repositories() -> Generator[Dict[str, Any]]:
+def repositories() -> Generator[Dict[str, Any], Any, Any]:
     """Not working seed list of repositories to fetch"""
     yield from [{"name": "dlt"}, {"name": "verified-sources"}, {"name": "dlthub-education"}]
 ```
@@ -946,7 +957,7 @@ The full available configuration for the `incremental` field is:
         "cursor_path": "<path_to_cursor_field>",
         "initial_value": "<initial_value>",
         "end_value": "<end_value>",
-        "convert": a_callable,
+        "convert": my_callable,
     }
 }
 ```

@@ -6,6 +6,9 @@ from typing import Any
 import pytest
 import dlt
 import os
+import shutil
+import logging
+
 
 from dlt import Pipeline
 from dlt.common.utils import uniq_id
@@ -16,21 +19,31 @@ from tests.load.utils import (
     GCS_BUCKET,
     SFTP_BUCKET,
     MEMORY_BUCKET,
+    AWS_BUCKET,
 )
 from dlt.destinations import filesystem
 from tests.utils import TEST_STORAGE_ROOT
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
 
 
+@pytest.fixture(scope="function", autouse=True)
+def secret_directory():
+    secrets_dir = f"{TEST_STORAGE_ROOT}/duck_secrets_{uniq_id()}"
+    yield secrets_dir
+    shutil.rmtree(secrets_dir, ignore_errors=True)
+
+
 def _run_dataset_checks(
     pipeline: Pipeline,
     destination_config: DestinationTestConfiguration,
+    secret_directory: str,
     table_format: Any = None,
     alternate_access_pipeline: Pipeline = None,
 ) -> None:
     total_records = 200
 
-    TEST_SECRET_NAME = "TEST_SECRET" + uniq_id()
+    # duckdb will store secrets lower case, that's why we could not delete it
+    TEST_SECRET_NAME = "test_secret_" + uniq_id()
 
     # only some buckets have support for persistent secrets
     needs_persistent_secrets = (
@@ -130,6 +143,7 @@ def _run_dataset_checks(
         external_db = duckdb.connect(duck_db_location)
         # the line below solves problems with certificate path lookup on linux, see duckdb docs
         external_db.sql("SET azure_transport_option_type = 'curl';")
+        external_db.sql(f"SET secret_directory = '{secret_directory}';")
         return external_db
 
     def _fs_sql_client_for_external_db(
@@ -141,7 +155,7 @@ def _run_dataset_checks(
             credentials=DuckDbCredentials(connection),
         )
 
-    # we create a duckdb with a table an see wether we can add more views from the fs client
+    # we create a duckdb with a table an see whether we can add more views from the fs client
     external_db = _external_duckdb_connection()
     external_db.execute("CREATE SCHEMA first;")
     external_db.execute("CREATE SCHEMA second;")
@@ -159,7 +173,7 @@ def _run_dataset_checks(
     assert len(external_db.sql("SELECT * FROM first.items").fetchall()) == 3
     external_db.close()
 
-    # in case we are not connecting to a bucket, views should still be here after connection reopen
+    # in case we are not connecting to a bucket that needs secrets, views should still be here after connection reopen
     if not needs_persistent_secrets and not unsupported_persistent_secrets:
         external_db = _external_duckdb_connection()
         assert (
@@ -178,39 +192,45 @@ def _run_dataset_checks(
         )
     external_db.close()
 
-    # gs does not support persistent secrest, so we can't do further checks
+    # gs does not support persistent secrets, so we can't do further checks
     if unsupported_persistent_secrets:
         return
 
     # create secret
     external_db = _external_duckdb_connection()
     fs_sql_client = _fs_sql_client_for_external_db(external_db)
-    with fs_sql_client as sql_client:
-        fs_sql_client.create_authentication(persistent=True, secret_name=TEST_SECRET_NAME)
-    external_db.close()
 
-    # now this should work
-    external_db = _external_duckdb_connection()
-    assert len(external_db.sql("SELECT * FROM second.referenced_items").fetchall()) == total_records
+    try:
+        with fs_sql_client as sql_client:
+            fs_sql_client.create_authentication(persistent=True, secret_name=TEST_SECRET_NAME)
+        external_db.close()
 
-    # NOTE: when running this on CI, there seem to be some kind of race conditions that prevent
-    # secrets from being removed as it does not find the file... We'll need to investigate this.
-    return
-
-    # now drop the secrets again
-    fs_sql_client = _fs_sql_client_for_external_db(external_db)
-    with fs_sql_client as sql_client:
-        fs_sql_client.drop_authentication(TEST_SECRET_NAME)
-    external_db.close()
-
-    # fails again
-    external_db = _external_duckdb_connection()
-    with pytest.raises((HTTPException, IOException, InvalidInputException)):
+        # now this should work
+        external_db = _external_duckdb_connection()
         assert (
             len(external_db.sql("SELECT * FROM second.referenced_items").fetchall())
             == total_records
         )
-    external_db.close()
+
+        # now drop the secrets again
+        fs_sql_client = _fs_sql_client_for_external_db(external_db)
+        with fs_sql_client as sql_client:
+            fs_sql_client.drop_authentication(TEST_SECRET_NAME)
+        external_db.close()
+
+        # fails again
+        external_db = _external_duckdb_connection()
+        with pytest.raises((HTTPException, IOException, InvalidInputException)):
+            assert (
+                len(external_db.sql("SELECT * FROM second.referenced_items").fetchall())
+                == total_records
+            )
+        external_db.close()
+    finally:
+        with duckdb.connect() as conn:
+            fs_sql_client = _fs_sql_client_for_external_db(conn)
+            with fs_sql_client as sql_client:
+                fs_sql_client.drop_authentication(TEST_SECRET_NAME)
 
 
 @pytest.mark.essential
@@ -223,14 +243,21 @@ def _run_dataset_checks(
     ),  # TODO: make SFTP work
     ids=lambda x: x.name,
 )
-def test_read_interfaces_filesystem(destination_config: DestinationTestConfiguration) -> None:
+@pytest.mark.parametrize("disable_compression", [True, False])
+def test_read_interfaces_filesystem(
+    destination_config: DestinationTestConfiguration,
+    disable_compression: bool,
+    secret_directory: str,
+) -> None:
     # we force multiple files per table, they may only hold 700 items
     os.environ["DATA_WRITER__FILE_MAX_ITEMS"] = "700"
-
+    destination_config.disable_compression = disable_compression
     if destination_config.file_format not in ["parquet", "jsonl"]:
         pytest.skip(
             f"Test only works for jsonl and parquet, given: {destination_config.file_format}"
         )
+    if destination_config.file_format in ["parquet"] and disable_compression:
+        pytest.skip("Disabling compression for parquet has no effect, skipping test")
 
     pipeline = destination_config.setup_pipeline(
         "read_pipeline",
@@ -238,7 +265,7 @@ def test_read_interfaces_filesystem(destination_config: DestinationTestConfigura
         dev_mode=True,
     )
 
-    _run_dataset_checks(pipeline, destination_config)
+    _run_dataset_checks(pipeline, destination_config, secret_directory=secret_directory)
 
     # for gcs buckets we additionally test the s3 compat layer
     if destination_config.bucket_url == GCS_BUCKET:
@@ -248,7 +275,7 @@ def test_read_interfaces_filesystem(destination_config: DestinationTestConfigura
         pipeline = destination_config.setup_pipeline(
             "read_pipeline", dataset_name="read_test", dev_mode=True, destination=gcp_bucket
         )
-        _run_dataset_checks(pipeline, destination_config)
+        _run_dataset_checks(pipeline, destination_config, secret_directory=secret_directory)
 
 
 @pytest.mark.essential
@@ -262,7 +289,9 @@ def test_read_interfaces_filesystem(destination_config: DestinationTestConfigura
     ),
     ids=lambda x: x.name,
 )
-def test_delta_tables(destination_config: DestinationTestConfiguration) -> None:
+def test_delta_tables(
+    destination_config: DestinationTestConfiguration, secret_directory: str
+) -> None:
     os.environ["DATA_WRITER__FILE_MAX_ITEMS"] = "700"
 
     pipeline = destination_config.setup_pipeline(
@@ -285,6 +314,7 @@ def test_delta_tables(destination_config: DestinationTestConfiguration) -> None:
     _run_dataset_checks(
         pipeline,
         destination_config,
+        secret_directory=secret_directory,
         table_format="delta",
         alternate_access_pipeline=access_pipeline,
     )
@@ -296,9 +326,12 @@ def test_delta_tables(destination_config: DestinationTestConfiguration) -> None:
     destinations_configs(local_filesystem_configs=True),
     ids=lambda x: x.name,
 )
-def test_evolving_filesystem(destination_config: DestinationTestConfiguration) -> None:
+@pytest.mark.parametrize("disable_compression", [True, False])
+def test_evolving_filesystem(
+    destination_config: DestinationTestConfiguration, disable_compression: bool
+) -> None:
     """test that files with unequal schemas still work together"""
-
+    destination_config.disable_compression = disable_compression
     if destination_config.file_format not in ["parquet", "jsonl"]:
         pytest.skip(
             f"Test only works for jsonl and parquet, given: {destination_config.file_format}"

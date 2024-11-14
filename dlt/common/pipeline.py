@@ -31,7 +31,7 @@ from dlt.common.configuration.exceptions import ContextDefaultCannotBeCreated
 from dlt.common.configuration.specs import ContainerInjectableContext
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.configuration.specs import RuntimeConfiguration
-from dlt.common.destination import TDestinationReferenceArg, TDestination
+from dlt.common.destination import TDestinationReferenceArg, AnyDestination
 from dlt.common.destination.exceptions import DestinationHasFailedJobs
 from dlt.common.exceptions import (
     PipelineStateNotAvailable,
@@ -446,6 +446,8 @@ class TPipelineLocalState(TypedDict, total=False):
     """Timestamp indicating when the state was synced with the destination."""
     _last_extracted_hash: str
     """Hash of state that was recently synced with destination"""
+    initial_cwd: str
+    """Current working dir when pipeline was instantiated for a first time"""
 
 
 class TPipelineState(TVersionedState, total=False):
@@ -480,7 +482,7 @@ class SupportsPipeline(Protocol):
     """Name of the pipeline"""
     default_schema_name: str
     """Name of the default schema"""
-    destination: TDestination
+    destination: AnyDestination
     """The destination reference which is ModuleType. `destination.__name__` returns the name string"""
     dataset_name: str
     """Name of the dataset to which pipeline will be loaded to"""

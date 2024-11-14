@@ -49,6 +49,7 @@ from dlt.destinations.job_client_impl import SqlJobClientWithStagingDataset
 from dlt.destinations.job_impl import DestinationJsonlLoadJob, DestinationParquetLoadJob
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
+from dlt.destinations.sql_client import SqlClientBase
 
 
 class BigQueryLoadJob(RunnableLoadJob, HasFollowupJobs):
@@ -124,15 +125,17 @@ class BigQueryLoadJob(RunnableLoadJob, HasFollowupJobs):
                 )
 
     def exception(self) -> str:
-        return json.dumps(
-            {
-                "error_result": self._bq_load_job.error_result,
-                "errors": self._bq_load_job.errors,
-                "job_start": self._bq_load_job.started,
-                "job_end": self._bq_load_job.ended,
-                "job_id": self._bq_load_job.job_id,
-            }
-        )
+        if self._bq_load_job:
+            return json.dumps(
+                {
+                    "error_result": self._bq_load_job.error_result,
+                    "errors": self._bq_load_job.errors,
+                    "job_start": self._bq_load_job.started,
+                    "job_end": self._bq_load_job.ended,
+                    "job_id": self._bq_load_job.job_id,
+                }
+            )
+        return super().exception()
 
     @staticmethod
     def get_job_id_from_file_path(file_path: str) -> str:
@@ -140,6 +143,18 @@ class BigQueryLoadJob(RunnableLoadJob, HasFollowupJobs):
 
 
 class BigQueryMergeJob(SqlMergeFollowupJob):
+    @classmethod
+    def _gen_table_setup_clauses(
+        cls, table_chain: Sequence[PreparedTableSchema], sql_client: SqlClientBase[Any]
+    ) -> List[str]:
+        """generate final tables from staging table schema for autodetect tables"""
+        sql: List[str] = []
+        for table in table_chain:
+            if should_autodetect_schema(table):
+                table_name, staging_table_name = sql_client.get_qualified_table_names(table["name"])
+                sql.append(f"CREATE TABLE IF NOT EXISTS {table_name} LIKE {staging_table_name};")
+        return sql
+
     @classmethod
     def gen_key_table_clauses(
         cls,
@@ -182,6 +197,19 @@ class BigQueryClient(SqlJobClientWithStagingDataset, SupportsStagingDestination)
         self, table_chain: Sequence[PreparedTableSchema]
     ) -> List[FollowupJobRequest]:
         return [BigQueryMergeJob.from_table_chain(table_chain, self.sql_client)]
+
+    def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
+        truncate_tables = truncate_tables or []
+
+        # split array into tables that have autodetect schema and those that don't
+        autodetect_tables = [
+            t for t in truncate_tables if should_autodetect_schema(self.prepare_load_table(t))
+        ]
+        non_autodetect_tables = [t for t in truncate_tables if t not in autodetect_tables]
+
+        # if any table has schema autodetect, we need to make sure to only truncate tables that exist
+        super().initialize_storage(truncate_tables=non_autodetect_tables)
+        self.sql_client.truncate_tables_if_exist(*autodetect_tables)
 
     def create_load_job(
         self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False

@@ -197,17 +197,17 @@ def users_details(user_item):
     for detail in _get_details(user_item["user_id"]):
         yield detail
 
-# Just load the user_details.
+# Just load the users_details.
 # dlt figures out dependencies for you.
-pipeline.run(user_details)
+pipeline.run(users_details)
 ```
-In the example above, `user_details` will receive data from the default instance of the `users` resource (with `limit` set to `None`). You can also use the **pipe |** operator to bind resources dynamically.
+In the example above, `users_details` will receive data from the default instance of the `users` resource (with `limit` set to `None`). You can also use the **pipe |** operator to bind resources dynamically.
 ```py
 # You can be more explicit and use a pipe operator.
 # With it, you can create dynamic pipelines where the dependencies
 # are set at run time and resources are parametrized, i.e.,
 # below we want to load only 100 users from the `users` endpoint.
-pipeline.run(users(limit=100) | user_details)
+pipeline.run(users(limit=100) | users_details)
 ```
 
 :::tip
@@ -232,12 +232,12 @@ print(list([1,2] | pokemon()))
 A standalone resource is defined on a function that is top-level in a module (not an inner function) that accepts config and secrets values. Additionally, if the `standalone` flag is specified, the decorated function signature and docstring will be preserved. `dlt.resource` will just wrap the decorated function, and the user must call the wrapper to get the actual resource. Below we declare a `filesystem` resource that must be called before use.
 ```py
 @dlt.resource(standalone=True)
-def filesystem(bucket_url=dlt.config.value):
+def fs_resource(bucket_url=dlt.config.value):
   """List and yield files in `bucket_url`."""
   ...
 
 # `filesystem` must be called before it is extracted or used in any other way.
-pipeline.run(filesystem("s3://my-bucket/reports"), table_name="reports")
+pipeline.run(fs_resource("s3://my-bucket/reports"), table_name="reports")
 ```
 
 Standalone may have a dynamic name that depends on the arguments passed to the decorated function. For example:
@@ -306,7 +306,7 @@ import dlt
 @dlt.resource(write_disposition="replace")
 def users():
     ...
-    users = requests.get(...)
+    users = requests.get(RESOURCE_URL)
     ...
     yield users
 ```
@@ -317,8 +317,8 @@ Here's our script that defines transformations and loads the data:
 from pipedrive import users
 
 def anonymize_user(user_data):
-    user_data["user_id"] = hash_str(user_data["user_id"])
-    user_data["user_email"] = hash_str(user_data["user_email"])
+    user_data["user_id"] = _hash_str(user_data["user_id"])
+    user_data["user_email"] = _hash_str(user_data["user_email"])
     return user_data
 
 # add the filter and anonymize function to users resource and enumerate
@@ -372,8 +372,6 @@ tables of a nested table). Typical settings:
 You can achieve the same effect after the resource instance is created:
 
 ```py
-from my_resource import my_awesome_module
-
 resource = my_resource()
 resource.max_table_nesting = 0
 ```
@@ -454,11 +452,11 @@ def sql_table(credentials, schema, table):
 
     for idx, batch in enumerate(table_rows(engine, table_obj)):
       if idx == 0:
-        # Emit the first row with hints, table_to_columns and get_primary_key are helpers that extract dlt schema from
+        # Emit the first row with hints, table_to_columns and _get_primary_key are helpers that extract dlt schema from
         # SqlAlchemy model
         yield dlt.mark.with_hints(
             batch,
-            dlt.mark.make_hints(columns=table_to_columns(table_obj), primary_key=get_primary_key(table_obj)),
+            dlt.mark.make_hints(columns=table_to_columns(table_obj), primary_key=_get_primary_key(table_obj)),
         )
       else:
         # Just yield all the other rows
@@ -477,8 +475,7 @@ You can import external files, i.e., CSV, Parquet, and JSONL, by yielding items 
 ```py
 import os
 import dlt
-
-from filesystem import filesystem
+from dlt.sources.filesystem import filesystem
 
 columns: List[TColumnSchema] = [
     {"name": "id", "data_type": "bigint"},
@@ -501,7 +498,8 @@ def orders(items: Iterator[FileItemDict]):
       yield dlt.mark.with_file_import(dest_file, "csv")
 
 
-# use the filesystem verified source to glob a bucket
+# use the filesystem core source to glob a bucket
+
 downloader = filesystem(
   bucket_url="s3://my_bucket/csv",
   file_glob="today/*.csv.gz") | orders
@@ -527,9 +525,10 @@ You can sniff the schema from the data, i.e., using DuckDB to infer the table sc
 
 ### Duplicate and rename resources
 There are cases when your resources are generic (i.e., bucket filesystem) and you want to load several instances of it (i.e., files from different folders) into separate tables. In the example below, we use the `filesystem` source to load csvs from two different folders into separate tables:
+
 ```py
 @dlt.resource(standalone=True)
-def filesystem(bucket_url):
+def fs_resource(bucket_url):
   # list and yield files in bucket_url
   ...
 
@@ -540,8 +539,8 @@ def csv_reader(file_item):
 
 # create two extract pipes that list files from the bucket and send them to the reader.
 # by default, both pipes will load data to the same table (csv_reader)
-reports_pipe = filesystem("s3://my-bucket/reports") | load_csv()
-transactions_pipe = filesystem("s3://my-bucket/transactions") | load_csv()
+reports_pipe = fs_resource("s3://my-bucket/reports") | csv_reader()
+transactions_pipe = fs_resource("s3://my-bucket/transactions") | csv_reader()
 
 # so we rename resources to load to "reports" and "transactions" tables
 pipeline.run(
@@ -582,7 +581,7 @@ def generate_rows(nr):
     for i in range(nr):
         yield {'id': i, 'example_string': 'abc'}
 ```
-The resource above will be saved and loaded from a `parquet` file (if the destination supports it).
+The resource above will be saved and loaded from a Parquet file (if the destination supports it).
 
 :::note
 A special `file_format`: **preferred** will load the resource using a format that is preferred by a destination. This setting supersedes the `loader_file_format` passed to the `run` method.

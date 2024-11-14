@@ -169,6 +169,9 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
 
     def drop_storage(self) -> None:
         self.sql_client.drop_dataset()
+        with contextlib.suppress(DatabaseUndefinedRelation):
+            with self.sql_client.with_staging_dataset():
+                self.sql_client.drop_dataset()
 
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
         if not self.is_storage_initialized():

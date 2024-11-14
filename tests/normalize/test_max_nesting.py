@@ -1,371 +1,229 @@
-from typing import Any, Dict, List
+from typing import List
 
 import dlt
 import pytest
 
-from dlt.common import json
 from dlt.destinations import dummy
-from tests.common.utils import json_case_path
 
 
-ROOT_TABLES = ["bot_events"]
+example_data = {"one": [{"two": [{"three": [{"four": [{"five": "value"}]}]}]}]}
+example_data_with_alternative_tree = {
+    "one_alternative": [{"two": [{"three": [{"four": [{"five": "value"}]}]}]}]
+}
 
-ALL_TABLES_FOR_RASA_EVENT = [
-    "bot_events",
-    "bot_events__metadata__known_recipients",
-    "bot_events__metadata__transaction_history__spend__target",
-    "bot_events__metadata__transaction_history__spend__starbucks",
-    "bot_events__metadata__transaction_history__spend__amazon",
-    "bot_events__metadata__transaction_history__deposit__employer",
-    "bot_events__metadata__transaction_history__deposit__interest",
-    "bot_events__metadata__vendor_list",
+NESTING_LEVEL_0 = [""]
+NESTING_LEVEL_1 = [
+    "",
+    "__one",
+]
+NESTING_LEVEL_2 = ["", "__one", "__one__two"]
+NESTING_LEVEL_3 = [
+    "",
+    "__one",
+    "__one__two",
+    "__one__two__three",
+]
+NESTING_LEVEL_4 = [
+    "",
+    "__one",
+    "__one__two",
+    "__one__two__three",
+    "__one__two__three__four",
 ]
 
-ALL_TABLES_FOR_RASA_EVENT_NESTING_LEVEL_2 = [
-    "bot_events",
-    "bot_events__metadata__known_recipients",
-    "bot_events__metadata__vendor_list",
-]
+
+def _table_names_for_base_table(
+    _name: str, tables: List[str], alternative_tree: bool = False
+) -> List[str]:
+    tables = [f"{_name}{table}" for table in tables]
+    if alternative_tree:
+        tables = [t.replace("__one", "__one_alternative") for t in tables]
+    return tables
 
 
-@pytest.fixture(scope="module")
-def rasa_event_bot_metadata():
-    with open(json_case_path("rasa_event_bot_metadata"), "rb") as f:
-        return json.load(f)
+def _get_pipeline() -> dlt.Pipeline:
+    return dlt.pipeline(
+        pipeline_name="test_max_table_nesting",
+        destination=dummy(timeout=0.1, completed_prob=1),
+        dev_mode=True,
+    )
 
 
 @pytest.mark.parametrize(
-    "nesting_level,expected_num_tables,expected_table_names",
+    "nesting_level_resource,nesting_level_source,expected_table_names",
     (
-        (0, 1, ROOT_TABLES),
-        (1, 1, ROOT_TABLES),
-        (2, 3, ALL_TABLES_FOR_RASA_EVENT_NESTING_LEVEL_2),
-        (5, 8, ALL_TABLES_FOR_RASA_EVENT),
-        (15, 8, ALL_TABLES_FOR_RASA_EVENT),
-        (25, 8, ALL_TABLES_FOR_RASA_EVENT),
-        (1000, 8, ALL_TABLES_FOR_RASA_EVENT),
+        (0, 3, NESTING_LEVEL_0),  # resource overrides source
+        (1, 3, NESTING_LEVEL_1),
+        (2, 3, NESTING_LEVEL_2),
+        (3, 3, NESTING_LEVEL_3),
+        (4, 3, NESTING_LEVEL_4),
+        (5, 3, NESTING_LEVEL_4),
+        (6, 3, NESTING_LEVEL_4),
+        (None, 3, NESTING_LEVEL_3),
+        (None, 4, NESTING_LEVEL_4),
     ),
 )
-def test_resource_max_nesting(
-    nesting_level: int,
-    expected_num_tables: int,
+def test_basic_resource_max_nesting(
+    nesting_level_resource: int,
+    nesting_level_source: int,
     expected_table_names: List[str],
-    rasa_event_bot_metadata: Dict[str, Any],
 ):
-    @dlt.resource(max_table_nesting=nesting_level)
-    def bot_events():
-        yield rasa_event_bot_metadata
+    @dlt.resource(max_table_nesting=nesting_level_resource)
+    def base_table():
+        yield example_data
 
-    assert "x-normalizer" in bot_events._hints
+    @dlt.source(max_table_nesting=nesting_level_source)
+    def source():
+        return base_table()
 
-    pipeline_name = f"test_max_table_nesting_{nesting_level}_{expected_num_tables}"
-    pipeline = dlt.pipeline(
-        pipeline_name=pipeline_name,
-        destination=dummy(timeout=0.1, completed_prob=1),
-        dev_mode=True,
+    if nesting_level_resource is not None:
+        assert "x-normalizer" in base_table._hints
+    else:
+        assert "x-normalizer" not in base_table._hints
+
+    pipeline = _get_pipeline()
+    pipeline.run(source())
+
+    all_table_names = pipeline.default_schema.data_table_names()
+    assert set(all_table_names) == set(
+        _table_names_for_base_table("base_table", expected_table_names)
     )
 
-    pipeline.run(bot_events)
-    assert pipeline.schemas.keys()
-    assert pipeline_name in pipeline.schema_names
 
-    pipeline_schema = pipeline.schemas[pipeline_name]
-    assert len(pipeline_schema.data_table_names()) == expected_num_tables
-
-    all_table_names = pipeline_schema.data_table_names()
-    for table_name in expected_table_names:
-        assert table_name in all_table_names
-
-
-def test_with_multiple_resources_with_max_table_nesting_levels(
-    rasa_event_bot_metadata: Dict[str, Any],
-):
-    """Test max_table_nesting feature with multiple resources and a source
-    Test scenario includes
-
-    1. Testing three different sources with set and unset `max_table_nesting` parameter
-        and checks if the number of created tables in the schema match the expected numbers
-        and the exact list table names have been collected;
-    2. For the same parent source we change the `max_table_nesting` and verify if it is respected
-        by the third resource `third_resource_with_nested_data` as well as checking
-        the number of created tables in the current schema;
-    3. Run combined test where we set `max_table_nesting` for the parent source and check
-        if this `max_table_nesting` is respected by child resources where they don't define their
-        own nesting level;
-    4. Run the pipeline with set `max_table_nesting` of a resource then override it and
-        rerun the pipeline to check if the number and names of tables are expected;
-    5. Create source and resource both with defined `max_nesting_level` and check if we respect
-        `max_nesting_level` from resource;
-    """
-
-    @dlt.resource(max_table_nesting=1)
-    def rasa_bot_events_with_nesting_lvl_one():
-        yield rasa_event_bot_metadata
+def test_multiple_configurations():
+    """test different settings on resources and source at the same time"""
 
     @dlt.resource(max_table_nesting=2)
-    def rasa_bot_events_with_nesting_lvl_two():
-        yield rasa_event_bot_metadata
+    def base_table_1():
+        yield example_data
 
-    all_table_names_for_third_resource = [
-        "third_resource_with_nested_data",
-        "third_resource_with_nested_data__payload__hints",
-        "third_resource_with_nested_data__payload__hints__f_float",
-        "third_resource_with_nested_data__payload__hints__f_float__comments",
-        "third_resource_with_nested_data__params",
-    ]
+    @dlt.resource(max_table_nesting=4)
+    def base_table_2():
+        yield example_data
 
-    @dlt.resource
-    def third_resource_with_nested_data():  # first top level table `third_resource_with_nested_data`
-        yield [
-            {
-                "id": 1,
-                "payload": {
-                    "f_int": 7817289713,
-                    "f_float": 878172.8292,
-                    "f_timestamp": "2024-04-19T11:40:32.901899+00:00",
-                    "f_bool": False,
-                    "hints": [  # second table `third_resource_with_nested_data__payload__hints`
-                        {
-                            "f_bool": "bool",
-                            "f_timestamp": "bigint",
-                            "f_float": [  # third table `third_resource_with_nested_data__payload__hints__f_float`
-                                {
-                                    "cond": "precision > 4",
-                                    "then": "decimal",
-                                    "else": "float",
-                                    "comments": [  # fourth table `third_resource_with_nested_data__payload__hints__f_float__comments`
-                                        {
-                                            "text": "blabla bla bla we promise magix",
-                                            "author": "bart",
-                                        }
-                                    ],
-                                }
-                            ],
-                        }
-                    ],
-                },
-                "params": [{"id": 1, "q": "search"}, {"id": 2, "q": "hashtag-search"}],
-            }
-        ]
+    # resource below will inherit from source
+    @dlt.resource()
+    def base_table_3():
+        yield example_data
 
-    assert "x-normalizer" in rasa_bot_events_with_nesting_lvl_one._hints
-    assert "x-normalizer" in rasa_bot_events_with_nesting_lvl_two._hints
-    assert rasa_bot_events_with_nesting_lvl_one.max_table_nesting == 1
-    assert rasa_bot_events_with_nesting_lvl_two.max_table_nesting == 2
-    assert rasa_bot_events_with_nesting_lvl_one._hints["x-normalizer"]["max_nesting"] == 1  # type: ignore[typeddict-item]
-    assert rasa_bot_events_with_nesting_lvl_two._hints["x-normalizer"]["max_nesting"] == 2  # type: ignore[typeddict-item]
-    assert "x-normalizer" not in third_resource_with_nested_data._hints
+    @dlt.source(max_table_nesting=3)
+    def source():
+        return [base_table_1(), base_table_2(), base_table_3()]
 
-    # Check scenario #1
-    @dlt.source(max_table_nesting=100)
-    def some_data():
-        return [
-            rasa_bot_events_with_nesting_lvl_one(),
-            rasa_bot_events_with_nesting_lvl_two(),
-            third_resource_with_nested_data(),
-        ]
+    pipeline = _get_pipeline()
+    pipeline.run(source())
 
-    pipeline_name = "test_different_table_nesting_levels"
-    pipeline = dlt.pipeline(
-        pipeline_name=pipeline_name,
-        destination=dummy(timeout=0.1, completed_prob=1),
-        dev_mode=True,
+    all_table_names = pipeline.default_schema.data_table_names()
+    assert set(all_table_names) == set(
+        _table_names_for_base_table("base_table_1", NESTING_LEVEL_2)
+        + _table_names_for_base_table("base_table_2", NESTING_LEVEL_4)
+        + _table_names_for_base_table("base_table_3", NESTING_LEVEL_3)
     )
 
-    pipeline.run(some_data(), write_disposition="append")
-    pipeline_schema = pipeline.schemas[pipeline.default_schema_name]
-    all_table_names = pipeline_schema.data_table_names()
 
-    # expect only one table for resource `rasa_bot_events_with_nesting_lvl_one`
-    tables = [tbl for tbl in all_table_names if tbl.endswith("nesting_lvl_one")]
-    assert len(tables) == 1
-    assert tables == ["rasa_bot_events_with_nesting_lvl_one"]
+def test_update_table_nesting_level_resource():
+    """test if we can update the max_table_nesting level of a resource"""
 
-    # expect three tables for resource `rasa_bot_events_with_nesting_lvl_two`
-    tables = [tbl for tbl in all_table_names if "nesting_lvl_two" in tbl]
-    assert len(tables) == 3
-    assert tables == [
-        "rasa_bot_events_with_nesting_lvl_two",
-        "rasa_bot_events_with_nesting_lvl_two__metadata__known_recipients",
-        "rasa_bot_events_with_nesting_lvl_two__metadata__vendor_list",
-    ]
+    @dlt.resource(max_table_nesting=2)
+    def base_table_1():
+        yield example_data
 
-    # expect four tables for resource `third_resource_with_nested_data`
-    tables = [tbl for tbl in all_table_names if "third_resource" in tbl]
-    assert len(tables) == 5
-    assert tables == all_table_names_for_third_resource
+    pipeline = _get_pipeline()
+    pipeline.run(base_table_1())
 
-    # Check scenario #2
-    # now we need to check `third_resource_with_nested_data`
-    # using different nesting levels at the source level
-    # First we do with max_table_nesting=0
-    @dlt.source(max_table_nesting=0)
-    def some_data_v2():
-        yield third_resource_with_nested_data()
+    all_table_names = pipeline.default_schema.data_table_names()
+    assert set(all_table_names) == set(_table_names_for_base_table("base_table_1", NESTING_LEVEL_2))
 
-    pipeline.drop()
-    pipeline.run(some_data_v2(), write_disposition="append")
-    pipeline_schema = pipeline.schemas[pipeline.default_schema_name]
-    all_table_names = pipeline_schema.data_table_names()
-    assert len(all_table_names) == 1
-    assert all_table_names == [
-        "third_resource_with_nested_data",
-    ]
+    base_table_1.max_table_nesting = 3
+    assert base_table_1.max_table_nesting == 3
+    pipeline.run(base_table_1())
 
-    # Second we do with max_table_nesting=1
-    some_data_source = some_data_v2()
-    some_data_source.max_table_nesting = 1
+    # NOTE: it will stay the same since the resource column at nesting level 2 is marked as complex
+    all_table_names = pipeline.default_schema.data_table_names()
+    assert set(all_table_names) == set(_table_names_for_base_table("base_table_1", NESTING_LEVEL_2))
 
-    pipeline.drop()
-    pipeline.run(some_data_source, write_disposition="append")
-    pipeline_schema = pipeline.schemas[pipeline.default_schema_name]
-    all_table_names = pipeline_schema.data_table_names()
-    assert len(all_table_names) == 2
-    assert all_table_names == [
-        "third_resource_with_nested_data",
-        "third_resource_with_nested_data__params",
-    ]
+    # loading with alternative data works
+    @dlt.resource(max_table_nesting=3)  # type: ignore[no-redef]
+    def base_table_1():
+        yield example_data_with_alternative_tree
 
-    # Second we do with max_table_nesting=2
-    some_data_source = some_data_v2()
-    some_data_source.max_table_nesting = 3
+    pipeline.run(base_table_1())
+    all_table_names = pipeline.default_schema.data_table_names()
+    assert set(all_table_names) == set(
+        _table_names_for_base_table("base_table_1", NESTING_LEVEL_2)
+    ).union(_table_names_for_base_table("base_table_1", NESTING_LEVEL_3, alternative_tree=True))
 
-    pipeline.drop()
-    pipeline.run(some_data_source, write_disposition="append")
-    pipeline_schema = pipeline.schemas[pipeline.default_schema_name]
-    all_table_names = pipeline_schema.data_table_names()
 
-    # 5 because payload is a dictionary not a collection of dictionaries
-    assert len(all_table_names) == 5
-    assert all_table_names == all_table_names_for_third_resource
+def test_update_table_nesting_level_source():
+    """test if we can update the max_table_nesting level of a source"""
 
-    # Check scenario #3
-    pipeline.drop()
-    some_data_source = some_data()
-    some_data_source.max_table_nesting = 0
-    pipeline.run(some_data_source, write_disposition="append")
-    pipeline_schema = pipeline.schemas[pipeline.default_schema_name]
-    all_table_names = pipeline_schema.data_table_names()
-    assert len(all_table_names) == 5
-    assert sorted(all_table_names) == [
-        "rasa_bot_events_with_nesting_lvl_one",
-        "rasa_bot_events_with_nesting_lvl_two",
-        "rasa_bot_events_with_nesting_lvl_two__metadata__known_recipients",
-        "rasa_bot_events_with_nesting_lvl_two__metadata__vendor_list",
-        "third_resource_with_nested_data",
-    ]
+    @dlt.resource()
+    def base_table_1():
+        yield example_data
 
-    # Check scenario #4
-    # Set max_table_nesting via the setter and check the tables
-    pipeline.drop()
-    rasa_bot_events_resource = rasa_bot_events_with_nesting_lvl_one()
-    pipeline.run(
-        rasa_bot_events_resource,
-        dataset_name="bot_events",
-        write_disposition="append",
+    @dlt.resource()
+    def base_table_2():
+        yield example_data
+
+    @dlt.resource(max_table_nesting=1)
+    def base_table_3():
+        yield example_data
+
+    @dlt.source(max_table_nesting=3)
+    def source():
+        return [base_table_1(), base_table_2(), base_table_3()]
+
+    pipeline = _get_pipeline()
+    pipeline.run(source().with_resources("base_table_1"))
+
+    assert set(pipeline.default_schema.data_table_names()) == set(
+        _table_names_for_base_table("base_table_1", NESTING_LEVEL_3)
     )
-    pipeline_schema = pipeline.schemas[pipeline.default_schema_name]
-    all_table_names = pipeline_schema.data_table_names()
-    count_all_tables_first_run = len(all_table_names)
-    tables = pipeline_schema.data_table_names()
-    assert count_all_tables_first_run == 1
-    assert tables == ["rasa_bot_events_with_nesting_lvl_one"]
 
-    # now adjust the max_table_nesting for resource and check
-    pipeline.drop()
-    rasa_bot_events_resource.max_table_nesting = 2
-    assert rasa_bot_events_resource.max_table_nesting == 2
-    pipeline.run(
-        rasa_bot_events_resource,
-        dataset_name="bot_events",
-        write_disposition="append",
+    # change the max_table_nesting level of the source and load another formerly unloaded resource
+    source.max_table_nesting = 4  # type: ignore
+    pipeline.run(source().with_resources("base_table_1", "base_table_2"))
+
+    # for base_table_1 it will stay the same since it is already loaded
+    assert set(pipeline.default_schema.data_table_names()) == set(
+        _table_names_for_base_table("base_table_1", NESTING_LEVEL_3)
+        + _table_names_for_base_table("base_table_2", NESTING_LEVEL_4)
     )
-    all_table_names = pipeline_schema.data_table_names()
-    count_all_tables_second_run = len(all_table_names)
-    assert count_all_tables_first_run < count_all_tables_second_run
 
-    tables = pipeline_schema.data_table_names()
-    assert count_all_tables_second_run == 3
-    assert tables == [
-        "rasa_bot_events_with_nesting_lvl_one",
-        "rasa_bot_events_with_nesting_lvl_one__metadata__known_recipients",
-        "rasa_bot_events_with_nesting_lvl_one__metadata__vendor_list",
-    ]
+    # load full source (resource 3 max_table_nesting will be taken from resource)
+    pipeline.run(source())
 
-    pipeline.drop()
-    rasa_bot_events_resource.max_table_nesting = 10
-    assert rasa_bot_events_resource.max_table_nesting == 10
-    pipeline.run(rasa_bot_events_resource, dataset_name="bot_events")
-    all_table_names = pipeline_schema.data_table_names()
-    count_all_tables_second_run = len(all_table_names)
-    assert count_all_tables_first_run < count_all_tables_second_run
+    assert set(pipeline.default_schema.data_table_names()) == set(
+        _table_names_for_base_table("base_table_1", NESTING_LEVEL_3)
+        + _table_names_for_base_table("base_table_2", NESTING_LEVEL_4)
+        + _table_names_for_base_table("base_table_3", NESTING_LEVEL_1)
+    )
 
-    tables = pipeline_schema.data_table_names()
-    assert count_all_tables_second_run == 8
-    assert tables == [
-        "rasa_bot_events_with_nesting_lvl_one",
-        "rasa_bot_events_with_nesting_lvl_one__metadata__known_recipients",
-        "rasa_bot_events_with_nesting_lvl_one__metadata__transaction_history__spend__target",
-        "rasa_bot_events_with_nesting_lvl_one__metadata__transaction_history__spend__starbucks",
-        "rasa_bot_events_with_nesting_lvl_one__metadata__transaction_history__spend__amazon",
-        "rasa_bot_events_with_nesting_lvl_one__metadata__transaction_history__deposit__employer",
-        "rasa_bot_events_with_nesting_lvl_one__metadata__transaction_history__deposit__interest",
-        "rasa_bot_events_with_nesting_lvl_one__metadata__vendor_list",
-    ]
+
+@pytest.mark.parametrize("nesting_defininition_location", ["resource", "source"])
+def test_nesting_levels_reset_after_drop(nesting_defininition_location: str):
+    """test if the nesting levels are reset after a drop"""
+
+    @dlt.resource(max_table_nesting=2 if nesting_defininition_location == "resource" else None)
+    def base_table_1():
+        yield example_data
+
+    @dlt.source(max_table_nesting=2 if nesting_defininition_location == "source" else None)
+    def source():
+        return base_table_1()
+
+    pipeline = _get_pipeline()
+    pipeline.run(source())
+
+    all_table_names = pipeline.default_schema.data_table_names()
+    assert set(all_table_names) == set(_table_names_for_base_table("base_table_1", NESTING_LEVEL_2))
 
     pipeline.drop()
-    third_resource_with_nested_data.max_table_nesting = 10
-    assert third_resource_with_nested_data.max_table_nesting == 10
-    pipeline.run(third_resource_with_nested_data)
-    all_table_names = pipeline_schema.data_table_names()
-    count_all_tables_second_run = len(all_table_names)
-    assert count_all_tables_first_run < count_all_tables_second_run
+    if nesting_defininition_location == "resource":
+        base_table_1.max_table_nesting = 3
+    else:
+        source.max_table_nesting = 3  # type: ignore[attr-defined]
+    pipeline.run(source())
 
-    tables_with_nesting_level_set = pipeline_schema.data_table_names()
-    assert count_all_tables_second_run == 5
-    assert tables_with_nesting_level_set == all_table_names_for_third_resource
-
-    # Set max_table_nesting=None and check if the same tables exist
-    third_resource_with_nested_data.max_table_nesting = None
-    assert third_resource_with_nested_data.max_table_nesting is None
-    pipeline.run(third_resource_with_nested_data)
-    all_table_names = pipeline_schema.data_table_names()
-    count_all_tables_second_run = len(all_table_names)
-    assert count_all_tables_first_run < count_all_tables_second_run
-
-    tables = pipeline_schema.data_table_names()
-    assert count_all_tables_second_run == 5
-    assert tables == all_table_names_for_third_resource
-    assert tables == tables_with_nesting_level_set
-
-    # Check scenario #5
-    # We give priority `max_table_nesting` of the resource if it is defined
-    @dlt.source(max_table_nesting=1000)
-    def some_data_with_table_nesting():
-        yield rasa_bot_events_with_nesting_lvl_one()
-
-    pipeline.drop()
-    pipeline.run(some_data_with_table_nesting())
-    pipeline_schema = pipeline.schemas[pipeline.default_schema_name]
-    tables = pipeline_schema.data_table_names()
-    assert len(tables) == 1
-    assert tables == ["rasa_bot_events_with_nesting_lvl_one"]
-
-    # Now check the case when `max_table_nesting` is not defined in the resource
-    rasa_bot_events_with_nesting_lvl_one.max_table_nesting = None
-
-    pipeline.drop()
-    pipeline.run(some_data_with_table_nesting())
-    pipeline_schema = pipeline.schemas[pipeline.default_schema_name]
-    tables = pipeline_schema.data_table_names()
-    assert len(tables) == 8
-    assert tables == [
-        "rasa_bot_events_with_nesting_lvl_one",
-        "rasa_bot_events_with_nesting_lvl_one__metadata__known_recipients",
-        "rasa_bot_events_with_nesting_lvl_one__metadata__transaction_history__spend__target",
-        "rasa_bot_events_with_nesting_lvl_one__metadata__transaction_history__spend__starbucks",
-        "rasa_bot_events_with_nesting_lvl_one__metadata__transaction_history__spend__amazon",
-        "rasa_bot_events_with_nesting_lvl_one__metadata__transaction_history__deposit__employer",
-        "rasa_bot_events_with_nesting_lvl_one__metadata__transaction_history__deposit__interest",
-        "rasa_bot_events_with_nesting_lvl_one__metadata__vendor_list",
-    ]
+    all_table_names = pipeline.default_schema.data_table_names()
+    assert set(all_table_names) == set(_table_names_for_base_table("base_table_1", NESTING_LEVEL_3))

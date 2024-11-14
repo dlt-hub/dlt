@@ -79,6 +79,23 @@ def escape_duckdb_literal(v: Any) -> Any:
     return str(v)
 
 
+def escape_lancedb_literal(v: Any) -> Any:
+    if isinstance(v, str):
+        # we escape extended string which behave like the redshift string
+        return _escape_extended(v, prefix="'")
+    if isinstance(v, (datetime, date, time)):
+        return f"'{v.isoformat()}'"
+    if isinstance(v, (list, dict)):
+        return _escape_extended(json.dumps(v), prefix="'")
+    # TODO: check how binaries are represented in fusion
+    if isinstance(v, bytes):
+        return f"from_base64('{base64.b64encode(v).decode('ascii')}')"
+    if v is None:
+        return "NULL"
+
+    return str(v)
+
+
 MS_SQL_ESCAPE_DICT = {
     "'": "''",
     "\n": "' + CHAR(10) + N'",

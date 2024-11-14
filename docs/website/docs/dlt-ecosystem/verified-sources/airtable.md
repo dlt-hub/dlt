@@ -166,6 +166,8 @@ tables in the schema are loaded.
 This function retrieves data from a single Airtable table.
 
 ```py
+import pyairtable
+
 def airtable_resource(
     api: pyairtable.Api,
     base_id: str,
@@ -200,7 +202,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
    base_id = "Please set me up!"     # The ID of the base.
 
    airtables = airtable_source(base_id=base_id)
-   load_info = pipeline.run(load_data, write_disposition="replace")
+   load_info = pipeline.run(airtables, write_disposition="replace")
    ```
 
 1. To load selected tables from a base table:
