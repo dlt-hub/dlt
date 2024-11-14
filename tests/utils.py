@@ -157,9 +157,27 @@ def autouse_test_storage() -> FileStorage:
 @pytest.fixture(scope="function", autouse=True)
 def preserve_environ() -> Iterator[None]:
     saved_environ = environ.copy()
-    yield
-    environ.clear()
-    environ.update(saved_environ)
+    # delta-rs sets those keys without updating environ and there's no
+    # method to refresh environ
+    known_environ = {
+        key_: saved_environ.get(key_)
+        for key_ in [
+            "AWS_ACCESS_KEY_ID",
+            "AWS_SECRET_ACCESS_KEY",
+            "AWS_REGION",
+            "AWS_SESSION_TOKEN",
+        ]
+    }
+    try:
+        yield
+    finally:
+        environ.clear()
+        environ.update(saved_environ)
+        for key_, value_ in known_environ.items():
+            if value_ is not None or key_ not in environ:
+                environ[key_] = value_ or ""
+            else:
+                del environ[key_]
 
 
 @pytest.fixture(autouse=True)
