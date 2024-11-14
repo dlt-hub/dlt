@@ -103,7 +103,6 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         section: str = None,
         args_bound: bool = False,
         SPEC: Type[BaseConfiguration] = None,
-        incremental: Optional[TIncrementalConfig] = None,
     ) -> None:
         self.section = section
         self.selected = selected
@@ -112,9 +111,6 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         self._explicit_args: DictStrAny = None
         self.SPEC = SPEC
         self.source_name = None
-        self._initial_incremental: Optional[Incremental[Any]] = (
-            Incremental.ensure_instance(incremental) if incremental else None
-        )
         super().__init__(hints)
 
     @classmethod
@@ -127,7 +123,6 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         selected: bool = True,
         data_from: Union["DltResource", Pipe] = None,
         inject_config: bool = False,
-        incremental: Optional[TIncrementalConfig] = None,
     ) -> Self:
         """Creates an instance of DltResource from compatible `data` with a given `name` and `section`.
 
@@ -184,7 +179,6 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
                 section=section,
                 args_bound=not callable(data),
                 SPEC=get_fun_spec(data),
-                incremental=incremental,
             )
             if inject_config:
                 r_._inject_config()
@@ -449,36 +443,40 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             self._pipe.insert_step(item_transform, insert_at)
         return self
 
+    def _remove_incremental_step(self) -> None:
+        step_no = self._pipe.find(Incremental, IncrementalResourceWrapper)
+        if step_no >= 0:
+            self._pipe.remove_step(step_no)
+
     def set_incremental(
-        self, new_incremental: Incremental[Any], from_hints: bool = False
+        self, new_incremental: Union[Incremental[Any], IncrementalResourceWrapper], from_hints: bool = False
     ) -> Optional[Incremental[Any]]:
         """Set/replace the incremental transform for the resource.
 
         Args:
             new_incremental: The Incremental instance/hint to set or replace
             from_hints: If the incremental is set from hints. Defaults to False.
-            fixed: The Incremental is fixed on the resource (I.e. set from `@resource` decorator)
-                Ensures it will be persisted when cloning the resource.
         """
         if new_incremental is Incremental.EMPTY:
             new_incremental = None
         incremental = self.incremental
         if incremental is not None:
-            if isinstance(incremental, IncrementalResourceWrapper):
+            if isinstance(new_incremental, IncrementalResourceWrapper):
+                # Completely replace the wrapper
+                self._remove_incremental_step()
+                self.add_step(new_incremental)
+            elif isinstance(incremental, IncrementalResourceWrapper):
                 incremental.set_incremental(new_incremental, from_hints=from_hints)
             else:
-                step_no = self._pipe.find(Incremental)
-                self._pipe.remove_step(step_no)
+                self._remove_incremental_step()
                 # re-add the step
                 incremental = None
         if incremental is None:
             # if there's no wrapper add incremental as a transform
             if new_incremental:
-                new_incremental = Incremental.ensure_instance(new_incremental)
+                if not isinstance(new_incremental, IncrementalResourceWrapper):
+                    new_incremental = Incremental.ensure_instance(new_incremental)
                 self.add_step(new_incremental)
-        # if fixed:
-        #     # Make sure incremental is added to hints so cloning reosurce will keep it
-        #     self._set_hints(self._hints | {"incremental": new_incremental})
         return new_incremental
 
     def _set_hints(
@@ -518,23 +516,6 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         """Binds the parametrized resource to passed arguments. Modifies resource pipe in place. Does not evaluate generators or iterators."""
         if self._args_bound:
             raise TypeError(f"Parametrized resource {self.name} is not callable")
-
-        incremental = self.incremental
-
-        if self._initial_incremental and (
-            not incremental
-            or (isinstance(incremental, IncrementalResourceWrapper) and not incremental.incremental)
-        ):
-            # Inject the incremental into function args when needed if it was set in decorator and it was not overriden explicitly
-            sig = inspect.signature(self._pipe.gen)  # type: ignore[arg-type]
-            args, kwargs, injected = IncrementalResourceWrapper.inject_implicit_incremental_arg(
-                self._initial_incremental,
-                sig,
-                args,
-                kwargs,
-            )
-            if not injected or injected == self._initial_incremental:
-                self.set_incremental(self._initial_incremental)
 
         orig_gen = self._pipe.gen
         gen = self._pipe.bind_gen(*args, **kwargs)
@@ -651,14 +632,12 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         if not self._pipe.is_empty and not self._args_bound:
             orig_gen = getattr(self._pipe.gen, "__GEN__", None)
             if orig_gen:
-                step_no = self._pipe.find(IncrementalResourceWrapper)
-                if step_no >= 0:
-                    self._pipe.remove_step(step_no)
+                self._remove_incremental_step()
                 self._pipe.replace_gen(orig_gen)
                 return True
         return False
 
-    def _inject_config(self) -> "DltResource":
+    def _inject_config(self, incremental_from_hints_override: Optional[bool] = None) -> "DltResource":
         """Wraps the pipe generation step in incremental and config injection wrappers and adds pipe step with
         Incremental transform.
         """
@@ -670,10 +649,10 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         sig = inspect.signature(gen)
         if IncrementalResourceWrapper.should_wrap(sig):
             incremental = IncrementalResourceWrapper(self._hints.get("primary_key"))
-            # if incr_hint := self._hints.get("incremental"):
-            #     incremental.set_incremental(incr_hint, from_hints=True)
+            if incr_hint := self._hints.get("incremental"):
+                incremental.set_incremental(incr_hint, from_hints=incremental_from_hints_override if incremental_from_hints_override is not None else True)
             incr_f = incremental.wrap(sig, gen)
-            self.add_step(incremental)
+            self.set_incremental(incremental)
         else:
             incr_f = gen
         resource_sections = (known_sections.SOURCES, self.section, self.name)
@@ -704,6 +683,11 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             pipe = pipe._clone(new_name=new_name, with_parent=with_parent)
         # incremental and parent are already in the pipe (if any)
 
+        incremental = self.incremental
+        if isinstance(incremental, IncrementalResourceWrapper):
+            incremental_from_hints: Optional[bool] = incremental._from_hints
+        else:
+            incremental_from_hints = None
         r_ = self.__class__(
             pipe,
             self._clone_hints(self._hints),
@@ -711,13 +695,12 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             section=self.section,
             args_bound=self._args_bound,
             SPEC=self.SPEC,
-            incremental=self._initial_incremental,
         )
         # try to eject and then inject configuration and incremental wrapper when resource is cloned
         # this makes sure that a take config values from a right section and wrapper has a separated
         # instance in the pipeline
         if r_._eject_config():
-            r_._inject_config()
+            r_._inject_config(incremental_from_hints_override=incremental_from_hints)
         return r_
 
     def _get_config_section_context(self) -> ConfigSectionContext:

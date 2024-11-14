@@ -638,6 +638,7 @@ def resource(
             table_format=table_format,
             file_format=file_format,
             references=references,
+            incremental=incremental
         )
 
         resource = _impl_cls.from_data(
@@ -648,9 +649,10 @@ def resource(
             selected,
             cast(DltResource, data_from),
             True,
-            incremental=incremental,
         )
 
+        if incremental:
+            resource.incremental._from_hints = False
         # If custom nesting level was specified then
         # we need to add it to table hints so that
         # later in normalizer dlt/common/normalizers/json/relational.py

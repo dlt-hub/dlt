@@ -85,6 +85,7 @@ def make_hints(
     table_format: TTableHintTemplate[TTableFormat] = None,
     file_format: TTableHintTemplate[TFileFormat] = None,
     references: TTableHintTemplate[TTableReferenceParam] = None,
+    incremental: Incremental[Any] = None,
 ) -> TResourceHints:
     """A convenience function to create resource hints. Accepts both static and dynamic hints based on data.
 
@@ -118,6 +119,8 @@ def make_hints(
     if validator:
         new_template["validator"] = validator
     DltResourceHints.validate_dynamic_hints(new_template)
+    if incremental is not None:  # TODO: Validate
+        new_template["incremental"] = incremental
     return new_template
 
 
