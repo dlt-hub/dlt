@@ -47,6 +47,7 @@ def escape_redshift_literal(v: Any) -> Any:
     return str(v)
 
 
+# TODO: Find, or implement, a pure python parser to remove the shapely dependency
 def is_valid_wkb(data: bytes) -> bool:
     try:
         from shapely import wkb  # type: ignore
