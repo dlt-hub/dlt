@@ -131,23 +131,40 @@ The `postgres_adapter` facilitates applying these hints conveniently, with a def
 **Example:** Using `postgres_adapter` with Different Geometry Types
 
 ```py
+import dlt
 from dlt.destinations.impl.postgres.postgres_adapter import postgres_adapter
 
 # Sample data with various geometry types
-data = [
+data_wkt = [
   {"type": "Point_wkt", "geom": "POINT (1 1)"},
-  {"type": "Point_wkb_hex", "geom": "0101000000000000000000F03F000000000000F03F"},
+  {"type": "Point_wkt", "geom": "Polygon([(0, 0), (1, 0), (1, 1), (0, 1), (0, 0)])"},
+  ]
+data_wkb = [
   {
     "type": "Point_wkb",
     "geom": b"\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\xf0?\x00\x00\x00\x00\x00\x00\xf0?",
   },
+  {
+    "type": "Point_wkb",
+            "geom": b"\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\xf8\x7f\x00\x00\x00"
+        b"\x00\x00\x00\xf8\x7f",
+  },
+  ]
+
+data_wkb_hex = [
+  {"type": "Point_wkb_hex", "geom": "0101000000000000000000F03F000000000000F03F"},
+  {"type": "Point_wkb_hex", "geom": "01020000000300000000000000000000000000000000000000000000000000F03F000000000000F03F00000000000000400000000000000040"},
 ]
 
+
+
 # Apply postgres_adapter to the 'geom' column with default SRID 4326
-resource = postgres_adapter(data, geometry="geom")
+resource_wkt = postgres_adapter(data_wkt, geometry="geom")
+resource_wkb = postgres_adapter(data_wkb, geometry="geom")
+resource_wkb_hex = postgres_adapter(data_wkb_hex, geometry="geom")
 
 # If you need a different SRID
-resource = postgres_adapter(data, geometry="geom", srid=3242)
+resource_wkt = postgres_adapter(data_wkt, geometry="geom", srid=3242)
 ```
 
 Ensure that the PostGIS extension is enabled in your Postgres database:
@@ -157,6 +174,10 @@ CREATE EXTENSION postgis;
 ```
 
 This configuration allows `dlt` to map the `geom` column to the PostGIS `geometry` type for spatial queries and analyses.
+
+:::warning
+`LinearRing` geometry type only works with WKB format as Python bytes object.
+:::
 
 ## Table and column identifiers
 Postgres supports both case-sensitive and case-insensitive identifiers. All unquoted and lowercase identifiers resolve case-insensitively in SQL statements. Case insensitive [naming conventions](../../general-usage/naming-convention.md#case-sensitive-and-insensitive-destinations) like the default **snake_case** will generate case-insensitive identifiers. Case sensitive (like **sql_cs_v1**) will generate case-sensitive identifiers that must be quoted in SQL statements.
