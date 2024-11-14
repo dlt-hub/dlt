@@ -1,9 +1,7 @@
-import re
 import base64
-from typing import Any, Dict
+import re
 from datetime import date, datetime, time  # noqa: I251
-
-from shapely import wkb  # type: ignore
+from typing import Any, Dict
 
 from dlt.common.json import json
 from dlt.common.pendulum import pendulum
@@ -51,6 +49,8 @@ def escape_redshift_literal(v: Any) -> Any:
 
 def is_valid_wkb(data: bytes) -> bool:
     try:
+        from shapely import wkb  # type: ignore
+
         wkb.loads(data)
         return True
     except Exception:
@@ -68,6 +68,7 @@ def escape_postgres_literal(v: Any) -> Any:
     if isinstance(v, bytes):
         if is_valid_wkb(v):
             # Skip \x prefix for WKB (OGC/ISO geometry standard format)
+            # https://libgeos.org/specifications/wkb/
             return f"'{v.hex()}'"
         else:
             return f"'\\x{v.hex()}'"
