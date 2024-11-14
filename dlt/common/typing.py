@@ -439,7 +439,7 @@ def get_generic_type_argument_from_instance(
     if cls_:
         orig_param_type = get_args(cls_)[0]
     if orig_param_type in (Any, CallableAny) and sample_value is not None:
-        orig_param_type = type(sample_value)
+        orig_param_type = type(sample_value)  # type: ignore[assignment]
     return orig_param_type  # type: ignore
 
 

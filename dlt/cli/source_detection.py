@@ -30,7 +30,7 @@ def find_call_arguments_to_replace(
                     if not isinstance(dn_node, ast.Constant) or not isinstance(dn_node.value, str):
                         raise CliCommandInnerException(
                             "init",
-                            f"The pipeline script {init_script_name} must pass the {t_arg_name} as"
+                            f"The pipeline script {init_script_name} must pass the {t_arg_name} as"  # type: ignore[attr-defined]
                             f" string to '{arg_name}' function in line {dn_node.lineno}",
                         )
                     else:
