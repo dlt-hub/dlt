@@ -166,7 +166,12 @@ def test_result_origins():
     origins = get_result_origins(sql, EXAMPLE_SCHEMA)
     assert origins == [("unknown", (None, None))]
 
-    # concatenate two columns, for now no origin is known..., can we?
+    # concatenate two columns, for now it selects the first column type?
     sql = "SELECT (total || ' ' || customer_id) as concat FROM orders"
     origins = get_result_origins(sql, EXAMPLE_SCHEMA, dialect="duckdb")
-    assert origins == [("concat", (None, None))]
+    assert origins ==  [('concat', ('orders', 'total'))]
+
+    # where clause
+    sql = "SELECT * FROM orders WHERE total > 100"
+    origins = get_result_origins(sql, EXAMPLE_SCHEMA)
+    assert origins == [('order_id', ('orders', 'order_id')), ('customer_id', ('orders', 'customer_id')), ('total', ('orders', 'total'))]

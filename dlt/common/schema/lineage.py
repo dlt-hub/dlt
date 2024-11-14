@@ -51,6 +51,7 @@ def get_column_origin(
     origin_column_name = None
 
     for node in lineage_graph.walk():
+        print(type(node.expression))
         if type(node.expression) == sqlglot.expressions.Table:
             origin_table_name = node.expression.name
 
