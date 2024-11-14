@@ -1,7 +1,7 @@
 """TODO: merge with dataset.p and move ibis imports to libs/ibis after ibis helper from other PR is merged"""
 
 
-from typing import Any, Generator, Sequence, Union, Tuple
+from typing import Any, Generator, Sequence, Union, Tuple, Dict, List
 from dlt.common.json import json
 
 from contextlib import contextmanager
@@ -90,11 +90,13 @@ class ReadableIbisRelation(SupportsReadableRelation):
         *,
         readable_dataset: "ReadableIbisDataset",
         expression: Expr = None,
+        provided_query: Any = None,
     ) -> None:
         """Create a lazy evaluated relation to for the dataset of a destination"""
 
         self._dataset = readable_dataset
         self._expression = expression
+        self._provided_query = provided_query
 
         # wire protocol functions
         self.df = self._wrap_func("df")  # type: ignore
@@ -118,6 +120,8 @@ class ReadableIbisRelation(SupportsReadableRelation):
     @property
     def query(self) -> Any:
         """build the query"""
+        if self._provided_query:
+            return self._provided_query
         destination_type = self._dataset._destination.destination_type
         return ibis.to_sql(self._expression, dialect=DIALECT_MAP[destination_type])
 
@@ -331,6 +335,36 @@ class ReadableIbisDataset(SupportsReadableDataset):
         """access of table via property notation"""
         return self.table(table_name)
 
+    def row_counts(
+        self, *, data_tables: bool = True, dlt_tables: bool = False, table_names: List[str] = None
+    ) -> Dict[str, int]:
+        """Returns a dictionary of table names and their row counts, returns counts of all data tables by default"""
+        """If table_names is provided, only the tables in the list are returned regardless of the data_tables and dlt_tables flags"""
+
+        selected_tables = table_names or []
+        if not selected_tables:
+            if data_tables:
+                selected_tables += self.schema.data_table_names(seen_data_only=True)
+            if dlt_tables:
+                selected_tables += self.schema.dlt_table_names()
+
+        # Build UNION ALL query to get row counts for all selected tables
+        queries = []
+        for table in selected_tables:
+            queries.append(
+                f"SELECT '{table}' as table_name, COUNT(*) as row_count FROM"
+                f" {self.sql_client.make_qualified_table_name(table)}"
+            )
+
+        query = " UNION ALL ".join(queries)
+
+        # Execute query and build result dict
+        with self(query).cursor() as cursor:
+            return {row[0]: row[1] for row in cursor.fetchall()}
+
+
+    def __call__(self, query: Any) -> ReadableIbisRelation:
+        return ReadableIbisRelation(readable_dataset=self, provided_query=query)  # type: ignore[abstract]
 
 def dataset(
     destination: TDestinationReferenceArg,

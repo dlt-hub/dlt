@@ -307,6 +307,10 @@ def dataset(
     schema: Union[Schema, str, None] = None,
     dataset_type: TDatasetType = "dbapi",
 ) -> SupportsReadableDataset:
+    from dlt.destinations.ibis_dataset import dataset as create_ibis_dataset
+    
+    return create_ibis_dataset(destination, dataset_name, schema)
+
     if dataset_type == "dbapi":
         return ReadableDBAPIDataset(destination, dataset_name, schema)
     raise NotImplementedError(f"Dataset of type {dataset_type} not implemented")
