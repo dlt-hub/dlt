@@ -1,7 +1,6 @@
 from typing import Generator, Dict, cast
 
 import dlt
-from dlt.common.utils import custom_environ
 from dlt.destinations.adapters import clickhouse_adapter
 from dlt.destinations.impl.clickhouse.sql_client import ClickHouseSqlClient
 from dlt.destinations.impl.clickhouse.typing import TDeployment
@@ -34,7 +33,12 @@ def test_clickhouse_adapter() -> None:
     clickhouse_adapter(merge_tree_resource, table_engine_type="merge_tree")
     clickhouse_adapter(replicated_merge_tree_resource, table_engine_type="replicated_merge_tree")
 
-    pipe = dlt.pipeline(pipeline_name="adapter_test", destination="clickhouse", dev_mode=True)
+    pipe = dlt.pipeline(
+        pipeline_name="adapter_test",
+        destination="clickhouse",
+        dev_mode=True,
+        dataset_name="adapter_test_ds",
+    )
 
     with pipe.sql_client() as client:
         deployment_type: TDeployment = get_deployment_type(cast(ClickHouseSqlClient, client))
