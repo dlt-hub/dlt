@@ -51,18 +51,16 @@ class AwsCredentialsWithoutDefaults(CredentialsConfiguration):
 
     def to_object_store_rs_credentials(self) -> Dict[str, str]:
         # https://docs.rs/object_store/latest/object_store/aws
-        # NOTE: we are passing empty strings to reset env variables
-        # that delta-rs sets (for some reason) based on those credentials
-        # those variables will be preserved if in next call we just skip the
-        # field
+        # NOTE: delta rs will set the values below in env variables of the current process
+        # https://github.com/delta-io/delta-rs/blob/bdf1c4e765ca457e49d4fa53335d42736220f57f/rust/src/storage/s3.rs#L257
         creds = cast(
             Dict[str, str],
             without_none(
                 dict(
-                    aws_access_key_id=self.aws_access_key_id or "",
-                    aws_secret_access_key=self.aws_secret_access_key or "",
-                    aws_session_token=self.aws_session_token or "",
-                    region=self.region_name or "",
+                    aws_access_key_id=self.aws_access_key_id,
+                    aws_secret_access_key=self.aws_secret_access_key,
+                    aws_session_token=self.aws_session_token,
+                    region=self.region_name,
                     endpoint_url=self.endpoint_url,
                 )
             ),

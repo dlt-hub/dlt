@@ -113,7 +113,7 @@ def test_aws_object_store_rs_credentials(driver: str, fs_creds: Dict[str, Any]) 
     )
     assert creds.aws_session_token is None
     object_store_rs_creds = creds.to_object_store_rs_credentials()
-    assert object_store_rs_creds["aws_session_token"] == ""  # no auto-generated token
+    assert "aws_session_token" not in object_store_rs_creds  # no auto-generated token
     assert can_connect(AWS_BUCKET, object_store_rs_creds)
 
     # AwsCredentials: no user-provided session token
@@ -125,7 +125,7 @@ def test_aws_object_store_rs_credentials(driver: str, fs_creds: Dict[str, Any]) 
     )
     assert creds.aws_session_token is None
     object_store_rs_creds = creds.to_object_store_rs_credentials()
-    assert object_store_rs_creds["aws_session_token"] == ""  # no auto-generated token
+    assert "aws_session_token" not in object_store_rs_creds  # no auto-generated token
     assert can_connect(AWS_BUCKET, object_store_rs_creds)
 
     # exception should be raised if both `endpoint_url` and `region_name` are
