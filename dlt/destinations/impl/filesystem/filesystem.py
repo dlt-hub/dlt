@@ -120,16 +120,23 @@ class FilesystemLoadJob(RunnableLoadJob):
         return m._replace(remote_url=self.make_remote_url())
 
 
-class DeltaLoadFilesystemJob(FilesystemLoadJob):
+class TableFormatLoadFilesystemJob(FilesystemLoadJob):
     def __init__(self, file_path: str) -> None:
         super().__init__(file_path=file_path)
 
         self.file_paths = ReferenceFollowupJobRequest.resolve_references(self._file_path)
 
     def make_remote_path(self) -> str:
-        # remote path is table dir - delta will create its file structure inside it
         return self._job_client.get_table_dir(self.load_table_name)
 
+    @property
+    def arrow_dataset(self) -> Any:
+        from dlt.common.libs.pyarrow import pyarrow
+
+        return pyarrow.dataset.dataset(self.file_paths)
+
+
+class DeltaLoadFilesystemJob(TableFormatLoadFilesystemJob):
     def run(self) -> None:
         # create Arrow dataset from Parquet files
         from dlt.common.libs.pyarrow import pyarrow as pa
@@ -139,7 +146,7 @@ class DeltaLoadFilesystemJob(FilesystemLoadJob):
             f"Will copy file(s) {self.file_paths} to delta table {self.make_remote_url()} [arrow"
             f" buffer: {pa.total_allocated_bytes()}]"
         )
-        source_ds = pa.dataset.dataset(self.file_paths)
+        source_ds = self.arrow_dataset
         delta_table = self._delta_table()
 
         # explicitly check if there is data
@@ -210,6 +217,28 @@ class DeltaLoadFilesystemJob(FilesystemLoadJob):
             )
         else:
             return _evolve_delta_table_schema(delta_table, arrow_ds.schema)
+
+
+class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
+    def run(self) -> None:
+        from dlt.common.libs.pyiceberg import (
+            DLT_ICEBERG_NAMESPACE,
+            ensure_iceberg_compatible_arrow_schema,
+            write_iceberg_table,
+            get_catalog,
+        )
+
+        arrow_table = self.arrow_dataset.to_table()
+        catalog = get_catalog(self._job_client, self.load_table_name)
+        catalog.create_namespace_if_not_exists(DLT_ICEBERG_NAMESPACE)
+        table = catalog.create_table_if_not_exists(
+            f"{DLT_ICEBERG_NAMESPACE}.{self.load_table_name}",
+            schema=ensure_iceberg_compatible_arrow_schema(arrow_table.schema),
+            location=self.make_remote_url(),
+        )
+        write_iceberg_table(
+            table=table, data=arrow_table, write_disposition=self._load_table["write_disposition"]
+        )
 
 
 class FilesystemLoadJobWithFollowup(HasFollowupJobs, FilesystemLoadJob):
@@ -373,9 +402,13 @@ class FilesystemClient(
     ) -> TSchemaTables:
         applied_update = super().update_stored_schema(only_tables, expected_update)
         # create destination dirs for all tables
-        table_names = only_tables or self.schema.tables.keys()
+        tables = self.schema.tables
+        table_names = only_tables or tables.keys()
         dirs_to_create = self.get_table_dirs(table_names)
         for tables_name, directory in zip(table_names, dirs_to_create):
+            if tables[tables_name].get("table_format") in ("delta", "iceberg"):
+                # let table format libs manage table directory
+                continue
             self.fs_client.makedirs(directory, exist_ok=True)
             # we need to mark the folders of the data tables as initialized
             if tables_name in self.schema.dlt_table_names():
@@ -459,12 +492,20 @@ class FilesystemClient(
         # where we want to load the state the regular way
         if table["name"] == self.schema.state_table_name and not self.config.as_staging_destination:
             return FinalizedLoadJob(file_path)
-        if table.get("table_format") == "delta":
-            import dlt.common.libs.deltalake  # assert dependencies are installed
 
+        table_format = table.get("table_format")
+        if table_format in ("delta", "iceberg"):
             # a reference job for a delta table indicates a table chain followup job
             if ReferenceFollowupJobRequest.is_reference_job(file_path):
-                return DeltaLoadFilesystemJob(file_path)
+                if table_format == "delta":
+                    import dlt.common.libs.deltalake
+
+                    return DeltaLoadFilesystemJob(file_path)
+                elif table_format == "iceberg":
+                    import dlt.common.libs.pyiceberg
+
+                    return IcebergLoadFilesystemJob(file_path)
+
             # otherwise just continue
             return FinalizedLoadJobWithFollowupJobs(file_path)
 
@@ -495,10 +536,10 @@ class FilesystemClient(
 
     def should_truncate_table_before_load(self, table_name: str) -> bool:
         table = self.prepare_load_table(table_name)
-        return (
-            table["write_disposition"] == "replace"
-            and not table.get("table_format") == "delta"  # Delta can do a logical replace
-        )
+        return table["write_disposition"] == "replace" and not table.get("table_format") in (
+            "delta",
+            "iceberg",
+        )  # Delta/Iceberg can do a logical replace
 
     #
     # state stuff
@@ -719,7 +760,7 @@ class FilesystemClient(
         jobs = super().create_table_chain_completed_followup_jobs(
             table_chain, completed_table_chain_jobs
         )
-        if table_chain[0].get("table_format") == "delta":
+        if table_chain[0].get("table_format") in ("delta", "iceberg"):
             for table in table_chain:
                 table_job_paths = [
                     job.file_path

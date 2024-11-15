@@ -622,6 +622,13 @@ def destinations_configs(
                     ),
                 )
             ]
+            destination_configs += [
+                DestinationTestConfiguration(
+                    destination_type="filesystem",
+                    bucket_url=bucket,
+                    table_format="iceberg",
+                )
+            ]
 
     # filter out non active destinations
     destination_configs = [

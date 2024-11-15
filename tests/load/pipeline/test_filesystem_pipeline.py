@@ -258,44 +258,49 @@ def test_delta_table_pyarrow_version_check() -> None:
     "destination_config",
     destinations_configs(
         table_format_filesystem_configs=True,
-        with_table_format="delta",
+        with_table_format=("delta", "iceberg"),
         bucket_exclude=(MEMORY_BUCKET, SFTP_BUCKET),
     ),
     ids=lambda x: x.name,
 )
-def test_delta_table_core(
+def test_table_format_core(
     destination_config: DestinationTestConfiguration,
 ) -> None:
-    """Tests core functionality for `delta` table format.
+    """Tests core functionality for `delta` and `iceberg` table formats.
 
     Tests all data types, all filesystems.
     Tests `append` and `replace` write dispositions (`merge` is tested elsewhere).
     """
-
-    from dlt.common.libs.deltalake import get_delta_tables
+    if (
+        destination_config.table_format == "iceberg"
+        and destination_config.bucket_url != FILE_BUCKET
+    ):
+        pytest.skip("remote filesystems not yet implemented for `iceberg`")
+    if destination_config.table_format == "delta":
+        from dlt.common.libs.deltalake import get_delta_tables
 
     # create resource that yields rows with all data types
     column_schemas, row = table_update_and_row()
 
-    @dlt.resource(columns=column_schemas, table_format="delta")
+    @dlt.resource(columns=column_schemas, table_format=destination_config.table_format)
     def data_types():
         nonlocal row
         yield [row] * 10
 
     pipeline = destination_config.setup_pipeline("fs_pipe", dev_mode=True)
 
-    # run pipeline, this should create Delta table
+    # run pipeline, this should create table
     info = pipeline.run(data_types())
     assert_load_info(info)
 
-    # `delta` table format should use `parquet` file format
+    # table formats should use `parquet` file format
     completed_jobs = info.load_packages[0].jobs["completed_jobs"]
     data_types_jobs = [
         job for job in completed_jobs if job.job_file_info.table_name == "data_types"
     ]
     assert all([job.file_path.endswith((".parquet", ".reference")) for job in data_types_jobs])
 
-    # 10 rows should be loaded to the Delta table and the content of the first
+    # 10 rows should be loaded to the table and the content of the first
     # row should match expected values
     rows = load_tables_to_dicts(pipeline, "data_types", exclude_system_cols=True)["data_types"]
     assert len(rows) == 10
@@ -322,7 +327,8 @@ def test_delta_table_core(
     # should do logical replace, increasing the table version
     info = pipeline.run(data_types(), write_disposition="replace")
     assert_load_info(info)
-    assert get_delta_tables(pipeline, "data_types")["data_types"].version() == 2
+    if destination_config.table_format == "delta":
+        assert get_delta_tables(pipeline, "data_types")["data_types"].version() == 2
     rows = load_tables_to_dicts(pipeline, "data_types", exclude_system_cols=True)["data_types"]
     assert len(rows) == 10
 
