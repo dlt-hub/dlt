@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, Any
 import os
 
 from dlt import version, Pipeline
@@ -6,6 +6,8 @@ from dlt.common.libs.pyarrow import cast_arrow_schema_types, columns_to_arrow
 from dlt.common.schema.typing import TWriteDisposition
 from dlt.common.utils import assert_min_pkg_version
 from dlt.common.exceptions import MissingDependencyException
+from dlt.common.configuration.specs import CredentialsConfiguration
+from dlt.common.configuration.specs.mixins import WithPyicebergConfig
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 
 assert_min_pkg_version(
@@ -26,7 +28,6 @@ except ModuleNotFoundError:
     )
 
 
-DLT_ICEBERG_CATALOGS_DIR = "dlt_iceberg_catalogs"
 DLT_ICEBERG_NAMESPACE = "dlt"
 
 
@@ -59,21 +60,18 @@ def get_catalog(
     table_name: str,
 ) -> SqlCatalog:
     """Returns single-table, ephemeral, in-memory Iceberg catalog."""
-    warehouse_path = client.dataset_path
-    catalogs_path = warehouse_path + "/" + DLT_ICEBERG_CATALOGS_DIR
-    os.makedirs(catalogs_path, exist_ok=True)
 
     # create in-memory catalog
     catalog = SqlCatalog(
         "default",
         uri="sqlite:///:memory:",
-        warehouse=client.make_remote_url(warehouse_path),
+        **_get_fileio_config(client.config.credentials),
     )
     catalog.create_namespace(DLT_ICEBERG_NAMESPACE)
 
     # add table to catalog
     table_id = f"{DLT_ICEBERG_NAMESPACE}.{table_name}"
-    table_path = f"{warehouse_path}/{table_name}"
+    table_path = f"{client.dataset_path}/{table_name}"
     metadata_path = f"{table_path}/metadata"
     if client.fs_client.exists(metadata_path):
         metadata_files = [f for f in client.fs_client.ls(metadata_path) if f.endswith(".json")]
@@ -124,3 +122,9 @@ def get_iceberg_tables(
             name: get_catalog(client, name).load_table(f"{DLT_ICEBERG_NAMESPACE}.{name}")
             for name in schema_iceberg_tables
         }
+
+
+def _get_fileio_config(credentials: CredentialsConfiguration) -> Dict[str, Any]:
+    if isinstance(credentials, WithPyicebergConfig):
+        return credentials.to_pyiceberg_fileio_config()
+    return {}

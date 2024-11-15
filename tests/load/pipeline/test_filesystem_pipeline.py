@@ -32,6 +32,7 @@ from tests.load.utils import (
     DestinationTestConfiguration,
     MEMORY_BUCKET,
     FILE_BUCKET,
+    AWS_BUCKET,
     AZ_BUCKET,
     SFTP_BUCKET,
 )
@@ -271,11 +272,11 @@ def test_table_format_core(
     Tests all data types, all filesystems.
     Tests `append` and `replace` write dispositions (`merge` is tested elsewhere).
     """
-    if (
-        destination_config.table_format == "iceberg"
-        and destination_config.bucket_url != FILE_BUCKET
+    if destination_config.table_format == "iceberg" and destination_config.bucket_url not in (
+        FILE_BUCKET,
+        AWS_BUCKET,
     ):
-        pytest.skip("remote filesystems not yet implemented for `iceberg`")
+        pytest.skip("only local and S3 filesystems are currently implemented `iceberg`")
     if destination_config.table_format == "delta":
         from dlt.common.libs.deltalake import get_delta_tables
 

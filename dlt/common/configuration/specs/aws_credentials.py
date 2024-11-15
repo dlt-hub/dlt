@@ -8,6 +8,7 @@ from dlt.common.configuration.specs import (
     CredentialsWithDefault,
     configspec,
 )
+from dlt.common.configuration.specs.mixins import WithPyicebergConfig
 from dlt.common.configuration.specs.exceptions import (
     InvalidBoto3Session,
     ObjectStoreRsCredentialsException,
@@ -16,7 +17,7 @@ from dlt import version
 
 
 @configspec
-class AwsCredentialsWithoutDefaults(CredentialsConfiguration):
+class AwsCredentialsWithoutDefaults(CredentialsConfiguration, WithPyicebergConfig):
     # credentials without boto implementation
     aws_access_key_id: str = None
     aws_secret_access_key: TSecretStrValue = None
@@ -76,6 +77,16 @@ class AwsCredentialsWithoutDefaults(CredentialsConfiguration):
                 creds["aws_allow_http"] = "true"
 
         return creds
+
+    def to_pyiceberg_fileio_config(self) -> Dict[str, Any]:
+        return {
+            "s3.access-key-id": self.aws_access_key_id,
+            "s3.secret-access-key": self.aws_secret_access_key,
+            "s3.session-token": self.aws_session_token,
+            "s3.region": self.region_name,
+            "s3.endpoint": self.endpoint_url,
+            "s3.connect-timeout": 300,
+        }
 
 
 @configspec
