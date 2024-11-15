@@ -609,7 +609,6 @@ def destinations_configs(
                 DestinationTestConfiguration(
                     destination_type="filesystem",
                     bucket_url=bucket,
-                    extra_info=bucket + "-delta",
                     table_format="delta",
                     supports_merge=True,
                     env_vars=(
