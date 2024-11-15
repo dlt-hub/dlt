@@ -624,6 +624,7 @@ def destinations_configs(
                     destination_type="filesystem",
                     bucket_url=bucket,
                     table_format="iceberg",
+                    supports_merge=False,
                 )
             ]
 
