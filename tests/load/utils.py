@@ -121,6 +121,7 @@ R2_BUCKET_CONFIG = dict(
         aws_access_key_id=dlt.config.get("tests.r2_aws_access_key_id", str),
         aws_secret_access_key=dlt.config.get("tests.r2_aws_secret_access_key", str),
         endpoint_url=dlt.config.get("tests.r2_endpoint_url", str),
+        region_name=dlt.config.get("tests.r2_region_name", str),
     ),
 )
 
@@ -375,6 +376,7 @@ def destinations_configs(
                 file_format="parquet",
                 bucket_url=AWS_BUCKET,
                 supports_dbt=False,
+                extra_info="minio",
             )
         ]
         destination_configs += [
@@ -440,7 +442,7 @@ def destinations_configs(
                 file_format="jsonl",
                 bucket_url=AWS_BUCKET,
                 stage_name="PUBLIC.dlt_s3_stage",
-                extra_info="s3-integration",
+                extra_info="s3-integration-public-stage",
             ),
             DestinationTestConfiguration(
                 destination_type="snowflake",
@@ -515,13 +517,6 @@ def destinations_configs(
                 file_format="jsonl",
                 bucket_url=AWS_BUCKET,
                 extra_info="s3-authorization",
-            ),
-            DestinationTestConfiguration(
-                destination_type="dremio",
-                staging=filesystem(destination_name="minio"),
-                file_format="parquet",
-                bucket_url=AWS_BUCKET,
-                supports_dbt=False,
             ),
         ]
 
@@ -612,6 +607,7 @@ def destinations_configs(
                     bucket_url=bucket,
                     table_format="delta",
                     supports_merge=True,
+                    file_format="parquet",
                     env_vars=(
                         {
                             "DESTINATION__FILESYSTEM__DELTALAKE_STORAGE_OPTIONS": (

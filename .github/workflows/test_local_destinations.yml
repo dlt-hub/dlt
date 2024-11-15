@@ -122,7 +122,6 @@ jobs:
           DESTINATION__FILESYSTEM__CREDENTIALS__SFTP_USERNAME: foo
           DESTINATION__FILESYSTEM__CREDENTIALS__SFTP_PASSWORD: pass
 
-
       - name: Stop weaviate
         if: always()
         run:  docker compose -f "tests/load/weaviate/docker-compose.yml" down -v

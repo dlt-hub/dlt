@@ -346,13 +346,27 @@ const sidebars = {
             title: 'File formats',
             description: 'Overview of our loader file formats',
             slug: 'dlt-ecosystem/file-formats',
-            keywords: ['destination'],
+            keywords: ['destination', 'file formats'],
           },
           items: [
             'dlt-ecosystem/file-formats/jsonl',
             'dlt-ecosystem/file-formats/parquet',
             'dlt-ecosystem/file-formats/csv',
             'dlt-ecosystem/file-formats/insert-format',
+          ]
+        },
+        {
+          type: 'category',
+          label: 'Table formats',
+          link: {
+            type: 'generated-index',
+            title: 'Table formats',
+            slug: 'dlt-ecosystem/table-formats',
+            keywords: ['destination, table formats'],
+          },
+          items: [
+            'dlt-ecosystem/table-formats/delta',
+            'dlt-ecosystem/table-formats/iceberg',
           ]
         },
         'reference/frequently-asked-questions',
