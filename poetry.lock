@@ -10476,7 +10476,7 @@ motherduck = ["duckdb", "pyarrow"]
 mssql = ["pyodbc"]
 parquet = ["pyarrow"]
 postgres = ["psycopg2-binary", "psycopg2cffi"]
-pyiceberg = ["pyiceberg"]
+pyiceberg = ["pyarrow", "pyiceberg", "sqlalchemy"]
 qdrant = ["qdrant-client"]
 redshift = ["psycopg2-binary", "psycopg2cffi"]
 s3 = ["botocore", "s3fs"]
@@ -10490,4 +10490,4 @@ weaviate = ["weaviate-client"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.8.1,<3.13"
-content-hash = "0307148666fb501f63dde9c7869411fb6fd11f24354d0eef27822b45330b6b08"
+content-hash = "002489e2418eb2c671e2380c11bf50a5cd246a4df729deb861357a6d00b50841"
