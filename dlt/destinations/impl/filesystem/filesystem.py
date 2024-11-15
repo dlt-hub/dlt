@@ -221,24 +221,25 @@ class DeltaLoadFilesystemJob(TableFormatLoadFilesystemJob):
 
 class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
     def run(self) -> None:
-        from dlt.common.libs.pyiceberg import (
-            DLT_ICEBERG_NAMESPACE,
-            ensure_iceberg_compatible_arrow_schema,
-            write_iceberg_table,
-            get_catalog,
+        from dlt.common.libs.pyiceberg import write_iceberg_table
+
+        write_iceberg_table(
+            table=self._iceberg_table(),
+            data=self.arrow_dataset.to_table(),
+            write_disposition=self._load_table["write_disposition"],
         )
 
-        arrow_table = self.arrow_dataset.to_table()
+    def _iceberg_table(self) -> "pyiceberg.table.Table":  # type: ignore[name-defined] # noqa: F821
+        from dlt.common.libs.pyiceberg import get_catalog
+
         catalog = get_catalog(self._job_client, self.load_table_name)
-        catalog.create_namespace_if_not_exists(DLT_ICEBERG_NAMESPACE)
-        table = catalog.create_table_if_not_exists(
-            f"{DLT_ICEBERG_NAMESPACE}.{self.load_table_name}",
-            schema=ensure_iceberg_compatible_arrow_schema(arrow_table.schema),
-            location=self.make_remote_url(),
-        )
-        write_iceberg_table(
-            table=table, data=arrow_table, write_disposition=self._load_table["write_disposition"]
-        )
+        return catalog.load_table(self.table_identifier)
+
+    @property
+    def table_identifier(self) -> str:
+        from dlt.common.libs.pyiceberg import DLT_ICEBERG_NAMESPACE
+
+        return f"{DLT_ICEBERG_NAMESPACE}.{self.load_table_name}"
 
 
 class FilesystemLoadJobWithFollowup(HasFollowupJobs, FilesystemLoadJob):

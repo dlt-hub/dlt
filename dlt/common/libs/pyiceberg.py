@@ -2,7 +2,7 @@ from typing import Dict
 import os
 
 from dlt import version, Pipeline
-from dlt.common.libs.pyarrow import cast_arrow_schema_types
+from dlt.common.libs.pyarrow import cast_arrow_schema_types, columns_to_arrow
 from dlt.common.schema.typing import TWriteDisposition
 from dlt.common.utils import assert_min_pkg_version
 from dlt.common.exceptions import MissingDependencyException
@@ -58,12 +58,39 @@ def get_catalog(
     client: FilesystemClient,
     table_name: str,
 ) -> SqlCatalog:
-    catalogs_dir = client.dataset_path + "/" + DLT_ICEBERG_CATALOGS_DIR
-    os.makedirs(catalogs_dir, exist_ok=True)
-    return SqlCatalog(
+    """Returns single-table, ephemeral, in-memory Iceberg catalog."""
+    warehouse_path = client.dataset_path
+    catalogs_path = warehouse_path + "/" + DLT_ICEBERG_CATALOGS_DIR
+    os.makedirs(catalogs_path, exist_ok=True)
+
+    # create in-memory catalog
+    catalog = SqlCatalog(
         "default",
-        uri=f"sqlite:///{catalogs_dir}/{table_name}_catalog.db",
+        uri="sqlite:///:memory:",
+        warehouse=client.make_remote_url(warehouse_path),
     )
+    catalog.create_namespace(DLT_ICEBERG_NAMESPACE)
+
+    # add table to catalog
+    table_id = f"{DLT_ICEBERG_NAMESPACE}.{table_name}"
+    table_path = f"{warehouse_path}/{table_name}"
+    metadata_path = f"{table_path}/metadata"
+    if client.fs_client.exists(metadata_path):
+        metadata_files = [f for f in client.fs_client.ls(metadata_path) if f.endswith(".json")]
+        last_metadata_file = client.make_remote_url(sorted(metadata_files)[-1])
+        catalog.register_table(table_id, last_metadata_file)
+    else:
+        arrow_schema = columns_to_arrow(
+            columns=client.schema.get_table_columns(table_name),
+            caps=client.capabilities,
+        )
+        catalog.create_table(
+            table_id,
+            schema=ensure_iceberg_compatible_arrow_schema(arrow_schema),
+            location=client.make_remote_url(table_path),
+        )
+
+    return catalog
 
 
 def get_iceberg_tables(
