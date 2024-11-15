@@ -57,6 +57,7 @@ from dlt.destinations.job_client_impl import SqlJobClientBase
 from dlt.pipeline.exceptions import SqlClientNotAvailable
 from tests.utils import (
     ACTIVE_DESTINATIONS,
+    ACTIVE_TABLE_FORMATS,
     IMPLEMENTED_DESTINATIONS,
     SQL_DESTINATIONS,
     EXCLUDED_DESTINATION_CONFIGURATIONS,
@@ -633,6 +634,11 @@ def destinations_configs(
     # filter out non active destinations
     destination_configs = [
         conf for conf in destination_configs if conf.destination_type in ACTIVE_DESTINATIONS
+    ]
+
+    # filter out non active destinations
+    destination_configs = [
+        conf for conf in destination_configs if conf.table_format in ACTIVE_TABLE_FORMATS
     ]
 
     # filter out destinations not in subset

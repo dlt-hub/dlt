@@ -32,6 +32,7 @@ from dlt.common.pipeline import LoadInfo, PipelineContext, SupportsPipeline
 from dlt.common.runtime.run_context import DOT_DLT, RunContext
 from dlt.common.runtime.telemetry import start_telemetry, stop_telemetry
 from dlt.common.schema import Schema
+from dlt.common.schema.typing import TTableFormat
 from dlt.common.storages import FileStorage
 from dlt.common.storages.versioned_storage import VersionedStorage
 from dlt.common.typing import DictStrAny, StrAny, TDataItem
@@ -87,6 +88,12 @@ ACTIVE_DESTINATIONS = set(dlt.config.get("ACTIVE_DESTINATIONS", list) or IMPLEME
 
 ACTIVE_SQL_DESTINATIONS = SQL_DESTINATIONS.intersection(ACTIVE_DESTINATIONS)
 ACTIVE_NON_SQL_DESTINATIONS = NON_SQL_DESTINATIONS.intersection(ACTIVE_DESTINATIONS)
+
+# filter out active table formats for current tests
+IMPLEMENTED_TABLE_FORMATS = set(get_args(TTableFormat))
+ACTIVE_TABLE_FORMATS = set(
+    dlt.config.get("ACTIVE_TABLE_FORMATS", list) or IMPLEMENTED_TABLE_FORMATS
+)
 
 # sanity checks
 assert len(ACTIVE_DESTINATIONS) >= 0, "No active destinations selected"
