@@ -76,9 +76,7 @@ def get_catalog(
     metadata_path = f"{table_path}/metadata"
     if client.fs_client.exists(metadata_path):
         # found metadata; register existing table
-        metadata_files = [f for f in client.fs_client.ls(metadata_path) if f.endswith(".json")]
-        last_metadata_file = client.make_remote_url(sorted(metadata_files)[-1])
-        table = catalog.register_table(table_id, last_metadata_file)
+        table = _register_table(table_id, metadata_path, catalog, client)
 
         # evolve schema
         if schema is not None:
@@ -133,3 +131,15 @@ def _get_fileio_config(credentials: CredentialsConfiguration) -> Dict[str, Any]:
     if isinstance(credentials, WithPyicebergConfig):
         return credentials.to_pyiceberg_fileio_config()
     return {}
+
+
+def _register_table(
+    identifier: str,
+    metadata_path: str,
+    catalog: SqlCatalog,
+    client: FilesystemClient,
+) -> IcebergTable:
+    # TODO: implement faster way to obtain `last_metadata_file` (listing is slow)
+    metadata_files = [f for f in client.fs_client.ls(metadata_path) if f.endswith(".json")]
+    last_metadata_file = client.make_remote_url(sorted(metadata_files)[-1])
+    return catalog.register_table(identifier, last_metadata_file)
