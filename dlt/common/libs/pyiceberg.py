@@ -58,6 +58,7 @@ def write_iceberg_table(
 def get_catalog(
     client: FilesystemClient,
     table_name: str,
+    schema: pa.Schema = None,
 ) -> SqlCatalog:
     """Returns single-table, ephemeral, in-memory Iceberg catalog."""
 
@@ -74,17 +75,21 @@ def get_catalog(
     table_path = f"{client.dataset_path}/{table_name}"
     metadata_path = f"{table_path}/metadata"
     if client.fs_client.exists(metadata_path):
+        # found metadata; register existing table
         metadata_files = [f for f in client.fs_client.ls(metadata_path) if f.endswith(".json")]
         last_metadata_file = client.make_remote_url(sorted(metadata_files)[-1])
-        catalog.register_table(table_id, last_metadata_file)
+        table = catalog.register_table(table_id, last_metadata_file)
+
+        # evolve schema
+        if schema is not None:
+            with table.update_schema() as update:
+                update.union_by_name(ensure_iceberg_compatible_arrow_schema(schema))
     else:
-        arrow_schema = columns_to_arrow(
-            columns=client.schema.get_table_columns(table_name),
-            caps=client.capabilities,
-        )
+        # found no metadata; create new table
+        assert schema is not None
         catalog.create_table(
             table_id,
-            schema=ensure_iceberg_compatible_arrow_schema(arrow_schema),
+            schema=ensure_iceberg_compatible_arrow_schema(schema),
             location=client.make_remote_url(table_path),
         )
 

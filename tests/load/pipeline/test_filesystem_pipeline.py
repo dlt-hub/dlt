@@ -2,7 +2,7 @@ import csv
 import os
 import posixpath
 from pathlib import Path
-from typing import Any, Callable, List, Dict, cast
+from typing import Any, Callable, List, Dict, cast, Tuple
 from importlib.metadata import version as pkg_version
 from packaging.version import Version
 
@@ -15,7 +15,7 @@ from dlt.common import pendulum
 from dlt.common.storages.configuration import FilesystemConfiguration
 from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.common.utils import uniq_id
-from dlt.common.schema.typing import TWriteDisposition
+from dlt.common.schema.typing import TWriteDisposition, TTableFormat
 from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.destinations import filesystem
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
@@ -653,7 +653,7 @@ def test_delta_table_partitioning_arrow_load_id(
     "destination_config",
     destinations_configs(
         table_format_filesystem_configs=True,
-        with_table_format="delta",
+        with_table_format=("delta", "iceberg"),
         bucket_subset=(FILE_BUCKET),
     ),
     ids=lambda x: x.name,
@@ -666,20 +666,58 @@ def test_delta_table_partitioning_arrow_load_id(
         pytest.param({"disposition": "merge", "strategy": "upsert"}, id="upsert"),
     ),
 )
-def test_delta_table_schema_evolution(
+def test_table_format_schema_evolution(
     destination_config: DestinationTestConfiguration,
     write_disposition: TWriteDisposition,
 ) -> None:
     """Tests schema evolution (adding new columns) for `delta` table format."""
-    from dlt.common.libs.deltalake import get_delta_tables, ensure_delta_compatible_arrow_data
-    from dlt.common.libs.pyarrow import pyarrow
+    if destination_config.table_format == "iceberg" and write_disposition == {
+        "disposition": "merge",
+        "strategy": "upsert",
+    }:
+        pytest.skip("`upsert` currently not implemented for `iceberg`")
+
+    from dlt.common.libs.pyarrow import pyarrow, cast_arrow_schema_types
+
+    def get_expected_actual(
+        table_name: str, table_format: TTableFormat, arrow_table: pyarrow.Table
+    ) -> Tuple[pyarrow.Table, pyarrow.Table]:
+        if table_format == "delta":
+            from dlt.common.libs.deltalake import (
+                get_delta_tables,
+                ensure_delta_compatible_arrow_data,
+            )
+
+            dt = get_delta_tables(pipeline, table_name)[table_name]
+            expected = ensure_delta_compatible_arrow_data(arrow_table)
+            actual = dt.to_pyarrow_table()
+        elif table_format == "iceberg":
+            from dlt.common.libs.pyiceberg import (
+                get_iceberg_tables,
+                ensure_iceberg_compatible_arrow_data,
+            )
+
+            it = get_iceberg_tables(pipeline, table_name)[table_name]
+            expected = ensure_iceberg_compatible_arrow_data(arrow_table)
+            actual = it.scan().to_arrow()
+
+            # work around pyiceberg bug https://github.com/apache/iceberg-python/issues/1128
+            schema = cast_arrow_schema_types(
+                actual.schema,
+                {
+                    pyarrow.types.is_large_string: pyarrow.string(),
+                    pyarrow.types.is_large_binary: pyarrow.binary(),
+                },
+            )
+            actual = actual.cast(schema)
+        return (expected, actual)
 
     @dlt.resource(
         write_disposition=write_disposition,
         primary_key="pk",
-        table_format="delta",
+        table_format=destination_config.table_format,
     )
-    def delta_table(data):
+    def evolving_table(data):
         yield data
 
     pipeline = destination_config.setup_pipeline("fs_pipe", dev_mode=True)
@@ -691,11 +729,11 @@ def test_delta_table_schema_evolution(
     assert arrow_table.shape == (1, 1)
 
     # initial load
-    info = pipeline.run(delta_table(arrow_table))
+    info = pipeline.run(evolving_table(arrow_table))
     assert_load_info(info)
-    dt = get_delta_tables(pipeline, "delta_table")["delta_table"]
-    expected = ensure_delta_compatible_arrow_data(arrow_table)
-    actual = dt.to_pyarrow_table()
+    expected, actual = get_expected_actual(
+        "evolving_table", destination_config.table_format, arrow_table
+    )
     assert actual.equals(expected)
 
     # create Arrow table with many columns, two rows
@@ -710,11 +748,11 @@ def test_delta_table_schema_evolution(
     arrow_table = arrow_table.add_column(0, pk_field, [[1, 2]])
 
     # second load — this should evolve the schema (i.e. add the new columns)
-    info = pipeline.run(delta_table(arrow_table))
+    info = pipeline.run(evolving_table(arrow_table))
     assert_load_info(info)
-    dt = get_delta_tables(pipeline, "delta_table")["delta_table"]
-    actual = dt.to_pyarrow_table()
-    expected = ensure_delta_compatible_arrow_data(arrow_table)
+    expected, actual = get_expected_actual(
+        "evolving_table", destination_config.table_format, arrow_table
+    )
     if write_disposition == "append":
         # just check shape and schema for `append`, because table comparison is
         # more involved than with the other dispositions
@@ -731,13 +769,20 @@ def test_delta_table_schema_evolution(
     empty_arrow_table = arrow_table.schema.empty_table()
 
     # load 3 — this should evolve the schema without changing data
-    info = pipeline.run(delta_table(empty_arrow_table))
+    info = pipeline.run(evolving_table(empty_arrow_table))
     assert_load_info(info)
-    dt = get_delta_tables(pipeline, "delta_table")["delta_table"]
-    actual = dt.to_pyarrow_table()
-    expected_schema = ensure_delta_compatible_arrow_data(arrow_table).schema
-    assert actual.schema.equals(expected_schema)
-    expected_num_rows = 3 if write_disposition == "append" else 2
+    expected, actual = get_expected_actual(
+        "evolving_table", destination_config.table_format, arrow_table
+    )
+    assert actual.schema.equals(expected.schema)
+    if write_disposition == "append":
+        expected_num_rows = 3
+    elif write_disposition == "replace" and destination_config.table_format == "delta":
+        expected_num_rows = 2
+    elif write_disposition == "replace" and destination_config.table_format == "iceberg":
+        expected_num_rows = 0
+    elif write_disposition == {"disposition": "merge", "strategy": "upsert"}:
+        expected_num_rows = 2
     assert actual.num_rows == expected_num_rows
     # new column should have NULLs only
     assert (

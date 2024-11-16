@@ -232,7 +232,7 @@ class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
     def _iceberg_table(self) -> "pyiceberg.table.Table":  # type: ignore[name-defined] # noqa: F821
         from dlt.common.libs.pyiceberg import get_catalog
 
-        catalog = get_catalog(self._job_client, self.load_table_name)
+        catalog = get_catalog(self._job_client, self.load_table_name, self.arrow_dataset.schema)
         return catalog.load_table(self.table_identifier)
 
     @property
