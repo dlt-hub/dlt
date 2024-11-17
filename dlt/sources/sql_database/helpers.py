@@ -9,6 +9,7 @@ from typing import (
     Literal,
     Optional,
     Iterator,
+    Protocol,
     Union,
 )
 import operator
@@ -35,10 +36,33 @@ from .schema_types import (
     table_to_resource_hints,
 )
 
-from dlt.common.libs.sql_alchemy import Engine, CompileError, create_engine, MetaData, sa
+from dlt.common.libs.sql_alchemy import (
+    Engine,
+    CompileError,
+    create_engine,
+    MetaData,
+    sa,
+    TextClause,
+)
 
 TableBackend = Literal["sqlalchemy", "pyarrow", "pandas", "connectorx"]
-TQueryAdapter = Callable[[SelectAny, Table], SelectAny]
+
+SelectClause = Union[SelectAny, TextClause]
+
+
+class TQueryAdapter(Protocol):
+    @staticmethod
+    def __call__(
+        query: SelectAny,
+        table: Table,
+        incremental: Optional[Incremental[Any]] = None,
+        engine: Optional[Engine] = None,
+        /,
+    ) -> SelectClause:
+        pass
+
+
+# TQueryAdapter = Union[Callable[[SelectAny, Table], SelectAny], Callable[[SelectAny, Table, Incremental], SelectAny]]
 
 
 class TableLoader:
@@ -126,9 +150,18 @@ class TableLoader:
 
         return query  # type: ignore[no-any-return]
 
-    def make_query(self) -> SelectAny:
+    def make_query(self) -> SelectClause:
         if self.query_adapter_callback:
-            return self.query_adapter_callback(self._make_query(), self.table)
+            try:
+                return self.query_adapter_callback(
+                    self._make_query(), self.table, self.incremental, self.engine
+                )
+            except TypeError:
+                try:
+                    return self.query_adapter_callback(self._make_query(), self.table)
+                except TypeError:
+                    raise
+
         return self._make_query()
 
     def load_rows(self, backend_kwargs: Dict[str, Any] = None) -> Iterator[TDataItem]:
@@ -140,7 +173,7 @@ class TableLoader:
         else:
             yield from self._load_rows(query, backend_kwargs)
 
-    def _load_rows(self, query: SelectAny, backend_kwargs: Dict[str, Any]) -> TDataItem:
+    def _load_rows(self, query: SelectClause, backend_kwargs: Dict[str, Any]) -> TDataItem:
         with self.engine.connect() as conn:
             result = conn.execution_options(yield_per=self.chunk_size).execute(query)
             # NOTE: cursor returns not normalized column names! may be quite useful in case of Oracle dialect
@@ -165,7 +198,7 @@ class TableLoader:
                     )
 
     def _load_rows_connectorx(
-        self, query: SelectAny, backend_kwargs: Dict[str, Any]
+        self, query: SelectClause, backend_kwargs: Dict[str, Any]
     ) -> Iterator[TDataItem]:
         try:
             import connectorx as cx

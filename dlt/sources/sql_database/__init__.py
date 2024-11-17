@@ -42,6 +42,7 @@ def sql_database(
     type_adapter_callback: Optional[TTypeAdapter] = None,
     query_adapter_callback: Optional[TQueryAdapter] = None,
     resolve_foreign_keys: bool = False,
+    engine_adapter_callback: Callable[[Engine], Engine] = None,
 ) -> Iterable[DltResource]:
     """
     A dlt source which loads data from an SQL database using SQLAlchemy.
@@ -71,9 +72,11 @@ def sql_database(
         type_adapter_callback(Optional[Callable]): Callable to override type inference when reflecting columns.
             Argument is a single sqlalchemy data type (`TypeEngine` instance) and it should return another sqlalchemy data type, or `None` (type will be inferred from data)
         query_adapter_callback(Optional[Callable[Select, Table], Select]): Callable to override the SELECT query used to fetch data from the table.
-            The callback receives the sqlalchemy `Select` and corresponding `Table` objects and should return the modified `Select`.
+            The callback receives the sqlalchemy `Select` and corresponding `Table`, 'Incremental` and `Engine` objects and should return the modified `Select` or `Text`.
         resolve_foreign_keys (bool): Translate foreign keys in the same schema to `references` table hints.
             May incur additional database calls as all referenced tables are reflected.
+        engine_adapter_callback (Callable[[Engine], Engine]): Callback to configure, modify and Engine instance that will be used to open a connection ie. to
+            set transaction isolation level.
 
     Returns:
         Iterable[DltResource]: A list of DLT resources for each table to be loaded.
@@ -89,6 +92,8 @@ def sql_database(
     # set up alchemy engine
     engine = engine_from_credentials(credentials)
     engine.execution_options(stream_results=True, max_row_buffer=2 * chunk_size)
+    if engine_adapter_callback:
+        engine = engine_adapter_callback(engine)
     metadata = metadata or MetaData(schema=schema)
 
     if defer_table_reflect:
@@ -126,6 +131,7 @@ def sql_database(
             type_adapter_callback=type_adapter_callback,
             query_adapter_callback=query_adapter_callback,
             resolve_foreign_keys=resolve_foreign_keys,
+            engine_adapter_callback=engine_adapter_callback,
         )
 
 
@@ -149,6 +155,7 @@ def sql_table(
     included_columns: Optional[List[str]] = None,
     query_adapter_callback: Optional[TQueryAdapter] = None,
     resolve_foreign_keys: bool = False,
+    engine_adapter_callback: Callable[[Engine], Engine] = None,
 ) -> DltResource:
     """
     A dlt resource which loads data from an SQL database table using SQLAlchemy.
@@ -179,9 +186,11 @@ def sql_table(
             Argument is a single sqlalchemy data type (`TypeEngine` instance) and it should return another sqlalchemy data type, or `None` (type will be inferred from data)
         included_columns (Optional[List[str]): List of column names to select from the table. If not provided, all columns are loaded.
         query_adapter_callback(Optional[Callable[Select, Table], Select]): Callable to override the SELECT query used to fetch data from the table.
-            The callback receives the sqlalchemy `Select` and corresponding `Table` objects and should return the modified `Select`.
+            The callback receives the sqlalchemy `Select` and corresponding `Table`, 'Incremental` and `Engine` objects and should return the modified `Select` or `Text`.
         resolve_foreign_keys (bool): Translate foreign keys in the same schema to `references` table hints.
             May incur additional database calls as all referenced tables are reflected.
+        engine_adapter_callback (Callable[[Engine], Engine]): Callback to configure, modify and Engine instance that will be used to open a connection ie. to
+            set transaction isolation level.
 
     Returns:
         DltResource: The dlt resource for loading data from the SQL database table.
@@ -195,6 +204,8 @@ def sql_table(
 
     engine = engine_from_credentials(credentials, may_dispose_after_use=True)
     engine.execution_options(stream_results=True, max_row_buffer=2 * chunk_size)
+    if engine_adapter_callback:
+        engine = engine_adapter_callback(engine)
     metadata = metadata or MetaData(schema=schema)
 
     skip_nested_on_minimal = backend == "sqlalchemy"

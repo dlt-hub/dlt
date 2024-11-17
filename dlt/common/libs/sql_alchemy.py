@@ -4,7 +4,8 @@ from dlt import version
 try:
     from sqlalchemy import MetaData, Table, Column, create_engine
     from sqlalchemy.engine import Engine, URL, make_url, Row
-    from sqlalchemy.sql import sqltypes, Select
+    from sqlalchemy.sql import sqltypes, Select, Executable
+    from sqlalchemy.sql.elements import TextClause
     from sqlalchemy.sql.sqltypes import TypeEngine
     from sqlalchemy.exc import CompileError
     import sqlalchemy as sa

@@ -107,6 +107,34 @@ def test_pass_engine_credentials(sql_source_db: SQLAlchemySourceDB) -> None:
     assert len(list(table)) == sql_source_db.table_infos["chat_message"]["row_count"]
 
 
+def test_engine_adapter_callback(sql_source_db: SQLAlchemySourceDB) -> None:
+    from dlt.common.libs.sql_alchemy import Engine
+
+    adapter_calls: int = 0
+
+    def set_serializable(engine: Engine) -> Engine:
+        nonlocal adapter_calls
+
+        engine.execution_options(isolation_level="SERIALIZABLE")
+        adapter_calls += 1
+        return engine
+
+    # verify database
+    database = sql_database(
+        sql_source_db.engine.url.render_as_string(False),
+        schema=sql_source_db.schema,
+        table_names=["chat_message"],
+        engine_adapter_callback=set_serializable,
+    )
+    assert adapter_calls == 2
+
+    assert len(list(database)) == sql_source_db.table_infos["chat_message"]["row_count"]
+
+    # verify table
+    table = sql_table(sql_source_db.engine, table="chat_message", schema=sql_source_db.schema)
+    assert len(list(table)) == sql_source_db.table_infos["chat_message"]["row_count"]
+
+
 def test_named_sql_table_config(sql_source_db: SQLAlchemySourceDB) -> None:
     # set the credentials per table name
     os.environ["SOURCES__SQL_DATABASE__CHAT_MESSAGE__CREDENTIALS"] = (
@@ -174,6 +202,71 @@ def test_general_sql_database_config(sql_source_db: SQLAlchemySourceDB) -> None:
         list(sql_database(schema=sql_source_db.schema).with_resources("chat_message"))
     # other resources will be loaded, incremental is selective
     assert len(list(sql_database(schema=sql_source_db.schema).with_resources("app_user"))) > 0
+
+
+@pytest.mark.parametrize("backend", ["sqlalchemy", "pandas", "pyarrow"])
+def test_text_query_adapter(sql_source_db: SQLAlchemySourceDB, backend: TableBackend) -> None:
+    from dlt.common.libs.sql_alchemy import Table, sqltypes, sa, Engine, TextClause
+    from dlt.sources.sql_database.helpers import SelectAny
+    from dlt.extract.incremental import Incremental
+
+    def add_new_columns(table: Table) -> None:
+        required_columns = [
+            ("add_int", sqltypes.BigInteger, {"nullable": True}),
+            ("add_text", sqltypes.Text, {"default": None, "nullable": True}),
+        ]
+        for col_name, col_type, col_kwargs in required_columns:
+            if col_name not in table.c:
+                table.append_column(sa.Column(col_name, col_type, **col_kwargs))
+
+    last_query: str = None
+
+    def query_adapter_callback(
+        query: SelectAny, table: Table, incremental: Incremental[Any] = None, engine: Engine = None
+    ) -> TextClause:
+        nonlocal last_query
+
+        if incremental and incremental.start_value is not None:
+            t_query = sa.text(
+                f"SELECT *, 1 as add_int, 'const' as add_text FROM {table.fullname} WHERE"
+                f" {incremental.cursor_path} > :start_value"
+            ).bindparams(**{"start_value": incremental.start_value})
+        else:
+            t_query = sa.text(f"SELECT *, 1 as add_int, 'const' as add_text FROM {table.fullname}")
+
+        last_query = str(t_query)
+        return t_query
+
+    read_table = sql_table(
+        table="chat_channel",
+        credentials=sql_source_db.credentials,
+        schema=sql_source_db.schema,
+        reflection_level="full",
+        backend=backend,
+        table_adapter_callback=add_new_columns,
+        query_adapter_callback=query_adapter_callback,
+        incremental=dlt.sources.incremental("updated_at"),
+    )
+
+    pipeline = make_pipeline("duckdb")
+    info = pipeline.run(read_table)
+    assert_load_info(info)
+    assert "chat_channel" in last_query
+    assert "WHERE" not in last_query
+
+    chn_count = load_table_counts(pipeline, "chat_channel")["chat_channel"]
+    assert chn_count > 0
+
+    chat_channel_schema = pipeline.default_schema.get_table("chat_channel")
+    # print(pipeline.default_schema.to_pretty_yaml())
+    assert "add_int" in chat_channel_schema["columns"]
+    assert chat_channel_schema["columns"]["add_int"]["data_type"] == "bigint"
+    assert chat_channel_schema["columns"]["add_text"]["data_type"] == "text"
+
+    info = pipeline.run(read_table)
+    assert "WHERE updated_at > :start_value" in last_query
+    # no msgs were loaded, incremental got correctly rendered
+    assert load_table_counts(pipeline, "chat_channel")["chat_channel"] == chn_count
 
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pandas", "pyarrow", "connectorx"])
