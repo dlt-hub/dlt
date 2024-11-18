@@ -2503,17 +2503,17 @@ files = [
 
 [[package]]
 name = "deltalake"
-version = "0.19.1"
+version = "0.21.0"
 description = "Native Delta Lake Python binding based on delta-rs with Pandas integration"
 optional = true
 python-versions = ">=3.8"
 files = [
-    {file = "deltalake-0.19.1-cp38-abi3-macosx_10_12_x86_64.whl", hash = "sha256:ddaaaa9c85a17791c3997cf320ac11dc1725d16cf4b6f0ff1b130853e7b56cd0"},
-    {file = "deltalake-0.19.1-cp38-abi3-macosx_11_0_arm64.whl", hash = "sha256:e0184d5a3f0d4f4f1fb992c3bdc8736329b78b6a4faf1a278109ec35d9945c1d"},
-    {file = "deltalake-0.19.1-cp38-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:ec9d117fcf6c198f3d554be2f3a6291ca3838530650db236741ff48d4d47abb4"},
-    {file = "deltalake-0.19.1-cp38-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:447ef721319ed15f7b5f6da507efd5fed0e6172e5ae55ac044d5b8fc9b812e47"},
-    {file = "deltalake-0.19.1-cp38-abi3-win_amd64.whl", hash = "sha256:b15bc343a9f8f3de80fbedcebd5d9472b539eb0f538a71739c7fcf699089127e"},
-    {file = "deltalake-0.19.1.tar.gz", hash = "sha256:5e09fabb221fb81e989c283c16278eaffb6e85706d98364abcda5c0c6ca73598"},
+    {file = "deltalake-0.21.0-cp38-abi3-macosx_10_12_x86_64.whl", hash = "sha256:4b4a352da534a173d837906357c808cd36dd216974b9df2c3998acb98d04954a"},
+    {file = "deltalake-0.21.0-cp38-abi3-macosx_11_0_arm64.whl", hash = "sha256:2e7762af03fed0a67ce8f89b6b75356a74e485f52923c73a5c850c6c574d3481"},
+    {file = "deltalake-0.21.0-cp38-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:02870db9dfe4694034fb209cb4822f85ba1a11885e353e11fd0dfb51b0af67d2"},
+    {file = "deltalake-0.21.0-cp38-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:92ccd486243dbe17c45a6ca06b108351dfd07708d34e75405fcb13033c63d176"},
+    {file = "deltalake-0.21.0-cp38-abi3-win_amd64.whl", hash = "sha256:dc84334a0f8df1f4f5c6ca9aaffbeffb896f43de6744d0c77c306ca8ba27041b"},
+    {file = "deltalake-0.21.0.tar.gz", hash = "sha256:88f92cede44b2737431dbf86d43ed3b3c8cb73db56e99138aea1a6d93e9c6821"},
 ]
 
 [package.dependencies]
@@ -10558,4 +10558,4 @@ weaviate = ["weaviate-client"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.8.1,<3.13"
-content-hash = "629c59d0647be062198089878d95d6eab18c75fd8d840ccd3d3afb39cd245c24"
+content-hash = "749c79ead9b1a800cbe5d9c93650e2ede7e9bcb240d07ff2d1787d032a0f2fa6"
