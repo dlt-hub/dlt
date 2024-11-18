@@ -1,15 +1,10 @@
 ---
-title: Accessing loaded data
-description: Conveniently accessing the data loaded to any destination
+title: Accessing Loaded Data in Python
+description: Conveniently accessing the data loaded to any destination in python
 keywords: [destination, schema, data, access, retrieval]
 ---
 
-
-# Accessing Loaded Data with `dlt` in Python
-
-:::caution
-All interfaces mentioned on this page are considered experimental and are very likely to change in the next while. This message will be removed as soon as we consider the dataset accessing to be stable :)
-:::
+# Accessing Loaded Data in Python
 
 This guide explains how to access and manipulate data that has been loaded into your destination using the `dlt` Python library. After running your pipelines and loading data, you can use the `ReadableDataset` and `ReadableRelation` classes to interact with your data programmatically.
 
@@ -35,8 +30,6 @@ df = items_relation.df()
 # Alternatively, fetch as a PyArrow Table
 arrow_table = items_relation.arrow()
 ```
-
-**Caution:** Loading full tables into memory without limiting or iterating over them can consume a large amount of memory and may cause your program to crash if the table is too large. It's recommended to use chunked iteration or apply limits when dealing with large datasets.
 
 ## Getting Started
 
@@ -67,7 +60,9 @@ Once you have a `ReadableRelation`, you can read data in various formats and siz
 
 ### Fetch the Entire Table
 
-**Note:** Be cautious when loading entire tables into memory, especially if they are large. Consider using limits or iterating over data in chunks.
+:::caution
+Loading full tables into memory without limiting or iterating over them can consume a large amount of memory and may cause your program to crash if the table is too large. It's recommended to use chunked iteration or apply limits when dealing with large datasets. 
+:::
 
 #### As a Pandas DataFrame
 
@@ -119,6 +114,8 @@ for items_chunk in items_relation.iter_fetch(chunk_size=500):
     pass
 ```
 
+The methods availableon the ReadableRelation correspond to the methods available on the cursor returned by the sql client. Please refer to the [sql client](./sql-client.md#supported-methods-on-the-cursor) guide for more information.
+
 ## Modifying Queries
 
 You can refine your data retrieval by limiting the number of records, selecting specific columns, or chaining these operations.
@@ -159,21 +156,9 @@ You can combine `select`, `limit`, and other methods.
 arrow_table = items_relation.select("col1", "col2").limit(50).arrow()
 ```
 
-## Executing Custom SQL Queries
-
-You can execute custom SQL queries directly on the dataset.
-
-```py
-# Join 'items' and 'other_items' tables
-custom_relation = dataset("SELECT * FROM items JOIN other_items ON items.id = other_items.id")
-arrow_table = custom_relation.arrow()
-```
-
-**Note:** When using custom SQL queries with `dataset()`, methods like `limit` and `select` won't work. Include any filtering or column selection directly in your SQL query.
-
 ## Supported Destinations
 
-All SQL and filesystem destinations supported by `dlt` can utilize this data access interface. For filesystem destinations, `dlt` uses **DuckDB** under the hood to create views from Parquet or JSONL files dynamically. This allows you to query data stored in files using the same interface as you would with SQL databases. If you plan on accessing data in buckets or the filesystem a lot this way, it is adviced to load data as parquet instead of jsonl, as **DuckDB** is able to only load the parts of the data actually needed for the query to work.
+All SQL and filesystem destinations supported by `dlt` can utilize this data access interface. For filesystem destinations, `dlt` [uses **DuckDB** under the hood](./sql-client.md#the-filesystem-sql-client) to create views from Parquet or JSONL files dynamically. This allows you to query data stored in files using the same interface as you would with SQL databases. If you plan on accessing data in buckets or the filesystem a lot this way, it is adviced to load data as parquet instead of jsonl, as **DuckDB** is able to only load the parts of the data actually needed for the query to work.
 
 ## Examples
 
@@ -208,6 +193,40 @@ for records in items_relation.select("col1", "col2").limit(100).iter_fetch(chunk
     # Process each modified DataFrame chunk
     ...
 ```
+
+## Advanced Usage
+
+### Using custom sql queries to create `ReadableRelations`
+
+You can use custom SQL queries directly on the dataset to create a `ReadableRelation`:
+
+```py
+# Join 'items' and 'other_items' tables
+custom_relation = dataset("SELECT * FROM items JOIN other_items ON items.id = other_items.id")
+arrow_table = custom_relation.arrow()
+```
+
+**Note:** When using custom SQL queries with `dataset()`, methods like `limit` and `select` won't work. Include any filtering or column selection directly in your SQL query.
+
+
+### Loading a `ReadableRelation` into a pipeline table
+
+Since the iter_arrow and iter_df methods are generators that iterate over the full ReadableRelation in chunks, you can load use them as a resource for another (or even the same) dlt pipeline:
+
+```py
+# create a readable relation with a limit of 1m rows
+limited_items_relation = dataset.items.limit(1_000_000)
+
+# create a new pipeline
+other_pipeline = ...
+
+# we can now load these 1m rows into this pipeline in 10k chunks
+other_pipeline.run(limited_items_relation.iter_arrow(chunk_size=10_000), table_name="limited_items")
+```
+
+### Using `ibis` to query the data
+
+Visit the [Native Ibis integration](./ibis-backend.md) guide to learn more.
 
 ## Important Considerations
 
