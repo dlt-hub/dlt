@@ -35,7 +35,7 @@ will behave similarly and have similar concepts.
 
 :::
 
-Running this pipeline will create a database schema in the destination database (DuckDB) along with a table named `users`. Quick tip: you can use the `show` command of the `dlt pipeline` CLI [to see the tables](../dlt-ecosystem/dataset-access/streamlit) in the destination database.
+Running this pipeline will create a database schema in the destination database (DuckDB) along with a table named `users`. Quick tip: you can use the `show` command of the `dlt pipeline` CLI [to see the tables](../general-usage/dataset-access/streamlit) in the destination database.
 
 ## Database schema
 
@@ -190,7 +190,7 @@ The `_dlt_loads` table will look like this:
 
 The `_dlt_loads` table tracks complete loads and allows chaining transformations on top of them. Many destinations do not support distributed and long-running transactions (e.g., Amazon Redshift). In that case, the user may see the partially loaded data. It is possible to filter such data out: any row with a `load_id` that does not exist in `_dlt_loads` is not yet completed. The same procedure may be used to identify and delete data for packages that never got completed.
 
-For each load, you can test and [alert](../running-in-production/alerting.md) on anomalies (e.g., no data, too much loaded to a table). There are also some useful load stats in the `Load info` tab of the [Streamlit app](../dlt-ecosystem/dataset-access/streamlit) mentioned above.
+For each load, you can test and [alert](../running-in-production/alerting.md) on anomalies (e.g., no data, too much loaded to a table). There are also some useful load stats in the `Load info` tab of the [Streamlit app](../general-usage/dataset-access/streamlit) mentioned above.
 
 You can add [transformations](../dlt-ecosystem/transformations/) and chain them together using the `status` column. You start the transformation for all the data with a particular `load_id` with a status of 0 and then update it to 1. The next transformation starts with the status of 1 and is then updated to 2. This can be repeated for every additional transformation.
 

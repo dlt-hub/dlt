@@ -113,7 +113,7 @@ players_games:
 ```
 
 Run the pipeline script again and make sure that the change is visible in the export schema. Then,
-[launch the Streamlit app](../dlt-ecosystem/dataset-access/streamlit) to see the changed data.
+[launch the Streamlit app](../general-usage/dataset-access/streamlit) to see the changed data.
 
 :::note
 Do not rename the tables or columns in the YAML file. `dlt` infers those from the data, so the schema will be recreated.
