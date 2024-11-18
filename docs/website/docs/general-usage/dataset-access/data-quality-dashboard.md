@@ -6,8 +6,7 @@ keywords: [destination, schema, data, monitoring, testing, quality]
 
 # Data quality dashboards
 
-After deploying a `dlt` pipeline, you might ask yourself: How can we know if the data is and remains
-high quality?
+After deploying a `dlt` pipeline, you might ask yourself: How can we know if the data is and remains high quality?
 
 There are two ways to catch errors:
 
@@ -16,9 +15,7 @@ There are two ways to catch errors:
 
 ## Tests
 
-The first time you load data from a pipeline you have built, you will likely want to test it. Plot
-the data on time series line charts and look for any interruptions or spikes, which will highlight
-any gaps or loading issues.
+The first time you load data from a pipeline you have built, you will likely want to test it. Plot the data on time series line charts and look for any interruptions or spikes, which will highlight any gaps or loading issues.
 
 ### Data usage as monitoring
 
