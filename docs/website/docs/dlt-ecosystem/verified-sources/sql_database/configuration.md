@@ -46,7 +46,7 @@ Read more about sources and resources here: [General usage: source](../../../gen
     ```
 
 2. **Load select tables from a database**
-    Calling `sql_database().with_resources("family", "clan")` loads only the tables `"family"` and `"clan"` from the database.
+    Calling `sql_database(table_names=["family", "clan"])` or `sql_database().with_resources("family", "clan")` loads only the tables `"family"` and `"clan"` from the database.
 
     ```py
     import dlt
@@ -61,7 +61,9 @@ Read more about sources and resources here: [General usage: source](../../../gen
         )
 
         # Fetch tables "family" and "clan"
-        source = sql_database().with_resources("family", "clan")
+        source = sql_database(table_names=['family', 'clan'])
+        # or
+        # source = sql_database().with_resources("family", "clan")
 
         # Run the pipeline
         info = pipeline.run(source)
@@ -70,6 +72,9 @@ Read more about sources and resources here: [General usage: source](../../../gen
         print(info)
 
     ```
+    :::note 
+    When using the `sql_database` source, specifying table names directly in the source arguments (e.g., `sql_database(table_names=["family", "clan"])`) ensures that only those tables are reflected and turned into resources. In contrast, if you use `.with_resources("family", "clan")`, the entire schema is reflected first, and resources are generated for all tables before filtering for the specified ones. For large schemas, specifying `table_names` can improve performance.
+    :::
 
 3. **Load a standalone table**
     Calling `sql_table(table="family")` fetches only the table `"family"`
