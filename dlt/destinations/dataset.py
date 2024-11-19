@@ -302,7 +302,7 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
 
     def row_counts(
         self, *, data_tables: bool = True, dlt_tables: bool = False, table_names: List[str] = None
-    ) -> Dict[str, int]:
+    ) -> SupportsReadableRelation:
         """Returns a dictionary of table names and their row counts, returns counts of all data tables by default"""
         """If table_names is provided, only the tables in the list are returned regardless of the data_tables and dlt_tables flags"""
 
@@ -324,8 +324,7 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
         query = " UNION ALL ".join(queries)
 
         # Execute query and build result dict
-        with self(query).cursor() as cursor:
-            return {row[0]: row[1] for row in cursor.fetchall()}
+        return self(query)
 
 
 def dataset(

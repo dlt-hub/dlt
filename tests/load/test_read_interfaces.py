@@ -304,27 +304,68 @@ def test_row_counts(populated_pipeline: Pipeline) -> None:
 
     dataset = populated_pipeline._dataset()
     # default is all data tables
-    assert dataset.row_counts() == {
-        "items": total_records,
-        "double_items": total_records,
-        "items__children": total_records * 2,
+    assert set(dataset.row_counts().fetchall()) == {
+        (
+            "items",
+            total_records,
+        ),
+        (
+            "double_items",
+            total_records,
+        ),
+        (
+            "items__children",
+            total_records * 2,
+        ),
     }
     # get only one data table
-    assert dataset.row_counts(table_names=["items"]) == {"items": total_records}
+    assert set(dataset.row_counts(table_names=["items"]).fetchall()) == {
+        (
+            "items",
+            total_records,
+        ),
+    }
     # get all dlt tables
-    assert dataset.row_counts(dlt_tables=True, data_tables=False) == {
-        "_dlt_version": 1,
-        "_dlt_loads": 1,
-        "_dlt_pipeline_state": 1,
+    assert set(dataset.row_counts(dlt_tables=True, data_tables=False).fetchall()) == {
+        (
+            "_dlt_version",
+            1,
+        ),
+        (
+            "_dlt_loads",
+            1,
+        ),
+        (
+            "_dlt_pipeline_state",
+            1,
+        ),
     }
     # get them all
-    assert dataset.row_counts(dlt_tables=True) == {
-        "_dlt_version": 1,
-        "_dlt_loads": 1,
-        "_dlt_pipeline_state": 1,
-        "items": total_records,
-        "double_items": total_records,
-        "items__children": total_records * 2,
+    assert set(dataset.row_counts(dlt_tables=True).fetchall()) == {
+        (
+            "_dlt_version",
+            1,
+        ),
+        (
+            "_dlt_loads",
+            1,
+        ),
+        (
+            "_dlt_pipeline_state",
+            1,
+        ),
+        (
+            "items",
+            total_records,
+        ),
+        (
+            "double_items",
+            total_records,
+        ),
+        (
+            "items__children",
+            total_records * 2,
+        ),
     }
 
 

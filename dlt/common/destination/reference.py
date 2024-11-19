@@ -582,10 +582,7 @@ class SupportsReadableDataset(Protocol):
 
     def row_counts(
         self, *, data_tables: bool = True, dlt_tables: bool = False, table_names: List[str] = None
-    ) -> Dict[str, int]:
-        """Returns a dictionary of table names and their row counts"""
-        """If table_names is provided, only the tables in the list are returned regardless of the data_tables and dlt_tables flags"""
-        return {}
+    ) -> SupportsReadableRelation: ...
 
 
 class JobClientBase(ABC):
