@@ -304,7 +304,7 @@ def test_row_counts(populated_pipeline: Pipeline) -> None:
 
     dataset = populated_pipeline._dataset()
     # default is all data tables
-    assert set(dataset.row_counts().fetchall()) == {
+    assert set(dataset.row_counts().df().itertuples(index=False, name=None)) == {
         (
             "items",
             total_records,
@@ -319,14 +319,20 @@ def test_row_counts(populated_pipeline: Pipeline) -> None:
         ),
     }
     # get only one data table
-    assert set(dataset.row_counts(table_names=["items"]).fetchall()) == {
+    assert set(
+        dataset.row_counts(table_names=["items"]).df().itertuples(index=False, name=None)
+    ) == {
         (
             "items",
             total_records,
         ),
     }
     # get all dlt tables
-    assert set(dataset.row_counts(dlt_tables=True, data_tables=False).fetchall()) == {
+    assert set(
+        dataset.row_counts(dlt_tables=True, data_tables=False)
+        .df()
+        .itertuples(index=False, name=None)
+    ) == {
         (
             "_dlt_version",
             1,
@@ -341,7 +347,7 @@ def test_row_counts(populated_pipeline: Pipeline) -> None:
         ),
     }
     # get them all
-    assert set(dataset.row_counts(dlt_tables=True).fetchall()) == {
+    assert set(dataset.row_counts(dlt_tables=True).df().itertuples(index=False, name=None)) == {
         (
             "_dlt_version",
             1,
