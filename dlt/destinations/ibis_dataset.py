@@ -32,7 +32,8 @@ from ibis import Expr
 # TODO: finish and validate dialect map
 DIALECT_MAP = {
     "dlt.destinations.duckdb": "duckdb",  # works
-    "dlt.destinations.clickhouse": "clickhouse", # works
+    "dlt.destinations.motherduck": "duckdb",  # works
+    "dlt.destinations.clickhouse": "clickhouse",  # works
     "dlt.destinations.databricks": "databricks",  # works
     "dlt.destinations.bigquery": "bigquery",  # works
     "dlt.destinations.postgres": "postgres",  # works
@@ -44,6 +45,8 @@ DIALECT_MAP = {
     "dlt.destinations.filesystem": "duckdb",  # works
     # NOTE: this may or may not work
     "dlt.destinations.dremio": "presto",  # may work
+    # NOTE: can we discover the current dialect in sqlalchemy?
+    "dlt.destinations.sqlalchemy": "mysql",  # may work
 }
 
 # NOTE: some dialects are not supported by ibis, but by sqlglot, these need to
@@ -158,13 +161,14 @@ class ReadableIbisRelation(SupportsReadableRelation):
 
     def _proxy_expression_method(self, method_name: str, *args: Any, **kwargs: Any) -> Any:
         """Proxy method calls to the underlying ibis expression, allowing to wrap the resulting expression in a new relation"""
+
         # Get the method from the expression
         method = getattr(self._expression, method_name)
-        # if any of the args is a relation, we need to unwrap it
+
+        # unwrap args and kwargs if they are relations
         unwrapped_args = [
             arg._expression if isinstance(arg, ReadableIbisRelation) else arg for arg in args
         ]
-        # if any of the kwargs is a relation, we need to unwrap it
         unwrapped_kwargs = {
             k: v._expression if isinstance(v, ReadableIbisRelation) else v
             for k, v in kwargs.items()
@@ -172,10 +176,10 @@ class ReadableIbisRelation(SupportsReadableRelation):
 
         # Call it with provided args
         result = method(*unwrapped_args, **unwrapped_kwargs)
-        # If result is an ibis expression, wrap it in a new relation
+
+        # If result is an ibis expression, wrap it in a new relation else return raw result
         if isinstance(result, Expr):
             return self.__class__(readable_dataset=self._dataset, expression=result)
-        # Otherwise return the raw result
         return result
 
     def __getattr__(self, name: str) -> Any:
@@ -188,7 +192,6 @@ class ReadableIbisRelation(SupportsReadableRelation):
         return partial(self._proxy_expression_method, name)
 
     def __getitem__(self, columns: Union[str, Sequence[str]]) -> "SupportsReadableRelation":
-        # casefold columns
         expr = self._expression[columns]
         return self.__class__(readable_dataset=self._dataset, expression=expr)
 
