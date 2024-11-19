@@ -1,18 +1,16 @@
-import os
-
-import modal
-
 from tests.pipeline.utils import assert_load_info
 
 
 def test_modal_snippet() -> None:
     # @@@DLT_SNIPPET_START modal_image
+    import modal
+
     # Define the Modal Image
     image = modal.Image.debian_slim().pip_install(
         "dlt>=1.1.0",
         "dlt[duckdb]",  # destination
         "dlt[sql_database]",  # source (MySQL)
-        "dlt[parquet]",  # file format dependency 
+        "dlt[parquet]",  # file format dependency
         "pymysql",  # database driver for MySQL source
     )
 
@@ -26,9 +24,11 @@ def test_modal_snippet() -> None:
     @app.function(
         volumes={"/data/": vol},
         schedule=modal.Period(days=1),
+        serialized=True
     )
     def load_tables() -> None:
         import dlt
+        import os
         from dlt.sources.sql_database import sql_database
 
         # Define the source database credentials; in production, you would save this as a Modal Secret which can be referenced here as an environment variable
