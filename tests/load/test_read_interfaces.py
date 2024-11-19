@@ -387,6 +387,34 @@ def test_column_selection(populated_pipeline: Pipeline) -> None:
     indirect=True,
     ids=lambda x: x.name,
 )
+def test_schema_arg(populated_pipeline: Pipeline) -> None:
+    """Simple test to ensure schemas may be selected via schema arg"""
+
+    # if there is no arg, the defautl schema is used
+    dataset = populated_pipeline._dataset()
+    assert dataset.schema.name == populated_pipeline.default_schema_name  # type: ignore
+    assert "items" in dataset.schema.tables  # type: ignore
+
+    # setting a different schema name will try to load that schema,
+    # not find one and create an empty schema with that name
+    dataset = populated_pipeline._dataset(schema="unknown_schema")
+    assert dataset.schema.name == "unknown_schema"  # type: ignore
+    assert "items" not in dataset.schema.tables  # type: ignore
+
+    # providing the schema name of the right schema will load it
+    dataset = populated_pipeline._dataset(schema=populated_pipeline.default_schema_name)
+    assert dataset.schema.name == populated_pipeline.default_schema_name  # type: ignore
+    assert "items" in dataset.schema.tables  # type: ignore
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
 def test_standalone_dataset(populated_pipeline: Pipeline) -> None:
     total_records = _total_records(populated_pipeline)
 
