@@ -166,16 +166,26 @@ class ReadableIbisRelation(SupportsReadableRelation):
         method = getattr(self._expression, method_name)
 
         # unwrap args and kwargs if they are relations
-        unwrapped_args = [
+        args = tuple(
             arg._expression if isinstance(arg, ReadableIbisRelation) else arg for arg in args
-        ]
-        unwrapped_kwargs = {
+        )
+        kwargs = {
             k: v._expression if isinstance(v, ReadableIbisRelation) else v
             for k, v in kwargs.items()
         }
 
+        # casefold string params, this may break some methods..
+        args = tuple(
+            self.sql_client.capabilities.casefold_identifier(arg) if isinstance(arg, str) else arg
+            for arg in args
+        )
+        kwargs = {
+            k: self.sql_client.capabilities.casefold_identifier(v) if isinstance(v, str) else v
+            for k, v in kwargs.items()
+        }
+
         # Call it with provided args
-        result = method(*unwrapped_args, **unwrapped_kwargs)
+        result = method(*args, **kwargs)
 
         # If result is an ibis expression, wrap it in a new relation else return raw result
         if isinstance(result, Expr):
@@ -184,14 +194,24 @@ class ReadableIbisRelation(SupportsReadableRelation):
 
     def __getattr__(self, name: str) -> Any:
         """Wrap all callable attributes of the expression"""
-        if not hasattr(self._expression, name):
+
+        attr = getattr(self._expression, name, None)
+
+        # try casefolded name for ibis columns access
+        if attr is None:
+            name = self.sql_client.capabilities.casefold_identifier(name)
+            attr = getattr(self._expression, name, None)
+
+        if attr is None:
             raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
-        attr = getattr(self._expression, name)
+
         if not callable(attr):
             return attr
         return partial(self._proxy_expression_method, name)
 
     def __getitem__(self, columns: Union[str, Sequence[str]]) -> "SupportsReadableRelation":
+        # casefold column-names
+        columns = [self.sql_client.capabilities.casefold_identifier(col) for col in columns]
         expr = self._expression[columns]
         return self.__class__(readable_dataset=self._dataset, expression=expr)
 

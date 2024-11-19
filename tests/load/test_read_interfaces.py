@@ -501,10 +501,6 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     items_table = dataset.table("items")
     double_items_table = dataset.table("double_items")
 
-    map_i = lambda x: x
-    if populated_pipeline.destination.destination_type == "dlt.destinations.snowflake":
-        map_i = lambda x: x.upper()
-
     # check full table access
     df = items_table.df()
     assert len(df.index) == total_records
@@ -518,11 +514,10 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
 
     # check chained expression with join, column selection, order by and limit
     joined_table = (
-        items_table.join(
-            double_items_table,
-            getattr(items_table, map_i("id")) == getattr(double_items_table, map_i("id")),
-        )[[map_i("id"), map_i("double_id")]]
-        .order_by(map_i("id"))
+        items_table.join(double_items_table, items_table.id == double_items_table.id)[
+            ["id", "double_id"]
+        ]
+        .order_by("id")
         .limit(20)
     )
     table = joined_table.fetchall()
@@ -532,12 +527,12 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     assert list(table[10]) == [10, 20]
 
     # check aggregate of first 20 items
-    agg_table = (
-        items_table.order_by(map_i("id"))
-        .limit(20)
-        .aggregate(sum_id=getattr(items_table, map_i("id")).sum())
-    )
+    agg_table = items_table.order_by("id").limit(20).aggregate(sum_id=items_table.id.sum())
     assert agg_table.fetchone()[0] == reduce(lambda a, b: a + b, range(20))
+
+    # check filtering
+    filtered_table = items_table.filter(items_table.id < 10)
+    assert len(filtered_table.fetchall()) == 10
 
     # # NOTE: here we test that dlt column type resolution still works
     # # hints should also be preserved via computed reduced schema
