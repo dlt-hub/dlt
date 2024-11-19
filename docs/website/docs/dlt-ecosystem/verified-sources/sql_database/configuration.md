@@ -21,6 +21,7 @@ Read more about sources and resources here: [General usage: source](../../../gen
 ### Example usage:
 
 1. **Load all the tables from a database**
+
     Calling `sql_database()` loads all tables from the database.
 
     ```py
@@ -46,6 +47,7 @@ Read more about sources and resources here: [General usage: source](../../../gen
     ```
 
 2. **Load select tables from a database**
+
     Calling `sql_database(table_names=["family", "clan"])` or `sql_database().with_resources("family", "clan")` loads only the tables `"family"` and `"clan"` from the database.
 
     ```py
@@ -72,11 +74,13 @@ Read more about sources and resources here: [General usage: source](../../../gen
         print(info)
 
     ```
+
     :::note 
     When using the `sql_database` source, specifying table names directly in the source arguments (e.g., `sql_database(table_names=["family", "clan"])`) ensures that only those tables are reflected and turned into resources. In contrast, if you use `.with_resources("family", "clan")`, the entire schema is reflected first, and resources are generated for all tables before filtering for the specified ones. For large schemas, specifying `table_names` can improve performance.
     :::
 
 3. **Load a standalone table**
+
     Calling `sql_table(table="family")` fetches only the table `"family"`
 
     ```py
@@ -110,6 +114,7 @@ We intend our sources to be fully hackable. Feel free to change the source code 
 ## Configuring the connection
 
 ### Connection string format
+
 `sql_database` uses SQLAlchemy to create database connections and reflect table schemas. You can pass credentials using
 [database URLs](https://docs.sqlalchemy.org/en/20/core/engines.html#database-urls), which have the general format:
 
@@ -257,6 +262,7 @@ print(info)
 ```
 
 ### ConnectorX
+
 The [`ConnectorX`](https://sfu-db.github.io/connector-x/intro.html) backend completely skips `SQLALchemy` when reading table rows, in favor of doing that in Rust. This is claimed to be significantly faster than any other method (validated only on PostgreSQL). With the default settings, it will emit `PyArrow` tables, but you can configure this by specifying the `return_type` in `backend_kwargs`. (See the [`ConnectorX` docs](https://sfu-db.github.io/connector-x/api.html) for a full list of configurable parameters.)
 
 There are certain limitations when using this backend:
