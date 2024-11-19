@@ -22,6 +22,7 @@ from dlt.common.configuration.specs import (
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.schema import TTableSchemaColumns
 from dlt.common.typing import TDataItem, TSortOrder
+from dlt.common.jsonpath import extract_simple_field_name
 
 from dlt.extract import Incremental
 
@@ -60,8 +61,16 @@ class TableLoader:
         self.query_adapter_callback = query_adapter_callback
         self.incremental = incremental
         if incremental:
+            column_name = extract_simple_field_name(incremental.cursor_path)
+
+            if column_name is None:
+                raise ValueError(
+                    f"Cursor path '{incremental.cursor_path}' must be a simple column name (e.g."
+                    " 'created_at')"
+                )
+
             try:
-                self.cursor_column = table.c[incremental.cursor_path]
+                self.cursor_column = table.c[column_name]
             except KeyError as e:
                 raise KeyError(
                     f"Cursor column '{incremental.cursor_path}' does not exist in table"
