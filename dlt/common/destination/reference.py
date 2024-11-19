@@ -588,6 +588,10 @@ class SupportsReadableDataset(Protocol):
 
     def ibis(self) -> IbisBackend: ...
 
+    def row_counts(
+        self, *, data_tables: bool = True, dlt_tables: bool = False, table_names: List[str] = None
+    ) -> SupportsReadableRelation: ...
+
 
 class JobClientBase(ABC):
     def __init__(

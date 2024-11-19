@@ -211,7 +211,6 @@ def test_dataframe_access(populated_pipeline: Pipeline) -> None:
     if not skip_df_chunk_size_check:
         assert len(df.index) == chunk_size
 
-    # lowercase results for the snowflake case
     assert set(df.columns.values) == set(EXPECTED_COLUMNS)
 
     # iterate all dataframes
@@ -363,6 +362,90 @@ def test_loads_table_access(populated_pipeline: Pipeline) -> None:
     # check loads table access, we should have one entry
     loads_table = populated_pipeline.dataset()[populated_pipeline.default_schema.loads_table_name]
     assert len(loads_table.fetchall()) == 1
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
+def test_row_counts(populated_pipeline: Pipeline) -> None:
+    total_records = _total_records(populated_pipeline)
+
+    dataset = populated_pipeline.dataset()
+    # default is all data tables
+    assert set(dataset.row_counts().df().itertuples(index=False, name=None)) == {
+        (
+            "items",
+            total_records,
+        ),
+        (
+            "double_items",
+            total_records,
+        ),
+        (
+            "items__children",
+            total_records * 2,
+        ),
+    }
+    # get only one data table
+    assert set(
+        dataset.row_counts(table_names=["items"]).df().itertuples(index=False, name=None)
+    ) == {
+        (
+            "items",
+            total_records,
+        ),
+    }
+    # get all dlt tables
+    assert set(
+        dataset.row_counts(dlt_tables=True, data_tables=False)
+        .df()
+        .itertuples(index=False, name=None)
+    ) == {
+        (
+            "_dlt_version",
+            1,
+        ),
+        (
+            "_dlt_loads",
+            1,
+        ),
+        (
+            "_dlt_pipeline_state",
+            1,
+        ),
+    }
+    # get them all
+    assert set(dataset.row_counts(dlt_tables=True).df().itertuples(index=False, name=None)) == {
+        (
+            "_dlt_version",
+            1,
+        ),
+        (
+            "_dlt_loads",
+            1,
+        ),
+        (
+            "_dlt_pipeline_state",
+            1,
+        ),
+        (
+            "items",
+            total_records,
+        ),
+        (
+            "double_items",
+            total_records,
+        ),
+        (
+            "items__children",
+            total_records * 2,
+        ),
+    }
 
 
 @pytest.mark.no_load
