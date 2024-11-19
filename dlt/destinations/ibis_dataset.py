@@ -25,23 +25,35 @@ from dlt.common.exceptions import DltException
 
 # TODO: move ibis dependencies to libs/ibis after ibis helper is merged
 import ibis  # type: ignore
+import sqlglot
 from ibis import Expr
 
 
 # TODO: finish and validate dialect map
 DIALECT_MAP = {
-    "dlt.destinations.duckdb": "duckdb",
-    "dlt.destinations.clickhouse": "clickhouse",
-    "dlt.destinations.databricks": "databricks",
-    "dlt.destinations.bigquery": "bigquery",
-    "dlt.destinations.postgres": "postgres",
-    "dlt.destinations.redshift": "redshift",
-    "dlt.destinations.snowflake": "snowflake",
-    "dlt.destinations.mssql": "tsql",
-    "dlt.destinations.synapse": "tsql",
-    "dlt.destinations.athena": "athena",
-    "dlt.destinations.filesystem": "duckdb",
+    "dlt.destinations.duckdb": "duckdb",  # works
+    "dlt.destinations.clickhouse": "clickhouse", # works
+    "dlt.destinations.databricks": "databricks",  # works
+    "dlt.destinations.bigquery": "bigquery",  # works
+    "dlt.destinations.postgres": "postgres",  # works
+    "dlt.destinations.redshift": "redshift",  # works
+    "dlt.destinations.snowflake": "snowflake",  # works
+    "dlt.destinations.mssql": "tsql",  # works
+    "dlt.destinations.synapse": "tsql",  # probably works
+    "dlt.destinations.athena": "trino",  # works
+    "dlt.destinations.filesystem": "duckdb",  # works
     # NOTE: this may or may not work
+    "dlt.destinations.dremio": "presto",  # may work
+}
+
+# NOTE: some dialects are not supported by ibis, but by sqlglot, these need to
+# be transpiled with a intermediary step
+TRANSPILE_VIA_MAP = {
+    "dlt.destinations.mssql": "postgres",
+    "dlt.destinations.synapse": "postgres",
+    "dlt.destinations.databricks": "postgres",
+    "dlt.destinations.clickhouse": "postgres",
+    "dlt.destinations.redshift": "postgres",
     "dlt.destinations.dremio": "postgres",
 }
 
@@ -119,7 +131,16 @@ class ReadableIbisRelation(SupportsReadableRelation):
     def query(self) -> Any:
         """build the query"""
         destination_type = self._dataset._destination.destination_type
-        return ibis.to_sql(self._expression, dialect=DIALECT_MAP[destination_type])
+
+        # render sql directly if possible
+        if destination_type not in TRANSPILE_VIA_MAP:
+            return ibis.to_sql(self._expression, dialect=DIALECT_MAP[destination_type])
+
+        # here we need to transpile first
+        transpile_via = TRANSPILE_VIA_MAP[destination_type]
+        sql = ibis.to_sql(self._expression, dialect=transpile_via)
+        sql = sqlglot.transpile(sql, read=transpile_via, write=DIALECT_MAP[destination_type])[0]
+        return sql
 
     @property
     def columns_schema(self) -> TTableSchemaColumns:
@@ -132,25 +153,8 @@ class ReadableIbisRelation(SupportsReadableRelation):
     def compute_columns_schema(self) -> TTableSchemaColumns:
         """provide schema columns for the cursor, may be filtered by selected columns"""
 
-        # TODO: enable column lineage tracing somehow
+        # TODO: enable column lineage tracing with sqlglot lineage
         return None
-
-        from ibis.expr.operations import Field, UnboundTable  # type: ignore
-
-        # get column names from expression schema
-        column_names = self._expression.schema().names
-        column_names = ["decimal_renamed"]
-
-        # try to trace columns to original table columns
-        def get_column_origin(column_name: str) -> Tuple[str, str]:
-            column_expr = self._expression[column_name]
-            # print(column_expr)
-
-            return "Unknown origin", "Unknown column"
-
-        for column_name in column_names:
-            pass
-            # print(column_name, get_column_origin(column_name))
 
     def _proxy_expression_method(self, method_name: str, *args: Any, **kwargs: Any) -> Any:
         """Proxy method calls to the underlying ibis expression, allowing to wrap the resulting expression in a new relation"""
@@ -165,6 +169,7 @@ class ReadableIbisRelation(SupportsReadableRelation):
             k: v._expression if isinstance(v, ReadableIbisRelation) else v
             for k, v in kwargs.items()
         }
+
         # Call it with provided args
         result = method(*unwrapped_args, **unwrapped_kwargs)
         # If result is an ibis expression, wrap it in a new relation
@@ -183,6 +188,7 @@ class ReadableIbisRelation(SupportsReadableRelation):
         return partial(self._proxy_expression_method, name)
 
     def __getitem__(self, columns: Union[str, Sequence[str]]) -> "SupportsReadableRelation":
+        # casefold columns
         expr = self._expression[columns]
         return self.__class__(readable_dataset=self._dataset, expression=expr)
 
@@ -315,14 +321,25 @@ class ReadableIbisDataset(SupportsReadableDataset):
 
         # Convert dlt table schema columns to ibis schema
         ibis_schema = {
-            col_name: DATA_TYPE_MAP[col_info.get("data_type", "string")]
+            self.sql_client.capabilities.casefold_identifier(col_name): DATA_TYPE_MAP[
+                col_info.get("data_type", "string")
+            ]
             for col_name, col_info in table_schema.get("columns", {}).items()
         }
 
+        # normalize table name
+        table_path = self.sql_client.make_qualified_table_name_path(table_name, escape=False)
+
+        catalog = None
+        if len(table_path) == 3:
+            catalog, database, table = table_path
+        else:
+            database, table = table_path
+
         # create unbound ibis table and return in dlt wrapper
-        # NOTE: we can also add the dataset to the unbound table here, then the user could probably do cross
-        # dataset joins with this on the same db
-        unbound_table = ibis.table(schema=ibis_schema, name=table_name)
+        unbound_table = ibis.table(
+            schema=ibis_schema, name=table, database=database, catalog=catalog
+        )
         return ReadableIbisRelation(readable_dataset=self, expression=unbound_table)  # type: ignore[abstract]
 
     def __getitem__(self, table_name: str) -> ReadableIbisRelation:

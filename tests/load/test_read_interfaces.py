@@ -421,7 +421,6 @@ def test_limit_and_head(populated_pipeline: Pipeline) -> None:
 )
 def test_column_selection(populated_pipeline: Pipeline) -> None:
     table_relationship = populated_pipeline._dataset().items
-
     columns = ["_dlt_load_id", "other_decimal"]
     data_frame = table_relationship.select(*columns).head().df()
     assert [v.lower() for v in data_frame.columns.values] == columns
@@ -472,6 +471,93 @@ def test_schema_arg(populated_pipeline: Pipeline) -> None:
     dataset = populated_pipeline._dataset(schema=populated_pipeline.default_schema_name)
     assert dataset.schema.name == populated_pipeline.default_schema_name
     assert "items" in dataset.schema.tables
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
+def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
+    # NOTE: we could generalize this with a context for certain deps
+
+    # install ibis, we do not need any backends
+    import subprocess
+
+    subprocess.check_call(["pip", "install", "ibis-framework"])
+
+    from dlt.destinations.ibis_dataset import dataset as create_ibis_dataset
+
+    dataset = create_ibis_dataset(
+        populated_pipeline.destination,
+        populated_pipeline.dataset_name,
+        populated_pipeline.default_schema_name,
+    )
+    total_records = _total_records(populated_pipeline)
+
+    items_table = dataset.table("items")
+    double_items_table = dataset.table("double_items")
+
+    map_i = lambda x: x
+    if populated_pipeline.destination.destination_type == "dlt.destinations.snowflake":
+        map_i = lambda x: x.upper()
+
+    # check full table access
+    df = items_table.df()
+    assert len(df.index) == total_records
+
+    df = double_items_table.df()
+    assert len(df.index) == total_records
+
+    # check limit
+    df = items_table.limit(5).df()
+    assert len(df.index) == 5
+
+    # check chained expression with join, column selection, order by and limit
+    joined_table = (
+        items_table.join(
+            double_items_table,
+            getattr(items_table, map_i("id")) == getattr(double_items_table, map_i("id")),
+        )[[map_i("id"), map_i("double_id")]]
+        .order_by(map_i("id"))
+        .limit(20)
+    )
+    table = joined_table.fetchall()
+    assert len(table) == 20
+    assert list(table[0]) == [0, 0]
+    assert list(table[5]) == [5, 10]
+    assert list(table[10]) == [10, 20]
+
+    # check aggregate of first 20 items
+    agg_table = (
+        items_table.order_by(map_i("id"))
+        .limit(20)
+        .aggregate(sum_id=getattr(items_table, map_i("id")).sum())
+    )
+    assert agg_table.fetchone()[0] == reduce(lambda a, b: a + b, range(20))
+
+    # # NOTE: here we test that dlt column type resolution still works
+    # # hints should also be preserved via computed reduced schema
+    # expected_decimal_precision = 10
+    # expected_decimal_precision_2 = 12
+    # expected_decimal_precision_di = 7
+    # if populated_pipeline.destination.destination_type == "dlt.destinations.bigquery":
+    #     # bigquery does not allow precision configuration..
+    #     expected_decimal_precision = 38
+    #     expected_decimal_precision_2 = 38
+    #     expected_decimal_precision_di = 38
+
+    # joined_table = items_table.join(double_items_table, items_table.id == double_items_table.id)[
+    #     ["decimal", "other_decimal", "di_decimal"]
+    # ].rename(decimal_renamed="di_decimal").limit(20)
+    # table = joined_table.arrow()
+    # print(joined_table.compute_columns_schema(force=True))
+    # assert table.schema.field("decimal").type.precision == expected_decimal_precision
+    # assert table.schema.field("other_decimal").type.precision == expected_decimal_precision_2
+    # assert table.schema.field("di_decimal").type.precision == expected_decimal_precision_di
 
 
 @pytest.mark.no_load
@@ -543,101 +629,23 @@ def test_standalone_dataset(populated_pipeline: Pipeline) -> None:
 
     # NOTE: this breaks the following test, it will need to be fixed somehow
     # create a newer schema with different name and see wether this is loaded
-    # from dlt.common.schema import Schema
-    # from dlt.common.schema import utils
+    from dlt.common.schema import Schema
+    from dlt.common.schema import utils
 
-    # other_schema = Schema("some_other_schema")
-    # other_schema.tables["other_table"] = utils.new_table("other_table")
+    other_schema = Schema("some_other_schema")
+    other_schema.tables["other_table"] = utils.new_table("other_table")
 
-    # populated_pipeline._inject_schema(other_schema)
-    # populated_pipeline.default_schema_name = other_schema.name
-    # with populated_pipeline.destination_client() as client:
-    #     client.update_stored_schema()
+    populated_pipeline._inject_schema(other_schema)
+    populated_pipeline.default_schema_name = other_schema.name
+    with populated_pipeline.destination_client() as client:
+        client.update_stored_schema()
 
-    # dataset = cast(
-    #     ReadableDBAPIDataset,
-    #     dlt._dataset(
-    #         destination=populated_pipeline.destination,
-    #         dataset_name=populated_pipeline.dataset_name,
-    #     ),
-    # )
-    # assert dataset.schema.name == "some_other_schema"
-    # assert "other_table" in dataset.schema.tables
-
-
-@pytest.mark.no_load
-@pytest.mark.essential
-@pytest.mark.parametrize(
-    "populated_pipeline",
-    configs,
-    indirect=True,
-    ids=lambda x: x.name,
-)
-def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
-    # NOTE: we could generalize this with a context for certain deps
-
-    # install ibis, we do not need any backends
-    import subprocess
-
-    subprocess.check_call(["pip", "install", "ibis-framework"])
-
-    from dlt.destinations.ibis_dataset import dataset as create_ibis_dataset
-
-    dataset = create_ibis_dataset(
-        populated_pipeline.destination,
-        populated_pipeline.dataset_name,
-        populated_pipeline.default_schema_name,
+    dataset = cast(
+        ReadableDBAPIDataset,
+        dlt._dataset(
+            destination=populated_pipeline.destination,
+            dataset_name=populated_pipeline.dataset_name,
+        ),
     )
-    total_records = _total_records(populated_pipeline)
-
-    items_table = dataset.table("items")
-    double_items_table = dataset.table("double_items")
-
-    # check full table access
-    df = items_table.df()
-    assert len(df.index) == total_records
-
-    df = double_items_table.df()
-    assert len(df.index) == total_records
-
-    # check limit
-    df = items_table.limit(5).df()
-    assert len(df.index) == 5
-
-    # check chained expression with join, column selection, order by and limit
-    joined_table = (
-        items_table.join(double_items_table, items_table.id == double_items_table.id)[
-            ["id", "double_id"]
-        ]
-        .order_by("id")
-        .limit(20)
-    )
-    table = joined_table.fetchall()
-    assert len(table) == 20
-    assert list(table[0]) == [0, 0]
-    assert list(table[5]) == [5, 10]
-    assert list(table[10]) == [10, 20]
-
-    # check aggregate of first 20 items
-    agg_table = items_table.order_by("id").limit(20).aggregate(sum_id=items_table.id.sum())
-    assert agg_table.fetchone()[0] == reduce(lambda a, b: a + b, range(20))
-
-    # # NOTE: here we test that dlt column type resolution still works
-    # # hints should also be preserved via computed reduced schema
-    # expected_decimal_precision = 10
-    # expected_decimal_precision_2 = 12
-    # expected_decimal_precision_di = 7
-    # if populated_pipeline.destination.destination_type == "dlt.destinations.bigquery":
-    #     # bigquery does not allow precision configuration..
-    #     expected_decimal_precision = 38
-    #     expected_decimal_precision_2 = 38
-    #     expected_decimal_precision_di = 38
-
-    # joined_table = items_table.join(double_items_table, items_table.id == double_items_table.id)[
-    #     ["decimal", "other_decimal", "di_decimal"]
-    # ].rename(decimal_renamed="di_decimal").limit(20)
-    # table = joined_table.arrow()
-    # print(joined_table.compute_columns_schema(force=True))
-    # assert table.schema.field("decimal").type.precision == expected_decimal_precision
-    # assert table.schema.field("other_decimal").type.precision == expected_decimal_precision_2
-    # assert table.schema.field("di_decimal").type.precision == expected_decimal_precision_di
+    assert dataset.schema.name == "some_other_schema"
+    assert "other_table" in dataset.schema.tables
