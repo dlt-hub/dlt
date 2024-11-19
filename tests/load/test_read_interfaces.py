@@ -450,7 +450,7 @@ def test_standalone_dataset(populated_pipeline: Pipeline) -> None:
         ),
     )
     assert "items" not in dataset.schema.tables
-    assert dataset.schema.name == populated_pipeline.dataset_name
+    assert dataset.schema.name == "wrong_schema_name"
 
     # check that schema is loaded if no schema name given
     dataset = cast(
