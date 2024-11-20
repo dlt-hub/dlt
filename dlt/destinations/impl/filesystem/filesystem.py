@@ -135,6 +135,10 @@ class TableFormatLoadFilesystemJob(FilesystemLoadJob):
 
         return pyarrow.dataset.dataset(self.file_paths)
 
+    @property
+    def _partition_columns(self) -> List[str]:
+        return get_columns_names_with_prop(self._load_table, "partition")
+
 
 class DeltaLoadFilesystemJob(TableFormatLoadFilesystemJob):
     def run(self) -> None:
@@ -196,10 +200,6 @@ class DeltaLoadFilesystemJob(TableFormatLoadFilesystemJob):
         else:
             return None
 
-    @property
-    def _partition_columns(self) -> List[str]:
-        return get_columns_names_with_prop(self._load_table, "partition")
-
     def _create_or_evolve_delta_table(self, arrow_ds: "Dataset", delta_table: "DeltaTable") -> "DeltaTable":  # type: ignore[name-defined] # noqa: F821
         from dlt.common.libs.deltalake import (
             DeltaTable,
@@ -232,7 +232,12 @@ class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
     def _iceberg_table(self) -> "pyiceberg.table.Table":  # type: ignore[name-defined] # noqa: F821
         from dlt.common.libs.pyiceberg import get_catalog
 
-        catalog = get_catalog(self._job_client, self.load_table_name, self.arrow_dataset.schema)
+        catalog = get_catalog(
+            client=self._job_client,
+            table_name=self.load_table_name,
+            schema=self.arrow_dataset.schema,
+            partition_columns=self._partition_columns,
+        )
         return catalog.load_table(self.table_identifier)
 
     @property

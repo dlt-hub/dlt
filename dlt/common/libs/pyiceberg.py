@@ -1,4 +1,4 @@
-from typing import Dict, Any
+from typing import Dict, Any, List
 import os
 
 from dlt import version, Pipeline
@@ -59,6 +59,7 @@ def get_catalog(
     client: FilesystemClient,
     table_name: str,
     schema: pa.Schema = None,
+    partition_columns: List[str] = None,
 ) -> SqlCatalog:
     """Returns single-table, ephemeral, in-memory Iceberg catalog."""
 
@@ -85,11 +86,15 @@ def get_catalog(
     else:
         # found no metadata; create new table
         assert schema is not None
-        catalog.create_table(
+        with catalog.create_table_transaction(
             table_id,
             schema=ensure_iceberg_compatible_arrow_schema(schema),
             location=client.make_remote_url(table_path),
-        )
+        ) as txn:
+            # add partitioning
+            with txn.update_spec() as update_spec:
+                for col in partition_columns:
+                    update_spec.add_identity(col)
 
     return catalog
 

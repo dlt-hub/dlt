@@ -516,34 +516,47 @@ def test_delta_table_child_tables(
     "destination_config",
     destinations_configs(
         table_format_filesystem_configs=True,
-        with_table_format="delta",
+        with_table_format=("delta", "iceberg"),
         bucket_subset=(FILE_BUCKET),
     ),
     ids=lambda x: x.name,
 )
-def test_delta_table_partitioning(
+def test_table_format_partitioning(
     destination_config: DestinationTestConfiguration,
 ) -> None:
-    """Tests partitioning for `delta` table format."""
+    """Tests partitioning for `delta` and `iceberg` table formats."""
 
-    from dlt.common.libs.deltalake import get_delta_tables
     from tests.pipeline.utils import users_materialize_table_schema
+
+    def assert_partition_columns(
+        table_name: str, table_format: TTableFormat, expected_partition_columns: List[str]
+    ) -> None:
+        if table_format == "delta":
+            from dlt.common.libs.deltalake import get_delta_tables
+
+            dt = get_delta_tables(pipeline, table_name)[table_name]
+            actual_partition_columns = dt.metadata().partition_columns
+        elif table_format == "iceberg":
+            from dlt.common.libs.pyiceberg import get_iceberg_tables
+
+            it = get_iceberg_tables(pipeline, table_name)[table_name]
+            actual_partition_columns = [f.name for f in it.metadata.specs_struct().fields]
+        assert actual_partition_columns == expected_partition_columns
 
     pipeline = destination_config.setup_pipeline("fs_pipe", dev_mode=True)
 
     # zero partition columns
-    @dlt.resource(table_format="delta")
+    @dlt.resource(table_format=destination_config.table_format)
     def zero_part():
         yield {"foo": 1, "bar": 1}
 
     info = pipeline.run(zero_part())
     assert_load_info(info)
-    dt = get_delta_tables(pipeline, "zero_part")["zero_part"]
-    assert dt.metadata().partition_columns == []
+    assert_partition_columns("zero_part", destination_config.table_format, [])
     assert load_table_counts(pipeline, "zero_part")["zero_part"] == 1
 
     # one partition column
-    @dlt.resource(table_format="delta", columns={"c1": {"partition": True}})
+    @dlt.resource(table_format=destination_config.table_format, columns={"c1": {"partition": True}})
     def one_part():
         yield [
             {"c1": "foo", "c2": 1},
@@ -554,13 +567,13 @@ def test_delta_table_partitioning(
 
     info = pipeline.run(one_part())
     assert_load_info(info)
-    dt = get_delta_tables(pipeline, "one_part")["one_part"]
-    assert dt.metadata().partition_columns == ["c1"]
+    assert_partition_columns("one_part", destination_config.table_format, ["c1"])
     assert load_table_counts(pipeline, "one_part")["one_part"] == 4
 
     # two partition columns
     @dlt.resource(
-        table_format="delta", columns={"c1": {"partition": True}, "c2": {"partition": True}}
+        table_format=destination_config.table_format,
+        columns={"c1": {"partition": True}, "c2": {"partition": True}},
     )
     def two_part():
         yield [
@@ -572,29 +585,31 @@ def test_delta_table_partitioning(
 
     info = pipeline.run(two_part())
     assert_load_info(info)
-    dt = get_delta_tables(pipeline, "two_part")["two_part"]
-    assert dt.metadata().partition_columns == ["c1", "c2"]
+    assert_partition_columns("two_part", destination_config.table_format, ["c1", "c2"])
     assert load_table_counts(pipeline, "two_part")["two_part"] == 4
 
     # test partitioning with empty source
     users_materialize_table_schema.apply_hints(
-        table_format="delta",
+        table_format=destination_config.table_format,
         columns={"id": {"partition": True}},
     )
     info = pipeline.run(users_materialize_table_schema())
     assert_load_info(info)
-    dt = get_delta_tables(pipeline, "users")["users"]
-    assert dt.metadata().partition_columns == ["id"]
+    assert_partition_columns("users", destination_config.table_format, ["id"])
     assert load_table_counts(pipeline, "users")["users"] == 0
 
     # changing partitioning after initial table creation is not supported
     zero_part.apply_hints(columns={"foo": {"partition": True}})
-    with pytest.raises(PipelineStepFailed) as pip_ex:
+    if destination_config.table_format == "delta":
+        # Delta raises error when trying to change partitioning
+        with pytest.raises(PipelineStepFailed) as pip_ex:
+            pipeline.run(zero_part())
+        assert isinstance(pip_ex.value.__context__, LoadClientJobRetry)
+        assert "partitioning" in pip_ex.value.__context__.retry_message
+    elif destination_config.table_format == "iceberg":
+        # while Iceberg supports partition evolution, we don't apply it
         pipeline.run(zero_part())
-    assert isinstance(pip_ex.value.__context__, LoadClientJobRetry)
-    assert "partitioning" in pip_ex.value.__context__.retry_message
-    dt = get_delta_tables(pipeline, "zero_part")["zero_part"]
-    assert dt.metadata().partition_columns == []
+    assert_partition_columns("zero_part", destination_config.table_format, [])
 
 
 @pytest.mark.parametrize(
