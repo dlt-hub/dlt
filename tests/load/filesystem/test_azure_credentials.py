@@ -3,6 +3,7 @@ from urllib.parse import parse_qs
 from uuid import uuid4
 
 import pytest
+from pytest_mock import MockerFixture
 
 import dlt
 from dlt.common import pendulum
@@ -17,7 +18,6 @@ from dlt.common.configuration.specs import (
 from dlt.common.storages.configuration import FilesystemConfiguration
 from tests.load.utils import ALL_FILESYSTEM_DRIVERS, AZ_BUCKET
 from tests.common.configuration.utils import environment
-from tests.utils import autouse_test_storage
 from dlt.common.storages.fsspec_filesystem import fsspec_from_config
 
 # mark all tests as essential, do not remove
@@ -82,6 +82,7 @@ def test_azure_credentials_from_sas_token(environment: Dict[str, str]) -> None:
     environment["CREDENTIALS__AZURE_STORAGE_SAS_TOKEN"] = (
         "sp=rwdlacx&se=2021-01-01T00:00:00Z&sv=2019-12-12&sr=c&sig=1234567890"
     )
+    environment["CREDENTIALS__AZURE_ACCOUNT_HOST"] = "blob.core.usgovcloudapi.net"
 
     config = resolve_configuration(AzureCredentials())
 
@@ -95,6 +96,7 @@ def test_azure_credentials_from_sas_token(environment: Dict[str, str]) -> None:
         "account_name": environment["CREDENTIALS__AZURE_STORAGE_ACCOUNT_NAME"],
         "account_key": None,
         "sas_token": environment["CREDENTIALS__AZURE_STORAGE_SAS_TOKEN"],
+        "account_host": "blob.core.usgovcloudapi.net",
     }
 
 
@@ -199,3 +201,69 @@ def test_azure_service_principal_fs_operations(
     assert f"{bucket}/{fn}/{fn}" in files
     fs.delete(f"{bucket}/{fn}/{fn}")
     fs.rmdir(f"{bucket}/{fn}")
+
+
+def test_account_host_kwargs(environment: Dict[str, str], mocker: MockerFixture) -> None:
+    environment["CREDENTIALS__AZURE_STORAGE_ACCOUNT_NAME"] = "fake_account_name"
+    environment["CREDENTIALS__AZURE_STORAGE_ACCOUNT_KEY"] = "QWERTYUIOPASDFGHJKLZXCVBNM1234567890"
+    environment["CREDENTIALS__AZURE_SAS_TOKEN_PERMISSIONS"] = "rl"
+
+    # [destination.filesystem]
+    # bucket_url="..."
+    # [destination.filesystem.kwargs]
+    # account_host="blob.core.usgovcloudapi.net"
+    # [destination.filesystem.credentials]
+    # ...
+
+    config = resolve_configuration(FilesystemConfiguration(bucket_url="az://dlt-ci-test-bucket"))
+    config.kwargs = {"account_host": "dlt_ci.blob.core.usgovcloudapi.net"}
+
+    from adlfs import AzureBlobFileSystem
+
+    connect_mock = mocker.spy(AzureBlobFileSystem, "do_connect")
+    fsspec_from_config(config)
+
+    connect_mock.assert_called_once()
+    assert connect_mock.call_args[0][0].account_host == "dlt_ci.blob.core.usgovcloudapi.net"
+
+    config = resolve_configuration(
+        FilesystemConfiguration(
+            bucket_url="abfss://dlt-ci-test-bucket@dlt_ci.blob.core.usgovcloudapi.net"
+        )
+    )
+    connect_mock.reset_mock()
+
+    assert isinstance(config.credentials, AzureCredentialsWithoutDefaults)
+    assert config.credentials.azure_storage_account_name == "fake_account_name"
+    # ignores the url from the bucket_url 🤷
+    fs, _ = fsspec_from_config(config)
+    connect_mock.assert_called_once()
+    assert connect_mock.call_args[0][0].account_url.endswith(
+        "fake_account_name.blob.core.windows.net"
+    )
+
+    # use host
+    environment["KWARGS"] = '{"account_host": "fake_account_name.blob.core.usgovcloudapi.net"}'
+    config = resolve_configuration(
+        FilesystemConfiguration(
+            bucket_url="abfss://dlt-ci-test-bucket@fake_account_name.blob.core.usgovcloudapi.net"
+        )
+    )
+    connect_mock.reset_mock()
+
+    # NOTE: fsspec is caching instances created in the same thread: skip_instance_cache
+    fs, _ = fsspec_from_config(config)
+    connect_mock.assert_called_once()
+    # assert connect_mock.call_args[0][0].account_url.endswith("fake_account_name.blob.core.usgovcloudapi.net")
+    assert fs.account_url.endswith("fake_account_name.blob.core.usgovcloudapi.net")
+
+
+def test_azure_account_host(environment: Dict[str, str]) -> None:
+    environment["CREDENTIALS__AZURE_STORAGE_ACCOUNT_NAME"] = "fake_account_name"
+    environment["CREDENTIALS__AZURE_STORAGE_ACCOUNT_KEY"] = "QWERTYUIOPASDFGHJKLZXCVBNM1234567890"
+    environment["CREDENTIALS__AZURE_SAS_TOKEN_PERMISSIONS"] = "rl"
+    environment["CREDENTIALS__AZURE_ACCOUNT_HOST"] = "dlt_ci.blob.core.usgovcloudapi.net"
+
+    config = resolve_configuration(FilesystemConfiguration(bucket_url="az://dlt-ci-test-bucket"))
+    fs, _ = fsspec_from_config(config)
+    assert fs.account_host == "dlt_ci.blob.core.usgovcloudapi.net"

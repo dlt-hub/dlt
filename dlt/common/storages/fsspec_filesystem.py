@@ -40,6 +40,7 @@ from dlt.common.storages.configuration import (
 )
 from dlt.common.time import ensure_pendulum_datetime
 from dlt.common.typing import DictStrAny
+from dlt.common.utils import without_none
 
 
 class FileItem(TypedDict, total=False):
@@ -97,6 +98,10 @@ DEFAULT_KWARGS["abfs"] = DEFAULT_KWARGS["az"]
 DEFAULT_KWARGS["azure"] = DEFAULT_KWARGS["az"]
 DEFAULT_KWARGS["abfss"] = DEFAULT_KWARGS["az"]
 
+AZURE_BLOB_STORAGE_PROTOCOLS = ["az", "azure", "adl", "abfss", "abfs"]
+S3_PROTOCOLS = ["s3", "s3a"]
+GCS_PROTOCOLS = ["gs", "gcs"]
+
 
 def fsspec_filesystem(
     protocol: str,
@@ -130,7 +135,11 @@ def prepare_fsspec_args(config: FilesystemConfiguration) -> DictStrAny:
     """
     protocol = config.protocol
     # never use listing caches
-    fs_kwargs: DictStrAny = {"use_listings_cache": False, "listings_expiry_time": 60.0}
+    fs_kwargs: DictStrAny = {
+        "use_listings_cache": False,
+        "listings_expiry_time": 60.0,
+        "skip_instance_cache": True,
+    }
     credentials = CREDENTIALS_DISPATCH.get(protocol, lambda _: {})(config)
 
     if protocol == "gdrive":
@@ -151,7 +160,7 @@ def prepare_fsspec_args(config: FilesystemConfiguration) -> DictStrAny:
     if "client_kwargs" in fs_kwargs and "client_kwargs" in credentials:
         fs_kwargs["client_kwargs"].update(credentials.pop("client_kwargs"))
 
-    fs_kwargs.update(credentials)
+    fs_kwargs.update(without_none(credentials))
     return fs_kwargs
 
 
@@ -174,8 +183,13 @@ def fsspec_from_config(config: FilesystemConfiguration) -> Tuple[AbstractFileSys
         # first get the class to check the protocol
         fs_cls = get_filesystem_class(config.protocol)
         if fs_cls.protocol == "abfs":
+            url = urlparse(config.bucket_url)
             # if storage account is present in bucket_url and in credentials, az fsspec will fail
-            if urlparse(config.bucket_url).username:
+            # account name is detected only for blob.core.windows.net host
+            if url.username and (
+                url.hostname.endswith("blob.core.windows.net")
+                or url.hostname.endswith("dfs.core.windows.net")
+            ):
                 fs_kwargs.pop("account_name")
         return url_to_fs(config.bucket_url, **fs_kwargs)  # type: ignore
     except ImportError as e:

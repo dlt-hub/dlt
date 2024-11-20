@@ -22,6 +22,8 @@ class AzureCredentialsWithoutDefaults(CredentialsConfiguration):
     azure_storage_sas_token: TSecretStrValue = None
     azure_sas_token_permissions: str = "racwdl"
     """Permissions to use when generating a SAS token. Ignored when sas token is provided directly"""
+    azure_account_host: Optional[str] = None
+    """Alternative host when accessing blob storage endpoint ie. my_account.dfs.core.windows.net"""
 
     def to_adlfs_credentials(self) -> Dict[str, Any]:
         """Return a dict that can be passed as kwargs to adlfs"""
@@ -29,6 +31,7 @@ class AzureCredentialsWithoutDefaults(CredentialsConfiguration):
             account_name=self.azure_storage_account_name,
             account_key=self.azure_storage_account_key,
             sas_token=self.azure_storage_sas_token,
+            account_host=self.azure_account_host,
         )
 
     def to_object_store_rs_credentials(self) -> Dict[str, str]:
@@ -68,10 +71,13 @@ class AzureServicePrincipalCredentialsWithoutDefaults(CredentialsConfiguration):
     azure_tenant_id: str = None
     azure_client_id: str = None
     azure_client_secret: TSecretStrValue = None
+    azure_account_host: Optional[str] = None
+    """Alternative host when accessing blob storage endpoint ie. my_account.dfs.core.windows.net"""
 
     def to_adlfs_credentials(self) -> Dict[str, Any]:
         return dict(
             account_name=self.azure_storage_account_name,
+            account_host=self.azure_account_host,
             tenant_id=self.azure_tenant_id,
             client_id=self.azure_client_id,
             client_secret=self.azure_client_secret,
