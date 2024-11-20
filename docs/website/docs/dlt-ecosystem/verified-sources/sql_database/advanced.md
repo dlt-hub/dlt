@@ -23,6 +23,10 @@ Incremental loading uses a cursor column (e.g., timestamp or auto-incrementing I
 1. **Set end_value for backfill**: Set `end_value` if you want to backfill data from a certain range.
 1. **Order returned rows**: Set `row_order` to `asc` or `desc` to order returned rows.
 
+:::info Special characters in the cursor column name
+If your cursor column name contains special characters (e.g., `$`) you need to escape it when passing it to the `incremental` function. For example, if your cursor column is `example_$column`, you should pass it as `"'example_$column'"` or `'"example_$column"'` to the `incremental` function (note the inner single or double quotes).
+:::
+
 #### Examples
 
 1. **Incremental loading with the resource `sql_table`**.
