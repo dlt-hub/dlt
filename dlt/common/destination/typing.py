@@ -13,5 +13,4 @@ class PreparedTableSchema(_TTableSchemaBase, total=False):
 
     write_disposition: TWriteDisposition
     references: Optional[TTableReferenceParam]
-    incremental: Optional[IncrementalArgs]
     _x_prepared: bool  # needed for the type checker

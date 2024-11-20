@@ -279,7 +279,6 @@ class TTableSchema(_TTableSchemaBase, total=False):
 
     write_disposition: Optional[TWriteDisposition]
     references: Optional[TTableReferenceParam]
-    incremental: Optional[IncrementalArgs]
 
 
 class TPartialTableSchema(TTableSchema):

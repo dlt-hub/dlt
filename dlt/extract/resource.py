@@ -11,6 +11,7 @@ from typing import (
     Union,
     Any,
     Optional,
+    Mapping
 )
 from typing_extensions import TypeVar, Self
 
@@ -28,7 +29,7 @@ from dlt.common.pipeline import (
     pipeline_state,
 )
 from dlt.common.utils import flatten_list_or_items, get_callable_name, uniq_id
-from dlt.common.schema.typing import TTableSchema
+from dlt.common.schema.typing import TTableSchema, IncrementalArgs
 from dlt.extract.utils import wrap_async_iterator, wrap_parallel_iterator
 
 from dlt.extract.items import (
@@ -450,9 +451,9 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
 
     def set_incremental(
         self,
-        new_incremental: Union[Incremental[Any], IncrementalResourceWrapper],
+        new_incremental: Union[Incremental[Any], IncrementalResourceWrapper, IncrementalArgs],
         from_hints: bool = False,
-    ) -> Optional[Incremental[Any]]:
+    ) -> Optional[Union[Incremental[Any], IncrementalResourceWrapper]]:
         """Set/replace the incremental transform for the resource.
 
         Args:
@@ -463,6 +464,9 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             new_incremental = None
         incremental = self.incremental
         if incremental is not None:
+            if isinstance(new_incremental, Mapping):
+                new_incremental = Incremental.ensure_instance(new_incremental)
+            
             if isinstance(new_incremental, IncrementalResourceWrapper):
                 # Completely replace the wrapper
                 self._remove_incremental_step()
@@ -504,19 +508,16 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
                 self.validator = table_schema_template["validator"]
 
     def compute_table_schema(self, item: TDataItem = None, meta: Any = None) -> TTableSchema:
-        if (incremental := self.incremental) and "incremental" not in self._hints:
+        incremental: Optional[Union[Incremental[Any], IncrementalResourceWrapper]] = (
+            self.incremental
+        )
+        if incremental and "incremental" not in self._hints:
             if isinstance(incremental, IncrementalResourceWrapper):
                 incremental = incremental.incremental
                 if incremental:
                     self._set_hints(make_hints(incremental=incremental))
 
         table_schema = super().compute_table_schema(item, meta)
-        # if self.incremental and "incremental" not in table_schema:
-        #     incremental = self.incremental
-        #     if isinstance(incremental, IncrementalResourceWrapper):
-        #         incremental = incremental.incremental  # type: ignore[assignment]
-        #     if incremental:
-        #         table_schema["incremental"] = incremental.to_table_hint()  # type: ignore[attr-defined]
 
         return table_schema
 

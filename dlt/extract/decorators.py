@@ -70,7 +70,7 @@ from dlt.extract.source import (
     TSourceFunParams,
 )
 from dlt.extract.resource import DltResource, TUnboundDltResource, TDltResourceImpl
-from dlt.extract.incremental import TIncrementalConfig
+from dlt.extract.incremental import TIncrementalConfig, Incremental
 
 
 @configspec
@@ -627,6 +627,9 @@ def resource(
         TDltResourceImpl instance which may be loaded, iterated or combined with other resources into a pipeline.
     """
 
+    if incremental is not None:
+        incremental = Incremental.ensure_instance(incremental)
+
     def make_resource(_name: str, _section: str, _data: Any) -> TDltResourceImpl:
         table_template = make_hints(
             table_name,
@@ -691,7 +694,7 @@ def resource(
         return _wrap
 
     def decorator(
-        f: Callable[TResourceFunParams, Any]
+        f: Callable[TResourceFunParams, Any],
     ) -> Callable[TResourceFunParams, TDltResourceImpl]:
         if not callable(f):
             if data_from:
@@ -1033,7 +1036,7 @@ TDeferredFunParams = ParamSpec("TDeferredFunParams")
 
 
 def defer(
-    f: Callable[TDeferredFunParams, TBoundItems]
+    f: Callable[TDeferredFunParams, TBoundItems],
 ) -> Callable[TDeferredFunParams, TDeferred[TBoundItems]]:
     @wraps(f)
     def _wrap(*args: Any, **kwargs: Any) -> TDeferred[TBoundItems]:
