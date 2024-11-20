@@ -1,5 +1,5 @@
 from contextlib import contextmanager, suppress
-from typing import Any, AnyStr, ClassVar, Dict, Iterator, Optional, Sequence, List
+from typing import Any, AnyStr, ClassVar, Iterator, Optional, Sequence
 
 import snowflake.connector as snowflake_lib
 

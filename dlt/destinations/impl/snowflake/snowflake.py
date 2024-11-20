@@ -19,14 +19,12 @@ from dlt.common.storages.configuration import FilesystemConfiguration
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.schema import TColumnSchema, Schema
 from dlt.common.schema.typing import TColumnType
-from dlt.common.exceptions import TerminalValueError
 
 from dlt.common.typing import TLoaderFileFormat
 from dlt.destinations.job_client_impl import SqlJobClientWithStagingDataset
 from dlt.destinations.exceptions import LoadJobTerminalException
 
 from dlt.destinations.impl.snowflake.configuration import SnowflakeClientConfiguration
-from dlt.destinations.impl.snowflake.sql_client import SnowflakeSqlClient
 from dlt.destinations.impl.snowflake.sql_client import SnowflakeSqlClient
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest
 
