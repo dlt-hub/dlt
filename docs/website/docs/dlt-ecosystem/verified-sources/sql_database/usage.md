@@ -31,6 +31,64 @@ source = sql_database(
 ).with_resources("orders")
 ```
 
+## Add computed columns, join other tables, pass custom queries
+We recommend that you create a SQL VIEW in your source database and extract data from it. In that case `dlt` will infer all column types and read data in
+shape you define in a view without any further customization.
+
+If creating a view is not feasible, you can fully rewrite the automatically generated query with extended version of `query_adapter_callback`:
+
+```py
+import sqlalchemy as sa
+
+def query_adapter_callback(
+      query, table, incremental=None, engine=None
+  ) -> TextClause:
+
+      if incremental and incremental.start_value is not None:
+          t_query = sa.text(
+              f"SELECT *, 1 as add_int, 'const' as add_text FROM {table.fullname} WHERE"
+              f" {incremental.cursor_path} > :start_value"
+          ).bindparams(**{"start_value": incremental.start_value})
+      else:
+          t_query = sa.text(f"SELECT *, 1 as add_int, 'const' as add_text FROM {table.fullname}")
+
+      return t_query
+```
+In the snippet above we do a few interesting things:
+1. We create a text query with `sa.text`
+2. We change the condition on selecting incremental column from the default `ge` to `greater` (f" {incremental.cursor_path} > :start_value")
+3. We add additional computed columns: `1 as add_int, 'const' as add_text`. You can also join other table here.
+
+We recommend that you explicitly type additional columns that you added with `table_adapter_callback`:
+
+```py
+from sqlalchemy.sql import sqltypes
+
+def add_new_columns(table) -> None:
+    required_columns = [
+        ("add_int", sqltypes.BigInteger, {"nullable": True}),
+        ("add_text", sqltypes.Text, {"default": None, "nullable": True}),
+    ]
+    for col_name, col_type, col_kwargs in required_columns:
+        if col_name not in table.c:
+            table.append_column(sa.Column(col_name, col_type, **col_kwargs))
+```
+Otherwise `dlt` will attempt to infer the types from the extracted data.
+
+Here's how you call `sql_table` with those adapters:
+```py
+import dlt
+from dlt.sources.sql_database import sql_table
+
+table = sql_table(
+  table="chat_channel",
+  table_adapter_callback=add_new_columns,
+  query_adapter_callback=query_adapter_callback,
+  incremental=dlt.sources.incremental("updated_at"),
+)
+```
+
+
 ## Transforming the data before load
 You have direct access to the extracted data through the resource objects (`sql_table()` or `sql_database().with_resource())`), each of which represents a single SQL table. These objects are generators that yield individual rows of the table, which can be modified by using custom Python functions. These functions can be applied to the resource using `add_map`.
 
