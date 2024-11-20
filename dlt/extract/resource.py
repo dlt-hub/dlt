@@ -11,7 +11,7 @@ from typing import (
     Union,
     Any,
     Optional,
-    Mapping
+    Mapping,
 )
 from typing_extensions import TypeVar, Self
 
@@ -451,7 +451,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
 
     def set_incremental(
         self,
-        new_incremental: Union[Incremental[Any], IncrementalResourceWrapper, IncrementalArgs],
+        new_incremental: Union[Incremental[Any], IncrementalResourceWrapper],
         from_hints: bool = False,
     ) -> Optional[Union[Incremental[Any], IncrementalResourceWrapper]]:
         """Set/replace the incremental transform for the resource.
@@ -464,9 +464,9 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             new_incremental = None
         incremental = self.incremental
         if incremental is not None:
-            if isinstance(new_incremental, Mapping):
-                new_incremental = Incremental.ensure_instance(new_incremental)
-            
+            # if isinstance(new_incremental, Mapping):
+            #     new_incremental = Incremental.ensure_instance(new_incremental)
+
             if isinstance(new_incremental, IncrementalResourceWrapper):
                 # Completely replace the wrapper
                 self._remove_incremental_step()
@@ -497,7 +497,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
                     table_schema_template["incremental"], from_hints=True
                 )
             else:
-                incremental = self.incremental  # type: ignore[assignment]
+                incremental = self.incremental
 
             if incremental:
                 primary_key = table_schema_template.get("primary_key", incremental.primary_key)
