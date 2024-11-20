@@ -1,17 +1,16 @@
-import os
-
-import modal
-
 from tests.pipeline.utils import assert_load_info
 
 
 def test_modal_snippet() -> None:
     # @@@DLT_SNIPPET_START modal_image
+    import modal
+
     # Define the Modal Image
     image = modal.Image.debian_slim().pip_install(
         "dlt>=1.1.0",
         "dlt[duckdb]",  # destination
         "dlt[sql_database]",  # source (MySQL)
+        "dlt[parquet]",  # file format dependency
         "pymysql",  # database driver for MySQL source
     )
 
@@ -25,19 +24,19 @@ def test_modal_snippet() -> None:
     @app.function(
         volumes={"/data/": vol},
         schedule=modal.Period(days=1),
-        secrets=[modal.Secret.from_name("sql-secret")],
-        serialized=True,
+        serialized=True
     )
     def load_tables() -> None:
         import dlt
+        import os
         from dlt.sources.sql_database import sql_database
 
         # Define the source database credentials; in production, you would save this as a Modal Secret which can be referenced here as an environment variable
         os.environ["SOURCES__SQL_DATABASE__CREDENTIALS"] = (
             "mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam"
         )
-        # Load tables "family" and "genome"
-        source = sql_database().with_resources("family", "genome")
+        # Load tables "family" and "genome" with minimal reflection to avoid column constraint error
+        source = sql_database(reflection_level="minimal").with_resources("family", "genome")
 
         # Create dlt pipeline object
         pipeline = dlt.pipeline(
@@ -50,7 +49,7 @@ def test_modal_snippet() -> None:
         )
 
         # Run the pipeline
-        load_info = pipeline.run(source)
+        load_info = pipeline.run(source, write_disposition="replace")
 
         # Print run statistics
         print(load_info)
