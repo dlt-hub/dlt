@@ -685,7 +685,7 @@ def test_table_format_schema_evolution(
     destination_config: DestinationTestConfiguration,
     write_disposition: TWriteDisposition,
 ) -> None:
-    """Tests schema evolution (adding new columns) for `delta` table format."""
+    """Tests schema evolution (adding new columns) for `delta` and `iceberg` table formats."""
     if destination_config.table_format == "iceberg" and write_disposition == {
         "disposition": "merge",
         "strategy": "upsert",
