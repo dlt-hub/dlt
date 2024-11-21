@@ -221,8 +221,8 @@ def test_text_query_adapter(sql_source_db: SQLAlchemySourceDB, backend: TableBac
 
     last_query: str = None
 
-    def query_adapter_callback(
-        query: SelectAny, table: Table, incremental: Incremental[Any] = None, engine: Engine = None
+    def query_adapter(
+        query: SelectAny, table: Table, incremental: Optional[Incremental[Any]], engine: Engine
     ) -> TextClause:
         nonlocal last_query
 
@@ -244,7 +244,7 @@ def test_text_query_adapter(sql_source_db: SQLAlchemySourceDB, backend: TableBac
         reflection_level="full",
         backend=backend,
         table_adapter_callback=add_new_columns,
-        query_adapter_callback=query_adapter_callback,
+        query_adapter_callback=query_adapter,
         incremental=dlt.sources.incremental("updated_at"),
     )
 
@@ -1102,7 +1102,10 @@ def test_sql_table_included_columns(
 def test_query_adapter_callback(
     sql_source_db: SQLAlchemySourceDB, backend: TableBackend, standalone_resource: bool
 ) -> None:
-    def query_adapter_callback(query, table):
+    from dlt.sources.sql_database.helpers import SelectAny
+    from dlt.common.libs.sql_alchemy import Table
+
+    def query_adapter_callback(query: SelectAny, table: Table) -> SelectAny:
         if table.name == "chat_channel":
             # Only select active channels
             return query.where(table.c.active.is_(True))
@@ -1114,7 +1117,6 @@ def test_query_adapter_callback(
         schema=sql_source_db.schema,
         reflection_level="full",
         backend=backend,
-        query_adapter_callback=query_adapter_callback,
     )
 
     if standalone_resource:
@@ -1124,11 +1126,13 @@ def test_query_adapter_callback(
             yield sql_table(
                 **common_kwargs,  # type: ignore[arg-type]
                 table="chat_channel",
+                query_adapter_callback=query_adapter_callback,
             )
 
             yield sql_table(
                 **common_kwargs,  # type: ignore[arg-type]
                 table="chat_message",
+                query_adapter_callback=query_adapter_callback,
             )
 
         source = dummy_source()
@@ -1136,6 +1140,7 @@ def test_query_adapter_callback(
         source = sql_database(
             **common_kwargs,  # type: ignore[arg-type]
             table_names=["chat_message", "chat_channel"],
+            query_adapter_callback=query_adapter_callback,
         )
 
     pipeline = make_pipeline("duckdb")

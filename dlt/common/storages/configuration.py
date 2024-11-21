@@ -63,7 +63,7 @@ def ensure_canonical_az_url(
 ) -> str:
     """Converts any of the forms of azure blob storage into canonical form of {target_scheme}://<container_name>@<storage_account_name>.{account_host}/<path>
 
-    `azure_storage_account_name` is optional only if not present in bucket_url, `account_host` assumes "dfs.core.windows.net" by default
+    `azure_storage_account_name` is optional only if not present in bucket_url, `account_host` assumes "<azure_storage_account_name>.dfs.core.windows.net" by default
     """
     parsed_bucket_url = urlparse(bucket_url)
     # Converts an az://<container_name>/<path> to abfss://<container_name>@<storage_account_name>.dfs.core.windows.net/<path>
@@ -80,13 +80,16 @@ def ensure_canonical_az_url(
         )
 
     account_host = account_host or f"{storage_account_name}.dfs.core.windows.net"
+    netloc = (
+        f"{parsed_bucket_url.netloc}@{account_host}" if parsed_bucket_url.netloc else account_host
+    )
 
     # as required by databricks
     _path = parsed_bucket_url.path
     return urlunparse(
         parsed_bucket_url._replace(
             scheme=target_scheme,
-            netloc=f"{parsed_bucket_url.netloc}@{account_host}",
+            netloc=netloc,
             path=_path,
         )
     )

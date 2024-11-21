@@ -126,6 +126,7 @@ def test_azure_credentials_from_default(environment: Dict[str, str]) -> None:
         "account_key": None,
         "sas_token": None,
         "anon": False,
+        "account_host": None,
     }
 
 
@@ -143,6 +144,7 @@ def test_azure_service_principal_credentials(environment: Dict[str, str]) -> Non
 
     assert config.to_adlfs_credentials() == {
         "account_name": environment["CREDENTIALS__AZURE_STORAGE_ACCOUNT_NAME"],
+        "account_host": None,
         "client_id": environment["CREDENTIALS__AZURE_CLIENT_ID"],
         "client_secret": environment["CREDENTIALS__AZURE_CLIENT_SECRET"],
         "tenant_id": environment["CREDENTIALS__AZURE_TENANT_ID"],

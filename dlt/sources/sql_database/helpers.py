@@ -9,7 +9,6 @@ from typing import (
     Literal,
     Optional,
     Iterator,
-    Protocol,
     Union,
 )
 import operator
@@ -46,23 +45,11 @@ from dlt.common.libs.sql_alchemy import (
 )
 
 TableBackend = Literal["sqlalchemy", "pyarrow", "pandas", "connectorx"]
-
 SelectClause = Union[SelectAny, TextClause]
-
-
-class TQueryAdapter(Protocol):
-    @staticmethod
-    def __call__(
-        query: SelectAny,
-        table: Table,
-        incremental: Optional[Incremental[Any]] = None,
-        engine: Optional[Engine] = None,
-        /,
-    ) -> SelectClause:
-        pass
-
-
-# TQueryAdapter = Union[Callable[[SelectAny, Table], SelectAny], Callable[[SelectAny, Table, Incremental], SelectAny]]
+TQueryAdapter = Union[
+    Callable[[SelectAny, Table], SelectClause],
+    Callable[[SelectAny, Table, Incremental[Any], Engine], SelectClause],
+]
 
 
 class TableLoader:
@@ -153,12 +140,14 @@ class TableLoader:
     def make_query(self) -> SelectClause:
         if self.query_adapter_callback:
             try:
-                return self.query_adapter_callback(
+                return self.query_adapter_callback(  # type: ignore[call-arg]
                     self._make_query(), self.table, self.incremental, self.engine
                 )
             except TypeError:
                 try:
-                    return self.query_adapter_callback(self._make_query(), self.table)
+                    return self.query_adapter_callback(  # type: ignore[call-arg]
+                        self._make_query(), self.table
+                    )
                 except TypeError:
                     raise
 

@@ -1,9 +1,7 @@
 import pytest
 
-
 import dlt
 from dlt.common.typing import TDataItem
-
 
 from dlt.common.exceptions import MissingDependencyException
 

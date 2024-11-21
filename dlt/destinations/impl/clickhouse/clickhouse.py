@@ -150,10 +150,11 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
 
             # Authenticated access.
             account_name = self._staging_credentials.azure_storage_account_name
-            account_host = self._staging_credentials.azure_account_host
-            storage_account_url = ensure_canonical_az_url(
-                bucket_path, "https", account_name, account_host
+            account_host = (
+                self._staging_credentials.azure_account_host
+                or f"{account_name}.blob.core.windows.net"
             )
+            storage_account_url = ensure_canonical_az_url("", "https", account_name, account_host)
             account_key = self._staging_credentials.azure_storage_account_key
 
             # build table func

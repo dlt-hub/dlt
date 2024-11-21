@@ -141,11 +141,9 @@ class SnowflakeLoadJob(RunnableLoadJob, HasFollowupJobs):
                 and staging_credentials
                 and isinstance(staging_credentials, AzureCredentialsWithoutDefaults)
             ):
-                # Explicit azure credentials are needed to load from bucket without a named stage
                 credentials_clause = f"CREDENTIALS=(AZURE_SAS_TOKEN='?{staging_credentials.azure_storage_sas_token}')"
-                file_url = ensure_canonical_az_url(
+                file_url = cls.ensure_snowflake_azure_url(
                     file_url,
-                    "azure",
                     staging_credentials.azure_storage_account_name,
                     staging_credentials.azure_account_host,
                 )
@@ -200,6 +198,28 @@ class SnowflakeLoadJob(RunnableLoadJob, HasFollowupJobs):
             {column_match_clause}
             {on_error_clause}
         """
+
+    @staticmethod
+    def ensure_snowflake_azure_url(
+        file_url: str, account_name: str = None, account_host: str = None
+    ) -> str:
+        # Explicit azure credentials are needed to load from bucket without a named stage
+        if not account_host and account_name:
+            account_host = f"{account_name}.blob.core.windows.net"
+        # get canonical url first to convert it into snowflake form
+        canonical_url = ensure_canonical_az_url(
+            file_url,
+            "azure",
+            account_name,
+            account_host,
+        )
+        parsed_file_url = urlparse(canonical_url)
+        return urlunparse(
+            parsed_file_url._replace(
+                path=f"/{parsed_file_url.username}{parsed_file_url.path}",
+                netloc=parsed_file_url.hostname,
+            )
+        )
 
 
 class SnowflakeClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
