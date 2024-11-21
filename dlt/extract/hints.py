@@ -519,6 +519,9 @@ class DltResourceHints:
         if isinstance(incremental, Incremental):
             incremental_hint = incremental.to_table_hint()
         col_name = incremental.get_cursor_column_name()
+        if not col_name:
+            # cursor cannot resolve to a single column, no hint added
+            return
         incremental_col = dict_["columns"].get(col_name)
         if not incremental_col:
             incremental_col = {"name": col_name}

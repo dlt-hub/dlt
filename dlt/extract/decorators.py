@@ -655,6 +655,7 @@ def resource(
         )
 
         if incremental:
+            # Reset the flag to allow overriding by incremental argument
             resource.incremental._from_hints = False
         # If custom nesting level was specified then
         # we need to add it to table hints so that

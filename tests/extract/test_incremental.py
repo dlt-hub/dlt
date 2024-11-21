@@ -3800,3 +3800,23 @@ def test_incremental_table_hint_merged_columns(use_dict: bool) -> None:
         "last_value_func": "max",
         "on_cursor_value_missing": "raise"
     }
+
+
+@pytest.mark.parametrize("use_dict", [True, False])
+def test_incremental_column_hint_cursor_is_not_column(use_dict: bool):
+    @dlt.resource(
+        incremental=incremental_instance_or_dict(
+            use_dict, cursor_path="col_a|col_b", initial_value=3, last_value_func=min
+        )
+    )
+    def some_data():
+        yield [{"col_a": i, "foo": i+ 2, "col_b": i + 1, "bar": i+3} for i in range(10)]
+
+    pipeline = dlt.pipeline(pipeline_name=uniq_id())
+
+    pipeline.extract(some_data())
+
+    table_schema = pipeline.default_schema.tables["some_data"]
+
+    for col in table_schema['columns'].values():
+        assert 'incremental' not in col
