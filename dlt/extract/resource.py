@@ -515,7 +515,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             if isinstance(incremental, IncrementalResourceWrapper):
                 incremental = incremental.incremental
                 if incremental:
-                    self._set_hints(make_hints(incremental=incremental))
+                    self._hints['incremental'] = incremental
 
         table_schema = super().compute_table_schema(item, meta)
 
