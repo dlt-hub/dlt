@@ -3,7 +3,6 @@ from copy import deepcopy
 import pytest
 from graphlib import CycleError  # type: ignore
 
-import dtl
 from dlt.sources.rest_api import (
     rest_api_resources,
     rest_api_source,
@@ -84,26 +83,25 @@ def test_bind_path_param() -> None:
     # resolved param will remain unbounded and
     tp_6 = deepcopy(three_params)
     tp_6["endpoint"]["path"] = "{org}/{repo}/issues/1234/comments"  # type: ignore[index]
-    with pytest.raises(NotImplementedError):
-        _bind_path_params(tp_6)
+    _bind_path_params(tp_6)  # Does not raise because headers are now supported... and so are query params because they reside in the URL
 
 
 def test_process_parent_data_item() -> None:
     resolve_params = [
         ResolvedParam("id", {"field": "obj_id", "resource": "issues", "type": "resolve"})
     ]
-    bound_path, parent_record = process_parent_data_item(
+    bound_path, _, parent_record = process_parent_data_item(
         "dlt-hub/dlt/issues/{id}/comments", {"obj_id": 12345}, resolve_params, None
     )
     assert bound_path == "dlt-hub/dlt/issues/12345/comments"
     assert parent_record == {}
 
-    bound_path, parent_record = process_parent_data_item(
+    bound_path, _, parent_record = process_parent_data_item(
         "dlt-hub/dlt/issues/{id}/comments", {"obj_id": 12345}, resolve_params, ["obj_id"]
     )
     assert parent_record == {"_issues_obj_id": 12345}
 
-    bound_path, parent_record = process_parent_data_item(
+    bound_path, _, parent_record = process_parent_data_item(
         "dlt-hub/dlt/issues/{id}/comments",
         {"obj_id": 12345, "obj_node": "node_1"},
         resolve_params,
@@ -118,21 +116,21 @@ def test_process_parent_data_item() -> None:
         )
     ]
     item = {"some_results": {"obj_id": 12345}}
-    bound_path, parent_record = process_parent_data_item(
+    bound_path, _, parent_record = process_parent_data_item(
         "dlt-hub/dlt/issues/{id}/comments", item, resolve_param_nested, None
     )
     assert bound_path == "dlt-hub/dlt/issues/12345/comments"
 
     # param path not found
     with pytest.raises(ValueError) as val_ex:
-        bound_path, parent_record = process_parent_data_item(
+        bound_path, _, parent_record = process_parent_data_item(
             "dlt-hub/dlt/issues/{id}/comments", {"_id": 12345}, resolve_params, None
         )
     assert "Transformer expects a field 'obj_id'" in str(val_ex.value)
 
     # included path not found
     with pytest.raises(ValueError) as val_ex:
-        bound_path, parent_record = process_parent_data_item(
+        bound_path, _, parent_record = process_parent_data_item(
             "dlt-hub/dlt/issues/{id}/comments",
             {"obj_id": 12345, "obj_node": "node_1"},
             resolve_params,
@@ -146,7 +144,7 @@ def test_process_parent_data_item() -> None:
         ResolvedParam("id", {"field": "id", "resource": "comments", "type": "resolve"}),
     ]
 
-    bound_path, parent_record = process_parent_data_item(
+    bound_path, _, parent_record = process_parent_data_item(
         "dlt-hub/dlt/issues/{issue_id}/comments/{id}",
         {"issue": 12345, "id": 56789},
         multi_resolve_params,
@@ -157,7 +155,7 @@ def test_process_parent_data_item() -> None:
 
     # param path not found with multiple parameters
     with pytest.raises(ValueError) as val_ex:
-        bound_path, parent_record = process_parent_data_item(
+        bound_path, _, parent_record = process_parent_data_item(
             "dlt-hub/dlt/issues/{issue_id}/comments/{id}",
             {"_issue": 12345, "id": 56789},
             multi_resolve_params,
@@ -366,4 +364,4 @@ def test_bind_header_params() -> None:
         },
     }
     _bind_header_params(resource_with_headers)
-    assert resource_with_headers["endpoint"]["headers"]["Authorization"] == "test_token"
+    assert resource_with_headers["endpoint"]["headers"]["Authorization"] == "test_token"  # type: ignore[index]

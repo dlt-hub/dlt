@@ -159,7 +159,7 @@ def test_dependent_resource(destination_name: str, invocation_type: str) -> None
 def test_request_headers(mock: MagicMock, destination_name: str, invocation_type: str) -> None:
     mock_resp = Response()
     mock_resp.status_code = 200
-    mock_resp.json = lambda: {"success": "ok"}
+    mock_resp.json = lambda: {"success": "ok"}  # type: ignore
     mock.return_value = mock_resp
 
     @dlt.resource
@@ -168,10 +168,7 @@ def test_request_headers(mock: MagicMock, destination_name: str, invocation_type
 
     base_url = "https://api.example.com"
     config: RESTAPIConfig = {
-        "client": {
-            "base_url": base_url,
-            "headers": {"foo": "bar"}
-        },
+        "client": {"base_url": base_url, "headers": {"foo": "bar"}},
         "resources": [
             {
                 "name": "chicken",
@@ -209,10 +206,12 @@ def test_request_headers(mock: MagicMock, destination_name: str, invocation_type
 @pytest.mark.parametrize("destination_name", ALL_DESTINATIONS)
 @pytest.mark.parametrize("invocation_type", ("deco", "factory"))
 @patch("dlt.sources.helpers.rest_client.client.RESTClient._send_request")
-def test_request_headers_dynamic_key(mock: MagicMock, destination_name: str, invocation_type: str) -> None:
+def test_request_headers_dynamic_key(
+    mock: MagicMock, destination_name: str, invocation_type: str
+) -> None:
     mock_resp = Response()
     mock_resp.status_code = 200
-    mock_resp.json = lambda: {"success": "ok"}
+    mock_resp.json = lambda: {"success": "ok"}  # type: ignore
     mock.return_value = mock_resp
 
     @dlt.resource
@@ -221,10 +220,7 @@ def test_request_headers_dynamic_key(mock: MagicMock, destination_name: str, inv
 
     base_url = "https://api.example.com"
     config: RESTAPIConfig = {
-        "client": {
-            "base_url": base_url,
-            "headers": {"foo": "bar"}
-        },
+        "client": {"base_url": base_url, "headers": {"foo": "bar"}},
         "resources": [
             {
                 "name": "chicken",
@@ -262,10 +258,12 @@ def test_request_headers_dynamic_key(mock: MagicMock, destination_name: str, inv
 @pytest.mark.parametrize("destination_name", ALL_DESTINATIONS)
 @pytest.mark.parametrize("invocation_type", ("deco", "factory"))
 @patch("dlt.sources.helpers.rest_client.client.RESTClient._send_request")
-def test_request_headers_nested(mock: MagicMock, destination_name: str, invocation_type: str) -> None:
+def test_request_headers_nested(
+    mock: MagicMock, destination_name: str, invocation_type: str
+) -> None:
     mock_resp = Response()
     mock_resp.status_code = 200
-    mock_resp.json = lambda: {"success": "ok"}
+    mock_resp.json = lambda: {"success": "ok"}  # type: ignore
     mock.return_value = mock_resp
 
     @dlt.resource
@@ -274,16 +272,17 @@ def test_request_headers_nested(mock: MagicMock, destination_name: str, invocati
 
     base_url = "https://api.example.com"
     config: RESTAPIConfig = {
-        "client": {
-            "base_url": base_url,
-            "headers": {"foo": "bar"}
-        },
+        "client": {"base_url": base_url, "headers": {"foo": "bar"}},
         "resources": [
             {
                 "name": "chicken",
                 "endpoint": {
                     "path": "chicken",
-                    "headers": {"{token}": "{token}", "num": "2", "nested": {"nested": "{token}", "{token}": "other"}},
+                    "headers": {
+                        "{token}": "{token}",
+                        "num": "2",
+                        "nested": {"nested": "{token}", "{token}": "other"},
+                    },
                     "params": {
                         "token": {
                             "type": "resolve",
@@ -309,4 +308,9 @@ def test_request_headers_nested(mock: MagicMock, destination_name: str, invocati
     request_param: Request = args[0]
 
     assert request_param.url == f"{base_url}/chicken"
-    assert request_param.headers == {"foo": "bar", "1": "1", "num": "2", "nested": {"nested": "1", "1": "other"}}
+    assert request_param.headers == {
+        "foo": "bar",
+        "1": "1",
+        "num": "2",
+        "nested": {"nested": "1", "1": "other"},
+    }

@@ -425,12 +425,16 @@ def _bind_header_params(resource: EndpointResource) -> None:
     resolve_params = [r.param_name for r in _find_resolved_params(resource["endpoint"])]
 
     for header_key, header_value in headers.items():
-        if isinstance(header_value, str) and header_value.startswith("{") and header_value.endswith("}"):
+        if (
+            isinstance(header_value, str)
+            and header_value.startswith("{")
+            and header_value.endswith("}")
+        ):
             param_name = header_value.strip("{}")
             if param_name not in params:
                 raise ValueError(
-                    f"The header '{header_key}' in resource '{resource['name']}' requires a param with "
-                    f"name '{param_name}' but it is not found in {params}."
+                    f"The header '{header_key}' in resource '{resource['name']}' requires a param"
+                    f" with name '{param_name}' but it is not found in {params}."
                 )
             if param_name in resolve_params:
                 resolve_params.remove(param_name)
@@ -442,8 +446,9 @@ def _bind_header_params(resource: EndpointResource) -> None:
                     param_type = params[param_name].get("type")
                     if param_type != "resolve":
                         raise ValueError(
-                            f"The header '{header_key}' in resource '{resource['name']}' tries to bind param "
-                            f"'{param_name}' with type '{param_type}'. Headers can only bind 'resolve' type params."
+                            f"The header '{header_key}' in resource '{resource['name']}' tries to"
+                            f" bind param '{param_name}' with type '{param_type}'. Headers can only"
+                            " bind 'resolve' type params."
                         )
                     # Resolved params are bound later
                     header_params[header_key] = "{" + param_name + "}"
@@ -600,22 +605,28 @@ def create_response_hooks(
         return {"response": hooks + fallback_hooks}
     return None
 
-def generic_format(input: Union[dict, str, list], param_values) -> Union[dict, str, list]:
-    if isinstance(input, dict):
-        return {generic_format(key, param_values): generic_format(val, param_values) for key, val in input.items()}
-    if isinstance(input, list):
-        return [generic_format(item, param_values) for item in input]
-    if isinstance(input, str):
-        return input.format(**param_values)
-    return str(input)
+
+def generic_format(
+    to_format: Union[Dict[str, Any], str, List[Any]], param_values: Dict[str, Any]
+) -> Union[Dict[str, Any], str, List[Any]]:
+    if isinstance(to_format, dict):
+        return {
+            key.format(**param_values): generic_format(val, param_values)
+            for key, val in to_format.items()
+        }
+    if isinstance(to_format, list):
+        return [generic_format(item, param_values) for item in to_format]
+    if isinstance(to_format, str):
+        return to_format.format(**param_values)
+    return str(to_format)
 
 
 def process_parent_data_item(
     path: str,
-    headers: Dict[str, Any],
     item: Dict[str, Any],
     resolved_params: List[ResolvedParam],
     include_from_parent: List[str],
+    headers: Optional[Dict[str, Any]] = None,
 ) -> Tuple[str, Dict[str, Any], Dict[str, Any]]:
     parent_resource_name = resolved_params[0].resolve_config["resource"]
 
@@ -636,7 +647,6 @@ def process_parent_data_item(
         param_values[resolved_param.param_name] = field_values[0]
 
     bound_path = path.format(**param_values)
-    formatted_headers = generic_format(headers, param_values)
 
     parent_record: Dict[str, Any] = {}
     if include_from_parent:
@@ -650,7 +660,10 @@ def process_parent_data_item(
                 )
             parent_record[child_key] = item[parent_key]
 
-    return bound_path, formatted_headers, parent_record
+    if headers is not None:
+        formatted_headers = generic_format(headers, param_values)
+        return bound_path, formatted_headers, parent_record  # type: ignore[return-value]
+    return bound_path, {}, parent_record
 
 
 def _merge_resource_endpoints(

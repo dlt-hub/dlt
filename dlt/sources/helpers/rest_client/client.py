@@ -218,7 +218,13 @@ class RESTClient:
             hooks["response"] = [raise_for_status]
 
         request = self._create_request(
-            path=path, headers=headers, method=method, params=params, json=json, auth=auth, hooks=hooks
+            path=path,
+            headers=headers,
+            method=method,
+            params=params,
+            json=json,
+            auth=auth,
+            hooks=hooks,
         )
 
         if paginator:

@@ -370,7 +370,7 @@ def create_resources(
 
                 for item in items:
                     formatted_path, formatted_headers, parent_record = process_parent_data_item(
-                        path, headers, item, resolved_params, include_from_parent
+                        path, item, resolved_params, include_from_parent, headers
                     )
 
                     for child_page in client.paginate(
