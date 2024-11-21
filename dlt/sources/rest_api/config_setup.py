@@ -600,6 +600,14 @@ def create_response_hooks(
         return {"response": hooks + fallback_hooks}
     return None
 
+def generic_format(input: Union[dict, str, list], param_values) -> Union[dict, str, list]:
+    if isinstance(input, dict):
+        return {generic_format(key, param_values): generic_format(val, param_values) for key, val in input.items()}
+    if isinstance(input, list):
+        return [generic_format(item, param_values) for item in input]
+    if isinstance(input, str):
+        return input.format(**param_values)
+    raise NotImplementedError(f"Param resolution formatting not supported for type: {type(input)}")
 
 
 def process_parent_data_item(
@@ -628,11 +636,7 @@ def process_parent_data_item(
         param_values[resolved_param.param_name] = field_values[0]
 
     bound_path = path.format(**param_values)
-    formatted_headers = {}
-    for k, v in headers.items():
-        key = k if not isinstance(k, str) else k.format(**param_values)
-        val = v if not isinstance(v, str) else v.format(**param_values)
-        formatted_headers[key] = val
+    formatted_headers = generic_format(headers, param_values)
 
     parent_record: Dict[str, Any] = {}
     if include_from_parent:
