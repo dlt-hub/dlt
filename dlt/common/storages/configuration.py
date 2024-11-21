@@ -61,7 +61,7 @@ FileSystemCredentials = Union[
 def ensure_canonical_az_url(
     bucket_url: str, target_scheme: str, storage_account_name: str = None, account_host: str = None
 ) -> str:
-    """Converts any of the forms of azure blob storage into canonical form of {target_scheme}://<container_name>@<storage_account_name>.{account_host}/<path>
+    """Converts any of the forms of azure blob storage into canonical form of {target_scheme}://<container_name>@<storage_account_name>.{account_host}/path
 
     `azure_storage_account_name` is optional only if not present in bucket_url, `account_host` assumes "<azure_storage_account_name>.dfs.core.windows.net" by default
     """

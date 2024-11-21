@@ -21,11 +21,7 @@ def test_modal_snippet() -> None:
     # @@@DLT_SNIPPET_END modal_image
 
     # @@@DLT_SNIPPET_START modal_function
-    @app.function(
-        volumes={"/data/": vol},
-        schedule=modal.Period(days=1),
-        serialized=True
-    )
+    @app.function(volumes={"/data/": vol}, schedule=modal.Period(days=1), serialized=True)
     def load_tables() -> None:
         import dlt
         import os
