@@ -1,5 +1,7 @@
 import dlt
 import pytest
+from unittest.mock import patch, MagicMock
+from requests import Response, Request
 
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContainer
 
@@ -149,3 +151,109 @@ def test_dependent_resource(destination_name: str, invocation_type: str) -> None
     }
 
     assert table_counts["pokemon"] == 2
+
+
+@pytest.mark.parametrize("destination_name", ALL_DESTINATIONS)
+@pytest.mark.parametrize("invocation_type", ("deco", "factory"))
+@patch("dlt.sources.helpers.rest_client.client.RESTClient._send_request")
+def test_request_headers(mock: MagicMock, destination_name: str, invocation_type: str) -> None:
+    mock_resp = Response()
+    mock_resp.status_code = 200
+    mock_resp.json = lambda: {"success": "ok"}
+    mock.return_value = mock_resp
+
+    @dlt.resource
+    def authenticate():
+        yield [{"token": 1}]
+
+    base_url = "https://api.example.com"
+    config: RESTAPIConfig = {
+        "client": {
+            "base_url": base_url,
+            "headers": {"foo": "bar"}
+        },
+        "resources": [
+            {
+                "name": "chicken",
+                "endpoint": {
+                    "path": "chicken",
+                    "headers": {"token": "{token}", "num": "2"},
+                    "params": {
+                        "token": {
+                            "type": "resolve",
+                            "field": "token",
+                            "resource": "authenticate",
+                        },
+                    },
+                },
+            },
+            authenticate(),
+        ],
+    }
+
+    if invocation_type == "deco":
+        data = rest_api(**config)
+    else:
+        data = rest_api_source(config)
+    pipeline = _make_pipeline(destination_name)
+    pipeline.run(data)
+
+    mock.assert_called()
+    args, kwargs = mock.call_args
+    request_param: Request = args[0]
+
+    assert request_param.url == f"{base_url}/chicken"
+    assert request_param.headers == {"foo": "bar", "token": "1", "num": "2"}
+
+
+@pytest.mark.parametrize("destination_name", ALL_DESTINATIONS)
+@pytest.mark.parametrize("invocation_type", ("deco", "factory"))
+@patch("dlt.sources.helpers.rest_client.client.RESTClient._send_request")
+def test_request_headers_dynamic_key(mock: MagicMock, destination_name: str, invocation_type: str) -> None:
+    mock_resp = Response()
+    mock_resp.status_code = 200
+    mock_resp.json = lambda: {"success": "ok"}
+    mock.return_value = mock_resp
+
+    @dlt.resource
+    def authenticate():
+        yield [{"token": 1}]
+
+    base_url = "https://api.example.com"
+    config: RESTAPIConfig = {
+        "client": {
+            "base_url": base_url,
+            "headers": {"foo": "bar"}
+        },
+        "resources": [
+            {
+                "name": "chicken",
+                "endpoint": {
+                    "path": "chicken",
+                    "headers": {"{token}": "{token}", "num": "2"},
+                    "params": {
+                        "token": {
+                            "type": "resolve",
+                            "field": "token",
+                            "resource": "authenticate",
+                        },
+                    },
+                },
+            },
+            authenticate(),
+        ],
+    }
+
+    if invocation_type == "deco":
+        data = rest_api(**config)
+    else:
+        data = rest_api_source(config)
+    pipeline = _make_pipeline(destination_name)
+    pipeline.run(data)
+
+    mock.assert_called()
+    args, kwargs = mock.call_args
+    request_param: Request = args[0]
+
+    assert request_param.url == f"{base_url}/chicken"
+    assert request_param.headers == {"foo": "bar", "1": "1", "num": "2"}

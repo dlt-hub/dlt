@@ -259,6 +259,7 @@ class Endpoint(TypedDict, total=False):
     method: Optional[HTTPMethodBasic]
     params: Optional[Dict[str, Union[ResolveParamConfig, IncrementalParamConfig, Any]]]
     json: Optional[Dict[str, Any]]
+    headers: Optional[Dict[str, Any]]
     paginator: Optional[PaginatorConfig]
     data_selector: Optional[jsonpath.TJsonPath]
     response_actions: Optional[List[ResponseAction]]

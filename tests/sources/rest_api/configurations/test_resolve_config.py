@@ -1,15 +1,16 @@
 import re
 from copy import deepcopy
-
 import pytest
 from graphlib import CycleError  # type: ignore
 
+import dtl
 from dlt.sources.rest_api import (
     rest_api_resources,
     rest_api_source,
 )
 from dlt.sources.rest_api.config_setup import (
     _bind_path_params,
+    _bind_header_params,
     process_parent_data_item,
 )
 from dlt.sources.rest_api.typing import (
@@ -351,3 +352,18 @@ def test_circular_resource_bindingis_invalid() -> None:
     with pytest.raises(CycleError) as e:
         rest_api_resources(config)
     assert e.match(re.escape("'nodes are in a cycle', ['chicken', 'egg', 'chicken']"))
+
+
+def test_bind_header_params() -> None:
+    resource_with_headers: EndpointResource = {
+        "name": "test_resource",
+        "endpoint": {
+            "path": "test/path",
+            "headers": {"Authorization": "{token}"},
+            "params": {
+                "token": "test_token",
+            },
+        },
+    }
+    _bind_header_params(resource_with_headers)
+    assert resource_with_headers["endpoint"]["headers"]["Authorization"] == "test_token"

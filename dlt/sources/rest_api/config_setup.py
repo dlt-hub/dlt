@@ -330,6 +330,7 @@ def expand_and_index_resources(
         assert isinstance(endpoint_resource["endpoint"], dict)
         _setup_single_entity_endpoint(endpoint_resource["endpoint"])
         _bind_path_params(endpoint_resource)
+        _bind_header_params(endpoint_resource)
 
         resource_name = endpoint_resource["name"]
         assert isinstance(
@@ -410,13 +411,44 @@ def _bind_path_params(resource: EndpointResource) -> None:
                     # resolved params are bound later
                     path_params[name] = "{" + name + "}"
 
-    if len(resolve_params) > 0:
-        raise NotImplementedError(
-            f"Resource {resource['name']} defines resolve params {resolve_params} that are not"
-            f" bound in path {path}. Resolve query params not supported yet."
-        )
-
     resource["endpoint"]["path"] = path.format(**path_params)
+
+
+def _bind_header_params(resource: EndpointResource) -> None:
+    """Binds params declared in headers to params available in `params`. Pops the
+    bound params but skips params of type `resolve` and `incremental`, which are bound later.
+    """
+    header_params: Dict[str, Any] = {}
+    assert isinstance(resource["endpoint"], dict)  # type guard
+    headers = resource["endpoint"].get("headers", {})
+    params = resource["endpoint"].get("params", {})
+    resolve_params = [r.param_name for r in _find_resolved_params(resource["endpoint"])]
+
+    for header_key, header_value in headers.items():
+        if isinstance(header_value, str) and header_value.startswith("{") and header_value.endswith("}"):
+            param_name = header_value.strip("{}")
+            if param_name not in params:
+                raise ValueError(
+                    f"The header '{header_key}' in resource '{resource['name']}' requires a param with "
+                    f"name '{param_name}' but it is not found in {params}."
+                )
+            if param_name in resolve_params:
+                resolve_params.remove(param_name)
+            if param_name in params:
+                if not isinstance(params[param_name], dict):
+                    # Bind the header param and pop it from params
+                    header_params[header_key] = params.pop(param_name)
+                else:
+                    param_type = params[param_name].get("type")
+                    if param_type != "resolve":
+                        raise ValueError(
+                            f"The header '{header_key}' in resource '{resource['name']}' tries to bind param "
+                            f"'{param_name}' with type '{param_type}'. Headers can only bind 'resolve' type params."
+                        )
+                    # Resolved params are bound later
+                    header_params[header_key] = "{" + param_name + "}"
+
+    resource["endpoint"]["headers"] = {**headers, **header_params}
 
 
 def _setup_single_entity_endpoint(endpoint: Endpoint) -> Endpoint:
@@ -569,12 +601,14 @@ def create_response_hooks(
     return None
 
 
+
 def process_parent_data_item(
     path: str,
+    headers: Dict[str, Any],
     item: Dict[str, Any],
     resolved_params: List[ResolvedParam],
     include_from_parent: List[str],
-) -> Tuple[str, Dict[str, Any]]:
+) -> Tuple[str, Dict[str, Any], Dict[str, Any]]:
     parent_resource_name = resolved_params[0].resolve_config["resource"]
 
     param_values = {}
@@ -594,6 +628,11 @@ def process_parent_data_item(
         param_values[resolved_param.param_name] = field_values[0]
 
     bound_path = path.format(**param_values)
+    formatted_headers = {}
+    for k, v in headers.items():
+        key = k if not isinstance(k, str) else k.format(**param_values)
+        val = v if not isinstance(v, str) else v.format(**param_values)
+        formatted_headers[key] = val
 
     parent_record: Dict[str, Any] = {}
     if include_from_parent:
@@ -607,7 +646,7 @@ def process_parent_data_item(
                 )
             parent_record[child_key] = item[parent_key]
 
-    return bound_path, parent_record
+    return bound_path, formatted_headers, parent_record
 
 
 def _merge_resource_endpoints(
