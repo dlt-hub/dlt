@@ -166,6 +166,85 @@ def test_process_parent_data_item() -> None:
     assert "Transformer expects a field 'issue'" in str(val_ex.value)
 
 
+def test_process_parent_data_item_headers() -> None:
+    resolve_params = [
+        ResolvedParam("token", {"field": "token", "resource": "authenticate", "type": "resolve"})
+    ]
+    _, resolved_headers, parent_record = process_parent_data_item(
+        "chicken",
+        {"token": 12345},
+        resolve_params,
+        None,
+        {"Authorization": "{token}"},
+    )
+    assert resolved_headers == {"Authorization": "12345"}
+
+    # multiple params
+    resolve_params = [
+        ResolvedParam("token", {"field": "token", "resource": "authenticate", "type": "resolve"}),
+        ResolvedParam("num", {"field": "num", "resource": "authenticate", "type": "resolve"}),
+    ]
+    _, resolved_headers, parent_record = process_parent_data_item(
+        "chicken",
+        {"token": 12345, "num": 2},
+        resolve_params,
+        None,
+        {"Authorization": "{token}", "num": "{num}"},
+    )
+    assert resolved_headers == {"Authorization": "12345", "num": "2"}
+
+    # nested params
+    resolve_params = [
+        ResolvedParam("token", {"field": "auth.token", "resource": "authenticate", "type": "resolve"}),
+        ResolvedParam("num", {"field": "auth.num", "resource": "authenticate", "type": "resolve"}),
+    ]
+    _, resolved_headers, parent_record = process_parent_data_item(
+        "chicken",
+        {"auth": {"token": 12345, "num": 2}},
+        resolve_params,
+        None,
+        {"Authorization": "{token}", "num": "{num}"},
+    )
+    assert resolved_headers == {"Authorization": "12345", "num": "2"}
+
+    # nested header dict
+    resolve_params = [
+        ResolvedParam("token", {"field": "auth.token", "resource": "authenticate", "type": "resolve"})
+    ]
+    _, resolved_headers, parent_record = process_parent_data_item(
+        "chicken",
+        {"auth": {"token": 12345}},
+        resolve_params,
+        None,
+        {"Authorization": {"Bearer": "{token}"}},
+    )
+    assert resolved_headers == {"Authorization": {"Bearer": "12345"}}
+
+    # nested header list
+    resolve_params = [
+        ResolvedParam("token", {"field": "auth.token", "resource": "authenticate", "type": "resolve"})
+    ]
+    _, resolved_headers, parent_record = process_parent_data_item(
+        "chicken",
+        {"auth": {"token": 12345}},
+        resolve_params,
+        None,
+        {"Authorization": ["Bearer", "{token}"]},
+    )
+    assert resolved_headers == {"Authorization": ["Bearer", "12345"]}
+
+    # param path not found
+    with pytest.raises(ValueError) as val_ex:
+        _, _, parent_record = process_parent_data_item(
+            "chicken",
+            {"_token": 12345},
+            resolve_params,
+            None,
+            {"Authorization": "{token}"},
+        )
+    assert "Transformer expects a field 'auth.token'" in str(val_ex.value)
+
+
 def test_two_resources_can_depend_on_one_parent_resource() -> None:
     user_id = {
         "user_id": {
