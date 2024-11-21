@@ -83,7 +83,9 @@ def test_bind_path_param() -> None:
     # resolved param will remain unbounded and
     tp_6 = deepcopy(three_params)
     tp_6["endpoint"]["path"] = "{org}/{repo}/issues/1234/comments"  # type: ignore[index]
-    _bind_path_params(tp_6)  # Does not raise because headers are now supported... and so are query params because they reside in the URL
+    _bind_path_params(
+        tp_6
+    )  # Does not raise because headers are now supported... and so are query params because they reside in the URL
 
 
 def test_process_parent_data_item() -> None:
