@@ -144,3 +144,12 @@ local_cache/
 
 # test file for examples are generated and should not be committed
 docs/examples/**/test*.py
+# Devenv
+.devenv*
+devenv.local.nix
+
+# direnv
+.direnv
+
+# pre-commit
+.pre-commit-config.yaml
