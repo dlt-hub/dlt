@@ -3766,18 +3766,18 @@ def test_incremental_table_hint_merged_columns(use_dict: bool) -> None:
         )
     )
     def some_data():
-        yield [{"col_a": i, "foo": i+ 2, "col_b": i + 1, "bar": i+3} for i in range(10)]
+        yield [{"col_a": i, "foo": i + 2, "col_b": i + 1, "bar": i + 3} for i in range(10)]
 
     pipeline = dlt.pipeline(pipeline_name=uniq_id())
     pipeline.extract(some_data())
 
     table_schema = pipeline.default_schema.tables["some_data"]
-    assert table_schema['columns']['col_a']['incremental'] == {
+    assert table_schema["columns"]["col_a"]["incremental"] == {
         "allow_external_schedulers": False,
         "cursor_path": "col_a",
         "initial_value": 3,
         "last_value_func": "min",
-        "on_cursor_value_missing": "raise"
+        "on_cursor_value_missing": "raise",
     }
 
     rs = some_data()
@@ -3792,13 +3792,13 @@ def test_incremental_table_hint_merged_columns(use_dict: bool) -> None:
     table_schema_2 = pipeline.default_schema.tables["some_data"]
 
     # Only one column should have the hint
-    assert 'incremental' not in table_schema_2['columns']['col_a']
-    assert table_schema_2['columns']['col_b']['incremental'] == {
+    assert "incremental" not in table_schema_2["columns"]["col_a"]
+    assert table_schema_2["columns"]["col_b"]["incremental"] == {
         "allow_external_schedulers": False,
         "cursor_path": "col_b",
         "initial_value": 5,
         "last_value_func": "max",
-        "on_cursor_value_missing": "raise"
+        "on_cursor_value_missing": "raise",
     }
 
 
@@ -3810,7 +3810,7 @@ def test_incremental_column_hint_cursor_is_not_column(use_dict: bool):
         )
     )
     def some_data():
-        yield [{"col_a": i, "foo": i+ 2, "col_b": i + 1, "bar": i+3} for i in range(10)]
+        yield [{"col_a": i, "foo": i + 2, "col_b": i + 1, "bar": i + 3} for i in range(10)]
 
     pipeline = dlt.pipeline(pipeline_name=uniq_id())
 
@@ -3818,5 +3818,5 @@ def test_incremental_column_hint_cursor_is_not_column(use_dict: bool):
 
     table_schema = pipeline.default_schema.tables["some_data"]
 
-    for col in table_schema['columns'].values():
-        assert 'incremental' not in col
+    for col in table_schema["columns"].values():
+        assert "incremental" not in col

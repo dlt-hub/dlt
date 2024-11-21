@@ -237,7 +237,7 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                         hint = hint.incremental
                     # sometimes internal incremental is not bound
                     if hint:
-                        hints[name] = hint.to_table_hint()
+                        hints[name] = hint.to_table_hint()  # type: ignore[attr-defined]
                     continue
                 if name == "original_columns":
                     # this is original type of the columns ie. Pydantic model
