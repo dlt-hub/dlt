@@ -607,7 +607,7 @@ def generic_format(input: Union[dict, str, list], param_values) -> Union[dict, s
         return [generic_format(item, param_values) for item in input]
     if isinstance(input, str):
         return input.format(**param_values)
-    raise NotImplementedError(f"Param resolution formatting not supported for type: {type(input)}")
+    return str(input)
 
 
 def process_parent_data_item(
