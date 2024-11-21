@@ -195,7 +195,9 @@ def test_process_parent_data_item_headers() -> None:
 
     # nested params
     resolve_params = [
-        ResolvedParam("token", {"field": "auth.token", "resource": "authenticate", "type": "resolve"}),
+        ResolvedParam(
+            "token", {"field": "auth.token", "resource": "authenticate", "type": "resolve"}
+        ),
         ResolvedParam("num", {"field": "auth.num", "resource": "authenticate", "type": "resolve"}),
     ]
     _, resolved_headers, parent_record = process_parent_data_item(
@@ -209,7 +211,9 @@ def test_process_parent_data_item_headers() -> None:
 
     # nested header dict
     resolve_params = [
-        ResolvedParam("token", {"field": "auth.token", "resource": "authenticate", "type": "resolve"})
+        ResolvedParam(
+            "token", {"field": "auth.token", "resource": "authenticate", "type": "resolve"}
+        )
     ]
     _, resolved_headers, parent_record = process_parent_data_item(
         "chicken",
@@ -222,7 +226,9 @@ def test_process_parent_data_item_headers() -> None:
 
     # nested header list
     resolve_params = [
-        ResolvedParam("token", {"field": "auth.token", "resource": "authenticate", "type": "resolve"})
+        ResolvedParam(
+            "token", {"field": "auth.token", "resource": "authenticate", "type": "resolve"}
+        )
     ]
     _, resolved_headers, parent_record = process_parent_data_item(
         "chicken",
