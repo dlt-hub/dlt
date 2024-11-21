@@ -224,6 +224,48 @@ def test_pipeline_parquet_filesystem_destination() -> None:
         assert table.column("value").to_pylist() == [1, 2, 3, 4, 5]
 
 
+# here start the `table_format` tests
+
+
+def get_expected_actual(
+    pipeline: dlt.Pipeline,
+    table_name: str,
+    table_format: TTableFormat,
+    arrow_table: "pyarrow.Table",  # type: ignore[name-defined] # noqa: F821
+) -> Tuple["pyarrow.Table", "pyarrow.Table"]:  # type: ignore[name-defined] # noqa: F821
+    from dlt.common.libs.pyarrow import pyarrow, cast_arrow_schema_types
+
+    if table_format == "delta":
+        from dlt.common.libs.deltalake import (
+            get_delta_tables,
+            ensure_delta_compatible_arrow_data,
+        )
+
+        dt = get_delta_tables(pipeline, table_name)[table_name]
+        expected = ensure_delta_compatible_arrow_data(arrow_table)
+        actual = dt.to_pyarrow_table()
+    elif table_format == "iceberg":
+        from dlt.common.libs.pyiceberg import (
+            get_iceberg_tables,
+            ensure_iceberg_compatible_arrow_data,
+        )
+
+        it = get_iceberg_tables(pipeline, table_name)[table_name]
+        expected = ensure_iceberg_compatible_arrow_data(arrow_table)
+        actual = it.scan().to_arrow()
+
+        # work around pyiceberg bug https://github.com/apache/iceberg-python/issues/1128
+        schema = cast_arrow_schema_types(
+            actual.schema,
+            {
+                pyarrow.types.is_large_string: pyarrow.string(),
+                pyarrow.types.is_large_binary: pyarrow.binary(),
+            },
+        )
+        actual = actual.cast(schema)
+    return (expected, actual)
+
+
 @pytest.mark.skip(
     reason="pyarrow version check not needed anymore, since we have 17 as a dependency"
 )
@@ -693,40 +735,7 @@ def test_table_format_schema_evolution(
     }:
         pytest.skip("`upsert` currently not implemented for `iceberg`")
 
-    from dlt.common.libs.pyarrow import pyarrow, cast_arrow_schema_types
-
-    def get_expected_actual(
-        table_name: str, table_format: TTableFormat, arrow_table: pyarrow.Table
-    ) -> Tuple[pyarrow.Table, pyarrow.Table]:
-        if table_format == "delta":
-            from dlt.common.libs.deltalake import (
-                get_delta_tables,
-                ensure_delta_compatible_arrow_data,
-            )
-
-            dt = get_delta_tables(pipeline, table_name)[table_name]
-            expected = ensure_delta_compatible_arrow_data(arrow_table)
-            actual = dt.to_pyarrow_table()
-        elif table_format == "iceberg":
-            from dlt.common.libs.pyiceberg import (
-                get_iceberg_tables,
-                ensure_iceberg_compatible_arrow_data,
-            )
-
-            it = get_iceberg_tables(pipeline, table_name)[table_name]
-            expected = ensure_iceberg_compatible_arrow_data(arrow_table)
-            actual = it.scan().to_arrow()
-
-            # work around pyiceberg bug https://github.com/apache/iceberg-python/issues/1128
-            schema = cast_arrow_schema_types(
-                actual.schema,
-                {
-                    pyarrow.types.is_large_string: pyarrow.string(),
-                    pyarrow.types.is_large_binary: pyarrow.binary(),
-                },
-            )
-            actual = actual.cast(schema)
-        return (expected, actual)
+    from dlt.common.libs.pyarrow import pyarrow
 
     @dlt.resource(
         write_disposition=write_disposition,
@@ -748,7 +757,7 @@ def test_table_format_schema_evolution(
     info = pipeline.run(evolving_table(arrow_table))
     assert_load_info(info)
     expected, actual = get_expected_actual(
-        "evolving_table", destination_config.table_format, arrow_table
+        pipeline, "evolving_table", destination_config.table_format, arrow_table
     )
     assert actual.equals(expected)
 
@@ -767,7 +776,7 @@ def test_table_format_schema_evolution(
     info = pipeline.run(evolving_table(arrow_table))
     assert_load_info(info)
     expected, actual = get_expected_actual(
-        "evolving_table", destination_config.table_format, arrow_table
+        pipeline, "evolving_table", destination_config.table_format, arrow_table
     )
     if write_disposition == "append":
         # just check shape and schema for `append`, because table comparison is
@@ -788,7 +797,7 @@ def test_table_format_schema_evolution(
     info = pipeline.run(evolving_table(empty_arrow_table))
     assert_load_info(info)
     expected, actual = get_expected_actual(
-        "evolving_table", destination_config.table_format, arrow_table
+        pipeline, "evolving_table", destination_config.table_format, arrow_table
     )
     assert actual.schema.equals(expected.schema)
     if write_disposition == "append":
@@ -811,23 +820,38 @@ def test_table_format_schema_evolution(
     "destination_config",
     destinations_configs(
         table_format_filesystem_configs=True,
-        with_table_format="delta",
+        with_table_format=("delta", "iceberg"),
         bucket_subset=(FILE_BUCKET, AZ_BUCKET),
     ),
     ids=lambda x: x.name,
 )
-def test_delta_table_empty_source(
+def test_table_format_empty_source(
     destination_config: DestinationTestConfiguration,
 ) -> None:
-    """Tests empty source handling for `delta` table format.
+    """Tests empty source handling for `delta` and `iceberg` table formats.
 
     Tests both empty Arrow table and `dlt.mark.materialize_table_schema()`.
     """
-    from dlt.common.libs.deltalake import ensure_delta_compatible_arrow_data, get_delta_tables
     from tests.pipeline.utils import users_materialize_table_schema
 
-    @dlt.resource(table_format="delta")
-    def delta_table(data):
+    def get_table_version(  # type: ignore[return]
+        pipeline: dlt.Pipeline,
+        table_name: str,
+        table_format: TTableFormat,
+    ) -> int:
+        if table_format == "delta":
+            from dlt.common.libs.deltalake import get_delta_tables
+
+            dt = get_delta_tables(pipeline, table_name)[table_name]
+            return dt.version()
+        elif table_format == "iceberg":
+            from dlt.common.libs.pyiceberg import get_iceberg_tables
+
+            it = get_iceberg_tables(pipeline, table_name)[table_name]
+            return it.last_sequence_number - 1  # subtract 1 to match `delta`
+
+    @dlt.resource(table_format=destination_config.table_format)
+    def a_table(data):
         yield data
 
     # create empty Arrow table with schema
@@ -847,49 +871,49 @@ def test_delta_table_empty_source(
 
     # run 1: empty Arrow table with schema
     # this should create empty Delta table with same schema as Arrow table
-    info = pipeline.run(delta_table(empty_arrow_table))
+    info = pipeline.run(a_table(empty_arrow_table))
     assert_load_info(info)
-    dt = get_delta_tables(pipeline, "delta_table")["delta_table"]
-    assert dt.version() == 0
-    dt_arrow_table = dt.to_pyarrow_table()
-    assert dt_arrow_table.shape == (0, empty_arrow_table.num_columns)
-    assert dt_arrow_table.schema.equals(
-        ensure_delta_compatible_arrow_data(empty_arrow_table).schema
+    assert get_table_version(pipeline, "a_table", destination_config.table_format) == 0
+    expected, actual = get_expected_actual(
+        pipeline, "a_table", destination_config.table_format, empty_arrow_table
     )
+    assert actual.shape == (0, expected.num_columns)
+    assert actual.schema.equals(expected.schema)
 
     # run 2: non-empty Arrow table with same schema as run 1
     # this should load records into Delta table
-    info = pipeline.run(delta_table(arrow_table))
+    info = pipeline.run(a_table(arrow_table))
     assert_load_info(info)
-    dt = get_delta_tables(pipeline, "delta_table")["delta_table"]
-    assert dt.version() == 1
-    dt_arrow_table = dt.to_pyarrow_table()
-    assert dt_arrow_table.shape == (2, empty_arrow_table.num_columns)
-    assert dt_arrow_table.schema.equals(
-        ensure_delta_compatible_arrow_data(empty_arrow_table).schema
+    assert get_table_version(pipeline, "a_table", destination_config.table_format) == 1
+    expected, actual = get_expected_actual(
+        pipeline, "a_table", destination_config.table_format, empty_arrow_table
     )
+    assert actual.shape == (2, expected.num_columns)
+    assert actual.schema.equals(expected.schema)
 
     # now run the empty frame again
-    info = pipeline.run(delta_table(empty_arrow_table))
+    info = pipeline.run(a_table(empty_arrow_table))
     assert_load_info(info)
 
-    # use materialized list
-    # NOTE: this will create an empty parquet file with a schema takes from dlt schema.
-    # the original parquet file had a nested (struct) type in `json` field that is now
-    # in the delta table schema. the empty parquet file lost this information and had
-    # string type (converted from dlt `json`)
-    info = pipeline.run([dlt.mark.materialize_table_schema()], table_name="delta_table")
-    assert_load_info(info)
+    if destination_config.table_format == "delta":
+        # use materialized list
+        # NOTE: this will create an empty parquet file with a schema takes from dlt schema.
+        # the original parquet file had a nested (struct) type in `json` field that is now
+        # in the delta table schema. the empty parquet file lost this information and had
+        # string type (converted from dlt `json`)
+        info = pipeline.run([dlt.mark.materialize_table_schema()], table_name="a_table")
+        assert_load_info(info)
 
     # test `dlt.mark.materialize_table_schema()`
-    users_materialize_table_schema.apply_hints(table_format="delta")
+    users_materialize_table_schema.apply_hints(table_format=destination_config.table_format)
     info = pipeline.run(users_materialize_table_schema(), loader_file_format="parquet")
     assert_load_info(info)
-    dt = get_delta_tables(pipeline, "users")["users"]
-    assert dt.version() == 0
-    dt_arrow_table = dt.to_pyarrow_table()
-    assert dt_arrow_table.num_rows == 0
-    assert "id", "name" == dt_arrow_table.schema.names[:2]
+    assert get_table_version(pipeline, "users", destination_config.table_format) == 0
+    _, actual = get_expected_actual(
+        pipeline, "users", destination_config.table_format, empty_arrow_table
+    )
+    assert actual.num_rows == 0
+    assert "id", "name" == actual.schema.names[:2]
 
 
 @pytest.mark.parametrize(
