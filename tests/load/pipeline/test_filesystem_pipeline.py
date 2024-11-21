@@ -429,17 +429,17 @@ def test_delta_table_multiple_files(
     "destination_config",
     destinations_configs(
         table_format_filesystem_configs=True,
-        with_table_format="delta",
+        with_table_format=("delta", "iceberg"),
         bucket_subset=(FILE_BUCKET),
     ),
     ids=lambda x: x.name,
 )
-def test_delta_table_child_tables(
+def test_table_format_child_tables(
     destination_config: DestinationTestConfiguration,
 ) -> None:
-    """Tests child table handling for `delta` table format."""
+    """Tests child table handling for `delta` and `iceberg` table formats."""
 
-    @dlt.resource(table_format="delta")
+    @dlt.resource(table_format=destination_config.table_format)
     def nested_table():
         yield [
             {
@@ -501,15 +501,16 @@ def test_delta_table_child_tables(
     assert len(rows_dict["nested_table__child"]) == 3
     assert len(rows_dict["nested_table__child__grandchild"]) == 5
 
-    # now drop children and grandchildren, use merge write disposition to create and pass full table chain
-    # also for tables that do not have jobs
-    info = pipeline.run(
-        [{"foo": 3}] * 10000,
-        table_name="nested_table",
-        primary_key="foo",
-        write_disposition="merge",
-    )
-    assert_load_info(info)
+    if destination_config.supports_merge:
+        # now drop children and grandchildren, use merge write disposition to create and pass full table chain
+        # also for tables that do not have jobs
+        info = pipeline.run(
+            [{"foo": 3}] * 10000,
+            table_name="nested_table",
+            primary_key="foo",
+            write_disposition="merge",
+        )
+        assert_load_info(info)
 
 
 @pytest.mark.parametrize(
