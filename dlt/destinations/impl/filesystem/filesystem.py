@@ -242,9 +242,7 @@ class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
 
     @property
     def table_identifier(self) -> str:
-        from dlt.common.libs.pyiceberg import DLT_ICEBERG_NAMESPACE
-
-        return f"{DLT_ICEBERG_NAMESPACE}.{self.load_table_name}"
+        return f"{self._job_client.dataset_name}.{self.load_table_name}"
 
 
 class FilesystemLoadJobWithFollowup(HasFollowupJobs, FilesystemLoadJob):

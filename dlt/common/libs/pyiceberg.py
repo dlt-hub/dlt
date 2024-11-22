@@ -1,5 +1,4 @@
-from typing import Dict, Any, List
-import os
+from typing import Dict, Any, List, Optional
 
 from dlt import version, Pipeline
 from dlt.common.libs.pyarrow import cast_arrow_schema_types, columns_to_arrow
@@ -26,9 +25,6 @@ except ModuleNotFoundError:
         [f"{version.DLT_PKG_NAME}[pyiceberg]"],
         "Install `pyiceberg` so dlt can create Iceberg tables in the `filesystem` destination.",
     )
-
-
-DLT_ICEBERG_NAMESPACE = "dlt"
 
 
 def ensure_iceberg_compatible_arrow_schema(schema: pa.Schema) -> pa.Schema:
@@ -58,6 +54,7 @@ def write_iceberg_table(
 def get_catalog(
     client: FilesystemClient,
     table_name: str,
+    namespace_name: Optional[str] = None,
     schema: pa.Schema = None,
     partition_columns: List[str] = None,
 ) -> SqlCatalog:
@@ -69,10 +66,14 @@ def get_catalog(
         uri="sqlite:///:memory:",
         **_get_fileio_config(client.config.credentials),
     )
-    catalog.create_namespace(DLT_ICEBERG_NAMESPACE)
+
+    # create namespace
+    if namespace_name is None:
+        namespace_name = client.dataset_name
+    catalog.create_namespace(namespace_name)
 
     # add table to catalog
-    table_id = f"{DLT_ICEBERG_NAMESPACE}.{table_name}"
+    table_id = f"{namespace_name}.{table_name}"
     table_path = f"{client.dataset_path}/{table_name}"
     metadata_path = f"{table_path}/metadata"
     if client.fs_client.exists(metadata_path):
@@ -127,7 +128,7 @@ def get_iceberg_tables(
             schema_iceberg_tables = [t for t in schema_iceberg_tables if t in tables]
 
         return {
-            name: get_catalog(client, name).load_table(f"{DLT_ICEBERG_NAMESPACE}.{name}")
+            name: get_catalog(client, name).load_table(f"{pipeline.dataset_name}.{name}")
             for name in schema_iceberg_tables
         }
 
