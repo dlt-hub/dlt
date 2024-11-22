@@ -291,6 +291,7 @@ def create_resources(
             def paginate_resource(
                 method: HTTPMethodBasic,
                 path: str,
+                headers: Dict[str, Any],
                 params: Dict[str, Any],
                 json: Optional[Dict[str, Any]],
                 paginator: Optional[BasePaginator],
@@ -313,6 +314,7 @@ def create_resources(
 
                 yield from client.paginate(
                     method=method,
+                    headers=headers,
                     path=path,
                     params=params,
                     json=json,
@@ -327,6 +329,7 @@ def create_resources(
             )(
                 method=endpoint_config.get("method", "get"),
                 path=endpoint_config.get("path"),
+                headers=endpoint_config.get("headers"),
                 params=request_params,
                 json=request_json,
                 paginator=paginator,

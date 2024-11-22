@@ -128,6 +128,7 @@ class RESTClient:
         logger.info(
             f"Making {request.method.upper()} request to {request.url}"
             f" with params={request.params}, json={request.json}"
+            f" with headers={request.headers}"
         )
 
         prepared_request = self.session.prepare_request(request)
