@@ -14,6 +14,7 @@ from dlt.common.utils import (
     digest128,
     graph_edges_to_nodes,
     group_dict_of_lists,
+    is_typeerror_due_to_wrong_call,
     map_nested_in_place,
     reveal_pseudo_secret,
     obfuscate_pseudo_secret,
@@ -404,3 +405,38 @@ def test_group_dict_of_lists_various_length_lists():
     # Check if the sizes of the decomposed dicts are decreasing
     sizes = [len(d) for d in result]
     assert sizes == sorted(sizes, reverse=True), "Sizes of decomposed dicts are not decreasing"
+
+
+def function_test(a, b):
+    raise TypeError("wrong type")
+
+
+def test_is_typeerror_due_to_wrong_call() -> None:
+    def _function_test(a, *, b=None):
+        return a, b
+
+    try:
+        _function_test()  # type: ignore[call-arg]
+    except Exception as exc:
+        assert is_typeerror_due_to_wrong_call(exc, _function_test) is True
+
+    try:
+        _function_test("a", "b")  # type: ignore[misc]
+    except Exception as exc:
+        assert is_typeerror_due_to_wrong_call(exc, _function_test) is True
+
+    try:
+        1 / 0
+    except Exception as exc:
+        assert is_typeerror_due_to_wrong_call(exc, _function_test) is False
+
+    try:
+        function_test()  # type: ignore[call-arg]
+    except Exception as exc:
+        assert is_typeerror_due_to_wrong_call(exc, function_test) is True
+
+    try:
+        function_test("a", "b")
+    except Exception as exc:
+        assert str(exc) == "wrong type"
+        assert is_typeerror_due_to_wrong_call(exc, function_test) is False
