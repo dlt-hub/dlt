@@ -65,11 +65,11 @@ def validate_dict(
     # check missing props
     missing = set(required_props.keys()).difference(props.keys())
     if len(missing):
-        raise DictValidationException(f"following required fields are missing {missing}", path)
+        raise DictValidationException(f"following required fields are missing {missing}", doc, path)
     # check unknown props
     unexpected = set(props.keys()).difference(allowed_props.keys())
     if len(unexpected):
-        raise DictValidationException(f"following fields are unexpected {unexpected}", path)
+        raise DictValidationException(f"following fields are unexpected {unexpected}", doc, path)
 
     def verify_prop(pk: str, pv: Any, t: Any) -> None:
         # covers none in optional and union types
@@ -108,6 +108,7 @@ def validate_dict(
                         msg += f"For {get_type_name(failed.expected_type)}: " + str(failed) + "\n"
                     raise DictValidationException(
                         msg,
+                        doc,
                         path,
                         t,
                         pk,
@@ -118,13 +119,14 @@ def validate_dict(
             a_l = get_literal_args(t)
             if pv not in a_l:
                 raise DictValidationException(
-                    f"field '{pk}' with value {pv} is not one of: {a_l}", path, t, pk, pv
+                    f"field '{pk}' with value {pv} is not one of: {a_l}", doc, path, t, pk, pv
                 )
         elif t in [int, bool, str, float]:
             if not isinstance(pv, t):
                 raise DictValidationException(
                     f"field '{pk}' with value {pv} has invalid type '{type(pv).__name__}' while"
                     f" '{t.__name__}' is expected",
+                    doc,
                     path,
                     t,
                     pk,
@@ -135,6 +137,7 @@ def validate_dict(
                 raise DictValidationException(
                     f"field '{pk}' with value {pv} has invalid type '{type(pv).__name__}' while"
                     f" '{get_type_name(t)}' is expected",
+                    doc,
                     path,
                     t,
                     pk,
@@ -146,6 +149,7 @@ def validate_dict(
                 raise DictValidationException(
                     f"field '{pk}' with value {pv} has invalid type '{type(pv).__name__}' while"
                     " 'list' is expected",
+                    doc,
                     path,
                     t,
                     pk,
@@ -160,6 +164,7 @@ def validate_dict(
                 raise DictValidationException(
                     f"field '{pk}' with value {pv} has invalid type '{type(pv).__name__}' while"
                     " 'dict' is expected",
+                    doc,
                     path,
                     t,
                     pk,
@@ -170,7 +175,7 @@ def validate_dict(
             for d_k, d_v in pv.items():
                 if not isinstance(d_k, str):
                     raise DictValidationException(
-                        f"field '{pk}' with key {d_k} must be a string", path, t, pk, d_k
+                        f"field '{pk}' with key {d_k} must be a string", doc, path, t, pk, d_k
                     )
                 verify_prop(f"{pk}[{d_k}]", d_v, d_v_t)
         elif t is Any:
@@ -188,6 +193,7 @@ def validate_dict(
                 raise DictValidationException(
                     f"field '{pk}' expects callable (function or class instance) but got "
                     f" '{pv}'. Mind that signatures are not validated",
+                    doc,
                     path,
                     t,
                     pk,
@@ -203,6 +209,7 @@ def validate_dict(
                         raise DictValidationException(
                             f"field '{pk}' expects class '{type_name}' but got instance of"
                             f" '{pv_type_name}'",
+                            doc,
                             path,
                             t,
                             pk,
@@ -212,6 +219,7 @@ def validate_dict(
                 type_name = get_type_name(t)
                 raise DictValidationException(
                     f"field '{pk}' has expected type '{type_name}' which lacks validator",
+                    doc,
                     path,
                     t,
                     pk,
