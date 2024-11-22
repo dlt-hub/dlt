@@ -205,12 +205,15 @@ def test_general_sql_database_config(sql_source_db: SQLAlchemySourceDB) -> None:
 
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pandas", "pyarrow"])
-def test_text_query_adapter(sql_source_db: SQLAlchemySourceDB, backend: TableBackend) -> None:
+@pytest.mark.parametrize("add_new_columns", [True, False])
+def test_text_query_adapter(
+    sql_source_db: SQLAlchemySourceDB, backend: TableBackend, add_new_columns: bool
+) -> None:
     from dlt.common.libs.sql_alchemy import Table, sqltypes, sa, Engine, TextClause
     from dlt.sources.sql_database.helpers import SelectAny
     from dlt.extract.incremental import Incremental
 
-    def add_new_columns(table: Table) -> None:
+    def new_columns(table: Table) -> None:
         required_columns = [
             ("add_int", sqltypes.BigInteger, {"nullable": True}),
             ("add_text", sqltypes.Text, {"default": None, "nullable": True}),
@@ -243,7 +246,7 @@ def test_text_query_adapter(sql_source_db: SQLAlchemySourceDB, backend: TableBac
         schema=sql_source_db.schema,
         reflection_level="full",
         backend=backend,
-        table_adapter_callback=add_new_columns,
+        table_adapter_callback=new_columns if add_new_columns else None,
         query_adapter_callback=query_adapter,
         incremental=dlt.sources.incremental("updated_at"),
     )
@@ -267,6 +270,45 @@ def test_text_query_adapter(sql_source_db: SQLAlchemySourceDB, backend: TableBac
     assert "WHERE updated_at > :start_value" in last_query
     # no msgs were loaded, incremental got correctly rendered
     assert load_table_counts(pipeline, "chat_channel")["chat_channel"] == chn_count
+
+
+@pytest.mark.parametrize("backend", ["sqlalchemy", "pandas", "pyarrow"])
+def test_computed_column(sql_source_db: SQLAlchemySourceDB, backend: TableBackend) -> None:
+    from dlt.common.libs.sql_alchemy import Table, sa
+    from dlt.sources.sql_database.helpers import SelectAny
+
+    def add_max_timestamp(table: Table) -> SelectAny:
+        computed_max_timestamp = sa.func.greatest(table.c.created_at, table.c.updated_at).label(
+            "max_timestamp"
+        )
+        subquery = sa.select([table, computed_max_timestamp]).subquery()
+        return subquery
+
+    read_table = sql_table(
+        table="chat_message",
+        credentials=sql_source_db.credentials,
+        schema=sql_source_db.schema,
+        reflection_level="full",
+        backend=backend,
+        table_adapter_callback=add_max_timestamp,
+        incremental=dlt.sources.incremental("max_timestamp"),
+    )
+
+    pipeline = make_pipeline("duckdb")
+    info = pipeline.run(read_table)
+    assert_load_info(info)
+
+    msg_count = load_table_counts(pipeline, "chat_message")["chat_message"]
+    assert msg_count > 0
+
+    chat_channel_schema = pipeline.default_schema.get_table("chat_message")
+    # print(pipeline.default_schema.to_pretty_yaml())
+    assert "max_timestamp" in chat_channel_schema["columns"]
+    assert chat_channel_schema["columns"]["max_timestamp"]["data_type"] == "timestamp"
+
+    info = pipeline.run(read_table)
+    # no msgs were loaded, incremental got correctly rendered
+    assert load_table_counts(pipeline, "chat_message")["chat_message"] == msg_count
 
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pandas", "pyarrow", "connectorx"])

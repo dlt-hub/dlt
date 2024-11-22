@@ -31,7 +31,7 @@ source = sql_database(
 ).with_resources("orders")
 ```
 
-## Add computed columns, join other tables, pass custom queries
+## Write custom SQL custom queries
 We recommend that you create a SQL VIEW in your source database and extract data from it. In that case `dlt` will infer all column types and read data in
 shape you define in a view without any further customization.
 
@@ -88,6 +88,32 @@ table = sql_table(
 )
 ```
 
+## Add computed columns and custom incremental clauses
+
+You can add computed columns to the table definition by converting it into a subquery:
+```py
+def add_max_timestamp(table):
+    computed_max_timestamp = sa.func.greatest(table.c.created_at, table.c.updated_at).label('max_timestamp')
+    subquery = sa.select(
+        [table, computed_max_timestamp]
+    ).subquery()
+    return subquery
+```
+We add new `max_timestamp` column that is a MIN of `created_at` and `updated_at` columns and then convert it into a subquery
+because we intend to use it for incremental loading.
+
+```py
+import dlt
+from dlt.sources.sql_database import sql_table
+
+read_table = sql_table(
+    table="chat_message",
+    table_adapter_callback=add_max_timestamp,
+    incremental=dlt.sources.incremental("max_timestamp"),
+)
+```
+`dlt` will use your subquery instead of original `chat_message` table to generate incremental query. Note that you can further
+customize subquery with query adapter as in the example above.
 
 ## Transforming the data before load
 You have direct access to the extracted data through the resource objects (`sql_table()` or `sql_database().with_resource())`), each of which represents a single SQL table. These objects are generators that yield individual rows of the table, which can be modified by using custom Python functions. These functions can be applied to the resource using `add_map`.

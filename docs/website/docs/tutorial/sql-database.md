@@ -271,6 +271,6 @@ Congratulations on completing the tutorial! You learned how to set up a SQL Data
 
 Interested in learning more about dlt? Here are some suggestions:
 - Learn more about the SQL Database source configuration in [the SQL Database source reference](../dlt-ecosystem/verified-sources/sql_database)
-- Learn more about different credential types in [Built-in credentials](../general-usage/credentials/complex_types#built-in-credentials)
+- Learn how to extract [single tables and use fast `arrow` and `connectorx` backends](../dlt-ecosystem/verified-sources/sql_database/configuration.md)
+- Learn how to [rewrite table schemas and queries](../dlt-ecosystem/verified-sources/sql_database/usage.md)
 - Learn how to [create a custom source](./load-data-from-an-api.md) in the advanced tutorial
-

@@ -669,7 +669,7 @@ def row_tuples_to_arrow(
                     pa.field(
                         key,
                         arrow_col.type,
-                        nullable=columns[key]["nullable"],
+                        nullable=columns[key].get("nullable", True),
                     )
                 )
 

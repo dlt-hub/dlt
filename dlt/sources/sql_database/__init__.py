@@ -4,22 +4,23 @@ from typing import Callable, Dict, List, Optional, Union, Iterable, Any
 
 import dlt
 from dlt.common.configuration.specs import ConnectionStringCredentials
+from dlt.common.schema.typing import TWriteDispositionConfig
 from dlt.common.libs.sql_alchemy import MetaData, Table, Engine
 
 from dlt.extract import DltResource, Incremental, decorators
 
 from .helpers import (
+    _execute_table_adapter,
     table_rows,
     engine_from_credentials,
     TableBackend,
     SqlTableResourceConfiguration,
     _detect_precision_hints_deprecated,
     TQueryAdapter,
+    TTableAdapter,
 )
 from .schema_types import (
-    default_table_adapter,
     table_to_resource_hints,
-    get_primary_key,
     ReflectionLevel,
     TTypeAdapter,
 )
@@ -36,7 +37,7 @@ def sql_database(
     detect_precision_hints: Optional[bool] = False,
     reflection_level: Optional[ReflectionLevel] = "full",
     defer_table_reflect: Optional[bool] = None,
-    table_adapter_callback: Callable[[Table], None] = None,
+    table_adapter_callback: Optional[TTableAdapter] = None,
     backend_kwargs: Dict[str, Any] = None,
     include_views: bool = False,
     type_adapter_callback: Optional[TTypeAdapter] = None,
@@ -149,13 +150,14 @@ def sql_table(
     detect_precision_hints: Optional[bool] = None,
     reflection_level: Optional[ReflectionLevel] = "full",
     defer_table_reflect: Optional[bool] = None,
-    table_adapter_callback: Callable[[Table], None] = None,
+    table_adapter_callback: Optional[TTableAdapter] = None,
     backend_kwargs: Dict[str, Any] = None,
     type_adapter_callback: Optional[TTypeAdapter] = None,
     included_columns: Optional[List[str]] = None,
     query_adapter_callback: Optional[TQueryAdapter] = None,
     resolve_foreign_keys: bool = False,
     engine_adapter_callback: Callable[[Engine], Engine] = None,
+    write_disposition: TWriteDispositionConfig = "append",
 ) -> DltResource:
     """
     A dlt resource which loads data from an SQL database table using SQLAlchemy.
@@ -191,6 +193,7 @@ def sql_table(
             May incur additional database calls as all referenced tables are reflected.
         engine_adapter_callback (Callable[[Engine], Engine]): Callback to configure, modify and Engine instance that will be used to open a connection ie. to
             set transaction isolation level.
+        write_disposition (TWriteDispositionConfig): write disposition of the table resource, defaults to `append`.
 
     Returns:
         DltResource: The dlt resource for loading data from the SQL database table.
@@ -217,9 +220,7 @@ def sql_table(
 
     if table_obj is not None:
         if not defer_table_reflect:
-            default_table_adapter(table_obj, included_columns)
-            if table_adapter_callback:
-                table_adapter_callback(table_obj)
+            table_obj = _execute_table_adapter(table_obj, table_adapter_callback, included_columns)
         hints = table_to_resource_hints(
             table_obj,
             reflection_level,
@@ -230,7 +231,9 @@ def sql_table(
     else:
         hints = {}
 
-    return decorators.resource(table_rows, name=table, **hints)(
+    return decorators.resource(
+        table_rows, name=table, write_disposition=write_disposition, **hints
+    )(
         engine,
         table_obj if table_obj is not None else table,  # Pass table name if reflection deferred
         metadata,

@@ -5,6 +5,7 @@ from typing import (
     Callable,
     Any,
     Dict,
+    Iterable,
     List,
     Literal,
     Optional,
@@ -23,6 +24,7 @@ from dlt.common.exceptions import MissingDependencyException
 from dlt.common.schema import TTableSchemaColumns
 from dlt.common.typing import TDataItem, TSortOrder
 
+from dlt.common.utils import is_typeerror_due_to_wrong_call
 from dlt.extract import Incremental
 
 from .arrow_helpers import row_tuples_to_arrow
@@ -50,6 +52,7 @@ TQueryAdapter = Union[
     Callable[[SelectAny, Table], SelectClause],
     Callable[[SelectAny, Table, Incremental[Any], Engine], SelectClause],
 ]
+TTableAdapter = Callable[[Table], Optional[SelectAny]]
 
 
 class TableLoader:
@@ -143,13 +146,12 @@ class TableLoader:
                 return self.query_adapter_callback(  # type: ignore[call-arg]
                     self._make_query(), self.table, self.incremental, self.engine
                 )
-            except TypeError:
-                try:
-                    return self.query_adapter_callback(  # type: ignore[call-arg]
-                        self._make_query(), self.table
-                    )
-                except TypeError:
+            except TypeError as type_err:
+                if not is_typeerror_due_to_wrong_call(type_err, self.query_adapter_callback):
                     raise
+                return self.query_adapter_callback(  # type: ignore[call-arg]
+                    self._make_query(), self.table
+                )
 
         return self._make_query()
 
@@ -183,7 +185,9 @@ class TableLoader:
                     yield df
                 elif self.backend == "pyarrow":
                     yield row_tuples_to_arrow(
-                        partition, columns=self.columns, tz=backend_kwargs.get("tz", "UTC")
+                        partition,
+                        columns=_add_missing_columns(self.columns, columns),
+                        tz=backend_kwargs.get("tz", "UTC"),
                     )
 
     def _load_rows_connectorx(
@@ -225,7 +229,7 @@ def table_rows(
     chunk_size: int,
     backend: TableBackend,
     incremental: Optional[Incremental[Any]] = None,
-    table_adapter_callback: Callable[[Table], None] = None,
+    table_adapter_callback: TTableAdapter = None,
     reflection_level: ReflectionLevel = "minimal",
     backend_kwargs: Dict[str, Any] = None,
     type_adapter_callback: Optional[TTypeAdapter] = None,
@@ -241,10 +245,7 @@ def table_rows(
             extend_existing=True,
             resolve_fks=resolve_foreign_keys,
         )
-        default_table_adapter(table, included_columns)
-        if table_adapter_callback:
-            table_adapter_callback(table)
-
+        table = _execute_table_adapter(table, table_adapter_callback, included_columns)
         hints = table_to_resource_hints(
             table,
             reflection_level,
@@ -326,6 +327,33 @@ def unwrap_json_connector_x(field: str) -> TDataItem:
         return table.set_column(col_index, table.schema.field(col_index), column)
 
     return _unwrap
+
+
+def _add_missing_columns(
+    schema_columns: TTableSchemaColumns, result_columns: Iterable[str]
+) -> TTableSchemaColumns:
+    """Adds columns present in cursor but not present in schema"""
+    for column_name in result_columns:
+        if column_name not in schema_columns:
+            schema_columns[column_name] = {"name": column_name}
+    return schema_columns
+
+
+def _execute_table_adapter(
+    table: Table, adapter: Optional[TTableAdapter], included_columns: Optional[List[str]]
+) -> Table:
+    """Executes default table adapter on `table` and then `adapter` if defined"""
+    default_table_adapter(table, included_columns)
+    if adapter:
+        # backward compat: old adapters do not return a value
+        maybe_query = adapter(table)
+        if maybe_query is not None:
+            # here we ignore that returned table may be a Select (subquery)
+            # otherwise typing gets really complicated
+            # TODO: maybe type that later
+            table = maybe_query  # type: ignore[assignment]
+
+    return table
 
 
 def _detect_precision_hints_deprecated(value: Optional[bool]) -> None:

@@ -71,7 +71,8 @@ def sqla_col_to_column_schema(
     """
     col: TColumnSchema = {
         "name": sql_col.name,
-        "nullable": sql_col.nullable,
+        # NOTE: nullability info may not be available for subquery columns
+        "nullable": getattr(sql_col, "nullable", True),
     }
     if reflection_level == "minimal":
         # normalized into subtables
