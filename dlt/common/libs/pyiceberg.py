@@ -55,8 +55,8 @@ def get_catalog(
     client: FilesystemClient,
     table_name: str,
     namespace_name: Optional[str] = None,
-    schema: pa.Schema = None,
-    partition_columns: List[str] = None,
+    schema: Optional[pa.Schema] = None,
+    partition_columns: Optional[List[str]] = None,
 ) -> SqlCatalog:
     """Returns single-table, ephemeral, in-memory Iceberg catalog."""
 
@@ -101,7 +101,7 @@ def get_catalog(
 
 
 def get_iceberg_tables(
-    pipeline: Pipeline, *tables: str, schema_name: str = None
+    pipeline: Pipeline, *tables: str, schema_name: Optional[str] = None
 ) -> Dict[str, IcebergTable]:
     from dlt.common.schema.utils import get_table_format
 
