@@ -418,42 +418,20 @@ def _bind_header_params(resource: EndpointResource) -> None:
     """Binds params declared in headers to params available in `params`. Pops the
     bound params but skips params of type `resolve` and `incremental`, which are bound later.
     """
-    header_params: Dict[str, Any] = {}
     assert isinstance(resource["endpoint"], dict)  # type guard
-    headers = resource["endpoint"].get("headers", {})
     params = resource["endpoint"].get("params", {})
-    resolve_params = [r.param_name for r in _find_resolved_params(resource["endpoint"])]
+    bind_params = {}
+    # copy must be made because size of dict changes during iteration
+    params_iter = params.copy()
+    for k, v in params_iter.items():
+        if not isinstance(v, dict):
+            bind_params[k] = params.pop(k)
+        else:
+            # resolved params are bound later
+            bind_params[k] = "{" + k + "}"
 
-    for header_key, header_value in headers.items():
-        if (
-            isinstance(header_value, str)
-            and header_value.startswith("{")
-            and header_value.endswith("}")
-        ):
-            param_name = header_value.strip("{}")
-            if param_name not in params:
-                raise ValueError(
-                    f"The header '{header_key}' in resource '{resource['name']}' requires a param"
-                    f" with name '{param_name}' but it is not found in {params}."
-                )
-            if param_name in resolve_params:
-                resolve_params.remove(param_name)
-            if param_name in params:
-                if not isinstance(params[param_name], dict):
-                    # Bind the header param and pop it from params
-                    header_params[header_key] = params.pop(param_name)
-                else:
-                    param_type = params[param_name].get("type")
-                    if param_type != "resolve":
-                        raise ValueError(
-                            f"The header '{header_key}' in resource '{resource['name']}' tries to"
-                            f" bind param '{param_name}' with type '{param_type}'. Headers can only"
-                            " bind 'resolve' type params."
-                        )
-                    # Resolved params are bound later
-                    header_params[header_key] = "{" + param_name + "}"
-
-    resource["endpoint"]["headers"] = {**headers, **header_params}
+    headers = resource["endpoint"].get("headers", {})
+    resource["endpoint"]["headers"] = generic_format(headers, bind_params)  # type: ignore[typeddict-item]
 
 
 def _setup_single_entity_endpoint(endpoint: Endpoint) -> Endpoint:
@@ -611,7 +589,7 @@ def generic_format(
 ) -> Union[Dict[str, Any], str, List[Any]]:
     if isinstance(to_format, dict):
         return {
-            key.format(**param_values): generic_format(val, param_values)
+            generic_format(key, param_values): generic_format(val, param_values)  # type: ignore[misc]
             for key, val in to_format.items()
         }
     if isinstance(to_format, list):

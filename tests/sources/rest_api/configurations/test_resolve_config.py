@@ -452,3 +452,23 @@ def test_bind_header_params() -> None:
     }
     _bind_header_params(resource_with_headers)
     assert resource_with_headers["endpoint"]["headers"]["Authorization"] == "test_token"  # type: ignore[index]
+    assert len(resource_with_headers["endpoint"]["params"]) == 0  # type: ignore[index]
+
+
+def test_bind_header_params_nested() -> None:
+    resource_with_headers: EndpointResource = {
+        "name": "test_resource",
+        "endpoint": {
+            "path": "test/path",
+            "headers": {"{token}": "{token}", "deeper": {"{token}": ["{token}"]}},
+            "params": {
+                "token": "test_token",
+            },
+        },
+    }
+    _bind_header_params(resource_with_headers)
+    assert resource_with_headers["endpoint"]["headers"] == {  # type: ignore[index]
+        "test_token": "test_token",
+        "deeper": {"test_token": ["test_token"]},
+    }
+    assert len(resource_with_headers["endpoint"]["params"]) == 0  # type: ignore[index]
