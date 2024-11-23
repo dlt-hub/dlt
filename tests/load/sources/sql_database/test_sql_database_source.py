@@ -275,14 +275,15 @@ def test_text_query_adapter(
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pandas", "pyarrow"])
 def test_computed_column(sql_source_db: SQLAlchemySourceDB, backend: TableBackend) -> None:
-    from dlt.common.libs.sql_alchemy import Table, sa
+    from dlt.common.libs.sql_alchemy import Table, sa, sqltypes
     from dlt.sources.sql_database.helpers import SelectAny
 
     def add_max_timestamp(table: Table) -> SelectAny:
-        computed_max_timestamp = sa.func.greatest(table.c.created_at, table.c.updated_at).label(
-            "max_timestamp"
-        )
-        subquery = sa.select([table, computed_max_timestamp]).subquery()
+        computed_max_timestamp = sa.sql.type_coerce(
+            sa.func.greatest(table.c.created_at, table.c.updated_at),
+            sqltypes.DateTime,
+        ).label("max_timestamp")
+        subquery = sa.select(*table.c, computed_max_timestamp).subquery()
         return subquery
 
     read_table = sql_table(

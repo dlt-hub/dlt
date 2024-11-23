@@ -407,7 +407,7 @@ def test_group_dict_of_lists_various_length_lists():
     assert sizes == sorted(sizes, reverse=True), "Sizes of decomposed dicts are not decreasing"
 
 
-def function_test(a, b):
+def function_typeerror_exc(a, b):
     raise TypeError("wrong type")
 
 
@@ -431,12 +431,12 @@ def test_is_typeerror_due_to_wrong_call() -> None:
         assert is_typeerror_due_to_wrong_call(exc, _function_test) is False
 
     try:
-        function_test()  # type: ignore[call-arg]
+        function_typeerror_exc()  # type: ignore[call-arg]
     except Exception as exc:
-        assert is_typeerror_due_to_wrong_call(exc, function_test) is True
+        assert is_typeerror_due_to_wrong_call(exc, function_typeerror_exc) is True
 
     try:
-        function_test("a", "b")
+        function_typeerror_exc("a", "b")
     except Exception as exc:
         assert str(exc) == "wrong type"
-        assert is_typeerror_due_to_wrong_call(exc, function_test) is False
+        assert is_typeerror_due_to_wrong_call(exc, function_typeerror_exc) is False

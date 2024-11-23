@@ -93,14 +93,15 @@ table = sql_table(
 You can add computed columns to the table definition by converting it into a subquery:
 ```py
 def add_max_timestamp(table):
-    computed_max_timestamp = sa.func.greatest(table.c.created_at, table.c.updated_at).label('max_timestamp')
-    subquery = sa.select(
-        [table, computed_max_timestamp]
-    ).subquery()
+    computed_max_timestamp = sa.sql.type_coerce(
+        sa.func.greatest(table.c.created_at, table.c.updated_at),
+        sqltypes.DateTime,
+    ).label("max_timestamp")
+    subquery = sa.select(*table.c, computed_max_timestamp).subquery()
     return subquery
 ```
-We add new `max_timestamp` column that is a MIN of `created_at` and `updated_at` columns and then convert it into a subquery
-because we intend to use it for incremental loading.
+We add new `max_timestamp` column that is a MAX of `created_at` and `updated_at` columns and then we convert it into a subquery
+because we intend to use it for incremental loading which will attach a `WHERE` clause to it.
 
 ```py
 import dlt
