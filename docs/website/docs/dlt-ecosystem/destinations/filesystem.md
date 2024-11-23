@@ -181,13 +181,14 @@ bucket_url = "abfss://<container_name>@<storage_account_name>.dfs.core.windows.n
 
 You can use `az`, `abfss`, `azure` and `abfs` url schemes.
 
-If you need to use a custom host for your account you can set it up like below:
+If you need to use a custom host to account your storage account you can set it up like below:
 ```toml
 [destination.filesystem.credentials]
 # The storage account name is always required
 azure_account_host = "<storage_account_name>.<host_base>"
 ```
-Remember to include `storage_account_name` with your base host: `dlt_ci.blob.core.usgovcloudapi.net`.
+Remember to include `storage_account_name` with your base host ie. `dlt_ci.blob.core.usgovcloudapi.net`.
+`dlt` will use this host to connect to azure blob storage without any modifications:
 
 
 Two forms of Azure credentials are supported:
@@ -209,14 +210,13 @@ If you have the correct Azure credentials set up on your machine (e.g., via Azur
 you can omit both `azure_storage_account_key` and `azure_storage_sas_token` and `dlt` will fall back to the available default.
 Note that `azure_storage_account_name` is still required as it can't be inferred from the environment.
 
-`dlt` supports the
-
 #### Service principal credentials
 
 Supply a client ID, client secret, and a tenant ID for a service principal authorized to access your container.
 
 ```toml
 [destination.filesystem.credentials]
+azure_storage_account_name = "account_name" # please set me up!
 azure_client_id = "client_id" # please set me up!
 azure_client_secret = "client_secret"
 azure_tenant_id = "tenant_id" # please set me up!
@@ -230,8 +230,6 @@ azure_tenant_id = "tenant_id" # please set me up!
 max_concurrency=3
 ```
 :::
-
-
 
 ### Local file system
 
