@@ -244,6 +244,86 @@ def test_make_query_incremental_any_fun(
     assert query.compare(expected)
 
 
+@pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
+def test_cursor_path_field_name_with_a_special_chars(
+    sql_source_db: SQLAlchemySourceDB, backend: TableBackend
+) -> None:
+    """Test that a field name with special characters in cursor_path is handled correctly."""
+    table = sql_source_db.get_table("chat_message")
+
+    # Add a mock column with a special character
+    special_field_name = "id$field"
+    if special_field_name not in table.c:
+        table.append_column(sa.Column(special_field_name, sa.String))
+
+    class MockIncremental:
+        cursor_path = "'id$field'"
+        last_value = None
+        end_value = None
+        row_order = None
+        on_cursor_value_missing = None
+
+    # Should not raise any exception
+    loader = TableLoader(
+        sql_source_db.engine,
+        backend,
+        table,
+        table_to_columns(table),
+        incremental=MockIncremental(),  # type: ignore[arg-type]
+    )
+    assert loader.cursor_column == table.c[special_field_name]
+
+
+@pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
+def test_cursor_path_multiple_fields(
+    sql_source_db: SQLAlchemySourceDB, backend: TableBackend
+) -> None:
+    """Test that a cursor_path with multiple fields raises a ValueError."""
+    table = sql_source_db.get_table("chat_message")
+
+    class MockIncremental:
+        cursor_path = "created_at,updated_at"
+        last_value = None
+        end_value = None
+        row_order = None
+        on_cursor_value_missing = None
+
+    with pytest.raises(ValueError) as excinfo:
+        TableLoader(
+            sql_source_db.engine,
+            backend,
+            table,
+            table_to_columns(table),
+            incremental=MockIncremental(),  # type: ignore[arg-type]
+        )
+    assert "must be a simple column name" in str(excinfo.value)
+
+
+@pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
+def test_cursor_path_complex_expression(
+    sql_source_db: SQLAlchemySourceDB, backend: TableBackend
+) -> None:
+    """Test that a complex JSONPath expression in cursor_path raises a ValueError."""
+    table = sql_source_db.get_table("chat_message")
+
+    class MockIncremental:
+        cursor_path = "$.users[0].id"
+        last_value = None
+        end_value = None
+        row_order = None
+        on_cursor_value_missing = None
+
+    with pytest.raises(ValueError) as excinfo:
+        TableLoader(
+            sql_source_db.engine,
+            backend,
+            table,
+            table_to_columns(table),
+            incremental=MockIncremental(),  # type: ignore[arg-type]
+        )
+    assert "must be a simple column name" in str(excinfo.value)
+
+
 def mock_json_column(field: str) -> TDataItem:
     """"""
     import pyarrow as pa
