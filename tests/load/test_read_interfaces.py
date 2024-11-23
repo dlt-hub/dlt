@@ -457,19 +457,19 @@ def test_schema_arg(populated_pipeline: Pipeline) -> None:
 
     # if there is no arg, the defautl schema is used
     dataset = populated_pipeline._dataset()
-    assert dataset.schema.name == populated_pipeline.default_schema_name  # type: ignore
-    assert "items" in dataset.schema.tables  # type: ignore
+    assert dataset.schema.name == populated_pipeline.default_schema_name
+    assert "items" in dataset.schema.tables
 
     # setting a different schema name will try to load that schema,
     # not find one and create an empty schema with that name
     dataset = populated_pipeline._dataset(schema="unknown_schema")
-    assert dataset.schema.name == "unknown_schema"  # type: ignore
-    assert "items" not in dataset.schema.tables  # type: ignore
+    assert dataset.schema.name == "unknown_schema"
+    assert "items" not in dataset.schema.tables
 
     # providing the schema name of the right schema will load it
     dataset = populated_pipeline._dataset(schema=populated_pipeline.default_schema_name)
-    assert dataset.schema.name == populated_pipeline.default_schema_name  # type: ignore
-    assert "items" in dataset.schema.tables  # type: ignore
+    assert dataset.schema.name == populated_pipeline.default_schema_name
+    assert "items" in dataset.schema.tables
 
 
 @pytest.mark.no_load
