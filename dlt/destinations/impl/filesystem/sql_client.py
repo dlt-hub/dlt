@@ -178,11 +178,6 @@ class FilesystemSqlClient(DuckDbSqlClient):
         elif self.fs_client.config.protocol == "memory":
             self._conn.register_filesystem(self.fs_client.fs_client)
 
-        # the line below solves problems with certificate path lookup on linux
-        # see duckdb docs
-        if self.fs_client.config.protocol in ["az", "abfss"]:
-            self._conn.sql("SET azure_transport_option_type = 'curl';")
-
     def open_connection(self) -> duckdb.DuckDBPyConnection:
         # we keep the in memory instance around, so if this prop is set, return it
         first_connection = self.credentials.has_open_connection
@@ -195,7 +190,15 @@ class FilesystemSqlClient(DuckDbSqlClient):
             self._conn.sql(f"USE {self.fully_qualified_dataset_name()}")
             self.create_authentication()
 
+        # the line below solves problems with certificate path lookup on linux
+        # see duckdb docs
+        if self.fs_client.config.protocol in ["az", "abfss"]:
+            self._conn.sql("SET azure_transport_option_type = 'curl';")
+
         return self._conn
+
+    def create_views_for_all_tables(self) -> None:
+        self.create_views_for_tables({v: v for v in self.fs_client.schema.tables.keys()})
 
     @raise_database_error
     def create_views_for_tables(self, tables: Dict[str, str]) -> None:
