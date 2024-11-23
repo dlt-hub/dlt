@@ -248,6 +248,7 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
 
     def _ensure_client_and_schema(self) -> None:
         """Lazy load schema and client"""
+
         # full schema given, nothing to do
         if not self._schema and isinstance(self._provided_schema, Schema):
             self._schema = self._provided_schema
@@ -259,6 +260,8 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
                     stored_schema = client.get_stored_schema(self._provided_schema)
                     if stored_schema:
                         self._schema = Schema.from_stored_schema(json.loads(stored_schema.schema))
+                    else:
+                        self._schema = Schema(self._provided_schema)
 
         # no schema name given, load newest schema from destination
         elif not self._schema:
@@ -268,7 +271,7 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
                     if stored_schema:
                         self._schema = Schema.from_stored_schema(json.loads(stored_schema.schema))
 
-        # default to empty schema with dataset name if nothing found
+        # default to empty schema with dataset name
         if not self._schema:
             self._schema = Schema(self._dataset_name)
 

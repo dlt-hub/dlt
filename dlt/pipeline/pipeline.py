@@ -15,6 +15,7 @@ from typing import (
     cast,
     get_type_hints,
     ContextManager,
+    Union,
 )
 
 from dlt import version
@@ -1790,11 +1791,15 @@ class Pipeline(SupportsPipeline):
         # pickle only the SupportsPipeline protocol fields
         return {"pipeline_name": self.pipeline_name}
 
-    def _dataset(self, dataset_type: TDatasetType = "dbapi") -> SupportsReadableDataset:
+    def _dataset(
+        self, schema: Union[Schema, str, None] = None, dataset_type: TDatasetType = "dbapi"
+    ) -> SupportsReadableDataset:
         """Access helper to dataset"""
+        if schema is None:
+            schema = self.default_schema if self.default_schema_name else None
         return dataset(
             self._destination,
             self.dataset_name,
-            schema=(self.default_schema if self.default_schema_name else None),
+            schema=schema,
             dataset_type=dataset_type,
         )
