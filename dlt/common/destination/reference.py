@@ -443,8 +443,9 @@ class RunnableLoadJob(LoadJob, ABC):
             self._finished_at = pendulum.now()
             # sanity check
             assert self._state in ("completed", "retry", "failed")
-            # wake up waiting threads
-            signals.wake_all()
+            if self._state != "retry":
+                # wake up waiting threads
+                signals.wake_all()
 
     @abstractmethod
     def run(self) -> None:
