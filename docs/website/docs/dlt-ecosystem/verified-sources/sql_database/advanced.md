@@ -90,8 +90,8 @@ Depending on the selected backend, some of the types might require additional pr
 
 The `reflection_level` argument controls how much information is reflected:
 
-- `reflection_level = "minimal"`: Only column names and nullability are detected. Data types are inferred from the data.
-- `reflection_level = "full"`: Column names, nullability, and data types are detected. For decimal types, we always add precision and scale. **This is the default.**
+- `reflection_level = "minimal"`: Only column names and nullability are detected. Data types are inferred from the data. **This is the default.**
+- `reflection_level = "full"`: Column names, nullability, and data types are detected. For decimal types, we always add precision and scale.
 - `reflection_level = "full_with_precision"`: Column names, nullability, data types, and precision/scale are detected, also for types like text and binary. Integer sizes are set to bigint and to int for all other types.
 
 If the SQL type is unknown or not supported by `dlt`, then, in the pyarrow backend, the column will be skipped, whereas in the other backends the type will be inferred directly from the data irrespective of the `reflection_level` specified. In the latter case, this often means that some types are coerced to strings and `dataclass` based values from sqlalchemy are inferred as `json` (JSON in most destinations).
@@ -103,6 +103,8 @@ and BigQuery sees it as bigint and fails to load.
 In that case, you may try **minimal** reflection level where all data types are inferred from the returned data. From our experience, this prevents
 most of the coercion problems.
 :::
+
+### Adapt reflected types to your needs
 
 You can also override the SQL type by passing a `type_adapter_callback` function. This function takes a `SQLAlchemy` data type as input and returns a new type (or `None` to force the column to be inferred from the data) as output.
 
@@ -133,6 +135,28 @@ source = sql_database(
 
 dlt.pipeline("demo").run(source)
 ```
+
+### Remove nullability information
+`dlt` adds `NULL`/`NOT NULL` information to reflected schemas in **all reflection levels**. There are cases where you do not want this information to be present
+ie.
+* if you plan to use replication source that will (soft) delete rows.
+* if you expect that columns will be dropped from the source table.
+
+In such cases you can use a table adapter that removes nullability (`dlt` will create nullable tables as a default):
+
+```py
+from dlt.sources.sql_database import sql_table, remove_nullability_adapter
+
+read_table = sql_table(
+    table="chat_message",
+    reflection_level="full_with_precision",
+    table_adapter_callback=remove_nullability_adapter,
+)
+print(read_table.compute_table_schema())
+```
+
+You can call `remove_nullability_adapter` from your custom table adapter if you need to combine both.
+
 
 ## Configuring with TOML or environment variables
 You can set most of the arguments of `sql_database()` and `sql_table()` directly in the TOML files or as environment variables. `dlt` automatically injects these values into the pipeline script.

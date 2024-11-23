@@ -52,7 +52,7 @@ TQueryAdapter = Union[
     Callable[[SelectAny, Table], SelectClause],
     Callable[[SelectAny, Table, Incremental[Any], Engine], SelectClause],
 ]
-TTableAdapter = Callable[[Table], Optional[SelectAny]]
+TTableAdapter = Callable[[Table], Optional[Union[SelectAny, Table]]]
 
 
 class TableLoader:
@@ -327,6 +327,15 @@ def unwrap_json_connector_x(field: str) -> TDataItem:
         return table.set_column(col_index, table.schema.field(col_index), column)
 
     return _unwrap
+
+
+def remove_nullability_adapter(table: Table) -> Table:
+    """A table adapter that removes nullability from columns."""
+    for col in table.columns:
+        # subqueries may not have nullable attr
+        if hasattr(col, "nullable"):
+            col.nullable = None
+    return table
 
 
 def _add_missing_columns(

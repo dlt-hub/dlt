@@ -11,8 +11,8 @@ from dlt.common.exceptions import MissingDependencyException
 
 from dlt.common.schema.typing import TColumnSchema, TSortOrder, TTableSchemaColumns
 from dlt.common.utils import uniq_id
-from dlt.extract.exceptions import ResourceExtractionError
 
+from dlt.extract.exceptions import ResourceExtractionError
 from dlt.sources import DltResource
 
 from tests.pipeline.utils import (
@@ -30,6 +30,7 @@ try:
         TableBackend,
         sql_database,
         sql_table,
+        remove_nullability_adapter,
     )
     from dlt.sources.sql_database.helpers import unwrap_json_connector_x
     from tests.load.sources.sql_database.sql_source import SQLAlchemySourceDB
@@ -309,6 +310,38 @@ def test_computed_column(sql_source_db: SQLAlchemySourceDB, backend: TableBacken
     info = pipeline.run(read_table)
     # no msgs were loaded, incremental got correctly rendered
     assert load_table_counts(pipeline, "chat_message")["chat_message"] == msg_count
+
+
+def test_remove_nullability(sql_source_db: SQLAlchemySourceDB) -> None:
+    read_table = sql_table(
+        table="chat_message",
+        credentials=sql_source_db.credentials,
+        schema=sql_source_db.schema,
+        reflection_level="full_with_precision",
+        table_adapter_callback=remove_nullability_adapter,
+    )
+    table_schema = read_table.compute_table_schema()
+    for column in table_schema["columns"].values():
+        assert "nullability" not in column
+
+    # also works for subquery
+    def make_subquery(table):
+        return remove_nullability_adapter(table.select().subquery())
+
+    read_table = sql_table(
+        table="chat_message",
+        credentials=sql_source_db.credentials,
+        schema=sql_source_db.schema,
+        reflection_level="full_with_precision",
+        table_adapter_callback=make_subquery,
+    )
+
+    table_schema = read_table.compute_table_schema()
+    for column in table_schema["columns"].values():
+        assert "nullability" not in column
+
+    data = list(read_table)
+    assert len(data) == sql_source_db.table_infos["chat_message"]["row_count"]
 
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pandas", "pyarrow", "connectorx"])

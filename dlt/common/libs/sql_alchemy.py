@@ -19,3 +19,22 @@ except ModuleNotFoundError:
 
 # TODO: maybe use sa.__version__?
 IS_SQL_ALCHEMY_20 = hasattr(sa, "Double")
+
+__all__ = [
+    "IS_SQL_ALCHEMY_20",
+    "MetaData",
+    "Table",
+    "Column",
+    "create_engine",
+    "Engine",
+    "URL",
+    "make_url",
+    "Row",
+    "sqltypes",
+    "Select",
+    "Executable",
+    "TextClause",
+    "TypeEngine",
+    "CompileError",
+    "sa",
+]
