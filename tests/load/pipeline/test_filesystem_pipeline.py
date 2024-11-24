@@ -1005,80 +1005,95 @@ def test_table_format_dynamic_dispatch(
     "destination_config",
     destinations_configs(
         table_format_filesystem_configs=True,
-        with_table_format="delta",
+        with_table_format=("delta", "iceberg"),
         bucket_subset=(FILE_BUCKET, AZ_BUCKET),
     ),
     ids=lambda x: x.name,
 )
-def test_delta_table_get_delta_tables_helper(
+def test_table_format_get_tables_helper(
     destination_config: DestinationTestConfiguration,
 ) -> None:
-    """Tests `get_delta_tables` helper function."""
-    from dlt.common.libs.deltalake import DeltaTable, get_delta_tables
+    """Tests `get_delta_tables` / `get_iceberg_tables` helper functions."""
+    if destination_config.table_format == "delta":
+        from dlt.common.libs.deltalake import DeltaTable, get_delta_tables
 
-    @dlt.resource(table_format="delta")
-    def foo_delta():
+        get_tables = get_delta_tables
+        get_num_rows = lambda table: table.to_pyarrow_table().num_rows
+    elif destination_config.table_format == "iceberg":
+        from dlt.common.libs.pyiceberg import IcebergTable, get_iceberg_tables
+
+        get_tables = get_iceberg_tables  # type: ignore[assignment]
+        get_num_rows = lambda table: table.scan().to_arrow().num_rows
+
+    @dlt.resource(table_format=destination_config.table_format)
+    def foo_table_format():
         yield [{"foo": 1}, {"foo": 2}]
 
-    @dlt.resource(table_format="delta")
-    def bar_delta():
+    @dlt.resource(table_format=destination_config.table_format)
+    def bar_table_format():
         yield [{"bar": 1}]
 
     @dlt.resource
-    def baz_not_delta():
+    def baz_not_table_format():
         yield [{"baz": 1}]
 
     pipeline = destination_config.setup_pipeline("fs_pipe", dev_mode=True)
 
-    info = pipeline.run(foo_delta())
+    info = pipeline.run(foo_table_format())
     assert_load_info(info)
-    delta_tables = get_delta_tables(pipeline)
-    assert delta_tables.keys() == {"foo_delta"}
-    assert isinstance(delta_tables["foo_delta"], DeltaTable)
-    assert delta_tables["foo_delta"].to_pyarrow_table().num_rows == 2
+    tables = get_tables(pipeline)
+    assert tables.keys() == {"foo_table_format"}
+    if destination_config.table_format == "delta":
+        assert isinstance(tables["foo_table_format"], DeltaTable)
+    elif destination_config.table_format == "iceberg":
+        assert isinstance(tables["foo_table_format"], IcebergTable)
+    assert get_num_rows(tables["foo_table_format"]) == 2
 
-    info = pipeline.run([foo_delta(), bar_delta(), baz_not_delta()])
+    info = pipeline.run([foo_table_format(), bar_table_format(), baz_not_table_format()])
     assert_load_info(info)
-    delta_tables = get_delta_tables(pipeline)
-    assert delta_tables.keys() == {"foo_delta", "bar_delta"}
-    assert delta_tables["bar_delta"].to_pyarrow_table().num_rows == 1
-    assert get_delta_tables(pipeline, "foo_delta").keys() == {"foo_delta"}
-    assert get_delta_tables(pipeline, "bar_delta").keys() == {"bar_delta"}
-    assert get_delta_tables(pipeline, "foo_delta", "bar_delta").keys() == {"foo_delta", "bar_delta"}
+    tables = get_tables(pipeline)
+    assert tables.keys() == {"foo_table_format", "bar_table_format"}
+    assert get_num_rows(tables["bar_table_format"]) == 1
+    assert get_tables(pipeline, "foo_table_format").keys() == {"foo_table_format"}
+    assert get_tables(pipeline, "bar_table_format").keys() == {"bar_table_format"}
+    assert get_tables(pipeline, "foo_table_format", "bar_table_format").keys() == {
+        "foo_table_format",
+        "bar_table_format",
+    }
 
     # test with child table
-    @dlt.resource(table_format="delta")
-    def parent_delta():
+    @dlt.resource(table_format=destination_config.table_format)
+    def parent_table_format():
         yield [{"foo": 1, "child": [1, 2, 3]}]
 
-    info = pipeline.run(parent_delta())
+    info = pipeline.run(parent_table_format())
     assert_load_info(info)
-    delta_tables = get_delta_tables(pipeline)
-    assert "parent_delta__child" in delta_tables.keys()
-    assert delta_tables["parent_delta__child"].to_pyarrow_table().num_rows == 3
+    tables = get_tables(pipeline)
+    assert "parent_table_format__child" in tables.keys()
+    assert get_num_rows(tables["parent_table_format__child"]) == 3
 
     # test invalid input
     with pytest.raises(ValueError):
-        get_delta_tables(pipeline, "baz_not_delta")
+        get_tables(pipeline, "baz_not_table_format")
 
     with pytest.raises(ValueError):
-        get_delta_tables(pipeline, "non_existing_table")
+        get_tables(pipeline, "non_existing_table")
 
     # test unknown schema
     with pytest.raises(FileNotFoundError):
-        get_delta_tables(pipeline, "non_existing_table", schema_name="aux_2")
+        get_tables(pipeline, "non_existing_table", schema_name="aux_2")
 
     # load to a new schema and under new name
     aux_schema = dlt.Schema("aux_2")
     # NOTE: you cannot have a file with name
-    info = pipeline.run(parent_delta().with_name("aux_delta"), schema=aux_schema)
+    info = pipeline.run(parent_table_format().with_name("aux_table"), schema=aux_schema)
     # also state in seprate package
     assert_load_info(info, expected_load_packages=2)
-    delta_tables = get_delta_tables(pipeline, schema_name="aux_2")
-    assert "aux_delta__child" in delta_tables.keys()
-    get_delta_tables(pipeline, "aux_delta", schema_name="aux_2")
+    tables = get_tables(pipeline, schema_name="aux_2")
+    assert "aux_table__child" in tables.keys()
+    get_tables(pipeline, "aux_table", schema_name="aux_2")
     with pytest.raises(ValueError):
-        get_delta_tables(pipeline, "aux_delta")
+        get_tables(pipeline, "aux_table")
 
 
 @pytest.mark.parametrize(
