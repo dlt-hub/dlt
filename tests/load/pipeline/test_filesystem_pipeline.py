@@ -383,15 +383,16 @@ def test_table_format_core(
     "destination_config",
     destinations_configs(
         table_format_filesystem_configs=True,
+        # job orchestration is same across table formats—no need to test all formats
         with_table_format="delta",
         bucket_subset=(FILE_BUCKET),
     ),
     ids=lambda x: x.name,
 )
-def test_delta_table_does_not_contain_job_files(
+def test_table_format_does_not_contain_job_files(
     destination_config: DestinationTestConfiguration,
 ) -> None:
-    """Asserts Parquet job files do not end up in Delta table."""
+    """Asserts Parquet job files do not end up in table."""
 
     pipeline = destination_config.setup_pipeline("fs_pipe", dev_mode=True)
 
@@ -428,17 +429,18 @@ def test_delta_table_does_not_contain_job_files(
     "destination_config",
     destinations_configs(
         table_format_filesystem_configs=True,
+        # job orchestration is same across table formats—no need to test all formats
         with_table_format="delta",
         bucket_subset=(FILE_BUCKET),
     ),
     ids=lambda x: x.name,
 )
-def test_delta_table_multiple_files(
+def test_table_format_multiple_files(
     destination_config: DestinationTestConfiguration,
 ) -> None:
-    """Tests loading multiple files into a Delta table.
+    """Tests loading multiple files into a table.
 
-    Files should be loaded into the Delta table in a single commit.
+    Files should be loaded into the table in a single commit.
     """
 
     from dlt.common.libs.deltalake import get_delta_tables
@@ -924,12 +926,13 @@ def test_table_format_empty_source(
     "destination_config",
     destinations_configs(
         table_format_filesystem_configs=True,
+        # job orchestration is same across table formats—no need to test all formats
         with_table_format="delta",
         bucket_subset=(FILE_BUCKET),
     ),
     ids=lambda x: x.name,
 )
-def test_delta_table_mixed_source(
+def test_table_format_mixed_source(
     destination_config: DestinationTestConfiguration,
 ) -> None:
     """Tests file format handling in mixed source.
@@ -973,12 +976,13 @@ def test_delta_table_mixed_source(
     "destination_config",
     destinations_configs(
         table_format_filesystem_configs=True,
+        # job orchestration is same across table formats—no need to test all formats
         with_table_format="delta",
         bucket_subset=(FILE_BUCKET),
     ),
     ids=lambda x: x.name,
 )
-def test_delta_table_dynamic_dispatch(
+def test_table_format_dynamic_dispatch(
     destination_config: DestinationTestConfiguration,
 ) -> None:
     @dlt.resource(primary_key="id", table_name=lambda i: i["type"], table_format="delta")
