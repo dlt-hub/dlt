@@ -24,7 +24,7 @@ source = rest_api_source({
             "token": dlt.secrets["your_api_token"],
         },
         "paginator": {
-            "type": "json_response",
+            "type": "json_link",
             "next_url_path": "paging.next",
         },
     },
