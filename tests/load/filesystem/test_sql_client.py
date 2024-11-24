@@ -1,7 +1,7 @@
 """Test the duckdb supported sql client for special internal features"""
 
 
-from typing import Any
+from typing import Optional
 
 import pytest
 import dlt
@@ -12,6 +12,7 @@ import logging
 
 from dlt import Pipeline
 from dlt.common.utils import uniq_id
+from dlt.common.schema.typing import TTableFormat
 
 from tests.load.utils import (
     destinations_configs,
@@ -37,7 +38,7 @@ def _run_dataset_checks(
     pipeline: Pipeline,
     destination_config: DestinationTestConfiguration,
     secret_directory: str,
-    table_format: Any = None,
+    table_format: Optional[TTableFormat] = None,
     alternate_access_pipeline: Pipeline = None,
 ) -> None:
     total_records = 200
