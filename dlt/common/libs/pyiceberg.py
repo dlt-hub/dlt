@@ -90,7 +90,7 @@ def get_catalog(
         with catalog.create_table_transaction(
             table_id,
             schema=ensure_iceberg_compatible_arrow_schema(schema),
-            location=client.make_remote_url(table_path),
+            location=_make_path(table_path, client),
         ) as txn:
             # add partitioning
             with txn.update_spec() as update_spec:
@@ -153,3 +153,9 @@ def _register_table(
 ) -> IcebergTable:
     last_metadata_file = _get_last_metadata_file(metadata_path, client)
     return catalog.register_table(identifier, last_metadata_file)
+
+
+def _make_path(path: str, client: FilesystemClient) -> str:
+    # don't use file protocol for local files because duckdb does not support it
+    # https://github.com/duckdb/duckdb/issues/13669
+    return path if client.is_local_filesystem else client.make_remote_url(path)

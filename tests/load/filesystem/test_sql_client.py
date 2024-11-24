@@ -17,6 +17,7 @@ from dlt.common.schema.typing import TTableFormat
 from tests.load.utils import (
     destinations_configs,
     DestinationTestConfiguration,
+    FILE_BUCKET,
     GCS_BUCKET,
     SFTP_BUCKET,
     MEMORY_BUCKET,
@@ -145,6 +146,8 @@ def _run_dataset_checks(
         # the line below solves problems with certificate path lookup on linux, see duckdb docs
         external_db.sql("SET azure_transport_option_type = 'curl';")
         external_db.sql(f"SET secret_directory = '{secret_directory}';")
+        if table_format == "iceberg":
+            FilesystemSqlClient._setup_iceberg(external_db)
         return external_db
 
     def _fs_sql_client_for_external_db(
@@ -284,15 +287,21 @@ def test_read_interfaces_filesystem(
     "destination_config",
     destinations_configs(
         table_format_filesystem_configs=True,
-        with_table_format="delta",
+        with_table_format=("delta", "iceberg"),
         bucket_exclude=[SFTP_BUCKET, MEMORY_BUCKET],
         # NOTE: delta does not work on memory buckets
     ),
     ids=lambda x: x.name,
 )
-def test_delta_tables(
+def test_table_formats(
     destination_config: DestinationTestConfiguration, secret_directory: str
 ) -> None:
+    if destination_config.table_format == "iceberg" and destination_config.bucket_url not in (
+        FILE_BUCKET,
+        AWS_BUCKET,
+    ):
+        pytest.skip("only local and S3 filesystems are currently implemented for `iceberg`")
+
     os.environ["DATA_WRITER__FILE_MAX_ITEMS"] = "700"
 
     pipeline = destination_config.setup_pipeline(
@@ -316,7 +325,7 @@ def test_delta_tables(
         pipeline,
         destination_config,
         secret_directory=secret_directory,
-        table_format="delta",
+        table_format=destination_config.table_format,
         alternate_access_pipeline=access_pipeline,
     )
 

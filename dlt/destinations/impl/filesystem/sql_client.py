@@ -255,6 +255,13 @@ class FilesystemSqlClient(DuckDbSqlClient):
             from_statement = ""
             if schema_table.get("table_format") == "delta":
                 from_statement = f"delta_scan('{resolved_folder}')"
+            elif schema_table.get("table_format") == "iceberg":
+                from dlt.common.libs.pyiceberg import _get_last_metadata_file
+
+                self._setup_iceberg(self._conn)
+                metadata_path = f"{resolved_folder}/metadata"
+                last_metadata_file = _get_last_metadata_file(metadata_path, self.fs_client)
+                from_statement = f"iceberg_scan('{last_metadata_file}')"
             elif first_file_type == "parquet":
                 from_statement = f"read_parquet([{resolved_files_string}])"
             elif first_file_type == "jsonl":
@@ -264,7 +271,7 @@ class FilesystemSqlClient(DuckDbSqlClient):
             else:
                 raise NotImplementedError(
                     f"Unknown filetype {first_file_type} for table {table_name}. Currently only"
-                    " jsonl and parquet files as well as delta tables are supported."
+                    " jsonl and parquet files as well as delta and iceberg tables are supported."
                 )
 
             # create table
@@ -295,6 +302,16 @@ class FilesystemSqlClient(DuckDbSqlClient):
 
         with super().execute_query(query, *args, **kwargs) as cursor:
             yield cursor
+
+    @staticmethod
+    def _setup_iceberg(conn: duckdb.DuckDBPyConnection) -> None:
+        # needed to make persistent secrets work in new connection
+        # https://github.com/duckdb/duckdb_iceberg/issues/83
+        conn.sql("FROM duckdb_secrets();").show()
+
+        # `duckdb_iceberg` extension does not support autoloading
+        # https://github.com/duckdb/duckdb_iceberg/issues/71
+        conn.execute("INSTALL iceberg; LOAD iceberg;")
 
     def __del__(self) -> None:
         if self.memory_db:
