@@ -802,10 +802,11 @@ def test_table_format_schema_evolution(
     assert actual.schema.equals(expected.schema)
     if write_disposition == "append":
         expected_num_rows = 3
-    elif write_disposition == "replace" and destination_config.table_format == "delta":
-        expected_num_rows = 2
-    elif write_disposition == "replace" and destination_config.table_format == "iceberg":
+    elif write_disposition == "replace":
         expected_num_rows = 0
+        if destination_config.table_format == "delta":
+            # TODO: fix https://github.com/dlt-hub/dlt/issues/2092 and remove this if-clause
+            expected_num_rows = 2
     elif write_disposition == {"disposition": "merge", "strategy": "upsert"}:
         expected_num_rows = 2
     assert actual.num_rows == expected_num_rows
