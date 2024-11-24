@@ -8,13 +8,14 @@ from dlt.common.configuration.specs import (
     CredentialsWithDefault,
     configspec,
 )
+from dlt.common.configuration.specs.mixins import WithPyicebergConfig
 from dlt import version
 
 _AZURE_STORAGE_EXTRA = f"{version.DLT_PKG_NAME}[az]"
 
 
 @configspec
-class AzureCredentialsWithoutDefaults(CredentialsConfiguration):
+class AzureCredentialsWithoutDefaults(CredentialsConfiguration, WithPyicebergConfig):
     """Credentials for Azure Blob Storage, compatible with adlfs"""
 
     azure_storage_account_name: str = None
@@ -40,6 +41,13 @@ class AzureCredentialsWithoutDefaults(CredentialsConfiguration):
             creds.pop("account_key")
         return creds
 
+    def to_pyiceberg_fileio_config(self) -> Dict[str, Any]:
+        return {
+            "adlfs.account-name": self.azure_storage_account_name,
+            "adlfs.account-key": self.azure_storage_account_key,
+            "adlfs.sas-token": self.azure_storage_sas_token,
+        }
+
     def create_sas_token(self) -> None:
         try:
             from azure.storage.blob import generate_account_sas, ResourceTypes
@@ -63,7 +71,9 @@ class AzureCredentialsWithoutDefaults(CredentialsConfiguration):
 
 
 @configspec
-class AzureServicePrincipalCredentialsWithoutDefaults(CredentialsConfiguration):
+class AzureServicePrincipalCredentialsWithoutDefaults(
+    CredentialsConfiguration, WithPyicebergConfig
+):
     azure_storage_account_name: str = None
     azure_tenant_id: str = None
     azure_client_id: str = None
@@ -80,6 +90,14 @@ class AzureServicePrincipalCredentialsWithoutDefaults(CredentialsConfiguration):
     def to_object_store_rs_credentials(self) -> Dict[str, str]:
         # https://docs.rs/object_store/latest/object_store/azure
         return self.to_adlfs_credentials()
+
+    def to_pyiceberg_fileio_config(self) -> Dict[str, Any]:
+        return {
+            "adlfs.account-name": self.azure_storage_account_name,
+            "adlfs.tenant-id": self.azure_tenant_id,
+            "adlfs.client-id": self.azure_client_id,
+            "adlfs.client-secret": self.azure_client_secret,
+        }
 
 
 @configspec

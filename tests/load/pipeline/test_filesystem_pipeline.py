@@ -34,6 +34,7 @@ from tests.load.utils import (
     FILE_BUCKET,
     AWS_BUCKET,
     AZ_BUCKET,
+    ABFS_BUCKET,
     SFTP_BUCKET,
 )
 
@@ -317,8 +318,10 @@ def test_table_format_core(
     if destination_config.table_format == "iceberg" and destination_config.bucket_url not in (
         FILE_BUCKET,
         AWS_BUCKET,
+        AZ_BUCKET,
+        ABFS_BUCKET,
     ):
-        pytest.skip("only local and S3 filesystems are currently implemented for `iceberg`")
+        pytest.skip("only local, S3, and Azure filesystems are currently implemented for `iceberg`")
     if destination_config.table_format == "delta":
         from dlt.common.libs.deltalake import get_delta_tables
 
