@@ -76,7 +76,7 @@ def test_pipeline_explicit_destination_credentials(
             credentials="postgresql://loader:loader@localhost:7777/dlt_data",
         ),
     )
-    c = p._get_destination_clients(Schema("s"), p._get_destination_client_initial_config())[0]
+    c = p._get_destination_clients(Schema("s"))[0]
     assert c.config.credentials.port == 7777  # type: ignore[attr-defined]
 
     # TODO: may want to clear the env completely and ignore/mock config files somehow to avoid side effects
@@ -89,7 +89,7 @@ def test_pipeline_explicit_destination_credentials(
             credentials="postgresql://loader:loader@localhost:5432/dlt_data",
         ),
     )
-    c = p._get_destination_clients(Schema("s"), p._get_destination_client_initial_config())[0]
+    c = p._get_destination_clients(Schema("s"))[0]
     assert c.config.credentials.host == "localhost"  # type: ignore[attr-defined]
 
     # explicit partial credentials will use config providers
@@ -102,7 +102,7 @@ def test_pipeline_explicit_destination_credentials(
             credentials="postgresql://localhost:5432/dlt_data",
         ),
     )
-    c = p._get_destination_clients(Schema("s"), p._get_destination_client_initial_config())[0]
+    c = p._get_destination_clients(Schema("s"))[0]
     assert c.config.credentials.username == "UN"  # type: ignore[attr-defined]
     # host is taken form explicit credentials
     assert c.config.credentials.host == "localhost"  # type: ignore[attr-defined]

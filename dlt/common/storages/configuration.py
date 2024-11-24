@@ -14,6 +14,7 @@ from dlt.common.configuration.specs import (
     BaseConfiguration,
     SFTPCredentials,
 )
+from dlt.common.exceptions import TerminalValueError
 from dlt.common.typing import DictStrAny
 from dlt.common.utils import digest128
 
@@ -55,6 +56,43 @@ FileSystemCredentials = Union[
     GcpOAuthCredentials,
     SFTPCredentials,
 ]
+
+
+def ensure_canonical_az_url(
+    bucket_url: str, target_scheme: str, storage_account_name: str = None, account_host: str = None
+) -> str:
+    """Converts any of the forms of azure blob storage into canonical form of {target_scheme}://<container_name>@<storage_account_name>.{account_host}/path
+
+    `azure_storage_account_name` is optional only if not present in bucket_url, `account_host` assumes "<azure_storage_account_name>.dfs.core.windows.net" by default
+    """
+    parsed_bucket_url = urlparse(bucket_url)
+    # Converts an az://<container_name>/<path> to abfss://<container_name>@<storage_account_name>.dfs.core.windows.net/<path>
+    if parsed_bucket_url.username:
+        # has the right form, ensure abfss schema
+        return urlunparse(parsed_bucket_url._replace(scheme=target_scheme))
+
+    if not storage_account_name and not account_host:
+        raise TerminalValueError(
+            f"Could not convert azure blob storage url {bucket_url} into canonical form "
+            f" ({target_scheme}://<container_name>@<storage_account_name>.dfs.core.windows.net/<path>)"
+            f" because storage account name is not known. Please use {target_scheme}:// canonical"
+            " url as bucket_url in filesystem credentials"
+        )
+
+    account_host = account_host or f"{storage_account_name}.dfs.core.windows.net"
+    netloc = (
+        f"{parsed_bucket_url.netloc}@{account_host}" if parsed_bucket_url.netloc else account_host
+    )
+
+    # as required by databricks
+    _path = parsed_bucket_url.path
+    return urlunparse(
+        parsed_bucket_url._replace(
+            scheme=target_scheme,
+            netloc=netloc,
+            path=_path,
+        )
+    )
 
 
 def _make_sftp_url(scheme: str, fs_path: str, bucket_url: str) -> str:

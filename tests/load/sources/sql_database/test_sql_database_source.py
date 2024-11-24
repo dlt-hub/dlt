@@ -11,8 +11,8 @@ from dlt.common.exceptions import MissingDependencyException
 
 from dlt.common.schema.typing import TColumnSchema, TSortOrder, TTableSchemaColumns
 from dlt.common.utils import uniq_id
-from dlt.extract.exceptions import ResourceExtractionError
 
+from dlt.extract.exceptions import ResourceExtractionError
 from dlt.sources import DltResource
 
 from tests.pipeline.utils import (
@@ -30,6 +30,7 @@ try:
         TableBackend,
         sql_database,
         sql_table,
+        remove_nullability_adapter,
     )
     from dlt.sources.sql_database.helpers import unwrap_json_connector_x
     from tests.load.sources.sql_database.sql_source import SQLAlchemySourceDB
@@ -107,6 +108,34 @@ def test_pass_engine_credentials(sql_source_db: SQLAlchemySourceDB) -> None:
     assert len(list(table)) == sql_source_db.table_infos["chat_message"]["row_count"]
 
 
+def test_engine_adapter_callback(sql_source_db: SQLAlchemySourceDB) -> None:
+    from dlt.common.libs.sql_alchemy import Engine
+
+    adapter_calls: int = 0
+
+    def set_serializable(engine: Engine) -> Engine:
+        nonlocal adapter_calls
+
+        engine.execution_options(isolation_level="SERIALIZABLE")
+        adapter_calls += 1
+        return engine
+
+    # verify database
+    database = sql_database(
+        sql_source_db.engine.url.render_as_string(False),
+        schema=sql_source_db.schema,
+        table_names=["chat_message"],
+        engine_adapter_callback=set_serializable,
+    )
+    assert adapter_calls == 2
+
+    assert len(list(database)) == sql_source_db.table_infos["chat_message"]["row_count"]
+
+    # verify table
+    table = sql_table(sql_source_db.engine, table="chat_message", schema=sql_source_db.schema)
+    assert len(list(table)) == sql_source_db.table_infos["chat_message"]["row_count"]
+
+
 def test_named_sql_table_config(sql_source_db: SQLAlchemySourceDB) -> None:
     # set the credentials per table name
     os.environ["SOURCES__SQL_DATABASE__CHAT_MESSAGE__CREDENTIALS"] = (
@@ -174,6 +203,146 @@ def test_general_sql_database_config(sql_source_db: SQLAlchemySourceDB) -> None:
         list(sql_database(schema=sql_source_db.schema).with_resources("chat_message"))
     # other resources will be loaded, incremental is selective
     assert len(list(sql_database(schema=sql_source_db.schema).with_resources("app_user"))) > 0
+
+
+@pytest.mark.parametrize("backend", ["sqlalchemy", "pandas", "pyarrow"])
+@pytest.mark.parametrize("add_new_columns", [True, False])
+def test_text_query_adapter(
+    sql_source_db: SQLAlchemySourceDB, backend: TableBackend, add_new_columns: bool
+) -> None:
+    from dlt.common.libs.sql_alchemy import Table, sqltypes, sa, Engine, TextClause
+    from dlt.sources.sql_database.helpers import SelectAny
+    from dlt.extract.incremental import Incremental
+
+    def new_columns(table: Table) -> None:
+        required_columns = [
+            ("add_int", sqltypes.BigInteger, {"nullable": True}),
+            ("add_text", sqltypes.Text, {"default": None, "nullable": True}),
+        ]
+        for col_name, col_type, col_kwargs in required_columns:
+            if col_name not in table.c:
+                table.append_column(sa.Column(col_name, col_type, **col_kwargs))
+
+    last_query: str = None
+
+    def query_adapter(
+        query: SelectAny, table: Table, incremental: Optional[Incremental[Any]], engine: Engine
+    ) -> TextClause:
+        nonlocal last_query
+
+        if incremental and incremental.start_value is not None:
+            t_query = sa.text(
+                f"SELECT *, 1 as add_int, 'const' as add_text FROM {table.fullname} WHERE"
+                f" {incremental.cursor_path} > :start_value"
+            ).bindparams(**{"start_value": incremental.start_value})
+        else:
+            t_query = sa.text(f"SELECT *, 1 as add_int, 'const' as add_text FROM {table.fullname}")
+
+        last_query = str(t_query)
+        return t_query
+
+    read_table = sql_table(
+        table="chat_channel",
+        credentials=sql_source_db.credentials,
+        schema=sql_source_db.schema,
+        reflection_level="full",
+        backend=backend,
+        table_adapter_callback=new_columns if add_new_columns else None,
+        query_adapter_callback=query_adapter,
+        incremental=dlt.sources.incremental("updated_at"),
+    )
+
+    pipeline = make_pipeline("duckdb")
+    info = pipeline.run(read_table)
+    assert_load_info(info)
+    assert "chat_channel" in last_query
+    assert "WHERE" not in last_query
+
+    chn_count = load_table_counts(pipeline, "chat_channel")["chat_channel"]
+    assert chn_count > 0
+
+    chat_channel_schema = pipeline.default_schema.get_table("chat_channel")
+    # print(pipeline.default_schema.to_pretty_yaml())
+    assert "add_int" in chat_channel_schema["columns"]
+    assert chat_channel_schema["columns"]["add_int"]["data_type"] == "bigint"
+    assert chat_channel_schema["columns"]["add_text"]["data_type"] == "text"
+
+    info = pipeline.run(read_table)
+    assert "WHERE updated_at > :start_value" in last_query
+    # no msgs were loaded, incremental got correctly rendered
+    assert load_table_counts(pipeline, "chat_channel")["chat_channel"] == chn_count
+
+
+@pytest.mark.parametrize("backend", ["sqlalchemy", "pandas", "pyarrow"])
+def test_computed_column(sql_source_db: SQLAlchemySourceDB, backend: TableBackend) -> None:
+    from dlt.common.libs.sql_alchemy import Table, sa, sqltypes
+    from dlt.sources.sql_database.helpers import SelectAny
+
+    def add_max_timestamp(table: Table) -> SelectAny:
+        computed_max_timestamp = sa.sql.type_coerce(
+            sa.func.greatest(table.c.created_at, table.c.updated_at),
+            sqltypes.DateTime,
+        ).label("max_timestamp")
+        subquery = sa.select(*table.c, computed_max_timestamp).subquery()
+        return subquery
+
+    read_table = sql_table(
+        table="chat_message",
+        credentials=sql_source_db.credentials,
+        schema=sql_source_db.schema,
+        reflection_level="full",
+        backend=backend,
+        table_adapter_callback=add_max_timestamp,
+        incremental=dlt.sources.incremental("max_timestamp"),
+    )
+
+    pipeline = make_pipeline("duckdb")
+    info = pipeline.run(read_table)
+    assert_load_info(info)
+
+    msg_count = load_table_counts(pipeline, "chat_message")["chat_message"]
+    assert msg_count > 0
+
+    chat_channel_schema = pipeline.default_schema.get_table("chat_message")
+    # print(pipeline.default_schema.to_pretty_yaml())
+    assert "max_timestamp" in chat_channel_schema["columns"]
+    assert chat_channel_schema["columns"]["max_timestamp"]["data_type"] == "timestamp"
+
+    info = pipeline.run(read_table)
+    # no msgs were loaded, incremental got correctly rendered
+    assert load_table_counts(pipeline, "chat_message")["chat_message"] == msg_count
+
+
+def test_remove_nullability(sql_source_db: SQLAlchemySourceDB) -> None:
+    read_table = sql_table(
+        table="chat_message",
+        credentials=sql_source_db.credentials,
+        schema=sql_source_db.schema,
+        reflection_level="full_with_precision",
+        table_adapter_callback=remove_nullability_adapter,
+    )
+    table_schema = read_table.compute_table_schema()
+    for column in table_schema["columns"].values():
+        assert "nullability" not in column
+
+    # also works for subquery
+    def make_subquery(table):
+        return remove_nullability_adapter(table.select().subquery())
+
+    read_table = sql_table(
+        table="chat_message",
+        credentials=sql_source_db.credentials,
+        schema=sql_source_db.schema,
+        reflection_level="full_with_precision",
+        table_adapter_callback=make_subquery,
+    )
+
+    table_schema = read_table.compute_table_schema()
+    for column in table_schema["columns"].values():
+        assert "nullability" not in column
+
+    data = list(read_table)
+    assert len(data) == sql_source_db.table_infos["chat_message"]["row_count"]
 
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pandas", "pyarrow", "connectorx"])
@@ -1009,7 +1178,10 @@ def test_sql_table_included_columns(
 def test_query_adapter_callback(
     sql_source_db: SQLAlchemySourceDB, backend: TableBackend, standalone_resource: bool
 ) -> None:
-    def query_adapter_callback(query, table):
+    from dlt.sources.sql_database.helpers import SelectAny
+    from dlt.common.libs.sql_alchemy import Table
+
+    def query_adapter_callback(query: SelectAny, table: Table) -> SelectAny:
         if table.name == "chat_channel":
             # Only select active channels
             return query.where(table.c.active.is_(True))
@@ -1021,7 +1193,6 @@ def test_query_adapter_callback(
         schema=sql_source_db.schema,
         reflection_level="full",
         backend=backend,
-        query_adapter_callback=query_adapter_callback,
     )
 
     if standalone_resource:
@@ -1031,11 +1202,13 @@ def test_query_adapter_callback(
             yield sql_table(
                 **common_kwargs,  # type: ignore[arg-type]
                 table="chat_channel",
+                query_adapter_callback=query_adapter_callback,
             )
 
             yield sql_table(
                 **common_kwargs,  # type: ignore[arg-type]
                 table="chat_message",
+                query_adapter_callback=query_adapter_callback,
             )
 
         source = dummy_source()
@@ -1043,6 +1216,7 @@ def test_query_adapter_callback(
         source = sql_database(
             **common_kwargs,  # type: ignore[arg-type]
             table_names=["chat_message", "chat_channel"],
+            query_adapter_callback=query_adapter_callback,
         )
 
     pipeline = make_pipeline("duckdb")

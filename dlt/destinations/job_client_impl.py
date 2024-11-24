@@ -597,7 +597,10 @@ WHERE """
                         for c in new_columns
                         if c.get(hint, False)
                     ]
-                    if hint == "null":
+                    if hint in ["hard_delete", "dedup_sort", "merge_key"]:
+                        # you may add those
+                        pass
+                    elif hint == "null":
                         logger.warning(
                             f"Column(s) {hint_columns} with NOT NULL are being added to existing"
                             f" table {table_name}. If there's data in the table the operation"

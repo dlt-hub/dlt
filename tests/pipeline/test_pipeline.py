@@ -64,6 +64,8 @@ from tests.pipeline.utils import (
     many_delayed,
 )
 
+from dlt.destinations.dataset import get_destination_client_initial_config
+
 DUMMY_COMPLETE = dummy(completed_prob=1)  # factory set up to complete jobs
 
 
@@ -417,16 +419,15 @@ def test_destination_staging_config(environment: Any) -> None:
     fs_dest = filesystem("file:///testing-bucket")
     p = dlt.pipeline(
         pipeline_name="staging_pipeline",
-        destination=redshift(credentials="redshift://loader:loader@localhost:5432/dlt_data"),
+        destination=dummy(),
         staging=fs_dest,
     )
     schema = Schema("foo")
     p._inject_schema(schema)
-    initial_config = p._get_destination_client_initial_config(p.staging, as_staging=True)
-    staging_config = fs_dest.configuration(initial_config)  # type: ignore[arg-type]
 
-    # Ensure that as_staging flag is set in the final resolved conifg
-    assert staging_config.as_staging_destination is True
+    _, staging_client = p._get_destination_clients()
+
+    assert staging_client.config.as_staging_destination is True  # type: ignore
 
 
 def test_destination_factory_defaults_resolve_from_config(environment: Any) -> None:
@@ -450,7 +451,9 @@ def test_destination_credentials_in_factory(environment: Any) -> None:
 
     p = dlt.pipeline(pipeline_name="dummy_pipeline", destination=redshift_dest)
 
-    initial_config = p._get_destination_client_initial_config(p.destination)
+    initial_config = get_destination_client_initial_config(
+        p.destination, "some_schema_name", p.dataset_name
+    )
     dest_config = redshift_dest.configuration(initial_config)  # type: ignore[arg-type]
     # Explicit factory arg supersedes config
     assert dest_config.credentials.database == "other_db"
@@ -458,7 +461,9 @@ def test_destination_credentials_in_factory(environment: Any) -> None:
     redshift_dest = redshift()
     p = dlt.pipeline(pipeline_name="dummy_pipeline", destination=redshift_dest)
 
-    initial_config = p._get_destination_client_initial_config(p.destination)
+    initial_config = get_destination_client_initial_config(
+        p.destination, "some_schema_name", p.dataset_name
+    )
     dest_config = redshift_dest.configuration(initial_config)  # type: ignore[arg-type]
     assert dest_config.credentials.database == "some_db"
 
