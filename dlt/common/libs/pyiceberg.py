@@ -139,13 +139,17 @@ def _get_fileio_config(credentials: CredentialsConfiguration) -> Dict[str, Any]:
     return {}
 
 
+def _get_last_metadata_file(metadata_path: str, client: FilesystemClient) -> str:
+    # TODO: implement faster way to obtain `last_metadata_file` (listing is slow)
+    metadata_files = [f for f in client.fs_client.ls(metadata_path) if f.endswith(".json")]
+    return _make_path(sorted(metadata_files)[-1], client)
+
+
 def _register_table(
     identifier: str,
     metadata_path: str,
     catalog: SqlCatalog,
     client: FilesystemClient,
 ) -> IcebergTable:
-    # TODO: implement faster way to obtain `last_metadata_file` (listing is slow)
-    metadata_files = [f for f in client.fs_client.ls(metadata_path) if f.endswith(".json")]
-    last_metadata_file = client.make_remote_url(sorted(metadata_files)[-1])
+    last_metadata_file = _get_last_metadata_file(metadata_path, client)
     return catalog.register_table(identifier, last_metadata_file)
