@@ -7,7 +7,6 @@ import pytest
 import dlt
 import os
 import shutil
-import logging
 
 
 from dlt import Pipeline
