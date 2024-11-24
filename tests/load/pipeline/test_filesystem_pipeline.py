@@ -318,7 +318,7 @@ def test_table_format_core(
         FILE_BUCKET,
         AWS_BUCKET,
     ):
-        pytest.skip("only local and S3 filesystems are currently implemented `iceberg`")
+        pytest.skip("only local and S3 filesystems are currently implemented for `iceberg`")
     if destination_config.table_format == "delta":
         from dlt.common.libs.deltalake import get_delta_tables
 
