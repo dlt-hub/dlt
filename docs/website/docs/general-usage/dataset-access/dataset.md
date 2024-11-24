@@ -1,5 +1,5 @@
 ---
-title: Accessing Loaded Data in Python
+title: Accessing loaded data in Python
 description: Conveniently accessing the data loaded to any destination in python
 keywords: [destination, schema, data, access, retrieval]
 ---
@@ -158,7 +158,7 @@ arrow_table = items_relation.select("col1", "col2").limit(50).arrow()
 
 ## Supported destinations
 
-All SQL and filesystem destinations supported by `dlt` can utilize this data access interface. For filesystem destinations, `dlt` [uses **DuckDB** under the hood](./sql-client.md#the-filesystem-sql-client) to create views from Parquet or JSONL files dynamically. This allows you to query data stored in files using the same interface as you would with SQL databases. If you plan on accessing data in buckets or the filesystem a lot this way, it is advised to load data as parquet instead of jsonl, as **DuckDB** is able to only load the parts of the data actually needed for the query to work.
+All SQL and filesystem destinations supported by `dlt` can utilize this data access interface. For filesystem destinations, `dlt` [uses **DuckDB** under the hood](./sql-client.md#the-filesystem-sql-client) to create views from Parquet or JSONL files dynamically. This allows you to query data stored in files using the same interface as you would with SQL databases. If you plan on accessing data in buckets or the filesystem a lot this way, it is advised to load data as Parquet instead of JSONL, as **DuckDB** is able to only load the parts of the data actually needed for the query to work.
 
 ## Examples
 
@@ -206,12 +206,14 @@ custom_relation = dataset("SELECT * FROM items JOIN other_items ON items.id = ot
 arrow_table = custom_relation.arrow()
 ```
 
-**Note:** When using custom SQL queries with `dataset()`, methods like `limit` and `select` won't work. Include any filtering or column selection directly in your SQL query.
+:::note
+When using custom SQL queries with `dataset()`, methods like `limit` and `select` won't work. Include any filtering or column selection directly in your SQL query.
+:::
 
 
 ### Loading a `ReadableRelation` into a pipeline table
 
-Since the iter_arrow and iter_df methods are generators that iterate over the full ReadableRelation in chunks, you can use them as a resource for another (or even the same) dlt pipeline:
+Since the `iter_arrow` and `iter_df` methods are generators that iterate over the full `ReadableRelation` in chunks, you can use them as a resource for another (or even the same) `dlt` pipeline:
 
 ```py
 # Create a readable relation with a limit of 1m rows

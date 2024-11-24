@@ -1,5 +1,5 @@
 ---
-title: Viewing your data with streamlit
+title: Viewing your data with Streamlit
 description: Viewing your data with streamlit
 keywords: [data, dataset, streamlit]
 ---
@@ -9,12 +9,12 @@ keywords: [data, dataset, streamlit]
 Once you have run a pipeline locally, you can launch a web app that displays the loaded data. For this to work, you will need to have the `streamlit` package installed.
 
 :::tip
-The streamlit app does not work with all destinations supported by `dlt`. Only destinations that provide a SQL client will work. The filesystem destination has support via the [Filesystem SQL client](./sql-client#the-filesystem-sql-client) and will work in most cases. Vector databases generally are unsupported.
+The Streamlit app does not work with all destinations supported by `dlt`. Only destinations that provide a SQL client will work. The filesystem destination has support via the [Filesystem SQL client](./sql-client#the-filesystem-sql-client) and will work in most cases. Vector databases generally are unsupported.
 :::
 
 ## Prerequisites
 
-To install streamlit, run the following command:
+To install Streamlit, run the following command:
 
 ```sh
 pip install streamlit
@@ -35,11 +35,11 @@ Use the pipeline name you defined in your Python code with the `pipeline_name` a
 
 You can now inspect the schema and your data. Use the left sidebar to switch between:
 
-* Exploring your data (default)
-* Information about your loads
+* Exploring your data (default);
+* Information about your loads.
 
 
 ## Further reading
 
-If you are running dlt in Python interactively or in a notebook, read the [Accessing your data with Python](./dataset.md) guide.
+If you are running `dlt` in Python interactively or in a notebook, read the [Accessing loaded data in Python](./dataset.md) guide.
 
