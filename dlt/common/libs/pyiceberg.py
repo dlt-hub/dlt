@@ -5,6 +5,7 @@ from dlt.common.libs.pyarrow import cast_arrow_schema_types, columns_to_arrow
 from dlt.common.schema.typing import TWriteDisposition
 from dlt.common.utils import assert_min_pkg_version
 from dlt.common.exceptions import MissingDependencyException
+from dlt.common.storages.configuration import FileSystemCredentials
 from dlt.common.configuration.specs import CredentialsConfiguration
 from dlt.common.configuration.specs.mixins import WithPyicebergConfig
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
@@ -51,27 +52,22 @@ def write_iceberg_table(
         table.overwrite(ensure_iceberg_compatible_arrow_data(data))
 
 
-def get_catalog(
+def get_sql_catalog(credentials: FileSystemCredentials) -> SqlCatalog:
+    return SqlCatalog(
+        "default",
+        uri="sqlite:///:memory:",
+        **_get_fileio_config(credentials),
+    )
+
+
+def create_or_evolve_table(
+    catalog: SqlCatalog,
     client: FilesystemClient,
     table_name: str,
     namespace_name: Optional[str] = None,
     schema: Optional[pa.Schema] = None,
     partition_columns: Optional[List[str]] = None,
 ) -> SqlCatalog:
-    """Returns single-table, ephemeral, in-memory Iceberg catalog."""
-
-    # create in-memory catalog
-    catalog = SqlCatalog(
-        "default",
-        uri="sqlite:///:memory:",
-        **_get_fileio_config(client.config.credentials),
-    )
-
-    # create namespace
-    if namespace_name is None:
-        namespace_name = client.dataset_name
-    catalog.create_namespace(namespace_name)
-
     # add table to catalog
     table_id = f"{namespace_name}.{table_name}"
     table_path = f"{client.dataset_path}/{table_name}"
@@ -96,6 +92,36 @@ def get_catalog(
             with txn.update_spec() as update_spec:
                 for col in partition_columns:
                     update_spec.add_identity(col)
+
+    return catalog
+
+
+def get_catalog(
+    client: FilesystemClient,
+    table_name: str,
+    namespace_name: Optional[str] = None,
+    schema: Optional[pa.Schema] = None,
+    partition_columns: Optional[List[str]] = None,
+) -> SqlCatalog:
+    """Returns single-table, ephemeral, in-memory Iceberg catalog."""
+
+    # create in-memory catalog
+    catalog = get_sql_catalog(client.config.credentials)
+
+    # create namespace
+    if namespace_name is None:
+        namespace_name = client.dataset_name
+    catalog.create_namespace(namespace_name)
+
+    # add table to catalog
+    catalog = create_or_evolve_table(
+        catalog=catalog,
+        client=client,
+        table_name=table_name,
+        namespace_name=namespace_name,
+        schema=schema,
+        partition_columns=partition_columns,
+    )
 
     return catalog
 
