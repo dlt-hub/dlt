@@ -193,7 +193,21 @@ const sidebars = {
       items: [
         'walkthroughs/create-a-pipeline',
         'walkthroughs/run-a-pipeline',
-        'dlt-ecosystem/visualizations/exploring-the-data',
+        {
+          type: 'category',
+          label: 'Accessing loaded data',
+           link: {
+            type: 'doc',
+            id: 'general-usage/dataset-access/index',
+          },
+          items: [
+            'general-usage/dataset-access/streamlit',
+            'general-usage/dataset-access/dataset',
+            'general-usage/dataset-access/ibis-backend',
+            'general-usage/dataset-access/sql-client',
+            'general-usage/dataset-access/data-quality-dashboard',
+          ]
+        },
         {
           type: 'category',
           label: 'Transform the data',
