@@ -220,7 +220,7 @@ Since the `iter_arrow` and `iter_df` methods are generators that iterate over th
 limited_items_relation = dataset.items.limit(1_000_000)
 
 # Create a new pipeline
-other_pipeline = ...
+other_pipeline = dlt.pipeline(pipeline_name="other_pipeline", destination="duckdb")
 
 # We can now load these 1m rows into this pipeline in 10k chunks
 other_pipeline.run(limited_items_relation.iter_arrow(chunk_size=10_000), table_name="limited_items")

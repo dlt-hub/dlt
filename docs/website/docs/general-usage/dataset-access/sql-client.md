@@ -36,7 +36,7 @@ The cursor returned by `execute_query` has several methods for retrieving the da
 The code below shows how to retrieve the data as a Pandas DataFrame and then manipulate it in memory:
 
 ```py
-pipeline = dlt.pipeline(...)
+pipeline = dlt.pipeline(pipeline_name="my_pipeline", destination="duckdb")
 with pipeline.sql_client() as client:
     with client.execute_query(
         'SELECT "reactions__+1", "reactions__-1", reactions__laugh, reactions__hooray, reactions__rocket FROM issues'
