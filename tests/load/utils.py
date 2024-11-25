@@ -627,6 +627,7 @@ def destinations_configs(
                     extra_info=bucket,
                     table_format="iceberg",
                     supports_merge=False,
+                    file_format="parquet",
                 )
             ]
 
