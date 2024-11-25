@@ -40,7 +40,7 @@ click = ">=7.1"
 requirements-parser = ">=0.5.0"
 setuptools = ">=65.6.0"
 humanize = ">=4.4.0"
-astunparse = ">=1.6.3"
+astunparse = { "version" = ">=1.6.3", "python" = "<3.9"}
 gitpython = ">=3.1.29"
 pytz = ">=2022.6"
 giturlparse = ">=0.10.0"
@@ -89,7 +89,6 @@ alembic = {version = ">1.10.0", optional = true}
 paramiko = {version = ">=3.3.0", optional = true}
 sqlglot = {version = ">=20.0.0", optional = true}
 db-dtypes = { version = ">=1.2.0", optional = true }
-aiohttp = { version = ">=3.9", optional = true }
 
 [tool.poetry.extras]
 gcp = ["grpcio", "google-cloud-bigquery", "db-dtypes", "gcsfs"]
