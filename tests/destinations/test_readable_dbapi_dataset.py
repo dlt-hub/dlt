@@ -2,7 +2,7 @@
 import dlt
 import pytest
 
-from dlt.destinations.dataset import (
+from dlt.destinations.dataset.exceptions import (
     ReadableRelationHasQueryException,
     ReadableRelationUnknownColumnException,
 )

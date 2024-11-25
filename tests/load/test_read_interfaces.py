@@ -18,9 +18,10 @@ from tests.load.utils import (
     MEMORY_BUCKET,
 )
 from dlt.destinations import filesystem
-from tests.utils import TEST_STORAGE_ROOT
-from dlt.common.destination.reference import TDestinationReferenceArg
-from dlt.destinations.dataset import ReadableDBAPIDataset, ReadableRelationUnknownColumnException
+from dlt.destinations.dataset.dataset import ReadableDBAPIDataset
+from dlt.destinations.dataset.exceptions import (
+    ReadableRelationUnknownColumnException,
+)
 from tests.load.utils import drop_pipeline_data
 
 EXPECTED_COLUMNS = ["id", "decimal", "other_decimal", "_dlt_load_id", "_dlt_id"]

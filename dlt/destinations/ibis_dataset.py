@@ -43,7 +43,6 @@ DIALECT_MAP = {
     "dlt.destinations.synapse": "tsql",  # probably works
     "dlt.destinations.athena": "trino",  # works
     "dlt.destinations.filesystem": "duckdb",  # works
-    # NOTE: this may or may not work
     "dlt.destinations.dremio": "presto",  # may work
     # NOTE: can we discover the current dialect in sqlalchemy?
     "dlt.destinations.sqlalchemy": "mysql",  # may work
