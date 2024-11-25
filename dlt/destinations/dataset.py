@@ -3,12 +3,8 @@ from typing import Any, Generator, Sequence, Union, TYPE_CHECKING, Tuple
 from contextlib import contextmanager
 
 from dlt import version
-
 from dlt.common.json import json
-
-from dlt.common.normalizers.naming.naming import NamingConvention
 from dlt.common.exceptions import MissingDependencyException
-
 from dlt.common.destination import AnyDestination
 from dlt.common.destination.reference import (
     SupportsReadableRelation,

@@ -37,7 +37,7 @@ from dlt.common.storages.load_package import (
     TPipelineStateDoc,
     load_package as current_load_package,
 )
-from dlt.destinations.sql_client import DBApiCursor, WithSqlClient, SqlClientBase
+from dlt.destinations.sql_client import WithSqlClient, SqlClientBase
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
     FollowupJobRequest,
@@ -63,7 +63,6 @@ from dlt.destinations.job_impl import (
 from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
 from dlt.destinations import path_utils
 from dlt.destinations.fs_client import FSClientBase
-from dlt.destinations.dataset import ReadableDBAPIDataset
 from dlt.destinations.utils import verify_schema_merge_disposition
 
 INIT_FILE_NAME = "init"
