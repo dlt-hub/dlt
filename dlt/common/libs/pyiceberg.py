@@ -10,15 +10,10 @@ from dlt.common.configuration.specs import CredentialsConfiguration
 from dlt.common.configuration.specs.mixins import WithPyicebergConfig
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 
-assert_min_pkg_version(
-    pkg_name="sqlalchemy",
-    version="2.0.18",
-    msg="`sqlalchemy>=2.0.18` is needed for `iceberg` table format on `filesystem` destination.",
-)
 
 try:
     from pyiceberg.table import Table as IcebergTable
-    from pyiceberg.catalog.sql import SqlCatalog
+    from pyiceberg.catalog import MetastoreCatalog
     import pyarrow as pa
 except ModuleNotFoundError:
     raise MissingDependencyException(
@@ -52,7 +47,17 @@ def write_iceberg_table(
         table.overwrite(ensure_iceberg_compatible_arrow_data(data))
 
 
-def get_sql_catalog(credentials: FileSystemCredentials) -> SqlCatalog:
+def get_sql_catalog(credentials: FileSystemCredentials) -> "SqlCatalog":  # type: ignore[name-defined] # noqa: F821
+    assert_min_pkg_version(
+        pkg_name="sqlalchemy",
+        version="2.0.18",
+        msg=(
+            "`sqlalchemy>=2.0.18` is needed for `iceberg` table format on `filesystem` destination."
+        ),
+    )
+
+    from pyiceberg.catalog.sql import SqlCatalog
+
     return SqlCatalog(
         "default",
         uri="sqlite:///:memory:",
@@ -61,13 +66,13 @@ def get_sql_catalog(credentials: FileSystemCredentials) -> SqlCatalog:
 
 
 def create_or_evolve_table(
-    catalog: SqlCatalog,
+    catalog: MetastoreCatalog,
     client: FilesystemClient,
     table_name: str,
     namespace_name: Optional[str] = None,
     schema: Optional[pa.Schema] = None,
     partition_columns: Optional[List[str]] = None,
-) -> SqlCatalog:
+) -> MetastoreCatalog:
     # add table to catalog
     table_id = f"{namespace_name}.{table_name}"
     table_path = f"{client.dataset_path}/{table_name}"
@@ -102,11 +107,11 @@ def get_catalog(
     namespace_name: Optional[str] = None,
     schema: Optional[pa.Schema] = None,
     partition_columns: Optional[List[str]] = None,
-) -> SqlCatalog:
+) -> MetastoreCatalog:
     """Returns single-table, ephemeral, in-memory Iceberg catalog."""
 
     # create in-memory catalog
-    catalog = get_sql_catalog(client.config.credentials)
+    catalog: MetastoreCatalog = get_sql_catalog(client.config.credentials)
 
     # create namespace
     if namespace_name is None:
@@ -174,7 +179,7 @@ def _get_last_metadata_file(metadata_path: str, client: FilesystemClient) -> str
 def _register_table(
     identifier: str,
     metadata_path: str,
-    catalog: SqlCatalog,
+    catalog: MetastoreCatalog,
     client: FilesystemClient,
 ) -> IcebergTable:
     last_metadata_file = _get_last_metadata_file(metadata_path, client)
