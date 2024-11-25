@@ -406,13 +406,9 @@ class FilesystemClient(
     ) -> TSchemaTables:
         applied_update = super().update_stored_schema(only_tables, expected_update)
         # create destination dirs for all tables
-        tables = self.schema.tables
-        table_names = only_tables or tables.keys()
+        table_names = only_tables or self.schema.tables.keys()
         dirs_to_create = self.get_table_dirs(table_names)
         for tables_name, directory in zip(table_names, dirs_to_create):
-            if tables[tables_name].get("table_format") in ("delta", "iceberg"):
-                # let table format libs manage table directory
-                continue
             self.fs_client.makedirs(directory, exist_ok=True)
             # we need to mark the folders of the data tables as initialized
             if tables_name in self.schema.dlt_table_names():
