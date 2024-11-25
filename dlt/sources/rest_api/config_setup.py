@@ -431,7 +431,13 @@ def _bind_header_params(resource: EndpointResource) -> None:
             bind_params[k] = "{" + k + "}"
 
     headers = resource["endpoint"].get("headers", {})
-    resource["endpoint"]["headers"] = generic_format(headers, bind_params)  # type: ignore[typeddict-item]
+    formatted_headers = {
+        k.format(**bind_params) if isinstance(k, str) else str(k): (
+            v.format(**bind_params) if isinstance(v, str) else str(v)
+        )
+        for k, v in headers.items()
+    }
+    resource["endpoint"]["headers"] = formatted_headers
 
 
 def _setup_single_entity_endpoint(endpoint: Endpoint) -> Endpoint:
@@ -584,21 +590,6 @@ def create_response_hooks(
     return None
 
 
-def generic_format(
-    to_format: Union[Dict[str, Any], str, List[Any]], param_values: Dict[str, Any]
-) -> Union[Dict[str, Any], str, List[Any]]:
-    if isinstance(to_format, dict):
-        return {
-            generic_format(key, param_values): generic_format(val, param_values)  # type: ignore[misc]
-            for key, val in to_format.items()
-        }
-    if isinstance(to_format, list):
-        return [generic_format(item, param_values) for item in to_format]
-    if isinstance(to_format, str):
-        return to_format.format(**param_values)
-    return str(to_format)
-
-
 def process_parent_data_item(
     path: str,
     item: Dict[str, Any],
@@ -639,8 +630,13 @@ def process_parent_data_item(
             parent_record[child_key] = item[parent_key]
 
     if headers is not None:
-        formatted_headers = generic_format(headers, param_values)
-        return bound_path, formatted_headers, parent_record  # type: ignore[return-value]
+        formatted_headers = {
+            k.format(**param_values) if isinstance(k, str) else str(k): (
+                v.format(**param_values) if isinstance(v, str) else str(v)
+            )
+            for k, v in headers.items()
+        }
+        return bound_path, formatted_headers, parent_record
     return bound_path, {}, parent_record
 
 

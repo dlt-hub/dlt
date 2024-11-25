@@ -193,52 +193,11 @@ def test_process_parent_data_item_headers() -> None:
     )
     assert resolved_headers == {"Authorization": "12345", "num": "2"}
 
-    # nested params
-    resolve_params = [
-        ResolvedParam(
-            "token", {"field": "auth.token", "resource": "authenticate", "type": "resolve"}
-        ),
-        ResolvedParam("num", {"field": "auth.num", "resource": "authenticate", "type": "resolve"}),
-    ]
-    _, resolved_headers, parent_record = process_parent_data_item(
-        "chicken",
-        {"auth": {"token": 12345, "num": 2}},
-        resolve_params,
-        None,
-        {"Authorization": "{token}", "num": "{num}"},
-    )
-    assert resolved_headers == {"Authorization": "12345", "num": "2"}
-
-    # nested header dict
     resolve_params = [
         ResolvedParam(
             "token", {"field": "auth.token", "resource": "authenticate", "type": "resolve"}
         )
     ]
-    _, resolved_headers, parent_record = process_parent_data_item(
-        "chicken",
-        {"auth": {"token": 12345}},
-        resolve_params,
-        None,
-        {"Authorization": {"Bearer": "{token}"}},
-    )
-    assert resolved_headers == {"Authorization": {"Bearer": "12345"}}
-
-    # nested header list
-    resolve_params = [
-        ResolvedParam(
-            "token", {"field": "auth.token", "resource": "authenticate", "type": "resolve"}
-        )
-    ]
-    _, resolved_headers, parent_record = process_parent_data_item(
-        "chicken",
-        {"auth": {"token": 12345}},
-        resolve_params,
-        None,
-        {"Authorization": ["Bearer", "{token}"]},
-    )
-    assert resolved_headers == {"Authorization": ["Bearer", "12345"]}
-
     # param path not found
     with pytest.raises(ValueError) as val_ex:
         _, _, parent_record = process_parent_data_item(
@@ -444,31 +403,12 @@ def test_bind_header_params() -> None:
         "name": "test_resource",
         "endpoint": {
             "path": "test/path",
-            "headers": {"Authorization": "{token}"},
+            "headers": {"Authorization": "Bearer {token}"},
             "params": {
                 "token": "test_token",
             },
         },
     }
     _bind_header_params(resource_with_headers)
-    assert resource_with_headers["endpoint"]["headers"]["Authorization"] == "test_token"  # type: ignore[index]
-    assert len(resource_with_headers["endpoint"]["params"]) == 0  # type: ignore[index]
-
-
-def test_bind_header_params_nested() -> None:
-    resource_with_headers: EndpointResource = {
-        "name": "test_resource",
-        "endpoint": {
-            "path": "test/path",
-            "headers": {"{token}": "{token}", "deeper": {"{token}": ["{token}"]}},
-            "params": {
-                "token": "test_token",
-            },
-        },
-    }
-    _bind_header_params(resource_with_headers)
-    assert resource_with_headers["endpoint"]["headers"] == {  # type: ignore[index]
-        "test_token": "test_token",
-        "deeper": {"test_token": ["test_token"]},
-    }
+    assert resource_with_headers["endpoint"]["headers"]["Authorization"] == "Bearer test_token"  # type: ignore[index]
     assert len(resource_with_headers["endpoint"]["params"]) == 0  # type: ignore[index]
