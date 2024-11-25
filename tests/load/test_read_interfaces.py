@@ -490,17 +490,12 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
 
     subprocess.check_call(["pip", "install", "ibis-framework"])
 
-    from dlt.destinations.ibis_dataset import dataset as create_ibis_dataset
-
-    dataset = create_ibis_dataset(
-        populated_pipeline.destination,
-        populated_pipeline.dataset_name,
-        populated_pipeline.default_schema_name,
-    )
+    # now we should get the more powerful ibis relation
+    dataset = populated_pipeline._dataset()
     total_records = _total_records(populated_pipeline)
 
-    items_table = dataset.table("items")
-    double_items_table = dataset.table("double_items")
+    items_table = dataset["items"]
+    double_items_table = dataset["double_items"]
 
     # check full table access
     df = items_table.df()
@@ -535,8 +530,8 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     filtered_table = items_table.filter(items_table.id < 10)
     assert len(filtered_table.fetchall()) == 10
 
-    # # NOTE: here we test that dlt column type resolution still works
-    # # hints should also be preserved via computed reduced schema
+    # NOTE: here we test that dlt column type resolution still works
+    # re-enable this when lineage is implemented
     # expected_decimal_precision = 10
     # expected_decimal_precision_2 = 12
     # expected_decimal_precision_di = 7

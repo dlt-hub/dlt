@@ -13,7 +13,6 @@ from dlt.common.destination.reference import (
     WithStateSync,
 )
 
-from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.common.schema import Schema
 from dlt.destinations.dataset.relation import ReadableDBAPIRelation
@@ -112,10 +111,19 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
         return ReadableDBAPIRelation(readable_dataset=self, provided_query=query)  # type: ignore[abstract]
 
     def table(self, table_name: str) -> SupportsReadableRelation:
-        return ReadableDBAPIRelation(
-            readable_dataset=self,
-            table_name=table_name,
-        )  # type: ignore[abstract]
+        # we can create an ibis powered relation if ibis is available
+        try:
+            from dlt.common.libs.ibis import create_unbound_ibis_table
+            from dlt.destinations.dataset.ibis_relation import ReadableIbisRelation
+
+            unbound_table = create_unbound_ibis_table(self.sql_client, self.schema, table_name)
+            return ReadableIbisRelation(readable_dataset=self, expression=unbound_table)  # type: ignore[abstract]
+        except MissingDependencyException:
+            # fallback to the standard dbapi relation
+            return ReadableDBAPIRelation(
+                readable_dataset=self,
+                table_name=table_name,
+            )  # type: ignore[abstract]
 
     def __getitem__(self, table_name: str) -> SupportsReadableRelation:
         """access of table via dict notation"""
