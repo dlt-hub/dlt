@@ -636,9 +636,11 @@ def destinations_configs(
         conf for conf in destination_configs if conf.destination_type in ACTIVE_DESTINATIONS
     ]
 
-    # filter out non active destinations
+    # filter out non active table formats
     destination_configs = [
-        conf for conf in destination_configs if conf.table_format in ACTIVE_TABLE_FORMATS
+        conf
+        for conf in destination_configs
+        if conf.table_format is None or conf.table_format in ACTIVE_TABLE_FORMATS
     ]
 
     # filter out destinations not in subset
