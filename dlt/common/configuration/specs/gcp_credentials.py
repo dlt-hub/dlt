@@ -12,6 +12,7 @@ from dlt.common.configuration.specs.exceptions import (
     NativeValueError,
     OAuth2ScopesRequired,
 )
+from dlt.common.configuration.specs.mixins import WithObjectStoreRsCredentials
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.typing import DictStrAny, TSecretStrValue, StrAny
 from dlt.common.configuration.specs.base_configuration import (
@@ -23,7 +24,7 @@ from dlt.common.utils import is_interactive
 
 
 @configspec
-class GcpCredentials(CredentialsConfiguration):
+class GcpCredentials(CredentialsConfiguration, WithObjectStoreRsCredentials):
     token_uri: Final[str] = dataclasses.field(
         default="https://oauth2.googleapis.com/token", init=False, repr=False, compare=False
     )

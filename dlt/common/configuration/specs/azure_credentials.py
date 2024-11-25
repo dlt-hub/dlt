@@ -8,7 +8,7 @@ from dlt.common.configuration.specs import (
     CredentialsWithDefault,
     configspec,
 )
-from dlt.common.configuration.specs.mixins import WithPyicebergConfig
+from dlt.common.configuration.specs.mixins import WithObjectStoreRsCredentials, WithPyicebergConfig
 from dlt import version
 from dlt.common.utils import without_none
 
@@ -16,7 +16,7 @@ _AZURE_STORAGE_EXTRA = f"{version.DLT_PKG_NAME}[az]"
 
 
 @configspec
-class AzureCredentialsBase(CredentialsConfiguration):
+class AzureCredentialsBase(CredentialsConfiguration, WithObjectStoreRsCredentials):
     azure_storage_account_name: str = None
     azure_account_host: Optional[str] = None
     """Alternative host when accessing blob storage endpoint ie. my_account.dfs.core.windows.net"""

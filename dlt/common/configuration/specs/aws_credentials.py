@@ -8,7 +8,7 @@ from dlt.common.configuration.specs import (
     CredentialsWithDefault,
     configspec,
 )
-from dlt.common.configuration.specs.mixins import WithPyicebergConfig
+from dlt.common.configuration.specs.mixins import WithObjectStoreRsCredentials, WithPyicebergConfig
 from dlt.common.configuration.specs.exceptions import (
     InvalidBoto3Session,
     ObjectStoreRsCredentialsException,
@@ -17,7 +17,9 @@ from dlt import version
 
 
 @configspec
-class AwsCredentialsWithoutDefaults(CredentialsConfiguration, WithPyicebergConfig):
+class AwsCredentialsWithoutDefaults(
+    CredentialsConfiguration, WithObjectStoreRsCredentials, WithPyicebergConfig
+):
     # credentials without boto implementation
     aws_access_key_id: str = None
     aws_secret_access_key: TSecretStrValue = None
