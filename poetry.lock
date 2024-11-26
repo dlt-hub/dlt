@@ -8825,7 +8825,7 @@ testing-integration = ["build[virtualenv]", "filelock (>=3.4.0)", "jaraco.envs (
 name = "shapely"
 version = "2.0.6"
 description = "Manipulation and analysis of geometric objects"
-optional = true
+optional = false
 python-versions = ">=3.7"
 files = [
     {file = "shapely-2.0.6-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:29a34e068da2d321e926b5073539fd2a1d4429a2c656bd63f0bd4c8f5b236d0b"},
@@ -10603,7 +10603,7 @@ lancedb = ["lancedb", "pyarrow", "tantivy"]
 motherduck = ["duckdb", "pyarrow"]
 mssql = ["pyodbc"]
 parquet = ["pyarrow"]
-postgis = ["psycopg2-binary", "psycopg2cffi", "shapely"]
+postgis = ["psycopg2-binary", "psycopg2cffi"]
 postgres = ["psycopg2-binary", "psycopg2cffi"]
 qdrant = ["qdrant-client"]
 redshift = ["psycopg2-binary", "psycopg2cffi"]
@@ -10618,4 +10618,4 @@ weaviate = ["weaviate-client"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.8.1,<3.13"
-content-hash = "862f692e6c598085da03891c8598adb42d41cf9c4de810337b76f202f97ffda1"
+content-hash = "24e262ce6bb496fad6e587c76bb9ad60a2cc45a00f52e368b59978093e57b77c"

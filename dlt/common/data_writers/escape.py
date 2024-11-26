@@ -1,7 +1,7 @@
-import base64
 import re
-from datetime import date, datetime, time  # noqa: I251
+import base64
 from typing import Any, Dict
+from datetime import date, datetime, time  # noqa: I251
 
 from dlt.common.json import json
 from dlt.common.pendulum import pendulum
@@ -47,17 +47,6 @@ def escape_redshift_literal(v: Any) -> Any:
     return str(v)
 
 
-# TODO: Find, or implement, a pure python parser to remove the shapely dependency
-def is_valid_wkb(data: bytes) -> bool:
-    try:
-        from shapely import wkb  # type: ignore
-
-        wkb.loads(data)
-        return True
-    except Exception:
-        return False
-
-
 def escape_postgres_literal(v: Any) -> Any:
     if isinstance(v, str):
         # we escape extended string which behave like the redshift string
@@ -67,12 +56,7 @@ def escape_postgres_literal(v: Any) -> Any:
     if isinstance(v, (list, dict)):
         return _escape_extended(json.dumps(v))
     if isinstance(v, bytes):
-        if is_valid_wkb(v):
-            # Skip \x prefix for WKB (OGC/ISO geometry standard format)
-            # https://libgeos.org/specifications/wkb/
-            return f"'{v.hex()}'"
-        else:
-            return f"'\\x{v.hex()}'"
+        return f"'\\x{v.hex()}'"
     if v is None:
         return "NULL"
 
