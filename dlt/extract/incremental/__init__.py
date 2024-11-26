@@ -545,7 +545,6 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
     def __call__(self, rows: TDataItems, meta: Any = None) -> Optional[TDataItems]:
         if rows is None:
             return rows
-
         transformer = self._get_transformer(rows)
         if isinstance(rows, list):
             rows = [
