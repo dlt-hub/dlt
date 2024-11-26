@@ -112,18 +112,21 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
 
     def table(self, table_name: str) -> SupportsReadableRelation:
         # we can create an ibis powered relation if ibis is available
-        try:
-            from dlt.common.libs.ibis import create_unbound_ibis_table
-            from dlt.destinations.dataset.ibis_relation import ReadableIbisRelation
+        if table_name in self.schema.tables:
+            try:
+                from dlt.common.libs.ibis import create_unbound_ibis_table
+                from dlt.destinations.dataset.ibis_relation import ReadableIbisRelation
 
-            unbound_table = create_unbound_ibis_table(self.sql_client, self.schema, table_name)
-            return ReadableIbisRelation(readable_dataset=self, expression=unbound_table)  # type: ignore[abstract]
-        except MissingDependencyException:
-            # fallback to the standard dbapi relation
-            return ReadableDBAPIRelation(
-                readable_dataset=self,
-                table_name=table_name,
-            )  # type: ignore[abstract]
+                unbound_table = create_unbound_ibis_table(self.sql_client, self.schema, table_name)
+                return ReadableIbisRelation(readable_dataset=self, expression=unbound_table)  # type: ignore[abstract]
+            except MissingDependencyException:
+                pass
+
+        # fallback to the standard dbapi relation
+        return ReadableDBAPIRelation(
+            readable_dataset=self,
+            table_name=table_name,
+        )  # type: ignore[abstract]
 
     def __getitem__(self, table_name: str) -> SupportsReadableRelation:
         """access of table via dict notation"""
