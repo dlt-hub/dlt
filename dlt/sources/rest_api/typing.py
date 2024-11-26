@@ -263,6 +263,7 @@ class Endpoint(TypedDict, total=False):
     data_selector: Optional[jsonpath.TJsonPath]
     response_actions: Optional[List[ResponseAction]]
     incremental: Optional[IncrementalConfig]
+    auth: Optional[AuthConfig]
 
 
 class ProcessingSteps(TypedDict):

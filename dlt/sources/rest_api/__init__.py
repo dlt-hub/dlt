@@ -266,7 +266,7 @@ def create_resources(
         client = RESTClient(
             base_url=client_config["base_url"],
             headers=client_config.get("headers"),
-            auth=create_auth(client_config.get("auth")),
+            auth=create_auth(endpoint_config.get("auth", client_config.get("auth"))),
             paginator=create_paginator(client_config.get("paginator")),
             session=client_config.get("session"),
         )
@@ -410,6 +410,16 @@ def _validate_config(config: RESTAPIConfig) -> None:
         auth = client_config.get("auth")
         if auth:
             auth = _mask_secrets(auth)
+    resources = c.get("resources", [])
+    for resource in resources:
+        if isinstance(resource, str) or isinstance(resource, DltResource):
+            continue
+        if "endpoint" in resource:
+            endpoint = resource.get("endpoint")
+            if not isinstance(endpoint, str):
+                auth = endpoint.get("auth")
+                if auth:
+                    auth = _mask_secrets(auth)
 
     validate_dict(RESTAPIConfig, c, path=".")
 

@@ -308,6 +308,32 @@ A resource configuration is used to define a [dlt resource](../../../general-usa
 - `include_from_parent`: A list of fields from the parent resource to be included in the resource output. See the [resource relationships](#include-fields-from-the-parent-resource) section for more details.
 - `processing_steps`: A list of [processing steps](#processing-steps-filter-and-transform-data) to filter and transform the data.
 - `selected`: A flag to indicate if the resource is selected for loading. This could be useful when you want to load data only from child resources and not from the parent resource.
+- `auth`: An optional `AuthConfig` instance. If passed, is used over the one defined in the [dlt resource](../../../general-usage/resource.md) definition. Example:
+```py
+from dlt.sources.helpers.rest_client.auth import HttpBasicAuth
+
+config = {
+    "client": {
+        "auth": {
+            "type": "bearer",
+            "token": dlt.secrets["your_api_token"],
+        }
+    },
+    "resources": [
+        "resource-using-bearer-auth",
+        {
+            "name": "my-resource-with-special-auth",
+            "endpoint": {
+                # ...
+                "auth": HttpBasicAuth("user", dlt.secrets["your_basic_auth_password"])
+            },
+            # ...
+        }
+    ]
+    # ...
+}
+```
+This would use `Bearer` auth as defined in the `client` for `resource-using-bearer-auth` and `Http Basic` auth for `my-resource-with-special-auth`.
 
 You can also pass additional resource parameters that will be used to configure the dlt resource. See [dlt resource API reference](../../../api_reference/extract/decorators#resource) for more details.
 
