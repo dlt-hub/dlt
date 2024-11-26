@@ -13,13 +13,11 @@ from dlt.common.destination.reference import (
     FollowupJobRequest,
     LoadJob,
 )
-from dlt.common.exceptions import TerminalValueError
 from dlt.common.schema import TColumnSchema, TColumnHint, Schema
 from dlt.common.schema.typing import TColumnType
 from dlt.common.schema.utils import is_nullable_column
 from dlt.common.storages.file_storage import FileStorage
 from dlt.destinations.impl.postgres.configuration import PostgresClientConfiguration
-from dlt.destinations.impl.postgres.postgres_adapter import GEOMETRY_HINT
 from dlt.destinations.impl.postgres.sql_client import Psycopg2SqlClient
 from dlt.destinations.insert_job_client import InsertValuesJobClient
 from dlt.destinations.sql_client import SqlClientBase
@@ -158,14 +156,6 @@ class PostgresClient(InsertValuesJobClient):
     def create_load_job(
         self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
-        if any(
-            column.get(GEOMETRY_HINT) for column in table["columns"].values()
-        ) and not file_path.endswith("insert_values"):
-            # Only insert_values load jobs supported for geom types.
-            # TODO: This isn't actually true, can make it work with geoarrow!
-            raise TerminalValueError(
-                "CSV bulk loading is not supported for tables with geometry columns."
-            )
         job = super().create_load_job(table, file_path, load_id, restore)
         if not job and file_path.endswith("csv"):
             job = PostgresCsvCopyJob(file_path)

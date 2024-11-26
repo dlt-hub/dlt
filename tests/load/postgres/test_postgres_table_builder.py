@@ -264,6 +264,30 @@ def test_geometry_types(
     def geodata_2163_wkb_hex():
         yield from generate_sample_geometry_records("wkb_hex")
 
+    @dlt.resource(file_format="csv")
+    def geodata_default_csv_wkt():
+        yield from generate_sample_geometry_records("wkt")
+
+    @dlt.resource(file_format="csv")
+    def geodata_3857_csv_wkt():
+        yield from generate_sample_geometry_records("wkt")
+
+    @dlt.resource(file_format="csv")
+    def geodata_2163_csv_wkt():
+        yield from generate_sample_geometry_records("wkt")
+
+    @dlt.resource(file_format="csv")
+    def geodata_default_csv_wkb_hex():
+        yield from generate_sample_geometry_records("wkb_hex")
+
+    @dlt.resource(file_format="csv")
+    def geodata_3857_csv_wkb_hex():
+        yield from generate_sample_geometry_records("wkb_hex")
+
+    @dlt.resource(file_format="csv")
+    def geodata_2163_csv_wkb_hex():
+        yield from generate_sample_geometry_records("wkb_hex")
+
     @dlt.resource
     def no_geodata():
         yield from [{"a": 1}, {"a": 2}]
@@ -274,6 +298,12 @@ def test_geometry_types(
     postgres_adapter(geodata_default_wkb_hex, geometry=["geom"])
     postgres_adapter(geodata_3857_wkb_hex, geometry=["geom"], srid=3857)
     postgres_adapter(geodata_2163_wkb_hex, geometry=["geom"], srid=2163)
+    postgres_adapter(geodata_default_csv_wkt, geometry=["geom"])
+    postgres_adapter(geodata_3857_csv_wkt, geometry=["geom"], srid=3857)
+    postgres_adapter(geodata_2163_csv_wkt, geometry=["geom"], srid=2163)
+    postgres_adapter(geodata_default_csv_wkb_hex, geometry=["geom"])
+    postgres_adapter(geodata_3857_csv_wkb_hex, geometry=["geom"], srid=3857)
+    postgres_adapter(geodata_2163_csv_wkb_hex, geometry=["geom"], srid=2163)
 
     @dlt.source
     def geodata() -> List[DltResource]:
@@ -285,6 +315,12 @@ def test_geometry_types(
             geodata_3857_wkb_hex,
             geodata_2163_wkb_hex,
             no_geodata,
+            geodata_default_csv_wkt,
+            geodata_3857_csv_wkt,
+            geodata_2163_csv_wkt,
+            geodata_default_csv_wkb_hex,
+            geodata_3857_csv_wkb_hex,
+            geodata_2163_csv_wkb_hex,
         ]
 
     pipeline = destination_config.setup_pipeline("test_geometry_types", dev_mode=True)
@@ -296,13 +332,14 @@ def test_geometry_types(
     # Assert that types were read in as PostGIS geometry types
     with pipeline.sql_client() as c:
         with c.execute_query(f"""SELECT f_geometry_column
-            FROM geometry_columns
-            WHERE f_table_name in (
-            'geodata_default_wkb', 'geodata_3857_wkb', 'geodata_2163_wkb',
-            'geodata_default_wkt', 'geodata_3857_wkt', 'geodata_2163_wkt',
-            'geodata_default_wkb_hex', 'geodata_3857_wkb_hex', 'geodata_2163_wkb_hex'
-            )
-              AND f_table_schema = '{c.fully_qualified_dataset_name(escape=False)}'""") as cur:
+FROM geometry_columns
+WHERE f_table_name in
+      ('geodata_default_wkb', 'geodata_3857_wkb', 'geodata_2163_wkb', 'geodata_default_wkt', 'geodata_3857_wkt',
+       'geodata_2163_wkt', 'geodata_default_wkb_hex', 'geodata_3857_wkb_hex', 'geodata_2163_wkb_hex',
+       'geodata_default_csv_wkt', 'geodata_3857_csv_wkt', 'geodata_2163_csv_wkt', 'geodata_default_csv_wkb_hex',
+       'geodata_3857_csv_wkb_hex', 'geodata_2163_csv_wkb_hex'
+          )
+  AND f_table_schema = '{c.fully_qualified_dataset_name(escape=False)}'""") as cur:
             records = cur.fetchall()
             assert records
             assert {record[0] for record in records} == {"geom"}
@@ -315,6 +352,12 @@ def test_geometry_types(
             "geodata_default_wkb_hex",
             "geodata_3857_wkb_hex",
             "geodata_2163_wkb_hex",
+            "geodata_default_csv_wkt",
+            "geodata_3857_csv_wkt",
+            "geodata_2163_csv_wkt",
+            "geodata_default_csv_wkb_hex",
+            "geodata_3857_csv_wkb_hex",
+            "geodata_2163_csv_wkb_hex",
         ]:
             srid = 4326 if resource.startswith("geodata_default") else int(resource.split("_")[1])
 
