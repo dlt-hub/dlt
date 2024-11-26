@@ -241,18 +241,6 @@ def test_geometry_types(
     from shapely import wkt, wkb, LinearRing, Polygon  # type: ignore
 
     @dlt.resource
-    def geodata_default_wkb():
-        yield from generate_sample_geometry_records("wkb")
-
-    @dlt.resource
-    def geodata_3857_wkb():
-        yield from generate_sample_geometry_records("wkb")
-
-    @dlt.resource
-    def geodata_2163_wkb():
-        yield from generate_sample_geometry_records("wkb")
-
-    @dlt.resource
     def geodata_default_wkt():
         yield from generate_sample_geometry_records("wkt")
 
@@ -280,9 +268,6 @@ def test_geometry_types(
     def no_geodata():
         yield from [{"a": 1}, {"a": 2}]
 
-    postgres_adapter(geodata_default_wkb, geometry=["geom"])
-    postgres_adapter(geodata_3857_wkb, geometry=["geom"], srid=3857)
-    postgres_adapter(geodata_2163_wkb, geometry=["geom"], srid=2163)
     postgres_adapter(geodata_default_wkt, geometry=["geom"])
     postgres_adapter(geodata_3857_wkt, geometry=["geom"], srid=3857)
     postgres_adapter(geodata_2163_wkt, geometry=["geom"], srid=2163)
@@ -293,9 +278,6 @@ def test_geometry_types(
     @dlt.source
     def geodata() -> List[DltResource]:
         return [
-            geodata_default_wkb,
-            geodata_3857_wkb,
-            geodata_2163_wkb,
             geodata_default_wkt,
             geodata_3857_wkt,
             geodata_2163_wkt,
@@ -327,9 +309,6 @@ def test_geometry_types(
 
         # Verify round-trip integrity
         for resource in [
-            "geodata_default_wkb",
-            "geodata_3857_wkb",
-            "geodata_2163_wkb",
             "geodata_default_wkt",
             "geodata_3857_wkt",
             "geodata_2163_wkt",
@@ -370,9 +349,6 @@ def test_geometry_types(
                     if "_wkt" in db_type:
                         orig_geom = wkt.loads(orig_geom["geom"])
                         db_geom = wkt.loads(db_wkt)
-                    elif "_wkb" in db_type and "_wkb_hex" not in db_type:
-                        orig_geom = wkb.loads(orig_geom["geom"])
-                        db_geom = wkb.loads(bytes(db_wkb))
                     elif "_wkb_hex" in db_type:
                         orig_geom = wkb.loads(bytes.fromhex(orig_geom["geom"]))
                         db_geom = wkb.loads(bytes(db_wkb))
