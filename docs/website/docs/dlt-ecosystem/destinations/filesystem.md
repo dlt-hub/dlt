@@ -122,13 +122,20 @@ endpoint_url = "https://<account_id>.r2.cloudflarestorage.com" # copy your endpo
 
 #### Adding additional configuration
 
-To pass any additional arguments to `fsspec`, you may supply `kwargs` and `client_kwargs` in the config as a **stringified dictionary**:
+To pass any additional arguments to `fsspec`, you may supply `kwargs` and `client_kwargs` in toml config.
 
 ```toml
-[destination.filesystem]
-kwargs = '{"use_ssl": true, "auto_mkdir": true}'
-client_kwargs = '{"verify": "public.crt"}'
+[destination.filesystem.kwargs]
+use_ssl=true
+auto_mkdir=true
+
+[destination.filesystem.client_kwargs]
+verify="public.crt"
 ```
+
+To pass additional arguments via env variables, use **stringified dictionary**:
+`DESTINATION__FILESYSTEM__KWARGS='{"use_ssl": true, "auto_mkdir": true}`
+
 
 ### Google storage
 Run `pip install "dlt[gs]"` which will install the `gcfs` package.
@@ -159,6 +166,31 @@ Run `pip install "dlt[az]"` which will install the `adlfs` package to interface 
 
 Edit the credentials in `.dlt/secrets.toml`, you'll see AWS credentials by default; replace them with your Azure credentials.
 
+`dlt` supports both forms of the blob storage urls:
+```toml
+[destination.filesystem]
+bucket_url = "az://<container_name>/path" # replace with your container name and path
+```
+
+and
+
+```toml
+[destination.filesystem]
+bucket_url = "abfss://<container_name>@<storage_account_name>.dfs.core.windows.net/path"
+```
+
+You can use `az`, `abfss`, `azure` and `abfs` url schemes.
+
+If you need to use a custom host to account your storage account you can set it up like below:
+```toml
+[destination.filesystem.credentials]
+# The storage account name is always required
+azure_account_host = "<storage_account_name>.<host_base>"
+```
+Remember to include `storage_account_name` with your base host ie. `dlt_ci.blob.core.usgovcloudapi.net`.
+`dlt` will use this host to connect to azure blob storage without any modifications:
+
+
 Two forms of Azure credentials are supported:
 
 #### SAS token credentials
@@ -166,9 +198,6 @@ Two forms of Azure credentials are supported:
 Supply storage account name and either SAS token or storage account key
 
 ```toml
-[destination.filesystem]
-bucket_url = "az://[your_container name]" # replace with your container name
-
 [destination.filesystem.credentials]
 # The storage account name is always required
 azure_storage_account_name = "account_name" # please set me up!
@@ -186,10 +215,8 @@ Note that `azure_storage_account_name` is still required as it can't be inferred
 Supply a client ID, client secret, and a tenant ID for a service principal authorized to access your container.
 
 ```toml
-[destination.filesystem]
-bucket_url = "az://[your_container name]" # replace with your container name
-
 [destination.filesystem.credentials]
+azure_storage_account_name = "account_name" # please set me up!
 azure_client_id = "client_id" # please set me up!
 azure_client_secret = "client_secret"
 azure_tenant_id = "tenant_id" # please set me up!

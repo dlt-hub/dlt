@@ -593,7 +593,7 @@ def row_tuples_to_arrow(
         pivoted_rows = np.asarray(rows, dtype="object", order="k").T  # type: ignore[call-overload]
 
     columnar = {
-        col: dat.ravel() for col, dat in zip(columns, np.vsplit(pivoted_rows, len(columns)))
+        col: dat.ravel() for col, dat in zip(columns, np.vsplit(pivoted_rows, len(pivoted_rows)))
     }
     columnar_known_types = {
         col["name"]: columnar[col["name"]]
@@ -669,7 +669,7 @@ def row_tuples_to_arrow(
                     pa.field(
                         key,
                         arrow_col.type,
-                        nullable=columns[key]["nullable"],
+                        nullable=columns[key].get("nullable", True),
                     )
                 )
 

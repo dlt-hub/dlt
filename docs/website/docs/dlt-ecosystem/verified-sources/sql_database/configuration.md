@@ -21,6 +21,7 @@ Read more about sources and resources here: [General usage: source](../../../gen
 ### Example usage:
 
 1. **Load all the tables from a database**
+
     Calling `sql_database()` loads all tables from the database.
 
     ```py
@@ -46,7 +47,8 @@ Read more about sources and resources here: [General usage: source](../../../gen
     ```
 
 2. **Load select tables from a database**
-    Calling `sql_database().with_resources("family", "clan")` loads only the tables `"family"` and `"clan"` from the database.
+
+    Calling `sql_database(table_names=["family", "clan"])` or `sql_database().with_resources("family", "clan")` loads only the tables `"family"` and `"clan"` from the database.
 
     ```py
     import dlt
@@ -61,7 +63,9 @@ Read more about sources and resources here: [General usage: source](../../../gen
         )
 
         # Fetch tables "family" and "clan"
-        source = sql_database().with_resources("family", "clan")
+        source = sql_database(table_names=['family', 'clan'])
+        # or
+        # source = sql_database().with_resources("family", "clan")
 
         # Run the pipeline
         info = pipeline.run(source)
@@ -71,7 +75,12 @@ Read more about sources and resources here: [General usage: source](../../../gen
 
     ```
 
+    :::note
+    When using the `sql_database` source, specifying table names directly in the source arguments (e.g., `sql_database(table_names=["family", "clan"])`) ensures that only those tables are reflected and turned into resources. In contrast, if you use `.with_resources("family", "clan")`, the entire schema is reflected first, and resources are generated for all tables before filtering for the specified ones. For large schemas, specifying `table_names` can improve performance.
+    :::
+
 3. **Load a standalone table**
+
     Calling `sql_table(table="family")` fetches only the table `"family"`
 
     ```py
@@ -105,6 +114,7 @@ We intend our sources to be fully hackable. Feel free to change the source code 
 ## Configuring the connection
 
 ### Connection string format
+
 `sql_database` uses SQLAlchemy to create database connections and reflect table schemas. You can pass credentials using
 [database URLs](https://docs.sqlalchemy.org/en/20/core/engines.html#database-urls), which have the general format:
 
@@ -189,11 +199,12 @@ pipeline = dlt.pipeline(
     pipeline_name="rfam_cx", destination="postgres", dataset_name="rfam_data_arrow"
 )
 
-def _double_as_decimal_adapter(table: sa.Table) -> None:
+def _double_as_decimal_adapter(table: sa.Table) -> sa.Table:
     """Emits decimals instead of floats."""
     for column in table.columns.values():
         if isinstance(column.type, sa.Float):
             column.type.asdecimal = False
+    return table
 
 sql_alchemy_source = sql_database(
     "mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam?&binary_prefix=true",
@@ -205,7 +216,7 @@ sql_alchemy_source = sql_database(
 info = pipeline.run(sql_alchemy_source)
 print(info)
 ```
-For more information on the `tz` parameter within `backend_kwargs` supported by PyArrow, please refer to the 
+For more information on the `tz` parameter within `backend_kwargs` supported by PyArrow, please refer to the
 [official documentation.](https://arrow.apache.org/docs/python/generated/pyarrow.timestamp.html)
 
 ### Pandas
@@ -232,11 +243,12 @@ pipeline = dlt.pipeline(
     pipeline_name="rfam_cx", destination="postgres", dataset_name="rfam_data_pandas_2"
 )
 
-def _double_as_decimal_adapter(table: sa.Table) -> None:
+def _double_as_decimal_adapter(table: sa.Table) -> sa.Table:
     """Emits decimals instead of floats."""
     for column in table.columns.values():
         if isinstance(column.type, sa.Float):
             column.type.asdecimal = True
+    return table
 
 sql_alchemy_source = sql_database(
     "mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam?&binary_prefix=true",
@@ -252,6 +264,7 @@ print(info)
 ```
 
 ### ConnectorX
+
 The [`ConnectorX`](https://sfu-db.github.io/connector-x/intro.html) backend completely skips `SQLALchemy` when reading table rows, in favor of doing that in Rust. This is claimed to be significantly faster than any other method (validated only on PostgreSQL). With the default settings, it will emit `PyArrow` tables, but you can configure this by specifying the `return_type` in `backend_kwargs`. (See the [`ConnectorX` docs](https://sfu-db.github.io/connector-x/api.html) for a full list of configurable parameters.)
 
 There are certain limitations when using this backend:

@@ -635,3 +635,15 @@ def make_defunct_class(cls: TObj) -> Type[TObj]:
                 raise RuntimeError("This instance has been dropped and cannot be used anymore.")
 
     return DefunctClass
+
+
+def is_typeerror_due_to_wrong_call(exc: Exception, func: AnyFun) -> bool:
+    """
+    Determine if a TypeError is due to a wrong call to the function (incorrect arguments)
+    by inspecting the exception message.
+    """
+    if not isinstance(exc, TypeError):
+        return False
+    func_name = func.__name__
+    message = str(exc)
+    return message.__contains__(f"{func_name}()")

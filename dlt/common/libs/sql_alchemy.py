@@ -4,7 +4,8 @@ from dlt import version
 try:
     from sqlalchemy import MetaData, Table, Column, create_engine
     from sqlalchemy.engine import Engine, URL, make_url, Row
-    from sqlalchemy.sql import sqltypes, Select
+    from sqlalchemy.sql import sqltypes, Select, Executable
+    from sqlalchemy.sql.elements import TextClause
     from sqlalchemy.sql.sqltypes import TypeEngine
     from sqlalchemy.exc import CompileError
     import sqlalchemy as sa
@@ -18,3 +19,22 @@ except ModuleNotFoundError:
 
 # TODO: maybe use sa.__version__?
 IS_SQL_ALCHEMY_20 = hasattr(sa, "Double")
+
+__all__ = [
+    "IS_SQL_ALCHEMY_20",
+    "MetaData",
+    "Table",
+    "Column",
+    "create_engine",
+    "Engine",
+    "URL",
+    "make_url",
+    "Row",
+    "sqltypes",
+    "Select",
+    "Executable",
+    "TextClause",
+    "TypeEngine",
+    "CompileError",
+    "sa",
+]

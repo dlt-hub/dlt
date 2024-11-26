@@ -1,4 +1,4 @@
-from typing import Iterable, Union, List, Any
+from typing import Iterable, Union, List, Any, Optional, cast
 from itertools import chain
 
 from dlt.common.typing import DictStrAny
@@ -46,3 +46,48 @@ def resolve_paths(paths: TAnyJsonPath, data: DictStrAny) -> List[str]:
     paths = compile_paths(paths)
     p: JSONPath
     return list(chain.from_iterable((str(r.full_path) for r in p.find(data)) for p in paths))
+
+
+def is_simple_field_path(path: JSONPath) -> bool:
+    """Checks if the given path represents a simple single field name.
+
+    Example:
+    >>> is_simple_field_path(compile_path('id'))
+    True
+    >>> is_simple_field_path(compile_path('$.id'))
+    False
+    """
+    return isinstance(path, JSONPathFields) and len(path.fields) == 1 and path.fields[0] != "*"
+
+
+def extract_simple_field_name(path: Union[str, JSONPath]) -> Optional[str]:
+    """
+    Extracts a simple field name from a JSONPath if it represents a single field access.
+    Returns None if the path is complex (contains wildcards, array indices, or multiple fields).
+
+    Args:
+        path: A JSONPath object or string
+
+    Returns:
+        Optional[str]: The field name if path represents a simple field access, None otherwise
+
+    Example:
+        >>> extract_simple_field_name('name')
+        'name'
+        >>> extract_simple_field_name('"name"')
+        'name'
+        >>> extract_simple_field_name('"na$me"') # Escaped characters are preserved
+        'na$me'
+        >>> extract_simple_field_name('"na.me"') # Escaped characters are preserved
+        'na.me'
+        >>> extract_simple_field_name('$.name')  # Returns None
+        >>> extract_simple_field_name('$.items[*].name')  # Returns None
+        >>> extract_simple_field_name('*')  # Returns None
+    """
+    if isinstance(path, str):
+        path = compile_path(path)
+
+    if is_simple_field_path(path):
+        return cast(str, path.fields[0])
+
+    return None
