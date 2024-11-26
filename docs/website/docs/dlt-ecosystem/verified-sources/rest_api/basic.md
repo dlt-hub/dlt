@@ -335,7 +335,8 @@ The endpoint configuration defines how to query the API endpoint. Quick example:
 
 The fields in the endpoint configuration are:
 
-- `path`: The path to the API endpoint.
+- `path`: The path to the API endpoint. By default this path is appended to the given `base_url`. If this is a fully qualified URL starting with `http:` or `https:` it will be
+used as-is and `base_url` will be ignored.
 - `method`: The HTTP method to be used. The default is `GET`.
 - `params`: Query parameters to be sent with each request. For example, `sort` to order the results or `since` to specify [incremental loading](#incremental-loading). This is also used to define [resource relationships](#define-resource-relationships).
 - `json`: The JSON payload to be sent with the request (for POST and PUT requests).
