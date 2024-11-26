@@ -1,12 +1,8 @@
-"""Tests translation of `dlt` credentials into `object_store` Rust crate credentials."""
-
-from typing import Any, Dict
+from typing import Any, Dict, Union, Type, get_args, cast
 
 import os
 import json  # noqa: I251
 import pytest
-from deltalake import DeltaTable
-from deltalake.exceptions import TableNotFoundError
 
 import dlt
 from dlt.common.configuration import resolve_configuration
@@ -24,6 +20,7 @@ from dlt.common.utils import custom_environ
 from dlt.common.configuration.resolve import resolve_configuration
 from dlt.common.configuration.specs.gcp_credentials import GcpDefaultCredentials
 from dlt.common.configuration.specs.exceptions import ObjectStoreRsCredentialsException
+from dlt.common.configuration.specs.mixins import WithObjectStoreRsCredentials, WithPyicebergConfig
 
 from tests.load.utils import (
     AZ_BUCKET,
@@ -33,6 +30,9 @@ from tests.load.utils import (
     ALL_FILESYSTEM_DRIVERS,
 )
 
+
+TCredentialsMixin = Union[WithObjectStoreRsCredentials, WithPyicebergConfig]
+ALL_CREDENTIALS_MIXINS = get_args(TCredentialsMixin)
 
 pytestmark = pytest.mark.essential
 
@@ -53,11 +53,27 @@ def fs_creds() -> Dict[str, Any]:
     return creds
 
 
-def can_connect(bucket_url: str, object_store_rs_credentials: Dict[str, str]) -> bool:
-    """Returns True if client can connect to object store, False otherwise.
+def can_connect(bucket_url: str, credentials: TCredentialsMixin, mixin: Type[TCredentialsMixin]) -> bool:  # type: ignore[return]
+    """Returns True if client can connect to object store, False otherwise."""
+    if mixin == WithObjectStoreRsCredentials:
+        credentials = cast(WithObjectStoreRsCredentials, credentials)
+        return can_connect_object_store_rs_credentials(
+            bucket_url, credentials.to_object_store_rs_credentials()
+        )
+    elif mixin == WithPyicebergConfig:
+        credentials = cast(WithPyicebergConfig, credentials)
+        return can_connect_pyiceberg_fileio_config(
+            bucket_url, credentials.to_pyiceberg_fileio_config()
+        )
 
-    Uses `deltatable` library as Python interface to `object_store` Rust crate.
-    """
+
+def can_connect_object_store_rs_credentials(
+    bucket_url: str, object_store_rs_credentials: Dict[str, str]
+) -> bool:
+    # uses `deltatable` library as Python interface to `object_store` Rust crate
+    from deltalake import DeltaTable
+    from deltalake.exceptions import TableNotFoundError
+
     try:
         DeltaTable(
             bucket_url,
@@ -70,16 +86,37 @@ def can_connect(bucket_url: str, object_store_rs_credentials: Dict[str, str]) ->
     return False
 
 
+def can_connect_pyiceberg_fileio_config(
+    bucket_url: str, pyiceberg_fileio_config: Dict[str, str]
+) -> bool:
+    from pyiceberg.table import StaticTable
+    from dlt.common.libs.pyiceberg import _map_scheme
+
+    try:
+        StaticTable.from_metadata(
+            f"{_map_scheme(bucket_url)}/non_existing_metadata_file.json",
+            properties=pyiceberg_fileio_config,
+        )
+    except FileNotFoundError:
+        # this error implies the connection was successful
+        # there is no Iceberg metadata file at the specified path
+        return True
+    return False
+
+
 @pytest.mark.parametrize(
     "driver", [driver for driver in ALL_FILESYSTEM_DRIVERS if driver in ("az")]
 )
-def test_azure_object_store_rs_credentials(driver: str, fs_creds: Dict[str, Any]) -> None:
+@pytest.mark.parametrize("mixin", ALL_CREDENTIALS_MIXINS)
+def test_azure_credentials_mixins(
+    driver: str, fs_creds: Dict[str, Any], mixin: Type[TCredentialsMixin]
+) -> None:
     creds: AnyAzureCredentials
 
     creds = AzureServicePrincipalCredentialsWithoutDefaults(
         **dlt.secrets.get("destination.fsazureprincipal.credentials")
     )
-    assert can_connect(AZ_BUCKET, creds.to_object_store_rs_credentials())
+    assert can_connect(AZ_BUCKET, creds, mixin)
 
     # without SAS token
     creds = AzureCredentialsWithoutDefaults(
@@ -87,18 +124,21 @@ def test_azure_object_store_rs_credentials(driver: str, fs_creds: Dict[str, Any]
         azure_storage_account_key=fs_creds["azure_storage_account_key"],
     )
     assert creds.azure_storage_sas_token is None
-    assert can_connect(AZ_BUCKET, creds.to_object_store_rs_credentials())
+    assert can_connect(AZ_BUCKET, creds, mixin)
 
     # with SAS token
     creds = resolve_configuration(creds)
     assert creds.azure_storage_sas_token is not None
-    assert can_connect(AZ_BUCKET, creds.to_object_store_rs_credentials())
+    assert can_connect(AZ_BUCKET, creds, mixin)
 
 
 @pytest.mark.parametrize(
     "driver", [driver for driver in ALL_FILESYSTEM_DRIVERS if driver in ("s3", "r2")]
 )
-def test_aws_object_store_rs_credentials(driver: str, fs_creds: Dict[str, Any]) -> None:
+@pytest.mark.parametrize("mixin", ALL_CREDENTIALS_MIXINS)
+def test_aws_credentials_mixins(
+    driver: str, fs_creds: Dict[str, Any], mixin: Type[TCredentialsMixin]
+) -> None:
     creds: AwsCredentialsWithoutDefaults
 
     if driver == "r2":
@@ -112,9 +152,11 @@ def test_aws_object_store_rs_credentials(driver: str, fs_creds: Dict[str, Any]) 
         endpoint_url=fs_creds.get("endpoint_url"),
     )
     assert creds.aws_session_token is None
-    object_store_rs_creds = creds.to_object_store_rs_credentials()
-    assert "aws_session_token" not in object_store_rs_creds  # no auto-generated token
-    assert can_connect(AWS_BUCKET, object_store_rs_creds)
+    if mixin == WithObjectStoreRsCredentials:
+        assert (
+            "aws_session_token" not in creds.to_object_store_rs_credentials()
+        )  # no auto-generated token
+    assert can_connect(AWS_BUCKET, creds, mixin)
 
     # AwsCredentials: no user-provided session token
     creds = AwsCredentials(
@@ -124,28 +166,29 @@ def test_aws_object_store_rs_credentials(driver: str, fs_creds: Dict[str, Any]) 
         endpoint_url=fs_creds.get("endpoint_url"),
     )
     assert creds.aws_session_token is None
-    object_store_rs_creds = creds.to_object_store_rs_credentials()
-    assert "aws_session_token" not in object_store_rs_creds  # no auto-generated token
-    assert can_connect(AWS_BUCKET, object_store_rs_creds)
+    assert can_connect(AWS_BUCKET, creds, mixin)
+    if mixin == WithObjectStoreRsCredentials:
+        object_store_rs_creds = creds.to_object_store_rs_credentials()
+        assert "aws_session_token" not in object_store_rs_creds  # no auto-generated token
 
-    # exception should be raised if both `endpoint_url` and `region_name` are
-    # not provided
-    with pytest.raises(ObjectStoreRsCredentialsException):
-        AwsCredentials(
-            aws_access_key_id=fs_creds["aws_access_key_id"],
-            aws_secret_access_key=fs_creds["aws_secret_access_key"],
-        ).to_object_store_rs_credentials()
+        # exception should be raised if both `endpoint_url` and `region_name` are
+        # not provided
+        with pytest.raises(ObjectStoreRsCredentialsException):
+            AwsCredentials(
+                aws_access_key_id=fs_creds["aws_access_key_id"],
+                aws_secret_access_key=fs_creds["aws_secret_access_key"],
+            ).to_object_store_rs_credentials()
 
-    if "endpoint_url" in object_store_rs_creds:
-        # TODO: make sure this case is tested on GitHub CI, e.g. by adding
-        # a local MinIO bucket to the set of tested buckets
-        if object_store_rs_creds["endpoint_url"].startswith("http://"):
-            assert object_store_rs_creds["aws_allow_http"] == "true"
+        if "endpoint_url" in object_store_rs_creds:
+            # TODO: make sure this case is tested on GitHub CI, e.g. by adding
+            # a local MinIO bucket to the set of tested buckets
+            if object_store_rs_creds["endpoint_url"].startswith("http://"):
+                assert object_store_rs_creds["aws_allow_http"] == "true"
 
-        # remainder of tests use session tokens
-        # we don't run them on S3 compatible storage because session tokens
-        # may not be available
-        return
+            # remainder of tests use session tokens
+            # we don't run them on S3 compatible storage because session tokens
+            # may not be available
+            return
 
     # AwsCredentials: user-provided session token
     # use previous credentials to create session token for new credentials
@@ -158,9 +201,10 @@ def test_aws_object_store_rs_credentials(driver: str, fs_creds: Dict[str, Any]) 
         region_name=fs_creds["region_name"],
     )
     assert creds.aws_session_token is not None
-    object_store_rs_creds = creds.to_object_store_rs_credentials()
-    assert object_store_rs_creds["aws_session_token"] is not None
-    assert can_connect(AWS_BUCKET, object_store_rs_creds)
+    assert can_connect(AWS_BUCKET, creds, mixin)
+    if mixin == WithObjectStoreRsCredentials:
+        object_store_rs_creds = creds.to_object_store_rs_credentials()
+        assert object_store_rs_creds["aws_session_token"] is not None
 
     # AwsCredentialsWithoutDefaults: user-provided session token
     creds = AwsCredentialsWithoutDefaults(
@@ -170,15 +214,22 @@ def test_aws_object_store_rs_credentials(driver: str, fs_creds: Dict[str, Any]) 
         region_name=fs_creds["region_name"],
     )
     assert creds.aws_session_token is not None
-    object_store_rs_creds = creds.to_object_store_rs_credentials()
-    assert object_store_rs_creds["aws_session_token"] is not None
-    assert can_connect(AWS_BUCKET, object_store_rs_creds)
+    assert can_connect(AWS_BUCKET, creds, mixin)
+    if mixin == WithObjectStoreRsCredentials:
+        object_store_rs_creds = creds.to_object_store_rs_credentials()
+        assert object_store_rs_creds["aws_session_token"] is not None
 
 
 @pytest.mark.parametrize(
     "driver", [driver for driver in ALL_FILESYSTEM_DRIVERS if driver in ("gs")]
 )
-def test_gcp_object_store_rs_credentials(driver, fs_creds: Dict[str, Any]) -> None:
+@pytest.mark.parametrize("mixin", ALL_CREDENTIALS_MIXINS)
+def test_gcp_credentials_mixins(
+    driver, fs_creds: Dict[str, Any], mixin: Type[TCredentialsMixin]
+) -> None:
+    if mixin == WithPyicebergConfig:
+        pytest.skip("`WithPyicebergConfig` mixin currently not implemented for GCP.")
+
     creds: GcpCredentials
 
     # GcpServiceAccountCredentialsWithoutDefaults
@@ -189,7 +240,7 @@ def test_gcp_object_store_rs_credentials(driver, fs_creds: Dict[str, Any]) -> No
         private_key_id=fs_creds["private_key_id"],
         client_email=fs_creds["client_email"],
     )
-    assert can_connect(GCS_BUCKET, creds.to_object_store_rs_credentials())
+    assert can_connect(GCS_BUCKET, creds, mixin)
 
     # GcpDefaultCredentials
 
@@ -206,7 +257,7 @@ def test_gcp_object_store_rs_credentials(driver, fs_creds: Dict[str, Any]) -> No
     with custom_environ({"GOOGLE_APPLICATION_CREDENTIALS": path}):
         creds = GcpDefaultCredentials()
         resolve_configuration(creds)
-        can_connect(GCS_BUCKET, creds.to_object_store_rs_credentials())
+        assert can_connect(GCS_BUCKET, creds, mixin)
 
     # GcpOAuthCredentialsWithoutDefaults is currently not supported
     with pytest.raises(NotImplementedError):
