@@ -1,7 +1,7 @@
 from typing import Dict, Any, List, Optional
 
 from dlt import version, Pipeline
-from dlt.common.libs.pyarrow import cast_arrow_schema_types, columns_to_arrow
+from dlt.common.libs.pyarrow import cast_arrow_schema_types
 from dlt.common.schema.typing import TWriteDisposition
 from dlt.common.utils import assert_min_pkg_version
 from dlt.common.exceptions import MissingDependencyException
