@@ -271,7 +271,6 @@ const sidebars = {
             'general-usage/full-loading',
           ]
         },
-        'dlt-ecosystem/notebooks'
       ]
     },
     {
