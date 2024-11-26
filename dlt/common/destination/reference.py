@@ -56,6 +56,7 @@ from dlt.common.destination.exceptions import (
     DestinationSchemaTampered,
     DestinationTransientException,
 )
+from dlt.common.destination.utils import resolve_merge_strategy
 from dlt.common.schema.exceptions import UnknownTableException
 from dlt.common.storages import FileStorage
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
@@ -675,7 +676,29 @@ class JobClientBase(ABC):
     def prepare_load_table(self, table_name: str) -> PreparedTableSchema:
         """Prepares a table schema to be loaded by filling missing hints and doing other modifications requires by given destination."""
         try:
-            return fill_hints_from_parent_and_clone_table(self.schema.tables, self.schema.tables[table_name])  # type: ignore[return-value]
+            table_schema = fill_hints_from_parent_and_clone_table(
+                self.schema.tables, self.schema.tables[table_name]
+            )
+            if (
+                table_schema["write_disposition"] == "merge"
+                and resolve_merge_strategy(
+                    self.schema.tables, self.schema.tables[table_name], self.capabilities
+                )
+                is None
+            ):
+                table_format_info = ""
+                if self.capabilities.supported_table_formats:
+                    table_format_info = (
+                        " or try different table format which may offer `merge`:"
+                        f" {self.capabilities.supported_table_formats}"
+                    )
+                logger.warning(
+                    "Destination does not support any merge strategies and `merge` write"
+                    f" disposition  for table `{table_name}` cannot be met and will fall back to"
+                    f" `append`. Change write disposition{table_format_info}."
+                )
+                table_schema["write_disposition"] = "append"
+            return table_schema  # type: ignore[return-value]
 
         except KeyError:
             raise UnknownTableException(self.schema.name, table_name)
