@@ -163,6 +163,24 @@ configs = destinations_configs(
     indirect=True,
     ids=lambda x: x.name,
 )
+def test_explicit_dataset_type_selection(populated_pipeline: Pipeline):
+    from dlt.destinations.dataset.dataset import ReadableDBAPIRelation
+    from dlt.destinations.dataset.ibis_relation import ReadableIbisRelation
+
+    assert isinstance(
+        populated_pipeline._dataset(dataset_type="default").items, ReadableDBAPIRelation
+    )
+    assert isinstance(populated_pipeline._dataset(dataset_type="ibis").items, ReadableIbisRelation)
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
 def test_arrow_access(populated_pipeline: Pipeline) -> None:
     table_relationship = populated_pipeline._dataset().items
     total_records = _total_records(populated_pipeline)
@@ -272,7 +290,7 @@ def test_db_cursor_access(populated_pipeline: Pipeline) -> None:
 )
 def test_hint_preservation(populated_pipeline: Pipeline) -> None:
     # NOTE: for now hints are only preserved for the default dataset
-    table_relationship = populated_pipeline._dataset("default").items
+    table_relationship = populated_pipeline._dataset(dataset_type="default").items
     # check that hints are carried over to arrow table
     expected_decimal_precision = 10
     expected_decimal_precision_2 = 12
@@ -365,7 +383,7 @@ def test_limit_and_head(populated_pipeline: Pipeline) -> None:
     ids=lambda x: x.name,
 )
 def test_column_selection(populated_pipeline: Pipeline) -> None:
-    table_relationship = populated_pipeline._dataset("default").items
+    table_relationship = populated_pipeline._dataset(dataset_type="default").items
     columns = ["_dlt_load_id", "other_decimal"]
     data_frame = table_relationship.select(*columns).head().df()
     assert [v.lower() for v in data_frame.columns.values] == columns

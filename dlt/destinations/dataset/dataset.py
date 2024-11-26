@@ -115,6 +115,7 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
 
     def table(self, table_name: str) -> SupportsReadableRelation:
         # we can create an ibis powered relation if ibis is available
+        print(table_name in self.schema.tables, self._dataset_type)
         if table_name in self.schema.tables and self._dataset_type in ("auto", "ibis"):
             try:
                 from dlt.common.libs.ibis import create_unbound_ibis_table
