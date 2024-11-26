@@ -412,7 +412,7 @@ def _validate_config(config: RESTAPIConfig) -> None:
             auth = _mask_secrets(auth)
     resources = c.get("resources", [])
     for resource in resources:
-        if isinstance(resource, str) or isinstance(resource, DltResource):
+        if isinstance(resource, (str, DltResource)):
             continue
         if "endpoint" in resource:
             endpoint = resource.get("endpoint")
