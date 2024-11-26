@@ -321,7 +321,10 @@ def test_response_actions_called_in_order(mock_api_server, mocker):
 
 def test_auth_overwrites_for_specific_endpoints(mock_api_server, mocker):
     def custom_hook(response: Response, *args, **kwargs) -> Response:
-        assert response.request.headers["Authorization"] == f"Basic {base64.b64encode(b'U:P').decode('ascii')}"
+        assert (
+            response.request.headers["Authorization"]
+            == f"Basic {base64.b64encode(b'U:P').decode('ascii')}"
+        )
         return response
 
     mock_response_hook = mocker.Mock(side_effect=custom_hook)
