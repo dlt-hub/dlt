@@ -414,8 +414,7 @@ def _validate_config(config: RESTAPIConfig) -> None:
     for resource in resources:
         if isinstance(resource, (str, DltResource)):
             continue
-        if "endpoint" in resource:
-            endpoint = resource.get("endpoint")
+        if endpoint := resource.get("endpoint"):
             if not isinstance(endpoint, str):
                 auth = endpoint.get("auth")
                 if auth:
