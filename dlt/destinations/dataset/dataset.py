@@ -17,6 +17,7 @@ from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.common.schema import Schema
 from dlt.destinations.dataset.relation import ReadableDBAPIRelation
 from dlt.destinations.dataset.utils import get_destination_clients
+from dlt.common.destination.reference import TDatasetType
 
 if TYPE_CHECKING:
     try:
@@ -35,12 +36,14 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
         destination: TDestinationReferenceArg,
         dataset_name: str,
         schema: Union[Schema, str, None] = None,
+        dataset_type: TDatasetType = "auto",
     ) -> None:
         self._destination = Destination.from_reference(destination)
         self._provided_schema = schema
         self._dataset_name = dataset_name
         self._sql_client: SqlClientBase[Any] = None
         self._schema: Schema = None
+        self._dataset_type = dataset_type
 
     def ibis(self) -> IbisBackend:
         """return a connected ibis backend"""
@@ -112,7 +115,7 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
 
     def table(self, table_name: str) -> SupportsReadableRelation:
         # we can create an ibis powered relation if ibis is available
-        if table_name in self.schema.tables:
+        if table_name in self.schema.tables and self._dataset_type in ("auto", "ibis"):
             try:
                 from dlt.common.libs.ibis import create_unbound_ibis_table
                 from dlt.destinations.dataset.ibis_relation import ReadableIbisRelation
@@ -120,7 +123,9 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
                 unbound_table = create_unbound_ibis_table(self.sql_client, self.schema, table_name)
                 return ReadableIbisRelation(readable_dataset=self, expression=unbound_table)  # type: ignore[abstract]
             except MissingDependencyException:
-                pass
+                # if ibis is explicitly requested, reraise
+                if self._dataset_type == "ibis":
+                    raise
 
         # fallback to the standard dbapi relation
         return ReadableDBAPIRelation(

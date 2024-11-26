@@ -53,13 +53,12 @@ def _expected_chunk_count(p: Pipeline) -> List[int]:
 def populated_pipeline(request) -> Any:
     """fixture that returns a pipeline object populated with the example data"""
 
-    # ensure ibis is not installed
+    # ensure ibis is installed for these tests
     import subprocess
 
-    try:
-        subprocess.check_call(["pip", "uninstall", "ibis-framework"])
-    except subprocess.CalledProcessError:
-        pass
+    subprocess.check_call(
+        ["pip", "install", "ibis-framework[duckdb,postgres,bigquery,snowflake,mssql,clickhouse]"]
+    )
 
     destination_config = cast(DestinationTestConfiguration, request.param)
 
@@ -272,7 +271,8 @@ def test_db_cursor_access(populated_pipeline: Pipeline) -> None:
     ids=lambda x: x.name,
 )
 def test_hint_preservation(populated_pipeline: Pipeline) -> None:
-    table_relationship = populated_pipeline._dataset().items
+    # NOTE: for now hints are only preserved for the default dataset
+    table_relationship = populated_pipeline._dataset("default").items
     # check that hints are carried over to arrow table
     expected_decimal_precision = 10
     expected_decimal_precision_2 = 12
@@ -365,7 +365,7 @@ def test_limit_and_head(populated_pipeline: Pipeline) -> None:
     ids=lambda x: x.name,
 )
 def test_column_selection(populated_pipeline: Pipeline) -> None:
-    table_relationship = populated_pipeline._dataset().items
+    table_relationship = populated_pipeline._dataset("default").items
     columns = ["_dlt_load_id", "other_decimal"]
     data_frame = table_relationship.select(*columns).head().df()
     assert [v.lower() for v in data_frame.columns.values] == columns
@@ -428,11 +428,6 @@ def test_schema_arg(populated_pipeline: Pipeline) -> None:
 )
 def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     # NOTE: we could generalize this with a context for certain deps
-
-    # install ibis, we do not need any backends
-    import subprocess
-
-    subprocess.check_call(["pip", "install", "ibis-framework"])
 
     # now we should get the more powerful ibis relation
     dataset = populated_pipeline._dataset()
@@ -505,11 +500,6 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
 )
 def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
     # NOTE: we could generalize this with a context for certain deps
-    import subprocess
-
-    subprocess.check_call(
-        ["pip", "install", "ibis-framework[duckdb,postgres,bigquery,snowflake,mssql,clickhouse]"]
-    )
 
     from dlt.common.libs.ibis import SUPPORTED_DESTINATIONS
 

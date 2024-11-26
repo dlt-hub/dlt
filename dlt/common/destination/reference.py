@@ -67,7 +67,7 @@ from dlt.common.typing import is_optional_type
 TDestinationConfig = TypeVar("TDestinationConfig", bound="DestinationClientConfiguration")
 TDestinationClient = TypeVar("TDestinationClient", bound="JobClientBase")
 TDestinationDwhClient = TypeVar("TDestinationDwhClient", bound="DestinationClientDwhConfiguration")
-TDatasetType = Literal["dbapi", "ibis"]
+TDatasetType = Literal["auto", "default", "ibis"]
 
 
 DEFAULT_FILE_LAYOUT = "{table_name}/{load_id}.{file_id}.{ext}"
