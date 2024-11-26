@@ -409,7 +409,7 @@ def _validate_config(config: RESTAPIConfig) -> None:
     if client_config:
         auth = client_config.get("auth")
         if auth:
-            auth = _mask_secrets(auth)
+            _mask_secrets(auth)
     resources = c.get("resources", [])
     for resource in resources:
         if isinstance(resource, (str, DltResource)):
@@ -418,7 +418,7 @@ def _validate_config(config: RESTAPIConfig) -> None:
             if not isinstance(endpoint, str):
                 auth = endpoint.get("auth")
                 if auth:
-                    auth = _mask_secrets(auth)
+                    _mask_secrets(auth)
 
     validate_dict(RESTAPIConfig, c, path=".")
 
