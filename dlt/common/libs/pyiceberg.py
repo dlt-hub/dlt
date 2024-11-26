@@ -191,6 +191,9 @@ def _make_path(path: str, client: FilesystemClient) -> str:
     # https://github.com/duckdb/duckdb/issues/13669
     if not client.is_local_filesystem:
         path = client.config.make_url(path)
+    return _map_scheme(path)
+
+
+def _map_scheme(path: str) -> str:
     # pyiceberg does not know `az://` scheme
-    path = path.replace("az://", "abfss://")
-    return path
+    return path.replace("az://", "abfss://")
