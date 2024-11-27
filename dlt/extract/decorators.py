@@ -638,7 +638,7 @@ def resource(
             table_format=table_format,
             file_format=file_format,
             references=references,
-            incremental=incremental
+            incremental=incremental,
         )
 
         resource = _impl_cls.from_data(

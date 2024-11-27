@@ -449,7 +449,9 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             self._pipe.remove_step(step_no)
 
     def set_incremental(
-        self, new_incremental: Union[Incremental[Any], IncrementalResourceWrapper], from_hints: bool = False
+        self,
+        new_incremental: Union[Incremental[Any], IncrementalResourceWrapper],
+        from_hints: bool = False,
     ) -> Optional[Incremental[Any]]:
         """Set/replace the incremental transform for the resource.
 
@@ -507,11 +509,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
                 incremental = incremental.incremental
                 if incremental:
                     self._set_hints(make_hints(incremental=incremental))
-                
-                
 
-                    
-            
         table_schema = super().compute_table_schema(item, meta)
         # if self.incremental and "incremental" not in table_schema:
         #     incremental = self.incremental
@@ -647,7 +645,9 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
                 return True
         return False
 
-    def _inject_config(self, incremental_from_hints_override: Optional[bool] = None) -> "DltResource":
+    def _inject_config(
+        self, incremental_from_hints_override: Optional[bool] = None
+    ) -> "DltResource":
         """Wraps the pipe generation step in incremental and config injection wrappers and adds pipe step with
         Incremental transform.
         """
@@ -660,7 +660,14 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         if IncrementalResourceWrapper.should_wrap(sig):
             incremental = IncrementalResourceWrapper(self._hints.get("primary_key"))
             if incr_hint := self._hints.get("incremental"):
-                incremental.set_incremental(incr_hint, from_hints=incremental_from_hints_override if incremental_from_hints_override is not None else True)
+                incremental.set_incremental(
+                    incr_hint,
+                    from_hints=(
+                        incremental_from_hints_override
+                        if incremental_from_hints_override is not None
+                        else True
+                    ),
+                )
             incr_f = incremental.wrap(sig, gen)
             self.set_incremental(incremental)
         else:
