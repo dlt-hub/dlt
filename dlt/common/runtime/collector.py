@@ -37,7 +37,13 @@ class Collector(ABC):
 
     @abstractmethod
     def update(
-        self, name: str, inc: int = 1, total: int = None, message: str = None, label: str = None
+        self,
+        name: str,
+        inc: int = 1,
+        total: int = None,
+        inc_total: int = None,
+        message: str = None,
+        label: str = None,
     ) -> None:
         """Creates or updates a counter
 
@@ -48,6 +54,7 @@ class Collector(ABC):
             name (str): An unique name of a counter, displayable.
             inc (int, optional): Increase amount. Defaults to 1.
             total (int, optional): Maximum value of a counter. Defaults to None which means unbound counter.
+            icn_total (int, optional): Increase the maximum value of the counter, does nothing if counter does not exit yet
             message (str, optional): Additional message attached to a counter. Defaults to None.
             label (str, optional): Creates nested counter for counter `name`. Defaults to None.
         """
@@ -80,7 +87,13 @@ class NullCollector(Collector):
     """A default counter that does not count anything."""
 
     def update(
-        self, name: str, inc: int = 1, total: int = None, message: str = None, label: str = None
+        self,
+        name: str,
+        inc: int = 1,
+        total: int = None,
+        inc_total: int = None,
+        message: str = None,
+        label: str = None,
     ) -> None:
         pass
 
@@ -98,7 +111,13 @@ class DictCollector(Collector):
         self.counters: DefaultDict[str, int] = None
 
     def update(
-        self, name: str, inc: int = 1, total: int = None, message: str = None, label: str = None
+        self,
+        name: str,
+        inc: int = 1,
+        total: int = None,
+        inc_total: int = None,
+        message: str = None,
+        label: str = None,
     ) -> None:
         assert not label, "labels not supported in dict collector"
         self.counters[name] += inc
@@ -158,7 +177,13 @@ class LogCollector(Collector):
         self.last_log_time: float = None
 
     def update(
-        self, name: str, inc: int = 1, total: int = None, message: str = None, label: str = None
+        self,
+        name: str,
+        inc: int = 1,
+        total: int = None,
+        inc_total: int = None,
+        message: str = None,
+        label: str = None,
     ) -> None:
         counter_key = f"{name}_{label}" if label else name
 
@@ -171,6 +196,14 @@ class LogCollector(Collector):
             )
             self.messages[counter_key] = None
             self.last_log_time = None
+        else:
+            counter_info = self.counter_info[counter_key]
+            if inc_total:
+                self.counter_info[counter_key] = LogCollector.CounterInfo(
+                    description=counter_info.description,
+                    start_time=counter_info.start_time,
+                    total=counter_info.total + inc_total,
+                )
 
         self.counters[counter_key] += inc
         if message is not None:
@@ -264,7 +297,13 @@ class TqdmCollector(Collector):
         self.tqdm_kwargs = tqdm_kwargs or {}
 
     def update(
-        self, name: str, inc: int = 1, total: int = None, message: str = None, label: str = ""
+        self,
+        name: str,
+        inc: int = 1,
+        total: int = None,
+        inc_total: int = None,
+        message: str = None,
+        label: str = "",
     ) -> None:
         key = f"{name}_{label}"
         bar = self._bars.get(key)
@@ -281,6 +320,10 @@ class TqdmCollector(Collector):
             bar = tqdm(desc=desc, total=total, leave=False, **self.tqdm_kwargs)
             bar.refresh()
             self._bars[key] = bar
+        else:
+            if inc_total:
+                bar.total += inc_total
+                bar.refresh()
         if message:
             bar.set_postfix_str(message)
         bar.update(inc)
@@ -312,11 +355,18 @@ class AliveCollector(Collector):
             )
         self.single_bar = single_bar
         self._bars: Dict[str, Any] = {}
+        self._bars_counts: Dict[str, int] = {}
         self._bars_contexts: Dict[str, ContextManager[Any]] = {}
         self.alive_kwargs = alive_kwargs or {}
 
     def update(
-        self, name: str, inc: int = 1, total: int = None, message: str = None, label: str = ""
+        self,
+        name: str,
+        inc: int = 1,
+        total: int = None,
+        inc_total: int = None,
+        message: str = None,
+        label: str = "",
     ) -> None:
         key = f"{name}_{label}"
         bar = self._bars.get(key)
@@ -333,20 +383,28 @@ class AliveCollector(Collector):
             bar = alive_bar(total=total, title=desc, **self.alive_kwargs)
             self._bars_contexts[key] = bar
             bar = self._bars[key] = bar.__enter__()
+            self._bars_counts[key] = 0
+        else:
+            # TODO: implement once total change is supported
+            pass
+
         # if message:
         #     bar.set_postfix_str(message)
         if inc > 0:
             bar(inc)
+            self._bars_counts[key] += inc
 
     def _start(self, step: str) -> None:
         self._bars = {}
         self._bars_contexts = {}
+        self
 
     def _stop(self) -> None:
         for bar in self._bars_contexts.values():
             bar.__exit__(None, None, None)
         self._bars.clear()
         self._bars_contexts.clear()
+        self._bars_counts.clear()
 
 
 class EnlightenCollector(Collector):
@@ -377,7 +435,13 @@ class EnlightenCollector(Collector):
         self.enlighten_kwargs = enlighten_kwargs
 
     def update(
-        self, name: str, inc: int = 1, total: int = None, message: str = None, label: str = ""
+        self,
+        name: str,
+        inc: int = 1,
+        total: int = None,
+        inc_total: int = None,
+        message: str = None,
+        label: str = "",
     ) -> None:
         key = f"{name}_{label}"
         bar = self._bars.get(key)
@@ -392,6 +456,9 @@ class EnlightenCollector(Collector):
             )
             bar.refresh()
             self._bars[key] = bar
+        else:
+            if inc_total:
+                bar.total = bar.total + inc_total
         bar.update(inc)
 
     def _start(self, step: str) -> None:
