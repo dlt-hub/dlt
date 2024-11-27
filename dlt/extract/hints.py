@@ -228,7 +228,7 @@ class DltResourceHints:
         columns: TTableHintTemplate[TAnySchemaColumns] = None,
         primary_key: TTableHintTemplate[TColumnNames] = None,
         merge_key: TTableHintTemplate[TColumnNames] = None,
-        incremental: Incremental[Any] = None,
+        incremental: Union[Incremental[Any], IncrementalArgs] = None,
         schema_contract: TTableHintTemplate[TSchemaContract] = None,
         additional_table_hints: Optional[Dict[str, TTableHintTemplate[Any]]] = None,
         table_format: TTableHintTemplate[TTableFormat] = None,
@@ -367,7 +367,7 @@ class DltResourceHints:
 
         # set properties that can't be passed to make_hints
         if incremental is not None:
-            t["incremental"] = incremental
+            t["incremental"] = Incremental.ensure_instance(incremental)
 
         self._set_hints(t, create_table_variant)
         return self

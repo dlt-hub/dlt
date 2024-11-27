@@ -3684,25 +3684,8 @@ def incremental_instance_or_dict(use_dict: bool, **kwargs):
     return dlt.sources.incremental(**kwargs)
 
 
-@pytest.mark.parametrize("use_dict", [False])
+@pytest.mark.parametrize("use_dict", [False, True])
 def test_incremental_in_resource_decorator(use_dict: bool) -> None:
-    # @dlt.resource(
-    #     incremental=incremental_instance_or_dict(
-    #         use_dict, cursor_path="value", initial_value=5, last_value_func=min
-    #     )
-    # )
-    # def with_required_incremental_arg(incremental: dlt.sources.incremental[int]):
-    #     assert incremental.last_value == 5
-    #     assert incremental.last_value_func == min
-    #     yield [{"value": i} for i in range(10)]
-
-    # # Don't pass the argument, use the decorator settings
-    # result = list(with_required_incremental_arg())
-    # assert result == [{"value": i} for i in range(0, 6)]
-
-    # result = list(with_required_incremental_arg(incremental=None))
-    # assert result == [{"value": i} for i in range(0, 6)]
-
     # Incremental set in decorator, without any arguments
     @dlt.resource(
         incremental=incremental_instance_or_dict(
@@ -3740,7 +3723,7 @@ def test_incremental_in_resource_decorator(use_dict: bool) -> None:
     assert result == [{"value": i} for i in range(0, 6)]
 
 
-@pytest.mark.parametrize("use_dict", [False])
+@pytest.mark.parametrize("use_dict", [False, True])
 def test_incremental_in_resource_decorator_default_arg(use_dict: bool) -> None:
     @dlt.resource(
         incremental=incremental_instance_or_dict(
@@ -3773,3 +3756,47 @@ def test_incremental_in_resource_decorator_default_arg(use_dict: bool) -> None:
     initial_value = 5
     result = list(with_default_incremental_arg())
     assert result == [{"value": i} for i in range(0, 6)]
+
+
+@pytest.mark.parametrize("use_dict", [False, True])
+def test_incremental_table_hint_merged_columns(use_dict: bool) -> None:
+    @dlt.resource(
+        incremental=incremental_instance_or_dict(
+            use_dict, cursor_path="col_a", initial_value=3, last_value_func=min
+        )
+    )
+    def some_data():
+        yield [{"col_a": i, "foo": i+ 2, "col_b": i + 1, "bar": i+3} for i in range(10)]
+
+    pipeline = dlt.pipeline(pipeline_name=uniq_id())
+    pipeline.extract(some_data())
+
+    table_schema = pipeline.default_schema.tables["some_data"]
+    assert table_schema['columns']['col_a']['incremental'] == {
+        "allow_external_schedulers": False,
+        "cursor_path": "col_a",
+        "initial_value": 3,
+        "last_value_func": "min",
+        "on_cursor_value_missing": "raise"
+    }
+
+    rs = some_data()
+    rs.apply_hints(
+        incremental=incremental_instance_or_dict(
+            use_dict, cursor_path="col_b", initial_value=5, last_value_func=max
+        )
+    )
+
+    pipeline.extract(rs)
+
+    table_schema_2 = pipeline.default_schema.tables["some_data"]
+
+    # Only one column should have the hint
+    assert 'incremental' not in table_schema_2['columns']['col_a']
+    assert table_schema_2['columns']['col_b']['incremental'] == {
+        "allow_external_schedulers": False,
+        "cursor_path": "col_b",
+        "initial_value": 5,
+        "last_value_func": "max",
+        "on_cursor_value_missing": "raise"
+    }

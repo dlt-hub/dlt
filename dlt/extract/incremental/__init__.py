@@ -181,7 +181,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
     def to_table_hint(self) -> Optional[IncrementalArgs]:
         """Table hint is only returned when all properties are serializable"""
         if self.last_value_func not in (min, max):
-            logger.warning(
+            logger.info(
                 "Custom last_value_func %s is not serializable. Incremental hint will not be saved"
                 " in schema.",
                 self.last_value_func,
