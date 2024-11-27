@@ -18,7 +18,6 @@ from dlt.common.schema.typing import (
     DEFAULT_VALIDITY_COLUMN_NAMES,
     MERGE_STRATEGIES,
     TTableReferenceParam,
-    IncrementalArgs,
 )
 from dlt.common.schema.utils import (
     DEFAULT_WRITE_DISPOSITION,
@@ -37,7 +36,7 @@ from dlt.extract.exceptions import (
     DataItemRequiredForDynamicTableHints,
     InconsistentTableTemplate,
 )
-from dlt.extract.incremental import Incremental
+from dlt.extract.incremental import Incremental, TIncrementalConfig
 from dlt.extract.items import TFunHintTemplate, TTableHintTemplate, TableNameMeta, ValidateItem
 from dlt.extract.utils import ensure_table_schema_columns, ensure_table_schema_columns_hint
 from dlt.extract.validation import create_item_validator
@@ -86,7 +85,7 @@ def make_hints(
     table_format: TTableHintTemplate[TTableFormat] = None,
     file_format: TTableHintTemplate[TFileFormat] = None,
     references: TTableHintTemplate[TTableReferenceParam] = None,
-    incremental: Incremental[Any] = None,
+    incremental: TIncrementalConfig = None,
 ) -> TResourceHints:
     """A convenience function to create resource hints. Accepts both static and dynamic hints based on data.
 
@@ -121,7 +120,7 @@ def make_hints(
         new_template["validator"] = validator
     DltResourceHints.validate_dynamic_hints(new_template)
     if incremental is not None:  # TODO: Validate
-        new_template["incremental"] = incremental
+        new_template["incremental"] = Incremental.ensure_instance(incremental)
     return new_template
 
 
@@ -228,7 +227,7 @@ class DltResourceHints:
         columns: TTableHintTemplate[TAnySchemaColumns] = None,
         primary_key: TTableHintTemplate[TColumnNames] = None,
         merge_key: TTableHintTemplate[TColumnNames] = None,
-        incremental: Union[Incremental[Any], IncrementalArgs] = None,
+        incremental: TIncrementalConfig = None,
         schema_contract: TTableHintTemplate[TSchemaContract] = None,
         additional_table_hints: Optional[Dict[str, TTableHintTemplate[Any]]] = None,
         table_format: TTableHintTemplate[TTableFormat] = None,

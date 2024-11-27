@@ -70,7 +70,7 @@ from dlt.extract.source import (
     TSourceFunParams,
 )
 from dlt.extract.resource import DltResource, TUnboundDltResource, TDltResourceImpl
-from dlt.extract.incremental import TIncrementalConfig, Incremental
+from dlt.extract.incremental import TIncrementalConfig
 
 
 @configspec
@@ -626,9 +626,6 @@ def resource(
     Returns:
         TDltResourceImpl instance which may be loaded, iterated or combined with other resources into a pipeline.
     """
-
-    if incremental is not None:
-        incremental = Incremental.ensure_instance(incremental)
 
     def make_resource(_name: str, _section: str, _data: Any) -> TDltResourceImpl:
         table_template = make_hints(
