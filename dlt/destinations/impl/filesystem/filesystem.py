@@ -160,9 +160,6 @@ class DeltaLoadFilesystemJob(TableFormatLoadFilesystemJob):
         else:
             with source_ds.scanner().to_reader() as arrow_rbr:  # RecordBatchReader
                 if self._load_table["write_disposition"] == "merge" and delta_table is not None:
-                    self._load_table["x-merge-strategy"] = resolve_merge_strategy(  # type: ignore[typeddict-unknown-key]
-                        self._schema.tables, self._load_table, self._job_client.capabilities
-                    )
                     merge_delta_table(
                         table=delta_table,
                         data=arrow_rbr,
@@ -428,6 +425,13 @@ class FilesystemClient(
             if table["write_disposition"] == "merge":
                 table["write_disposition"] = "append"
             table.pop("table_format", None)
+        merge_strategy = resolve_merge_strategy(self.schema.tables, table, self.capabilities)
+        if table["write_disposition"] == "merge":
+            if merge_strategy is None:
+                # no supported merge strategies, fall back to append
+                table["write_disposition"] = "append"
+            else:
+                table["x-merge-strategy"] = merge_strategy  # type: ignore[typeddict-unknown-key]
         return table
 
     def get_table_dir(self, table_name: str, remote: bool = False) -> str:
