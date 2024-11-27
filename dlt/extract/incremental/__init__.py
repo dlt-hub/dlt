@@ -271,8 +271,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         return self.merge(self)
 
     def get_cursor_column_name(self) -> Optional[str]:
-        """Return the name of the cursor column if the cursor path resolves to a single column
-        """
+        """Return the name of the cursor column if the cursor path resolves to a single column"""
         return extract_simple_field_name(self.cursor_path)
 
     def on_resolved(self) -> None:

@@ -647,4 +647,3 @@ def is_typeerror_due_to_wrong_call(exc: Exception, func: AnyFun) -> bool:
     func_name = func.__name__
     message = str(exc)
     return message.__contains__(f"{func_name}()")
-
