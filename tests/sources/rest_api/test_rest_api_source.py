@@ -180,6 +180,7 @@ def test_request_headers(mock: MagicMock, destination_name: str, invocation_type
                             "type": "resolve",
                             "field": "token",
                             "resource": "authenticate",
+                            "location": "header",
                         },
                     },
                 },

@@ -80,12 +80,16 @@ def test_bind_path_param() -> None:
     _bind_path_params(tp_4)
     assert tp_4 == tp_5
 
-    # resolved param will remain unbounded and
+    # resolved param will remain unbounded and raise an error
     tp_6 = deepcopy(three_params)
     tp_6["endpoint"]["path"] = "{org}/{repo}/issues/1234/comments"  # type: ignore[index]
-    _bind_path_params(
-        tp_6
-    )  # Does not raise because headers are now supported... and so are query params because they reside in the URL
+    with pytest.raises(NotImplementedError) as val_ex:  # type: ignore[assignment]
+        _bind_path_params(tp_6)
+    assert (
+        "Resource comments defines resolve params ['id'] that are not bound in path"
+        " {org}/{repo}/issues/1234/comments."
+        in str(val_ex.value)
+    )
 
 
 def test_process_parent_data_item() -> None:
@@ -168,7 +172,10 @@ def test_process_parent_data_item() -> None:
 
 def test_process_parent_data_item_headers() -> None:
     resolve_params = [
-        ResolvedParam("token", {"field": "token", "resource": "authenticate", "type": "resolve"})
+        ResolvedParam(
+            "token",
+            {"field": "token", "resource": "authenticate", "type": "resolve", "location": "header"},
+        )
     ]
     _, resolved_headers, parent_record = process_parent_data_item(
         "chicken",
@@ -181,8 +188,14 @@ def test_process_parent_data_item_headers() -> None:
 
     # multiple params
     resolve_params = [
-        ResolvedParam("token", {"field": "token", "resource": "authenticate", "type": "resolve"}),
-        ResolvedParam("num", {"field": "num", "resource": "authenticate", "type": "resolve"}),
+        ResolvedParam(
+            "token",
+            {"field": "token", "resource": "authenticate", "type": "resolve", "location": "header"},
+        ),
+        ResolvedParam(
+            "num",
+            {"field": "num", "resource": "authenticate", "type": "resolve", "location": "header"},
+        ),
     ]
     _, resolved_headers, parent_record = process_parent_data_item(
         "chicken",
@@ -195,7 +208,13 @@ def test_process_parent_data_item_headers() -> None:
 
     resolve_params = [
         ResolvedParam(
-            "token", {"field": "auth.token", "resource": "authenticate", "type": "resolve"}
+            "token",
+            {
+                "field": "auth.token",
+                "resource": "authenticate",
+                "type": "resolve",
+                "location": "header",
+            },
         )
     ]
     # param path not found
@@ -208,6 +227,19 @@ def test_process_parent_data_item_headers() -> None:
             {"Authorization": "{token}"},
         )
     assert "Transformer expects a field 'auth.token'" in str(val_ex.value)
+
+    resolve_params = [
+        ResolvedParam("token", {"field": "token", "resource": "authenticate", "type": "resolve"})
+    ]
+    # param not provided
+    with pytest.raises(KeyError):
+        _, _, parent_record = process_parent_data_item(
+            "chicken",
+            {"token": 12345},
+            resolve_params,
+            None,
+            {"Authorization": "{token}"},
+        )
 
 
 def test_two_resources_can_depend_on_one_parent_resource() -> None:
