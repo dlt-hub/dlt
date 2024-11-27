@@ -401,7 +401,7 @@ VALID_CONFIGS: List[RESTAPIConfig] = [
             {
                 "name": "issues",
                 "endpoint": {
-                    "path": "dlt-hub/{repository}/issues/",
+                    "path": "user/repos",
                     "auth": HttpBasicAuth("", "BASIC_AUTH_TOKEN"),
                 },
             }
