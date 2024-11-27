@@ -3675,7 +3675,7 @@ def test_incremental_table_hint_datetime_column(
     if incremental_settings.get("row_order"):
         expected["row_order"] = incremental_settings["row_order"]
 
-    assert table_schema["incremental"] == expected
+    assert table_schema["columns"]["updated_at"]["incremental"] == expected
 
 
 def incremental_instance_or_dict(use_dict: bool, **kwargs):

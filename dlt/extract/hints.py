@@ -513,6 +513,19 @@ class DltResourceHints:
             }
 
     @staticmethod
+    def _merge_incremental_column_hint(dict_: Dict[str, Any]) -> None:
+        incremental = dict_.pop("incremental")
+        if isinstance(incremental, Incremental):
+            incremental_hint = incremental.to_table_hint()
+        col_name = incremental.get_cursor_column_name()
+        incremental_col = dict_["columns"].get(col_name)
+        if not incremental_col:
+            incremental_col = {"name": col_name}
+
+        incremental_col["incremental"] = incremental_hint
+        dict_["columns"][col_name] = incremental_col
+
+    @staticmethod
     def _create_table_schema(resource_hints: TResourceHints, resource_name: str) -> TTableSchema:
         """Creates table schema from resource hints and resource name. Resource hints are resolved
         (do not contain callables) and will be modified in place
@@ -525,8 +538,7 @@ class DltResourceHints:
                 }  # wrap in dict
             DltResourceHints._merge_write_disposition_dict(resource_hints)  # type: ignore[arg-type]
         if "incremental" in resource_hints:
-            if isinstance(resource_hints["incremental"], Incremental):
-                resource_hints["incremental"] = resource_hints["incremental"].to_table_hint()  # type: ignore[typeddict-item]
+            DltResourceHints._merge_incremental_column_hint(resource_hints)  # type: ignore[arg-type]
         dict_ = cast(TTableSchema, resource_hints)
         dict_["resource"] = resource_name
         return dict_
