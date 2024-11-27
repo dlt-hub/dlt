@@ -179,16 +179,18 @@ def test_aws_credentials_mixins(
                 aws_secret_access_key=fs_creds["aws_secret_access_key"],
             ).to_object_store_rs_credentials()
 
-        if "endpoint_url" in object_store_rs_creds:
+        if "endpoint_url" in object_store_rs_creds and object_store_rs_creds[
+            "endpoint_url"
+        ].startswith("http://"):
             # TODO: make sure this case is tested on GitHub CI, e.g. by adding
             # a local MinIO bucket to the set of tested buckets
-            if object_store_rs_creds["endpoint_url"].startswith("http://"):
-                assert object_store_rs_creds["aws_allow_http"] == "true"
+            assert object_store_rs_creds["aws_allow_http"] == "true"
 
-            # remainder of tests use session tokens
-            # we don't run them on S3 compatible storage because session tokens
-            # may not be available
-            return
+    if creds.endpoint_url is not None:
+        # remainder of tests use session tokens
+        # we don't run them on S3 compatible storage because session tokens
+        # may not be available
+        return
 
     # AwsCredentials: user-provided session token
     # use previous credentials to create session token for new credentials
