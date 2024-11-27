@@ -245,10 +245,7 @@ class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
 class FilesystemLoadJobWithFollowup(HasFollowupJobs, FilesystemLoadJob):
     def create_followup_jobs(self, final_state: TLoadJobState) -> List[FollowupJobRequest]:
         jobs = super().create_followup_jobs(final_state)
-        if self._load_table.get("table_format") == "delta":
-            # delta table jobs only require table chain followup jobs
-            pass
-        elif final_state == "completed":
+        if final_state == "completed":
             ref_job = ReferenceFollowupJobRequest(
                 original_file_name=self.file_name(),
                 remote_paths=[self._job_client.make_remote_url(self.make_remote_path())],
