@@ -214,6 +214,17 @@ def resolve_merge_strategy(
                 supported_strategies, table_schema=table
             )
         if not supported_strategies:
+            table_format_info = ""
+            if destination_capabilities.supported_table_formats:
+                table_format_info = (
+                    " or try different table format which may offer `merge`:"
+                    f" {destination_capabilities.supported_table_formats}"
+                )
+            logger.warning(
+                "Destination does not support any merge strategies and `merge` write disposition "
+                f" for table `{table_name}` cannot be met and will fall back to `append`. Change"
+                f" write disposition{table_format_info}."
+            )
             return None
         merge_strategy = get_merge_strategy(tables, table_name)
         # use first merge strategy as default
