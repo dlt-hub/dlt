@@ -53,6 +53,9 @@ def populated_pipeline(request) -> Any:
     """fixture that returns a pipeline object populated with the example data"""
     destination_config = cast(DestinationTestConfiguration, request.param)
 
+    if destination_config.table_format == "iceberg" and destination_config.bucket_url == GCS_BUCKET:
+        pytest.skip("We currently don't support writing `iceberg` tables on GCS.")
+
     if (
         destination_config.file_format not in ["parquet", "jsonl"]
         and destination_config.destination_type == "filesystem"
