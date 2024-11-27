@@ -20,6 +20,7 @@ from typing_extensions import Never
 from dlt.common.data_types import TDataType
 from dlt.common.normalizers.typing import TNormalizersConfig
 from dlt.common.typing import TSortOrder, TAnyDateTime, TLoaderFileFormat
+from dlt.common.incremental.typing import IncrementalArgs
 
 try:
     from pydantic import BaseModel as _PydanticBaseModel
@@ -132,8 +133,6 @@ TTypeDetections = Literal[
     "timestamp", "iso_timestamp", "iso_date", "large_integer", "hexbytes_to_text", "wei_to_double"
 ]
 TTypeDetectionFunc = Callable[[Type[Any], Any], Optional[TDataType]]
-TColumnNames = Union[str, Sequence[str]]
-"""A string representing a column name or a list of"""
 
 
 class TColumnType(TypedDict, total=False):
@@ -279,6 +278,7 @@ class TTableSchema(_TTableSchemaBase, total=False):
 
     write_disposition: Optional[TWriteDisposition]
     references: Optional[TTableReferenceParam]
+    incremental: Optional[IncrementalArgs]
 
 
 class TPartialTableSchema(TTableSchema):

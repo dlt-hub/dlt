@@ -4,7 +4,6 @@ from typing_extensions import Self
 from dlt.common import logger
 from dlt.common.schema.typing import (
     C_DLT_ID,
-    TColumnNames,
     TColumnProp,
     TFileFormat,
     TPartialTableSchema,
@@ -28,7 +27,7 @@ from dlt.common.schema.utils import (
     new_column,
     new_table,
 )
-from dlt.common.typing import TDataItem
+from dlt.common.typing import TDataItem, TColumnNames
 from dlt.common.time import ensure_pendulum_datetime
 from dlt.common.utils import clone_dict_nested
 from dlt.common.normalizers.json.relational import DataItemNormalizer
@@ -204,6 +203,10 @@ class DltResourceHints:
             for k, v in table_template.items()
             if k not in NATURAL_CALLABLES
         }  # type: ignore
+        if "incremental" in table_template:
+            incremental = table_template["incremental"]
+            if isinstance(incremental, Incremental) and incremental is not Incremental.EMPTY:
+                resolved_template["incremental"] = incremental
         table_schema = self._create_table_schema(resolved_template, self.name)
         migrate_complex_types(table_schema, warn=True)
         validate_dict_ignoring_xkeys(
@@ -518,6 +521,9 @@ class DltResourceHints:
                     "disposition": resource_hints["write_disposition"]
                 }  # wrap in dict
             DltResourceHints._merge_write_disposition_dict(resource_hints)  # type: ignore[arg-type]
+        if "incremental" in resource_hints:
+            if isinstance(resource_hints["incremental"], Incremental):
+                resource_hints["incremental"] = resource_hints["incremental"].to_table_hint()  # type: ignore[typeddict-item]
         dict_ = cast(TTableSchema, resource_hints)
         dict_["resource"] = resource_name
         return dict_

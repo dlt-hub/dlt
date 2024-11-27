@@ -32,7 +32,6 @@ from dlt.common.reflection.spec import spec_from_signature
 from dlt.common.schema.utils import DEFAULT_WRITE_DISPOSITION
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import (
-    TColumnNames,
     TFileFormat,
     TWriteDisposition,
     TWriteDispositionConfig,
@@ -43,7 +42,8 @@ from dlt.common.schema.typing import (
 )
 from dlt.common.storages.exceptions import SchemaNotFoundError
 from dlt.common.storages.schema_storage import SchemaStorage
-from dlt.common.typing import AnyFun, ParamSpec, Concatenate, TDataItem, TDataItems
+from dlt.common.typing import AnyFun, ParamSpec, Concatenate, TDataItem, TDataItems, TColumnNames
+
 from dlt.common.utils import get_callable_name, get_module_name, is_inner_callable
 
 from dlt.extract.hints import make_hints
@@ -70,6 +70,7 @@ from dlt.extract.source import (
     TSourceFunParams,
 )
 from dlt.extract.resource import DltResource, TUnboundDltResource, TDltResourceImpl
+from dlt.extract.incremental import TIncrementalConfig
 
 
 @configspec
@@ -446,6 +447,7 @@ def resource(
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     parallelized: bool = False,
+    incremental: Optional[TIncrementalConfig] = None,
     _impl_cls: Type[TDltResourceImpl] = DltResource,  # type: ignore[assignment]
 ) -> TDltResourceImpl: ...
 
@@ -468,6 +470,7 @@ def resource(
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     parallelized: bool = False,
+    incremental: Optional[TIncrementalConfig] = None,
     _impl_cls: Type[TDltResourceImpl] = DltResource,  # type: ignore[assignment]
 ) -> Callable[[Callable[TResourceFunParams, Any]], TDltResourceImpl]: ...
 
@@ -490,6 +493,7 @@ def resource(
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     parallelized: bool = False,
+    incremental: Optional[TIncrementalConfig] = None,
     _impl_cls: Type[TDltResourceImpl] = DltResource,  # type: ignore[assignment]
     standalone: Literal[True] = True,
 ) -> Callable[
@@ -515,6 +519,7 @@ def resource(
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     parallelized: bool = False,
+    incremental: Optional[TIncrementalConfig] = None,
     _impl_cls: Type[TDltResourceImpl] = DltResource,  # type: ignore[assignment]
 ) -> TDltResourceImpl: ...
 
@@ -536,6 +541,7 @@ def resource(
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     parallelized: bool = False,
+    incremental: Optional[TIncrementalConfig] = None,
     _impl_cls: Type[TDltResourceImpl] = DltResource,  # type: ignore[assignment]
     standalone: bool = False,
     data_from: TUnboundDltResource = None,
@@ -642,7 +648,9 @@ def resource(
             selected,
             cast(DltResource, data_from),
             True,
+            incremental=incremental,
         )
+
         # If custom nesting level was specified then
         # we need to add it to table hints so that
         # later in normalizer dlt/common/normalizers/json/relational.py
