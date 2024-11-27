@@ -125,30 +125,19 @@ The `postgres_adapter` facilitates applying these hints conveniently, with a def
 **Supported Geometry Types:**
 
 - WKT (Well-Known Text)
-- WKB (Well-Known Binary)
 - Hex Representation
+
+If you have geometry data in binary format, you will need to convert it to hexadecimal representation before loading.
 
 **Example:** Using `postgres_adapter` with Different Geometry Types
 
 ```py
-import dlt
 from dlt.destinations.impl.postgres.postgres_adapter import postgres_adapter
 
 # Sample data with various geometry types
 data_wkt = [
   {"type": "Point_wkt", "geom": "POINT (1 1)"},
   {"type": "Point_wkt", "geom": "Polygon([(0, 0), (1, 0), (1, 1), (0, 1), (0, 0)])"},
-  ]
-data_wkb = [
-  {
-    "type": "Point_wkb",
-    "geom": b"\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\xf0?\x00\x00\x00\x00\x00\x00\xf0?",
-  },
-  {
-    "type": "Point_wkb",
-            "geom": b"\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\xf8\x7f\x00\x00\x00"
-        b"\x00\x00\x00\xf8\x7f",
-  },
   ]
 
 data_wkb_hex = [
@@ -160,7 +149,6 @@ data_wkb_hex = [
 
 # Apply postgres_adapter to the 'geom' column with default SRID 4326
 resource_wkt = postgres_adapter(data_wkt, geometry="geom")
-resource_wkb = postgres_adapter(data_wkb, geometry="geom")
 resource_wkb_hex = postgres_adapter(data_wkb_hex, geometry="geom")
 
 # If you need a different SRID
@@ -176,7 +164,7 @@ CREATE EXTENSION postgis;
 This configuration allows `dlt` to map the `geom` column to the PostGIS `geometry` type for spatial queries and analyses.
 
 :::warning
-`LinearRing` geometry type only works with WKB format as Python bytes object.
+`LinearRing` geometry type isn't supported.
 :::
 
 ## Table and column identifiers
