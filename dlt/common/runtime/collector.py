@@ -335,7 +335,8 @@ class AliveCollector(Collector):
             bar = self._bars[key] = bar.__enter__()
         # if message:
         #     bar.set_postfix_str(message)
-        bar(inc)
+        if inc > 0:
+            bar(inc)
 
     def _start(self, step: str) -> None:
         self._bars = {}
