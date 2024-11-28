@@ -4,7 +4,6 @@ from dlt.common.schema.typing import (
     _TTableSchemaBase,
     TWriteDisposition,
     TTableReferenceParam,
-    IncrementalArgs,
 )
 
 

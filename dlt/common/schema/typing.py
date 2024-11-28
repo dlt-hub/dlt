@@ -19,8 +19,7 @@ from typing_extensions import Never
 
 from dlt.common.data_types import TDataType
 from dlt.common.normalizers.typing import TNormalizersConfig
-from dlt.common.typing import TSortOrder, TAnyDateTime, TLoaderFileFormat
-from dlt.common.incremental.typing import IncrementalArgs
+from dlt.common.typing import TSortOrder, TAnyDateTime, TLoaderFileFormat, TColumnNames
 
 try:
     from pydantic import BaseModel as _PydanticBaseModel

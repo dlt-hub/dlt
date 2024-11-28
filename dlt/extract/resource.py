@@ -29,7 +29,7 @@ from dlt.common.pipeline import (
     pipeline_state,
 )
 from dlt.common.utils import flatten_list_or_items, get_callable_name, uniq_id
-from dlt.common.schema.typing import TTableSchema, IncrementalArgs
+from dlt.common.schema.typing import TTableSchema
 from dlt.extract.utils import wrap_async_iterator, wrap_parallel_iterator
 
 from dlt.extract.items import (
@@ -45,7 +45,7 @@ from dlt.extract.items import (
 from dlt.extract.pipe_iterator import ManagedPipeIterator
 from dlt.extract.pipe import Pipe, TPipeStep
 from dlt.extract.hints import DltResourceHints, HintsMeta, TResourceHints, make_hints
-from dlt.extract.incremental import Incremental, IncrementalResourceWrapper, TIncrementalConfig
+from dlt.extract.incremental import Incremental, IncrementalResourceWrapper
 from dlt.extract.exceptions import (
     InvalidTransformerDataTypeGeneratorFunctionRequired,
     InvalidParentResourceDataType,
