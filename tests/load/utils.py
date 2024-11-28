@@ -26,7 +26,10 @@ from dlt.common import json, sleep
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
-from dlt.common.configuration.specs import CredentialsConfiguration
+from dlt.common.configuration.specs import (
+    CredentialsConfiguration,
+    GcpOAuthCredentialsWithoutDefaults,
+)
 from dlt.common.destination.reference import (
     DestinationClientDwhConfiguration,
     JobClientBase,
@@ -172,7 +175,9 @@ class DestinationTestConfiguration:
         dest_type = kwargs.pop("destination", self.destination_type)
         dest_name = kwargs.pop("destination_name", self.destination_name)
         self.setup()
-        return Destination.from_reference(dest_type, destination_name=dest_name, **kwargs)
+        return Destination.from_reference(
+            dest_type, self.credentials, destination_name=dest_name, **kwargs
+        )
 
     def raw_capabilities(self) -> DestinationCapabilitiesContext:
         dest = Destination.from_reference(self.destination_type)
@@ -628,6 +633,14 @@ def destinations_configs(
                     table_format="iceberg",
                     supports_merge=False,
                     file_format="parquet",
+                    credentials=(
+                        resolve_configuration(
+                            GcpOAuthCredentialsWithoutDefaults(),
+                            sections=("destination", "fsgcpoauth"),
+                        )
+                        if bucket == GCS_BUCKET
+                        else None
+                    ),
                 )
             ]
 
