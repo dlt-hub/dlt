@@ -52,10 +52,8 @@ class DuckDBDBApiCursorImpl(DBApiCursorImpl):
             yield self.native_cursor.fetch_arrow_table()
             return
         # iterate
-        try:
-            yield from self.native_cursor.fetch_record_batch(chunk_size)
-        except StopIteration:
-            pass
+        for item in self.native_cursor.fetch_record_batch(chunk_size):
+            yield ArrowTable.from_batches([item])
 
 
 class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):

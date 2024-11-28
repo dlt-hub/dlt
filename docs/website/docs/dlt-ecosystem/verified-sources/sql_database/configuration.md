@@ -75,7 +75,7 @@ Read more about sources and resources here: [General usage: source](../../../gen
 
     ```
 
-    :::note 
+    :::note
     When using the `sql_database` source, specifying table names directly in the source arguments (e.g., `sql_database(table_names=["family", "clan"])`) ensures that only those tables are reflected and turned into resources. In contrast, if you use `.with_resources("family", "clan")`, the entire schema is reflected first, and resources are generated for all tables before filtering for the specified ones. For large schemas, specifying `table_names` can improve performance.
     :::
 
@@ -199,11 +199,12 @@ pipeline = dlt.pipeline(
     pipeline_name="rfam_cx", destination="postgres", dataset_name="rfam_data_arrow"
 )
 
-def _double_as_decimal_adapter(table: sa.Table) -> None:
+def _double_as_decimal_adapter(table: sa.Table) -> sa.Table:
     """Emits decimals instead of floats."""
     for column in table.columns.values():
         if isinstance(column.type, sa.Float):
             column.type.asdecimal = False
+    return table
 
 sql_alchemy_source = sql_database(
     "mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam?&binary_prefix=true",
@@ -215,7 +216,7 @@ sql_alchemy_source = sql_database(
 info = pipeline.run(sql_alchemy_source)
 print(info)
 ```
-For more information on the `tz` parameter within `backend_kwargs` supported by PyArrow, please refer to the 
+For more information on the `tz` parameter within `backend_kwargs` supported by PyArrow, please refer to the
 [official documentation.](https://arrow.apache.org/docs/python/generated/pyarrow.timestamp.html)
 
 ### Pandas
@@ -242,11 +243,12 @@ pipeline = dlt.pipeline(
     pipeline_name="rfam_cx", destination="postgres", dataset_name="rfam_data_pandas_2"
 )
 
-def _double_as_decimal_adapter(table: sa.Table) -> None:
+def _double_as_decimal_adapter(table: sa.Table) -> sa.Table:
     """Emits decimals instead of floats."""
     for column in table.columns.values():
         if isinstance(column.type, sa.Float):
             column.type.asdecimal = True
+    return table
 
 sql_alchemy_source = sql_database(
     "mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam?&binary_prefix=true",

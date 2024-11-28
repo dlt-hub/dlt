@@ -395,6 +395,18 @@ VALID_CONFIGS: List[RESTAPIConfig] = [
             repositories(),
         ],
     },
+    {
+        "client": {"base_url": "https://github.com/api/v2"},
+        "resources": [
+            {
+                "name": "issues",
+                "endpoint": {
+                    "path": "user/repos",
+                    "auth": HttpBasicAuth("", "BASIC_AUTH_TOKEN"),
+                },
+            }
+        ],
+    },
 ]
 
 

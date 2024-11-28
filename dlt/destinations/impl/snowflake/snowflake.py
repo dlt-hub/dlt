@@ -15,18 +15,17 @@ from dlt.common.configuration.specs import (
     AwsCredentialsWithoutDefaults,
     AzureCredentialsWithoutDefaults,
 )
-from dlt.common.storages.configuration import FilesystemConfiguration
+from dlt.common.storages.configuration import FilesystemConfiguration, ensure_canonical_az_url
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.schema import TColumnSchema, Schema
 from dlt.common.schema.typing import TColumnType
-from dlt.common.exceptions import TerminalValueError
 
+from dlt.common.storages.fsspec_filesystem import AZURE_BLOB_STORAGE_PROTOCOLS, S3_PROTOCOLS
 from dlt.common.typing import TLoaderFileFormat
 from dlt.destinations.job_client_impl import SqlJobClientWithStagingDataset
 from dlt.destinations.exceptions import LoadJobTerminalException
 
 from dlt.destinations.impl.snowflake.configuration import SnowflakeClientConfiguration
-from dlt.destinations.impl.snowflake.sql_client import SnowflakeSqlClient
 from dlt.destinations.impl.snowflake.sql_client import SnowflakeSqlClient
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest
 
@@ -124,33 +123,27 @@ class SnowflakeLoadJob(RunnableLoadJob, HasFollowupJobs):
         if not is_local:
             bucket_scheme = parsed_file_url.scheme
             # referencing an external s3/azure stage does not require explicit AWS credentials
-            if bucket_scheme in ["s3", "az", "abfs"] and stage_name:
+            if bucket_scheme in AZURE_BLOB_STORAGE_PROTOCOLS + S3_PROTOCOLS and stage_name:
                 from_clause = f"FROM '@{stage_name}'"
                 files_clause = f"FILES = ('{parsed_file_url.path.lstrip('/')}')"
             # referencing an staged files via a bucket URL requires explicit AWS credentials
             elif (
-                bucket_scheme == "s3"
+                bucket_scheme in S3_PROTOCOLS
                 and staging_credentials
                 and isinstance(staging_credentials, AwsCredentialsWithoutDefaults)
             ):
                 credentials_clause = f"""CREDENTIALS=(AWS_KEY_ID='{staging_credentials.aws_access_key_id}' AWS_SECRET_KEY='{staging_credentials.aws_secret_access_key}')"""
                 from_clause = f"FROM '{file_url}'"
             elif (
-                bucket_scheme in ["az", "abfs"]
+                bucket_scheme in AZURE_BLOB_STORAGE_PROTOCOLS
                 and staging_credentials
                 and isinstance(staging_credentials, AzureCredentialsWithoutDefaults)
             ):
-                # Explicit azure credentials are needed to load from bucket without a named stage
                 credentials_clause = f"CREDENTIALS=(AZURE_SAS_TOKEN='?{staging_credentials.azure_storage_sas_token}')"
-                # Converts an az://<container_name>/<path> to azure://<storage_account_name>.blob.core.windows.net/<container_name>/<path>
-                # as required by snowflake
-                _path = "/" + parsed_file_url.netloc + parsed_file_url.path
-                file_url = urlunparse(
-                    parsed_file_url._replace(
-                        scheme="azure",
-                        netloc=f"{staging_credentials.azure_storage_account_name}.blob.core.windows.net",
-                        path=_path,
-                    )
+                file_url = cls.ensure_snowflake_azure_url(
+                    file_url,
+                    staging_credentials.azure_storage_account_name,
+                    staging_credentials.azure_account_host,
                 )
                 from_clause = f"FROM '{file_url}'"
             else:
@@ -203,6 +196,28 @@ class SnowflakeLoadJob(RunnableLoadJob, HasFollowupJobs):
             {column_match_clause}
             {on_error_clause}
         """
+
+    @staticmethod
+    def ensure_snowflake_azure_url(
+        file_url: str, account_name: str = None, account_host: str = None
+    ) -> str:
+        # Explicit azure credentials are needed to load from bucket without a named stage
+        if not account_host and account_name:
+            account_host = f"{account_name}.blob.core.windows.net"
+        # get canonical url first to convert it into snowflake form
+        canonical_url = ensure_canonical_az_url(
+            file_url,
+            "azure",
+            account_name,
+            account_host,
+        )
+        parsed_file_url = urlparse(canonical_url)
+        return urlunparse(
+            parsed_file_url._replace(
+                path=f"/{parsed_file_url.username}{parsed_file_url.path}",
+                netloc=parsed_file_url.hostname,
+            )
+        )
 
 
 class SnowflakeClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
