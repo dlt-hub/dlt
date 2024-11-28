@@ -1,7 +1,7 @@
 from copy import copy
 import pytest
 import random
-from typing import List
+from typing import Iterable, List
 import pytest
 import yaml
 
@@ -18,8 +18,8 @@ from dlt.common.schema.exceptions import (
     CannotCoerceNullException,
 )
 from dlt.common.schema.typing import TLoaderMergeStrategy
-from dlt.common.typing import StrAny
-from dlt.common.utils import digest128
+from dlt.common.typing import StrAny, TDataItem
+from dlt.common.utils import digest128, uniq_id
 from dlt.common.destination import AnyDestination, DestinationCapabilitiesContext
 from dlt.common.destination.exceptions import DestinationCapabilitiesException
 from dlt.common.libs.pyarrow import row_tuples_to_arrow
@@ -1596,5 +1596,36 @@ def test_merge_arrow(
         [
             {"id": 1, "name": "foo"},
             {"id": 2, "name": "updated bar"},
+        ],
+    )
+
+def test_transformer_replace() -> None:
+    @dlt.resource()
+    def gen_pages_of_ids() -> Iterable[TDataItem]:
+        yield [{"id": 1}, {"id": 2}]
+        yield [{"id": 1}, {"id": 2}]
+
+    current_page = 0
+    @dlt.transformer(
+        data_from=gen_pages_of_ids, write_disposition="replace", primary_key="id", merge_key="id"
+    )
+    def transformed_ids(
+        page: List[TDataItem],
+    ):
+        nonlocal current_page
+        current_page += 1
+        for item in page:
+            yield item | {"current_page": current_page}
+
+    pipeline_name = "pipe_" + uniq_id()
+    pipeline = dlt.pipeline(pipeline_name=pipeline_name, destination="duckdb")
+    info = pipeline.run(transformed_ids)
+    assert_load_info(info)
+    tables = load_tables_to_dicts(pipeline, transformed_ids.name, exclude_system_cols=True)
+    assert_records_as_set(
+        tables[transformed_ids.name],
+        [
+            {"id": 1, "current_page": 2},
+            {"id": 2, "current_page": 2},
         ],
     )
