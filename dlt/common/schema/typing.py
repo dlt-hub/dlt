@@ -165,7 +165,7 @@ class TColumnSchema(TColumnSchemaBase, total=False):
     variant: Optional[bool]
     hard_delete: Optional[bool]
     dedup_sort: Optional[TSortOrder]
-    incremental: Optional[IncrementalArgs]
+    incremental: Optional[bool]
 
 
 TTableSchemaColumns = Dict[str, TColumnSchema]

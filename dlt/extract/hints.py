@@ -515,8 +515,8 @@ class DltResourceHints:
     @staticmethod
     def _merge_incremental_column_hint(dict_: Dict[str, Any]) -> None:
         incremental = dict_.pop("incremental")
-        if isinstance(incremental, Incremental):
-            incremental_hint = incremental.to_table_hint()
+        if incremental is None:
+            return
         col_name = incremental.get_cursor_column_name()
         if not col_name:
             # cursor cannot resolve to a single column, no hint added
@@ -525,7 +525,7 @@ class DltResourceHints:
         if not incremental_col:
             incremental_col = {"name": col_name}
 
-        incremental_col["incremental"] = incremental_hint
+        incremental_col["incremental"] = True
         dict_["columns"][col_name] = incremental_col
 
     @staticmethod

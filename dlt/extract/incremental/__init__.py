@@ -178,17 +178,6 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         self._bound_pipe: SupportsPipe = None
         """Bound pipe"""
 
-    def to_table_hint(self) -> Optional[IncrementalArgs]:
-        """Table hint is only returned when all properties are serializable"""
-        if self.last_value_func not in (min, max):
-            logger.info(
-                "Custom last_value_func %s is not serializable. Incremental hint will not be saved"
-                " in schema.",
-                self.last_value_func,
-            )
-            return None
-        return without_none(dict(self, last_value_func=self.last_value_func.__name__))  # type: ignore[return-value]
-
     @property
     def primary_key(self) -> Optional[TTableHintTemplate[TColumnNames]]:
         return self._primary_key
