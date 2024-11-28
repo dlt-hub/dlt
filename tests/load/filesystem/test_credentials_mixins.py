@@ -276,5 +276,5 @@ def test_gcp_credentials_mixins(
     if mixin == WithPyicebergConfig:
         assert can_connect(GCS_BUCKET, creds, mixin)
     elif mixin == WithObjectStoreRsCredentials:
-        with pytest.raises(NotImplementedError):
+        with pytest.raises(UnsupportedAuthenticationMethodException):
             assert can_connect(GCS_BUCKET, creds, mixin)

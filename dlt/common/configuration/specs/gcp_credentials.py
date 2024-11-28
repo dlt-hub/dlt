@@ -184,9 +184,9 @@ class GcpOAuthCredentialsWithoutDefaults(GcpCredentials, OAuth2Credentials):
         return json.dumps(self._info_dict())
 
     def to_object_store_rs_credentials(self) -> Dict[str, str]:
-        raise NotImplementedError(
-            "`object_store` Rust crate does not support OAuth for GCP credentials. Reference:"
-            " https://docs.rs/object_store/latest/object_store/gcp."
+        raise UnsupportedAuthenticationMethodException(
+            "OAuth authentication not supported with `delta` table format. Use Service Account or"
+            " Application Default Credentials authentication instead."
         )
 
     def to_pyiceberg_fileio_config(self) -> Dict[str, Any]:
