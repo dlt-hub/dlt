@@ -478,22 +478,19 @@ def _find_resolved_params(
     Find all resolved params in the endpoint configuration and return
     a list of ResolvedParam objects.
 
+    Param:
+    location: Optional[ResolveParamLocation] = None - filter resolved params by location if provided.
+
     Resolved params are of type ResolveParamConfig (bound param with a key "type" set to "resolve".)
     """
-    return [
+    resolved_params = [
         ResolvedParam(key, value)  # type: ignore[arg-type]
         for key, value in endpoint_config.get("params", {}).items()
-        if (
-            isinstance(value, dict)
-            and value.get("type") == "resolve"
-            and (
-                value.get("location") == location
-                or location is None
-                or value.get("location") is None
-                and location == "path"
-            )
-        )
+        if isinstance(value, dict) and value.get("type") == "resolve"
     ]
+    if location is None:
+        return resolved_params
+    return list(filter(lambda rp: rp.resolve_config.get("location") == location, resolved_params))
 
 
 def _action_type_unless_custom_hook(
