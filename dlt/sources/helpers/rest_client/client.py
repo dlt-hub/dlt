@@ -58,7 +58,7 @@ class RESTClient:
         auth (Optional[AuthBase]): Authentication configuration for all requests.
         paginator (Optional[BasePaginator]): Default paginator for handling paginated responses.
         data_selector (Optional[jsonpath.TJsonPath]): JSONPath selector for extracting data from responses.
-            Only used when paginating. Use `extract_response` for other requests.
+            Only used in `paginate`.
         session (BaseSession): HTTP session for making requests.
         paginator_factory (Optional[PaginatorFactory]): Factory for creating paginator instances,
             used for detecting paginators.
