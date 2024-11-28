@@ -404,29 +404,6 @@ The filesystem destination handles the write dispositions as follows:
 - `replace` - all files that belong to such tables are deleted from the dataset folder, and then the current set of files is added.
 - `merge` - falls back to `append`
 
-### Merge with Delta table format (experimental)
-The [`upsert`](../../general-usage/incremental-loading.md#upsert-strategy) merge strategy is supported when using the [Delta table format](#delta-table-format).
-
-:::caution
-The `upsert` merge strategy for the filesystem destination with Delta table format is experimental.
-:::
-
-```py
-@dlt.resource(
-    write_disposition={"disposition": "merge", "strategy": "upsert"},
-    primary_key="my_primary_key",
-    table_format="delta"
-)
-def my_upsert_resource():
-    ...
-...
-```
-
-#### Known limitations
-- `hard_delete` hint not supported
-- Deleting records from nested tables not supported
-  - This means updates to JSON columns that involve element removals are not propagated. For example, if you first load `{"key": 1, "nested": [1, 2]}` and then load `{"key": 1, "nested": [1]}`, then the record for element `2` will not be deleted from the nested table.
-
 ## File compression
 
 The filesystem destination in the dlt library uses `gzip` compression by default for efficiency, which may result in the files being stored in a compressed format. This format may not be easily readable as plain text or JSON Lines (`jsonl`) files. If you encounter files that seem unreadable, they may be compressed.
@@ -647,8 +624,9 @@ You can choose the following file formats:
 
 You can choose the following table formats:
 * [Delta table](../table-formats/delta.md) is supported
+* [Iceberg](../table-formats/iceberg.md) is supported (**experimental**)
 
-### Delta table format
+### Delta table format dependencies
 
 You need the `deltalake` package to use this format:
 
@@ -662,7 +640,23 @@ You also need `pyarrow>=17.0.0`:
 pip install 'pyarrow>=17.0.0'
 ```
 
-Set the `table_format` argument to `delta` when defining your resource:
+### Iceberg table format dependencies
+
+You need the `pyiceberg` package to use this format:
+
+```sh
+pip install "dlt[pyiceberg]"
+```
+
+You also need `sqlalchemy>=2.0.18`:
+
+```sh
+pip install 'sqlalchemy>=2.0.18'
+```
+
+### Set table format
+
+Set the `table_format` argument to `delta` or `iceberg` when defining your resource:
 
 ```py
 @dlt.resource(table_format="delta")
@@ -670,16 +664,19 @@ def my_delta_resource():
     ...
 ```
 
+or when calling `run` on your pipeline:
+
+```py
+pipeline.run(my_resource, table_format="delta")
+```
+
 :::note
-`dlt` always uses Parquet as `loader_file_format` when using the `delta` table format. Any setting of `loader_file_format` is disregarded.
+`dlt` always uses Parquet as `loader_file_format` when using the `delta` or `iceberg` table format. Any setting of `loader_file_format` is disregarded.
 :::
 
-:::caution
-Beware that when loading a large amount of data for one table, the underlying rust implementation will consume a lot of memory. This is a known issue and the maintainers are actively working on a solution. You can track the progress [here](https://github.com/delta-io/delta-rs/pull/2289). Until the issue is resolved, you can mitigate the memory consumption by doing multiple smaller incremental pipeline runs.
-:::
 
-#### Delta table partitioning
-A Delta table can be partitioned ([Hive-style partitioning](https://delta.io/blog/pros-cons-hive-style-partionining/)) by specifying one or more `partition` column hints. This example partitions the Delta table by the `foo` column:
+#### Table format partitioning
+Both `delta` and `iceberg` tables can be partitioned by specifying one or more `partition` column hints. This example partitions a Delta table by the `foo` column: 
 
 ```py
 @dlt.resource(
@@ -690,12 +687,67 @@ def my_delta_resource():
     ...
 ```
 
-:::caution
-It is **not** possible to change partition columns after the Delta table has been created. Trying to do so causes an error stating that the partition columns don't match.
+:::note
+Delta uses [Hive-style partitioning](https://delta.io/blog/pros-cons-hive-style-partionining/), while Iceberg uses [hidden partioning](https://iceberg.apache.org/docs/latest/partitioning/).
 :::
 
+:::caution
+Partition evolution (changing partition columns after a table has been created) is not supported.
+:::
 
-#### Storage options
+#### Table access helper functions
+You can use the `get_delta_tables` and `get_iceberg_tables` helper functions to acccess native table objects. For `delta` these are `deltalake` [DeltaTable](https://delta-io.github.io/delta-rs/api/delta_table/) objects, for `iceberg` these are `pyiceberg` [Table](https://py.iceberg.apache.org/reference/pyiceberg/table/#pyiceberg.table.Table) objects.
+
+```py
+from dlt.common.libs.deltalake import get_delta_tables
+# from dlt.common.libs.pyiceberg import get_iceberg_tables
+
+...
+
+# get dictionary of DeltaTable objects
+delta_tables = get_delta_tables(pipeline)
+
+# execute operations on DeltaTable objects
+delta_tables["my_delta_table"].optimize.compact()
+delta_tables["another_delta_table"].optimize.z_order(["col_a", "col_b"])
+# delta_tables["my_delta_table"].vacuum()
+# etc.
+```
+
+#### Table format Google Cloud Storage authentication
+
+Note that not all authentication methods are supported when using table formats on Google Cloud Storage:
+
+| Authentication method | `delta` | `iceberg` |
+| -- | -- | -- |
+| [Service Account](bigquery.md#setup-guide) | ✅ | ❌ |
+| [OAuth](../destinations/bigquery.md#oauth-20-authentication) | ❌ | ✅ |
+| [Application Default Credentials](bigquery.md#using-default-credentials) | ✅ | ❌ |
+
+#### Table format `merge` support (**experimental**)
+The [`upsert`](../../general-usage/incremental-loading.md#upsert-strategy) merge strategy is supported for `delta`. For `iceberg`, the `merge` write disposition is not supported and falls back to `append`.
+
+:::caution
+The `upsert` merge strategy for the filesystem destination with Delta table format is **experimental**.
+:::
+
+```py
+@dlt.resource(
+    write_disposition={"disposition": "merge", "strategy": "upsert"},
+    primary_key="my_primary_key",
+    table_format="delta"
+)
+def my_upsert_resource():
+    ...
+...
+```
+
+#### Known limitations
+- `hard_delete` hint not supported
+- Deleting records from nested tables not supported
+  - This means updates to JSON columns that involve element removals are not propagated. For example, if you first load `{"key": 1, "nested": [1, 2]}` and then load `{"key": 1, "nested": [1]}`, then the record for element `2` will not be deleted from the nested table.
+
+#### Delta table format storage options
 You can pass storage options by configuring `destination.filesystem.deltalake_storage_options`:
 
 ```toml
@@ -709,24 +761,10 @@ You don't need to specify credentials here. `dlt` merges the required credential
 
 >❗When using `s3`, you need to specify storage options to [configure](https://delta-io.github.io/delta-rs/usage/writing/writing-to-s3-with-locking-provider/) locking behavior.
 
-#### `get_delta_tables` helper
-You can use the `get_delta_tables` helper function to get `deltalake` [DeltaTable](https://delta-io.github.io/delta-rs/api/delta_table/) objects for your Delta tables:
-
-```py
-from dlt.common.libs.deltalake import get_delta_tables
-
-...
-
-# get dictionary of DeltaTable objects
-delta_tables = get_delta_tables(pipeline)
-
-# execute operations on DeltaTable objects
-delta_tables["my_delta_table"].optimize.compact()
-delta_tables["another_delta_table"].optimize.z_order(["col_a", "col_b"])
-# delta_tables["my_delta_table"].vacuum()
-# etc.
-
-```
+#### Delta table format memory usage
+:::caution
+Beware that when loading a large amount of data for one table, the underlying rust implementation will consume a lot of memory. This is a known issue and the maintainers are actively working on a solution. You can track the progress [here](https://github.com/delta-io/delta-rs/pull/2289). Until the issue is resolved, you can mitigate the memory consumption by doing multiple smaller incremental pipeline runs.
+:::
 
 ## Syncing of dlt state
 This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination). To this end, special folders and files will be created at your destination which hold information about your pipeline state, schemas, and completed loads. These folders DO NOT respect your settings in the layout section. When using filesystem as a staging destination, not all of these folders are created, as the state and schemas are managed in the regular way by the final destination you have configured.
