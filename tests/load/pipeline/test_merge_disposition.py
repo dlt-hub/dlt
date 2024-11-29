@@ -284,7 +284,9 @@ def test_merge_nested_records_inserted_deleted(
     destination_config: DestinationTestConfiguration,
     merge_strategy: TLoaderMergeStrategy,
 ) -> None:
-    p = destination_config.setup_pipeline("abstract", dev_mode=True)
+    p = destination_config.setup_pipeline(
+        "test_merge_nested_records_inserted_deleted", dev_mode=True
+    )
 
     skip_if_not_supported(merge_strategy, p.destination)
 
