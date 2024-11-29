@@ -310,7 +310,7 @@ class FilesystemSqlClient(DuckDbSqlClient):
     def _setup_iceberg(conn: duckdb.DuckDBPyConnection) -> None:
         # needed to make persistent secrets work in new connection
         # https://github.com/duckdb/duckdb_iceberg/issues/83
-        conn.sql("FROM duckdb_secrets();").show()
+        conn.execute("FROM duckdb_secrets();")
 
         # `duckdb_iceberg` extension does not support autoloading
         # https://github.com/duckdb/duckdb_iceberg/issues/71
