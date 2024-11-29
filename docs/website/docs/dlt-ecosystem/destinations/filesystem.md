@@ -654,6 +654,10 @@ You also need `sqlalchemy>=2.0.18`:
 pip install 'sqlalchemy>=2.0.18'
 ```
 
+:::note
+`dlt` uses an ephemeral, in-memory, sqlite-based [Iceberg catalog](https://iceberg.apache.org/concepts/catalog/). This allows for a serverless setup. It is currently not possible to connect your own Iceberg catalog.
+:::
+
 ### Set table format
 
 Set the `table_format` argument to `delta` or `iceberg` when defining your resource:
