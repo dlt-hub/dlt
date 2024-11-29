@@ -67,6 +67,10 @@ You can also pass a database connection string similar to the one used by the `p
 destination.redshift.credentials="redshift://loader:<password>@localhost/dlt_data?connect_timeout=15"
 ```
 
+:::note
+Use the PostgreSQL driver for PostgreSQL-based setups or the Amazon Redshift driver for native Redshift; [see documentation](https://docs.aws.amazon.com/redshift/latest/dg/c_redshift-postgres-jdbc.html).
+:::
+
 ## Write disposition
 
 All [write dispositions](../../general-usage/incremental-loading#choosing-a-write-disposition) are supported.

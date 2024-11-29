@@ -82,6 +82,8 @@ class LanceDBClientConfiguration(DestinationClientDwhConfiguration):
     """Embedding provider used for generating embeddings. Default is "cohere". You can find the full list of
     providers at https://github.com/lancedb/lancedb/tree/main/python/python/lancedb/embeddings as well as
     https://lancedb.github.io/lancedb/embeddings/default_embedding_functions/."""
+    embedding_model_provider_host: Optional[str] = None
+    """Full host URL with protocol and port (e.g. 'http://localhost:11434'). Uses LanceDB's default if not specified, assuming the provider accepts this parameter."""
     embedding_model: str = "embed-english-v3.0"
     """The model used by the embedding provider for generating embeddings.
     Check with the embedding provider which options are available.

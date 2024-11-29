@@ -42,3 +42,7 @@ to = "/docs/reference/telemetry"
 [[redirects]]
 from = "/docs/walkthroughs"
 to = "/docs/intro"
+
+[[redirects]]
+from = "/docs/visualizations"
+to = "/docs/general-usage/dataset-access"
