@@ -27,6 +27,7 @@ from dlt.common.configuration.specs.mixins import WithObjectStoreRsCredentials, 
 
 from tests.load.utils import (
     AZ_BUCKET,
+    ABFS_BUCKET,
     AWS_BUCKET,
     GCS_BUCKET,
     R2_BUCKET_CONFIG,
@@ -108,18 +109,19 @@ def can_connect_pyiceberg_fileio_config(
 
 
 @pytest.mark.parametrize(
-    "driver", [driver for driver in ALL_FILESYSTEM_DRIVERS if driver in ("az")]
+    "driver", [driver for driver in ALL_FILESYSTEM_DRIVERS if driver in ("az", "abfss")]
 )
 @pytest.mark.parametrize("mixin", ALL_CREDENTIALS_MIXINS)
 def test_azure_credentials_mixins(
     driver: str, fs_creds: Dict[str, Any], mixin: Type[TCredentialsMixin]
 ) -> None:
+    buckets = {"az": AZ_BUCKET, "abfss": ABFS_BUCKET}
     creds: AnyAzureCredentials
 
     creds = AzureServicePrincipalCredentialsWithoutDefaults(
         **dlt.secrets.get("destination.fsazureprincipal.credentials")
     )
-    assert can_connect(AZ_BUCKET, creds, mixin)
+    assert can_connect(buckets[driver], creds, mixin)
 
     # without SAS token
     creds = AzureCredentialsWithoutDefaults(
@@ -127,12 +129,12 @@ def test_azure_credentials_mixins(
         azure_storage_account_key=fs_creds["azure_storage_account_key"],
     )
     assert creds.azure_storage_sas_token is None
-    assert can_connect(AZ_BUCKET, creds, mixin)
+    assert can_connect(buckets[driver], creds, mixin)
 
     # with SAS token
     creds = resolve_configuration(creds)
     assert creds.azure_storage_sas_token is not None
-    assert can_connect(AZ_BUCKET, creds, mixin)
+    assert can_connect(buckets[driver], creds, mixin)
 
 
 @pytest.mark.parametrize(
