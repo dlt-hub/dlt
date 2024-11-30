@@ -570,8 +570,8 @@ def test_update_preferred_types(schema: Schema) -> None:
 
 def test_default_table_resource() -> None:
     """Parent tables without `resource` set default to table name"""
-    eth_v5 = load_yml_case("schemas/eth/ethereum_schema_v5")
-    tables = Schema.from_dict(eth_v5).tables
+    eth_v11 = load_yml_case("schemas/eth/ethereum_schema_v11")
+    tables = Schema.from_dict(eth_v11).tables
 
     assert tables["blocks"]["resource"] == "blocks"
     assert all([t.get("resource") is None for t in tables.values() if t.get("parent")])
@@ -845,9 +845,9 @@ def test_group_tables_by_resource(schema: Schema) -> None:
 
 
 def test_remove_processing_hints() -> None:
-    eth_V9 = load_yml_case("schemas/eth/ethereum_schema_v9")
+    eth_V11 = load_yml_case("schemas/eth/ethereum_schema_v11")
     # here tables contain processing hints
-    schema = Schema.from_dict(eth_V9)
+    schema = Schema.from_dict(eth_V11)
     assert "x-normalizer" in schema.tables["blocks"]
 
     # clone with hints removal, note that clone does not bump version
@@ -867,16 +867,10 @@ def test_remove_processing_hints() -> None:
     assert "x-normalizer" not in to_json
 
     # load without hints
-    no_hints = schema.from_dict(eth_V9, remove_processing_hints=True, bump_version=False)
+    no_hints = schema.from_dict(eth_V11, remove_processing_hints=True, bump_version=False)
     assert no_hints.stored_version_hash == cloned.stored_version_hash
 
     # now load without hints but with version bump
     cloned._bump_version()
-    no_hints = schema.from_dict(eth_V9, remove_processing_hints=True)
+    no_hints = schema.from_dict(eth_V11, remove_processing_hints=True)
     assert no_hints.stored_version_hash == cloned.stored_version_hash
-
-
-# def test_get_new_table_columns() -> None:
-#     pytest.fail(reason="must implement!")
-#     pass
-# get_new_table_columns()

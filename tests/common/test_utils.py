@@ -26,6 +26,7 @@ from dlt.common.utils import (
     get_exception_trace,
     get_exception_trace_chain,
     update_dict_nested,
+    removeprefix,
 )
 
 
@@ -440,3 +441,11 @@ def test_is_typeerror_due_to_wrong_call() -> None:
     except Exception as exc:
         assert str(exc) == "wrong type"
         assert is_typeerror_due_to_wrong_call(exc, function_typeerror_exc) is False
+
+
+def test_removeprefix() -> None:
+    assert removeprefix("a_data", "a_") == "data"
+    assert removeprefix("a_data", "a_data") == ""
+    assert removeprefix("a_data", "a_data_1") == "a_data"
+    assert removeprefix("", "a_data_1") == ""
+    assert removeprefix("a_data", "") == "a_data"

@@ -112,9 +112,9 @@ def test_load_schema_for_callable() -> None:
     schema = s.schema
     assert schema.name == "ethereum" == s.name
     # the schema in the associated file has this hash
-    eth_v9 = load_yml_case("schemas/eth/ethereum_schema_v9")
+    eth_v11 = load_yml_case("schemas/eth/ethereum_schema_v11")
     # source removes processing hints so we do
-    reference_schema = Schema.from_dict(eth_v9, remove_processing_hints=True)
+    reference_schema = Schema.from_dict(eth_v11, remove_processing_hints=True)
     assert schema.stored_version_hash == reference_schema.stored_version_hash
 
 

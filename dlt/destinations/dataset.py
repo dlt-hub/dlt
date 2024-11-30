@@ -105,7 +105,7 @@ class ReadableDBAPIRelation(SupportsReadableRelation):
             return self._provided_query
 
         table_name = self.sql_client.make_qualified_table_name(
-            self.schema.naming.normalize_path(self._table_name)
+            self.schema.naming.normalize_tables_path(self._table_name)
         )
 
         maybe_limit_clause_1 = ""

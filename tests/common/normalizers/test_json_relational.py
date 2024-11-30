@@ -6,14 +6,12 @@ from dlt.common.schema.typing import TColumnName, TSimpleRegex
 from dlt.common.utils import digest128, uniq_id
 from dlt.common.schema import Schema
 from dlt.common.schema.utils import new_table
-
+from dlt.common.normalizers.utils import DLT_ID_LENGTH_BYTES
 from dlt.common.normalizers.json.relational import (
     RelationalNormalizerConfigPropagation,
     DataItemNormalizer as RelationalNormalizer,
-    DLT_ID_LENGTH_BYTES,
 )
-
-# _flatten, _get_child_row_hash, _normalize_row, normalize_data_item,
+from dlt.common.normalizers.json import helpers as normalize_helpers
 
 from tests.utils import create_schema_with_name
 
@@ -420,7 +418,7 @@ def test_list_in_list() -> None:
     schema.update_table(path_table)
     assert "zen__webpath" in schema.tables
     # clear cache with json paths
-    schema.data_item_normalizer._is_nested_type.cache_clear()  # type: ignore[attr-defined]
+    normalize_helpers.is_nested_type.cache_clear()
 
     rows = list(schema.normalize_data_item(chats, "1762162.1212", "zen"))
     # both lists are json types now
@@ -890,7 +888,7 @@ def test_caching_perf(norm: RelationalNormalizer) -> None:
     table["x-normalizer"] = {}
     start = time()
     for _ in range(100000):
-        norm._is_nested_type(norm.schema, "test", "field", 0)
+        normalize_helpers.is_nested_type(norm.schema, "test", "field", 0)
         # norm._get_table_nesting_level(norm.schema, "test")
     print(f"{time() - start}")
 

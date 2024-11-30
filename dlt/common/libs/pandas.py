@@ -8,8 +8,8 @@ except ModuleNotFoundError:
     raise MissingDependencyException("dlt Pandas Helpers", ["pandas"])
 
 
-def pandas_to_arrow(df: pandas.DataFrame) -> Any:
+def pandas_to_arrow(df: pandas.DataFrame, preserve_index: bool = True) -> Any:
     """Converts pandas to arrow or raises an exception if pyarrow is not installed"""
     from dlt.common.libs.pyarrow import pyarrow as pa
 
-    return pa.Table.from_pandas(df)
+    return pa.Table.from_pandas(df, preserve_index=preserve_index)
