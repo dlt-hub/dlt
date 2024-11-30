@@ -220,7 +220,7 @@ def w_normalize_files(
                 # normalize table name in case the normalization changed
                 # NOTE: this is the best we can do, until a full lineage information is in the schema
                 root_table_name = normalize_helpers.normalize_table_identifier(
-                    schema, parsed_file_name.table_name
+                    schema, schema.naming, parsed_file_name.table_name
                 )
                 root_tables.add(root_table_name)
                 root_table = stored_schema["tables"].get(root_table_name, {"name": root_table_name})

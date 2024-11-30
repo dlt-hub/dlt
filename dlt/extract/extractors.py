@@ -143,7 +143,9 @@ class Extractor:
             self._write_to_dynamic_table(resource, items, meta)
 
     def write_empty_items_file(self, table_name: str) -> None:
-        table_name = normalize_helpers.normalize_table_identifier(self.schema, table_name)
+        table_name = normalize_helpers.normalize_table_identifier(
+            self.schema, self.naming, table_name
+        )
         self.item_storage.write_empty_items_file(self.load_id, self.schema.name, table_name, None)
 
     def _get_static_table_name(self, resource: DltResource, meta: Any) -> Optional[str]:
@@ -153,11 +155,11 @@ class Extractor:
             table_name = meta.table_name
         else:
             table_name = resource.table_name  # type: ignore[assignment]
-        return normalize_helpers.normalize_table_identifier(self.schema, table_name)
+        return normalize_helpers.normalize_table_identifier(self.schema, self.naming, table_name)
 
     def _get_dynamic_table_name(self, resource: DltResource, item: TDataItem) -> str:
         return normalize_helpers.normalize_table_identifier(
-            self.schema, resource._table_name_hint_fun(item)
+            self.schema, self.naming, resource._table_name_hint_fun(item)
         )
 
     def _write_item(

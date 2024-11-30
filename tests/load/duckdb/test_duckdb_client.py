@@ -19,7 +19,7 @@ from dlt.destinations.impl.duckdb.exceptions import InvalidInMemoryDuckdbCredent
 from dlt.pipeline.exceptions import PipelineStepFailed
 
 from tests.pipeline.utils import assert_table
-from tests.utils import patch_home_dir, autouse_test_storage, TEST_STORAGE_ROOT
+from tests.utils import autouse_test_storage, TEST_STORAGE_ROOT
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential

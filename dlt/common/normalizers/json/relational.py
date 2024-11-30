@@ -96,14 +96,14 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         def norm_row_dicts(dict_row: StrAny, __r_lvl: int, path: Tuple[str, ...] = ()) -> None:
             for k, v in dict_row.items():
                 if k.strip():
-                    norm_k = helpers.normalize_identifier(self.schema, k)
+                    norm_k = helpers.normalize_identifier(self.schema, self.naming, k)
                 else:
                     # for empty keys in the data use _
                     norm_k = self.EMPTY_KEY_IDENTIFIER
                 # if norm_k != k:
                 #     print(f"{k} -> {norm_k}")
                 nested_name = (
-                    norm_k if path == () else helpers.shorten_fragments(self.schema, *path, norm_k)
+                    norm_k if path == () else helpers.shorten_fragments(self.naming, *path, norm_k)
                 )
                 # for lists and dicts we must check if type is possibly nested
                 if isinstance(v, (dict, list)):
@@ -115,7 +115,8 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
                         else:
                             # pass the list to out_rec_list
                             out_rec_list[
-                                path + (helpers.normalize_table_identifier(self.schema, k),)
+                                path
+                                + (helpers.normalize_table_identifier(self.schema, self.naming, k),)
                             ] = v
                         continue
                     else:
@@ -200,7 +201,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         parent_row_id: Optional[str] = None,
         _r_lvl: int = 0,
     ) -> TNormalizedRowIterator:
-        table = helpers.shorten_fragments(self.schema, *parent_path, *ident_path)
+        table = helpers.shorten_fragments(self.naming, *parent_path, *ident_path)
 
         for idx, v in enumerate(seq):
             if isinstance(v, dict):
@@ -224,7 +225,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
                 wrap_v = wrap_in_dict(self.c_value, v)
                 DataItemNormalizer._extend_row(extend, wrap_v)
                 self._add_row_id(table, wrap_v, wrap_v, parent_row_id, idx)
-                yield (table, helpers.shorten_fragments(self.schema, *parent_path)), wrap_v
+                yield (table, helpers.shorten_fragments(self.naming, *parent_path)), wrap_v
 
     def _normalize_row(
         self,
@@ -237,8 +238,8 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         _r_lvl: int = 0,
         is_root: bool = False,
     ) -> TNormalizedRowIterator:
-        schema = self.schema
-        table = helpers.shorten_fragments(schema, *parent_path, *ident_path)
+        naming = self.naming
+        table = helpers.shorten_fragments(naming, *parent_path, *ident_path)
         # flatten current row and extract all lists to recur into
         flattened_row, lists = self._flatten(table, dict_row, _r_lvl)
         # always extend row
@@ -253,7 +254,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
 
         # yield parent table first
         should_descend = yield (
-            (table, helpers.shorten_fragments(schema, *parent_path)),
+            (table, helpers.shorten_fragments(naming, *parent_path)),
             flattened_row,
         )
         if should_descend is False:
@@ -334,7 +335,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         # identify load id if loaded data must be processed after loading incrementally
         row[self.c_dlt_load_id] = load_id
         # get table name and nesting level
-        root_table_name = helpers.normalize_table_identifier(self.schema, table_name)
+        root_table_name = helpers.normalize_table_identifier(self.schema, self.naming, table_name)
         max_nesting = helpers.get_table_nesting_level(
             self.schema, root_table_name, self.max_nesting
         )

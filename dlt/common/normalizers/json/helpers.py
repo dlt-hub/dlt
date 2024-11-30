@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional, Tuple, cast
 
 from dlt.common.json import json
 from dlt.common.destination.utils import resolve_merge_strategy
+from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.normalizers.typing import TRowIdType
 from dlt.common.normalizers.utils import DLT_ID_LENGTH_BYTES
 from dlt.common.schema import Schema
@@ -19,24 +20,24 @@ from dlt.common.utils import digest128
 
 
 @lru_cache(maxsize=None)
-def shorten_fragments(schema: Schema, *idents: str) -> str:
-    return schema.naming.shorten_fragments(*idents)
+def shorten_fragments(naming: NamingConvention, *idents: str) -> str:
+    return naming.shorten_fragments(*idents)
 
 
 @lru_cache(maxsize=None)
-def normalize_table_identifier(schema: Schema, table_name: str) -> str:
+def normalize_table_identifier(schema: Schema, naming: NamingConvention, table_name: str) -> str:
     if schema._normalizers_config.get("use_break_path_on_normalize", True):
-        return schema.naming.normalize_path(table_name)
+        return naming.normalize_tables_path(table_name)
     else:
-        return schema.naming.normalize_table_identifier(table_name)
+        return naming.normalize_table_identifier(table_name)
 
 
 @lru_cache(maxsize=None)
-def normalize_identifier(schema: Schema, identifier: str) -> str:
+def normalize_identifier(schema: Schema, naming: NamingConvention, identifier: str) -> str:
     if schema._normalizers_config.get("use_break_path_on_normalize", True):
-        return schema.naming.normalize_tables_path(identifier)
+        return naming.normalize_path(identifier)
     else:
-        return schema.naming.normalize_table_identifier(identifier)
+        return naming.normalize_identifier(identifier)
 
 
 @lru_cache(maxsize=None)
