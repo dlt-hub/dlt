@@ -329,7 +329,7 @@ class ArrowExtractor(Extractor):
             for tbl in (
                 (
                     # 1. Convert pandas frame(s) to arrow Table, remove indexes because we store
-                    pandas_to_arrow(item, preserve_index=False)
+                    pandas_to_arrow(item)
                     if (pandas and isinstance(item, pandas.DataFrame))
                     else item
                 )
