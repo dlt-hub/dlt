@@ -119,6 +119,7 @@ lancedb = ["lancedb", "pyarrow", "tantivy"]
 deltalake = ["deltalake", "pyarrow"]
 sql_database = ["sqlalchemy"]
 sqlalchemy = ["sqlalchemy", "alembic"]
+postgis = ["psycopg2-binary", "psycopg2cffi"]
 
 [tool.poetry.scripts]
 dlt = "dlt.cli._dlt:_main"
@@ -168,6 +169,7 @@ types-regex = "^2024.5.15.20240519"
 flake8-print = "^5.0.0"
 mimesis = "^7.0.0"
 ibis-framework = { version = ">=9.0.0", markers = "python_version >= '3.10'", optional = true, extras = ["duckdb", "postgres", "bigquery", "snowflake", "mssql", "clickhouse"]}
+shapely = ">=2.0.6"
 
 [tool.poetry.group.sources]
 optional = true
