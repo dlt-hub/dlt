@@ -38,7 +38,6 @@ from dlt.common.destination.exceptions import (
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.runtime import signals, apply_runtime_config
 from dlt.common.schema.typing import (
-    TColumnNames,
     TSchemaTables,
     TTableFormat,
     TWriteDispositionConfig,
@@ -47,7 +46,7 @@ from dlt.common.schema.typing import (
 )
 from dlt.common.schema.utils import normalize_schema_name
 from dlt.common.storages.exceptions import LoadPackageNotFound
-from dlt.common.typing import ConfigValue, TFun, TSecretStrValue, is_optional_type
+from dlt.common.typing import ConfigValue, TFun, TSecretStrValue, is_optional_type, TColumnNames
 from dlt.common.runners import pool_runner as runner
 from dlt.common.storages import (
     LiveSchemaStorage,

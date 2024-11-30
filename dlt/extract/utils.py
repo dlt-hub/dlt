@@ -22,8 +22,15 @@ from functools import wraps, partial
 from dlt.common.data_writers import TDataItemFormat
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.pipeline import reset_resource_state
-from dlt.common.schema.typing import TColumnNames, TAnySchemaColumns, TTableSchemaColumns
-from dlt.common.typing import AnyFun, DictStrAny, TDataItem, TDataItems, TAnyFunOrGenerator
+from dlt.common.schema.typing import TAnySchemaColumns, TTableSchemaColumns
+from dlt.common.typing import (
+    AnyFun,
+    DictStrAny,
+    TDataItem,
+    TDataItems,
+    TAnyFunOrGenerator,
+    TColumnNames,
+)
 from dlt.common.utils import get_callable_name
 
 from dlt.extract.exceptions import (
