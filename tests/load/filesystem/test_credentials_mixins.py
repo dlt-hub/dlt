@@ -94,11 +94,10 @@ def can_connect_pyiceberg_fileio_config(
     bucket_url: str, pyiceberg_fileio_config: Dict[str, str]
 ) -> bool:
     from pyiceberg.table import StaticTable
-    from dlt.common.libs.pyiceberg import _map_scheme
 
     try:
         StaticTable.from_metadata(
-            f"{_map_scheme(bucket_url)}/non_existing_metadata_file.json",
+            f"{bucket_url}/non_existing_metadata_file.json",
             properties=pyiceberg_fileio_config,
         )
     except FileNotFoundError:
@@ -115,6 +114,9 @@ def can_connect_pyiceberg_fileio_config(
 def test_azure_credentials_mixins(
     driver: str, fs_creds: Dict[str, Any], mixin: Type[TCredentialsMixin]
 ) -> None:
+    if mixin == WithPyicebergConfig and driver == "az":
+        pytest.skip("`pyiceberg` does not support `az` scheme")
+
     buckets = {"az": AZ_BUCKET, "abfss": ABFS_BUCKET}
     creds: AnyAzureCredentials
 

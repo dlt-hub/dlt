@@ -625,6 +625,9 @@ def destinations_configs(
                     ),
                 )
             ]
+            if bucket == AZ_BUCKET:
+                # `pyiceberg` does not support `az` scheme
+                continue
             destination_configs += [
                 DestinationTestConfiguration(
                     destination_type="filesystem",

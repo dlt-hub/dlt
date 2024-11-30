@@ -189,11 +189,4 @@ def _register_table(
 def _make_path(path: str, client: FilesystemClient) -> str:
     # don't use file protocol for local files because duckdb does not support it
     # https://github.com/duckdb/duckdb/issues/13669
-    if not client.is_local_filesystem:
-        path = client.config.make_url(path)
-    return _map_scheme(path)
-
-
-def _map_scheme(path: str) -> str:
-    # pyiceberg does not know `az://` scheme
-    return path.replace("az://", "abfss://")
+    return path if client.is_local_filesystem else client.config.make_url(path)
