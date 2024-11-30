@@ -737,7 +737,7 @@ def assert_new_schema_props_custom_normalizers(schema: Schema) -> None:
 def assert_is_new_schema(schema: Schema) -> None:
     assert schema.stored_version is None
     assert schema.stored_version_hash is None
-    assert schema.ENGINE_VERSION == 10
+    assert schema.ENGINE_VERSION == 11
     assert schema._stored_previous_hashes == []
     assert schema.is_modified
     assert schema.is_new

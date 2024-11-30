@@ -628,7 +628,14 @@ def row_tuples_to_arrow(
                 " extracting an SQL VIEW that selects with cast."
             )
             json_str_array = pa.array(
-                [None if s is None else json.dumps(s) if not issubclass(type(s), set) else json.dumps(list(s)) for s in columnar_known_types[field.name]]
+                [
+                    (
+                        None
+                        if s is None
+                        else json.dumps(s) if not issubclass(type(s), set) else json.dumps(list(s))
+                    )
+                    for s in columnar_known_types[field.name]
+                ]
             )
             columnar_known_types[field.name] = json_str_array
 
