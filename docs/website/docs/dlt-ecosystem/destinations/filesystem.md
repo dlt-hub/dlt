@@ -166,6 +166,8 @@ Run `pip install "dlt[az]"` which will install the `adlfs` package to interface 
 
 Edit the credentials in `.dlt/secrets.toml`, you'll see AWS credentials by default; replace them with your Azure credentials.
 
+#### Supported schemes
+
 `dlt` supports both forms of the blob storage urls:
 ```toml
 [destination.filesystem]
@@ -180,6 +182,8 @@ bucket_url = "abfss://<container_name>@<storage_account_name>.dfs.core.windows.n
 ```
 
 You can use `az`, `abfss`, `azure` and `abfs` url schemes.
+
+#### Custom host
 
 If you need to use a custom host to account your storage account you can set it up like below:
 ```toml
@@ -727,6 +731,9 @@ Note that not all authentication methods are supported when using table formats 
 | [Service Account](bigquery.md#setup-guide) | ✅ | ❌ |
 | [OAuth](../destinations/bigquery.md#oauth-20-authentication) | ❌ | ✅ |
 | [Application Default Credentials](bigquery.md#using-default-credentials) | ✅ | ❌ |
+
+#### Iceberg Azure scheme
+The `az` [scheme](#supported-schemes) is not supported when using the `iceberg` table format. Please use the `abfss` scheme. This is because `pyiceberg`, which `dlt` used under the hood, currently does not support `az`.
 
 #### Table format `merge` support (**experimental**)
 The [`upsert`](../../general-usage/incremental-loading.md#upsert-strategy) merge strategy is supported for `delta`. For `iceberg`, the `merge` write disposition is not supported and falls back to `append`.
