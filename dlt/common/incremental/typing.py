@@ -2,9 +2,7 @@ from typing_extensions import TypedDict
 
 from typing import Any, Callable, List, Literal, Optional, Sequence, TypeVar, Union
 
-from dlt.common.schema.typing import TColumnNames
-from dlt.common.typing import TSortOrder
-from dlt.extract.items import TTableHintTemplate
+from dlt.common.typing import TSortOrder, TTableHintTemplate, TColumnNames
 
 TCursorValue = TypeVar("TCursorValue", bound=Any)
 LastValueFunc = Callable[[Sequence[TCursorValue]], Any]
@@ -19,10 +17,12 @@ class IncrementalColumnState(TypedDict):
 
 class IncrementalArgs(TypedDict, total=False):
     cursor_path: str
-    initial_value: Optional[str]
-    last_value_func: Optional[LastValueFunc[str]]
+    initial_value: Optional[Any]
+    last_value_func: Optional[Union[LastValueFunc[str], Literal["min", "max"]]]
+    """Last value callable or name of built in function"""
     primary_key: Optional[TTableHintTemplate[TColumnNames]]
-    end_value: Optional[str]
+    end_value: Optional[Any]
     row_order: Optional[TSortOrder]
     allow_external_schedulers: Optional[bool]
     lag: Optional[Union[float, int]]
+    on_cursor_value_missing: Optional[OnCursorValueMissing]

@@ -48,7 +48,6 @@ from dlt.common.metrics import (
 )
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import (
-    TColumnNames,
     TColumnSchema,
     TWriteDispositionConfig,
     TSchemaContract,
@@ -56,7 +55,7 @@ from dlt.common.schema.typing import (
 from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.common.storages.load_storage import LoadPackageInfo
 from dlt.common.time import ensure_pendulum_datetime, precise_time
-from dlt.common.typing import DictStrAny, REPattern, StrAny, SupportsHumanize
+from dlt.common.typing import DictStrAny, REPattern, StrAny, SupportsHumanize, TColumnNames
 from dlt.common.jsonpath import delete_matches, TAnyJsonPath
 from dlt.common.data_writers.writers import TLoaderFileFormat
 from dlt.common.utils import RowCounts, merge_row_counts
