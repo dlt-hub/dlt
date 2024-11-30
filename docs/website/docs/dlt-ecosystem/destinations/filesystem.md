@@ -181,7 +181,7 @@ bucket_url = "abfss://<container_name>@<storage_account_name>.dfs.core.windows.n
 
 You can use `az`, `abfss`, `azure` and `abfs` url schemes.
 
-If you need to use a custom host to account your storage account you can set it up like below:
+If you need to use a custom host for your storage account, you can set it up like below:
 ```toml
 [destination.filesystem.credentials]
 # The storage account name is always required
