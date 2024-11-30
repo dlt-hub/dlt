@@ -16,11 +16,9 @@ from dlt.common.schema.typing import TTableFormat
 from tests.load.utils import (
     destinations_configs,
     DestinationTestConfiguration,
-    FILE_BUCKET,
     GCS_BUCKET,
     SFTP_BUCKET,
     MEMORY_BUCKET,
-    AWS_BUCKET,
 )
 from dlt.destinations import filesystem
 from tests.utils import TEST_STORAGE_ROOT
@@ -295,12 +293,6 @@ def test_read_interfaces_filesystem(
 def test_table_formats(
     destination_config: DestinationTestConfiguration, secret_directory: str
 ) -> None:
-    if destination_config.table_format == "iceberg" and destination_config.bucket_url not in (
-        FILE_BUCKET,
-        AWS_BUCKET,
-    ):
-        pytest.skip("only local and S3 filesystems are currently implemented for `iceberg`")
-
     os.environ["DATA_WRITER__FILE_MAX_ITEMS"] = "700"
 
     pipeline = destination_config.setup_pipeline(
