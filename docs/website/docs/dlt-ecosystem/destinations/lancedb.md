@@ -33,8 +33,10 @@ Configure the destination in the dlt secrets file located at `~/.dlt/secrets.tom
 
 ```toml
 [destination.lancedb]
-embedding_model_provider = "cohere"
-embedding_model = "embed-english-v3.0"
+embedding_model_provider = "ollama"
+embedding_model = "mxbai-embed-large"
+embedding_model_provider_host = "http://localhost:11434"  # Optional: custom endpoint for providers that support it
+
 [destination.lancedb.credentials]
 uri = ".lancedb"
 api_key = "api_key" # API key to connect to LanceDB Cloud. Leave out if you are using LanceDB OSS.
@@ -47,6 +49,7 @@ embedding_model_provider_api_key = "embedding_model_provider_api_key" # Not need
 - The `embedding_model` specifies the model used by the embedding provider for generating embeddings.
   Check with the embedding provider which options are available.
   Reference https://lancedb.github.io/lancedb/embeddings/default_embedding_functions/.
+- The `embedding_model_provider_host` specifies the full host URL with protocol and port for providers that support custom endpoints (like Ollama). If not specified, the provider's default endpoint will be used.
 - The `embedding_model_provider_api_key` is the API key for the embedding model provider used to generate embeddings. If you're using a provider that doesn't need authentication, such as Ollama, you don't need to supply this key.
 
 :::info Available model providers
@@ -61,6 +64,7 @@ embedding_model_provider_api_key = "embedding_model_provider_api_key" # Not need
 - "sentence-transformers"
 - "huggingface"
 - "colbert"
+- "ollama"
 :::
 
 ### Define your data source

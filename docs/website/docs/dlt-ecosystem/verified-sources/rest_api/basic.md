@@ -24,7 +24,7 @@ source = rest_api_source({
             "token": dlt.secrets["your_api_token"],
         },
         "paginator": {
-            "type": "json_response",
+            "type": "json_link",
             "next_url_path": "paging.next",
         },
     },
@@ -308,6 +308,32 @@ A resource configuration is used to define a [dlt resource](../../../general-usa
 - `include_from_parent`: A list of fields from the parent resource to be included in the resource output. See the [resource relationships](#include-fields-from-the-parent-resource) section for more details.
 - `processing_steps`: A list of [processing steps](#processing-steps-filter-and-transform-data) to filter and transform the data.
 - `selected`: A flag to indicate if the resource is selected for loading. This could be useful when you want to load data only from child resources and not from the parent resource.
+- `auth`: An optional `AuthConfig` instance. If passed, is used over the one defined in the [client](#client) definition. Example:
+```py
+from dlt.sources.helpers.rest_client.auth import HttpBasicAuth
+
+config = {
+    "client": {
+        "auth": {
+            "type": "bearer",
+            "token": dlt.secrets["your_api_token"],
+        }
+    },
+    "resources": [
+        "resource-using-bearer-auth",
+        {
+            "name": "my-resource-with-special-auth",
+            "endpoint": {
+                # ...
+                "auth": HttpBasicAuth("user", dlt.secrets["your_basic_auth_password"])
+            },
+            # ...
+        }
+    ]
+    # ...
+}
+```
+This would use `Bearer` auth as defined in the `client` for `resource-using-bearer-auth` and `Http Basic` auth for `my-resource-with-special-auth`.
 
 You can also pass additional resource parameters that will be used to configure the dlt resource. See [dlt resource API reference](../../../api_reference/extract/decorators#resource) for more details.
 
@@ -335,7 +361,8 @@ The endpoint configuration defines how to query the API endpoint. Quick example:
 
 The fields in the endpoint configuration are:
 
-- `path`: The path to the API endpoint.
+- `path`: The path to the API endpoint. By default this path is appended to the given `base_url`. If this is a fully qualified URL starting with `http:` or `https:` it will be
+used as-is and `base_url` will be ignored.
 - `method`: The HTTP method to be used. The default is `GET`.
 - `params`: Query parameters to be sent with each request. For example, `sort` to order the results or `since` to specify [incremental loading](#incremental-loading). This is also used to define [resource relationships](#define-resource-relationships).
 - `json`: The JSON payload to be sent with the request (for POST and PUT requests).

@@ -530,7 +530,7 @@ layout="{table_name}/{load_id}.{file_id}.{ext}" # current preconfigured naming s
 # layout = "{table_name}/{load_package_timestamp}/{load_id}.{file_id}.{ext}"
 
 # Parquet-like layout (note: it is not compatible with the internal datetime of the parquet file)
-# layout = "{table_name}/year={year}/month={month}/day={day}/{load_id}.{file_id}.{ext}"
+# layout = "{table_name}/year={YYYY}/month={MM}/day={DD}/{load_id}.{file_id}.{ext}"
 
 # Custom placeholders
 # extra_placeholders = { "owner" = "admin", "department" = "finance" }
