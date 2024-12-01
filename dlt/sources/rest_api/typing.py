@@ -15,7 +15,7 @@ from dlt.common import jsonpath
 from dlt.common.schema.typing import (
     TAnySchemaColumns,
 )
-from dlt.extract.incremental.typing import IncrementalArgs
+from dlt.common.incremental.typing import IncrementalArgs
 from dlt.extract.items import TTableHintTemplate
 from dlt.extract.hints import TResourceHintsBase
 from dlt.sources.helpers.rest_client.auth import AuthConfigBase, TApiKeyLocation
@@ -23,9 +23,8 @@ from dlt.sources.helpers.rest_client.auth import AuthConfigBase, TApiKeyLocation
 from dataclasses import dataclass, field
 
 from dlt.common import jsonpath
-from dlt.common.typing import TSortOrder
+from dlt.common.typing import TSortOrder, TColumnNames
 from dlt.common.schema.typing import (
-    TColumnNames,
     TTableFormat,
     TAnySchemaColumns,
     TWriteDispositionConfig,
@@ -33,7 +32,7 @@ from dlt.common.schema.typing import (
 )
 
 from dlt.extract.items import TTableHintTemplate
-from dlt.extract.incremental.typing import LastValueFunc
+from dlt.common.incremental.typing import LastValueFunc
 from dlt.extract.resource import DltResource
 
 from requests import Session

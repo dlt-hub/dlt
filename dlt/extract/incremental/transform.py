@@ -5,7 +5,7 @@ from dlt.common.exceptions import MissingDependencyException
 from dlt.common.utils import digest128
 from dlt.common.json import json
 from dlt.common.pendulum import pendulum
-from dlt.common.typing import TDataItem
+from dlt.common.typing import TDataItem, TColumnNames
 from dlt.common.jsonpath import find_values, compile_path, extract_simple_field_name
 from dlt.extract.incremental.exceptions import (
     IncrementalCursorInvalidCoercion,
@@ -13,10 +13,9 @@ from dlt.extract.incremental.exceptions import (
     IncrementalPrimaryKeyMissing,
     IncrementalCursorPathHasValueNone,
 )
-from dlt.extract.incremental.typing import TCursorValue, LastValueFunc, OnCursorValueMissing
+from dlt.common.incremental.typing import TCursorValue, LastValueFunc, OnCursorValueMissing
 from dlt.extract.utils import resolve_column_value
 from dlt.extract.items import TTableHintTemplate
-from dlt.common.schema.typing import TColumnNames
 
 try:
     from dlt.common.libs import pyarrow

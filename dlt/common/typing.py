@@ -29,6 +29,7 @@ from typing import (
     Iterator,
     Generator,
     NamedTuple,
+    Sequence,
 )
 
 from typing_extensions import (
@@ -112,6 +113,8 @@ else:
 
 TSecretStrValue = Annotated[str, SecretSentinel]
 
+TColumnNames = Union[str, Sequence[str]]
+"""A string representing a column name or a list of"""
 TDataItem: TypeAlias = Any
 """A single data item as extracted from data source"""
 TDataItems: TypeAlias = Union[TDataItem, List[TDataItem]]
@@ -125,6 +128,10 @@ TFileOrPath = Union[str, PathLike, IO[Any]]
 TSortOrder = Literal["asc", "desc"]
 TLoaderFileFormat = Literal["jsonl", "typed-jsonl", "insert_values", "parquet", "csv", "reference"]
 """known loader file formats"""
+
+TDynHintType = TypeVar("TDynHintType")
+TFunHintTemplate = Callable[[TDataItem], TDynHintType]
+TTableHintTemplate = Union[TDynHintType, TFunHintTemplate[TDynHintType]]
 
 
 class ConfigValueSentinel(NamedTuple):

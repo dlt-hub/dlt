@@ -19,13 +19,13 @@ from typing import (
 from dlt.common import Decimal, jsonpath
 from dlt.common.exceptions import DictValidationException
 from dlt.common.schema.typing import (
-    TColumnNames,
     TStoredSchema,
     TColumnSchema,
     TWriteDispositionConfig,
 )
 from dlt.common.schema.utils import simple_regex_validator
-from dlt.common.typing import DictStrStr, StrStr, TDataItem, TSortOrder
+from dlt.common.typing import DictStrStr, StrStr, TDataItem, TSortOrder, TColumnNames
+
 from dlt.common.validation import validate_dict, validate_dict_ignoring_xkeys
 
 
