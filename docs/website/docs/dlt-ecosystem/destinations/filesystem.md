@@ -108,7 +108,8 @@ You need to create an S3 bucket and a user who can access that bucket. dlt does 
 
 #### Using S3 compatible storage
 
-To use an S3 compatible storage other than AWS S3, such as [MinIO](https://min.io/) or [Cloudflare R2](https://www.cloudflare.com/en-ca/developer-platform/r2/), you may supply an `endpoint_url` in the config. This should be set along with AWS credentials:
+To use an S3 compatible storage other than AWS S3, such as [MinIO](https://min.io/), [Cloudflare R2](https://www.cloudflare.com/en-ca/developer-platform/r2/) or [Google 
+Cloud Storage](https://cloud.google.com/storage/docs/interoperability), you may supply an `endpoint_url` in the config. This should be set along with AWS credentials:
 
 ```toml
 [destination.filesystem]
@@ -731,6 +732,10 @@ Note that not all authentication methods are supported when using table formats 
 | [Service Account](bigquery.md#setup-guide) | ✅ | ❌ |
 | [OAuth](../destinations/bigquery.md#oauth-20-authentication) | ❌ | ✅ |
 | [Application Default Credentials](bigquery.md#using-default-credentials) | ✅ | ❌ |
+
+:::note
+The [S3-compatible](#using-s3-compatible-storage) interface for Google Cloud Storage is not supported when using `iceberg`.
+:::
 
 #### Iceberg Azure scheme
 The `az` [scheme](#supported-schemes) is not supported when using the `iceberg` table format. Please use the `abfss` scheme. This is because `pyiceberg`, which `dlt` used under the hood, currently does not support `az`.

@@ -303,8 +303,9 @@ def test_table_formats(
     # in case of gcs we use the s3 compat layer for reading
     # for writing we still need to use the gc authentication, as delta_rs seems to use
     # methods on the s3 interface that are not implemented by gcs
+    # s3 compat layer does not work with `iceberg` table format
     access_pipeline = pipeline
-    if destination_config.bucket_url == GCS_BUCKET:
+    if destination_config.bucket_url == GCS_BUCKET and destination_config.table_format != "iceberg":
         gcp_bucket = filesystem(
             GCS_BUCKET.replace("gs://", "s3://"), destination_name="filesystem_s3_gcs_comp"
         )

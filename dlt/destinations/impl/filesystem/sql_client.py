@@ -169,8 +169,9 @@ class FilesystemSqlClient(DuckDbSqlClient):
         # native google storage implementation is not supported..
         elif self.fs_client.config.protocol in ["gs", "gcs"]:
             logger.warn(
-                "For gs/gcs access via duckdb please use the gs/gcs s3 compatibility layer. Falling"
-                " back to fsspec."
+                "For gs/gcs access via duckdb please use the gs/gcs s3 compatibility layer if"
+                " possible (not supported when using `iceberg` table format). Falling back to"
+                " fsspec."
             )
             self._conn.register_filesystem(self.fs_client.fs_client)
 
