@@ -84,6 +84,14 @@ html[data-theme='dark'] .prism-code {
 }
 
 /* Body link styles */
+.markdown a {
+  text-decoration: underline;
+}
+
+.markdown a:hover {
+  text-decoration: none;
+}
+
 html[data-theme='dark'] .markdown a {
   color: #ffffff;
   text-decoration: underline;
@@ -91,7 +99,7 @@ html[data-theme='dark'] .markdown a {
 
 html[data-theme='dark'] .markdown a:hover {
   color: var(--ifm-link-color);
-  text-decoration: underline;
+  text-decoration: none;
 }
 
 /* No underline for cards */

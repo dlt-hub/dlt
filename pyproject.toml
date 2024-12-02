@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dlt"
-version = "1.4.0"
+version = "1.4.1"
 description = "dlt is an open-source python-first scalable data loading library that does not require any backend to run."
 authors = ["dltHub Inc. <services@dlthub.com>"]
 maintainers = [ "Marcin Rudolf <marcin@dlthub.com>", "Adrian Brudaru <adrian@dlthub.com>", "Anton Burnashev <anton@dlthub.com>", "David Scharf <david@dlthub.com>" ]
@@ -40,7 +40,7 @@ click = ">=7.1"
 requirements-parser = ">=0.5.0"
 setuptools = ">=65.6.0"
 humanize = ">=4.4.0"
-astunparse = ">=1.6.3"
+astunparse = { "version" = ">=1.6.3", "python" = "<3.9"}
 gitpython = ">=3.1.29"
 pytz = ">=2022.6"
 giturlparse = ">=0.10.0"
@@ -89,7 +89,6 @@ alembic = {version = ">1.10.0", optional = true}
 paramiko = {version = ">=3.3.0", optional = true}
 sqlglot = {version = ">=20.0.0", optional = true}
 db-dtypes = { version = ">=1.2.0", optional = true }
-aiohttp = { version = ">=3.9", optional = true }
 
 [tool.poetry.extras]
 gcp = ["grpcio", "google-cloud-bigquery", "db-dtypes", "gcsfs"]
@@ -119,6 +118,7 @@ lancedb = ["lancedb", "pyarrow", "tantivy"]
 deltalake = ["deltalake", "pyarrow"]
 sql_database = ["sqlalchemy"]
 sqlalchemy = ["sqlalchemy", "alembic"]
+postgis = ["psycopg2-binary", "psycopg2cffi"]
 
 [tool.poetry.scripts]
 dlt = "dlt.cli._dlt:_main"
@@ -167,6 +167,8 @@ pytest-mock = "^3.14.0"
 types-regex = "^2024.5.15.20240519"
 flake8-print = "^5.0.0"
 mimesis = "^7.0.0"
+ibis-framework = { version = ">=9.0.0", markers = "python_version >= '3.10'", optional = true, extras = ["duckdb", "postgres", "bigquery", "snowflake", "mssql", "clickhouse"]}
+shapely = ">=2.0.6"
 
 [tool.poetry.group.sources]
 optional = true

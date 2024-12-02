@@ -126,7 +126,7 @@ clickhouse
 destination.
 
 :::tip
-`dataset_name` is optional for Clikchouse. When skipped `dlt` will create all tables without prefix. Note that staging dataset
+`dataset_name` is optional for ClickHouse. When skipped `dlt` will create all tables without prefix. Note that staging dataset
 tables will still be prefixed with `_staging` (or other name that you configure).
 :::
 

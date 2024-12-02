@@ -29,7 +29,8 @@ from dlt.common.schema.typing import (
 )
 from dlt.common.schema.utils import is_nullable_column
 from dlt.common.storages import FileStorage
-from dlt.common.storages.configuration import FilesystemConfiguration
+from dlt.common.storages.configuration import FilesystemConfiguration, ensure_canonical_az_url
+from dlt.common.storages.fsspec_filesystem import AZURE_BLOB_STORAGE_PROTOCOLS
 from dlt.destinations.exceptions import LoadJobTerminalException
 from dlt.destinations.impl.clickhouse.configuration import (
     ClickHouseClientConfiguration,
@@ -140,7 +141,7 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
                 f"s3('{bucket_http_url}',{auth},'{clickhouse_format}','auto','{compression}')"
             )
 
-        elif bucket_scheme in ("az", "abfs"):
+        elif bucket_scheme in AZURE_BLOB_STORAGE_PROTOCOLS:
             if not isinstance(self._staging_credentials, AzureCredentialsWithoutDefaults):
                 raise LoadJobTerminalException(
                     self._file_path,
@@ -149,7 +150,11 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
 
             # Authenticated access.
             account_name = self._staging_credentials.azure_storage_account_name
-            storage_account_url = f"https://{self._staging_credentials.azure_storage_account_name}.blob.core.windows.net"
+            account_host = (
+                self._staging_credentials.azure_account_host
+                or f"{account_name}.blob.core.windows.net"
+            )
+            storage_account_url = ensure_canonical_az_url("", "https", account_name, account_host)
             account_key = self._staging_credentials.azure_storage_account_key
 
             # build table func

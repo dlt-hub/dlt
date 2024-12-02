@@ -58,6 +58,7 @@ class RESTClient:
         auth (Optional[AuthBase]): Authentication configuration for all requests.
         paginator (Optional[BasePaginator]): Default paginator for handling paginated responses.
         data_selector (Optional[jsonpath.TJsonPath]): JSONPath selector for extracting data from responses.
+            Only used in `paginate`.
         session (BaseSession): HTTP session for making requests.
         paginator_factory (Optional[PaginatorFactory]): Factory for creating paginator instances,
             used for detecting paginators.
@@ -96,18 +97,18 @@ class RESTClient:
 
     def _create_request(
         self,
-        path: str,
+        path_or_url: str,
         method: HTTPMethod,
         params: Optional[Dict[str, Any]] = None,
         json: Optional[Dict[str, Any]] = None,
         auth: Optional[AuthBase] = None,
         hooks: Optional[Hooks] = None,
     ) -> Request:
-        parsed_url = urlparse(path)
+        parsed_url = urlparse(path_or_url)
         if parsed_url.scheme in ("http", "https"):
-            url = path
+            url = path_or_url
         else:
-            url = join_url(self.base_url, path)
+            url = join_url(self.base_url, path_or_url)
 
         return Request(
             method=method,
@@ -140,7 +141,7 @@ class RESTClient:
 
     def request(self, path: str = "", method: HTTPMethod = "GET", **kwargs: Any) -> Response:
         prepared_request = self._create_request(
-            path=path,
+            path_or_url=path,
             method=method,
             params=kwargs.pop("params", None),
             json=kwargs.pop("json", None),
@@ -171,6 +172,8 @@ class RESTClient:
 
         Args:
             path (str): Endpoint path for the request, relative to `base_url`.
+                Can also be a fully qualified URL; if starting with http(s) it will
+                be used instead of the base_url + path.
             method (HTTPMethodBasic): HTTP method for the request, defaults to 'get'.
             params (Optional[Dict[str, Any]]): URL parameters for the request.
             json (Optional[Dict[str, Any]]): JSON payload for the request.
@@ -210,7 +213,7 @@ class RESTClient:
             hooks["response"] = [raise_for_status]
 
         request = self._create_request(
-            path=path, method=method, params=params, json=json, auth=auth, hooks=hooks
+            path_or_url=path, method=method, params=params, json=json, auth=auth, hooks=hooks
         )
 
         if paginator:

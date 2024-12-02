@@ -1,10 +1,11 @@
-from typing import Any, Generator, Optional, Sequence, Union, List
-from dlt.common.json import json
-from copy import deepcopy
-
-from dlt.common.normalizers.naming.naming import NamingConvention
+from typing import Any, Generator, Sequence, Union, TYPE_CHECKING, Tuple
 
 from contextlib import contextmanager
+
+from dlt import version
+from dlt.common.json import json
+from dlt.common.exceptions import MissingDependencyException
+from dlt.common.destination import AnyDestination
 from dlt.common.destination.reference import (
     SupportsReadableRelation,
     SupportsReadableDataset,
@@ -14,12 +15,23 @@ from dlt.common.destination.reference import (
     JobClientBase,
     WithStateSync,
     DestinationClientDwhConfiguration,
+    DestinationClientStagingConfiguration,
+    DestinationClientConfiguration,
+    DestinationClientDwhWithStagingConfiguration,
 )
 
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.common.schema import Schema
 from dlt.common.exceptions import DltException
+
+if TYPE_CHECKING:
+    try:
+        from dlt.common.libs.ibis import BaseBackend as IbisBackend
+    except MissingDependencyException:
+        IbisBackend = Any
+else:
+    IbisBackend = Any
 
 
 class DatasetException(DltException):
@@ -93,7 +105,7 @@ class ReadableDBAPIRelation(SupportsReadableRelation):
             return self._provided_query
 
         table_name = self.sql_client.make_qualified_table_name(
-            self.schema.naming.normalize_path(self._table_name)
+            self.schema.naming.normalize_tables_path(self._table_name)
         )
 
         maybe_limit_clause_1 = ""
@@ -228,6 +240,16 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
         self._sql_client: SqlClientBase[Any] = None
         self._schema: Schema = None
 
+    def ibis(self) -> IbisBackend:
+        """return a connected ibis backend"""
+        from dlt.common.libs.ibis import create_ibis_backend
+
+        self._ensure_client_and_schema()
+        return create_ibis_backend(
+            self._destination,
+            self._destination_client(self.schema),
+        )
+
     @property
     def schema(self) -> Schema:
         self._ensure_client_and_schema()
@@ -239,15 +261,13 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
         return self._sql_client
 
     def _destination_client(self, schema: Schema) -> JobClientBase:
-        client_spec = self._destination.spec()
-        if isinstance(client_spec, DestinationClientDwhConfiguration):
-            client_spec._bind_dataset_name(
-                dataset_name=self._dataset_name, default_schema_name=schema.name
-            )
-        return self._destination.client(schema, client_spec)
+        return get_destination_clients(
+            schema, destination=self._destination, destination_dataset_name=self._dataset_name
+        )[0]
 
     def _ensure_client_and_schema(self) -> None:
         """Lazy load schema and client"""
+
         # full schema given, nothing to do
         if not self._schema and isinstance(self._provided_schema, Schema):
             self._schema = self._provided_schema
@@ -259,6 +279,8 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
                     stored_schema = client.get_stored_schema(self._provided_schema)
                     if stored_schema:
                         self._schema = Schema.from_stored_schema(json.loads(stored_schema.schema))
+                    else:
+                        self._schema = Schema(self._provided_schema)
 
         # no schema name given, load newest schema from destination
         elif not self._schema:
@@ -268,7 +290,7 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
                     if stored_schema:
                         self._schema = Schema.from_stored_schema(json.loads(stored_schema.schema))
 
-        # default to empty schema with dataset name if nothing found
+        # default to empty schema with dataset name
         if not self._schema:
             self._schema = Schema(self._dataset_name)
 
@@ -310,3 +332,81 @@ def dataset(
     if dataset_type == "dbapi":
         return ReadableDBAPIDataset(destination, dataset_name, schema)
     raise NotImplementedError(f"Dataset of type {dataset_type} not implemented")
+
+
+# helpers
+def get_destination_client_initial_config(
+    destination: AnyDestination,
+    default_schema_name: str,
+    dataset_name: str,
+    as_staging: bool = False,
+) -> DestinationClientConfiguration:
+    client_spec = destination.spec
+
+    # this client supports many schemas and datasets
+    if issubclass(client_spec, DestinationClientDwhConfiguration):
+        if issubclass(client_spec, DestinationClientStagingConfiguration):
+            spec: DestinationClientDwhConfiguration = client_spec(as_staging_destination=as_staging)
+        else:
+            spec = client_spec()
+
+        spec._bind_dataset_name(dataset_name, default_schema_name)
+        return spec
+
+    return client_spec()
+
+
+def get_destination_clients(
+    schema: Schema,
+    destination: AnyDestination = None,
+    destination_dataset_name: str = None,
+    destination_initial_config: DestinationClientConfiguration = None,
+    staging: AnyDestination = None,
+    staging_dataset_name: str = None,
+    staging_initial_config: DestinationClientConfiguration = None,
+    # pipeline specific settings
+    default_schema_name: str = None,
+) -> Tuple[JobClientBase, JobClientBase]:
+    destination = Destination.from_reference(destination) if destination else None
+    staging = Destination.from_reference(staging) if staging else None
+
+    try:
+        # resolve staging config in order to pass it to destination client config
+        staging_client = None
+        if staging:
+            if not staging_initial_config:
+                # this is just initial config - without user configuration injected
+                staging_initial_config = get_destination_client_initial_config(
+                    staging,
+                    dataset_name=staging_dataset_name,
+                    default_schema_name=default_schema_name,
+                    as_staging=True,
+                )
+            # create the client - that will also resolve the config
+            staging_client = staging.client(schema, staging_initial_config)
+
+        if not destination_initial_config:
+            # config is not provided then get it with injected credentials
+            initial_config = get_destination_client_initial_config(
+                destination,
+                dataset_name=destination_dataset_name,
+                default_schema_name=default_schema_name,
+            )
+
+        # attach the staging client config to destination client config - if its type supports it
+        if (
+            staging_client
+            and isinstance(initial_config, DestinationClientDwhWithStagingConfiguration)
+            and isinstance(staging_client.config, DestinationClientStagingConfiguration)
+        ):
+            initial_config.staging_config = staging_client.config
+        # create instance with initial_config properly set
+        client = destination.client(schema, initial_config)
+        return client, staging_client
+    except ModuleNotFoundError:
+        client_spec = destination.spec()
+        raise MissingDependencyException(
+            f"{client_spec.destination_type} destination",
+            [f"{version.DLT_PKG_NAME}[{client_spec.destination_type}]"],
+            "Dependencies for specific destinations are available as extras of dlt",
+        )

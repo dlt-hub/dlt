@@ -14,8 +14,9 @@ from dlt.common import json, pendulum
 from dlt.common.configuration import resolve
 from dlt.common.configuration.inject import with_config
 from dlt.common.configuration.specs import AnyAzureCredentials
+from dlt.common.exceptions import TerminalValueError
 from dlt.common.storages import fsspec_from_config, FilesystemConfiguration
-from dlt.common.storages.configuration import make_fsspec_url
+from dlt.common.storages.configuration import ensure_canonical_az_url, make_fsspec_url
 from dlt.common.storages.fsspec_filesystem import MTIME_DISPATCH, glob_files
 from dlt.common.utils import custom_environ, uniq_id
 from dlt.destinations import filesystem
@@ -27,7 +28,6 @@ from dlt.destinations.impl.filesystem.typing import TExtraPlaceholders
 from tests.common.configuration.utils import environment
 from tests.common.storages.utils import TEST_SAMPLE_FILES, assert_sample_files
 from tests.load.utils import ALL_FILESYSTEM_DRIVERS, AWS_BUCKET, WITH_GDRIVE_BUCKETS
-from tests.utils import autouse_test_storage
 from tests.load.filesystem.utils import self_signed_cert
 
 
@@ -72,6 +72,36 @@ def test_remote_url(bucket_url: str) -> None:
     fs_path = fs_class._strip_protocol(bucket_url)
     # reconstitute url
     assert make_fsspec_url(scheme, fs_path, bucket_url) == bucket_url
+
+
+def test_make_az_url() -> None:
+    url = make_fsspec_url(
+        "azure", "/dlt-ci/path", "abfss://dlt-ci-test-bucket@dlt_ci.blob.core.usgovcloudapi.net"
+    )
+    assert url == "azure://@dlt_ci.blob.core.usgovcloudapi.net/dlt-ci/path"
+
+
+def test_ensure_az_canonical_url() -> None:
+    url = ensure_canonical_az_url(
+        "abfss://dlt-ci-test-bucket@dlt_ci.blob.core.usgovcloudapi.net", "https"
+    )
+    assert url == "https://dlt-ci-test-bucket@dlt_ci.blob.core.usgovcloudapi.net"
+
+    with pytest.raises(TerminalValueError):
+        ensure_canonical_az_url("abfss://dlt-ci-test-bucket/path/path", "https")
+
+    url = ensure_canonical_az_url(
+        "abfss://dlt-ci-test-bucket/path/path", "https", storage_account_name="fake_dlt"
+    )
+    assert url == "https://dlt-ci-test-bucket@fake_dlt.dfs.core.windows.net/path/path"
+
+    url = ensure_canonical_az_url(
+        "abfss://dlt-ci-test-bucket/path/path",
+        "https",
+        storage_account_name="fake_dlt",
+        account_host="dlt_ci.blob.core.usgovcloudapi.net",
+    )
+    assert url == "https://dlt-ci-test-bucket@dlt_ci.blob.core.usgovcloudapi.net/path/path"
 
 
 def test_filesystem_instance(with_gdrive_buckets_env: str) -> None:

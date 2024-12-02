@@ -213,6 +213,48 @@ def test_extract_hints_table_variant(extract_step: Extract) -> None:
     extract_step.extract(source, 20, 1)
 
 
+def test_extract_hints_mark_incremental(extract_step: Extract) -> None:
+    os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "TRUE"
+
+    @dlt.resource(columns=[{"name": "id", "data_type": "bigint"}], primary_key="id")
+    def with_table_hints():
+        # yield a regular dataset first, simulate backfil
+        yield [{"id": id_, "pk": "A"} for id_ in range(1, 10)]
+
+        # get the resource
+        resource = dlt.current.source().resources[dlt.current.resource_name()]
+        table = resource.compute_table_schema()
+        # also there we see the hints
+        assert table["columns"]["id"]["primary_key"] is True
+        assert table["columns"]["id"]["data_type"] == "bigint"
+
+        # start emitting incremental
+        yield dlt.mark.with_hints(
+            [{"id": id_, "pk": "A", "created_at": id_ + 10} for id_ in range(100, 110)],
+            make_hints(incremental=dlt.sources.incremental("created_at", initial_value=105)),
+        )
+
+        # get the resource
+        resource = dlt.current.source().resources[dlt.current.resource_name()]
+        assert resource.incremental.cursor_path == "created_at"  # type: ignore[attr-defined]
+        assert resource.incremental.primary_key == "id"
+        # we are able to add the incremental to the pipe. but it won't
+        # join actually executing pipe which is a clone of a (partial) pipe of the resource
+        assert isinstance(resource._pipe._steps[1], dlt.sources.incremental)
+        # NOTE: this results in unbounded exception
+        # assert resource.incremental.last_value == 299
+        table = resource.compute_table_schema()
+        assert table["columns"]["created_at"]["incremental"] is not None
+
+        yield [{"id": id_, "pk": "A", "created_at": id_ + 10} for id_ in range(110, 120)]
+
+    source = DltSource(dlt.Schema("hintable"), "module", [with_table_hints])
+    extract_step.extract(source, 20, 1)
+    # make sure incremental is in the source schema
+    table = source.schema.get_table("with_table_hints")
+    assert table["columns"]["created_at"]["incremental"] is not None
+
+
 def test_extract_metrics_on_exception_no_flush(extract_step: Extract) -> None:
     @dlt.resource
     def letters():

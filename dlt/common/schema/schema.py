@@ -57,7 +57,7 @@ from dlt.common.schema.exceptions import (
     SchemaCorruptedException,
     TableIdentifiersFrozen,
 )
-from dlt.common.schema.normalizers import import_normalizers, explicit_normalizers
+from dlt.common.schema.normalizers import import_normalizers, configured_normalizers
 from dlt.common.schema.exceptions import DataValidationError
 from dlt.common.validation import validate_dict
 
@@ -439,7 +439,8 @@ class Schema:
         """Updates this schema from an incoming schema. Normalizes identifiers after updating normalizers."""
         # pass normalizer config
         self._settings = deepcopy(schema.settings)
-        self._configure_normalizers(schema._normalizers_config)
+        # make shallow copy of normalizer settings
+        self._configure_normalizers(copy(schema._normalizers_config))
         self._compile_settings()
         # update all tables
         for table in schema.tables.values():
@@ -753,7 +754,7 @@ class Schema:
         Default hints, preferred data types and normalize configs (ie. column propagation) are normalized as well. Regexes are included as long
         as textual parts can be extracted from an expression.
         """
-        self._configure_normalizers(explicit_normalizers(schema_name=self._schema_name))
+        self._configure_normalizers(configured_normalizers(schema_name=self._schema_name))
         self._compile_settings()
 
     def will_update_normalizers(self) -> bool:
@@ -761,7 +762,7 @@ class Schema:
 
         # import desired modules
         _, to_naming, _ = import_normalizers(
-            explicit_normalizers(schema_name=self._schema_name), self._normalizers_config
+            configured_normalizers(schema_name=self._schema_name), self._normalizers_config
         )
         return type(to_naming) is not type(self.naming)  # noqa
 
@@ -1106,13 +1107,13 @@ class Schema:
         else:
             return self._schema_tables
 
-    def _renormalize_schema_identifiers(
+    def _replace_and_apply_naming(
         self,
         normalizers_config: TNormalizersConfig,
         to_naming: NamingConvention,
         from_naming: NamingConvention,
     ) -> None:
-        """Normalizes all identifiers in the schema in place"""
+        """Normalizes all identifiers in the schema in place according to `to_naming`"""
         self._schema_tables = self._verify_update_normalizers(
             normalizers_config, to_naming, from_naming
         )
@@ -1140,10 +1141,19 @@ class Schema:
 
     def _configure_normalizers(self, explicit_normalizers: TNormalizersConfig) -> None:
         """Gets naming and item normalizer from schema yaml, config providers and destination capabilities and applies them to schema."""
+        # preserve current schema settings if not explicitly set in `explicit_normalizers`
+        if explicit_normalizers and self._normalizers_config:
+            for prop_ in [
+                "use_break_path_on_normalize",
+                "allow_identifier_change_on_table_with_data",
+            ]:
+                if prop_ in self._normalizers_config and prop_ not in explicit_normalizers:
+                    explicit_normalizers[prop_] = self._normalizers_config[prop_]  # type: ignore[literal-required]
+
         normalizers_config, to_naming, item_normalizer_class = import_normalizers(
             explicit_normalizers, self._normalizers_config
         )
-        self._renormalize_schema_identifiers(normalizers_config, to_naming, self.naming)
+        self._replace_and_apply_naming(normalizers_config, to_naming, self.naming)
         # data item normalization function
         self.data_item_normalizer = item_normalizer_class(self)
         self.data_item_normalizer.extend_schema()
@@ -1174,7 +1184,7 @@ class Schema:
         self._add_standard_hints()
         # configure normalizers, including custom config if present
         if not normalizers:
-            normalizers = explicit_normalizers(schema_name=self._schema_name)
+            normalizers = configured_normalizers(schema_name=self._schema_name)
         self._configure_normalizers(normalizers)
         # add version tables
         self._add_standard_tables()

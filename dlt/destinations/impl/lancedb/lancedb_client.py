@@ -251,6 +251,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
         self.dataset_name = self.config.normalize_dataset_name(self.schema)
 
         embedding_model_provider = self.config.embedding_model_provider
+        embedding_model_host = self.config.embedding_model_provider_host
 
         # LanceDB doesn't provide a standardized way to set API keys across providers.
         # Some use ENV variables and others allow passing api key as an argument.
@@ -259,12 +260,13 @@ class LanceDBClient(JobClientBase, WithStateSync):
             embedding_model_provider,
             self.config.credentials.embedding_model_provider_api_key,
         )
+
         self.model_func = self.registry.get(embedding_model_provider).create(
             name=self.config.embedding_model,
             max_retries=self.config.options.max_retries,
             api_key=self.config.credentials.api_key,
+            **({"host": embedding_model_host} if embedding_model_host else {}),
         )
-
         self.vector_field_name = self.config.vector_field_name
 
     @property

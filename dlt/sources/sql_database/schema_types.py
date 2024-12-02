@@ -71,8 +71,11 @@ def sqla_col_to_column_schema(
     """
     col: TColumnSchema = {
         "name": sql_col.name,
-        "nullable": sql_col.nullable,
     }
+    # NOTE: nullability info may not be available for subquery columns
+    if hasattr(sql_col, "nullable") and sql_col.nullable is not None:
+        col["nullable"] = sql_col.nullable
+
     if reflection_level == "minimal":
         # normalized into subtables
         if isinstance(sql_col.type, sqltypes.JSON) and skip_nested_columns_on_minimal:

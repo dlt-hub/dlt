@@ -96,7 +96,9 @@ sasl_password="example_secret"
 
 For more information, read the [Walkthrough: Run a pipeline](../../walkthroughs/run-a-pipeline).
 
-:::info If you created a topic and start reading from it immediately, the brokers may not yet be synchronized, and the offset from which `dlt` reads messages may become invalid. In this case, the resource will return no messages. Pending messages will be received on the next run (or when brokers synchronize).
+:::info
+If you created a topic and start reading from it immediately, the brokers may not yet be synchronized, and the offset from which `dlt` reads messages may become invalid. In this case, the resource will return no messages. Pending messages will be received on the next run (or when brokers synchronize).
+:::
 
 ## Sources and resources
 

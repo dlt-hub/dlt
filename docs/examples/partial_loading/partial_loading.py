@@ -104,9 +104,7 @@ def delete_old_backfills(load_info: LoadInfo, p: dlt.Pipeline, table_name: str) 
     pattern = re.compile(rf"{load_id}")  # Compile regex pattern for the current load ID
 
     # Initialize the filesystem client
-    fs_client: FilesystemClient = p.destination.client(  # type: ignore
-        p.default_schema, initial_config=p._get_destination_client_initial_config(p.destination)
-    )
+    fs_client: FilesystemClient = p._get_destination_clients()[0]  # type: ignore
 
     # Construct the table directory path
     table_dir = os.path.join(fs_client.dataset_path, table_name)

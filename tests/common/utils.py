@@ -19,11 +19,11 @@ COMMON_TEST_CASES_PATH = "./tests/common/cases/"
 
 def IMPORTED_VERSION_HASH_ETH_V10() -> str:
     # for import schema tests, change when upgrading the schema version
-    eth_V10 = load_yml_case("schemas/eth/ethereum_schema_v10")
-    assert eth_V10["version_hash"] == "veEmgbCPXCIiqyfabeQWwz6UIQ2liETv7LLMpyktCos="
+    eth_V11 = load_yml_case("schemas/eth/ethereum_schema_v11")
+    assert eth_V11["version_hash"] == "XfkJ8E1tZzG/Sb3lfEZrEVshTMKdB7JpOP2HA7eS6EI="
     # remove processing hints before installing as import schema
     # ethereum schema is a "dirty" schema with processing hints
-    eth = Schema.from_dict(eth_V10, remove_processing_hints=True)
+    eth = Schema.from_dict(eth_V11, remove_processing_hints=True)
     return eth.stored_version_hash
 
 

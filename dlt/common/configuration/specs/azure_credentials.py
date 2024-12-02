@@ -9,15 +9,32 @@ from dlt.common.configuration.specs import (
     configspec,
 )
 from dlt import version
+from dlt.common.utils import without_none
 
 _AZURE_STORAGE_EXTRA = f"{version.DLT_PKG_NAME}[az]"
 
 
 @configspec
-class AzureCredentialsWithoutDefaults(CredentialsConfiguration):
+class AzureCredentialsBase(CredentialsConfiguration):
+    azure_storage_account_name: str = None
+    azure_account_host: Optional[str] = None
+    """Alternative host when accessing blob storage endpoint ie. my_account.dfs.core.windows.net"""
+
+    def to_adlfs_credentials(self) -> Dict[str, Any]:
+        pass
+
+    def to_object_store_rs_credentials(self) -> Dict[str, str]:
+        # https://docs.rs/object_store/latest/object_store/azure
+        creds: Dict[str, Any] = without_none(self.to_adlfs_credentials())  # type: ignore[assignment]
+        # only string options accepted
+        creds.pop("anon", None)
+        return creds
+
+
+@configspec
+class AzureCredentialsWithoutDefaults(AzureCredentialsBase):
     """Credentials for Azure Blob Storage, compatible with adlfs"""
 
-    azure_storage_account_name: str = None
     azure_storage_account_key: Optional[TSecretStrValue] = None
     azure_storage_sas_token: TSecretStrValue = None
     azure_sas_token_permissions: str = "racwdl"
@@ -29,16 +46,8 @@ class AzureCredentialsWithoutDefaults(CredentialsConfiguration):
             account_name=self.azure_storage_account_name,
             account_key=self.azure_storage_account_key,
             sas_token=self.azure_storage_sas_token,
+            account_host=self.azure_account_host,
         )
-
-    def to_object_store_rs_credentials(self) -> Dict[str, str]:
-        # https://docs.rs/object_store/latest/object_store/azure
-        creds = self.to_adlfs_credentials()
-        if creds["sas_token"] is None:
-            creds.pop("sas_token")
-        if creds["account_key"] is None:
-            creds.pop("account_key")
-        return creds
 
     def create_sas_token(self) -> None:
         try:
@@ -63,8 +72,7 @@ class AzureCredentialsWithoutDefaults(CredentialsConfiguration):
 
 
 @configspec
-class AzureServicePrincipalCredentialsWithoutDefaults(CredentialsConfiguration):
-    azure_storage_account_name: str = None
+class AzureServicePrincipalCredentialsWithoutDefaults(AzureCredentialsBase):
     azure_tenant_id: str = None
     azure_client_id: str = None
     azure_client_secret: TSecretStrValue = None
@@ -72,14 +80,11 @@ class AzureServicePrincipalCredentialsWithoutDefaults(CredentialsConfiguration):
     def to_adlfs_credentials(self) -> Dict[str, Any]:
         return dict(
             account_name=self.azure_storage_account_name,
+            account_host=self.azure_account_host,
             tenant_id=self.azure_tenant_id,
             client_id=self.azure_client_id,
             client_secret=self.azure_client_secret,
         )
-
-    def to_object_store_rs_credentials(self) -> Dict[str, str]:
-        # https://docs.rs/object_store/latest/object_store/azure
-        return self.to_adlfs_credentials()
 
 
 @configspec
