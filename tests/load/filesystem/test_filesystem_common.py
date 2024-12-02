@@ -28,7 +28,6 @@ from dlt.destinations.impl.filesystem.typing import TExtraPlaceholders
 from tests.common.configuration.utils import environment
 from tests.common.storages.utils import TEST_SAMPLE_FILES, assert_sample_files
 from tests.load.utils import ALL_FILESYSTEM_DRIVERS, AWS_BUCKET, WITH_GDRIVE_BUCKETS
-from tests.utils import autouse_test_storage
 from tests.load.filesystem.utils import self_signed_cert
 
 

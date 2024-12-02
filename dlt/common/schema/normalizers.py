@@ -40,13 +40,14 @@ def _section_for_schema(kwargs: Dict[str, Any]) -> Tuple[str, ...]:
 
 
 @with_config(spec=SchemaConfiguration, sections=_section_for_schema)  # type: ignore[call-overload]
-def explicit_normalizers(
+def configured_normalizers(
     naming: TNamingConventionReferenceArg = dlt.config.value,
     json_normalizer: TJSONNormalizer = dlt.config.value,
     allow_identifier_change_on_table_with_data: bool = None,
+    use_break_path_on_normalize: Optional[bool] = None,
     schema_name: Optional[str] = None,
 ) -> TNormalizersConfig:
-    """Gets explicitly configured normalizers without any defaults or capabilities injection. If `naming`
+    """Gets explicitly onfigured normalizers without any defaults or capabilities injection. If `naming`
     is a module or a type it will get converted into string form via import.
 
     If `schema_name` is present, a section ("sources", schema_name, "schema") is used to inject the config
@@ -57,6 +58,8 @@ def explicit_normalizers(
         norm_conf["allow_identifier_change_on_table_with_data"] = (
             allow_identifier_change_on_table_with_data
         )
+    if use_break_path_on_normalize is not None:
+        norm_conf["use_break_path_on_normalize"] = use_break_path_on_normalize
     return norm_conf
 
 
