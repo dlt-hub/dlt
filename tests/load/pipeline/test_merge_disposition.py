@@ -1607,7 +1607,7 @@ def test_transformer_replace() -> None:
 
     current_page = 0
     @dlt.transformer(
-        data_from=gen_pages_of_ids, write_disposition="replace", primary_key="id", merge_key="id"
+        data_from=gen_pages_of_ids, write_disposition="replace", primary_key="id"
     )
     def transformed_ids(
         page: List[TDataItem],
