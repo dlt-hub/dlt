@@ -20,7 +20,7 @@ def _apply_lag_to_value(
     parsed_value = ensure_pendulum_datetime(value) if is_str else value
 
     if isinstance(parsed_value, (datetime, date)):
-        parsed_value = _apply_lag_to_datetime(lag, parsed_value, last_value_func, is_str_date)  # type: ignore[assignment]
+        parsed_value = _apply_lag_to_datetime(lag, parsed_value, last_value_func, is_str_date)
         # go back to string or pass exact type
         value = parsed_value.strftime(value_format) if value_format else parsed_value  # type: ignore[assignment]
 

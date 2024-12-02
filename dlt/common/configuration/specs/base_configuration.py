@@ -359,7 +359,7 @@ class BaseConfiguration(MutableMapping[str, Any]):
     def get_resolvable_fields(cls) -> Dict[str, type]:
         """Returns a mapping of fields to their type hints. Dunders should not be resolved and are not returned"""
         return {
-            f.name: eval(f.type) if isinstance(f.type, str) else f.type
+            f.name: eval(f.type) if isinstance(f.type, str) else f.type  # type: ignore[arg-type]
             for f in cls._get_resolvable_dataclass_fields()
         }
 

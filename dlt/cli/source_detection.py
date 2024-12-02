@@ -1,11 +1,10 @@
 import ast
 import inspect
-from astunparse import unparse
 from typing import Dict, Tuple, Set, List
 
 from dlt.common.configuration import is_secret_hint
 from dlt.common.configuration.specs import BaseConfiguration
-from dlt.common.reflection.utils import creates_func_def_name_node
+from dlt.common.reflection.utils import creates_func_def_name_node, ast_unparse
 from dlt.common.typing import is_optional_type
 
 from dlt.sources import SourceReference
@@ -30,7 +29,7 @@ def find_call_arguments_to_replace(
                     if not isinstance(dn_node, ast.Constant) or not isinstance(dn_node.value, str):
                         raise CliCommandInnerException(
                             "init",
-                            f"The pipeline script {init_script_name} must pass the {t_arg_name} as"  # type: ignore[attr-defined]
+                            f"The pipeline script {init_script_name} must pass the {t_arg_name} as"
                             f" string to '{arg_name}' function in line {dn_node.lineno}",
                         )
                     else:
@@ -65,7 +64,7 @@ def find_source_calls_to_replace(
     for calls in visitor.known_sources_resources_calls.values():
         for call in calls:
             transformed_nodes.append(
-                (call.func, ast.Name(id=pipeline_name + "_" + unparse(call.func)))
+                (call.func, ast.Name(id=pipeline_name + "_" + ast_unparse(call.func)))
             )
 
     return transformed_nodes

@@ -29,13 +29,13 @@ def migrate_schema(schema_dict: DictStrAny, from_engine: int, to_engine: int) ->
         schema_dict["excludes"] = []
         from_engine = 2
     if from_engine == 2 and to_engine > 2:
-        from dlt.common.schema.normalizers import import_normalizers, explicit_normalizers
+        from dlt.common.schema.normalizers import import_normalizers, configured_normalizers
 
         # current version of the schema
         current = cast(TStoredSchema, schema_dict)
         # add default normalizers and root hash propagation
         # use explicit None to get default settings. ignore any naming conventions
-        normalizers = explicit_normalizers(naming=None, json_normalizer=None)
+        normalizers = configured_normalizers(naming=None, json_normalizer=None)
         current["normalizers"], _, _ = import_normalizers(normalizers, normalizers)
         current["normalizers"]["json"]["config"] = {
             "propagation": {"root": {"_dlt_id": "_dlt_root_id"}}
@@ -169,6 +169,9 @@ def migrate_schema(schema_dict: DictStrAny, from_engine: int, to_engine: int) ->
                 json_config.pop("generate_dlt_id", None)
 
         from_engine = 10
+    if from_engine == 10 and to_engine > 10:
+        schema_dict["normalizers"]["use_break_path_on_normalize"] = False
+        from_engine = 11
 
     schema_dict["engine_version"] = from_engine
     if from_engine != to_engine:

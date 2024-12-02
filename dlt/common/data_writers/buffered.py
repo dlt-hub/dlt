@@ -242,7 +242,7 @@ class BufferedDataWriter(Generic[TWriter]):
                 if self.writer_spec.is_binary_format:
                     self._file = self.open(self._file_name, "wb")  # type: ignore
                 else:
-                    self._file = self.open(self._file_name, "wt", encoding="utf-8", newline="")
+                    self._file = self.open(self._file_name, "wt", encoding="utf-8", newline="")  # type: ignore[operator]
                 self._writer = self.writer_cls(self._file, caps=self._caps)  # type: ignore[assignment]
                 self._writer.write_header(self._current_columns)
             # write buffer

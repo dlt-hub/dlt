@@ -219,8 +219,74 @@ def test_unique_keys_are_deduplicated(item_type: TestDataItemFormat) -> None:
     assert rows == [(1, "a"), (2, "b"), (3, "c"), (3, "d"), (3, "e"), (3, "f"), (4, "g")]
 
 
+def test_pandas_index_as_dedup_key() -> None:
+    from dlt.common.libs.pandas import pandas_to_arrow, pandas as pd
+
+    some_data, p = _make_dedup_pipeline("pandas")
+
+    # no index
+    no_index_r = some_data.with_name(new_name="no_index")
+    p.run(no_index_r)
+    p.run(no_index_r)
+    data_ = p._dataset().no_index.arrow()
+    assert data_.schema.names == ["created_at", "id"]
+    assert data_["id"].to_pylist() == ["a", "b", "c", "d", "e", "f", "g"]
+
+    # unnamed index: explicitly converted
+    unnamed_index_r = some_data.with_name(new_name="unnamed_index").add_map(
+        lambda df: pandas_to_arrow(df, preserve_index=True)
+    )
+    # use it (as in arrow table) to deduplicate
+    unnamed_index_r.incremental.primary_key = "__index_level_0__"
+    p.run(unnamed_index_r)
+    p.run(unnamed_index_r)
+    data_ = p._dataset().unnamed_index.arrow()
+    assert data_.schema.names == ["created_at", "id", "index_level_0"]
+    # indexes 2 and 3 are removed from second batch because they were in the previous batch
+    # and the created_at overlapped so they got deduplicated
+    assert data_["index_level_0"].to_pylist() == [0, 1, 2, 3, 4, 0, 1, 4]
+
+    def _make_named_index(df_: pd.DataFrame) -> pd.DataFrame:
+        df_.index = pd.RangeIndex(start=0, stop=len(df_), step=1, name="order_id")
+        return df_
+
+    # named index explicitly converted
+    named_index_r = some_data.with_name(new_name="named_index").add_map(
+        lambda df: pandas_to_arrow(_make_named_index(df), preserve_index=True)
+    )
+    # use it (as in arrow table) to deduplicate
+    named_index_r.incremental.primary_key = "order_id"
+    p.run(named_index_r)
+    p.run(named_index_r)
+    data_ = p._dataset().named_index.arrow()
+    assert data_.schema.names == ["created_at", "id", "order_id"]
+    assert data_["order_id"].to_pylist() == [0, 1, 2, 3, 4, 0, 1, 4]
+
+    # named index explicitly converted
+    named_index_impl_r = some_data.with_name(new_name="named_index_impl").add_map(
+        lambda df: _make_named_index(df)
+    )
+    p.run(named_index_impl_r)
+    p.run(named_index_impl_r)
+    data_ = p._dataset().named_index_impl.arrow()
+    assert data_.schema.names == ["created_at", "id"]
+    assert data_["id"].to_pylist() == ["a", "b", "c", "d", "e", "f", "g"]
+
+
 @pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
 def test_unique_rows_by_hash_are_deduplicated(item_type: TestDataItemFormat) -> None:
+    some_data, p = _make_dedup_pipeline(item_type)
+    p.run(some_data())
+    p.run(some_data())
+
+    with p.sql_client() as c:
+        with c.execute_query("SELECT created_at, id FROM some_data ORDER BY created_at, id") as cur:
+            rows = cur.fetchall()
+    print(rows)
+    assert rows == [(1, "a"), (2, "b"), (3, "c"), (3, "d"), (3, "e"), (3, "f"), (4, "g")]
+
+
+def _make_dedup_pipeline(item_type: TestDataItemFormat):
     data1 = [
         {"created_at": 1, "id": "a"},
         {"created_at": 2, "id": "b"},
@@ -235,7 +301,6 @@ def test_unique_rows_by_hash_are_deduplicated(item_type: TestDataItemFormat) -> 
         {"created_at": 3, "id": "f"},
         {"created_at": 4, "id": "g"},
     ]
-
     source_items1 = data_to_item_format(item_type, data1)
     source_items2 = data_to_item_format(item_type, data2)
 
@@ -250,14 +315,7 @@ def test_unique_rows_by_hash_are_deduplicated(item_type: TestDataItemFormat) -> 
         pipeline_name=uniq_id(),
         destination=dlt.destinations.duckdb(credentials=duckdb.connect(":memory:")),
     )
-    p.run(some_data())
-    p.run(some_data())
-
-    with p.sql_client() as c:
-        with c.execute_query("SELECT created_at, id FROM some_data order by created_at, id") as cur:
-            rows = cur.fetchall()
-
-    assert rows == [(1, "a"), (2, "b"), (3, "c"), (3, "d"), (3, "e"), (3, "f"), (4, "g")]
+    return some_data, p
 
 
 def test_nested_cursor_path() -> None:
