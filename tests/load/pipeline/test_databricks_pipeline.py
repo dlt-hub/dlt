@@ -145,3 +145,35 @@ def test_databricks_gcs_external_location(destination_config: DestinationTestCon
     assert (
         "credential_x" in pipeline.list_failed_jobs_in_package(info.loads_ids[0])[0].failed_message
     )
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True, bucket_subset=(AZ_BUCKET,), subset=("databricks",)
+    ),
+    ids=lambda x: x.name,
+)
+def test_databricks_oauth(destination_config: DestinationTestConfiguration) -> None:
+    from dlt.destinations import databricks, filesystem
+    from dlt.destinations.impl.databricks.configuration import DatabricksCredentials
+    from dlt import pipeline
+
+    cred = DatabricksCredentials()
+
+    stage = filesystem(AZ_BUCKET)
+
+    dataset_name = "test_databricks_oauth2" + uniq_id()
+    bricks = databricks()
+
+    pipeline = destination_config.setup_pipeline(
+        "test_databricks_oauth2",
+        dataset_name=dataset_name,
+        destination=bricks,
+        staging=stage
+    )
+
+    info = pipeline.run([1, 2, 3], table_name="digits", **destination_config.run_kwargs)
+
+    assert info.has_failed_jobs is False
+
