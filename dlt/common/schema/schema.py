@@ -525,7 +525,7 @@ class Schema:
         Typically they come from the destination schema. Columns that are in `existing_columns` and not in `table_name` columns are ignored.
 
         Optionally includes incomplete columns (without data type)"""
-        casefold_f: Callable[[str], str] = str.casefold if not case_sensitive else str  # type: ignore[assignment]
+        casefold_f: Callable[[str], str] = str.casefold if not case_sensitive else str
         casefold_existing = {
             casefold_f(col_name): col for col_name, col in existing_columns.items()
         }

@@ -38,7 +38,7 @@ def verify_schema_capabilities(
     exception_log: List[Exception] = []
     # combined casing function
     case_identifier = lambda ident: capabilities.casefold_identifier(
-        (str if capabilities.has_case_sensitive_identifiers else str.casefold)(ident)  # type: ignore[operator]
+        (str if capabilities.has_case_sensitive_identifiers else str.casefold)(ident)
     )
     table_name_lookup: DictStrStr = {}
     # name collision explanation
