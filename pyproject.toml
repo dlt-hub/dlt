@@ -90,6 +90,7 @@ paramiko = {version = ">=3.3.0", optional = true}
 sqlglot = {version = ">=20.0.0", optional = true}
 db-dtypes = { version = ">=1.2.0", optional = true }
 aiohttp = { version = ">=3.9", optional = true }
+databricks-sdk = "^0.38.0"
 
 [tool.poetry.extras]
 gcp = ["grpcio", "google-cloud-bigquery", "db-dtypes", "gcsfs"]

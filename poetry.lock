@@ -2209,6 +2209,26 @@ typeapi = ">=2.0.1,<3.0.0"
 typing-extensions = ">=3.10.0"
 
 [[package]]
+name = "databricks-sdk"
+version = "0.38.0"
+description = "Databricks SDK for Python (Beta)"
+optional = false
+python-versions = ">=3.7"
+files = [
+    {file = "databricks_sdk-0.38.0-py3-none-any.whl", hash = "sha256:3cc3808e7a294ccf99a3f19f1e86c8e36a5dc0845ac62112dcae2e625ef97c28"},
+    {file = "databricks_sdk-0.38.0.tar.gz", hash = "sha256:65e505201b65d8a2b4110d3eabfebce5a25426d3ccdd5f8bc69eb03333ea1f39"},
+]
+
+[package.dependencies]
+google-auth = ">=2.0,<3.0"
+requests = ">=2.28.1,<3"
+
+[package.extras]
+dev = ["autoflake", "databricks-connect", "httpx", "ipython", "ipywidgets", "isort", "langchain-openai", "openai", "pycodestyle", "pyfakefs", "pytest", "pytest-cov", "pytest-mock", "pytest-rerunfailures", "pytest-xdist", "requests-mock", "wheel", "yapf"]
+notebook = ["ipython (>=8,<9)", "ipywidgets (>=8,<9)"]
+openai = ["httpx", "langchain-openai", "openai"]
+
+[[package]]
 name = "databricks-sql-connector"
 version = "2.9.6"
 description = "Databricks SQL Connector for Python"
@@ -10558,4 +10578,4 @@ weaviate = ["weaviate-client"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.8.1,<3.13"
-content-hash = "749c79ead9b1a800cbe5d9c93650e2ede7e9bcb240d07ff2d1787d032a0f2fa6"
+content-hash = "4648f8a13a30d1c81031a3e4b4f8cc7dab46b495b30a7c6f54cdf4f415331d96"
