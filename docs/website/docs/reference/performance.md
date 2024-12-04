@@ -50,6 +50,8 @@ Below, we set files to rotate after 100,000 items written or when the filesize e
 
 <!--@@@DLT_SNIPPET ./performance_snippets/toml-snippets.toml::file_size_toml-->
 
+### Controlling destination items sizes
+As mentioned above, `dlt` uses the the same files created between **normalize** and **load** for loading to the destination. You can therefore control the destination items' sizes by controlling the maximum single file size or enabling rotation at the **normalize** stage as demonstrated in the snippet above. 
 
 
 ### Disabling and enabling file compression
