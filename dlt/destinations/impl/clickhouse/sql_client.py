@@ -28,6 +28,7 @@ from pendulum import DateTime  # noqa: I251
 from dlt.common import logger
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.typing import DictStrAny
+from dlt.common.utils import removeprefix
 
 from dlt.destinations.exceptions import (
     DatabaseUndefinedRelation,
@@ -88,9 +89,8 @@ class ClickHouseSqlClient(
         sentinel_table = self.config.dataset_sentinel_table_name
         all_ds_tables = self._list_tables()
         if self.dataset_name:
-            return sentinel_table in [
-                t.split(self.config.dataset_table_separator)[1] for t in all_ds_tables
-            ]
+            prefix = self.dataset_name + self.config.dataset_table_separator
+            return sentinel_table in [removeprefix(t, prefix) for t in all_ds_tables]
         else:
             # if no dataset specified we look for sentinel table
             return sentinel_table in all_ds_tables

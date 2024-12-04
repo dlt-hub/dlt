@@ -36,7 +36,7 @@ from dlt.common.destination.reference import (
 from dlt.common.time import ensure_pendulum_datetime
 
 from tests.cases import table_update_and_row, assert_all_data_types_row
-from tests.utils import TEST_STORAGE_ROOT, autouse_test_storage
+from tests.utils import TEST_STORAGE_ROOT
 from tests.common.utils import load_json_case
 from tests.load.utils import (
     TABLE_UPDATE,

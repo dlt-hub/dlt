@@ -3,7 +3,7 @@ import pytest
 import yaml
 from dlt.common import json
 
-from dlt.common.schema.normalizers import explicit_normalizers
+from dlt.common.schema.normalizers import configured_normalizers
 from dlt.common.schema.schema import Schema
 from dlt.common.storages.exceptions import (
     InStorageSchemaModified,
@@ -304,7 +304,7 @@ def test_save_store_schema_over_import_sync(synced_storage: SchemaStorage) -> No
 
 
 def test_save_store_schema(storage: SchemaStorage) -> None:
-    d_n = explicit_normalizers()
+    d_n = configured_normalizers()
     d_n["names"] = "tests.common.normalizers.custom_normalizers"
     schema = Schema("column_event", normalizers=d_n)
     assert schema.is_new
@@ -357,16 +357,16 @@ def test_save_initial_import_schema(ie_storage: LiveSchemaStorage) -> None:
         ie_storage.load_schema("ethereum")
 
     # save initial import schema where processing hints are removed
-    eth_V9 = load_yml_case("schemas/eth/ethereum_schema_v9")
-    schema = Schema.from_dict(eth_V9)
+    eth_V11 = load_yml_case("schemas/eth/ethereum_schema_v11")
+    schema = Schema.from_dict(eth_V11)
     ie_storage.save_import_schema_if_not_exists(schema)
     # should be available now
     eth = ie_storage.load_schema("ethereum")
     assert "x-normalizer" not in eth.tables["blocks"]
 
     # won't overwrite initial schema
-    del eth_V9["tables"]["blocks__uncles"]
-    schema = Schema.from_dict(eth_V9)
+    del eth_V11["tables"]["blocks__uncles"]
+    schema = Schema.from_dict(eth_V11)
     ie_storage.save_import_schema_if_not_exists(schema)
     # should be available now
     eth = ie_storage.load_schema("ethereum")

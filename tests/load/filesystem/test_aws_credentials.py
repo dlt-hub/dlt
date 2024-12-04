@@ -9,7 +9,6 @@ from dlt.common.configuration.specs.exceptions import InvalidBoto3Session
 
 from tests.common.configuration.utils import environment
 from tests.load.utils import ALL_FILESYSTEM_DRIVERS
-from tests.utils import autouse_test_storage
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential

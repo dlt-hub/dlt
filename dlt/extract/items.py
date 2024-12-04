@@ -19,7 +19,14 @@ from typing import (
 )
 from concurrent.futures import Future
 
-from dlt.common.typing import TAny, TDataItem, TDataItems
+from dlt.common.typing import (
+    TAny,
+    TDataItem,
+    TDataItems,
+    TTableHintTemplate,
+    TFunHintTemplate,
+    TDynHintType,
+)
 
 
 TDecompositionStrategy = Literal["none", "scc"]
@@ -27,9 +34,6 @@ TDeferredDataItems = Callable[[], TDataItems]
 TAwaitableDataItems = Awaitable[TDataItems]
 TPipedDataItems = Union[TDataItems, TDeferredDataItems, TAwaitableDataItems]
 
-TDynHintType = TypeVar("TDynHintType")
-TFunHintTemplate = Callable[[TDataItem], TDynHintType]
-TTableHintTemplate = Union[TDynHintType, TFunHintTemplate[TDynHintType]]
 
 if TYPE_CHECKING:
     TItemFuture = Future[TPipedDataItems]

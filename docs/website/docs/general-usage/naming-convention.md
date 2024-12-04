@@ -69,6 +69,45 @@ Note that many destinations are exclusively case-insensitive, of which some pres
 ### Identifier shortening
 Identifier shortening happens during normalization. `dlt` takes the maximum length of the identifier from the destination capabilities and will trim the identifiers that are too long. The default shortening behavior generates short deterministic hashes of the source identifiers and places them in the middle of the destination identifier. This (with a high probability) avoids shortened identifier collisions.
 
+### Compound (flattened) identifiers
+`dlt` combines several identifiers in order to name nested tables and flattened columns. For example:
+```json
+{
+  "column":
+    {
+      "value": 1
+    }
+}
+```
+generates flattened column name `column__value`. Where `__` is a path separator (in **snake case**). Each component in the combined identifier is normalized
+separately and shortened as a whole.
+
+:::note
+Combined identifier is also a valid single identifier. Starting from
+`dlt` version above 1.4.0 normalization is fully idempotent and normalized
+`column__value` will be still `column__value`.
+:::
+
+:::caution
+Previously double underscores were contracted into single underscore. That
+prevented using data loaded by `dlt` as a data source without identifier modifications. `dlt` maintains backward compatibility for version >1.4.0 as follows:
+
+* All schemas stored locally or at destination will be migrated to backward compatible mode by setting a flag `use_break_path_on_normalize` ie.:
+```yaml
+normalizers:
+  names: dlt.common.normalizers.names.snake_case
+  use_break_path_on_normalize: true
+  json:
+    module: dlt.common.normalizers.json.relational
+```
+* Backward compatible behavior may be explicitly enabled by setting
+`SCHEMA__USE_BREAK_PATH_ON_NORMALIZE` to `TRUE` or via `config.toml`:
+```toml
+[schema]
+use_break_path_on_normalize=true
+```
+:::
+
 ### 🚧 [WIP] Name convention changes are lossy
 `dlt` does not store the source identifiers in the schema so when the naming convention changes (or we increase the maximum identifier length), it is not able to generate a fully correct set of new identifiers. Instead, it will re-normalize already normalized identifiers. We are currently working to store the full identifier lineage - source identifiers will be stored and mapped to the destination in the schema.
 
