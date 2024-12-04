@@ -1,12 +1,12 @@
 import dataclasses
-from typing import ClassVar, Final, Optional, Any, Dict, List
+from typing import Callable, ClassVar, Final, Optional, Any, Dict, List, cast
 
 from dlt.common.typing import TSecretStrValue
 from dlt.common.configuration.specs.base_configuration import CredentialsConfiguration, configspec
 from dlt.common.destination.reference import DestinationClientDwhWithStagingConfiguration
 from dlt.common.configuration.exceptions import ConfigurationValueError
 
-from databricks.sdk.core import Config, oauth_service_principal, CredentialsProvider
+from databricks.sdk.core import Config, oauth_service_principal
 
 DATABRICKS_APPLICATION_ID = "dltHub_dlt"
 
@@ -42,13 +42,13 @@ class DatabricksCredentials(CredentialsConfiguration):
                 "If you are using an access token for authentication, omit the 'auth_type' field."
             )
 
-    def _get_oauth_credentials(self) -> Optional[CredentialsProvider]:
+    def _get_oauth_credentials(self) -> Optional[Callable[[], Dict[str, str]]]:
         config = Config(
             host=f"https://{self.server_hostname}",
             client_id=self.client_id,
             client_secret=self.client_secret,
         )
-        return oauth_service_principal(config)
+        return cast(Callable[[], Dict[str, str]], oauth_service_principal(config))
 
     def to_connector_params(self) -> Dict[str, Any]:
         conn_params = dict(
