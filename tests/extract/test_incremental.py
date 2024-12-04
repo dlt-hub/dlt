@@ -5,7 +5,7 @@ import random
 from datetime import datetime, date  # noqa: I251
 from itertools import chain, count
 from time import sleep
-from typing import Any, Optional, Literal, Sequence, Dict
+from typing import Any, Optional, Literal, Sequence, Dict, Iterable
 from unittest import mock
 
 import duckdb
@@ -1522,6 +1522,7 @@ def test_incremental_explicit_disable_unique_check(item_type: TestDataItemFormat
 
 @pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
 def test_apply_hints_incremental(item_type: TestDataItemFormat) -> None:
+    os.environ["COMPLETED_PROB"] = "1.0"  # make it complete immediately
     p = dlt.pipeline(pipeline_name=uniq_id(), destination="dummy")
     data = [{"created_at": 1}, {"created_at": 2}, {"created_at": 3}]
     source_items = data_to_item_format(item_type, data)
@@ -3851,3 +3852,85 @@ def test_incremental_column_hint_cursor_is_not_column(use_dict: bool):
 
     for col in table_schema["columns"].values():
         assert "incremental" not in col
+
+
+@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
+@pytest.mark.parametrize("last_value_func", [min, max])
+def test_start_range_open(item_type: TestDataItemFormat, last_value_func: Any) -> None:
+    data_range: Iterable[int] = range(1, 12)
+    if last_value_func == max:
+        initial_value = 5
+        # Only items higher than inital extracted
+        expected_items = list(range(6, 12))
+        order_dir = "ASC"
+    elif last_value_func == min:
+        data_range = reversed(data_range)
+        initial_value = 5
+        # Only items lower than inital extracted
+        expected_items = list(reversed(range(1, 5)))
+        order_dir = "DESC"
+
+    @dlt.resource
+    def some_data(
+        updated_at: dlt.sources.incremental[int] = dlt.sources.incremental(
+            "updated_at",
+            initial_value=initial_value,
+            range_start="open",
+            last_value_func=last_value_func,
+        ),
+    ) -> Any:
+        data = [{"updated_at": i} for i in data_range]
+        yield data_to_item_format(item_type, data)
+
+    pipeline = dlt.pipeline(pipeline_name=uniq_id(), destination="duckdb")
+    pipeline.run(some_data())
+
+    with pipeline.sql_client() as client:
+        items = [
+            row[0]
+            for row in client.execute_sql(
+                f"SELECT updated_at FROM some_data ORDER BY updated_at {order_dir}"
+            )
+        ]
+
+    assert items == expected_items
+
+
+@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
+@pytest.mark.parametrize("last_value_func", [min, max])
+def test_end_range_closed(item_type: TestDataItemFormat, last_value_func: Any) -> None:
+    values = [5, 10]
+    expected_items = list(range(5, 11))
+    if last_value_func == max:
+        order_dir = "ASC"
+    elif last_value_func == min:
+        values = list(reversed(values))
+        expected_items = list(reversed(expected_items))
+        order_dir = "DESC"
+
+    @dlt.resource
+    def some_data(
+        updated_at: dlt.sources.incremental[int] = dlt.sources.incremental(
+            "updated_at",
+            initial_value=values[0],
+            end_value=values[1],
+            range_end="closed",
+            last_value_func=last_value_func,
+        ),
+    ) -> Any:
+        data = [{"updated_at": i} for i in range(1, 12)]
+        yield data_to_item_format(item_type, data)
+
+    pipeline = dlt.pipeline(pipeline_name=uniq_id(), destination="duckdb")
+    pipeline.run(some_data())
+
+    with pipeline.sql_client() as client:
+        items = [
+            row[0]
+            for row in client.execute_sql(
+                f"SELECT updated_at FROM some_data ORDER BY updated_at {order_dir}"
+            )
+        ]
+
+    # Includes values 5-10 inclusive
+    assert items == expected_items

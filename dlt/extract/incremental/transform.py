@@ -13,7 +13,12 @@ from dlt.extract.incremental.exceptions import (
     IncrementalPrimaryKeyMissing,
     IncrementalCursorPathHasValueNone,
 )
-from dlt.common.incremental.typing import TCursorValue, LastValueFunc, OnCursorValueMissing
+from dlt.common.incremental.typing import (
+    TCursorValue,
+    LastValueFunc,
+    OnCursorValueMissing,
+    TIncrementalRange,
+)
 from dlt.extract.utils import resolve_column_value
 from dlt.extract.items import TTableHintTemplate
 
@@ -57,6 +62,8 @@ class IncrementalTransform:
         unique_hashes: Set[str],
         on_cursor_value_missing: OnCursorValueMissing = "raise",
         lag: Optional[float] = None,
+        range_start: TIncrementalRange = "closed",
+        range_end: TIncrementalRange = "open",
     ) -> None:
         self.resource_name = resource_name
         self.cursor_path = cursor_path
@@ -71,6 +78,9 @@ class IncrementalTransform:
         self.start_unique_hashes = set(unique_hashes)
         self.on_cursor_value_missing = on_cursor_value_missing
         self.lag = lag
+        self.range_start = range_start
+        self.range_end = range_end
+
         # compile jsonpath
         self._compiled_cursor_path = compile_path(cursor_path)
         # for simple column name we'll fallback to search in dict
@@ -191,10 +201,10 @@ class JsonIncremental(IncrementalTransform):
         # Filter end value ranges exclusively, so in case of "max" function we remove values >= end_value
         if self.end_value is not None:
             try:
-                if (
-                    last_value_func((row_value, self.end_value)) != self.end_value
-                    or last_value_func((row_value,)) == self.end_value
-                ):
+                if last_value_func((row_value, self.end_value)) != self.end_value:
+                    return None, False, True
+
+                if self.range_end == "open" and last_value_func((row_value,)) == self.end_value:
                     return None, False, True
             except Exception as ex:
                 raise IncrementalCursorInvalidCoercion(
@@ -221,6 +231,8 @@ class JsonIncremental(IncrementalTransform):
             ) from ex
         # new_value is "less" or equal to last_value (the actual max)
         if last_value == new_value:
+            if self.range_start == "open":
+                return None, False, False
             # use func to compute row_value into last_value compatible
             processed_row_value = last_value_func((row_value,))
             # skip the record that is not a start_value or new_value: that record was already processed
@@ -314,13 +326,19 @@ class ArrowIncremental(IncrementalTransform):
 
         if self.last_value_func is max:
             compute = pa.compute.max
-            end_compare = pa.compute.less
-            last_value_compare = pa.compute.greater_equal
+            end_compare = pa.compute.less if self.range_end == "open" else pa.compute.less_equal
+            last_value_compare = (
+                pa.compute.greater_equal if self.range_start == "closed" else pa.compute.greater
+            )
             new_value_compare = pa.compute.greater
         elif self.last_value_func is min:
             compute = pa.compute.min
-            end_compare = pa.compute.greater
-            last_value_compare = pa.compute.less_equal
+            end_compare = (
+                pa.compute.greater if self.range_end == "open" else pa.compute.greater_equal
+            )
+            last_value_compare = (
+                pa.compute.less_equal if self.range_start == "closed" else pa.compute.less
+            )
             new_value_compare = pa.compute.less
         else:
             raise NotImplementedError(
