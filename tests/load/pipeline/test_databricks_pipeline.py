@@ -10,7 +10,6 @@ from tests.load.utils import (
 )
 from tests.pipeline.utils import assert_load_info
 
-
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential
 
@@ -149,31 +148,20 @@ def test_databricks_gcs_external_location(destination_config: DestinationTestCon
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(
-        default_sql_configs=True, bucket_subset=(AZ_BUCKET,), subset=("databricks",)
-    ),
+    destinations_configs(default_sql_configs=True, subset=("databricks",)),
     ids=lambda x: x.name,
 )
 def test_databricks_oauth(destination_config: DestinationTestConfiguration) -> None:
-    from dlt.destinations import databricks, filesystem
-    from dlt.destinations.impl.databricks.configuration import DatabricksCredentials
-    from dlt import pipeline
+    os.environ["DESTINATION__DATABRICKS__CREDENTIALS__AUTH_TYPE"] = "databricks-oauth"
 
-    cred = DatabricksCredentials()
-
-    stage = filesystem(AZ_BUCKET)
-
-    dataset_name = "test_databricks_oauth2" + uniq_id()
-    bricks = databricks()
-
+    dataset_name = "test_databricks_oauth" + uniq_id()
     pipeline = destination_config.setup_pipeline(
-        "test_databricks_oauth2",
-        dataset_name=dataset_name,
-        destination=bricks,
-        staging=stage
+        "test_databricks_oauth", dataset_name=dataset_name, destination="databricks"
     )
 
     info = pipeline.run([1, 2, 3], table_name="digits", **destination_config.run_kwargs)
-
     assert info.has_failed_jobs is False
 
+    with pipeline.sql_client() as client:
+        rows = client.execute_sql(f"select * from {dataset_name}.digits")
+        assert len(rows) == 3
