@@ -693,7 +693,7 @@ august_issues = repo_issues(
 ...
 ```
 
-Note that dlt's incremental filtering considers the ranges half-closed. `initial_value` is inclusive, `end_value` is exclusive, so chaining ranges like above works without overlaps.
+Note that dlt's incremental filtering considers the ranges half-closed. `initial_value` is inclusive, `end_value` is exclusive, so chaining ranges like above works without overlaps. This behaviour can be changed with the `start_range` (default `"closed"`) and `end_range` (default `"open"`) arguments.
 
 ### Declare row order to not request unnecessary data
 
@@ -792,6 +792,9 @@ def some_data(last_timestamp=dlt.sources.incremental("item.ts", primary_key=()))
     for i in range(-10, 10):
         yield {"delta": i, "item": {"ts": pendulum.now().timestamp()}}
 ```
+
+This deduplication process is always enabled when `start_range` is set to `"closed"` (default).
+When you pass `start_range="open"` no deduplication is done as it is not needed as rows with the previous cursor value are excluded. This can be a useful optimization to avoid the performance overhead of deduplication if the cursor field is guaranteed to be unique.
 
 ### Using `dlt.sources.incremental` with dynamically created resources
 
