@@ -98,7 +98,7 @@ This ensures there are no gaps in the extracted sequence. But it does come with 
 both due to the deduplication processing and the cost of fetching redundant records from the database.
 
 This is not always needed. If you know that your data does not contain overlapping cursor values then you
-can optimize extraction by passing `start_range="open"` to incremental.
+can optimize extraction by passing `range_start="open"` to incremental.
 
 This both disables the deduplication process and changes the operator used in the SQL `WHERE` clause from `>=` (greater-or-equal) to `>` (greater than), so that no overlapping rows are fetched.
 
@@ -110,7 +110,7 @@ table = sql_table(
     incremental=dlt.sources.incremental(
         'last_modified',  # Cursor column name
         initial_value=pendulum.DateTime(2024, 1, 1, 0, 0, 0),  # Initial cursor value
-        start_range="open",  # exclude the start value
+        range_start="open",  # exclude the start value
     )
 )
 ```
