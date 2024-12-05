@@ -17,7 +17,7 @@ class DatabricksCredentials(CredentialsConfiguration):
     server_hostname: str = None
     http_path: str = None
     access_token: Optional[TSecretStrValue] = None
-    auth_type: str = None
+    auth_type: Optional[str] = None
     client_id: Optional[TSecretStrValue] = None
     client_secret: Optional[TSecretStrValue] = None
     http_headers: Optional[Dict[str, str]] = None
