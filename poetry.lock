@@ -2212,7 +2212,7 @@ typing-extensions = ">=3.10.0"
 name = "databricks-sdk"
 version = "0.38.0"
 description = "Databricks SDK for Python (Beta)"
-optional = false
+optional = true
 python-versions = ">=3.7"
 files = [
     {file = "databricks_sdk-0.38.0-py3-none-any.whl", hash = "sha256:3cc3808e7a294ccf99a3f19f1e86c8e36a5dc0845ac62112dcae2e625ef97c28"},
@@ -10638,4 +10638,4 @@ weaviate = ["weaviate-client"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.8.1,<3.13"
-content-hash = "082e734b54da834eeaf37b0cb3f4bfa1d58671ae2335aa29d18e8673a66f49ae"
+content-hash = "b1448d6d7a850fe2b8c35c0d011d8beea502a28d2f5e77b9ad8eb90b326f7946"
