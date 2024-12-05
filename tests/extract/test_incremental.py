@@ -3897,6 +3897,32 @@ def test_start_range_open(item_type: TestDataItemFormat, last_value_func: Any) -
 
 
 @pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
+def test_start_range_open_no_deduplication(item_type: TestDataItemFormat) -> None:
+    @dlt.source
+    def dummy():
+        @dlt.resource
+        def some_data(
+            updated_at: dlt.sources.incremental[int] = dlt.sources.incremental(
+                "updated_at",
+                range_start="open",
+            )
+        ):
+            yield [{"updated_at": i} for i in range(3)]
+
+        yield some_data
+
+    pipeline = dlt.pipeline(pipeline_name=uniq_id())
+    pipeline.extract(dummy())
+
+    state = pipeline.state["sources"]["dummy"]["resources"]["some_data"]["incremental"][
+        "updated_at"
+    ]
+
+    # No unique values should be computed
+    assert state["unique_hashes"] == []
+
+
+@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
 @pytest.mark.parametrize("last_value_func", [min, max])
 def test_end_range_closed(item_type: TestDataItemFormat, last_value_func: Any) -> None:
     values = [5, 10]

@@ -117,6 +117,8 @@ class IncrementalTransform:
     def deduplication_disabled(self) -> bool:
         """Skip deduplication when length of the key is 0 or if lag is applied."""
         # disable deduplication if end value is set - state is not saved
+        if self.range_start == "open":
+            return True
         if self.end_value is not None:
             return True
         # disable deduplication if lag is applied - destination must deduplicate ranges
@@ -232,6 +234,7 @@ class JsonIncremental(IncrementalTransform):
         # new_value is "less" or equal to last_value (the actual max)
         if last_value == new_value:
             if self.range_start == "open":
+                # We only want greater than last_value
                 return None, False, False
             # use func to compute row_value into last_value compatible
             processed_row_value = last_value_func((row_value,))
