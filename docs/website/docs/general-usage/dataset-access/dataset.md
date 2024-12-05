@@ -187,7 +187,7 @@ print(filtered_relation.query)
 df = filtered_relation.df()
 ```
 
-You can learn more about the available expressions on the [ibis table expressions](https://ibis-project.org/reference/expression-tables) page. 
+You can learn more about the available expressions on the [ibis for sql users](https://ibis-project.org/tutorials/ibis-for-sql-users) page. 
 
 :::note
 Keep in mind that you can use only methods that modify the executed query and none of the methods ibis provides for fetching data. This is done with the same methods defined on the regular relations explained above. If you need full native ibis integration, please read the ibis section in the advanced part further down. Additionally, not all ibis expressions may be supported by all destinations and sql dialects.

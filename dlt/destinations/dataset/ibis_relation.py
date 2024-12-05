@@ -13,7 +13,7 @@ else:
     ReadableDBAPIDataset = Any
 
 try:
-    from dlt.common.libs.ibis import Expr
+    from dlt.common.libs.ibis import Expr, GroupedTable
 except MissingDependencyException:
     Expr = Any
 
@@ -53,11 +53,11 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
         self,
         *,
         readable_dataset: ReadableDBAPIDataset,
-        expression: Expr = None,
+        ibis_object: Any = None,
     ) -> None:
         """Create a lazy evaluated relation to for the dataset of a destination"""
         super().__init__(readable_dataset=readable_dataset)
-        self._expression = expression
+        self._ibis_object = ibis_object
 
     @property
     def query(self) -> Any:
@@ -70,11 +70,11 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
 
         # render sql directly if possible
         if target_dialect not in TRANSPILE_VIA_MAP:
-            return ibis.to_sql(self._expression, dialect=target_dialect)
+            return ibis.to_sql(self._ibis_object, dialect=target_dialect)
 
         # here we need to transpile first
         transpile_via = TRANSPILE_VIA_MAP[target_dialect]
-        sql = ibis.to_sql(self._expression, dialect=transpile_via)
+        sql = ibis.to_sql(self._ibis_object, dialect=transpile_via)
         sql = sqlglot.transpile(sql, read=transpile_via, write=target_dialect)[0]
         return sql
 
@@ -95,14 +95,14 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
         """Proxy method calls to the underlying ibis expression, allowing to wrap the resulting expression in a new relation"""
 
         # Get the method from the expression
-        method = getattr(self._expression, method_name)
+        method = getattr(self._ibis_object, method_name)
 
         # unwrap args and kwargs if they are relations
         args = tuple(
-            arg._expression if isinstance(arg, ReadableIbisRelation) else arg for arg in args
+            arg._ibis_object if isinstance(arg, ReadableIbisRelation) else arg for arg in args
         )
         kwargs = {
-            k: v._expression if isinstance(v, ReadableIbisRelation) else v
+            k: v._ibis_object if isinstance(v, ReadableIbisRelation) else v
             for k, v in kwargs.items()
         }
 
@@ -120,32 +120,31 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
         result = method(*args, **kwargs)
 
         # If result is an ibis expression, wrap it in a new relation else return raw result
-        if isinstance(result, Expr):
-            return self.__class__(readable_dataset=self._dataset, expression=result)
-        return result
+        return self.__class__(readable_dataset=self._dataset, ibis_object=result)
 
     def __getattr__(self, name: str) -> Any:
         """Wrap all callable attributes of the expression"""
 
-        attr = getattr(self._expression, name, None)
+        attr = getattr(self._ibis_object, name, None)
 
         # try casefolded name for ibis columns access
         if attr is None:
             name = self.sql_client.capabilities.casefold_identifier(name)
-            attr = getattr(self._expression, name, None)
+            attr = getattr(self._ibis_object, name, None)
 
         if attr is None:
             raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
 
         if not callable(attr):
-            return attr
+            return self.__class__(readable_dataset=self._dataset, ibis_object=attr)
+
         return partial(self._proxy_expression_method, name)
 
     def __getitem__(self, columns: Union[str, Sequence[str]]) -> "ReadableIbisRelation":
         # casefold column-names
         columns = [self.sql_client.capabilities.casefold_identifier(col) for col in columns]
-        expr = self._expression[columns]
-        return self.__class__(readable_dataset=self._dataset, expression=expr)
+        expr = self._ibis_object[columns]
+        return self.__class__(readable_dataset=self._dataset, ibis_object=expr)
 
     # forward ibis methods defined on interface
     def limit(self, limit: int) -> "ReadableIbisRelation":
@@ -159,3 +158,40 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
     def select(self, *columns: str) -> "ReadableIbisRelation":
         """set which columns will be selected"""
         return self._proxy_expression_method("select", *columns)  # type: ignore
+
+    # forward ibis comparison and math operators
+    def __lt__(self, other) -> "ReadableIbisRelation":
+        return self._proxy_expression_method("__lt__", other)  # type: ignore
+
+    def __gt__(self, other) -> "ReadableIbisRelation":
+        return self._proxy_expression_method("__gt__", other)  # type: ignore
+
+    def __ge__(self, other) -> "ReadableIbisRelation":
+        return self._proxy_expression_method("__ge__", other)  # type: ignore
+
+    def __le__(self, other) -> "ReadableIbisRelation":
+        return self._proxy_expression_method("__le__", other)  # type: ignore
+
+    def __eq__(self, other) -> "ReadableIbisRelation":
+        return self._proxy_expression_method("__eq__", other)  # type: ignore
+
+    def __ne__(self, other) -> "ReadableIbisRelation":
+        return self._proxy_expression_method("__ne__", other)  # type: ignore
+
+    def __and__(self, other) -> "ReadableIbisRelation":
+        return self._proxy_expression_method("__and__", other)  # type: ignore
+
+    def __or__(self, other) -> "ReadableIbisRelation":
+        return self._proxy_expression_method("__or__", other)  # type: ignore
+
+    def __mul__(self, other) -> "ReadableIbisRelation":
+        return self._proxy_expression_method("__mul__", other)  # type: ignore
+
+    def __div__(self, other) -> "ReadableIbisRelation":
+        return self._proxy_expression_method("__div__", other)  # type: ignore
+
+    def __add__(self, other) -> "ReadableIbisRelation":
+        return self._proxy_expression_method("__add__", other)  # type: ignore
+
+    def __sub__(self, other) -> "ReadableIbisRelation":
+        return self._proxy_expression_method("__sub__", other)  # type: ignore

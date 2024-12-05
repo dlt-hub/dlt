@@ -1,5 +1,5 @@
 from typing import Any, cast
-
+import re
 import pytest
 import dlt
 import os
@@ -486,6 +486,105 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     # check filtering
     filtered_table = items_table.filter(items_table.id < 10)
     assert len(filtered_table.fetchall()) == 10
+
+    if populated_pipeline.destination.destination_type != "dlt.destinations.duckdb":
+        return
+
+    # we check a bunch of expressions without executing them to see that they produce correct sql
+    def sql_from_expr(expr: Any) -> str:
+        query = str(expr.query).replace(populated_pipeline.dataset_name, "dataset")
+        return re.sub(r"\s+", " ", query)
+
+    # test all functions discussed here: https://ibis-project.org/tutorials/ibis-for-sql-users
+
+    # selecting two columns
+    assert (
+        sql_from_expr(items_table.select("id", "decimal"))
+        == 'SELECT "t0"."id", "t0"."decimal" FROM "dataset"."items" AS "t0"'
+    )
+
+    # adding a new columns
+    new_col = (items_table.id * 2).name("new_col")
+    assert (
+        sql_from_expr(items_table.select("id", "decimal", new_col))
+        == 'SELECT "t0"."id", "t0"."decimal", "t0"."id" * 2 AS "new_col" FROM "dataset"."items" AS'
+        ' "t0"'
+    )
+
+    # mutating table (add a new column computed from existing columns)
+    assert (
+        sql_from_expr(items_table.mutate(double_id=items_table.id * 2).select("id", "double_id"))
+        == 'SELECT "t0"."id", "t0"."id" * 2 AS "double_id" FROM "dataset"."items" AS "t0"'
+    )
+
+    # check filtering
+    assert (
+        sql_from_expr(items_table.filter(items_table.id < 10))
+        == 'SELECT * FROM "dataset"."items" AS "t0" WHERE "t0"."id" < 10'
+    )
+
+    # filtering and selecting a single column
+    assert (
+        sql_from_expr(items_table.filter(items_table.id < 10).select("id"))
+        == 'SELECT "t0"."id" FROM "dataset"."items" AS "t0" WHERE "t0"."id" < 10'
+    )
+
+    # check filter and
+    assert (
+        sql_from_expr(items_table.filter(items_table.id < 10).filter(items_table.id > 5))
+        == 'SELECT * FROM "dataset"."items" AS "t0" WHERE "t0"."id" < 10 AND "t0"."id" > 5'
+    )
+
+    # check filter or
+    assert (
+        sql_from_expr(items_table.filter((items_table.id < 10) | (items_table.id > 5)))
+        == 'SELECT * FROM "dataset"."items" AS "t0" WHERE ( "t0"."id" < 10 ) OR ( "t0"."id" > 5 )'
+    )
+
+    # check group by and aggregate
+    assert (
+        sql_from_expr(
+            items_table.group_by("id")
+            .having(items_table.count() >= 1000)
+            .aggregate(sum_id=items_table.id.sum())
+        )
+        == 'SELECT "t1"."id", "t1"."sum_id" FROM ( SELECT "t0"."id", SUM("t0"."id") AS "sum_id",'
+        ' COUNT(*) AS "CountStar(items)" FROM "dataset"."items" AS "t0" GROUP BY 1 ) AS "t1"'
+        ' WHERE "t1"."CountStar(items)" >= 1000'
+    )
+
+    # sorting and ordering
+    assert (
+        sql_from_expr(items_table.order_by("id", "decimal").limit(10))
+        == 'SELECT * FROM "dataset"."items" AS "t0" ORDER BY "t0"."id" ASC, "t0"."decimal" ASC'
+        " LIMIT 10"
+    )
+
+    # join
+    assert (
+        sql_from_expr(
+            items_table.join(double_items_table, items_table.id == double_items_table.id)[
+                ["id", "double_id"]
+            ]
+        )
+        == 'SELECT "t2"."id", "t3"."double_id" FROM "dataset"."items" AS "t2" INNER JOIN'
+        ' "dataset"."double_items" AS "t3" ON "t2"."id" = "t3"."id"'
+    )
+
+    # subqueries
+    assert (
+        sql_from_expr(items_table.filter(items_table.decimal.isin(double_items_table.di_decimal)))
+        == 'SELECT * FROM "dataset"."items" AS "t0" WHERE "t0"."decimal" IN ( SELECT'
+        ' "t1"."di_decimal" FROM "dataset"."double_items" AS "t1" )'
+    )
+
+    # topk
+    assert (
+        sql_from_expr(items_table.decimal.topk(10))
+        == 'SELECT * FROM ( SELECT "t0"."decimal", COUNT(*) AS "CountStar(items)" FROM'
+        ' "dataset"."items" AS "t0" GROUP BY 1 ) AS "t1" ORDER BY "t1"."CountStar(items)" DESC'
+        " LIMIT 10"
+    )
 
     # NOTE: here we test that dlt column type resolution still works
     # re-enable this when lineage is implemented

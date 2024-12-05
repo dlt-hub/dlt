@@ -122,7 +122,7 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
                 from dlt.destinations.dataset.ibis_relation import ReadableIbisRelation
 
                 unbound_table = create_unbound_ibis_table(self.sql_client, self.schema, table_name)
-                return ReadableIbisRelation(readable_dataset=self, expression=unbound_table)  # type: ignore[abstract]
+                return ReadableIbisRelation(readable_dataset=self, ibis_object=unbound_table)  # type: ignore[abstract]
             except MissingDependencyException:
                 # if ibis is explicitly requested, reraise
                 if self._dataset_type == "ibis":
