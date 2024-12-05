@@ -10,7 +10,6 @@ from tests.load.utils import (
 )
 from tests.pipeline.utils import assert_load_info
 
-
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential
 
@@ -145,3 +144,24 @@ def test_databricks_gcs_external_location(destination_config: DestinationTestCon
     assert (
         "credential_x" in pipeline.list_failed_jobs_in_package(info.loads_ids[0])[0].failed_message
     )
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=("databricks",)),
+    ids=lambda x: x.name,
+)
+def test_databricks_oauth(destination_config: DestinationTestConfiguration) -> None:
+    os.environ["DESTINATION__DATABRICKS__CREDENTIALS__AUTH_TYPE"] = "databricks-oauth"
+
+    dataset_name = "test_databricks_oauth" + uniq_id()
+    pipeline = destination_config.setup_pipeline(
+        "test_databricks_oauth", dataset_name=dataset_name, destination="databricks"
+    )
+
+    info = pipeline.run([1, 2, 3], table_name="digits", **destination_config.run_kwargs)
+    assert info.has_failed_jobs is False
+
+    with pipeline.sql_client() as client:
+        rows = client.execute_sql(f"select * from {dataset_name}.digits")
+        assert len(rows) == 3
