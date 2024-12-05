@@ -124,6 +124,12 @@ class SettingsTomlProvider(CustomLoaderDocProvider):
         """Try to load the toml from google colab userdata object"""
         try:
             from google.colab import userdata
+            from dlt.common.runtime.exec_info import is_notebook
+
+            # make sure we work in interactive mode (get_ipython() is available)
+            # when dlt cli is run, userdata is available but without a kernel
+            if not is_notebook():
+                return None
 
             try:
                 return tomlkit.loads(userdata.get(file_name))

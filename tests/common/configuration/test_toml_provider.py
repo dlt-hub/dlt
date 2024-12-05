@@ -4,6 +4,7 @@ import pytest
 import yaml
 from typing import Any, Dict, Type
 import datetime  # noqa: I251
+from unittest.mock import Mock
 
 import dlt
 from dlt.common import pendulum, json
@@ -538,11 +539,28 @@ def test_custom_loader(toml_providers: ConfigProvidersContainer) -> None:
 
 
 def test_colab_toml() -> None:
+    import builtins
+
     # use a path without any settings files
     try:
         sys.path.append("tests/common/cases/modules")
-        # secrets are in user data
+
+        # ipython not present
         provider: SettingsTomlProvider = SecretsTomlProvider("tests/common/null", global_dir=None)
+        assert provider.is_empty
+
+        get_ipython_m = Mock()
+        get_ipython_m.return_value = "google.colab.Shell"
+        # make it available to all modules
+        builtins.get_ipython = get_ipython_m  # type: ignore[attr-defined]
+        # test mock
+        assert get_ipython() == "google.colab.Shell"  # type: ignore[name-defined] # noqa
+        from dlt.common.runtime.exec_info import is_notebook
+
+        assert is_notebook()
+
+        # secrets are in user data
+        provider = SecretsTomlProvider("tests/common/null", global_dir=None)
         assert provider.to_toml() == 'api_key="api"'
         # config is not in userdata
         provider = ConfigTomlProvider("tests/common/null", "unknown")
@@ -551,4 +569,5 @@ def test_colab_toml() -> None:
         provider = SecretsTomlProvider("tests/common/cases/configuration/.dlt", global_dir=None)
         assert provider.get_value("secret_value", str, None) == ("2137", "secret_value")
     finally:
+        delattr(builtins, "get_ipython")
         sys.path.pop()
