@@ -105,6 +105,11 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
             Note that if logical "end date" is present then also "end_value" will be set which means that resource state is not used and exactly this range of date will be loaded
         on_cursor_value_missing: Specify what happens when the cursor_path does not exist in a record or a record has `None` at the cursor_path: raise, include, exclude
         lag: Optional value used to define a lag or attribution window. For datetime cursors, this is interpreted as seconds. For other types, it uses the + or - operator depending on the last_value_func.
+        range_start: Decide whether the incremental filtering range is `open` or `closed` on the start value side. Default is `closed`.
+            Setting this to `open` means that items with the same cursor value as the last value from the previous run (or `initial_value`) are excluded from the result.
+            The `open` range disables deduplication logic so it can serve as an optimization when you know cursors don't overlap between pipeline runs.
+        range_end: Decide whether the incremental filtering range is `open` or `closed` on the end value side. Default is `open` (exact `end_value` is excluded).
+            Setting this to `closed` means that items with the exact same cursor value as the `end_value` are included in the result.
     """
 
     # this is config/dataclass so declare members

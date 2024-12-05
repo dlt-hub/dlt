@@ -28,3 +28,5 @@ class IncrementalArgs(TypedDict, total=False):
     allow_external_schedulers: Optional[bool]
     lag: Optional[Union[float, int]]
     on_cursor_value_missing: Optional[OnCursorValueMissing]
+    range_start: Optional[TIncrementalRange]
+    range_end: Optional[TIncrementalRange]
