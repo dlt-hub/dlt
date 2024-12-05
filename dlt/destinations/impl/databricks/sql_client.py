@@ -75,7 +75,7 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
 
     def open_connection(self) -> DatabricksSqlConnection:
         conn_params = self.credentials.to_connector_params()
-        self._conn = databricks_lib.sql.connect(
+        self._conn = databricks_lib.connect(
             **conn_params, schema=self.dataset_name, use_inline_params="silent"
         )
         return self._conn
