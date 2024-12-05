@@ -13,7 +13,8 @@ from typing import (
     Dict,
 )
 
-import databricks.sql
+from databricks import sql as databricks_lib  # type: ignore[attr-defined]
+
 from databricks.sql.client import (
     Connection as DatabricksSqlConnection,
     Cursor as DatabricksSqlCursor,
@@ -59,7 +60,7 @@ class DatabricksCursorImpl(DBApiCursorImpl):
 
 
 class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction):
-    dbapi: ClassVar[DBApi] = databricks.sql
+    dbapi: ClassVar[DBApi] = databricks_lib
 
     def __init__(
         self,
@@ -74,7 +75,7 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
 
     def open_connection(self) -> DatabricksSqlConnection:
         conn_params = self.credentials.to_connector_params()
-        self._conn = databricks.sql.connect(
+        self._conn = databricks_lib.sql.connect(
             **conn_params, schema=self.dataset_name, use_inline_params="silent"
         )
         return self._conn
@@ -155,7 +156,7 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
 
     @staticmethod
     def _make_database_exception(ex: Exception) -> Exception:
-        if isinstance(ex, databricks.sql.ServerOperationError):
+        if isinstance(ex, databricks_lib.ServerOperationError):
             if "TABLE_OR_VIEW_NOT_FOUND" in str(ex):
                 return DatabaseUndefinedRelation(ex)
             elif "SCHEMA_NOT_FOUND" in str(ex):
@@ -163,15 +164,15 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
             elif "PARSE_SYNTAX_ERROR" in str(ex):
                 return DatabaseTransientException(ex)
             return DatabaseTerminalException(ex)
-        elif isinstance(ex, databricks.sql.OperationalError):
+        elif isinstance(ex, databricks_lib.OperationalError):
             return DatabaseTransientException(ex)
-        elif isinstance(ex, (databricks.sql.ProgrammingError, databricks.sql.IntegrityError)):
+        elif isinstance(ex, (databricks_lib.ProgrammingError, databricks_lib.IntegrityError)):
             return DatabaseTerminalException(ex)
-        elif isinstance(ex, databricks.sql.DatabaseError):
+        elif isinstance(ex, databricks_lib.DatabaseError):
             return DatabaseTransientException(ex)
         else:
             return DatabaseTransientException(ex)
 
     @staticmethod
     def is_dbapi_exception(ex: Exception) -> bool:
-        return isinstance(ex, databricks.sql.DatabaseError)
+        return isinstance(ex, databricks_lib.DatabaseError)
