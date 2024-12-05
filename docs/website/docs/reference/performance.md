@@ -48,11 +48,7 @@ Some file formats (e.g., Parquet) do not support schema changes when writing a s
 
 Below, we set files to rotate after 100,000 items written or when the filesize exceeds 1MiB.
 
-<!--@@@DLT_SNIPPET ./performance_snippets/toml-snippets.toml::file_size_toml-->
-
-### Controlling destination items sizes
-As mentioned above, `dlt` uses the the same files created between **normalize** and **load** for loading to the destination. You can therefore control the destination items' sizes by controlling the maximum single file size or enabling rotation at the **normalize** stage as demonstrated in the snippet above. 
-
+<!--@@@DLT_SNIPPET ./performance_snippets/toml-snippets.toml::file_size_toml--> 
 
 ### Disabling and enabling file compression
 Several [text file formats](../dlt-ecosystem/file-formats/) have `gzip` compression enabled by default. If you wish that your load packages have uncompressed files (e.g., to debug the content easily), change `data_writer.disable_compression` in config.toml. The entry below will disable the compression of the files processed in the `normalize` stage.
@@ -150,7 +146,7 @@ As before, **if you have just a single table with millions of records, you shoul
 
 <!--@@@DLT_SNIPPET ./performance_snippets/toml-snippets.toml::normalize_workers_2_toml-->
 
-Since the normalize stage uses a process pool to create load packages concurrently, adjusting the `file_max_items` and `file_max_bytes` settings can significantly impact load behavior. By setting a lower value for `file_max_items`, you reduce the size of each data chunk sent to the destination database, which can be particularly useful for managing memory constraints on the database server. Without explicit configuration of `file_max_items`, `dlt` writes all data rows into one large intermediary file, attempting to insert all data from this single file. Configuring `file_max_items` ensures data is inserted in manageable chunks, enhancing performance and preventing potential memory issues.
+The normalize stage in `dlt` uses a process pool to create load packages concurrently, and the settings for `file_max_items` and `file_max_bytes` significantly influence load behavior. By setting a lower value for `file_max_items` or  `file_max_bytes`, you can reduce the size of each data chunk sent to the destination database. This is particularly helpful for managing memory constraints on the database server and ensures data is inserted in manageable chunks. Without explicit configuration, `dlt` writes all data rows into one large intermediary file, attempting to insert all data at once. Adjusting these settings enables file rotation and splits the data into smaller, more efficient chunks, improving performance and avoiding potential memory issues, especially when working with large tables containing millions of records.
 
 ### Parallel pipeline config example
 The example below simulates the loading of a large database table with 1,000,000 records. The **config.toml** below sets the parallelization as follows:
