@@ -184,7 +184,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         self.start_out_of_range: bool = False
         """Becomes true on the first item that is out of range of `start_value`. I.e. when using `max` this is a value that is lower than `start_value`"""
 
-        self._transformers: Dict[str, IncrementalTransform] = {}
+        self._transformers: Dict[Type[IncrementalTransform], IncrementalTransform] = {}
         self._bound_pipe: SupportsPipe = None
         """Bound pipe"""
         self.range_start = range_start
@@ -201,24 +201,6 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         if self._transformers:
             for transform in self._transformers.values():
                 transform.primary_key = value
-
-    def _make_transforms(self) -> None:
-        types = [("arrow", ArrowIncremental), ("json", JsonIncremental)]
-        for dt, kls in types:
-            self._transformers[dt] = kls(
-                self.resource_name,
-                self.cursor_path,
-                self.initial_value,
-                self.start_value,
-                self.end_value,
-                self.last_value_func,
-                self._primary_key,
-                set(self._cached_state["unique_hashes"]),
-                self.on_cursor_value_missing,
-                self.lag,
-                self.range_start,
-                self.range_end,
-            )
 
     @classmethod
     def from_existing_state(
@@ -503,7 +485,8 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         )
         # cache state
         self._cached_state = self.get_state()
-        self._make_transforms()
+        # Clear transforms so we get new instances
+        self._transformers.clear()
         return self
 
     def can_close(self) -> bool:
@@ -534,15 +517,34 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
             f" {self.last_value_func}"
         )
 
+    def _make_transformer(self, cls: Type[IncrementalTransform]) -> IncrementalTransform:
+        if transformer := self._transformers.get(cls):
+            return transformer
+        transformer = self._transformers[cls] = cls(
+            self.resource_name,
+            self.cursor_path,
+            self.initial_value,
+            self.start_value,
+            self.end_value,
+            self.last_value_func,
+            self._primary_key,
+            set(self._cached_state["unique_hashes"]),
+            self.on_cursor_value_missing,
+            self.lag,
+            self.range_start,
+            self.range_end,
+        )
+        return transformer
+
     def _get_transformer(self, items: TDataItems) -> IncrementalTransform:
         # Assume list is all of the same type
         for item in items if isinstance(items, list) else [items]:
             if is_arrow_item(item):
-                return self._transformers["arrow"]
+                return self._make_transformer(ArrowIncremental)
             elif pandas is not None and isinstance(item, pandas.DataFrame):
-                return self._transformers["arrow"]
-            return self._transformers["json"]
-        return self._transformers["json"]
+                return self._make_transformer(ArrowIncremental)
+            return self._make_transformer(JsonIncremental)
+        return self._make_transformer(JsonIncremental)
 
     def __call__(self, rows: TDataItems, meta: Any = None) -> Optional[TDataItems]:
         if rows is None:
