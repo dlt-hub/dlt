@@ -47,17 +47,18 @@ TRANSPILE_VIA_MAP = {
 }
 
 
-# TODO: provide ibis expression typing for the readable relation
 class ReadableIbisRelation(BaseReadableDBAPIRelation):
     def __init__(
         self,
         *,
         readable_dataset: ReadableDBAPIDataset,
         ibis_object: Any = None,
+        columns_schema: TTableSchemaColumns = None,
     ) -> None:
         """Create a lazy evaluated relation to for the dataset of a destination"""
         super().__init__(readable_dataset=readable_dataset)
         self._ibis_object = ibis_object
+        self._columns_schema = columns_schema
 
     @property
     def query(self) -> Any:
@@ -89,7 +90,7 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
     def compute_columns_schema(self) -> TTableSchemaColumns:
         """provide schema columns for the cursor, may be filtered by selected columns"""
         # TODO: provide column lineage tracing with sqlglot lineage
-        return None
+        return self._columns_schema
 
     def _proxy_expression_method(self, method_name: str, *args: Any, **kwargs: Any) -> Any:
         """Proxy method calls to the underlying ibis expression, allowing to wrap the resulting expression in a new relation"""
@@ -119,8 +120,18 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
         # Call it with provided args
         result = method(*args, **kwargs)
 
+        # calculate columns schema for the result, some operations we know will not change the schema
+        # and select will just reduce the amount of column
+        columns_schema = None
+        if method_name == "select":
+            columns_schema = self._get_filtered_columns_schema(args)
+        elif method_name in ["filter", "limit", "order_by", "head"]:
+            columns_schema = self._columns_schema
+
         # If result is an ibis expression, wrap it in a new relation else return raw result
-        return self.__class__(readable_dataset=self._dataset, ibis_object=result)
+        return self.__class__(
+            readable_dataset=self._dataset, ibis_object=result, columns_schema=columns_schema
+        )
 
     def __getattr__(self, name: str) -> Any:
         """Wrap all callable attributes of the expression"""
@@ -136,15 +147,31 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
             raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
 
         if not callable(attr):
+            # NOTE: we don't need to forward columns schema for non-callable attributes, these are usually columns
             return self.__class__(readable_dataset=self._dataset, ibis_object=attr)
 
         return partial(self._proxy_expression_method, name)
 
     def __getitem__(self, columns: Union[str, Sequence[str]]) -> "ReadableIbisRelation":
         # casefold column-names
+        columns = [columns] if isinstance(columns, str) else columns
         columns = [self.sql_client.capabilities.casefold_identifier(col) for col in columns]
         expr = self._ibis_object[columns]
-        return self.__class__(readable_dataset=self._dataset, ibis_object=expr)
+        return self.__class__(
+            readable_dataset=self._dataset,
+            ibis_object=expr,
+            columns_schema=self._get_filtered_columns_schema(columns),
+        )
+
+    def _get_filtered_columns_schema(self, columns: Sequence[str]) -> TTableSchemaColumns:
+        if not self._columns_schema:
+            return None
+        try:
+            return {col: self._columns_schema[col] for col in columns}
+        except KeyError:
+            # NOTE: select statements can contain new columns not present in the original schema
+            # here we just break the column schema inheritance chain
+            return None
 
     # forward ibis methods defined on interface
     def limit(self, limit: int, **kwargs: Any) -> "ReadableIbisRelation":

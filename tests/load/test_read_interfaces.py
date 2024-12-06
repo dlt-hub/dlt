@@ -1,4 +1,4 @@
-from typing import Any, cast
+from typing import Any, cast, Tuple, List
 import re
 import pytest
 import dlt
@@ -493,141 +493,148 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
         return
 
     # we check a bunch of expressions without executing them to see that they produce correct sql
-    def sql_from_expr(expr: Any) -> str:
+    # also we return the keys of the disovered schema columns
+    def sql_from_expr(expr: Any) -> Tuple[str, List[str]]:
         query = str(expr.query).replace(populated_pipeline.dataset_name, "dataset")
-        return re.sub(r"\s+", " ", query)
+        columns = list(expr.columns_schema.keys()) if expr.columns_schema else None
+        return re.sub(r"\s+", " ", query), columns
 
     # test all functions discussed here: https://ibis-project.org/tutorials/ibis-for-sql-users
+    ALL_COLUMNS = ["id", "decimal", "other_decimal", "_dlt_load_id", "_dlt_id"]
 
     # selecting two columns
-    assert (
-        sql_from_expr(items_table.select("id", "decimal"))
-        == 'SELECT "t0"."id", "t0"."decimal" FROM "dataset"."items" AS "t0"'
+    assert sql_from_expr(items_table.select("id", "decimal")) == (
+        'SELECT "t0"."id", "t0"."decimal" FROM "dataset"."items" AS "t0"',
+        ["id", "decimal"],
+    )
+
+    # selecting all columns
+    assert sql_from_expr(items_table) == ('SELECT * FROM "dataset"."items"', ALL_COLUMNS)
+
+    # selecting two other columns via item getter
+    assert sql_from_expr(items_table["id", "decimal"]) == (
+        'SELECT "t0"."id", "t0"."decimal" FROM "dataset"."items" AS "t0"',
+        ["id", "decimal"],
     )
 
     # adding a new columns
     new_col = (items_table.id * 2).name("new_col")
-    assert (
-        sql_from_expr(items_table.select("id", "decimal", new_col))
-        == 'SELECT "t0"."id", "t0"."decimal", "t0"."id" * 2 AS "new_col" FROM "dataset"."items" AS'
-        ' "t0"'
+    assert sql_from_expr(items_table.select("id", "decimal", new_col)) == (
+        (
+            'SELECT "t0"."id", "t0"."decimal", "t0"."id" * 2 AS "new_col" FROM'
+            ' "dataset"."items" AS "t0"'
+        ),
+        None,
     )
 
     # mutating table (add a new column computed from existing columns)
-    assert (
-        sql_from_expr(items_table.mutate(double_id=items_table.id * 2).select("id", "double_id"))
-        == 'SELECT "t0"."id", "t0"."id" * 2 AS "double_id" FROM "dataset"."items" AS "t0"'
+    assert sql_from_expr(
+        items_table.mutate(double_id=items_table.id * 2).select("id", "double_id")
+    ) == (
+        'SELECT "t0"."id", "t0"."id" * 2 AS "double_id" FROM "dataset"."items" AS "t0"',
+        None,
     )
 
     # mutating table add new static column
-    assert (
-        sql_from_expr(
-            items_table.mutate(new_col=ibis.literal("static_value")).select("id", "new_col")
-        )
-        == 'SELECT "t0"."id", \'static_value\' AS "new_col" FROM "dataset"."items" AS "t0"'
-    )
+    assert sql_from_expr(
+        items_table.mutate(new_col=ibis.literal("static_value")).select("id", "new_col")
+    ) == ('SELECT "t0"."id", \'static_value\' AS "new_col" FROM "dataset"."items" AS "t0"', None)
 
-    # check filtering
-    assert (
-        sql_from_expr(items_table.filter(items_table.id < 10))
-        == 'SELECT * FROM "dataset"."items" AS "t0" WHERE "t0"."id" < 10'
+    # check filtering (preserves all columns)
+    assert sql_from_expr(items_table.filter(items_table.id < 10)) == (
+        'SELECT * FROM "dataset"."items" AS "t0" WHERE "t0"."id" < 10',
+        ALL_COLUMNS,
     )
 
     # filtering and selecting a single column
-    assert (
-        sql_from_expr(items_table.filter(items_table.id < 10).select("id"))
-        == 'SELECT "t0"."id" FROM "dataset"."items" AS "t0" WHERE "t0"."id" < 10'
+    assert sql_from_expr(items_table.filter(items_table.id < 10).select("id")) == (
+        'SELECT "t0"."id" FROM "dataset"."items" AS "t0" WHERE "t0"."id" < 10',
+        ["id"],
     )
 
-    # check filter and
-    assert (
-        sql_from_expr(items_table.filter(items_table.id < 10).filter(items_table.id > 5))
-        == 'SELECT * FROM "dataset"."items" AS "t0" WHERE "t0"."id" < 10 AND "t0"."id" > 5'
+    # check filter "and" condition
+    assert sql_from_expr(items_table.filter(items_table.id < 10).filter(items_table.id > 5)) == (
+        'SELECT * FROM "dataset"."items" AS "t0" WHERE "t0"."id" < 10 AND "t0"."id" > 5',
+        ALL_COLUMNS,
     )
 
-    # check filter or
-    assert (
-        sql_from_expr(items_table.filter((items_table.id < 10) | (items_table.id > 5)))
-        == 'SELECT * FROM "dataset"."items" AS "t0" WHERE ( "t0"."id" < 10 ) OR ( "t0"."id" > 5 )'
+    # check filter "or" condition
+    assert sql_from_expr(items_table.filter((items_table.id < 10) | (items_table.id > 5))) == (
+        'SELECT * FROM "dataset"."items" AS "t0" WHERE ( "t0"."id" < 10 ) OR ( "t0"."id" > 5 )',
+        ALL_COLUMNS,
     )
 
     # check group by and aggregate
-    assert (
-        sql_from_expr(
-            items_table.group_by("id")
-            .having(items_table.count() >= 1000)
-            .aggregate(sum_id=items_table.id.sum())
-        )
-        == 'SELECT "t1"."id", "t1"."sum_id" FROM ( SELECT "t0"."id", SUM("t0"."id") AS "sum_id",'
-        ' COUNT(*) AS "CountStar(items)" FROM "dataset"."items" AS "t0" GROUP BY 1 ) AS "t1"'
-        ' WHERE "t1"."CountStar(items)" >= 1000'
+    assert sql_from_expr(
+        items_table.group_by("id")
+        .having(items_table.count() >= 1000)
+        .aggregate(sum_id=items_table.id.sum())
+    ) == (
+        (
+            'SELECT "t1"."id", "t1"."sum_id" FROM ( SELECT "t0"."id", SUM("t0"."id") AS "sum_id",'
+            ' COUNT(*) AS "CountStar(items)" FROM "dataset"."items" AS "t0" GROUP BY 1 ) AS "t1"'
+            ' WHERE "t1"."CountStar(items)" >= 1000'
+        ),
+        None,
     )
 
     # sorting and ordering
-    assert (
-        sql_from_expr(items_table.order_by("id", "decimal").limit(10))
-        == 'SELECT * FROM "dataset"."items" AS "t0" ORDER BY "t0"."id" ASC, "t0"."decimal" ASC'
-        " LIMIT 10"
+    assert sql_from_expr(items_table.order_by("id", "decimal").limit(10)) == (
+        (
+            'SELECT * FROM "dataset"."items" AS "t0" ORDER BY "t0"."id" ASC, "t0"."decimal" ASC'
+            " LIMIT 10"
+        ),
+        ALL_COLUMNS,
     )
 
     # sort desc and asc
-    assert (
-        sql_from_expr(items_table.order_by(ibis.desc("id"), ibis.asc("decimal")).limit(10))
-        == 'SELECT * FROM "dataset"."items" AS "t0" ORDER BY "t0"."id" DESC, "t0"."decimal" ASC'
-        " LIMIT 10"
+    assert sql_from_expr(items_table.order_by(ibis.desc("id"), ibis.asc("decimal")).limit(10)) == (
+        (
+            'SELECT * FROM "dataset"."items" AS "t0" ORDER BY "t0"."id" DESC, "t0"."decimal" ASC'
+            " LIMIT 10"
+        ),
+        ALL_COLUMNS,
     )
 
     # offset and limit
-    assert (
-        sql_from_expr(items_table.order_by("id").limit(10, offset=5))
-        == 'SELECT * FROM "dataset"."items" AS "t0" ORDER BY "t0"."id" ASC LIMIT 10 OFFSET 5'
+    assert sql_from_expr(items_table.order_by("id").limit(10, offset=5)) == (
+        'SELECT * FROM "dataset"."items" AS "t0" ORDER BY "t0"."id" ASC LIMIT 10 OFFSET 5',
+        ALL_COLUMNS,
     )
 
     # join
-    assert (
-        sql_from_expr(
-            items_table.join(double_items_table, items_table.id == double_items_table.id)[
-                ["id", "double_id"]
-            ]
-        )
-        == 'SELECT "t2"."id", "t3"."double_id" FROM "dataset"."items" AS "t2" INNER JOIN'
-        ' "dataset"."double_items" AS "t3" ON "t2"."id" = "t3"."id"'
+    assert sql_from_expr(
+        items_table.join(double_items_table, items_table.id == double_items_table.id)[
+            ["id", "double_id"]
+        ]
+    ) == (
+        (
+            'SELECT "t2"."id", "t3"."double_id" FROM "dataset"."items" AS "t2" INNER JOIN'
+            ' "dataset"."double_items" AS "t3" ON "t2"."id" = "t3"."id"'
+        ),
+        None,
     )
 
     # subqueries
-    assert (
-        sql_from_expr(items_table.filter(items_table.decimal.isin(double_items_table.di_decimal)))
-        == 'SELECT * FROM "dataset"."items" AS "t0" WHERE "t0"."decimal" IN ( SELECT'
-        ' "t1"."di_decimal" FROM "dataset"."double_items" AS "t1" )'
+    assert sql_from_expr(
+        items_table.filter(items_table.decimal.isin(double_items_table.di_decimal))
+    ) == (
+        (
+            'SELECT * FROM "dataset"."items" AS "t0" WHERE "t0"."decimal" IN ( SELECT'
+            ' "t1"."di_decimal" FROM "dataset"."double_items" AS "t1" )'
+        ),
+        ALL_COLUMNS,
     )
 
     # topk
-    assert (
-        sql_from_expr(items_table.decimal.topk(10))
-        == 'SELECT * FROM ( SELECT "t0"."decimal", COUNT(*) AS "CountStar(items)" FROM'
-        ' "dataset"."items" AS "t0" GROUP BY 1 ) AS "t1" ORDER BY "t1"."CountStar(items)" DESC'
-        " LIMIT 10"
+    assert sql_from_expr(items_table.decimal.topk(10)) == (
+        (
+            'SELECT * FROM ( SELECT "t0"."decimal", COUNT(*) AS "CountStar(items)" FROM'
+            ' "dataset"."items" AS "t0" GROUP BY 1 ) AS "t1" ORDER BY "t1"."CountStar(items)" DESC'
+            " LIMIT 10"
+        ),
+        None,
     )
-
-    # NOTE: here we test that dlt column type resolution still works
-    # re-enable this when lineage is implemented
-    # expected_decimal_precision = 10
-    # expected_decimal_precision_2 = 12
-    # expected_decimal_precision_di = 7
-    # if populated_pipeline.destination.destination_type == "dlt.destinations.bigquery":
-    #     # bigquery does not allow precision configuration..
-    #     expected_decimal_precision = 38
-    #     expected_decimal_precision_2 = 38
-    #     expected_decimal_precision_di = 38
-
-    # joined_table = items_table.join(double_items_table, items_table.id == double_items_table.id)[
-    #     ["decimal", "other_decimal", "di_decimal"]
-    # ].rename(decimal_renamed="di_decimal").limit(20)
-    # table = joined_table.arrow()
-    # print(joined_table.compute_columns_schema(force=True))
-    # assert table.schema.field("decimal").type.precision == expected_decimal_precision
-    # assert table.schema.field("other_decimal").type.precision == expected_decimal_precision_2
-    # assert table.schema.field("di_decimal").type.precision == expected_decimal_precision_di
 
 
 @pytest.mark.no_load
