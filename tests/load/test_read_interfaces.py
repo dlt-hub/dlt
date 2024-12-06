@@ -53,13 +53,6 @@ def _expected_chunk_count(p: Pipeline) -> List[int]:
 def populated_pipeline(request) -> Any:
     """fixture that returns a pipeline object populated with the example data"""
 
-    # ensure ibis is installed for these tests
-    import subprocess
-
-    subprocess.check_call(
-        ["pip", "install", "ibis-framework[duckdb,postgres,bigquery,snowflake,mssql,clickhouse]"]
-    )
-
     destination_config = cast(DestinationTestConfiguration, request.param)
 
     if (
