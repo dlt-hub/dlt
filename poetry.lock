@@ -776,7 +776,7 @@ files = [
 name = "atpublic"
 version = "5.0"
 description = "Keep all y'all's __all__'s in sync"
-optional = true
+optional = false
 python-versions = ">=3.8"
 files = [
     {file = "atpublic-5.0-py3-none-any.whl", hash = "sha256:b651dcd886666b1042d1e38158a22a4f2c267748f4e97fde94bc492a4a28a3f3"},
@@ -1755,7 +1755,7 @@ PyYAML = ">=3.11"
 name = "clickhouse-connect"
 version = "0.7.8"
 description = "ClickHouse Database Core Driver for Python, Pandas, and Superset"
-optional = true
+optional = false
 python-versions = "~=3.8"
 files = [
     {file = "clickhouse-connect-0.7.8.tar.gz", hash = "sha256:dad10ba90eabfe215dfb1fef59f2821a95c752988e66f1093ca8590a51539b8f"},
@@ -2242,7 +2242,7 @@ urllib3 = ">=1.0"
 name = "db-dtypes"
 version = "1.3.0"
 description = "Pandas Data Types for SQL systems (BigQuery, Spanner)"
-optional = true
+optional = false
 python-versions = ">=3.7"
 files = [
     {file = "db_dtypes-1.3.0-py2.py3-none-any.whl", hash = "sha256:7e65c59f849ccbe6f7bc4d0253edcc212a7907662906921caba3e4aadd0bc277"},
@@ -3526,7 +3526,7 @@ tqdm = ["tqdm (>=4.7.4,<5.0.0dev)"]
 name = "google-cloud-bigquery-storage"
 version = "2.27.0"
 description = "Google Cloud Bigquery Storage API client library"
-optional = true
+optional = false
 python-versions = ">=3.7"
 files = [
     {file = "google_cloud_bigquery_storage-2.27.0-py2.py3-none-any.whl", hash = "sha256:3bfa8f74a61ceaffd3bfe90be5bbef440ad81c1c19ac9075188cccab34bffc2b"},
@@ -4506,7 +4506,7 @@ files = [
 name = "ibis-framework"
 version = "10.0.0.dev256"
 description = "The portable Python dataframe library"
-optional = true
+optional = false
 python-versions = "<4.0,>=3.10"
 files = [
     {file = "ibis_framework-10.0.0.dev256-py3-none-any.whl", hash = "sha256:d6f21278e6fd78920bbe986df2c871921142635cc4f7d5d2048cae26e307a3df"},
@@ -5212,7 +5212,7 @@ source = ["Cython (>=0.29.35)"]
 name = "lz4"
 version = "4.3.3"
 description = "LZ4 Bindings for Python"
-optional = true
+optional = false
 python-versions = ">=3.8"
 files = [
     {file = "lz4-4.3.3-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:b891880c187e96339474af2a3b2bfb11a8e4732ff5034be919aa9029484cd201"},
@@ -6645,7 +6645,7 @@ future = "*"
 name = "parsy"
 version = "2.1"
 description = "Easy-to-use parser combinators, for parsing in pure Python"
-optional = true
+optional = false
 python-versions = ">=3.7"
 files = [
     {file = "parsy-2.1-py3-none-any.whl", hash = "sha256:8f18e7b11985e7802e7e3ecbd8291c6ca243d29820b1186e4c84605db4efffa0"},
@@ -7080,7 +7080,7 @@ test = ["enum34", "ipaddress", "mock", "pywin32", "wmi"]
 name = "psycopg2"
 version = "2.9.10"
 description = "psycopg2 - Python-PostgreSQL Database Adapter"
-optional = true
+optional = false
 python-versions = ">=3.8"
 files = [
     {file = "psycopg2-2.9.10-cp310-cp310-win32.whl", hash = "sha256:5df2b672140f95adb453af93a7d669d7a7bf0a56bcd26f1502329166f4a61716"},
@@ -7243,7 +7243,7 @@ test = ["cffi", "hypothesis", "pandas", "pytest", "pytz"]
 name = "pyarrow-hotfix"
 version = "0.6"
 description = ""
-optional = true
+optional = false
 python-versions = ">=3.5"
 files = [
     {file = "pyarrow_hotfix-0.6-py3-none-any.whl", hash = "sha256:dcc9ae2d220dff0083be6a9aa8e0cdee5182ad358d4931fce825c545e5c89178"},
@@ -7456,7 +7456,7 @@ typing-extensions = ">=4.6.0,<4.7.0 || >4.7.0"
 name = "pydata-google-auth"
 version = "1.9.0"
 description = "PyData helpers for authenticating to Google APIs"
-optional = true
+optional = false
 python-versions = ">=3.9"
 files = [
     {file = "pydata-google-auth-1.9.0.tar.gz", hash = "sha256:2f546e88f007dfdb050087556eb46d6008e351386a7b368096797fae5df374f2"},
@@ -9650,7 +9650,7 @@ files = [
 name = "toolz"
 version = "1.0.0"
 description = "List processing tools and functional utilities"
-optional = true
+optional = false
 python-versions = ">=3.8"
 files = [
     {file = "toolz-1.0.0-py3-none-any.whl", hash = "sha256:292c8f1c4e7516bf9086f8850935c799a874039c8bcf959d47b600e4c44a6236"},
@@ -10529,7 +10529,7 @@ testing = ["big-O", "jaraco.functools", "jaraco.itertools", "more-itertools", "p
 name = "zstandard"
 version = "0.22.0"
 description = "Zstandard bindings for Python"
-optional = true
+optional = false
 python-versions = ">=3.8"
 files = [
     {file = "zstandard-0.22.0-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:275df437ab03f8c033b8a2c181e51716c32d831082d93ce48002a5227ec93019"},
@@ -10618,4 +10618,4 @@ weaviate = ["weaviate-client"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.8.1,<3.13"
-content-hash = "8911c1d560b57d7be609c41255cc45970ea350d09ce4ea6125e3322583d958ec"
+content-hash = "04a6c94f2e805f05083a06e7cae58f41789f9f50f3859c2032051fc385a8ca4b"
