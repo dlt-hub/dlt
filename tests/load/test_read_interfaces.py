@@ -446,6 +446,7 @@ def test_schema_arg(populated_pipeline: Pipeline) -> None:
 )
 def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     # NOTE: we could generalize this with a context for certain deps
+    import ibis
 
     # now we should get the more powerful ibis relation
     dataset = populated_pipeline._dataset()
@@ -517,6 +518,14 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
         == 'SELECT "t0"."id", "t0"."id" * 2 AS "double_id" FROM "dataset"."items" AS "t0"'
     )
 
+    # mutating table add new static column
+    assert (
+        sql_from_expr(
+            items_table.mutate(new_col=ibis.literal("static_value")).select("id", "new_col")
+        )
+        == 'SELECT "t0"."id", \'static_value\' AS "new_col" FROM "dataset"."items" AS "t0"'
+    )
+
     # check filtering
     assert (
         sql_from_expr(items_table.filter(items_table.id < 10))
@@ -558,6 +567,19 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
         sql_from_expr(items_table.order_by("id", "decimal").limit(10))
         == 'SELECT * FROM "dataset"."items" AS "t0" ORDER BY "t0"."id" ASC, "t0"."decimal" ASC'
         " LIMIT 10"
+    )
+
+    # sort desc and asc
+    assert (
+        sql_from_expr(items_table.order_by(ibis.desc("id"), ibis.asc("decimal")).limit(10))
+        == 'SELECT * FROM "dataset"."items" AS "t0" ORDER BY "t0"."id" DESC, "t0"."decimal" ASC'
+        " LIMIT 10"
+    )
+
+    # offset and limit
+    assert (
+        sql_from_expr(items_table.order_by("id").limit(10, offset=5))
+        == 'SELECT * FROM "dataset"."items" AS "t0" ORDER BY "t0"."id" ASC LIMIT 10 OFFSET 5'
     )
 
     # join

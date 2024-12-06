@@ -9,7 +9,6 @@ try:
     import ibis  # type: ignore
     import sqlglot
     from ibis import BaseBackend, Expr
-    from ibis.expr.types.groupby import GroupedTable
 except ModuleNotFoundError:
     raise MissingDependencyException("dlt ibis Helpers", ["ibis"])
 

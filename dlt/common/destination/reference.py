@@ -536,7 +536,7 @@ class SupportsReadableRelation(Protocol):
         ...
 
     # modifying access parameters
-    def limit(self, limit: int) -> "SupportsReadableRelation":
+    def limit(self, limit: int, **kwargs: Any) -> "SupportsReadableRelation":
         """limit the result to 'limit' items"""
         ...
 

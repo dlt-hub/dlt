@@ -178,7 +178,7 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
             selected_columns=self._selected_columns,
         )
 
-    def limit(self, limit: int) -> "ReadableDBAPIRelation":
+    def limit(self, limit: int, **kwargs: Any) -> "ReadableDBAPIRelation":
         if self._provided_query:
             raise ReadableRelationHasQueryException("limit")
         rel = self.__copy__()

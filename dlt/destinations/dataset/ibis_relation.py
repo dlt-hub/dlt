@@ -13,7 +13,7 @@ else:
     ReadableDBAPIDataset = Any
 
 try:
-    from dlt.common.libs.ibis import Expr, GroupedTable
+    from dlt.common.libs.ibis import Expr
 except MissingDependencyException:
     Expr = Any
 
@@ -147,9 +147,9 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
         return self.__class__(readable_dataset=self._dataset, ibis_object=expr)
 
     # forward ibis methods defined on interface
-    def limit(self, limit: int) -> "ReadableIbisRelation":
+    def limit(self, limit: int, **kwargs: Any) -> "ReadableIbisRelation":
         """limit the result to 'limit' items"""
-        return self._proxy_expression_method("limit", limit)  # type: ignore
+        return self._proxy_expression_method("limit", limit, **kwargs)  # type: ignore
 
     def head(self, limit: int = 5) -> "ReadableIbisRelation":
         """limit the result to 5 items by default"""
@@ -160,38 +160,38 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
         return self._proxy_expression_method("select", *columns)  # type: ignore
 
     # forward ibis comparison and math operators
-    def __lt__(self, other) -> "ReadableIbisRelation":
+    def __lt__(self, other: Any) -> "ReadableIbisRelation":
         return self._proxy_expression_method("__lt__", other)  # type: ignore
 
-    def __gt__(self, other) -> "ReadableIbisRelation":
+    def __gt__(self, other: Any) -> "ReadableIbisRelation":
         return self._proxy_expression_method("__gt__", other)  # type: ignore
 
-    def __ge__(self, other) -> "ReadableIbisRelation":
+    def __ge__(self, other: Any) -> "ReadableIbisRelation":
         return self._proxy_expression_method("__ge__", other)  # type: ignore
 
-    def __le__(self, other) -> "ReadableIbisRelation":
+    def __le__(self, other: Any) -> "ReadableIbisRelation":
         return self._proxy_expression_method("__le__", other)  # type: ignore
 
-    def __eq__(self, other) -> "ReadableIbisRelation":
+    def __eq__(self, other: Any) -> bool:
         return self._proxy_expression_method("__eq__", other)  # type: ignore
 
-    def __ne__(self, other) -> "ReadableIbisRelation":
+    def __ne__(self, other: Any) -> bool:
         return self._proxy_expression_method("__ne__", other)  # type: ignore
 
-    def __and__(self, other) -> "ReadableIbisRelation":
+    def __and__(self, other: Any) -> "ReadableIbisRelation":
         return self._proxy_expression_method("__and__", other)  # type: ignore
 
-    def __or__(self, other) -> "ReadableIbisRelation":
+    def __or__(self, other: Any) -> "ReadableIbisRelation":
         return self._proxy_expression_method("__or__", other)  # type: ignore
 
-    def __mul__(self, other) -> "ReadableIbisRelation":
+    def __mul__(self, other: Any) -> "ReadableIbisRelation":
         return self._proxy_expression_method("__mul__", other)  # type: ignore
 
-    def __div__(self, other) -> "ReadableIbisRelation":
+    def __div__(self, other: Any) -> "ReadableIbisRelation":
         return self._proxy_expression_method("__div__", other)  # type: ignore
 
-    def __add__(self, other) -> "ReadableIbisRelation":
+    def __add__(self, other: Any) -> "ReadableIbisRelation":
         return self._proxy_expression_method("__add__", other)  # type: ignore
 
-    def __sub__(self, other) -> "ReadableIbisRelation":
+    def __sub__(self, other: Any) -> "ReadableIbisRelation":
         return self._proxy_expression_method("__sub__", other)  # type: ignore
