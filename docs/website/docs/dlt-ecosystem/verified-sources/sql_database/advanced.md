@@ -16,7 +16,7 @@ Efficient data management often requires loading only new or updated data from y
 
 Incremental loading uses a cursor column (e.g., timestamp or auto-incrementing ID) to load only data newer than a specified initial value, enhancing efficiency by reducing processing time and resource use. Read [here](../../../walkthroughs/sql-incremental-configuration) for more details on incremental loading with `dlt`.
 
-#### How to configure
+### How to configure
 1. **Choose a cursor column**: Identify a column in your SQL table that can serve as a reliable indicator of new or updated rows. Common choices include timestamp columns or auto-incrementing IDs.
 1. **Set an initial value**: Choose a starting value for the cursor to begin loading data. This could be a specific timestamp or ID from which you wish to start loading data.
 1. **Deduplication**: When using incremental loading, the system automatically handles the deduplication of rows based on the primary key (if available) or row hash for tables without a primary key.
@@ -27,7 +27,7 @@ Incremental loading uses a cursor column (e.g., timestamp or auto-incrementing I
 If your cursor column name contains special characters (e.g., `$`) you need to escape it when passing it to the `incremental` function. For example, if your cursor column is `example_$column`, you should pass it as `"'example_$column'"` or `'"example_$column"'` to the `incremental` function: `incremental("'example_$column'", initial_value=...)`.
 :::
 
-#### Examples
+### Examples
 
 1. **Incremental loading with the resource `sql_table`**.
 
@@ -52,7 +52,7 @@ If your cursor column name contains special characters (e.g., `$`) you need to e
   print(extract_info)
   ```
 
-  Behind the scene, the loader generates a SQL query filtering rows with `last_modified` values greater than the incremental value. In the first run, this is the initial value (midnight (00:00:00) January 1, 2024).
+  Behind the scene, the loader generates a SQL query filtering rows with `last_modified` values greater or equal to the incremental value. In the first run, this is the initial value (midnight (00:00:00) January 1, 2024).
   In subsequent runs, it is the latest value of `last_modified` that `dlt` stores in [state](../../../general-usage/state).
 
 2. **Incremental loading with the source `sql_database`**.
@@ -77,6 +77,49 @@ If your cursor column name contains special characters (e.g., `$`) you need to e
     * When using "merge" write disposition, the source table needs a primary key, which `dlt` automatically sets up.
     * `apply_hints` is a powerful method that enables schema modifications after resource creation, like adjusting write disposition and primary keys. You can choose from various tables and use `apply_hints` multiple times to create pipelines with merged, appended, or replaced resources.
   :::
+
+### Inclusive and exclusive filtering
+
+By default the incremental filtering is inclusive on the start value side so that
+rows with cursor equal to the last run's cursor are fetched again from the database.
+
+The SQL query generated looks something like this (assuming `last_value_func` is `max`):
+
+```sql
+SELECT * FROM family
+WHERE last_modified >= :start_value
+ORDER BY last_modified ASC
+```
+
+That means some rows overlapping with the previous load are fetched from the database.
+Duplicates are then filtered out by dlt using either the primary key or a hash of the row's contents.
+
+This ensures there are no gaps in the extracted sequence. But it does come with some performance overhead,
+both due to the deduplication processing and the cost of fetching redundant records from the database.
+
+This is not always needed. If you know that your data does not contain overlapping cursor values then you
+can optimize extraction by passing `range_start="open"` to incremental.
+
+This both disables the deduplication process and changes the operator used in the SQL `WHERE` clause from `>=` (greater-or-equal) to `>` (greater than), so that no overlapping rows are fetched.
+
+E.g.
+
+```py
+table = sql_table(
+    table='family',
+    incremental=dlt.sources.incremental(
+        'last_modified',  # Cursor column name
+        initial_value=pendulum.DateTime(2024, 1, 1, 0, 0, 0),  # Initial cursor value
+        range_start="open",  # exclude the start value
+    )
+)
+```
+
+It's a good option if:
+
+* The cursor is an auto incrementing ID
+* The cursor is a high precision timestamp and two records are never created at exactly the same time
+* Your pipeline runs are timed in such a way that new data is not generated during the load
 
 ## Parallelized extraction
 

@@ -1,3 +1,6 @@
+from typing import Callable, Any, TYPE_CHECKING
+from dataclasses import dataclass
+
 import pytest
 
 import dlt
@@ -12,6 +15,18 @@ try:
     import sqlalchemy as sa
 except (MissingDependencyException, ModuleNotFoundError):
     pytest.skip("Tests require sql alchemy", allow_module_level=True)
+
+
+@dataclass
+class MockIncremental:
+    last_value: Any
+    last_value_func: Callable[[Any], Any]
+    cursor_path: str
+    row_order: str = None
+    end_value: Any = None
+    on_cursor_value_missing: str = "raise"
+    range_start: str = "closed"
+    range_end: str = "open"
 
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
@@ -36,13 +51,12 @@ def test_make_query_incremental_max(
 ) -> None:
     """Verify query is generated according to incremental settings"""
 
-    class MockIncremental:
-        last_value = dlt.common.pendulum.now()
-        last_value_func = max
-        cursor_path = "created_at"
-        row_order = "asc"
-        end_value = None
-        on_cursor_value_missing = "raise"
+    incremental = MockIncremental(
+        last_value=dlt.common.pendulum.now(),
+        last_value_func=max,
+        cursor_path="created_at",
+        row_order="asc",
+    )
 
     table = sql_source_db.get_table("chat_message")
     loader = TableLoader(
@@ -50,14 +64,14 @@ def test_make_query_incremental_max(
         backend,
         table,
         table_to_columns(table),
-        incremental=MockIncremental(),  # type: ignore[arg-type]
+        incremental=incremental,  # type: ignore[arg-type]
     )
 
     query = loader.make_query()
     expected = (
         table.select()
         .order_by(table.c.created_at.asc())
-        .where(table.c.created_at >= MockIncremental.last_value)
+        .where(table.c.created_at >= incremental.last_value)
     )
 
     assert query.compare(expected)
@@ -67,13 +81,14 @@ def test_make_query_incremental_max(
 def test_make_query_incremental_min(
     sql_source_db: SQLAlchemySourceDB, backend: TableBackend
 ) -> None:
-    class MockIncremental:
-        last_value = dlt.common.pendulum.now()
-        last_value_func = min
-        cursor_path = "created_at"
-        row_order = "desc"
-        end_value = None
-        on_cursor_value_missing = "raise"
+    incremental = MockIncremental(
+        last_value=dlt.common.pendulum.now(),
+        last_value_func=min,
+        cursor_path="created_at",
+        row_order="desc",
+        end_value=None,
+        on_cursor_value_missing="raise",
+    )
 
     table = sql_source_db.get_table("chat_message")
     loader = TableLoader(
@@ -81,14 +96,14 @@ def test_make_query_incremental_min(
         backend,
         table,
         table_to_columns(table),
-        incremental=MockIncremental(),  # type: ignore[arg-type]
+        incremental=incremental,  # type: ignore[arg-type]
     )
 
     query = loader.make_query()
     expected = (
         table.select()
         .order_by(table.c.created_at.asc())  # `min` func swaps order
-        .where(table.c.created_at <= MockIncremental.last_value)
+        .where(table.c.created_at <= incremental.last_value)
     )
 
     assert query.compare(expected)
@@ -103,13 +118,14 @@ def test_make_query_incremental_on_cursor_value_missing_set(
     with_end_value: bool,
     cursor_value_missing: str,
 ) -> None:
-    class MockIncremental:
-        last_value = dlt.common.pendulum.now()
-        last_value_func = max
-        cursor_path = "created_at"
-        row_order = "asc"
-        end_value = None if not with_end_value else dlt.common.pendulum.now().add(hours=1)
-        on_cursor_value_missing = cursor_value_missing
+    incremental = MockIncremental(
+        last_value=dlt.common.pendulum.now(),
+        last_value_func=max,
+        cursor_path="created_at",
+        row_order="asc",
+        end_value=None if not with_end_value else dlt.common.pendulum.now().add(hours=1),
+        on_cursor_value_missing=cursor_value_missing,
+    )
 
     table = sql_source_db.get_table("chat_message")
     loader = TableLoader(
@@ -117,7 +133,7 @@ def test_make_query_incremental_on_cursor_value_missing_set(
         backend,
         table,
         table_to_columns(table),
-        incremental=MockIncremental(),  # type: ignore[arg-type]
+        incremental=incremental,  # type: ignore[arg-type]
     )
 
     query = loader.make_query()
@@ -131,14 +147,14 @@ def test_make_query_incremental_on_cursor_value_missing_set(
     if with_end_value:
         where_clause = operator(
             sa.and_(
-                table.c.created_at >= MockIncremental.last_value,
-                table.c.created_at < MockIncremental.end_value,
+                table.c.created_at >= incremental.last_value,
+                table.c.created_at < incremental.end_value,
             ),
             missing_cond,
         )
     else:
         where_clause = operator(
-            table.c.created_at >= MockIncremental.last_value,
+            table.c.created_at >= incremental.last_value,
             missing_cond,
         )
     expected = table.select().order_by(table.c.created_at.asc()).where(where_clause)
@@ -152,13 +168,14 @@ def test_make_query_incremental_on_cursor_value_missing_no_last_value(
     backend: TableBackend,
     cursor_value_missing: str,
 ) -> None:
-    class MockIncremental:
-        last_value = None
-        last_value_func = max
-        cursor_path = "created_at"
-        row_order = "asc"
-        end_value = None
-        on_cursor_value_missing = cursor_value_missing
+    incremental = MockIncremental(
+        last_value=None,
+        last_value_func=max,
+        cursor_path="created_at",
+        row_order="asc",
+        end_value=None,
+        on_cursor_value_missing=cursor_value_missing,
+    )
 
     table = sql_source_db.get_table("chat_message")
     loader = TableLoader(
@@ -166,7 +183,7 @@ def test_make_query_incremental_on_cursor_value_missing_no_last_value(
         backend,
         table,
         table_to_columns(table),
-        incremental=MockIncremental(),  # type: ignore[arg-type]
+        incremental=incremental,  # type: ignore[arg-type]
     )
 
     query = loader.make_query()
@@ -189,13 +206,14 @@ def test_make_query_incremental_end_value(
 ) -> None:
     now = dlt.common.pendulum.now()
 
-    class MockIncremental:
-        last_value = now
-        last_value_func = min
-        cursor_path = "created_at"
-        end_value = now.add(hours=1)
-        row_order = None
-        on_cursor_value_missing = "raise"
+    incremental = MockIncremental(
+        last_value=now,
+        last_value_func=min,
+        cursor_path="created_at",
+        end_value=now.add(hours=1),
+        row_order=None,
+        on_cursor_value_missing="raise",
+    )
 
     table = sql_source_db.get_table("chat_message")
     loader = TableLoader(
@@ -203,14 +221,14 @@ def test_make_query_incremental_end_value(
         backend,
         table,
         table_to_columns(table),
-        incremental=MockIncremental(),  # type: ignore[arg-type]
+        incremental=incremental,  # type: ignore[arg-type]
     )
 
     query = loader.make_query()
     expected = table.select().where(
         sa.and_(
-            table.c.created_at <= MockIncremental.last_value,
-            table.c.created_at > MockIncremental.end_value,
+            table.c.created_at <= incremental.last_value,
+            table.c.created_at > incremental.end_value,
         )
     )
 
@@ -221,13 +239,14 @@ def test_make_query_incremental_end_value(
 def test_make_query_incremental_any_fun(
     sql_source_db: SQLAlchemySourceDB, backend: TableBackend
 ) -> None:
-    class MockIncremental:
-        last_value = dlt.common.pendulum.now()
-        last_value_func = lambda x: x[-1]
-        cursor_path = "created_at"
-        row_order = "asc"
-        end_value = dlt.common.pendulum.now()
-        on_cursor_value_missing = "raise"
+    incremental = MockIncremental(
+        last_value=dlt.common.pendulum.now(),
+        last_value_func=lambda x: x[-1],
+        cursor_path="created_at",
+        row_order="asc",
+        end_value=dlt.common.pendulum.now(),
+        on_cursor_value_missing="raise",
+    )
 
     table = sql_source_db.get_table("chat_message")
     loader = TableLoader(
@@ -235,7 +254,7 @@ def test_make_query_incremental_any_fun(
         backend,
         table,
         table_to_columns(table),
-        incremental=MockIncremental(),  # type: ignore[arg-type]
+        incremental=incremental,  # type: ignore[arg-type]
     )
 
     query = loader.make_query()
@@ -256,12 +275,11 @@ def test_cursor_path_field_name_with_a_special_chars(
     if special_field_name not in table.c:
         table.append_column(sa.Column(special_field_name, sa.String))
 
-    class MockIncremental:
-        cursor_path = "'id$field'"
-        last_value = None
-        end_value = None
-        row_order = None
-        on_cursor_value_missing = None
+    incremental = MockIncremental(
+        cursor_path="'id$field'",
+        last_value=None,
+        last_value_func=max,
+    )
 
     # Should not raise any exception
     loader = TableLoader(
@@ -269,7 +287,7 @@ def test_cursor_path_field_name_with_a_special_chars(
         backend,
         table,
         table_to_columns(table),
-        incremental=MockIncremental(),  # type: ignore[arg-type]
+        incremental=incremental,  # type: ignore[arg-type]
     )
     assert loader.cursor_column == table.c[special_field_name]
 
@@ -281,12 +299,11 @@ def test_cursor_path_multiple_fields(
     """Test that a cursor_path with multiple fields raises a ValueError."""
     table = sql_source_db.get_table("chat_message")
 
-    class MockIncremental:
-        cursor_path = "created_at,updated_at"
-        last_value = None
-        end_value = None
-        row_order = None
-        on_cursor_value_missing = None
+    incremental = MockIncremental(
+        cursor_path="created_at,updated_at",
+        last_value=None,
+        last_value_func=max,
+    )
 
     with pytest.raises(ValueError) as excinfo:
         TableLoader(
@@ -294,7 +311,7 @@ def test_cursor_path_multiple_fields(
             backend,
             table,
             table_to_columns(table),
-            incremental=MockIncremental(),  # type: ignore[arg-type]
+            incremental=incremental,  # type: ignore[arg-type]
         )
     assert "must be a simple column name" in str(excinfo.value)
 
@@ -306,12 +323,11 @@ def test_cursor_path_complex_expression(
     """Test that a complex JSONPath expression in cursor_path raises a ValueError."""
     table = sql_source_db.get_table("chat_message")
 
-    class MockIncremental:
-        cursor_path = "$.users[0].id"
-        last_value = None
-        end_value = None
-        row_order = None
-        on_cursor_value_missing = None
+    incremental = MockIncremental(
+        cursor_path="$.users[0].id",
+        last_value=None,
+        last_value_func=max,
+    )
 
     with pytest.raises(ValueError) as excinfo:
         TableLoader(
@@ -319,9 +335,78 @@ def test_cursor_path_complex_expression(
             backend,
             table,
             table_to_columns(table),
-            incremental=MockIncremental(),  # type: ignore[arg-type]
+            incremental=incremental,  # type: ignore[arg-type]
         )
     assert "must be a simple column name" in str(excinfo.value)
+
+
+@pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
+@pytest.mark.parametrize("last_value_func", [min, max])
+def test_make_query_incremental_range_start_open(
+    sql_source_db: SQLAlchemySourceDB, backend: TableBackend, last_value_func: Callable[[Any], Any]
+) -> None:
+    incremental = MockIncremental(
+        last_value=dlt.common.pendulum.now(),
+        last_value_func=last_value_func,
+        cursor_path="created_at",
+        end_value=None,
+        on_cursor_value_missing="raise",
+        range_start="open",
+    )
+
+    table = sql_source_db.get_table("chat_message")
+
+    loader = TableLoader(
+        sql_source_db.engine,
+        backend,
+        table,
+        table_to_columns(table),
+        incremental=incremental,  # type: ignore[arg-type]
+    )
+
+    query = loader.make_query()
+    expected = table.select()
+
+    if last_value_func == min:
+        expected = expected.where(table.c.created_at < incremental.last_value)
+    else:
+        expected = expected.where(table.c.created_at > incremental.last_value)
+
+    assert query.compare(expected)
+
+
+@pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
+@pytest.mark.parametrize("last_value_func", [min, max])
+def test_make_query_incremental_range_end_closed(
+    sql_source_db: SQLAlchemySourceDB, backend: TableBackend, last_value_func: Callable[[Any], Any]
+) -> None:
+    incremental = MockIncremental(
+        last_value=dlt.common.pendulum.now(),
+        last_value_func=last_value_func,
+        cursor_path="created_at",
+        end_value=None,
+        on_cursor_value_missing="raise",
+        range_end="closed",
+    )
+
+    table = sql_source_db.get_table("chat_message")
+    loader = TableLoader(
+        sql_source_db.engine,
+        backend,
+        table,
+        table_to_columns(table),
+        incremental=incremental,  # type: ignore[arg-type]
+    )
+
+    query = loader.make_query()
+    expected = table.select()
+
+    if last_value_func == min:
+        expected = expected.where(table.c.created_at <= incremental.last_value)
+    else:
+        expected = expected.where(table.c.created_at >= incremental.last_value)
+
+    assert query.compare(expected)
 
 
 def mock_json_column(field: str) -> TDataItem:
