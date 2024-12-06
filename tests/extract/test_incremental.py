@@ -3864,7 +3864,7 @@ def test_start_range_open(item_type: TestDataItemFormat, last_value_func: Any) -
         expected_items = list(range(6, 12))
         order_dir = "ASC"
     elif last_value_func == min:
-        data_range = reversed(data_range)
+        data_range = reversed(data_range)  # type: ignore[call-overload]
         initial_value = 5
         # Only items lower than inital extracted
         expected_items = list(reversed(range(1, 5)))

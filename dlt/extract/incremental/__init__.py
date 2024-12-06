@@ -517,7 +517,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
             f" {self.last_value_func}"
         )
 
-    def _make_transformer(self, cls: Type[IncrementalTransform]) -> IncrementalTransform:
+    def _make_or_get_transformer(self, cls: Type[IncrementalTransform]) -> IncrementalTransform:
         if transformer := self._transformers.get(cls):
             return transformer
         transformer = self._transformers[cls] = cls(
@@ -540,11 +540,11 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         # Assume list is all of the same type
         for item in items if isinstance(items, list) else [items]:
             if is_arrow_item(item):
-                return self._make_transformer(ArrowIncremental)
+                return self._make_or_get_transformer(ArrowIncremental)
             elif pandas is not None and isinstance(item, pandas.DataFrame):
-                return self._make_transformer(ArrowIncremental)
-            return self._make_transformer(JsonIncremental)
-        return self._make_transformer(JsonIncremental)
+                return self._make_or_get_transformer(ArrowIncremental)
+            return self._make_or_get_transformer(JsonIncremental)
+        return self._make_or_get_transformer(JsonIncremental)
 
     def __call__(self, rows: TDataItems, meta: Any = None) -> Optional[TDataItems]:
         if rows is None:
