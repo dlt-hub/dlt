@@ -120,6 +120,9 @@ def pytest_configure(config):
     # disable googleapiclient logging
     logging.getLogger("googleapiclient.discovery_cache").setLevel("WARNING")
 
+    # disable pyiceberg logging
+    logging.getLogger("pyiceberg").setLevel("WARNING")
+
     # reset and init airflow db
     import warnings
 

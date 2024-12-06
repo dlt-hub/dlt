@@ -81,6 +81,9 @@ class sqlalchemy(Destination[SqlalchemyClientConfiguration, "SqlalchemyJobClient
         caps.max_column_identifier_length = dialect.max_identifier_length
         caps.supports_native_boolean = dialect.supports_native_boolean
         if dialect.name == "mysql":
+            # correct max identifier length
+            # dialect uses 255 (max length for aliases) instead of 64 (max length of identifiers)
+            caps.max_identifier_length = 64
             caps.format_datetime_literal = _format_mysql_datetime_literal
 
         return caps

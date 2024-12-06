@@ -1,17 +1,17 @@
 """Test the duckdb supported sql client for special internal features"""
 
 
-from typing import Any
+from typing import Optional
 
 import pytest
 import dlt
 import os
 import shutil
-import logging
 
 
 from dlt import Pipeline
 from dlt.common.utils import uniq_id
+from dlt.common.schema.typing import TTableFormat
 
 from tests.load.utils import (
     destinations_configs,
@@ -19,7 +19,6 @@ from tests.load.utils import (
     GCS_BUCKET,
     SFTP_BUCKET,
     MEMORY_BUCKET,
-    AWS_BUCKET,
 )
 from dlt.destinations import filesystem
 from tests.utils import TEST_STORAGE_ROOT
@@ -37,7 +36,7 @@ def _run_dataset_checks(
     pipeline: Pipeline,
     destination_config: DestinationTestConfiguration,
     secret_directory: str,
-    table_format: Any = None,
+    table_format: Optional[TTableFormat] = None,
     alternate_access_pipeline: Pipeline = None,
 ) -> None:
     total_records = 200
@@ -144,6 +143,8 @@ def _run_dataset_checks(
         # the line below solves problems with certificate path lookup on linux, see duckdb docs
         external_db.sql("SET azure_transport_option_type = 'curl';")
         external_db.sql(f"SET secret_directory = '{secret_directory}';")
+        if table_format == "iceberg":
+            FilesystemSqlClient._setup_iceberg(external_db)
         return external_db
 
     def _fs_sql_client_for_external_db(
@@ -283,13 +284,13 @@ def test_read_interfaces_filesystem(
     "destination_config",
     destinations_configs(
         table_format_filesystem_configs=True,
-        with_table_format="delta",
+        with_table_format=("delta", "iceberg"),
         bucket_exclude=[SFTP_BUCKET, MEMORY_BUCKET],
         # NOTE: delta does not work on memory buckets
     ),
     ids=lambda x: x.name,
 )
-def test_delta_tables(
+def test_table_formats(
     destination_config: DestinationTestConfiguration, secret_directory: str
 ) -> None:
     os.environ["DATA_WRITER__FILE_MAX_ITEMS"] = "700"
@@ -302,8 +303,9 @@ def test_delta_tables(
     # in case of gcs we use the s3 compat layer for reading
     # for writing we still need to use the gc authentication, as delta_rs seems to use
     # methods on the s3 interface that are not implemented by gcs
+    # s3 compat layer does not work with `iceberg` table format
     access_pipeline = pipeline
-    if destination_config.bucket_url == GCS_BUCKET:
+    if destination_config.bucket_url == GCS_BUCKET and destination_config.table_format != "iceberg":
         gcp_bucket = filesystem(
             GCS_BUCKET.replace("gs://", "s3://"), destination_name="filesystem_s3_gcs_comp"
         )
@@ -315,7 +317,7 @@ def test_delta_tables(
         pipeline,
         destination_config,
         secret_directory=secret_directory,
-        table_format="delta",
+        table_format=destination_config.table_format,
         alternate_access_pipeline=access_pipeline,
     )
 

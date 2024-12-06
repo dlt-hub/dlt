@@ -1277,10 +1277,7 @@ def assert_no_precision_columns(
 ) -> None:
     actual = list(columns.values())
     # we always infer and emit nullability
-    expected = cast(
-        List[TColumnSchema],
-        deepcopy(NULL_NO_PRECISION_COLUMNS if nullable else NOT_NULL_NO_PRECISION_COLUMNS),
-    )
+    expected = deepcopy(NULL_NO_PRECISION_COLUMNS if nullable else NOT_NULL_NO_PRECISION_COLUMNS)
     if backend == "pyarrow":
         expected = cast(
             List[TColumnSchema],

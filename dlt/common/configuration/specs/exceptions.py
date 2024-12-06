@@ -72,3 +72,7 @@ class InvalidBoto3Session(NativeValueError):
 
 class ObjectStoreRsCredentialsException(ConfigurationException):
     pass
+
+
+class UnsupportedAuthenticationMethodException(ConfigurationException):
+    pass

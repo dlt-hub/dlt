@@ -197,10 +197,23 @@ def _load_tables_to_dicts_fs(
 
         delta_tables = get_delta_tables(p, *table_names, schema_name=schema_name)
 
+    iceberg_table_names = [
+        table_name
+        for table_name in table_names
+        if get_table_format(client.schema.tables, table_name) == "iceberg"
+    ]
+    if len(iceberg_table_names) > 0:
+        from dlt.common.libs.pyiceberg import get_iceberg_tables
+
+        iceberg_tables = get_iceberg_tables(p, *table_names, schema_name=schema_name)
+
     for table_name in table_names:
         if table_name in client.schema.data_table_names() and table_name in delta_table_names:
             dt = delta_tables[table_name]
             result[table_name] = dt.to_pyarrow_table().to_pylist()
+        elif table_name in client.schema.data_table_names() and table_name in iceberg_table_names:
+            it = iceberg_tables[table_name]
+            result[table_name] = it.scan().to_arrow().to_pylist()
         else:
             table_files = client.list_table_files(table_name)
             for file in table_files:
