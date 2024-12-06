@@ -1,6 +1,5 @@
 import re
 from copy import deepcopy
-
 import pytest
 from graphlib import CycleError  # type: ignore
 
@@ -10,6 +9,7 @@ from dlt.sources.rest_api import (
 )
 from dlt.sources.rest_api.config_setup import (
     _bind_path_params,
+    _bind_header_params,
     process_parent_data_item,
 )
 from dlt.sources.rest_api.typing import (
@@ -80,29 +80,34 @@ def test_bind_path_param() -> None:
     _bind_path_params(tp_4)
     assert tp_4 == tp_5
 
-    # resolved param will remain unbounded and
+    # resolved param will remain unbounded and raise an error
     tp_6 = deepcopy(three_params)
     tp_6["endpoint"]["path"] = "{org}/{repo}/issues/1234/comments"  # type: ignore[index]
-    with pytest.raises(NotImplementedError):
+    with pytest.raises(NotImplementedError) as val_ex:  # type: ignore[assignment]
         _bind_path_params(tp_6)
+    assert (
+        "Resource comments defines resolve params ['id'] that are not bound in path"
+        " {org}/{repo}/issues/1234/comments."
+        in str(val_ex.value)
+    )
 
 
 def test_process_parent_data_item() -> None:
     resolve_params = [
         ResolvedParam("id", {"field": "obj_id", "resource": "issues", "type": "resolve"})
     ]
-    bound_path, parent_record = process_parent_data_item(
+    bound_path, _, parent_record = process_parent_data_item(
         "dlt-hub/dlt/issues/{id}/comments", {"obj_id": 12345}, resolve_params, None
     )
     assert bound_path == "dlt-hub/dlt/issues/12345/comments"
     assert parent_record == {}
 
-    bound_path, parent_record = process_parent_data_item(
+    bound_path, _, parent_record = process_parent_data_item(
         "dlt-hub/dlt/issues/{id}/comments", {"obj_id": 12345}, resolve_params, ["obj_id"]
     )
     assert parent_record == {"_issues_obj_id": 12345}
 
-    bound_path, parent_record = process_parent_data_item(
+    bound_path, _, parent_record = process_parent_data_item(
         "dlt-hub/dlt/issues/{id}/comments",
         {"obj_id": 12345, "obj_node": "node_1"},
         resolve_params,
@@ -117,21 +122,21 @@ def test_process_parent_data_item() -> None:
         )
     ]
     item = {"some_results": {"obj_id": 12345}}
-    bound_path, parent_record = process_parent_data_item(
+    bound_path, _, parent_record = process_parent_data_item(
         "dlt-hub/dlt/issues/{id}/comments", item, resolve_param_nested, None
     )
     assert bound_path == "dlt-hub/dlt/issues/12345/comments"
 
     # param path not found
     with pytest.raises(ValueError) as val_ex:
-        bound_path, parent_record = process_parent_data_item(
+        bound_path, _, parent_record = process_parent_data_item(
             "dlt-hub/dlt/issues/{id}/comments", {"_id": 12345}, resolve_params, None
         )
     assert "Transformer expects a field 'obj_id'" in str(val_ex.value)
 
     # included path not found
     with pytest.raises(ValueError) as val_ex:
-        bound_path, parent_record = process_parent_data_item(
+        bound_path, _, parent_record = process_parent_data_item(
             "dlt-hub/dlt/issues/{id}/comments",
             {"obj_id": 12345, "obj_node": "node_1"},
             resolve_params,
@@ -145,7 +150,7 @@ def test_process_parent_data_item() -> None:
         ResolvedParam("id", {"field": "id", "resource": "comments", "type": "resolve"}),
     ]
 
-    bound_path, parent_record = process_parent_data_item(
+    bound_path, _, parent_record = process_parent_data_item(
         "dlt-hub/dlt/issues/{issue_id}/comments/{id}",
         {"issue": 12345, "id": 56789},
         multi_resolve_params,
@@ -156,13 +161,85 @@ def test_process_parent_data_item() -> None:
 
     # param path not found with multiple parameters
     with pytest.raises(ValueError) as val_ex:
-        bound_path, parent_record = process_parent_data_item(
+        bound_path, _, parent_record = process_parent_data_item(
             "dlt-hub/dlt/issues/{issue_id}/comments/{id}",
             {"_issue": 12345, "id": 56789},
             multi_resolve_params,
             None,
         )
     assert "Transformer expects a field 'issue'" in str(val_ex.value)
+
+
+def test_process_parent_data_item_headers() -> None:
+    resolve_params = [
+        ResolvedParam(
+            "token",
+            {"field": "token", "resource": "authenticate", "type": "resolve", "location": "header"},
+        )
+    ]
+    _, resolved_headers, parent_record = process_parent_data_item(
+        "chicken",
+        {"token": 12345},
+        resolve_params,
+        None,
+        {"Authorization": "{token}"},
+    )
+    assert resolved_headers == {"Authorization": "12345"}
+
+    # multiple params
+    resolve_params = [
+        ResolvedParam(
+            "token",
+            {"field": "token", "resource": "authenticate", "type": "resolve", "location": "header"},
+        ),
+        ResolvedParam(
+            "num",
+            {"field": "num", "resource": "authenticate", "type": "resolve", "location": "header"},
+        ),
+    ]
+    _, resolved_headers, parent_record = process_parent_data_item(
+        "chicken",
+        {"token": 12345, "num": 2},
+        resolve_params,
+        None,
+        {"Authorization": "{token}", "num": "{num}"},
+    )
+    assert resolved_headers == {"Authorization": "12345", "num": "2"}
+
+    resolve_params = [
+        ResolvedParam(
+            "token",
+            {
+                "field": "auth.token",
+                "resource": "authenticate",
+                "type": "resolve",
+                "location": "header",
+            },
+        )
+    ]
+    # param path not found
+    with pytest.raises(ValueError) as val_ex:
+        _, _, parent_record = process_parent_data_item(
+            "chicken",
+            {"_token": 12345},
+            resolve_params,
+            None,
+            {"Authorization": "{token}"},
+        )
+    assert "Transformer expects a field 'auth.token'" in str(val_ex.value)
+
+    resolve_params = [
+        ResolvedParam("token", {"field": "token", "resource": "authenticate", "type": "resolve"})
+    ]
+    # param not provided
+    with pytest.raises(KeyError):
+        _, _, parent_record = process_parent_data_item(
+            "chicken",
+            {"token": 12345},
+            resolve_params,
+            None,
+            {"Authorization": "{token}"},
+        )
 
 
 def test_two_resources_can_depend_on_one_parent_resource() -> None:
@@ -351,3 +428,19 @@ def test_circular_resource_bindingis_invalid() -> None:
     with pytest.raises(CycleError) as e:
         rest_api_resources(config)
     assert e.match(re.escape("'nodes are in a cycle', ['chicken', 'egg', 'chicken']"))
+
+
+def test_bind_header_params() -> None:
+    resource_with_headers: EndpointResource = {
+        "name": "test_resource",
+        "endpoint": {
+            "path": "test/path",
+            "headers": {"Authorization": "Bearer {token}"},
+            "params": {
+                "token": "test_token",
+            },
+        },
+    }
+    _bind_header_params(resource_with_headers)
+    assert resource_with_headers["endpoint"]["headers"]["Authorization"] == "Bearer test_token"  # type: ignore[index]
+    assert len(resource_with_headers["endpoint"]["params"]) == 0  # type: ignore[index]

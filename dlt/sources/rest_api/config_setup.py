@@ -64,6 +64,7 @@ from .typing import (
     ResponseActionDict,
     Endpoint,
     EndpointResource,
+    ResolveParamLocation,
 )
 
 
@@ -330,6 +331,7 @@ def expand_and_index_resources(
         assert isinstance(endpoint_resource["endpoint"], dict)
         _setup_single_entity_endpoint(endpoint_resource["endpoint"])
         _bind_path_params(endpoint_resource)
+        _bind_header_params(endpoint_resource)
 
         resource_name = endpoint_resource["name"]
         assert isinstance(
@@ -375,6 +377,39 @@ def _make_endpoint_resource(
     return _merge_resource_endpoints(default_config, resource)
 
 
+def _bind_string(
+    target: str,
+    resource: EndpointResource,
+    resolve_params: List[str],
+    location_params: Dict[str, Any],
+    location: str,
+) -> None:
+    for format_ in string.Formatter().parse(target):
+        name = format_[1]
+        if name:
+            params = resource["endpoint"].get("params", {})  # type: ignore[union-attr]
+            if name not in params and name not in location_params:
+                raise ValueError(
+                    f"The {location} {target} defined in resource {resource['name']} requires param"
+                    f" with name {name} but it is not found in {params}"
+                )
+            if name in resolve_params:
+                resolve_params.remove(name)
+            if name in params:
+                if not isinstance(params[name], dict):
+                    # bind resolved param and pop it from endpoint
+                    location_params[name] = params.pop(name)
+                else:
+                    param_type = params[name].get("type")
+                    if param_type != "resolve":
+                        raise ValueError(
+                            f"The {location} {target} defined in resource {resource['name']} tries"
+                            f" to bind param {name} with type {param_type}. {location} can only"
+                            " bind 'resolve' type params."
+                        )
+                    location_params[name] = "{" + name + "}"
+
+
 def _bind_path_params(resource: EndpointResource) -> None:
     """Binds params declared in path to params available in `params`. Pops the
     bound params but. Params of type `resolve` and `incremental` are skipped
@@ -382,41 +417,42 @@ def _bind_path_params(resource: EndpointResource) -> None:
     """
     path_params: Dict[str, Any] = {}
     assert isinstance(resource["endpoint"], dict)  # type guard
-    resolve_params = [r.param_name for r in _find_resolved_params(resource["endpoint"])]
+    resolve_params = [r.param_name for r in _find_resolved_params(resource["endpoint"], "path")]
     path = resource["endpoint"]["path"]
-    for format_ in string.Formatter().parse(path):
-        name = format_[1]
-        if name:
-            params = resource["endpoint"].get("params", {})
-            if name not in params and name not in path_params:
-                raise ValueError(
-                    f"The path {path} defined in resource {resource['name']} requires param with"
-                    f" name {name} but it is not found in {params}"
-                )
-            if name in resolve_params:
-                resolve_params.remove(name)
-            if name in params:
-                if not isinstance(params[name], dict):
-                    # bind resolved param and pop it from endpoint
-                    path_params[name] = params.pop(name)
-                else:
-                    param_type = params[name].get("type")
-                    if param_type != "resolve":
-                        raise ValueError(
-                            f"The path {path} defined in resource {resource['name']} tries to bind"
-                            f" param {name} with type {param_type}. Paths can only bind 'resolve'"
-                            " type params."
-                        )
-                    # resolved params are bound later
-                    path_params[name] = "{" + name + "}"
+    _bind_string(str(path), resource, resolve_params, path_params, "path")
 
     if len(resolve_params) > 0:
         raise NotImplementedError(
             f"Resource {resource['name']} defines resolve params {resolve_params} that are not"
-            f" bound in path {path}. Resolve query params not supported yet."
+            f" bound in path {path}."
         )
 
     resource["endpoint"]["path"] = path.format(**path_params)
+
+
+def _bind_header_params(resource: EndpointResource) -> None:
+    """Binds params declared in headers to params available in `params`. Pops the
+    bound params but skips params of type `resolve` and `incremental`, which are bound later.
+    """
+    header_params: Dict[str, Any] = {}
+    assert isinstance(resource["endpoint"], dict)  # type guard
+    resolve_params = [r.param_name for r in _find_resolved_params(resource["endpoint"], "header")]
+    headers = resource["endpoint"].get("headers", {})
+    formatted_headers = {}
+    for header_name, header_value in headers.items():
+        _bind_string(str(header_name), resource, resolve_params, header_params, "header")
+        _bind_string(str(header_value), resource, resolve_params, header_params, "header")
+        formatted_headers[header_name.format(**header_params)] = header_value.format(
+            **header_params
+        )
+
+    if len(resolve_params) > 0:
+        raise NotImplementedError(
+            f"Resource {resource['name']} defines resolve params {resolve_params} that are not"
+            " bound in headers."
+        )
+
+    resource["endpoint"]["headers"] = formatted_headers
 
 
 def _setup_single_entity_endpoint(endpoint: Endpoint) -> Endpoint:
@@ -435,18 +471,26 @@ def _setup_single_entity_endpoint(endpoint: Endpoint) -> Endpoint:
     return endpoint
 
 
-def _find_resolved_params(endpoint_config: Endpoint) -> List[ResolvedParam]:
+def _find_resolved_params(
+    endpoint_config: Endpoint, location: Optional[ResolveParamLocation] = None
+) -> List[ResolvedParam]:
     """
     Find all resolved params in the endpoint configuration and return
     a list of ResolvedParam objects.
 
+    Param:
+    location: Optional[ResolveParamLocation] = None - filter resolved params by location if provided.
+
     Resolved params are of type ResolveParamConfig (bound param with a key "type" set to "resolve".)
     """
-    return [
+    resolved_params = [
         ResolvedParam(key, value)  # type: ignore[arg-type]
         for key, value in endpoint_config.get("params", {}).items()
-        if (isinstance(value, dict) and value.get("type") == "resolve")
+        if isinstance(value, dict) and value.get("type") == "resolve"
     ]
+    if location is None:
+        return resolved_params
+    return list(filter(lambda rp: rp.resolve_config.get("location") == location, resolved_params))
 
 
 def _action_type_unless_custom_hook(
@@ -574,10 +618,14 @@ def process_parent_data_item(
     item: Dict[str, Any],
     resolved_params: List[ResolvedParam],
     include_from_parent: List[str],
-) -> Tuple[str, Dict[str, Any]]:
+    headers: Optional[Dict[str, Any]] = None,
+) -> Tuple[str, Dict[str, Any], Dict[str, Any]]:
     parent_resource_name = resolved_params[0].resolve_config["resource"]
 
-    param_values = {}
+    param_values: Dict[str, Dict[str, str]] = {
+        "path": {},
+        "header": {},
+    }
 
     for resolved_param in resolved_params:
         field_values = jsonpath.find_values(resolved_param.field_path, item)
@@ -591,9 +639,15 @@ def process_parent_data_item(
                 f" {', '.join(item.keys())}"
             )
 
-        param_values[resolved_param.param_name] = field_values[0]
+        location = resolved_param.resolve_config.get("location")
+        if location == "path":
+            param_values["path"][resolved_param.param_name] = field_values[0]
+        elif location == "header":
+            param_values["header"][resolved_param.param_name] = field_values[0]
+        else:
+            param_values["path"][resolved_param.param_name] = field_values[0]
 
-    bound_path = path.format(**param_values)
+    bound_path = path.format(**param_values["path"])
 
     parent_record: Dict[str, Any] = {}
     if include_from_parent:
@@ -607,7 +661,15 @@ def process_parent_data_item(
                 )
             parent_record[child_key] = item[parent_key]
 
-    return bound_path, parent_record
+    if headers is not None:
+        formatted_headers = {
+            k.format(**param_values["header"]) if isinstance(k, str) else str(k): (
+                v.format(**param_values["header"]) if isinstance(v, str) else str(v)
+            )
+            for k, v in headers.items()
+        }
+        return bound_path, formatted_headers, parent_record
+    return bound_path, {}, parent_record
 
 
 def _merge_resource_endpoints(
