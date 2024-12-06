@@ -185,6 +185,30 @@ print(filtered_relation.query)
 
 # and finally fetch the data as a pandas dataframe, the same way we would do with a normal relation
 df = filtered_relation.df()
+
+# a few more examples
+
+# filter for rows where the id is in the list of ids
+items_relation.filter(items_relation.id.isin([1, 2, 3])).df()
+
+# limit and offset
+items_relation.limit(10, offset=5).arrow()
+
+# mutate columns by adding a new colums that always is 10 times the value of the id column
+items_relation.mutate(new_id=items_relation.id * 10).df()
+
+# sort asc and desc
+import ibis
+items_relation.order_by(ibis.desc("id"), ibis.asc("price")).limit(10)
+
+# group by and aggregate
+items_relation.group_by("item_group")
+            .having(items_table.count() >= 1000)
+            .aggregate(sum_id=items_table.id.sum())
+            .df()
+
+# subqueries
+items_relation.filter(items_table.category.isin(beverage_categories.name)).df()
 ```
 
 You can learn more about the available expressions on the [ibis for sql users](https://ibis-project.org/tutorials/ibis-for-sql-users) page. 
