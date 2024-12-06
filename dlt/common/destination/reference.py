@@ -558,6 +558,10 @@ class SupportsReadableRelation(Protocol):
         """set which columns will be selected"""
         ...
 
+    def __getattr__(self, attr: str) -> Any:
+        """get an attribute of the relation"""
+        ...
+
     def __copy__(self) -> "SupportsReadableRelation":
         """create a copy of the relation object"""
         ...
