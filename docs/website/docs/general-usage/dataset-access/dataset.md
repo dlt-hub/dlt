@@ -202,10 +202,7 @@ import ibis
 items_relation.order_by(ibis.desc("id"), ibis.asc("price")).limit(10)
 
 # group by and aggregate
-items_relation.group_by("item_group")
-            .having(items_table.count() >= 1000)
-            .aggregate(sum_id=items_table.id.sum())
-            .df()
+items_relation.group_by("item_group").having(items_table.count() >= 1000).aggregate(sum_id=items_table.id.sum()).df()
 
 # subqueries
 items_relation.filter(items_table.category.isin(beverage_categories.name)).df()
