@@ -1,3 +1,4 @@
+import base64
 import pytest
 from dlt.common import json
 from dlt.sources.helpers.requests import Response
@@ -316,3 +317,43 @@ def test_response_actions_called_in_order(mock_api_server, mocker):
     mock_response_hook_2.assert_called_once()
 
     assert all(record["custom_field"] == "foobar" for record in data)
+
+
+def test_auth_overwrites_for_specific_endpoints(mock_api_server, mocker):
+    def custom_hook(response: Response, *args, **kwargs) -> Response:
+        assert (
+            response.request.headers["Authorization"]
+            == f"Basic {base64.b64encode(b'U:P').decode('ascii')}"
+        )
+        return response
+
+    mock_response_hook = mocker.Mock(side_effect=custom_hook)
+    mock_source = rest_api_source(
+        {
+            "client": {
+                "base_url": "https://api.example.com",
+                "auth": {
+                    "type": "bearer",
+                    "token": "T",
+                },
+            },
+            "resources": [
+                {
+                    "name": "posts",
+                    "endpoint": {
+                        "auth": {
+                            "type": "http_basic",
+                            "username": "U",
+                            "password": "P",
+                        },
+                        "response_actions": [
+                            mock_response_hook,
+                        ],
+                    },
+                },
+            ],
+        }
+    )
+
+    list(mock_source.with_resources("posts").add_limit(1))
+    mock_response_hook.assert_called_once()

@@ -271,12 +271,7 @@ def test_normalize_table_identifiers_table_reference() -> None:
 
 
 def test_update_normalizers() -> None:
-    schema_dict: TStoredSchema = load_json_case("schemas/github/issues.schema")
-    schema = Schema.from_dict(schema_dict)  # type: ignore[arg-type]
-    # drop seen data
-    del schema.tables["issues"]["x-normalizer"]
-    del schema.tables["issues__labels"]["x-normalizer"]
-    del schema.tables["issues__assignees"]["x-normalizer"]
+    schema = make_issues_schema_for_normalizers_update()
     # save default hints in original form
     default_hints = schema._settings["default_hints"]
 
@@ -307,8 +302,8 @@ def test_normalize_default_hints(schema_storage_no_import: SchemaStorage) -> Non
     from dlt.common.destination import DestinationCapabilitiesContext
     from dlt.common.configuration.container import Container
 
-    eth_V9 = load_yml_case("schemas/eth/ethereum_schema_v9")
-    orig_schema = Schema.from_dict(eth_V9)
+    eth_V11 = load_yml_case("schemas/eth/ethereum_schema_v11")
+    orig_schema = Schema.from_dict(eth_V11)
     # save schema
     schema_storage_no_import.save_schema(orig_schema)
 
@@ -317,7 +312,7 @@ def test_normalize_default_hints(schema_storage_no_import: SchemaStorage) -> Non
     ) as caps:
         assert caps.naming_convention is sql_upper
         # creating a schema from dict keeps original normalizers
-        schema = Schema.from_dict(eth_V9)
+        schema = Schema.from_dict(eth_V11)
         assert_schema_identifiers_case(schema, str.lower)
         assert schema._normalizers_config["names"].endswith("snake_case")
 
@@ -350,7 +345,7 @@ def test_normalize_default_hints(schema_storage_no_import: SchemaStorage) -> Non
         )
 
         norm_schema = Schema.from_dict(
-            deepcopy(eth_V9), remove_processing_hints=True, bump_version=False
+            deepcopy(eth_V11), remove_processing_hints=True, bump_version=False
         )
         norm_schema.update_normalizers()
         assert_schema_identifiers_case(norm_schema, str.upper)
@@ -452,3 +447,50 @@ def assert_new_schema_values_custom_normalizers(schema: Schema) -> None:
     assert schema.naming.break_path("A__B__!C") == ["A", "B", "!C"]
     row = list(schema.normalize_data_item({"bool": True}, "load_id", "a_table"))
     assert row[0] == (("a_table", None), {"bool": True})
+
+
+def test_update_schema_normalizer_props() -> None:
+    schema = make_issues_schema_for_normalizers_update()
+    schema_2 = make_issues_schema_for_normalizers_update()
+    # remove issues table
+    del schema_2._schema_tables["issues"]
+    schema_2.update_schema(schema)
+
+    os.environ["SCHEMA__NAMING"] = "tests.common.cases.normalizers.sql_upper"
+    # apply normalizers
+    schema_2.update_normalizers()
+
+    # preserve schema_2 str
+    schema_2_str = schema_2.to_pretty_json()
+
+    # make sure that normalizer props in original schema are preserved
+    schema._normalizers_config["allow_identifier_change_on_table_with_data"] = True
+    schema._normalizers_config["use_break_path_on_normalize"] = True
+
+    # set some fake naming convention. during schema update it should not be used
+    os.environ["SCHEMA__NAMING"] = "tests.common.cases.normalizers.sql_upper_X"
+    schema.update_schema(schema_2)
+    assert isinstance(schema.naming, sql_upper.NamingConvention)
+    assert_schema_identifiers_case(schema, str.upper)
+    # make sure norm setting still in schema
+    assert schema._normalizers_config["allow_identifier_change_on_table_with_data"] is True
+    assert schema._normalizers_config["use_break_path_on_normalize"] is True
+    # schema 2 not modified during the update
+    assert schema_2_str == schema_2.to_pretty_json()
+
+    # make sure that explicit settings are passed
+    schema_2._normalizers_config["allow_identifier_change_on_table_with_data"] = False
+    schema_2._normalizers_config["use_break_path_on_normalize"] = False
+    schema.update_schema(schema_2)
+    assert schema._normalizers_config["allow_identifier_change_on_table_with_data"] is False
+    assert schema._normalizers_config["use_break_path_on_normalize"] is False
+
+
+def make_issues_schema_for_normalizers_update() -> Schema:
+    schema_dict: TStoredSchema = load_json_case("schemas/github/issues.schema")
+    schema = Schema.from_dict(schema_dict)  # type: ignore[arg-type]
+    # drop seen data
+    del schema.tables["issues"]["x-normalizer"]
+    del schema.tables["issues__labels"]["x-normalizer"]
+    del schema.tables["issues__assignees"]["x-normalizer"]
+    return schema

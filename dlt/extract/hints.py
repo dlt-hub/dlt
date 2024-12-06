@@ -1,10 +1,9 @@
-from typing import TypedDict, cast, Any, Optional, Dict, Sequence, Mapping
+from typing import TypedDict, cast, Any, Optional, Dict, Sequence, Mapping, Union
 from typing_extensions import Self
 
 from dlt.common import logger
 from dlt.common.schema.typing import (
     C_DLT_ID,
-    TColumnNames,
     TColumnProp,
     TFileFormat,
     TPartialTableSchema,
@@ -28,7 +27,7 @@ from dlt.common.schema.utils import (
     new_column,
     new_table,
 )
-from dlt.common.typing import TDataItem
+from dlt.common.typing import TDataItem, TColumnNames
 from dlt.common.time import ensure_pendulum_datetime
 from dlt.common.utils import clone_dict_nested
 from dlt.common.normalizers.json.relational import DataItemNormalizer
@@ -37,7 +36,7 @@ from dlt.extract.exceptions import (
     DataItemRequiredForDynamicTableHints,
     InconsistentTableTemplate,
 )
-from dlt.extract.incremental import Incremental
+from dlt.extract.incremental import Incremental, TIncrementalConfig
 from dlt.extract.items import TFunHintTemplate, TTableHintTemplate, TableNameMeta, ValidateItem
 from dlt.extract.utils import ensure_table_schema_columns, ensure_table_schema_columns_hint
 from dlt.extract.validation import create_item_validator
@@ -86,6 +85,7 @@ def make_hints(
     table_format: TTableHintTemplate[TTableFormat] = None,
     file_format: TTableHintTemplate[TFileFormat] = None,
     references: TTableHintTemplate[TTableReferenceParam] = None,
+    incremental: TIncrementalConfig = None,
 ) -> TResourceHints:
     """A convenience function to create resource hints. Accepts both static and dynamic hints based on data.
 
@@ -119,6 +119,8 @@ def make_hints(
     if validator:
         new_template["validator"] = validator
     DltResourceHints.validate_dynamic_hints(new_template)
+    if incremental is not None:  # TODO: Validate
+        new_template["incremental"] = Incremental.ensure_instance(incremental)
     return new_template
 
 
@@ -204,6 +206,10 @@ class DltResourceHints:
             for k, v in table_template.items()
             if k not in NATURAL_CALLABLES
         }  # type: ignore
+        if "incremental" in table_template:
+            incremental = table_template["incremental"]
+            if isinstance(incremental, Incremental) and incremental is not Incremental.EMPTY:
+                resolved_template["incremental"] = incremental
         table_schema = self._create_table_schema(resolved_template, self.name)
         migrate_complex_types(table_schema, warn=True)
         validate_dict_ignoring_xkeys(
@@ -221,7 +227,7 @@ class DltResourceHints:
         columns: TTableHintTemplate[TAnySchemaColumns] = None,
         primary_key: TTableHintTemplate[TColumnNames] = None,
         merge_key: TTableHintTemplate[TColumnNames] = None,
-        incremental: Incremental[Any] = None,
+        incremental: TIncrementalConfig = None,
         schema_contract: TTableHintTemplate[TSchemaContract] = None,
         additional_table_hints: Optional[Dict[str, TTableHintTemplate[Any]]] = None,
         table_format: TTableHintTemplate[TTableFormat] = None,
@@ -360,7 +366,7 @@ class DltResourceHints:
 
         # set properties that can't be passed to make_hints
         if incremental is not None:
-            t["incremental"] = incremental
+            t["incremental"] = Incremental.ensure_instance(incremental)
 
         self._set_hints(t, create_table_variant)
         return self
@@ -507,6 +513,22 @@ class DltResourceHints:
             }
 
     @staticmethod
+    def _merge_incremental_column_hint(dict_: Dict[str, Any]) -> None:
+        incremental = dict_.pop("incremental")
+        if incremental is None:
+            return
+        col_name = incremental.get_cursor_column_name()
+        if not col_name:
+            # cursor cannot resolve to a single column, no hint added
+            return
+        incremental_col = dict_["columns"].get(col_name)
+        if not incremental_col:
+            incremental_col = {"name": col_name}
+
+        incremental_col["incremental"] = True
+        dict_["columns"][col_name] = incremental_col
+
+    @staticmethod
     def _create_table_schema(resource_hints: TResourceHints, resource_name: str) -> TTableSchema:
         """Creates table schema from resource hints and resource name. Resource hints are resolved
         (do not contain callables) and will be modified in place
@@ -518,6 +540,8 @@ class DltResourceHints:
                     "disposition": resource_hints["write_disposition"]
                 }  # wrap in dict
             DltResourceHints._merge_write_disposition_dict(resource_hints)  # type: ignore[arg-type]
+        if "incremental" in resource_hints:
+            DltResourceHints._merge_incremental_column_hint(resource_hints)  # type: ignore[arg-type]
         dict_ = cast(TTableSchema, resource_hints)
         dict_["resource"] = resource_name
         return dict_

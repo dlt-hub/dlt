@@ -31,6 +31,18 @@ dlt pipeline {pipeline_name} show
 
 Use the pipeline name you defined in your Python code with the `pipeline_name` argument. If you are unsure, you can use the `dlt pipeline --list` command to list all pipelines.
 
+## Credentials
+
+`dlt` will look for `secrets.toml` and `config.toml` in the `.dlt` folder.
+
+If `secrets.toml` are not found, it will use
+`secrets.toml` from `.streamlit` folder.
+
+If you run locally, maintain your usual `.dlt` folder.
+
+When running on streamlit cloud, paste the content of `dlt`
+`secrets.toml` into the `streamlit` secrets.
+
 ## Inspecting your data
 
 You can now inspect the schema and your data. Use the left sidebar to switch between:

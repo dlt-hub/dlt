@@ -22,7 +22,7 @@ from dlt.destinations.job_client_impl import SqlJobClientBase
 from dlt.destinations.typing import TNativeConn
 from dlt.common.time import ensure_pendulum_datetime, to_py_datetime
 
-from tests.utils import TEST_STORAGE_ROOT, autouse_test_storage
+from tests.utils import TEST_STORAGE_ROOT
 from tests.load.utils import (
     yield_client_with_storage,
     prepare_table,

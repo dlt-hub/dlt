@@ -80,7 +80,7 @@ def test_merge_on_keys_in_schema(
 
     skip_if_not_supported(merge_strategy, p.destination)
 
-    with open("tests/common/cases/schemas/eth/ethereum_schema_v9.yml", "r", encoding="utf-8") as f:
+    with open("tests/common/cases/schemas/eth/ethereum_schema_v11.yml", "r", encoding="utf-8") as f:
         schema = dlt.Schema.from_dict(yaml.safe_load(f))
 
     # make block uncles unseen to trigger filtering loader in loader for nested tables

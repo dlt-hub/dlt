@@ -81,7 +81,6 @@ if TYPE_CHECKING:
         DataFrame = Any
         ArrowTable = Any
         IbisBackend = Any
-
 else:
     DataFrame = Any
     ArrowTable = Any

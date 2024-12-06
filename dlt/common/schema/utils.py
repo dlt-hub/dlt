@@ -547,6 +547,17 @@ def merge_diff(table: TTableSchema, table_diff: TPartialTableSchema) -> TPartial
     * table hints are added or replaced from diff
     * nothing gets deleted
     """
+
+    incremental_a_col = get_first_column_name_with_prop(
+        table, "incremental", include_incomplete=True
+    )
+    if incremental_a_col:
+        incremental_b_col = get_first_column_name_with_prop(
+            table_diff, "incremental", include_incomplete=True
+        )
+        if incremental_b_col:
+            table["columns"][incremental_a_col].pop("incremental")
+
     # add new columns when all checks passed
     updated_columns = merge_columns(table["columns"], table_diff["columns"])
     table.update(table_diff)

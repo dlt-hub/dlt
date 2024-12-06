@@ -86,10 +86,10 @@ def test_infer_column_bumps_version() -> None:
 
 
 def test_preserve_version_on_load() -> None:
-    eth_v10: TStoredSchema = load_yml_case("schemas/eth/ethereum_schema_v10")
-    version = eth_v10["version"]
-    version_hash = eth_v10["version_hash"]
-    schema = Schema.from_dict(eth_v10)  # type: ignore[arg-type]
+    eth_v11: TStoredSchema = load_yml_case("schemas/eth/ethereum_schema_v11")
+    version = eth_v11["version"]
+    version_hash = eth_v11["version_hash"]
+    schema = Schema.from_dict(eth_v11)  # type: ignore[arg-type]
     # version should not be bumped
     assert version_hash == schema._stored_version_hash
     assert version_hash == schema.version_hash
@@ -98,8 +98,8 @@ def test_preserve_version_on_load() -> None:
 
 @pytest.mark.parametrize("remove_defaults", [True, False])
 def test_version_preserve_on_reload(remove_defaults: bool) -> None:
-    eth_v8: TStoredSchema = load_yml_case("schemas/eth/ethereum_schema_v8")
-    schema = Schema.from_dict(eth_v8)  # type: ignore[arg-type]
+    eth_v11: TStoredSchema = load_yml_case("schemas/eth/ethereum_schema_v11")
+    schema = Schema.from_dict(eth_v11)  # type: ignore[arg-type]
 
     to_save_dict = schema.to_dict(remove_defaults=remove_defaults)
     assert schema.stored_version == to_save_dict["version"]

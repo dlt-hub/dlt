@@ -14,3 +14,5 @@ class SchemaConfiguration(BaseConfiguration):
     naming: Optional[TNamingConventionReferenceArg] = None  # Union[str, NamingConvention]
     json_normalizer: Optional[DictStrAny] = None
     allow_identifier_change_on_table_with_data: Optional[bool] = None
+    use_break_path_on_normalize: Optional[bool] = None
+    """Post 1.4.0 to allow table and column names that contain table separators"""

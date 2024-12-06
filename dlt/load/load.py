@@ -370,6 +370,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 f"Job {starting_job.job_id()} CREATED a new FOLLOWUP JOB"
                 f" {followup_job.new_file_path()} placed in new_jobs"
             )
+        self.collector.update("Jobs", inc=0, inc_total=len(jobs))
 
     def complete_jobs(
         self, load_id: str, jobs: Sequence[LoadJob], schema: Schema

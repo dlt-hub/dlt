@@ -181,7 +181,7 @@ bucket_url = "abfss://<container_name>@<storage_account_name>.dfs.core.windows.n
 
 You can use `az`, `abfss`, `azure` and `abfs` url schemes.
 
-If you need to use a custom host to account your storage account you can set it up like below:
+If you need to use a custom host for your storage account, you can set it up like below:
 ```toml
 [destination.filesystem.credentials]
 # The storage account name is always required
@@ -530,7 +530,7 @@ layout="{table_name}/{load_id}.{file_id}.{ext}" # current preconfigured naming s
 # layout = "{table_name}/{load_package_timestamp}/{load_id}.{file_id}.{ext}"
 
 # Parquet-like layout (note: it is not compatible with the internal datetime of the parquet file)
-# layout = "{table_name}/year={year}/month={month}/day={day}/{load_id}.{file_id}.{ext}"
+# layout = "{table_name}/year={YYYY}/month={MM}/day={DD}/{load_id}.{file_id}.{ext}"
 
 # Custom placeholders
 # extra_placeholders = { "owner" = "admin", "department" = "finance" }

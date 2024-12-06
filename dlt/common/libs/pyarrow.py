@@ -620,7 +620,7 @@ def row_tuples_to_arrow(
             )
             float_array = pa.array(columnar_known_types[field.name], type=pa.float64())
             columnar_known_types[field.name] = float_array.cast(field.type, safe=False)
-        if issubclass(py_type, (dict, list)):
+        if issubclass(py_type, (dict, list, set)):
             logger.warning(
                 f"Field {field.name} was reflected as JSON type and needs to be serialized back to"
                 " string to be placed in arrow table. This will slow data extraction down. You"
@@ -628,7 +628,14 @@ def row_tuples_to_arrow(
                 " extracting an SQL VIEW that selects with cast."
             )
             json_str_array = pa.array(
-                [None if s is None else json.dumps(s) for s in columnar_known_types[field.name]]
+                [
+                    (
+                        None
+                        if s is None
+                        else json.dumps(s) if not issubclass(type(s), set) else json.dumps(list(s))
+                    )
+                    for s in columnar_known_types[field.name]
+                ]
             )
             columnar_known_types[field.name] = json_str_array
 

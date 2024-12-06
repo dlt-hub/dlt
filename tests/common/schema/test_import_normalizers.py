@@ -16,7 +16,7 @@ from tests.common.normalizers.custom_normalizers import (
 )
 from dlt.common.schema.normalizers import (
     DEFAULT_NAMING_NAMESPACE,
-    explicit_normalizers,
+    configured_normalizers,
     import_normalizers,
     naming_from_reference,
     serialize_reference,
@@ -26,25 +26,25 @@ from tests.utils import preserve_environ
 
 
 def test_explicit_normalizers() -> None:
-    config = explicit_normalizers()
+    config = configured_normalizers()
     assert config["names"] is None
     assert config["json"] is None
 
     # pass explicit
-    config = explicit_normalizers("direct", {"module": "custom"})
+    config = configured_normalizers("direct", {"module": "custom"})
     assert config["names"] == "direct"
     assert config["json"] == {"module": "custom"}
 
     # pass modules and types, make sure normalizer config is serialized
-    config = explicit_normalizers(direct)
+    config = configured_normalizers(direct)
     assert config["names"] == f"{DEFAULT_NAMING_NAMESPACE}.direct.NamingConvention"
-    config = explicit_normalizers(direct.NamingConvention)
+    config = configured_normalizers(direct.NamingConvention)
     assert config["names"] == f"{DEFAULT_NAMING_NAMESPACE}.direct.NamingConvention"
 
     # use environ
     os.environ["SCHEMA__NAMING"] = "direct"
     os.environ["SCHEMA__JSON_NORMALIZER"] = '{"module": "custom"}'
-    config = explicit_normalizers()
+    config = configured_normalizers()
     assert config["names"] == "direct"
     assert config["json"] == {"module": "custom"}
 
@@ -54,7 +54,7 @@ def test_explicit_normalizers_caps_ignored() -> None:
     destination_caps = DestinationCapabilitiesContext.generic_capabilities()
     destination_caps.naming_convention = "direct"
     with Container().injectable_context(destination_caps):
-        config = explicit_normalizers()
+        config = configured_normalizers()
         assert config["names"] is None
 
 
@@ -121,7 +121,7 @@ def test_naming_from_reference() -> None:
 
 
 def test_import_normalizers() -> None:
-    config, naming, json_normalizer = import_normalizers(explicit_normalizers())
+    config, naming, json_normalizer = import_normalizers(configured_normalizers())
     assert isinstance(naming, snake_case.NamingConvention)
     # no maximum length: we do not know the destination capabilities
     assert naming.max_length is None
@@ -133,7 +133,7 @@ def test_import_normalizers() -> None:
     os.environ["SCHEMA__JSON_NORMALIZER"] = (
         '{"module": "tests.common.normalizers.custom_normalizers"}'
     )
-    config, naming, json_normalizer = import_normalizers(explicit_normalizers())
+    config, naming, json_normalizer = import_normalizers(configured_normalizers())
     assert config["names"] == "direct"
     assert config["json"] == {"module": "tests.common.normalizers.custom_normalizers"}
     assert isinstance(naming, direct.NamingConvention)
@@ -142,7 +142,7 @@ def test_import_normalizers() -> None:
 
 
 def test_import_normalizers_with_defaults() -> None:
-    explicit = explicit_normalizers()
+    explicit = configured_normalizers()
     default_: TNormalizersConfig = {
         "names": "dlt.destinations.impl.weaviate.naming",
         "json": {"module": "tests.common.normalizers.custom_normalizers"},
@@ -170,7 +170,7 @@ def test_config_sections(sections: str) -> None:
     os.environ[f"{sections}SCHEMA__JSON_NORMALIZER"] = (
         '{"module": "tests.common.normalizers.custom_normalizers"}'
     )
-    config, _, _ = import_normalizers(explicit_normalizers(schema_name="test_schema"))
+    config, _, _ = import_normalizers(configured_normalizers(schema_name="test_schema"))
     assert config["names"] == "direct"
     assert config["json"] == {"module": "tests.common.normalizers.custom_normalizers"}
 
@@ -181,11 +181,11 @@ def test_import_normalizers_with_caps() -> None:
     destination_caps.naming_convention = "direct"
     destination_caps.max_identifier_length = 127
     with Container().injectable_context(destination_caps):
-        _, naming, _ = import_normalizers(explicit_normalizers())
+        _, naming, _ = import_normalizers(configured_normalizers())
         assert isinstance(naming, direct.NamingConvention)
         assert naming.max_length == 127
 
-        _, naming, _ = import_normalizers(explicit_normalizers(snake_case))
+        _, naming, _ = import_normalizers(configured_normalizers(snake_case))
         assert isinstance(naming, snake_case.NamingConvention)
         assert naming.max_length == 127
 
@@ -196,23 +196,23 @@ def test_import_normalizers_with_caps() -> None:
     }
     destination_caps.max_table_nesting = 0
     with Container().injectable_context(destination_caps):
-        config, _, relational = import_normalizers(explicit_normalizers())
+        config, _, relational = import_normalizers(configured_normalizers())
         assert config["json"]["config"]["max_nesting"] == 0
         assert relational is RelationalNormalizer
 
         # wrong normalizer
-        config, _, relational = import_normalizers(explicit_normalizers(), default_)
+        config, _, relational = import_normalizers(configured_normalizers(), default_)
         assert "config" not in config["json"]
 
 
 def test_import_invalid_naming_module() -> None:
     with pytest.raises(UnknownNamingModule) as py_ex:
-        import_normalizers(explicit_normalizers("unknown"))
+        import_normalizers(configured_normalizers("unknown"))
     assert py_ex.value.naming_module == "unknown"
     with pytest.raises(UnknownNamingModule) as py_ex:
-        import_normalizers(explicit_normalizers("dlt.common.tests"))
+        import_normalizers(configured_normalizers("dlt.common.tests"))
     assert py_ex.value.naming_module == "dlt.common.tests"
     with pytest.raises(InvalidNamingType) as py_ex2:
-        import_normalizers(explicit_normalizers("dlt.pipeline.helpers"))
+        import_normalizers(configured_normalizers("dlt.pipeline.helpers"))
     assert py_ex2.value.naming_module == "dlt.pipeline"
     assert py_ex2.value.naming_class == "helpers"

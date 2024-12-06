@@ -39,6 +39,8 @@ pipeline = dlt.pipeline("orders_pipeline", destination="snowflake")
 
 pipeline.run(df, table_name="orders")
 ```
+Note that Pandas indexes are not save by default (up from `dlt` version 1.4.1). If for some reason you need the destination,
+use `Table.from_pandas` with `preserve_index` set to True to explicitly convert the dataframe into arrow table.
 
 A `pyarrow` table can be loaded in the same way:
 

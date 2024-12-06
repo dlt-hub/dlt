@@ -10,6 +10,7 @@ from dlt.common import Decimal
 from typing import List
 from functools import reduce
 
+from dlt.common.storages.file_storage import FileStorage
 from tests.load.utils import (
     destinations_configs,
     DestinationTestConfiguration,
@@ -18,6 +19,7 @@ from tests.load.utils import (
     MEMORY_BUCKET,
 )
 from dlt.destinations import filesystem
+from tests.utils import TEST_STORAGE_ROOT, clean_test_storage
 from dlt.destinations.dataset.dataset import ReadableDBAPIDataset
 from dlt.destinations.dataset.exceptions import (
     ReadableRelationUnknownColumnException,
@@ -49,8 +51,14 @@ def _expected_chunk_count(p: Pipeline) -> List[int]:
     return [_chunk_size(p), _total_records(p) - _chunk_size(p)]
 
 
+# this also disables autouse_test_storage on function level which destroys some tests here
 @pytest.fixture(scope="session")
-def populated_pipeline(request) -> Any:
+def autouse_test_storage() -> FileStorage:
+    return clean_test_storage()
+
+
+@pytest.fixture(scope="session")
+def populated_pipeline(request, autouse_test_storage) -> Any:
     """fixture that returns a pipeline object populated with the example data"""
 
     destination_config = cast(DestinationTestConfiguration, request.param)
