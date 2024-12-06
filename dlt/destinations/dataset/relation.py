@@ -133,7 +133,7 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
         if self._selected_columns:
             selector = ",".join(
                 [
-                    self.sql_client.escape_column_name(self.schema.naming.normalize_path(c))
+                    self.sql_client.escape_column_name(self.schema.naming.normalize_tables_path(c))
                     for c in self._selected_columns
                 ]
             )
