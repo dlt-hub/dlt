@@ -76,7 +76,7 @@ if TYPE_CHECKING:
     try:
         from dlt.common.libs.pandas import DataFrame
         from dlt.common.libs.pyarrow import Table as ArrowTable
-        from dlt.common.libs.ibis import BaseBackend as IbisBackend
+        from dlt.helpers.ibis import BaseBackend as IbisBackend
     except MissingDependencyException:
         DataFrame = Any
         ArrowTable = Any

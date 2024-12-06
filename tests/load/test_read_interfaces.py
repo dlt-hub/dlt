@@ -633,7 +633,7 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
 def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
     # NOTE: we could generalize this with a context for certain deps
 
-    from dlt.common.libs.ibis import SUPPORTED_DESTINATIONS
+    from dlt.helpers.ibis import SUPPORTED_DESTINATIONS
 
     # check correct error if not supported
     if populated_pipeline.destination.destination_type not in SUPPORTED_DESTINATIONS:

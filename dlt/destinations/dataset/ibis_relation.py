@@ -13,7 +13,7 @@ else:
     ReadableDBAPIDataset = Any
 
 try:
-    from dlt.common.libs.ibis import Expr
+    from dlt.helpers.ibis import Expr
 except MissingDependencyException:
     Expr = Any
 
@@ -63,7 +63,7 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
     def query(self) -> Any:
         """build the query"""
 
-        from dlt.common.libs.ibis import ibis, sqlglot
+        from dlt.helpers.ibis import ibis, sqlglot
 
         destination_type = self._dataset._destination.destination_type
         target_dialect = DIALECT_MAP[destination_type]

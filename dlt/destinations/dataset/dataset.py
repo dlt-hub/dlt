@@ -21,7 +21,7 @@ from dlt.common.destination.reference import TDatasetType
 
 if TYPE_CHECKING:
     try:
-        from dlt.common.libs.ibis import BaseBackend as IbisBackend
+        from dlt.helpers.ibis import BaseBackend as IbisBackend
     except MissingDependencyException:
         IbisBackend = Any
 else:
@@ -47,7 +47,7 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
 
     def ibis(self) -> IbisBackend:
         """return a connected ibis backend"""
-        from dlt.common.libs.ibis import create_ibis_backend
+        from dlt.helpers.ibis import create_ibis_backend
 
         self._ensure_client_and_schema()
         return create_ibis_backend(
@@ -117,7 +117,7 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
         # we can create an ibis powered relation if ibis is available
         if table_name in self.schema.tables and self._dataset_type in ("auto", "ibis"):
             try:
-                from dlt.common.libs.ibis import create_unbound_ibis_table
+                from dlt.helpers.ibis import create_unbound_ibis_table
                 from dlt.destinations.dataset.ibis_relation import ReadableIbisRelation
 
                 unbound_table = create_unbound_ibis_table(self.sql_client, self.schema, table_name)
