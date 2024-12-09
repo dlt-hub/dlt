@@ -4,7 +4,7 @@ import pytest
 
 from dlt.sources import rest_api
 from dlt.sources.helpers.rest_client.paginators import JSONLinkPaginator
-from dlt.sources.rest_api.typing import PaginatorConfig
+from dlt.sources.rest_api.typing import PaginatorConfig, RESTAPIConfig
 
 
 class CustomPaginator(JSONLinkPaginator):
@@ -67,3 +67,13 @@ class TestCustomPaginator:
         with pytest.raises(ValueError) as e:
             rest_api.config_setup.register_paginator("not_a_paginator", NotAPaginator)  # type: ignore[arg-type]
         assert e.match("Invalid paginator: NotAPaginator.")
+
+    def test_test_valid_config_raises_no_error(self, custom_paginator_config) -> None:
+        rest_api.config_setup.register_paginator("custom_paginator", CustomPaginator)
+
+        valid_config: RESTAPIConfig = {
+            "client": {"base_url": "https://example.com", "paginator": custom_paginator_config},
+            "resources": ["test"],
+        }
+
+        rest_api.rest_api_source(valid_config)
