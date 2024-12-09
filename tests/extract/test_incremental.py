@@ -228,7 +228,7 @@ def test_pandas_index_as_dedup_key() -> None:
     no_index_r = some_data.with_name(new_name="no_index")
     p.run(no_index_r)
     p.run(no_index_r)
-    data_ = p._dataset().no_index.arrow()
+    data_ = p.dataset().no_index.arrow()
     assert data_.schema.names == ["created_at", "id"]
     assert data_["id"].to_pylist() == ["a", "b", "c", "d", "e", "f", "g"]
 
@@ -240,7 +240,7 @@ def test_pandas_index_as_dedup_key() -> None:
     unnamed_index_r.incremental.primary_key = "__index_level_0__"
     p.run(unnamed_index_r)
     p.run(unnamed_index_r)
-    data_ = p._dataset().unnamed_index.arrow()
+    data_ = p.dataset().unnamed_index.arrow()
     assert data_.schema.names == ["created_at", "id", "index_level_0"]
     # indexes 2 and 3 are removed from second batch because they were in the previous batch
     # and the created_at overlapped so they got deduplicated
@@ -258,7 +258,7 @@ def test_pandas_index_as_dedup_key() -> None:
     named_index_r.incremental.primary_key = "order_id"
     p.run(named_index_r)
     p.run(named_index_r)
-    data_ = p._dataset().named_index.arrow()
+    data_ = p.dataset().named_index.arrow()
     assert data_.schema.names == ["created_at", "id", "order_id"]
     assert data_["order_id"].to_pylist() == [0, 1, 2, 3, 4, 0, 1, 4]
 
@@ -268,7 +268,7 @@ def test_pandas_index_as_dedup_key() -> None:
     )
     p.run(named_index_impl_r)
     p.run(named_index_impl_r)
-    data_ = p._dataset().named_index_impl.arrow()
+    data_ = p.dataset().named_index_impl.arrow()
     assert data_.schema.names == ["created_at", "id"]
     assert data_["id"].to_pylist() == ["a", "b", "c", "d", "e", "f", "g"]
 

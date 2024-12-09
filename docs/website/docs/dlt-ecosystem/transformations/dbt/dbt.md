@@ -1,10 +1,10 @@
 ---
-title: Transform the data with dbt
+title: Transforming data with dbt
 description: Transforming the data loaded by a dlt pipeline with dbt
 keywords: [transform, dbt, runner]
 ---
 
-# Transform the data with dbt
+# Transforming data with dbt
 
 [dbt](https://github.com/dbt-labs/dbt-core) is a framework that allows for the simple structuring of your transformations into DAGs. The benefits of using dbt include:
 
@@ -105,8 +105,8 @@ You can run the example with dbt debug log: `RUNTIME__LOG_LEVEL=DEBUG python dbt
 
 ## Other transforming tools
 
-If you want to transform the data before loading, you can use Python. If you want to transform the data after loading, you can use dbt or one of the following:
+If you want to transform your data before loading, you can use Python. If you want to transform your data after loading, you can use dbt or one of the following:
 
 1. [`dlt` SQL client.](../sql.md)
-2. [Pandas.](../pandas.md)
+2. [Python with dataframes or arrow tables.](../python.md)
 

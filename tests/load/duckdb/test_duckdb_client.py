@@ -282,14 +282,14 @@ def test_drops_pipeline_changes_bound() -> None:
     p = dlt.pipeline(pipeline_name="quack_pipeline", destination="duckdb")
     p.run([1, 2, 3], table_name="p_table")
     p = p.drop()
-    assert len(p._dataset().p_table.fetchall()) == 3
+    assert len(p.dataset().p_table.fetchall()) == 3
 
     # drops internal duckdb
     p = dlt.pipeline(pipeline_name="quack_pipeline", destination=duckdb(":pipeline:"))
     p.run([1, 2, 3], table_name="p_table")
     p = p.drop()
     with pytest.raises(DatabaseUndefinedRelation):
-        p._dataset().p_table.fetchall()
+        p.dataset().p_table.fetchall()
 
 
 def test_duckdb_database_delete() -> None:

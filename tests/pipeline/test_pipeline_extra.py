@@ -521,7 +521,7 @@ def test_parquet_with_flattened_columns() -> None:
     assert "issue__reactions__url" in pipeline.default_schema.tables["events"]["columns"]
     assert "issue_reactions_url" not in pipeline.default_schema.tables["events"]["columns"]
 
-    events_table = pipeline._dataset().events.arrow()
+    events_table = pipeline.dataset().events.arrow()
     assert "issue__reactions__url" in events_table.schema.names
     assert "issue_reactions_url" not in events_table.schema.names
 
@@ -536,7 +536,7 @@ def test_parquet_with_flattened_columns() -> None:
     info = pipeline.run(events_table, table_name="events", loader_file_format="parquet")
     assert_load_info(info)
 
-    events_table_new = pipeline._dataset().events.arrow()
+    events_table_new = pipeline.dataset().events.arrow()
     assert events_table.schema == events_table_new.schema
     # double row count
     assert events_table.num_rows * 2 == events_table_new.num_rows

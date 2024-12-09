@@ -28,7 +28,7 @@ pip install ibis-framework[duckdb]
 
 ```py
 # get the dataset from the pipeline
-dataset = pipeline._dataset()
+dataset = pipeline.dataset()
 dataset_name = pipeline.dataset_name
 
 # get the native ibis connection from the dataset
