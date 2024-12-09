@@ -42,7 +42,7 @@ with pipeline.sql_client() as client:
             GROUP BY 
                 category, 
                 region;
-    )"""
+    """)
 ```
 
 You can also use the `execute_sql` method to run select queries. The data is returned as a list of rows, with the elements of a row

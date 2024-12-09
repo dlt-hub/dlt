@@ -280,7 +280,7 @@ with pipeline.sql_client() as client:
             GROUP BY 
                 category, 
                 region;
-    )"""
+    """)
 ```
 
 In this example, the `execute_sql` method of the SQL client allows you to execute SQL statements. The statement inserts a row with values into the `customers` table.

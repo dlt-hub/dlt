@@ -78,7 +78,7 @@ You can use dlt [datasets](../general-usage/dataset-access/dataset) to easily qu
 
 ```py
 # get the dataset
-dataset = dlt.dataset("mydata")
+dataset = pipeline.dataset("mydata")
 
 # get the user relation
 table = dataset.users
