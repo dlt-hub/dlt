@@ -23,6 +23,7 @@ from tests.utils import TEST_STORAGE_ROOT, clean_test_storage
 from dlt.common.destination.reference import TDestinationReferenceArg
 from dlt.destinations.dataset import ReadableDBAPIDataset, ReadableRelationUnknownColumnException
 from tests.load.utils import drop_pipeline_data
+from dlt.destinations.dataset import dataset as _dataset
 
 EXPECTED_COLUMNS = ["id", "decimal", "other_decimal", "_dlt_load_id", "_dlt_id"]
 
@@ -491,7 +492,7 @@ def test_standalone_dataset(populated_pipeline: Pipeline) -> None:
     total_records = _total_records(populated_pipeline)
 
     # check dataset factory
-    dataset = dlt._dataset(
+    dataset = _dataset(
         destination=populated_pipeline.destination, dataset_name=populated_pipeline.dataset_name
     )
     # verfiy that sql client and schema are lazy loaded
@@ -504,7 +505,7 @@ def test_standalone_dataset(populated_pipeline: Pipeline) -> None:
     # check that schema is loaded by name
     dataset = cast(
         ReadableDBAPIDataset,
-        dlt._dataset(
+        _dataset(
             destination=populated_pipeline.destination,
             dataset_name=populated_pipeline.dataset_name,
             schema=populated_pipeline.default_schema_name,
@@ -515,7 +516,7 @@ def test_standalone_dataset(populated_pipeline: Pipeline) -> None:
     # check that schema is not loaded when wrong name given
     dataset = cast(
         ReadableDBAPIDataset,
-        dlt._dataset(
+        _dataset(
             destination=populated_pipeline.destination,
             dataset_name=populated_pipeline.dataset_name,
             schema="wrong_schema_name",
@@ -527,7 +528,7 @@ def test_standalone_dataset(populated_pipeline: Pipeline) -> None:
     # check that schema is loaded if no schema name given
     dataset = cast(
         ReadableDBAPIDataset,
-        dlt._dataset(
+        _dataset(
             destination=populated_pipeline.destination,
             dataset_name=populated_pipeline.dataset_name,
         ),
@@ -538,7 +539,7 @@ def test_standalone_dataset(populated_pipeline: Pipeline) -> None:
     # check that there is no error when creating dataset without schema table
     dataset = cast(
         ReadableDBAPIDataset,
-        dlt._dataset(
+        _dataset(
             destination=populated_pipeline.destination,
             dataset_name="unknown_dataset",
         ),
@@ -560,7 +561,7 @@ def test_standalone_dataset(populated_pipeline: Pipeline) -> None:
 
     dataset = cast(
         ReadableDBAPIDataset,
-        dlt._dataset(
+        _dataset(
             destination=populated_pipeline.destination,
             dataset_name=populated_pipeline.dataset_name,
         ),
