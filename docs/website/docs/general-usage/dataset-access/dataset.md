@@ -19,7 +19,7 @@ Here's a full example of how to retrieve data from a pipeline and load it into a
 # and you have loaded data to a table named 'items' in the destination
 
 # Step 1: Get the readable dataset from the pipeline
-dataset = pipeline._dataset()
+dataset = pipeline.dataset()
 
 # Step 2: Access a table as a ReadableRelation
 items_relation = dataset.items  # Or dataset["items"]
@@ -39,7 +39,7 @@ Assuming you have a `Pipeline` object (let's call it `pipeline`), you can obtain
 
 ```py
 # Get the readable dataset from the pipeline
-dataset = pipeline._dataset()
+dataset = pipeline.dataset()
 ```
 
 ### Access tables as `ReadableRelation`

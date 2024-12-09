@@ -79,7 +79,6 @@ __all__ = [
     "TCredentials",
     "sources",
     "destinations",
-    "_dataset",
 ]
 
 # verify that no injection context was created

@@ -161,7 +161,7 @@ configs = destinations_configs(
     ids=lambda x: x.name,
 )
 def test_arrow_access(populated_pipeline: Pipeline) -> None:
-    table_relationship = populated_pipeline._dataset().items
+    table_relationship = populated_pipeline.dataset().items
     total_records = _total_records(populated_pipeline)
     chunk_size = _chunk_size(populated_pipeline)
     expected_chunk_counts = _expected_chunk_count(populated_pipeline)
@@ -194,7 +194,7 @@ def test_arrow_access(populated_pipeline: Pipeline) -> None:
 )
 def test_dataframe_access(populated_pipeline: Pipeline) -> None:
     # access via key
-    table_relationship = populated_pipeline._dataset()["items"]
+    table_relationship = populated_pipeline.dataset()["items"]
     total_records = _total_records(populated_pipeline)
     chunk_size = _chunk_size(populated_pipeline)
     expected_chunk_counts = _expected_chunk_count(populated_pipeline)
@@ -234,7 +234,7 @@ def test_dataframe_access(populated_pipeline: Pipeline) -> None:
 )
 def test_db_cursor_access(populated_pipeline: Pipeline) -> None:
     # check fetch accessors
-    table_relationship = populated_pipeline._dataset().items
+    table_relationship = populated_pipeline.dataset().items
     total_records = _total_records(populated_pipeline)
     chunk_size = _chunk_size(populated_pipeline)
     expected_chunk_counts = _expected_chunk_count(populated_pipeline)
@@ -280,11 +280,11 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
     # check correct error if not supported
     if populated_pipeline.destination.destination_type not in SUPPORTED_DESTINATIONS:
         with pytest.raises(NotImplementedError):
-            populated_pipeline._dataset().ibis()
+            populated_pipeline.dataset().ibis()
         return
 
     total_records = _total_records(populated_pipeline)
-    ibis_connection = populated_pipeline._dataset().ibis()
+    ibis_connection = populated_pipeline.dataset().ibis()
 
     map_i = lambda x: x
     if populated_pipeline.destination.destination_type == "dlt.destinations.snowflake":
@@ -333,7 +333,7 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
     ids=lambda x: x.name,
 )
 def test_hint_preservation(populated_pipeline: Pipeline) -> None:
-    table_relationship = populated_pipeline._dataset().items
+    table_relationship = populated_pipeline.dataset().items
     # check that hints are carried over to arrow table
     expected_decimal_precision = 10
     expected_decimal_precision_2 = 12
@@ -361,7 +361,7 @@ def test_hint_preservation(populated_pipeline: Pipeline) -> None:
 )
 def test_loads_table_access(populated_pipeline: Pipeline) -> None:
     # check loads table access, we should have one entry
-    loads_table = populated_pipeline._dataset()[populated_pipeline.default_schema.loads_table_name]
+    loads_table = populated_pipeline.dataset()[populated_pipeline.default_schema.loads_table_name]
     assert len(loads_table.fetchall()) == 1
 
 
@@ -376,7 +376,7 @@ def test_loads_table_access(populated_pipeline: Pipeline) -> None:
 def test_sql_queries(populated_pipeline: Pipeline) -> None:
     # simple check that query also works
     tname = populated_pipeline.sql_client().make_qualified_table_name("items")
-    query_relationship = populated_pipeline._dataset()(f"select * from {tname} where id < 20")
+    query_relationship = populated_pipeline.dataset()(f"select * from {tname} where id < 20")
 
     # we selected the first 20
     table = query_relationship.arrow()
@@ -388,7 +388,7 @@ def test_sql_queries(populated_pipeline: Pipeline) -> None:
         f"SELECT i.id, di.double_id FROM {tname} as i JOIN {tdname} as di ON (i.id = di.id) WHERE"
         " i.id < 20 ORDER BY i.id ASC"
     )
-    join_relationship = populated_pipeline._dataset()(query)
+    join_relationship = populated_pipeline.dataset()(query)
     table = join_relationship.fetchall()
     assert len(table) == 20
     assert list(table[0]) == [0, 0]
@@ -405,7 +405,7 @@ def test_sql_queries(populated_pipeline: Pipeline) -> None:
     ids=lambda x: x.name,
 )
 def test_limit_and_head(populated_pipeline: Pipeline) -> None:
-    table_relationship = populated_pipeline._dataset().items
+    table_relationship = populated_pipeline.dataset().items
 
     assert len(table_relationship.head().fetchall()) == 5
     assert len(table_relationship.limit(24).fetchall()) == 24
@@ -426,7 +426,7 @@ def test_limit_and_head(populated_pipeline: Pipeline) -> None:
     ids=lambda x: x.name,
 )
 def test_column_selection(populated_pipeline: Pipeline) -> None:
-    table_relationship = populated_pipeline._dataset().items
+    table_relationship = populated_pipeline.dataset().items
 
     columns = ["_dlt_load_id", "other_decimal"]
     data_frame = table_relationship.select(*columns).head().df()
@@ -464,18 +464,18 @@ def test_schema_arg(populated_pipeline: Pipeline) -> None:
     """Simple test to ensure schemas may be selected via schema arg"""
 
     # if there is no arg, the defautl schema is used
-    dataset = populated_pipeline._dataset()
+    dataset = populated_pipeline.dataset()
     assert dataset.schema.name == populated_pipeline.default_schema_name
     assert "items" in dataset.schema.tables
 
     # setting a different schema name will try to load that schema,
     # not find one and create an empty schema with that name
-    dataset = populated_pipeline._dataset(schema="unknown_schema")
+    dataset = populated_pipeline.dataset(schema="unknown_schema")
     assert dataset.schema.name == "unknown_schema"
     assert "items" not in dataset.schema.tables
 
     # providing the schema name of the right schema will load it
-    dataset = populated_pipeline._dataset(schema=populated_pipeline.default_schema_name)
+    dataset = populated_pipeline.dataset(schema=populated_pipeline.default_schema_name)
     assert dataset.schema.name == populated_pipeline.default_schema_name
     assert "items" in dataset.schema.tables
 
