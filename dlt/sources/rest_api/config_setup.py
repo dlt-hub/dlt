@@ -66,6 +66,7 @@ from .typing import (
     Endpoint,
     EndpointResource,
     AuthType,
+    PaginatorType,
 )
 
 
@@ -105,6 +106,7 @@ def register_paginator(
             "Your custom paginator has to be a subclass of BasePaginator"
         )
     PAGINATOR_MAP[paginator_name] = paginator_class
+    add_value_to_literal(PaginatorType, paginator_name)
 
 
 def get_paginator_class(paginator_name: str) -> Type[BasePaginator]:

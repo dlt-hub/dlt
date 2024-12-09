@@ -78,7 +78,7 @@ class TestCustomAuth:
             )
         assert e.match("Invalid auth: NotAuthConfigBase.")
 
-    def test_validate_config_raises_no_error(self, custom_auth_config: AuthConfig) -> None:
+    def test_valid_config_raises_no_error(self, custom_auth_config: AuthConfig) -> None:
         rest_api.config_setup.register_auth("custom_oauth_2", CustomOAuth2)
 
         valid_config: RESTAPIConfig = {
