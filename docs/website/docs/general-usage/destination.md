@@ -128,7 +128,7 @@ When loading data, `dlt` will access the destination in two cases:
 1. At the beginning of the `run` method to sync the pipeline state with the destination (or if you call `pipeline.sync_destination` explicitly).
 2. In the `pipeline.load` method - to migrate the schema and load the load package.
 
-Obviously, `dlt` will access the destination when you instantiate [sql_client](../dlt-ecosystem/transformations/sql.md).
+`dlt` will also access the destination when you instantiate [sql_client](../dlt-ecosystem/transformations/sql.md).
 
 :::note
 `dlt` will not import the destination dependencies or access destination configuration if access is not needed. You can build multi-stage pipelines where steps are executed in separate processes or containers - the `extract` and `normalize` step do not need destination dependencies, configuration, and actual connection.

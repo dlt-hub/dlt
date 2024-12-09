@@ -226,6 +226,8 @@ other_pipeline = dlt.pipeline(pipeline_name="other_pipeline", destination="duckd
 other_pipeline.run(limited_items_relation.iter_arrow(chunk_size=10_000), table_name="limited_items")
 ```
 
+Learn more about [transforming data in python with dataframes or arrow tables](../dlt-ecosystem/transformations/python).
+
 ### Using `ibis` to query the data
 
 Visit the [Native Ibis integration](./ibis-backend.md) guide to learn more.

@@ -123,14 +123,13 @@ def comments(user_id: str):
     # on the first pipeline run, the user_comments table does not yet exist so do not check at all
     # alternatively, catch DatabaseUndefinedRelation which is raised when an unknown table is selected
     if not current_pipeline.first_run:
-        with current_pipeline.sql_client() as client:
-            # we may get the last user comment or None which we replace with 0
-            max_id = (
-                client.execute_sql(
-                    "SELECT MAX(_id) FROM user_comments WHERE user_id=?", user_id
-                )[0][0]
-                or 0
-            )
+        # get user comments table from pipeline dataset
+        user_comments = current_pipeline.dataset().user_comments
+        # get last user comment id with ibis expression, ibis-extras need to be installed
+        max_id = user_comments.filter(user_comments.user_id == user_id).select(user_comments["_id"].max()).df()
+        # if there are no comments for the user, max_id will be None, so we replace it with 0
+        max_id = max_id[0] or 0
+
     # use max_id to filter our results (we simulate an API query)
     yield from [
         {"_id": i, "value": letter, "user_id": user_id}

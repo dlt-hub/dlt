@@ -72,7 +72,25 @@ Load package 1692364844.460054 is LOADED and contains no failed jobs
 
 `dlt` just created a database schema called **mydata** (the `dataset_name`) with a table **users** in it.
 
-### Explore the data
+### Explore the data in python
+
+You can use dlt [datasets](../general-usage/dataset-access/dataset) to easily query the data in pure python.
+
+```py
+# get the dataset
+dataset = dlt.dataset("mydata")
+
+# get the user relation
+table = dataset.users
+
+# query the full table as dataframe
+print(table.df())
+
+# query the first 10 rows as arrow table
+print(table.limit(10).arrow())
+```
+
+### Explore the data in streamlit
 
 To allow a sneak peek and basic discovery, you can take advantage of [built-in integration with Streamlit](../reference/command-line-interface#show-tables-and-data-in-the-destination):
 
