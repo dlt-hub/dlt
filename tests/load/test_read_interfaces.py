@@ -10,6 +10,7 @@ from dlt.common import Decimal
 from typing import List
 from functools import reduce
 
+from dlt.common.storages.file_storage import FileStorage
 from tests.load.utils import (
     destinations_configs,
     DestinationTestConfiguration,
@@ -18,7 +19,7 @@ from tests.load.utils import (
     MEMORY_BUCKET,
 )
 from dlt.destinations import filesystem
-from tests.utils import TEST_STORAGE_ROOT
+from tests.utils import TEST_STORAGE_ROOT, clean_test_storage
 from dlt.common.destination.reference import TDestinationReferenceArg
 from dlt.destinations.dataset import ReadableDBAPIDataset, ReadableRelationUnknownColumnException
 from tests.load.utils import drop_pipeline_data
@@ -48,8 +49,14 @@ def _expected_chunk_count(p: Pipeline) -> List[int]:
     return [_chunk_size(p), _total_records(p) - _chunk_size(p)]
 
 
+# this also disables autouse_test_storage on function level which destroys some tests here
 @pytest.fixture(scope="session")
-def populated_pipeline(request) -> Any:
+def autouse_test_storage() -> FileStorage:
+    return clean_test_storage()
+
+
+@pytest.fixture(scope="session")
+def populated_pipeline(request, autouse_test_storage) -> Any:
     """fixture that returns a pipeline object populated with the example data"""
     destination_config = cast(DestinationTestConfiguration, request.param)
 
@@ -259,6 +266,71 @@ def test_db_cursor_access(populated_pipeline: Pipeline) -> None:
     indirect=True,
     ids=lambda x: x.name,
 )
+def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
+    # NOTE: we could generalize this with a context for certain deps
+    import subprocess
+
+    subprocess.check_call(
+        ["pip", "install", "ibis-framework[duckdb,postgres,bigquery,snowflake,mssql,clickhouse]"]
+    )
+
+    from dlt.common.libs.ibis import SUPPORTED_DESTINATIONS
+
+    # check correct error if not supported
+    if populated_pipeline.destination.destination_type not in SUPPORTED_DESTINATIONS:
+        with pytest.raises(NotImplementedError):
+            populated_pipeline._dataset().ibis()
+        return
+
+    total_records = _total_records(populated_pipeline)
+    ibis_connection = populated_pipeline._dataset().ibis()
+
+    map_i = lambda x: x
+    if populated_pipeline.destination.destination_type == "dlt.destinations.snowflake":
+        map_i = lambda x: x.upper()
+
+    dataset_name = map_i(populated_pipeline.dataset_name)
+    table_like_statement = None
+    table_name_prefix = ""
+    addtional_tables = []
+
+    # clickhouse has no datasets, but table prefixes and a sentinel table
+    if populated_pipeline.destination.destination_type == "dlt.destinations.clickhouse":
+        table_like_statement = dataset_name + "."
+        table_name_prefix = dataset_name + "___"
+        dataset_name = None
+        addtional_tables = ["dlt_sentinel_table"]
+
+    add_table_prefix = lambda x: table_name_prefix + x
+
+    # just do a basic check to see wether ibis can connect
+    assert set(ibis_connection.list_tables(database=dataset_name, like=table_like_statement)) == {
+        add_table_prefix(map_i(x))
+        for x in (
+            [
+                "_dlt_loads",
+                "_dlt_pipeline_state",
+                "_dlt_version",
+                "double_items",
+                "items",
+                "items__children",
+            ]
+            + addtional_tables
+        )
+    }
+
+    items_table = ibis_connection.table(add_table_prefix(map_i("items")), database=dataset_name)
+    assert items_table.count().to_pandas() == total_records
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
 def test_hint_preservation(populated_pipeline: Pipeline) -> None:
     table_relationship = populated_pipeline._dataset().items
     # check that hints are carried over to arrow table
@@ -387,6 +459,34 @@ def test_column_selection(populated_pipeline: Pipeline) -> None:
     indirect=True,
     ids=lambda x: x.name,
 )
+def test_schema_arg(populated_pipeline: Pipeline) -> None:
+    """Simple test to ensure schemas may be selected via schema arg"""
+
+    # if there is no arg, the defautl schema is used
+    dataset = populated_pipeline._dataset()
+    assert dataset.schema.name == populated_pipeline.default_schema_name
+    assert "items" in dataset.schema.tables
+
+    # setting a different schema name will try to load that schema,
+    # not find one and create an empty schema with that name
+    dataset = populated_pipeline._dataset(schema="unknown_schema")
+    assert dataset.schema.name == "unknown_schema"
+    assert "items" not in dataset.schema.tables
+
+    # providing the schema name of the right schema will load it
+    dataset = populated_pipeline._dataset(schema=populated_pipeline.default_schema_name)
+    assert dataset.schema.name == populated_pipeline.default_schema_name
+    assert "items" in dataset.schema.tables
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
 def test_standalone_dataset(populated_pipeline: Pipeline) -> None:
     total_records = _total_records(populated_pipeline)
 
@@ -422,7 +522,7 @@ def test_standalone_dataset(populated_pipeline: Pipeline) -> None:
         ),
     )
     assert "items" not in dataset.schema.tables
-    assert dataset.schema.name == populated_pipeline.dataset_name
+    assert dataset.schema.name == "wrong_schema_name"
 
     # check that schema is loaded if no schema name given
     dataset = cast(

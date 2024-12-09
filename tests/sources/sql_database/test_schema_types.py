@@ -68,7 +68,7 @@ def test_get_table_references() -> None:
     refs = get_table_references(child)
     refs = sorted(refs, key=lambda x: x["referenced_table"])
     assert refs[0]["referenced_table"] == "parent"
-    # Sqla aonstraints are not in fixed order
+    # Sqla constraints are not in fixed order
     assert set(refs[0]["columns"]) == {"parent_id", "parent_country"}
     assert set(refs[0]["referenced_columns"]) == {"id", "country"}
     # Ensure columns and referenced columns are the same order

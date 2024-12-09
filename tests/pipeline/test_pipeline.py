@@ -64,6 +64,8 @@ from tests.pipeline.utils import (
     many_delayed,
 )
 
+from dlt.destinations.dataset import get_destination_client_initial_config
+
 DUMMY_COMPLETE = dummy(completed_prob=1)  # factory set up to complete jobs
 
 
@@ -417,16 +419,15 @@ def test_destination_staging_config(environment: Any) -> None:
     fs_dest = filesystem("file:///testing-bucket")
     p = dlt.pipeline(
         pipeline_name="staging_pipeline",
-        destination=redshift(credentials="redshift://loader:loader@localhost:5432/dlt_data"),
+        destination=dummy(),
         staging=fs_dest,
     )
     schema = Schema("foo")
     p._inject_schema(schema)
-    initial_config = p._get_destination_client_initial_config(p.staging, as_staging=True)
-    staging_config = fs_dest.configuration(initial_config)  # type: ignore[arg-type]
 
-    # Ensure that as_staging flag is set in the final resolved conifg
-    assert staging_config.as_staging_destination is True
+    _, staging_client = p._get_destination_clients()
+
+    assert staging_client.config.as_staging_destination is True  # type: ignore
 
 
 def test_destination_factory_defaults_resolve_from_config(environment: Any) -> None:
@@ -450,7 +451,9 @@ def test_destination_credentials_in_factory(environment: Any) -> None:
 
     p = dlt.pipeline(pipeline_name="dummy_pipeline", destination=redshift_dest)
 
-    initial_config = p._get_destination_client_initial_config(p.destination)
+    initial_config = get_destination_client_initial_config(
+        p.destination, "some_schema_name", p.dataset_name
+    )
     dest_config = redshift_dest.configuration(initial_config)  # type: ignore[arg-type]
     # Explicit factory arg supersedes config
     assert dest_config.credentials.database == "other_db"
@@ -458,7 +461,9 @@ def test_destination_credentials_in_factory(environment: Any) -> None:
     redshift_dest = redshift()
     p = dlt.pipeline(pipeline_name="dummy_pipeline", destination=redshift_dest)
 
-    initial_config = p._get_destination_client_initial_config(p.destination)
+    initial_config = get_destination_client_initial_config(
+        p.destination, "some_schema_name", p.dataset_name
+    )
     dest_config = redshift_dest.configuration(initial_config)  # type: ignore[arg-type]
     assert dest_config.credentials.database == "some_db"
 
@@ -1726,6 +1731,111 @@ def test_flattened_column_hint() -> None:
     )
     # make sure data is there
     assert pipeline.last_trace.last_normalize_info.row_counts["flattened_dict__values"] == 4
+
+
+def test_column_name_with_break_path() -> None:
+    """Tests how normalization behaves for names with break path ie __
+    all the names must be idempotent
+    """
+    pipeline = dlt.pipeline(destination="duckdb", pipeline_name="breaking")
+    info = pipeline.run(
+        [{"example_custom_field__c": "custom", "reg_c": "c"}], table_name="custom__path"
+    )
+    assert_load_info(info)
+    # table name was preserved
+    table = pipeline.default_schema.get_table("custom__path")
+    assert pipeline.default_schema.data_table_names() == ["custom__path"]
+    # column name was preserved
+    assert table["columns"]["example_custom_field__c"]["data_type"] == "text"
+    assert set(table["columns"]) == {"example_custom_field__c", "reg_c", "_dlt_id", "_dlt_load_id"}
+
+    # get data
+    assert_data_table_counts(pipeline, {"custom__path": 1})
+    # get data via dataset with dbapi
+    data_ = pipeline._dataset().custom__path[["example_custom_field__c", "reg_c"]].fetchall()
+    assert data_ == [("custom", "c")]
+
+
+def test_column_name_with_break_path_legacy() -> None:
+    """Tests how normalization behaves for names with break path ie __
+    in legacy mode table and column names were normalized as single identifier
+    """
+    os.environ["SCHEMA__USE_BREAK_PATH_ON_NORMALIZE"] = "False"
+    pipeline = dlt.pipeline(destination="duckdb", pipeline_name="breaking")
+    info = pipeline.run(
+        [{"example_custom_field__c": "custom", "reg_c": "c"}], table_name="custom__path"
+    )
+    assert_load_info(info)
+    # table name was contracted
+    table = pipeline.default_schema.get_table("custom_path")
+    assert pipeline.default_schema.data_table_names() == ["custom_path"]
+    # column name was contracted
+    assert table["columns"]["example_custom_field_c"]["data_type"] == "text"
+    assert set(table["columns"]) == {"example_custom_field_c", "reg_c", "_dlt_id", "_dlt_load_id"}
+
+    # get data
+    assert_data_table_counts(pipeline, {"custom_path": 1})
+    # get data via dataset with dbapi
+    data_ = pipeline._dataset().custom_path[["example_custom_field_c", "reg_c"]].fetchall()
+    assert data_ == [("custom", "c")]
+
+
+def test_column_hint_with_break_path() -> None:
+    """Up form the v 1.4.1 name normalizer is idempotent on break path"""
+    now = cast(pendulum.DateTime, pendulum.parse("2024-11-29T10:10"))
+
+    @dlt.resource(
+        name="flattened__dict", columns=[{"name": "value__timestamp", "data_type": "timestamp"}]
+    )
+    def flattened_dict():
+        for delta in range(4):
+            yield {
+                "delta": delta,
+                "value": {"timestamp": now.timestamp() + delta},
+            }
+
+    pipeline = dlt.pipeline(destination="duckdb")
+    info = pipeline.run(flattened_dict())
+    assert_load_info(info)
+
+    assert pipeline.default_schema.data_table_names() == ["flattened__dict"]
+    table = pipeline.default_schema.get_table("flattened__dict")
+    assert set(table["columns"]) == {"delta", "value__timestamp", "_dlt_id", "_dlt_load_id"}
+    assert table["columns"]["value__timestamp"]["data_type"] == "timestamp"
+
+    # make sure data is there
+    data_ = pipeline._dataset().flattened__dict[["delta", "value__timestamp"]].limit(1).fetchall()
+    assert data_ == [(0, now)]
+
+
+def test_column_hint_with_break_path_legacy() -> None:
+    """Up form the v 1.4.1 name normalizer is idempotent on break path"""
+
+    os.environ["SCHEMA__USE_BREAK_PATH_ON_NORMALIZE"] = "False"
+    now = cast(pendulum.DateTime, pendulum.parse("2024-11-29T10:10"))
+
+    @dlt.resource(
+        name="flattened__dict", columns=[{"name": "value__timestamp", "data_type": "timestamp"}]
+    )
+    def flattened_dict():
+        for delta in range(4):
+            yield {
+                "delta": delta,
+                "value": {"timestamp": now.timestamp() + delta},
+            }
+
+    pipeline = dlt.pipeline(destination="duckdb")
+    info = pipeline.run(flattened_dict())
+    assert_load_info(info)
+    # table name contracted
+    assert pipeline.default_schema.data_table_names() == ["flattened_dict"]
+    table = pipeline.default_schema.get_table("flattened_dict")
+    # hint applied
+    assert set(table["columns"]) == {"delta", "value__timestamp", "_dlt_id", "_dlt_load_id"}
+    assert table["columns"]["value__timestamp"]["data_type"] == "timestamp"
+    # make sure data is there
+    data_ = pipeline._dataset().flattened_dict[["delta", "value__timestamp"]].limit(1).fetchall()
+    assert data_ == [(0, now)]
 
 
 def test_empty_rows_are_included() -> None:

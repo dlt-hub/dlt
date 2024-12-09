@@ -11,7 +11,7 @@ from dlt.common.pendulum import pendulum
 from dlt.common.pipeline import LoadInfo
 from dlt.common.data_types.typing import TDataType
 from dlt.common.schema.typing import DEFAULT_VALIDITY_COLUMN_NAMES
-from dlt.common.normalizers.json.relational import DataItemNormalizer
+from dlt.common.normalizers.json.helpers import get_row_hash
 from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCaseNamingConvention
 from dlt.common.time import ensure_pendulum_datetime, reduce_pendulum_datetime_precision
 from dlt.extract.resource import DltResource
@@ -30,7 +30,6 @@ from tests.pipeline.utils import (
 
 from tests.utils import TPythonTableFormat
 
-get_row_hash = DataItemNormalizer.get_row_hash
 FROM, TO = DEFAULT_VALIDITY_COLUMN_NAMES
 
 

@@ -50,6 +50,14 @@ def test_normalize_path(naming_unlimited: NamingConvention) -> None:
     assert naming_unlimited.normalize_path("Small Love Potion") == "small_love_potion"
     assert naming_unlimited.normalize_path("Small  Love  Potion") == "small_love_potion"
 
+    # paths with non normalized underscores
+    # NOTE: empty idents created during break path are removed so underscores are contracted
+    assert (
+        naming_unlimited.normalize_path("Small___Love____Potion_____x")
+        == "small___love__potion___x"
+    )
+    assert naming_unlimited.normalize_path("small___love__potion___x") == "small___love__potion___x"
+
 
 def test_normalize_non_alpha_single_underscore() -> None:
     assert SnakeCaseNamingConvention.RE_NON_ALPHANUMERIC.sub("_", "-=!*") == "_"

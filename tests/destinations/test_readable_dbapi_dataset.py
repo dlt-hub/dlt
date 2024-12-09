@@ -91,7 +91,7 @@ def test_computed_schema_columns() -> None:
 
     # now add columns
     relation = dataset.items
-    dataset.schema.tables["items"] = {  # type: ignore[attr-defined]
+    dataset.schema.tables["items"] = {
         "columns": {"one": {"data_type": "text"}, "two": {"data_type": "json"}}
     }
 

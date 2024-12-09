@@ -1,6 +1,6 @@
 import os
 from datetime import datetime  # noqa: I251
-from typing import Generic, ClassVar, Any, Optional, Type, Dict, Union
+from typing import Generic, ClassVar, Any, Optional, Type, Dict, Union, Literal, Tuple
 from typing_extensions import get_args
 
 import inspect
@@ -9,7 +9,7 @@ from functools import wraps
 from dlt.common import logger
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.pendulum import pendulum
-from dlt.common.jsonpath import compile_path
+from dlt.common.jsonpath import compile_path, extract_simple_field_name
 from dlt.common.typing import (
     TDataItem,
     TDataItems,
@@ -19,8 +19,8 @@ from dlt.common.typing import (
     get_generic_type_argument_from_instance,
     is_optional_type,
     is_subclass,
+    TColumnNames,
 )
-from dlt.common.schema.typing import TColumnNames
 from dlt.common.configuration import configspec, ConfigurationValueError
 from dlt.common.configuration.specs import BaseConfiguration
 from dlt.common.pipeline import resource_state
@@ -29,17 +29,19 @@ from dlt.common.data_types.type_helpers import (
     coerce_value,
     py_type_to_sc_type,
 )
+from dlt.common.utils import without_none
 
 from dlt.extract.exceptions import IncrementalUnboundError
 from dlt.extract.incremental.exceptions import (
     IncrementalCursorPathMissing,
     IncrementalPrimaryKeyMissing,
 )
-from dlt.extract.incremental.typing import (
+from dlt.common.incremental.typing import (
     IncrementalColumnState,
     TCursorValue,
     LastValueFunc,
     OnCursorValueMissing,
+    IncrementalArgs,
 )
 from dlt.extract.items import SupportsPipe, TTableHintTemplate, ItemTransform
 from dlt.extract.incremental.transform import (
@@ -123,7 +125,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         self,
         cursor_path: str = None,
         initial_value: Optional[TCursorValue] = None,
-        last_value_func: Optional[LastValueFunc[TCursorValue]] = max,
+        last_value_func: Optional[Union[LastValueFunc[TCursorValue], Literal["min", "max"]]] = max,
         primary_key: Optional[TTableHintTemplate[TColumnNames]] = None,
         end_value: Optional[TCursorValue] = None,
         row_order: Optional[TSortOrder] = None,
@@ -135,6 +137,16 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         if cursor_path:
             compile_path(cursor_path)
         self.cursor_path = cursor_path
+        if isinstance(last_value_func, str):
+            if last_value_func == "min":
+                last_value_func = min
+            elif last_value_func == "max":
+                last_value_func = max
+            else:
+                raise ValueError(
+                    f"Unknown last_value_func '{last_value_func}' passed as string. Provide a"
+                    " callable to use a custom function."
+                )
         self.last_value_func = last_value_func
         self.initial_value = initial_value
         """Initial value of last_value"""
@@ -246,6 +258,10 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
     def copy(self) -> "Incremental[TCursorValue]":
         # merge creates a copy
         return self.merge(self)
+
+    def get_cursor_column_name(self) -> Optional[str]:
+        """Return the name of the cursor column if the cursor path resolves to a single column"""
+        return extract_simple_field_name(self.cursor_path)
 
     def on_resolved(self) -> None:
         compile_path(self.cursor_path)
@@ -491,6 +507,12 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
             and self.start_out_of_range
         )
 
+    @classmethod
+    def ensure_instance(cls, value: "TIncrementalConfig") -> "Incremental[TCursorValue]":
+        if isinstance(value, Incremental):
+            return value
+        return cls(**value)
+
     def __str__(self) -> str:
         return (
             f"Incremental at 0x{id(self):x} for resource {self.resource_name} with cursor path:"
@@ -511,7 +533,6 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
     def __call__(self, rows: TDataItems, meta: Any = None) -> Optional[TDataItems]:
         if rows is None:
             return rows
-
         transformer = self._get_transformer(rows)
         if isinstance(rows, list):
             rows = [
@@ -556,6 +577,8 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
 Incremental.EMPTY = Incremental[Any]()
 Incremental.EMPTY.__is_resolved__ = True
 
+TIncrementalConfig = Union[Incremental[Any], IncrementalArgs]
+
 
 class IncrementalResourceWrapper(ItemTransform[TDataItem]):
     placement_affinity: ClassVar[float] = 1  # stick to end
@@ -594,6 +617,34 @@ class IncrementalResourceWrapper(ItemTransform[TDataItem]):
                 incremental_param = p
                 break
         return incremental_param
+
+    @staticmethod
+    def inject_implicit_incremental_arg(
+        incremental: Optional[Union[Incremental[Any], "IncrementalResourceWrapper"]],
+        sig: inspect.Signature,
+        func_args: Tuple[Any],
+        func_kwargs: Dict[str, Any],
+        fallback: Optional[Incremental[Any]] = None,
+    ) -> Tuple[Tuple[Any], Dict[str, Any], Optional[Incremental[Any]]]:
+        """Inject the incremental instance into function arguments
+        if the function has an incremental argument without default in its signature and it is not already set in the arguments.
+
+        Returns:
+            Tuple of the new args, kwargs and the incremental instance that was injected (if any)
+        """
+        if isinstance(incremental, IncrementalResourceWrapper):
+            incremental = incremental.incremental
+        if not incremental:
+            if not fallback:
+                return func_args, func_kwargs, None
+            incremental = fallback
+        incremental_param = IncrementalResourceWrapper.get_incremental_arg(sig)
+        if incremental_param:
+            bound_args = sig.bind_partial(*func_args, **func_kwargs)
+            if not bound_args.arguments.get(incremental_param.name):
+                bound_args.arguments[incremental_param.name] = incremental
+                return bound_args.args, bound_args.kwargs, incremental
+        return func_args, func_kwargs, None
 
     def wrap(self, sig: inspect.Signature, func: TFun) -> TFun:
         """Wrap the callable to inject an `Incremental` object configured for the resource."""
@@ -666,12 +717,14 @@ class IncrementalResourceWrapper(ItemTransform[TDataItem]):
         return self._incremental
 
     def set_incremental(
-        self, incremental: Optional[Incremental[Any]], from_hints: bool = False
+        self, incremental: Optional[TIncrementalConfig], from_hints: bool = False
     ) -> None:
         """Sets the incremental. If incremental was set from_hints, it can only be changed in the same manner"""
         if self._from_hints and not from_hints:
             # do not accept incremental if apply hints were used
             return
+        if incremental is not None:
+            incremental = Incremental.ensure_instance(incremental)
         self._from_hints = from_hints
         self._incremental = incremental
 
@@ -710,6 +763,12 @@ class IncrementalResourceWrapper(ItemTransform[TDataItem]):
         return self._incremental(item, meta)
 
 
+def incremental_config_to_instance(cfg: TIncrementalConfig) -> Incremental[Any]:
+    if isinstance(cfg, Incremental):
+        return cfg
+    return Incremental(**cfg)
+
+
 __all__ = [
     "Incremental",
     "IncrementalResourceWrapper",
@@ -717,6 +776,7 @@ __all__ = [
     "IncrementalCursorPathMissing",
     "IncrementalPrimaryKeyMissing",
     "IncrementalUnboundError",
+    "TIncrementalconfig",
     "LastValueFunc",
     "TCursorValue",
 ]

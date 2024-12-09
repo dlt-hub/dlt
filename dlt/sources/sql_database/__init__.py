@@ -4,22 +4,24 @@ from typing import Callable, Dict, List, Optional, Union, Iterable, Any
 
 import dlt
 from dlt.common.configuration.specs import ConnectionStringCredentials
+from dlt.common.schema.typing import TWriteDispositionConfig
 from dlt.common.libs.sql_alchemy import MetaData, Table, Engine
 
 from dlt.extract import DltResource, Incremental, decorators
 
 from .helpers import (
+    _execute_table_adapter,
     table_rows,
     engine_from_credentials,
+    remove_nullability_adapter,
     TableBackend,
     SqlTableResourceConfiguration,
     _detect_precision_hints_deprecated,
     TQueryAdapter,
+    TTableAdapter,
 )
 from .schema_types import (
-    default_table_adapter,
     table_to_resource_hints,
-    get_primary_key,
     ReflectionLevel,
     TTypeAdapter,
 )
@@ -36,12 +38,13 @@ def sql_database(
     detect_precision_hints: Optional[bool] = False,
     reflection_level: Optional[ReflectionLevel] = "full",
     defer_table_reflect: Optional[bool] = None,
-    table_adapter_callback: Callable[[Table], None] = None,
+    table_adapter_callback: Optional[TTableAdapter] = None,
     backend_kwargs: Dict[str, Any] = None,
     include_views: bool = False,
     type_adapter_callback: Optional[TTypeAdapter] = None,
     query_adapter_callback: Optional[TQueryAdapter] = None,
     resolve_foreign_keys: bool = False,
+    engine_adapter_callback: Callable[[Engine], Engine] = None,
 ) -> Iterable[DltResource]:
     """
     A dlt source which loads data from an SQL database using SQLAlchemy.
@@ -60,8 +63,8 @@ def sql_database(
         detect_precision_hints (bool): Deprecated. Use `reflection_level`. Set column precision and scale hints for supported data types in the target schema based on the columns in the source tables.
             This is disabled by default.
         reflection_level: (ReflectionLevel): Specifies how much information should be reflected from the source database schema.
-            "minimal": Only table names, nullability and primary keys are reflected. Data types are inferred from the data.
-            "full": Data types will be reflected on top of "minimal". `dlt` will coerce the data into reflected types if necessary. This is the default option.
+            "minimal": Only table names, nullability and primary keys are reflected. Data types are inferred from the data. This is the default option.
+            "full": Data types will be reflected on top of "minimal". `dlt` will coerce the data into reflected types if necessary.
             "full_with_precision": Sets precision and scale on supported data types (ie. decimal, text, binary). Creates big and regular integer types.
         defer_table_reflect (bool): Will connect and reflect table schema only when yielding data. Requires table_names to be explicitly passed.
             Enable this option when running on Airflow. Available on dlt 0.4.4 and later.
@@ -71,9 +74,11 @@ def sql_database(
         type_adapter_callback(Optional[Callable]): Callable to override type inference when reflecting columns.
             Argument is a single sqlalchemy data type (`TypeEngine` instance) and it should return another sqlalchemy data type, or `None` (type will be inferred from data)
         query_adapter_callback(Optional[Callable[Select, Table], Select]): Callable to override the SELECT query used to fetch data from the table.
-            The callback receives the sqlalchemy `Select` and corresponding `Table` objects and should return the modified `Select`.
+            The callback receives the sqlalchemy `Select` and corresponding `Table`, 'Incremental` and `Engine` objects and should return the modified `Select` or `Text`.
         resolve_foreign_keys (bool): Translate foreign keys in the same schema to `references` table hints.
             May incur additional database calls as all referenced tables are reflected.
+        engine_adapter_callback (Callable[[Engine], Engine]): Callback to configure, modify and Engine instance that will be used to open a connection ie. to
+            set transaction isolation level.
 
     Returns:
         Iterable[DltResource]: A list of DLT resources for each table to be loaded.
@@ -89,6 +94,8 @@ def sql_database(
     # set up alchemy engine
     engine = engine_from_credentials(credentials)
     engine.execution_options(stream_results=True, max_row_buffer=2 * chunk_size)
+    if engine_adapter_callback:
+        engine = engine_adapter_callback(engine)
     metadata = metadata or MetaData(schema=schema)
 
     if defer_table_reflect:
@@ -126,6 +133,7 @@ def sql_database(
             type_adapter_callback=type_adapter_callback,
             query_adapter_callback=query_adapter_callback,
             resolve_foreign_keys=resolve_foreign_keys,
+            engine_adapter_callback=engine_adapter_callback,
         )
 
 
@@ -143,12 +151,14 @@ def sql_table(
     detect_precision_hints: Optional[bool] = None,
     reflection_level: Optional[ReflectionLevel] = "full",
     defer_table_reflect: Optional[bool] = None,
-    table_adapter_callback: Callable[[Table], None] = None,
+    table_adapter_callback: Optional[TTableAdapter] = None,
     backend_kwargs: Dict[str, Any] = None,
     type_adapter_callback: Optional[TTypeAdapter] = None,
     included_columns: Optional[List[str]] = None,
     query_adapter_callback: Optional[TQueryAdapter] = None,
     resolve_foreign_keys: bool = False,
+    engine_adapter_callback: Callable[[Engine], Engine] = None,
+    write_disposition: TWriteDispositionConfig = "append",
 ) -> DltResource:
     """
     A dlt resource which loads data from an SQL database table using SQLAlchemy.
@@ -166,8 +176,8 @@ def sql_table(
             "sqlalchemy" is the default and does not require additional dependencies, "pyarrow" creates stable destination schemas with correct data types,
             "connectorx" is typically the fastest but ignores the "chunk_size" so you must deal with large tables yourself.
         reflection_level: (ReflectionLevel): Specifies how much information should be reflected from the source database schema.
-            "minimal": Only table names, nullability and primary keys are reflected. Data types are inferred from the data.
-            "full": Data types will be reflected on top of "minimal". `dlt` will coerce the data into reflected types if necessary. This is the default option.
+            "minimal": Only table names, nullability and primary keys are reflected. Data types are inferred from the data. This is the default option.
+            "full": Data types will be reflected on top of "minimal". `dlt` will coerce the data into reflected types if necessary.
             "full_with_precision": Sets precision and scale on supported data types (ie. decimal, text, binary). Creates big and regular integer types.
         detect_precision_hints (bool): Deprecated. Use `reflection_level`. Set column precision and scale hints for supported data types in the target schema based on the columns in the source tables.
             This is disabled by default.
@@ -179,9 +189,12 @@ def sql_table(
             Argument is a single sqlalchemy data type (`TypeEngine` instance) and it should return another sqlalchemy data type, or `None` (type will be inferred from data)
         included_columns (Optional[List[str]): List of column names to select from the table. If not provided, all columns are loaded.
         query_adapter_callback(Optional[Callable[Select, Table], Select]): Callable to override the SELECT query used to fetch data from the table.
-            The callback receives the sqlalchemy `Select` and corresponding `Table` objects and should return the modified `Select`.
+            The callback receives the sqlalchemy `Select` and corresponding `Table`, 'Incremental` and `Engine` objects and should return the modified `Select` or `Text`.
         resolve_foreign_keys (bool): Translate foreign keys in the same schema to `references` table hints.
             May incur additional database calls as all referenced tables are reflected.
+        engine_adapter_callback (Callable[[Engine], Engine]): Callback to configure, modify and Engine instance that will be used to open a connection ie. to
+            set transaction isolation level.
+        write_disposition (TWriteDispositionConfig): write disposition of the table resource, defaults to `append`.
 
     Returns:
         DltResource: The dlt resource for loading data from the SQL database table.
@@ -195,6 +208,8 @@ def sql_table(
 
     engine = engine_from_credentials(credentials, may_dispose_after_use=True)
     engine.execution_options(stream_results=True, max_row_buffer=2 * chunk_size)
+    if engine_adapter_callback:
+        engine = engine_adapter_callback(engine)
     metadata = metadata or MetaData(schema=schema)
 
     skip_nested_on_minimal = backend == "sqlalchemy"
@@ -206,9 +221,7 @@ def sql_table(
 
     if table_obj is not None:
         if not defer_table_reflect:
-            default_table_adapter(table_obj, included_columns)
-            if table_adapter_callback:
-                table_adapter_callback(table_obj)
+            table_obj = _execute_table_adapter(table_obj, table_adapter_callback, included_columns)
         hints = table_to_resource_hints(
             table_obj,
             reflection_level,
@@ -219,7 +232,9 @@ def sql_table(
     else:
         hints = {}
 
-    return decorators.resource(table_rows, name=table, **hints)(
+    return decorators.resource(
+        table_rows, name=table, write_disposition=write_disposition, **hints
+    )(
         engine,
         table_obj if table_obj is not None else table,  # Pass table name if reflection deferred
         metadata,
@@ -234,3 +249,16 @@ def sql_table(
         query_adapter_callback=query_adapter_callback,
         resolve_foreign_keys=resolve_foreign_keys,
     )
+
+
+__all__ = [
+    "sql_database",
+    "sql_table",
+    "ReflectionLevel",
+    "TTypeAdapter",
+    "engine_from_credentials",
+    "remove_nullability_adapter",
+    "TableBackend",
+    "TQueryAdapter",
+    "TTableAdapter",
+]

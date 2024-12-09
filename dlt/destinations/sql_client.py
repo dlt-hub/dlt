@@ -399,6 +399,7 @@ class DBApiCursorImpl(DBApiCursor):
             or DestinationCapabilitiesContext.generic_capabilities()
         )
 
+        # note that columns_schema is inferred from the cursor and is not normalized
         if not chunk_size:
             result = self.fetchall()
             yield row_tuples_to_arrow(result, caps, self.columns_schema, tz="UTC")
