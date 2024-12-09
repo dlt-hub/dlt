@@ -511,7 +511,11 @@ def diff_table(
             partial_table[k] = v  # type: ignore
 
     # this should not really happen
-    if is_nested_table(tab_a) and (resource := tab_b.get("resource")) and resource != tab_a.get("parent"):
+    if (
+        is_nested_table(tab_a)
+        and (resource := tab_b.get("resource"))
+        and resource != tab_a.get("parent")
+    ):
         raise TablePropertiesConflictException(
             schema_name, table_name, "resource", resource, tab_a.get("parent")
         )

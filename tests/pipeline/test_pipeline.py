@@ -666,17 +666,16 @@ def test_mark_hints_variant_dynamic_name() -> None:
     # check table counts
     assert_data_table_counts(pipeline, {"table_a": 2, "table_b": 2, "table_c": 1})
 
+
 def test_mark_parent_table() -> None:
     @dlt.resource()
     def my_table():
         yield {"id": 1}
         yield dlt.mark.with_hints(
             {"id": 10},
-            dlt.mark.make_hints(
-                table_name="my_other_table",
-                parent_table_name="my_table"
-            ),
+            dlt.mark.make_hints(table_name="my_other_table", parent_table_name="my_table"),
         )
+
     pipeline_name = "pipe_" + uniq_id()
     pipeline = dlt.pipeline(pipeline_name=pipeline_name, destination="duckdb")
     info = pipeline.run(my_table)
@@ -687,7 +686,8 @@ def test_mark_parent_table() -> None:
         "my_other_table": 1,
     }
     # check table counts
-    assert_data_table_counts(pipeline, {"my_table": 1, "my_other_table": 1 })
+    assert_data_table_counts(pipeline, {"my_table": 1, "my_other_table": 1})
+
 
 def test_restore_state_on_dummy() -> None:
     pipeline_name = "pipe_" + uniq_id()
