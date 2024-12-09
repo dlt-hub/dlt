@@ -13,8 +13,8 @@ from typing import (
     Dict,
 )
 
+from databricks import sql as databricks_lib  # type: ignore[attr-defined]
 
-from databricks import sql as databricks_lib
 from databricks.sql.client import (
     Connection as DatabricksSqlConnection,
     Cursor as DatabricksSqlCursor,
