@@ -24,7 +24,11 @@ from dlt.common.configuration.specs import (
 )
 from dlt.common.configuration.container import Container
 from dlt.common.exceptions import PipelineException
-from dlt.common.pipeline import unset_current_pipe_name, set_current_pipe_name
+from dlt.common.pipeline import (
+    unset_current_pipe_name,
+    set_current_pipe_name,
+    get_current_pipe_name,
+)
 from dlt.common.utils import get_callable_name
 
 from dlt.extract.exceptions import (
@@ -38,7 +42,7 @@ from dlt.extract.exceptions import (
 )
 from dlt.extract.pipe import Pipe
 from dlt.extract.items import DataItemWithMeta, PipeItem, ResolvablePipeItem, SourcePipeItem
-from dlt.extract.utils import wrap_async_iterator
+from dlt.extract.utils import wrap_async_iterator, wrap_iterator
 from dlt.extract.concurrency import FuturesPool
 
 TPipeNextItemMode = Literal["fifo", "round_robin"]
@@ -179,10 +183,12 @@ class PipeIterator(Iterator[PipeItem]):
 
             item = pipe_item.item
             # if item is iterator, then add it as a new source
+            # we wrap it to make it stoppable
             if isinstance(item, Iterator):
-                # print(f"adding iterable {item}")
                 self._sources.append(
-                    SourcePipeItem(item, pipe_item.step, pipe_item.pipe, pipe_item.meta)
+                    SourcePipeItem(
+                        wrap_iterator(item), pipe_item.step, pipe_item.pipe, pipe_item.meta
+                    )
                 )
                 pipe_item = None
                 continue
@@ -291,7 +297,6 @@ class PipeIterator(Iterator[PipeItem]):
                     first_evaluated_index = self._current_source_index
                 # always go round robin if None was returned or item is to be run as future
                 self._current_source_index = (self._current_source_index - 1) % sources_count
-
         except StopIteration:
             # remove empty iterator and try another source
             self._sources.pop(self._current_source_index)
