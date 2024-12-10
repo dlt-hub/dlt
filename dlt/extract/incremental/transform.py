@@ -13,7 +13,12 @@ from dlt.extract.incremental.exceptions import (
     IncrementalPrimaryKeyMissing,
     IncrementalCursorPathHasValueNone,
 )
-from dlt.common.incremental.typing import TCursorValue, LastValueFunc, OnCursorValueMissing
+from dlt.common.incremental.typing import (
+    TCursorValue,
+    LastValueFunc,
+    OnCursorValueMissing,
+    TIncrementalRange,
+)
 from dlt.extract.utils import resolve_column_value
 from dlt.extract.items import TTableHintTemplate
 
@@ -57,6 +62,8 @@ class IncrementalTransform:
         unique_hashes: Set[str],
         on_cursor_value_missing: OnCursorValueMissing = "raise",
         lag: Optional[float] = None,
+        range_start: TIncrementalRange = "closed",
+        range_end: TIncrementalRange = "open",
     ) -> None:
         self.resource_name = resource_name
         self.cursor_path = cursor_path
@@ -71,6 +78,9 @@ class IncrementalTransform:
         self.start_unique_hashes = set(unique_hashes)
         self.on_cursor_value_missing = on_cursor_value_missing
         self.lag = lag
+        self.range_start = range_start
+        self.range_end = range_end
+
         # compile jsonpath
         self._compiled_cursor_path = compile_path(cursor_path)
         # for simple column name we'll fallback to search in dict
@@ -107,6 +117,8 @@ class IncrementalTransform:
     def deduplication_disabled(self) -> bool:
         """Skip deduplication when length of the key is 0 or if lag is applied."""
         # disable deduplication if end value is set - state is not saved
+        if self.range_start == "open":
+            return True
         if self.end_value is not None:
             return True
         # disable deduplication if lag is applied - destination must deduplicate ranges
@@ -191,10 +203,10 @@ class JsonIncremental(IncrementalTransform):
         # Filter end value ranges exclusively, so in case of "max" function we remove values >= end_value
         if self.end_value is not None:
             try:
-                if (
-                    last_value_func((row_value, self.end_value)) != self.end_value
-                    or last_value_func((row_value,)) == self.end_value
-                ):
+                if last_value_func((row_value, self.end_value)) != self.end_value:
+                    return None, False, True
+
+                if self.range_end == "open" and last_value_func((row_value,)) == self.end_value:
                     return None, False, True
             except Exception as ex:
                 raise IncrementalCursorInvalidCoercion(
@@ -221,6 +233,9 @@ class JsonIncremental(IncrementalTransform):
             ) from ex
         # new_value is "less" or equal to last_value (the actual max)
         if last_value == new_value:
+            if self.range_start == "open":
+                # We only want greater than last_value
+                return None, False, False
             # use func to compute row_value into last_value compatible
             processed_row_value = last_value_func((row_value,))
             # skip the record that is not a start_value or new_value: that record was already processed
@@ -257,6 +272,31 @@ class JsonIncremental(IncrementalTransform):
 
 class ArrowIncremental(IncrementalTransform):
     _dlt_index = "_dlt_index"
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        if self.last_value_func is max:
+            self.compute = pa.compute.max
+            self.end_compare = (
+                pa.compute.less if self.range_end == "open" else pa.compute.less_equal
+            )
+            self.last_value_compare = (
+                pa.compute.greater_equal if self.range_start == "closed" else pa.compute.greater
+            )
+            self.new_value_compare = pa.compute.greater
+        elif self.last_value_func is min:
+            self.compute = pa.compute.min
+            self.end_compare = (
+                pa.compute.greater if self.range_end == "open" else pa.compute.greater_equal
+            )
+            self.last_value_compare = (
+                pa.compute.less_equal if self.range_start == "closed" else pa.compute.less
+            )
+            self.new_value_compare = pa.compute.less
+        else:
+            raise NotImplementedError(
+                "Only min or max last_value_func is supported for arrow tables"
+            )
 
     def compute_unique_values(self, item: "TAnyArrowItem", unique_columns: List[str]) -> List[str]:
         if not unique_columns:
@@ -312,28 +352,13 @@ class ArrowIncremental(IncrementalTransform):
         if not tbl:  # row is None or empty arrow table
             return tbl, start_out_of_range, end_out_of_range
 
-        if self.last_value_func is max:
-            compute = pa.compute.max
-            end_compare = pa.compute.less
-            last_value_compare = pa.compute.greater_equal
-            new_value_compare = pa.compute.greater
-        elif self.last_value_func is min:
-            compute = pa.compute.min
-            end_compare = pa.compute.greater
-            last_value_compare = pa.compute.less_equal
-            new_value_compare = pa.compute.less
-        else:
-            raise NotImplementedError(
-                "Only min or max last_value_func is supported for arrow tables"
-            )
-
         # TODO: Json path support. For now assume the cursor_path is a column name
         cursor_path = self.cursor_path
 
         # The new max/min value
         try:
             # NOTE: datetimes are always pendulum in UTC
-            row_value = from_arrow_scalar(compute(tbl[cursor_path]))
+            row_value = from_arrow_scalar(self.compute(tbl[cursor_path]))
             cursor_data_type = tbl.schema.field(cursor_path).type
             row_value_scalar = to_arrow_scalar(row_value, cursor_data_type)
         except KeyError as e:
@@ -364,10 +389,10 @@ class ArrowIncremental(IncrementalTransform):
                     cursor_data_type,
                     str(ex),
                 ) from ex
-            tbl = tbl.filter(end_compare(tbl[cursor_path], end_value_scalar))
+            tbl = tbl.filter(self.end_compare(tbl[cursor_path], end_value_scalar))
             # Is max row value higher than end value?
             # NOTE: pyarrow bool *always* evaluates to python True. `as_py()` is necessary
-            end_out_of_range = not end_compare(row_value_scalar, end_value_scalar).as_py()
+            end_out_of_range = not self.end_compare(row_value_scalar, end_value_scalar).as_py()
 
         if self.start_value is not None:
             try:
@@ -383,7 +408,7 @@ class ArrowIncremental(IncrementalTransform):
                     str(ex),
                 ) from ex
             # Remove rows lower or equal than the last start value
-            keep_filter = last_value_compare(tbl[cursor_path], start_value_scalar)
+            keep_filter = self.last_value_compare(tbl[cursor_path], start_value_scalar)
             start_out_of_range = bool(pa.compute.any(pa.compute.invert(keep_filter)).as_py())
             tbl = tbl.filter(keep_filter)
             if not self.deduplication_disabled:
@@ -407,7 +432,7 @@ class ArrowIncremental(IncrementalTransform):
 
         if (
             self.last_value is None
-            or new_value_compare(
+            or self.new_value_compare(
                 row_value_scalar, to_arrow_scalar(self.last_value, cursor_data_type)
             ).as_py()
         ):  # Last value has changed
