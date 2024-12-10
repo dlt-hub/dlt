@@ -1751,9 +1751,17 @@ class Pipeline(SupportsPipeline):
         return {"pipeline_name": self.pipeline_name}
 
     def _dataset(
-        self, schema: Union[Schema, str, None] = None, dataset_type: TDatasetType = "dbapi"
+        self, schema: Union[Schema, str, None] = None, dataset_type: TDatasetType = "auto"
     ) -> SupportsReadableDataset:
-        """Access helper to dataset"""
+        """Returns a dataset object for querying the destination data.
+
+        Args:
+            schema: Schema name or Schema object to use. If None, uses the default schema if set.
+            dataset_type: Type of dataset interface to return. Defaults to 'auto' which will select ibis if available
+                otherwise it will fallback to the standard dbapi interface.
+        Returns:
+            A dataset object that supports querying the destination data.
+        """
         if schema is None:
             schema = self.default_schema if self.default_schema_name else None
         return dataset(

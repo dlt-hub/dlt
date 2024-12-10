@@ -1,12 +1,14 @@
-from typing import cast
+from typing import cast, Any
 
 from dlt.common.exceptions import MissingDependencyException
-
 from dlt.common.destination.reference import TDestinationReferenceArg, Destination, JobClientBase
+from dlt.common.schema import Schema
+from dlt.destinations.sql_client import SqlClientBase
 
 try:
     import ibis  # type: ignore
-    from ibis import BaseBackend
+    import sqlglot
+    from ibis import BaseBackend, Expr
 except ModuleNotFoundError:
     raise MissingDependencyException("dlt ibis Helpers", ["ibis"])
 
@@ -27,6 +29,22 @@ SUPPORTED_DESTINATIONS = [
     # does not work yet.
     # "dlt.destinations.athena",
 ]
+
+
+# Map dlt data types to ibis data types
+DATA_TYPE_MAP = {
+    "text": "string",
+    "double": "float64",
+    "bool": "boolean",
+    "timestamp": "timestamp",
+    "bigint": "int64",
+    "binary": "binary",
+    "json": "string",  # Store JSON as string in ibis
+    "decimal": "decimal",
+    "wei": "int64",  # Wei is a large integer
+    "date": "date",
+    "time": "time",
+}
 
 
 def create_ibis_backend(
@@ -119,3 +137,37 @@ def create_ibis_backend(
         con = ibis.duckdb.from_connection(duck)
 
     return con
+
+
+def create_unbound_ibis_table(
+    sql_client: SqlClientBase[Any], schema: Schema, table_name: str
+) -> Expr:
+    """Create an unbound ibis table from a dlt schema"""
+
+    if table_name not in schema.tables:
+        raise Exception(
+            f"Table {table_name} not found in schema. Available tables: {schema.tables.keys()}"
+        )
+    table_schema = schema.tables[table_name]
+
+    # Convert dlt table schema columns to ibis schema
+    ibis_schema = {
+        sql_client.capabilities.casefold_identifier(col_name): DATA_TYPE_MAP[
+            col_info.get("data_type", "string")
+        ]
+        for col_name, col_info in table_schema.get("columns", {}).items()
+    }
+
+    # normalize table name
+    table_path = sql_client.make_qualified_table_name_path(table_name, escape=False)
+
+    catalog = None
+    if len(table_path) == 3:
+        catalog, database, table = table_path
+    else:
+        database, table = table_path
+
+    # create unbound ibis table and return in dlt wrapper
+    unbound_table = ibis.table(schema=ibis_schema, name=table, database=database, catalog=catalog)
+
+    return unbound_table

@@ -167,7 +167,6 @@ pytest-mock = "^3.14.0"
 types-regex = "^2024.5.15.20240519"
 flake8-print = "^5.0.0"
 mimesis = "^7.0.0"
-ibis-framework = { version = ">=9.0.0", markers = "python_version >= '3.10'", optional = true, extras = ["duckdb", "postgres", "bigquery", "snowflake", "mssql", "clickhouse"]}
 shapely = ">=2.0.6"
 
 [tool.poetry.group.sources]
@@ -204,6 +203,12 @@ optional = true
 
 [tool.poetry.group.airflow.dependencies]
 apache-airflow = {version = "^2.8.0", markers = "python_version < '3.12'"}
+
+[tool.poetry.group.ibis]
+optional = true
+
+[tool.poetry.group.ibis.dependencies]
+ibis-framework = { version = ">=9.0.0,<10.0.0", markers = "python_version >= '3.10'", extras = ["duckdb", "postgres", "bigquery", "snowflake", "mssql", "clickhouse"]}
 
 [tool.poetry.group.providers]
 optional = true
