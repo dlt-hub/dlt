@@ -10,12 +10,13 @@ keywords: [delta, iceberg, destination, data warehouse]
 ## How it works
 `dlt` uses the [deltalake](https://pypi.org/project/deltalake/) and [pyiceberg](https://pypi.org/project/pyiceberg/) libraries to write Delta and Iceberg tables, respectively. One or multiple Parquet files are prepared during the extract and normalize steps. In the load step, these Parquet files are exposed as an Arrow data structure and fed into `deltalake` or `pyiceberg`.
 
-## Iceberg catalog
+## Iceberg single-user ephemeral catalog
 `dlt` uses single-table, ephemeral, in-memory, sqlite-based [Iceberg catalog](https://iceberg.apache.org/concepts/catalog/)s. These catalogs are created "on demand" when a pipeline is run, and do not persist afterwards. If a table already exists in the filesystem, it gets registered into the catalog using its latest metadata file. This allows for a serverless setup. It is currently not possible to connect your own Iceberg catalog.
 
 :::caution
 While ephemeral catalogs make it easy to get started with Iceberg, it comes with limitations:
 - concurrent writes are not handled and may lead to corrupt table state
+- we cannot guarantee that reads concurrent with writes are clean
 - the latest manifest file needs to be searched for using file listing—this can become slow with large tables, especially in cloud object stores
 :::
 
@@ -69,7 +70,7 @@ pipeline.run(my_resource, table_format="delta")
 
 
 ## Table format partitioning
-Both `delta` and `iceberg` tables can be partitioned by specifying one or more `partition` column hints. This example partitions a Delta table by the `foo` column: 
+Both `delta` and `iceberg` tables can be partitioned by specifying one or more `partition` column hints. This example partitions a Delta table by the `foo` column:
 
 ```py
 @dlt.resource(

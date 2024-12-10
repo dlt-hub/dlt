@@ -13,6 +13,7 @@ from contextlib import contextmanager
 
 from dlt.common.destination.reference import DBApiCursor
 
+from dlt.common.storages.fsspec_filesystem import AZURE_BLOB_STORAGE_PROTOCOLS
 from dlt.destinations.sql_client import raise_database_error
 
 from dlt.destinations.impl.duckdb.sql_client import DuckDbSqlClient
@@ -193,7 +194,7 @@ class FilesystemSqlClient(DuckDbSqlClient):
 
         # the line below solves problems with certificate path lookup on linux
         # see duckdb docs
-        if self.fs_client.config.protocol in ["az", "abfss"]:
+        if self.fs_client.config.protocol in AZURE_BLOB_STORAGE_PROTOCOLS:
             self._conn.sql("SET azure_transport_option_type = 'curl';")
 
         return self._conn
