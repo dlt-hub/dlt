@@ -636,14 +636,7 @@ def destinations_configs(
                     table_format="iceberg",
                     supports_merge=False,
                     file_format="parquet",
-                    credentials=(
-                        resolve_configuration(
-                            GcpOAuthCredentialsWithoutDefaults(),
-                            sections=("destination", "fsgcpoauth"),
-                        )
-                        if bucket == GCS_BUCKET
-                        else None
-                    ),
+                    destination_name="fsgcpoauth" if bucket == GCS_BUCKET else None,
                 )
             ]
 

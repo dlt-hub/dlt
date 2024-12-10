@@ -356,3 +356,9 @@ class GcpOAuthCredentials(GcpDefaultCredentials, GcpOAuthCredentialsWithoutDefau
         except NativeValueError:
             pass
         GcpOAuthCredentialsWithoutDefaults.parse_native_representation(self, native_value)
+
+    def to_pyiceberg_fileio_config(self) -> Dict[str, Any]:
+        if self.has_default_credentials():
+            return GcpDefaultCredentials.to_pyiceberg_fileio_config(self)
+        else:
+            return GcpOAuthCredentialsWithoutDefaults.to_pyiceberg_fileio_config(self)
