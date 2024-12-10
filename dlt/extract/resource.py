@@ -41,6 +41,7 @@ from dlt.extract.items import (
     MapItem,
     YieldMapItem,
     ValidateItem,
+    LimitItem,
 )
 from dlt.extract.pipe_iterator import ManagedPipeIterator
 from dlt.extract.pipe import Pipe, TPipeStep
@@ -363,56 +364,14 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             "DltResource": returns self
         """
 
-        # make sure max_items is a number, to allow "None" as value for unlimited
-        if max_items is None:
-            max_items = -1
-
-        def _gen_wrap(gen: TPipeStep) -> TPipeStep:
-            """Wrap a generator to take the first `max_items` records"""
-
-            # zero items should produce empty generator
-            if max_items == 0:
-                return
-
-            count = 0
-            is_async_gen = False
-            if callable(gen):
-                gen = gen()  # type: ignore
-
-            # wrap async gen already here
-            if isinstance(gen, AsyncIterator):
-                gen = wrap_async_iterator(gen)
-                is_async_gen = True
-
-            try:
-                for i in gen:  # type: ignore # TODO: help me fix this later
-                    yield i
-                    if i is not None:
-                        count += 1
-                        # async gen yields awaitable so we must count one awaitable more
-                        # so the previous one is evaluated and yielded.
-                        # new awaitable will be cancelled
-                        if count == max_items + int(is_async_gen):
-                            return
-            finally:
-                if inspect.isgenerator(gen):
-                    gen.close()
-            return
-
-        # transformers should be limited by their input, so we only limit non-transformers
-        if not self.is_transformer:
-            gen = self._pipe.gen
-            # wrap gen directly
-            if inspect.isgenerator(gen):
-                self._pipe.replace_gen(_gen_wrap(gen))
-            else:
-                # keep function as function to not evaluate generators before pipe starts
-                self._pipe.replace_gen(partial(_gen_wrap, gen))
-        else:
+        if self.is_transformer:
             logger.warning(
                 f"Setting add_limit to a transformer {self.name} has no effect. Set the limit on"
                 " the top level resource."
             )
+        else:
+            self.add_step(LimitItem(max_items))
+
         return self
 
     def parallelize(self: TDltResourceImpl) -> TDltResourceImpl:

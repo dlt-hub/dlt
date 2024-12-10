@@ -183,6 +183,17 @@ def check_compat_transformer(name: str, f: AnyFun, sig: inspect.Signature) -> in
     return meta_arg
 
 
+def wrap_iterator(gen: Iterator[TDataItems]) -> Iterator[TDataItems]:
+    """Wraps an iterator into a generator"""
+    if inspect.isgenerator(gen):
+        return gen
+
+    def wrapped_gen() -> Iterator[TDataItems]:
+        yield from gen
+
+    return wrapped_gen()
+
+
 def wrap_async_iterator(
     gen: AsyncIterator[TDataItems],
 ) -> Generator[Awaitable[TDataItems], None, None]:

@@ -238,3 +238,23 @@ class ValidateItem(ItemTransform[TDataItem]):
     def bind(self, pipe: SupportsPipe) -> ItemTransform[TDataItem]:
         self.table_name = pipe.name
         return self
+
+
+class LimitItem(ItemTransform[TDataItem]):
+    placement_affinity: ClassVar[float] = 1.1  # stick to end right behind incremental
+
+    def __init__(self, max_items: int) -> None:
+        self.max_items = max_items if max_items is not None else -1
+
+    def bind(self, pipe: SupportsPipe) -> "LimitItem":
+        self.gen = pipe.gen
+        self.count = 0
+        return self
+
+    def __call__(self, item: TDataItems, meta: Any = None) -> Optional[TDataItems]:
+        if self.count == self.max_items:
+            if inspect.isgenerator(self.gen):
+                self.gen.close()
+            return None
+        self.count += 1
+        return item
