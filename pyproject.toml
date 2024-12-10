@@ -94,7 +94,7 @@ db-dtypes = { version = ">=1.2.0", optional = true }
 # https://github.com/apache/airflow/issues/28723
 # pyiceberg = { version = ">=0.7.1", optional = true, extras = ["sql-sqlite"] } 
 # we will rely on manual installation of `sqlalchemy>=2.0.18` instead
-pyiceberg = { version = ">=0.7.1", optional = true }
+pyiceberg = { version = ">=0.8.1", python = ">=3.9", optional = true }
 
 [tool.poetry.extras]
 gcp = ["grpcio", "google-cloud-bigquery", "db-dtypes", "gcsfs"]

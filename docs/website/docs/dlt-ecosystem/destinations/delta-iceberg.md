@@ -35,7 +35,7 @@ pip install 'pyarrow>=17.0.0'
 
 ## Iceberg dependencies
 
-You need the `pyiceberg` package to use this format:
+You need Python version 3.9 or higher and the `pyiceberg` package to use this format:
 
 ```sh
 pip install "dlt[pyiceberg]"
