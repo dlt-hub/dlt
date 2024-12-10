@@ -1005,6 +1005,7 @@ def test_table_format_get_tables_helper(
     destination_config: DestinationTestConfiguration,
 ) -> None:
     """Tests `get_delta_tables` / `get_iceberg_tables` helper functions."""
+    get_tables: Any
     if destination_config.table_format == "delta":
         from dlt.common.libs.deltalake import DeltaTable, get_delta_tables
 
@@ -1013,7 +1014,7 @@ def test_table_format_get_tables_helper(
     elif destination_config.table_format == "iceberg":
         from dlt.common.libs.pyiceberg import IcebergTable, get_iceberg_tables
 
-        get_tables = get_iceberg_tables  # type: ignore[assignment]
+        get_tables = get_iceberg_tables
         get_num_rows = lambda table: table.scan().to_arrow().num_rows
 
     @dlt.resource(table_format=destination_config.table_format)
