@@ -18,7 +18,7 @@ try:
     from airflow.configuration import conf
     from airflow.models import TaskInstance
     from airflow.utils.task_group import TaskGroup
-    from airflow.operators.dummy import DummyOperator  # type: ignore
+    from airflow.operators.dummy import DummyOperator
     from airflow.operators.python import PythonOperator, get_current_context
 except ModuleNotFoundError:
     raise MissingDependencyException("Airflow", ["apache-airflow>=2.5"])
@@ -255,7 +255,7 @@ class PipelineTasksGroup(TaskGroup):
 
         # use task logger
         if self.use_task_logger:
-            ti: TaskInstance = get_current_context()["ti"]  # type: ignore
+            ti: TaskInstance = get_current_context()["ti"]
             logger.LOGGER = ti.log
 
         # set global number of buffered items
