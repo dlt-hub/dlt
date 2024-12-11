@@ -384,8 +384,8 @@ def test_adapter_autodetect_schema_with_merge(
     bigquery_adapter(resource, autodetect_schema=True)
     pipeline.run(resource)
 
-    assert len(pipeline._dataset().items.df()) == 5
-    assert len(pipeline._dataset().items__nested.df()) == 5
+    assert len(pipeline.dataset().items.df()) == 5
+    assert len(pipeline.dataset().items__nested.df()) == 5
 
     @dlt.resource(primary_key="id", table_name="items", write_disposition="merge")
     def resource2():
@@ -395,5 +395,5 @@ def test_adapter_autodetect_schema_with_merge(
     bigquery_adapter(resource2, autodetect_schema=True)
     pipeline.run(resource2)
 
-    assert len(pipeline._dataset().items.df()) == 7
-    assert len(pipeline._dataset().items__nested.df()) == 7
+    assert len(pipeline.dataset().items.df()) == 7
+    assert len(pipeline.dataset().items__nested.df()) == 7

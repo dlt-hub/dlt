@@ -273,10 +273,10 @@ def test_duckdb_credentials_separation(
     p2 = dlt.pipeline("p2", destination=duckdb(credentials=":pipeline:"))
 
     p1.run([1, 2, 3], table_name="p1_data")
-    p1_dataset = p1._dataset()
+    p1_dataset = p1.dataset()
 
     p2.run([1, 2, 3], table_name="p2_data")
-    p2_dataset = p2._dataset()
+    p2_dataset = p2.dataset()
 
     # both dataset should have independent duckdb databases
     # destinations should be bounded to pipelines still

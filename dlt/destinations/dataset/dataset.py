@@ -1,4 +1,4 @@
-from typing import Any, Union, TYPE_CHECKING
+from typing import Any, Union, TYPE_CHECKING, List
 
 from dlt.common.json import json
 
@@ -132,6 +132,32 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
             readable_dataset=self,
             table_name=table_name,
         )  # type: ignore[abstract]
+
+    def row_counts(
+        self, *, data_tables: bool = True, dlt_tables: bool = False, table_names: List[str] = None
+    ) -> SupportsReadableRelation:
+        """Returns a dictionary of table names and their row counts, returns counts of all data tables by default"""
+        """If table_names is provided, only the tables in the list are returned regardless of the data_tables and dlt_tables flags"""
+
+        selected_tables = table_names or []
+        if not selected_tables:
+            if data_tables:
+                selected_tables += self.schema.data_table_names(seen_data_only=True)
+            if dlt_tables:
+                selected_tables += self.schema.dlt_table_names()
+
+        # Build UNION ALL query to get row counts for all selected tables
+        queries = []
+        for table in selected_tables:
+            queries.append(
+                f"SELECT '{table}' as table_name, COUNT(*) as row_count FROM"
+                f" {self.sql_client.make_qualified_table_name(table)}"
+            )
+
+        query = " UNION ALL ".join(queries)
+
+        # Execute query and build result dict
+        return self(query)
 
     def __getitem__(self, table_name: str) -> SupportsReadableRelation:
         """access of table via dict notation"""

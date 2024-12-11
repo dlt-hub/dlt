@@ -306,7 +306,7 @@ A resource configuration is used to define a [dlt resource](../../../general-usa
 - `write_disposition`: The write disposition for the resource.
 - `primary_key`: The primary key for the resource.
 - `include_from_parent`: A list of fields from the parent resource to be included in the resource output. See the [resource relationships](#include-fields-from-the-parent-resource) section for more details.
-- `processing_steps`: A list of [processing steps](#processing-steps-filter-and-transform-data) to filter and transform the data.
+- `processing_steps`: A list of [processing steps](#processing-steps-filter-and-transform-data) to filter and transform your data.
 - `selected`: A flag to indicate if the resource is selected for loading. This could be useful when you want to load data only from child resources and not from the parent resource.
 - `auth`: An optional `AuthConfig` instance. If passed, is used over the one defined in the [client](#client) definition. Example:
 ```py
