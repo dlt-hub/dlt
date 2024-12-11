@@ -87,7 +87,12 @@ def data_to_sources(
             schema_ = schema
         # take pipeline schema to make newest version visible to the resources
         elif pipeline.default_schema_name:
-            schema_ = pipeline.schemas[pipeline.default_schema_name].clone()
+            # clones with name which will drop previous hashes
+            schema_ = pipeline.schemas[pipeline.default_schema_name].clone(
+                with_name=pipeline.default_schema_name
+            )
+            # delete data tables
+            schema_.drop_tables(schema_.data_table_names(include_incomplete=True))
         else:
             schema_ = pipeline._make_schema_with_default_name()
         return schema_

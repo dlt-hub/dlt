@@ -52,7 +52,6 @@ Do not extract data in the source function. Leave that task to your resources if
 
 If this is impractical (for example, you want to reflect a database to create resources for tables), make sure you do not call the source function too often. [See this note if you plan to deploy on Airflow](../walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer.md#2-modify-dag-file)
 
-
 ## Customize sources
 
 ### Access and select resources to load
@@ -113,6 +112,22 @@ Note that `add_limit` **does not limit the number of records** but rather the "n
 :::
 
 Find more on sampling data [here](resource.md#sample-from-large-data).
+
+### Rename the source
+`dlt` allows you to rename the source ie. to place the source configuration into custom section or to have many instances
+of the source created side by side. For example:
+```py
+from dlt.sources import sql_database
+
+my_db = sql_database.sql_database.with_args(name="my_db", section="my_db")(table_names=["table_1"])
+print(my_db.name)
+```
+Here we create a renamed version of the `sql_database` and then instantiate it. Such source will read
+credentials from:
+```toml
+[sources.my_db.my_db.credentials]
+password="..."
+```
 
 ### Add more resources to existing source
 

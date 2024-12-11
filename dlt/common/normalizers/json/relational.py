@@ -324,6 +324,13 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
                 },
             )
 
+    def remove_table(self, table_name: str) -> None:
+        """Called by the Schema when table is removed from it."""
+        config = self.get_normalizer_config(self.schema)
+        if propagation := config.get("propagation"):
+            if tables := propagation.get("tables"):
+                tables.pop(table_name, None)
+
     def normalize_data_item(
         self, item: TDataItem, load_id: str, table_name: str
     ) -> TNormalizedRowIterator:
