@@ -235,8 +235,8 @@ class DltResourceHints:
             for k, v in root_table_template.items()
             if k not in NATURAL_CALLABLES
         }  # type: ignore
-        if "incremental" in table_template:
-            incremental = table_template["incremental"]
+        if "incremental" in root_table_template:
+            incremental = root_table_template["incremental"]
             if isinstance(incremental, Incremental) and incremental is not Incremental.EMPTY:
                 resolved_template["incremental"] = incremental
         table_schema = self._create_table_schema(resolved_template, self.name)
