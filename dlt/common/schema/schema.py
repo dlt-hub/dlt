@@ -455,6 +455,7 @@ class Schema:
             table = self.get_table(table_name)
             if table and (not seen_data_only or utils.has_table_seen_data(table)):
                 result.append(self._schema_tables.pop(table_name))
+                self.data_item_normalizer.remove_table(table_name)
         return result
 
     def filter_row_with_hint(
