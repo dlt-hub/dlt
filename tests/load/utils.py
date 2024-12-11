@@ -26,7 +26,10 @@ from dlt.common import json, sleep
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
-from dlt.common.configuration.specs import CredentialsConfiguration
+from dlt.common.configuration.specs import (
+    CredentialsConfiguration,
+    GcpOAuthCredentialsWithoutDefaults,
+)
 from dlt.common.destination.reference import (
     DestinationClientDwhConfiguration,
     JobClientBase,
@@ -57,6 +60,7 @@ from dlt.destinations.job_client_impl import SqlJobClientBase
 from dlt.pipeline.exceptions import SqlClientNotAvailable
 from tests.utils import (
     ACTIVE_DESTINATIONS,
+    ACTIVE_TABLE_FORMATS,
     IMPLEMENTED_DESTINATIONS,
     SQL_DESTINATIONS,
     EXCLUDED_DESTINATION_CONFIGURATIONS,
@@ -171,7 +175,9 @@ class DestinationTestConfiguration:
         dest_type = kwargs.pop("destination", self.destination_type)
         dest_name = kwargs.pop("destination_name", self.destination_name)
         self.setup()
-        return Destination.from_reference(dest_type, destination_name=dest_name, **kwargs)
+        return Destination.from_reference(
+            dest_type, self.credentials, destination_name=dest_name, **kwargs
+        )
 
     def raw_capabilities(self) -> DestinationCapabilitiesContext:
         dest = Destination.from_reference(self.destination_type)
@@ -604,7 +610,7 @@ def destinations_configs(
                 DestinationTestConfiguration(
                     destination_type="filesystem",
                     bucket_url=bucket,
-                    extra_info=bucket + "-delta",
+                    extra_info=bucket,
                     table_format="delta",
                     supports_merge=True,
                     file_format="parquet",
@@ -619,10 +625,31 @@ def destinations_configs(
                     ),
                 )
             ]
+            if bucket == AZ_BUCKET:
+                # `pyiceberg` does not support `az` scheme
+                continue
+            destination_configs += [
+                DestinationTestConfiguration(
+                    destination_type="filesystem",
+                    bucket_url=bucket,
+                    extra_info=bucket,
+                    table_format="iceberg",
+                    supports_merge=False,
+                    file_format="parquet",
+                    destination_name="fsgcpoauth" if bucket == GCS_BUCKET else None,
+                )
+            ]
 
     # filter out non active destinations
     destination_configs = [
         conf for conf in destination_configs if conf.destination_type in ACTIVE_DESTINATIONS
+    ]
+
+    # filter out non active table formats
+    destination_configs = [
+        conf
+        for conf in destination_configs
+        if conf.table_format is None or conf.table_format in ACTIVE_TABLE_FORMATS
     ]
 
     # filter out destinations not in subset

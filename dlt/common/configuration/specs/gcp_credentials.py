@@ -11,7 +11,9 @@ from dlt.common.configuration.specs.exceptions import (
     InvalidGoogleServicesJson,
     NativeValueError,
     OAuth2ScopesRequired,
+    UnsupportedAuthenticationMethodException,
 )
+from dlt.common.configuration.specs.mixins import WithObjectStoreRsCredentials, WithPyicebergConfig
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.typing import DictStrAny, TSecretStrValue, StrAny
 from dlt.common.configuration.specs.base_configuration import (
@@ -23,7 +25,7 @@ from dlt.common.utils import is_interactive
 
 
 @configspec
-class GcpCredentials(CredentialsConfiguration):
+class GcpCredentials(CredentialsConfiguration, WithObjectStoreRsCredentials, WithPyicebergConfig):
     token_uri: Final[str] = dataclasses.field(
         default="https://oauth2.googleapis.com/token", init=False, repr=False, compare=False
     )
@@ -126,6 +128,12 @@ class GcpServiceAccountCredentialsWithoutDefaults(GcpCredentials):
         else:
             return ServiceAccountCredentials.from_service_account_info(self)
 
+    def to_pyiceberg_fileio_config(self) -> Dict[str, Any]:
+        raise UnsupportedAuthenticationMethodException(
+            "Service Account authentication not supported with `iceberg` table format. Use OAuth"
+            " authentication instead."
+        )
+
     def __str__(self) -> str:
         return f"{self.client_email}@{self.project_id}"
 
@@ -176,10 +184,18 @@ class GcpOAuthCredentialsWithoutDefaults(GcpCredentials, OAuth2Credentials):
         return json.dumps(self._info_dict())
 
     def to_object_store_rs_credentials(self) -> Dict[str, str]:
-        raise NotImplementedError(
-            "`object_store` Rust crate does not support OAuth for GCP credentials. Reference:"
-            " https://docs.rs/object_store/latest/object_store/gcp."
+        raise UnsupportedAuthenticationMethodException(
+            "OAuth authentication not supported with `delta` table format. Use Service Account or"
+            " Application Default Credentials authentication instead."
         )
+
+    def to_pyiceberg_fileio_config(self) -> Dict[str, Any]:
+        self.auth()
+        return {
+            "gcs.project-id": self.project_id,
+            "gcs.oauth2.token": self.token,
+            "gcs.oauth2.token-expires-at": (pendulum.now().timestamp() + 60) * 1000,
+        }
 
     def auth(self, scopes: Union[str, List[str]] = None, redirect_url: str = None) -> None:
         if not self.refresh_token:
@@ -313,6 +329,12 @@ class GcpDefaultCredentials(CredentialsWithDefault, GcpCredentials):
         else:
             return super().to_native_credentials()
 
+    def to_pyiceberg_fileio_config(self) -> Dict[str, Any]:
+        raise UnsupportedAuthenticationMethodException(
+            "Application Default Credentials authentication not supported with `iceberg` table"
+            " format. Use OAuth authentication instead."
+        )
+
 
 @configspec
 class GcpServiceAccountCredentials(
@@ -334,3 +356,9 @@ class GcpOAuthCredentials(GcpDefaultCredentials, GcpOAuthCredentialsWithoutDefau
         except NativeValueError:
             pass
         GcpOAuthCredentialsWithoutDefaults.parse_native_representation(self, native_value)
+
+    def to_pyiceberg_fileio_config(self) -> Dict[str, Any]:
+        if self.has_default_credentials():
+            return GcpDefaultCredentials.to_pyiceberg_fileio_config(self)
+        else:
+            return GcpOAuthCredentialsWithoutDefaults.to_pyiceberg_fileio_config(self)

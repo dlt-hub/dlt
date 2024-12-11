@@ -10,6 +10,7 @@ from dlt.common.schema.utils import get_first_column_name_with_prop, get_columns
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.storages import FilesystemConfiguration
 from dlt.common.utils import assert_min_pkg_version
+from dlt.common.configuration.specs.mixins import WithObjectStoreRsCredentials
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 
 try:
@@ -191,10 +192,9 @@ def get_delta_tables(
 
 def _deltalake_storage_options(config: FilesystemConfiguration) -> Dict[str, str]:
     """Returns dict that can be passed as `storage_options` in `deltalake` library."""
-    creds = {}  # type: ignore
+    creds = {}
     extra_options = {}
-    # TODO: create a mixin with to_object_store_rs_credentials for a proper discovery
-    if hasattr(config.credentials, "to_object_store_rs_credentials"):
+    if isinstance(config.credentials, WithObjectStoreRsCredentials):
         creds = config.credentials.to_object_store_rs_credentials()
     if config.deltalake_storage_options is not None:
         extra_options = config.deltalake_storage_options
