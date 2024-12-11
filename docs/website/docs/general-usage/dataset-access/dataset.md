@@ -156,6 +156,64 @@ You can combine `select`, `limit`, and other methods.
 arrow_table = items_relation.select("col1", "col2").limit(50).arrow()
 ```
 
+## Modifying queries with ibis expressions
+
+If you install the amazing [ibis](https://ibis-project.org/) library, you can use ibis expressions to modify your queries.
+
+```sh
+pip install ibis-framework
+```
+
+dlt will then wrap an `ibis.UnboundTable` with a `ReadableIbisRelation` object under the hood that will allow you to modify the query of a reltaion using ibis expressions:
+
+```py
+# now that ibis is installed, we can get a dataset with ibis relations
+dataset = pipeline._dataset()
+
+# get two relations
+items_relation = dataset["items"]
+order_relation = dataset["orders"]
+
+# join them using an ibis expression
+joined_relation = items_relation.join(order_relation, items_relation.id == order_relation.item_id)
+
+# now we can use the ibis expression to filter the data
+filtered_relation = joined_relation.filter(order_relation.status == "completed")
+
+# we can inspect the query that will be used to read the data
+print(filtered_relation.query)
+
+# and finally fetch the data as a pandas dataframe, the same way we would do with a normal relation
+df = filtered_relation.df()
+
+# a few more examples
+
+# filter for rows where the id is in the list of ids
+items_relation.filter(items_relation.id.isin([1, 2, 3])).df()
+
+# limit and offset
+items_relation.limit(10, offset=5).arrow()
+
+# mutate columns by adding a new colums that always is 10 times the value of the id column
+items_relation.mutate(new_id=items_relation.id * 10).df()
+
+# sort asc and desc
+import ibis
+items_relation.order_by(ibis.desc("id"), ibis.asc("price")).limit(10)
+
+# group by and aggregate
+items_relation.group_by("item_group").having(items_table.count() >= 1000).aggregate(sum_id=items_table.id.sum()).df()
+
+# subqueries
+items_relation.filter(items_table.category.isin(beverage_categories.name)).df()
+```
+
+You can learn more about the available expressions on the [ibis for sql users](https://ibis-project.org/tutorials/ibis-for-sql-users) page. 
+
+:::note
+Keep in mind that you can use only methods that modify the executed query and none of the methods ibis provides for fetching data. This is done with the same methods defined on the regular relations explained above. If you need full native ibis integration, please read the ibis section in the advanced part further down. Additionally, not all ibis expressions may be supported by all destinations and sql dialects.
+:::
+
 ## Supported destinations
 
 All SQL and filesystem destinations supported by `dlt` can utilize this data access interface. For filesystem destinations, `dlt` [uses **DuckDB** under the hood](./sql-client.md#the-filesystem-sql-client) to create views from Parquet or JSONL files dynamically. This allows you to query data stored in files using the same interface as you would with SQL databases. If you plan on accessing data in buckets or the filesystem a lot this way, it is advised to load data as Parquet instead of JSONL, as **DuckDB** is able to only load the parts of the data actually needed for the query to work.

@@ -84,7 +84,7 @@ class SqlaDbApiCursor(DBApiCursorImpl):
 
     def _get_columns(self) -> List[str]:
         try:
-            return list(self.native_cursor.keys())  # type: ignore[attr-defined]
+            return list(self.native_cursor.keys())
         except ResourceClosedError:
             # this happens if now rows are returned
             return []
@@ -314,7 +314,7 @@ class SqlalchemyClient(SqlClientBase[Connection]):
         self, sql: Union[AnyStr, sa.sql.Executable], *args: Any, **kwargs: Any
     ) -> Optional[Sequence[Sequence[Any]]]:
         with self.execute_query(sql, *args, **kwargs) as cursor:
-            if cursor.returns_rows:  # type: ignore[attr-defined]
+            if cursor.returns_rows:
                 return cursor.fetchall()
             return None
 
