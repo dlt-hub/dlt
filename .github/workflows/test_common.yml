@@ -90,7 +90,7 @@ jobs:
       #     key: venv-${{ matrix.os }}-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
 
       - name: Install dependencies
-        run: poetry install --no-interaction -E databricks --with sentry-sdk
+        run: poetry install --no-interaction --with sentry-sdk
 
       - run: |
           poetry run pytest tests/common tests/normalize tests/reflection tests/load/test_dummy_client.py tests/extract/test_extract.py tests/extract/test_sources.py tests/pipeline/test_pipeline_state.py
