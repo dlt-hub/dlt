@@ -1,5 +1,4 @@
 import contextlib
-import dataclasses
 import io
 from typing import ClassVar, List
 
@@ -7,10 +6,6 @@ from dlt.common.configuration.exceptions import DuplicateConfigProviderException
 from dlt.common.configuration.providers import (
     ConfigProvider,
     ContextProvider,
-)
-from dlt.common.configuration.specs.base_configuration import (
-    ContainerInjectableContext,
-    NotResolved,
 )
 from dlt.common.configuration.specs import (
     GcpServiceAccountCredentials,
@@ -137,7 +132,7 @@ def _airflow_providers() -> List[ConfigProvider]:
             # check if we are in task context and provide more info
             from airflow.operators.python import get_current_context  # noqa
 
-            ti: TaskInstance = get_current_context()["ti"]  # type: ignore
+            ti: TaskInstance = get_current_context()["ti"]  # type: ignore[assignment,unused-ignore]
 
         # log outside of stderr/out redirect
         if secrets_toml_var is None:

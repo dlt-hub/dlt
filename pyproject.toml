@@ -75,7 +75,7 @@ cron-descriptor = {version = ">=1.2.32", optional = true}
 pipdeptree = {version = ">=2.9.0,<2.10", optional = true}
 pyathena = {version = ">=2.9.6", optional = true}
 weaviate-client = {version = ">=3.22", optional = true}
-adlfs = {version = ">=2022.4.0", optional = true}
+adlfs = {version = ">=2024.7.0", optional = true}
 pyodbc = {version = ">=4.0.39", optional = true}
 qdrant-client = {version = ">=1.8", optional = true, extras = ["fastembed"]}
 databricks-sql-connector = {version = ">=2.9.3", optional = true}
@@ -89,6 +89,12 @@ alembic = {version = ">1.10.0", optional = true}
 paramiko = {version = ">=3.3.0", optional = true}
 sqlglot = {version = ">=20.0.0", optional = true}
 db-dtypes = { version = ">=1.2.0", optional = true }
+# `sql-sqlite` extra leads to dependency conflict with `apache-airflow` because `apache-airflow`
+# requires `sqlalchemy<2.0.0` while the extra requires `sqlalchemy>=2.0.18`
+# https://github.com/apache/airflow/issues/28723
+# pyiceberg = { version = ">=0.7.1", optional = true, extras = ["sql-sqlite"] } 
+# we will rely on manual installation of `sqlalchemy>=2.0.18` instead
+pyiceberg = { version = ">=0.8.1", python = ">=3.9", optional = true }
 
 [tool.poetry.extras]
 gcp = ["grpcio", "google-cloud-bigquery", "db-dtypes", "gcsfs"]
@@ -118,6 +124,7 @@ lancedb = ["lancedb", "pyarrow", "tantivy"]
 deltalake = ["deltalake", "pyarrow"]
 sql_database = ["sqlalchemy"]
 sqlalchemy = ["sqlalchemy", "alembic"]
+pyiceberg = ["pyiceberg", "pyarrow", "sqlalchemy"]
 postgis = ["psycopg2-binary", "psycopg2cffi"]
 
 [tool.poetry.scripts]
@@ -134,7 +141,7 @@ sqlfluff = "^2.3.2"
 types-deprecated = "^1.2.9.2"
 pytest-console-scripts = "^1.4.1"
 pytest = "^7.0.0"
-mypy = "^1.10.0"
+mypy = ">=1.11.0,<1.13.0"
 flake8 = "^5.0.0"
 bandit = "^1.7.0"
 black = "^23.7.0"

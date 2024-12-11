@@ -6,7 +6,7 @@ keywords: [data, dataset, ibis]
 
 # Ibis
 
-Ibis is a powerful portable Python dataframe library. Learn more about what it is and how to use it in the [official documentation](https://ibis-project.org/). 
+Ibis is a powerful portable Python dataframe library. Learn more about what it is and how to use it in the [official documentation](https://ibis-project.org/).
 
 `dlt` provides an easy way to hand over your loaded dataset to an Ibis backend connection.
 
@@ -46,4 +46,3 @@ print(table.limit(10).execute())
 
 # Visit the ibis docs to learn more about the available methods
 ```
-
