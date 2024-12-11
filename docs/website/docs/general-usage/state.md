@@ -126,9 +126,9 @@ def comments(user_id: str):
         # get user comments table from pipeline dataset
         user_comments = current_pipeline.dataset().user_comments
         # get last user comment id with ibis expression, ibis-extras need to be installed
-        max_id = user_comments.filter(user_comments.user_id == user_id).select(user_comments["_id"].max()).df()
+        max_id_df = user_comments.filter(user_comments.user_id == user_id).select(user_comments["_id"].max()).df()
         # if there are no comments for the user, max_id will be None, so we replace it with 0
-        max_id = max_id[0] or 0
+        max_id = max_id_df[0][0] if len(max_id_df.index) else 0
 
     # use max_id to filter our results (we simulate an API query)
     yield from [
