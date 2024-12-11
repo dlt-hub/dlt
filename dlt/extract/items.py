@@ -249,12 +249,17 @@ class LimitItem(ItemTransform[TDataItem]):
     def bind(self, pipe: SupportsPipe) -> "LimitItem":
         self.gen = pipe.gen
         self.count = 0
+        self.exceeded = False
         return self
 
     def __call__(self, item: TDataItems, meta: Any = None) -> Optional[TDataItems]:
+        # detect when the limit is reached
         if self.count == self.max_items:
+            self.exhausted = True
             if inspect.isgenerator(self.gen):
                 self.gen.close()
+        # do not return any late arriving items
+        if self.exhausted:
             return None
         self.count += 1
         return item

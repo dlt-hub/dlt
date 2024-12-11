@@ -2,7 +2,7 @@ import inspect
 from functools import partial
 from typing import (
     AsyncIterable,
-    AsyncIterator,
+    cast,
     ClassVar,
     Callable,
     Iterable,
@@ -215,31 +215,24 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             return True
 
     @property
-    def incremental(self) -> IncrementalResourceWrapper:
+    def incremental(self) -> Optional[IncrementalResourceWrapper]:
         """Gets incremental transform if it is in the pipe"""
-        incremental: IncrementalResourceWrapper = None
-        step_no = self._pipe.find(IncrementalResourceWrapper, Incremental)
-        if step_no >= 0:
-            incremental = self._pipe.steps[step_no]  # type: ignore
-        return incremental
+        return cast(
+            Optional[IncrementalResourceWrapper],
+            self._pipe.get_by_type(IncrementalResourceWrapper, Incremental),
+        )
 
     @property
     def validator(self) -> Optional[ValidateItem]:
         """Gets validator transform if it is in the pipe"""
-        validator: ValidateItem = None
-        step_no = self._pipe.find(ValidateItem)
-        if step_no >= 0:
-            validator = self._pipe.steps[step_no]  # type: ignore[assignment]
-        return validator
+        return cast(Optional[ValidateItem], self._pipe.get_by_type(ValidateItem))
 
     @validator.setter
     def validator(self, validator: Optional[ValidateItem]) -> None:
         """Add/remove or replace the validator in pipe"""
-        step_no = self._pipe.find(ValidateItem)
-        if step_no >= 0:
-            self._pipe.remove_step(step_no)
+        self._pipe.remove_by_type(ValidateItem)
         if validator:
-            self.add_step(validator, insert_at=step_no if step_no >= 0 else None)
+            self.add_step(validator)
 
     @property
     def max_table_nesting(self) -> Optional[int]:
@@ -370,6 +363,8 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
                 " the top level resource."
             )
         else:
+            # remove existing limit if any
+            self._pipe.remove_by_type(LimitItem)
             self.add_step(LimitItem(max_items))
 
         return self
@@ -404,9 +399,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         return self
 
     def _remove_incremental_step(self) -> None:
-        step_no = self._pipe.find(Incremental, IncrementalResourceWrapper)
-        if step_no >= 0:
-            self._pipe.remove_step(step_no)
+        self._pipe.remove_by_type(Incremental, IncrementalResourceWrapper)
 
     def set_incremental(
         self,
