@@ -40,6 +40,9 @@ Assuming you have a `Pipeline` object (let's call it `pipeline`), you can obtain
 ```py
 # Get the readable dataset from the pipeline
 dataset = pipeline.dataset()
+
+# print the row counts of all tables in the destination as dataframe
+print(dataset.row_counts().df())
 ```
 
 ### Access tables as `ReadableRelation`
@@ -115,6 +118,18 @@ for items_chunk in items_relation.iter_fetch(chunk_size=500):
 ```
 
 The methods available on the ReadableRelation correspond to the methods available on the cursor returned by the SQL client. Please refer to the [SQL client](./sql-client.md#supported-methods-on-the-cursor) guide for more information.
+
+## Special queries
+
+You can use the `row_counts` method to get the row counts of all tables in the destination as a dataframe.
+
+```py
+# print the row counts of all tables in the destination as dataframe
+print(dataset.row_counts().df())
+
+# or as tuples
+print(dataset.row_counts().fetchall())
+```
 
 ## Modifying queries
 
