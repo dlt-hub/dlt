@@ -227,56 +227,63 @@ class Extractor:
             else:
                 self._write_item(table_name, resource.name, items)
 
-    def _compute_table(self, resource: DltResource, items: TDataItems, meta: Any) -> TTableSchema:
+    def _compute_table(
+        self, resource: DltResource, items: TDataItems, meta: Any
+    ) -> List[TTableSchema]:
         """Computes a schema for a new or dynamic table and normalizes identifiers"""
-        return utils.normalize_table_identifiers(
-            resource.compute_table_schema(items, meta), self.schema.naming
-        )
+        return [
+            utils.normalize_table_identifiers(tbl, self.schema.naming)
+            for tbl in resource.compute_table_chain(items, meta)
+        ]
 
     def _compute_and_update_table(
-        self, resource: DltResource, table_name: str, items: TDataItems, meta: Any
+        self, resource: DltResource, root_table_name: str, items: TDataItems, meta: Any
     ) -> TDataItems:
         """
         Computes new table and does contract checks, if false is returned, the table may not be created and no items should be written
         """
-        computed_table = self._compute_table(resource, items, meta)
-        # overwrite table name (if coming from meta)
-        computed_table["name"] = table_name
-        # get or compute contract
-        schema_contract = self._table_contracts.setdefault(
-            table_name, self.schema.resolve_contract_settings_for_table(table_name, computed_table)
-        )
+        computed_tables = self._compute_table(resource, items, meta)
 
-        # this is a new table so allow evolve once
-        if schema_contract["columns"] != "evolve" and self.schema.is_new_table(table_name):
-            computed_table["x-normalizer"] = {"evolve-columns-once": True}
-        existing_table = self.schema.tables.get(table_name, None)
-        if existing_table:
-            # TODO: revise this. computed table should overwrite certain hints (ie. primary and merge keys) completely
-            diff_table = utils.diff_table(self.schema.name, existing_table, computed_table)
-        else:
-            diff_table = computed_table
-
-        # apply contracts
-        diff_table, filters = self.schema.apply_schema_contract(
-            schema_contract, diff_table, data_item=items
-        )
-
-        # merge with schema table
-        if diff_table:
-            # diff table identifiers already normalized
-            self.schema.update_table(
-                diff_table, normalize_identifiers=False, from_diff=bool(existing_table)
+        for computed_table in computed_tables:
+            # # overwrite table name (if coming from meta)
+            # computed_table["name"] = table_name  # TODO: don't remove this
+            table_name = computed_table["name"]
+            # get or compute contract
+            schema_contract = self._table_contracts.setdefault(
+                table_name,
+                self.schema.resolve_contract_settings_for_table(table_name, computed_table),
             )
 
-        # process filters
-        if filters:
-            for entity, name, mode in filters:
-                if entity == "tables":
-                    self._filtered_tables.add(name)
-                elif entity == "columns":
-                    filtered_columns = self._filtered_columns.setdefault(table_name, {})
-                    filtered_columns[name] = mode
+            # this is a new table so allow evolve once
+            if schema_contract["columns"] != "evolve" and self.schema.is_new_table(table_name):
+                computed_table["x-normalizer"] = {"evolve-columns-once": True}
+            existing_table = self.schema.tables.get(table_name, None)
+            if existing_table:
+                # TODO: revise this. computed table should overwrite certain hints (ie. primary and merge keys) completely
+                diff_table = utils.diff_table(self.schema.name, existing_table, computed_table)
+            else:
+                diff_table = computed_table
+
+            # apply contracts
+            diff_table, filters = self.schema.apply_schema_contract(
+                schema_contract, diff_table, data_item=items
+            )
+
+            # merge with schema table
+            if diff_table:
+                # diff table identifiers already normalized
+                self.schema.update_table(
+                    diff_table, normalize_identifiers=False, from_diff=bool(existing_table)
+                )
+
+            # process filters
+            if filters:
+                for entity, name, mode in filters:
+                    if entity == "tables":
+                        self._filtered_tables.add(name)
+                    elif entity == "columns":
+                        filtered_columns = self._filtered_columns.setdefault(table_name, {})
+                        filtered_columns[name] = mode
         return items
 
     def _reset_contracts_cache(self) -> None:
