@@ -95,6 +95,7 @@ db-dtypes = { version = ">=1.2.0", optional = true }
 # pyiceberg = { version = ">=0.7.1", optional = true, extras = ["sql-sqlite"] } 
 # we will rely on manual installation of `sqlalchemy>=2.0.18` instead
 pyiceberg = { version = ">=0.8.1", python = ">=3.9", optional = true }
+databricks-sdk = {version = ">=0.38.0", optional = true}
 
 [tool.poetry.extras]
 gcp = ["grpcio", "google-cloud-bigquery", "db-dtypes", "gcsfs"]
@@ -117,7 +118,7 @@ weaviate = ["weaviate-client"]
 mssql = ["pyodbc"]
 synapse = ["pyodbc", "adlfs", "pyarrow"]
 qdrant = ["qdrant-client"]
-databricks = ["databricks-sql-connector"]
+databricks = ["databricks-sql-connector", "databricks-sdk"]
 clickhouse = ["clickhouse-driver", "clickhouse-connect", "s3fs", "gcsfs", "adlfs", "pyarrow"]
 dremio = ["pyarrow"]
 lancedb = ["lancedb", "pyarrow", "tantivy"]
