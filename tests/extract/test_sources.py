@@ -861,6 +861,40 @@ def test_limit_edge_cases(limit: int) -> None:
         raise AssertionError(f"Unexpected limit: {limit}")
 
 
+def test_various_limit_setups() -> None:
+    # basic test
+    r = dlt.resource([1, 2, 3, 4, 5], name="test").add_limit(3)
+    assert list(r) == [1, 2, 3]
+
+    # yield map test
+    r = (
+        dlt.resource([1, 2, 3, 4, 5], name="test")
+        .add_map(lambda i: str(i) * i, 1)
+        .add_yield_map(lambda i: (yield from i))
+        .add_limit(3)
+    )
+    # limit is applied at the end
+    assert list(r) == ["1", "2", "2"]  # "3" ,"3" ,"3" ,"4" ,"4" ,"4" ,"4", ...]
+
+    # nested lists test (limit only applied to yields, not actual items)
+    r = dlt.resource([[1, 2, 3], [4, 5, 6], [7, 8, 9], [10, 11, 12]], name="test").add_limit(3)
+    assert list(r) == [1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+    # transformer test
+    r = dlt.resource([1, 2, 3, 4, 5], name="test").add_limit(4)
+    t = dlt.transformer(lambda i: i * 2, name="test")
+    assert list(r) == [1, 2, 3, 4]
+    assert list(r | t) == [2, 4, 6, 8]
+
+    # adding limit to transformer is disregarded
+    t = t.add_limit(2)
+    assert list(r | t) == [2, 4, 6, 8]
+
+    # limits are fully replaced (more genereous limit applied later takes precedence)
+    r = dlt.resource([1, 2, 3, 4, 5], name="test").add_limit(3).add_limit(4)
+    assert list(r) == [1, 2, 3, 4]
+
+
 def test_limit_source() -> None:
     def mul_c(item):
         yield from "A" * (item + 2)
