@@ -24,6 +24,10 @@ pytestmark = pytest.mark.essential
     ids=lambda x: x.name,
 )
 def test_databricks_external_location(destination_config: DestinationTestConfiguration) -> None:
+    # force token-based authentication
+    os.environ["DESTINATION__DATABRICKS__CREDENTIALS__CLIENT_ID"] = ""
+    os.environ["DESTINATION__DATABRICKS__CREDENTIALS__CLIENT_SECRET"] = ""
+
     # do not interfere with state
     os.environ["RESTORE_FROM_DESTINATION"] = "False"
     # let the package complete even with failed jobs
