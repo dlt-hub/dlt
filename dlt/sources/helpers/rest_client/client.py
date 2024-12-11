@@ -100,6 +100,7 @@ class RESTClient:
         path_or_url: str,
         method: HTTPMethod,
         params: Optional[Dict[str, Any]] = None,
+        headers: Optional[Dict[str, Any]] = None,
         json: Optional[Dict[str, Any]] = None,
         auth: Optional[AuthBase] = None,
         hooks: Optional[Hooks] = None,
@@ -110,10 +111,14 @@ class RESTClient:
         else:
             url = join_url(self.base_url, path_or_url)
 
+        headers = headers or {}
+        if self.headers:
+            headers.update(self.headers)
+
         return Request(
             method=method,
             url=url,
-            headers=self.headers,
+            headers=headers,
             params=params,
             json=json,
             auth=auth or self.auth,
@@ -124,6 +129,7 @@ class RESTClient:
         logger.info(
             f"Making {request.method.upper()} request to {request.url}"
             f" with params={request.params}, json={request.json}"
+            f" with headers={request.headers}"
         )
 
         prepared_request = self.session.prepare_request(request)
@@ -143,6 +149,7 @@ class RESTClient:
         prepared_request = self._create_request(
             path_or_url=path,
             method=method,
+            headers=kwargs.pop("headers", None),
             params=kwargs.pop("params", None),
             json=kwargs.pop("json", None),
             auth=kwargs.pop("auth", None),
@@ -161,6 +168,7 @@ class RESTClient:
         path: str = "",
         method: HTTPMethodBasic = "GET",
         params: Optional[Dict[str, Any]] = None,
+        headers: Optional[Dict[str, Any]] = None,
         json: Optional[Dict[str, Any]] = None,
         auth: Optional[AuthBase] = None,
         paginator: Optional[BasePaginator] = None,
@@ -176,6 +184,7 @@ class RESTClient:
                 be used instead of the base_url + path.
             method (HTTPMethodBasic): HTTP method for the request, defaults to 'get'.
             params (Optional[Dict[str, Any]]): URL parameters for the request.
+            headers (Optional[Dict[str, Any]]): Headers for the request.
             json (Optional[Dict[str, Any]]): JSON payload for the request.
             auth (Optional[AuthBase): Authentication configuration for the request.
             paginator (Optional[BasePaginator]): Paginator instance for handling
@@ -213,7 +222,13 @@ class RESTClient:
             hooks["response"] = [raise_for_status]
 
         request = self._create_request(
-            path_or_url=path, method=method, params=params, json=json, auth=auth, hooks=hooks
+            path_or_url=path,
+            headers=headers,
+            method=method,
+            params=params,
+            json=json,
+            auth=auth,
+            hooks=hooks,
         )
 
         if paginator:

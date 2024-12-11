@@ -291,6 +291,7 @@ def create_resources(
             def paginate_resource(
                 method: HTTPMethodBasic,
                 path: str,
+                headers: Dict[str, Any],
                 params: Dict[str, Any],
                 json: Optional[Dict[str, Any]],
                 paginator: Optional[BasePaginator],
@@ -313,6 +314,7 @@ def create_resources(
 
                 yield from client.paginate(
                     method=method,
+                    headers=headers,
                     path=path,
                     params=params,
                     json=json,
@@ -327,6 +329,7 @@ def create_resources(
             )(
                 method=endpoint_config.get("method", "get"),
                 path=endpoint_config.get("path"),
+                headers=endpoint_config.get("headers"),
                 params=request_params,
                 json=request_json,
                 paginator=paginator,
@@ -346,6 +349,7 @@ def create_resources(
                 items: List[Dict[str, Any]],
                 method: HTTPMethodBasic,
                 path: str,
+                headers: Dict[str, Any],
                 params: Dict[str, Any],
                 paginator: Optional[BasePaginator],
                 data_selector: Optional[jsonpath.TJsonPath],
@@ -368,12 +372,13 @@ def create_resources(
                     )
 
                 for item in items:
-                    formatted_path, parent_record = process_parent_data_item(
-                        path, item, resolved_params, include_from_parent
+                    formatted_path, formatted_headers, parent_record = process_parent_data_item(
+                        path, item, resolved_params, include_from_parent, headers
                     )
 
                     for child_page in client.paginate(
                         method=method,
+                        headers=formatted_headers,
                         path=formatted_path,
                         params=params,
                         paginator=paginator,
@@ -392,6 +397,7 @@ def create_resources(
             )(
                 method=endpoint_config.get("method", "get"),
                 path=endpoint_config.get("path"),
+                headers=endpoint_config.get("headers"),
                 params=base_params,
                 paginator=paginator,
                 data_selector=endpoint_config.get("data_selector"),

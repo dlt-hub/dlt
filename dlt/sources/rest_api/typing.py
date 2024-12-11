@@ -10,6 +10,7 @@ from typing import (
     Optional,
     Union,
 )
+from enum import Enum
 
 from dlt.common import jsonpath
 from dlt.common.schema.typing import (
@@ -223,9 +224,13 @@ class ParamBindConfig(TypedDict):
     type: ParamBindType  # noqa
 
 
-class ResolveParamConfig(ParamBindConfig):
+ResolveParamLocation = Literal["path", "header"]
+
+
+class ResolveParamConfig(ParamBindConfig, total=False):
     resource: str
     field: str
+    location: Optional[ResolveParamLocation]
 
 
 class IncrementalParamConfig(ParamBindConfig, IncrementalRESTArgs):
@@ -242,6 +247,7 @@ class ResolvedParam:
 
     def __post_init__(self) -> None:
         self.field_path = jsonpath.compile_path(self.resolve_config["field"])
+        self.resolve_config["location"] = self.resolve_config.get("location", "path")
 
 
 class ResponseActionDict(TypedDict, total=False):
@@ -258,6 +264,7 @@ class Endpoint(TypedDict, total=False):
     method: Optional[HTTPMethodBasic]
     params: Optional[Dict[str, Union[ResolveParamConfig, IncrementalParamConfig, Any]]]
     json: Optional[Dict[str, Any]]
+    headers: Optional[Dict[str, Any]]
     paginator: Optional[PaginatorConfig]
     data_selector: Optional[jsonpath.TJsonPath]
     response_actions: Optional[List[ResponseAction]]
