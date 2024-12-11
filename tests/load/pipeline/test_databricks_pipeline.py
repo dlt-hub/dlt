@@ -158,6 +158,7 @@ def test_databricks_auth_oauth(destination_config: DestinationTestConfiguration)
     bricks = databricks()
     config = bricks.configuration(None, accept_partial=True)
     assert config.credentials.client_id and config.credentials.client_secret
+    assert not config.credentials.access_token
 
     dataset_name = "test_databricks_oauth" + uniq_id()
     pipeline = destination_config.setup_pipeline(
@@ -183,6 +184,7 @@ def test_databricks_auth_token(destination_config: DestinationTestConfiguration)
     bricks = databricks()
     config = bricks.configuration(None, accept_partial=True)
     assert config.credentials.access_token
+    assert not (config.credentials.client_secret and config.credentials.client_id)
 
     dataset_name = "test_databricks_token" + uniq_id()
     pipeline = destination_config.setup_pipeline(
