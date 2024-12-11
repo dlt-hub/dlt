@@ -152,11 +152,16 @@ def test_databricks_gcs_external_location(destination_config: DestinationTestCon
     ids=lambda x: x.name,
 )
 def test_databricks_oauth(destination_config: DestinationTestConfiguration) -> None:
-    os.environ["DESTINATION__DATABRICKS__CREDENTIALS__AUTH_TYPE"] = "databricks-oauth"
+    from dlt.destinations import databricks
+
+    bricks = databricks()
+    config = bricks.configuration(None, accept_partial=True)
+
+    assert config.credentials.client_id and config.credentials.client_secret
 
     dataset_name = "test_databricks_oauth" + uniq_id()
     pipeline = destination_config.setup_pipeline(
-        "test_databricks_oauth", dataset_name=dataset_name, destination="databricks"
+        "test_databricks_oauth", dataset_name=dataset_name, destination=bricks
     )
 
     info = pipeline.run([1, 2, 3], table_name="digits", **destination_config.run_kwargs)

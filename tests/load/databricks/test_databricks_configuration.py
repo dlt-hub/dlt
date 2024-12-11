@@ -62,18 +62,6 @@ def test_databricks_configuration() -> None:
     assert config.is_staging_external_location is None
 
 
-def test_databricks_oauth_config() -> None:
-    from dlt.common.configuration.exceptions import ConfigurationValueError
-
-    os.environ["DESTINATION__DATABRICKS__CREDENTIALS__AUTH_TYPE"] = "oauth"
-    with pytest.raises(ConfigurationValueError):
-        bricks = databricks()
-        bricks.configuration(None, accept_partial=True)
-
-    os.environ["DESTINATION__DATABRICKS__CREDENTIALS__AUTH_TYPE"] = "databricks-oauth"
-    bricks.configuration(None, accept_partial=True)
-
-
 def test_databricks_abfss_converter() -> None:
     with pytest.raises(TerminalValueError):
         DatabricksLoadJob.ensure_databricks_abfss_url("az://dlt-ci-test-bucket")

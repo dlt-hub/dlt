@@ -1,12 +1,10 @@
 import dataclasses
-from typing import Callable, ClassVar, Final, Optional, Any, Dict, List, cast
+from typing import ClassVar, Final, Optional, Any, Dict, List
 
 from dlt.common.typing import TSecretStrValue
 from dlt.common.configuration.specs.base_configuration import CredentialsConfiguration, configspec
 from dlt.common.destination.reference import DestinationClientDwhWithStagingConfiguration
 from dlt.common.configuration.exceptions import ConfigurationValueError
-
-from databricks.sdk.core import Config, oauth_service_principal
 
 DATABRICKS_APPLICATION_ID = "dltHub_dlt"
 
@@ -17,7 +15,6 @@ class DatabricksCredentials(CredentialsConfiguration):
     server_hostname: str = None
     http_path: str = None
     access_token: Optional[TSecretStrValue] = None
-    auth_type: Optional[str] = None
     client_id: Optional[TSecretStrValue] = None
     client_secret: Optional[TSecretStrValue] = None
     http_headers: Optional[Dict[str, str]] = None
@@ -32,23 +29,17 @@ class DatabricksCredentials(CredentialsConfiguration):
         "server_hostname",
         "http_path",
         "catalog",
+        "client_id",
+        "client_secret",
         "access_token",
     ]
 
     def on_resolved(self) -> None:
-        if self.auth_type and self.auth_type != "databricks-oauth":
+        if not ((self.client_id and self.client_secret) or self.access_token):
             raise ConfigurationValueError(
-                "Invalid auth_type detected: only 'databricks-oauth' is supported. "
-                "If you are using an access token for authentication, omit the 'auth_type' field."
+                "No valid authentication method detected. Provide either 'client_id' and"
+                " 'client_secret' for OAuth, or 'access_token' for token-based authentication."
             )
-
-    def _get_oauth_credentials(self) -> Optional[Callable[[], Dict[str, str]]]:
-        config = Config(
-            host=f"https://{self.server_hostname}",
-            client_id=self.client_id,
-            client_secret=self.client_secret,
-        )
-        return cast(Callable[[], Dict[str, str]], oauth_service_principal(config))
 
     def to_connector_params(self) -> Dict[str, Any]:
         conn_params = dict(
@@ -59,11 +50,6 @@ class DatabricksCredentials(CredentialsConfiguration):
             _socket_timeout=self.socket_timeout,
             **(self.connection_parameters or {}),
         )
-
-        if self.auth_type == "databricks-oauth" and self.client_id and self.client_secret:
-            conn_params["credentials_provider"] = self._get_oauth_credentials
-        else:
-            conn_params["access_token"] = self.access_token
 
         if self.user_agent_entry:
             conn_params["_user_agent_entry"] = (
