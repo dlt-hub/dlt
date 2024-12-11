@@ -44,24 +44,24 @@ from dlt.extract.validation import create_item_validator
 
 
 class TResourceHintsBase(TypedDict, total=False):
+    table_name: Optional[TTableHintTemplate[str]]
     write_disposition: Optional[TTableHintTemplate[TWriteDispositionConfig]]
     parent: Optional[TTableHintTemplate[str]]
     primary_key: Optional[TTableHintTemplate[TColumnNames]]
+    columns: Optional[TTableHintTemplate[TAnySchemaColumns]]
     schema_contract: Optional[TTableHintTemplate[TSchemaContract]]
     table_format: Optional[TTableHintTemplate[TTableFormat]]
+    file_format: TTableHintTemplate[TFileFormat]
     merge_key: Optional[TTableHintTemplate[TColumnNames]]
     references: Optional[TTableHintTemplate[TTableReferenceParam]]
+    nested_hints: Optional[Dict[str, "TResourceHintsBase"]]
 
 
 class TResourceHints(TResourceHintsBase, total=False):
-    name: TTableHintTemplate[str]
     # description: TTableHintTemplate[str]
-    # table_sealed: Optional[bool]
-    columns: TTableHintTemplate[TTableSchemaColumns]
-    incremental: Incremental[Any]
-    file_format: TTableHintTemplate[TFileFormat]
+    incremental: Optional[Incremental[Any]]
     validator: ValidateItem
-    original_columns: TTableHintTemplate[TAnySchemaColumns]
+    original_columns: Optional[TTableHintTemplate[TAnySchemaColumns]]
 
 
 class HintsMeta:
@@ -94,6 +94,7 @@ def make_hints(
     """
     validator, schema_contract = create_item_validator(columns, schema_contract)
     # create a table schema template where hints can be functions taking TDataItem
+    # TODO: do not use new_table here and get rid if typing ignores
     new_template: TResourceHints = new_table(
         table_name,  # type: ignore
         parent_table_name,  # type: ignore
@@ -103,8 +104,9 @@ def make_hints(
         file_format=file_format,  # type: ignore
         references=references,  # type: ignore
     )
+    new_template["table_name"] = new_template.pop("name")  # type: ignore
     if not table_name:
-        new_template.pop("name")
+        del new_template["table_name"]
     if not write_disposition and "write_disposition" in new_template:
         new_template.pop("write_disposition")
     # remember original columns and set template columns
@@ -125,12 +127,34 @@ def make_hints(
     return new_template
 
 
+class DltResourceHintsDict(Dict[str, "DltResourceHints"]):
+    # def __init__(self, initial_value: TResourceHintsBase)
+
+    def __getitem__(self, key: Union[str, Sequence[str]]) -> "DltResourceHints":
+        """Get item at `key` is string or recursively if sequence"""
+        if isinstance(key, str):
+            return super().__getitem__(key)
+        else:
+            item = super().__getitem__(key[0])
+            for k_ in key[1:]:
+                item = item.nested_hints[k_]
+            return item
+
+    def __setitem__(self, key: str, value: Union["DltResourceHints", TResourceHintsBase]) -> None:
+        """Sets resource hints at given `key` or create new instance from table template"""
+        if isinstance(value, DltResourceHints):
+            return super().__setitem__(key, value)
+        else:
+            return super().__setitem__(key, DltResourceHints(value))  # type: ignore
+
+
 class DltResourceHints:
     def __init__(self, table_schema_template: TResourceHints = None):
         self.__qualname__ = self.__name__ = self.name
         self._table_name_hint_fun: TFunHintTemplate[str] = None
         self._table_has_other_dynamic_hints: bool = False
         self._hints: TResourceHints = None
+        self._nested_hints: DltResourceHintsDict = None
         """Hints for the resource"""
         self._hints_variants: Dict[str, TResourceHints] = {}
         """Hints for tables emitted from resources"""
@@ -147,7 +171,7 @@ class DltResourceHints:
         if self._table_name_hint_fun:
             return self._table_name_hint_fun
         # get table name or default name
-        return self._hints.get("name") or self.name if self._hints else self.name
+        return self._hints.get("table_name") or self.name if self._hints else self.name
 
     @table_name.setter
     def table_name(self, value: TTableHintTemplate[str]) -> None:
@@ -166,7 +190,11 @@ class DltResourceHints:
     @property
     def columns(self) -> TTableHintTemplate[TTableSchemaColumns]:
         """Gets columns' schema that can be modified in place"""
-        return None if self._hints is None else self._hints.get("columns")
+        return None if self._hints is None else self._hints.get("columns")  # type: ignore[return-value]
+
+    @property
+    def nested_hints(self) -> DltResourceHintsDict:
+        pass
 
     @property
     def schema_contract(self) -> TTableHintTemplate[TSchemaContract]:
@@ -187,16 +215,16 @@ class DltResourceHints:
         """
         if isinstance(meta, TableNameMeta):
             # look for variant
-            table_template = self._hints_variants.get(meta.table_name, self._hints)
+            root_table_template = self._hints_variants.get(meta.table_name, self._hints)
         else:
-            table_template = self._hints
-        if not table_template:
+            root_table_template = self._hints
+        if not root_table_template:
             return new_table(self.name, resource=self.name)
 
         # resolve a copy of a held template
-        table_template = self._clone_hints(table_template)
-        if "name" not in table_template:
-            table_template["name"] = self.name
+        root_table_template = self._clone_hints(root_table_template)
+        if "table_name" not in root_table_template:
+            root_table_template["table_name"] = self.name
 
         # if table template present and has dynamic hints, the data item must be provided.
         if self._table_name_hint_fun and item is None:
@@ -204,7 +232,7 @@ class DltResourceHints:
         # resolve
         resolved_template: TResourceHints = {
             k: self._resolve_hint(item, v)
-            for k, v in table_template.items()
+            for k, v in root_table_template.items()
             if k not in NATURAL_CALLABLES
         }  # type: ignore
         if "incremental" in table_template:
@@ -290,9 +318,9 @@ class DltResourceHints:
             t = self._clone_hints(t)
             if table_name is not None:
                 if table_name:
-                    t["name"] = table_name
+                    t["table_name"] = table_name
                 else:
-                    t.pop("name", None)
+                    t.pop("table_name", None)
             if parent_table_name is not None:
                 if parent_table_name:
                     t["parent"] = parent_table_name
@@ -310,6 +338,7 @@ class DltResourceHints:
                     # normalize columns
                     columns = ensure_table_schema_columns(columns)
                     # this updates all columns with defaults
+                    assert isinstance(t["columns"], dict)
                     t["columns"] = merge_columns(t["columns"], columns, merge_columns=True)
                 else:
                     # set to empty columns
@@ -379,7 +408,8 @@ class DltResourceHints:
         DltResourceHints.validate_write_disposition_hint(hints_template)
         DltResourceHints.validate_reference_hint(hints_template)
         if create_table_variant:
-            table_name: str = hints_template["name"]  # type: ignore[assignment]
+            # for table variants, table name must be a str
+            table_name: str = hints_template["table_name"]  # type: ignore[assignment]
             # incremental cannot be specified in variant
             if hints_template.get("incremental"):
                 raise InconsistentTableTemplate(
@@ -413,7 +443,7 @@ class DltResourceHints:
         self, hints_template: TResourceHints, create_table_variant: bool = False
     ) -> None:
         self.apply_hints(
-            table_name=hints_template.get("name"),
+            table_name=hints_template.get("table_name"),
             parent_table_name=hints_template.get("parent"),
             write_disposition=hints_template.get("write_disposition"),
             columns=hints_template.get("original_columns"),
