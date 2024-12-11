@@ -6,12 +6,12 @@ keywords: [transform, pandas]
 
 # Transforming data in python with dataframes or arrow tables
 
-You can transform your data in python using pandas dataframes or arrow tables. To get started, please read the [dataset docs](../general-usage/dataset-access/dataset).
+You can transform your data in python using pandas dataframes or arrow tables. To get started, please read the [dataset docs](../../general-usage/dataset-access/dataset).
 
 
 ## Interactively transforming your data in python
 
-Using the methods explained in the [dataset docs](../general-usage/dataset-access/dataset), you can fetch data from your destination into a dataframe or arrow table in your local python process and work with it interactively. This even works for filesystem destinations:
+Using the methods explained in the [dataset docs](../../general-usage/dataset-access/dataset), you can fetch data from your destination into a dataframe or arrow table in your local python process and work with it interactively. This even works for filesystem destinations:
 
 
 The example below reads GitHub reactions data from the `issues` table and
