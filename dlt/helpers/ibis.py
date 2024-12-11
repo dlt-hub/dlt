@@ -123,8 +123,11 @@ def create_ibis_backend(
         )
         from dlt.destinations.impl.duckdb.factory import DuckDbCredentials
 
-        # we create an in memory duckdb and create all tables on there
+        # we create an in memory duckdb and create the ibis backend from it
         duck = duckdb.connect(":memory:")
+        con = ibis.duckdb.from_connection(duck)
+
+        # make all tables availble here
         fs_client = cast(FilesystemClient, client)
         creds = DuckDbCredentials(duck)
         sql_client = FilesystemSqlClient(
@@ -134,7 +137,6 @@ def create_ibis_backend(
         # NOTE: we should probably have the option for the user to only select a subset of tables here
         with sql_client as _:
             sql_client.create_views_for_all_tables()
-        con = ibis.duckdb.from_connection(duck)
 
     return con
 
