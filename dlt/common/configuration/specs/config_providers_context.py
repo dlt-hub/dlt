@@ -132,7 +132,7 @@ def _airflow_providers() -> List[ConfigProvider]:
             # check if we are in task context and provide more info
             from airflow.operators.python import get_current_context  # noqa
 
-            ti: TaskInstance = get_current_context()["ti"]
+            ti: TaskInstance = get_current_context()["ti"]  # type: ignore[assignment,unused-ignore]
 
         # log outside of stderr/out redirect
         if secrets_toml_var is None:

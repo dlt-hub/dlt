@@ -255,7 +255,7 @@ class PipelineTasksGroup(TaskGroup):
 
         # use task logger
         if self.use_task_logger:
-            ti: TaskInstance = get_current_context()["ti"]
+            ti: TaskInstance = get_current_context()["ti"]  # type: ignore[assignment,unused-ignore]
             logger.LOGGER = ti.log
 
         # set global number of buffered items
