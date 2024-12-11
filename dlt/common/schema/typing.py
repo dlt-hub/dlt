@@ -261,6 +261,7 @@ TTableReferenceParam = Sequence[TTableReference]
 
 
 class _TTableSchemaBase(TTableProcessingHints, total=False):
+    table_name: Optional[str]
     name: Optional[str]
     description: Optional[str]
     schema_contract: Optional[TSchemaContract]
