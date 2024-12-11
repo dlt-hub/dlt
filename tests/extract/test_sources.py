@@ -1,4 +1,6 @@
 import itertools
+import time
+
 from typing import Iterator
 
 import pytest
@@ -908,6 +910,61 @@ def test_limit_source() -> None:
 
     # transformer is not limited to 2 elements, infinite resource is, we have 3 resources
     assert list(infinite_source().add_limit(2)) == ["A", "A", 0, "A", "A", "A", 1] * 3
+
+
+def test_limit_max_time() -> None:
+    @dlt.resource()
+    def r():
+        for i in range(100):
+            time.sleep(0.1)
+            yield i
+
+    @dlt.resource()
+    async def r_async():
+        for i in range(100):
+            await asyncio.sleep(0.1)
+            yield i
+
+    sync_list = list(r().add_limit(max_time=1))
+    async_list = list(r_async().add_limit(max_time=1))
+
+    # we should have extracted 10 items within 1 second, sleep is included in the resource
+    # we allow for some variance in the number of items, as the sleep is not super precise
+    allowed_results = [
+        list(range(12)),
+        list(range(11)),
+        list(range(10)),
+        list(range(9)),
+        list(range(8)),
+    ]
+    assert sync_list in allowed_results
+    assert async_list in allowed_results
+
+
+def test_limit_min_wait() -> None:
+    @dlt.resource()
+    def r():
+        for i in range(100):
+            yield i
+
+    @dlt.resource()
+    async def r_async():
+        for i in range(100):
+            yield i
+
+    sync_list = list(r().add_limit(max_time=1, min_wait=0.2))
+    async_list = list(r_async().add_limit(max_time=1, min_wait=0.2))
+
+    # we should have extracted about 5 items within 1 second, sleep is done via min_wait
+    allowed_results = [
+        list(range(3)),
+        list(range(4)),
+        list(range(5)),
+        list(range(6)),
+        list(range(7)),
+    ]
+    assert sync_list in allowed_results
+    assert async_list in allowed_results
 
 
 def test_source_state() -> None:

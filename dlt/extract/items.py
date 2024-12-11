@@ -1,4 +1,6 @@
 import inspect
+import time
+
 from abc import ABC, abstractmethod
 from typing import (
     Any,
@@ -243,23 +245,44 @@ class ValidateItem(ItemTransform[TDataItem]):
 class LimitItem(ItemTransform[TDataItem]):
     placement_affinity: ClassVar[float] = 1.1  # stick to end right behind incremental
 
-    def __init__(self, max_items: int) -> None:
+    def __init__(
+        self, max_items: Optional[int], max_time: Optional[float], min_wait: Optional[float]
+    ) -> None:
         self.max_items = max_items if max_items is not None else -1
+        self.max_time = max_time
+        self.min_wait = min_wait
 
     def bind(self, pipe: SupportsPipe) -> "LimitItem":
         self.gen = pipe.gen
         self.count = 0
         self.exhausted = False
+        self.start_time = time.time()
+        self.last_call_time = 0.0
         return self
 
     def __call__(self, item: TDataItems, meta: Any = None) -> Optional[TDataItems]:
-        # detect when the limit is reached
-        if self.count == self.max_items:
+        # detect when the limit is reached, time or yield count
+        if (self.count == self.max_items) or (
+            self.max_time and time.time() - self.start_time > self.max_time
+        ):
             self.exhausted = True
             if inspect.isgenerator(self.gen):
                 self.gen.close()
+
         # do not return any late arriving items
         if self.exhausted:
             return None
         self.count += 1
+
+        # if we have a min wait and the last iteration was less than min wait ago,
+        # we sleep on this thread a bit
+        if self.min_wait and (time.time() - self.last_call_time) < self.min_wait:
+            # NOTE: this should be interruptable?
+            # NOTE: this is sleeping on the main thread, we should carefully document this!
+            time.sleep(self.min_wait - (time.time() - self.last_call_time))
+
+        # remember last iteration time
+        if self.min_wait:
+            self.last_call_time = time.time()
+
         return item

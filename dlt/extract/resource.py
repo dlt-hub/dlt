@@ -341,20 +341,27 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             self._pipe.insert_step(FilterItem(item_filter), insert_at)
         return self
 
-    def add_limit(self: TDltResourceImpl, max_items: int) -> TDltResourceImpl:  # noqa: A003
+    def add_limit(
+        self: TDltResourceImpl,
+        max_items: Optional[int] = None,
+        max_time: Optional[float] = None,
+        min_wait: Optional[float] = None,
+    ) -> TDltResourceImpl:  # noqa: A003
         """Adds a limit `max_items` to the resource pipe.
 
-        This mutates the encapsulated generator to stop after `max_items` items are yielded. This is useful for testing and debugging.
+         This mutates the encapsulated generator to stop after `max_items` items are yielded. This is useful for testing and debugging.
 
-        Notes:
-            1. Transformers won't be limited. They should process all the data they receive fully to avoid inconsistencies in generated datasets.
-            2. Each yielded item may contain several records. `add_limit` only limits the "number of yields", not the total number of records.
-            3. Async resources with a limit added may occasionally produce one item more than the limit on some runs. This behavior is not deterministic.
+         Notes:
+             1. Transformers won't be limited. They should process all the data they receive fully to avoid inconsistencies in generated datasets.
+             2. Each yielded item may contain several records. `add_limit` only limits the "number of yields", not the total number of records.
+             3. Async resources with a limit added may occasionally produce one item more than the limit on some runs. This behavior is not deterministic.
 
         Args:
-            max_items (int): The maximum number of items to yield
-        Returns:
-            "DltResource": returns self
+             max_items (int): The maximum number of items to yield, set to None for no limit
+             max_time (float): The maximum number of seconds for this generator to run after it was opened, set to None for no limit
+             min_wait (float): The minimum number of seconds to wait between iterations (useful for rate limiting)
+         Returns:
+             "DltResource": returns self
         """
 
         if self.is_transformer:
@@ -365,7 +372,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         else:
             # remove existing limit if any
             self._pipe.remove_by_type(LimitItem)
-            self.add_step(LimitItem(max_items))
+            self.add_step(LimitItem(max_items=max_items, max_time=max_time, min_wait=min_wait))
 
         return self
 
