@@ -484,3 +484,18 @@ def copy_sig_any(
         return func
 
     return decorator
+
+
+def add_value_to_literal(literal: Any, value: Any) -> None:
+    """Extends a Literal at runtime with a new value.
+
+    Args:
+        literal (Type[Any]): Literal to extend
+        value (Any): Value to add
+
+    """
+    type_args = get_args(literal)
+
+    if value not in type_args:
+        type_args += (value,)
+        literal.__args__ = type_args
