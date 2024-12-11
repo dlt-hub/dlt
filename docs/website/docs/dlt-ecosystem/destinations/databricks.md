@@ -99,7 +99,7 @@ Follow the instructions in the Databricks documentation to create a service prin
 
 [Authenticate access to Databricks using OAuth M2M](https://docs.databricks.com/en/dev-tools/auth/oauth-m2m.html)
 
-Once you have the service principal credentials, update your secrets.toml as shown bellow. The auth_type must be set to "databricks-oauth" to enable this authentication method.
+Once you have the service principal credentials, update your secrets.toml as shown bellow.
 
 ### Configuration
 
@@ -109,12 +109,9 @@ Add the following fields to your `.dlt/secrets.toml` file:
 server_hostname = "MY_DATABRICKS.azuredatabricks.net"
 http_path = "/sql/1.0/warehouses/12345"
 catalog = "my_catalog"
-auth_type = "databricks-oauth"
 client_id = "XXX"
 client_secret = "XXX"
 ```
-
-
 
 ## Loader setup guide
 
