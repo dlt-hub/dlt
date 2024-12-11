@@ -249,7 +249,7 @@ class LimitItem(ItemTransform[TDataItem]):
     def bind(self, pipe: SupportsPipe) -> "LimitItem":
         self.gen = pipe.gen
         self.count = 0
-        self.exceeded = False
+        self.exhausted = False
         return self
 
     def __call__(self, item: TDataItems, meta: Any = None) -> Optional[TDataItems]:
