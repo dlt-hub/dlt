@@ -95,7 +95,7 @@ jobs:
           key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}-local-destinations
 
       - name: Install dependencies
-        run: poetry install --no-interaction -E databricks -E postgres -E postgis -E duckdb -E parquet -E filesystem -E cli -E weaviate -E qdrant -E sftp --with sentry-sdk --with pipeline -E deltalake
+        run: poetry install --no-interaction -E postgres -E postgis -E duckdb -E parquet -E filesystem -E cli -E weaviate -E qdrant -E sftp --with sentry-sdk --with pipeline -E deltalake
 
       - name: Start SFTP server
         run: docker compose -f "tests/load/filesystem_sftp/docker-compose.yml" up -d

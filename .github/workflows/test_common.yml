@@ -103,7 +103,7 @@ jobs:
         shell: cmd
 
       - name: Install duckdb dependencies
-        run: poetry install --no-interaction -E databricks -E duckdb --with sentry-sdk
+        run: poetry install --no-interaction -E duckdb --with sentry-sdk
 
       - run: |
           poetry run pytest tests/pipeline/test_pipeline.py tests/pipeline/test_import_export_schema.py
@@ -116,7 +116,7 @@ jobs:
         shell: cmd
 
       - name: Install pyarrow
-        run: poetry install --no-interaction -E databricks -E duckdb -E cli -E parquet --with sentry-sdk && poetry run pip install pyarrow==15.0.2
+        run: poetry install --no-interaction -E duckdb -E cli -E parquet --with sentry-sdk && poetry run pip install pyarrow==15.0.2
 
       - run: |
           poetry run pytest tests/pipeline/test_pipeline_extra.py -k arrow
@@ -129,7 +129,7 @@ jobs:
         shell: cmd
 
       - name: Install pipeline and sources dependencies
-        run: poetry install --no-interaction -E databricks -E duckdb -E cli -E parquet -E deltalake -E sql_database --with sentry-sdk,pipeline,sources && poetry run pip install pyarrow==15.0.2
+        run: poetry install --no-interaction -E duckdb -E cli -E parquet -E deltalake -E sql_database --with sentry-sdk,pipeline,sources && poetry run pip install pyarrow==15.0.2
 
       - run: |
           poetry run pytest tests/extract tests/pipeline tests/libs tests/cli/common tests/destinations tests/sources
