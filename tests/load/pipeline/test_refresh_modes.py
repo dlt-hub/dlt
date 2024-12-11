@@ -1,5 +1,5 @@
 from typing import Any, List
-
+import os
 import pytest
 import dlt
 from dlt.common.destination.exceptions import DestinationUndefinedEntity
@@ -12,7 +12,7 @@ from dlt.destinations.sql_client import DBApiCursor
 from dlt.extract.source import DltSource
 from dlt.pipeline.state_sync import load_pipeline_state_from_destination
 
-from tests.utils import clean_test_storage
+from tests.utils import clean_test_storage, TEST_STORAGE_ROOT
 from tests.pipeline.utils import (
     _is_filesystem,
     assert_load_info,
@@ -106,19 +106,42 @@ def refresh_source(first_run: bool = True, drop_sources: bool = False):
     ),
     ids=lambda x: x.name,
 )
-def test_refresh_drop_sources(destination_config: DestinationTestConfiguration):
-    pipeline = destination_config.setup_pipeline("refresh_full_test", refresh="drop_sources")
+@pytest.mark.parametrize("in_source", (True, False))
+@pytest.mark.parametrize("with_wipe", (True, False))
+def test_refresh_drop_sources(
+    destination_config: DestinationTestConfiguration, in_source: bool, with_wipe: bool
+):
+    # do not place duckdb in the working dir, because we may wipe it
+    os.environ["DESTINATION__DUCKDB__CREDENTIALS"] = os.path.join(
+        TEST_STORAGE_ROOT, "refresh_source_db.duckdb"
+    )
+
+    pipeline = destination_config.setup_pipeline("refresh_source")
+
+    data: Any = refresh_source(first_run=True, drop_sources=True).with_resources(
+        "some_data_1", "some_data_2"
+    )
+    if not in_source:
+        data = list(data.selected_resources.values())
 
     # First run pipeline so destination so tables are created
-    info = pipeline.run(
-        refresh_source(first_run=True, drop_sources=True), **destination_config.run_kwargs
-    )
+    info = pipeline.run(data, refresh="drop_sources", **destination_config.run_kwargs)
     assert_load_info(info)
+
     # Second run of pipeline with only selected resources
+    if with_wipe:
+        pipeline._wipe_working_folder()
+        pipeline = destination_config.setup_pipeline("refresh_source")
+
+    data = refresh_source(first_run=False, drop_sources=True).with_resources(
+        "some_data_1", "some_data_2"
+    )
+    if not in_source:
+        data = list(data.selected_resources.values())
+
     info = pipeline.run(
-        refresh_source(first_run=False, drop_sources=True).with_resources(
-            "some_data_1", "some_data_2"
-        ),
+        data,
+        refresh="drop_sources",
         **destination_config.run_kwargs,
     )
 
@@ -199,16 +222,37 @@ def test_existing_schema_hash(destination_config: DestinationTestConfiguration):
     ),
     ids=lambda x: x.name,
 )
-def test_refresh_drop_resources(destination_config: DestinationTestConfiguration):
+@pytest.mark.parametrize("in_source", (True, False))
+@pytest.mark.parametrize("with_wipe", (True, False))
+def test_refresh_drop_resources(
+    destination_config: DestinationTestConfiguration, in_source: bool, with_wipe: bool
+):
+    # do not place duckdb in the working dir, because we may wipe it
+    os.environ["DESTINATION__DUCKDB__CREDENTIALS"] = os.path.join(
+        TEST_STORAGE_ROOT, "refresh_source_db.duckdb"
+    )
     # First run pipeline with load to destination so tables are created
-    pipeline = destination_config.setup_pipeline("refresh_full_test", refresh="drop_tables")
+    pipeline = destination_config.setup_pipeline("refresh_source")
 
-    info = pipeline.run(refresh_source(first_run=True), **destination_config.run_kwargs)
+    data: Any = refresh_source(first_run=True)
+    if not in_source:
+        data = list(data.selected_resources.values())
+
+    info = pipeline.run(data, refresh="drop_resources", **destination_config.run_kwargs)
     assert_load_info(info)
 
     # Second run of pipeline with only selected resources
+    if with_wipe:
+        pipeline._wipe_working_folder()
+        pipeline = destination_config.setup_pipeline("refresh_source")
+
+    data = refresh_source(first_run=False).with_resources("some_data_1", "some_data_2")
+    if not in_source:
+        data = list(data.selected_resources.values())
+
     info = pipeline.run(
-        refresh_source(first_run=False).with_resources("some_data_1", "some_data_2"),
+        data,
+        refresh="drop_resources",
         **destination_config.run_kwargs,
     )
 
