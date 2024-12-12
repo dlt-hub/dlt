@@ -2943,3 +2943,42 @@ def test_nested_inserts_correct_target(mark_main_resource: bool) -> None:
     rows = load_tables_to_dicts(pipeline, "things_c", exclude_system_cols=True)
     print(rows)
     assert_data_table_counts(pipeline, {"things": 2, "things_a": 2, "things_b": 2, "things_c": 2 })
+
+
+@pytest.mark.parametrize("create_table_variant", (True, False))
+def test_columns_do_not_linger(create_table_variant: bool) -> None:
+    @dlt.resource()
+    def my_resource():
+        yield dlt.mark.with_hints(
+                                item={"hello": "..."},
+                                hints=dlt.mark.make_hints(
+                                    table_name="a",
+                                    columns={
+                                        "hello": {
+                                            "data_type": "text"
+                                        }
+                                    }
+                                ),
+                                create_table_variant=create_table_variant,
+                            )
+        yield dlt.mark.with_hints(
+                                item={"world": "..."},
+                                hints=dlt.mark.make_hints(
+                                    table_name="b",
+                                ),
+                                create_table_variant=create_table_variant,
+                            )
+
+    @dlt.source()
+    def my_source() -> Sequence[DltResource]:
+        return [my_resource]
+
+    pipeline_name = "pipe_" + uniq_id()
+    pipeline = dlt.pipeline(pipeline_name=pipeline_name, destination="duckdb")
+    info = pipeline.run(my_source())
+    assert_load_info(info)
+    assert_data_table_counts(pipeline, {"a": 1, "b": 1})
+    rows = load_tables_to_dicts(pipeline, "a", "b", exclude_system_cols=True)
+    print(rows)
+    assert len(rows["a"][0]) == 1
+    assert len(rows["b"][0]) == 1
