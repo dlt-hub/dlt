@@ -257,17 +257,25 @@ class LimitItem(ItemTransform[TDataItem]):
         return self
 
     def __call__(self, item: TDataItems, meta: Any = None) -> Optional[TDataItems]:
-        # detect when the limit is reached, time or yield count
-        if (self.count == self.max_items) or (
-            self.max_time and time.time() - self.start_time > self.max_time
+        self.count += 1
+
+        # detect when the limit is reached, max time or yield count
+        if (
+            (self.count == self.max_items)
+            or (self.max_time and time.time() - self.start_time > self.max_time)
+            or self.max_items == 0
         ):
             self.exhausted = True
             if inspect.isgenerator(self.gen):
                 self.gen.close()
 
+            # if max items is not 0, we return the last item
+            # otherwise never return anything
+            if self.max_items != 0:
+                return item
+
         # do not return any late arriving items
         if self.exhausted:
             return None
-        self.count += 1
 
         return item
