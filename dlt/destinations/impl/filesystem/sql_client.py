@@ -266,7 +266,9 @@ class FilesystemSqlClient(DuckDbSqlClient):
                 self._setup_iceberg(self._conn)
                 metadata_path = f"{resolved_folder}/metadata"
                 last_metadata_file = _get_last_metadata_file(metadata_path, self.fs_client)
-                from_statement = f"iceberg_scan('{last_metadata_file}')"
+                # skip schema inference to make nested data types work
+                # https://github.com/duckdb/duckdb_iceberg/issues/47
+                from_statement = f"iceberg_scan('{last_metadata_file}', skip_schema_inference=True)"
             elif first_file_type == "parquet":
                 from_statement = f"read_parquet([{resolved_files_string}])"
             elif first_file_type == "jsonl":

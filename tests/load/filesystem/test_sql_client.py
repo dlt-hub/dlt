@@ -22,6 +22,7 @@ from tests.load.utils import (
 )
 from dlt.destinations import filesystem
 from tests.utils import TEST_STORAGE_ROOT
+from tests.cases import arrow_table_all_data_types
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
 
 
@@ -81,7 +82,11 @@ def _run_dataset_checks(
                 for i in range(total_records)
             ]
 
-        return [items, double_items]
+        @dlt.resource(table_format=table_format)
+        def arrow_all_types():
+            yield arrow_table_all_data_types("arrow-table")[0]
+
+        return [items, double_items, arrow_all_types]
 
     # run source
     pipeline.run(source(), loader_file_format=destination_config.file_format)
@@ -98,6 +103,9 @@ def _run_dataset_checks(
 
     # check we can create new tables from the views
     with pipeline.sql_client() as c:
+        # check if all data types are handled properly
+        c.execute_sql("SELECT * FROM arrow_all_types;")
+
         c.execute_sql(
             "CREATE TABLE items_joined AS (SELECT i.id, di.double_id FROM items as i JOIN"
             " double_items as di ON (i.id = di.id));"
