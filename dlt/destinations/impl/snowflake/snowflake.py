@@ -1,4 +1,4 @@
-from typing import Optional, Sequence, List
+from typing import Optional, Sequence, List, Dict
 from urllib.parse import urlparse, urlunparse
 
 from dlt.common.data_writers.configuration import CsvFormatConfiguration
@@ -17,7 +17,7 @@ from dlt.common.configuration.specs import (
 )
 from dlt.common.storages.configuration import FilesystemConfiguration, ensure_canonical_az_url
 from dlt.common.storages.file_storage import FileStorage
-from dlt.common.schema import TColumnSchema, Schema
+from dlt.common.schema import TColumnSchema, Schema, TColumnHint
 from dlt.common.schema.typing import TColumnType
 
 from dlt.common.storages.fsspec_filesystem import AZURE_BLOB_STORAGE_PROTOCOLS, S3_PROTOCOLS
@@ -28,6 +28,8 @@ from dlt.destinations.exceptions import LoadJobTerminalException
 from dlt.destinations.impl.snowflake.configuration import SnowflakeClientConfiguration
 from dlt.destinations.impl.snowflake.sql_client import SnowflakeSqlClient
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest
+
+SUPPORTED_HINTS: Dict[TColumnHint, str] = {"unique": "UNIQUE", "primary_key": "PRIMARY KEY"}
 
 
 class SnowflakeLoadJob(RunnableLoadJob, HasFollowupJobs):
@@ -238,6 +240,7 @@ class SnowflakeClient(SqlJobClientWithStagingDataset, SupportsStagingDestination
         self.config: SnowflakeClientConfiguration = config
         self.sql_client: SnowflakeSqlClient = sql_client  # type: ignore
         self.type_mapper = self.capabilities.get_type_mapper()
+        self.active_hints = SUPPORTED_HINTS if self.config.create_indexes else {}
 
     def create_load_job(
         self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
@@ -288,9 +291,14 @@ class SnowflakeClient(SqlJobClientWithStagingDataset, SupportsStagingDestination
         return self.type_mapper.from_destination_type(bq_t, precision, scale)
 
     def _get_column_def_sql(self, c: TColumnSchema, table: PreparedTableSchema = None) -> str:
-        name = self.sql_client.escape_column_name(c["name"])
+        hints_str = " ".join(
+            self.active_hints.get(h, "")
+            for h in self.active_hints.keys()
+            if c.get(h, False) is True
+        )
+        column_name = self.sql_client.escape_column_name(c["name"])
         return (
-            f"{name} {self.type_mapper.to_destination_type(c,table)} {self._gen_not_null(c.get('nullable', True))}"
+            f"{column_name} {self.type_mapper.to_destination_type(c,table)} {hints_str} {self._gen_not_null(c.get('nullable', True))}"
         )
 
     def should_truncate_table_before_load_on_staging_destination(self, table_name: str) -> bool:

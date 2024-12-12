@@ -78,6 +78,42 @@ def test_create_table(snowflake_client: SnowflakeClient) -> None:
     assert '"COL10" DATE NOT NULL' in sql
 
 
+def test_create_table_with_hints(snowflake_client: SnowflakeClient) -> None:
+    mod_update = deepcopy(TABLE_UPDATE)
+
+    mod_update[0]["primary_key"] = True
+    mod_update[0]["sort"] = True
+    mod_update[1]["unique"] = True
+    mod_update[4]["parent_key"] = True
+
+    sql = ";".join(snowflake_client._get_table_update_sql("event_test_table", mod_update, False))
+
+    assert sql.strip().startswith("CREATE TABLE")
+    assert "EVENT_TEST_TABLE" in sql
+    assert '"COL1" NUMBER(19,0)  NOT NULL' in sql
+    assert '"COL2" FLOAT  NOT NULL' in sql
+    assert '"COL3" BOOLEAN  NOT NULL' in sql
+    assert '"COL4" TIMESTAMP_TZ  NOT NULL' in sql
+    assert '"COL5" VARCHAR' in sql
+    assert '"COL6" NUMBER(38,9)  NOT NULL' in sql
+    assert '"COL7" BINARY' in sql
+    assert '"COL8" NUMBER(38,0)' in sql
+    assert '"COL9" VARIANT  NOT NULL' in sql
+    assert '"COL10" DATE  NOT NULL' in sql
+
+    # same thing with indexes
+    snowflake_client = snowflake().client(
+        snowflake_client.schema,
+        SnowflakeClientConfiguration(create_indexes=True)._bind_dataset_name(
+            dataset_name="test_" + uniq_id()
+        ),
+    )
+    sql = snowflake_client._get_table_update_sql("event_test_table", mod_update, False)[0]
+    sqlfluff.parse(sql)
+    assert '"COL1" NUMBER(19,0) PRIMARY KEY NOT NULL' in sql
+    assert '"COL2" FLOAT UNIQUE NOT NULL' in sql
+
+
 def test_alter_table(snowflake_client: SnowflakeClient) -> None:
     statements = snowflake_client._get_table_update_sql("event_test_table", TABLE_UPDATE, True)
     assert len(statements) == 1
