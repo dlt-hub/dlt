@@ -1,4 +1,6 @@
 import inspect
+import time
+
 from abc import ABC, abstractmethod
 from typing import (
     Any,
@@ -238,3 +240,34 @@ class ValidateItem(ItemTransform[TDataItem]):
     def bind(self, pipe: SupportsPipe) -> ItemTransform[TDataItem]:
         self.table_name = pipe.name
         return self
+
+
+class LimitItem(ItemTransform[TDataItem]):
+    placement_affinity: ClassVar[float] = 1.1  # stick to end right behind incremental
+
+    def __init__(self, max_items: Optional[int], max_time: Optional[float]) -> None:
+        self.max_items = max_items if max_items is not None else -1
+        self.max_time = max_time
+
+    def bind(self, pipe: SupportsPipe) -> "LimitItem":
+        self.gen = pipe.gen
+        self.count = 0
+        self.exhausted = False
+        self.start_time = time.time()
+        return self
+
+    def __call__(self, item: TDataItems, meta: Any = None) -> Optional[TDataItems]:
+        # detect when the limit is reached, time or yield count
+        if (self.count == self.max_items) or (
+            self.max_time and time.time() - self.start_time > self.max_time
+        ):
+            self.exhausted = True
+            if inspect.isgenerator(self.gen):
+                self.gen.close()
+
+        # do not return any late arriving items
+        if self.exhausted:
+            return None
+        self.count += 1
+
+        return item

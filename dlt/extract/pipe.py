@@ -39,6 +39,7 @@ from dlt.extract.utils import (
     wrap_compat_transformer,
     wrap_resource_gen,
     wrap_async_iterator,
+    wrap_iterator,
 )
 
 
@@ -122,7 +123,23 @@ class Pipe(SupportsPipe):
 
     def find(self, *step_type: AnyType) -> int:
         """Finds a step with object of type `step_type`"""
-        return next((i for i, v in enumerate(self._steps) if isinstance(v, step_type)), -1)
+        found = self.find_all(step_type)
+        return found[0] if found else -1
+
+    def find_all(self, *step_type: AnyType) -> List[int]:
+        """Finds all steps with object of type `step_type`"""
+        return [i for i, v in enumerate(self._steps) if isinstance(v, step_type)]
+
+    def get_by_type(self, *step_type: AnyType) -> TPipeStep:
+        """Gets first step found with object of type `step_type`"""
+        return next((v for v in self._steps if isinstance(v, step_type)), None)
+
+    def remove_by_type(self, *step_type: AnyType) -> int:
+        """Deletes first step found with object of type `step_type`, returns previous index"""
+        step_index = self.find(*step_type)
+        if step_index >= 0:
+            self.remove_step(step_index)
+        return step_index
 
     def __getitem__(self, i: int) -> TPipeStep:
         return self._steps[i]
@@ -278,6 +295,10 @@ class Pipe(SupportsPipe):
         # wrap async generator
         if isinstance(self.gen, AsyncIterator):
             self.replace_gen(wrap_async_iterator(self.gen))
+
+        # we also wrap iterators to make them stoppable
+        if isinstance(self.gen, Iterator):
+            self.replace_gen(wrap_iterator(self.gen))
 
         # evaluate transforms
         for step_no, step in enumerate(self._steps):
