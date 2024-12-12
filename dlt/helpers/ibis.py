@@ -137,6 +137,8 @@ def create_ibis_backend(
         # NOTE: we should probably have the option for the user to only select a subset of tables here
         with sql_client as _:
             sql_client.create_views_for_all_tables()
+            sql_client._conn.sql("SET azure_transport_option_type = 'curl';")
+
 
     return con
 
