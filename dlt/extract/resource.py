@@ -354,6 +354,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             1. Transformers won't be limited. They should process all the data they receive fully to avoid inconsistencies in generated datasets.
             2. Each yielded item may contain several records. `add_limit` only limits the "number of yields", not the total number of records.
             3. Async resources with a limit added may occasionally produce one item more than the limit on some runs. This behavior is not deterministic.
+            4. Parallelized sync resources with a limit added will usually produce one item less than the limit. This behavior is not deterministic.
 
         Args:
             max_items (int): The maximum number of items to yield

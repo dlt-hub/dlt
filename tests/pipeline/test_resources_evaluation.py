@@ -217,6 +217,19 @@ def test_limit_async_resource() -> None:
     assert len(result) == 13
 
 
+@pytest.mark.parametrize("parallelized", [False, True])
+def test_limit_sync_resource(parallelized: bool) -> None:
+    @dlt.resource(parallelized=parallelized)
+    def sync_resource1():
+        for i in range(1, 10):
+            yield i
+
+    limit = 5
+    result = list(sync_resource1().add_limit(limit))
+    allowed_result_range = range(limit - int(parallelized), limit + 1)
+    assert len(result) in allowed_result_range
+
+
 @pytest.mark.parametrize("parallelized", [True, False])
 def test_parallelized_resource(parallelized: bool) -> None:
     os.environ["EXTRACT__NEXT_ITEM_MODE"] = "fifo"
