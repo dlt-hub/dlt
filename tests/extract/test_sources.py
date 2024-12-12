@@ -941,32 +941,6 @@ def test_limit_max_time() -> None:
     assert async_list in allowed_results
 
 
-def test_limit_min_wait() -> None:
-    @dlt.resource()
-    def r():
-        for i in range(100):
-            yield i
-
-    @dlt.resource()
-    async def r_async():
-        for i in range(100):
-            yield i
-
-    sync_list = list(r().add_limit(max_time=1, min_wait=0.2))
-    async_list = list(r_async().add_limit(max_time=1, min_wait=0.2))
-
-    # we should have extracted about 5 items within 1 second, sleep is done via min_wait
-    allowed_results = [
-        list(range(3)),
-        list(range(4)),
-        list(range(5)),
-        list(range(6)),
-        list(range(7)),
-    ]
-    assert sync_list in allowed_results
-    assert async_list in allowed_results
-
-
 def test_source_state() -> None:
     @dlt.source
     def test_source(expected_state):

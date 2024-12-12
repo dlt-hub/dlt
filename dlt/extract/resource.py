@@ -345,7 +345,6 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         self: TDltResourceImpl,
         max_items: Optional[int] = None,
         max_time: Optional[float] = None,
-        min_wait: Optional[float] = None,
     ) -> TDltResourceImpl:  # noqa: A003
         """Adds a limit `max_items` to the resource pipe.
 
@@ -359,7 +358,6 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         Args:
              max_items (int): The maximum number of items to yield, set to None for no limit
              max_time (float): The maximum number of seconds for this generator to run after it was opened, set to None for no limit
-             min_wait (float): The minimum number of seconds to wait between iterations (useful for rate limiting)
          Returns:
              "DltResource": returns self
         """
@@ -372,7 +370,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         else:
             # remove existing limit if any
             self._pipe.remove_by_type(LimitItem)
-            self.add_step(LimitItem(max_items=max_items, max_time=max_time, min_wait=min_wait))
+            self.add_step(LimitItem(max_items=max_items, max_time=max_time))
 
         return self
 
