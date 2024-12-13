@@ -1,5 +1,5 @@
 ---
-title: Transforming data in Python with arrow tables or dataframes
+title: Transforming data in Python with Arrow tables or DataFrames
 description: Transforming data loaded by a dlt pipeline with pandas dataframes or arrow tables
 keywords: [transform, pandas]
 ---
