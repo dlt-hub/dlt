@@ -301,7 +301,7 @@ other_pipeline.run(limited_items_relation.iter_arrow(chunk_size=10_000), table_n
 
 Learn more about [transforming data in python with dataframes or arrow tables](../../dlt-ecosystem/transformations/python).
 
-### Using `ibis` to query the data
+### Using `ibis` to query data
 
 Visit the [Native Ibis integration](./ibis-backend.md) guide to learn more.
 
