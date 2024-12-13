@@ -63,7 +63,7 @@ pipeline.run(users.iter_arrow(chunk_size=1000), table_name="users_clean")
 
 ### A more complex example
 
-The example above could easily be done in SQL. Let's assume you'd like to actually do some in python arrow transformations. For this will create a resources from which we can yield the modified arrow tables. The same is possibly with dataframes.
+The example above could easily be done in SQL. Let's assume you'd like to actually do in Python some Arrow transformations. For this will create a resources from which we can yield the modified Arrow tables. The same is possibly with DataFrames.
 
 ```py
 import pyarrow.compute as pc
