@@ -72,7 +72,7 @@ Load package 1692364844.460054 is LOADED and contains no failed jobs
 
 `dlt` just created a database schema called **mydata** (the `dataset_name`) with a table **users** in it.
 
-### Explore the data in python
+### Explore data in Python
 
 You can use dlt [datasets](../general-usage/dataset-access/dataset) to easily query the data in pure Python.
 
