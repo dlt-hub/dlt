@@ -9,7 +9,7 @@ keywords: [transform, pandas]
 You can transform your data in Python using Pandas DataFrames or Arrow tables. To get started, please read the [dataset docs](../../general-usage/dataset-access/dataset).
 
 
-## Interactively transforming your data in python
+## Interactively transforming your data in Python
 
 Using the methods explained in the [dataset docs](../../general-usage/dataset-access/dataset), you can fetch data from your destination into a dataframe or arrow table in your local python process and work with it interactively. This even works for filesystem destinations:
 
