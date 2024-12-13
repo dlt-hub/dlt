@@ -154,7 +154,7 @@ load_info = pipeline.run(foo)
 
 # print load info and the "foo_data" table as dataframe
 print(load_info)
-print(pipeline.dataset().foo_table.df())
+print(pipeline.dataset().foo_data.df())
 ```
 
 Check out the [Python data structures tutorial](./tutorial/load-data-from-an-api) to learn about dlt fundamentals and advanced usage scenarios.
