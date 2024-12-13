@@ -13,7 +13,7 @@ insert a row into the `customers` table. Note that the syntax is the same as for
 connection.
 
 :::info
-* This method will work for all sql destinations supported by `dlt`, but not for the filesystem destination.
+* This method will work for all SQL destinations supported by `dlt`, but not for the filesystem destination.
 * Read the [sql client docs](../../ general-usage/dataset-access/dataset) for more information on how to access data with the sql client.
 * If you are simply trying to read data, you should use the powerful [dataset interface](../../general-usage/dataset-access/dataset) instead.
 :::
