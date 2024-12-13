@@ -6,7 +6,7 @@ keywords: [transform, pandas]
 
 # Transforming data in Python with Arrow tables or DataFrames
 
-You can transform your data in python using pandas dataframes or arrow tables. To get started, please read the [dataset docs](../../general-usage/dataset-access/dataset).
+You can transform your data in Python using Pandas DataFrames or Arrow tables. To get started, please read the [dataset docs](../../general-usage/dataset-access/dataset).
 
 
 ## Interactively transforming your data in python
