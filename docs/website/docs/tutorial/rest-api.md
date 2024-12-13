@@ -246,7 +246,7 @@ pokemon_source = rest_api_source(
             # the primary key and write disposition
             {
                 "name": "pokemon",
-                "primary_key": "id",
+                "primary_key": "name",
                 "write_disposition": "merge",
             },
             # The `berry` and `location` resources will use the default
@@ -257,7 +257,7 @@ pokemon_source = rest_api_source(
 )
 ```
 
-Run the pipeline with `python rest_api_pipeline.py`, the data for the `pokemon` resource will be merged with the existing data in the destination table based on the `id` field.
+Run the pipeline with `python rest_api_pipeline.py`, the data for the `pokemon` resource will be merged with the existing data in the destination table based on the `name` field.
 
 ## Loading data incrementally
 
