@@ -267,7 +267,7 @@ Instead of using Python Requests directly, you can use the built-in [requests wr
 
 ## Keep pipeline working folder in a bucket on constrained environments.
 `dlt` stores extracted data in load packages in order to load them atomically. In case you extract a lot of data at once (ie. backfill) or
-your runtime env has constrained local storage (ie. cloud functions) you can keep your data on a bucket by using [FUSE]() or
+your runtime env has constrained local storage (ie. cloud functions) you can keep your data on a bucket by using [FUSE](https://github.com/libfuse/libfuse) or
 any other option which your cloud provider supplies.
 
 `dlt` users rename when saving files and  "committing" packages (folder rename). Those may be not supported on bucket filesystems. Often
