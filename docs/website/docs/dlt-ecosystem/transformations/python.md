@@ -4,7 +4,7 @@ description: Transforming data loaded by a dlt pipeline with pandas dataframes o
 keywords: [transform, pandas]
 ---
 
-# Transforming data in python with dataframes or arrow tables
+# Transforming data in Python with Arrow tables or DataFrames
 
 You can transform your data in python using pandas dataframes or arrow tables. To get started, please read the [dataset docs](../../general-usage/dataset-access/dataset).
 
