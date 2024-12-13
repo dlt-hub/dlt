@@ -44,7 +44,7 @@ Since dlt supports DataFrames and Arrow tables from resources directly, you can 
 
 ### A simple example
 
-A simple example that creates a new table from an existing user table but only with columns that do not contain private information. Note that we use the iter_arrow() method on the relation to iterate over the arrow table instead of fetching it all at once.
+A simple example that creates a new table from an existing user table but only with columns that do not contain private information. Note that we use the `iter_arrow()` method on the relation to iterate over the arrow table instead of fetching it all at once.
 
 ```py
 pipeline = dlt.pipeline(
