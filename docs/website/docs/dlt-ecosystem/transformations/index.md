@@ -15,7 +15,7 @@ If you'd like to transform your data after a pipeline load, you have 3 options a
 
 If you need to preprocess some of your data before it is loaded, you can learn about strategies to:
 
-* [Rename columns](../../general-usage/customising-pipelines/renaming_columns)
+* [Rename columns.](../../general-usage/customising-pipelines/renaming_columns)
 * [Pseudonymize columns](../../general-usage/customising-pipelines/pseudonymizing_columns)
 * [Remove columns](../../general-usage/customising-pipelines/removing_columns)
 
