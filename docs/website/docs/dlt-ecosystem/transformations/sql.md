@@ -20,7 +20,7 @@ connection.
 
 
 Typically you will use this type of transformation if you can create or update tables directly from existing tables
-without any need to insert data from your python environment. 
+without any need to insert data from your Python environment. 
 
 The example below creates a new table `aggregated_sales` that contains the total and average sales for each category and region
 
