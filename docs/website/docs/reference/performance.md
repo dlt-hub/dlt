@@ -264,3 +264,29 @@ DLT_USE_JSON=simplejson
 
 Instead of using Python Requests directly, you can use the built-in [requests wrapper](../general-usage/http/requests) or [`RESTClient`](../general-usage/http/rest-client) for API calls. This will make your pipeline more resilient to intermittent network errors and other random glitches.
 
+
+## Keep pipeline working folder in a bucket on constrained environments.
+`dlt` stores extracted data in load packages in order to load them atomically. In case you extract a lot of data at once (ie. backfill) or
+your runtime env has constrained local storage (ie. cloud functions) you can keep your data on a bucket by using [FUSE]() or
+any other option which your cloud provider supplies.
+
+`dlt` users rename when saving files and  "committing" packages (folder rename). Those may be not supported on bucket filesystems. Often
+`rename` is translated into `copy` automatically. In other cases `dlt` will fallback to copy itself.
+
+In case of cloud function and gs bucket mounts, increasing the rename limit for folders is possible:
+```hcl
+volume_mounts {
+    mount_path = "/usr/src/ingestion/pipeline_storage"
+    name       = "pipeline_bucket"
+  }
+volumes {
+  name = "pipeline_bucket"
+  gcs {
+    bucket    = google_storage_bucket.dlt_pipeline_data_bucket.name
+    read_only = false
+    mount_options = [
+      "rename-dir-limit=100000"
+    ]
+  }
+}
+```
