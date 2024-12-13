@@ -39,7 +39,7 @@ reactions = pipeline.dataset().issues.select("reactions__+1", "reactions__-1", "
 
 ## Persisting your transformed data
 
-Since dlt supports dataframes and arrow tables from resources directly, you can use the same pipeline to load the transformed data back into the destination.
+Since dlt supports DataFrames and Arrow tables from resources directly, you can use the same pipeline to load the transformed data back into the destination.
 
 
 ### A simple example
