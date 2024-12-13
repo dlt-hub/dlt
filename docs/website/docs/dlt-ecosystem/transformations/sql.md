@@ -67,5 +67,5 @@ If you want to transform your data before loading, you can use Python. If you wa
 data after loading, you can use SQL or one of the following:
 
 1. [dbt](dbt/dbt.md) (recommended).
-2. [Python with dataframes or arrow tables](python.md).
+2. [Python with DataFrames or Arrow tables](python.md).
 
