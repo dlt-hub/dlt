@@ -90,7 +90,7 @@ print(table.df())
 print(table.limit(10).arrow())
 ```
 
-### Explore the data in streamlit
+### Explore data in Streamlit
 
 To allow a sneak peek and basic discovery, you can take advantage of [built-in integration with Streamlit](../reference/command-line-interface#show-tables-and-data-in-the-destination):
 
