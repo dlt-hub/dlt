@@ -11,7 +11,7 @@ If you'd like to transform your data after a pipeline load, you have 3 options a
 
 * [Using dbt](./dbt/dbt.md) - dlt provides a convenient dbt wrapper to make integration easier
 * [Using the `dlt` SQL client](./sql.md) - dlt exposes an sql client to transform data on your destination directly using sql
-* [Using python with dataframes or arrow tables](./python.md) - you can also transform your data using arrow tables and dataframes in python
+* [Using Python with DataFrames or Arrow tables](./python.md) - you can also transform your data using Arrow tables and DataFrames in Python.
 
 If you need to preprocess some of your data before it is loaded, you can learn about strategies to:
 
