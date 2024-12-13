@@ -121,7 +121,7 @@ The methods available on the ReadableRelation correspond to the methods availabl
 
 ## Special queries
 
-You can use the `row_counts` method to get the row counts of all tables in the destination as a dataframe.
+You can use the `row_counts` method to get the row counts of all tables in the destination as a DataFrame.
 
 ```py
 # print the row counts of all tables in the destination as dataframe
