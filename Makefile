@@ -82,7 +82,7 @@ lint-security:
 	poetry run bandit -r dlt/ -n 3 -l
 
 test:
-	(set -a && . tests/.env && poetry run pytest tests)
+	poetry run pytest tests
 
 test-load-local:
 	DESTINATION__POSTGRES__CREDENTIALS=postgresql://loader:loader@localhost:5432/dlt_data DESTINATION__DUCKDB__CREDENTIALS=duckdb:///_storage/test_quack.duckdb  poetry run pytest tests -k '(postgres or duckdb)'

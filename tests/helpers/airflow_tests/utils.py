@@ -2,9 +2,6 @@ from configparser import DuplicateSectionError
 import os
 import argparse
 import pytest
-from airflow.cli.commands.db_command import resetdb
-from airflow.configuration import conf
-from airflow.models.variable import Variable
 
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs import PluggableRunContext
@@ -19,6 +16,8 @@ api_key = "test_value"
 
 @pytest.fixture(scope="function", autouse=True)
 def initialize_airflow_db():
+    from airflow.models.variable import Variable
+
     setup_airflow()
     # backup context providers
     providers = Container()[PluggableRunContext].providers
@@ -35,6 +34,9 @@ def initialize_airflow_db():
 
 
 def setup_airflow() -> None:
+    from airflow.cli.commands.db_command import resetdb
+    from airflow.configuration import conf
+
     # Disable loading examples
     try:
         conf.add_section("core")
