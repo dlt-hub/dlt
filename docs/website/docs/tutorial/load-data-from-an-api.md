@@ -74,7 +74,7 @@ Load package 1692364844.460054 is LOADED and contains no failed jobs
 
 ### Explore the data in python
 
-You can use dlt [datasets](../general-usage/dataset-access/dataset) to easily query the data in pure python.
+You can use dlt [datasets](../general-usage/dataset-access/dataset) to easily query the data in pure Python.
 
 ```py
 # get the dataset
