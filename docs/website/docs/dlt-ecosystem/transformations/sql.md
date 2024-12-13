@@ -7,7 +7,7 @@ keywords: [transform, sql]
 # Transforming data using the `dlt` SQL client
 
 A simple alternative to dbt is to query the data using the `dlt` SQL client and then perform the
-transformations using sql statements in python. The `execute_sql` method allows you to execute any SQL statement,
+transformations using SQL statements in Python. The `execute_sql` method allows you to execute any SQL statement,
 including statements that change the database schema or data in the tables. In the example below, we
 insert a row into the `customers` table. Note that the syntax is the same as for any standard `dbapi`
 connection.
