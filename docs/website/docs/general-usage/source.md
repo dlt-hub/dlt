@@ -117,9 +117,9 @@ Find more on sampling data [here](resource.md#sample-from-large-data).
 `dlt` allows you to rename the source ie. to place the source configuration into custom section or to have many instances
 of the source created side by side. For example:
 ```py
-from dlt.sources import sql_database
+from dlt.sources.sql_database import sql_database
 
-my_db = sql_database.sql_database.with_args(name="my_db", section="my_db")(table_names=["table_1"])
+my_db = sql_database.with_args(name="my_db", section="my_db")(table_names=["table_1"])
 print(my_db.name)
 ```
 Here we create a renamed version of the `sql_database` and then instantiate it. Such source will read

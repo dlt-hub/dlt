@@ -63,7 +63,6 @@ format:
 lint-snippets:
 	cd docs/tools && poetry run python check_embedded_snippets.py full
 
-
 lint-and-test-snippets: lint-snippets
 	poetry run mypy --config-file mypy.ini docs/website docs/tools --exclude docs/tools/lint_setup --exclude docs/website/docs_processed
 	poetry run flake8 --max-line-length=200 docs/website docs/tools --exclude docs/website/.dlt-repo

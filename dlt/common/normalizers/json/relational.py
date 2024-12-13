@@ -14,6 +14,9 @@ from dlt.common.schema.typing import (
 from dlt.common.schema.utils import (
     column_name_validator,
     is_nested_table,
+    get_nested_tables,
+    has_column_with_prop,
+    get_first_column_name_with_prop,
 )
 from dlt.common.utils import update_dict_nested
 from dlt.common.normalizers.json import (
@@ -310,14 +313,25 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         Table name should be normalized.
         """
         table = self.schema.tables.get(table_name)
-        if not is_nested_table(table) and table.get("write_disposition") == "merge":
+        # add root key prop when merge disposition is used or any of nested tables needs row_key
+        if not is_nested_table(table) and (
+            table.get("write_disposition") == "merge"
+            or any(
+                has_column_with_prop(t, "root_key", include_incomplete=True)
+                for t in get_nested_tables(self.schema.tables, table_name)
+            )
+        ):
+            # get row id column from table, assume that we propagate it into c_dlt_root_id always
+            c_dlt_id = get_first_column_name_with_prop(table, "row_key", include_incomplete=True)
             DataItemNormalizer.update_normalizer_config(
                 self.schema,
                 {
                     "propagation": {
                         "tables": {
                             table_name: {
-                                TColumnName(self.c_dlt_id): TColumnName(self.c_dlt_root_id)
+                                TColumnName(c_dlt_id or self.c_dlt_id): TColumnName(
+                                    self.c_dlt_root_id
+                                )
                             }
                         }
                     }
