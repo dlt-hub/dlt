@@ -118,9 +118,7 @@ def test_refresh_drop_sources(
 
     pipeline = destination_config.setup_pipeline("refresh_source")
 
-    data: Any = refresh_source(first_run=True, drop_sources=True).with_resources(
-        "some_data_1", "some_data_2"
-    )
+    data: Any = refresh_source(first_run=True, drop_sources=True)
     if not in_source:
         data = list(data.selected_resources.values())
 
@@ -353,7 +351,9 @@ def test_refresh_drop_data_only(destination_config: DestinationTestConfiguration
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, subset=["duckdb"]),
+    destinations_configs(
+        default_sql_configs=True, local_filesystem_configs=True, subset=["duckdb", "filesystem"]
+    ),
     ids=lambda x: x.name,
 )
 def test_refresh_drop_sources_multiple_sources(destination_config: DestinationTestConfiguration):
@@ -408,7 +408,6 @@ def test_refresh_drop_sources_multiple_sources(destination_config: DestinationTe
         **destination_config.run_kwargs,
     )
     assert_load_info(info, 2)
-    # breakpoint()
     info = pipeline.run(
         refresh_source_2(first_run=False).with_resources("source_2_data_1"),
         **destination_config.run_kwargs,
@@ -432,7 +431,7 @@ def test_refresh_drop_sources_multiple_sources(destination_config: DestinationTe
     result = sorted([(row["id"], row["name"]) for row in data["some_data_1"]])
     assert result == [(1, "John"), (2, "Jane")]
 
-    # # First table from source2 exists, with only first column
+    # First table from source2 exists, with only first column
     data = load_tables_to_dicts(pipeline, "source_2_data_1", schema_name="refresh_source_2")
     assert_only_table_columns(
         pipeline, "source_2_data_1", ["product"], schema_name="refresh_source_2"
@@ -440,7 +439,7 @@ def test_refresh_drop_sources_multiple_sources(destination_config: DestinationTe
     result = sorted([row["product"] for row in data["source_2_data_1"]])
     assert result == ["orange", "pear"]
 
-    # # Second table from source 2 is gone
+    # Second table from source 2 is gone
     assert not table_exists(pipeline, "source_2_data_2", schema_name="refresh_source_2")
 
 

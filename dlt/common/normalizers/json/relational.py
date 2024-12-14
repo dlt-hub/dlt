@@ -1,4 +1,16 @@
-from typing import Dict, List, Mapping, Optional, Sequence, Tuple, cast, TypedDict, Any
+from typing import (
+    ClassVar,
+    Dict,
+    List,
+    Mapping,
+    Optional,
+    Sequence,
+    Tuple,
+    Type,
+    cast,
+    TypedDict,
+    Any,
+)
 
 from dlt.common.normalizers.exceptions import InvalidJsonNormalizer
 from dlt.common.normalizers.typing import TJSONNormalizer
@@ -51,6 +63,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
 
     # other constants
     EMPTY_KEY_IDENTIFIER = "_empty"  # replace empty keys with this
+    RELATIONAL_CONFIG_TYPE: ClassVar[Type[RelationalNormalizerConfig]] = RelationalNormalizerConfig
 
     normalizer_config: RelationalNormalizerConfig
     propagation_config: RelationalNormalizerConfigPropagation
@@ -323,7 +336,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         ):
             # get row id column from table, assume that we propagate it into c_dlt_root_id always
             c_dlt_id = get_first_column_name_with_prop(table, "row_key", include_incomplete=True)
-            DataItemNormalizer.update_normalizer_config(
+            self.update_normalizer_config(
                 self.schema,
                 {
                     "propagation": {
@@ -373,8 +386,8 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
     def ensure_this_normalizer(cls, norm_config: TJSONNormalizer) -> None:
         # make sure schema has right normalizer
         present_normalizer = norm_config["module"]
-        if present_normalizer != __name__:
-            raise InvalidJsonNormalizer(__name__, present_normalizer)
+        if present_normalizer != cls.__module__:
+            raise InvalidJsonNormalizer(cls.__module__, present_normalizer)
 
     @classmethod
     def update_normalizer_config(cls, schema: Schema, config: RelationalNormalizerConfig) -> None:
@@ -392,8 +405,10 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         cls.ensure_this_normalizer(norm_config)
         return cast(RelationalNormalizerConfig, norm_config.get("config", {}))
 
-    @staticmethod
-    def _validate_normalizer_config(schema: Schema, config: RelationalNormalizerConfig) -> None:
+    @classmethod
+    def _validate_normalizer_config(
+        cls, schema: Schema, config: RelationalNormalizerConfig
+    ) -> None:
         """Normalizes all known column identifiers according to the schema and then validates the configuration"""
 
         def _normalize_prop(
@@ -418,7 +433,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
                     )
 
         validate_dict(
-            RelationalNormalizerConfig,
+            cls.RELATIONAL_CONFIG_TYPE,
             config,
             "./normalizers/json/config",
             validator_f=column_name_validator(schema.naming),

@@ -1,6 +1,6 @@
 import pytest
 
-pytest.importorskip("apache-airflow")
+pytest.importorskip("airflow")
 
 from airflow import DAG
 from airflow.decorators import task, dag

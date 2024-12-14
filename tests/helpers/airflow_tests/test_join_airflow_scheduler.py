@@ -2,7 +2,7 @@ import pytest
 import datetime
 from pendulum.tz import UTC
 
-pytest.importorskip("apache-airflow")
+pytest.importorskip("airflow")
 from airflow import DAG
 from airflow.decorators import dag, task
 from airflow.models import DagRun

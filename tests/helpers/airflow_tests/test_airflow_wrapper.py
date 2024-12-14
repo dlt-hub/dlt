@@ -3,7 +3,7 @@ import pytest
 from unittest import mock
 from typing import Iterator, List
 
-pytest.importorskip("apache-airflow")
+pytest.importorskip("airflow")
 from airflow import DAG
 from airflow.decorators import dag
 from airflow.operators.python import PythonOperator, get_current_context
