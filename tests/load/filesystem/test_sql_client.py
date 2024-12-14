@@ -101,11 +101,11 @@ def _run_dataset_checks(
         DuckDbCredentials,
     )
 
-    # check we can create new tables from the views
     with pipeline.sql_client() as c:
         # check if all data types are handled properly
         c.execute_sql("SELECT * FROM arrow_all_types;")
 
+        # check we can create new tables from the views
         c.execute_sql(
             "CREATE TABLE items_joined AS (SELECT i.id, di.double_id FROM items as i JOIN"
             " double_items as di ON (i.id = di.id));"
@@ -117,16 +117,14 @@ def _run_dataset_checks(
             assert list(joined_table[5]) == [5, 10]
             assert list(joined_table[10]) == [10, 20]
 
-    # inserting values into a view should fail gracefully
-    with pipeline.sql_client() as c:
+        # inserting values into a view should fail gracefully
         try:
             c.execute_sql("INSERT INTO double_items VALUES (1, 2)")
         except Exception as exc:
             assert "double_items is not an table" in str(exc)
 
-    # check that no automated views are created for a schema different than
-    # the known one
-    with pipeline.sql_client() as c:
+        # check that no automated views are created for a schema different than
+        # the known one
         c.execute_sql("CREATE SCHEMA other_schema;")
         with pytest.raises(DatabaseUndefinedRelation):
             with c.execute_query("SELECT * FROM other_schema.items ORDER BY id ASC;") as cursor:
