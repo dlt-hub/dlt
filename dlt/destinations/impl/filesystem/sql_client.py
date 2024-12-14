@@ -221,7 +221,7 @@ class FilesystemSqlClient(DuckDbSqlClient):
 
             # skip if view already exists and does not need to be replaced each time
             existing_tables = [tname[0] for tname in self._conn.execute("SHOW TABLES").fetchall()]
-            needs_replace = table_format == "iceberg"
+            needs_replace = table_format == "iceberg" or self.fs_client.config.protocol == "abfss"
             if view_name in existing_tables and not needs_replace:
                 continue
 
