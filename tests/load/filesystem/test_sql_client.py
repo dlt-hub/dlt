@@ -84,7 +84,7 @@ def _run_dataset_checks(
 
         @dlt.resource(table_format=table_format)
         def arrow_all_types():
-            yield arrow_table_all_data_types("arrow-table")[0]
+            yield arrow_table_all_data_types("arrow-table", num_rows=total_records)[0]
 
         return [items, double_items, arrow_all_types]
 
@@ -180,6 +180,21 @@ def _run_dataset_checks(
     # views exist
     assert len(external_db.sql("SELECT * FROM second.referenced_items").fetchall()) == total_records
     assert len(external_db.sql("SELECT * FROM first.items").fetchall()) == 3
+
+    # test if view reflects source table accurately after it has changed
+    # conretely, this tests if an existing view is replaced with formats that need it, such as
+    # `iceberg` table format
+    with fs_sql_client as sql_client:
+        sql_client.create_views_for_tables({"arrow_all_types": "arrow_all_types"})
+    assert external_db.sql("FROM second.arrow_all_types;").arrow().num_rows == total_records
+    pipeline.run(  # run pipeline again to add rows to source table
+        source().with_resources("arrow_all_types"),
+        loader_file_format=destination_config.file_format,
+    )
+    with fs_sql_client as sql_client:
+        sql_client.create_views_for_tables({"arrow_all_types": "arrow_all_types"})
+    assert external_db.sql("FROM second.arrow_all_types;").arrow().num_rows == (2 * total_records)
+
     external_db.close()
 
     # in case we are not connecting to a bucket that needs secrets, views should still be here after connection reopen
