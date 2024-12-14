@@ -323,6 +323,7 @@ def test_table_formats(
     pipeline = destination_config.setup_pipeline(
         "read_pipeline",
         dataset_name="read_test",
+        dev_mode=True,
     )
 
     # in case of gcs we use the s3 compat layer for reading
@@ -335,7 +336,7 @@ def test_table_formats(
             GCS_BUCKET.replace("gs://", "s3://"), destination_name="filesystem_s3_gcs_comp"
         )
         access_pipeline = destination_config.setup_pipeline(
-            "read_pipeline", dataset_name="read_test", destination=gcp_bucket
+            "read_pipeline", dataset_name="read_test", dev_mode=True, destination=gcp_bucket
         )
 
     _run_dataset_checks(
