@@ -92,6 +92,7 @@ def _run_dataset_checks(
     pipeline.run(source(), loader_file_format=destination_config.file_format)
 
     if alternate_access_pipeline:
+        orig_dest = pipeline.destination
         pipeline.destination = alternate_access_pipeline.destination
 
     import duckdb
@@ -185,6 +186,9 @@ def _run_dataset_checks(
     with fs_sql_client as sql_client:
         sql_client.create_views_for_tables({"arrow_all_types": "arrow_all_types"})
     assert external_db.sql("FROM second.arrow_all_types;").arrow().num_rows == total_records
+    if alternate_access_pipeline:
+        # switch back for the write path
+        pipeline.destination = orig_dest
     pipeline.run(  # run pipeline again to add rows to source table
         source().with_resources("arrow_all_types"),
         loader_file_format=destination_config.file_format,
