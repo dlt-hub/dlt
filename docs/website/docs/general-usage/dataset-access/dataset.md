@@ -19,7 +19,7 @@ Here's a full example of how to retrieve data from a pipeline and load it into a
 # and you have loaded data to a table named 'items' in the destination
 
 # Step 1: Get the readable dataset from the pipeline
-dataset = pipeline._dataset()
+dataset = pipeline.dataset()
 
 # Step 2: Access a table as a ReadableRelation
 items_relation = dataset.items  # Or dataset["items"]
@@ -39,7 +39,10 @@ Assuming you have a `Pipeline` object (let's call it `pipeline`), you can obtain
 
 ```py
 # Get the readable dataset from the pipeline
-dataset = pipeline._dataset()
+dataset = pipeline.dataset()
+
+# print the row counts of all tables in the destination as dataframe
+print(dataset.row_counts().df())
 ```
 
 ### Access tables as `ReadableRelation`
@@ -116,6 +119,18 @@ for items_chunk in items_relation.iter_fetch(chunk_size=500):
 
 The methods available on the ReadableRelation correspond to the methods available on the cursor returned by the SQL client. Please refer to the [SQL client](./sql-client.md#supported-methods-on-the-cursor) guide for more information.
 
+## Special queries
+
+You can use the `row_counts` method to get the row counts of all tables in the destination as a DataFrame.
+
+```py
+# print the row counts of all tables in the destination as dataframe
+print(dataset.row_counts().df())
+
+# or as tuples
+print(dataset.row_counts().fetchall())
+```
+
 ## Modifying queries
 
 You can refine your data retrieval by limiting the number of records, selecting specific columns, or chaining these operations.
@@ -168,7 +183,7 @@ dlt will then wrap an `ibis.UnboundTable` with a `ReadableIbisRelation` object u
 
 ```py
 # now that ibis is installed, we can get a dataset with ibis relations
-dataset = pipeline._dataset()
+dataset = pipeline.dataset()
 
 # get two relations
 items_relation = dataset["items"]
@@ -284,7 +299,9 @@ other_pipeline = dlt.pipeline(pipeline_name="other_pipeline", destination="duckd
 other_pipeline.run(limited_items_relation.iter_arrow(chunk_size=10_000), table_name="limited_items")
 ```
 
-### Using `ibis` to query the data
+Learn more about [transforming data in Python with Arrow tables or DataFrames](../../dlt-ecosystem/transformations/python).
+
+### Using `ibis` to query data
 
 Visit the [Native Ibis integration](./ibis-backend.md) guide to learn more.
 

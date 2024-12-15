@@ -377,7 +377,7 @@ def test_evolving_filesystem(
 
     pipeline.run([items()], loader_file_format=destination_config.file_format)
 
-    df = pipeline._dataset().items.df()
+    df = pipeline.dataset().items.df()
     assert len(df.index) == 20
 
     @dlt.resource(table_name="items")
@@ -387,5 +387,5 @@ def test_evolving_filesystem(
     pipeline.run([items2()], loader_file_format=destination_config.file_format)
 
     # check df and arrow access
-    assert len(pipeline._dataset().items.df().index) == 50
-    assert pipeline._dataset().items.arrow().num_rows == 50
+    assert len(pipeline.dataset().items.df().index) == 50
+    assert pipeline.dataset().items.arrow().num_rows == 50
