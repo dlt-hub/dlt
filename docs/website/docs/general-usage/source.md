@@ -114,6 +114,18 @@ Note that `add_limit` **does not limit the number of records** but rather the "n
 
 Find more on sampling data [here](resource.md#sample-from-large-data).
 
+### Rate limiting
+
+You can limit the rate of data extraction by setting the `rate_limit` setting on the extract configuration. This is useful when you are extracting data from a rate limited API or database for example:
+
+```toml
+[extract]
+# this will limit the rate to 10 resource iteration per second
+rate_limit = 10
+```
+
+The rate limit applies to all resources across a given source. So setting a rate limit of 10 will lead to a maximum of 10 calls per second to an api, even if you are running 3 resources in parallel. 
+
 ### Add more resources to existing source
 
 You can add a custom resource to a source after it was created. Imagine that you want to score all the deals with a keras model that will tell you if the deal is a fraud or not. In order to do that, you declare a new [transformer that takes the data from](resource.md#feeding-data-from-one-resource-into-another) `deals` resource and add it to the source.
