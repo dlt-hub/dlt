@@ -214,14 +214,17 @@ class FilesystemSqlClient(DuckDbSqlClient):
                 # unknown views will not be created
                 continue
 
-            # only create view if it does not exist in the current schema yet
-            existing_tables = [tname[0] for tname in self._conn.execute("SHOW TABLES").fetchall()]
-            if view_name in existing_tables:
-                continue
-
             # NOTE: if this is staging configuration then `prepare_load_table` will remove some info
             # from table schema, if we ever extend this to handle staging destination, this needs to change
             schema_table = self.fs_client.prepare_load_table(table_name)
+            table_format = schema_table.get("table_format")
+
+            # skip if view already exists and does not need to be replaced each time
+            existing_tables = [tname[0] for tname in self._conn.execute("SHOW TABLES").fetchall()]
+            needs_replace = table_format == "iceberg" or self.fs_client.config.protocol == "abfss"
+            if view_name in existing_tables and not needs_replace:
+                continue
+
             # discover file type
             folder = self.fs_client.get_table_dir(table_name)
             files = self.fs_client.list_table_files(table_name)
@@ -258,15 +261,17 @@ class FilesystemSqlClient(DuckDbSqlClient):
 
             # create from statement
             from_statement = ""
-            if schema_table.get("table_format") == "delta":
+            if table_format == "delta":
                 from_statement = f"delta_scan('{resolved_folder}')"
-            elif schema_table.get("table_format") == "iceberg":
+            elif table_format == "iceberg":
                 from dlt.common.libs.pyiceberg import _get_last_metadata_file
 
                 self._setup_iceberg(self._conn)
                 metadata_path = f"{resolved_folder}/metadata"
                 last_metadata_file = _get_last_metadata_file(metadata_path, self.fs_client)
-                from_statement = f"iceberg_scan('{last_metadata_file}')"
+                # skip schema inference to make nested data types work
+                # https://github.com/duckdb/duckdb_iceberg/issues/47
+                from_statement = f"iceberg_scan('{last_metadata_file}', skip_schema_inference=True)"
             elif first_file_type == "parquet":
                 from_statement = f"read_parquet([{resolved_files_string}])"
             elif first_file_type == "jsonl":
@@ -281,7 +286,9 @@ class FilesystemSqlClient(DuckDbSqlClient):
 
             # create table
             view_name = self.make_qualified_table_name(view_name)
-            create_table_sql_base = f"CREATE VIEW {view_name} AS SELECT * FROM {from_statement}"
+            create_table_sql_base = (
+                f"CREATE OR REPLACE VIEW {view_name} AS SELECT * FROM {from_statement}"
+            )
             self._conn.execute(create_table_sql_base)
 
     @contextmanager
