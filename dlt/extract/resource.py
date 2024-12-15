@@ -230,9 +230,9 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
     @validator.setter
     def validator(self, validator: Optional[ValidateItem]) -> None:
         """Add/remove or replace the validator in pipe"""
-        self._pipe.remove_by_type(ValidateItem)
+        step_no = self._pipe.remove_by_type(ValidateItem)
         if validator:
-            self.add_step(validator)
+            self.add_step(validator, insert_at=step_no if step_no >= 0 else None)
 
     @property
     def max_table_nesting(self) -> Optional[int]:
