@@ -7,6 +7,7 @@ from itertools import chain, count
 from time import sleep
 from typing import Any, Optional, Literal, Sequence, Dict, Iterable
 from unittest import mock
+import itertools
 
 import duckdb
 import pyarrow as pa
@@ -3853,7 +3854,6 @@ def test_incremental_column_hint_cursor_is_not_column(use_dict: bool):
     for col in table_schema["columns"].values():
         assert "incremental" not in col
 
-
 @pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
 @pytest.mark.parametrize("last_value_func", [min, max])
 def test_start_range_open(item_type: TestDataItemFormat, last_value_func: Any) -> None:
@@ -3960,3 +3960,18 @@ def test_end_range_closed(item_type: TestDataItemFormat, last_value_func: Any) -
 
     # Includes values 5-10 inclusive
     assert items == expected_items
+
+def test_incremental_and_limit():
+
+    @dlt.resource(incremental=dlt.sources.incremental(cursor_path="id", initial_value=0, last_value_func=min))
+    def resource():
+        for i in range(100):
+            yield {
+                "id": i,
+                "value": str(i),
+            }
+
+    p = dlt.pipeline(pipeline_name="incremtal_limit", destination="duckdb", dev_mode=True)
+
+    p.run(resource().add_limit(10))
+
