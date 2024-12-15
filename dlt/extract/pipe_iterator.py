@@ -1,9 +1,11 @@
 import inspect
 import types
+import time
 from typing import (
     AsyncIterator,
     ClassVar,
     Dict,
+    Optional,
     Sequence,
     Union,
     Iterator,
@@ -52,6 +54,8 @@ class PipeIterator(Iterator[PipeItem]):
         futures_poll_interval: float = 0.01
         copy_on_fork: bool = False
         next_item_mode: str = "round_robin"
+        rate_limit: Optional[float] = None
+        """Rate limit in max items per second"""
         __section__: ClassVar[str] = known_sections.EXTRACT
 
     def __init__(
@@ -61,6 +65,7 @@ class PipeIterator(Iterator[PipeItem]):
         futures_poll_interval: float,
         sources: List[SourcePipeItem],
         next_item_mode: TPipeNextItemMode,
+        rate_limit: float,
     ) -> None:
         self._sources = sources
         self._next_item_mode: TPipeNextItemMode = next_item_mode
@@ -71,6 +76,8 @@ class PipeIterator(Iterator[PipeItem]):
             poll_interval=futures_poll_interval,
             max_parallel_items=max_parallel_items,
         )
+        self._rate_limit = rate_limit
+        self._last_source_item_time = 0.0
 
     @classmethod
     @with_config(spec=PipeIteratorConfiguration)
@@ -82,6 +89,7 @@ class PipeIterator(Iterator[PipeItem]):
         workers: int = 5,
         futures_poll_interval: float = 0.01,
         next_item_mode: TPipeNextItemMode = "round_robin",
+        rate_limit: float = None,
     ) -> "PipeIterator":
         # join all dependent pipes
         if pipe.parent:
@@ -95,7 +103,9 @@ class PipeIterator(Iterator[PipeItem]):
 
         # create extractor
         sources = [SourcePipeItem(pipe.gen, 0, pipe, None)]
-        return cls(max_parallel_items, workers, futures_poll_interval, sources, next_item_mode)
+        return cls(
+            max_parallel_items, workers, futures_poll_interval, sources, next_item_mode, rate_limit
+        )
 
     @classmethod
     @with_config(spec=PipeIteratorConfiguration)
@@ -109,6 +119,7 @@ class PipeIterator(Iterator[PipeItem]):
         futures_poll_interval: float = 0.01,
         copy_on_fork: bool = False,
         next_item_mode: TPipeNextItemMode = "round_robin",
+        rate_limit: float = None,
     ) -> "PipeIterator":
         # print(f"max_parallel_items: {max_parallel_items} workers: {workers}")
         sources: List[SourcePipeItem] = []
@@ -141,7 +152,9 @@ class PipeIterator(Iterator[PipeItem]):
             _fork_pipeline(pipe)
 
         # create extractor
-        return cls(max_parallel_items, workers, futures_poll_interval, sources, next_item_mode)
+        return cls(
+            max_parallel_items, workers, futures_poll_interval, sources, next_item_mode, rate_limit
+        )
 
     def __next__(self) -> PipeItem:
         pipe_item: Union[ResolvablePipeItem, SourcePipeItem] = None
@@ -253,6 +266,13 @@ class PipeIterator(Iterator[PipeItem]):
         # no more sources to iterate
         if sources_count == 0:
             return None
+        # if rate limited, sleep a very small amount of time and go back to evaluating futures
+        if self._rate_limit is not None:
+            min_time_between_items = 1 / self._rate_limit
+            time_since_last_source_item = time.time() - self._last_source_item_time
+            if time_since_last_source_item < min_time_between_items:
+                time.sleep(0.01)
+                return None
         try:
             first_evaluated_index: int = None
             # always reset to end of list for fifo mode, also take into account that new sources can be added
@@ -272,6 +292,7 @@ class PipeIterator(Iterator[PipeItem]):
                 set_current_pipe_name(pipe.name)
 
                 pipe_item = next(gen)
+                result: Optional[ResolvablePipeItem] = None
                 if pipe_item is not None:
                     # full pipe item may be returned, this is used by ForkPipe step
                     # to redirect execution of an item to another pipe
@@ -279,12 +300,16 @@ class PipeIterator(Iterator[PipeItem]):
                     if not isinstance(pipe_item, ResolvablePipeItem):
                         # keep the item assigned step and pipe when creating resolvable item
                         if isinstance(pipe_item, DataItemWithMeta):
-                            return ResolvablePipeItem(pipe_item.data, step, pipe, pipe_item.meta)
+                            result = ResolvablePipeItem(pipe_item.data, step, pipe, pipe_item.meta)
                         else:
-                            return ResolvablePipeItem(pipe_item, step, pipe, meta)
+                            result = ResolvablePipeItem(pipe_item, step, pipe, meta)
 
-                if pipe_item is not None:
-                    return pipe_item
+                result = result or pipe_item
+
+                if result is not None:
+                    if self._rate_limit:
+                        self._last_source_item_time = time.time()
+                    return result
 
                 # remember the first evaluated index
                 if first_evaluated_index is None:

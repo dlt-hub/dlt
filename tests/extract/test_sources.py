@@ -3,6 +3,7 @@ from typing import Iterator
 
 import pytest
 import asyncio
+import time
 
 import dlt, os
 from dlt.common.configuration.container import Container
@@ -893,6 +894,60 @@ def test_source_state() -> None:
         test_source({}).state["value"] = 1  # type: ignore[index]
         test_source({"value": 1})
         assert state.state == {"sources": {"test_source": {"value": 1}}}
+
+
+@pytest.mark.parametrize("rate_limit", (None, 10, 100))
+def test_source_rate_limit(rate_limit: int) -> None:
+    if rate_limit is not None:
+        os.environ["EXTRACT__RATE_LIMIT"] = str(rate_limit)
+    else:
+        try:
+            del os.environ["EXTRACT__RATE_LIMIT"]
+        except KeyError:
+            pass
+
+    @dlt.resource
+    def rate_limited_resource():
+        yield from range(10)
+
+    start_time = time.time()
+    r = rate_limited_resource().add_limit(10)
+    assert list(r) == list(range(10))
+    elapsed = time.time() - start_time
+
+    if rate_limit is None:
+        assert elapsed < 0.1
+    elif rate_limit == 10:
+        assert elapsed > 1.0 and elapsed < 2.0
+    elif rate_limit == 100:
+        assert elapsed > 0.1 and elapsed < 0.3
+
+    # run another check with a source and transformer
+    # here we check that rate limit also works with multiple resources and on transformers
+    # we have 6 * 3 items all together plus additional 3 * 3 items from the resource
+    # that is piped into the transformer with makes 9 * 3 = 27 rate limited calls
+    @dlt.source
+    def infinite_source():
+        for idx in range(3):
+            r = dlt.resource(itertools.count(), name=f"infinity_{idx}").add_limit(3)
+            yield r
+            yield r | dlt.transformer(name=f"mul_c_{idx}")(lambda i: i * 2)
+
+    start_time = time.time()
+    assert list(infinite_source()) == [0, 0, 2, 1, 4, 2] * 3
+    elapsed = time.time() - start_time
+
+    if rate_limit is None:
+        assert elapsed < 0.1
+    elif rate_limit == 10:
+        assert elapsed > 2.5 and elapsed < 4.0
+    elif rate_limit == 100:
+        assert elapsed > 0.2 and elapsed < 1.0
+
+    try:
+        del os.environ["EXTRACT__RATE_LIMIT"]
+    except KeyError:
+        pass
 
 
 def test_resource_state() -> None:
