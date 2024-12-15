@@ -930,13 +930,8 @@ def test_limit_max_time() -> None:
 
     # we should have extracted 10 items within 1 second, sleep is included in the resource
     # we allow for some variance in the number of items, as the sleep is not super precise
-    allowed_results = [
-        list(range(12)),
-        list(range(11)),
-        list(range(10)),
-        list(range(9)),
-        list(range(8)),
-    ]
+    # on mac os we even sometimes just get 4 items...
+    allowed_results = [list(range(i)) for i in [12, 11, 10, 9, 8, 7, 6, 5, 4]]
     assert sync_list in allowed_results
     assert async_list in allowed_results
 
