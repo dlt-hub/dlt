@@ -90,6 +90,29 @@ If you already have your Databricks workspace set up, you can skip to the [Loade
     Click your email in the top right corner and go to "User Settings". Go to "Developer" -> "Access Tokens".
     Generate a new token and save it. You will use it in your `dlt` configuration.
 
+## OAuth M2M (Machine-to-Machine) Authentication
+
+You can authenticate to Databricks using a service principal via OAuth M2M. This method allows for secure, programmatic access to Databricks resources without requiring a user-managed personal access token.
+
+### Create a Service Principal in Databricks
+Follow the instructions in the Databricks documentation to create a service principal and retrieve the client_id and client_secret:
+
+[Authenticate access to Databricks using OAuth M2M](https://docs.databricks.com/en/dev-tools/auth/oauth-m2m.html)
+
+Once you have the service principal credentials, update your secrets.toml as shown bellow.
+
+### Configuration
+
+Add the following fields to your `.dlt/secrets.toml` file:
+```toml
+[destination.databricks.credentials]
+server_hostname = "MY_DATABRICKS.azuredatabricks.net"
+http_path = "/sql/1.0/warehouses/12345"
+catalog = "my_catalog"
+client_id = "XXX"
+client_secret = "XXX"
+```
+
 ## Loader setup guide
 
 **1. Initialize a project with a pipeline that loads to Databricks by running**
@@ -118,7 +141,7 @@ Example:
 [destination.databricks.credentials]
 server_hostname = "MY_DATABRICKS.azuredatabricks.net"
 http_path = "/sql/1.0/warehouses/12345"
-access_token = "MY_ACCESS_TOKEN"
+access_token = "MY_ACCESS_TOKEN" # Replace for client_id and client_secret when using OAuth
 catalog = "my_catalog"
 ```
 

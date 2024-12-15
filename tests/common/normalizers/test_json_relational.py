@@ -880,6 +880,35 @@ def test_propagation_update_on_table_change(norm: RelationalNormalizer):
         "table_3"
     ] == {"_dlt_id": "_dlt_root_id", "prop1": "prop2"}
 
+    # force propagation when table has nested table that needs root_key
+    # also use custom name for row_key
+    table_4 = new_table(
+        "table_4", write_disposition="replace", columns=[{"name": "primary_key", "row_key": True}]
+    )
+    table_4_nested = new_table(
+        "table_4__nested",
+        parent_table_name="table_4",
+        columns=[{"name": "_dlt_root_id", "root_key": True}],
+    )
+    # must add table_4 first
+    norm.schema.update_table(table_4)
+    norm.schema.update_table(table_4_nested)
+    # row key table_4 not propagated because it was added before nested that needs that
+    # TODO: maybe fix it
+    assert (
+        "table_4" not in norm.schema._normalizers_config["json"]["config"]["propagation"]["tables"]
+    )
+    norm.schema.update_table(table_4)
+    # also custom key was used
+    assert norm.schema._normalizers_config["json"]["config"]["propagation"]["tables"][
+        "table_4"
+    ] == {"primary_key": "_dlt_root_id"}
+    # drop table from schema
+    norm.schema.drop_tables(["table_4"])
+    assert (
+        "table_4" not in norm.schema._normalizers_config["json"]["config"]["propagation"]["tables"]
+    )
+
 
 def test_caching_perf(norm: RelationalNormalizer) -> None:
     from time import time
@@ -891,6 +920,10 @@ def test_caching_perf(norm: RelationalNormalizer) -> None:
         normalize_helpers.is_nested_type(norm.schema, "test", "field", 0)
         # norm._get_table_nesting_level(norm.schema, "test")
     print(f"{time() - start}")
+
+
+def test_extend_table(norm: RelationalNormalizer) -> None:
+    pass
 
 
 def set_max_nesting(norm: RelationalNormalizer, max_nesting: int) -> None:

@@ -13,6 +13,7 @@ from dlt.common.schema.typing import TColumnSchema, TSortOrder, TTableSchemaColu
 from dlt.common.utils import uniq_id
 
 from dlt.extract.exceptions import ResourceExtractionError
+from dlt.extract.incremental.transform import JsonIncremental, ArrowIncremental
 from dlt.sources import DltResource
 
 from tests.pipeline.utils import (
@@ -831,8 +832,12 @@ def test_set_primary_key_deferred_incremental(
         else:
             assert _r.incremental.primary_key == ["id"]
         assert _r.incremental._incremental.primary_key == ["id"]
-        assert _r.incremental._incremental._transformers["json"].primary_key == ["id"]
-        assert _r.incremental._incremental._transformers["arrow"].primary_key == ["id"]
+        assert _r.incremental._incremental._make_or_get_transformer(
+            JsonIncremental
+        ).primary_key == ["id"]
+        assert _r.incremental._incremental._make_or_get_transformer(
+            ArrowIncremental
+        ).primary_key == ["id"]
         return item
 
     pipeline = make_pipeline("duckdb")
@@ -841,8 +846,12 @@ def test_set_primary_key_deferred_incremental(
 
     assert resource.incremental.primary_key == ["id"]
     assert resource.incremental._incremental.primary_key == ["id"]
-    assert resource.incremental._incremental._transformers["json"].primary_key == ["id"]
-    assert resource.incremental._incremental._transformers["arrow"].primary_key == ["id"]
+    assert resource.incremental._incremental._make_or_get_transformer(
+        JsonIncremental
+    ).primary_key == ["id"]
+    assert resource.incremental._incremental._make_or_get_transformer(
+        ArrowIncremental
+    ).primary_key == ["id"]
 
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
@@ -1277,10 +1286,7 @@ def assert_no_precision_columns(
 ) -> None:
     actual = list(columns.values())
     # we always infer and emit nullability
-    expected = cast(
-        List[TColumnSchema],
-        deepcopy(NULL_NO_PRECISION_COLUMNS if nullable else NOT_NULL_NO_PRECISION_COLUMNS),
-    )
+    expected = deepcopy(NULL_NO_PRECISION_COLUMNS if nullable else NOT_NULL_NO_PRECISION_COLUMNS)
     if backend == "pyarrow":
         expected = cast(
             List[TColumnSchema],

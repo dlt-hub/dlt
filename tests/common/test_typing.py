@@ -43,6 +43,7 @@ from dlt.common.typing import (
     is_union_type,
     is_annotated,
     is_callable_type,
+    add_value_to_literal,
 )
 
 
@@ -293,3 +294,19 @@ def test_secret_type() -> None:
 
     assert TSecretStrValue("x_str") == "x_str"
     assert TSecretStrValue({}) == "{}"
+
+
+def test_add_value_to_literal() -> None:
+    TestLiteral = Literal["red", "blue"]
+
+    add_value_to_literal(TestLiteral, "green")
+
+    assert get_args(TestLiteral) == ("red", "blue", "green")
+
+    add_value_to_literal(TestLiteral, "red")
+    assert get_args(TestLiteral) == ("red", "blue", "green")
+
+    TestSingleLiteral = Literal["red"]
+    add_value_to_literal(TestSingleLiteral, "green")
+    add_value_to_literal(TestSingleLiteral, "blue")
+    assert get_args(TestSingleLiteral) == ("red", "green", "blue")

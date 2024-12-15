@@ -1,3 +1,7 @@
+import pytest
+
+pytest.importorskip("airflow")
+
 from airflow import DAG
 from airflow.decorators import task, dag
 from airflow.operators.python import PythonOperator
