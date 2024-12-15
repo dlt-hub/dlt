@@ -21,7 +21,7 @@ from utils import collect_markdown_files
 
 
 SNIPPET_MARKER = "```"
-ALLOWED_LANGUAGES = ["py", "toml", "json", "yaml", "text", "sh", "bat", "sql"]
+ALLOWED_LANGUAGES = ["py", "toml", "json", "yaml", "text", "sh", "bat", "sql", "hcl"]
 
 LINT_TEMPLATE = "./lint_setup/template.py"
 LINT_FILE = "./lint_setup/lint_me.py"
@@ -163,8 +163,11 @@ def parse_snippets(snippets: List[Snippet], verbose: bool) -> None:
                 json.loads(snippet.code)
             elif snippet.language == "yaml":
                 yaml.safe_load(snippet.code)
-            # ignore text and sh scripts
-            elif snippet.language in ["text", "sh", "bat", "sql"]:
+            elif snippet.language == "hcl":
+                # TODO: implement hcl parsers
+                pass
+            # ignore all other scripts
+            elif snippet.language in ALLOWED_LANGUAGES:
                 pass
             else:
                 raise ValueError(f"Unknown language {snippet.language}")

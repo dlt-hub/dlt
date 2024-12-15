@@ -451,10 +451,12 @@ class Schema:
     ) -> List[TTableSchema]:
         """Drops tables from the schema and returns the dropped tables"""
         result = []
+        # TODO: make sure all nested tables to table_names are also dropped
         for table_name in table_names:
             table = self.get_table(table_name)
             if table and (not seen_data_only or utils.has_table_seen_data(table)):
                 result.append(self._schema_tables.pop(table_name))
+                self.data_item_normalizer.remove_table(table_name)
         return result
 
     def filter_row_with_hint(

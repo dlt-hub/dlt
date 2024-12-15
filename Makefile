@@ -63,7 +63,6 @@ format:
 lint-snippets:
 	cd docs/tools && poetry run python check_embedded_snippets.py full
 
-
 lint-and-test-snippets: lint-snippets
 	poetry run mypy --config-file mypy.ini docs/website docs/tools --exclude docs/tools/lint_setup --exclude docs/website/docs_processed
 	poetry run flake8 --max-line-length=200 docs/website docs/tools --exclude docs/website/.dlt-repo
@@ -82,7 +81,7 @@ lint-security:
 	poetry run bandit -r dlt/ -n 3 -l
 
 test:
-	(set -a && . tests/.env && poetry run pytest tests)
+	poetry run pytest tests
 
 test-load-local:
 	DESTINATION__POSTGRES__CREDENTIALS=postgresql://loader:loader@localhost:5432/dlt_data DESTINATION__DUCKDB__CREDENTIALS=duckdb:///_storage/test_quack.duckdb  poetry run pytest tests -k '(postgres or duckdb)'
