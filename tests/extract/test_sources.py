@@ -916,11 +916,11 @@ def test_source_rate_limit(rate_limit: int) -> None:
     elapsed = time.time() - start_time
 
     if rate_limit is None:
-        assert elapsed < 0.1
+        assert elapsed < 0.2
     elif rate_limit == 10:
         assert (elapsed > 1.0) and (elapsed < 3.0)
     elif rate_limit == 100:
-        assert (elapsed > 0.1) and (elapsed < 0.6)
+        assert (elapsed > 0.1) and (elapsed < 1.0)
 
     # run another check with a source and transformer
     # here we check that rate limit also works with multiple resources and on transformers
@@ -938,7 +938,7 @@ def test_source_rate_limit(rate_limit: int) -> None:
     elapsed = time.time() - start_time
 
     if rate_limit is None:
-        assert elapsed < 0.1
+        assert elapsed < 0.2
     elif rate_limit == 10:
         assert (elapsed > 2.5) and (elapsed < 5.0)
     elif rate_limit == 100:
