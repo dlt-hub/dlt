@@ -1,4 +1,4 @@
-import dlt, os, pytest
+import dlt, os
 
 from dlt.common.utils import uniq_id
 
@@ -6,8 +6,6 @@ from tests.pipeline.utils import assert_load_info
 from tests.utils import TEST_STORAGE_ROOT
 from dlt.common.schema import Schema
 from dlt.common.storages.schema_storage import SchemaStorage
-from dlt.common.schema.exceptions import CannotCoerceColumnException
-from dlt.pipeline.exceptions import PipelineStepFailed
 
 from dlt.destinations import dummy
 

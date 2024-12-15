@@ -1,3 +1,4 @@
+from copy import deepcopy
 import pytest
 from fnmatch import fnmatch
 from typing import Dict, Iterator, List, Sequence, Tuple
@@ -5,6 +6,7 @@ from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 
 from dlt.common import json
 from dlt.common.destination.capabilities import TLoaderFileFormat
+from dlt.common.schema.exceptions import CannotCoerceColumnException
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.utils import new_table
 from dlt.common.storages.exceptions import SchemaNotFoundError
@@ -16,6 +18,7 @@ from dlt.common.configuration.container import Container
 
 from dlt.extract.extract import ExtractStorage
 from dlt.normalize import Normalize
+from dlt.normalize.validate import validate_and_update_schema
 from dlt.normalize.worker import group_worker_files
 from dlt.normalize.exceptions import NormalizeJobFailed
 
@@ -284,6 +287,8 @@ def test_multiprocessing_row_counting(
     extract_cases(raw_normalize, ["github.events.load_page_1_duck"])
     # use real process pool in tests
     with ProcessPoolExecutor(max_workers=4) as p:
+        # test if we get correct number of workers
+        assert getattr(p, "_max_workers", None) == 4
         raw_normalize.run(p)
     # get step info
     step_info = raw_normalize.get_step_info(MockPipeline("multiprocessing_pipeline", True))  # type: ignore[abstract]
@@ -710,6 +715,71 @@ def assert_timestamp_data_type(load_storage: LoadStorage, data_type: TDataType) 
     event_schema = load_storage.normalized_packages.load_schema(loads[0])
     # in raw normalize timestamp column must not be coerced to timestamp
     assert event_schema.get_table_columns("event")["timestamp"]["data_type"] == data_type
+
+
+def test_update_schema_column_conflict(rasa_normalize: Normalize) -> None:
+    extract_cases(
+        rasa_normalize,
+        [
+            "event.event.many_load_2",
+            "event.event.user_load_1",
+        ],
+    )
+    extract_cases(
+        rasa_normalize,
+        [
+            "ethereum.blocks.9c1d9b504ea240a482b007788d5cd61c_2",
+        ],
+    )
+    # use real process pool in tests
+    with ProcessPoolExecutor(max_workers=4) as p:
+        rasa_normalize.run(p)
+
+    schema = rasa_normalize.schema_storage.load_schema("event")
+    tab1 = new_table(
+        "event_user",
+        write_disposition="append",
+        columns=[
+            {"name": "col1", "data_type": "text", "nullable": False},
+        ],
+    )
+    validate_and_update_schema(schema, [{"event_user": [deepcopy(tab1)]}])
+    assert schema.tables["event_user"]["columns"]["col1"]["data_type"] == "text"
+
+    tab1["columns"]["col1"]["data_type"] = "bool"
+    tab1["columns"]["col2"] = {"name": "col2", "data_type": "text", "nullable": False}
+    with pytest.raises(CannotCoerceColumnException) as exc_val:
+        validate_and_update_schema(schema, [{"event_user": [deepcopy(tab1)]}])
+    assert exc_val.value.column_name == "col1"
+    assert exc_val.value.from_type == "bool"
+    assert exc_val.value.to_type == "text"
+    # whole column mismatch
+    assert exc_val.value.coerced_value is None
+    # make sure col2 is not added
+    assert "col2" not in schema.tables["event_user"]["columns"]
+
+    # add two updates that are conflicting
+    tab2 = new_table(
+        "event_slot",
+        write_disposition="append",
+        columns=[
+            {"name": "col1", "data_type": "text", "nullable": False},
+            {"name": "col2", "data_type": "text", "nullable": False},
+        ],
+    )
+    tab3 = new_table(
+        "event_slot",
+        write_disposition="append",
+        columns=[
+            {"name": "col1", "data_type": "bool", "nullable": False},
+        ],
+    )
+    with pytest.raises(CannotCoerceColumnException) as exc_val:
+        validate_and_update_schema(
+            schema, [{"event_slot": [deepcopy(tab2)]}, {"event_slot": [deepcopy(tab3)]}]
+        )
+    # col2 is added from first update
+    assert "col2" in schema.tables["event_slot"]["columns"]
 
 
 def test_removal_of_normalizer_schema_section_and_add_seen_data(raw_normalize: Normalize) -> None:
