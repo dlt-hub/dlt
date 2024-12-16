@@ -353,9 +353,9 @@ class SnowflakeClient(SqlJobClientWithStagingDataset, SupportsStagingDestination
         return self.type_mapper.from_destination_type(bq_t, precision, scale)
 
     def _get_column_def_sql(self, c: TColumnSchema, table: PreparedTableSchema = None) -> str:
-        column_name = self.sql_client.escape_column_name(c["name"])
+        name = self.sql_client.escape_column_name(c["name"])
         return (
-            f"{column_name} {self.type_mapper.to_destination_type(c,table)} {self._gen_not_null(c.get('nullable', True))}"
+            f"{name} {self.type_mapper.to_destination_type(c,table)} {self._gen_not_null(c.get('nullable', True))}"
         )
 
     def should_truncate_table_before_load_on_staging_destination(self, table_name: str) -> bool:

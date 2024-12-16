@@ -138,7 +138,6 @@ class SnowflakeClientConfiguration(DestinationClientDwhWithStagingConfiguration)
     query_tag: Optional[str] = None
     """A tag with placeholders to tag sessions executing jobs"""
 
-    # TODO: decide name - create_indexes vs create_constraints (create_indexes used in other destinations)
     create_indexes: bool = False
     """Whether UNIQUE or PRIMARY KEY constrains should be created"""
 
