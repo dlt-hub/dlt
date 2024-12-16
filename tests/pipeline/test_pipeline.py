@@ -3101,7 +3101,6 @@ def test_pipeline_with_sources_sharing_schema() -> None:
     p.run([source_2().with_resources("conflict")])
     counts = load_table_counts(p, "conflict")
     assert counts == {"conflict": 2}
-    print(p.dataset().conflict.df())
 
 
 def test_many_pipelines_single_dataset() -> None:

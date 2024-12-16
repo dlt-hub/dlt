@@ -43,14 +43,14 @@ def init_command_wrapper(
     destination_type: str,
     repo_location: str,
     branch: str,
-    omit_core_sources: bool = False,
+    eject_source: bool = False,
 ) -> None:
     init_command(
         source_name,
         destination_type,
         repo_location,
         branch,
-        omit_core_sources,
+        eject_source,
     )
 
 
