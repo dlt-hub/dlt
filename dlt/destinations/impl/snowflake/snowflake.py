@@ -1,6 +1,7 @@
 from typing import Optional, Sequence, List, Dict, Set
 from urllib.parse import urlparse, urlunparse
 
+from dlt.common import logger
 from dlt.common.data_writers.configuration import CsvFormatConfiguration
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
@@ -15,13 +16,15 @@ from dlt.common.configuration.specs import (
     AwsCredentialsWithoutDefaults,
     AzureCredentialsWithoutDefaults,
 )
+from dlt.common.schema.utils import get_columns_names_with_prop
 from dlt.common.storages.configuration import FilesystemConfiguration, ensure_canonical_az_url
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.schema import TColumnSchema, Schema, TColumnHint
-from dlt.common.schema.typing import TColumnType
+from dlt.common.schema.typing import TColumnType, TTableSchema
 
 from dlt.common.storages.fsspec_filesystem import AZURE_BLOB_STORAGE_PROTOCOLS, S3_PROTOCOLS
 from dlt.common.typing import TLoaderFileFormat
+from dlt.common.utils import uniq_id
 from dlt.destinations.job_client_impl import SqlJobClientWithStagingDataset
 from dlt.destinations.exceptions import LoadJobTerminalException
 
@@ -29,7 +32,7 @@ from dlt.destinations.impl.snowflake.configuration import SnowflakeClientConfigu
 from dlt.destinations.impl.snowflake.sql_client import SnowflakeSqlClient
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest
 
-SUPPORTED_HINTS: Dict[TColumnHint, str] = {"unique": "UNIQUE", "primary_key": "PRIMARY KEY"}
+SUPPORTED_HINTS: Dict[TColumnHint, str] = {"unique": "UNIQUE"}
 
 
 class SnowflakeLoadJob(RunnableLoadJob, HasFollowupJobs):
@@ -267,60 +270,32 @@ class SnowflakeClient(SqlJobClientWithStagingDataset, SupportsStagingDestination
             "ADD COLUMN\n" + ",\n".join(self._get_column_def_sql(c, table) for c in new_columns)
         ]
 
-    def _get_existing_constraints(self, table_name: str) -> Set[str]:
-        query = f"""
-            SELECT constraint_name
-            FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS
-            WHERE TABLE_NAME = '{table_name.upper()}'
-        """
-
-        if self.sql_client.catalog_name:
-            query += f" AND CONSTRAINT_CATALOG = '{self.sql_client.catalog_name}'"
-
-        with self.sql_client.open_connection() as conn:
-            cursors = conn.execute_string(query)
-            existing_names = set()
-            for cursor in cursors:
-                for row in cursor:
-                    existing_names.add(row[0])
-        return existing_names
-
-    def _get_constraints_statement(
-        self, table_name: str, columns: Sequence[TColumnSchema], existing_constraints: Set[str]
-    ) -> List[str]:
-        statements = []
-        pk_constraint_name = f"PK_{table_name.upper()}"
-        uq_constraint_name = f"UQ_{table_name.upper()}"
-        qualified_name = self.sql_client.make_qualified_table_name(table_name)
-
-        pk_columns = [col["name"] for col in columns if col.get("primary_key")]
-        unique_columns = [col["name"] for col in columns if col.get("unique")]
-
-        # Drop existing PK/UQ constraints if found
-        if pk_constraint_name in existing_constraints:
-            statements.append(f"ALTER TABLE {qualified_name} DROP CONSTRAINT {pk_constraint_name}")
-        if uq_constraint_name in existing_constraints:
-            statements.append(f"ALTER TABLE {qualified_name} DROP CONSTRAINT {uq_constraint_name}")
-
-        # Add PK constraint if pk_columns exist
-        if pk_columns:
-            quoted_pk_cols = ", ".join(f'"{col}"' for col in pk_columns)
-            statements.append(
-                f"ALTER TABLE {qualified_name} "
-                f"ADD CONSTRAINT {pk_constraint_name} "
-                f"PRIMARY KEY ({quoted_pk_cols})"
-            )
-
-        # Add UNIQUE constraint if unique_columns exist
-        if unique_columns:
-            quoted_uq_cols = ", ".join(f'"{col}"' for col in unique_columns)
-            statements.append(
-                f"ALTER TABLE {qualified_name} "
-                f"ADD CONSTRAINT {uq_constraint_name} "
-                f"UNIQUE ({quoted_uq_cols})"
-            )
-
-        return statements
+    def _get_constraints_sql(
+        self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
+    ) -> str:
+        # "primary_key": "PRIMARY KEY"
+        if self.config.create_indexes:
+            partial: TTableSchema = {
+                "name": table_name,
+                "columns": {c["name"]: c for c in new_columns},
+            }
+            # Add PK constraint if pk_columns exist
+            pk_columns = get_columns_names_with_prop(partial, "primary_key")
+            if pk_columns:
+                if generate_alter:
+                    logger.warning(
+                        f"PRIMARY KEY on {table_name} constraint cannot be added in ALTER TABLE and"
+                        " is ignored"
+                    )
+                else:
+                    pk_constraint_name = list(
+                        self._norm_and_escape_columns(f"PK_{table_name}_{uniq_id(4)}")
+                    )[0]
+                    quoted_pk_cols = ", ".join(
+                        self.sql_client.escape_column_name(col) for col in pk_columns
+                    )
+                    return f",\nCONSTRAINT {pk_constraint_name} PRIMARY KEY ({quoted_pk_cols})"
+        return ""
 
     def _get_table_update_sql(
         self,
@@ -338,25 +313,12 @@ class SnowflakeClient(SqlJobClientWithStagingDataset, SupportsStagingDestination
         if cluster_list:
             sql[0] = sql[0] + "\nCLUSTER BY (" + ",".join(cluster_list) + ")"
 
-        if self.active_hints:
-            existing_constraints = self._get_existing_constraints(table_name)
-            statements = self._get_constraints_statement(
-                table_name, new_columns, existing_constraints
-            )
-            sql.extend(statements)
-
         return sql
 
     def _from_db_type(
         self, bq_t: str, precision: Optional[int], scale: Optional[int]
     ) -> TColumnType:
         return self.type_mapper.from_destination_type(bq_t, precision, scale)
-
-    def _get_column_def_sql(self, c: TColumnSchema, table: PreparedTableSchema = None) -> str:
-        name = self.sql_client.escape_column_name(c["name"])
-        return (
-            f"{name} {self.type_mapper.to_destination_type(c,table)} {self._gen_not_null(c.get('nullable', True))}"
-        )
 
     def should_truncate_table_before_load_on_staging_destination(self, table_name: str) -> bool:
         return self.config.truncate_tables_on_staging_destination_before_load
