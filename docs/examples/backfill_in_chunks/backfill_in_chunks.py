@@ -5,7 +5,7 @@ description: Learn how to backfill in chunks of defined size
 keywords: [incremental loading, backfilling, chunks,example]
 ---
 
-In this example, you'll find a Python script that will load from a sql_database source in chunks of defined size. This is useful for backfilling in multiple pipeline runs as 
+In this example, you'll find a Python script that will load from a sql_database source in chunks of defined size. This is useful for backfilling in multiple pipeline runs as
 opposed to backfilling in one very large pipeline run which may fail due to memory issues on ephemeral storage or just take a very long time to complete without seeing any
 progress in the destination.
 
@@ -78,8 +78,8 @@ if __name__ == "__main__":
     # the final run will load all the rows until the end of the table
     pipeline.run(source)
     _assert_unique_row_count(pipeline.dataset().family.df(), TOTAL_TABLE_ROWS)
-    
+
     # NOTE: in a production environment you will likely:
     # * be using much larger chunk sizes and limits
     # * run the pipeline in a loop to load all the rows
-    # * and programmatically check if the table is fully loaded and abort the loop if this is the case. 
+    # * and programmatically check if the table is fully loaded and abort the loop if this is the case.
