@@ -164,17 +164,30 @@ def detect_datetime_format(value: str) -> Optional[str]:
         ): "%Y-%m-%dT%H:%M:%S.%fZ",  # UTC with fractional seconds
         re.compile(
             r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\+\d{2}:\d{2}$"
-        ): "%Y-%m-%dT%H:%M:%S%z",  # Timezone offset
+        ): "%Y-%m-%dT%H:%M:%S%z",  # Positive timezone offset
         re.compile(
             r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\+\d{4}$"
-        ): "%Y-%m-%dT%H:%M:%S%z",  # Timezone without colon
-        # Full datetime with fractional seconds and timezone
+        ): "%Y-%m-%dT%H:%M:%S%z",  # Positive timezone without colon
+        # Full datetime with fractional seconds and positive timezone offset
         re.compile(
             r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+\+\d{2}:\d{2}$"
         ): "%Y-%m-%dT%H:%M:%S.%f%z",
         re.compile(
             r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+\+\d{4}$"
-        ): "%Y-%m-%dT%H:%M:%S.%f%z",  # Timezone without colon
+        ): "%Y-%m-%dT%H:%M:%S.%f%z",  # Positive timezone without colon
+        re.compile(
+            r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}-\d{2}:\d{2}$"
+        ): "%Y-%m-%dT%H:%M:%S%z",  # Negative timezone offset
+        re.compile(
+            r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}-\d{4}$"
+        ): "%Y-%m-%dT%H:%M:%S%z",  # Negative timezone without colon
+        # Full datetime with fractional seconds and negative timezone offset
+        re.compile(
+            r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+-\d{2}:\d{2}$"
+        ): "%Y-%m-%dT%H:%M:%S.%f%z",
+        re.compile(
+            r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+-\d{4}$"
+        ): "%Y-%m-%dT%H:%M:%S.%f%z",  # Negative Timezone without colon
         # Datetime without timezone
         re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$"): "%Y-%m-%dT%H:%M:%S",  # No timezone
         re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$"): "%Y-%m-%dT%H:%M",  # Minute precision
