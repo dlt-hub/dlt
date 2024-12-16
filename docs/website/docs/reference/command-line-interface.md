@@ -20,8 +20,21 @@ This command creates a new dlt pipeline script that loads data from `source` to 
 This command can be used several times in the same folder to add more sources, destinations, and pipelines. It will also update the verified source code to the newest
 version if run again with an existing `source` name. You are warned if files will be overwritten or if the `dlt` version needs an upgrade to run a particular pipeline.
 
+### Ejecting source code of the core sources like `sql_database`.
+We merged a few sources to the core library. You can still eject source code and hack them with the `--eject` flag:
+```sh
+dlt init sql_database duckdb --eject
+```
+will copy the source code of `sql_database` to your project. Remember to modify the pipeline example script to import from the local folder!
+
 ### Specify your own "verified sources" repository
 You can use the `--location <repo_url or local folder>` option to specify your own repository with sources. Typically, you would [fork ours](https://github.com/dlt-hub/verified-sources) and start customizing and adding sources, e.g., to use them for your team or organization. You can also specify a branch with `--branch <name>`, e.g., to test a version being developed.
+
+### Using dlt 0.5.x sources
+Use `--branch 0.5` if you are still on `dlt` `0.5.x` ie.
+```sh
+dlt init <source> <destination> --branch 0.5
+```
 
 ### List all sources
 ```sh

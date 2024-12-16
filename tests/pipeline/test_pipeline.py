@@ -52,7 +52,7 @@ from dlt.pipeline.helpers import retry_load
 
 from dlt.pipeline.pipeline import Pipeline
 from tests.common.utils import TEST_SENTRY_DSN
-from tests.utils import TEST_STORAGE_ROOT
+from tests.utils import TEST_STORAGE_ROOT, load_table_counts
 from tests.extract.utils import expect_extracted_file
 from tests.pipeline.utils import (
     assert_data_table_counts,
@@ -3011,3 +3011,171 @@ def test_push_table_with_upfront_schema() -> None:
     copy_pipeline = dlt.pipeline(pipeline_name="push_table_copy_pipeline", destination="duckdb")
     info = copy_pipeline.run(data, table_name="events", schema=copy_schema)
     assert copy_pipeline.default_schema.version_hash != infer_hash
+
+
+def test_pipeline_with_sources_sharing_schema() -> None:
+    schema = Schema("shared")
+
+    @dlt.source(schema=schema, max_table_nesting=1)
+    def source_1():
+        @dlt.resource(primary_key="user_id")
+        def gen1():
+            dlt.current.source_state()["source_1"] = True
+            dlt.current.resource_state()["source_1"] = True
+            yield {"id": "Y", "user_id": "user_y"}
+
+        @dlt.resource(columns={"value": {"data_type": "bool"}})
+        def conflict():
+            yield True
+
+        return gen1, conflict
+
+    @dlt.source(schema=schema, max_table_nesting=2)
+    def source_2():
+        @dlt.resource(primary_key="id")
+        def gen1():
+            dlt.current.source_state()["source_2"] = True
+            dlt.current.resource_state()["source_2"] = True
+            yield {"id": "X", "user_id": "user_X"}
+
+        def gen2():
+            yield from "CDE"
+
+        @dlt.resource(columns={"value": {"data_type": "text"}}, selected=False)
+        def conflict():
+            yield "indeed"
+
+        return gen2, gen1, conflict
+
+    # all selected tables with hints should be there
+    discover_1 = source_1().discover_schema()
+    assert "gen1" in discover_1.tables
+    assert discover_1.tables["gen1"]["columns"]["user_id"]["primary_key"] is True
+    assert "data_type" not in discover_1.tables["gen1"]["columns"]["user_id"]
+    assert "conflict" in discover_1.tables
+    assert discover_1.tables["conflict"]["columns"]["value"]["data_type"] == "bool"
+
+    discover_2 = source_2().discover_schema()
+    assert "gen1" in discover_2.tables
+    assert "gen2" in discover_2.tables
+    # conflict deselected
+    assert "conflict" not in discover_2.tables
+
+    p = dlt.pipeline(pipeline_name="multi", destination="duckdb", dev_mode=True)
+    p.extract([source_1(), source_2()])
+    default_schema = p.default_schema
+    gen1_table = default_schema.tables["gen1"]
+    assert "user_id" in gen1_table["columns"]
+    assert "id" in gen1_table["columns"]
+    assert "conflict" in default_schema.tables
+    assert "gen2" in default_schema.tables
+    p.normalize()
+    assert "gen2" in default_schema.tables
+    assert default_schema.tables["conflict"]["columns"]["value"]["data_type"] == "bool"
+    p.load()
+    table_names = [t["name"] for t in default_schema.data_tables()]
+    counts = load_table_counts(p, *table_names)
+    assert counts == {"gen1": 2, "gen2": 3, "conflict": 1}
+    # both sources share the same state
+    assert p.state["sources"] == {
+        "shared": {
+            "source_1": True,
+            "resources": {"gen1": {"source_1": True, "source_2": True}},
+            "source_2": True,
+        }
+    }
+
+    # same pipeline but enable conflict
+    p.extract([source_2().with_resources("conflict")])
+    p.normalize()
+    assert default_schema.tables["conflict"]["columns"]["value"]["data_type"] == "text"
+    with pytest.raises(PipelineStepFailed):
+        # will generate failed job on type that does not match
+        p.load()
+    counts = load_table_counts(p, "conflict")
+    assert counts == {"conflict": 1}
+
+    # alter table in duckdb
+    with p.sql_client() as client:
+        client.execute_sql("ALTER TABLE conflict ALTER value TYPE VARCHAR;")
+    p.run([source_2().with_resources("conflict")])
+    counts = load_table_counts(p, "conflict")
+    assert counts == {"conflict": 2}
+
+
+def test_many_pipelines_single_dataset() -> None:
+    schema = Schema("shared")
+
+    @dlt.source(schema=schema, max_table_nesting=1)
+    def source_1():
+        @dlt.resource(primary_key="user_id")
+        def gen1():
+            dlt.current.source_state()["source_1"] = True
+            dlt.current.resource_state()["source_1"] = True
+            yield {"id": "Y", "user_id": "user_y"}
+
+        return gen1
+
+    @dlt.source(schema=schema, max_table_nesting=2)
+    def source_2():
+        @dlt.resource(primary_key="id")
+        def gen1():
+            dlt.current.source_state()["source_2"] = True
+            dlt.current.resource_state()["source_2"] = True
+            yield {"id": "X", "user_id": "user_X"}
+
+        def gen2():
+            yield from "CDE"
+
+        return gen2, gen1
+
+    # load source_1 to common dataset
+    p = dlt.pipeline(
+        pipeline_name="source_1_pipeline", destination="duckdb", dataset_name="shared_dataset"
+    )
+    p.run(source_1(), credentials="duckdb:///_storage/test_quack.duckdb")
+    counts = load_table_counts(p, *p.default_schema.tables.keys())
+    assert counts.items() >= {"gen1": 1, "_dlt_pipeline_state": 1, "_dlt_loads": 1}.items()
+    p._wipe_working_folder()
+    p.deactivate()
+
+    p = dlt.pipeline(
+        pipeline_name="source_2_pipeline", destination="duckdb", dataset_name="shared_dataset"
+    )
+    p.run(source_2(), credentials="duckdb:///_storage/test_quack.duckdb")
+    # table_names = [t["name"] for t in p.default_schema.data_tables()]
+    counts = load_table_counts(p, *p.default_schema.tables.keys())
+    # gen1: one record comes from source_1, 1 record from source_2
+    assert counts.items() >= {"gen1": 2, "_dlt_pipeline_state": 2, "_dlt_loads": 2}.items()
+    # assert counts == {'gen1': 2, 'gen2': 3}
+    p._wipe_working_folder()
+    p.deactivate()
+
+    # restore from destination, check state
+    p = dlt.pipeline(
+        pipeline_name="source_1_pipeline",
+        destination=dlt.destinations.duckdb(credentials="duckdb:///_storage/test_quack.duckdb"),
+        dataset_name="shared_dataset",
+    )
+    p.sync_destination()
+    # we have our separate state
+    assert p.state["sources"]["shared"] == {
+        "source_1": True,
+        "resources": {"gen1": {"source_1": True}},
+    }
+    # but the schema was common so we have the earliest one
+    assert "gen2" in p.default_schema.tables
+    p._wipe_working_folder()
+    p.deactivate()
+
+    p = dlt.pipeline(
+        pipeline_name="source_2_pipeline",
+        destination=dlt.destinations.duckdb(credentials="duckdb:///_storage/test_quack.duckdb"),
+        dataset_name="shared_dataset",
+    )
+    p.sync_destination()
+    # we have our separate state
+    assert p.state["sources"]["shared"] == {
+        "source_2": True,
+        "resources": {"gen1": {"source_2": True}},
+    }
