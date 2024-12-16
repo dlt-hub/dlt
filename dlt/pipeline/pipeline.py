@@ -1750,7 +1750,7 @@ class Pipeline(SupportsPipeline):
         # pickle only the SupportsPipeline protocol fields
         return {"pipeline_name": self.pipeline_name}
 
-    def _dataset(
+    def dataset(
         self, schema: Union[Schema, str, None] = None, dataset_type: TDatasetType = "auto"
     ) -> SupportsReadableDataset:
         """Returns a dataset object for querying the destination data.

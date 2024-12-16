@@ -5,7 +5,7 @@ import pytest
 
 from dlt.sources import rest_api
 from dlt.sources.helpers.rest_client.auth import APIKeyAuth, OAuth2ClientCredentials
-from dlt.sources.rest_api.typing import ApiKeyAuthConfig, AuthConfig
+from dlt.sources.rest_api.typing import ApiKeyAuthConfig, AuthConfig, RESTAPIConfig
 
 
 class CustomOAuth2(OAuth2ClientCredentials):
@@ -77,3 +77,18 @@ class TestCustomAuth:
                 "not_an_auth_config_base", NotAuthConfigBase  # type: ignore
             )
         assert e.match("Invalid auth: NotAuthConfigBase.")
+
+    def test_valid_config_raises_no_error(self, custom_auth_config: AuthConfig) -> None:
+        rest_api.config_setup.register_auth("custom_oauth_2", CustomOAuth2)
+
+        valid_config: RESTAPIConfig = {
+            "client": {
+                "base_url": "https://example.com",
+                "auth": custom_auth_config,
+            },
+            "resources": ["test"],
+        }
+
+        rest_api.rest_api_source(valid_config)
+
+        del rest_api.config_setup.AUTH_MAP["custom_oauth_2"]

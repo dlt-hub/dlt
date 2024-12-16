@@ -167,6 +167,7 @@ const sidebars = {
         'dlt-ecosystem/destinations/synapse',
         'dlt-ecosystem/destinations/clickhouse',
         'dlt-ecosystem/destinations/filesystem',
+        'dlt-ecosystem/destinations/delta-iceberg',
         'dlt-ecosystem/destinations/postgres',
         'dlt-ecosystem/destinations/redshift',
         'dlt-ecosystem/destinations/snowflake',
@@ -210,13 +211,10 @@ const sidebars = {
         },
         {
           type: 'category',
-          label: 'Transform the data',
+          label: 'Transforming data',
           link: {
-            type: 'generated-index',
-            title: 'Transform the data',
-            description: 'If you want to transform the data after loading, you can use one of the following methods: dbt, SQL, Pandas.',
-            slug: 'dlt-ecosystem/transformations',
-            keywords: ['transformations'],
+            type: 'doc',
+            id: 'dlt-ecosystem/transformations/index',
           },
           items: [
             {
@@ -227,8 +225,8 @@ const sidebars = {
                 'dlt-ecosystem/transformations/dbt/dbt_cloud',
               ]
             },
+            'dlt-ecosystem/transformations/python',
             'dlt-ecosystem/transformations/sql',
-            'dlt-ecosystem/transformations/pandas',
             'general-usage/customising-pipelines/renaming_columns',
             'general-usage/customising-pipelines/pseudonymizing_columns',
             'general-usage/customising-pipelines/removing_columns'

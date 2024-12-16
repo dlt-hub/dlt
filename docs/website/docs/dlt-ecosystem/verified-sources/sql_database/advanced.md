@@ -256,3 +256,24 @@ SOURCES__SQL_DATABASE__CHUNK_SIZE=1000
 SOURCES__SQL_DATABASE__CHAT_MESSAGE__INCREMENTAL__CURSOR_PATH=updated_at
 ```
 
+### Configure many sources side by side with custom sections
+`dlt` allows you to rename any source to place the source configuration into custom section or to have many instances
+of the source created side by side. For example:
+```py
+from dlt.sources.sql_database import sql_database
+
+my_db = sql_database.with_args(name="my_db", section="my_db")(table_names=["chat_message"])
+print(my_db.name)
+```
+Here we create a renamed version of the `sql_database` and then instantiate it. Such source will read
+credentials from:
+```toml
+[sources.my_db]
+credentials="mssql+pyodbc://loader.database.windows.net/dlt_data?trusted_connection=yes&driver=ODBC+Driver+17+for+SQL+Server"
+schema="data"
+backend="pandas"
+chunk_size=1000
+
+[sources.my_db.chat_message.incremental]
+cursor_path="updated_at"
+```

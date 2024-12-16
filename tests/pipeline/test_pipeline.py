@@ -1566,6 +1566,30 @@ def test_drop() -> None:
     pipeline.run([1, 2, 3], table_name="numbers")
 
 
+def test_source_schema_in_resource() -> None:
+    run_count = 0
+
+    @dlt.resource
+    def schema_inspector():
+        schema = dlt.current.source_schema()
+        if run_count == 0:
+            assert "schema_inspector" not in schema.tables
+        if run_count == 1:
+            assert "schema_inspector" in schema.tables
+            assert schema.tables["schema_inspector"]["columns"]["value"]["x-custom"] == "X"  # type: ignore[typeddict-item]
+
+        yield [1, 2, 3]
+
+    pipeline = dlt.pipeline(pipeline_name="test_inspector", destination="duckdb")
+    pipeline.run(schema_inspector())
+
+    # add custom annotation
+    pipeline.default_schema.tables["schema_inspector"]["columns"]["value"]["x-custom"] = "X"  # type: ignore[typeddict-unknown-key]
+
+    run_count += 1
+    pipeline.run(schema_inspector())
+
+
 def test_schema_version_increase_and_source_update() -> None:
     now = pendulum.now()
 
@@ -1730,7 +1754,7 @@ def test_column_name_with_break_path() -> None:
     # get data
     assert_data_table_counts(pipeline, {"custom__path": 1})
     # get data via dataset with dbapi
-    data_ = pipeline._dataset().custom__path[["example_custom_field__c", "reg_c"]].fetchall()
+    data_ = pipeline.dataset().custom__path[["example_custom_field__c", "reg_c"]].fetchall()
     assert data_ == [("custom", "c")]
 
 
@@ -1754,7 +1778,7 @@ def test_column_name_with_break_path_legacy() -> None:
     # get data
     assert_data_table_counts(pipeline, {"custom_path": 1})
     # get data via dataset with dbapi
-    data_ = pipeline._dataset().custom_path[["example_custom_field_c", "reg_c"]].fetchall()
+    data_ = pipeline.dataset().custom_path[["example_custom_field_c", "reg_c"]].fetchall()
     assert data_ == [("custom", "c")]
 
 
@@ -1782,7 +1806,7 @@ def test_column_hint_with_break_path() -> None:
     assert table["columns"]["value__timestamp"]["data_type"] == "timestamp"
 
     # make sure data is there
-    data_ = pipeline._dataset().flattened__dict[["delta", "value__timestamp"]].limit(1).fetchall()
+    data_ = pipeline.dataset().flattened__dict[["delta", "value__timestamp"]].limit(1).fetchall()
     assert data_ == [(0, now)]
 
 
@@ -1812,7 +1836,7 @@ def test_column_hint_with_break_path_legacy() -> None:
     assert set(table["columns"]) == {"delta", "value__timestamp", "_dlt_id", "_dlt_load_id"}
     assert table["columns"]["value__timestamp"]["data_type"] == "timestamp"
     # make sure data is there
-    data_ = pipeline._dataset().flattened_dict[["delta", "value__timestamp"]].limit(1).fetchall()
+    data_ = pipeline.dataset().flattened_dict[["delta", "value__timestamp"]].limit(1).fetchall()
     assert data_ == [(0, now)]
 
 
