@@ -1,4 +1,4 @@
-from typing import Optional, Sequence, List, Dict
+from typing import Optional, Sequence, List, Dict, Set
 from urllib.parse import urlparse, urlunparse
 
 from dlt.common.data_writers.configuration import CsvFormatConfiguration
@@ -267,6 +267,61 @@ class SnowflakeClient(SqlJobClientWithStagingDataset, SupportsStagingDestination
             "ADD COLUMN\n" + ",\n".join(self._get_column_def_sql(c, table) for c in new_columns)
         ]
 
+    def _get_existing_constraints(self, table_name: str) -> Set[str]:
+        query = f"""
+            SELECT constraint_name
+            FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS
+            WHERE TABLE_NAME = '{table_name.upper()}'
+        """
+
+        if self.sql_client.catalog_name:
+            query += f" AND CONSTRAINT_CATALOG = '{self.sql_client.catalog_name}'"
+
+        with self.sql_client.open_connection() as conn:
+            cursors = conn.execute_string(query)
+            existing_names = set()
+            for cursor in cursors:
+                for row in cursor:
+                    existing_names.add(row[0])
+        return existing_names
+
+    def _get_constraints_statement(
+        self, table_name: str, columns: Sequence[TColumnSchema], existing_constraints: Set[str]
+    ) -> List[str]:
+        statements = []
+        pk_constraint_name = f"PK_{table_name.upper()}"
+        uq_constraint_name = f"UQ_{table_name.upper()}"
+        qualified_name = self.sql_client.make_qualified_table_name(table_name)
+
+        pk_columns = [col["name"] for col in columns if col.get("primary_key")]
+        unique_columns = [col["name"] for col in columns if col.get("unique")]
+
+        # Drop existing PK/UQ constraints if found
+        if pk_constraint_name in existing_constraints:
+            statements.append(f"ALTER TABLE {qualified_name} DROP CONSTRAINT {pk_constraint_name}")
+        if uq_constraint_name in existing_constraints:
+            statements.append(f"ALTER TABLE {qualified_name} DROP CONSTRAINT {uq_constraint_name}")
+
+        # Add PK constraint if pk_columns exist
+        if pk_columns:
+            quoted_pk_cols = ", ".join(f'"{col}"' for col in pk_columns)
+            statements.append(
+                f"ALTER TABLE {qualified_name} "
+                f"ADD CONSTRAINT {pk_constraint_name} "
+                f"PRIMARY KEY ({quoted_pk_cols})"
+            )
+
+        # Add UNIQUE constraint if unique_columns exist
+        if unique_columns:
+            quoted_uq_cols = ", ".join(f'"{col}"' for col in unique_columns)
+            statements.append(
+                f"ALTER TABLE {qualified_name} "
+                f"ADD CONSTRAINT {uq_constraint_name} "
+                f"UNIQUE ({quoted_uq_cols})"
+            )
+
+        return statements
+
     def _get_table_update_sql(
         self,
         table_name: str,
@@ -283,6 +338,13 @@ class SnowflakeClient(SqlJobClientWithStagingDataset, SupportsStagingDestination
         if cluster_list:
             sql[0] = sql[0] + "\nCLUSTER BY (" + ",".join(cluster_list) + ")"
 
+        if self.active_hints:
+            existing_constraints = self._get_existing_constraints(table_name)
+            statements = self._get_constraints_statement(
+                table_name, new_columns, existing_constraints
+            )
+            sql.extend(statements)
+
         return sql
 
     def _from_db_type(
@@ -291,14 +353,9 @@ class SnowflakeClient(SqlJobClientWithStagingDataset, SupportsStagingDestination
         return self.type_mapper.from_destination_type(bq_t, precision, scale)
 
     def _get_column_def_sql(self, c: TColumnSchema, table: PreparedTableSchema = None) -> str:
-        hints_str = " ".join(
-            self.active_hints.get(h, "")
-            for h in self.active_hints.keys()
-            if c.get(h, False) is True
-        )
         column_name = self.sql_client.escape_column_name(c["name"])
         return (
-            f"{column_name} {self.type_mapper.to_destination_type(c,table)} {hints_str} {self._gen_not_null(c.get('nullable', True))}"
+            f"{column_name} {self.type_mapper.to_destination_type(c,table)} {self._gen_not_null(c.get('nullable', True))}"
         )
 
     def should_truncate_table_before_load_on_staging_destination(self, table_name: str) -> bool:

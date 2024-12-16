@@ -66,16 +66,16 @@ def test_create_table(snowflake_client: SnowflakeClient) -> None:
 
     assert sql.strip().startswith("CREATE TABLE")
     assert "EVENT_TEST_TABLE" in sql
-    assert '"COL1" NUMBER(19,0)  NOT NULL' in sql
-    assert '"COL2" FLOAT  NOT NULL' in sql
-    assert '"COL3" BOOLEAN  NOT NULL' in sql
-    assert '"COL4" TIMESTAMP_TZ  NOT NULL' in sql
+    assert '"COL1" NUMBER(19,0) NOT NULL' in sql
+    assert '"COL2" FLOAT NOT NULL' in sql
+    assert '"COL3" BOOLEAN NOT NULL' in sql
+    assert '"COL4" TIMESTAMP_TZ NOT NULL' in sql
     assert '"COL5" VARCHAR' in sql
-    assert '"COL6" NUMBER(38,9)  NOT NULL' in sql
+    assert '"COL6" NUMBER(38,9) NOT NULL' in sql
     assert '"COL7" BINARY' in sql
     assert '"COL8" NUMBER(38,0)' in sql
-    assert '"COL9" VARIANT  NOT NULL' in sql
-    assert '"COL10" DATE  NOT NULL' in sql
+    assert '"COL9" VARIANT NOT NULL' in sql
+    assert '"COL10" DATE NOT NULL' in sql
 
 
 def test_create_table_with_hints(snowflake_client: SnowflakeClient) -> None:
@@ -90,16 +90,16 @@ def test_create_table_with_hints(snowflake_client: SnowflakeClient) -> None:
 
     assert sql.strip().startswith("CREATE TABLE")
     assert "EVENT_TEST_TABLE" in sql
-    assert '"COL1" NUMBER(19,0)  NOT NULL' in sql
-    assert '"COL2" FLOAT  NOT NULL' in sql
-    assert '"COL3" BOOLEAN  NOT NULL' in sql
-    assert '"COL4" TIMESTAMP_TZ  NOT NULL' in sql
+    assert '"COL1" NUMBER(19,0) NOT NULL' in sql
+    assert '"COL2" FLOAT NOT NULL' in sql
+    assert '"COL3" BOOLEAN NOT NULL' in sql
+    assert '"COL4" TIMESTAMP_TZ NOT NULL' in sql
     assert '"COL5" VARCHAR' in sql
-    assert '"COL6" NUMBER(38,9)  NOT NULL' in sql
+    assert '"COL6" NUMBER(38,9) NOT NULL' in sql
     assert '"COL7" BINARY' in sql
     assert '"COL8" NUMBER(38,0)' in sql
-    assert '"COL9" VARIANT  NOT NULL' in sql
-    assert '"COL10" DATE  NOT NULL' in sql
+    assert '"COL9" VARIANT NOT NULL' in sql
+    assert '"COL10" DATE NOT NULL' in sql
 
     # same thing with indexes
     snowflake_client = snowflake().client(
@@ -108,10 +108,17 @@ def test_create_table_with_hints(snowflake_client: SnowflakeClient) -> None:
             dataset_name="test_" + uniq_id()
         ),
     )
-    sql = snowflake_client._get_table_update_sql("event_test_table", mod_update, False)[0]
-    sqlfluff.parse(sql)
-    assert '"COL1" NUMBER(19,0) PRIMARY KEY NOT NULL' in sql
-    assert '"COL2" FLOAT UNIQUE NOT NULL' in sql
+    sql_statements = snowflake_client._get_table_update_sql("event_test_table", mod_update, False)
+
+    for stmt in sql_statements:
+        sqlfluff.parse(stmt)
+
+    assert any(
+        'ADD CONSTRAINT PK_EVENT_TEST_TABLE PRIMARY KEY ("col1")' in stmt for stmt in sql_statements
+    )
+    assert any(
+        'ADD CONSTRAINT UQ_EVENT_TEST_TABLE UNIQUE ("col2")' in stmt for stmt in sql_statements
+    )
 
 
 def test_alter_table(snowflake_client: SnowflakeClient) -> None:
@@ -126,15 +133,15 @@ def test_alter_table(snowflake_client: SnowflakeClient) -> None:
     assert sql.count("ALTER TABLE") == 1
     assert sql.count("ADD COLUMN") == 1
     assert '"EVENT_TEST_TABLE"' in sql
-    assert '"COL1" NUMBER(19,0)  NOT NULL' in sql
-    assert '"COL2" FLOAT  NOT NULL' in sql
-    assert '"COL3" BOOLEAN  NOT NULL' in sql
-    assert '"COL4" TIMESTAMP_TZ  NOT NULL' in sql
+    assert '"COL1" NUMBER(19,0) NOT NULL' in sql
+    assert '"COL2" FLOAT NOT NULL' in sql
+    assert '"COL3" BOOLEAN NOT NULL' in sql
+    assert '"COL4" TIMESTAMP_TZ NOT NULL' in sql
     assert '"COL5" VARCHAR' in sql
-    assert '"COL6" NUMBER(38,9)  NOT NULL' in sql
+    assert '"COL6" NUMBER(38,9) NOT NULL' in sql
     assert '"COL7" BINARY' in sql
     assert '"COL8" NUMBER(38,0)' in sql
-    assert '"COL9" VARIANT  NOT NULL' in sql
+    assert '"COL9" VARIANT NOT NULL' in sql
     assert '"COL10" DATE' in sql
 
     mod_table = deepcopy(TABLE_UPDATE)
@@ -142,7 +149,7 @@ def test_alter_table(snowflake_client: SnowflakeClient) -> None:
     sql = snowflake_client._get_table_update_sql("event_test_table", mod_table, True)[0]
 
     assert '"COL1"' not in sql
-    assert '"COL2" FLOAT  NOT NULL' in sql
+    assert '"COL2" FLOAT NOT NULL' in sql
 
 
 def test_create_table_case_sensitive(cs_client: SnowflakeClient) -> None:
