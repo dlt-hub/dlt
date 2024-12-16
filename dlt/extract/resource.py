@@ -34,14 +34,16 @@ from dlt.extract.utils import wrap_async_iterator, wrap_parallel_iterator
 
 from dlt.extract.items import (
     DataItemWithMeta,
-    ItemTransformFunc,
-    ItemTransformFunctionWithMeta,
     TableNameMeta,
+)
+from dlt.extract.items_transform import (
     FilterItem,
     MapItem,
     YieldMapItem,
     ValidateItem,
     LimitItem,
+    ItemTransformFunc,
+    ItemTransformFunctionWithMeta,
 )
 from dlt.extract.pipe_iterator import ManagedPipeIterator
 from dlt.extract.pipe import Pipe, TPipeStep

@@ -27,12 +27,12 @@ from dlt.extract.exceptions import (
     UnclosablePipe,
 )
 from dlt.extract.items import (
-    ItemTransform,
     ResolvablePipeItem,
     SupportsPipe,
     TPipeStep,
     TPipedDataItems,
 )
+from dlt.extract.items_transform import ItemTransform
 from dlt.extract.utils import (
     check_compat_transformer,
     simulate_func_call,

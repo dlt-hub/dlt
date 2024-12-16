@@ -44,7 +44,8 @@ from dlt.common.incremental.typing import (
     IncrementalArgs,
     TIncrementalRange,
 )
-from dlt.extract.items import SupportsPipe, TTableHintTemplate, ItemTransform
+from dlt.extract.items import SupportsPipe, TTableHintTemplate
+from dlt.extract.items_transform import ItemTransform
 from dlt.extract.incremental.transform import (
     JsonIncremental,
     ArrowIncremental,

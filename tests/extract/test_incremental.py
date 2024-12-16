@@ -36,7 +36,7 @@ from dlt.extract.incremental.exceptions import (
     IncrementalPrimaryKeyMissing,
 )
 from dlt.extract.incremental.lag import apply_lag
-from dlt.extract.items import ValidateItem
+from dlt.extract.items_transform import ValidateItem
 from dlt.extract.resource import DltResource
 from dlt.pipeline.exceptions import PipelineStepFailed
 from dlt.sources.helpers.transform import take_first
@@ -3989,7 +3989,7 @@ def test_incremental_and_limit(offset_by_last_value: bool):
 
     resource.add_limit(10)
 
-    p = dlt.pipeline(pipeline_name="incremtal_limit", destination="duckdb", dev_mode=True)
+    p = dlt.pipeline(pipeline_name="incremental_limit", destination="duckdb", dev_mode=True)
 
     p.run(resource())
 
