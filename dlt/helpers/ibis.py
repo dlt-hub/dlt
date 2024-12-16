@@ -10,7 +10,7 @@ try:
     import sqlglot
     from ibis import BaseBackend, Expr
 except ModuleNotFoundError:
-    raise MissingDependencyException("dlt ibis Helpers", ["ibis"])
+    raise MissingDependencyException("dlt ibis helpers", ["ibis-framework"])
 
 
 SUPPORTED_DESTINATIONS = [
@@ -123,18 +123,22 @@ def create_ibis_backend(
         )
         from dlt.destinations.impl.duckdb.factory import DuckDbCredentials
 
-        # we create an in memory duckdb and create all tables on there
-        duck = duckdb.connect(":memory:")
+        # we create an in memory duckdb and create the ibis backend from it
         fs_client = cast(FilesystemClient, client)
-        creds = DuckDbCredentials(duck)
         sql_client = FilesystemSqlClient(
-            fs_client, dataset_name=fs_client.dataset_name, credentials=creds
+            fs_client,
+            dataset_name=fs_client.dataset_name,
+            credentials=DuckDbCredentials(duckdb.connect()),
         )
-
+        # do not use context manager to not return and close the cloned connection
+        duckdb_conn = sql_client.open_connection()
+        # make all tables available here
         # NOTE: we should probably have the option for the user to only select a subset of tables here
-        with sql_client as _:
-            sql_client.create_views_for_all_tables()
-        con = ibis.duckdb.from_connection(duck)
+        sql_client.create_views_for_all_tables()
+        # why this works now: whenever a clone of connection is made, all SET commands
+        # apply only to it. old code was setting `curl` on the internal clone of sql_client
+        # now we export this clone directly to ibis to it works
+        con = ibis.duckdb.from_connection(duckdb_conn)
 
     return con
 

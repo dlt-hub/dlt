@@ -7,6 +7,7 @@ from itertools import chain, count
 from time import sleep
 from typing import Any, Optional, Literal, Sequence, Dict, Iterable
 from unittest import mock
+import itertools
 
 import duckdb
 import pyarrow as pa
@@ -35,7 +36,7 @@ from dlt.extract.incremental.exceptions import (
     IncrementalPrimaryKeyMissing,
 )
 from dlt.extract.incremental.lag import apply_lag
-from dlt.extract.items import ValidateItem
+from dlt.extract.items_transform import ValidateItem
 from dlt.extract.resource import DltResource
 from dlt.pipeline.exceptions import PipelineStepFailed
 from dlt.sources.helpers.transform import take_first
@@ -3960,3 +3961,58 @@ def test_end_range_closed(item_type: TestDataItemFormat, last_value_func: Any) -
 
     # Includes values 5-10 inclusive
     assert items == expected_items
+
+
+@pytest.mark.parametrize("offset_by_last_value", [True, False])
+def test_incremental_and_limit(offset_by_last_value: bool):
+    resource_called = 0
+
+    # here we check incremental and limit when incremental once when last value cannot be used
+    # to offset the source, and once when it can.
+
+    @dlt.resource(
+        table_name="items",
+    )
+    def resource(
+        incremental=dlt.sources.incremental(cursor_path="id", initial_value=-1, row_order="asc")
+    ):
+        range_iterator = (
+            range(incremental.start_value + 1, 1000) if offset_by_last_value else range(1000)
+        )
+        for i in range_iterator:
+            nonlocal resource_called
+            resource_called += 1
+            yield {
+                "id": i,
+                "value": str(i),
+            }
+
+    resource.add_limit(10)
+
+    p = dlt.pipeline(pipeline_name="incremental_limit", destination="duckdb", dev_mode=True)
+
+    p.run(resource())
+
+    # check we have the right number of items
+    assert len(p.dataset().items.df()) == 10
+    assert resource_called == 10
+    # check that we have items 0-9
+    assert p.dataset().items.df().id.tolist() == list(range(10))
+
+    # run the next ten
+    p.run(resource())
+
+    # check we have the right number of items
+    assert len(p.dataset().items.df()) == 20
+    assert resource_called == 20 if offset_by_last_value else 30
+    # check that we have items 0-19
+    assert p.dataset().items.df().id.tolist() == list(range(20))
+
+    # run the next batch
+    p.run(resource())
+
+    # check we have the right number of items
+    assert len(p.dataset().items.df()) == 30
+    assert resource_called == 30 if offset_by_last_value else 60
+    # check that we have items 0-29
+    assert p.dataset().items.df().id.tolist() == list(range(30))
