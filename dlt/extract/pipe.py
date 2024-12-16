@@ -39,7 +39,6 @@ from dlt.extract.utils import (
     wrap_compat_transformer,
     wrap_resource_gen,
     wrap_async_iterator,
-    wrap_iterator,
 )
 
 
@@ -295,10 +294,6 @@ class Pipe(SupportsPipe):
         # wrap async generator
         if isinstance(self.gen, AsyncIterator):
             self.replace_gen(wrap_async_iterator(self.gen))
-
-        # we also wrap iterators to make them stoppable
-        if isinstance(self.gen, Iterator):
-            self.replace_gen(wrap_iterator(self.gen))
 
         # evaluate transforms
         for step_no, step in enumerate(self._steps):

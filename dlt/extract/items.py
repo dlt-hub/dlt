@@ -115,6 +115,10 @@ class SupportsPipe(Protocol):
         """A data generating step"""
         ...
 
+    def replace_gen(self, gen: TPipeStep) -> None:
+        """Replaces data generating step. Assumes that you know what are you doing"""
+        ...
+
     def __getitem__(self, i: int) -> TPipeStep:
         """Get pipe step at index"""
         ...
@@ -250,10 +254,19 @@ class LimitItem(ItemTransform[TDataItem]):
         self.max_time = max_time
 
     def bind(self, pipe: SupportsPipe) -> "LimitItem":
+        # we also wrap iterators to make them stoppable
+        from dlt.extract.utils import (
+            wrap_iterator,
+        )
+
+        if isinstance(pipe.gen, Iterator):
+            pipe.replace_gen(wrap_iterator(pipe.gen))
+
         self.gen = pipe.gen
         self.count = 0
         self.exhausted = False
         self.start_time = time.time()
+
         return self
 
     def __call__(self, item: TDataItems, meta: Any = None) -> Optional[TDataItems]:

@@ -42,7 +42,7 @@ from dlt.extract.exceptions import (
 )
 from dlt.extract.pipe import Pipe
 from dlt.extract.items import DataItemWithMeta, PipeItem, ResolvablePipeItem, SourcePipeItem
-from dlt.extract.utils import wrap_async_iterator, wrap_iterator
+from dlt.extract.utils import wrap_async_iterator
 from dlt.extract.concurrency import FuturesPool
 
 TPipeNextItemMode = Literal["fifo", "round_robin"]
@@ -183,12 +183,9 @@ class PipeIterator(Iterator[PipeItem]):
 
             item = pipe_item.item
             # if item is iterator, then add it as a new source
-            # we wrap it to make it stoppable
             if isinstance(item, Iterator):
                 self._sources.append(
-                    SourcePipeItem(
-                        wrap_iterator(item), pipe_item.step, pipe_item.pipe, pipe_item.meta
-                    )
+                    SourcePipeItem(item, pipe_item.step, pipe_item.pipe, pipe_item.meta)
                 )
                 pipe_item = None
                 continue
