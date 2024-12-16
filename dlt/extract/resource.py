@@ -2,7 +2,7 @@ import inspect
 from functools import partial
 from typing import (
     AsyncIterable,
-    AsyncIterator,
+    cast,
     ClassVar,
     Callable,
     Iterable,
@@ -34,13 +34,16 @@ from dlt.extract.utils import wrap_async_iterator, wrap_parallel_iterator
 
 from dlt.extract.items import (
     DataItemWithMeta,
-    ItemTransformFunc,
-    ItemTransformFunctionWithMeta,
     TableNameMeta,
+)
+from dlt.extract.items_transform import (
     FilterItem,
     MapItem,
     YieldMapItem,
     ValidateItem,
+    LimitItem,
+    ItemTransformFunc,
+    ItemTransformFunctionWithMeta,
 )
 from dlt.extract.pipe_iterator import ManagedPipeIterator
 from dlt.extract.pipe import Pipe, TPipeStep
@@ -214,29 +217,22 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             return True
 
     @property
-    def incremental(self) -> IncrementalResourceWrapper:
+    def incremental(self) -> Optional[IncrementalResourceWrapper]:
         """Gets incremental transform if it is in the pipe"""
-        incremental: IncrementalResourceWrapper = None
-        step_no = self._pipe.find(IncrementalResourceWrapper, Incremental)
-        if step_no >= 0:
-            incremental = self._pipe.steps[step_no]  # type: ignore
-        return incremental
+        return cast(
+            Optional[IncrementalResourceWrapper],
+            self._pipe.get_by_type(IncrementalResourceWrapper, Incremental),
+        )
 
     @property
     def validator(self) -> Optional[ValidateItem]:
         """Gets validator transform if it is in the pipe"""
-        validator: ValidateItem = None
-        step_no = self._pipe.find(ValidateItem)
-        if step_no >= 0:
-            validator = self._pipe.steps[step_no]  # type: ignore[assignment]
-        return validator
+        return cast(Optional[ValidateItem], self._pipe.get_by_type(ValidateItem))
 
     @validator.setter
     def validator(self, validator: Optional[ValidateItem]) -> None:
         """Add/remove or replace the validator in pipe"""
-        step_no = self._pipe.find(ValidateItem)
-        if step_no >= 0:
-            self._pipe.remove_step(step_no)
+        step_no = self._pipe.remove_by_type(ValidateItem)
         if validator:
             self.add_step(validator, insert_at=step_no if step_no >= 0 else None)
 
@@ -347,72 +343,37 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             self._pipe.insert_step(FilterItem(item_filter), insert_at)
         return self
 
-    def add_limit(self: TDltResourceImpl, max_items: int) -> TDltResourceImpl:  # noqa: A003
+    def add_limit(
+        self: TDltResourceImpl,
+        max_items: Optional[int] = None,
+        max_time: Optional[float] = None,
+    ) -> TDltResourceImpl:  # noqa: A003
         """Adds a limit `max_items` to the resource pipe.
 
-        This mutates the encapsulated generator to stop after `max_items` items are yielded. This is useful for testing and debugging.
+         This mutates the encapsulated generator to stop after `max_items` items are yielded. This is useful for testing and debugging.
 
-        Notes:
-            1. Transformers won't be limited. They should process all the data they receive fully to avoid inconsistencies in generated datasets.
-            2. Each yielded item may contain several records. `add_limit` only limits the "number of yields", not the total number of records.
-            3. Async resources with a limit added may occasionally produce one item more than the limit on some runs. This behavior is not deterministic.
+         Notes:
+             1. Transformers won't be limited. They should process all the data they receive fully to avoid inconsistencies in generated datasets.
+             2. Each yielded item may contain several records. `add_limit` only limits the "number of yields", not the total number of records.
+             3. Async resources with a limit added may occasionally produce one item more than the limit on some runs. This behavior is not deterministic.
 
         Args:
-            max_items (int): The maximum number of items to yield
-        Returns:
-            "DltResource": returns self
+             max_items (int): The maximum number of items to yield, set to None for no limit
+             max_time (float): The maximum number of seconds for this generator to run after it was opened, set to None for no limit
+         Returns:
+             "DltResource": returns self
         """
 
-        # make sure max_items is a number, to allow "None" as value for unlimited
-        if max_items is None:
-            max_items = -1
-
-        def _gen_wrap(gen: TPipeStep) -> TPipeStep:
-            """Wrap a generator to take the first `max_items` records"""
-
-            # zero items should produce empty generator
-            if max_items == 0:
-                return
-
-            count = 0
-            is_async_gen = False
-            if callable(gen):
-                gen = gen()  # type: ignore
-
-            # wrap async gen already here
-            if isinstance(gen, AsyncIterator):
-                gen = wrap_async_iterator(gen)
-                is_async_gen = True
-
-            try:
-                for i in gen:  # type: ignore # TODO: help me fix this later
-                    yield i
-                    if i is not None:
-                        count += 1
-                        # async gen yields awaitable so we must count one awaitable more
-                        # so the previous one is evaluated and yielded.
-                        # new awaitable will be cancelled
-                        if count == max_items + int(is_async_gen):
-                            return
-            finally:
-                if inspect.isgenerator(gen):
-                    gen.close()
-            return
-
-        # transformers should be limited by their input, so we only limit non-transformers
-        if not self.is_transformer:
-            gen = self._pipe.gen
-            # wrap gen directly
-            if inspect.isgenerator(gen):
-                self._pipe.replace_gen(_gen_wrap(gen))
-            else:
-                # keep function as function to not evaluate generators before pipe starts
-                self._pipe.replace_gen(partial(_gen_wrap, gen))
-        else:
+        if self.is_transformer:
             logger.warning(
                 f"Setting add_limit to a transformer {self.name} has no effect. Set the limit on"
                 " the top level resource."
             )
+        else:
+            # remove existing limit if any
+            self._pipe.remove_by_type(LimitItem)
+            self.add_step(LimitItem(max_items=max_items, max_time=max_time))
+
         return self
 
     def parallelize(self: TDltResourceImpl) -> TDltResourceImpl:
@@ -445,9 +406,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         return self
 
     def _remove_incremental_step(self) -> None:
-        step_no = self._pipe.find(Incremental, IncrementalResourceWrapper)
-        if step_no >= 0:
-            self._pipe.remove_step(step_no)
+        self._pipe.remove_by_type(Incremental, IncrementalResourceWrapper)
 
     def set_incremental(
         self,

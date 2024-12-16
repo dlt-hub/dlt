@@ -107,8 +107,20 @@ load_info = pipeline.run(pipedrive_source().add_limit(10))
 print(load_info)
 ```
 
+You can also apply a time limit to the source:
+
+```py
+pipeline.run(pipedrive_source().add_limit(max_time=10))
+```
+
+Or limit by both, the limit that is reached first will stop the extraction:
+
+```py
+pipeline.run(pipedrive_source().add_limit(max_items=10, max_time=10))
+```
+
 :::note
-Note that `add_limit` **does not limit the number of records** but rather the "number of yields". `dlt` will close the iterator/generator that produces data after the limit is reached.
+Note that `add_limit` **does not limit the number of records** but rather the "number of yields". `dlt` will close the iterator/generator that produces data after the limit is reached. Please read in more detail about the `add_limit` on the resource page.
 :::
 
 Find more on sampling data [here](resource.md#sample-from-large-data).

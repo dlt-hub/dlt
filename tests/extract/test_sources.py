@@ -1,4 +1,6 @@
 import itertools
+import time
+
 from typing import Iterator
 
 import pytest
@@ -837,7 +839,7 @@ def test_limit_infinite_counter() -> None:
 
 @pytest.mark.parametrize("limit", (None, -1, 0, 10))
 def test_limit_edge_cases(limit: int) -> None:
-    r = dlt.resource(range(20), name="infinity").add_limit(limit)  # type: ignore
+    r = dlt.resource(range(20), name="resource").add_limit(limit)  # type: ignore
 
     @dlt.resource()
     async def r_async():
@@ -845,20 +847,60 @@ def test_limit_edge_cases(limit: int) -> None:
             await asyncio.sleep(0.01)
             yield i
 
+    @dlt.resource(parallelized=True)
+    def parallelized_resource():
+        for i in range(20):
+            yield i
+
     sync_list = list(r)
     async_list = list(r_async().add_limit(limit))
+    parallelized_list = list(parallelized_resource().add_limit(limit))
+
+    # all lists should be the same
+    assert sync_list == async_list == parallelized_list
 
     if limit == 10:
         assert sync_list == list(range(10))
-        # we have edge cases where the async list will have one extra item
-        # possibly due to timing issues, maybe some other implementation problem
-        assert (async_list == list(range(10))) or (async_list == list(range(11)))
     elif limit in [None, -1]:
-        assert sync_list == async_list == list(range(20))
+        assert sync_list == list(range(20))
     elif limit == 0:
-        assert sync_list == async_list == []
+        assert sync_list == []
     else:
         raise AssertionError(f"Unexpected limit: {limit}")
+
+
+def test_various_limit_setups() -> None:
+    # basic test
+    r = dlt.resource([1, 2, 3, 4, 5], name="test").add_limit(3)
+    assert list(r) == [1, 2, 3]
+
+    # yield map test
+    r = (
+        dlt.resource([1, 2, 3, 4, 5], name="test")
+        .add_map(lambda i: str(i) * i, 1)
+        .add_yield_map(lambda i: (yield from i))
+        .add_limit(3)
+    )
+    # limit is applied at the end
+    assert list(r) == ["1", "2", "2"]  # "3" ,"3" ,"3" ,"4" ,"4" ,"4" ,"4", ...]
+
+    # nested lists test (limit only applied to yields, not actual items)
+    r = dlt.resource([[1, 2, 3], [4, 5, 6], [7, 8, 9], [10, 11, 12]], name="test").add_limit(3)
+    assert list(r) == [1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+    # transformer test
+    r = dlt.resource([1, 2, 3, 4, 5], name="test").add_limit(4)
+    t = dlt.transformer(lambda i: i * 2, name="test")
+    assert list(r) == [1, 2, 3, 4]
+    assert list(r | t) == [2, 4, 6, 8]
+
+    # adding limit to transformer is disregarded
+    t = t.add_limit(2)
+    assert list(r | t) == [2, 4, 6, 8]
+
+    # limits are fully replaced (more genereous limit applied later takes precedence)
+    r = dlt.resource([1, 2, 3, 4, 5], name="test").add_limit(3).add_limit(4)
+    assert list(r) == [1, 2, 3, 4]
 
 
 def test_limit_source() -> None:
@@ -874,6 +916,30 @@ def test_limit_source() -> None:
 
     # transformer is not limited to 2 elements, infinite resource is, we have 3 resources
     assert list(infinite_source().add_limit(2)) == ["A", "A", 0, "A", "A", "A", 1] * 3
+
+
+def test_limit_max_time() -> None:
+    @dlt.resource()
+    def r():
+        for i in range(100):
+            time.sleep(0.1)
+            yield i
+
+    @dlt.resource()
+    async def r_async():
+        for i in range(100):
+            await asyncio.sleep(0.1)
+            yield i
+
+    sync_list = list(r().add_limit(max_time=1))
+    async_list = list(r_async().add_limit(max_time=1))
+
+    # we should have extracted 10 items within 1 second, sleep is included in the resource
+    # we allow for some variance in the number of items, as the sleep is not super precise
+    # on mac os we even sometimes just get 4 items...
+    allowed_results = [list(range(i)) for i in [12, 11, 10, 9, 8, 7, 6, 5, 4]]
+    assert sync_list in allowed_results
+    assert async_list in allowed_results
 
 
 def test_source_state() -> None:

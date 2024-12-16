@@ -405,11 +405,26 @@ dlt.pipeline(destination="duckdb").run(my_resource().add_limit(10))
 The code above will extract `15*10=150` records. This is happening because in each iteration, 15 records are yielded, and we're limiting the number of iterations to 10.
 :::
 
-Some constraints of `add_limit` include:
+Altenatively you can also apply a time limit to the resource. The code below will run the extraction for 10 seconds and extract how ever many items are yielded in that time. In combination with incrementals, this can be useful for batched loading or for loading on machines that have a run time limit.
+
+```py
+dlt.pipeline(destination="duckdb").run(my_resource().add_limit(max_time=10))
+```
+
+You can also apply a combination of both limits. In this case the extraction will stop as soon as either limit is reached.
+
+```py
+dlt.pipeline(destination="duckdb").run(my_resource().add_limit(max_items=10, max_time=10))
+```
+
+
+Some notes about the `add_limit`:
 
 1. `add_limit` does not skip any items. It closes the iterator/generator that produces data after the limit is reached.
 2. You cannot limit transformers. They should process all the data they receive fully to avoid inconsistencies in generated datasets.
 3. Async resources with a limit added may occasionally produce one item more than the limit on some runs. This behavior is not deterministic.
+4. Calling add limit on a resource will replace any previously set limits settings.
+5. For time-limited resources, the timer starts when the first item is processed. When resources are processed sequentially (FIFO mode), each resource's time limit applies also sequentially. In the default round robin mode, the time limits will usually run concurrently.
 
 :::tip
 If you are parameterizing the value of `add_limit` and sometimes need it to be disabled, you can set `None` or `-1` to disable the limiting.

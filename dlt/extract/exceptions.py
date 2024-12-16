@@ -3,7 +3,6 @@ from typing import Any, Sequence, Set, Type
 
 from dlt.common.exceptions import DltException
 from dlt.common.utils import get_callable_name
-from dlt.extract.items import ValidateItem, TDataItems
 
 
 class ExtractorException(DltException):
