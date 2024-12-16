@@ -52,7 +52,7 @@ If you already have your Databricks workspace set up, you can skip to the [Loade
 
     Add a new role assignment and select "Storage Blob Data Contributor" as the role. Under "Members" select "Managed Identity" and add the Databricks Access Connector you created in the previous step.
 
-### 2. Set up a metastore and Unity Catalog and get your access token
+### 2. Set up a metastore and Unity Catalog
 
 1. Now go to your Databricks workspace
 
@@ -85,26 +85,34 @@ If you already have your Databricks workspace set up, you can skip to the [Loade
 
     Go to "Catalog" and click "Create Catalog". Name your catalog and select the storage location you created in the previous step.
 
-8. Create your access token
+## Authentication
 
-    Click your email in the top right corner and go to "User Settings". Go to "Developer" -> "Access Tokens".
-    Generate a new token and save it. You will use it in your `dlt` configuration.
+`dlt` currently supports two options for authentication:
+1. [OAuth2](#oauth) (recommended) allows you to authenticate to Databricks using a service principal via OAuth2 M2M.
+2. [Access token](#access_token) approach using a developer access token. This method may be deprecated in the future by Databricks.
 
-## OAuth M2M (Machine-to-Machine) Authentication
+### Using OAuth2
 
-You can authenticate to Databricks using a service principal via OAuth M2M. This method allows for secure, programmatic access to Databricks resources without requiring a user-managed personal access token.
+You can authenticate to Databricks using a service principal via OAuth2 M2M. To enable it:
 
-### Create a Service Principal in Databricks
-Follow the instructions in the Databricks documentation to create a service principal and retrieve the client_id and client_secret:
+1. Follow the instructions in the Databricks documentation: [Authenticate access to Databricks using OAuth M2M](https://docs.databricks.com/en/dev-tools/auth/oauth-m2m.html)
+to create a service principal and retrieve the `client_id` and `client_secret`.
 
-[Authenticate access to Databricks using OAuth M2M](https://docs.databricks.com/en/dev-tools/auth/oauth-m2m.html)
+2. Once you have the service principal credentials, update your credentials with any of the options shown below:
 
-Once you have the service principal credentials, update your secrets.toml as shown bellow.
+<Tabs
+  groupId="config-provider-type"
+  defaultValue="toml"
+  values={[
+    {"label": "TOML config provider", "value": "toml"},
+    {"label": "Environment variables", "value": "env"},
+    {"label": "In the code", "value": "code"},
+]}>
 
-### Configuration
+  <TabItem value="toml">
 
-Add the following fields to your `.dlt/secrets.toml` file:
 ```toml
+# secrets.toml
 [destination.databricks.credentials]
 server_hostname = "MY_DATABRICKS.azuredatabricks.net"
 http_path = "/sql/1.0/warehouses/12345"
@@ -112,6 +120,88 @@ catalog = "my_catalog"
 client_id = "XXX"
 client_secret = "XXX"
 ```
+  </TabItem>
+
+<TabItem value="env">
+
+```sh
+export DESTINATIONS__DATABRICKS__CREDENTIALS__SERVER_HOSTNAME="MY_DATABRICKS.azuredatabricks.net"
+export DESTINATIONS__DATABRICKS__CREDENTIALS__HTTP_PATH="/sql/1.0/warehouses/12345"
+export DESTINATIONS__DATABRICKS__CREDENTIALS__CATALOG="my_catalog"
+export DESTINATIONS__DATABRICKS__CREDENTIALS__CLIENT_ID="XXX"
+export DESTINATIONS__DATABRICKS__CREDENTIALS__CLIENT_SECRET="XXX"
+```
+  </TabItem>
+
+<TabItem value="code">
+
+```py
+import os
+
+# Do not set up the secrets directly in the code!
+# What you can do is reassign env variables.
+os.environ["DESTINATIONS__DATABRICKS__CREDENTIALS__SERVER_HOSTNAME"] = "MY_DATABRICKS.azuredatabricks.net"
+os.environ["DESTINATIONS__DATABRICKS__CREDENTIALS__HTTP_PATH"]="/sql/1.0/warehouses/12345"
+os.environ["DESTINATIONS__DATABRICKS__CREDENTIALS__CATALOG"]="my_catalog"
+os.environ["DESTINATIONS__DATABRICKS__CREDENTIALS__CLIENT_ID"]=os.environ.get("CLIENT_ID")
+os.environ["DESTINATIONS__DATABRICKS__CREDENTIALS__CLIENT_SECRET"]=os.environ.get("CLIENT_SECRET")
+```
+</TabItem>
+</Tabs>
+
+### Using access token
+
+To create your access token:
+
+1. Click your email in the top right corner and go to "User Settings". Go to "Developer" -> "Access Tokens".
+Generate a new token and save it.
+2. Set up credentials in a desired way:
+
+<Tabs
+  groupId="config-provider-type"
+  defaultValue="toml"
+  values={[
+    {"label": "TOML config provider", "value": "toml"},
+    {"label": "Environment variables", "value": "env"},
+    {"label": "In the code", "value": "code"},
+]}>
+
+  <TabItem value="toml">
+
+```toml
+# secrets.toml
+[destination.databricks.credentials]
+server_hostname = "MY_DATABRICKS.azuredatabricks.net"
+http_path = "/sql/1.0/warehouses/12345"
+catalog = "my_catalog"
+access_token = "XXX"
+```
+  </TabItem>
+
+<TabItem value="env">
+
+```sh
+export DESTINATIONS__DATABRICKS__CREDENTIALS__SERVER_HOSTNAME="MY_DATABRICKS.azuredatabricks.net"
+export DESTINATIONS__DATABRICKS__CREDENTIALS__HTTP_PATH="/sql/1.0/warehouses/12345"
+export DESTINATIONS__DATABRICKS__CREDENTIALS__CATALOG="my_catalog"
+export DESTINATIONS__DATABRICKS__CREDENTIALS__ACCESS_TOKEN="XXX"
+```
+  </TabItem>
+
+<TabItem value="code">
+
+```py
+import os
+
+# Do not set up the secrets directly in the code!
+# What you can do is reassign env variables.
+os.environ["DESTINATIONS__DATABRICKS__CREDENTIALS__SERVER_HOSTNAME"] = "MY_DATABRICKS.azuredatabricks.net"
+os.environ["DESTINATIONS__DATABRICKS__CREDENTIALS__HTTP_PATH"]="/sql/1.0/warehouses/12345"
+os.environ["DESTINATIONS__DATABRICKS__CREDENTIALS__CATALOG"]="my_catalog"
+os.environ["DESTINATIONS__DATABRICKS__CREDENTIALS__ACCESS_TOKEN"]=os.environ.get("ACCESS_TOKEN")
+```
+</TabItem>
+</Tabs>
 
 ## Loader setup guide
 
@@ -129,9 +219,9 @@ pip install -r requirements.txt
 
 This will install dlt with the `databricks` extra, which contains the Databricks Python dbapi client.
 
-**4. Enter your credentials into `.dlt/secrets.toml`.**
+**3. Enter your credentials into `.dlt/secrets.toml`.**
 
-This should include your connection parameters and your personal access token.
+This should include your connection parameters and your authentication credentials.
 
 You can find your server hostname and HTTP path in the Databricks workspace dashboard. Go to "SQL Warehouses", select your warehouse (default is called "Starter Warehouse"), and go to "Connection details".
 
@@ -141,11 +231,14 @@ Example:
 [destination.databricks.credentials]
 server_hostname = "MY_DATABRICKS.azuredatabricks.net"
 http_path = "/sql/1.0/warehouses/12345"
-access_token = "MY_ACCESS_TOKEN" # Replace for client_id and client_secret when using OAuth
+client_id = "XXX"
+client_secret = "XXX"
 catalog = "my_catalog"
 ```
 
-See [staging support](#staging-support) for authentication options when `dlt` copies files from buckets.
+You can find other options for specifying credentials in the [Authentication section](#authentication).
+
+See [Staging support](#staging-support) for authentication options when `dlt` copies files from buckets.
 
 ## Write disposition
 All write dispositions are supported.
@@ -155,8 +248,7 @@ To load data into Databricks, you must set up a staging filesystem by configurin
 
 dlt will upload the data in Parquet files (or JSONL, if configured) to the bucket and then use `COPY INTO` statements to ingest the data into Databricks.
 
-For more information on staging, see the [staging support](#staging-support) section below.
-
+For more information on staging, see the [Staging support](#staging-support) section below.
 
 ## Supported file formats
 * [Parquet](../file-formats/parquet.md) supported when staging is enabled.
@@ -164,13 +256,13 @@ For more information on staging, see the [staging support](#staging-support) sec
 
 The JSONL format has some limitations when used with Databricks:
 
-1. Compression must be disabled to load jsonl files in Databricks. Set `data_writer.disable_compression` to `true` in the dlt config when using this format.
+1. Compression must be disabled to load JSONL files in Databricks. Set `data_writer.disable_compression` to `true` in the dlt config when using this format.
 2. The following data types are not supported when using the JSONL format with `databricks`: `decimal`, `json`, `date`, `binary`. Use `parquet` if your data contains these types.
 3. The `bigint` data type with precision is not supported with the JSONL format.
 
 ## Staging support
 
-Databricks supports both Amazon S3, Azure Blob Storage and Google Cloud Storage as staging locations. `dlt` will upload files in Parquet format to the staging location and will instruct Databricks to load data from there.
+Databricks supports both Amazon S3, Azure Blob Storage, and Google Cloud Storage as staging locations. `dlt` will upload files in Parquet format to the staging location and will instruct Databricks to load data from there.
 
 ### Databricks and Amazon S3
 
@@ -178,19 +270,50 @@ Please refer to the [S3 documentation](./filesystem.md#aws-s3) for details on co
 
 Example to set up Databricks with S3 as a staging destination:
 
-```py
-import dlt
+<Tabs
+  groupId="config-provider-type"
+  defaultValue="toml"
+  values={[
+    {"label": "TOML config provider", "value": "toml"},
+    {"label": "Environment variables", "value": "env"},
+    {"label": "In the code", "value": "code"},
+]}>
 
-# Create a dlt pipeline that will load
-# chess player data to the Databricks destination
-# via staging on S3
-pipeline = dlt.pipeline(
-    pipeline_name='chess_pipeline',
-    destination='databricks',
-    staging=dlt.destinations.filesystem('s3://your-bucket-name'), # add this to activate the staging location
-    dataset_name='player_data',
-)
+  <TabItem value="toml">
+
+```toml
+# secrets.toml
+[destination.filesystem]
+bucket_url = "s3://your-bucket-name"
+
+[destination.filesystem.credentials]
+aws_access_key_id="XXX"
+aws_secret_access_key="XXX"
 ```
+  </TabItem>
+
+<TabItem value="env">
+
+```sh
+export DESTINATIONS__FILESYSTEM__BUCKET_URL="s3://your-bucket-name"
+export DESTINATIONS__FILESYSTEM__CREDENTIALS__AWS_ACCESS_KEY_ID="XXX"
+export DESTINATIONS__FILESYSTEM__CREDENTIALS__AWS_SECRET_ACCESS_KEY="XXX"
+```
+  </TabItem>
+
+<TabItem value="code">
+
+```py
+import os
+
+# Do not set up the secrets directly in the code!
+# What you can do is reassign env variables.
+os.environ["DESTINATIONS__FILESYSTEM__BUCKET_URL"] = "s3://your-bucket-name"
+os.environ["DESTINATIONS__FILESYSTEM__CREDENTIALS__AWS_ACCESS_KEY_ID"] = os.environ.get("AWS_ACCESS_KEY_ID")
+os.environ["DESTINATIONS__FILESYSTEM__CREDENTIALS__AWS_SECRET_ACCESS_KEY"] = os.environ.get("AWS_SECRET_ACCESS_KEY")
+```
+</TabItem>
+</Tabs>
 
 ### Databricks and Azure Blob Storage
 
@@ -209,22 +332,54 @@ dlt is able to adapt the other representation (i.e., `az://container-name/path`)
 
 Example to set up Databricks with Azure as a staging destination:
 
-```py
-# Create a dlt pipeline that will load
-# chess player data to the Databricks destination
-# via staging on Azure Blob Storage
-pipeline = dlt.pipeline(
-    pipeline_name='chess_pipeline',
-    destination='databricks',
-    staging=dlt.destinations.filesystem('abfss://dlt-ci-data@dltdata.dfs.core.windows.net'), # add this to activate the staging location
-    dataset_name='player_data'
-)
+<Tabs
+  groupId="config-provider-type"
+  defaultValue="toml"
+  values={[
+    {"label": "TOML config provider", "value": "toml"},
+    {"label": "Environment variables", "value": "env"},
+    {"label": "In the code", "value": "code"},
+]}>
+
+  <TabItem value="toml">
+
+```toml
+# secrets.toml
+[destination.filesystem]
+bucket_url = "abfss://container_name@storage_account_name.dfs.core.windows.net/path"
+
+[destination.filesystem.credentials]
+azure_storage_account_name="XXX"
+azure_storage_account_key="XXX"
 ```
+  </TabItem>
+
+<TabItem value="env">
+
+```sh
+export DESTINATIONS__FILESYSTEM__BUCKET_URL="abfss://container_name@storage_account_name.dfs.core.windows.net/path"
+export DESTINATIONS__FILESYSTEM__CREDENTIALS__AZURE_STORAGE_ACCOUNT_NAME="XXX"
+export DESTINATIONS__FILESYSTEM__CREDENTIALS__AZURE_STORAGE_ACCOUNT_KEY="XXX"
+```
+  </TabItem>
+
+<TabItem value="code">
+
+```py
+import os
+
+# Do not set up the secrets directly in the code!
+# What you can do is reassign env variables.
+os.environ["DESTINATIONS__FILESYSTEM__BUCKET_URL"] = "abfss://container_name@storage_account_name.dfs.core.windows.net/path"
+os.environ["DESTINATIONS__FILESYSTEM__CREDENTIALS__AZURE_STORAGE_ACCOUNT_NAME"] = os.environ.get("AZURE_STORAGE_ACCOUNT_NAME")
+os.environ["DESTINATIONS__FILESYSTEM__CREDENTIALS__AZURE_STORAGE_ACCOUNT_KEY"] = os.environ.get("AZURE_STORAGE_ACCOUNT_KEY")
+```
+</TabItem>
+</Tabs>
 
 ### Databricks and Google Cloud Storage
 
-In order to load from Google Cloud Storage stage you must set-up the credentials via **named credential**. See below. Databricks does not allow to pass Google Credentials
-explicitly in SQL Statements.
+In order to load from Google Cloud Storage stage, you must set up the credentials via a **named credential**. See below. Databricks does not allow you to pass Google Credentials explicitly in SQL statements.
 
 ### Use external locations and stored credentials
 `dlt` forwards bucket credentials to the `COPY INTO` SQL command by default. You may prefer to use [external locations or stored credentials instead](https://docs.databricks.com/en/sql/language-manual/sql-ref-external-locations.html#external-location) that are stored on the Databricks side.
@@ -235,7 +390,7 @@ If you set up an external location for your staging path, you can tell `dlt` to 
 is_staging_external_location=true
 ```
 
-If you set up Databricks credentials named, for example, **credential_x**, you can tell `dlt` to use it:
+If you set up Databricks credentials named, for example, **credential_x**, you can tell `dlt` to use them:
 ```toml
 [destination.databricks]
 staging_credentials_name="credential_x"
@@ -256,8 +411,8 @@ This destination [integrates with dbt](../transformations/dbt/dbt.md) via [dbt-d
 ### Syncing of `dlt` state
 This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination).
 
-### Databricks User Agent
-We enable Databricks to identify that the connection is created by dlt.
+### Databricks user agent
+We enable Databricks to identify that the connection is created by `dlt`.
 Databricks will use this user agent identifier to better understand the usage patterns associated with dlt integration. The connection identifier is `dltHub_dlt`.
 
 <!--@@@DLT_TUBA databricks-->
