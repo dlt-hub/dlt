@@ -153,6 +153,7 @@ class RedshiftClient(InsertValuesJobClient, SupportsStagingDestination):
             capabilities,
         )
         super().__init__(schema, config, sql_client)
+        self.active_hints = HINT_TO_REDSHIFT_ATTR
         self.sql_client = sql_client
         self.config: RedshiftClientConfiguration = config
         self.type_mapper = self.capabilities.get_type_mapper()
@@ -161,17 +162,6 @@ class RedshiftClient(InsertValuesJobClient, SupportsStagingDestination):
         self, table_chain: Sequence[PreparedTableSchema]
     ) -> List[FollowupJobRequest]:
         return [RedshiftMergeJob.from_table_chain(table_chain, self.sql_client)]
-
-    def _get_column_def_sql(self, c: TColumnSchema, table: PreparedTableSchema = None) -> str:
-        hints_str = " ".join(
-            HINT_TO_REDSHIFT_ATTR.get(h, "")
-            for h in HINT_TO_REDSHIFT_ATTR.keys()
-            if c.get(h, False) is True
-        )
-        column_name = self.sql_client.escape_column_name(c["name"])
-        return (
-            f"{column_name} {self.type_mapper.to_destination_type(c,table)} {hints_str} {self._gen_not_null(c.get('nullable', True))}"
-        )
 
     def create_load_job(
         self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False

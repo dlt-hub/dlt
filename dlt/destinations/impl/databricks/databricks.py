@@ -264,12 +264,6 @@ class DatabricksClient(InsertValuesJobClient, SupportsStagingDestination):
     ) -> TColumnType:
         return self.type_mapper.from_destination_type(bq_t, precision, scale)
 
-    def _get_column_def_sql(self, c: TColumnSchema, table: PreparedTableSchema = None) -> str:
-        name = self.sql_client.escape_column_name(c["name"])
-        return (
-            f"{name} {self.type_mapper.to_destination_type(c,table)} {self._gen_not_null(c.get('nullable', True))}"
-        )
-
     def _get_storage_table_query_columns(self) -> List[str]:
         fields = super()._get_storage_table_query_columns()
         fields[2] = (  # Override because this is the only way to get data type with precision

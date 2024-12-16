@@ -161,18 +161,6 @@ class PostgresClient(InsertValuesJobClient):
             job = PostgresCsvCopyJob(file_path)
         return job
 
-    def _get_column_def_sql(self, c: TColumnSchema, table: PreparedTableSchema = None) -> str:
-        hints_ = " ".join(
-            self.active_hints.get(h, "")
-            for h in self.active_hints.keys()
-            if c.get(h, False) is True
-        )
-        column_name = self.sql_client.escape_column_name(c["name"])
-        nullability = self._gen_not_null(c.get("nullable", True))
-        column_type = self.type_mapper.to_destination_type(c, table)
-
-        return f"{column_name} {column_type} {hints_} {nullability}"
-
     def _create_replace_followup_jobs(
         self, table_chain: Sequence[PreparedTableSchema]
     ) -> List[FollowupJobRequest]:
