@@ -713,7 +713,7 @@ adapter = HTTPAdapter(
     # But we're making a lot of requests and want to reuse connections
     pool_maxsize=100,
 )
-session.mount(api_base, adapter)
+session.mount(base_url, adapter)
 
 client = RESTClient(
     base_url=base_url,
