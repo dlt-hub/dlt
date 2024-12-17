@@ -8,7 +8,7 @@ keywords: [architecture, extract, normalize, load]
 
 In a nutshell, `dlt` automatically turns data from a number of available [sources](../../general-usage/source) (e.g., an API, a PostgreSQL database, or Python data structures) into a live dataset stored in a [destination](../../general-usage/destination) of your choice (e.g., Google BigQuery, a Deltalake on Azure, or by pushing the data back via reverse ETL). You can easily implement your own sources, as long as you yield data in a way that is compatible with `dlt`, such as JSON objects, Python lists and dictionaries, pandas dataframes, and arrow tables. `dlt` will be able to automatically compute the schema and move the data to your destination.
 
-![architecture-diagram](/img/dlt-onepager.svg)
+![architecture-diagram](/img/dlt-onepager.png)
 
 ## A concrete example
 
