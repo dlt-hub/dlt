@@ -5,8 +5,9 @@ import random
 from datetime import datetime, date  # noqa: I251
 from itertools import chain, count
 from time import sleep
-from typing import Any, Optional, Literal, Sequence, Dict
+from typing import Any, Optional, Literal, Sequence, Dict, Iterable
 from unittest import mock
+import itertools
 
 import duckdb
 import pyarrow as pa
@@ -35,7 +36,7 @@ from dlt.extract.incremental.exceptions import (
     IncrementalPrimaryKeyMissing,
 )
 from dlt.extract.incremental.lag import apply_lag
-from dlt.extract.items import ValidateItem
+from dlt.extract.items_transform import ValidateItem
 from dlt.extract.resource import DltResource
 from dlt.pipeline.exceptions import PipelineStepFailed
 from dlt.sources.helpers.transform import take_first
@@ -228,7 +229,7 @@ def test_pandas_index_as_dedup_key() -> None:
     no_index_r = some_data.with_name(new_name="no_index")
     p.run(no_index_r)
     p.run(no_index_r)
-    data_ = p._dataset().no_index.arrow()
+    data_ = p.dataset().no_index.arrow()
     assert data_.schema.names == ["created_at", "id"]
     assert data_["id"].to_pylist() == ["a", "b", "c", "d", "e", "f", "g"]
 
@@ -240,7 +241,7 @@ def test_pandas_index_as_dedup_key() -> None:
     unnamed_index_r.incremental.primary_key = "__index_level_0__"
     p.run(unnamed_index_r)
     p.run(unnamed_index_r)
-    data_ = p._dataset().unnamed_index.arrow()
+    data_ = p.dataset().unnamed_index.arrow()
     assert data_.schema.names == ["created_at", "id", "index_level_0"]
     # indexes 2 and 3 are removed from second batch because they were in the previous batch
     # and the created_at overlapped so they got deduplicated
@@ -258,7 +259,7 @@ def test_pandas_index_as_dedup_key() -> None:
     named_index_r.incremental.primary_key = "order_id"
     p.run(named_index_r)
     p.run(named_index_r)
-    data_ = p._dataset().named_index.arrow()
+    data_ = p.dataset().named_index.arrow()
     assert data_.schema.names == ["created_at", "id", "order_id"]
     assert data_["order_id"].to_pylist() == [0, 1, 2, 3, 4, 0, 1, 4]
 
@@ -268,7 +269,7 @@ def test_pandas_index_as_dedup_key() -> None:
     )
     p.run(named_index_impl_r)
     p.run(named_index_impl_r)
-    data_ = p._dataset().named_index_impl.arrow()
+    data_ = p.dataset().named_index_impl.arrow()
     assert data_.schema.names == ["created_at", "id"]
     assert data_["id"].to_pylist() == ["a", "b", "c", "d", "e", "f", "g"]
 
@@ -1522,6 +1523,7 @@ def test_incremental_explicit_disable_unique_check(item_type: TestDataItemFormat
 
 @pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
 def test_apply_hints_incremental(item_type: TestDataItemFormat) -> None:
+    os.environ["COMPLETED_PROB"] = "1.0"  # make it complete immediately
     p = dlt.pipeline(pipeline_name=uniq_id(), destination="dummy")
     data = [{"created_at": 1}, {"created_at": 2}, {"created_at": 3}]
     source_items = data_to_item_format(item_type, data)
@@ -3851,3 +3853,166 @@ def test_incremental_column_hint_cursor_is_not_column(use_dict: bool):
 
     for col in table_schema["columns"].values():
         assert "incremental" not in col
+
+
+@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
+@pytest.mark.parametrize("last_value_func", [min, max])
+def test_start_range_open(item_type: TestDataItemFormat, last_value_func: Any) -> None:
+    data_range: Iterable[int] = range(1, 12)
+    if last_value_func == max:
+        initial_value = 5
+        # Only items higher than inital extracted
+        expected_items = list(range(6, 12))
+        order_dir = "ASC"
+    elif last_value_func == min:
+        data_range = reversed(data_range)  # type: ignore[call-overload]
+        initial_value = 5
+        # Only items lower than inital extracted
+        expected_items = list(reversed(range(1, 5)))
+        order_dir = "DESC"
+
+    @dlt.resource
+    def some_data(
+        updated_at: dlt.sources.incremental[int] = dlt.sources.incremental(
+            "updated_at",
+            initial_value=initial_value,
+            range_start="open",
+            last_value_func=last_value_func,
+        ),
+    ) -> Any:
+        data = [{"updated_at": i} for i in data_range]
+        yield data_to_item_format(item_type, data)
+
+    pipeline = dlt.pipeline(pipeline_name=uniq_id(), destination="duckdb")
+    pipeline.run(some_data())
+
+    with pipeline.sql_client() as client:
+        items = [
+            row[0]
+            for row in client.execute_sql(
+                f"SELECT updated_at FROM some_data ORDER BY updated_at {order_dir}"
+            )
+        ]
+
+    assert items == expected_items
+
+
+@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
+def test_start_range_open_no_deduplication(item_type: TestDataItemFormat) -> None:
+    @dlt.source
+    def dummy():
+        @dlt.resource
+        def some_data(
+            updated_at: dlt.sources.incremental[int] = dlt.sources.incremental(
+                "updated_at",
+                range_start="open",
+            )
+        ):
+            yield [{"updated_at": i} for i in range(3)]
+
+        yield some_data
+
+    pipeline = dlt.pipeline(pipeline_name=uniq_id())
+    pipeline.extract(dummy())
+
+    state = pipeline.state["sources"]["dummy"]["resources"]["some_data"]["incremental"][
+        "updated_at"
+    ]
+
+    # No unique values should be computed
+    assert state["unique_hashes"] == []
+
+
+@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
+@pytest.mark.parametrize("last_value_func", [min, max])
+def test_end_range_closed(item_type: TestDataItemFormat, last_value_func: Any) -> None:
+    values = [5, 10]
+    expected_items = list(range(5, 11))
+    if last_value_func == max:
+        order_dir = "ASC"
+    elif last_value_func == min:
+        values = list(reversed(values))
+        expected_items = list(reversed(expected_items))
+        order_dir = "DESC"
+
+    @dlt.resource
+    def some_data(
+        updated_at: dlt.sources.incremental[int] = dlt.sources.incremental(
+            "updated_at",
+            initial_value=values[0],
+            end_value=values[1],
+            range_end="closed",
+            last_value_func=last_value_func,
+        ),
+    ) -> Any:
+        data = [{"updated_at": i} for i in range(1, 12)]
+        yield data_to_item_format(item_type, data)
+
+    pipeline = dlt.pipeline(pipeline_name=uniq_id(), destination="duckdb")
+    pipeline.run(some_data())
+
+    with pipeline.sql_client() as client:
+        items = [
+            row[0]
+            for row in client.execute_sql(
+                f"SELECT updated_at FROM some_data ORDER BY updated_at {order_dir}"
+            )
+        ]
+
+    # Includes values 5-10 inclusive
+    assert items == expected_items
+
+
+@pytest.mark.parametrize("offset_by_last_value", [True, False])
+def test_incremental_and_limit(offset_by_last_value: bool):
+    resource_called = 0
+
+    # here we check incremental and limit when incremental once when last value cannot be used
+    # to offset the source, and once when it can.
+
+    @dlt.resource(
+        table_name="items",
+    )
+    def resource(
+        incremental=dlt.sources.incremental(cursor_path="id", initial_value=-1, row_order="asc")
+    ):
+        range_iterator = (
+            range(incremental.start_value + 1, 1000) if offset_by_last_value else range(1000)
+        )
+        for i in range_iterator:
+            nonlocal resource_called
+            resource_called += 1
+            yield {
+                "id": i,
+                "value": str(i),
+            }
+
+    resource.add_limit(10)
+
+    p = dlt.pipeline(pipeline_name="incremental_limit", destination="duckdb", dev_mode=True)
+
+    p.run(resource())
+
+    # check we have the right number of items
+    assert len(p.dataset().items.df()) == 10
+    assert resource_called == 10
+    # check that we have items 0-9
+    assert p.dataset().items.df().id.tolist() == list(range(10))
+
+    # run the next ten
+    p.run(resource())
+
+    # check we have the right number of items
+    assert len(p.dataset().items.df()) == 20
+    assert resource_called == 20 if offset_by_last_value else 30
+    # check that we have items 0-19
+    assert p.dataset().items.df().id.tolist() == list(range(20))
+
+    # run the next batch
+    p.run(resource())
+
+    # check we have the right number of items
+    assert len(p.dataset().items.df()) == 30
+    assert resource_called == 30 if offset_by_last_value else 60
+    # check that we have items 0-29
+    assert p.dataset().items.df().id.tolist() == list(range(30))

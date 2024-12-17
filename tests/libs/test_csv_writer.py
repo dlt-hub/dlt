@@ -178,7 +178,7 @@ def test_non_utf8_binary(item_type: TestDataItemFormat) -> None:
             table = pq.read_table(f)
     else:
         table = data
-    writer_type: Type[DataWriter] = ArrowToCsvWriter if item_type == "arrow-table" else CsvWriter  # type: ignore
+    writer_type: Type[DataWriter] = ArrowToCsvWriter if item_type == "arrow-table" else CsvWriter
 
     with pytest.raises(InvalidDataItem) as inv_ex:
         with get_writer(writer_type, disable_compression=True) as writer:
@@ -195,7 +195,7 @@ def test_arrow_struct() -> None:
 
 @pytest.mark.parametrize("item_type", ["object", "arrow-table"])
 def test_csv_writer_empty(item_type: TestDataItemFormat) -> None:
-    writer_type: Type[DataWriter] = ArrowToCsvWriter if item_type == "arrow-table" else CsvWriter  # type: ignore
+    writer_type: Type[DataWriter] = ArrowToCsvWriter if item_type == "arrow-table" else CsvWriter
     with get_writer(writer_type, disable_compression=True) as writer:
         writer.write_empty_file(TABLE_UPDATE_COLUMNS_SCHEMA)
 

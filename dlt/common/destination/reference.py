@@ -67,7 +67,7 @@ from dlt.common.typing import is_optional_type
 TDestinationConfig = TypeVar("TDestinationConfig", bound="DestinationClientConfiguration")
 TDestinationClient = TypeVar("TDestinationClient", bound="JobClientBase")
 TDestinationDwhClient = TypeVar("TDestinationDwhClient", bound="DestinationClientDwhConfiguration")
-TDatasetType = Literal["dbapi", "ibis"]
+TDatasetType = Literal["auto", "default", "ibis"]
 
 
 DEFAULT_FILE_LAYOUT = "{table_name}/{load_id}.{file_id}.{ext}"
@@ -76,7 +76,7 @@ if TYPE_CHECKING:
     try:
         from dlt.common.libs.pandas import DataFrame
         from dlt.common.libs.pyarrow import Table as ArrowTable
-        from dlt.common.libs.ibis import BaseBackend as IbisBackend
+        from dlt.helpers.ibis import BaseBackend as IbisBackend
     except MissingDependencyException:
         DataFrame = Any
         ArrowTable = Any
@@ -535,7 +535,7 @@ class SupportsReadableRelation(Protocol):
         ...
 
     # modifying access parameters
-    def limit(self, limit: int) -> "SupportsReadableRelation":
+    def limit(self, limit: int, **kwargs: Any) -> "SupportsReadableRelation":
         """limit the result to 'limit' items"""
         ...
 
@@ -555,6 +555,10 @@ class SupportsReadableRelation(Protocol):
 
     def __getitem__(self, columns: Union[str, Sequence[str]]) -> "SupportsReadableRelation":
         """set which columns will be selected"""
+        ...
+
+    def __getattr__(self, attr: str) -> Any:
+        """get an attribute of the relation"""
         ...
 
     def __copy__(self) -> "SupportsReadableRelation":
@@ -587,6 +591,10 @@ class SupportsReadableDataset(Protocol):
     def __getattr__(self, table: str) -> SupportsReadableRelation: ...
 
     def ibis(self) -> IbisBackend: ...
+
+    def row_counts(
+        self, *, data_tables: bool = True, dlt_tables: bool = False, table_names: List[str] = None
+    ) -> SupportsReadableRelation: ...
 
 
 class JobClientBase(ABC):

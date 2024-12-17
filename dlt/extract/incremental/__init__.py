@@ -42,8 +42,10 @@ from dlt.common.incremental.typing import (
     LastValueFunc,
     OnCursorValueMissing,
     IncrementalArgs,
+    TIncrementalRange,
 )
-from dlt.extract.items import SupportsPipe, TTableHintTemplate, ItemTransform
+from dlt.extract.items import SupportsPipe, TTableHintTemplate
+from dlt.extract.items_transform import ItemTransform
 from dlt.extract.incremental.transform import (
     JsonIncremental,
     ArrowIncremental,
@@ -104,6 +106,11 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
             Note that if logical "end date" is present then also "end_value" will be set which means that resource state is not used and exactly this range of date will be loaded
         on_cursor_value_missing: Specify what happens when the cursor_path does not exist in a record or a record has `None` at the cursor_path: raise, include, exclude
         lag: Optional value used to define a lag or attribution window. For datetime cursors, this is interpreted as seconds. For other types, it uses the + or - operator depending on the last_value_func.
+        range_start: Decide whether the incremental filtering range is `open` or `closed` on the start value side. Default is `closed`.
+            Setting this to `open` means that items with the same cursor value as the last value from the previous run (or `initial_value`) are excluded from the result.
+            The `open` range disables deduplication logic so it can serve as an optimization when you know cursors don't overlap between pipeline runs.
+        range_end: Decide whether the incremental filtering range is `open` or `closed` on the end value side. Default is `open` (exact `end_value` is excluded).
+            Setting this to `closed` means that items with the exact same cursor value as the `end_value` are included in the result.
     """
 
     # this is config/dataclass so declare members
@@ -116,6 +123,8 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
     on_cursor_value_missing: OnCursorValueMissing = "raise"
     lag: Optional[float] = None
     duplicate_cursor_warning_threshold: ClassVar[int] = 200
+    range_start: TIncrementalRange = "closed"
+    range_end: TIncrementalRange = "open"
 
     # incremental acting as empty
     EMPTY: ClassVar["Incremental[Any]"] = None
@@ -132,6 +141,8 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         allow_external_schedulers: bool = False,
         on_cursor_value_missing: OnCursorValueMissing = "raise",
         lag: Optional[float] = None,
+        range_start: TIncrementalRange = "closed",
+        range_end: TIncrementalRange = "open",
     ) -> None:
         # make sure that path is valid
         if cursor_path:
@@ -174,9 +185,11 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         self.start_out_of_range: bool = False
         """Becomes true on the first item that is out of range of `start_value`. I.e. when using `max` this is a value that is lower than `start_value`"""
 
-        self._transformers: Dict[str, IncrementalTransform] = {}
+        self._transformers: Dict[Type[IncrementalTransform], IncrementalTransform] = {}
         self._bound_pipe: SupportsPipe = None
         """Bound pipe"""
+        self.range_start = range_start
+        self.range_end = range_end
 
     @property
     def primary_key(self) -> Optional[TTableHintTemplate[TColumnNames]]:
@@ -189,22 +202,6 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         if self._transformers:
             for transform in self._transformers.values():
                 transform.primary_key = value
-
-    def _make_transforms(self) -> None:
-        types = [("arrow", ArrowIncremental), ("json", JsonIncremental)]
-        for dt, kls in types:
-            self._transformers[dt] = kls(
-                self.resource_name,
-                self.cursor_path,
-                self.initial_value,
-                self.start_value,
-                self.end_value,
-                self.last_value_func,
-                self._primary_key,
-                set(self._cached_state["unique_hashes"]),
-                self.on_cursor_value_missing,
-                self.lag,
-            )
 
     @classmethod
     def from_existing_state(
@@ -489,7 +486,8 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         )
         # cache state
         self._cached_state = self.get_state()
-        self._make_transforms()
+        # Clear transforms so we get new instances
+        self._transformers.clear()
         return self
 
     def can_close(self) -> bool:
@@ -520,15 +518,34 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
             f" {self.last_value_func}"
         )
 
+    def _make_or_get_transformer(self, cls: Type[IncrementalTransform]) -> IncrementalTransform:
+        if transformer := self._transformers.get(cls):
+            return transformer
+        transformer = self._transformers[cls] = cls(
+            self.resource_name,
+            self.cursor_path,
+            self.initial_value,
+            self.start_value,
+            self.end_value,
+            self.last_value_func,
+            self._primary_key,
+            set(self._cached_state["unique_hashes"]),
+            self.on_cursor_value_missing,
+            self.lag,
+            self.range_start,
+            self.range_end,
+        )
+        return transformer
+
     def _get_transformer(self, items: TDataItems) -> IncrementalTransform:
         # Assume list is all of the same type
         for item in items if isinstance(items, list) else [items]:
             if is_arrow_item(item):
-                return self._transformers["arrow"]
+                return self._make_or_get_transformer(ArrowIncremental)
             elif pandas is not None and isinstance(item, pandas.DataFrame):
-                return self._transformers["arrow"]
-            return self._transformers["json"]
-        return self._transformers["json"]
+                return self._make_or_get_transformer(ArrowIncremental)
+            return self._make_or_get_transformer(JsonIncremental)
+        return self._make_or_get_transformer(JsonIncremental)
 
     def __call__(self, rows: TDataItems, meta: Any = None) -> Optional[TDataItems]:
         if rows is None:

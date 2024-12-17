@@ -9,7 +9,7 @@ class DataWriterMetrics(NamedTuple):
     created: float
     last_modified: float
 
-    def __add__(self, other: Tuple[object, ...], /) -> Tuple[object, ...]:
+    def __add__(self, other: Tuple[object, ...], /) -> Tuple[object, ...]:  # type: ignore[override]
         if isinstance(other, DataWriterMetrics):
             return DataWriterMetrics(
                 self.file_path if self.file_path == other.file_path else "",

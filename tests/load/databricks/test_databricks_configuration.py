@@ -4,6 +4,7 @@ import os
 pytest.importorskip("databricks")
 
 from dlt.common.exceptions import TerminalValueError
+from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.destinations.impl.databricks.databricks import DatabricksLoadJob
 from dlt.common.configuration import resolve_configuration
 
@@ -86,3 +87,12 @@ def test_databricks_abfss_converter() -> None:
         abfss_url
         == "abfss://dlt-ci-test-bucket@my_account.dfs.core.windows.net/path/to/file.parquet"
     )
+
+
+def test_databricks_auth_invalid() -> None:
+    with pytest.raises(ConfigurationValueError, match="No valid authentication method detected.*"):
+        os.environ["DESTINATION__DATABRICKS__CREDENTIALS__CLIENT_ID"] = ""
+        os.environ["DESTINATION__DATABRICKS__CREDENTIALS__CLIENT_SECRET"] = ""
+        os.environ["DESTINATION__DATABRICKS__CREDENTIALS__ACCESS_TOKEN"] = ""
+        bricks = databricks()
+        bricks.configuration(None, accept_partial=True)

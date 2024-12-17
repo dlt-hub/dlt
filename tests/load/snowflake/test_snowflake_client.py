@@ -1,14 +1,17 @@
+from copy import deepcopy
 import os
 from typing import Iterator
 from pytest_mock import MockerFixture
 import pytest
 
-from dlt.destinations.impl.snowflake.snowflake import SnowflakeClient
+from dlt.common.schema.schema import Schema
+from dlt.destinations.impl.snowflake.snowflake import SUPPORTED_HINTS, SnowflakeClient
 from dlt.destinations.job_client_impl import SqlJobClientBase
 
 from dlt.destinations.sql_client import TJobQueryTags
 
-from tests.load.utils import yield_client_with_storage
+from tests.cases import TABLE_UPDATE
+from tests.load.utils import yield_client_with_storage, empty_schema
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential
@@ -30,6 +33,39 @@ QUERY_TAGS_DICT: TJobQueryTags = {
 def client() -> Iterator[SqlJobClientBase]:
     os.environ["QUERY_TAG"] = QUERY_TAG
     yield from yield_client_with_storage("snowflake")
+
+
+def test_create_table_with_hints(client: SnowflakeClient, empty_schema: Schema) -> None:
+    mod_update = deepcopy(TABLE_UPDATE[:11])
+    # mock hints
+    client.config.create_indexes = True
+    client.active_hints = SUPPORTED_HINTS
+    client.schema = empty_schema
+
+    mod_update[0]["primary_key"] = True
+    mod_update[5]["primary_key"] = True
+
+    mod_update[0]["sort"] = True
+    mod_update[4]["parent_key"] = True
+
+    # unique constraints are always single columns
+    mod_update[1]["unique"] = True
+    mod_update[7]["unique"] = True
+
+    sql = ";".join(client._get_table_update_sql("event_test_table", mod_update, False))
+
+    print(sql)
+    client.sql_client.execute_sql(sql)
+
+    # generate alter table
+    mod_update = deepcopy(TABLE_UPDATE[11:])
+    mod_update[0]["primary_key"] = True
+    mod_update[1]["unique"] = True
+
+    sql = ";".join(client._get_table_update_sql("event_test_table", mod_update, True))
+
+    print(sql)
+    client.sql_client.execute_sql(sql)
 
 
 def test_query_tag(client: SnowflakeClient, mocker: MockerFixture):

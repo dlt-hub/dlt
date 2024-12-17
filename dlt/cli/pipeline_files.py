@@ -226,11 +226,31 @@ def get_template_configuration(
     )
 
 
+def _get_source_files(sources_storage: FileStorage, source_name: str) -> List[str]:
+    """Get all files that belong to source `source_name`"""
+    files: List[str] = []
+    for root, subdirs, _files in os.walk(sources_storage.make_full_path(source_name)):
+        # filter unwanted files
+        for subdir in list(subdirs):
+            if any(fnmatch.fnmatch(subdir, ignore) for ignore in IGNORE_FILES):
+                subdirs.remove(subdir)
+        rel_root = sources_storage.to_relative_path(root)
+        files.extend(
+            [
+                os.path.join(rel_root, file)
+                for file in _files
+                if all(not fnmatch.fnmatch(file, ignore) for ignore in IGNORE_FILES)
+            ]
+        )
+    return files
+
+
 def get_core_source_configuration(
-    sources_storage: FileStorage, source_name: str
+    sources_storage: FileStorage, source_name: str, eject_source: bool
 ) -> SourceConfiguration:
     src_pipeline_file = CORE_SOURCE_TEMPLATE_MODULE_NAME + "/" + source_name + PIPELINE_FILE_SUFFIX
     dest_pipeline_file = source_name + PIPELINE_FILE_SUFFIX
+    files: List[str] = _get_source_files(sources_storage, source_name) if eject_source else []
 
     return SourceConfiguration(
         "core",
@@ -238,7 +258,7 @@ def get_core_source_configuration(
         sources_storage,
         src_pipeline_file,
         dest_pipeline_file,
-        [".gitignore"],
+        files,
         SourceRequirements([]),
         _get_docstring_for_module(sources_storage, source_name),
         False,
@@ -259,21 +279,7 @@ def get_verified_source_configuration(
             f"Pipeline example script {example_script} could not be found in the repository",
             source_name,
         )
-    # get all files recursively
-    files: List[str] = []
-    for root, subdirs, _files in os.walk(sources_storage.make_full_path(source_name)):
-        # filter unwanted files
-        for subdir in list(subdirs):
-            if any(fnmatch.fnmatch(subdir, ignore) for ignore in IGNORE_FILES):
-                subdirs.remove(subdir)
-        rel_root = sources_storage.to_relative_path(root)
-        files.extend(
-            [
-                os.path.join(rel_root, file)
-                for file in _files
-                if all(not fnmatch.fnmatch(file, ignore) for ignore in IGNORE_FILES)
-            ]
-        )
+    files = _get_source_files(sources_storage, source_name)
     # read requirements
     requirements_path = os.path.join(source_name, utils.REQUIREMENTS_TXT)
     if sources_storage.has_file(requirements_path):

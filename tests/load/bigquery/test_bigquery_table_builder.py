@@ -107,25 +107,25 @@ def test_create_table(gcp_client: BigQueryClient) -> None:
     sqlfluff.parse(sql, dialect="bigquery")
     assert sql.startswith("CREATE TABLE")
     assert "event_test_table" in sql
-    assert "`col1` INT64 NOT NULL" in sql
-    assert "`col2` FLOAT64 NOT NULL" in sql
-    assert "`col3` BOOL NOT NULL" in sql
-    assert "`col4` TIMESTAMP NOT NULL" in sql
+    assert "`col1` INT64  NOT NULL" in sql
+    assert "`col2` FLOAT64  NOT NULL" in sql
+    assert "`col3` BOOL  NOT NULL" in sql
+    assert "`col4` TIMESTAMP  NOT NULL" in sql
     assert "`col5` STRING " in sql
-    assert "`col6` NUMERIC(38,9) NOT NULL" in sql
+    assert "`col6` NUMERIC(38,9)  NOT NULL" in sql
     assert "`col7` BYTES" in sql
     assert "`col8` BIGNUMERIC" in sql
-    assert "`col9` JSON NOT NULL" in sql
+    assert "`col9` JSON  NOT NULL" in sql
     assert "`col10` DATE" in sql
     assert "`col11` TIME" in sql
-    assert "`col1_precision` INT64 NOT NULL" in sql
-    assert "`col4_precision` TIMESTAMP NOT NULL" in sql
+    assert "`col1_precision` INT64  NOT NULL" in sql
+    assert "`col4_precision` TIMESTAMP  NOT NULL" in sql
     assert "`col5_precision` STRING(25) " in sql
-    assert "`col6_precision` NUMERIC(6,2) NOT NULL" in sql
+    assert "`col6_precision` NUMERIC(6,2)  NOT NULL" in sql
     assert "`col7_precision` BYTES(19)" in sql
-    assert "`col11_precision` TIME NOT NULL" in sql
-    assert "`col_high_p_decimal` BIGNUMERIC(76,0) NOT NULL" in sql
-    assert "`col_high_s_decimal` BIGNUMERIC(38,24) NOT NULL" in sql
+    assert "`col11_precision` TIME  NOT NULL" in sql
+    assert "`col_high_p_decimal` BIGNUMERIC(76,0)  NOT NULL" in sql
+    assert "`col_high_s_decimal` BIGNUMERIC(38,24)  NOT NULL" in sql
     assert "CLUSTER BY" not in sql
     assert "PARTITION BY" not in sql
 
@@ -137,29 +137,29 @@ def test_alter_table(gcp_client: BigQueryClient) -> None:
     assert sql.startswith("ALTER TABLE")
     assert sql.count("ALTER TABLE") == 1
     assert "event_test_table" in sql
-    assert "ADD COLUMN `col1` INT64 NOT NULL" in sql
-    assert "ADD COLUMN `col2` FLOAT64 NOT NULL" in sql
-    assert "ADD COLUMN `col3` BOOL NOT NULL" in sql
-    assert "ADD COLUMN `col4` TIMESTAMP NOT NULL" in sql
+    assert "ADD COLUMN `col1` INT64  NOT NULL" in sql
+    assert "ADD COLUMN `col2` FLOAT64  NOT NULL" in sql
+    assert "ADD COLUMN `col3` BOOL  NOT NULL" in sql
+    assert "ADD COLUMN `col4` TIMESTAMP  NOT NULL" in sql
     assert "ADD COLUMN `col5` STRING" in sql
-    assert "ADD COLUMN `col6` NUMERIC(38,9) NOT NULL" in sql
+    assert "ADD COLUMN `col6` NUMERIC(38,9)  NOT NULL" in sql
     assert "ADD COLUMN `col7` BYTES" in sql
     assert "ADD COLUMN `col8` BIGNUMERIC" in sql
-    assert "ADD COLUMN `col9` JSON NOT NULL" in sql
+    assert "ADD COLUMN `col9` JSON  NOT NULL" in sql
     assert "ADD COLUMN `col10` DATE" in sql
     assert "ADD COLUMN `col11` TIME" in sql
-    assert "ADD COLUMN `col1_precision` INT64 NOT NULL" in sql
-    assert "ADD COLUMN `col4_precision` TIMESTAMP NOT NULL" in sql
+    assert "ADD COLUMN `col1_precision` INT64  NOT NULL" in sql
+    assert "ADD COLUMN `col4_precision` TIMESTAMP  NOT NULL" in sql
     assert "ADD COLUMN `col5_precision` STRING(25)" in sql
-    assert "ADD COLUMN `col6_precision` NUMERIC(6,2) NOT NULL" in sql
+    assert "ADD COLUMN `col6_precision` NUMERIC(6,2)  NOT NULL" in sql
     assert "ADD COLUMN `col7_precision` BYTES(19)" in sql
-    assert "ADD COLUMN `col11_precision` TIME NOT NULL" in sql
+    assert "ADD COLUMN `col11_precision` TIME  NOT NULL" in sql
     # table has col1 already in storage
     mod_table = deepcopy(TABLE_UPDATE)
     mod_table.pop(0)
     sql = gcp_client._get_table_update_sql("event_test_table", mod_table, True)[0]
-    assert "ADD COLUMN `col1` INTEGER NOT NULL" not in sql
-    assert "ADD COLUMN `col2` FLOAT64 NOT NULL" in sql
+    assert "ADD COLUMN `col1` INTEGER  NOT NULL" not in sql
+    assert "ADD COLUMN `col2` FLOAT64  NOT NULL" in sql
 
 
 def test_create_table_case_insensitive(ci_gcp_client: BigQueryClient) -> None:

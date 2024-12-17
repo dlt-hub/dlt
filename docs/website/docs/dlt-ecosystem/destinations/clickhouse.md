@@ -229,8 +229,7 @@ To set up GCS staging with HMAC authentication in dlt:
 
 1. Create HMAC keys for your GCS service account by following the [Google Cloud guide](https://cloud.google.com/storage/docs/authentication/managing-hmackeys#create).
 
-2. Configure the HMAC keys (`aws_access_key_id` and `aws_secret_access_key`) in your dlt project's ClickHouse destination settings in `config.toml`, similar to how you would configure AWS S3
-   credentials:
+2. Configure the HMAC keys (`aws_access_key_id` and `aws_secret_access_key`) as well as `endpoint_url` in your dlt project's ClickHouse destination settings in `config.toml`, similar to how you would configure AWS S3 credentials:
 
 ```toml
 [destination.filesystem]

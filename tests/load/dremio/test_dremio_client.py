@@ -48,12 +48,12 @@ def test_dremio_factory() -> None:
             [
                 TColumnSchema(name="foo", data_type="text", partition=True),
                 TColumnSchema(name="bar", data_type="bigint", sort=True),
-                TColumnSchema(name="baz", data_type="double"),
+                TColumnSchema(name="baz", data_type="double", nullable=False),
             ],
             False,
             [
                 'CREATE TABLE "test_database"."test_dataset"."event_test_table"'
-                ' (\n"foo" VARCHAR ,\n"bar" BIGINT ,\n"baz" DOUBLE )\nPARTITION BY'
+                ' (\n"foo" VARCHAR  ,\n"bar" BIGINT  ,\n"baz" DOUBLE  NOT NULL)\nPARTITION BY'
                 ' ("foo")\nLOCALSORT BY ("bar")'
             ],
         ),
@@ -66,7 +66,7 @@ def test_dremio_factory() -> None:
             False,
             [
                 'CREATE TABLE "test_database"."test_dataset"."event_test_table"'
-                ' (\n"foo" VARCHAR ,\n"bar" BIGINT ,\n"baz" DOUBLE )\nPARTITION BY'
+                ' (\n"foo" VARCHAR  ,\n"bar" BIGINT  ,\n"baz" DOUBLE  )\nPARTITION BY'
                 ' ("foo","bar")'
             ],
         ),
@@ -79,7 +79,7 @@ def test_dremio_factory() -> None:
             False,
             [
                 'CREATE TABLE "test_database"."test_dataset"."event_test_table"'
-                ' (\n"foo" VARCHAR ,\n"bar" BIGINT ,\n"baz" DOUBLE )'
+                ' (\n"foo" VARCHAR  ,\n"bar" BIGINT  ,\n"baz" DOUBLE  )'
             ],
         ),
     ],

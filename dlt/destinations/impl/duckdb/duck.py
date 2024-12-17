@@ -74,17 +74,6 @@ class DuckDbClient(InsertValuesJobClient):
             job = DuckDbCopyJob(file_path)
         return job
 
-    def _get_column_def_sql(self, c: TColumnSchema, table: PreparedTableSchema = None) -> str:
-        hints_str = " ".join(
-            self.active_hints.get(h, "")
-            for h in self.active_hints.keys()
-            if c.get(h, False) is True
-        )
-        column_name = self.sql_client.escape_column_name(c["name"])
-        return (
-            f"{column_name} {self.type_mapper.to_destination_type(c,table)} {hints_str} {self._gen_not_null(c.get('nullable', True))}"
-        )
-
     def _from_db_type(
         self, pq_t: str, precision: Optional[int], scale: Optional[int]
     ) -> TColumnType:

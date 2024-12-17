@@ -8,6 +8,7 @@ from dlt.common.configuration.specs import (
     CredentialsWithDefault,
     configspec,
 )
+from dlt.common.configuration.specs.mixins import WithObjectStoreRsCredentials, WithPyicebergConfig
 from dlt import version
 from dlt.common.utils import without_none
 
@@ -15,7 +16,7 @@ _AZURE_STORAGE_EXTRA = f"{version.DLT_PKG_NAME}[az]"
 
 
 @configspec
-class AzureCredentialsBase(CredentialsConfiguration):
+class AzureCredentialsBase(CredentialsConfiguration, WithObjectStoreRsCredentials):
     azure_storage_account_name: str = None
     azure_account_host: Optional[str] = None
     """Alternative host when accessing blob storage endpoint ie. my_account.dfs.core.windows.net"""
@@ -32,7 +33,7 @@ class AzureCredentialsBase(CredentialsConfiguration):
 
 
 @configspec
-class AzureCredentialsWithoutDefaults(AzureCredentialsBase):
+class AzureCredentialsWithoutDefaults(AzureCredentialsBase, WithPyicebergConfig):
     """Credentials for Azure Blob Storage, compatible with adlfs"""
 
     azure_storage_account_key: Optional[TSecretStrValue] = None
@@ -48,6 +49,13 @@ class AzureCredentialsWithoutDefaults(AzureCredentialsBase):
             sas_token=self.azure_storage_sas_token,
             account_host=self.azure_account_host,
         )
+
+    def to_pyiceberg_fileio_config(self) -> Dict[str, Any]:
+        return {
+            "adlfs.account-name": self.azure_storage_account_name,
+            "adlfs.account-key": self.azure_storage_account_key,
+            "adlfs.sas-token": self.azure_storage_sas_token,
+        }
 
     def create_sas_token(self) -> None:
         try:
@@ -72,7 +80,7 @@ class AzureCredentialsWithoutDefaults(AzureCredentialsBase):
 
 
 @configspec
-class AzureServicePrincipalCredentialsWithoutDefaults(AzureCredentialsBase):
+class AzureServicePrincipalCredentialsWithoutDefaults(AzureCredentialsBase, WithPyicebergConfig):
     azure_tenant_id: str = None
     azure_client_id: str = None
     azure_client_secret: TSecretStrValue = None
@@ -85,6 +93,14 @@ class AzureServicePrincipalCredentialsWithoutDefaults(AzureCredentialsBase):
             client_id=self.azure_client_id,
             client_secret=self.azure_client_secret,
         )
+
+    def to_pyiceberg_fileio_config(self) -> Dict[str, Any]:
+        return {
+            "adlfs.account-name": self.azure_storage_account_name,
+            "adlfs.tenant-id": self.azure_tenant_id,
+            "adlfs.client-id": self.azure_client_id,
+            "adlfs.client-secret": self.azure_client_secret,
+        }
 
 
 @configspec

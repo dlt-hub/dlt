@@ -451,10 +451,12 @@ class Schema:
     ) -> List[TTableSchema]:
         """Drops tables from the schema and returns the dropped tables"""
         result = []
+        # TODO: make sure all nested tables to table_names are also dropped
         for table_name in table_names:
             table = self.get_table(table_name)
             if table and (not seen_data_only or utils.has_table_seen_data(table)):
                 result.append(self._schema_tables.pop(table_name))
+                self.data_item_normalizer.remove_table(table_name)
         return result
 
     def filter_row_with_hint(
@@ -525,7 +527,7 @@ class Schema:
         Typically they come from the destination schema. Columns that are in `existing_columns` and not in `table_name` columns are ignored.
 
         Optionally includes incomplete columns (without data type)"""
-        casefold_f: Callable[[str], str] = str.casefold if not case_sensitive else str  # type: ignore[assignment]
+        casefold_f: Callable[[str], str] = str.casefold if not case_sensitive else str
         casefold_existing = {
             casefold_f(col_name): col for col_name, col in existing_columns.items()
         }

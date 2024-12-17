@@ -401,10 +401,7 @@ SELECT {",".join(self._get_storage_table_query_columns())}
         return query, folded_table_names
 
     def _get_column_def_sql(self, column: TColumnSchema, table: PreparedTableSchema = None) -> str:
-        name = self.sql_client.escape_column_name(column["name"])
-        column_def_sql = (
-            f"{name} {self.type_mapper.to_destination_type(column, table)} {self._gen_not_null(column.get('nullable', True))}"
-        )
+        column_def_sql = super()._get_column_def_sql(column, table)
         if column.get(ROUND_HALF_EVEN_HINT, False):
             column_def_sql += " OPTIONS (rounding_mode='ROUND_HALF_EVEN')"
         if column.get(ROUND_HALF_AWAY_FROM_ZERO_HINT, False):

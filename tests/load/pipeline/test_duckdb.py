@@ -273,18 +273,18 @@ def test_duckdb_credentials_separation(
     p2 = dlt.pipeline("p2", destination=duckdb(credentials=":pipeline:"))
 
     p1.run([1, 2, 3], table_name="p1_data")
-    p1_dataset = p1._dataset()
+    p1_dataset = p1.dataset()
 
     p2.run([1, 2, 3], table_name="p2_data")
-    p2_dataset = p2._dataset()
+    p2_dataset = p2.dataset()
 
     # both dataset should have independent duckdb databases
     # destinations should be bounded to pipelines still
     print(p1_dataset.p1_data.fetchall())
     print(p2_dataset.p2_data.fetchall())
 
-    assert "p1" in p1_dataset.sql_client.credentials._conn_str()  # type: ignore[attr-defined]
-    assert "p2" in p2_dataset.sql_client.credentials._conn_str()  # type: ignore[attr-defined]
+    assert "p1" in p1_dataset.sql_client.credentials._conn_str()
+    assert "p2" in p2_dataset.sql_client.credentials._conn_str()
 
-    assert p1_dataset.sql_client.credentials.bound_to_pipeline is p1  # type: ignore[attr-defined]
-    assert p2_dataset.sql_client.credentials.bound_to_pipeline is p2  # type: ignore[attr-defined]
+    assert p1_dataset.sql_client.credentials.bound_to_pipeline is p1
+    assert p2_dataset.sql_client.credentials.bound_to_pipeline is p2
