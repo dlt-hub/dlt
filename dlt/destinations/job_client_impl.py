@@ -635,8 +635,7 @@ WHERE """
             if c.get(h, False) is True  # use ColumnPropInfos to get default value
         )
 
-    @staticmethod
-    def _gen_not_null(nullable: bool) -> str:
+    def _gen_not_null(self, nullable: bool) -> str:
         return "NOT NULL" if not nullable else ""
 
     def _create_table_update(

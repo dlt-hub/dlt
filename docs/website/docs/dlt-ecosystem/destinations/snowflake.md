@@ -200,6 +200,12 @@ Note that we ignore missing columns `ERROR_ON_COLUMN_COUNT_MISMATCH = FALSE` and
 ## Supported column hints
 Snowflake supports the following [column hints](../../general-usage/schema#tables-and-columns):
 * `cluster` - Creates a cluster column(s). Many columns per table are supported and only when a new table is created.
+* `unique` - Creates UNIQUE hint on a Snowflake column, can be added to many columns. ([optional](#additional-destination-options))
+* `primary_key` - Creates PRIMARY KEY on selected column(s), may be compound. ([optional](#additional-destination-options))
+
+`unique` and `primary_key` are not enforced and `dlt` does not instruct Snowflake to `RELY` on them when
+query planning.
+
 
 ## Table and column identifiers
 Snowflake supports both case-sensitive and case-insensitive identifiers. All unquoted and uppercase identifiers resolve case-insensitively in SQL statements. Case-insensitive [naming conventions](../../general-usage/naming-convention.md#case-sensitive-and-insensitive-destinations) like the default **snake_case** will generate case-insensitive identifiers. Case-sensitive (like **sql_cs_v1**) will generate
@@ -308,6 +314,7 @@ pipeline = dlt.pipeline(
 ## Additional destination options
 
 You can define your own stage to PUT files and disable the removal of the staged files after loading.
+You can also opt-in to [create indexes](#supported-column-hints).
 
 ```toml
 [destination.snowflake]
@@ -315,6 +322,8 @@ You can define your own stage to PUT files and disable the removal of the staged
 stage_name="DLT_STAGE"
 # Whether to keep or delete the staged files after COPY INTO succeeds
 keep_staged_files=true
+# Add UNIQUE and PRIMARY KEY hints to tables
+create_indexes=true
 ```
 
 ### Setting up CSV format
