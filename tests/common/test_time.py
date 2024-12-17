@@ -132,8 +132,26 @@ def test_datetime_to_timestamp_helpers(
     [
         ("2024-10-20T15:30:00Z", "%Y-%m-%dT%H:%M:%SZ"),  # UTC 'Z'
         ("2024-10-20T15:30:00.123456Z", "%Y-%m-%dT%H:%M:%S.%fZ"),  # UTC 'Z' with fractional seconds
-        ("2024-10-20T15:30:00+02:00", "%Y-%m-%dT%H:%M:%S%z"),  # Timezone offset
-        ("2024-10-20T15:30:00+0200", "%Y-%m-%dT%H:%M:%S%z"),  # Timezone without colon
+        ("2024-10-20T15:30:00+02:00", "%Y-%m-%dT%H:%M:%S%z"),  # Positive timezone offset
+        ("2024-10-20T15:30:00+0200", "%Y-%m-%dT%H:%M:%S%z"),  # Positive timezone offset (no colon)
+        (
+            "2024-10-20T15:30:00.123456+02:00",
+            "%Y-%m-%dT%H:%M:%S.%f%z",
+        ),  # Positive timezone offset with fractional seconds
+        (
+            "2024-10-20T15:30:00.123456+0200",
+            "%Y-%m-%dT%H:%M:%S.%f%z",
+        ),  # Positive timezone offset with fractional seconds (no colon)
+        ("2024-10-20T15:30:00-02:00", "%Y-%m-%dT%H:%M:%S%z"),  # Negative timezone offset
+        ("2024-10-20T15:30:00-0200", "%Y-%m-%dT%H:%M:%S%z"),  # Negative timezone offset (no colon)
+        (
+            "2024-10-20T15:30:00.123456-02:00",
+            "%Y-%m-%dT%H:%M:%S.%f%z",
+        ),  # Negative timezone offset with fractional seconds
+        (
+            "2024-10-20T15:30:00.123456-0200",
+            "%Y-%m-%dT%H:%M:%S.%f%z",
+        ),  # Negative timezone offset with fractional seconds (no colon)
         ("2024-10-20T15:30:00", "%Y-%m-%dT%H:%M:%S"),  # No timezone
         ("2024-10-20T15:30", "%Y-%m-%dT%H:%M"),  # Minute precision
         ("2024-10-20T15", "%Y-%m-%dT%H"),  # Hour precision
