@@ -778,6 +778,7 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
 
     items_table = ibis_connection.table(add_table_prefix(map_i("items")), database=dataset_name)
     assert items_table.count().to_pandas() == total_records
+    ibis_connection.disconnect()
 
 
 @pytest.mark.no_load
