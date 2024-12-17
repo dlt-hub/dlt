@@ -1,6 +1,7 @@
-from typing import Optional, Sequence, List
+from typing import Optional, Sequence, List, Dict, Set
 from urllib.parse import urlparse, urlunparse
 
+from dlt.common import logger
 from dlt.common.data_writers.configuration import CsvFormatConfiguration
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
@@ -15,19 +16,23 @@ from dlt.common.configuration.specs import (
     AwsCredentialsWithoutDefaults,
     AzureCredentialsWithoutDefaults,
 )
+from dlt.common.schema.utils import get_columns_names_with_prop
 from dlt.common.storages.configuration import FilesystemConfiguration, ensure_canonical_az_url
 from dlt.common.storages.file_storage import FileStorage
-from dlt.common.schema import TColumnSchema, Schema
-from dlt.common.schema.typing import TColumnType
+from dlt.common.schema import TColumnSchema, Schema, TColumnHint
+from dlt.common.schema.typing import TColumnType, TTableSchema
 
 from dlt.common.storages.fsspec_filesystem import AZURE_BLOB_STORAGE_PROTOCOLS, S3_PROTOCOLS
 from dlt.common.typing import TLoaderFileFormat
+from dlt.common.utils import uniq_id
 from dlt.destinations.job_client_impl import SqlJobClientWithStagingDataset
 from dlt.destinations.exceptions import LoadJobTerminalException
 
 from dlt.destinations.impl.snowflake.configuration import SnowflakeClientConfiguration
 from dlt.destinations.impl.snowflake.sql_client import SnowflakeSqlClient
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest
+
+SUPPORTED_HINTS: Dict[TColumnHint, str] = {"unique": "UNIQUE"}
 
 
 class SnowflakeLoadJob(RunnableLoadJob, HasFollowupJobs):
@@ -238,6 +243,7 @@ class SnowflakeClient(SqlJobClientWithStagingDataset, SupportsStagingDestination
         self.config: SnowflakeClientConfiguration = config
         self.sql_client: SnowflakeSqlClient = sql_client  # type: ignore
         self.type_mapper = self.capabilities.get_type_mapper()
+        self.active_hints = SUPPORTED_HINTS if self.config.create_indexes else {}
 
     def create_load_job(
         self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
@@ -264,6 +270,33 @@ class SnowflakeClient(SqlJobClientWithStagingDataset, SupportsStagingDestination
             "ADD COLUMN\n" + ",\n".join(self._get_column_def_sql(c, table) for c in new_columns)
         ]
 
+    def _get_constraints_sql(
+        self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
+    ) -> str:
+        # "primary_key": "PRIMARY KEY"
+        if self.config.create_indexes:
+            partial: TTableSchema = {
+                "name": table_name,
+                "columns": {c["name"]: c for c in new_columns},
+            }
+            # Add PK constraint if pk_columns exist
+            pk_columns = get_columns_names_with_prop(partial, "primary_key")
+            if pk_columns:
+                if generate_alter:
+                    logger.warning(
+                        f"PRIMARY KEY on {table_name} constraint cannot be added in ALTER TABLE and"
+                        " is ignored"
+                    )
+                else:
+                    pk_constraint_name = list(
+                        self._norm_and_escape_columns(f"PK_{table_name}_{uniq_id(4)}")
+                    )[0]
+                    quoted_pk_cols = ", ".join(
+                        self.sql_client.escape_column_name(col) for col in pk_columns
+                    )
+                    return f",\nCONSTRAINT {pk_constraint_name} PRIMARY KEY ({quoted_pk_cols})"
+        return ""
+
     def _get_table_update_sql(
         self,
         table_name: str,
@@ -286,12 +319,6 @@ class SnowflakeClient(SqlJobClientWithStagingDataset, SupportsStagingDestination
         self, bq_t: str, precision: Optional[int], scale: Optional[int]
     ) -> TColumnType:
         return self.type_mapper.from_destination_type(bq_t, precision, scale)
-
-    def _get_column_def_sql(self, c: TColumnSchema, table: PreparedTableSchema = None) -> str:
-        name = self.sql_client.escape_column_name(c["name"])
-        return (
-            f"{name} {self.type_mapper.to_destination_type(c,table)} {self._gen_not_null(c.get('nullable', True))}"
-        )
 
     def should_truncate_table_before_load_on_staging_destination(self, table_name: str) -> bool:
         return self.config.truncate_tables_on_staging_destination_before_load
