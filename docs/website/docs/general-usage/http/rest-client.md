@@ -693,3 +693,30 @@ for page in client.paginate(
 ):
     print(page)
 ```
+
+## Performance
+
+If you have a substantial amount of requests going to a single or smaller set of hosts, it can be worth to use connection pooling.
+You can do this by leveraging the custom `session` parameter like so:
+
+```py
+from dlt.sources.helpers.rest_client.client import RESTClient
+from dlt.sources.helpers.requests.session import Session
+from requests.adapters import HTTPAdapter
+
+base_url = "https://api.my-service.com"
+
+session = Session(raise_for_status=False)
+adapter = HTTPAdapter(
+    # We're only using one host for all requests in our example
+    pool_connections=1,
+    # But we're making a lot of requests and want to reuse connections
+    pool_maxsize=100,
+)
+session.mount(api_base, adapter)
+
+client = RESTClient(
+    base_url=base_url,
+    session=session,
+)
+```
