@@ -75,7 +75,7 @@ class ConfigFieldMissingException(KeyError, ConfigurationException):
                     " run your script from some other folder, secrets/configs will not be found\n"
                 )
         msg += (
-            "Please refer to https://dlthub.com/docs/general-usage/credentials for more"
+            "Please refer to https://dlthub.com/docs/general-usage/credentials/ for more"
             " information\n"
         )
         return msg
