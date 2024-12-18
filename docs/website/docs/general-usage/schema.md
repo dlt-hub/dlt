@@ -227,9 +227,6 @@ You are able to bring your own `row_key` by adding a `_dlt_id` column/field to y
 
 `merge` write disposition requires an additional nested reference that goes from **nested** to **root** table, skipping all parent tables in between. This reference is created by [adding a column with a hint](incremental-loading.md#forcing-root-key-propagation) `root_key` (named `_dlt_root_id` by default) to nested tables.
 
-### Table references
-You can annotate tables with table references. This feature is coming soon.
-
 ## Schema settings
 
 The `settings` section of the schema file lets you define various global rules that impact how tables
