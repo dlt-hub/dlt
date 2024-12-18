@@ -1,4 +1,4 @@
-from typing import TypedDict, cast, Any, Optional, Dict, Sequence, Mapping, Union
+from typing import TypedDict, cast, Any, Optional, Dict, Sequence, Mapping, Union, Tuple
 from typing_extensions import Self
 
 from dlt.common import logger
@@ -54,7 +54,7 @@ class TResourceHintsBase(TypedDict, total=False):
     file_format: TTableHintTemplate[TFileFormat]
     merge_key: Optional[TTableHintTemplate[TColumnNames]]
     references: Optional[TTableHintTemplate[TTableReferenceParam]]
-    nested_hints: Optional[Dict[str, "TResourceHintsBase"]]
+    nested_hints: Optional[Dict[Tuple[str, ...], "TResourceHintsBase"]]
 
 
 class TResourceHints(TResourceHintsBase, total=False):
@@ -127,25 +127,52 @@ def make_hints(
     return new_template
 
 
-class DltResourceHintsDict(Dict[str, "DltResourceHints"]):
+class DltResourceHintsDict(Dict[Tuple[str, ...], "DltResourceHints"]):
     # def __init__(self, initial_value: TResourceHintsBase)
 
-    def __getitem__(self, key: Union[str, Sequence[str]]) -> "DltResourceHints":
-        """Get item at `key` is string or recursively if sequence"""
-        if isinstance(key, str):
-            return super().__getitem__(key)
-        else:
-            item = super().__getitem__(key[0])
-            for k_ in key[1:]:
-                item = item.nested_hints[k_]
-            return item
+    # def __getitem__(self, key: Union[str, Sequence[str]]) -> "DltResourceHints":
+    #     """Get item at `key` is string or recursively if sequence"""
+    #     if isinstance(key, str):
+    #         return super().__getitem__(key)
+    #     else:
+    #         item = super().__getitem__(key[0])
+    #         for k_ in key[1:]:
+    #             item = item.nested_hints[k_]
+    #         return item
 
-    def __setitem__(self, key: str, value: Union["DltResourceHints", TResourceHintsBase]) -> None:
+    def __setitem__(self, key: Union[str, Sequence[str]], value: Union["DltResourceHints", TResourceHintsBase]) -> None:
         """Sets resource hints at given `key` or create new instance from table template"""
+        if isinstance(key, str):
+            key = (key, )
+        else:
+            key = tuple(key)
         if isinstance(value, DltResourceHints):
             return super().__setitem__(key, value)
         else:
             return super().__setitem__(key, DltResourceHints(value))  # type: ignore
+
+
+
+# class DltResourceHintsDict(Dict[str, "DltResourceHints"]):
+#     # def __init__(self, initial_value: TResourceHintsBase)
+
+#     def __getitem__(self, key: Union[str, Sequence[str]]) -> "DltResourceHints":
+#         """Get item at `key` is string or recursively if sequence"""
+#         if isinstance(key, str):
+#             return super().__getitem__(key)
+#         else:
+#             item = super().__getitem__(key[0])
+#             for k_ in key[1:]:
+#                 item = item.nested_hints[k_]
+#             return item
+
+#     def __setitem__(self, key: str, value: Union["DltResourceHints", TResourceHintsBase]) -> None:
+#         """Sets resource hints at given `key` or create new instance from table template"""
+#         if ispinstance(value, DltResourceHints):
+#             return super().__setitem__(key, value)
+#         else:
+#             return super().__setitem__(key, DltResourceHints(value))  # type: ignore
+
 
 
 class DltResourceHints:
@@ -154,7 +181,7 @@ class DltResourceHints:
         self._table_name_hint_fun: TFunHintTemplate[str] = None
         self._table_has_other_dynamic_hints: bool = False
         self._hints: TResourceHints = None
-        self._nested_hints: DltResourceHintsDict = None
+        self._nested_hints: DltResourceHintsDict = DltResourceHintsDict()
         """Hints for the resource"""
         self._hints_variants: Dict[str, TResourceHints] = {}
         """Hints for tables emitted from resources"""
@@ -246,6 +273,12 @@ class DltResourceHints:
             doc=table_schema,
             path=f"new_table/{self.name}",
         )
+
+        for path, hints in self._nested_hints.items():
+            nested_table = hints.compute_table_schema(item)
+            full_path = (table_schema['name'],) + path
+            nested_table['name'] = '__'.join(full_path)
+            nested_table["parent"] = '__'.join(full_path[:-1])
         return table_schema
 
     def apply_hints(
@@ -263,6 +296,7 @@ class DltResourceHints:
         file_format: TTableHintTemplate[TFileFormat] = None,
         references: TTableHintTemplate[TTableReferenceParam] = None,
         create_table_variant: bool = False,
+        path: Sequence[str] = None
     ) -> Self:
         """Creates or modifies existing table schema by setting provided hints. Accepts both static and dynamic hints based on data.
 
@@ -282,6 +316,7 @@ class DltResourceHints:
 
         Returns: self for chaining
         """
+        rs: DltResourceHints = self
         if create_table_variant:
             if not isinstance(table_name, str):
                 raise ValueError(
@@ -297,8 +332,17 @@ class DltResourceHints:
                     # but remove callables
                     t = {n: h for n, h in t.items() if not callable(h)}  # type: ignore[assignment]
         else:
-            t = self._hints
+            if path:
+                nested_rs = self._nested_hints.get(tuple(path))
+                if nested_rs is not None:
+                    rs = nested_rs
+                else:
+                    rs = DltResourceHints({})
+                t = rs._hints
 
+            else:
+                t = self._hints
+                    
         if t is None:
             # if there is no template yet, create and set a new one.
             default_wd = None if parent_table_name else DEFAULT_WRITE_DISPOSITION
@@ -398,7 +442,9 @@ class DltResourceHints:
         if incremental is not None:
             t["incremental"] = Incremental.ensure_instance(incremental)
 
-        self._set_hints(t, create_table_variant)
+        rs._set_hints(t, create_table_variant)
+        if path:
+            self._nested_hints[tuple(path)] = rs
         return self
 
     def _set_hints(
@@ -564,6 +610,7 @@ class DltResourceHints:
         """Creates table schema from resource hints and resource name. Resource hints are resolved
         (do not contain callables) and will be modified in place
         """
+        resource_hints['name'] = resource_hints.pop('table_name')
         DltResourceHints._merge_keys(resource_hints)
         if "write_disposition" in resource_hints:
             if isinstance(resource_hints["write_disposition"], str):

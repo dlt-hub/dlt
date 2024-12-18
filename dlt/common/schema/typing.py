@@ -261,8 +261,9 @@ TTableReferenceParam = Sequence[TTableReference]
 
 
 class _TTableSchemaBase(TTableProcessingHints, total=False):
-    table_name: Optional[str]
     name: Optional[str]
+    path: Optional[Tuple[str, ...]]
+    """Path of nested table"""
     description: Optional[str]
     schema_contract: Optional[TSchemaContract]
     table_sealed: Optional[bool]
