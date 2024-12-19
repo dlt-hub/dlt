@@ -43,6 +43,8 @@ from dlt.pipeline import (
 from dlt.pipeline import progress
 from dlt import destinations
 
+from dlt.destinations.transformations import transformation, transformation_group
+
 pipeline = _pipeline
 current = _current
 mark = _mark
@@ -79,6 +81,8 @@ __all__ = [
     "TCredentials",
     "sources",
     "destinations",
+    "transformation",
+    "transformation_group",
 ]
 
 # verify that no injection context was created

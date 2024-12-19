@@ -15,6 +15,7 @@ from typing import (
     Union,
     List,
     ContextManager,
+    runtime_checkable,
     Dict,
     Any,
     TypeVar,
@@ -483,6 +484,7 @@ class HasFollowupJobs:
         return []
 
 
+@runtime_checkable
 class SupportsReadableRelation(Protocol):
     """A readable relation retrieved from a destination that supports it"""
 
