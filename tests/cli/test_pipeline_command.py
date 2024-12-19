@@ -159,6 +159,33 @@ def test_pipeline_command_operations(repo_dir: str, project_files: FileStorage) 
         assert "players_profiles" not in pipeline.default_schema.tables
 
 
+def test_pipeline_mcp_command(repo_dir: str, project_files: FileStorage) -> None:
+    init_command.init_command("chess", "duckdb", repo_dir)
+
+    try:
+        pipeline = dlt.attach(pipeline_name="chess_pipeline")
+        print(pipeline.working_dir)
+        pipeline.drop()
+    except Exception as e:
+        print(e)
+
+    os.environ.pop(
+        "DESTINATION__DUCKDB__CREDENTIALS", None
+    )
+    venv = Venv.restore_current()
+    try:
+        print(venv.run_script("chess_pipeline.py"))
+    except CalledProcessError as cpe:
+        print(cpe.stdout)
+        print(cpe.stderr)
+        raise
+
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        pipeline_command.pipeline_command("mcp", "chess_pipeline", None, 2)
+        _out = buf.getvalue()
+    print(_out)
+
+
 def test_pipeline_command_failed_jobs(repo_dir: str, project_files: FileStorage) -> None:
     init_command.init_command("chess", "dummy", repo_dir)
 

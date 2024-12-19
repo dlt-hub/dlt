@@ -1,11 +1,13 @@
-import yaml
 from typing import Any, Optional, Sequence, Tuple
-import dlt
-from dlt.cli.exceptions import CliCommandInnerException
 
+import yaml
+
+import dlt
+from dlt.cli import echo as fmt
+from dlt.cli.exceptions import CliCommandInnerException
+from dlt.common.destination.reference import TDestinationReferenceArg
 from dlt.common.json import json
 from dlt.common.pipeline import resource_state, get_dlt_pipelines_dir, TSourceState
-from dlt.common.destination.reference import TDestinationReferenceArg
 from dlt.common.runners import Venv
 from dlt.common.runners.stdout import iter_stdout
 from dlt.common.schema.utils import (
@@ -15,10 +17,8 @@ from dlt.common.schema.utils import (
     remove_defaults,
 )
 from dlt.common.storages import FileStorage, PackageStorage
-from dlt.pipeline.helpers import DropCommand
 from dlt.pipeline.exceptions import CannotRestorePipelineException
-
-from dlt.cli import echo as fmt
+from dlt.pipeline.helpers import DropCommand
 
 
 DLT_PIPELINE_COMMAND_DOCS_URL = (
@@ -388,3 +388,6 @@ def pipeline_command(
             fmt.warning(warning)
         if fmt.confirm("Do you want to apply these changes?", default=False):
             drop()
+
+    if operation == "mcp":
+        raise NotImplementedError
