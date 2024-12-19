@@ -1,4 +1,15 @@
-from typing import Callable, Literal, Union, Any, Generator, List, TYPE_CHECKING, Iterable
+from typing import (
+    Callable,
+    Literal,
+    Union,
+    Any,
+    Generator,
+    List,
+    TYPE_CHECKING,
+    Iterable,
+    Optional,
+    Any,
+)
 
 from dataclasses import dataclass
 from functools import wraps
@@ -52,15 +63,48 @@ def transformation_group(
     return decorator
 
 
+def execute_transformation(
+    select_clause: str,
+    client: Any,
+    table_name: Optional[str] = None,
+    write_disposition: Optional[str] = None,
+    materialization: Optional[str] = None,
+) -> None:
+    if write_disposition == "replace":
+        client.execute(f"CREATE OR REPLACE {materialization} {table_name} AS {select_clause}")
+    elif write_disposition == "append" and materialization == "table":
+        try:
+            client.execute(f"INSERT INTO {table_name} {select_clause}")
+        except Exception:
+            client.execute(f"CREATE TABLE {table_name} AS {select_clause}")
+    else:
+        raise ValueError(
+            f"Write disposition {write_disposition} is not supported for "
+            f"materialization {materialization}"
+        )
+
+
 def run_transformations(
     dataset: SupportsReadableDataset,
-    transformations: Union[TTransformationFunc, List[TTransformationFunc]],
+    transformations: Union[
+        TTransformationFunc, List[TTransformationFunc], SupportsReadableRelation
+    ],
+    *,
+    table_name: Optional[str] = None,
+    write_disposition: Optional[str] = None,
+    materialization: Optional[str] = None,
 ) -> None:
-    if not isinstance(transformations, Iterable):
-        transformations = [transformations]
-
-    # TODO: fix typing
     with dataset.sql_client as client:  # type: ignore
+        if isinstance(transformations, SupportsReadableRelation):
+            execute_transformation(
+                transformations.query, client, table_name, write_disposition, materialization
+            )
+            return
+
+        if not isinstance(transformations, Iterable):
+            transformations = [transformations]
+
+        # TODO: fix typing
         for transformation in transformations:
             # get transformation settings
             table_name = transformation.__transformation_args__["table_name"]  # type: ignore
@@ -78,17 +122,6 @@ def run_transformations(
             # materialize result
             select_clause = relation.query
 
-            if write_disposition == "replace":
-                client.execute(
-                    f"CREATE OR REPLACE {materialization} {table_name} AS {select_clause}"
-                )
-            elif write_disposition == "append" and materialization == "table":
-                try:
-                    client.execute(f"INSERT INTO {table_name} {select_clause}")
-                except Exception:
-                    client.execute(f"CREATE TABLE {table_name} AS {select_clause}")
-            else:
-                raise ValueError(
-                    f"Write disposition {write_disposition} is not supported for "
-                    f"materialization {materialization}"
-                )
+            execute_transformation(
+                select_clause, client, table_name, write_disposition, materialization
+            )

@@ -1774,8 +1774,19 @@ class Pipeline(SupportsPipeline):
         )
 
     def transform(
-        self, transformations: Union[TTransformationFunc, List[TTransformationFunc]]
+        self,
+        transformations: Union[TTransformationFunc, List[TTransformationFunc]],
+        *,
+        table_name: Optional[str] = None,
+        write_disposition: Optional[str] = "replace",
+        materialization: Optional[str] = "table",
     ) -> None:
         from dlt.destinations.transformations import run_transformations
 
-        run_transformations(self.dataset(), transformations)
+        run_transformations(
+            self.dataset(),
+            transformations,
+            table_name=table_name,
+            write_disposition=write_disposition,
+            materialization=materialization,
+        )

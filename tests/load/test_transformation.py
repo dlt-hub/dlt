@@ -37,3 +37,9 @@ def test_simple_transformation() -> None:
     # check aggregated table for both fields
     assert p.dataset().aggregated_items.fetchone()[0] == reduce(lambda a, b: a + b, range(10))
     assert p.dataset().aggregated_items.fetchone()[1] == (reduce(lambda a, b: a + b, range(10)) * 2)
+
+    # check simple transformation function
+    items_table = p.dataset().items
+    p.transform(items_table.mutate(new_col=items_table.id), table_name="direct")
+
+    print(p.dataset().direct.df())
