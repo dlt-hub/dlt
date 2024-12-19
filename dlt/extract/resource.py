@@ -12,6 +12,8 @@ from typing import (
     Any,
     Optional,
     Mapping,
+    List,
+    Tuple,
 )
 from typing_extensions import TypeVar, Self
 
@@ -466,7 +468,9 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             if table_schema_template.get("validator") is not None:
                 self.validator = table_schema_template["validator"]
 
-    def compute_table_schema(self, item: TDataItem = None, meta: Any = None) -> TTableSchema:
+    def compute_table_schema(
+        self, item: TDataItem = None, meta: Any = None, path: Tuple[str, ...] = None
+    ) -> TTableSchema:
         incremental: Optional[Union[Incremental[Any], IncrementalResourceWrapper]] = (
             self.incremental
         )
@@ -477,7 +481,6 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
                     self._hints["incremental"] = incremental
 
         table_schema = super().compute_table_schema(item, meta)
-
         return table_schema
 
     def bind(self: TDltResourceImpl, *args: Any, **kwargs: Any) -> TDltResourceImpl:
