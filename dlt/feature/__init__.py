@@ -1,5 +1,5 @@
 try:
-    from dlt_example_plugin.feature import ExtendedFeature as SupportsFeature
+    from dlt_example_plugin.feature import SupportsExtendedFeature as SupportsFeature
     from dlt_example_plugin.feature import ExtendedFeature as Feature
 except ImportError:
     from dlt.feature.reference import SupportsSimpleFeature as SupportsFeature
