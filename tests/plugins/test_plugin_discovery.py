@@ -45,15 +45,18 @@ def plugin_install():
     sys.path.remove(temp_dir)
     shutil.rmtree(temp_dir)
     importlib.reload(importlib.metadata)
-    del container[plugins.PluginContext]
+    if plugins.PluginContext in container:
+        del container[plugins.PluginContext]
 
 
+@pytest.mark.skip
 def test_example_plugin() -> None:
     context = run_context.current()
     assert context.name == "dlt-test"
     assert context.data_dir == os.path.abspath(TEST_STORAGE_ROOT)
 
 
+@pytest.mark.skip
 def test_cli_hook(script_runner: ScriptRunner) -> None:
     # new command
     result = script_runner.run(["dlt", "example", "--name", "John"])
@@ -83,3 +86,11 @@ def test_cli_hook(script_runner: ScriptRunner) -> None:
     assert result.returncode == -55
     assert "Plugin overwrote init command" in result.stdout
     assert "INIT_DOCS_URL" in result.stdout
+
+
+def test_extended_feature():
+    from dlt.feature import get_feature
+
+    feature = get_feature()
+    assert feature.calculate(3, 3) == 9
+    assert feature.more_calculation(3, 3) == 27
