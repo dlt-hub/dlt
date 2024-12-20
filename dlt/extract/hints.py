@@ -259,15 +259,15 @@ class DltResourceHints:
         return None if self._hints is None else self._hints.get("parent")
 
     def _walk_nested_hints(
-        self, path: List[str] = None
-    ) -> Iterator[Tuple[List[str], "DltResourceHints"]]:
+        self, path: Tuple[str] = None
+    ) -> Iterator[Tuple[Tuple[str, ...], "DltResourceHints"]]:
         """Walk nested hints recursively to generate a flat iterator of path and `DltResourceHints` instance pairs"""
         if path is None:
-            path = []
+            path = tuple()
         if path:
             yield path, self
         for key, nested_instance in self._nested_hints.items():
-            yield from nested_instance._walk_nested_hints(path + [key])
+            yield from nested_instance._walk_nested_hints(path + (key,))
 
     def compute_table_schema(self, item: TDataItem = None, meta: Any = None) -> TTableSchema:
         """Computes the table schema based on hints and column definitions passed during resource creation.
@@ -320,12 +320,16 @@ class DltResourceHints:
         else:
             root_table_name = root_table["name"]
         result = [root_table]
+        path_to_name: Dict[Tuple[str, ...], str] = {(root_table_name,): root_table_name}
         for path, instance in self._walk_nested_hints():
-            full_path = [root_table_name] + path
-            table_name = "__".join(full_path)  # TODO: naming convention
+            full_path = (root_table_name,) + path
             table = instance.compute_table_schema(item, meta)
-            table["name"] = table_name
-            parent_name = "__".join(full_path[:-1])
+            if not table.get("name"):
+                table["name"] = "__".join(full_path)  # TODO: naming convention
+            path_to_name[full_path] = table["name"]
+            parent_name = path_to_name[full_path[:-1]]
+
+            # parent_name = "__".join(full_path[:-1])
             table["parent"] = parent_name
 
             result.append(table)
@@ -369,7 +373,7 @@ class DltResourceHints:
         hints_instance: DltResourceHints
         if path:
             path = tuple(path)
-            hints_instance = self._nested_hints.get(path)
+            hints_instance = self._nested_hints.get(path)  # type: ignore[call-overload]
             if not hints_instance:
                 hints_instance = DltResourceHints()
         else:
@@ -666,7 +670,7 @@ class DltResourceHints:
         """Creates table schema from resource hints and resource name. Resource hints are resolved
         (do not contain callables) and will be modified in place
         """
-        resource_hints["name"] = resource_hints.pop("table_name")
+        resource_hints["name"] = resource_hints.pop("table_name")  # type: ignore[typeddict-unknown-key]
         DltResourceHints._merge_keys(resource_hints)
         if "write_disposition" in resource_hints:
             if isinstance(resource_hints["write_disposition"], str):
