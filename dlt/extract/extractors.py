@@ -426,7 +426,7 @@ class ArrowExtractor(Extractor):
                 if arrow_table:
                     utils.merge_table(self.schema.name, computed_table, arrow_table)
                 else:
-                    arrow_table = arrow_tables[computed_table['name']] = copy(computed_table)
+                    arrow_table = copy(computed_table)
                 arrow_table["columns"] = pyarrow.py_arrow_to_table_schema_columns(item.schema)
 
                 # Add load_id column if needed
@@ -462,6 +462,7 @@ class ArrowExtractor(Extractor):
                 utils.merge_columns(
                     arrow_table["columns"], computed_table["columns"], merge_columns=True
                 )
+                arrow_tables[computed_table["name"]] = arrow_table
 
         return list(arrow_tables.values())
 
