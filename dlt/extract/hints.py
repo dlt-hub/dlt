@@ -533,11 +533,11 @@ class DltResourceHints:
             self._hints_variants[table_name] = hints_template
         else:
             # if "name" is callable in the template, then the table schema requires data item to be inferred.
-            name_hint = hints_template.get("name")
+            name_hint = hints_template.get("table_name")
             self._table_name_hint_fun = name_hint if callable(name_hint) else None
             # check if any other hints in the table template should be inferred from data.
             self._table_has_other_dynamic_hints = any(
-                callable(v) for k, v in hints_template.items() if k != "name"
+                callable(v) for k, v in hints_template.items() if k != "table_name"
             )
             self._hints = hints_template
 
