@@ -49,14 +49,14 @@ def plugin_install():
         del container[plugins.PluginContext]
 
 
-@pytest.mark.skip
+
+
 def test_example_plugin() -> None:
     context = run_context.current()
     assert context.name == "dlt-test"
     assert context.data_dir == os.path.abspath(TEST_STORAGE_ROOT)
 
 
-@pytest.mark.skip
 def test_cli_hook(script_runner: ScriptRunner) -> None:
     # new command
     result = script_runner.run(["dlt", "example", "--name", "John"])
