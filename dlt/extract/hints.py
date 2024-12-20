@@ -263,11 +263,11 @@ class DltResourceHints:
     ) -> Iterator[Tuple[Tuple[str, ...], "DltResourceHints"]]:
         """Walk nested hints recursively to generate a flat iterator of path and `DltResourceHints` instance pairs"""
         if path is None:
-            path = tuple()
+            path = tuple()  # type: ignore[assignment]
         if path:
             yield path, self
         for key, nested_instance in self._nested_hints.items():
-            yield from nested_instance._walk_nested_hints(path + (key,))
+            yield from nested_instance._walk_nested_hints(path + (key,))  # type: ignore[arg-type]
 
     def compute_table_schema(self, item: TDataItem = None, meta: Any = None) -> TTableSchema:
         """Computes the table schema based on hints and column definitions passed during resource creation.
