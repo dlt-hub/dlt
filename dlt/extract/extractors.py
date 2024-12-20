@@ -243,10 +243,10 @@ class Extractor:
         Computes new table and does contract checks, if false is returned, the table may not be created and no items should be written
         """
         computed_tables = self._compute_table(resource, items, meta)
+        # overwrite root table name (if coming from meta)
+        computed_tables[0]["name"] = root_table_name
 
         for computed_table in computed_tables:
-            # # overwrite table name (if coming from meta)
-            # computed_table["name"] = table_name  # TODO: don't remove this
             table_name = computed_table["name"]
             # get or compute contract
             schema_contract = self._table_contracts.setdefault(

@@ -315,7 +315,10 @@ class DltResourceHints:
         Nested hints are resolved recursively.
         """
         root_table = self.compute_table_schema(item, meta)
-        root_table_name = root_table["name"]
+        if isinstance(meta, TableNameMeta):
+            root_table_name = meta.table_name
+        else:
+            root_table_name = root_table["name"]
         result = [root_table]
         for path, instance in self._walk_nested_hints():
             full_path = [root_table_name] + path
@@ -679,10 +682,10 @@ class DltResourceHints:
 
     @staticmethod
     def validate_dynamic_hints(template: TResourceHints) -> None:
-        table_name = template.get("name")
+        table_name = template.get("table_name")
         # if any of the hints is a function, then name must be as well.
         if any(
-            callable(v) for k, v in template.items() if k not in ["name", *NATURAL_CALLABLES]
+            callable(v) for k, v in template.items() if k not in ["table_name", *NATURAL_CALLABLES]
         ) and not callable(table_name):
             raise InconsistentTableTemplate(
                 f"Table name {table_name} must be a function if any other table hint is a function"
