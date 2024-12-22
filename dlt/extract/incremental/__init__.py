@@ -564,6 +564,8 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         self._cached_state["last_value"] = transformer.last_value
         if not transformer.deduplication_disabled:
             # compute hashes for new last rows
+            # NOTE: object transform uses last_rows to pass rows to dedup, arrow computes
+            #  hashes directly
             unique_hashes = set(
                 transformer.compute_unique_value(row, self.primary_key)
                 for row in transformer.last_rows
