@@ -7,6 +7,7 @@ from typing import (
     Callable,
     ClassVar,
     Final,
+    Generic,
     List,
     Literal,
     Mapping,
@@ -48,7 +49,6 @@ from dlt.common.typing import (
     add_value_to_literal,
     get_generic_type_argument_from_instance,
 )
-from dlt.extract import Incremental
 
 
 class TTestTyDi(TypedDict):
@@ -317,14 +317,19 @@ def test_add_value_to_literal() -> None:
 
 
 def test_get_generic_type_argument_from_instance() -> None:
+    T = TypeVar("T")
+
+    class Foo(Generic[T]):
+        pass
+
     # generic contains hint
-    instance = SimpleNamespace(__orig_class__=Incremental[str])
+    instance = SimpleNamespace(__orig_class__=Foo[str])
     assert get_generic_type_argument_from_instance(instance) is str
-    instance = SimpleNamespace(__orig_class__=Optional[Incremental[str]])
+    instance = SimpleNamespace(__orig_class__=Optional[Foo[str]])
     assert get_generic_type_argument_from_instance(instance) is str
 
     # with sample values
-    instance = SimpleNamespace(__orig_class__=Incremental[Any])
+    instance = SimpleNamespace(__orig_class__=Foo[Any])
     assert get_generic_type_argument_from_instance(instance, 1) is int
-    instance = SimpleNamespace(__orig_class__=Optional[Incremental[Any]])
+    instance = SimpleNamespace(__orig_class__=Optional[Foo[Any]])
     assert get_generic_type_argument_from_instance(instance, 1) is int
