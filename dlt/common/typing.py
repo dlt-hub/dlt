@@ -438,11 +438,7 @@ def get_generic_type_argument_from_instance(
     """
     orig_param_type = Any
     if cls_ := getattr(instance, "__orig_class__", None):
-        if is_optional_type(cls_):
-            cls_ = extract_inner_type(cls_)
-
-        # instance of generic class
-        pass
+        cls_ = extract_inner_type(cls_)
     elif bases_ := get_original_bases(instance.__class__):
         # instance of class deriving from generic
         cls_ = bases_[0]
