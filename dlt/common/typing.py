@@ -438,9 +438,8 @@ def get_generic_type_argument_from_instance(
     """
     orig_param_type = Any
     if cls_ := getattr(instance, "__orig_class__", None):
-        # unfurl Optional[Incremental[...]] to Incremental[...]
         if is_optional_type(cls_):
-            cls_ = get_args(cls_)[0]
+            cls_ = extract_inner_type(cls_)
 
         # instance of generic class
         pass
