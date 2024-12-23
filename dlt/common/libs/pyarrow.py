@@ -183,6 +183,10 @@ def get_column_type_from_py_arrow(dtype: pyarrow.DataType) -> TColumnType:
         return dict(data_type="decimal", precision=dtype.precision, scale=dtype.scale)
     elif pyarrow.types.is_nested(dtype):
         return dict(data_type="json")
+    elif pyarrow.types.is_dictionary(dtype):
+        # Dictionary types are essentially categorical encodings. The underlying value_type
+        # dictates the "logical" type. We simply delegate to the underlying value_type.
+        return get_column_type_from_py_arrow(dtype.value_type)
     else:
         raise ValueError(dtype)
 

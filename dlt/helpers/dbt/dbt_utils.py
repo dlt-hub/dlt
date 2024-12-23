@@ -22,23 +22,16 @@ try:
 
     # can only import DBT after redirect is disabled
     # https://stackoverflow.com/questions/48619517/call-a-click-command-from-code
+except ImportError:
+    pass
 
+try:
     import dbt.logger
     from dbt.contracts import results as dbt_results
-except ModuleNotFoundError:
-    raise MissingDependencyException("DBT Core", ["dbt-core"])
-
-try:
-    # dbt <1.5
-    from dbt.main import handle_and_check  # type: ignore[import-not-found]
-except ImportError:
-    # dbt >=1.5
     from dbt.cli.main import dbtRunner
-
-try:
-    from dbt.exceptions import FailFastException  # type: ignore
+    from dbt.exceptions import FailFastError
 except ImportError:
-    from dbt.exceptions import FailFastError as FailFastException
+    raise MissingDependencyException("DBT Core", ["dbt-core"])
 
 _DBT_LOGGER_INITIALIZED = False
 
@@ -135,15 +128,10 @@ def run_dbt_command(
         runner_args = (global_args or []) + [command] + args  # type: ignore
 
         with dbt.logger.log_manager.applicationbound():
-            try:
-                # dbt 1.5
-                runner = dbtRunner()
-                run_result = runner.invoke(runner_args)
-                success = run_result.success
-                results = run_result.result  # type: ignore
-            except NameError:
-                # dbt < 1.5
-                results, success = handle_and_check(runner_args)
+            runner = dbtRunner()
+            run_result = runner.invoke(runner_args)
+            success = run_result.success
+            results = run_result.result  # type: ignore
 
         assert type(success) is bool
         parsed_results = parse_dbt_execution_results(results)
@@ -157,7 +145,7 @@ def run_dbt_command(
     except SystemExit as sys_ex:
         # oftentimes dbt tries to exit on error
         raise DBTProcessingError(command, None, sys_ex)
-    except FailFastException as ff:
+    except FailFastError as ff:
         dbt_exc = DBTProcessingError(command, parse_dbt_execution_results(ff.result), ff.result)
         # detect incremental model out of sync
         if is_incremental_schema_out_of_sync_error(ff.result):
