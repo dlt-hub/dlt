@@ -263,6 +263,7 @@ def table_rows(
             table,
             reflection_level,
             type_adapter_callback,
+            backend == "sqlalchemy",  # skip nested types
             resolve_foreign_keys=resolve_foreign_keys,
         )
 
@@ -285,6 +286,7 @@ def table_rows(
             table,
             reflection_level,
             type_adapter_callback,
+            backend == "sqlalchemy",  # skip nested types
             resolve_foreign_keys=resolve_foreign_keys,
         )
 
