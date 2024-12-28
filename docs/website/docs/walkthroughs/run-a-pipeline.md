@@ -140,7 +140,24 @@ destination, etc. Please refer to
 [Running in production](../running-in-production/running.md#inspect-and-save-the-load-info-and-trace)
 for more details.
 
-## 5. Detect and handle problems
+## Run dlt in Notebooks
+
+### Colab
+You'll need to install `dlt` like any other dependency:
+```sh
+!pip install dlt
+```
+
+You can configure secrets using **Secrets** sidebar. Just create a variable with the name `secrets.toml` and paste
+the content of the **toml** file from your `.dlt` folder into it. We support `config.toml` variable as well.
+
+:::note
+`dlt` will not reload the secrets automatically. Please restart your interpreter in Colab options when you add/change
+content of the variables above.
+:::
+
+
+## Troubleshooting
 
 What happens if something goes wrong? In most cases, the `dlt` `run` command raises exceptions. We put a
 lot of effort into making the exception messages easy to understand. Reading them is the first step
@@ -169,7 +186,7 @@ dlt.common.configuration.exceptions.ConfigFieldMissingException: Following field
         In secrets.toml key destination.postgres.credentials.password was not found.
         In secrets.toml key destination.credentials.password was not found.
         In secrets.toml key credentials.password was not found.
-Please refer to https://dlthub.com/docs/general-usage/credentials for more information
+Please refer to https://dlthub.com/docs/general-usage/credentials/ for more information
 ```
 
 What does this exception tell you?

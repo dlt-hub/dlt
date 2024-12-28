@@ -1,6 +1,7 @@
-from typing import Optional, Sequence, List
+from typing import Optional, Sequence, List, Dict, Set
 from urllib.parse import urlparse, urlunparse
 
+from dlt.common import logger
 from dlt.common.data_writers.configuration import CsvFormatConfiguration
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
@@ -15,20 +16,23 @@ from dlt.common.configuration.specs import (
     AwsCredentialsWithoutDefaults,
     AzureCredentialsWithoutDefaults,
 )
-from dlt.common.storages.configuration import FilesystemConfiguration
+from dlt.common.schema.utils import get_columns_names_with_prop
+from dlt.common.storages.configuration import FilesystemConfiguration, ensure_canonical_az_url
 from dlt.common.storages.file_storage import FileStorage
-from dlt.common.schema import TColumnSchema, Schema
-from dlt.common.schema.typing import TColumnType
-from dlt.common.exceptions import TerminalValueError
+from dlt.common.schema import TColumnSchema, Schema, TColumnHint
+from dlt.common.schema.typing import TColumnType, TTableSchema
 
+from dlt.common.storages.fsspec_filesystem import AZURE_BLOB_STORAGE_PROTOCOLS, S3_PROTOCOLS
 from dlt.common.typing import TLoaderFileFormat
+from dlt.common.utils import uniq_id
 from dlt.destinations.job_client_impl import SqlJobClientWithStagingDataset
 from dlt.destinations.exceptions import LoadJobTerminalException
 
 from dlt.destinations.impl.snowflake.configuration import SnowflakeClientConfiguration
 from dlt.destinations.impl.snowflake.sql_client import SnowflakeSqlClient
-from dlt.destinations.impl.snowflake.sql_client import SnowflakeSqlClient
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest
+
+SUPPORTED_HINTS: Dict[TColumnHint, str] = {"unique": "UNIQUE"}
 
 
 class SnowflakeLoadJob(RunnableLoadJob, HasFollowupJobs):
@@ -124,33 +128,27 @@ class SnowflakeLoadJob(RunnableLoadJob, HasFollowupJobs):
         if not is_local:
             bucket_scheme = parsed_file_url.scheme
             # referencing an external s3/azure stage does not require explicit AWS credentials
-            if bucket_scheme in ["s3", "az", "abfs"] and stage_name:
+            if bucket_scheme in AZURE_BLOB_STORAGE_PROTOCOLS + S3_PROTOCOLS and stage_name:
                 from_clause = f"FROM '@{stage_name}'"
                 files_clause = f"FILES = ('{parsed_file_url.path.lstrip('/')}')"
             # referencing an staged files via a bucket URL requires explicit AWS credentials
             elif (
-                bucket_scheme == "s3"
+                bucket_scheme in S3_PROTOCOLS
                 and staging_credentials
                 and isinstance(staging_credentials, AwsCredentialsWithoutDefaults)
             ):
                 credentials_clause = f"""CREDENTIALS=(AWS_KEY_ID='{staging_credentials.aws_access_key_id}' AWS_SECRET_KEY='{staging_credentials.aws_secret_access_key}')"""
                 from_clause = f"FROM '{file_url}'"
             elif (
-                bucket_scheme in ["az", "abfs"]
+                bucket_scheme in AZURE_BLOB_STORAGE_PROTOCOLS
                 and staging_credentials
                 and isinstance(staging_credentials, AzureCredentialsWithoutDefaults)
             ):
-                # Explicit azure credentials are needed to load from bucket without a named stage
                 credentials_clause = f"CREDENTIALS=(AZURE_SAS_TOKEN='?{staging_credentials.azure_storage_sas_token}')"
-                # Converts an az://<container_name>/<path> to azure://<storage_account_name>.blob.core.windows.net/<container_name>/<path>
-                # as required by snowflake
-                _path = "/" + parsed_file_url.netloc + parsed_file_url.path
-                file_url = urlunparse(
-                    parsed_file_url._replace(
-                        scheme="azure",
-                        netloc=f"{staging_credentials.azure_storage_account_name}.blob.core.windows.net",
-                        path=_path,
-                    )
+                file_url = cls.ensure_snowflake_azure_url(
+                    file_url,
+                    staging_credentials.azure_storage_account_name,
+                    staging_credentials.azure_account_host,
                 )
                 from_clause = f"FROM '{file_url}'"
             else:
@@ -204,6 +202,28 @@ class SnowflakeLoadJob(RunnableLoadJob, HasFollowupJobs):
             {on_error_clause}
         """
 
+    @staticmethod
+    def ensure_snowflake_azure_url(
+        file_url: str, account_name: str = None, account_host: str = None
+    ) -> str:
+        # Explicit azure credentials are needed to load from bucket without a named stage
+        if not account_host and account_name:
+            account_host = f"{account_name}.blob.core.windows.net"
+        # get canonical url first to convert it into snowflake form
+        canonical_url = ensure_canonical_az_url(
+            file_url,
+            "azure",
+            account_name,
+            account_host,
+        )
+        parsed_file_url = urlparse(canonical_url)
+        return urlunparse(
+            parsed_file_url._replace(
+                path=f"/{parsed_file_url.username}{parsed_file_url.path}",
+                netloc=parsed_file_url.hostname,
+            )
+        )
+
 
 class SnowflakeClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
     def __init__(
@@ -223,6 +243,7 @@ class SnowflakeClient(SqlJobClientWithStagingDataset, SupportsStagingDestination
         self.config: SnowflakeClientConfiguration = config
         self.sql_client: SnowflakeSqlClient = sql_client  # type: ignore
         self.type_mapper = self.capabilities.get_type_mapper()
+        self.active_hints = SUPPORTED_HINTS if self.config.create_indexes else {}
 
     def create_load_job(
         self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
@@ -249,6 +270,33 @@ class SnowflakeClient(SqlJobClientWithStagingDataset, SupportsStagingDestination
             "ADD COLUMN\n" + ",\n".join(self._get_column_def_sql(c, table) for c in new_columns)
         ]
 
+    def _get_constraints_sql(
+        self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
+    ) -> str:
+        # "primary_key": "PRIMARY KEY"
+        if self.config.create_indexes:
+            partial: TTableSchema = {
+                "name": table_name,
+                "columns": {c["name"]: c for c in new_columns},
+            }
+            # Add PK constraint if pk_columns exist
+            pk_columns = get_columns_names_with_prop(partial, "primary_key")
+            if pk_columns:
+                if generate_alter:
+                    logger.warning(
+                        f"PRIMARY KEY on {table_name} constraint cannot be added in ALTER TABLE and"
+                        " is ignored"
+                    )
+                else:
+                    pk_constraint_name = list(
+                        self._norm_and_escape_columns(f"PK_{table_name}_{uniq_id(4)}")
+                    )[0]
+                    quoted_pk_cols = ", ".join(
+                        self.sql_client.escape_column_name(col) for col in pk_columns
+                    )
+                    return f",\nCONSTRAINT {pk_constraint_name} PRIMARY KEY ({quoted_pk_cols})"
+        return ""
+
     def _get_table_update_sql(
         self,
         table_name: str,
@@ -271,12 +319,6 @@ class SnowflakeClient(SqlJobClientWithStagingDataset, SupportsStagingDestination
         self, bq_t: str, precision: Optional[int], scale: Optional[int]
     ) -> TColumnType:
         return self.type_mapper.from_destination_type(bq_t, precision, scale)
-
-    def _get_column_def_sql(self, c: TColumnSchema, table: PreparedTableSchema = None) -> str:
-        name = self.sql_client.escape_column_name(c["name"])
-        return (
-            f"{name} {self.type_mapper.to_destination_type(c,table)} {self._gen_not_null(c.get('nullable', True))}"
-        )
 
     def should_truncate_table_before_load_on_staging_destination(self, table_name: str) -> bool:
         return self.config.truncate_tables_on_staging_destination_before_load

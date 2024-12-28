@@ -484,3 +484,59 @@ def test_scd2_pipeline_update(test_storage: FileStorage) -> None:
                 assert len(issues_retired) == 1
                 assert issues_retired[0][0] == 6272
                 # print(pipeline.default_schema.to_pretty_yaml())
+
+
+def test_normalize_path_separator_legacy_behavior(test_storage: FileStorage) -> None:
+    """Pre 1.4.1 normalized identifiers with path separators into single underscore,
+    this behavior must be preserved if the schema is updated.
+    """
+    shutil.copytree("tests/pipeline/cases/github_pipeline", TEST_STORAGE_ROOT, dirs_exist_ok=True)
+
+    # execute in test storage
+    with set_working_dir(TEST_STORAGE_ROOT):
+        # store dlt data in test storage (like patch_home_dir)
+        with custom_environ({DLT_DATA_DIR: dlt.current.run().data_dir}):
+            # save database outside of pipeline dir
+            with custom_environ(
+                {"DESTINATION__DUCKDB__CREDENTIALS": "duckdb:///test_github_3.duckdb"}
+            ):
+                venv_dir = tempfile.mkdtemp()
+                # create virtual env with (0.3.0) before the current schema upgrade
+                with Venv.create(venv_dir, ["dlt[duckdb]==0.3.0"]) as venv:
+                    venv._install_deps(venv.context, ["duckdb" + "==" + pkg_version("duckdb")])
+                    try:
+                        print(
+                            venv.run_script("../tests/pipeline/cases/github_pipeline/github_rev.py")
+                        )
+                    except CalledProcessError as cpe:
+                        print(f"script stdout: {cpe.stdout}")
+                        print(f"script stderr: {cpe.stderr}")
+                        raise
+
+                venv = Venv.restore_current()
+                # load same data again
+                try:
+                    print(venv.run_script("../tests/pipeline/cases/github_pipeline/github_rev.py"))
+                except CalledProcessError as cpe:
+                    print(f"script stdout: {cpe.stdout}")
+                    print(f"script stderr: {cpe.stderr}")
+                    raise
+                pipeline = dlt.attach(GITHUB_PIPELINE_NAME)
+                print(pipeline.default_schema.to_pretty_yaml())
+                # migration set the backward compat flag
+                assert (
+                    pipeline.default_schema._normalizers_config["use_break_path_on_normalize"]
+                    is False
+                )
+                # make sure that schema didn't change
+                assert pipeline.default_schema.data_table_names() == ["issues_2"]
+                table_ = pipeline.default_schema.tables["issues_2"]
+                assert set(table_["columns"].keys()) == {
+                    "id",
+                    "issue_id",
+                    "_dlt_id",
+                    "_dlt_load_id",
+                }
+                # datasets must be the same
+                data_ = pipeline.dataset().issues_2.select("issue_id", "id").fetchall()
+                print(data_)

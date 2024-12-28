@@ -457,16 +457,8 @@ def diff_table(
     * when columns with the same name have different data types
     * when table links to different parent tables
     """
-    if tab_a["name"] != tab_b["name"]:
-        raise TablePropertiesConflictException(
-            schema_name, tab_a["name"], "name", tab_a["name"], tab_b["name"]
-        )
-    table_name = tab_a["name"]
-    # check if table properties can be merged
-    if tab_a.get("parent") != tab_b.get("parent"):
-        raise TablePropertiesConflictException(
-            schema_name, table_name, "parent", tab_a.get("parent"), tab_b.get("parent")
-        )
+    # allow for columns to differ
+    ensure_compatible_tables(schema_name, tab_a, tab_b, ensure_columns=False)
 
     # get new columns, changes in the column data type or other properties are not allowed
     tab_a_columns = tab_a["columns"]
@@ -474,18 +466,6 @@ def diff_table(
     for col_b_name, col_b in tab_b["columns"].items():
         if col_b_name in tab_a_columns:
             col_a = tab_a_columns[col_b_name]
-            # we do not support changing data types of columns
-            if is_complete_column(col_a) and is_complete_column(col_b):
-                if not compare_complete_columns(tab_a_columns[col_b_name], col_b):
-                    # attempt to update to incompatible columns
-                    raise CannotCoerceColumnException(
-                        schema_name,
-                        table_name,
-                        col_b_name,
-                        col_b["data_type"],
-                        tab_a_columns[col_b_name]["data_type"],
-                        None,
-                    )
             # all other properties can change
             merged_column = merge_column(copy(col_a), col_b)
             if merged_column != col_a:
@@ -494,6 +474,8 @@ def diff_table(
             new_columns.append(col_b)
 
     # return partial table containing only name and properties that differ (column, filters etc.)
+    table_name = tab_a["name"]
+
     partial_table: TPartialTableSchema = {
         "name": table_name,
         "columns": {} if new_columns is None else {c["name"]: c for c in new_columns},
@@ -517,6 +499,50 @@ def diff_table(
         )
 
     return partial_table
+
+
+def ensure_compatible_tables(
+    schema_name: str, tab_a: TTableSchema, tab_b: TPartialTableSchema, ensure_columns: bool = True
+) -> None:
+    """Ensures that `tab_a` and `tab_b` can be merged without conflicts. Conflicts are detected when
+
+    - tables have different names
+    - nested tables have different parents
+    - tables have any column with incompatible types
+
+    Note: all the identifiers must be already normalized
+
+    """
+    if tab_a["name"] != tab_b["name"]:
+        raise TablePropertiesConflictException(
+            schema_name, tab_a["name"], "name", tab_a["name"], tab_b["name"]
+        )
+    table_name = tab_a["name"]
+    # check if table properties can be merged
+    if tab_a.get("parent") != tab_b.get("parent"):
+        raise TablePropertiesConflictException(
+            schema_name, table_name, "parent", tab_a.get("parent"), tab_b.get("parent")
+        )
+
+    if not ensure_columns:
+        return
+
+    tab_a_columns = tab_a["columns"]
+    for col_b_name, col_b in tab_b["columns"].items():
+        if col_b_name in tab_a_columns:
+            col_a = tab_a_columns[col_b_name]
+            # we do not support changing data types of columns
+            if is_complete_column(col_a) and is_complete_column(col_b):
+                if not compare_complete_columns(tab_a_columns[col_b_name], col_b):
+                    # attempt to update to incompatible columns
+                    raise CannotCoerceColumnException(
+                        schema_name,
+                        table_name,
+                        col_b_name,
+                        col_b["data_type"],
+                        tab_a_columns[col_b_name]["data_type"],
+                        None,
+                    )
 
 
 # def compare_tables(tab_a: TTableSchema, tab_b: TTableSchema) -> bool:
@@ -547,6 +573,17 @@ def merge_diff(table: TTableSchema, table_diff: TPartialTableSchema) -> TPartial
     * table hints are added or replaced from diff
     * nothing gets deleted
     """
+
+    incremental_a_col = get_first_column_name_with_prop(
+        table, "incremental", include_incomplete=True
+    )
+    if incremental_a_col:
+        incremental_b_col = get_first_column_name_with_prop(
+            table_diff, "incremental", include_incomplete=True
+        )
+        if incremental_b_col:
+            table["columns"][incremental_a_col].pop("incremental")
+
     # add new columns when all checks passed
     updated_columns = merge_columns(table["columns"], table_diff["columns"])
     table.update(table_diff)

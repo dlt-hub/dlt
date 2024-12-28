@@ -151,12 +151,6 @@ class DremioClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
     ) -> TColumnType:
         return self.type_mapper.from_destination_type(bq_t, precision, scale)
 
-    def _get_column_def_sql(self, c: TColumnSchema, table: PreparedTableSchema = None) -> str:
-        name = self.sql_client.escape_column_name(c["name"])
-        return (
-            f"{name} {self.type_mapper.to_destination_type(c,table)} {self._gen_not_null(c.get('nullable', True))}"
-        )
-
     def _create_merge_followup_jobs(
         self, table_chain: Sequence[PreparedTableSchema]
     ) -> List[FollowupJobRequest]:

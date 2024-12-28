@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 import pytest
 from dataclasses import dataclass
 from typing import (
@@ -5,6 +7,7 @@ from typing import (
     Callable,
     ClassVar,
     Final,
+    Generic,
     List,
     Literal,
     Mapping,
@@ -43,6 +46,8 @@ from dlt.common.typing import (
     is_union_type,
     is_annotated,
     is_callable_type,
+    add_value_to_literal,
+    get_generic_type_argument_from_instance,
 )
 
 
@@ -293,3 +298,38 @@ def test_secret_type() -> None:
 
     assert TSecretStrValue("x_str") == "x_str"
     assert TSecretStrValue({}) == "{}"
+
+
+def test_add_value_to_literal() -> None:
+    TestLiteral = Literal["red", "blue"]
+
+    add_value_to_literal(TestLiteral, "green")
+
+    assert get_args(TestLiteral) == ("red", "blue", "green")
+
+    add_value_to_literal(TestLiteral, "red")
+    assert get_args(TestLiteral) == ("red", "blue", "green")
+
+    TestSingleLiteral = Literal["red"]
+    add_value_to_literal(TestSingleLiteral, "green")
+    add_value_to_literal(TestSingleLiteral, "blue")
+    assert get_args(TestSingleLiteral) == ("red", "green", "blue")
+
+
+def test_get_generic_type_argument_from_instance() -> None:
+    T = TypeVar("T")
+
+    class Foo(Generic[T]):
+        pass
+
+    # generic contains hint
+    instance = SimpleNamespace(__orig_class__=Foo[str])
+    assert get_generic_type_argument_from_instance(instance) is str
+    instance = SimpleNamespace(__orig_class__=Optional[Foo[str]])
+    assert get_generic_type_argument_from_instance(instance) is str
+
+    # with sample values
+    instance = SimpleNamespace(__orig_class__=Foo[Any])
+    assert get_generic_type_argument_from_instance(instance, 1) is int
+    instance = SimpleNamespace(__orig_class__=Optional[Foo[Any]])
+    assert get_generic_type_argument_from_instance(instance, 1) is int

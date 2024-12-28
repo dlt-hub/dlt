@@ -22,6 +22,7 @@ env:
   TESTS__R2_AWS_ACCESS_KEY_ID: a4950a5003b26f5a71ac97ef3848ff4c
   TESTS__R2_AWS_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_SECRET_ACCESS_KEY }}
   TESTS__R2_ENDPOINT_URL: https://9830548e4e4b582989be0811f2a0a97f.r2.cloudflarestorage.com
+  TESTS__R2_REGION_NAME: us-east-1
 
   # RUNTIME__SENTRY_DSN: https://6f6f7b6f8e0f458a89be4187603b55fe@o1061158.ingest.sentry.io/4504819859914752
   RUNTIME__LOG_LEVEL: ERROR
@@ -76,8 +77,10 @@ jobs:
       #     key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}-redshift
 
       - name: Install dependencies
-        # if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction -E redshift -E gs -E s3 -E az -E parquet -E duckdb -E cli -E filesystem --with sentry-sdk --with pipeline -E deltalake
+        run: poetry install --no-interaction -E redshift -E postgis -E postgres -E gs -E s3 -E az -E parquet -E duckdb -E cli -E filesystem --with sentry-sdk --with pipeline,ibis -E deltalake -E pyiceberg
+
+      - name: Upgrade sqlalchemy
+        run: poetry run pip install sqlalchemy==2.0.18  # minimum version required by `pyiceberg`
 
       - name: create secrets.toml
         run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml

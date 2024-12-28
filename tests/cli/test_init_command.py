@@ -4,7 +4,7 @@ import hashlib
 import os
 import contextlib
 from subprocess import CalledProcessError
-from typing import Any, List, Tuple, Optional
+from typing import List, Tuple, Optional
 from hexbytes import HexBytes
 import pytest
 from unittest import mock
@@ -55,7 +55,12 @@ from tests.utils import IMPLEMENTED_DESTINATIONS, clean_test_storage
 
 # we hardcode the core sources here so we can check that the init script picks
 # up the right source
-CORE_SOURCES = ["filesystem", "rest_api", "sql_database"]
+CORE_SOURCES_CONFIG = {
+    "rest_api": {"requires_extra": False},
+    "sql_database": {"requires_extra": True},
+    "filesystem": {"requires_extra": True},
+}
+CORE_SOURCES = list(CORE_SOURCES_CONFIG.keys())
 
 # we also hardcode all the templates here for testing
 TEMPLATES = ["debug", "default", "arrow", "requests", "dataframe", "fruitshop", "github_api"]
@@ -167,6 +172,37 @@ def test_init_list_sources(repo_dir: str) -> None:
         assert source in _out
 
 
+@pytest.mark.parametrize(
+    "source_name",
+    [name for name in CORE_SOURCES_CONFIG if CORE_SOURCES_CONFIG[name]["requires_extra"]],
+)
+def test_init_command_core_source_requirements_with_extras(
+    source_name: str, repo_dir: str, project_files: FileStorage
+) -> None:
+    init_command.init_command(source_name, "duckdb", repo_dir)
+    source_requirements = SourceRequirements.from_string(
+        project_files.load(cli_utils.REQUIREMENTS_TXT)
+    )
+    canonical_name = source_name.replace("_", "-")
+    assert canonical_name in source_requirements.dlt_requirement.extras
+
+
+@pytest.mark.parametrize(
+    "source_name",
+    [name for name in CORE_SOURCES_CONFIG if not CORE_SOURCES_CONFIG[name]["requires_extra"]],
+)
+def test_init_command_core_source_requirements_without_extras(
+    source_name: str, repo_dir: str, project_files: FileStorage
+) -> None:
+    init_command.init_command(source_name, "duckdb", repo_dir)
+    source_requirements = SourceRequirements.from_string(
+        project_files.load(cli_utils.REQUIREMENTS_TXT)
+    )
+    assert source_requirements.dlt_requirement.extras == {
+        "duckdb"
+    }, "Only duckdb should be in extras"
+
+
 def test_init_list_sources_update_warning(repo_dir: str, project_files: FileStorage) -> None:
     """Sources listed include a warning if a different dlt version is required"""
     with mock.patch.object(SourceRequirements, "current_dlt_version", return_value="0.0.1"):
@@ -226,6 +262,21 @@ def test_init_all_sources_isolated(cloned_init_repo: FileStorage) -> None:
                 assert_index_version_constraint(files, candidate)
 
 
+def test_init_core_sources_ejected(cloned_init_repo: FileStorage) -> None:
+    repo_dir = get_repo_dir(cloned_init_repo)
+    # ensure we test both sources form verified sources and core sources
+    source_candidates = set(CORE_SOURCES)
+    for candidate in source_candidates:
+        clean_test_storage()
+        repo_dir = get_repo_dir(cloned_init_repo)
+        files = get_project_files(clear_all_sources=False)
+        with set_working_dir(files.storage_path):
+            init_command.init_command(candidate, "bigquery", repo_dir, eject_source=True)
+            assert_requirements_txt(files, "bigquery")
+            # check if files copied
+            assert files.has_folder(candidate)
+
+
 @pytest.mark.parametrize("destination_name", IMPLEMENTED_DESTINATIONS)
 def test_init_all_destinations(
     destination_name: str, project_files: FileStorage, repo_dir: str
@@ -241,25 +292,6 @@ def test_custom_destination_note(repo_dir: str, project_files: FileStorage):
         init_command.init_command(source_name, "destination", repo_dir)
         _out = buf.getvalue()
     assert "to add a destination function that will consume your data" in _out
-
-
-@pytest.mark.parametrize("omit", [True, False])
-# this will break if we have new core sources that are not in verified sources anymore
-@pytest.mark.parametrize("source", set(CORE_SOURCES) - {"rest_api"})
-def test_omit_core_sources(
-    source: str, omit: bool, project_files: FileStorage, repo_dir: str
-) -> None:
-    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
-        init_command.init_command(source, "destination", repo_dir, omit_core_sources=omit)
-        _out = buf.getvalue()
-
-    # check messaging
-    assert ("Omitting dlt core sources" in _out) == omit
-    assert ("will no longer be copied from the" in _out) == (not omit)
-
-    # if we omit core sources, there will be a folder with the name of the source from the verified sources repo
-    assert project_files.has_folder(source) == omit
-    assert (f"dlt.sources.{source}" in project_files.load(f"{source}_pipeline.py")) == (not omit)
 
 
 def test_init_code_update_index_diff(repo_dir: str, project_files: FileStorage) -> None:
@@ -571,7 +603,7 @@ def assert_requirements_txt(project_files: FileStorage, destination_name: str) -
         project_files.load(cli_utils.REQUIREMENTS_TXT)
     )
     assert destination_name in source_requirements.dlt_requirement.extras
-    # Check that atleast some version range is specified
+    # Check that at least some version range is specified
     assert len(source_requirements.dlt_requirement.specifier) >= 1
 
 

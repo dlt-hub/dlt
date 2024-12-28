@@ -2,9 +2,9 @@ from typing import Dict, Optional, Sequence, List, Any
 
 from dlt.common import logger
 from dlt.common.data_writers.configuration import CsvFormatConfiguration
+from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.exceptions import (
     DestinationInvalidFileFormat,
-    DestinationTerminalException,
 )
 from dlt.common.destination.reference import (
     HasFollowupJobs,
@@ -12,20 +12,16 @@ from dlt.common.destination.reference import (
     RunnableLoadJob,
     FollowupJobRequest,
     LoadJob,
-    TLoadJobState,
 )
-from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.exceptions import TerminalValueError
 from dlt.common.schema import TColumnSchema, TColumnHint, Schema
-from dlt.common.schema.typing import TColumnType, TTableFormat
+from dlt.common.schema.typing import TColumnType
 from dlt.common.schema.utils import is_nullable_column
 from dlt.common.storages.file_storage import FileStorage
-
-from dlt.destinations.sql_jobs import SqlStagingCopyFollowupJob, SqlJobParams
-from dlt.destinations.insert_job_client import InsertValuesJobClient
-from dlt.destinations.impl.postgres.sql_client import Psycopg2SqlClient
 from dlt.destinations.impl.postgres.configuration import PostgresClientConfiguration
+from dlt.destinations.impl.postgres.sql_client import Psycopg2SqlClient
+from dlt.destinations.insert_job_client import InsertValuesJobClient
 from dlt.destinations.sql_client import SqlClientBase
+from dlt.destinations.sql_jobs import SqlStagingCopyFollowupJob, SqlJobParams
 
 HINT_TO_POSTGRES_ATTR: Dict[TColumnHint, str] = {"unique": "UNIQUE"}
 
@@ -43,15 +39,16 @@ class PostgresStagingCopyJob(SqlStagingCopyFollowupJob):
             with sql_client.with_staging_dataset():
                 staging_table_name = sql_client.make_qualified_table_name(table["name"])
             table_name = sql_client.make_qualified_table_name(table["name"])
-            # drop destination table
-            sql.append(f"DROP TABLE IF EXISTS {table_name};")
-            # moving staging table to destination schema
-            sql.append(
-                f"ALTER TABLE {staging_table_name} SET SCHEMA"
-                f" {sql_client.fully_qualified_dataset_name()};"
+            sql.extend(
+                (
+                    f"DROP TABLE IF EXISTS {table_name};",
+                    (
+                        f"ALTER TABLE {staging_table_name} SET SCHEMA"
+                        f" {sql_client.fully_qualified_dataset_name()};"
+                    ),
+                    f"CREATE TABLE {staging_table_name} (like {table_name} including all);",
+                )
             )
-            # recreate staging table
-            sql.append(f"CREATE TABLE {staging_table_name} (like {table_name} including all);")
         return sql
 
 
@@ -111,8 +108,7 @@ class PostgresCsvCopyJob(RunnableLoadJob, HasFollowupJobs):
                 split_columns.append(norm_col)
                 if norm_col in split_headers and is_nullable_column(col):
                     split_null_headers.append(norm_col)
-            split_unknown_headers = set(split_headers).difference(split_columns)
-            if split_unknown_headers:
+            if split_unknown_headers := set(split_headers).difference(split_columns):
                 raise DestinationInvalidFileFormat(
                     "postgres",
                     "csv",
@@ -130,15 +126,8 @@ class PostgresCsvCopyJob(RunnableLoadJob, HasFollowupJobs):
 
             qualified_table_name = sql_client.make_qualified_table_name(table_name)
             copy_sql = (
-                "COPY %s (%s) FROM STDIN WITH (FORMAT CSV, DELIMITER '%s', NULL '',"
-                " %s ENCODING '%s')"
-                % (
-                    qualified_table_name,
-                    headers,
-                    sep,
-                    null_headers,
-                    csv_format.encoding,
-                )
+                f"COPY {qualified_table_name} ({headers}) FROM STDIN WITH (FORMAT CSV, DELIMITER"
+                f" '{sep}', NULL '', {null_headers} ENCODING '{csv_format.encoding}')"
             )
             with sql_client.begin_transaction():
                 with sql_client.native_connection.cursor() as cursor:
@@ -171,17 +160,6 @@ class PostgresClient(InsertValuesJobClient):
         if not job and file_path.endswith("csv"):
             job = PostgresCsvCopyJob(file_path)
         return job
-
-    def _get_column_def_sql(self, c: TColumnSchema, table: PreparedTableSchema = None) -> str:
-        hints_str = " ".join(
-            self.active_hints.get(h, "")
-            for h in self.active_hints.keys()
-            if c.get(h, False) is True
-        )
-        column_name = self.sql_client.escape_column_name(c["name"])
-        return (
-            f"{column_name} {self.type_mapper.to_destination_type(c,table)} {hints_str} {self._gen_not_null(c.get('nullable', True))}"
-        )
 
     def _create_replace_followup_jobs(
         self, table_chain: Sequence[PreparedTableSchema]

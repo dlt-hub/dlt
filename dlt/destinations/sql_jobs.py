@@ -167,12 +167,24 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         merge_strategy = resolve_merge_strategy(
             {root_table["name"]: root_table}, root_table, sql_client.capabilities
         )
+
+        merge_sql = None
         if merge_strategy == "delete-insert":
-            return cls.gen_merge_sql(table_chain, sql_client)
+            merge_sql = cls.gen_merge_sql(table_chain, sql_client)
         elif merge_strategy == "upsert":
-            return cls.gen_upsert_sql(table_chain, sql_client)
+            merge_sql = cls.gen_upsert_sql(table_chain, sql_client)
         elif merge_strategy == "scd2":
-            return cls.gen_scd2_sql(table_chain, sql_client)
+            merge_sql = cls.gen_scd2_sql(table_chain, sql_client)
+
+        # prepend setup code
+        return cls._gen_table_setup_clauses(table_chain, sql_client) + merge_sql
+
+    @classmethod
+    def _gen_table_setup_clauses(
+        cls, table_chain: Sequence[PreparedTableSchema], sql_client: SqlClientBase[Any]
+    ) -> List[str]:
+        """Subclasses may override this method to generate additional sql statements to run before the merge"""
+        return []
 
     @classmethod
     def _gen_key_table_clauses(
@@ -419,23 +431,43 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         sql_client: SqlClientBase[Any],
         table: PreparedTableSchema,
     ) -> str:
-        """Returns name of first column in `table` with `row_key` property. If not found first `unique` hint will be used
+        """Returns name of first column in `table` with `row_key` property. If not found first `unique` hint will be used.
+        If no `unique` columns exist, will attempt to use a single primary key column.
 
-        Raises `MergeDispositionException` if no such column exists.
+        Returns:
+            str: Name of the column to be used as row key
+
+        Raises:
+            MergeDispositionException: If no suitable column is found based on the search criteria
         """
         col = get_first_column_name_with_prop(table, "row_key")
-        if col is None:
-            col = cls._get_prop_col_or_raise(
-                table,
-                "unique",
-                MergeDispositionException(
-                    sql_client.fully_qualified_dataset_name(),
-                    sql_client.fully_qualified_dataset_name(staging=True),
-                    [t["name"] for t in table_chain],
-                    f"No `row_key` or `unique` column (e.g. `_dlt_id`) in table `{table['name']}`.",
-                ),
+        if col is not None:
+            return col
+
+        col = get_first_column_name_with_prop(table, "unique")
+        if col is not None:
+            return col
+
+        # Try to use a single primary key column as a fallback
+        primary_key_cols = get_columns_names_with_prop(table, "primary_key")
+        if len(primary_key_cols) == 1:
+            return primary_key_cols[0]
+        elif len(primary_key_cols) > 1:
+            raise MergeDispositionException(
+                sql_client.fully_qualified_dataset_name(),
+                sql_client.fully_qualified_dataset_name(staging=True),
+                [t["name"] for t in table_chain],
+                f"Multiple primary key columns found in table `{table['name']}`. "
+                "Cannot use as row_key.",
             )
-        return col
+
+        raise MergeDispositionException(
+            sql_client.fully_qualified_dataset_name(),
+            sql_client.fully_qualified_dataset_name(staging=True),
+            [t["name"] for t in table_chain],
+            "No `row_key`, `unique`, or single primary key column (e.g. `_dlt_id`) "
+            f"in table `{table['name']}`.",
+        )
 
     @classmethod
     def _get_root_key_col(

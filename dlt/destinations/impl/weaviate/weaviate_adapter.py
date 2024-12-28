@@ -1,6 +1,7 @@
 from typing import Dict, Any, Literal, Set, get_args
 
-from dlt.common.schema.typing import TColumnNames, TTableSchemaColumns
+from dlt.common.schema.typing import TTableSchemaColumns
+from dlt.common.typing import TColumnNames
 from dlt.extract import DltResource, resource as make_resource
 from dlt.destinations.utils import get_resource_for_adapter
 

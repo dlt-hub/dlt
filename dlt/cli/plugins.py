@@ -84,14 +84,10 @@ class InitCommand(SupportsCliCommand):
         )
 
         parser.add_argument(
-            "--omit-core-sources",
+            "--eject",
             default=False,
             action="store_true",
-            help=(
-                "When present, will not create the new pipeline with a core source of the given"
-                " name but will take a source of this name from the default or provided"
-                " location."
-            ),
+            help="Ejects the source code of the core source like sql_database",
         )
 
     def execute(self, args: argparse.Namespace) -> None:
@@ -107,7 +103,7 @@ class InitCommand(SupportsCliCommand):
                     args.destination,
                     args.location,
                     args.branch,
-                    args.omit_core_sources,
+                    args.eject,
                 )
 
 

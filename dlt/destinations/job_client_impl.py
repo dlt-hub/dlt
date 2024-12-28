@@ -7,6 +7,7 @@ from types import TracebackType
 from typing import (
     Any,
     ClassVar,
+    Dict,
     List,
     Optional,
     Sequence,
@@ -14,21 +15,18 @@ from typing import (
     Type,
     Iterable,
     Iterator,
-    Generator,
 )
 import zlib
 import re
-from contextlib import contextmanager
-from contextlib import suppress
 
 from dlt.common import pendulum, logger
+from dlt.common.destination.capabilities import DataTypeMapper
 from dlt.common.json import json
 from dlt.common.schema.typing import (
     C_DLT_LOAD_ID,
     COLUMN_HINTS,
     TColumnType,
     TColumnSchemaBase,
-    TTableFormat,
 )
 from dlt.common.schema.utils import (
     get_inherited_table_hint,
@@ -40,11 +38,11 @@ from dlt.common.schema.utils import (
 from dlt.common.storages import FileStorage
 from dlt.common.storages.load_package import LoadJobInfo, ParsedLoadJobFileName
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns, TSchemaTables
+from dlt.common.schema import TColumnHint
 from dlt.common.destination.reference import (
     PreparedTableSchema,
     StateInfo,
     StorageSchemaInfo,
-    SupportsReadableDataset,
     WithStateSync,
     DestinationClientConfiguration,
     DestinationClientDwhConfiguration,
@@ -55,9 +53,7 @@ from dlt.common.destination.reference import (
     JobClientBase,
     HasFollowupJobs,
     CredentialsConfiguration,
-    SupportsReadableRelation,
 )
-from dlt.destinations.dataset import ReadableDBAPIDataset
 
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
 from dlt.destinations.job_impl import (
@@ -154,6 +150,8 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
         self.state_table_columns = ", ".join(
             sql_client.escape_column_name(col) for col in state_table_["columns"]
         )
+        self.active_hints: Dict[TColumnHint, str] = {}
+        self.type_mapper: DataTypeMapper = None
         super().__init__(schema, config, sql_client.capabilities)
         self.sql_client = sql_client
         assert isinstance(config, DestinationClientDwhConfiguration)
@@ -569,6 +567,7 @@ WHERE """
             # build CREATE
             sql = self._make_create_table(qualified_name, table) + " (\n"
             sql += ",\n".join([self._get_column_def_sql(c, table) for c in new_columns])
+            sql += self._get_constraints_sql(table_name, new_columns, generate_alter)
             sql += ")"
             sql_result.append(sql)
         else:
@@ -582,7 +581,15 @@ WHERE """
                 sql_result.extend(
                     [sql_base + col_statement for col_statement in add_column_statements]
                 )
+            constraints_sql = self._get_constraints_sql(table_name, new_columns, generate_alter)
+            if constraints_sql:
+                sql_result.append(constraints_sql)
         return sql_result
+
+    def _get_constraints_sql(
+        self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
+    ) -> str:
+        return ""
 
     def _check_table_update_hints(
         self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
@@ -597,7 +604,10 @@ WHERE """
                         for c in new_columns
                         if c.get(hint, False)
                     ]
-                    if hint == "null":
+                    if hint in ["hard_delete", "dedup_sort", "merge_key"]:
+                        # you may add those
+                        pass
+                    elif hint == "null":
                         logger.warning(
                             f"Column(s) {hint_columns} with NOT NULL are being added to existing"
                             f" table {table_name}. If there's data in the table the operation"
@@ -610,12 +620,22 @@ WHERE """
                             " existing tables."
                         )
 
-    @abstractmethod
     def _get_column_def_sql(self, c: TColumnSchema, table: PreparedTableSchema = None) -> str:
-        pass
+        hints_ = self._get_column_hints_sql(c)
+        column_name = self.sql_client.escape_column_name(c["name"])
+        nullability = self._gen_not_null(c.get("nullable", True))
+        column_type = self.type_mapper.to_destination_type(c, table)
 
-    @staticmethod
-    def _gen_not_null(nullable: bool) -> str:
+        return f"{column_name} {column_type} {hints_} {nullability}"
+
+    def _get_column_hints_sql(self, c: TColumnSchema) -> str:
+        return " ".join(
+            self.active_hints.get(h, "")
+            for h in self.active_hints.keys()
+            if c.get(h, False) is True  # use ColumnPropInfos to get default value
+        )
+
+    def _gen_not_null(self, nullable: bool) -> str:
         return "NOT NULL" if not nullable else ""
 
     def _create_table_update(

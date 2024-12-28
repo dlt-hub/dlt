@@ -5,12 +5,12 @@ import pytest
 
 from dlt.common.libs.pyarrow import normalize_py_arrow_item, NameNormalizationCollision
 from dlt.common.schema.utils import new_column, TColumnSchema
-from dlt.common.schema.normalizers import explicit_normalizers, import_normalizers
+from dlt.common.schema.normalizers import configured_normalizers, import_normalizers
 from dlt.common.destination import DestinationCapabilitiesContext
 
 
 def _normalize(table: pa.Table, columns: List[TColumnSchema]) -> pa.Table:
-    _, naming, _ = import_normalizers(explicit_normalizers())
+    _, naming, _ = import_normalizers(configured_normalizers())
     caps = DestinationCapabilitiesContext()
     columns_schema = {c["name"]: c for c in columns}
     return normalize_py_arrow_item(table, columns_schema, naming, caps)

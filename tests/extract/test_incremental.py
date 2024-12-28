@@ -5,8 +5,9 @@ import random
 from datetime import datetime, date  # noqa: I251
 from itertools import chain, count
 from time import sleep
-from typing import Any, Optional
+from typing import Any, Optional, Literal, Sequence, Dict, Iterable
 from unittest import mock
+import itertools
 
 import duckdb
 import pyarrow as pa
@@ -35,7 +36,7 @@ from dlt.extract.incremental.exceptions import (
     IncrementalPrimaryKeyMissing,
 )
 from dlt.extract.incremental.lag import apply_lag
-from dlt.extract.items import ValidateItem
+from dlt.extract.items_transform import ValidateItem
 from dlt.extract.resource import DltResource
 from dlt.pipeline.exceptions import PipelineStepFailed
 from dlt.sources.helpers.transform import take_first
@@ -219,8 +220,74 @@ def test_unique_keys_are_deduplicated(item_type: TestDataItemFormat) -> None:
     assert rows == [(1, "a"), (2, "b"), (3, "c"), (3, "d"), (3, "e"), (3, "f"), (4, "g")]
 
 
+def test_pandas_index_as_dedup_key() -> None:
+    from dlt.common.libs.pandas import pandas_to_arrow, pandas as pd
+
+    some_data, p = _make_dedup_pipeline("pandas")
+
+    # no index
+    no_index_r = some_data.with_name(new_name="no_index")
+    p.run(no_index_r)
+    p.run(no_index_r)
+    data_ = p.dataset().no_index.arrow()
+    assert data_.schema.names == ["created_at", "id"]
+    assert data_["id"].to_pylist() == ["a", "b", "c", "d", "e", "f", "g"]
+
+    # unnamed index: explicitly converted
+    unnamed_index_r = some_data.with_name(new_name="unnamed_index").add_map(
+        lambda df: pandas_to_arrow(df, preserve_index=True)
+    )
+    # use it (as in arrow table) to deduplicate
+    unnamed_index_r.incremental.primary_key = "__index_level_0__"
+    p.run(unnamed_index_r)
+    p.run(unnamed_index_r)
+    data_ = p.dataset().unnamed_index.arrow()
+    assert data_.schema.names == ["created_at", "id", "index_level_0"]
+    # indexes 2 and 3 are removed from second batch because they were in the previous batch
+    # and the created_at overlapped so they got deduplicated
+    assert data_["index_level_0"].to_pylist() == [0, 1, 2, 3, 4, 0, 1, 4]
+
+    def _make_named_index(df_: pd.DataFrame) -> pd.DataFrame:
+        df_.index = pd.RangeIndex(start=0, stop=len(df_), step=1, name="order_id")
+        return df_
+
+    # named index explicitly converted
+    named_index_r = some_data.with_name(new_name="named_index").add_map(
+        lambda df: pandas_to_arrow(_make_named_index(df), preserve_index=True)
+    )
+    # use it (as in arrow table) to deduplicate
+    named_index_r.incremental.primary_key = "order_id"
+    p.run(named_index_r)
+    p.run(named_index_r)
+    data_ = p.dataset().named_index.arrow()
+    assert data_.schema.names == ["created_at", "id", "order_id"]
+    assert data_["order_id"].to_pylist() == [0, 1, 2, 3, 4, 0, 1, 4]
+
+    # named index explicitly converted
+    named_index_impl_r = some_data.with_name(new_name="named_index_impl").add_map(
+        lambda df: _make_named_index(df)
+    )
+    p.run(named_index_impl_r)
+    p.run(named_index_impl_r)
+    data_ = p.dataset().named_index_impl.arrow()
+    assert data_.schema.names == ["created_at", "id"]
+    assert data_["id"].to_pylist() == ["a", "b", "c", "d", "e", "f", "g"]
+
+
 @pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
 def test_unique_rows_by_hash_are_deduplicated(item_type: TestDataItemFormat) -> None:
+    some_data, p = _make_dedup_pipeline(item_type)
+    p.run(some_data())
+    p.run(some_data())
+
+    with p.sql_client() as c:
+        with c.execute_query("SELECT created_at, id FROM some_data ORDER BY created_at, id") as cur:
+            rows = cur.fetchall()
+    print(rows)
+    assert rows == [(1, "a"), (2, "b"), (3, "c"), (3, "d"), (3, "e"), (3, "f"), (4, "g")]
+
+
+def _make_dedup_pipeline(item_type: TestDataItemFormat):
     data1 = [
         {"created_at": 1, "id": "a"},
         {"created_at": 2, "id": "b"},
@@ -235,7 +302,6 @@ def test_unique_rows_by_hash_are_deduplicated(item_type: TestDataItemFormat) -> 
         {"created_at": 3, "id": "f"},
         {"created_at": 4, "id": "g"},
     ]
-
     source_items1 = data_to_item_format(item_type, data1)
     source_items2 = data_to_item_format(item_type, data2)
 
@@ -250,14 +316,7 @@ def test_unique_rows_by_hash_are_deduplicated(item_type: TestDataItemFormat) -> 
         pipeline_name=uniq_id(),
         destination=dlt.destinations.duckdb(credentials=duckdb.connect(":memory:")),
     )
-    p.run(some_data())
-    p.run(some_data())
-
-    with p.sql_client() as c:
-        with c.execute_query("SELECT created_at, id FROM some_data order by created_at, id") as cur:
-            rows = cur.fetchall()
-
-    assert rows == [(1, "a"), (2, "b"), (3, "c"), (3, "d"), (3, "e"), (3, "f"), (4, "g")]
+    return some_data, p
 
 
 def test_nested_cursor_path() -> None:
@@ -545,6 +604,39 @@ def test_cursor_datetime_type(item_type: TestDataItemFormat) -> None:
         "created_at"
     ]
     assert s["last_value"] == initial_value + timedelta(minutes=4)
+
+
+@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
+def test_incremental_transform_return_empty_rows_with_lag(item_type: TestDataItemFormat) -> None:
+    @dlt.resource
+    def some_data(
+        created_at=dlt.sources.incremental(
+            "created_at", initial_value="2024-11-01T08:00:00+08:00", lag=3600
+        )
+    ):
+        yield from source_items
+
+    p = dlt.pipeline(pipeline_name=uniq_id())
+
+    first_run_data = [{"id": 1, "value": 10, "created_at": "2024-11-01T12:00:00+08:00"}]
+    source_items = data_to_item_format(item_type, first_run_data)
+
+    p.extract(some_data())
+    s = p.state["sources"][p.default_schema_name]["resources"]["some_data"]["incremental"][
+        "created_at"
+    ]
+
+    assert s["last_value"] == "2024-11-01T12:00:00+08:00"
+
+    second_run_data = [{"id": 1, "value": 10, "created_at": "2024-11-01T10:00:00+08:00"}]
+    source_items = data_to_item_format(item_type, second_run_data)
+
+    p.extract(some_data())
+    s = p.state["sources"][p.default_schema_name]["resources"]["some_data"]["incremental"][
+        "created_at"
+    ]
+
+    assert s["last_value"] == "2024-11-01T12:00:00+08:00"
 
 
 @pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
@@ -1464,14 +1556,18 @@ def test_incremental_explicit_disable_unique_check(item_type: TestDataItemFormat
 
 @pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
 def test_apply_hints_incremental(item_type: TestDataItemFormat) -> None:
+    os.environ["COMPLETED_PROB"] = "1.0"  # make it complete immediately
     p = dlt.pipeline(pipeline_name=uniq_id(), destination="dummy")
     data = [{"created_at": 1}, {"created_at": 2}, {"created_at": 3}]
     source_items = data_to_item_format(item_type, data)
 
+    should_have_arg = True
+
     @dlt.resource
     def some_data(created_at: Optional[dlt.sources.incremental[int]] = None):
         # make sure that incremental from apply_hints is here
-        if created_at is not None:
+        if should_have_arg:
+            assert created_at is not None
             assert created_at.cursor_path == "created_at"
             assert created_at.last_value_func is max
         yield source_items
@@ -1505,6 +1601,7 @@ def test_apply_hints_incremental(item_type: TestDataItemFormat) -> None:
     assert list(r) == []
 
     # remove incremental
+    should_have_arg = False
     r.apply_hints(incremental=dlt.sources.incremental.EMPTY)
     assert r.incremental is not None
     assert r.incremental.incremental is None
@@ -1515,6 +1612,7 @@ def test_apply_hints_incremental(item_type: TestDataItemFormat) -> None:
 
     # as above but we provide explicit incremental when creating resource
     p = p.drop()
+    should_have_arg = True
     r = some_data(created_at=dlt.sources.incremental("created_at", last_value_func=min))
     # hints have precedence, as expected
     r.apply_hints(incremental=dlt.sources.incremental("created_at", last_value_func=max))
@@ -3539,3 +3637,415 @@ def test_apply_lag() -> None:
     assert apply_lag(2, 0, 1, max) == 0
     assert apply_lag(1, 2, 1, min) == 2
     assert apply_lag(2, 2, 1, min) == 2
+
+
+@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
+@pytest.mark.parametrize("primary_key", ["id", None])
+def test_warning_large_deduplication_state(item_type: TestDataItemFormat, primary_key, mocker):
+    @dlt.resource(primary_key=primary_key)
+    def some_data(
+        created_at=dlt.sources.incremental("created_at"),
+    ):
+        # Cross the default threshold of 200
+        yield data_to_item_format(
+            item_type,
+            [{"id": i, "created_at": 1} for i in range(201)],
+        )
+        # Second batch adds more items but shouldn't trigger warning
+        yield data_to_item_format(
+            item_type,
+            [{"id": i, "created_at": 1} for i in range(201, 301)],
+        )
+
+    logger_spy = mocker.spy(dlt.common.logger, "warning")
+    p = dlt.pipeline(pipeline_name=uniq_id())
+    p.extract(some_data(1))
+
+    # Verify warning was called exactly once
+    warning_calls = [
+        call for call in logger_spy.call_args_list if "Large number of records" in call.args[0]
+    ]
+    assert len(warning_calls) == 1
+
+
+def _resource_for_table_hint(
+    hint_type: Literal[
+        "default_arg", "explicit_arg", "apply_hints", "default_arg_override", "decorator"
+    ],
+    data: Sequence[Dict[str, Any]],
+    incremental_arg: dlt.sources.incremental[Any],
+    incremental_arg_default: dlt.sources.incremental[Any] = None,
+) -> DltResource:
+    if incremental_arg is None and incremental_arg_default is None:
+        raise ValueError("One of the incremental arguments must be provided.")
+
+    decorator_arg = None
+    if hint_type == "default_arg":
+        default_arg = incremental_arg_default
+        override_arg = None
+    elif hint_type == "default_arg_override":
+        default_arg = incremental_arg_default
+        override_arg = incremental_arg
+    elif hint_type == "decorator":
+        default_arg = None
+        override_arg = None
+        decorator_arg = incremental_arg_default
+    else:
+        default_arg = None
+        override_arg = incremental_arg
+
+    @dlt.resource(incremental=decorator_arg)
+    def some_data(
+        updated_at: dlt.sources.incremental[Any] = default_arg,
+    ) -> Any:
+        yield data_to_item_format("object", data)
+
+    if override_arg is None:
+        return some_data()
+
+    if hint_type == "apply_hints":
+        rs = some_data()
+        rs.apply_hints(incremental=override_arg)
+        return rs
+
+    return some_data(updated_at=override_arg)
+
+
+@pytest.mark.parametrize(
+    "hint_type", ["default_arg", "explicit_arg", "apply_hints", "default_arg_override", "decorator"]
+)
+@pytest.mark.parametrize(
+    "incremental_settings",
+    [
+        {
+            "last_value_func": "min",
+            "row_order": "desc",
+            "on_cursor_value_missing": "include",
+        },
+        {"last_value_func": "max", "on_cursor_value_missing": "raise"},
+    ],
+)
+def test_incremental_table_hint_datetime_column(
+    hint_type: Literal[
+        "default_arg",
+        "explicit_arg",
+        "default_arg_override",
+        "apply_hints",
+        "decorator",
+    ],
+    incremental_settings: Dict[str, Any],
+) -> None:
+    initial_value_override = pendulum.now()
+    initial_value_default = pendulum.now().subtract(seconds=10)
+    rs = _resource_for_table_hint(
+        hint_type,
+        [{"updated_at": pendulum.now().add(seconds=i)} for i in range(1, 12)],
+        dlt.sources.incremental(
+            "updated_at", initial_value=initial_value_override, **incremental_settings
+        ),
+        dlt.sources.incremental(
+            "updated_at", initial_value=initial_value_default, **incremental_settings
+        ),
+    )
+
+    pipeline = dlt.pipeline(pipeline_name=uniq_id())
+    pipeline.extract(rs)
+
+    table_schema = pipeline.default_schema.tables["some_data"]
+
+    assert table_schema["columns"]["updated_at"]["incremental"] is True
+
+
+def incremental_instance_or_dict(use_dict: bool, **kwargs):
+    if use_dict:
+        return kwargs
+    return dlt.sources.incremental(**kwargs)
+
+
+@pytest.mark.parametrize("use_dict", [False, True])
+def test_incremental_in_resource_decorator(use_dict: bool) -> None:
+    # Incremental set in decorator, without any arguments
+    @dlt.resource(
+        incremental=incremental_instance_or_dict(
+            use_dict, cursor_path="value", initial_value=5, last_value_func=min
+        )
+    )
+    def no_incremental_arg():
+        yield [{"value": i} for i in range(10)]
+
+    result = list(no_incremental_arg())
+    # filtering is applied
+    assert result == [{"value": i} for i in range(0, 6)]
+
+    # Apply hints overrides the decorator settings
+    rs = no_incremental_arg()
+    rs.apply_hints(
+        incremental=incremental_instance_or_dict(
+            use_dict, cursor_path="value", initial_value=3, last_value_func=max
+        )
+    )
+    result = list(rs)
+    assert result == [{"value": i} for i in range(3, 10)]
+
+    @dlt.resource(
+        incremental=incremental_instance_or_dict(
+            use_dict, cursor_path="value", initial_value=5, last_value_func=min
+        )
+    )
+    def with_optional_incremental_arg(incremental: Optional[dlt.sources.incremental[int]] = None):
+        assert incremental is not None
+        yield [{"value": i} for i in range(10)]
+
+    # Decorator settings are used
+    result = list(with_optional_incremental_arg())
+    assert result == [{"value": i} for i in range(0, 6)]
+
+
+@pytest.mark.parametrize("use_dict", [False, True])
+def test_incremental_in_resource_decorator_default_arg(use_dict: bool) -> None:
+    @dlt.resource(
+        incremental=incremental_instance_or_dict(
+            use_dict, cursor_path="value", initial_value=5, last_value_func=min
+        )
+    )
+    def with_default_incremental_arg(
+        incremental: dlt.sources.incremental[int] = dlt.sources.incremental(
+            "value", initial_value=3, last_value_func=min
+        )
+    ):
+        assert incremental.last_value == initial_value
+        assert incremental.last_value_func == last_value_func
+        yield [{"value": i} for i in range(10)]
+
+    last_value_func = max
+    initial_value = 4
+    # Explicit argument overrides the default and decorator argument
+    result = list(
+        with_default_incremental_arg(
+            incremental=dlt.sources.incremental(
+                "value", initial_value=initial_value, last_value_func=last_value_func
+            )
+        )
+    )
+    assert result == [{"value": i} for i in range(4, 10)]
+
+    # Decorator param overrides function default arg
+    last_value_func = min
+    initial_value = 5
+    result = list(with_default_incremental_arg())
+    assert result == [{"value": i} for i in range(0, 6)]
+
+
+@pytest.mark.parametrize("use_dict", [False, True])
+def test_incremental_table_hint_merged_columns(use_dict: bool) -> None:
+    @dlt.resource(
+        incremental=incremental_instance_or_dict(
+            use_dict, cursor_path="col_a", initial_value=3, last_value_func=min
+        )
+    )
+    def some_data():
+        yield [{"col_a": i, "foo": i + 2, "col_b": i + 1, "bar": i + 3} for i in range(10)]
+
+    pipeline = dlt.pipeline(pipeline_name=uniq_id())
+    pipeline.extract(some_data())
+
+    table_schema = pipeline.default_schema.tables["some_data"]
+    assert table_schema["columns"]["col_a"]["incremental"] is True
+
+    rs = some_data()
+    rs.apply_hints(
+        incremental=incremental_instance_or_dict(
+            use_dict, cursor_path="col_b", initial_value=5, last_value_func=max
+        )
+    )
+
+    pipeline.extract(rs)
+
+    table_schema_2 = pipeline.default_schema.tables["some_data"]
+
+    # Only one column should have the hint
+    assert "incremental" not in table_schema_2["columns"]["col_a"]
+    assert table_schema_2["columns"]["col_b"]["incremental"] is True
+
+
+@pytest.mark.parametrize("use_dict", [True, False])
+def test_incremental_column_hint_cursor_is_not_column(use_dict: bool):
+    @dlt.resource(
+        incremental=incremental_instance_or_dict(
+            use_dict, cursor_path="col_a|col_b", initial_value=3, last_value_func=min
+        )
+    )
+    def some_data():
+        yield [{"col_a": i, "foo": i + 2, "col_b": i + 1, "bar": i + 3} for i in range(10)]
+
+    pipeline = dlt.pipeline(pipeline_name=uniq_id())
+
+    pipeline.extract(some_data())
+
+    table_schema = pipeline.default_schema.tables["some_data"]
+
+    for col in table_schema["columns"].values():
+        assert "incremental" not in col
+
+
+@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
+@pytest.mark.parametrize("last_value_func", [min, max])
+def test_start_range_open(item_type: TestDataItemFormat, last_value_func: Any) -> None:
+    data_range: Iterable[int] = range(1, 12)
+    if last_value_func == max:
+        initial_value = 5
+        # Only items higher than inital extracted
+        expected_items = list(range(6, 12))
+        order_dir = "ASC"
+    elif last_value_func == min:
+        data_range = reversed(data_range)  # type: ignore[call-overload]
+        initial_value = 5
+        # Only items lower than inital extracted
+        expected_items = list(reversed(range(1, 5)))
+        order_dir = "DESC"
+
+    @dlt.resource
+    def some_data(
+        updated_at: dlt.sources.incremental[int] = dlt.sources.incremental(
+            "updated_at",
+            initial_value=initial_value,
+            range_start="open",
+            last_value_func=last_value_func,
+        ),
+    ) -> Any:
+        data = [{"updated_at": i} for i in data_range]
+        yield data_to_item_format(item_type, data)
+
+    pipeline = dlt.pipeline(pipeline_name=uniq_id(), destination="duckdb")
+    pipeline.run(some_data())
+
+    with pipeline.sql_client() as client:
+        items = [
+            row[0]
+            for row in client.execute_sql(
+                f"SELECT updated_at FROM some_data ORDER BY updated_at {order_dir}"
+            )
+        ]
+
+    assert items == expected_items
+
+
+@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
+def test_start_range_open_no_deduplication(item_type: TestDataItemFormat) -> None:
+    @dlt.source
+    def dummy():
+        @dlt.resource
+        def some_data(
+            updated_at: dlt.sources.incremental[int] = dlt.sources.incremental(
+                "updated_at",
+                range_start="open",
+            )
+        ):
+            yield [{"updated_at": i} for i in range(3)]
+
+        yield some_data
+
+    pipeline = dlt.pipeline(pipeline_name=uniq_id())
+    pipeline.extract(dummy())
+
+    state = pipeline.state["sources"]["dummy"]["resources"]["some_data"]["incremental"][
+        "updated_at"
+    ]
+
+    # No unique values should be computed
+    assert state["unique_hashes"] == []
+
+
+@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
+@pytest.mark.parametrize("last_value_func", [min, max])
+def test_end_range_closed(item_type: TestDataItemFormat, last_value_func: Any) -> None:
+    values = [5, 10]
+    expected_items = list(range(5, 11))
+    if last_value_func == max:
+        order_dir = "ASC"
+    elif last_value_func == min:
+        values = list(reversed(values))
+        expected_items = list(reversed(expected_items))
+        order_dir = "DESC"
+
+    @dlt.resource
+    def some_data(
+        updated_at: dlt.sources.incremental[int] = dlt.sources.incremental(
+            "updated_at",
+            initial_value=values[0],
+            end_value=values[1],
+            range_end="closed",
+            last_value_func=last_value_func,
+        ),
+    ) -> Any:
+        data = [{"updated_at": i} for i in range(1, 12)]
+        yield data_to_item_format(item_type, data)
+
+    pipeline = dlt.pipeline(pipeline_name=uniq_id(), destination="duckdb")
+    pipeline.run(some_data())
+
+    with pipeline.sql_client() as client:
+        items = [
+            row[0]
+            for row in client.execute_sql(
+                f"SELECT updated_at FROM some_data ORDER BY updated_at {order_dir}"
+            )
+        ]
+
+    # Includes values 5-10 inclusive
+    assert items == expected_items
+
+
+@pytest.mark.parametrize("offset_by_last_value", [True, False])
+def test_incremental_and_limit(offset_by_last_value: bool):
+    resource_called = 0
+
+    # here we check incremental and limit when incremental once when last value cannot be used
+    # to offset the source, and once when it can.
+
+    @dlt.resource(
+        table_name="items",
+    )
+    def resource(
+        incremental=dlt.sources.incremental(cursor_path="id", initial_value=-1, row_order="asc")
+    ):
+        range_iterator = (
+            range(incremental.start_value + 1, 1000) if offset_by_last_value else range(1000)
+        )
+        for i in range_iterator:
+            nonlocal resource_called
+            resource_called += 1
+            yield {
+                "id": i,
+                "value": str(i),
+            }
+
+    resource.add_limit(10)
+
+    p = dlt.pipeline(pipeline_name="incremental_limit", destination="duckdb", dev_mode=True)
+
+    p.run(resource())
+
+    # check we have the right number of items
+    assert len(p.dataset().items.df()) == 10
+    assert resource_called == 10
+    # check that we have items 0-9
+    assert p.dataset().items.df().id.tolist() == list(range(10))
+
+    # run the next ten
+    p.run(resource())
+
+    # check we have the right number of items
+    assert len(p.dataset().items.df()) == 20
+    assert resource_called == 20 if offset_by_last_value else 30
+    # check that we have items 0-19
+    assert p.dataset().items.df().id.tolist() == list(range(20))
+
+    # run the next batch
+    p.run(resource())
+
+    # check we have the right number of items
+    assert len(p.dataset().items.df()) == 30
+    assert resource_called == 30 if offset_by_last_value else 60
+    # check that we have items 0-29
+    assert p.dataset().items.df().id.tolist() == list(range(30))

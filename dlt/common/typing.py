@@ -29,6 +29,7 @@ from typing import (
     Iterator,
     Generator,
     NamedTuple,
+    Sequence,
 )
 
 from typing_extensions import (
@@ -112,6 +113,8 @@ else:
 
 TSecretStrValue = Annotated[str, SecretSentinel]
 
+TColumnNames = Union[str, Sequence[str]]
+"""A string representing a column name or a list of"""
 TDataItem: TypeAlias = Any
 """A single data item as extracted from data source"""
 TDataItems: TypeAlias = Union[TDataItem, List[TDataItem]]
@@ -125,6 +128,10 @@ TFileOrPath = Union[str, PathLike, IO[Any]]
 TSortOrder = Literal["asc", "desc"]
 TLoaderFileFormat = Literal["jsonl", "typed-jsonl", "insert_values", "parquet", "csv", "reference"]
 """known loader file formats"""
+
+TDynHintType = TypeVar("TDynHintType")
+TFunHintTemplate = Callable[[TDataItem], TDynHintType]
+TTableHintTemplate = Union[TDynHintType, TFunHintTemplate[TDynHintType]]
 
 
 class ConfigValueSentinel(NamedTuple):
@@ -431,15 +438,14 @@ def get_generic_type_argument_from_instance(
     """
     orig_param_type = Any
     if cls_ := getattr(instance, "__orig_class__", None):
-        # instance of generic class
-        pass
+        cls_ = extract_inner_type(cls_)
     elif bases_ := get_original_bases(instance.__class__):
         # instance of class deriving from generic
         cls_ = bases_[0]
     if cls_:
         orig_param_type = get_args(cls_)[0]
     if orig_param_type in (Any, CallableAny) and sample_value is not None:
-        orig_param_type = type(sample_value)
+        orig_param_type = type(sample_value)  # type: ignore[assignment]
     return orig_param_type  # type: ignore
 
 
@@ -477,3 +483,18 @@ def copy_sig_any(
         return func
 
     return decorator
+
+
+def add_value_to_literal(literal: Any, value: Any) -> None:
+    """Extends a Literal at runtime with a new value.
+
+    Args:
+        literal (Type[Any]): Literal to extend
+        value (Any): Value to add
+
+    """
+    type_args = get_args(literal)
+
+    if value not in type_args:
+        type_args += (value,)
+        literal.__args__ = type_args

@@ -67,7 +67,7 @@ from dlt.common.typing import is_optional_type
 TDestinationConfig = TypeVar("TDestinationConfig", bound="DestinationClientConfiguration")
 TDestinationClient = TypeVar("TDestinationClient", bound="JobClientBase")
 TDestinationDwhClient = TypeVar("TDestinationDwhClient", bound="DestinationClientDwhConfiguration")
-TDatasetType = Literal["dbapi", "ibis"]
+TDatasetType = Literal["auto", "default", "ibis"]
 
 
 DEFAULT_FILE_LAYOUT = "{table_name}/{load_id}.{file_id}.{ext}"
@@ -76,12 +76,15 @@ if TYPE_CHECKING:
     try:
         from dlt.common.libs.pandas import DataFrame
         from dlt.common.libs.pyarrow import Table as ArrowTable
+        from dlt.helpers.ibis import BaseBackend as IbisBackend
     except MissingDependencyException:
         DataFrame = Any
         ArrowTable = Any
+        IbisBackend = Any
 else:
     DataFrame = Any
     ArrowTable = Any
+    IbisBackend = Any
 
 
 class StorageSchemaInfo(NamedTuple):
@@ -291,7 +294,6 @@ class DestinationClientDwhConfiguration(DestinationClientConfiguration):
         # if default schema is None then suffix is not added
         if self.default_schema_name is not None and schema_name != self.default_schema_name:
             return (self.dataset_name or "") + "_" + schema_name
-
         return self.dataset_name
 
 
@@ -443,8 +445,9 @@ class RunnableLoadJob(LoadJob, ABC):
             self._finished_at = pendulum.now()
             # sanity check
             assert self._state in ("completed", "retry", "failed")
-            # wake up waiting threads
-            signals.wake_all()
+            if self._state != "retry":
+                # wake up waiting threads
+                signals.wake_all()
 
     @abstractmethod
     def run(self) -> None:
@@ -532,7 +535,7 @@ class SupportsReadableRelation(Protocol):
         ...
 
     # modifying access parameters
-    def limit(self, limit: int) -> "SupportsReadableRelation":
+    def limit(self, limit: int, **kwargs: Any) -> "SupportsReadableRelation":
         """limit the result to 'limit' items"""
         ...
 
@@ -552,6 +555,10 @@ class SupportsReadableRelation(Protocol):
 
     def __getitem__(self, columns: Union[str, Sequence[str]]) -> "SupportsReadableRelation":
         """set which columns will be selected"""
+        ...
+
+    def __getattr__(self, attr: str) -> Any:
+        """get an attribute of the relation"""
         ...
 
     def __copy__(self) -> "SupportsReadableRelation":
@@ -574,11 +581,20 @@ class DBApiCursor(SupportsReadableRelation):
 class SupportsReadableDataset(Protocol):
     """A readable dataset retrieved from a destination, has support for creating readable relations for a query or table"""
 
+    @property
+    def schema(self) -> Schema: ...
+
     def __call__(self, query: Any) -> SupportsReadableRelation: ...
 
     def __getitem__(self, table: str) -> SupportsReadableRelation: ...
 
     def __getattr__(self, table: str) -> SupportsReadableRelation: ...
+
+    def ibis(self) -> IbisBackend: ...
+
+    def row_counts(
+        self, *, data_tables: bool = True, dlt_tables: bool = False, table_names: List[str] = None
+    ) -> SupportsReadableRelation: ...
 
 
 class JobClientBase(ABC):

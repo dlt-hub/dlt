@@ -218,9 +218,9 @@ def assert_package_info(
 
 
 def prepare_eth_import_folder(storage: SchemaStorage) -> Schema:
-    eth_V9 = load_yml_case("schemas/eth/ethereum_schema_v9")
+    eth_V11 = load_yml_case("schemas/eth/ethereum_schema_v11")
     # remove processing hints before installing as import schema
     # ethereum schema is a "dirty" schema with processing hints
-    eth = Schema.from_dict(eth_V9, remove_processing_hints=True)
+    eth = Schema.from_dict(eth_V11, remove_processing_hints=True)
     storage._export_schema(eth, storage.config.import_schema_path)
     return eth

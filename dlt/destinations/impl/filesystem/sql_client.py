@@ -13,6 +13,7 @@ from contextlib import contextmanager
 
 from dlt.common.destination.reference import DBApiCursor
 
+from dlt.common.storages.fsspec_filesystem import AZURE_BLOB_STORAGE_PROTOCOLS
 from dlt.destinations.sql_client import raise_database_error
 
 from dlt.destinations.impl.duckdb.sql_client import DuckDbSqlClient
@@ -169,19 +170,15 @@ class FilesystemSqlClient(DuckDbSqlClient):
         # native google storage implementation is not supported..
         elif self.fs_client.config.protocol in ["gs", "gcs"]:
             logger.warn(
-                "For gs/gcs access via duckdb please use the gs/gcs s3 compatibility layer. Falling"
-                " back to fsspec."
+                "For gs/gcs access via duckdb please use the gs/gcs s3 compatibility layer if"
+                " possible (not supported when using `iceberg` table format). Falling back to"
+                " fsspec."
             )
             self._conn.register_filesystem(self.fs_client.fs_client)
 
         # for memory we also need to register filesystem
         elif self.fs_client.config.protocol == "memory":
             self._conn.register_filesystem(self.fs_client.fs_client)
-
-        # the line below solves problems with certificate path lookup on linux
-        # see duckdb docs
-        if self.fs_client.config.protocol in ["az", "abfss"]:
-            self._conn.sql("SET azure_transport_option_type = 'curl';")
 
     def open_connection(self) -> duckdb.DuckDBPyConnection:
         # we keep the in memory instance around, so if this prop is set, return it
@@ -195,7 +192,15 @@ class FilesystemSqlClient(DuckDbSqlClient):
             self._conn.sql(f"USE {self.fully_qualified_dataset_name()}")
             self.create_authentication()
 
+        # the line below solves problems with certificate path lookup on linux
+        # see duckdb docs
+        if self.fs_client.config.protocol in AZURE_BLOB_STORAGE_PROTOCOLS:
+            self._conn.sql("SET azure_transport_option_type = 'curl';")
+
         return self._conn
+
+    def create_views_for_all_tables(self) -> None:
+        self.create_views_for_tables({v: v for v in self.fs_client.schema.tables.keys()})
 
     @raise_database_error
     def create_views_for_tables(self, tables: Dict[str, str]) -> None:
@@ -209,14 +214,17 @@ class FilesystemSqlClient(DuckDbSqlClient):
                 # unknown views will not be created
                 continue
 
-            # only create view if it does not exist in the current schema yet
-            existing_tables = [tname[0] for tname in self._conn.execute("SHOW TABLES").fetchall()]
-            if view_name in existing_tables:
-                continue
-
             # NOTE: if this is staging configuration then `prepare_load_table` will remove some info
             # from table schema, if we ever extend this to handle staging destination, this needs to change
             schema_table = self.fs_client.prepare_load_table(table_name)
+            table_format = schema_table.get("table_format")
+
+            # skip if view already exists and does not need to be replaced each time
+            existing_tables = [tname[0] for tname in self._conn.execute("SHOW TABLES").fetchall()]
+            needs_replace = table_format == "iceberg" or self.fs_client.config.protocol == "abfss"
+            if view_name in existing_tables and not needs_replace:
+                continue
+
             # discover file type
             folder = self.fs_client.get_table_dir(table_name)
             files = self.fs_client.list_table_files(table_name)
@@ -253,8 +261,17 @@ class FilesystemSqlClient(DuckDbSqlClient):
 
             # create from statement
             from_statement = ""
-            if schema_table.get("table_format") == "delta":
+            if table_format == "delta":
                 from_statement = f"delta_scan('{resolved_folder}')"
+            elif table_format == "iceberg":
+                from dlt.common.libs.pyiceberg import _get_last_metadata_file
+
+                self._setup_iceberg(self._conn)
+                metadata_path = f"{resolved_folder}/metadata"
+                last_metadata_file = _get_last_metadata_file(metadata_path, self.fs_client)
+                # skip schema inference to make nested data types work
+                # https://github.com/duckdb/duckdb_iceberg/issues/47
+                from_statement = f"iceberg_scan('{last_metadata_file}', skip_schema_inference=True)"
             elif first_file_type == "parquet":
                 from_statement = f"read_parquet([{resolved_files_string}])"
             elif first_file_type == "jsonl":
@@ -264,12 +281,14 @@ class FilesystemSqlClient(DuckDbSqlClient):
             else:
                 raise NotImplementedError(
                     f"Unknown filetype {first_file_type} for table {table_name}. Currently only"
-                    " jsonl and parquet files as well as delta tables are supported."
+                    " jsonl and parquet files as well as delta and iceberg tables are supported."
                 )
 
             # create table
             view_name = self.make_qualified_table_name(view_name)
-            create_table_sql_base = f"CREATE VIEW {view_name} AS SELECT * FROM {from_statement}"
+            create_table_sql_base = (
+                f"CREATE OR REPLACE VIEW {view_name} AS SELECT * FROM {from_statement}"
+            )
             self._conn.execute(create_table_sql_base)
 
     @contextmanager
@@ -295,6 +314,16 @@ class FilesystemSqlClient(DuckDbSqlClient):
 
         with super().execute_query(query, *args, **kwargs) as cursor:
             yield cursor
+
+    @staticmethod
+    def _setup_iceberg(conn: duckdb.DuckDBPyConnection) -> None:
+        # needed to make persistent secrets work in new connection
+        # https://github.com/duckdb/duckdb_iceberg/issues/83
+        conn.execute("FROM duckdb_secrets();")
+
+        # `duckdb_iceberg` extension does not support autoloading
+        # https://github.com/duckdb/duckdb_iceberg/issues/71
+        conn.execute("INSTALL iceberg; LOAD iceberg;")
 
     def __del__(self) -> None:
         if self.memory_db:

@@ -15,6 +15,7 @@ from typing import (
     cast,
     get_type_hints,
     ContextManager,
+    Union,
 )
 
 from dlt import version
@@ -37,7 +38,6 @@ from dlt.common.destination.exceptions import (
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.runtime import signals, apply_runtime_config
 from dlt.common.schema.typing import (
-    TColumnNames,
     TSchemaTables,
     TTableFormat,
     TWriteDispositionConfig,
@@ -46,7 +46,7 @@ from dlt.common.schema.typing import (
 )
 from dlt.common.schema.utils import normalize_schema_name
 from dlt.common.storages.exceptions import LoadPackageNotFound
-from dlt.common.typing import ConfigValue, TFun, TSecretStrValue, is_optional_type
+from dlt.common.typing import ConfigValue, TFun, TSecretStrValue, is_optional_type, TColumnNames
 from dlt.common.runners import pool_runner as runner
 from dlt.common.storages import (
     LiveSchemaStorage,
@@ -110,7 +110,10 @@ from dlt.normalize.configuration import NormalizeConfiguration
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.destinations.fs_client import FSClientBase
 from dlt.destinations.job_client_impl import SqlJobClientBase
-from dlt.destinations.dataset import dataset
+from dlt.destinations.dataset import (
+    dataset,
+    get_destination_clients,
+)
 from dlt.load.configuration import LoaderConfiguration
 from dlt.load import Load
 
@@ -583,7 +586,7 @@ class Pipeline(SupportsPipeline):
             return None
 
         # make sure that destination is set and client is importable and can be instantiated
-        client, staging_client = self._get_destination_clients(self.default_schema)
+        client, staging_client = self._get_destination_clients()
 
         # create default loader config and the loader
         load_config = LoaderConfiguration(
@@ -834,7 +837,7 @@ class Pipeline(SupportsPipeline):
                     if self.default_schema_name is None:
                         should_wipe = True
                     else:
-                        with self._get_destination_clients(self.default_schema)[0] as job_client:
+                        with self._get_destination_clients()[0] as job_client:
                             # and storage is not initialized
                             should_wipe = not job_client.is_storage_initialized()
                     if should_wipe:
@@ -1034,8 +1037,7 @@ class Pipeline(SupportsPipeline):
         #         "Sql Client is not available in a pipeline without a default schema. Extract some data first or restore the pipeline from the destination using 'restore_from_destination' flag. There's also `_inject_schema` method for advanced users."
         #     )
         schema = self._get_schema_or_create(schema_name)
-        client_config = self._get_destination_client_initial_config()
-        client = self._get_destination_clients(schema, client_config)[0]
+        client = self._get_destination_clients(schema)[0]
         if isinstance(client, WithSqlClient):
             return client.sql_client
         else:
@@ -1102,8 +1104,7 @@ class Pipeline(SupportsPipeline):
             return Schema(self.pipeline_name)
 
     def _sql_job_client(self, schema: Schema) -> SqlJobClientBase:
-        client_config = self._get_destination_client_initial_config()
-        client = self._get_destination_clients(schema, client_config)[0]
+        client = self._get_destination_clients(schema)[0]
         if isinstance(client, SqlJobClientBase):
             return client
         else:
@@ -1249,11 +1250,13 @@ class Pipeline(SupportsPipeline):
 
         return load_id
 
-    def _get_destination_client_initial_config(
-        self, destination: AnyDestination = None, as_staging: bool = False
-    ) -> DestinationClientConfiguration:
-        destination = destination or self._destination
-        if not destination:
+    def _get_destination_clients(
+        self,
+        schema: Schema = None,
+        initial_config: DestinationClientConfiguration = None,
+        initial_staging_config: DestinationClientConfiguration = None,
+    ) -> Tuple[JobClientBase, JobClientBase]:
+        if not self._destination:
             raise PipelineConfigMissing(
                 self.pipeline_name,
                 "destination",
@@ -1261,75 +1264,32 @@ class Pipeline(SupportsPipeline):
                 "Please provide `destination` argument to `pipeline`, `run` or `load` method"
                 " directly or via .dlt config.toml file or environment variable.",
             )
-        client_spec = destination.spec
 
-        # this client supports many schemas and datasets
-        if issubclass(client_spec, DestinationClientDwhConfiguration):
+        destination_client, staging_client = get_destination_clients(
+            schema=schema or self.default_schema,
+            default_schema_name=(
+                self.default_schema_name if not self.config.use_single_dataset else None
+            ),
+            destination=self._destination,
+            destination_dataset_name=self.dataset_name,
+            destination_initial_config=initial_config,
+            staging=self._staging,
+            # in case of destination that does not need dataset name, we still must
+            # provide one to staging
+            # TODO: allow for separate staging_dataset_name, that will require to migrate pipeline state
+            #   to store it.
+            staging_dataset_name=self.dataset_name or self._make_dataset_name(None, self._staging),
+            staging_initial_config=initial_staging_config,
+        )
+
+        if isinstance(destination_client.config, DestinationClientStagingConfiguration):
             if not self.dataset_name and self.dev_mode:
                 logger.warning(
                     "Dev mode may not work if dataset name is not set. Please set the"
                     " dataset_name argument in dlt.pipeline or run method"
                 )
-            # set default schema name to load all incoming data to a single dataset, no matter what is the current schema name
-            default_schema_name = (
-                None if self.config.use_single_dataset else self.default_schema_name
-            )
 
-            if issubclass(client_spec, DestinationClientStagingConfiguration):
-                spec: DestinationClientDwhConfiguration = client_spec(
-                    as_staging_destination=as_staging
-                )
-            else:
-                spec = client_spec()
-            # in case of destination that does not need dataset name, we still must
-            # provide one to staging
-            # TODO: allow for separate staging_dataset_name, that will require to migrate pipeline state
-            #   to store it.
-            dataset_name = self.dataset_name
-            if not dataset_name and as_staging:
-                dataset_name = self._make_dataset_name(None, destination)
-            spec._bind_dataset_name(dataset_name, default_schema_name)
-            return spec
-
-        return client_spec()
-
-    def _get_destination_clients(
-        self,
-        schema: Schema,
-        initial_config: DestinationClientConfiguration = None,
-        initial_staging_config: DestinationClientConfiguration = None,
-    ) -> Tuple[JobClientBase, JobClientBase]:
-        try:
-            # resolve staging config in order to pass it to destination client config
-            staging_client = None
-            if self._staging:
-                if not initial_staging_config:
-                    # this is just initial config - without user configuration injected
-                    initial_staging_config = self._get_destination_client_initial_config(
-                        self._staging, as_staging=True
-                    )
-                # create the client - that will also resolve the config
-                staging_client = self._staging.client(schema, initial_staging_config)
-            if not initial_config:
-                # config is not provided then get it with injected credentials
-                initial_config = self._get_destination_client_initial_config(self._destination)
-            # attach the staging client config to destination client config - if its type supports it
-            if (
-                self._staging
-                and isinstance(initial_config, DestinationClientDwhWithStagingConfiguration)
-                and isinstance(staging_client.config, DestinationClientStagingConfiguration)
-            ):
-                initial_config.staging_config = staging_client.config
-            # create instance with initial_config properly set
-            client = self._destination.client(schema, initial_config)
-            return client, staging_client
-        except ModuleNotFoundError:
-            client_spec = self._destination.spec()
-            raise MissingDependencyException(
-                f"{client_spec.destination_type} destination",
-                [f"{version.DLT_PKG_NAME}[{client_spec.destination_type}]"],
-                "Dependencies for specific destinations are available as extras of dlt",
-            )
+        return destination_client, staging_client
 
     def _get_destination_capabilities(self) -> DestinationCapabilitiesContext:
         if not self._destination:
@@ -1790,11 +1750,23 @@ class Pipeline(SupportsPipeline):
         # pickle only the SupportsPipeline protocol fields
         return {"pipeline_name": self.pipeline_name}
 
-    def _dataset(self, dataset_type: TDatasetType = "dbapi") -> SupportsReadableDataset:
-        """Access helper to dataset"""
+    def dataset(
+        self, schema: Union[Schema, str, None] = None, dataset_type: TDatasetType = "auto"
+    ) -> SupportsReadableDataset:
+        """Returns a dataset object for querying the destination data.
+
+        Args:
+            schema: Schema name or Schema object to use. If None, uses the default schema if set.
+            dataset_type: Type of dataset interface to return. Defaults to 'auto' which will select ibis if available
+                otherwise it will fallback to the standard dbapi interface.
+        Returns:
+            A dataset object that supports querying the destination data.
+        """
+        if schema is None:
+            schema = self.default_schema if self.default_schema_name else None
         return dataset(
             self._destination,
             self.dataset_name,
-            schema=(self.default_schema if self.default_schema_name else None),
+            schema=schema,
             dataset_type=dataset_type,
         )

@@ -353,7 +353,7 @@ def test_diff_tables() -> None:
     assert "test" in partial["columns"]
 
 
-def test_diff_tables_conflicts() -> None:
+def test_tables_conflicts() -> None:
     # conflict on parents
     table: TTableSchema = {  # type: ignore[typeddict-unknown-key]
         "name": "table",
@@ -366,6 +366,8 @@ def test_diff_tables_conflicts() -> None:
     other = utils.new_table("table")
     with pytest.raises(TablePropertiesConflictException) as cf_ex:
         utils.diff_table("schema", table, other)
+    with pytest.raises(TablePropertiesConflictException) as cf_ex:
+        utils.ensure_compatible_tables("schema", table, other)
     assert cf_ex.value.table_name == "table"
     assert cf_ex.value.prop_name == "parent"
 
@@ -373,6 +375,8 @@ def test_diff_tables_conflicts() -> None:
     other = utils.new_table("other_name")
     with pytest.raises(TablePropertiesConflictException) as cf_ex:
         utils.diff_table("schema", table, other)
+    with pytest.raises(TablePropertiesConflictException) as cf_ex:
+        utils.ensure_compatible_tables("schema", table, other)
     assert cf_ex.value.table_name == "table"
     assert cf_ex.value.prop_name == "name"
 
@@ -380,7 +384,10 @@ def test_diff_tables_conflicts() -> None:
     changed = deepcopy(table)
     changed["columns"]["test"]["data_type"] = "bigint"
     with pytest.raises(CannotCoerceColumnException):
-        utils.diff_table("schema", table, changed)
+        utils.ensure_compatible_tables("schema", table, changed)
+    # but diff now accepts different data types
+    merged_table = utils.diff_table("schema", table, changed)
+    assert merged_table["columns"]["test"]["data_type"] == "bigint"
 
 
 def test_merge_tables() -> None:

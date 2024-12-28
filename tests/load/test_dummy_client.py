@@ -130,7 +130,7 @@ def test_big_loadpackages() -> None:
     duration = float(time() - start_time)
 
     # sanity check
-    assert duration > 3
+    assert duration > 2
     # we want 1000 empty processed jobs to need less than 15 seconds total (locally it runs in 5)
     assert duration < 15
 

@@ -27,13 +27,17 @@ def _attach(pipeline: Pipeline) -> Pipeline:
 
 
 @dlt.source(section="droppable", name="droppable")
-def droppable_source() -> List[DltResource]:
+def droppable_source(drop_columns: bool = False) -> List[DltResource]:
     @dlt.resource
     def droppable_a(
-        a: dlt.sources.incremental[int] = dlt.sources.incremental("a", 0)
+        a: dlt.sources.incremental[int] = dlt.sources.incremental("a", 0, range_start="open")
     ) -> Iterator[Dict[str, Any]]:
-        yield dict(a=1, b=2, c=3)
-        yield dict(a=4, b=23, c=24)
+        if drop_columns:
+            yield dict(a=1, b=2)
+            yield dict(a=4, b=23)
+        else:
+            yield dict(a=1, b=2, c=3)
+            yield dict(a=4, b=23, c=24)
 
     @dlt.resource
     def droppable_b(
@@ -47,9 +51,17 @@ def droppable_source() -> List[DltResource]:
         qe: dlt.sources.incremental[int] = dlt.sources.incremental("qe"),
     ) -> Iterator[Dict[str, Any]]:
         # Grandchild table
-        yield dict(
-            asdasd=2424, qe=111, items=[dict(k=2, r=2, labels=[dict(name="abc"), dict(name="www")])]
-        )
+        if drop_columns:
+            # dropped asdasd, items[r], items.labels.value
+            yield dict(qe=111, items=[dict(k=2, labels=[dict(name="abc"), dict(name="www")])])
+        else:
+            yield dict(
+                asdasd=2424,
+                qe=111,
+                items=[
+                    dict(k=2, r=2, labels=[dict(name="abc", value=1), dict(name="www", value=2)])
+                ],
+            )
 
     @dlt.resource
     def droppable_d(
@@ -134,11 +146,17 @@ def assert_destination_state_loaded(pipeline: Pipeline) -> None:
     ),
     ids=lambda x: x.name,
 )
-def test_drop_command_resources_and_state(destination_config: DestinationTestConfiguration) -> None:
+@pytest.mark.parametrize("in_source", (True, False))
+def test_drop_command_resources_and_state(
+    destination_config: DestinationTestConfiguration, in_source: bool
+) -> None:
     """Test the drop command with resource and state path options and
     verify correct data is deleted from destination and locally"""
-    source = droppable_source()
-    pipeline = destination_config.setup_pipeline("drop_test_" + uniq_id(), dev_mode=True)
+    source: Any = droppable_source()
+    if not in_source:
+        source = list(source.selected_resources.values())
+
+    pipeline = destination_config.setup_pipeline("droppable", dev_mode=True)
     info = pipeline.run(source, **destination_config.run_kwargs)
     assert_load_info(info)
     assert load_table_counts(pipeline, *pipeline.default_schema.tables.keys()) == {
@@ -173,6 +191,9 @@ def test_drop_command_resources_and_state(destination_config: DestinationTestCon
     assert_destination_state_loaded(pipeline)
 
     # now run the same droppable_source to see if tables are recreated and they contain right number of items
+    source = droppable_source(drop_columns=True)
+    if not in_source:
+        source = list(source.selected_resources.values())
     info = pipeline.run(source, **destination_config.run_kwargs)
     assert_load_info(info)
     # 2 versions (one dropped and replaced with schema with dropped tables, then we added missing tables)
@@ -192,6 +213,20 @@ def test_drop_command_resources_and_state(destination_config: DestinationTestCon
         "droppable_c__items": 1,
         "droppable_c__items__labels": 2,
     }
+    # check if columns got correctly dropped
+    droppable_a_schema = pipeline.default_schema.get_table("droppable_a")
+    # this table was not dropped so column still exists
+    assert "c" in droppable_a_schema["columns"]
+    # dropped asdasd, items[r], items.labels.value
+    droppable_c_schema = pipeline.default_schema.get_table("droppable_c")
+    assert "asdasd" not in droppable_c_schema["columns"]
+    assert "qe" in droppable_c_schema["columns"]
+    droppable_c_i_schema = pipeline.default_schema.get_table("droppable_c__items")
+    assert "r" not in droppable_c_i_schema["columns"]
+    assert "k" in droppable_c_i_schema["columns"]
+    droppable_c_l_schema = pipeline.default_schema.get_table("droppable_c__items__labels")
+    assert "value" not in droppable_c_l_schema["columns"]
+    assert "name" in droppable_c_l_schema["columns"]
 
 
 @pytest.mark.parametrize(

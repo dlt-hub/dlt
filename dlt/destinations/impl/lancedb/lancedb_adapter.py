@@ -1,6 +1,7 @@
 from typing import Any, Dict
 
-from dlt.common.schema.typing import TColumnNames, TTableSchemaColumns
+from dlt.common.schema.typing import TTableSchemaColumns
+from dlt.common.typing import TColumnNames
 from dlt.destinations.utils import get_resource_for_adapter
 from dlt.extract import DltResource
 from dlt.extract.items import TTableHintTemplate

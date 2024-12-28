@@ -49,6 +49,7 @@ from dlt.destinations.job_client_impl import SqlJobClientWithStagingDataset
 from dlt.destinations.job_impl import DestinationJsonlLoadJob, DestinationParquetLoadJob
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
+from dlt.destinations.sql_client import SqlClientBase
 
 
 class BigQueryLoadJob(RunnableLoadJob, HasFollowupJobs):
@@ -143,6 +144,18 @@ class BigQueryLoadJob(RunnableLoadJob, HasFollowupJobs):
 
 class BigQueryMergeJob(SqlMergeFollowupJob):
     @classmethod
+    def _gen_table_setup_clauses(
+        cls, table_chain: Sequence[PreparedTableSchema], sql_client: SqlClientBase[Any]
+    ) -> List[str]:
+        """generate final tables from staging table schema for autodetect tables"""
+        sql: List[str] = []
+        for table in table_chain:
+            if should_autodetect_schema(table):
+                table_name, staging_table_name = sql_client.get_qualified_table_names(table["name"])
+                sql.append(f"CREATE TABLE IF NOT EXISTS {table_name} LIKE {staging_table_name};")
+        return sql
+
+    @classmethod
     def gen_key_table_clauses(
         cls,
         root_table_name: str,
@@ -184,6 +197,19 @@ class BigQueryClient(SqlJobClientWithStagingDataset, SupportsStagingDestination)
         self, table_chain: Sequence[PreparedTableSchema]
     ) -> List[FollowupJobRequest]:
         return [BigQueryMergeJob.from_table_chain(table_chain, self.sql_client)]
+
+    def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
+        truncate_tables = truncate_tables or []
+
+        # split array into tables that have autodetect schema and those that don't
+        autodetect_tables = [
+            t for t in truncate_tables if should_autodetect_schema(self.prepare_load_table(t))
+        ]
+        non_autodetect_tables = [t for t in truncate_tables if t not in autodetect_tables]
+
+        # if any table has schema autodetect, we need to make sure to only truncate tables that exist
+        super().initialize_storage(truncate_tables=non_autodetect_tables)
+        self.sql_client.truncate_tables_if_exist(*autodetect_tables)
 
     def create_load_job(
         self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
@@ -375,10 +401,7 @@ SELECT {",".join(self._get_storage_table_query_columns())}
         return query, folded_table_names
 
     def _get_column_def_sql(self, column: TColumnSchema, table: PreparedTableSchema = None) -> str:
-        name = self.sql_client.escape_column_name(column["name"])
-        column_def_sql = (
-            f"{name} {self.type_mapper.to_destination_type(column, table)} {self._gen_not_null(column.get('nullable', True))}"
-        )
+        column_def_sql = super()._get_column_def_sql(column, table)
         if column.get(ROUND_HALF_EVEN_HINT, False):
             column_def_sql += " OPTIONS (rounding_mode='ROUND_HALF_EVEN')"
         if column.get(ROUND_HALF_AWAY_FROM_ZERO_HINT, False):

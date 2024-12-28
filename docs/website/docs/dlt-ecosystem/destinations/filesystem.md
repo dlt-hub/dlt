@@ -108,7 +108,8 @@ You need to create an S3 bucket and a user who can access that bucket. dlt does 
 
 #### Using S3 compatible storage
 
-To use an S3 compatible storage other than AWS S3, such as [MinIO](https://min.io/) or [Cloudflare R2](https://www.cloudflare.com/en-ca/developer-platform/r2/), you may supply an `endpoint_url` in the config. This should be set along with AWS credentials:
+To use an S3 compatible storage other than AWS S3, such as [MinIO](https://min.io/), [Cloudflare R2](https://www.cloudflare.com/en-ca/developer-platform/r2/) or [Google 
+Cloud Storage](https://cloud.google.com/storage/docs/interoperability), you may supply an `endpoint_url` in the config. This should be set along with AWS credentials:
 
 ```toml
 [destination.filesystem]
@@ -122,13 +123,20 @@ endpoint_url = "https://<account_id>.r2.cloudflarestorage.com" # copy your endpo
 
 #### Adding additional configuration
 
-To pass any additional arguments to `fsspec`, you may supply `kwargs` and `client_kwargs` in the config as a **stringified dictionary**:
+To pass any additional arguments to `fsspec`, you may supply `kwargs` and `client_kwargs` in toml config.
 
 ```toml
-[destination.filesystem]
-kwargs = '{"use_ssl": true, "auto_mkdir": true}'
-client_kwargs = '{"verify": "public.crt"}'
+[destination.filesystem.kwargs]
+use_ssl=true
+auto_mkdir=true
+
+[destination.filesystem.client_kwargs]
+verify="public.crt"
 ```
+
+To pass additional arguments via env variables, use **stringified dictionary**:
+`DESTINATION__FILESYSTEM__KWARGS='{"use_ssl": true, "auto_mkdir": true}`
+
 
 ### Google storage
 Run `pip install "dlt[gs]"` which will install the `gcfs` package.
@@ -159,6 +167,33 @@ Run `pip install "dlt[az]"` which will install the `adlfs` package to interface 
 
 Edit the credentials in `.dlt/secrets.toml`, you'll see AWS credentials by default; replace them with your Azure credentials.
 
+#### Supported schemes
+
+`dlt` supports both forms of the blob storage urls:
+```toml
+[destination.filesystem]
+bucket_url = "az://<container_name>/path" # replace with your container name and path
+```
+
+and
+
+```toml
+[destination.filesystem]
+bucket_url = "abfss://<container_name>@<storage_account_name>.dfs.core.windows.net/path"
+```
+
+You can use `az`, `abfss`, `azure` and `abfs` url schemes.
+
+If you need to use a custom host for your storage account, you can set it up like below:
+```toml
+[destination.filesystem.credentials]
+# The storage account name is always required
+azure_account_host = "<storage_account_name>.<host_base>"
+```
+Remember to include `storage_account_name` with your base host ie. `dlt_ci.blob.core.usgovcloudapi.net`.
+`dlt` will use this host to connect to azure blob storage without any modifications:
+
+
 Two forms of Azure credentials are supported:
 
 #### SAS token credentials
@@ -166,9 +201,6 @@ Two forms of Azure credentials are supported:
 Supply storage account name and either SAS token or storage account key
 
 ```toml
-[destination.filesystem]
-bucket_url = "az://[your_container name]" # replace with your container name
-
 [destination.filesystem.credentials]
 # The storage account name is always required
 azure_storage_account_name = "account_name" # please set me up!
@@ -186,10 +218,8 @@ Note that `azure_storage_account_name` is still required as it can't be inferred
 Supply a client ID, client secret, and a tenant ID for a service principal authorized to access your container.
 
 ```toml
-[destination.filesystem]
-bucket_url = "az://[your_container name]" # replace with your container name
-
 [destination.filesystem.credentials]
+azure_storage_account_name = "account_name" # please set me up!
 azure_client_id = "client_id" # please set me up!
 azure_client_secret = "client_secret"
 azure_tenant_id = "tenant_id" # please set me up!
@@ -377,29 +407,6 @@ The filesystem destination handles the write dispositions as follows:
 - `replace` - all files that belong to such tables are deleted from the dataset folder, and then the current set of files is added.
 - `merge` - falls back to `append`
 
-### 🧪 Merge with delta table format
-The [`upsert`](../../general-usage/incremental-loading.md#upsert-strategy) merge strategy is supported when using the [`delta`](#delta-table-format) table format.
-
-:::caution
-The `upsert` merge strategy for the `filesystem` destination with `delta` table format is considered experimental.
-:::
-
-```py
-@dlt.resource(
-    write_disposition={"disposition": "merge", "strategy": "upsert"},
-    primary_key="my_primary_key",
-    table_format="delta"
-)
-def my_upsert_resource():
-    ...
-...
-```
-
-#### Known limitations
-- `hard_delete` hint not supported
-- Deleting records from nested tables not supported
-  - This means updates to JSON columns that involve element removals are not propagated. For example, if you first load `{"key": 1, "nested": [1, 2]}` and then load `{"key": 1, "nested": [1]}`, then the record for element `2` will not be deleted from the nested table.
-
 ## File compression
 
 The filesystem destination in the dlt library uses `gzip` compression by default for efficiency, which may result in the files being stored in a compressed format. This format may not be easily readable as plain text or JSON Lines (`jsonl`) files. If you encounter files that seem unreadable, they may be compressed.
@@ -503,7 +510,7 @@ layout="{table_name}/{load_id}.{file_id}.{ext}" # current preconfigured naming s
 # layout = "{table_name}/{load_package_timestamp}/{load_id}.{file_id}.{ext}"
 
 # Parquet-like layout (note: it is not compatible with the internal datetime of the parquet file)
-# layout = "{table_name}/year={year}/month={month}/day={day}/{load_id}.{file_id}.{ext}"
+# layout = "{table_name}/year={YYYY}/month={MM}/day={DD}/{load_id}.{file_id}.{ext}"
 
 # Custom placeholders
 # extra_placeholders = { "owner" = "admin", "department" = "finance" }
@@ -618,88 +625,11 @@ You can choose the following file formats:
 
 ## Supported table formats
 
-You can choose the following table formats:
-* [Delta](../table-formats/delta.md) is supported
+You can choose the following [table formats](./delta-iceberg.md):
+* Delta table
+* Iceberg
 
-### Delta table format
-
-You need the `deltalake` package to use this format:
-
-```sh
-pip install "dlt[deltalake]"
-```
-
-You also need `pyarrow>=17.0.0`:
-
-```sh
-pip install 'pyarrow>=17.0.0'
-```
-
-Set the `table_format` argument to `delta` when defining your resource:
-
-```py
-@dlt.resource(table_format="delta")
-def my_delta_resource():
-    ...
-```
-
-> `dlt` always uses Parquet as `loader_file_format` when using the `delta` table format. Any setting of `loader_file_format` is disregarded.
-
-:::caution
-Beware that when loading a large amount of data for one table, the underlying rust implementation will consume a lot of memory. This is a known issue and the maintainers are actively working on a solution. You can track the progress [here](https://github.com/delta-io/delta-rs/pull/2289). Until the issue is resolved, you can mitigate the memory consumption by doing multiple smaller incremental pipeline runs.
-:::
-
-#### Delta table partitioning
-A Delta table can be partitioned ([Hive-style partitioning](https://delta.io/blog/pros-cons-hive-style-partionining/)) by specifying one or more `partition` column hints. This example partitions the Delta table by the `foo` column:
-
-```py
-@dlt.resource(
-  table_format="delta",
-  columns={"foo": {"partition": True}}
-)
-def my_delta_resource():
-    ...
-```
-
-:::caution
-It is **not** possible to change partition columns after the Delta table has been created. Trying to do so causes an error stating that the partition columns don't match.
-:::
-
-
-#### Storage options
-You can pass storage options by configuring `destination.filesystem.deltalake_storage_options`:
-
-```toml
-[destination.filesystem]
-deltalake_storage_options = '{"AWS_S3_LOCKING_PROVIDER": "dynamodb", "DELTA_DYNAMO_TABLE_NAME": "custom_table_name"}'
-```
-
-`dlt` passes these options to the `storage_options` argument of the `write_deltalake` method in the `deltalake` library. Look at their [documentation](https://delta-io.github.io/delta-rs/api/delta_writer/#deltalake.write_deltalake) to see which options can be used.
-
-You don't need to specify credentials here. `dlt` merges the required credentials with the options you provided before passing it as `storage_options`.
-
->❗When using `s3`, you need to specify storage options to [configure](https://delta-io.github.io/delta-rs/usage/writing/writing-to-s3-with-locking-provider/) locking behavior.
-
-#### `get_delta_tables` helper
-You can use the `get_delta_tables` helper function to get `deltalake` [DeltaTable](https://delta-io.github.io/delta-rs/api/delta_table/) objects for your Delta tables:
-
-```py
-from dlt.common.libs.deltalake import get_delta_tables
-
-...
-
-# get dictionary of DeltaTable objects
-delta_tables = get_delta_tables(pipeline)
-
-# execute operations on DeltaTable objects
-delta_tables["my_delta_table"].optimize.compact()
-delta_tables["another_delta_table"].optimize.z_order(["col_a", "col_b"])
-# delta_tables["my_delta_table"].vacuum()
-# etc.
-
-```
-
-## Syncing of `dlt` state
+## Syncing of dlt state
 This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination). To this end, special folders and files will be created at your destination which hold information about your pipeline state, schemas, and completed loads. These folders DO NOT respect your settings in the layout section. When using filesystem as a staging destination, not all of these folders are created, as the state and schemas are managed in the regular way by the final destination you have configured.
 
 You will also notice `init` files being present in the root folder and the special `dlt` folders. In the absence of the concepts of schemas and tables in blob storages and directories, `dlt` uses these special files to harmonize the behavior of the `filesystem` destination with the other implemented destinations.

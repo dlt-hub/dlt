@@ -1,6 +1,10 @@
 from typing import Optional
 
-from dlt.common.schema.typing import _TTableSchemaBase, TWriteDisposition, TTableReferenceParam
+from dlt.common.schema.typing import (
+    _TTableSchemaBase,
+    TWriteDisposition,
+    TTableReferenceParam,
+)
 
 
 class PreparedTableSchema(_TTableSchemaBase, total=False):

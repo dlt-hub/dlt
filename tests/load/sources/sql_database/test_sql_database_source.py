@@ -11,8 +11,9 @@ from dlt.common.exceptions import MissingDependencyException
 
 from dlt.common.schema.typing import TColumnSchema, TSortOrder, TTableSchemaColumns
 from dlt.common.utils import uniq_id
-from dlt.extract.exceptions import ResourceExtractionError
 
+from dlt.extract.exceptions import ResourceExtractionError
+from dlt.extract.incremental.transform import JsonIncremental, ArrowIncremental
 from dlt.sources import DltResource
 
 from tests.pipeline.utils import (
@@ -20,7 +21,7 @@ from tests.pipeline.utils import (
     assert_schema_on_data,
     load_tables_to_dicts,
 )
-from tests.load.sources.sql_database.test_helpers import mock_json_column
+from tests.load.sources.sql_database.test_helpers import mock_json_column, mock_array_column
 from tests.utils import data_item_length, load_table_counts
 
 
@@ -30,6 +31,7 @@ try:
         TableBackend,
         sql_database,
         sql_table,
+        remove_nullability_adapter,
     )
     from dlt.sources.sql_database.helpers import unwrap_json_connector_x
     from tests.load.sources.sql_database.sql_source import SQLAlchemySourceDB
@@ -107,6 +109,34 @@ def test_pass_engine_credentials(sql_source_db: SQLAlchemySourceDB) -> None:
     assert len(list(table)) == sql_source_db.table_infos["chat_message"]["row_count"]
 
 
+def test_engine_adapter_callback(sql_source_db: SQLAlchemySourceDB) -> None:
+    from dlt.common.libs.sql_alchemy import Engine
+
+    adapter_calls: int = 0
+
+    def set_serializable(engine: Engine) -> Engine:
+        nonlocal adapter_calls
+
+        engine.execution_options(isolation_level="SERIALIZABLE")
+        adapter_calls += 1
+        return engine
+
+    # verify database
+    database = sql_database(
+        sql_source_db.engine.url.render_as_string(False),
+        schema=sql_source_db.schema,
+        table_names=["chat_message"],
+        engine_adapter_callback=set_serializable,
+    )
+    assert adapter_calls == 2
+
+    assert len(list(database)) == sql_source_db.table_infos["chat_message"]["row_count"]
+
+    # verify table
+    table = sql_table(sql_source_db.engine, table="chat_message", schema=sql_source_db.schema)
+    assert len(list(table)) == sql_source_db.table_infos["chat_message"]["row_count"]
+
+
 def test_named_sql_table_config(sql_source_db: SQLAlchemySourceDB) -> None:
     # set the credentials per table name
     os.environ["SOURCES__SQL_DATABASE__CHAT_MESSAGE__CREDENTIALS"] = (
@@ -174,6 +204,146 @@ def test_general_sql_database_config(sql_source_db: SQLAlchemySourceDB) -> None:
         list(sql_database(schema=sql_source_db.schema).with_resources("chat_message"))
     # other resources will be loaded, incremental is selective
     assert len(list(sql_database(schema=sql_source_db.schema).with_resources("app_user"))) > 0
+
+
+@pytest.mark.parametrize("backend", ["sqlalchemy", "pandas", "pyarrow"])
+@pytest.mark.parametrize("add_new_columns", [True, False])
+def test_text_query_adapter(
+    sql_source_db: SQLAlchemySourceDB, backend: TableBackend, add_new_columns: bool
+) -> None:
+    from dlt.common.libs.sql_alchemy import Table, sqltypes, sa, Engine, TextClause
+    from dlt.sources.sql_database.helpers import SelectAny
+    from dlt.extract.incremental import Incremental
+
+    def new_columns(table: Table) -> None:
+        required_columns = [
+            ("add_int", sqltypes.BigInteger, {"nullable": True}),
+            ("add_text", sqltypes.Text, {"default": None, "nullable": True}),
+        ]
+        for col_name, col_type, col_kwargs in required_columns:
+            if col_name not in table.c:
+                table.append_column(sa.Column(col_name, col_type, **col_kwargs))
+
+    last_query: str = None
+
+    def query_adapter(
+        query: SelectAny, table: Table, incremental: Optional[Incremental[Any]], engine: Engine
+    ) -> TextClause:
+        nonlocal last_query
+
+        if incremental and incremental.start_value is not None:
+            t_query = sa.text(
+                f"SELECT *, 1 as add_int, 'const' as add_text FROM {table.fullname} WHERE"
+                f" {incremental.cursor_path} > :start_value"
+            ).bindparams(**{"start_value": incremental.start_value})
+        else:
+            t_query = sa.text(f"SELECT *, 1 as add_int, 'const' as add_text FROM {table.fullname}")
+
+        last_query = str(t_query)
+        return t_query
+
+    read_table = sql_table(
+        table="chat_channel",
+        credentials=sql_source_db.credentials,
+        schema=sql_source_db.schema,
+        reflection_level="full",
+        backend=backend,
+        table_adapter_callback=new_columns if add_new_columns else None,
+        query_adapter_callback=query_adapter,
+        incremental=dlt.sources.incremental("updated_at"),
+    )
+
+    pipeline = make_pipeline("duckdb")
+    info = pipeline.run(read_table)
+    assert_load_info(info)
+    assert "chat_channel" in last_query
+    assert "WHERE" not in last_query
+
+    chn_count = load_table_counts(pipeline, "chat_channel")["chat_channel"]
+    assert chn_count > 0
+
+    chat_channel_schema = pipeline.default_schema.get_table("chat_channel")
+    # print(pipeline.default_schema.to_pretty_yaml())
+    assert "add_int" in chat_channel_schema["columns"]
+    assert chat_channel_schema["columns"]["add_int"]["data_type"] == "bigint"
+    assert chat_channel_schema["columns"]["add_text"]["data_type"] == "text"
+
+    info = pipeline.run(read_table)
+    assert "WHERE updated_at > :start_value" in last_query
+    # no msgs were loaded, incremental got correctly rendered
+    assert load_table_counts(pipeline, "chat_channel")["chat_channel"] == chn_count
+
+
+@pytest.mark.parametrize("backend", ["sqlalchemy", "pandas", "pyarrow"])
+def test_computed_column(sql_source_db: SQLAlchemySourceDB, backend: TableBackend) -> None:
+    from dlt.common.libs.sql_alchemy import Table, sa, sqltypes
+    from dlt.sources.sql_database.helpers import SelectAny
+
+    def add_max_timestamp(table: Table) -> SelectAny:
+        computed_max_timestamp = sa.sql.type_coerce(
+            sa.func.greatest(table.c.created_at, table.c.updated_at),
+            sqltypes.DateTime,
+        ).label("max_timestamp")
+        subquery = sa.select(*table.c, computed_max_timestamp).subquery()
+        return subquery
+
+    read_table = sql_table(
+        table="chat_message",
+        credentials=sql_source_db.credentials,
+        schema=sql_source_db.schema,
+        reflection_level="full",
+        backend=backend,
+        table_adapter_callback=add_max_timestamp,
+        incremental=dlt.sources.incremental("max_timestamp"),
+    )
+
+    pipeline = make_pipeline("duckdb")
+    info = pipeline.run(read_table)
+    assert_load_info(info)
+
+    msg_count = load_table_counts(pipeline, "chat_message")["chat_message"]
+    assert msg_count > 0
+
+    chat_channel_schema = pipeline.default_schema.get_table("chat_message")
+    # print(pipeline.default_schema.to_pretty_yaml())
+    assert "max_timestamp" in chat_channel_schema["columns"]
+    assert chat_channel_schema["columns"]["max_timestamp"]["data_type"] == "timestamp"
+
+    info = pipeline.run(read_table)
+    # no msgs were loaded, incremental got correctly rendered
+    assert load_table_counts(pipeline, "chat_message")["chat_message"] == msg_count
+
+
+def test_remove_nullability(sql_source_db: SQLAlchemySourceDB) -> None:
+    read_table = sql_table(
+        table="chat_message",
+        credentials=sql_source_db.credentials,
+        schema=sql_source_db.schema,
+        reflection_level="full_with_precision",
+        table_adapter_callback=remove_nullability_adapter,
+    )
+    table_schema = read_table.compute_table_schema()
+    for column in table_schema["columns"].values():
+        assert "nullability" not in column
+
+    # also works for subquery
+    def make_subquery(table):
+        return remove_nullability_adapter(table.select().subquery())
+
+    read_table = sql_table(
+        table="chat_message",
+        credentials=sql_source_db.credentials,
+        schema=sql_source_db.schema,
+        reflection_level="full_with_precision",
+        table_adapter_callback=make_subquery,
+    )
+
+    table_schema = read_table.compute_table_schema()
+    for column in table_schema["columns"].values():
+        assert "nullability" not in column
+
+    data = list(read_table)
+    assert len(data) == sql_source_db.table_infos["chat_message"]["row_count"]
 
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pandas", "pyarrow", "connectorx"])
@@ -365,8 +535,11 @@ def test_reflection_levels(
     expected_col_names = [col["name"] for col in PRECISION_COLUMNS]
 
     # on sqlalchemy json col is not written to schema if no types are discovered
-    if backend == "sqlalchemy" and reflection_level == "minimal" and not with_defer:
-        expected_col_names = [col for col in expected_col_names if col != "json_col"]
+    # nested types are converted into nested tables, not columns
+    if backend == "sqlalchemy" and reflection_level == "minimal":
+        expected_col_names = [
+            col for col in expected_col_names if col not in ("json_col", "array_col")
+        ]
 
     assert col_names == expected_col_names
 
@@ -662,8 +835,12 @@ def test_set_primary_key_deferred_incremental(
         else:
             assert _r.incremental.primary_key == ["id"]
         assert _r.incremental._incremental.primary_key == ["id"]
-        assert _r.incremental._incremental._transformers["json"].primary_key == ["id"]
-        assert _r.incremental._incremental._transformers["arrow"].primary_key == ["id"]
+        assert _r.incremental._incremental._make_or_get_transformer(
+            JsonIncremental
+        ).primary_key == ["id"]
+        assert _r.incremental._incremental._make_or_get_transformer(
+            ArrowIncremental
+        ).primary_key == ["id"]
         return item
 
     pipeline = make_pipeline("duckdb")
@@ -672,8 +849,12 @@ def test_set_primary_key_deferred_incremental(
 
     assert resource.incremental.primary_key == ["id"]
     assert resource.incremental._incremental.primary_key == ["id"]
-    assert resource.incremental._incremental._transformers["json"].primary_key == ["id"]
-    assert resource.incremental._incremental._transformers["arrow"].primary_key == ["id"]
+    assert resource.incremental._incremental._make_or_get_transformer(
+        JsonIncremental
+    ).primary_key == ["id"]
+    assert resource.incremental._incremental._make_or_get_transformer(
+        ArrowIncremental
+    ).primary_key == ["id"]
 
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
@@ -691,6 +872,7 @@ def test_deferred_reflect_in_source(
     # mock the right json values for backends not supporting it
     if backend in ("connectorx", "pandas"):
         source.resources["has_precision"].add_map(mock_json_column("json_col"))
+        source.resources["has_precision"].add_map(mock_array_column("array_col"))
 
     # no columns in both tables
     assert source.has_precision.columns == {}
@@ -748,6 +930,7 @@ def test_deferred_reflect_in_resource(
     # mock the right json values for backends not supporting it
     if backend in ("connectorx", "pandas"):
         table.add_map(mock_json_column("json_col"))
+        table.add_map(mock_array_column("array_col"))
 
     # no columns in both tables
     assert table.columns == {}
@@ -863,28 +1046,17 @@ def test_sql_database_include_view_in_table_names(
 @pytest.mark.parametrize("backend", ["pyarrow", "pandas", "sqlalchemy"])
 @pytest.mark.parametrize("standalone_resource", [True, False])
 @pytest.mark.parametrize("reflection_level", ["minimal", "full", "full_with_precision"])
-@pytest.mark.parametrize("type_adapter", [True, False])
 def test_infer_unsupported_types(
     sql_source_db_unsupported_types: SQLAlchemySourceDB,
     backend: TableBackend,
     reflection_level: ReflectionLevel,
     standalone_resource: bool,
-    type_adapter: bool,
 ) -> None:
-    def type_adapter_callback(t):
-        if isinstance(t, sa.ARRAY):
-            return sa.JSON
-        return t
-
-    if backend == "pyarrow" and type_adapter:
-        pytest.skip("Arrow does not support type adapter for arrays")
-
     common_kwargs = dict(
         credentials=sql_source_db_unsupported_types.credentials,
         schema=sql_source_db_unsupported_types.schema,
         reflection_level=reflection_level,
         backend=backend,
-        type_adapter_callback=type_adapter_callback if type_adapter else None,
     )
     if standalone_resource:
 
@@ -906,9 +1078,6 @@ def test_infer_unsupported_types(
 
     pipeline = make_pipeline("duckdb")
     pipeline.extract(source)
-
-    columns = pipeline.default_schema.tables["has_unsupported_types"]["columns"]
-
     pipeline.normalize()
     pipeline.load()
 
@@ -916,30 +1085,12 @@ def test_infer_unsupported_types(
 
     schema = pipeline.default_schema
     assert "has_unsupported_types" in schema.tables
-    columns = schema.tables["has_unsupported_types"]["columns"]
 
     rows = load_tables_to_dicts(pipeline, "has_unsupported_types")["has_unsupported_types"]
 
     if backend == "pyarrow":
-        # TODO: duckdb writes structs as strings (not json encoded) to json columns
-        # Just check that it has a value
-
-        assert isinstance(json.loads(rows[0]["unsupported_array_1"]), list)
-        assert columns["unsupported_array_1"]["data_type"] == "json"
-        # Other columns are loaded
         assert isinstance(rows[0]["supported_text"], str)
         assert isinstance(rows[0]["supported_int"], int)
-    elif backend == "sqlalchemy":
-        # sqla value is a dataclass and is inferred as json
-
-        assert columns["unsupported_array_1"]["data_type"] == "json"
-
-    elif backend == "pandas":
-        # pandas parses it as string
-        if type_adapter and reflection_level != "minimal":
-            assert columns["unsupported_array_1"]["data_type"] == "json"
-
-            assert isinstance(json.loads(rows[0]["unsupported_array_1"]), list)
 
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
@@ -1009,7 +1160,10 @@ def test_sql_table_included_columns(
 def test_query_adapter_callback(
     sql_source_db: SQLAlchemySourceDB, backend: TableBackend, standalone_resource: bool
 ) -> None:
-    def query_adapter_callback(query, table):
+    from dlt.sources.sql_database.helpers import SelectAny
+    from dlt.common.libs.sql_alchemy import Table
+
+    def query_adapter_callback(query: SelectAny, table: Table) -> SelectAny:
         if table.name == "chat_channel":
             # Only select active channels
             return query.where(table.c.active.is_(True))
@@ -1021,7 +1175,6 @@ def test_query_adapter_callback(
         schema=sql_source_db.schema,
         reflection_level="full",
         backend=backend,
-        query_adapter_callback=query_adapter_callback,
     )
 
     if standalone_resource:
@@ -1031,11 +1184,13 @@ def test_query_adapter_callback(
             yield sql_table(
                 **common_kwargs,  # type: ignore[arg-type]
                 table="chat_channel",
+                query_adapter_callback=query_adapter_callback,
             )
 
             yield sql_table(
                 **common_kwargs,  # type: ignore[arg-type]
                 table="chat_message",
+                query_adapter_callback=query_adapter_callback,
             )
 
         source = dummy_source()
@@ -1043,6 +1198,7 @@ def test_query_adapter_callback(
         source = sql_database(
             **common_kwargs,  # type: ignore[arg-type]
             table_names=["chat_message", "chat_channel"],
+            query_adapter_callback=query_adapter_callback,
         )
 
     pipeline = make_pipeline("duckdb")
@@ -1103,10 +1259,7 @@ def assert_no_precision_columns(
 ) -> None:
     actual = list(columns.values())
     # we always infer and emit nullability
-    expected = cast(
-        List[TColumnSchema],
-        deepcopy(NULL_NO_PRECISION_COLUMNS if nullable else NOT_NULL_NO_PRECISION_COLUMNS),
-    )
+    expected = deepcopy(NULL_NO_PRECISION_COLUMNS if nullable else NOT_NULL_NO_PRECISION_COLUMNS)
     if backend == "pyarrow":
         expected = cast(
             List[TColumnSchema],
@@ -1257,6 +1410,14 @@ PRECISION_COLUMNS: List[TColumnSchema] = [
     {
         "data_type": "bool",
         "name": "bool_col",
+    },
+    {
+        "data_type": "text",
+        "name": "uuid_col",
+    },
+    {
+        "data_type": "json",
+        "name": "array_col",
     },
 ]
 

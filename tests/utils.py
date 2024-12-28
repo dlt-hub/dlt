@@ -32,6 +32,7 @@ from dlt.common.pipeline import LoadInfo, PipelineContext, SupportsPipeline
 from dlt.common.runtime.run_context import DOT_DLT, RunContext
 from dlt.common.runtime.telemetry import start_telemetry, stop_telemetry
 from dlt.common.schema import Schema
+from dlt.common.schema.typing import TTableFormat
 from dlt.common.storages import FileStorage
 from dlt.common.storages.versioned_storage import VersionedStorage
 from dlt.common.typing import DictStrAny, StrAny, TDataItem
@@ -87,6 +88,12 @@ ACTIVE_DESTINATIONS = set(dlt.config.get("ACTIVE_DESTINATIONS", list) or IMPLEME
 
 ACTIVE_SQL_DESTINATIONS = SQL_DESTINATIONS.intersection(ACTIVE_DESTINATIONS)
 ACTIVE_NON_SQL_DESTINATIONS = NON_SQL_DESTINATIONS.intersection(ACTIVE_DESTINATIONS)
+
+# filter out active table formats for current tests
+IMPLEMENTED_TABLE_FORMATS = set(get_args(TTableFormat))
+ACTIVE_TABLE_FORMATS = set(
+    dlt.config.get("ACTIVE_TABLE_FORMATS", list) or IMPLEMENTED_TABLE_FORMATS
+)
 
 # sanity checks
 assert len(ACTIVE_DESTINATIONS) >= 0, "No active destinations selected"
@@ -157,9 +164,27 @@ def autouse_test_storage() -> FileStorage:
 @pytest.fixture(scope="function", autouse=True)
 def preserve_environ() -> Iterator[None]:
     saved_environ = environ.copy()
-    yield
-    environ.clear()
-    environ.update(saved_environ)
+    # delta-rs sets those keys without updating environ and there's no
+    # method to refresh environ
+    known_environ = {
+        key_: saved_environ.get(key_)
+        for key_ in [
+            "AWS_ACCESS_KEY_ID",
+            "AWS_SECRET_ACCESS_KEY",
+            "AWS_REGION",
+            "AWS_SESSION_TOKEN",
+        ]
+    }
+    try:
+        yield
+    finally:
+        environ.clear()
+        environ.update(saved_environ)
+        for key_, value_ in known_environ.items():
+            if value_ is not None or key_ not in environ:
+                environ[key_] = value_ or ""
+            else:
+                del environ[key_]
 
 
 @pytest.fixture(autouse=True)

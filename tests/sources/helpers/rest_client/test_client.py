@@ -7,6 +7,7 @@ import pytest
 from requests import PreparedRequest, Request, Response
 from requests.auth import AuthBase
 from requests.exceptions import HTTPError
+import requests_mock
 
 from dlt.common import logger
 from dlt.common.typing import TSecretStrValue
@@ -400,7 +401,7 @@ class TestRESTClient:
         posts_skip = (DEFAULT_TOTAL_PAGES - 3) * DEFAULT_PAGE_SIZE
 
         class JSONBodyPageCursorPaginator(BaseReferencePaginator):
-            def update_state(self, response, data):
+            def update_state(self, response, data):  # type: ignore[override]
                 self._next_reference = response.json().get("next_page")
 
             def update_request(self, request):
@@ -512,3 +513,24 @@ class TestRESTClient:
             "timeout": 432,
             "allow_redirects": False,
         }
+
+    @requests_mock.Mocker(kw="mock")
+    def test_overwrite_path(self, mocker, **kwargs) -> None:
+        expected = {"foo": "bar"}
+        kwargs["mock"].get("https://completely.different/endpoint", json=expected)
+        rest_client = RESTClient(
+            base_url="https://api.example.com",
+        )
+        response = rest_client.get("https://completely.different/endpoint")
+        assert response.json() == expected
+
+    @requests_mock.Mocker(kw="mock")
+    def test_overwrite_path_ignores_different_protocol(self, mocker, **kwargs) -> None:
+        expected = {"foo": "bar"}
+        base_url = "https://api.example.com"
+        kwargs["mock"].get(f"{base_url}/my://protocol", json=expected)
+        rest_client = RESTClient(
+            base_url=base_url,
+        )
+        response = rest_client.get("my://protocol")
+        assert response.json() == expected

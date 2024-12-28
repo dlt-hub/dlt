@@ -18,7 +18,13 @@ from dlt.common.configuration.specs import (
     AzureCredentialsWithoutDefaults,
 )
 from dlt.common.exceptions import TerminalValueError
+from dlt.common.storages.configuration import ensure_canonical_az_url
 from dlt.common.storages.file_storage import FileStorage
+from dlt.common.storages.fsspec_filesystem import (
+    AZURE_BLOB_STORAGE_PROTOCOLS,
+    S3_PROTOCOLS,
+    GCS_PROTOCOLS,
+)
 from dlt.common.schema import TColumnSchema, Schema
 from dlt.common.schema.typing import TColumnType
 from dlt.common.storages import FilesystemConfiguration, fsspec_from_config
@@ -31,8 +37,8 @@ from dlt.destinations.sql_jobs import SqlMergeFollowupJob
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest
 from dlt.destinations.utils import is_compression_disabled
 
-AZURE_BLOB_STORAGE_PROTOCOLS = ["az", "abfss", "abfs"]
-SUPPORTED_BLOB_STORAGE_PROTOCOLS = AZURE_BLOB_STORAGE_PROTOCOLS + ["s3", "gs", "gcs"]
+
+SUPPORTED_BLOB_STORAGE_PROTOCOLS = AZURE_BLOB_STORAGE_PROTOCOLS + S3_PROTOCOLS + GCS_PROTOCOLS
 
 
 class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
@@ -105,7 +111,9 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
                     # Explicit azure credentials are needed to load from bucket without a named stage
                     credentials_clause = f"""WITH(CREDENTIAL(AZURE_SAS_TOKEN='{staging_credentials.azure_storage_sas_token}'))"""
                     bucket_path = self.ensure_databricks_abfss_url(
-                        bucket_path, staging_credentials.azure_storage_account_name
+                        bucket_path,
+                        staging_credentials.azure_storage_account_name,
+                        staging_credentials.azure_account_host,
                     )
                 else:
                     raise LoadJobTerminalException(
@@ -123,7 +131,9 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
                     ),
                 )
                 bucket_path = self.ensure_databricks_abfss_url(
-                    bucket_path, staging_credentials.azure_storage_account_name
+                    bucket_path,
+                    staging_credentials.azure_storage_account_name,
+                    staging_credentials.azure_account_host,
                 )
 
             # always add FROM clause
@@ -164,30 +174,10 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
 
     @staticmethod
     def ensure_databricks_abfss_url(
-        bucket_path: str, azure_storage_account_name: str = None
+        bucket_path: str, azure_storage_account_name: str = None, account_host: str = None
     ) -> str:
-        bucket_url = urlparse(bucket_path)
-        # Converts an az://<container_name>/<path> to abfss://<container_name>@<storage_account_name>.dfs.core.windows.net/<path>
-        if bucket_url.username:
-            # has the right form, ensure abfss schema
-            return urlunparse(bucket_url._replace(scheme="abfss"))
-
-        if not azure_storage_account_name:
-            raise TerminalValueError(
-                f"Could not convert azure blob storage url {bucket_path} into form required by"
-                " Databricks"
-                " (abfss://<container_name>@<storage_account_name>.dfs.core.windows.net/<path>)"
-                " because storage account name is not known. Please use Databricks abfss://"
-                " canonical url as bucket_url in staging credentials"
-            )
-        # as required by databricks
-        _path = bucket_url.path
-        return urlunparse(
-            bucket_url._replace(
-                scheme="abfss",
-                netloc=f"{bucket_url.netloc}@{azure_storage_account_name}.dfs.core.windows.net",
-                path=_path,
-            )
+        return ensure_canonical_az_url(
+            bucket_path, "abfss", azure_storage_account_name, account_host
         )
 
 
@@ -273,12 +263,6 @@ class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
         self, bq_t: str, precision: Optional[int], scale: Optional[int]
     ) -> TColumnType:
         return self.type_mapper.from_destination_type(bq_t, precision, scale)
-
-    def _get_column_def_sql(self, c: TColumnSchema, table: PreparedTableSchema = None) -> str:
-        name = self.sql_client.escape_column_name(c["name"])
-        return (
-            f"{name} {self.type_mapper.to_destination_type(c,table)} {self._gen_not_null(c.get('nullable', True))}"
-        )
 
     def _get_storage_table_query_columns(self) -> List[str]:
         fields = super()._get_storage_table_query_columns()

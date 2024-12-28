@@ -20,8 +20,10 @@ from dlt.common.schema.exceptions import (
 from dlt.common.schema.typing import TLoaderMergeStrategy
 from dlt.common.typing import StrAny
 from dlt.common.utils import digest128
-from dlt.common.destination import AnyDestination
+from dlt.common.destination import AnyDestination, DestinationCapabilitiesContext
 from dlt.common.destination.exceptions import DestinationCapabilitiesException
+from dlt.common.libs.pyarrow import row_tuples_to_arrow
+
 from dlt.extract import DltResource
 from dlt.sources.helpers.transform import skip_first, take_first
 from dlt.pipeline.exceptions import PipelineStepFailed
@@ -78,7 +80,7 @@ def test_merge_on_keys_in_schema(
 
     skip_if_not_supported(merge_strategy, p.destination)
 
-    with open("tests/common/cases/schemas/eth/ethereum_schema_v9.yml", "r", encoding="utf-8") as f:
+    with open("tests/common/cases/schemas/eth/ethereum_schema_v11.yml", "r", encoding="utf-8") as f:
         schema = dlt.Schema.from_dict(yaml.safe_load(f))
 
     # make block uncles unseen to trigger filtering loader in loader for nested tables
@@ -1522,3 +1524,77 @@ def test_merge_key_null_values(destination_config: DestinationTestConfiguration)
 
     assert isinstance(ex.__context__, NormalizeJobFailed)
     assert isinstance(ex.__context__.__context__, CannotCoerceNullException)
+
+
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True,
+        local_filesystem_configs=True,
+        table_format_filesystem_configs=True,
+        supports_merge=True,
+        bucket_subset=(FILE_BUCKET),
+    ),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize("merge_strategy", ("delete-insert", "upsert"))
+def test_merge_arrow(
+    destination_config: DestinationTestConfiguration,
+    merge_strategy: TLoaderMergeStrategy,
+) -> None:
+    pipeline = destination_config.setup_pipeline("merge_arrow", dev_mode=True)
+
+    skip_if_not_supported(merge_strategy, pipeline.destination)
+
+    @dlt.resource(
+        write_disposition={"disposition": "merge", "strategy": merge_strategy},
+        primary_key="id",
+        table_format=destination_config.table_format,
+    )
+    def arrow_items(rows, schema_columns, timezone="UTC"):
+        yield row_tuples_to_arrow(
+            rows,
+            DestinationCapabilitiesContext.generic_capabilities(),
+            columns=schema_columns,
+            tz=timezone,
+        )
+
+    schema_columns = {
+        "id": {"name": "id", "nullable": False, "data_type": "bigint"},
+        "name": {"name": "name", "nullable": True, "data_type": "text"},
+    }
+    test_rows = [(1, "foo"), (2, "bar")]
+
+    load_info = pipeline.run(
+        arrow_items(test_rows, schema_columns),
+    )
+    assert_load_info(load_info)
+
+    tables = load_tables_to_dicts(pipeline, "arrow_items")
+
+    assert_records_as_set(
+        tables["arrow_items"],
+        [
+            {"id": 1, "name": "foo"},
+            {"id": 2, "name": "bar"},
+        ],
+    )
+
+    # Update the records
+    test_rows = [(1, "foo"), (2, "updated bar")]
+
+    load_info = pipeline.run(
+        arrow_items(test_rows, schema_columns),
+    )
+
+    assert_load_info(load_info)
+    tables = load_tables_to_dicts(pipeline, "arrow_items", "arrow_items")
+
+    assert_records_as_set(
+        tables["arrow_items"],
+        [
+            {"id": 1, "name": "foo"},
+            {"id": 2, "name": "updated bar"},
+        ],
+    )

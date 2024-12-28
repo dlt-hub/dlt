@@ -16,14 +16,18 @@ Efficient data management often requires loading only new or updated data from y
 
 Incremental loading uses a cursor column (e.g., timestamp or auto-incrementing ID) to load only data newer than a specified initial value, enhancing efficiency by reducing processing time and resource use. Read [here](../../../walkthroughs/sql-incremental-configuration) for more details on incremental loading with `dlt`.
 
-#### How to configure
+### How to configure
 1. **Choose a cursor column**: Identify a column in your SQL table that can serve as a reliable indicator of new or updated rows. Common choices include timestamp columns or auto-incrementing IDs.
 1. **Set an initial value**: Choose a starting value for the cursor to begin loading data. This could be a specific timestamp or ID from which you wish to start loading data.
 1. **Deduplication**: When using incremental loading, the system automatically handles the deduplication of rows based on the primary key (if available) or row hash for tables without a primary key.
 1. **Set end_value for backfill**: Set `end_value` if you want to backfill data from a certain range.
 1. **Order returned rows**: Set `row_order` to `asc` or `desc` to order returned rows.
 
-#### Examples
+:::info Special characters in the cursor column name
+If your cursor column name contains special characters (e.g., `$`) you need to escape it when passing it to the `incremental` function. For example, if your cursor column is `example_$column`, you should pass it as `"'example_$column'"` or `'"example_$column"'` to the `incremental` function: `incremental("'example_$column'", initial_value=...)`.
+:::
+
+### Examples
 
 1. **Incremental loading with the resource `sql_table`**.
 
@@ -48,7 +52,7 @@ Incremental loading uses a cursor column (e.g., timestamp or auto-incrementing I
   print(extract_info)
   ```
 
-  Behind the scene, the loader generates a SQL query filtering rows with `last_modified` values greater than the incremental value. In the first run, this is the initial value (midnight (00:00:00) January 1, 2024).
+  Behind the scene, the loader generates a SQL query filtering rows with `last_modified` values greater or equal to the incremental value. In the first run, this is the initial value (midnight (00:00:00) January 1, 2024).
   In subsequent runs, it is the latest value of `last_modified` that `dlt` stores in [state](../../../general-usage/state).
 
 2. **Incremental loading with the source `sql_database`**.
@@ -74,6 +78,49 @@ Incremental loading uses a cursor column (e.g., timestamp or auto-incrementing I
     * `apply_hints` is a powerful method that enables schema modifications after resource creation, like adjusting write disposition and primary keys. You can choose from various tables and use `apply_hints` multiple times to create pipelines with merged, appended, or replaced resources.
   :::
 
+### Inclusive and exclusive filtering
+
+By default the incremental filtering is inclusive on the start value side so that
+rows with cursor equal to the last run's cursor are fetched again from the database.
+
+The SQL query generated looks something like this (assuming `last_value_func` is `max`):
+
+```sql
+SELECT * FROM family
+WHERE last_modified >= :start_value
+ORDER BY last_modified ASC
+```
+
+That means some rows overlapping with the previous load are fetched from the database.
+Duplicates are then filtered out by dlt using either the primary key or a hash of the row's contents.
+
+This ensures there are no gaps in the extracted sequence. But it does come with some performance overhead,
+both due to the deduplication processing and the cost of fetching redundant records from the database.
+
+This is not always needed. If you know that your data does not contain overlapping cursor values then you
+can optimize extraction by passing `range_start="open"` to incremental.
+
+This both disables the deduplication process and changes the operator used in the SQL `WHERE` clause from `>=` (greater-or-equal) to `>` (greater than), so that no overlapping rows are fetched.
+
+E.g.
+
+```py
+table = sql_table(
+    table='family',
+    incremental=dlt.sources.incremental(
+        'last_modified',  # Cursor column name
+        initial_value=pendulum.DateTime(2024, 1, 1, 0, 0, 0),  # Initial cursor value
+        range_start="open",  # exclude the start value
+    )
+)
+```
+
+It's a good option if:
+
+* The cursor is an auto incrementing ID
+* The cursor is a high precision timestamp and two records are never created at exactly the same time
+* Your pipeline runs are timed in such a way that new data is not generated during the load
+
 ## Parallelized extraction
 
 You can extract each table in a separate thread (no multiprocessing at this point). This will decrease loading time if your queries take time to execute or your network latency/speed is low. To enable this, declare your sources/resources as follows:
@@ -90,8 +137,8 @@ Depending on the selected backend, some of the types might require additional pr
 
 The `reflection_level` argument controls how much information is reflected:
 
-- `reflection_level = "minimal"`: Only column names and nullability are detected. Data types are inferred from the data.
-- `reflection_level = "full"`: Column names, nullability, and data types are detected. For decimal types, we always add precision and scale. **This is the default.**
+- `reflection_level = "minimal"`: Only column names and nullability are detected. Data types are inferred from the data. **This is the default.**
+- `reflection_level = "full"`: Column names, nullability, and data types are detected. For decimal types, we always add precision and scale.
 - `reflection_level = "full_with_precision"`: Column names, nullability, data types, and precision/scale are detected, also for types like text and binary. Integer sizes are set to bigint and to int for all other types.
 
 If the SQL type is unknown or not supported by `dlt`, then, in the pyarrow backend, the column will be skipped, whereas in the other backends the type will be inferred directly from the data irrespective of the `reflection_level` specified. In the latter case, this often means that some types are coerced to strings and `dataclass` based values from sqlalchemy are inferred as `json` (JSON in most destinations).
@@ -103,6 +150,8 @@ and BigQuery sees it as bigint and fails to load.
 In that case, you may try **minimal** reflection level where all data types are inferred from the returned data. From our experience, this prevents
 most of the coercion problems.
 :::
+
+### Adapt reflected types to your needs
 
 You can also override the SQL type by passing a `type_adapter_callback` function. This function takes a `SQLAlchemy` data type as input and returns a new type (or `None` to force the column to be inferred from the data) as output.
 
@@ -133,6 +182,28 @@ source = sql_database(
 
 dlt.pipeline("demo").run(source)
 ```
+
+### Remove nullability information
+`dlt` adds `NULL`/`NOT NULL` information to reflected schemas in **all reflection levels**. There are cases where you do not want this information to be present
+ie.
+* if you plan to use replication source that will (soft) delete rows.
+* if you expect that columns will be dropped from the source table.
+
+In such cases you can use a table adapter that removes nullability (`dlt` will create nullable tables as a default):
+
+```py
+from dlt.sources.sql_database import sql_table, remove_nullability_adapter
+
+read_table = sql_table(
+    table="chat_message",
+    reflection_level="full_with_precision",
+    table_adapter_callback=remove_nullability_adapter,
+)
+print(read_table.compute_table_schema())
+```
+
+You can call `remove_nullability_adapter` from your custom table adapter if you need to combine both.
+
 
 ## Configuring with TOML or environment variables
 You can set most of the arguments of `sql_database()` and `sql_table()` directly in the TOML files or as environment variables. `dlt` automatically injects these values into the pipeline script.
@@ -185,3 +256,24 @@ SOURCES__SQL_DATABASE__CHUNK_SIZE=1000
 SOURCES__SQL_DATABASE__CHAT_MESSAGE__INCREMENTAL__CURSOR_PATH=updated_at
 ```
 
+### Configure many sources side by side with custom sections
+`dlt` allows you to rename any source to place the source configuration into custom section or to have many instances
+of the source created side by side. For example:
+```py
+from dlt.sources.sql_database import sql_database
+
+my_db = sql_database.with_args(name="my_db", section="my_db")(table_names=["chat_message"])
+print(my_db.name)
+```
+Here we create a renamed version of the `sql_database` and then instantiate it. Such source will read
+credentials from:
+```toml
+[sources.my_db]
+credentials="mssql+pyodbc://loader.database.windows.net/dlt_data?trusted_connection=yes&driver=ODBC+Driver+17+for+SQL+Server"
+schema="data"
+backend="pandas"
+chunk_size=1000
+
+[sources.my_db.chat_message.incremental]
+cursor_path="updated_at"
+```

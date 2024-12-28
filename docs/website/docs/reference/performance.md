@@ -48,9 +48,7 @@ Some file formats (e.g., Parquet) do not support schema changes when writing a s
 
 Below, we set files to rotate after 100,000 items written or when the filesize exceeds 1MiB.
 
-<!--@@@DLT_SNIPPET ./performance_snippets/toml-snippets.toml::file_size_toml-->
-
-
+<!--@@@DLT_SNIPPET ./performance_snippets/toml-snippets.toml::file_size_toml--> 
 
 ### Disabling and enabling file compression
 Several [text file formats](../dlt-ecosystem/file-formats/) have `gzip` compression enabled by default. If you wish that your load packages have uncompressed files (e.g., to debug the content easily), change `data_writer.disable_compression` in config.toml. The entry below will disable the compression of the files processed in the `normalize` stage.
@@ -148,7 +146,10 @@ As before, **if you have just a single table with millions of records, you shoul
 
 <!--@@@DLT_SNIPPET ./performance_snippets/toml-snippets.toml::normalize_workers_2_toml-->
 
-Since the normalize stage uses a process pool to create load packages concurrently, adjusting the `file_max_items` and `file_max_bytes` settings can significantly impact load behavior. By setting a lower value for `file_max_items`, you reduce the size of each data chunk sent to the destination database, which can be particularly useful for managing memory constraints on the database server. Without explicit configuration of `file_max_items`, `dlt` writes all data rows into one large intermediary file, attempting to insert all data from this single file. Configuring `file_max_items` ensures data is inserted in manageable chunks, enhancing performance and preventing potential memory issues.
+The **normalize** stage in `dlt` uses a process pool to create load packages concurrently, and the settings for `file_max_items` and `file_max_bytes` play a crucial role in determining the size of data chunks. Lower values for these settings reduce the size of each chunk sent to the destination database, which is particularly helpful for managing memory constraints on the database server. By default, `dlt` writes all data rows into one large intermediary file, attempting to load all data at once. Configuring these settings enables file rotation, splitting the data into smaller, more manageable chunks. This not only improves performance but also minimizes memory-related issues when working with large tables containing millions of records.
+
+#### Controlling destination items size
+The intermediary files generated during the **normalize** stage are also used in the **load** stage. Therefore, adjusting `file_max_items` and `file_max_bytes` in the **normalize** stage directly impacts the size and number of data chunks sent to the destination, influencing loading behavior and performance.
 
 ### Parallel pipeline config example
 The example below simulates the loading of a large database table with 1,000,000 records. The **config.toml** below sets the parallelization as follows:
@@ -264,3 +265,29 @@ DLT_USE_JSON=simplejson
 
 Instead of using Python Requests directly, you can use the built-in [requests wrapper](../general-usage/http/requests) or [`RESTClient`](../general-usage/http/rest-client) for API calls. This will make your pipeline more resilient to intermittent network errors and other random glitches.
 
+
+## Keep pipeline working folder in a bucket on constrained environments.
+`dlt` stores extracted data in load packages in order to load them atomically. In case you extract a lot of data at once (ie. backfill) or
+your runtime env has constrained local storage (ie. cloud functions) you can keep your data on a bucket by using [FUSE](https://github.com/libfuse/libfuse) or
+any other option which your cloud provider supplies.
+
+`dlt` users rename when saving files and  "committing" packages (folder rename). Those may be not supported on bucket filesystems. Often
+`rename` is translated into `copy` automatically. In other cases `dlt` will fallback to copy itself.
+
+In case of cloud function and gs bucket mounts, increasing the rename limit for folders is possible:
+```hcl
+volume_mounts {
+    mount_path = "/usr/src/ingestion/pipeline_storage"
+    name       = "pipeline_bucket"
+  }
+volumes {
+  name = "pipeline_bucket"
+  gcs {
+    bucket    = google_storage_bucket.dlt_pipeline_data_bucket.name
+    read_only = false
+    mount_options = [
+      "rename-dir-limit=100000"
+    ]
+  }
+}
+```

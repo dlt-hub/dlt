@@ -8,6 +8,7 @@ from dlt.common.configuration.specs import (
     CredentialsWithDefault,
     configspec,
 )
+from dlt.common.configuration.specs.mixins import WithObjectStoreRsCredentials, WithPyicebergConfig
 from dlt.common.configuration.specs.exceptions import (
     InvalidBoto3Session,
     ObjectStoreRsCredentialsException,
@@ -16,7 +17,9 @@ from dlt import version
 
 
 @configspec
-class AwsCredentialsWithoutDefaults(CredentialsConfiguration):
+class AwsCredentialsWithoutDefaults(
+    CredentialsConfiguration, WithObjectStoreRsCredentials, WithPyicebergConfig
+):
     # credentials without boto implementation
     aws_access_key_id: str = None
     aws_secret_access_key: TSecretStrValue = None
@@ -51,6 +54,8 @@ class AwsCredentialsWithoutDefaults(CredentialsConfiguration):
 
     def to_object_store_rs_credentials(self) -> Dict[str, str]:
         # https://docs.rs/object_store/latest/object_store/aws
+        # NOTE: delta rs will set the values below in env variables of the current process
+        # https://github.com/delta-io/delta-rs/blob/bdf1c4e765ca457e49d4fa53335d42736220f57f/rust/src/storage/s3.rs#L257
         creds = cast(
             Dict[str, str],
             without_none(
@@ -64,8 +69,8 @@ class AwsCredentialsWithoutDefaults(CredentialsConfiguration):
             ),
         )
 
-        if "endpoint_url" not in creds:  # AWS S3
-            if "region" not in creds:
+        if not self.endpoint_url:  # AWS S3
+            if not self.region_name:
                 raise ObjectStoreRsCredentialsException(
                     "`object_store` Rust crate requires AWS region when using AWS S3."
                 )
@@ -74,6 +79,16 @@ class AwsCredentialsWithoutDefaults(CredentialsConfiguration):
                 creds["aws_allow_http"] = "true"
 
         return creds
+
+    def to_pyiceberg_fileio_config(self) -> Dict[str, Any]:
+        return {
+            "s3.access-key-id": self.aws_access_key_id,
+            "s3.secret-access-key": self.aws_secret_access_key,
+            "s3.session-token": self.aws_session_token,
+            "s3.region": self.region_name,
+            "s3.endpoint": self.endpoint_url,
+            "s3.connect-timeout": 300,
+        }
 
 
 @configspec

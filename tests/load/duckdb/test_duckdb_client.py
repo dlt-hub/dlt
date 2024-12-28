@@ -19,7 +19,7 @@ from dlt.destinations.impl.duckdb.exceptions import InvalidInMemoryDuckdbCredent
 from dlt.pipeline.exceptions import PipelineStepFailed
 
 from tests.pipeline.utils import assert_table
-from tests.utils import patch_home_dir, autouse_test_storage, TEST_STORAGE_ROOT
+from tests.utils import autouse_test_storage, TEST_STORAGE_ROOT
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential
@@ -282,14 +282,14 @@ def test_drops_pipeline_changes_bound() -> None:
     p = dlt.pipeline(pipeline_name="quack_pipeline", destination="duckdb")
     p.run([1, 2, 3], table_name="p_table")
     p = p.drop()
-    assert len(p._dataset().p_table.fetchall()) == 3
+    assert len(p.dataset().p_table.fetchall()) == 3
 
     # drops internal duckdb
     p = dlt.pipeline(pipeline_name="quack_pipeline", destination=duckdb(":pipeline:"))
     p.run([1, 2, 3], table_name="p_table")
     p = p.drop()
     with pytest.raises(DatabaseUndefinedRelation):
-        p._dataset().p_table.fetchall()
+        p.dataset().p_table.fetchall()
 
 
 def test_duckdb_database_delete() -> None:

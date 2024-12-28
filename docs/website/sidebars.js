@@ -167,6 +167,7 @@ const sidebars = {
         'dlt-ecosystem/destinations/synapse',
         'dlt-ecosystem/destinations/clickhouse',
         'dlt-ecosystem/destinations/filesystem',
+        'dlt-ecosystem/destinations/delta-iceberg',
         'dlt-ecosystem/destinations/postgres',
         'dlt-ecosystem/destinations/redshift',
         'dlt-ecosystem/destinations/snowflake',
@@ -193,16 +194,27 @@ const sidebars = {
       items: [
         'walkthroughs/create-a-pipeline',
         'walkthroughs/run-a-pipeline',
-        'dlt-ecosystem/visualizations/exploring-the-data',
         {
           type: 'category',
-          label: 'Transform the data',
+          label: 'Accessing loaded data',
+           link: {
+            type: 'doc',
+            id: 'general-usage/dataset-access/index',
+          },
+          items: [
+            'general-usage/dataset-access/streamlit',
+            'general-usage/dataset-access/dataset',
+            'general-usage/dataset-access/ibis-backend',
+            'general-usage/dataset-access/sql-client',
+            'general-usage/dataset-access/data-quality-dashboard',
+          ]
+        },
+        {
+          type: 'category',
+          label: 'Transforming data',
           link: {
-            type: 'generated-index',
-            title: 'Transform the data',
-            description: 'If you want to transform the data after loading, you can use one of the following methods: dbt, SQL, Pandas.',
-            slug: 'dlt-ecosystem/transformations',
-            keywords: ['transformations'],
+            type: 'doc',
+            id: 'dlt-ecosystem/transformations/index',
           },
           items: [
             {
@@ -213,8 +225,8 @@ const sidebars = {
                 'dlt-ecosystem/transformations/dbt/dbt_cloud',
               ]
             },
+            'dlt-ecosystem/transformations/python',
             'dlt-ecosystem/transformations/sql',
-            'dlt-ecosystem/transformations/pandas',
             'general-usage/customising-pipelines/renaming_columns',
             'general-usage/customising-pipelines/pseudonymizing_columns',
             'general-usage/customising-pipelines/removing_columns'
@@ -257,7 +269,6 @@ const sidebars = {
             'general-usage/full-loading',
           ]
         },
-        'dlt-ecosystem/notebooks'
       ]
     },
     {
@@ -346,13 +357,27 @@ const sidebars = {
             title: 'File formats',
             description: 'Overview of our loader file formats',
             slug: 'dlt-ecosystem/file-formats',
-            keywords: ['destination'],
+            keywords: ['destination', 'file formats'],
           },
           items: [
             'dlt-ecosystem/file-formats/jsonl',
             'dlt-ecosystem/file-formats/parquet',
             'dlt-ecosystem/file-formats/csv',
             'dlt-ecosystem/file-formats/insert-format',
+          ]
+        },
+        {
+          type: 'category',
+          label: 'Table formats',
+          link: {
+            type: 'generated-index',
+            title: 'Table formats',
+            slug: 'dlt-ecosystem/table-formats',
+            keywords: ['destination, table formats'],
+          },
+          items: [
+            'dlt-ecosystem/table-formats/delta',
+            'dlt-ecosystem/table-formats/iceberg',
           ]
         },
         'reference/frequently-asked-questions',

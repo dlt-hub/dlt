@@ -56,7 +56,7 @@ source = rest_api_source({
             "token": dlt.secrets["your_api_token"],
         },
         "paginator": {
-            "type": "json_response",
+            "type": "json_link",
             "next_url_path": "paging.next",
         },
     },
@@ -70,6 +70,10 @@ pipeline = dlt.pipeline(
 )
 
 load_info = pipeline.run(source)
+
+# print load info and posts table as dataframe
+print(load_info)
+print(pipeline.dataset().posts.df())
 ```
 
 Follow the [REST API source tutorial](./tutorial/rest-api) to learn more about the source configuration and pagination methods.
@@ -92,6 +96,10 @@ pipeline = dlt.pipeline(
 )
 
 load_info = pipeline.run(source)
+
+# print load info and the "family" table as dataframe
+print(load_info)
+print(pipeline.dataset().family.df())
 ```
 
 Follow the [SQL source tutorial](./tutorial/sql-database) to learn more about the source configuration and supported databases.
@@ -116,6 +124,10 @@ pipeline = dlt.pipeline(
 )
 
 load_info = pipeline.run(resource)
+
+# print load info and the "example" table as dataframe
+print(load_info)
+print(pipeline.dataset().example.df())
 ```
 
 Follow the [filesystem source tutorial](./tutorial/filesystem) to learn more about the source configuration and supported storage services.
@@ -128,7 +140,7 @@ dlt is able to load data from Python generators or directly from Python data str
 ```py
 import dlt
 
-@dlt.resource
+@dlt.resource(table_name="foo_data")
 def foo():
     for i in range(10):
         yield {"id": i, "name": f"This is item {i}"}
@@ -139,6 +151,10 @@ pipeline = dlt.pipeline(
 )
 
 load_info = pipeline.run(foo)
+
+# print load info and the "foo_data" table as dataframe
+print(load_info)
+print(pipeline.dataset().foo_data.df())
 ```
 
 Check out the [Python data structures tutorial](./tutorial/load-data-from-an-api) to learn about dlt fundamentals and advanced usage scenarios.

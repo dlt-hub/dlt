@@ -2,7 +2,7 @@ import contextlib
 from collections.abc import Sequence as C_Sequence
 from copy import copy
 import itertools
-from typing import Iterator, List, Dict, Any, Optional
+from typing import Iterator, List, Dict, Any, Optional, Mapping
 import yaml
 
 from dlt.common.configuration.container import Container
@@ -17,13 +17,12 @@ from dlt.common.pipeline import (
     WithStepInfo,
     reset_resource_state,
 )
-from dlt.common.typing import DictStrAny
+from dlt.common.typing import DictStrAny, TColumnNames
 from dlt.common.runtime import signals
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
 from dlt.common.schema import Schema, utils
 from dlt.common.schema.typing import (
     TAnySchemaColumns,
-    TColumnNames,
     TSchemaContract,
     TTableFormat,
     TWriteDispositionConfig,
@@ -39,7 +38,7 @@ from dlt.common.utils import get_callable_name, get_full_class_name, group_dict_
 
 from dlt.extract.decorators import SourceInjectableContext, SourceSchemaInjectableContext
 from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints
-from dlt.extract.incremental import IncrementalResourceWrapper
+from dlt.extract.incremental import IncrementalResourceWrapper, Incremental
 from dlt.extract.pipe_iterator import PipeIterator
 from dlt.extract.source import DltSource
 from dlt.extract.resource import DltResource
@@ -88,7 +87,12 @@ def data_to_sources(
             schema_ = schema
         # take pipeline schema to make newest version visible to the resources
         elif pipeline.default_schema_name:
-            schema_ = pipeline.schemas[pipeline.default_schema_name].clone()
+            # clones with name which will drop previous hashes
+            schema_ = pipeline.schemas[pipeline.default_schema_name].clone(
+                with_name=pipeline.default_schema_name
+            )
+            # delete data tables
+            schema_.drop_tables(schema_.data_table_names(include_incomplete=True))
         else:
             schema_ = pipeline._make_schema_with_default_name()
         return schema_

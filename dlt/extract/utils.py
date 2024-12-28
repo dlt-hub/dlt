@@ -22,8 +22,15 @@ from functools import wraps, partial
 from dlt.common.data_writers import TDataItemFormat
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.pipeline import reset_resource_state
-from dlt.common.schema.typing import TColumnNames, TAnySchemaColumns, TTableSchemaColumns
-from dlt.common.typing import AnyFun, DictStrAny, TDataItem, TDataItems, TAnyFunOrGenerator
+from dlt.common.schema.typing import TAnySchemaColumns, TTableSchemaColumns
+from dlt.common.typing import (
+    AnyFun,
+    DictStrAny,
+    TDataItem,
+    TDataItems,
+    TAnyFunOrGenerator,
+    TColumnNames,
+)
 from dlt.common.utils import get_callable_name
 
 from dlt.extract.exceptions import (
@@ -174,6 +181,17 @@ def check_compat_transformer(name: str, f: AnyFun, sig: inspect.Signature) -> in
                 name, callable_name, sig, "'meta' cannot be pos only argument '"
             )
     return meta_arg
+
+
+def wrap_iterator(gen: Iterator[TDataItems]) -> Iterator[TDataItems]:
+    """Wraps an iterator into a generator"""
+    if inspect.isgenerator(gen):
+        return gen
+
+    def wrapped_gen() -> Iterator[TDataItems]:
+        yield from gen
+
+    return wrapped_gen()
 
 
 def wrap_async_iterator(

@@ -198,6 +198,10 @@ def get_column_type_from_py_arrow(dtype: pyarrow.DataType) -> TColumnType:
         return dict(data_type="decimal", precision=dtype.precision, scale=dtype.scale)
     elif pyarrow.types.is_nested(dtype):
         return dict(data_type="json")
+    elif pyarrow.types.is_dictionary(dtype):
+        # Dictionary types are essentially categorical encodings. The underlying value_type
+        # dictates the "logical" type. We simply delegate to the underlying value_type.
+        return get_column_type_from_py_arrow(dtype.value_type)
     else:
         raise ValueError(dtype)
 
@@ -608,7 +612,7 @@ def row_tuples_to_arrow(
         pivoted_rows = np.asarray(rows, dtype="object", order="k").T  # type: ignore[call-overload]
 
     columnar = {
-        col: dat.ravel() for col, dat in zip(columns, np.vsplit(pivoted_rows, len(columns)))
+        col: dat.ravel() for col, dat in zip(columns, np.vsplit(pivoted_rows, len(pivoted_rows)))
     }
     columnar_known_types = {
         col["name"]: columnar[col["name"]]
@@ -635,7 +639,7 @@ def row_tuples_to_arrow(
             )
             float_array = pa.array(columnar_known_types[field.name], type=pa.float64())
             columnar_known_types[field.name] = float_array.cast(field.type, safe=False)
-        if issubclass(py_type, (dict, list)):
+        if issubclass(py_type, (dict, list, set)):
             logger.warning(
                 f"Field {field.name} was reflected as JSON type and needs to be serialized back to"
                 " string to be placed in arrow table. This will slow data extraction down. You"
@@ -643,7 +647,14 @@ def row_tuples_to_arrow(
                 " extracting an SQL VIEW that selects with cast."
             )
             json_str_array = pa.array(
-                [None if s is None else json.dumps(s) for s in columnar_known_types[field.name]]
+                [
+                    (
+                        None
+                        if s is None
+                        else json.dumps(s) if not issubclass(type(s), set) else json.dumps(list(s))
+                    )
+                    for s in columnar_known_types[field.name]
+                ]
             )
             columnar_known_types[field.name] = json_str_array
 
@@ -684,7 +695,7 @@ def row_tuples_to_arrow(
                     pa.field(
                         key,
                         arrow_col.type,
-                        nullable=columns[key]["nullable"],
+                        nullable=columns[key].get("nullable", True),
                     )
                 )
 

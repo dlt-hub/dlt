@@ -2,7 +2,7 @@ from collections.abc import Sequence as C_Sequence
 from typing import Any, Dict, Sequence, Union
 
 from dlt.common.typing import TDataItem
-from dlt.extract.items import ItemTransformFunctionNoMeta
+from dlt.extract.items_transform import ItemTransformFunctionNoMeta
 
 import jsonpath_ng
 

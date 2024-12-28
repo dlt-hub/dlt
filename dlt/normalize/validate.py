@@ -1,13 +1,31 @@
+from typing import List
+
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.schema import Schema
-from dlt.common.schema.typing import TTableSchema
+from dlt.common.schema.typing import TTableSchema, TSchemaUpdate
 from dlt.common.schema.utils import (
+    ensure_compatible_tables,
     find_incomplete_columns,
     get_first_column_name_with_prop,
     is_nested_table,
 )
 from dlt.common.schema.exceptions import UnboundColumnException
 from dlt.common import logger
+
+
+def validate_and_update_schema(schema: Schema, schema_updates: List[TSchemaUpdate]) -> None:
+    """Updates `schema` tables with partial tables in `schema_updates`"""
+    for schema_update in schema_updates:
+        for table_name, table_updates in schema_update.items():
+            logger.info(f"Updating schema for table {table_name} with {len(table_updates)} deltas")
+            for partial_table in table_updates:
+                # ensure updates will pass
+                if existing_table := schema.tables.get(partial_table["name"]):
+                    ensure_compatible_tables(schema.name, existing_table, partial_table)
+
+            for partial_table in table_updates:
+                # merge columns where we expect identifiers to be normalized
+                schema.update_table(partial_table, normalize_identifiers=False)
 
 
 def verify_normalized_table(

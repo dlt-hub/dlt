@@ -19,7 +19,7 @@ def filesystem_loader_file_format_selector(
     *,
     table_schema: TTableSchema,
 ) -> t.Tuple[TLoaderFileFormat, t.Sequence[TLoaderFileFormat]]:
-    if table_schema.get("table_format") == "delta":
+    if table_schema.get("table_format") in ("delta", "iceberg"):
         return ("parquet", ["parquet"])
     return (preferred_loader_file_format, supported_loader_file_formats)
 
@@ -43,7 +43,7 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, "Filesyst
         caps = DestinationCapabilitiesContext.generic_capabilities(
             preferred_loader_file_format="jsonl",
             loader_file_format_selector=filesystem_loader_file_format_selector,
-            supported_table_formats=["delta"],
+            supported_table_formats=["delta", "iceberg"],
             supported_merge_strategies=["upsert"],
             merge_strategies_selector=filesystem_merge_strategies_selector,
         )
