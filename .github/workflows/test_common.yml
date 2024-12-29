@@ -120,7 +120,7 @@ jobs:
         shell: cmd
 
       - name: Install pyarrow
-        run: poetry install --no-interaction -E duckdb -E cli -E parquet --with sentry-sdk && poetry run pip install pyarrow==15.0.2
+        run: poetry install --no-interaction -E duckdb -E cli -E parquet --with sentry-sdk # && poetry run pip install pyarrow==15.0.2
 
       - run: |
           poetry run pytest tests/pipeline/test_pipeline_extra.py -k arrow

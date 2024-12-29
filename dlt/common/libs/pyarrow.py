@@ -609,7 +609,7 @@ def row_tuples_to_arrow(
         logger.info(
             "Pandas not installed, reverting to numpy.asarray to create a table which is slower"
         )
-        pivoted_rows = np.asarray(rows, dtype="object", order="k").T
+        pivoted_rows = np.asarray(rows, dtype="object", order="k").T  # type: ignore[call-overload,unused-ignore]
 
     columnar = {
         col: dat.ravel() for col, dat in zip(columns, np.vsplit(pivoted_rows, len(pivoted_rows)))

@@ -32,7 +32,11 @@ packages = [
 [tool.poetry.dependencies]
 python = ">=3.8.1,<3.14"
 requests = ">=2.26.0"
-pendulum = ">=2.1.2"
+pendulum = {"version" = ">=2.1.2", "python" = "<3.9"}
+dlt-pendulum = [
+    # {path="../pendulum", markers = "python_version >= '3.13'"}
+    {git = "https://github.com/dlt-hub/pendulum.git", branch="master", markers = "python_version >= '3.9'"}
+]
 "backports.zoneinfo" = { "version" = ">=0.2.1", "python" = "<3.9"}
 simplejson = ">=3.17.5"
 PyYAML = ">=5.4.1"
@@ -148,10 +152,6 @@ dlt = "dlt.cli._dlt:_main"
 cffi = ">=1.16"
 greenlet = ">=3.1"
 regex = ">=2024.10"
-pendulum = [
-    # {path="../pendulum", markers = "python_version >= '3.13'"}
-    {git = "https://github.com/dlt-hub/pendulum.git", branch="master", markers = "python_version >= '3.9'"}
-]
 sqlalchemy = "<2"
 requests-mock = "^1.10.0"
 types-click = "^7.1.8"
@@ -215,7 +215,7 @@ enlighten = "^1.11.2"
 alive-progress = "^3.1.1"
 pydantic = ">=2.10"
 numpy = [
-    { version = ">=1.21", python = ">=3.8,<3.12" },
+    { version = ">=1.21,<2", python = ">=3.8,<3.12" },
     { version = ">=1.26", python = ">=3.12" },
     { version = ">=2.0.0", python = ">=3.13" }
 ]
@@ -231,6 +231,7 @@ optional = true
 [tool.poetry.group.airflow.dependencies]
 apache-airflow = {version = "^2.8.0", markers = "python_version < '3.12'"}
 
+# TODO: restore when ibis allows pyarrow 18
 # [tool.poetry.group.ibis]
 # optional = true
 
