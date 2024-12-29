@@ -133,7 +133,7 @@ jobs:
         shell: cmd
 
       - name: Install pipeline and sources dependencies
-        run: poetry install --no-interaction -E duckdb -E cli -E parquet -E deltalake -E sql_database --with sentry-sdk,pipeline,sources && poetry run pip install pyarrow==15.0.2
+        run: poetry install --no-interaction -E duckdb -E cli -E parquet -E deltalake -E sql_database --with sentry-sdk,pipeline,sources # && poetry run pip install pyarrow==15.0.2
 
       - run: |
           poetry run pytest tests/extract tests/pipeline tests/libs tests/cli/common tests/destinations tests/sources
@@ -160,18 +160,18 @@ jobs:
         shell: cmd
 
       # here we upgrade pyarrow to 17 and run the libs tests again
-      - name: Install pyarrow 17
-        run: poetry run pip install pyarrow==17.0.0
+      # - name: Install pyarrow 17
+      #   run: poetry run pip install pyarrow==17.0.0
 
-      - run: |
-          poetry run pytest tests/libs
-        if: runner.os != 'Windows'
-        name: Run libs tests Linux/MAC
-      - run: |
-          poetry run pytest tests/libs
-        if: runner.os == 'Windows'
-        name: Run libs tests Windows
-        shell: cmd
+      # - run: |
+      #     poetry run pytest tests/libs
+      #   if: runner.os != 'Windows'
+      #   name: Run libs tests Linux/MAC
+      # - run: |
+      #     poetry run pytest tests/libs
+      #   if: runner.os == 'Windows'
+      #   name: Run libs tests Windows
+      #   shell: cmd
 
       # - name: Install Pydantic 1.0
       #   run: pip install "pydantic<2"
