@@ -66,12 +66,12 @@ jobs:
         uses: actions/cache@v3
         with:
           path: .venv
-          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}-gcp
+          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}-mssql
 
       - name: Install dependencies
         run: |
           poetry install --no-interaction -E mssql -E s3 -E gs -E az -E parquet --with sentry-sdk --with pipeline
-          pip install ibis-framework[duckdb,postgres,bigquery,snowflake,mssql,clickhouse]
+          poetry run pip install ibis-framework[duckdb,postgres,bigquery,snowflake,mssql,clickhouse]
 
       - name: create secrets.toml
         run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
