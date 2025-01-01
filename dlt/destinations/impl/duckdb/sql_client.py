@@ -20,7 +20,7 @@ from dlt.destinations.sql_client import (
 )
 
 from dlt.destinations.impl.duckdb.configuration import DuckDbBaseCredentials
-from dlt.common.destination.reference import DBApiCursor
+from dlt.common.destination.dataset import DBApiCursor
 
 
 class DuckDBDBApiCursorImpl(DBApiCursorImpl):

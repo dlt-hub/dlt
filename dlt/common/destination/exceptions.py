@@ -18,9 +18,12 @@ class UnknownDestinationModule(DestinationException):
 
 
 class InvalidDestinationReference(DestinationException):
-    def __init__(self, destination_module: Any) -> None:
-        self.destination_module = destination_module
-        msg = f"Destination {destination_module} is not a valid destination module."
+    def __init__(self, refs: Any) -> None:
+        self.refs = refs
+        msg = (
+            f"None of supplied destination refs: {refs} can be found in registry or imported as"
+            " Python type."
+        )
         super().__init__(msg)
 
 

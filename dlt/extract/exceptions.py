@@ -415,11 +415,11 @@ class UnknownSourceReference(DltSourceException):
         super().__init__(msg)
 
 
-# class InvalidDestinationReference(DestinationException):
-#     def __init__(self, destination_module: Any) -> None:
-#         self.destination_module = destination_module
-#         msg = f"Destination {destination_module} is not a valid destination module."
-#         super().__init__(msg)
+class InvalidSourceReference(DltSourceException):
+    def __init__(self, ref: str) -> None:
+        self.ref = ref
+        msg = f"Destination reference {ref} has invalid format."
+        super().__init__(msg)
 
 
 class IncrementalUnboundError(DltResourceException):

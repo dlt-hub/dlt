@@ -551,9 +551,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             else:
                 return self.add_map(transform)
 
-    def __ror__(
-        self: TDltResourceImpl, data: Union[Iterable[Any], Iterator[Any]]
-    ) -> TDltResourceImpl:
+    def __ror__(self, data: Union[Iterable[Any], Iterator[Any]]) -> Self:
         """Allows to pipe data from across resources and transform functions with | operator
         This is the RIGHT side OR so the self may not be a resource and the LEFT must be an object
         that does not implement | ie. a list
@@ -605,9 +603,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
                 return True
         return False
 
-    def _inject_config(
-        self, incremental_from_hints_override: Optional[bool] = None
-    ) -> "DltResource":
+    def _inject_config(self, incremental_from_hints_override: Optional[bool] = None) -> Self:
         """Wraps the pipe generation step in incremental and config injection wrappers and adds pipe step with
         Incremental transform.
         """
@@ -784,6 +780,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         return 0
 
 
+# DltResource = _DltResource[Any]
 # produce Empty resource singleton
 DltResource.Empty = DltResource(Pipe(None), None, False)
 TUnboundDltResource = Callable[..., DltResource]

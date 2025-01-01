@@ -5,7 +5,7 @@ from dlt.common.configuration.specs.azure_credentials import (
     AzureServicePrincipalCredentialsWithoutDefaults,
 )
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.reference import (
+from dlt.common.destination.client import (
     HasFollowupJobs,
     FollowupJobRequest,
     PreparedTableSchema,

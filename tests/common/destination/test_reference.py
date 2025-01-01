@@ -1,7 +1,8 @@
 from typing import Dict
 import pytest
 
-from dlt.common.destination.reference import DestinationClientDwhConfiguration, Destination
+from dlt.common.destination import Destination
+from dlt.common.destination.client import DestinationClientDwhConfiguration
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.exceptions import InvalidDestinationReference, UnknownDestinationModule
 from dlt.common.schema import Schema

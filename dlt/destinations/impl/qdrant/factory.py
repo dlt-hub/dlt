@@ -1,7 +1,6 @@
 import typing as t
 
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
-from dlt.common.destination.reference import TDestinationConfig
 from dlt.common.normalizers.naming import NamingConvention
 
 from dlt.destinations.impl.qdrant.configuration import QdrantCredentials, QdrantClientConfiguration

@@ -1,6 +1,6 @@
-from typing import Any, Iterator, List
+from typing import Iterator, List
 
-from dlt.common.destination.reference import (
+from dlt.common.destination.client import (
     PreparedTableSchema,
     RunnableLoadJob,
     HasFollowupJobs,

@@ -2,7 +2,7 @@ from typing import Any, Dict, List, Sequence, Tuple, cast, TypedDict, Optional, 
 
 import yaml
 from dlt.common.time import ensure_pendulum_datetime
-from dlt.common.destination.reference import PreparedTableSchema
+from dlt.common.destination import PreparedTableSchema
 from dlt.common.destination.utils import resolve_merge_strategy
 
 from dlt.common.schema.typing import (

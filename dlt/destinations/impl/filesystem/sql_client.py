@@ -11,7 +11,7 @@ from dlt.common import logger
 
 from contextlib import contextmanager
 
-from dlt.common.destination.reference import DBApiCursor
+from dlt.common.destination.dataset import DBApiCursor
 
 from dlt.common.storages.fsspec_filesystem import AZURE_BLOB_STORAGE_PROTOCOLS
 from dlt.destinations.sql_client import raise_database_error

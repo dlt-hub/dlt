@@ -4,7 +4,7 @@ from urllib.parse import urlparse, urlunparse
 from dlt.common import logger
 from dlt.common.data_writers.configuration import CsvFormatConfiguration
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.reference import (
+from dlt.common.destination.client import (
     HasFollowupJobs,
     LoadJob,
     PreparedTableSchema,

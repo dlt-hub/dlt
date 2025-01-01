@@ -23,8 +23,8 @@ from dlt.common.typing import TDataItem
 
 from dlt.cli.source_detection import detect_source_configs
 from dlt.common.utils import custom_environ
-from dlt.extract.decorators import DltSourceFactoryWrapper
-from dlt.extract.source import SourceReference
+from dlt.extract.decorators import _DltSingleSource, DltSourceFactoryWrapper
+from dlt.extract.source import SourceFactory, SourceReference
 from dlt.extract import DltResource, DltSource
 from dlt.extract.exceptions import (
     DynamicNameNotStandaloneResource,
@@ -48,6 +48,16 @@ from dlt.extract.items import TableNameMeta
 
 from tests.common.utils import load_yml_case
 from tests.utils import MockableRunContext
+
+
+@pytest.fixture(autouse=True, scope="module")
+def preserve_sources_registry() -> Iterator[None]:
+    try:
+        reg_ = SourceReference.SOURCES
+        SourceReference.SOURCES = {}
+        yield
+    finally:
+        SourceReference.SOURCES = reg_
 
 
 def test_default_resource() -> None:
@@ -734,7 +744,7 @@ def test_source_reference() -> None:
     # unknown reference
     with pytest.raises(UnknownSourceReference) as ref_ex:
         SourceReference.from_reference("$ref")
-    assert ref_ex.value.ref == ["dlt.$ref.$ref"]
+    assert ref_ex.value.ref == ["dlt.sources.$ref.$ref", "sources.$ref.$ref"]
 
     @dlt.source(section="special")
     def absolute_config(init: int, mark: str = dlt.config.value, secret: str = dlt.secrets.value):
@@ -748,6 +758,61 @@ def test_source_reference() -> None:
     os.environ["SOURCES__SPECIAL__RES_REG_WITH_SECRET__SECRETZ"] = "resourse"
     source = ref(init=100)
     assert list(source) == ["resourse", "resourse", "resourse", 100, "ma", "sourse"]
+
+
+def test_source_reference_with_args() -> None:
+    ref_t = SourceReference.from_reference(
+        "shorthand", section="changed", _impl_sig=with_shorthand_registry
+    )
+    assert ref_t.section == "changed"  # type: ignore[attr-defined]
+    # here source has correctly typed signature from with_shorthand_registry
+    source = ref_t(["A", "B"])
+    assert source.section == "changed"
+    assert list(source) == ["A", "B"]
+
+    # get reference for resource
+    ref_r_t = SourceReference.from_reference(
+        "test_decorators.res_reg_with_secret",
+        _impl_cls=_DltSingleSource,
+        _impl_sig=res_reg_with_secret,
+    )
+    source_s_r = ref_r_t(secretz="P")
+    assert list(source_s_r) == ["P", "P", "P"]
+    assert isinstance(source_s_r, _DltSingleSource)
+    assert list(source_s_r.single_resource) == ["P", "P", "P"]
+
+
+def test_source_reference_import_core() -> None:
+    SourceReference.SOURCES.clear()
+    # auto import by shorthand
+    ref = SourceReference.from_reference("rest_api")
+    assert isinstance(ref, DltSourceFactoryWrapper)
+    assert len(SourceReference.SOURCES) == 1
+
+    # auto import by extended shorthand
+    ref = SourceReference.from_reference("sql_database.sql_table")
+    assert len(SourceReference.SOURCES) == 3
+
+    # auto import by full reference
+    ref = SourceReference.from_reference("dlt.sources.filesystem.filesystem")
+    assert len(SourceReference.SOURCES) == 9
+
+
+def test_source_reference_auto_import() -> None:
+    SourceReference.SOURCES.clear()
+    # make sure to import resource first
+    ref = SourceReference.from_reference(
+        "tests.extract.cases.section_source.named_module.resource_f_2"
+    )
+    assert ref.section == "name_overridden"  # type: ignore[attr-defined]
+    assert list(ref("A")) == ["A"]
+    # TODO: fix double references (with renamed section and without, should be only 2 sections here)
+    assert len(SourceReference.SOURCES) == 4
+
+    ref = SourceReference.from_reference(
+        "tests.extract.cases.section_source.named_module.source_f_1"
+    )
+    assert ref.section == "name_overridden"  # type: ignore[attr-defined]
 
 
 def test_source_reference_with_context() -> None:
@@ -765,7 +830,11 @@ def test_source_reference_with_context() -> None:
         # unknown reference
         with pytest.raises(UnknownSourceReference) as ref_ex:
             SourceReference.from_reference("$ref")
-        assert ref_ex.value.ref == ["mock.$ref.$ref", "dlt.$ref.$ref"]
+        assert ref_ex.value.ref == [
+            "mock.sources.$ref.$ref",
+            "dlt.sources.$ref.$ref",
+            "sources.$ref.$ref",
+        ]
         with pytest.raises(UnknownSourceReference) as ref_ex:
             SourceReference.from_reference("mock.$ref.$ref")
         assert ref_ex.value.ref == ["mock.$ref.$ref"]
@@ -777,10 +846,10 @@ def test_source_reference_with_context() -> None:
 
         ref = SourceReference.from_reference("shorthand")
         assert list(ref(["C", "x"])) == ["x", "C"]
-        ref = SourceReference.from_reference("mock.shorthand.shorthand")
+        ref = SourceReference.from_reference("mock.sources.shorthand.shorthand")
         assert list(ref(["C", "x"])) == ["x", "C"]
         # from dlt package
-        ref = SourceReference.from_reference("dlt.shorthand.shorthand")
+        ref = SourceReference.from_reference("dlt.sources.shorthand.shorthand")
         assert list(ref(["C", "x"])) == ["C", "x"]
 
 
@@ -940,14 +1009,14 @@ def test_sources_no_arguments() -> None:
         return dlt.resource([1, 2], name="data")
 
     # there is a spec even if no arguments
-    SPEC = SourceReference.find("dlt.test_decorators.no_args").SPEC
+    SPEC = SourceReference.find("dlt.sources.test_decorators.no_args").SPEC
     assert SPEC
 
     # source names are used to index detected sources
     _, _, checked = detect_source_configs(SourceReference.SOURCES, "", ())
     assert "no_args" in checked
 
-    SPEC = SourceReference.find("dlt.test_decorators.not_args_r").SPEC
+    SPEC = SourceReference.find("dlt.sources.test_decorators.not_args_r").SPEC
     assert SPEC
     _, _, checked = detect_source_configs(SourceReference.SOURCES, "", ())
     assert "not_args_r" in checked
@@ -956,7 +1025,7 @@ def test_sources_no_arguments() -> None:
     def not_args_r_i():
         yield from [1, 2, 3]
 
-    assert "dlt.test_decorators.not_args_r_i" not in SourceReference.SOURCES
+    assert "dlt.sources.test_decorators.not_args_r_i" not in SourceReference.SOURCES
 
     # you can call those
     assert list(no_args()) == [1, 2]
@@ -1088,7 +1157,7 @@ def test_reference_registered_resource(res: DltResource) -> None:
         assert res_ref.SPEC is res.SPEC
     else:
         ref = res.__name__
-    # create source with single res.
+    # create source with single res
     factory = SourceReference.from_reference(f"test_decorators.{ref}")
     # pass explicit config
     source = factory(init=1, secret_end=3)

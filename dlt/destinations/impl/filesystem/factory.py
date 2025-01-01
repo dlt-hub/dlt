@@ -1,7 +1,7 @@
 import typing as t
 
 from dlt.common.destination import Destination, DestinationCapabilitiesContext, TLoaderFileFormat
-from dlt.common.destination.reference import DEFAULT_FILE_LAYOUT
+from dlt.common.destination.client import DEFAULT_FILE_LAYOUT
 from dlt.common.schema.typing import TLoaderMergeStrategy, TTableSchema
 from dlt.common.storages.configuration import FileSystemCredentials
 

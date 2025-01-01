@@ -40,7 +40,8 @@ from dlt.common.schema.typing import (
     TSortOrder,
 )
 from dlt.common.destination import DestinationCapabilitiesContext, PreparedTableSchema
-from dlt.common.destination.reference import FollowupJobRequest, SupportsStagingDestination, LoadJob
+from dlt.common.destination.client import FollowupJobRequest, SupportsStagingDestination, LoadJob
+from dlt.common.destination.dataset import DBApiCursor
 from dlt.common.data_writers.escape import escape_hive_identifier
 from dlt.destinations.sql_jobs import SqlStagingCopyFollowupJob, SqlMergeFollowupJob
 
@@ -56,7 +57,6 @@ from dlt.destinations.sql_client import (
     raise_database_error,
     raise_open_connection_error,
 )
-from dlt.common.destination.reference import DBApiCursor
 from dlt.destinations.job_client_impl import SqlJobClientWithStagingDataset
 from dlt.destinations.job_impl import FinalizedLoadJobWithFollowupJobs, FinalizedLoadJob
 from dlt.destinations.impl.athena.configuration import AthenaClientConfiguration

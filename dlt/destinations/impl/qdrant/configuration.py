@@ -7,7 +7,7 @@ from dlt.common.configuration.specs.base_configuration import (
     BaseConfiguration,
     CredentialsConfiguration,
 )
-from dlt.common.destination.reference import DestinationClientDwhConfiguration
+from dlt.common.destination.client import DestinationClientDwhConfiguration
 from dlt.destinations.impl.qdrant.exceptions import InvalidInMemoryQdrantCredentials
 
 if TYPE_CHECKING:

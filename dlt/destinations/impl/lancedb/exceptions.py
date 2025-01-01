@@ -9,7 +9,7 @@ from dlt.common.destination.exceptions import (
     DestinationUndefinedEntity,
     DestinationTerminalException,
 )
-from dlt.common.destination.reference import JobClientBase
+from dlt.common.destination.client import JobClientBase
 from dlt.common.typing import TFun
 
 

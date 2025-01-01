@@ -10,7 +10,7 @@ from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.configuration.specs.base_configuration import NotResolved
 from dlt.common.configuration.specs.exceptions import InvalidConnectionString
-from dlt.common.destination.reference import DestinationClientDwhWithStagingConfiguration
+from dlt.common.destination.client import DestinationClientDwhWithStagingConfiguration
 from dlt.common.pipeline import SupportsPipeline
 
 from dlt.destinations.impl.duckdb.exceptions import InvalidInMemoryDuckdbCredentials

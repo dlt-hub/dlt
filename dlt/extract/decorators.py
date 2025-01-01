@@ -173,6 +173,7 @@ class DltSourceFactoryWrapper(SourceFactory[TSourceFunParams, TDltSourceImpl]):
 
         # also remember original source function
         ovr._f = self._f
+        # ovr._deco_f = self._deco_f
         # try to bind _f
         ovr.wrap()
         return ovr
@@ -727,6 +728,7 @@ def resource(
         # assign spec to "f"
         set_fun_spec(f, SPEC)
 
+        factory = None
         # register non inner resources as source with single resource in it
         if not is_inner_resource:
             # a source function for the source wrapper, args that go to source are forwarded
@@ -752,13 +754,17 @@ def resource(
                 )
                 .bind(_source)
             )
-            # remove name and section overrides from the wrapper so resource is not unnecessarily renamed
-            factory.name = None
-            factory.section = None
             # mod the reference to keep the right spec
             factory._ref.SPEC = SPEC
 
-        return wrap_standalone(resource_name, source_section, f)
+        deco: Callable[TResourceFunParams, TDltResourceImpl] = wrap_standalone(
+            resource_name, source_section, f
+        )
+        # associate source factory with the decorated function for the standalone=True resource
+        # this provides access to standalone resources in the same way as to sources via SourceReference
+        deco._factory = factory  # type: ignore[attr-defined]
+
+        return deco
 
     # if data is callable or none use decorator
     if data is None:

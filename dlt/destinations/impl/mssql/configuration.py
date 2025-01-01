@@ -7,7 +7,7 @@ from dlt.common.utils import digest128
 from dlt.common.typing import TSecretStrValue
 from dlt.common.exceptions import SystemConfigurationException
 
-from dlt.common.destination.reference import DestinationClientDwhWithStagingConfiguration
+from dlt.common.destination.client import DestinationClientDwhWithStagingConfiguration
 
 
 @configspec(init=False)

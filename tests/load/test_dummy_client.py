@@ -11,7 +11,8 @@ from dlt.common.storages import FileStorage, PackageStorage, ParsedLoadJobFileNa
 from dlt.common.storages.configuration import FilesystemConfiguration
 from dlt.common.storages.load_package import TPackageJobState
 from dlt.common.storages.load_storage import JobFileFormatUnsupported
-from dlt.common.destination.reference import RunnableLoadJob, AnyDestination
+from dlt.common.destination import AnyDestination
+from dlt.common.destination.client import RunnableLoadJob
 from dlt.common.schema.utils import (
     fill_hints_from_parent_and_clone_table,
     get_nested_tables,

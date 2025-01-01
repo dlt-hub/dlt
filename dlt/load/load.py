@@ -27,19 +27,18 @@ from dlt.common.logger import pretty_format_exception
 from dlt.common.configuration.container import Container
 from dlt.common.schema import Schema
 from dlt.common.storages import LoadStorage
-from dlt.common.destination.reference import (
+from dlt.common.destination import Destination, AnyDestination
+from dlt.common.destination.client import (
     DestinationClientDwhConfiguration,
     HasFollowupJobs,
     JobClientBase,
     WithStagingDataset,
-    Destination,
     RunnableLoadJob,
     LoadJob,
     FollowupJobRequest,
     TLoadJobState,
     DestinationClientConfiguration,
     SupportsStagingDestination,
-    AnyDestination,
 )
 from dlt.common.destination.exceptions import (
     DestinationTerminalException,
