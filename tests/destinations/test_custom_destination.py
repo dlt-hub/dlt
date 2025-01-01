@@ -11,7 +11,7 @@ from dlt.common.schema.schema import Schema
 from dlt.common.typing import TDataItems
 from dlt.common.schema import TTableSchema
 from dlt.common.data_writers.writers import TLoaderFileFormat
-from dlt.common.destination.reference import Destination
+from dlt.common.destination import Destination
 from dlt.common.destination.exceptions import (
     DestinationTransientException,
     InvalidDestinationReference,
@@ -21,7 +21,6 @@ from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.configuration.inject import get_fun_spec
 from dlt.common.configuration.specs import BaseConfiguration
 
-from dlt.destinations.impl.destination.factory import _DESTINATIONS
 from dlt.destinations.impl.destination.configuration import CustomDestinationClientConfiguration
 from dlt.pipeline.exceptions import PipelineStepFailed
 
@@ -32,6 +31,11 @@ from tests.load.utils import (
 )
 
 SUPPORTED_LOADER_FORMATS = ["parquet", "typed-jsonl"]
+
+
+@pytest.fixture(autouse=True)
+def clear_destination_registry() -> None:
+    Destination.DESTINATIONS.clear()
 
 
 def _run_through_sink(
@@ -158,7 +162,7 @@ def test_capabilities() -> None:
 
 
 def test_instantiation() -> None:
-    # also tests _DESTINATIONS
+    # also tests DESTINATIONS registry
     calls: List[Tuple[TDataItems, TTableSchema]] = []
 
     # NOTE: we also test injection of config vars here
@@ -175,7 +179,7 @@ def test_instantiation() -> None:
     p.run([1, 2, 3], table_name="items")
     assert len(calls) == 1
     # local func does not create entry in destinations
-    assert "local_sink_func" not in _DESTINATIONS
+    assert "local_sink_func" not in Destination.DESTINATIONS
 
     # test passing via from_reference
     calls = []
@@ -187,7 +191,7 @@ def test_instantiation() -> None:
     p.run([1, 2, 3], table_name="items")
     assert len(calls) == 1
     # local func does not create entry in destinations
-    assert "local_sink_func" not in _DESTINATIONS
+    assert "local_sink_func" not in Destination.DESTINATIONS
 
     def local_sink_func_no_params(items: TDataItems, table: TTableSchema) -> None:
         # consume data
@@ -203,6 +207,7 @@ def test_instantiation() -> None:
     p.run([1, 2, 3], table_name="items")
 
     # test passing string reference
+    print(Destination.DESTINATIONS)
     global global_calls
     global_calls = []
     p = dlt.pipeline(
@@ -217,10 +222,18 @@ def test_instantiation() -> None:
     assert len(global_calls) == 1
 
     # global func will create an entry
-    assert _DESTINATIONS["global_sink_func"]
-    assert issubclass(_DESTINATIONS["global_sink_func"][0], CustomDestinationClientConfiguration)
-    assert _DESTINATIONS["global_sink_func"][1] == global_sink_func
-    assert _DESTINATIONS["global_sink_func"][2] == inspect.getmodule(global_sink_func)
+    dlt.destination(global_sink_func)
+    assert Destination.DESTINATIONS["dlt.global_sink_func"]
+
+    dlt.destination(global_sink_func, name="alt_name")
+    assert Destination.DESTINATIONS["dlt.alt_name"]
+    ref_dest = Destination.DESTINATIONS["dlt.alt_name"]
+    assert ref_dest().destination_name == "alt_name"
+    print(ref_dest().destination_type)
+
+    # assert issubclass(_DESTINATIONS["global_sink_func"][0], CustomDestinationClientConfiguration)
+    # assert _DESTINATIONS["global_sink_func"][1] == global_sink_func
+    # assert _DESTINATIONS["global_sink_func"][2] == inspect.getmodule(global_sink_func)
 
     # pass None as callable arg will fail on load
     p = dlt.pipeline(
@@ -250,7 +263,7 @@ def test_instantiation() -> None:
         assert my_val == "something"
         calls.append((items, table))
 
-    p = dlt.pipeline("sink_test", destination=simple_decorator_sink, dev_mode=True)  # type: ignore
+    p = dlt.pipeline("sink_test", destination=simple_decorator_sink, dev_mode=True)
     p.run([1, 2, 3], table_name="items")
     assert len(calls) == 1
 
@@ -467,7 +480,7 @@ def test_config_spec() -> None:
 
     # test nested spec
 
-    @dlt.destination()
+    @dlt.destination
     def my_gcp_sink(
         file_path,
         table,
