@@ -386,6 +386,33 @@ This applies not only to credentials but to [all specs](#writing-custom-specs).
 Check out the [complete example](https://github.com/dlt-hub/dlt/blob/devel/tests/common/configuration/test_spec_union.py), to learn how to create unions of credentials that derive from the common class, so you can handle it seamlessly in your code.
 :::
 
+Below is an example of how you might include the snippet under a new heading, **"Destination configuration via Python"**, while preserving the same tone, formatting, and writing structure as in the original doc. You can place this new heading, for instance, right after the [**"Working with alternatives of credentials (Union types)"**](#working-with-alternatives-of-credentials-union-types) section or at the very end of the document—whichever fits best with your overall documentation flow.
+
+
+## Destination configuration via Python
+
+In addition to configuring credentials for sources, you can configure credentials directly for your **destination** in Python code. Below is an example of using **GcpServiceAccountCredentials** within a Google Colab environment to set up a pipeline writing to BigQuery.
+
+```py
+import dlt
+from dlt.sources.credentials import GcpServiceAccountCredentials
+
+import os
+from google.colab import userdata
+
+creds_dict = userdata.get('BIGQUERY_CREDENTIALS')
+
+# Create credentials instance and parse them from a native representation
+gcp_credentials = GcpServiceAccountCredentials()
+gcp_credentials.parse_native_representation(creds_dict)
+
+# Pass the credentials to the BigQuery destination
+pipeline = dlt.pipeline(destination=bigquery(credentials=gcp_credentials))
+pipeline.run([{"key1": "value1"}], table_name="temp")
+```
+
+Above, we retrieve the service account credentials from Colab’s `userdata`, parse them, and attach them to the pipeline’s destination. This pattern applies to any other **CredentialsConfiguration** you wish to pass to your destination.
+
 ## Writing custom specs
 
 **Custom specifications** let you take full control over the function arguments. You can:
