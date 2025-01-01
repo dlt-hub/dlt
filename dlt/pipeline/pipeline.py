@@ -61,27 +61,26 @@ from dlt.common.storages import (
     LoadJobInfo,
     LoadPackageInfo,
 )
-from dlt.common.storages.load_package import TPipelineStateDoc
 from dlt.common.destination import (
+    Destination,
+    TDestinationReferenceArg,
     DestinationCapabilitiesContext,
     merge_caps_file_formats,
     AnyDestination,
     LOADER_FILE_FORMATS,
     TLoaderFileFormat,
 )
-from dlt.common.destination.reference import (
+from dlt.common.destination.client import (
     DestinationClientDwhConfiguration,
     WithStateSync,
-    Destination,
     JobClientBase,
     DestinationClientConfiguration,
-    TDestinationReferenceArg,
     DestinationClientStagingConfiguration,
     DestinationClientStagingConfiguration,
     DestinationClientDwhWithStagingConfiguration,
-    SupportsReadableDataset,
-    TDatasetType,
 )
+from dlt.common.destination.dataset import SupportsReadableDataset
+from dlt.common.destination.typing import TDatasetType
 from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.pipeline import (
     ExtractInfo,
@@ -98,7 +97,7 @@ from dlt.common.pipeline import (
     TRefreshMode,
 )
 from dlt.common.schema import Schema
-from dlt.common.utils import make_defunct_class, is_interactive
+from dlt.common.utils import is_interactive
 from dlt.common.warnings import deprecated, Dlt04DeprecationWarning
 from dlt.common.versioned_state import json_encode_state, json_decode_state
 
