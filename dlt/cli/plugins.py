@@ -159,6 +159,12 @@ class PipelineCommand(SupportsCliCommand):
             ),
         )
         pipeline_subparsers.add_parser(
+            "mcp",
+            help=(
+                "Run a basic cli mcp client to query the relevant pipeline using natural language"
+            ),
+        )
+        pipeline_subparsers.add_parser(
             "failed-jobs",
             help=(
                 "Displays information on all the failed loads in all completed packages, failed"
