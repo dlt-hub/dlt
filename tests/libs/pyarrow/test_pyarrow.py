@@ -66,6 +66,18 @@ def test_py_arrow_to_table_schema_columns():
     assert result == dlt_schema
 
 
+def test_py_arrow_dict_to_column() -> None:
+    array_1 = pa.array(["a", "b", "c"], type=pa.dictionary(pa.int8(), pa.string()))
+    array_2 = pa.array([1, 2, 3], type=pa.dictionary(pa.int8(), pa.int64()))
+    table = pa.table({"strings": array_1, "ints": array_2})
+    columns = py_arrow_to_table_schema_columns(table.schema)
+    assert columns == {
+        "strings": {"name": "strings", "nullable": True, "data_type": "text"},
+        "ints": {"name": "ints", "nullable": True, "data_type": "bigint"},
+    }
+    assert table.to_pydict() == {"strings": ["a", "b", "c"], "ints": [1, 2, 3]}
+
+
 def test_to_arrow_scalar() -> None:
     naive_dt = get_py_arrow_timestamp(6, tz=None)
     # print(naive_dt)

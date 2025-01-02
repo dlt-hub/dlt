@@ -212,7 +212,6 @@ def sql_table(
         engine = engine_adapter_callback(engine)
     metadata = metadata or MetaData(schema=schema)
 
-    skip_nested_on_minimal = backend == "sqlalchemy"
     # Table object is only created when reflecting, we don't want empty tables in metadata
     # as it breaks foreign key resolution
     table_obj = metadata.tables.get(table)
@@ -222,6 +221,7 @@ def sql_table(
     if table_obj is not None:
         if not defer_table_reflect:
             table_obj = _execute_table_adapter(table_obj, table_adapter_callback, included_columns)
+        skip_nested_on_minimal = backend == "sqlalchemy"
         hints = table_to_resource_hints(
             table_obj,
             reflection_level,

@@ -5,13 +5,13 @@ keywords: [credentials, secrets.toml, secrets, config, configuration, environmen
 ---
 import DocCardList from '@theme/DocCardList';
 
-`dlt` pipelines usually require configurations and credentials. These can be set up in [various ways](setup):
+`dlt` pipelines usually require configurations and credentials. These can be set up in [various ways](./setup):
 
 1. Environment variables
 2. Configuration files (`secrets.toml` and `config.toml`)
 3. Key managers and vaults
 
-`dlt` automatically extracts configuration settings and secrets based on flexible [naming conventions](setup/#naming-convention). It then [injects](advanced/#injection-mechanism) these values where needed in code.
+`dlt` automatically extracts configuration settings and secrets based on flexible [naming conventions](./setup/#naming-convention). It then [injects](./advanced/#injection-mechanism) these values where needed in code.
 
 # Learn details about
 

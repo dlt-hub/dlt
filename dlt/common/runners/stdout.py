@@ -38,7 +38,13 @@ def iter_std(
     Use -u in scripts_args for unbuffered python execution
     """
     with venv.start_command(
-        command, *script_args, stdout=PIPE, stderr=PIPE, bufsize=1, text=True
+        command,
+        *script_args,
+        stdout=PIPE,
+        stderr=PIPE,
+        bufsize=1,
+        text=True,
+        errors="backslashreplace",
     ) as process:
         exit_code: int = None
         q_: queue.Queue[Tuple[OutputStdStreamNo, str]] = queue.Queue()
@@ -72,7 +78,13 @@ def iter_std(
 def iter_stdout(venv: Venv, command: str, *script_args: Any) -> Iterator[str]:
     # start a process in virtual environment, assume that text comes from stdout
     with venv.start_command(
-        command, *script_args, stdout=PIPE, stderr=PIPE, bufsize=1, text=True
+        command,
+        *script_args,
+        stdout=PIPE,
+        stderr=PIPE,
+        bufsize=1,
+        text=True,
+        errors="backslashreplace",
     ) as process:
         exit_code: int = None
         line = ""

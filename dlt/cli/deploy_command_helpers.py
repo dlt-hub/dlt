@@ -239,7 +239,7 @@ class BaseDeployment(abc.ABC):
             " available configuration ie. secrets.toml file. Please run the deploy command from"
             " the same working directory you ran your pipeline script. If you pass the"
             " credentials in code we will not be able to display them here. See"
-            " https://dlthub.com/docs/general-usage/credentials"
+            " https://dlthub.com/docs/general-usage/credentials/"
         )
 
     def _lookup_secret_value(self, trace: LookupTrace) -> Any:

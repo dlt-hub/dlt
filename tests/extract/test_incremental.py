@@ -607,6 +607,39 @@ def test_cursor_datetime_type(item_type: TestDataItemFormat) -> None:
 
 
 @pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
+def test_incremental_transform_return_empty_rows_with_lag(item_type: TestDataItemFormat) -> None:
+    @dlt.resource
+    def some_data(
+        created_at=dlt.sources.incremental(
+            "created_at", initial_value="2024-11-01T08:00:00+08:00", lag=3600
+        )
+    ):
+        yield from source_items
+
+    p = dlt.pipeline(pipeline_name=uniq_id())
+
+    first_run_data = [{"id": 1, "value": 10, "created_at": "2024-11-01T12:00:00+08:00"}]
+    source_items = data_to_item_format(item_type, first_run_data)
+
+    p.extract(some_data())
+    s = p.state["sources"][p.default_schema_name]["resources"]["some_data"]["incremental"][
+        "created_at"
+    ]
+
+    assert s["last_value"] == "2024-11-01T12:00:00+08:00"
+
+    second_run_data = [{"id": 1, "value": 10, "created_at": "2024-11-01T10:00:00+08:00"}]
+    source_items = data_to_item_format(item_type, second_run_data)
+
+    p.extract(some_data())
+    s = p.state["sources"][p.default_schema_name]["resources"]["some_data"]["incremental"][
+        "created_at"
+    ]
+
+    assert s["last_value"] == "2024-11-01T12:00:00+08:00"
+
+
+@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
 def test_descending_order_unique_hashes(item_type: TestDataItemFormat) -> None:
     """Resource returns items in descending order but using `max` last value function.
     Only hash matching last_value are stored.
