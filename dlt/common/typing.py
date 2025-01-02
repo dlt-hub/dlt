@@ -45,6 +45,11 @@ from typing_extensions import (
 
 from typing_extensions import is_typeddict as _is_typeddict
 
+if sys.version_info >= (3, 12):
+    from typing import TypedDict  # noqa: I251
+else:
+    from typing_extensions import TypedDict  # noqa: I251
+
 try:
     from types import UnionType  # type: ignore[attr-defined]
 except ImportError:
