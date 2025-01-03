@@ -1,5 +1,3 @@
-import os
-import signal
 import yaml
 from typing import Any, Optional, Sequence, Tuple
 
@@ -393,16 +391,15 @@ def pipeline_command(
     if operation == "mcp":
 
         try:
-            # Construct MCP CLI command with pipeline context
             mcp_cmd = [
                 "mcp-cli",
+                "--server",
+                "dlt+",
                 "--provider",
                 "anthropic",
-                "--model",
-                "claude-3-5-sonnet-latest",
+                "--config-file",
+                "../dlt-portable-data-lake-demo/cline_mcp_settings.json",
             ]
-
-            # Run MCP CLI in the current virtual environment
             venv = Venv.restore_current()
             for line in iter_stdout(venv, *mcp_cmd):
                 fmt.echo(line)
