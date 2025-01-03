@@ -392,14 +392,6 @@ def pipeline_command(
 
     if operation == "mcp":
 
-        def signal_handler(sig, frame):
-            # Ignore subsequent SIGINT signals
-            signal.signal(signal.SIGINT, signal.SIG_IGN)
-            print("\n[bold red]Goodbye![/bold red]")
-            os.kill(os.getpid(), signal.SIGKILL)
-
-        signal.signal(signal.SIGINT, signal_handler)
-
         try:
             # Construct MCP CLI command with pipeline context
             mcp_cmd = [
