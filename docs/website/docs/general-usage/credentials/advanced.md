@@ -211,6 +211,7 @@ import os
 
 import dlt
 from dlt.sources.credentials import GcpServiceAccountCredentials
+from dlt.destinations import bigquery
 
 # Retrieve credentials from the environment variable
 creds_dict = os.getenv('BIGQUERY_CREDENTIALS')
@@ -220,7 +221,7 @@ gcp_credentials = GcpServiceAccountCredentials()
 gcp_credentials.parse_native_representation(creds_dict)
 
 # Pass the credentials to the BigQuery destination
-pipeline = dlt.pipeline(destination="bigquery", credentials=gcp_credentials)
+pipeline = dlt.pipeline(destination=bigquery(credentials=gcp_credentials))
 pipeline.run([{"key1": "value1"}], table_name="temp")
 ```
 
