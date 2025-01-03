@@ -1,6 +1,7 @@
-from typing import Any, Optional, Sequence, Tuple
-
+import os
+import signal
 import yaml
+from typing import Any, Optional, Sequence, Tuple
 
 import dlt
 from dlt.cli import echo as fmt
@@ -390,4 +391,29 @@ def pipeline_command(
             drop()
 
     if operation == "mcp":
-        raise NotImplementedError
+
+        def signal_handler(sig, frame):
+            # Ignore subsequent SIGINT signals
+            signal.signal(signal.SIGINT, signal.SIG_IGN)
+            print("\n[bold red]Goodbye![/bold red]")
+            os.kill(os.getpid(), signal.SIGKILL)
+
+        signal.signal(signal.SIGINT, signal_handler)
+
+        try:
+            # Construct MCP CLI command with pipeline context
+            mcp_cmd = [
+                "mcp-cli",
+                "--provider",
+                "anthropic",
+                "--model",
+                "claude-3-5-sonnet-latest",
+            ]
+
+            # Run MCP CLI in the current virtual environment
+            venv = Venv.restore_current()
+            for line in iter_stdout(venv, *mcp_cmd):
+                fmt.echo(line)
+
+        except Exception as e:
+            fmt.error(f"Failed to start MCP chat: {str(e)}")
