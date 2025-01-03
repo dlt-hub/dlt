@@ -202,17 +202,17 @@ In the example above:
 of a **source**)
 :::
 
-### Destination configuration in Python code
+### Configuring destination credentials in code
 
-In addition to configuring credentials for sources, you can configure credentials directly for your **destination** in code. Below is an example of using **GcpServiceAccountCredentials** to set up a pipeline writing to BigQuery.
+You can also configure credentials directly for your destination in code. The following example demonstrates how to use `GcpServiceAccountCredentials` to set up a pipeline with a BigQuery destination.
 
 ```py
+import os
+
 import dlt
 from dlt.sources.credentials import GcpServiceAccountCredentials
 
-import os
-from google.colab import userdata
-
+# Retrieve credentials from the environment variable
 creds_dict = os.getenv('BIGQUERY_CREDENTIALS')
 
 # Create credentials instance and parse them from a native representation
@@ -220,10 +220,10 @@ gcp_credentials = GcpServiceAccountCredentials()
 gcp_credentials.parse_native_representation(creds_dict)
 
 # Pass the credentials to the BigQuery destination
-pipeline = dlt.pipeline(destination=bigquery(credentials=gcp_credentials))
+pipeline = dlt.pipeline(destination="bigquery", credentials=gcp_credentials)
 pipeline.run([{"key1": "value1"}], table_name="temp")
 ```
 
-Above, we retrieve the service account credentials using `os.getenv`, parse them, and attach them to the pipeline’s destination.
+In the example above, we retrieve service account credentials using `os.getenv`, parse them, and attach them to the pipeline's destination.
 
-To read more about GCP credentials, please refer here to [GCP docs](../credentials/complex_types#gcp-credentials).
+For more details on GCP credentials, see [our documentation.](../credentials/complex_types#gcp-credentials)
