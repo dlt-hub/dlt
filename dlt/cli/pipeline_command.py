@@ -395,6 +395,11 @@ def pipeline_command(
 
         check_mcpcli_dependency_met()
 
+        # TODO: Discover active pipeline
+        # TODO: Move `mcp_server.py` code into dedicated dlt core module
+        # TODO: Remove `uv` dependency, use Venv module instead if possible
+        # TODO: Add tests
+
         with signals.delayed_signals():
             mcp_config = {
                 "mcpServers": {
@@ -402,8 +407,6 @@ def pipeline_command(
                         "command": "uv",
                         "args": [
                             "run",
-                            "--python",
-                            "3.12",
                             "--directory",
                             "/home/marcel/Work/dltHub/dlt-portable-data-lake-demo",
                             "--with-editable",
