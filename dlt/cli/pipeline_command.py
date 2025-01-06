@@ -1,3 +1,4 @@
+import tempfile
 import yaml
 from typing import Any, Optional, Sequence, Tuple
 
@@ -389,20 +390,42 @@ def pipeline_command(
             drop()
 
     if operation == "mcp":
+        from dlt.common.runtime import signals
 
-        try:
-            mcp_cmd = [
-                "mcp-cli",
-                "--server",
-                "dlt+",
-                "--provider",
-                "anthropic",
-                "--config-file",
-                "../dlt-portable-data-lake-demo/cline_mcp_settings.json",
-            ]
-            venv = Venv.restore_current()
-            for line in iter_stdout(venv, *mcp_cmd):
-                fmt.echo(line)
+        with signals.delayed_signals():
+            mcp_config = {
+                "mcpServers": {
+                    "dlt+": {
+                        "command": "uv",
+                        "args": [
+                            "run",
+                            "--python",
+                            "3.12",
+                            "--directory",
+                            "/home/marcel/Work/dltHub/dlt-portable-data-lake-demo",
+                            "--with-editable",
+                            ".[sci]",
+                            "--",
+                            "mcp-local",
+                        ],
+                    }
+                }
+            }
 
-        except Exception as e:
-            fmt.error(f"Failed to start MCP chat: {str(e)}")
+            with tempfile.NamedTemporaryFile(mode="wb", suffix=".json") as temp_file:
+                json.dump(mcp_config, temp_file)
+                temp_file.flush()
+
+                mcp_cmd = [
+                    "mcp-cli",
+                    "--server",
+                    "dlt+",
+                    "--provider",
+                    "anthropic",
+                    "--config-file",
+                    temp_file.name,
+                ]
+
+                venv = Venv.restore_current()
+                for line in iter_stdout(venv, *mcp_cmd):
+                    fmt.echo(line)
