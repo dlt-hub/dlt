@@ -391,6 +391,9 @@ def pipeline_command(
 
     if operation == "mcp":
         from dlt.common.runtime import signals
+        from dlt.helpers.mcp import check_mcpcli_dependency_met
+
+        check_mcpcli_dependency_met()
 
         with signals.delayed_signals():
             mcp_config = {
