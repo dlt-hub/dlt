@@ -724,3 +724,13 @@ def test_skip_json_types_when_skip_nested_types_is_true_and_field_is_not_pydanti
 
     assert "data_dictionary" not in schema
     assert "data_list" not in schema
+
+
+def test_parent_nullable_means_children_nullable():
+    class MyParent(BaseModel):
+        optional_child: Optional[ChildModel]
+        dlt_config: ClassVar[DltConfig] = {"skip_nested_types": True}
+
+    schema = pydantic_to_table_schema_columns(MyParent)
+
+    assert schema["optional_child__child_attribute"]["nullable"]
