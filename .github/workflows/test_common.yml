@@ -81,6 +81,7 @@ jobs:
           virtualenvs-create: true
           virtualenvs-in-project: true
           installer-parallel: true
+          version: 1.8.5
 
       # NOTE: do not cache. we want to have a clean state each run and we upgrade depdendencies later
       # - name: Load cached venv
