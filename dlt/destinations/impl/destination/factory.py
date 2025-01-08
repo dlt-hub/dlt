@@ -92,6 +92,8 @@ class destination(Destination[CustomDestinationClientConfiguration, "Destination
             destination_callable = dummy_custom_destination
         elif not callable(destination_callable):
             raise ConfigurationValueError("Resolved Sink destination callable is not a callable.")
+        if not destination_name:
+            destination_name = destination_callable.__name__
 
         # build destination spec
         destination_sections = (known_sections.DESTINATION, destination_name)
