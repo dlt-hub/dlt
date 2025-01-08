@@ -28,7 +28,7 @@ Be it a Google Colab notebook, AWS Lambda function, an Airflow DAG, your local l
 
 ## Installation
 
-dlt supports Python 3.8+.
+dlt supports Python 3.9+.
 
 ```sh
 pip install dlt

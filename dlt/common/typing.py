@@ -57,15 +57,11 @@ except ImportError:
     # in versions of Python>=3.10.
     UnionType = Never
 
-if sys.version_info[:3] >= (3, 9, 0):
-    from typing import _SpecialGenericAlias, _GenericAlias  # type: ignore[attr-defined]
-    from types import GenericAlias  # type: ignore[attr-defined]
+from typing import _SpecialGenericAlias, _GenericAlias  # type: ignore[attr-defined]
+from types import GenericAlias
 
-    typingGenericAlias: Tuple[Any, ...] = (_GenericAlias, _SpecialGenericAlias, GenericAlias)
-else:
-    from typing import _GenericAlias  # type: ignore[attr-defined]
+typingGenericAlias: Tuple[Any, ...] = (_GenericAlias, _SpecialGenericAlias, GenericAlias)
 
-    typingGenericAlias = (_GenericAlias,)
 
 from dlt.common.pendulum import timedelta, pendulum
 
