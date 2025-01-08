@@ -448,10 +448,10 @@ class PipelineTasksGroup(TaskGroup):
                 tasks = []
                 sources = data.decompose("scc")
                 t_name = self._task_name(pipeline, data)
-                start = make_task(pipeline, sources[0])
+                start = DummyOperator(task_id=f"{t_name}_start")
 
                 # parallel tasks
-                for source in sources[1:]:
+                for source in sources:
                     for resource in source.resources.values():
                         if resource.incremental:
                             logger.warn(
@@ -485,14 +485,10 @@ class PipelineTasksGroup(TaskGroup):
                 tasks = []
                 naming = SnakeCaseNamingConvention()
                 sources = data.decompose("scc")
-                start = make_task(
-                    pipeline,
-                    sources[0],
-                    naming.normalize_identifier(self._task_name(pipeline, sources[0])),
-                )
+                start = DummyOperator(task_id=f"{t_name}_start")
 
                 # parallel tasks
-                for source in sources[1:]:
+                for source in sources:
                     # name pipeline the same as task
                     new_pipeline_name = naming.normalize_identifier(
                         self._task_name(pipeline, source)
