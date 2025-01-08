@@ -330,7 +330,7 @@ def is_typeddict(t: Type[Any]) -> bool:
 
 def is_annotated(ann_type: Any) -> bool:
     try:
-        return issubclass(get_origin(ann_type), Annotated)  # type: ignore[arg-type]
+        return get_origin(ann_type) is Annotated
     except TypeError:
         return False
 
