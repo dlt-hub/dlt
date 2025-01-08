@@ -9,7 +9,7 @@ license = "Apache-2.0"
 homepage = "https://github.com/dlt-hub"
 repository = "https://github.com/dlt-hub/dlt"
 classifiers = [
-    "Development Status :: 4 - Beta",
+"Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: Apache Software License",
     "Topic :: Software Development :: Libraries",
@@ -18,7 +18,7 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
-#    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.13",
     "Operating System :: MacOS :: MacOS X",
     "Operating System :: POSIX :: Linux",
     "Operating System :: Microsoft :: Windows",]
@@ -29,9 +29,13 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
-python = ">=3.9,<3.13"
+python = ">=3.9,<3.14"
 requests = ">=2.26.0"
-pendulum = ">=2.1.2"
+# TODO: pin to tag on dlt-pendulum repo
+dlt-pendulum = [
+    # {path="../pendulum", markers = "python_version >= '3.13'"}
+    {git = "https://github.com/dlt-hub/pendulum.git", branch="master"}
+]
 simplejson = ">=3.17.5"
 PyYAML = ">=5.4.1"
 semver = ">=3.0.0"
@@ -63,7 +67,10 @@ psycopg2-binary = {version = ">=2.9.1", optional = true}
 psycopg2cffi = {version = ">=2.9.0", optional = true, markers="platform_python_implementation == 'PyPy'"}
 grpcio = {version = ">=1.50.0", optional = true}
 google-cloud-bigquery = {version = ">=2.26.0", optional = true}
-pyarrow = {version = ">=12.0.0", optional = true}
+pyarrow = [
+    {version = ">=12.0.0,<18", markers = "python_version >= '3.9' and python_version < '3.13'"},
+    {version = ">=18.0.0", markers = "python_version >= '3.13'"}
+]
 duckdb = {version = ">=0.9", optional = true}
 # keep per-python version dependency as a reference
 # duckdb = [
@@ -81,10 +88,13 @@ weaviate-client = {version = ">=3.22", optional = true}
 adlfs = {version = ">=2024.7.0", optional = true}
 pyodbc = {version = ">=4.0.39", optional = true}
 qdrant-client = {version = ">=1.8", optional = true, extras = ["fastembed"]}
-databricks-sql-connector = {version = ">=2.9.3", optional = true}
+databricks-sql-connector = [
+    {version = ">=2.9.3,<4", optional = true, markers = "python_version <= '3.12'"},
+    {version = ">=3.6.0", optional = true, markers = "python_version >= '3.13'"},
+]
 clickhouse-driver = { version = ">=0.2.7", optional = true }
 clickhouse-connect = { version = ">=0.7.7", optional = true }
-lancedb = { version = ">=0.8.2", optional = true, allow-prereleases = true }
+lancedb = { version = ">=0.8.2", optional = true, markers = "python_version < '3.13'", allow-prereleases = true }
 tantivy = { version = ">= 0.22.0", optional = true }
 deltalake = { version = ">=0.21.0", optional = true }
 sqlalchemy = { version = ">=1.4", optional = true }
@@ -99,6 +109,7 @@ db-dtypes = { version = ">=1.2.0", optional = true }
 # we will rely on manual installation of `sqlalchemy>=2.0.18` instead
 pyiceberg = { version = ">=0.8.1", optional = true }
 databricks-sdk = {version = ">=0.38.0", optional = true}
+pywin32 = {version = ">=306", optional = true, platform = "win32"}
 
 [tool.poetry.extras]
 gcp = ["grpcio", "google-cloud-bigquery", "db-dtypes", "gcsfs"]
@@ -135,10 +146,10 @@ postgis = ["psycopg2-binary", "psycopg2cffi"]
 dlt = "dlt.cli._dlt:_main"
 
 [tool.poetry.group.dev.dependencies]
-cffi = "^1.16"
-greenlet = "^3.0.3"
-regex = "^2023.10"
-pendulum = ">=3"
+cffi = ">=1.16"
+greenlet = ">=3.1"
+regex = ">=2024.10"
+sqlalchemy = "<2"
 requests-mock = "^1.10.0"
 types-click = "^7.1.8"
 sqlfluff = "^2.3.2"
@@ -183,7 +194,10 @@ shapely = ">=2.0.6"
 [tool.poetry.group.sources]
 optional = true
 [tool.poetry.group.sources.dependencies]
-connectorx = ">=0.3.3"
+connectorx = [
+    {version = ">=0.3.3", python = ">=3.9"},
+    {version = ">=0.4.0", python = ">=3.10"}
+]
 pymysql = "^1.1.0"
 openpyxl = "^3"
 
@@ -195,10 +209,11 @@ google-auth-oauthlib = "^1.0.0"
 tqdm = "^4.65.0"
 enlighten = "^1.11.2"
 alive-progress = "^3.1.1"
-pydantic = ">2"
+pydantic = ">=2.10"
 numpy = [
     { version = ">=1.21", python = ">=3.9,<3.12" },
-    { version = ">=1.26", python = ">=3.12" }
+    { version = ">=1.26", python = ">=3.12" },
+    { version = ">=2.0.0", python = ">=3.13" }
 ]
 pandas = [
     {version = ">2.1", markers = "python_version >= '3.12'"},
@@ -212,11 +227,12 @@ optional = true
 [tool.poetry.group.airflow.dependencies]
 apache-airflow = {version = "^2.8.0", markers = "python_version < '3.12'"}
 
-[tool.poetry.group.ibis]
-optional = true
+# TODO: restore when ibis allows pyarrow 18
+# [tool.poetry.group.ibis]
+#optional = true
 
-[tool.poetry.group.ibis.dependencies]
-ibis-framework = { version = ">=9.0.0,<10.0.0", markers = "python_version >= '3.10'", extras = ["duckdb", "postgres", "bigquery", "snowflake", "mssql", "clickhouse"]}
+#[tool.poetry.group.ibis.dependencies]
+# ibis-framework = { version = ">=9.0.0,<10.0.0", markers = "python_version >= '3.10'", extras = ["duckdb", "postgres", "bigquery", "snowflake", "mssql", "clickhouse"]}
 
 [tool.poetry.group.providers]
 optional = true
@@ -255,9 +271,14 @@ dbt-duckdb = ">=1.2.0"
 pymongo = ">=4.3.3"
 pandas = ">2"
 alive-progress = ">=3.0.1"
-pyarrow = ">=17.0.0"
+pyarrow = [
+    {version = ">=17.0.0", markers = "python_version < '3.13'"},
+    {version = ">=18.0.0", markers = "python_version >= '3.13'"}
+]
 psycopg2-binary = ">=2.9"
-lancedb = { version = ">=0.8.2", allow-prereleases = true }
+lancedb = [
+    { version = ">=0.8.2", markers = "python_version < '3.13'", allow-prereleases = true }
+]
 openai = ">=1.45"
 connectorx = { version = ">=0.3.2" }
 modal = ">=0.64.170"
