@@ -18,7 +18,7 @@ try:
     from airflow.configuration import conf
     from airflow.models import TaskInstance
     from airflow.utils.task_group import TaskGroup
-    from airflow.operators.dummy import DummyOperator
+    from airflow.operators.empty import EmptyOperator
     from airflow.operators.python import PythonOperator, get_current_context
 except ModuleNotFoundError:
     raise MissingDependencyException("Airflow", ["apache-airflow>=2.5"])
@@ -448,7 +448,7 @@ class PipelineTasksGroup(TaskGroup):
                 tasks = []
                 sources = data.decompose("scc")
                 t_name = self._task_name(pipeline, data)
-                start = DummyOperator(task_id=f"{t_name}_start")
+                start = EmptyOperator(task_id=f"{t_name}_start")
 
                 # parallel tasks
                 for source in sources:
@@ -466,7 +466,7 @@ class PipelineTasksGroup(TaskGroup):
 
                     tasks.append(make_task(pipeline, source))
 
-                end = DummyOperator(task_id=f"{t_name}_end")
+                end = EmptyOperator(task_id=f"{t_name}_end")
 
                 if tasks:
                     start >> tasks >> end
@@ -485,7 +485,7 @@ class PipelineTasksGroup(TaskGroup):
                 tasks = []
                 naming = SnakeCaseNamingConvention()
                 sources = data.decompose("scc")
-                start = DummyOperator(task_id=f"{t_name}_start")
+                start = EmptyOperator(task_id=f"{t_name}_start")
 
                 # parallel tasks
                 for source in sources:
@@ -496,7 +496,7 @@ class PipelineTasksGroup(TaskGroup):
                     tasks.append(make_task(pipeline, source, new_pipeline_name))
 
                 t_name = self._task_name(pipeline, data)
-                end = DummyOperator(task_id=f"{t_name}_end")
+                end = EmptyOperator(task_id=f"{t_name}_end")
 
                 if tasks:
                     start >> tasks >> end
