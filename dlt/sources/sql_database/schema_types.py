@@ -7,14 +7,13 @@ from typing import (
     List,
     Callable,
     Union,
-    TypedDict,
     Dict,
 )
 from typing_extensions import TypeAlias
 
 from sqlalchemy.exc import NoReferencedTableError
 
-
+from dlt.common.typing import TypedDict
 from dlt.common.libs.sql_alchemy import Table, Column, Row, sqltypes, Select, TypeEngine
 from dlt.common import logger
 from dlt.common.schema.typing import TColumnSchema, TTableSchemaColumns, TTableReference

@@ -2,11 +2,12 @@ import base64
 import hashlib
 import binascii
 from copy import copy
-from typing import TypedDict, List, Tuple, Mapping
+from typing import List, Tuple, Mapping
 
 from dlt.common.json import json
 from dlt.common.typing import DictStrAny
 from dlt.common.utils import compressed_b64decode, compressed_b64encode
+from dlt.common.typing import TypedDict
 
 
 class TVersionedState(TypedDict, total=False):

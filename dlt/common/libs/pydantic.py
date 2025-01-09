@@ -6,7 +6,6 @@ from typing import (
     Generic,
     Optional,
     Set,
-    TypedDict,
     List,
     Type,
     Union,
@@ -15,6 +14,7 @@ from typing import (
 )
 from typing_extensions import Annotated, get_args, get_origin
 
+from dlt.common.typing import TypedDict
 from dlt.common.data_types import py_type_to_sc_type
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.schema import DataValidationError

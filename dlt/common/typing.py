@@ -45,6 +45,8 @@ from typing_extensions import (
 
 from typing_extensions import is_typeddict as _is_typeddict
 
+from typing_extensions import TypedDict  # noqa: I251
+
 try:
     from types import UnionType  # type: ignore[attr-defined]
 except ImportError:

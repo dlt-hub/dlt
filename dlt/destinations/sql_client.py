@@ -17,11 +17,10 @@ from typing import (
     AnyStr,
     List,
     Generator,
-    TypedDict,
     cast,
 )
 
-from dlt.common.typing import TFun
+from dlt.common.typing import TFun, TypedDict
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.utils import concat_strings_with_limit

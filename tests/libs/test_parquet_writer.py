@@ -12,7 +12,6 @@ from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.schema.utils import new_column
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.time import ensure_pendulum_datetime
-from dlt.common.libs.pyarrow import from_arrow_scalar
 
 from tests.common.data_writers.utils import get_writer
 from tests.cases import (
