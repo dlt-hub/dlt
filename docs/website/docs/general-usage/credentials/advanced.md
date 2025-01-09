@@ -201,30 +201,3 @@ In the example above:
 `dlt.resource` behaves in the same way, so if you have a [standalone resource](../resource.md#declare-a-standalone-resource) (one that is not an inner function
 of a **source**)
 :::
-
-### Configuring destination credentials in code
-
-You can also configure credentials directly for your destination in code. The following example demonstrates how to use `GcpServiceAccountCredentials` to set up a pipeline with a BigQuery destination.
-
-```py
-import os
-
-import dlt
-from dlt.sources.credentials import GcpServiceAccountCredentials
-from dlt.destinations import bigquery
-
-# Retrieve credentials from the environment variable
-creds_dict = os.getenv('BIGQUERY_CREDENTIALS')
-
-# Create credentials instance and parse them from a native representation
-gcp_credentials = GcpServiceAccountCredentials()
-gcp_credentials.parse_native_representation(creds_dict)
-
-# Pass the credentials to the BigQuery destination
-pipeline = dlt.pipeline(destination=bigquery(credentials=gcp_credentials))
-pipeline.run([{"key1": "value1"}], table_name="temp")
-```
-
-In the example above, we retrieve service account credentials using `os.getenv`, parse them, and attach them to the pipeline's destination.
-
-For more details on GCP credentials, see [our documentation.](../credentials/complex_types#gcp-credentials)
