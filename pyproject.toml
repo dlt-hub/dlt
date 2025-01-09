@@ -31,10 +31,11 @@ packages = [
 [tool.poetry.dependencies]
 python = ">=3.9,<3.14"
 requests = ">=2.26.0"
-# TODO: pin to tag on dlt-pendulum repo
+pendulum = {version = ">=2.1.2", markers = "python_version < '3.13'"}
+# NOTE: revert to normal pendulum once it supports python 3.13
 dlt-pendulum = [
     # {path="../pendulum", markers = "python_version >= '3.13'"}
-    {git = "https://github.com/dlt-hub/pendulum.git", branch="master"}
+    {version="3.0.1a1", allow-prereleases = true, markers = "python_version >= '3.13'"}
 ]
 simplejson = ">=3.17.5"
 PyYAML = ">=5.4.1"
@@ -297,3 +298,9 @@ multi_line_output = 3
 [build-system]
 requires = ["poetry-core>=1.0.8"]
 build-backend = "poetry.core.masonry.api"
+
+# NOTE: needed for dlt-pendulum
+[[tool.poetry.source]]
+name = "dlt-pypi"
+url = "https://pypi.dlthub.com"
+priority = "supplemental"

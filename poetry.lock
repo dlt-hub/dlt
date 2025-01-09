@@ -2568,26 +2568,85 @@ files = [
 
 [[package]]
 name = "dlt-pendulum"
-version = "3.0.1"
+version = "3.0.1a1"
 description = "Python datetimes made easy"
 optional = false
 python-versions = ">=3.9"
-files = []
-develop = false
+files = [
+    {file = "dlt_pendulum-3.0.1a1-cp310-cp310-macosx_10_12_x86_64.whl", hash = "sha256:6a58b159db829e7ff093749a1e844ab04519e4971bb501cc31f78ad6b92ed404"},
+    {file = "dlt_pendulum-3.0.1a1-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:de9c5563490d905a5705dc0ce097832de9a6be0417bd9fb5645d25dc6435794a"},
+    {file = "dlt_pendulum-3.0.1a1-cp310-cp310-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:0bbc0158976490dbd302c39f813ae45ba215112136855cf2b0e4459de0c430e0"},
+    {file = "dlt_pendulum-3.0.1a1-cp310-cp310-manylinux_2_17_ppc64le.manylinux2014_ppc64le.whl", hash = "sha256:8099f91d29a1ac46cf67c54c24ec4ab34a4329b92709ae27789d79e11f1bf3bf"},
+    {file = "dlt_pendulum-3.0.1a1-cp310-cp310-manylinux_2_17_s390x.manylinux2014_s390x.whl", hash = "sha256:4654e5deab34aaea483bf4d9bf872b5c26a34179e30e1abf08d63b09d7c0db61"},
+    {file = "dlt_pendulum-3.0.1a1-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:6c2c18df4c259690e1f001a9c8293769a19f5201cb5497a32c588d38081dc59b"},
+    {file = "dlt_pendulum-3.0.1a1-cp310-cp310-musllinux_1_1_aarch64.whl", hash = "sha256:ac88c25794672424685b2dcda6c4f0d4a5e853fa0bfb2334357bc4671cd45b01"},
+    {file = "dlt_pendulum-3.0.1a1-cp310-cp310-musllinux_1_1_x86_64.whl", hash = "sha256:228dd2ca46ab2e4acc62995d8f48a23346d376e10e5f432ec99da0616c496e6b"},
+    {file = "dlt_pendulum-3.0.1a1-cp310-cp310-win32.whl", hash = "sha256:0edba0e22389a0ad5520284ce617c3b2905d0e1848f4fe408bdf10d89fcd4726"},
+    {file = "dlt_pendulum-3.0.1a1-cp311-cp311-macosx_10_12_x86_64.whl", hash = "sha256:ecfabcdf2cb645de35f20d1d12df07ce79bb4fc42c31324473ea42d511ff1947"},
+    {file = "dlt_pendulum-3.0.1a1-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:0c009a8db0254b2c5844d7ebc44168cdfb776d4394d14ff2eb4e8faff0d8e804"},
+    {file = "dlt_pendulum-3.0.1a1-cp311-cp311-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:1cf3323438f7948b28ea083d26f1a03cc86d29e43e0b1743ddfa1cd3a8ba1bab"},
+    {file = "dlt_pendulum-3.0.1a1-cp311-cp311-manylinux_2_17_ppc64le.manylinux2014_ppc64le.whl", hash = "sha256:764fe52e48fc2e645936870c0af4ccee1505a73c277703b35c6fae80cc090218"},
+    {file = "dlt_pendulum-3.0.1a1-cp311-cp311-manylinux_2_17_s390x.manylinux2014_s390x.whl", hash = "sha256:a43831ac781d5ef0f4badf23bfd5ff06b4b24859819500b1d713cf0f63daae23"},
+    {file = "dlt_pendulum-3.0.1a1-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:3e09db8cbdd244d35e1de1df0eef7ae54a33e954a51676d3e02f6cb3df8c6c89"},
+    {file = "dlt_pendulum-3.0.1a1-cp311-cp311-musllinux_1_1_aarch64.whl", hash = "sha256:69f3ccba3c043700a116ee265528040614f3512dd2bae3763db7abff3d57a042"},
+    {file = "dlt_pendulum-3.0.1a1-cp311-cp311-musllinux_1_1_x86_64.whl", hash = "sha256:4a79dcf0107ddf6c5b33b18824b9a2fc320b2389ac36049f6d64ee375d403eb6"},
+    {file = "dlt_pendulum-3.0.1a1-cp311-cp311-win32.whl", hash = "sha256:01eeb74d3376dfe9e9adf3f6e6c9ccf37a0aeed61d5a48a5f6378e6285261b49"},
+    {file = "dlt_pendulum-3.0.1a1-cp311-cp311-win_arm64.whl", hash = "sha256:5547fbb94a096f603514dadadbd4cd59dd09b4c84b91b678d671e19c8fb217f3"},
+    {file = "dlt_pendulum-3.0.1a1-cp312-cp312-macosx_10_12_x86_64.whl", hash = "sha256:1539fcdfb18a61122e06ca52ca05372f2f77566d851c4d57cb6cef47aa2bff88"},
+    {file = "dlt_pendulum-3.0.1a1-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:38ff51840f47d7cd4a2af1810af3802d9b5a45879df456786473df1f59d0e830"},
+    {file = "dlt_pendulum-3.0.1a1-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:0135b7e22ba4d56d9d9b4a38dcd8999585f52d5d1370f860adc99bfb534f0da1"},
+    {file = "dlt_pendulum-3.0.1a1-cp312-cp312-manylinux_2_17_ppc64le.manylinux2014_ppc64le.whl", hash = "sha256:12c481cd5b51fe2c4a0c69b55825111a9f36b386f35011054bccdec210f91834"},
+    {file = "dlt_pendulum-3.0.1a1-cp312-cp312-manylinux_2_17_s390x.manylinux2014_s390x.whl", hash = "sha256:578369f0d150cddcea716d746c54c55f9c709afc3aa522347d030d50a2fdf28b"},
+    {file = "dlt_pendulum-3.0.1a1-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:4226958680dc9a035a71e356a91bae8849a5541f9035d4556f7550bc521c6074"},
+    {file = "dlt_pendulum-3.0.1a1-cp312-cp312-musllinux_1_1_aarch64.whl", hash = "sha256:1d72543db14fae7f049dab5e4b8c0464f9a369324ba2d3979f301ff293f3bcd9"},
+    {file = "dlt_pendulum-3.0.1a1-cp312-cp312-musllinux_1_1_x86_64.whl", hash = "sha256:bb7796a53f305bd2aa81336798e71cbaf6b1e3d78e70c0237a2806d06ee5fd95"},
+    {file = "dlt_pendulum-3.0.1a1-cp312-cp312-win32.whl", hash = "sha256:d5745533dba48d607668eac8c099f12e911e2a5956a3602c299ccb6a14fc0d8f"},
+    {file = "dlt_pendulum-3.0.1a1-cp312-cp312-win_arm64.whl", hash = "sha256:ee3ec0558f216b46d4806a29c55b6d695cf1fce911d624726e365307f1e14492"},
+    {file = "dlt_pendulum-3.0.1a1-cp313-cp313-macosx_10_12_x86_64.whl", hash = "sha256:eaa124913244e66f680cccb024dded812e27fe2d1a753a246cf79a2a5185de71"},
+    {file = "dlt_pendulum-3.0.1a1-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:da7436aac7907fa2b956fa243413017b947f2b6539e1f367cb2713ba9206e2e3"},
+    {file = "dlt_pendulum-3.0.1a1-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:472b2f11e501b54c1e9538b31f4736fd4a96dff0526a1a2ad1b9797713a2c4c5"},
+    {file = "dlt_pendulum-3.0.1a1-cp313-cp313-manylinux_2_17_ppc64le.manylinux2014_ppc64le.whl", hash = "sha256:b8880077ac174fbca827b7841a5f6ce62e2a2edcdc14e1a1843e2ad94dfdbc89"},
+    {file = "dlt_pendulum-3.0.1a1-cp313-cp313-manylinux_2_17_s390x.manylinux2014_s390x.whl", hash = "sha256:8661511440225e431f8062dcf00c303dcc5a0b87481f9fb8a50b154092080f02"},
+    {file = "dlt_pendulum-3.0.1a1-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:5600b9cd5914fda35e06f97b6e9f6e4a9f98cb43f81698538bdb97825e0a4f7c"},
+    {file = "dlt_pendulum-3.0.1a1-cp313-cp313-musllinux_1_1_aarch64.whl", hash = "sha256:14d2f68c7e15c7b51c8acc060adb27e4d54ae8997870923a79647fcbc37eeab5"},
+    {file = "dlt_pendulum-3.0.1a1-cp313-cp313-musllinux_1_1_x86_64.whl", hash = "sha256:0c7b1db652620448be2ec99b833688f278ca6d85b825a8c87a6950a577540165"},
+    {file = "dlt_pendulum-3.0.1a1-cp313-cp313-win32.whl", hash = "sha256:92fdfbea95a4f3ceb20b65b7890691fb046a84bbcef83131eec887b8e3c43d62"},
+    {file = "dlt_pendulum-3.0.1a1-cp313-cp313-win_arm64.whl", hash = "sha256:7c7b3f4fcadbc066eda289f9736db49b23c7a20ce2de9c694afd84a450cfa207"},
+    {file = "dlt_pendulum-3.0.1a1-cp39-cp39-macosx_10_12_x86_64.whl", hash = "sha256:b846527ccbf52d695e81fcfa5b19752fb9be40d0e6d2279981e5d178d930ea22"},
+    {file = "dlt_pendulum-3.0.1a1-cp39-cp39-macosx_11_0_arm64.whl", hash = "sha256:b4d0e615827b2d6a015597d4237df8990f4af95f6b1233b0326c3d8ef055b583"},
+    {file = "dlt_pendulum-3.0.1a1-cp39-cp39-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:0d25c20e0c67998f0ab24ca6e67fa8637b88b99db40613273181720a2231a6ac"},
+    {file = "dlt_pendulum-3.0.1a1-cp39-cp39-manylinux_2_17_ppc64le.manylinux2014_ppc64le.whl", hash = "sha256:3dc87e0942edc5d7c750de2e51046da11797b4f746e89210ed1339bab57b0b60"},
+    {file = "dlt_pendulum-3.0.1a1-cp39-cp39-manylinux_2_17_s390x.manylinux2014_s390x.whl", hash = "sha256:8392236b5095f4f4e378491737b1aea17063c7f4c319bc74aac1d5d5d99281f5"},
+    {file = "dlt_pendulum-3.0.1a1-cp39-cp39-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:a0d94e04f088268a304b1023494f86dd3347785678592724d2ead9e559a89b95"},
+    {file = "dlt_pendulum-3.0.1a1-cp39-cp39-musllinux_1_1_aarch64.whl", hash = "sha256:96d58b54f59801252cbd081a97207a2c084f702c69b820c1965a9d91d6e0be5b"},
+    {file = "dlt_pendulum-3.0.1a1-cp39-cp39-musllinux_1_1_x86_64.whl", hash = "sha256:24c12aa2c18de1eb2c87113e8616143ebc9b31a4f6706036a85300ab40dd592a"},
+    {file = "dlt_pendulum-3.0.1a1-cp39-cp39-win32.whl", hash = "sha256:363e870fdfdc6d1f9c5e0870627cfdf855de1967df2629aa33f01c96823e3aac"},
+    {file = "dlt_pendulum-3.0.1a1-pp310-pypy310_pp73-macosx_10_12_x86_64.whl", hash = "sha256:27737a3dfece1bdcae646990f0e794908b8b5cce5ed9cdeabd829bf50477bf2e"},
+    {file = "dlt_pendulum-3.0.1a1-pp310-pypy310_pp73-macosx_11_0_arm64.whl", hash = "sha256:c40358b9da22ef8f8d91590725502405bc5f9fbb3a179864b9c17eeda15a9675"},
+    {file = "dlt_pendulum-3.0.1a1-pp310-pypy310_pp73-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:f6d79e0179cbbd8ff1780e9dbe2d6b873a4794400c08b09322378f05c3af0ca2"},
+    {file = "dlt_pendulum-3.0.1a1-pp310-pypy310_pp73-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:667277a28bc98420df29b2e28f370f9cd3e6a5327a67a0a28f770c5a44ac27d0"},
+    {file = "dlt_pendulum-3.0.1a1-pp310-pypy310_pp73-musllinux_1_1_aarch64.whl", hash = "sha256:a1ffd57e5b38c68519e0b1de03f8e48f5df56b9147947244fd7a6b3f686f5005"},
+    {file = "dlt_pendulum-3.0.1a1-pp310-pypy310_pp73-musllinux_1_1_x86_64.whl", hash = "sha256:70d1157f9cba2289cd157190c30740f15a28a0b1a22bbe3373edd048f7e7eef5"},
+    {file = "dlt_pendulum-3.0.1a1-pp310-pypy310_pp73-win_amd64.whl", hash = "sha256:9b9c1fee1947658de0a88891404b6455d38feb65a3c7333a33e8b50d26d00c88"},
+    {file = "dlt_pendulum-3.0.1a1-pp39-pypy39_pp73-macosx_10_12_x86_64.whl", hash = "sha256:1892cb4b4264c209a507edff298988ef3c9465f2e7decca241ac7707cacd7ec7"},
+    {file = "dlt_pendulum-3.0.1a1-pp39-pypy39_pp73-macosx_11_0_arm64.whl", hash = "sha256:c258bee2ac876de7eab52e1983b43319174fef78d29396c075e7e57995b165eb"},
+    {file = "dlt_pendulum-3.0.1a1-pp39-pypy39_pp73-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:2e55baa72b7320804cfbebbdf1b3c3fccca3dfedfc5fbe3843e58c306ee3588a"},
+    {file = "dlt_pendulum-3.0.1a1-pp39-pypy39_pp73-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:a27e5cfaae2b71d20326826e3c3fb776f949cf482d32b7dd844f7f1f8c51d2b5"},
+    {file = "dlt_pendulum-3.0.1a1-pp39-pypy39_pp73-musllinux_1_1_aarch64.whl", hash = "sha256:5e409b60e2ebad179785ae70f17a20f9181f33a0e2adb722bff801a72b9d7a49"},
+    {file = "dlt_pendulum-3.0.1a1-pp39-pypy39_pp73-musllinux_1_1_x86_64.whl", hash = "sha256:6e7b9dbfec51432a9f71e2cf54c360b46e716327f60cbe3d96d28aad74459a4a"},
+    {file = "dlt_pendulum-3.0.1a1-pp39-pypy39_pp73-win_amd64.whl", hash = "sha256:eb9b24aaa6d0523fe59b8bb13e8464dd6f31ab01dfeb3ee2835f94674da66433"},
+    {file = "dlt_pendulum-3.0.1a1.tar.gz", hash = "sha256:74f377a9ba0c252015f9ef9604ad996a3b2446ad221d96bce51f47dde9ca30c9"},
+]
 
 [package.dependencies]
 cffi = ">=1.17"
 python-dateutil = ">=2.6"
 tzdata = ">=2020.1"
 
-[package.extras]
-test = []
-
 [package.source]
-type = "git"
-url = "https://github.com/dlt-hub/pendulum.git"
-reference = "master"
-resolved_reference = "ce302d62a74d15268b020ac71064e1f2c37cb010"
+type = "legacy"
+url = "https://pypi.dlthub.com"
+reference = "dlt-pypi"
 
 [[package]]
 name = "dnspython"
@@ -10938,4 +10997,4 @@ weaviate = ["weaviate-client"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.9,<3.14"
-content-hash = "2dc3c811dfa986e0ef3efe85a1e7e4b57d31093e464b70123a99e5c2572e0959"
+content-hash = "779c4f26225bf70f4958cbf83eae94f86b2b83ab4ce0472ca246a4f50bd9918b"
