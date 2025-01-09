@@ -1,4 +1,4 @@
-FROM apache/airflow:2.5.2-python3.8
+FROM apache/airflow:2.5.2-python3.9
 
 # Metadata
 LABEL org.label-schema.vendor="dltHub" \
