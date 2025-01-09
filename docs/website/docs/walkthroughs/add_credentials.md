@@ -76,7 +76,9 @@ DESTINATION__BIGQUERY__LOCATION
 ```
 ### Configuring destination credentials in code
 
-If you need to manage destination credentials programmatically, such as retrieving them from environment variables, you can define them directly in your pipeline code. The following example demonstrates how to use `GcpServiceAccountCredentials` to set up a pipeline with a BigQuery destination.
+If you need to manage destination credentials programmatically, such as retrieving them from environment variables, you can define them directly in your pipeline code. 
+
+The following example demonstrates how to use `GcpServiceAccountCredentials` to set up a pipeline with a BigQuery destination.
 
 ```py
 import os
