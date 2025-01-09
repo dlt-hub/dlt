@@ -24,7 +24,7 @@ from dlt.common.typing import TDataItem
 from dlt.cli.source_detection import detect_source_configs
 from dlt.common.utils import custom_environ
 from dlt.extract.decorators import _DltSingleSource, DltSourceFactoryWrapper
-from dlt.extract.source import SourceFactory, SourceReference
+from dlt.extract.source import SourceReference
 from dlt.extract import DltResource, DltSource
 from dlt.extract.exceptions import (
     DynamicNameNotStandaloneResource,
@@ -47,14 +47,13 @@ from dlt.extract.exceptions import (
 from dlt.extract.items import TableNameMeta
 
 from tests.common.utils import load_yml_case
-from tests.utils import MockableRunContext
+from tests.utils import MockableRunContext, unload_modules
 
 
-@pytest.fixture(autouse=True, scope="module")
+@pytest.fixture(autouse=True, scope="function")
 def preserve_sources_registry() -> Iterator[None]:
     try:
-        reg_ = SourceReference.SOURCES
-        SourceReference.SOURCES = {}
+        reg_ = SourceReference.SOURCES.copy()
         yield
     finally:
         SourceReference.SOURCES = reg_
@@ -783,6 +782,7 @@ def test_source_reference_with_args() -> None:
 
 
 def test_source_reference_import_core() -> None:
+    # NOTE: requires unload_module fixture to make sure core sources are unloaded
     SourceReference.SOURCES.clear()
     # auto import by shorthand
     ref = SourceReference.from_reference("rest_api")
@@ -799,6 +799,7 @@ def test_source_reference_import_core() -> None:
 
 
 def test_source_reference_auto_import() -> None:
+    # NOTE: requires unload_module fixture to make sure resources are really imported (no cache)
     SourceReference.SOURCES.clear()
     # make sure to import resource first
     ref = SourceReference.from_reference(
