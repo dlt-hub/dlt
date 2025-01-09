@@ -1,9 +1,10 @@
-from typing import Any, Dict, List, Sequence, Tuple, cast, TypedDict, Optional, Callable, Union
+from typing import Any, Dict, List, Sequence, Tuple, cast, Optional, Callable, Union
 
 import yaml
 from dlt.common.time import ensure_pendulum_datetime
 from dlt.common.destination.reference import PreparedTableSchema
 from dlt.common.destination.utils import resolve_merge_strategy
+from dlt.common.typing import TypedDict
 
 from dlt.common.schema.typing import (
     TSortOrder,

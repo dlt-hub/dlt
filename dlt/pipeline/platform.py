@@ -1,5 +1,5 @@
 """Implements SupportsTracking"""
-from typing import Any, cast, TypedDict, List
+from typing import Any, cast, List
 from requests import Session
 
 from dlt.common import logger
@@ -7,6 +7,7 @@ from dlt.common.json import json
 from dlt.common.pipeline import LoadInfo
 from dlt.common.managed_thread_pool import ManagedThreadPool
 from dlt.common.schema.typing import TStoredSchema
+from dlt.common.typing import TypedDict
 
 from dlt.pipeline.trace import PipelineTrace, PipelineStepTrace, TPipelineStep, SupportsPipeline
 
