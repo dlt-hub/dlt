@@ -34,7 +34,6 @@ requests = ">=2.26.0"
 pendulum = {version = ">=2.1.2", markers = "python_version < '3.13'"}
 # NOTE: revert to normal pendulum once it supports python 3.13
 dlt-pendulum = [
-    # {path="../pendulum", markers = "python_version >= '3.13'"}
     {version="3.0.1a1", allow-prereleases = true, markers = "python_version >= '3.13'"}
 ]
 simplejson = ">=3.17.5"
