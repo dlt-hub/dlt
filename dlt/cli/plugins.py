@@ -32,9 +32,9 @@ try:
         SecretFormats,
     )
 
-    deploy_command_available = True
-except ModuleNotFoundError:
-    deploy_command_available = False
+    deploy_command_import_exception = None
+except ModuleNotFoundError as exc:
+    deploy_command_import_exception = exc
 
 
 @plugins.hookspec()
@@ -316,7 +316,7 @@ class DeployCommand(SupportsCliCommand):
             "pipeline_script_path", metavar="pipeline-script-path", help="Path to a pipeline script"
         )
 
-        if not deploy_command_available:
+        if deploy_command_import_exception:
             return
 
         deploy_comm.add_argument(
@@ -375,7 +375,8 @@ class DeployCommand(SupportsCliCommand):
 
     def execute(self, args: argparse.Namespace) -> None:
         # exit if deploy command is not available
-        if not deploy_command_available:
+        if deploy_command_import_exception:
+            fmt.error(str(deploy_command_import_exception))
             fmt.warning(
                 "Please install additional command line dependencies to use deploy command:"
             )
