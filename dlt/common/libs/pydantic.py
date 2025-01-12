@@ -248,20 +248,12 @@ def apply_schema_contract_to_model(
             return Annotated[_process_annotation(a_t), tuple(a_m)]  # type: ignore[return-value]
         elif is_list_generic_type(t_):
             l_t: Type[Any] = get_args(t_)[0]
-            try:
-                return get_origin(t_)[_process_annotation(l_t)]  # type: ignore[no-any-return]
-            except TypeError:
-                # this is Python3.8 fallback. it does not support indexers on types
-                return List[_process_annotation(l_t)]  # type: ignore
+            return get_origin(t_)[_process_annotation(l_t)]  # type: ignore[no-any-return]
         elif is_dict_generic_type(t_):
             k_t: Type[Any]
             v_t: Type[Any]
             k_t, v_t = get_args(t_)
-            try:
-                return get_origin(t_)[k_t, _process_annotation(v_t)]  # type: ignore[no-any-return]
-            except TypeError:
-                # this is Python3.8 fallback. it does not support indexers on types
-                return Dict[k_t, _process_annotation(v_t)]  # type: ignore
+            return get_origin(t_)[k_t, _process_annotation(v_t)]  # type: ignore[no-any-return]
         elif is_union_type(t_):
             u_t_s = tuple(_process_annotation(u_t) for u_t in extract_union_types(t_))
             return Union[u_t_s]  # type: ignore[return-value]

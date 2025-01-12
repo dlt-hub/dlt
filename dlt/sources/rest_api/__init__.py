@@ -1,7 +1,7 @@
 """Generic API Source"""
 from copy import deepcopy
 from typing import Any, Dict, List, Optional, Generator, Callable, cast, Union
-import graphlib  # type: ignore[import,unused-ignore]
+import graphlib
 from requests.auth import AuthBase
 
 import dlt
@@ -229,7 +229,7 @@ def rest_api_resources(config: RESTAPIConfig) -> List[DltResource]:
 
 def create_resources(
     client_config: ClientConfig,
-    dependency_graph: graphlib.TopologicalSorter,
+    dependency_graph: graphlib.TopologicalSorter,  # type: ignore[type-arg]
     endpoint_resource_map: Dict[str, Union[EndpointResource, DltResource]],
     resolved_param_map: Dict[str, Optional[List[ResolvedParam]]],
 ) -> Dict[str, DltResource]:

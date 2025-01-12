@@ -488,7 +488,7 @@ def test_extract_source_twice() -> None:
     dlt.pipeline().extract(s)
     with pytest.raises(PipelineStepFailed) as py_ex:
         dlt.pipeline().extract(s)
-    assert type(py_ex.value.exception) == SourceExhausted
+    assert type(py_ex.value.exception) is SourceExhausted
     assert py_ex.value.exception.source_name == "source"
 
 

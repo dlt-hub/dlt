@@ -73,7 +73,7 @@ jobs:
           node-version: 20
 
       - name: Install Poetry
-        uses: snok/install-poetry@v1
+        uses: snok/install-poetry@v1.3.2
         with:
           virtualenvs-create: true
           virtualenvs-in-project: true

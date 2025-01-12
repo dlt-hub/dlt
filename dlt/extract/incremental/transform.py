@@ -24,12 +24,15 @@ from dlt.extract.items import TTableHintTemplate
 
 try:
     from dlt.common.libs import pyarrow
-    from dlt.common.libs.numpy import numpy
     from dlt.common.libs.pyarrow import pyarrow as pa, TAnyArrowItem
     from dlt.common.libs.pyarrow import from_arrow_scalar, to_arrow_scalar
 except MissingDependencyException:
     pa = None
     pyarrow = None
+
+try:
+    from dlt.common.libs.numpy import numpy
+except MissingDependencyException:
     numpy = None
 
 # NOTE: always import pandas independently from pyarrow
@@ -323,7 +326,9 @@ class ArrowIncremental(IncrementalTransform):
         """Creates unique index if necessary."""
         # create unique index if necessary
         if self._dlt_index not in tbl.schema.names:
-            tbl = pyarrow.append_column(tbl, self._dlt_index, pa.array(numpy.arange(tbl.num_rows)))
+            # indices = pa.compute.sequence(start=0, step=1, length=tbl.num_rows,
+            indices = pa.array(range(tbl.num_rows))
+            tbl = pyarrow.append_column(tbl, self._dlt_index, indices)
         return tbl
 
     def __call__(

@@ -348,7 +348,7 @@ def test_nested_model_config_propagation() -> None:
     assert model_freeze.__fields__["address"].annotation.__name__ == "UserAddressExtraAllow"  # type: ignore[index]
     # annotated is preserved
     type_origin = get_origin(model_freeze.__fields__["address"].rebuild_annotation())  # type: ignore[index]
-    assert issubclass(type_origin, Annotated)  # type: ignore[arg-type]
+    assert type_origin is Annotated
     # UserAddress is converted to UserAddressAllow only once
     type_annotation = model_freeze.__fields__["address"].annotation  # type: ignore[index]
     assert type_annotation is get_args(model_freeze.__fields__["unity"].annotation)[0]  # type: ignore[index]
@@ -405,7 +405,7 @@ def test_nested_model_config_propagation_optional_with_pipe():
     assert model_freeze.__fields__["address"].annotation.__name__ == "UserAddressPipeExtraAllow"  # type: ignore[index]
     # annotated is preserved
     type_origin = get_origin(model_freeze.__fields__["address"].rebuild_annotation())  # type: ignore[index]
-    assert issubclass(type_origin, Annotated)  # type: ignore[arg-type]
+    assert type_origin is Annotated
     # UserAddress is converted to UserAddressAllow only once
     type_annotation = model_freeze.__fields__["address"].annotation  # type: ignore[index]
     assert type_annotation is get_args(model_freeze.__fields__["unity"].annotation)[0]  # type: ignore[index]
