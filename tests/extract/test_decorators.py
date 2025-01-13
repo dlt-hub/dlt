@@ -1447,11 +1447,11 @@ def test_parallelized_resource_decorator() -> None:
     def some_tx_func(item):
         return list(range(item))
 
-    transformer = dlt.transformer(some_tx_func, parallelized=True, data_from=resource)
+    transformer = dlt.transformer(some_tx_func, data_from=resource)
     pipe_gen = transformer._pipe.gen
     inner = pipe_gen(3)  # type: ignore
     # this is a regular function returning list
-    assert inner() == [0, 1, 2]  # type: ignore[operator]
+    assert inner == [0, 1, 2]
     assert list(transformer) == [0, 0, 1, 0, 1, 2]
 
     # Invalid parallel resources

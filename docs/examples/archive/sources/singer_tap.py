@@ -1,8 +1,9 @@
 import os
 import tempfile
-from typing import Any, Iterator, TypedDict, cast, Union
+from typing import Any, Iterator, cast, Union
 
 import dlt
+from dlt.common.typing import TypedDict
 from dlt.common import json
 from dlt.common.configuration.specs import BaseConfiguration
 from dlt.common.runners.venv import Venv

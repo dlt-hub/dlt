@@ -1,9 +1,8 @@
 from typing import (
     List,
     Literal,
-    TypedDict,
 )
-
+from dlt.common.typing import TypedDict
 
 TExecInfoNames = Literal[
     "kubernetes",
