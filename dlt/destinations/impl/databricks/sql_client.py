@@ -16,7 +16,7 @@ from typing import (
 )
 
 from databricks.sdk.core import Config, oauth_service_principal
-from databricks import sql as databricks_lib  # type: ignore[attr-defined]
+from databricks import sql as databricks_lib
 from databricks.sql.client import (
     Connection as DatabricksSqlConnection,
     Cursor as DatabricksSqlCursor,
@@ -43,7 +43,7 @@ from dlt.common.destination.dataset import DBApiCursor
 class DatabricksCursorImpl(DBApiCursorImpl):
     """Use native data frame support if available"""
 
-    native_cursor: DatabricksSqlCursor
+    native_cursor: DatabricksSqlCursor  # type: ignore[assignment, unused-ignore]
     vector_size: ClassVar[int] = 2048  # vector size is 2048
 
     def iter_arrow(self, chunk_size: int) -> Generator[ArrowTable, None, None]:
@@ -140,7 +140,6 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
     @contextmanager
     @raise_database_error
     def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> Iterator[DBApiCursor]:
-        curr: DBApiCursor
         # TODO: Inline param support will be dropped in future databricks driver, switch to :named paramstyle
         # This will drop support for cluster runtime v13.x
         # db_args: Optional[Dict[str, Any]]
@@ -159,10 +158,11 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
         # else:
         #     db_args = kwargs or None
 
+        assert isinstance(query, str)
         db_args = args or kwargs or None
         with self._conn.cursor() as curr:
             curr.execute(query, db_args)
-            yield DatabricksCursorImpl(curr)  # type: ignore[abstract]
+            yield DatabricksCursorImpl(curr)  # type: ignore[arg-type, abstract, unused-ignore]
 
     def catalog_name(self, escape: bool = True) -> Optional[str]:
         catalog = self.capabilities.casefold_identifier(self.credentials.catalog)

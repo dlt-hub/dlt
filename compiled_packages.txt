@@ -1,1 +1,1 @@
-cffi\|idna\|simplejson\|pendulum\|grpcio\|google-crc32c
+pyarrow\|cffi\|idna\|simplejson\|pendulum\|grpcio\|google-crc32c
