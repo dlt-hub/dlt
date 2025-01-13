@@ -160,7 +160,32 @@ dlt.secrets["destination.postgres.credentials"] = BaseHook.get_connection('postg
 
 This will mock the TOML provider to desired values.
 
-### Example
+## Configuring destination credentials in code
+
+If you need to manage destination credentials programmatically, such as retrieving them from environment variables, you can define them directly in your pipeline code.
+
+The following example demonstrates how to use [GcpServiceAccountCredentials](complex_types#gcp-credentials) to set up a pipeline with a BigQuery destination.
+
+```py
+import os
+
+import dlt
+from dlt.sources.credentials import GcpServiceAccountCredentials
+from dlt.destinations import bigquery
+
+# Retrieve credentials from the environment variable
+creds_dict = os.getenv('BIGQUERY_CREDENTIALS')
+
+# Create credentials instance and parse them from a native representation
+gcp_credentials = GcpServiceAccountCredentials()
+gcp_credentials.parse_native_representation(creds_dict)
+
+# Pass the credentials to the BigQuery destination
+pipeline = dlt.pipeline(destination=bigquery(credentials=gcp_credentials))
+pipeline.run([{"key1": "value1"}], table_name="temp")
+```
+
+## Example
 
 In the example below, the `google_sheets` source function is used to read selected tabs from Google Sheets.
 It takes several arguments that specify the spreadsheet, the tab names, and the Google credentials to be used when extracting data.

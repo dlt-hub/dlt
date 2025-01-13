@@ -74,34 +74,6 @@ DESTINATION__BIGQUERY__CREDENTIALS__PRIVATE_KEY
 DESTINATION__BIGQUERY__CREDENTIALS__CLIENT_EMAIL
 DESTINATION__BIGQUERY__LOCATION
 ```
-### Configuring destination credentials in code
-
-If you need to manage destination credentials programmatically, such as retrieving them from environment variables, you can define them directly in your pipeline code. 
-
-The following example demonstrates how to use `GcpServiceAccountCredentials` to set up a pipeline with a BigQuery destination.
-
-```py
-import os
-
-import dlt
-from dlt.sources.credentials import GcpServiceAccountCredentials
-from dlt.destinations import bigquery
-
-# Retrieve credentials from the environment variable
-creds_dict = os.getenv('BIGQUERY_CREDENTIALS')
-
-# Create credentials instance and parse them from a native representation
-gcp_credentials = GcpServiceAccountCredentials()
-gcp_credentials.parse_native_representation(creds_dict)
-
-# Pass the credentials to the BigQuery destination
-pipeline = dlt.pipeline(destination=bigquery(credentials=gcp_credentials))
-pipeline.run([{"key1": "value1"}], table_name="temp")
-```
-
-In the example above, we retrieve service account credentials using `os.getenv`, parse them, and attach them to the pipeline's destination.
-
-For more details on GCP credentials, see [our documentation.](../general-usage/credentials/complex_types#gcp-credentials)
 
 ## Retrieving credentials from Google Cloud Secret Manager
 
