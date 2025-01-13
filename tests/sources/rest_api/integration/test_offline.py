@@ -100,9 +100,135 @@ def test_load_mock_api(mock_api_server):
     )
 
 
+def test_load_mock_api_with_query_params(mock_api_server):
+    pipeline = dlt.pipeline(
+        pipeline_name="rest_api_mock",
+        destination="duckdb",
+        dataset_name="rest_api_mock",
+        full_refresh=True,
+    )
+
+    mock_source = rest_api_source(
+        {
+            "client": {"base_url": "https://api.example.com"},
+            "resources": [
+                "posts",
+                {
+                    "name": "post_details",
+                    "endpoint": {
+                        "path": "posts",
+                        "params": {
+                            "post_id": {
+                                "type": "resolve",
+                                "resource": "posts",
+                                "field": "id",
+                            }
+                        },
+                    },
+                },
+            ],
+        }
+    )
+
+    load_info = pipeline.run(mock_source)
+    print(load_info)
+    assert_load_info(load_info)
+    table_names = [t["name"] for t in pipeline.default_schema.data_tables()]
+    table_counts = load_table_counts(pipeline, *table_names)
+
+    assert table_counts.keys() == {"posts", "post_details"}
+
+    assert table_counts["posts"] == DEFAULT_PAGE_SIZE * DEFAULT_TOTAL_PAGES
+    assert table_counts["post_details"] == DEFAULT_PAGE_SIZE * DEFAULT_TOTAL_PAGES
+
+    with pipeline.sql_client() as client:
+        posts_table = client.make_qualified_table_name("posts")
+        posts_details_table = client.make_qualified_table_name("post_details")
+
+    print(pipeline.default_schema.to_pretty_yaml())
+
+    assert_query_data(
+        pipeline,
+        f"SELECT title FROM {posts_table} ORDER BY id limit 25",
+        [f"Post {i}" for i in range(25)],
+    )
+
+    assert_query_data(
+        pipeline,
+        f"SELECT body FROM {posts_details_table} ORDER BY id limit 25",
+        [f"Post body {i}" for i in range(25)],
+    )
+
+
+def test_load_mock_api_with_json_resolved(mock_api_server):
+    pipeline = dlt.pipeline(
+        pipeline_name="rest_api_mock",
+        destination="duckdb",
+        dataset_name="rest_api_mock",
+        full_refresh=True,
+    )
+
+    mock_source = rest_api_source(
+        {
+            "client": {"base_url": "https://api.example.com"},
+            "resources": [
+                "posts",
+                {
+                    "name": "post_details",
+                    "endpoint": {
+                        "path": "posts/search_by_id",
+                        "method": "POST",
+                        "json": {
+                            "post_id": "{post_id}",
+                        },
+                        "params": {
+                            "post_id": {
+                                "type": "resolve",
+                                "resource": "posts",
+                                "field": "id",
+                            }
+                        },
+                    },
+                },
+            ],
+        }
+    )
+
+    load_info = pipeline.run(mock_source)
+    print(load_info)
+    assert_load_info(load_info)
+    table_names = [t["name"] for t in pipeline.default_schema.data_tables()]
+    table_counts = load_table_counts(pipeline, *table_names)
+
+    assert table_counts.keys() == {"posts", "post_details"}
+
+    assert table_counts["posts"] == DEFAULT_PAGE_SIZE * DEFAULT_TOTAL_PAGES
+    assert table_counts["post_details"] == DEFAULT_PAGE_SIZE * DEFAULT_TOTAL_PAGES
+
+    with pipeline.sql_client() as client:
+        posts_table = client.make_qualified_table_name("posts")
+        posts_details_table = client.make_qualified_table_name("post_details")
+
+    print(pipeline.default_schema.to_pretty_yaml())
+
+    assert_query_data(
+        pipeline,
+        f"SELECT title FROM {posts_table} ORDER BY id limit 25",
+        [f"Post {i}" for i in range(25)],
+    )
+
+    assert_query_data(
+        pipeline,
+        f"SELECT body FROM {posts_details_table} ORDER BY id limit 25",
+        [f"Post body {i}" for i in range(25)],
+    )
+
+
 def test_source_with_post_request(mock_api_server):
     class JSONBodyPageCursorPaginator(BaseReferencePaginator):
-        def update_state(self, response: Response, data: Optional[List[Any]] = None) -> None:
+        def update_state(
+            self, response: Response, data: Optional[List[Any]] = None
+        ) -> None:
             self._next_reference = response.json().get("next_page")
 
         def update_request(self, request: Request) -> None:
@@ -120,7 +246,11 @@ def test_source_with_post_request(mock_api_server):
                     "endpoint": {
                         "path": "/posts/search",
                         "method": "POST",
-                        "json": {"ids_greater_than": 50, "page_size": 25, "page_count": 4},
+                        "json": {
+                            "ids_greater_than": 50,
+                            "page_size": 25,
+                            "page_count": 4,
+                        },
                         "paginator": JSONBodyPageCursorPaginator(),
                     },
                 }
