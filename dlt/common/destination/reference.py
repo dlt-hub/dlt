@@ -223,6 +223,7 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
 
     @classmethod
     def register(cls, destination_name: str) -> None:
+        """Registers this factory class under `destination_name`. Optionally uses other context."""
         cls.CONTEXT = Container()[PluggableRunContext].context
         ref = f"{cls.CONTEXT.name}.{destination_name}"
         if ref in cls.DESTINATIONS:
@@ -311,13 +312,16 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
                 try:
                     module_path, attr_name = possible_type.rsplit(".", 1)
                     dest_module = import_module(module_path)
-                except ModuleNotFoundError as e:
-                    raise UnknownDestinationModule(ref) from e
+                except ModuleNotFoundError:
+                    continue
+
                 try:
                     factory = getattr(dest_module, attr_name)
                 except AttributeError as e:
                     raise UnknownDestinationModule(ref) from e
                 break
+        if not factory:
+            raise UnknownDestinationModule(ref)
 
         if credentials:
             kwargs["credentials"] = credentials

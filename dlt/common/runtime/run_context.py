@@ -47,27 +47,7 @@ class RunContext(SupportsRunContext):
 
     @property
     def data_dir(self) -> str:
-        """Gets default directory where pipelines' data (working directories) will be stored
-        1. if DLT_DATA_DIR is set in env then it is used
-        2. in user home directory: ~/.dlt/
-        3. if current user is root: in /var/dlt/
-        4. if current user does not have a home directory: in /tmp/dlt/
-        """
-        if known_env.DLT_DATA_DIR in os.environ:
-            return os.environ[known_env.DLT_DATA_DIR]
-
-        # geteuid not available on Windows
-        if hasattr(os, "geteuid") and os.geteuid() == 0:
-            # we are root so use standard /var
-            return os.path.join("/var", "dlt")
-
-        home = os.path.expanduser("~")
-        if home is None or not is_folder_writable(home):
-            # no home dir - use temp
-            return os.path.join(tempfile.gettempdir(), "dlt")
-        else:
-            # if home directory is available use ~/.dlt/pipelines
-            return os.path.join(home, DOT_DLT)
+        return global_dir()
 
     def initial_providers(self) -> List[ConfigProvider]:
         providers = [
@@ -116,6 +96,30 @@ def plug_run_context_impl(
     run_dir: Optional[str], runtime_kwargs: Optional[Dict[str, Any]]
 ) -> SupportsRunContext:
     return RunContext(run_dir)
+
+
+def global_dir() -> str:
+    """Gets default directory where pipelines' data (working directories) will be stored
+    1. if DLT_DATA_DIR is set in env then it is used
+    2. in user home directory: ~/.dlt/
+    3. if current user is root: in /var/dlt/
+    4. if current user does not have a home directory: in /tmp/dlt/
+    """
+    if known_env.DLT_DATA_DIR in os.environ:
+        return os.environ[known_env.DLT_DATA_DIR]
+
+    # geteuid not available on Windows
+    if hasattr(os, "geteuid") and os.geteuid() == 0:
+        # we are root so use standard /var
+        return os.path.join("/var", "dlt")
+
+    home = os.path.expanduser("~")
+    if home is None or not is_folder_writable(home):
+        # no home dir - use temp
+        return os.path.join(tempfile.gettempdir(), "dlt")
+    else:
+        # if home directory is available use ~/.dlt/pipelines
+        return os.path.join(home, DOT_DLT)
 
 
 def is_folder_writable(path: str) -> bool:
