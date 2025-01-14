@@ -1,5 +1,7 @@
 from typing import Any, Callable, Dict, List
 
+import pytest
+
 import dlt
 from dlt.sources.rest_api import RESTAPIConfig, rest_api_source
 
@@ -165,7 +167,23 @@ def test_rest_api_source_filter_and_map(mock_api_server) -> None:
     assert data[0]["title"] == "Post 10"
 
 
-def test_rest_api_source_filtered_child(mock_api_server) -> None:
+@pytest.mark.parametrize(
+    "comments_endpoint",
+    [
+        {
+            "path": "/posts/{post_id}/comments",
+            "params": {
+                "post_id": {
+                    "type": "resolve",
+                    "resource": "posts",
+                    "field": "id",
+                }
+            },
+        },
+        "posts/{resources.posts.id}/comments",
+    ],
+)
+def test_rest_api_source_filtered_child(mock_api_server, comments_endpoint) -> None:
     config: RESTAPIConfig = {
         "client": {
             "base_url": "https://api.example.com",
@@ -180,16 +198,7 @@ def test_rest_api_source_filtered_child(mock_api_server) -> None:
             },
             {
                 "name": "comments",
-                "endpoint": {
-                    "path": "/posts/{post_id}/comments",
-                    "params": {
-                        "post_id": {
-                            "type": "resolve",
-                            "resource": "posts",
-                            "field": "id",
-                        }
-                    },
-                },
+                "endpoint": comments_endpoint,
                 "processing_steps": [
                     {"filter": lambda x: x["id"] == 1},  # type: ignore[typeddict-item]
                 ],
@@ -202,37 +211,23 @@ def test_rest_api_source_filtered_child(mock_api_server) -> None:
     assert len(data) == 2
 
 
-def test_rest_api_source_filtered_child_with_implicit_param(mock_api_server) -> None:
-    config: RESTAPIConfig = {
-        "client": {
-            "base_url": "https://api.example.com",
+@pytest.mark.parametrize(
+    "comments_endpoint",
+    [
+        {
+            "path": "/posts/{post_id}/comments",
+            "params": {
+                "post_id": {
+                    "type": "resolve",
+                    "resource": "posts",
+                    "field": "id",
+                }
+            },
         },
-        "resources": [
-            {
-                "name": "posts",
-                "endpoint": "posts",
-                "processing_steps": [
-                    {"filter": lambda x: x["id"] in (1, 2)},  # type: ignore[typeddict-item]
-                ],
-            },
-            {
-                "name": "comments",
-                "endpoint": {
-                    "path": "/posts/{resources.posts.id}/comments",
-                },
-                "processing_steps": [
-                    {"filter": lambda x: x["id"] == 1},  # type: ignore[typeddict-item]
-                ],
-            },
-        ],
-    }
-    mock_source = rest_api_source(config)
-
-    data = list(mock_source.with_resources("comments"))
-    assert len(data) == 2
-
-
-def test_rest_api_source_filtered_and_map_child(mock_api_server) -> None:
+        "posts/{resources.posts.id}/comments",
+    ],
+)
+def test_rest_api_source_filtered_and_map_child(mock_api_server, comments_endpoint) -> None:
     def extend_body(row):
         row["body"] = f"{row['_posts_title']} - {row['body']}"
         return row
@@ -251,54 +246,7 @@ def test_rest_api_source_filtered_and_map_child(mock_api_server) -> None:
             },
             {
                 "name": "comments",
-                "endpoint": {
-                    "path": "/posts/{post_id}/comments",
-                    "params": {
-                        "post_id": {
-                            "type": "resolve",
-                            "resource": "posts",
-                            "field": "id",
-                        }
-                    },
-                },
-                "include_from_parent": ["title"],
-                "processing_steps": [
-                    {"map": extend_body},  # type: ignore[typeddict-item]
-                    {"filter": lambda x: x["body"].startswith("Post 2")},  # type: ignore[typeddict-item]
-                ],
-            },
-        ],
-    }
-    mock_source = rest_api_source(config)
-
-    data = list(mock_source.with_resources("comments"))
-    assert data[0]["body"] == "Post 2 - Comment 0 for post 2"
-
-
-def test_rest_api_source_filtered_and_map_child_with_implicit_param(
-    mock_api_server,
-) -> None:
-    def extend_body(row):
-        row["body"] = f"{row['_posts_title']} - {row['body']}"
-        return row
-
-    config: RESTAPIConfig = {
-        "client": {
-            "base_url": "https://api.example.com",
-        },
-        "resources": [
-            {
-                "name": "posts",
-                "endpoint": "posts",
-                "processing_steps": [
-                    {"filter": lambda x: x["id"] in (1, 2)},  # type: ignore[typeddict-item]
-                ],
-            },
-            {
-                "name": "comments",
-                "endpoint": {
-                    "path": "/posts/{resources.posts.id}/comments",
-                },
+                "endpoint": comments_endpoint,
                 "include_from_parent": ["title"],
                 "processing_steps": [
                     {"map": extend_body},  # type: ignore[typeddict-item]

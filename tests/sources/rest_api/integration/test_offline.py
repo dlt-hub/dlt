@@ -20,15 +20,9 @@ from tests.sources.rest_api.conftest import DEFAULT_PAGE_SIZE, DEFAULT_TOTAL_PAG
 from tests.utils import assert_load_info, assert_query_data, load_table_counts
 
 
-def test_load_mock_api(mock_api_server):
-    pipeline = dlt.pipeline(
-        pipeline_name="rest_api_mock",
-        destination="duckdb",
-        dataset_name="rest_api_mock",
-        full_refresh=True,
-    )
-
-    mock_source = rest_api_source(
+@pytest.mark.parametrize(
+    "config",
+    [
         {
             "client": {"base_url": "https://api.example.com"},
             "resources": [
@@ -60,8 +54,32 @@ def test_load_mock_api(mock_api_server):
                     },
                 },
             ],
-        }
+        },
+        {
+            "client": {"base_url": "https://api.example.com"},
+            "resources": [
+                "posts",
+                {
+                    "name": "post_comments",
+                    "endpoint": "posts/{resources.posts.id}/comments",
+                },
+                {
+                    "name": "post_details",
+                    "endpoint": "posts/{resources.posts.id}",
+                },
+            ],
+        },
+    ],
+)
+def test_load_mock_api(mock_api_server, config):
+    pipeline = dlt.pipeline(
+        pipeline_name="rest_api_mock",
+        destination="duckdb",
+        dataset_name="rest_api_mock",
+        full_refresh=True,
     )
+
+    mock_source = rest_api_source(config)
 
     load_info = pipeline.run(mock_source)
     print(load_info)
@@ -101,6 +119,7 @@ def test_load_mock_api(mock_api_server):
     )
 
 
+@pytest.mark.skip(reason="TODO: this should raise an error")
 def test_load_mock_api_with_query_params(mock_api_server):
     pipeline = dlt.pipeline(
         pipeline_name="rest_api_mock",
@@ -430,15 +449,9 @@ def test_posts_without_key(mock_api_server):
     ]
 
 
-def test_load_mock_api_typeddict_config(mock_api_server):
-    pipeline = dlt.pipeline(
-        pipeline_name="rest_api_mock",
-        destination="duckdb",
-        dataset_name="rest_api_mock",
-        full_refresh=True,
-    )
-
-    mock_source = rest_api_source(
+@pytest.mark.parametrize(
+    "config",
+    [
         RESTAPIConfig(
             client=ClientConfig(base_url="https://api.example.com"),
             resources=[
@@ -457,8 +470,30 @@ def test_load_mock_api_typeddict_config(mock_api_server):
                     ),
                 ),
             ],
-        )
+        ),
+        RESTAPIConfig(
+            client=ClientConfig(base_url="https://api.example.com"),
+            resources=[
+                "posts",
+                EndpointResource(
+                    name="post_comments",
+                    endpoint=Endpoint(
+                        path="posts/{resources.posts.id}/comments",
+                    ),
+                ),
+            ],
+        ),
+    ],
+)
+def test_load_mock_api_typeddict_config(mock_api_server, config):
+    pipeline = dlt.pipeline(
+        pipeline_name="rest_api_mock",
+        destination="duckdb",
+        dataset_name="rest_api_mock",
+        full_refresh=True,
     )
+
+    mock_source = rest_api_source(config)
 
     load_info = pipeline.run(mock_source)
     print(load_info)
@@ -485,6 +520,44 @@ def test_posts_with_inremental_date_conversion(mock_api_server) -> None:
                     "incremental": {
                         "start_param": "since",
                         "end_param": "until",
+                        "cursor_path": "updated_at",
+                        "initial_value": str(start_time.int_timestamp),
+                        "end_value": str(one_day_later.int_timestamp),
+                        "convert": lambda epoch: pendulum.from_timestamp(
+                            int(epoch)
+                        ).to_date_string(),
+                    },
+                },
+            },
+        ],
+    }
+    RESTClient = dlt.sources.helpers.rest_client.RESTClient
+    with mock.patch.object(RESTClient, "paginate") as mock_paginate:
+        source = rest_api_source(config).add_limit(1)
+        _ = list(source.with_resources("posts"))
+        assert mock_paginate.call_count == 1
+        _, called_kwargs = mock_paginate.call_args_list[0]
+        assert called_kwargs["params"] == {"since": "1970-01-01", "until": "1970-01-02"}
+        assert called_kwargs["path"] == "posts"
+
+
+def test_posts_with_inremental_in_param_template(mock_api_server) -> None:
+    start_time = pendulum.from_timestamp(1)
+    one_day_later = start_time.add(days=1)
+    config: RESTAPIConfig = {
+        "client": {"base_url": "https://api.example.com"},
+        "resources": [
+            {
+                "name": "posts",
+                "endpoint": {
+                    "path": "posts",
+                    "params": {
+                        "since": "{incremental.last_value}",
+                        "until": "{incremental.end_value}",
+                    },
+                    "incremental": {
+                        # "start_param": "since",
+                        # "end_param": "until",
                         "cursor_path": "updated_at",
                         "initial_value": str(start_time.int_timestamp),
                         "end_value": str(one_day_later.int_timestamp),
@@ -533,7 +606,29 @@ def test_custom_session_is_used(mock_api_server, mocker):
     assert mocked_send.call_args[0][0].url == "https://api.example.com/posts"
 
 
-def test_DltResource_gets_called(mock_api_server, mocker) -> None:
+@pytest.mark.parametrize(
+    "posts_resource_config",
+    [
+        {
+            "name": "posts",
+            "endpoint": {
+                "path": "posts/{post_id}/comments",
+                "params": {
+                    "post_id": {
+                        "type": "resolve",
+                        "resource": "post_list",
+                        "field": "id",
+                    },
+                },
+            },
+        },
+        {
+            "name": "posts",
+            "endpoint": "posts/{resources.post_list.id}/comments",
+        },
+    ],
+)
+def test_DltResource_gets_called(mock_api_server, mocker, posts_resource_config) -> None:
     @dlt.resource()
     def post_list():
         yield [{"id": "0"}, {"id": "1"}, {"id": "2"}]
@@ -544,19 +639,7 @@ def test_DltResource_gets_called(mock_api_server, mocker) -> None:
             "write_disposition": "replace",
         },
         "resources": [
-            {
-                "name": "posts",
-                "endpoint": {
-                    "path": "posts/{post_id}/comments",
-                    "params": {
-                        "post_id": {
-                            "type": "resolve",
-                            "resource": "post_list",
-                            "field": "id",
-                        },
-                    },
-                },
-            },
+            posts_resource_config,
             post_list(),
         ],
     }

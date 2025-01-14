@@ -75,18 +75,10 @@ def github_source(access_token: Optional[str] = dlt.secrets.value) -> Any:
             {
                 "name": "issue_comments",
                 "endpoint": {
-                    # The placeholder {issue_number} will be resolved
-                    # from the parent resource
-                    "path": "issues/{issue_number}/comments",
-                    "params": {
-                        # The value of `issue_number` will be taken
-                        # from the `number` field in the `issues` resource
-                        "issue_number": {
-                            "type": "resolve",
-                            "resource": "issues",
-                            "field": "number",
-                        }
-                    },
+                    # The placeholder `{resources.issues.number}`
+                    # will be replaced with the value of `number` field
+                    # in the `issues` resource data
+                    "path": "issues/{resources.issues.number}/comments",
                 },
                 # Include data from `id` field of the parent resource
                 # in the child data. The field name in the child data

@@ -82,71 +82,100 @@ def test_bind_path_param() -> None:
 
 
 def test_process_parent_data_item() -> None:
-    resolve_params = [
+    resolved_params = [
         ResolvedParam("id", {"field": "obj_id", "resource": "issues", "type": "resolve"})
     ]
 
-    bound_path, parent_record, params_values, request_json = process_parent_data_item(
+    bound_path, expanded_params, request_json, parent_record = process_parent_data_item(
         path="dlt-hub/dlt/issues/{id}/comments",
         item={"obj_id": 12345},
-        resolved_params=resolve_params,
+        resolved_params=resolved_params,
         include_from_parent=None,
     )
     assert bound_path == "dlt-hub/dlt/issues/12345/comments"
+    assert expanded_params == {}
     assert parent_record == {}
 
-    bound_path, parent_record, params_values, request_json = process_parent_data_item(
+    bound_path, expanded_params, request_json, parent_record = process_parent_data_item(
         path="dlt-hub/dlt/issues/{id}/comments",
         item={"obj_id": 12345},
-        resolved_params=resolve_params,
+        resolved_params=resolved_params,
         include_from_parent=["obj_id"],
     )
     assert parent_record == {"_issues_obj_id": 12345}
 
-    bound_path, parent_record, params_values, request_json = process_parent_data_item(
+    bound_path, expanded_params, request_json, parent_record = process_parent_data_item(
         path="dlt-hub/dlt/issues/{id}/comments",
         item={"obj_id": 12345, "obj_node": "node_1"},
-        resolved_params=resolve_params,
+        resolved_params=resolved_params,
         include_from_parent=["obj_id", "obj_node"],
     )
     assert parent_record == {"_issues_obj_id": 12345, "_issues_obj_node": "node_1"}
 
-    # test nested data
-    resolve_param_nested = [
+    # Test resource field reference in path
+    resolved_params_reference = [
+        ResolvedParam(
+            "resources.issues.obj_id", {"field": "obj_id", "resource": "issues", "type": "resolve"}
+        )
+    ]
+    bound_path, expanded_params, request_json, parent_record = process_parent_data_item(
+        path="dlt-hub/dlt/issues/{resources.issues.obj_id}/comments",
+        item={"obj_id": 12345, "obj_node": "node_1"},
+        resolved_params=resolved_params_reference,
+        include_from_parent=["obj_id", "obj_node"],
+    )
+    assert bound_path == "dlt-hub/dlt/issues/12345/comments"
+
+    # Test resource field reference in params
+    bound_path, expanded_params, request_json, parent_record = process_parent_data_item(
+        path="dlt-hub/dlt/issues/comments",
+        item={"obj_id": 12345, "obj_node": "node_1"},
+        params={"id": "{resources.issues.obj_id}"},
+        resolved_params=resolved_params_reference,
+        include_from_parent=["obj_id", "obj_node"],
+    )
+    assert bound_path == "dlt-hub/dlt/issues/comments"
+    assert expanded_params == {"id": "12345"}
+
+    # Test nested data
+    resolved_param_nested = [
         ResolvedParam(
             "id",
             {"field": "some_results.obj_id", "resource": "issues", "type": "resolve"},
         )
     ]
     item = {"some_results": {"obj_id": 12345}}
-    bound_path, parent_record, params_values, request_json = process_parent_data_item(
+    bound_path, expanded_params, request_json, parent_record = process_parent_data_item(
         path="dlt-hub/dlt/issues/{id}/comments",
         item=item,
-        resolved_params=resolve_param_nested,
+        params={},
+        resolved_params=resolved_param_nested,
         include_from_parent=None,
     )
     assert bound_path == "dlt-hub/dlt/issues/12345/comments"
 
-    # param path not found
+    # Param path not found
     with pytest.raises(ValueError) as val_ex:
-        bound_path, parent_record, params_values, request_json = process_parent_data_item(
+        process_parent_data_item(
             path="dlt-hub/dlt/issues/{id}/comments",
             item={"_id": 12345},
-            resolved_params=resolve_params,
+            params={},
+            resolved_params=resolved_params,
             include_from_parent=None,
         )
-    assert "Transformer expects a field 'obj_id'" in str(val_ex.value)
+    assert "Resource expects a field 'obj_id'" in str(val_ex.value)
 
-    # included path not found
+    # Included path not found
     with pytest.raises(ValueError) as val_ex:
-        bound_path, parent_record, params_values, request_json = process_parent_data_item(
+        process_parent_data_item(
             path="dlt-hub/dlt/issues/{id}/comments",
             item={"_id": 12345, "obj_node": "node_1"},
-            resolved_params=resolve_params,
+            params={},
+            resolved_params=resolved_params,
             include_from_parent=["obj_id", "node"],
         )
     assert (
-        "Transformer expects a field 'obj_id' to be present in the incoming data from resource"
+        "Resource expects a field 'obj_id' to be present in the incoming data from resource"
         " issues in order to bind it to"
         in str(val_ex.value)
     )
@@ -157,27 +186,30 @@ def test_process_parent_data_item() -> None:
         ResolvedParam("id", {"field": "id", "resource": "comments", "type": "resolve"}),
     ]
 
-    bound_path, parent_record, params_values, request_json = process_parent_data_item(
+    bound_path, expanded_params, request_json, parent_record = process_parent_data_item(
         path="dlt-hub/dlt/issues/{issue_id}/comments/{id}",
         item={"issue": 12345, "id": 56789},
+        params={},
         resolved_params=multi_resolve_params,
         include_from_parent=None,
     )
     assert bound_path == "dlt-hub/dlt/issues/12345/comments/56789"
     assert parent_record == {}
 
-    # param path not found with multiple parameters
+    # Param path not found with multiple parameters
     with pytest.raises(ValueError) as val_ex:
-        bound_path, parent_record, params_values, request_json = process_parent_data_item(
+        process_parent_data_item(
             path="dlt-hub/dlt/issues/{issue_id}/comments/{id}",
             item={"_issue": 12345, "id": 56789},
+            params={},
             resolved_params=multi_resolve_params,
             include_from_parent=None,
         )
-    assert "Transformer expects a field 'issue'" in str(val_ex.value)
+    assert "Resource expects a field 'issue'" in str(val_ex.value)
 
 
 def test_two_resources_can_depend_on_one_parent_resource() -> None:
+    # Using resolve syntax
     user_id = {
         "user_id": {
             "type": "resolve",
@@ -211,9 +243,8 @@ def test_two_resources_can_depend_on_one_parent_resource() -> None:
     assert resources["meetings"]._pipe.parent.name == "users"
     assert resources["user_details"]._pipe.parent.name == "users"
 
-
-def test_dependent_resource_can_bind_multiple_parameters() -> None:
-    config: RESTAPIConfig = {
+    # Using resource field reference syntax
+    config_with_ref: RESTAPIConfig = {
         "client": {
             "base_url": "https://api.example.com",
         },
@@ -222,104 +253,218 @@ def test_dependent_resource_can_bind_multiple_parameters() -> None:
             {
                 "name": "user_details",
                 "endpoint": {
-                    "path": "user/{user_id}/{group_id}",
-                    "params": {
-                        "user_id": {
-                            "type": "resolve",
-                            "field": "id",
-                            "resource": "users",
-                        },
-                        "group_id": {
-                            "type": "resolve",
-                            "field": "group",
-                            "resource": "users",
-                        },
-                    },
-                },
-            },
-        ],
-    }
-
-    resources = rest_api_source(config).resources
-    assert resources["user_details"]._pipe.parent.name == "users"
-
-
-def test_one_resource_cannot_bind_two_parents() -> None:
-    config: RESTAPIConfig = {
-        "client": {
-            "base_url": "https://api.example.com",
-        },
-        "resources": [
-            "users",
-            "groups",
-            {
-                "name": "user_details",
-                "endpoint": {
-                    "path": "user/{user_id}/{group_id}",
-                    "params": {
-                        "user_id": {
-                            "type": "resolve",
-                            "field": "id",
-                            "resource": "users",
-                        },
-                        "group_id": {
-                            "type": "resolve",
-                            "field": "id",
-                            "resource": "groups",
-                        },
-                    },
-                },
-            },
-        ],
-    }
-
-    with pytest.raises(ValueError) as e:
-        rest_api_resources(config)
-
-    error_part_1 = re.escape(
-        "Multiple parent resources for user_details: [ResolvedParam(param_name='user_id'"
-    )
-    error_part_2 = re.escape("ResolvedParam(param_name='group_id'")
-    assert e.match(error_part_1)
-    assert e.match(error_part_2)
-
-
-def test_resource_dependent_dependent() -> None:
-    config: RESTAPIConfig = {
-        "client": {
-            "base_url": "https://api.example.com",
-        },
-        "resources": [
-            "locations",
-            {
-                "name": "location_details",
-                "endpoint": {
-                    "path": "location/{location_id}",
-                    "params": {
-                        "location_id": {
-                            "type": "resolve",
-                            "field": "id",
-                            "resource": "locations",
-                        },
-                    },
+                    "path": "user/{resources.users.id}/",
                 },
             },
             {
                 "name": "meetings",
                 "endpoint": {
-                    "path": "/meetings/{room_id}",
-                    "params": {
-                        "room_id": {
-                            "type": "resolve",
-                            "field": "room_id",
-                            "resource": "location_details",
-                        },
-                    },
+                    "path": "meetings/{resources.users.id}/",
                 },
             },
         ],
     }
+    resources = rest_api_source(config_with_ref).resources
+    assert resources["meetings"]._pipe.parent.name == "users"
+    assert resources["user_details"]._pipe.parent.name == "users"
 
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        {
+            "client": {
+                "base_url": "https://api.example.com",
+            },
+            "resources": [
+                "users",
+                {
+                    "name": "user_details",
+                    "endpoint": {
+                        "path": "user/{user_id}/{group_id}",
+                        "params": {
+                            "user_id": {
+                                "type": "resolve",
+                                "field": "id",
+                                "resource": "users",
+                            },
+                            "group_id": {
+                                "type": "resolve",
+                                "field": "group",
+                                "resource": "users",
+                            },
+                        },
+                    },
+                },
+            ],
+        },
+        {
+            "client": {
+                "base_url": "https://api.example.com",
+            },
+            "resources": [
+                "users",
+                {
+                    "name": "user_details",
+                    "endpoint": {
+                        "path": "user/{resources.users.id}/{resources.users.group}",
+                    },
+                },
+            ],
+        },
+    ],
+)
+def test_dependent_resource_can_bind_multiple_parameters(config: RESTAPIConfig) -> None:
+    resources = rest_api_source(config).resources
+    assert resources["user_details"]._pipe.parent.name == "users"
+
+
+@pytest.mark.parametrize(
+    "config,resolved_param1,resolved_param2",
+    [
+        (
+            {
+                "client": {
+                    "base_url": "https://api.example.com",
+                },
+                "resources": [
+                    "users",
+                    "groups",
+                    {
+                        "name": "user_details",
+                        "endpoint": {
+                            "path": "user/{user_id}/{group_id}",
+                            "params": {
+                                "user_id": {
+                                    "type": "resolve",
+                                    "field": "id",
+                                    "resource": "users",
+                                },
+                                "group_id": {
+                                    "type": "resolve",
+                                    "field": "id",
+                                    "resource": "groups",
+                                },
+                            },
+                        },
+                    },
+                ],
+            },
+            "ResolvedParam(param_name='user_id'",
+            "ResolvedParam(param_name='group_id'",
+        ),
+        (
+            {
+                "client": {
+                    "base_url": "https://api.example.com",
+                },
+                "resources": [
+                    "users",
+                    "groups",
+                    {
+                        "name": "user_details",
+                        "endpoint": {
+                            "path": "user/{resources.users.id}/{resources.groups.id}",
+                        },
+                    },
+                ],
+            },
+            "ResolvedParam(param_name='resources.users.id'",
+            "ResolvedParam(param_name='resources.groups.id'",
+        ),
+    ],
+)
+def test_one_resource_cannot_bind_two_parents(
+    config: RESTAPIConfig, resolved_param1: str, resolved_param2: str
+) -> None:
+    with pytest.raises(ValueError) as exc_info:
+        rest_api_resources(config)
+
+    error_msg = str(exc_info.value)
+    assert "Multiple parent resources for user_details:" in error_msg
+    assert resolved_param1 in error_msg, f"{resolved_param1} not found in {error_msg}"
+    assert resolved_param2 in error_msg, f"{resolved_param2} not found in {error_msg}"
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        # Using resolve syntax
+        {
+            "client": {
+                "base_url": "https://api.example.com",
+            },
+            "resources": [
+                "locations",
+                {
+                    "name": "location_details",
+                    "endpoint": {
+                        "path": "location/{location_id}",
+                        "params": {
+                            "location_id": {
+                                "type": "resolve",
+                                "field": "id",
+                                "resource": "locations",
+                            },
+                        },
+                    },
+                },
+                {
+                    "name": "meetings",
+                    "endpoint": {
+                        "path": "/meetings/{room_id}",
+                        "params": {
+                            "room_id": {
+                                "type": "resolve",
+                                "field": "room_id",
+                                "resource": "location_details",
+                            },
+                        },
+                    },
+                },
+            ],
+        },
+        # Using resource field reference syntax
+        {
+            "client": {
+                "base_url": "https://api.example.com",
+            },
+            "resources": [
+                "locations",
+                {
+                    "name": "location_details",
+                    "endpoint": {
+                        "path": "location/{resources.locations.id}",
+                    },
+                },
+                {
+                    "name": "meetings",
+                    "endpoint": {
+                        "path": "/meetings/{resources.location_details.room_id}",
+                    },
+                },
+            ],
+        },
+        # Using shorter syntax with string endpoints
+        {
+            "client": {
+                "base_url": "https://api.example.com",
+            },
+            "resources": [
+                "locations",
+                {
+                    "name": "location_details",
+                    "endpoint": "location/{resources.locations.id}",
+                },
+                {
+                    "name": "meetings",
+                    "endpoint": "/meetings/{resources.location_details.room_id}",
+                },
+            ],
+        },
+    ],
+)
+def test_resource_dependent_dependent(config: RESTAPIConfig) -> None:
     resources = rest_api_source(config).resources
     assert resources["meetings"]._pipe.parent.name == "location_details"
     assert resources["location_details"]._pipe.parent.name == "locations"
