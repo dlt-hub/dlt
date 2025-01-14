@@ -131,15 +131,13 @@ def merge_delta_table(
         else:
             primary_keys = get_columns_names_with_prop(schema, "primary_key")
             predicate = " AND ".join([f"target.{c} = source.{c}" for c in primary_keys])
-            
         dedup_tuple = get_dedup_sort_tuple(schema)
         if dedup_tuple:
             dedup_column, dedup_sort = dedup_tuple
             dedup_operator = ">" if dedup_sort == "desc" else "<"
             dedup_query = f"target.{dedup_column} {dedup_operator} source.{dedup_column}"
         else:
-            dedup_query = None
-            
+            dedup_query = None            
         partition_by = get_columns_names_with_prop(schema, "partition")
         qry = (
             table.merge(
