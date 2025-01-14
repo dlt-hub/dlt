@@ -10,5 +10,6 @@ def menu(pipeline: dlt.Pipeline) -> None:
     mode_selector()
     logo()
     st.page_link(f"{HERE}/pages/dashboard.py", label="Explore data", icon="🕹️")
+    st.page_link(f"{HERE}/pages/explorer.py", label="Visualize data", icon="📊")
     st.page_link(f"{HERE}/pages/load_info.py", label="Load info", icon="💾")
     pipeline_summary(pipeline)
