@@ -7,6 +7,7 @@ import shutil
 import importlib
 
 from dlt.common.configuration.container import Container
+from dlt.common.configuration.specs.pluggable_run_context import PluggableRunContext
 from dlt.common.runners import Venv
 from dlt.common.configuration import plugins
 from dlt.common.runtime import run_context
@@ -31,8 +32,11 @@ def plugin_install():
         raise
     sys.path.insert(0, temp_dir)
 
-    # remove current plugin manager
+    # remove current plugin manager and run context
+    # NOTE: new run context reloads plugin manager
     container = Container()
+    if PluggableRunContext in container:
+        del container[PluggableRunContext]
     if plugins.PluginContext in container:
         del container[plugins.PluginContext]
 
@@ -52,6 +56,13 @@ def test_example_plugin() -> None:
     context = run_context.current()
     assert context.name == "dlt-test"
     assert context.data_dir == os.path.abspath(TEST_STORAGE_ROOT)
+
+
+def test_plugin_execution_context() -> None:
+    from dlt.common.runtime.exec_info import get_execution_context
+
+    context = get_execution_context()
+    assert context["run_context"] == "dlt-test"
 
 
 def test_cli_hook(script_runner: ScriptRunner) -> None:

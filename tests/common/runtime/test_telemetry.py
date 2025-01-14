@@ -171,10 +171,13 @@ def test_track_anon_event(
     # verify context
     context = event["context"]
     assert context["library"] == {"name": DLT_PKG_NAME, "version": __version__}
+    # we assume plus is not installed
+    assert "plus" not in context
     assert isinstance(context["cpu"], int)
     assert isinstance(context["ci_run"], bool)
     assert isinstance(context["exec_info"], list)
     assert ["kubernetes", "codespaces"] <= context["exec_info"]
+    assert context["run_context"] == "dlt"
 
 
 def test_cleanup(environment: DictStrStr) -> None:
