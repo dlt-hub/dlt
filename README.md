@@ -24,6 +24,9 @@ Be it a Google Colab notebook, AWS Lambda function, an Airflow DAG, your local l
   <a target="_blank" href="https://pypi.org/project/dlt/" style="background:none">
     <img src="https://img.shields.io/pypi/pyversions/dlt?labelColor=191937&color=6F6FF7">
   </a>
+  <a target="_blank" href="https://pypi.org/project/dlt/" style="background:none">
+    <img src="https://img.shields.io/pypi/dm/dlt?labelColor=191937&color=6F6FF7">
+  </a>
 </div>
 
 ## Installation
