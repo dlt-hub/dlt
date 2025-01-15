@@ -5,7 +5,7 @@ from dlt.common.typing import TSecretStrValue
 from dlt.common.configuration.specs.base_configuration import CredentialsConfiguration, configspec
 from dlt.common.destination.reference import DestinationClientDwhWithStagingConfiguration
 from dlt.common.configuration.exceptions import ConfigurationValueError
-
+from dlt.common import logger
 
 DATABRICKS_APPLICATION_ID = "dltHub_dlt"
 
@@ -15,6 +15,7 @@ class DatabricksCredentials(CredentialsConfiguration):
     catalog: str = None
     server_hostname: str = None
     http_path: str = None
+    is_token_from_context: bool = False
     access_token: Optional[TSecretStrValue] = None
     client_id: Optional[TSecretStrValue] = None
     client_secret: Optional[TSecretStrValue] = None
@@ -37,10 +38,27 @@ class DatabricksCredentials(CredentialsConfiguration):
 
     def on_resolved(self) -> None:
         if not ((self.client_id and self.client_secret) or self.access_token):
-            raise ConfigurationValueError(
-                "No valid authentication method detected. Provide either 'client_id' and"
-                " 'client_secret' for OAuth, or 'access_token' for token-based authentication."
+            # databricks authentication: attempt context token
+            from databricks.sdk import WorkspaceClient
+
+            w = WorkspaceClient()
+            dbutils = w.dbutils
+            self.access_token = (
+                dbutils.notebook.entry_point.getDbutils()
+                .notebook()
+                .getContext()
+                .apiToken()
+                .getOrElse(None)
             )
+
+            if not self.access_token:
+                raise ConfigurationValueError(
+                    "No valid authentication method detected. Provide either 'client_id' and"
+                    " 'client_secret' for OAuth, or 'access_token' for token-based authentication."
+                )
+
+            self.is_token_from_context = True
+            logger.info("Authenticating to Databricks using the user's Notebook API token.")
 
     def to_connector_params(self) -> Dict[str, Any]:
         conn_params = dict(
