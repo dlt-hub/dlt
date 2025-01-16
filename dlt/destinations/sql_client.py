@@ -87,6 +87,14 @@ class SqlClientBase(ABC, Generic[TNativeConn]):
     def begin_transaction(self) -> ContextManager[DBTransaction]:
         pass
 
+    @abstractmethod
+    def create_volume(self) -> None:
+        pass
+
+    @abstractmethod
+    def drop_volume(self) -> None:
+        pass
+
     def __getattr__(self, name: str) -> Any:
         # pass unresolved attrs to native connections
         if not self.native_connection:

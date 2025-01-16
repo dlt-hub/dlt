@@ -99,6 +99,12 @@ class ClickHouseSqlClient(
         self._conn = clickhouse_driver.connect(dsn=self.credentials.to_native_representation())
         return self._conn
 
+    def create_volume(self) -> None:
+        pass
+
+    def drop_volume(self) -> None:
+        pass
+
     @raise_open_connection_error
     def close_connection(self) -> None:
         if self._conn:

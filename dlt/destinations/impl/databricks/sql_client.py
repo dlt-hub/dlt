@@ -63,6 +63,7 @@ class DatabricksCursorImpl(DBApiCursorImpl):
 
 class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction):
     dbapi: ClassVar[DBApi] = databricks_lib
+    volume_name: str = "_dlt_temp_load_volume"
 
     def __init__(
         self,
@@ -101,6 +102,16 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
         if self._conn:
             self._conn.close()
             self._conn = None
+
+    def create_volume(self) -> None:
+        self.execute_sql(f"""
+            CREATE VOLUME IF NOT EXISTS {self.fully_qualified_dataset_name()}.{self.volume_name}
+        """)
+
+    def drop_volume(self) -> None:
+        self.execute_sql(f"""
+            DROP VOLUME IF EXISTS {self.fully_qualified_dataset_name()}.{self.volume_name}
+        """)
 
     @contextmanager
     def begin_transaction(self) -> Iterator[DBTransaction]:

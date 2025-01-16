@@ -51,8 +51,6 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
         self._job_client: "DatabricksClient" = None
 
         self._sql_client = None
-        self._workspace_client = None
-        self._created_volume = None
 
     def run(self) -> None:
         self._sql_client = self._job_client.sql_client
@@ -93,11 +91,8 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
 
         self._sql_client.execute_sql(statement)
 
-        self._cleanup_volume()
-
     def _handle_local_file_upload(self, local_file_path: str) -> tuple[str, str]:
         from databricks.sdk import WorkspaceClient
-        from databricks.sdk.service import catalog
         import time
         import io
 
@@ -105,29 +100,8 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
             host=self._job_client.config.credentials.server_hostname,
             token=self._job_client.config.credentials.access_token,
         )
-        self._workspace_client = w
 
-        # Create a temporary volume
-        volume_name = "_dlt_temp_load_volume"
-        # created_volume = w.volumes.create(
-        #     catalog_name=self._sql_client.database_name,
-        #     schema_name=self._sql_client.dataset_name,
-        #     name=volume_name,
-        #     volume_type=catalog.VolumeType.MANAGED,
-        # )
-        # self._created_volume = created_volume  # store to delete later
-
-        qualified_volume_name = (
-            f"{self._sql_client.database_name}.{self._sql_client.dataset_name}.{volume_name}"
-        )
-        self._sql_client.execute_sql(f"""
-            CREATE VOLUME IF NOT EXISTS {qualified_volume_name}
-        """)
-
-        logger.info(f"datrabricks volume created {qualified_volume_name}")
-
-        # Compute volume paths
-        volume_path = f"/Volumes/{self._sql_client.database_name}/{self._sql_client.dataset_name}/{volume_name}"
+        volume_path = f"/Volumes/{self._sql_client.database_name}/{self._sql_client.dataset_name}/{self._sql_client.volume_name}"
         volume_folder = f"file_{time.time_ns()}"
         volume_folder_path = f"{volume_path}/{volume_folder}"
 
@@ -272,12 +246,6 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
             FILEFORMAT = {source_format}
             {format_options_clause}
         """
-
-    def _cleanup_volume(self) -> None:
-        print("lalal")
-        # if self._workspace_client and self._created_volume:
-        #     self._workspace_client.volumes.delete(name=self._created_volume.full_name)
-        #     logger.info(f"Deleted temporary volume [{self._created_volume.full_name}]")
 
     @staticmethod
     def ensure_databricks_abfss_url(
