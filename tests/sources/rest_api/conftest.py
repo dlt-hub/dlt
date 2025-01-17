@@ -130,6 +130,18 @@ def mock_api_server():
             post_id = int(request.url.split("/")[-2])
             return paginate_by_page_number(request, generate_comments(post_id))
 
+        @router.get(r"/posts/(\d+)/protected_comments")
+        def protected_basic_auth(request, context):
+            post_id = int(request.url.split("/")[-2])
+            post_id_from_header = request.headers.get("Post_id")
+            auth = request.headers.get("Authorization")
+            creds = "user:password"
+            creds_base64 = base64.b64encode(creds.encode()).decode()
+            if auth == f"Basic {creds_base64}" and post_id == post_id_from_header:
+                return paginate_by_page_number(request, generate_comments(post_id))
+            context.status_code = 401
+            return {"error": "Unauthorized"}
+
         @router.get(r"/posts/\d+$")
         def post_detail(request, context):
             post_id = request.url.split("/")[-1]
