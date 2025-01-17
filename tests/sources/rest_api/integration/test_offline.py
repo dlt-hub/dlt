@@ -179,15 +179,15 @@ def test_load_mock_api_with_json_resolved(mock_api_server):
                         "path": "posts/search_by_id",
                         "method": "POST",
                         "json": {
-                            "post_id": "{post_id}",
+                            "post_id": "{resources.posts.id}",
                         },
-                        "params": {
-                            "post_id": {
-                                "type": "resolve",
-                                "resource": "posts",
-                                "field": "id",
-                            }
-                        },
+                        # "params": {
+                        #     "posts__id": {
+                        #         "type": "resolve",
+                        #         "resource": "posts",
+                        #         "field": "id",
+                        #     }
+                        # },
                     },
                 },
             ],
