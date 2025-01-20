@@ -4,11 +4,12 @@ import os
 import yaml
 import posixpath
 from pathlib import Path
-from typing import Dict, NamedTuple, Sequence, Tuple, TypedDict, List, Literal
+from typing import Dict, NamedTuple, Sequence, Tuple, List, Literal
 from dlt.cli.exceptions import VerifiedSourceRepoError
 
 from dlt.common import git
 from dlt.common.storages import FileStorage
+from dlt.common.typing import TypedDict
 
 from dlt.common.reflection.utils import get_module_docstring
 

@@ -16,7 +16,6 @@ from typing import (
     NewType,
     Sequence,
     TypeVar,
-    TypedDict,
     Optional,
     Union,
 )
@@ -48,6 +47,7 @@ from dlt.common.typing import (
     is_callable_type,
     add_value_to_literal,
     get_generic_type_argument_from_instance,
+    TypedDict,
 )
 
 

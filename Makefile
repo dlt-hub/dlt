@@ -102,11 +102,14 @@ publish-library: build-library
 	poetry publish
 
 test-build-images: build-library
-	# TODO: enable when we can remove special duckdb setting for python 3.12
+	# NOTE: poetry export does not work with our many different deps, we install a subset and freeze
 	# poetry export -f requirements.txt --output _gen_requirements.txt --without-hashes --extras gcp --extras redshift
-	# grep `cat compiled_packages.txt` _gen_requirements.txt > compiled_requirements.txt
+	poetry install --no-interaction -E gcp -E redshift -E duckdb
+	poetry run pip freeze > _gen_requirements.txt
+	# filter out libs that need native compilation
+	grep `cat compiled_packages.txt` _gen_requirements.txt > compiled_requirements.txt
 	docker build -f deploy/dlt/Dockerfile.airflow --build-arg=COMMIT_SHA="$(shell git log -1 --pretty=%h)" --build-arg=IMAGE_VERSION="$(shell poetry version -s)" .
-	# docker build -f deploy/dlt/Dockerfile --build-arg=COMMIT_SHA="$(shell git log -1 --pretty=%h)" --build-arg=IMAGE_VERSION="$(shell poetry version -s)" .
+	docker build -f deploy/dlt/Dockerfile --build-arg=COMMIT_SHA="$(shell git log -1 --pretty=%h)" --build-arg=IMAGE_VERSION="$(shell poetry version -s)" .
 
 preprocess-docs:
 	# run docs preprocessing to run a few checks and ensure examples can be parsed

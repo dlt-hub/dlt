@@ -1,4 +1,4 @@
-FROM alpine:3.15
+FROM python:3.11.11-alpine
 
 # Metadata
 LABEL org.label-schema.vendor="dltHub" \
@@ -17,16 +17,28 @@ ADD compiled_requirements.txt .
 
 # install alpine deps
 RUN apk update &&\
-    apk add --no-cache python3 ca-certificates curl postgresql &&\
-    apk add --no-cache --virtual build-deps build-base automake autoconf libtool python3-dev postgresql-dev libffi-dev linux-headers gcc musl-dev &&\
-    ln -s /usr/bin/python3 /usr/bin/python &&\
+    apk add --no-cache ca-certificates curl postgresql git &&\
+    apk add --no-cache --virtual build-deps build-base automake autoconf libtool python3-dev postgresql-dev libffi-dev linux-headers gcc musl-dev cmake &&\
     curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py && python3 get-pip.py &&\
     rm get-pip.py &&\
-    pip3 install --upgrade setuptools wheel &&\
-    rm -r /usr/lib/python*/ensurepip &&\
-    pip3 install -r compiled_requirements.txt &&\
+    pip install --upgrade setuptools wheel pip &&\
+    rm -r /usr/lib/python*/ensurepip
+
+# install arrow 17.0.0, usually we would need apache-arrow-dev=17.0.0 but it is not available in alpine 3.20
+# adapt this version to the arrow version you need
+RUN git clone --no-checkout https://github.com/apache/arrow.git /arrow \
+    && cd /arrow \
+    && git checkout tags/apache-arrow-17.0.0 \
+    && cd cpp \
+    && mkdir build \
+    && cd build \
+    && cmake -DARROW_CSV=ON -DARROW_JSON=ON -DARROW_FILESYSTEM=ON .. \
+    && make -j$(nproc) \
+    && make install
+
+RUN pip install -r compiled_requirements.txt &&\
     apk del --purge build-deps
-    #rm -r /root/.cache
+
 
 # add build labels and envs
 ARG COMMIT_SHA=""
@@ -38,7 +50,7 @@ ENV IMAGE_VERSION=${IMAGE_VERSION}
 
 # install exactly the same version of the library we used to build
 COPY dist/dlt-${IMAGE_VERSION}.tar.gz .
-RUN pip3 install /tmp/pydlt/dlt-${IMAGE_VERSION}.tar.gz[gcp,redshift,duckdb]
+RUN pip install /tmp/pydlt/dlt-${IMAGE_VERSION}.tar.gz[gcp,redshift,duckdb]
 
 WORKDIR /
 RUN rm -r /tmp/pydlt

@@ -1,4 +1,4 @@
-from typing import Union, Iterable, Optional, List, Dict, Any, Tuple, TypedDict
+from typing import Union, Iterable, Optional, List, Dict, Any, Tuple
 from copy import deepcopy
 from itertools import chain
 from dataclasses import dataclass
@@ -12,6 +12,8 @@ from dlt.common.pipeline import (
     reset_resource_state,
     _delete_source_state_keys,
 )
+from dlt.common.typing import TypedDict
+
 from dlt.common.schema.typing import TSimpleRegex, TTableSchema
 from dlt.common.schema.utils import (
     group_tables_by_resource,

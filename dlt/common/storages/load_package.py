@@ -21,10 +21,10 @@ from typing import (
     cast,
     Any,
     Tuple,
-    TypedDict,
 )
 from typing_extensions import NotRequired
 
+from dlt.common.typing import TypedDict
 from dlt.common.pendulum import pendulum
 from dlt.common.json import json
 from dlt.common.configuration import configspec

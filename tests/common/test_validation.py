@@ -10,7 +10,6 @@ from typing import (
     Literal,
     Mapping,
     Sequence,
-    TypedDict,
     TypeVar,
     Optional,
     Union,
@@ -24,7 +23,7 @@ from dlt.common.schema.typing import (
     TWriteDispositionConfig,
 )
 from dlt.common.schema.utils import simple_regex_validator
-from dlt.common.typing import DictStrStr, StrStr, TDataItem, TSortOrder, TColumnNames
+from dlt.common.typing import DictStrStr, StrStr, TDataItem, TSortOrder, TColumnNames, TypedDict
 
 from dlt.common.validation import validate_dict, validate_dict_ignoring_xkeys
 

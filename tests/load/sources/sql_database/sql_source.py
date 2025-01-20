@@ -1,6 +1,6 @@
 import random
 from copy import deepcopy
-from typing import Dict, List, TypedDict
+from typing import Dict, List
 from uuid import uuid4
 
 import mimesis
@@ -44,6 +44,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from dlt.common.pendulum import pendulum, timedelta
 from dlt.common.utils import chunks, uniq_id
 from dlt.sources.credentials import ConnectionStringCredentials
+from dlt.common.typing import TypedDict
 
 
 class SQLAlchemySourceDB:

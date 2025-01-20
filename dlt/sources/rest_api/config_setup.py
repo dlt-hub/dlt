@@ -12,7 +12,7 @@ from typing import (
     cast,
     NamedTuple,
 )
-import graphlib  # type: ignore[import,unused-ignore]
+import graphlib
 import string
 from requests import Response
 
@@ -277,10 +277,12 @@ def make_parent_key_name(resource_name: str, field_name: str) -> str:
 def build_resource_dependency_graph(
     resource_defaults: EndpointResourceBase,
     resource_list: List[Union[str, EndpointResource, DltResource]],
-) -> Tuple[
-    Any, Dict[str, Union[EndpointResource, DltResource]], Dict[str, Optional[List[ResolvedParam]]]
+) -> Tuple[  # type: ignore[type-arg]
+    graphlib.TopologicalSorter,
+    Dict[str, Union[EndpointResource, DltResource]],
+    Dict[str, Optional[List[ResolvedParam]]],
 ]:
-    dependency_graph = graphlib.TopologicalSorter()
+    dependency_graph: graphlib.TopologicalSorter = graphlib.TopologicalSorter()  # type: ignore[type-arg]
     resolved_param_map: Dict[str, Optional[List[ResolvedParam]]] = {}
     endpoint_resource_map = expand_and_index_resources(resource_list, resource_defaults)
 

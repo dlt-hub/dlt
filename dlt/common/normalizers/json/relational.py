@@ -8,10 +8,10 @@ from typing import (
     Tuple,
     Type,
     cast,
-    TypedDict,
     Any,
 )
 
+from dlt.common.typing import TypedDict
 from dlt.common.normalizers.exceptions import InvalidJsonNormalizer
 from dlt.common.normalizers.typing import TJSONNormalizer
 from dlt.common.normalizers.utils import generate_dlt_id
