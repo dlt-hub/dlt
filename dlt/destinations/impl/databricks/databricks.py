@@ -35,7 +35,7 @@ from dlt.destinations.impl.databricks.sql_client import DatabricksSqlClient
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest
 from dlt.destinations.utils import is_compression_disabled
-from dlt.common.utils import digest128
+from dlt.common.utils import uniq_id
 
 SUPPORTED_BLOB_STORAGE_PROTOCOLS = AZURE_BLOB_STORAGE_PROTOCOLS + S3_PROTOCOLS + GCS_PROTOCOLS
 
@@ -118,10 +118,12 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
         elif file_name.endswith(".jsonl"):
             file_format = "jsonl"
         else:
-            return "",file_name
-        
+            return "", file_name
+
         volume_path = f"/Volumes/{self._sql_client.database_name}/{self._sql_client.dataset_name}/{self._sql_client.volume_name}/{time.time_ns()}"
-        volume_file_name = f"{digest128(file_name)}.{file_format}" # file_name must be hashed - databricks fails with file name starting with - or .
+        volume_file_name = (  # replace file_name for random hex code - databricks loading fails when file_name starts with - or .
+            f"{uniq_id()}.{file_format}"
+        )
         volume_file_path = f"{volume_path}/{volume_file_name}"
 
         with open(local_file_path, "rb") as f:
