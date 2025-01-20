@@ -15,7 +15,7 @@ class DatabricksCredentials(CredentialsConfiguration):
     catalog: str = None
     server_hostname: str = None
     http_path: str = None
-    is_token_from_context: bool = False
+    direct_load: bool = False
     access_token: Optional[TSecretStrValue] = None
     client_id: Optional[TSecretStrValue] = None
     client_secret: Optional[TSecretStrValue] = None
@@ -38,27 +38,23 @@ class DatabricksCredentials(CredentialsConfiguration):
 
     def on_resolved(self) -> None:
         if not ((self.client_id and self.client_secret) or self.access_token):
-            # databricks authentication: attempt context token
+            # databricks authentication: get context config
             from databricks.sdk import WorkspaceClient
 
             w = WorkspaceClient()
-            dbutils = w.dbutils
-            self.access_token = (
-                dbutils.notebook.entry_point.getDbutils()
-                .notebook()
-                .getContext()
-                .apiToken()
-                .getOrElse(None)
-            )
+            notebook_context = w.dbutils.notebook.entry_point.getDbutils().notebook().getContext()
+            self.access_token = notebook_context.apiToken().getOrElse(None)
 
-            if not self.access_token:
+            self.server_hostname = notebook_context.browserHostName().getOrElse(None)
+
+            if not self.access_token or not self.server_hostname:
                 raise ConfigurationValueError(
                     "No valid authentication method detected. Provide either 'client_id' and"
-                    " 'client_secret' for OAuth, or 'access_token' for token-based authentication."
+                    " 'client_secret' for OAuth, or 'access_token' for token-based authentication,"
+                    " and the server_hostname."
                 )
 
-            self.is_token_from_context = True
-            logger.info("Authenticating to Databricks using the user's Notebook API token.")
+            self.direct_load = True
 
     def to_connector_params(self) -> Dict[str, Any]:
         conn_params = dict(

@@ -35,7 +35,7 @@ from dlt.destinations.impl.databricks.sql_client import DatabricksSqlClient
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest
 from dlt.destinations.utils import is_compression_disabled
-from dlt.common import logger
+from dlt.common.utils import digest128
 
 SUPPORTED_BLOB_STORAGE_PROTOCOLS = AZURE_BLOB_STORAGE_PROTOCOLS + S3_PROTOCOLS + GCS_PROTOCOLS
 
@@ -57,15 +57,15 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
 
         qualified_table_name = self._sql_client.make_qualified_table_name(self.load_table_name)
 
-        # Decide if this is a local file or a staged file
+        # decide if this is a local file or a staged file
         is_local_file = not ReferenceFollowupJobRequest.is_reference_job(self._file_path)
-        if is_local_file and self._job_client.config.credentials.is_token_from_context:
-            # Handle local file by uploading to a temporary volume on Databricks
+        if is_local_file and self._job_client.config.credentials.direct_load:
+            # local file by uploading to a temporary volume on Databricks
             from_clause, file_name = self._handle_local_file_upload(self._file_path)
             credentials_clause = ""
             orig_bucket_path = None  # not used for local file
         else:
-            # Handle staged file
+            # staged file
             from_clause, credentials_clause, file_name, orig_bucket_path = (
                 self._handle_staged_file()
             )
@@ -77,10 +77,8 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
 
         if skip_load:
             # If the file is empty or otherwise un-loadable, exit early
-            self._cleanup_volume()  # in case we created a volume
             return
 
-        # Build and execute the COPY INTO statement
         statement = self._build_copy_into_statement(
             qualified_table_name,
             from_clause,
@@ -96,26 +94,42 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
         import time
         import io
 
-        w = WorkspaceClient(
-            host=self._job_client.config.credentials.server_hostname,
-            token=self._job_client.config.credentials.access_token,
-        )
+        w: WorkspaceClient
 
-        volume_path = f"/Volumes/{self._sql_client.database_name}/{self._sql_client.dataset_name}/{self._sql_client.volume_name}"
-        volume_folder = f"file_{time.time_ns()}"
-        volume_folder_path = f"{volume_path}/{volume_folder}"
+        credentials = self._job_client.config.credentials
+        if credentials.client_id and credentials.client_secret:
+            # oauth authentication
+            w = WorkspaceClient(
+                host=credentials.server_hostname,
+                client_id=credentials.client_id,
+                client_secret=credentials.client_secret,
+            )
+        elif credentials.access_token:
+            # token authentication
+            w = WorkspaceClient(
+                host=credentials.server_hostname,
+                token=credentials.access_token,
+            )
 
         file_name = FileStorage.get_file_name_from_file_path(local_file_path)
-        volume_file_path = f"{volume_folder_path}/{file_name}"
+        file_format = ""
+        if file_name.endswith(".parquet"):
+            file_format = "parquet"
+        elif file_name.endswith(".jsonl"):
+            file_format = "jsonl"
+        else:
+            return "",file_name
+        
+        volume_path = f"/Volumes/{self._sql_client.database_name}/{self._sql_client.dataset_name}/{self._sql_client.volume_name}/{time.time_ns()}"
+        volume_file_name = f"{digest128(file_name)}.{file_format}" # file_name must be hashed - databricks fails with file name starting with - or .
+        volume_file_path = f"{volume_path}/{volume_file_name}"
 
-        # Upload the file
         with open(local_file_path, "rb") as f:
             file_bytes = f.read()
             binary_data = io.BytesIO(file_bytes)
             w.files.upload(volume_file_path, binary_data, overwrite=True)
 
-        # Return the FROM clause and file name
-        from_clause = f"FROM '{volume_folder_path}'"
+        from_clause = f"FROM '{volume_path}'"
 
         return from_clause, file_name
 
@@ -133,14 +147,12 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
                 " Configure staging with an s3, azure or google storage bucket.",
             )
 
-        # Extract filename
         file_name = FileStorage.get_file_name_from_file_path(bucket_path)
 
         staging_credentials = self._staging_config.credentials
         bucket_url = urlparse(bucket_path)
         bucket_scheme = bucket_url.scheme
 
-        # Validate the storage scheme
         if bucket_scheme not in SUPPORTED_BLOB_STORAGE_PROTOCOLS:
             raise LoadJobTerminalException(
                 self._file_path,
@@ -150,17 +162,16 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
             )
 
         credentials_clause = ""
-        # External location vs named credentials vs explicit keys
+
         if self._job_client.config.is_staging_external_location:
-            # Skip the credentials clause
+            # skip the credentials clause
             pass
         elif self._job_client.config.staging_credentials_name:
-            # Named credentials
+            # named credentials
             credentials_clause = (
                 f"WITH(CREDENTIAL {self._job_client.config.staging_credentials_name} )"
             )
         else:
-            # Use explicit keys if needed
             if bucket_scheme == "s3":
                 assert isinstance(staging_credentials, AwsCredentialsWithoutDefaults)
                 s3_creds = staging_credentials.to_session_credentials()
@@ -205,7 +216,6 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
         self, file_name: str, orig_bucket_path: str
     ) -> tuple[str, str, bool]:
         if file_name.endswith(".parquet"):
-            # Only parquet is supported
             return "PARQUET", "", False
 
         elif file_name.endswith(".jsonl"):
@@ -216,10 +226,10 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
                     "Please disable compression in the data writer configuration:"
                     " https://dlthub.com/docs/reference/performance#disabling-and-enabling-file-compression",
                 )
-            # Databricks can load uncompressed JSON
+
             format_options_clause = "FORMAT_OPTIONS('inferTimestamp'='true')"
 
-            # Check for an empty JSON file
+            # check for an empty JSON file
             fs, _ = fsspec_from_config(self._staging_config)
             if orig_bucket_path is not None:
                 file_size = fs.size(orig_bucket_path)

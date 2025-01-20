@@ -225,12 +225,12 @@ def test_databricks_auth_token(destination_config: DestinationTestConfiguration)
     destinations_configs(default_sql_configs=True, subset=("databricks",)),
     ids=lambda x: x.name,
 )
-def test_databricks_direct_loading(destination_config: DestinationTestConfiguration) -> None:
+def test_databricks_direct_load(destination_config: DestinationTestConfiguration) -> None:
     os.environ["DESTINATION__DATABRICKS__CREDENTIALS__CLIENT_ID"] = ""
     os.environ["DESTINATION__DATABRICKS__CREDENTIALS__CLIENT_SECRET"] = ""
 
-    # is_token_from_context
-    os.environ["DESTINATION__DATABRICKS__CREDENTIALS__IS_TOKEN_FROM_CONTEXT"] = "True"
+    # direct_load
+    os.environ["DESTINATION__DATABRICKS__CREDENTIALS__DIRECT_LOAD"] = "True"
 
     bricks = databricks()
     config = bricks.configuration(None, accept_partial=True)

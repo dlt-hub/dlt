@@ -109,6 +109,8 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
         """)
 
     def drop_volume(self) -> None:
+        if not self._conn:
+            self.open_connection()
         self.execute_sql(f"""
             DROP VOLUME IF EXISTS {self.fully_qualified_dataset_name()}.{self.volume_name}
         """)
