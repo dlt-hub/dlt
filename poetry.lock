@@ -6983,7 +6983,7 @@ xmp = ["defusedxml"]
 name = "pip"
 version = "24.3.1"
 description = "The PyPA recommended tool for installing Python packages."
-optional = true
+optional = false
 python-versions = ">=3.8"
 files = [
     {file = "pip-24.3.1-py3-none-any.whl", hash = "sha256:3790624780082365f47549d032f3770eeb2b1e8bd1f7b2e02dace1afa361b4ed"},
@@ -11009,4 +11009,4 @@ weaviate = ["weaviate-client"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.9,<3.14"
-content-hash = "d7accdba560550d39f11a2b3e5ae57e190c0db476fcd712de7c5641c1b62cfea"
+content-hash = "498f05a3e5acc7cbcde7ad0bcc0e618be3d99394c464ef24d7377c7f061d6a67"

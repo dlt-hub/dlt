@@ -192,6 +192,7 @@ types-regex = "^2024.5.15.20240519"
 flake8-print = "^5.0.0"
 mimesis = "^7.0.0"
 shapely = ">=2.0.6"
+pip = ">=24.0.0"
 
 [tool.poetry.group.sources]
 optional = true
