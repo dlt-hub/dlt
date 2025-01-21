@@ -108,7 +108,7 @@ def test_load_mock_api_with_query_params(mock_api_server):
         full_refresh=True,
     )
 
-    mock_source = rest_api_source(
+    mock_source: RESTAPIConfig = rest_api_source(
         {
             "client": {"base_url": "https://api.example.com"},
             "resources": [
@@ -244,14 +244,14 @@ def test_load_mock_api_with_json_resolved_with_implicit_param(mock_api_server):
                         "method": "POST",
                         "json": {
                             "post_id": "{resources.posts.id}",
+                            "limit": 5,
+                            "more": {
+                                "title": "{resources.posts.title}",
+                            },
+                            "more_array": [
+                                "{resources.posts.id}",
+                            ],
                         },
-                        # "params": {
-                        #     "posts__id": {
-                        #         "type": "resolve",
-                        #         "resource": "posts",
-                        #         "field": "id",
-                        #     }
-                        # },
                     },
                 },
             ],
@@ -285,6 +285,18 @@ def test_load_mock_api_with_json_resolved_with_implicit_param(mock_api_server):
         pipeline,
         f"SELECT body FROM {posts_details_table} ORDER BY id limit 25",
         [f"Post body {i}" for i in range(25)],
+    )
+
+    assert_query_data(
+        pipeline,
+        f"SELECT title FROM {posts_details_table} ORDER BY id limit 25",
+        [f"Post {i}" for i in range(25)],
+    )
+
+    assert_query_data(
+        pipeline,
+        f"SELECT more FROM {posts_details_table} ORDER BY id limit 25",
+        [f"More is equale to id: {i}" for i in range(25)],
     )
 
 

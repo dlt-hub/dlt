@@ -195,10 +195,16 @@ def mock_api_server():
         @router.post(r"/posts/search_by_id$")
         def search_posts_by_id(request, context):
             body = request.json()
-            print(body)
             post_id = body.get("post_id", 0)
-            print(post_id)
-            return {"id": int(post_id), "body": f"Post body {post_id}"}
+            title = body.get("more", {}).get("title", 0)
+
+            more_array = body.get("more_array", [])[0]
+            return {
+                "id": int(post_id),
+                "title": title,
+                "body": f"Post body {post_id}",
+                "more": f"More is equale to id: {more_array}",
+            }
 
         @router.post(r"/posts/search$")
         def search_posts(request, context):

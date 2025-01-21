@@ -625,26 +625,38 @@ def create_response_hooks(
 
 
 def _extract_expressions(
-    template_string: Union[str, Dict], prefix: str = ""
+    template: Union[str, Dict],
+    prefix: str = "",
 ) -> List[str]:
     """Takes a template string and extracts expressions that start with a prefix.
     Args:
-        template_string (str): A string with expressions to extract
+        template (str): A string with expressions to extract
         prefix (str): A string that marks the beginning of an expression
     Example:
         >>> _extract_expressions("blog/{resources.blog.id}/comments", "resources.")
         ["resources.blog.id"]
     """
 
-    # to use a dict with Formatter.parse we need to add curly brackets
-    if isinstance(template_string, dict):
-        template_string = "{" + json.dumps(template_string) + "}"
+    expressions = set()
 
-    return [
-        field_name
-        for _, field_name, _, _ in string.Formatter().parse(template_string)
-        if field_name and field_name.startswith(prefix)
-    ]
+    def recursive_search(value):
+        if isinstance(value, dict):
+            for key, val in value.items():
+                recursive_search(key)
+                recursive_search(val)
+        elif isinstance(value, list):
+            for item in value:
+                recursive_search(item)
+        elif isinstance(value, str):
+            e = [
+                field_name
+                for _, field_name, _, _ in string.Formatter().parse(value)
+                if field_name and field_name.startswith(prefix)
+            ]
+            expressions.update(e)
+
+    recursive_search(template)
+    return list(expressions)
 
 
 def _expressions_to_resolved_params(expressions: List[str]) -> List[ResolvedParam]:
