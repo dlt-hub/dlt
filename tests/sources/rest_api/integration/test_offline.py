@@ -176,17 +176,29 @@ def test_load_mock_api_with_json_resolved(mock_api_server):
                 {
                     "name": "post_details",
                     "endpoint": {
-                        "path": "posts/search_by_id",
+                        "path": "posts/search_by_id/{post_id}",
                         "method": "POST",
                         "json": {
-                            "post_id": "{posts_id}",
+                            "post_id": "{post_id}",
+                            "limit": 5,
+                            "more": {
+                                "title": "{post_title}",
+                            },
+                            "more_array": [
+                                "{post_id}",
+                            ],
                         },
                         "params": {
-                            "posts_id": {
+                            "post_id": {
                                 "type": "resolve",
                                 "resource": "posts",
                                 "field": "id",
-                            }
+                            },
+                            "post_title": {
+                                "type": "resolve",
+                                "resource": "posts",
+                                "field": "title",
+                            },
                         },
                     },
                 },
@@ -240,7 +252,7 @@ def test_load_mock_api_with_json_resolved_with_implicit_param(mock_api_server):
                 {
                     "name": "post_details",
                     "endpoint": {
-                        "path": "posts/search_by_id",
+                        "path": "posts/search_by_id/{resources.posts.id}",
                         "method": "POST",
                         "json": {
                             "post_id": "{resources.posts.id}",

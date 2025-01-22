@@ -690,9 +690,9 @@ def _bound_path_parameters(
     path_params = _extract_expressions(path)
     bound_path = _replace_expression(path, param_values)
 
-    for param in path_params:
-        param_values.pop(param)
-    return bound_path, param_values
+    # for param in path_params:
+    #     param_values.pop(param)
+    return bound_path, path_params
 
 
 def _bound_json_parameters(
@@ -702,10 +702,10 @@ def _bound_json_parameters(
     json_params = _extract_expressions(request_json)
 
     bound_json = _replace_expression(json.dumps(request_json), param_values)
-    for param in json_params:
-        param_values.pop(param)
+    # for param in json_params:
+    #     param_values.pop(param)
 
-    return json.loads(bound_json), param_values
+    return json.loads(bound_json), json_params
 
 
 def process_parent_data_item(
@@ -726,19 +726,18 @@ def process_parent_data_item(
             field_path = resolved_param.resolve_config["field"]
             raise ValueError(
                 f"Transformer expects a field '{field_path}' to be present in the incoming data"
-                f" from resource {parent_resource_name} in order to bind it to path param"
+                f" from resource {parent_resource_name} in order to bind it to param"
                 f" {resolved_param.param_name}. Available parent fields are"
                 f" {', '.join(item.keys())}"
             )
 
         params_values[resolved_param.param_name] = field_values[0]
 
-    bound_path, params_values = _bound_path_parameters(path, params_values)
+    bound_path, path_params = _bound_path_parameters(path, params_values)
 
+    json_params = []
     if request_json:
-        request_json, params_values = _bound_json_parameters(
-            request_json, params_values
-        )
+        request_json, json_params = _bound_json_parameters(request_json, params_values)
 
     parent_record: Dict[str, Any] = {}
     if include_from_parent:
@@ -751,6 +750,14 @@ def process_parent_data_item(
                     f" under {child_key}. Available parent fields are {', '.join(item.keys())}"
                 )
             parent_record[child_key] = item[parent_key]
+
+    # the params not present in the params already bound,
+    # will be returned and used as query params
+    params_values = {
+        param_name: param_value
+        for param_name, param_value in params_values.items()
+        if param_name not in path_params and param_name not in json_params
+    }
 
     return bound_path, parent_record, params_values, request_json
 

@@ -192,7 +192,7 @@ def mock_api_server():
                 request, generate_posts(), records_key="many-results"
             )
 
-        @router.post(r"/posts/search_by_id$")
+        @router.post(r"/posts/search_by_id/\d+$")
         def search_posts_by_id(request, context):
             body = request.json()
             post_id = body.get("post_id", 0)
