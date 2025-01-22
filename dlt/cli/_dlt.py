@@ -1,4 +1,4 @@
-from typing import Any, Sequence, Type, cast, List, Dict
+from typing import Any, Sequence, Type, cast, List, Dict, Tuple
 import argparse
 import click
 
@@ -99,7 +99,7 @@ class DebugAction(argparse.Action):
         debug.enable_debug()
 
 
-def _build_parser() -> argparse.ArgumentParser:
+def _build_parser() -> Tuple[argparse.ArgumentParser, Dict[str, SupportsCliCommand]]:
     parser = argparse.ArgumentParser(
         description="Creates, adds, inspects and deploys dlt pipelines.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -142,15 +142,17 @@ def _build_parser() -> argparse.ArgumentParser:
         command = c()
         if command.command in installed_commands.keys():
             continue
-        command_parser = subparsers.add_parser(command.command, help=command.help_string)
+        command_parser = subparsers.add_parser(
+            command.command, help=command.help_string, description=command.help_string
+        )
         command.configure_parser(command_parser)
         installed_commands[command.command] = command
 
-    return parser
+    return parser, installed_commands
 
 
 def main() -> int:
-    parser = _build_parser()
+    parser, installed_commands = _build_parser()
 
     args = parser.parse_args()
 

@@ -150,11 +150,16 @@ class PipelineCommand(SupportsCliCommand):
         )
 
         pipeline_subparsers.add_parser(
-            "info", help="Displays state of the pipeline, use -v or -vv for more info"
+            "info",
+            help="Displays state of the pipeline, use -v or -vv for more info",
+            description="Displays state of the pipeline",
         )
         pipeline_subparsers.add_parser(
             "show",
             help=(
+                "Generates and launches Streamlit app with the loading status and dataset explorer"
+            ),
+            description=(
                 "Generates and launches Streamlit app with the loading status and dataset explorer"
             ),
         )
@@ -164,10 +169,18 @@ class PipelineCommand(SupportsCliCommand):
                 "Displays information on all the failed loads in all completed packages, failed"
                 " jobs and associated error messages"
             ),
+            description=(
+                "Displays information on all the failed loads in all completed packages, "
+                "failed jobs and associated error messages"
+            ),
         )
         pipeline_subparsers.add_parser(
             "drop-pending-packages",
             help=(
+                "Deletes all extracted and normalized packages including those that are partially"
+                " loaded."
+            ),
+            description=(
                 "Deletes all extracted and normalized packages including those that are partially"
                 " loaded."
             ),
@@ -178,12 +191,22 @@ class PipelineCommand(SupportsCliCommand):
                 "Drops the local state of the pipeline and resets all the schemas and restores it"
                 " from destination. The destination state, data and schemas are left intact."
             ),
+            description=(
+                "Drops the local state of the pipeline and resets all the schemas and restores it"
+                " from destination. The destination state, data and schemas are left intact."
+            ),
             parents=[pipe_cmd_sync_parent],
         )
         pipeline_subparsers.add_parser(
-            "trace", help="Displays last run trace, use -v or -vv for more info"
+            "trace",
+            help="Displays last run trace, use -v or -vv for more info",
+            description="Displays last run trace",
         )
-        pipe_cmd_schema = pipeline_subparsers.add_parser("schema", help="Displays default schema")
+        pipe_cmd_schema = pipeline_subparsers.add_parser(
+            "schema",
+            help="Displays default schema",
+            description="Displays default schema of pipeline",
+        )
         pipe_cmd_schema.add_argument(
             "--format",
             choices=["json", "yaml"],
@@ -200,6 +223,7 @@ class PipelineCommand(SupportsCliCommand):
         pipe_cmd_drop = pipeline_subparsers.add_parser(
             "drop",
             help="Selectively drop tables and reset state",
+            description="Selectively drop tables and reset state",
             parents=[pipe_cmd_sync_parent],
             epilog=(
                 f"See {DLT_PIPELINE_COMMAND_DOCS_URL}#selectively-drop-tables-and-reset-state for"
@@ -236,7 +260,9 @@ class PipelineCommand(SupportsCliCommand):
         )
 
         pipe_cmd_package = pipeline_subparsers.add_parser(
-            "load-package", help="Displays information on load package, use -v or -vv for more info"
+            "load-package",
+            help="Displays information on load package, use -v or -vv for more info",
+            description="Displays information on load package",
         )
         pipe_cmd_package.add_argument(
             "load_id",
@@ -334,8 +360,8 @@ class DeployCommand(SupportsCliCommand):
         # deploy github actions
         deploy_github_cmd = deploy_sub_parsers.add_parser(
             DeploymentMethods.github_actions.value,
-            description="Deploys the pipeline to Github Actions",
             help="Deploys the pipeline to Github Actions",
+            description="Deploys the pipeline to Github Actions",
             parents=[deploy_comm],
         )
         deploy_github_cmd.add_argument(
@@ -364,6 +390,7 @@ class DeployCommand(SupportsCliCommand):
         deploy_airflow_cmd = deploy_sub_parsers.add_parser(
             DeploymentMethods.airflow_composer.value,
             help="Deploys the pipeline to Airflow",
+            description="Deploys the pipeline to Airflow",
             parents=[deploy_comm],
         )
         deploy_airflow_cmd.add_argument(

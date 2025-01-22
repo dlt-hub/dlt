@@ -6,7 +6,7 @@ keywords: [command line interface, cli, dlt init]
 
 # Full CLI Reference
 
-This is the reference for the dlt CLI.
+This page contains all commands available in the dlt CLI and is generated automatically from the argparse object.
 
 ## `dlt`
 
@@ -48,7 +48,7 @@ options:
 
 ## `dlt telemetry`
 
-None
+Shows telemetry status
 
 **Help command**
 ```sh
@@ -59,6 +59,8 @@ dlt telemetry --help
 ```sh
 usage: build_parse_docs.py telemetry [-h]
 
+Shows telemetry status
+
 options:
   -h, --help  show this help message and exit
 ```
@@ -66,7 +68,7 @@ options:
 
 ## `dlt schema`
 
-None
+Shows, converts and upgrades schemas
 
 **Help command**
 ```sh
@@ -77,6 +79,8 @@ dlt schema --help
 ```sh
 usage: build_parse_docs.py schema [-h] [--format {json,yaml}] [--remove-
         defaults] file
+
+Shows, converts and upgrades schemas
 
 positional arguments:
   file                  Schema file name, in yaml or json format, will
@@ -91,7 +95,7 @@ options:
 
 ## `dlt pipeline`
 
-None
+Operations on pipelines that were ran locally
 
 **Help command**
 ```sh
@@ -104,6 +108,8 @@ usage: build_parse_docs.py pipeline [-h] [--list-pipelines] [--hot-reload]
         [--pipelines-dir PIPELINES_DIR] [--verbose] [pipeline_name]
         {info,show,failed-jobs,drop-pending-
         packages,sync,trace,schema,drop,load-package} ...
+
+Operations on pipelines that were ran locally
 
 positional arguments:
   pipeline_name         Pipeline name
@@ -137,9 +143,9 @@ options:
 ```
 
 
-## `dlt pipeline info`
+### `dlt pipeline info`
 
-None
+Displays state of the pipeline
 
 **Help command**
 ```sh
@@ -150,14 +156,17 @@ dlt pipeline info --help
 ```sh
 usage: build_parse_docs.py pipeline [pipeline_name] info [-h]
 
+Displays state of the pipeline
+
 options:
   -h, --help  show this help message and exit
 ```
 
 
-## `dlt pipeline show`
+### `dlt pipeline show`
 
-None
+Generates and launches Streamlit app with the loading status and dataset
+        explorer
 
 **Help command**
 ```sh
@@ -168,14 +177,18 @@ dlt pipeline show --help
 ```sh
 usage: build_parse_docs.py pipeline [pipeline_name] show [-h]
 
+Generates and launches Streamlit app with the loading status and dataset
+        explorer
+
 options:
   -h, --help  show this help message and exit
 ```
 
 
-## `dlt pipeline failed-jobs`
+### `dlt pipeline failed-jobs`
 
-None
+Displays information on all the failed loads in all completed packages, failed
+        jobs and associated error messages
 
 **Help command**
 ```sh
@@ -186,14 +199,18 @@ dlt pipeline failed-jobs --help
 ```sh
 usage: build_parse_docs.py pipeline [pipeline_name] failed-jobs [-h]
 
+Displays information on all the failed loads in all completed packages, failed
+        jobs and associated error messages
+
 options:
   -h, --help  show this help message and exit
 ```
 
 
-## `dlt pipeline drop-pending-packages`
+### `dlt pipeline drop-pending-packages`
 
-None
+Deletes all extracted and normalized packages including those that are partially
+        loaded.
 
 **Help command**
 ```sh
@@ -204,14 +221,19 @@ dlt pipeline drop-pending-packages --help
 ```sh
 usage: build_parse_docs.py pipeline [pipeline_name] drop-pending-packages [-h]
 
+Deletes all extracted and normalized packages including those that are partially
+        loaded.
+
 options:
   -h, --help  show this help message and exit
 ```
 
 
-## `dlt pipeline sync`
+### `dlt pipeline sync`
 
-None
+Drops the local state of the pipeline and resets all the schemas and restores it
+        from destination. The destination state, data and schemas are left
+        intact.
 
 **Help command**
 ```sh
@@ -222,6 +244,10 @@ dlt pipeline sync --help
 ```sh
 usage: build_parse_docs.py pipeline [pipeline_name] sync [-h] [--destination
         DESTINATION] [--dataset-name DATASET_NAME]
+
+Drops the local state of the pipeline and resets all the schemas and restores it
+        from destination. The destination state, data and schemas are left
+        intact.
 
 options:
   -h, --help            show this help message and exit
@@ -234,9 +260,9 @@ options:
 ```
 
 
-## `dlt pipeline trace`
+### `dlt pipeline trace`
 
-None
+Displays last run trace
 
 **Help command**
 ```sh
@@ -247,14 +273,16 @@ dlt pipeline trace --help
 ```sh
 usage: build_parse_docs.py pipeline [pipeline_name] trace [-h]
 
+Displays last run trace
+
 options:
   -h, --help  show this help message and exit
 ```
 
 
-## `dlt pipeline schema`
+### `dlt pipeline schema`
 
-None
+Displays default schema of pipeline
 
 **Help command**
 ```sh
@@ -266,6 +294,8 @@ dlt pipeline schema --help
 usage: build_parse_docs.py pipeline [pipeline_name] schema [-h] [--format
         {json,yaml}] [--remove-defaults]
 
+Displays default schema of pipeline
+
 options:
   -h, --help            show this help message and exit
   --format {json,yaml}  Display schema in this format
@@ -273,9 +303,9 @@ options:
 ```
 
 
-## `dlt pipeline drop`
+### `dlt pipeline drop`
 
-None
+Selectively drop tables and reset state
 
 **Help command**
 ```sh
@@ -287,6 +317,8 @@ dlt pipeline drop --help
 usage: build_parse_docs.py pipeline [pipeline_name] drop [-h] [--destination
         DESTINATION] [--dataset-name DATASET_NAME] [--drop-all] [--state-paths
         [STATE_PATHS ...]] [--schema SCHEMA_NAME] [--state-only] [resources ...]
+
+Selectively drop tables and reset state
 
 positional arguments:
   resources             One or more resources to drop. Can be exact resource
@@ -313,9 +345,9 @@ See https://dlthub.com/docs/reference/command-line-interface#dlt-
 ```
 
 
-## `dlt pipeline load-package`
+### `dlt pipeline load-package`
 
-None
+Displays information on load package
 
 **Help command**
 ```sh
@@ -325,6 +357,8 @@ dlt pipeline load-package --help
 **Help output**
 ```sh
 usage: build_parse_docs.py pipeline [pipeline_name] load-package [-h] [load-id]
+
+Displays information on load package
 
 positional arguments:
   load-id     Load id of completed or normalized package. Defaults to the most
@@ -337,7 +371,8 @@ options:
 
 ## `dlt init`
 
-None
+Creates a pipeline project in the current folder by adding existing verified
+        source or creating a new one from template.
 
 **Help command**
 ```sh
@@ -348,6 +383,9 @@ dlt init --help
 ```sh
 usage: build_parse_docs.py init [-h] [--list-sources] [--location LOCATION]
         [--branch BRANCH] [--eject] [source] [destination]
+
+Creates a pipeline project in the current folder by adding existing verified
+        source or creating a new one from template.
 
 positional arguments:
   source               Name of data source for which to create a pipeline. Adds
@@ -369,7 +407,7 @@ options:
 
 ## `dlt deploy`
 
-None
+Creates a deployment package for a selected pipeline script
 
 **Help command**
 ```sh
@@ -380,6 +418,8 @@ dlt deploy --help
 ```sh
 usage: build_parse_docs.py deploy [-h] pipeline-script-path {github-
         action,airflow-composer} ...
+
+Creates a deployment package for a selected pipeline script
 
 positional arguments:
   pipeline-script-path  Path to a pipeline script
@@ -392,7 +432,7 @@ options:
 ```
 
 
-## `dlt deploy github-action`
+### `dlt deploy github-action`
 
 Deploys the pipeline to Github Actions
 
@@ -424,9 +464,9 @@ options:
 ```
 
 
-## `dlt deploy airflow-composer`
+### `dlt deploy airflow-composer`
 
-None
+Deploys the pipeline to Airflow
 
 **Help command**
 ```sh
@@ -437,6 +477,8 @@ dlt deploy airflow-composer --help
 ```sh
 usage: build_parse_docs.py deploy pipeline-script-path airflow-composer [-h]
         [--location LOCATION] [--branch BRANCH] [--secrets-format {env,toml}]
+
+Deploys the pipeline to Airflow
 
 options:
   -h, --help            show this help message and exit

@@ -12,7 +12,7 @@ keywords: [command line interface, cli, dlt init]
 
 # Full CLI Reference
 
-This is the reference for the dlt CLI.
+This page contains all commands available in the dlt CLI and is generated automatically from the argparse object.
 
 """
 
@@ -35,8 +35,11 @@ def get_argparse_help_string(
         parser: argparse.ArgumentParser, cmd: str = "", root: bool = True, nesting: int = 0
     ):
         markdown = ""
+
+        if not parser.description:
+            raise ValueError(f"Parser at command '{cmd}' has no description. This means you have probably added a new parser without adding a description property.")
         
-        heading = 2 * "#"
+        heading = "##" if nesting < 2 else "###"
         markdown += f"{heading} `{cmd}`\n\n"
         markdown += f"{parser.description}\n\n"
         markdown += f"**Help command**\n"
@@ -83,7 +86,7 @@ def get_argparse_help_string(
         return markdown
 
 if __name__ == "__main__":
-    parser = _build_parser()
+    parser, _ = _build_parser()
     
     with open("docs/website/docs/reference/cli.md", "w") as f:
         f.write(HEADER + get_argparse_help_string("dlt", parser))
