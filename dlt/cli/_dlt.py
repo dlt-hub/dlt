@@ -99,7 +99,7 @@ class DebugAction(argparse.Action):
         debug.enable_debug()
 
 
-def main() -> int:
+def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Creates, adds, inspects and deploys dlt pipelines.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -145,6 +145,12 @@ def main() -> int:
         command_parser = subparsers.add_parser(command.command, help=command.help_string)
         command.configure_parser(command_parser)
         installed_commands[command.command] = command
+
+    return parser
+
+
+def main() -> int:
+    parser = _build_parser()
 
     args = parser.parse_args()
 

@@ -334,6 +334,7 @@ class DeployCommand(SupportsCliCommand):
         # deploy github actions
         deploy_github_cmd = deploy_sub_parsers.add_parser(
             DeploymentMethods.github_actions.value,
+            description="Deploys the pipeline to Github Actions",
             help="Deploys the pipeline to Github Actions",
             parents=[deploy_comm],
         )
