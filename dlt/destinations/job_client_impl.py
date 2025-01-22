@@ -176,7 +176,6 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
             self.sql_client.create_dataset()
         elif truncate_tables:
             self.sql_client.truncate_tables(*truncate_tables)
-        self.sql_client.create_volume()
 
     def is_storage_initialized(self) -> bool:
         return self.sql_client.has_dataset()

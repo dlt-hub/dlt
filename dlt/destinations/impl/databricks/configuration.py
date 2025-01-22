@@ -15,7 +15,6 @@ class DatabricksCredentials(CredentialsConfiguration):
     catalog: str = None
     server_hostname: str = None
     http_path: str = None
-    direct_load: bool = False
     access_token: Optional[TSecretStrValue] = None
     client_id: Optional[TSecretStrValue] = None
     client_secret: Optional[TSecretStrValue] = None
@@ -38,14 +37,19 @@ class DatabricksCredentials(CredentialsConfiguration):
 
     def on_resolved(self) -> None:
         if not ((self.client_id and self.client_secret) or self.access_token):
-            # databricks authentication: get context config
-            from databricks.sdk import WorkspaceClient
+            try:
+                # attempt notebook context authentication
+                from databricks.sdk import WorkspaceClient
 
-            w = WorkspaceClient()
-            notebook_context = w.dbutils.notebook.entry_point.getDbutils().notebook().getContext()
-            self.access_token = notebook_context.apiToken().getOrElse(None)
+                w = WorkspaceClient()
+                notebook_context = (
+                    w.dbutils.notebook.entry_point.getDbutils().notebook().getContext()
+                )
+                self.access_token = notebook_context.apiToken().getOrElse(None)
 
-            self.server_hostname = notebook_context.browserHostName().getOrElse(None)
+                self.server_hostname = notebook_context.browserHostName().getOrElse(None)
+            except Exception:
+                pass
 
             if not self.access_token or not self.server_hostname:
                 raise ConfigurationValueError(
@@ -53,8 +57,6 @@ class DatabricksCredentials(CredentialsConfiguration):
                     " 'client_secret' for OAuth, or 'access_token' for token-based authentication,"
                     " and the server_hostname."
                 )
-
-            self.direct_load = True
 
     def to_connector_params(self) -> Dict[str, Any]:
         conn_params = dict(
@@ -83,6 +85,15 @@ class DatabricksClientConfiguration(DestinationClientDwhWithStagingConfiguration
     "If set, credentials with given name will be used in copy command"
     is_staging_external_location: bool = False
     """If true, the temporary credentials are not propagated to the COPY command"""
+    staging_volume_name: Optional[str] = None
+    """Name of the Databricks managed volume for temporary storage, e.g., <catalog_name>.<database_name>.<volume_name>. Defaults to '_dlt_temp_load_volume' if not set."""
+
+    def on_resolved(self):
+        if self.staging_volume_name and self.staging_volume_name.count(".") != 2:
+            raise ConfigurationValueError(
+                f"Invalid staging_volume_name format: {self.staging_volume_name}. Expected format"
+                " is '<catalog_name>.<database_name>.<volume_name>'."
+            )
 
     def __str__(self) -> str:
         """Return displayable destination location"""

@@ -95,12 +95,6 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
             self.credentials.return_conn(self._conn)
             self._conn = None
 
-    def create_volume(self) -> None:
-        pass
-
-    def drop_volume(self) -> None:
-        pass
-
     @contextmanager
     @raise_database_error
     def begin_transaction(self) -> Iterator[DBTransaction]:

@@ -58,12 +58,6 @@ class Psycopg2SqlClient(SqlClientBase["psycopg2.connection"], DBTransaction):
             self._conn.close()
             self._conn = None
 
-    def create_volume(self) -> None:
-        pass
-
-    def drop_volume(self) -> None:
-        pass
-
     @contextmanager
     def begin_transaction(self) -> Iterator[DBTransaction]:
         try:

@@ -220,6 +220,11 @@ def test_databricks_auth_token(destination_config: DestinationTestConfiguration)
         assert len(rows) == 3
 
 
+# TODO: test config staging_volume_name on_resolve
+# TODO: modify the DestinationTestConfiguration
+# TODO: add test databricks credentials default auth error
+# TODO: test on notebook
+# TODO: check that volume doesn't block schema drop
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(default_sql_configs=True, subset=("databricks",)),
@@ -228,9 +233,6 @@ def test_databricks_auth_token(destination_config: DestinationTestConfiguration)
 def test_databricks_direct_load(destination_config: DestinationTestConfiguration) -> None:
     os.environ["DESTINATION__DATABRICKS__CREDENTIALS__CLIENT_ID"] = ""
     os.environ["DESTINATION__DATABRICKS__CREDENTIALS__CLIENT_SECRET"] = ""
-
-    # direct_load
-    os.environ["DESTINATION__DATABRICKS__CREDENTIALS__DIRECT_LOAD"] = "True"
 
     bricks = databricks()
     config = bricks.configuration(None, accept_partial=True)

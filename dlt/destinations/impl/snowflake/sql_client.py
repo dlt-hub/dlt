@@ -63,12 +63,6 @@ class SnowflakeSqlClient(SqlClientBase[snowflake_lib.SnowflakeConnection], DBTra
             self._conn.close()
             self._conn = None
 
-    def create_volume(self) -> None:
-        pass
-
-    def drop_volume(self) -> None:
-        pass
-
     @contextmanager
     def begin_transaction(self) -> Iterator[DBTransaction]:
         try:

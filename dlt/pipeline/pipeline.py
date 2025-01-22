@@ -608,7 +608,6 @@ class Pipeline(SupportsPipeline):
                 runner.run_pool(load_step.config, load_step)
             info: LoadInfo = self._get_step_info(load_step)
 
-            self.sql_client().drop_volume()
             self.first_run = False
             return info
         except Exception as l_ex:

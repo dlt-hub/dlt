@@ -112,12 +112,6 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
             self._client.close()
             self._client = None
 
-    def create_volume(self) -> None:
-        pass
-
-    def drop_volume(self) -> None:
-        pass
-
     @contextmanager
     @raise_database_error
     def begin_transaction(self) -> Iterator[DBTransaction]:

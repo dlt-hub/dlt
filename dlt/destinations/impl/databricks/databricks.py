@@ -59,7 +59,7 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
 
         # decide if this is a local file or a staged file
         is_local_file = not ReferenceFollowupJobRequest.is_reference_job(self._file_path)
-        if is_local_file and self._job_client.config.credentials.direct_load:
+        if is_local_file:
             # local file by uploading to a temporary volume on Databricks
             from_clause, file_name = self._handle_local_file_upload(self._file_path)
             credentials_clause = ""
@@ -112,18 +112,27 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
             )
 
         file_name = FileStorage.get_file_name_from_file_path(local_file_path)
-        file_format = ""
-        if file_name.endswith(".parquet"):
-            file_format = "parquet"
-        elif file_name.endswith(".jsonl"):
-            file_format = "jsonl"
-        else:
-            return "", file_name
+        volume_file_name = file_name
+        if file_name.startswith(("_", ".")):
+            volume_file_name = (
+                "valid" + file_name
+            )  # databricks loading fails when file_name starts with - or .
 
-        volume_path = f"/Volumes/{self._sql_client.database_name}/{self._sql_client.dataset_name}/{self._sql_client.volume_name}/{time.time_ns()}"
-        volume_file_name = (  # replace file_name for random hex code - databricks loading fails when file_name starts with - or .
-            f"{uniq_id()}.{file_format}"
-        )
+        volume_catalog = self._sql_client.database_name
+        volume_database = self._sql_client.dataset_name
+        volume_name = "_dlt_staging_load_volume"
+
+        # create staging volume name
+        fully_qualified_volume_name = f"{volume_catalog}.{volume_database}.{volume_name}"
+        if self._job_client.config.staging_volume_name:
+            fully_qualified_volume_name = self._job_client.config.staging_volume_name
+            volume_catalog, volume_database, volume_name = fully_qualified_volume_name.split(".")
+
+        self._sql_client.execute_sql(f"""
+            CREATE VOLUME IF NOT EXISTS {fully_qualified_volume_name}
+        """)
+
+        volume_path = f"/Volumes/{volume_catalog}/{volume_database}/{volume_name}/{time.time_ns()}"
         volume_file_path = f"{volume_path}/{volume_file_name}"
 
         with open(local_file_path, "rb") as f:

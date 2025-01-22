@@ -64,12 +64,6 @@ class DremioSqlClient(SqlClientBase[pydremio.DremioConnection]):
             self._conn.close()
             self._conn = None
 
-    def create_volume(self) -> None:
-        pass
-
-    def drop_volume(self) -> None:
-        pass
-
     @contextmanager
     @raise_database_error
     def begin_transaction(self) -> Iterator[DBTransaction]:

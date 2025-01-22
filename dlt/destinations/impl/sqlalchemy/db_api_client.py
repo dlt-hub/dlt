@@ -171,12 +171,6 @@ class SqlalchemyClient(SqlClientBase[Connection]):
                 self._current_connection = None
                 self._current_transaction = None
 
-    def create_volume(self) -> None:
-        pass
-
-    def drop_volume(self) -> None:
-        pass
-
     @property
     def native_connection(self) -> Connection:
         if not self._current_connection:

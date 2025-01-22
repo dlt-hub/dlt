@@ -190,12 +190,6 @@ class AthenaSQLClient(SqlClientBase[Connection]):
         self._conn.close()
         self._conn = None
 
-    def create_volume(self) -> None:
-        pass
-
-    def drop_volume(self) -> None:
-        pass
-
     @property
     def native_connection(self) -> Connection:
         return self._conn
