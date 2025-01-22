@@ -690,8 +690,6 @@ def _bound_path_parameters(
     path_params = _extract_expressions(path)
     bound_path = _replace_expression(path, param_values)
 
-    # for param in path_params:
-    #     param_values.pop(param)
     return bound_path, path_params
 
 
@@ -700,10 +698,7 @@ def _bound_json_parameters(
     param_values: Dict[str, Any],
 ):
     json_params = _extract_expressions(request_json)
-
     bound_json = _replace_expression(json.dumps(request_json), param_values)
-    # for param in json_params:
-    #     param_values.pop(param)
 
     return json.loads(bound_json), json_params
 
