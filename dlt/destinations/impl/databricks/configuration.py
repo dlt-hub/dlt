@@ -43,7 +43,7 @@ class DatabricksCredentials(CredentialsConfiguration):
 
                 w = WorkspaceClient()
                 notebook_context = (
-                    w.dbutils.notebook.entry_point.getDbutils().notebook().getContext()
+                    w.dbutils.notebook.entry_point.getDbutils().notebook().getContext()  # type: ignore[union-attr]
                 )
                 self.access_token = notebook_context.apiToken().getOrElse(None)
 
@@ -88,7 +88,7 @@ class DatabricksClientConfiguration(DestinationClientDwhWithStagingConfiguration
     staging_volume_name: Optional[str] = None
     """Name of the Databricks managed volume for temporary storage, e.g., <catalog_name>.<database_name>.<volume_name>. Defaults to '_dlt_temp_load_volume' if not set."""
 
-    def on_resolved(self):
+    def on_resolved(self) -> None:
         if self.staging_volume_name and self.staging_volume_name.count(".") != 2:
             raise ConfigurationValueError(
                 f"Invalid staging_volume_name format: {self.staging_volume_name}. Expected format"

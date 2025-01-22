@@ -50,8 +50,6 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
         self._staging_config = staging_config
         self._job_client: "DatabricksClient" = None
 
-        self._sql_client = None
-
     def run(self) -> None:
         self._sql_client = self._job_client.sql_client
 
