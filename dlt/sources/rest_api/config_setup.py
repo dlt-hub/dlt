@@ -141,9 +141,7 @@ def create_paginator(
         paginator_type = paginator_config.get("type", "auto")
         paginator_class = get_paginator_class(paginator_type)
         return (
-            paginator_class(**exclude_keys(paginator_config, {"type"}))
-            if paginator_class
-            else None
+            paginator_class(**exclude_keys(paginator_config, {"type"})) if paginator_class else None
         )
 
     return None
@@ -198,9 +196,7 @@ def create_auth(auth_config: Optional[AuthConfig]) -> Optional[AuthConfigBase]:
 def setup_incremental_object(
     request_params: Dict[str, Any],
     incremental_config: Optional[IncrementalConfig] = None,
-) -> Tuple[
-    Optional[Incremental[Any]], Optional[IncrementalParam], Optional[Callable[..., Any]]
-]:
+) -> Tuple[Optional[Incremental[Any]], Optional[IncrementalParam], Optional[Callable[..., Any]]]:
     incremental_params: List[str] = []
     for param_name, param_config in request_params.items():
         if (
@@ -319,9 +315,7 @@ def build_resource_dependency_graph(
         named_resources = {rp.resolve_config["resource"] for rp in resolved_params}
 
         if len(named_resources) > 1:
-            raise ValueError(
-                f"Multiple parent resources for {resource_name}: {resolved_params}"
-            )
+            raise ValueError(f"Multiple parent resources for {resource_name}: {resolved_params}")
         elif len(named_resources) == 1:
             # validate the first parameter (note the resource is the same for all params)
             first_param = resolved_params[0]
@@ -361,9 +355,9 @@ def expand_and_index_resources(
         _bind_path_params(endpoint_resource)
 
         resource_name = endpoint_resource["name"]
-        assert isinstance(resource_name, str), (
-            f"Resource name must be a string, got {type(resource_name)}"
-        )
+        assert isinstance(
+            resource_name, str
+        ), f"Resource name must be a string, got {type(resource_name)}"
 
         if resource_name in endpoint_resource_map:
             raise ValueError(f"Resource {resource_name} has already been defined")
@@ -426,11 +420,7 @@ def _bind_path_params(resource: EndpointResource) -> None:
     path = resource["endpoint"]["path"]
 
     for name in _extract_expressions(path):
-        if (
-            name not in params
-            and name not in path_params
-            and name not in resolve_params
-        ):
+        if name not in params and name not in path_params and name not in resolve_params:
             raise ValueError(
                 f"The path {path} defined in resource {resource['name']} requires param with"
                 f" name {name} but it is not found in {params}"
@@ -503,10 +493,7 @@ def _find_resolved_params(endpoint_config: Endpoint) -> List[ResolvedParam]:
 
 def _action_type_unless_custom_hook(
     action_type: Optional[str], custom_hook: Optional[List[Callable[..., Any]]]
-) -> Union[
-    Tuple[str, Optional[List[Callable[..., Any]]]],
-    Tuple[None, List[Callable[..., Any]]],
-]:
+) -> Union[Tuple[str, Optional[List[Callable[..., Any]]]], Tuple[None, List[Callable[..., Any]]],]:
     if custom_hook:
         return (None, custom_hook)
     return (action_type, None)
@@ -785,20 +772,14 @@ def _merge_resource_endpoints(
             **config_endpoint["params"],
         }
     # merge columns
-    if (default_columns := default_config.get("columns")) and (
-        columns := config.get("columns")
-    ):
+    if (default_columns := default_config.get("columns")) and (columns := config.get("columns")):
         # merge only native dlt formats, skip pydantic and others
-        if isinstance(columns, (list, dict)) and isinstance(
-            default_columns, (list, dict)
-        ):
+        if isinstance(columns, (list, dict)) and isinstance(default_columns, (list, dict)):
             # normalize columns
             columns = ensure_table_schema_columns(columns)
             default_columns = ensure_table_schema_columns(default_columns)
             # merge columns with deep merging hints
-            config["columns"] = merge_columns(
-                copy(default_columns), columns, merge_columns=True
-            )
+            config["columns"] = merge_columns(copy(default_columns), columns, merge_columns=True)
 
     # no need to deep merge resources
     merged_resource: EndpointResource = {

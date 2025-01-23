@@ -83,9 +83,7 @@ def test_bind_path_param() -> None:
 
 def test_process_parent_data_item() -> None:
     resolve_params = [
-        ResolvedParam(
-            "id", {"field": "obj_id", "resource": "issues", "type": "resolve"}
-        )
+        ResolvedParam("id", {"field": "obj_id", "resource": "issues", "type": "resolve"})
     ]
 
     bound_path, parent_record, params_values, request_json = process_parent_data_item(
@@ -131,36 +129,31 @@ def test_process_parent_data_item() -> None:
 
     # param path not found
     with pytest.raises(ValueError) as val_ex:
-        bound_path, parent_record, params_values, request_json = (
-            process_parent_data_item(
-                path="dlt-hub/dlt/issues/{id}/comments",
-                item={"_id": 12345},
-                resolved_params=resolve_params,
-                include_from_parent=None,
-            )
+        bound_path, parent_record, params_values, request_json = process_parent_data_item(
+            path="dlt-hub/dlt/issues/{id}/comments",
+            item={"_id": 12345},
+            resolved_params=resolve_params,
+            include_from_parent=None,
         )
     assert "Transformer expects a field 'obj_id'" in str(val_ex.value)
 
     # included path not found
     with pytest.raises(ValueError) as val_ex:
-        bound_path, parent_record, params_values, request_json = (
-            process_parent_data_item(
-                path="dlt-hub/dlt/issues/{id}/comments",
-                item={"_id": 12345, "obj_node": "node_1"},
-                resolved_params=resolve_params,
-                include_from_parent=["obj_id", "node"],
-            )
+        bound_path, parent_record, params_values, request_json = process_parent_data_item(
+            path="dlt-hub/dlt/issues/{id}/comments",
+            item={"_id": 12345, "obj_node": "node_1"},
+            resolved_params=resolve_params,
+            include_from_parent=["obj_id", "node"],
         )
     assert (
-        "Transformer expects a field 'obj_id' to be present in the incoming data from resource issues in order to bind it to"
+        "Transformer expects a field 'obj_id' to be present in the incoming data from resource"
+        " issues in order to bind it to"
         in str(val_ex.value)
     )
 
     # Resolve multiple parameters from a single record
     multi_resolve_params = [
-        ResolvedParam(
-            "issue_id", {"field": "issue", "resource": "comments", "type": "resolve"}
-        ),
+        ResolvedParam("issue_id", {"field": "issue", "resource": "comments", "type": "resolve"}),
         ResolvedParam("id", {"field": "id", "resource": "comments", "type": "resolve"}),
     ]
 
@@ -175,13 +168,11 @@ def test_process_parent_data_item() -> None:
 
     # param path not found with multiple parameters
     with pytest.raises(ValueError) as val_ex:
-        bound_path, parent_record, params_values, request_json = (
-            process_parent_data_item(
-                path="dlt-hub/dlt/issues/{issue_id}/comments/{id}",
-                item={"_issue": 12345, "id": 56789},
-                resolved_params=multi_resolve_params,
-                include_from_parent=None,
-            )
+        bound_path, parent_record, params_values, request_json = process_parent_data_item(
+            path="dlt-hub/dlt/issues/{issue_id}/comments/{id}",
+            item={"_issue": 12345, "id": 56789},
+            resolved_params=multi_resolve_params,
+            include_from_parent=None,
         )
     assert "Transformer expects a field 'issue'" in str(val_ex.value)
 
