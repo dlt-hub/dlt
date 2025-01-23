@@ -1,6 +1,7 @@
 from typing import Any, Sequence, Type, cast, List, Dict
 import argparse
 import click
+import rich_argparse
 
 from dlt.version import __version__
 from dlt.common.runners import Venv
@@ -102,7 +103,6 @@ class DebugAction(argparse.Action):
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Creates, adds, inspects and deploys dlt pipelines.",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
         "--version", action="version", version="%(prog)s {version}".format(version=__version__)
@@ -145,6 +145,16 @@ def main() -> int:
         command_parser = subparsers.add_parser(command.command, help=command.help_string)
         command.configure_parser(command_parser)
         installed_commands[command.command] = command
+
+    # recursively add formatter class
+    def add_formatter_class(parser: argparse.ArgumentParser) -> None:
+        parser.formatter_class = rich_argparse.RichHelpFormatter
+        for action in parser._actions:
+            if isinstance(action, argparse._SubParsersAction):
+                for _subcmd, subparser in action.choices.items():
+                    add_formatter_class(subparser)
+
+    add_formatter_class(parser)
 
     args = parser.parse_args()
 
