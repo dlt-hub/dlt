@@ -255,7 +255,9 @@ def create_resources(
 
         resolved_params: List[ResolvedParam] = resolved_param_map[resource_name]
 
-        include_from_parent: List[str] = endpoint_resource.get("include_from_parent", [])
+        include_from_parent: List[str] = endpoint_resource.get(
+            "include_from_parent", []
+        )
         if not resolved_params and include_from_parent:
             raise ValueError(
                 f"Resource {resource_name} has include_from_parent but is not "
@@ -278,7 +280,9 @@ def create_resources(
 
         hooks = create_response_hooks(endpoint_config.get("response_actions"))
 
-        resource_kwargs = exclude_keys(endpoint_resource, {"endpoint", "include_from_parent"})
+        resource_kwargs = exclude_keys(
+            endpoint_resource, {"endpoint", "include_from_parent"}
+        )
 
         def process(
             resource: DltResource,
@@ -339,13 +343,17 @@ def create_resources(
                 hooks=hooks,
             )
 
-            resources[resource_name] = process(resources[resource_name], processing_steps)
+            resources[resource_name] = process(
+                resources[resource_name], processing_steps
+            )
 
         else:
             first_param = resolved_params[0]
             predecessor = resources[first_param.resolve_config["resource"]]
 
-            base_params = exclude_keys(request_params, {x.param_name for x in resolved_params})
+            base_params = exclude_keys(
+                request_params, {x.param_name for x in resolved_params}
+            )
 
             def paginate_dependent_resource(
                 items: List[Dict[str, Any]],
@@ -378,7 +386,7 @@ def create_resources(
                         process_parent_data_item(
                             path=path,
                             item=item,
-                            params=params,
+                            # params=params,
                             request_json=request_json,
                             resolved_params=resolved_params,
                             include_from_parent=include_from_parent,
@@ -413,7 +421,9 @@ def create_resources(
                 hooks=hooks,
             )
 
-            resources[resource_name] = process(resources[resource_name], processing_steps)
+            resources[resource_name] = process(
+                resources[resource_name], processing_steps
+            )
 
     return resources
 
