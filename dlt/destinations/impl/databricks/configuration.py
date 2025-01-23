@@ -40,23 +40,30 @@ class DatabricksCredentials(CredentialsConfiguration):
             try:
                 # attempt notebook context authentication
                 from databricks.sdk import WorkspaceClient
+                from databricks.sdk.service.sql import EndpointInfo
 
                 w = WorkspaceClient()
-                notebook_context = (
-                    w.dbutils.notebook.entry_point.getDbutils().notebook().getContext()  # type: ignore[union-attr]
-                )
-                self.access_token = notebook_context.apiToken().getOrElse(None)
+                self.access_token = w.dbutils.notebook.entry_point.getDbutils().notebook().getContext().apiToken().getOrElse(None)  # type: ignore[union-attr]
 
-                self.server_hostname = notebook_context.browserHostName().getOrElse(None)
+                # pick the first warehouse on the list
+                warehouses: List[EndpointInfo] = list(w.warehouses.list())
+                self.server_hostname = warehouses[0].odbc_params.hostname
+                self.http_path = warehouses[0].odbc_params.path
             except Exception as e:
                 raise e
 
-            if not self.access_token or not self.server_hostname:
+            if not self.access_token:
                 raise ConfigurationValueError(
-                    "No valid authentication method detected. Provide either 'client_id' and"
-                    " 'client_secret' for OAuth, or 'access_token' for token-based authentication,"
-                    " and the server_hostname."
+                    "Databricks authentication failed: No valid authentication method detected."
+                    " Please provide either 'client_id' and 'client_secret' for OAuth, or"
+                    " 'access_token' for token-based authentication."
                 )
+
+        if not self.server_hostname or not self.http_path or not self.catalog:
+            raise ConfigurationValueError(
+                "Databricks authentication failed: 'server_hostname', 'http_path', and 'catalog'"
+                " are required parameters. Ensure all are provided."
+            )
 
     def to_connector_params(self) -> Dict[str, Any]:
         conn_params = dict(
