@@ -48,8 +48,8 @@ class DatabricksCredentials(CredentialsConfiguration):
                 self.access_token = notebook_context.apiToken().getOrElse(None)
 
                 self.server_hostname = notebook_context.browserHostName().getOrElse(None)
-            except Exception:
-                pass
+            except Exception as e:
+                raise e
 
             if not self.access_token or not self.server_hostname:
                 raise ConfigurationValueError(
