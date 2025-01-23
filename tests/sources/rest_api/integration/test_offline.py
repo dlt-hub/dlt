@@ -314,9 +314,7 @@ def test_load_mock_api_with_json_resolved_with_implicit_param(mock_api_server):
 
 def test_source_with_post_request(mock_api_server):
     class JSONBodyPageCursorPaginator(BaseReferencePaginator):
-        def update_state(
-            self, response: Response, data: Optional[List[Any]] = None
-        ) -> None:
+        def update_state(self, response: Response, data: Optional[List[Any]] = None) -> None:
             self._next_reference = response.json().get("next_page")
 
         def update_request(self, request: Request) -> None:

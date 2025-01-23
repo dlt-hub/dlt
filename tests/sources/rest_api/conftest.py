@@ -59,9 +59,7 @@ def paginate_by_page_number(
     }
 
     if paginator.next_page_url_params:
-        response["next_page"] = create_next_page_url(
-            request, paginator, use_absolute_url
-        )
+        response["next_page"] = create_next_page_url(request, paginator, use_absolute_url)
 
     return response
 
@@ -98,9 +96,7 @@ def mock_api_server():
 
         @router.get(r"/posts_relative_next_url(\?page=\d+)?$")
         def posts_relative_next_url(request, context):
-            return paginate_by_page_number(
-                request, generate_posts(), use_absolute_url=False
-            )
+            return paginate_by_page_number(request, generate_posts(), use_absolute_url=False)
 
         @router.get(r"/posts_offset_limit(\?offset=\d+&limit=\d+)?$")
         def posts_offset_limit(request, context):
@@ -188,9 +184,7 @@ def mock_api_server():
 
         @router.get(r"/posts_under_a_different_key$")
         def posts_with_results_key(request, context):
-            return paginate_by_page_number(
-                request, generate_posts(), records_key="many-results"
-            )
+            return paginate_by_page_number(request, generate_posts(), records_key="many-results")
 
         @router.post(r"/posts/search_by_id/\d+$")
         def search_posts_by_id(request, context):
@@ -323,12 +317,9 @@ def oauth_authorize(request):
         )
 
 
-def assert_pagination(
-    pages, page_size=DEFAULT_PAGE_SIZE, total_pages=DEFAULT_TOTAL_PAGES
-):
+def assert_pagination(pages, page_size=DEFAULT_PAGE_SIZE, total_pages=DEFAULT_TOTAL_PAGES):
     assert len(pages) == total_pages
     for i, page in enumerate(pages):
         assert page == [
-            {"id": i, "title": f"Post {i}"}
-            for i in range(i * page_size, (i + 1) * page_size)
+            {"id": i, "title": f"Post {i}"} for i in range(i * page_size, (i + 1) * page_size)
         ]
