@@ -48,7 +48,7 @@ class DatabricksCredentials(CredentialsConfiguration):
                 # pick the first warehouse on the list
                 warehouses: List[EndpointInfo] = list(w.warehouses.list())
                 self.server_hostname = warehouses[0].odbc_params.hostname
-                self.http_path = warehouses[0].odbc_params.path
+                #self.http_path = warehouses[0].odbc_params.path
             except Exception as e:
                 raise e
 
