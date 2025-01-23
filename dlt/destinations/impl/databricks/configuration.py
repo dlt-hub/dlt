@@ -13,8 +13,8 @@ DATABRICKS_APPLICATION_ID = "dltHub_dlt"
 @configspec
 class DatabricksCredentials(CredentialsConfiguration):
     catalog: str = None
-    server_hostname: str = None
-    http_path: str = None
+    server_hostname: Optional[str] = None
+    http_path: Optional[str] = None
     access_token: Optional[TSecretStrValue] = None
     client_id: Optional[TSecretStrValue] = None
     client_secret: Optional[TSecretStrValue] = None
@@ -48,9 +48,9 @@ class DatabricksCredentials(CredentialsConfiguration):
                 # pick the first warehouse on the list
                 warehouses: List[EndpointInfo] = list(w.warehouses.list())
                 self.server_hostname = warehouses[0].odbc_params.hostname
-                #self.http_path = warehouses[0].odbc_params.path
-            except Exception as e:
-                raise e
+                self.http_path = warehouses[0].odbc_params.path
+            except Exception:
+                pass
 
             if not self.access_token:
                 raise ConfigurationValueError(
