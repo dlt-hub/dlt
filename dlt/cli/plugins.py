@@ -139,7 +139,9 @@ class PipelineCommand(SupportsCliCommand):
             dest="verbosity",
         )
 
-        pipeline_subparsers = pipe_cmd.add_subparsers(dest="operation", required=False)
+        pipeline_subparsers = pipe_cmd.add_subparsers(
+            title="Pipline operations", dest="operation", required=False
+        )
 
         pipe_cmd_sync_parent = argparse.ArgumentParser(add_help=False)
         pipe_cmd_sync_parent.add_argument(
@@ -329,7 +331,9 @@ class DeployCommand(SupportsCliCommand):
             help="Advanced. Uses specific branch of the deploy repository to fetch the template.",
         )
 
-        deploy_sub_parsers = deploy_cmd.add_subparsers(dest="deployment_method")
+        deploy_sub_parsers = deploy_cmd.add_subparsers(
+            title="Deployment operations", dest="deployment_method"
+        )
 
         # deploy github actions
         deploy_github_cmd = deploy_sub_parsers.add_parser(

@@ -1,4 +1,4 @@
-from typing import Any, Sequence, Type, cast, List, Dict
+from typing import Any, Sequence, Type, cast, List, Dict, Tuple
 import argparse
 import click
 import rich_argparse
@@ -100,7 +100,7 @@ class DebugAction(argparse.Action):
         debug.enable_debug()
 
 
-def main() -> int:
+def _create_parser() -> Tuple[argparse.ArgumentParser, Dict[str, SupportsCliCommand]]:
     parser = argparse.ArgumentParser(
         description="Creates, adds, inspects and deploys dlt pipelines.",
     )
@@ -128,7 +128,7 @@ def main() -> int:
     parser.add_argument(
         "--debug", action=DebugAction, help="Displays full stack traces on exceptions."
     )
-    subparsers = parser.add_subparsers(dest="command")
+    subparsers = parser.add_subparsers(title="Toplevel Commands", dest="command")
 
     # load plugins
     from dlt.common.configuration import plugins
@@ -156,6 +156,11 @@ def main() -> int:
 
     add_formatter_class(parser)
 
+    return parser, installed_commands
+
+
+def main() -> int:
+    parser, installed_commands = _create_parser()
     args = parser.parse_args()
 
     if Venv.is_virtual_env() and not Venv.is_venv_activated():
