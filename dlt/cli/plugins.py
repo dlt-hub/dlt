@@ -18,6 +18,7 @@ from dlt.cli.command_wrappers import (
     telemetry_status_command_wrapper,
     deploy_command_wrapper,
 )
+from dlt.cli.docs_command import render_argparse_markdown
 from dlt.cli.command_wrappers import (
     DLT_PIPELINE_COMMAND_DOCS_URL,
     DLT_INIT_DOCS_URL,
@@ -140,7 +141,7 @@ class PipelineCommand(SupportsCliCommand):
         )
 
         pipeline_subparsers = pipe_cmd.add_subparsers(
-            title="Pipline operations", dest="operation", required=False
+            title="Available Commands", dest="operation", required=False
         )
 
         pipe_cmd_sync_parent = argparse.ArgumentParser(add_help=False)
@@ -332,7 +333,7 @@ class DeployCommand(SupportsCliCommand):
         )
 
         deploy_sub_parsers = deploy_cmd.add_subparsers(
-            title="Deployment operations", dest="deployment_method"
+            title="Available Commands", dest="deployment_method"
         )
 
         # deploy github actions
@@ -404,6 +405,26 @@ class DeployCommand(SupportsCliCommand):
             )
 
 
+# NOTE: we should port this as a command or as a tool to the core repo
+class CliDocsCommand(SupportsCliCommand):
+    command = "render-docs"
+    help_string = "Renders markdown version of cli docs"
+
+    def configure_parser(self, parser: argparse.ArgumentParser) -> None:
+        self.parser = parser
+
+    def execute(self, args: argparse.Namespace) -> None:
+        # NOTE: this code depends on changes in the dlt core that have not been merged yet
+
+        from dlt.cli._dlt import _create_parser
+
+        parser, _ = _create_parser()
+
+        result = render_argparse_markdown("dlt", parser)
+
+        fmt.echo(result)
+
+
 #
 # Register all commands
 #
@@ -430,3 +451,8 @@ def plug_cli_telemetry() -> Type[SupportsCliCommand]:
 @plugins.hookimpl(specname="plug_cli")
 def plug_cli_deploy() -> Type[SupportsCliCommand]:
     return DeployCommand
+
+
+@plugins.hookimpl(specname="plug_cli")
+def plug_cli_docs() -> Type[SupportsCliCommand]:
+    return CliDocsCommand

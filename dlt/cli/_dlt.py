@@ -128,7 +128,7 @@ def _create_parser() -> Tuple[argparse.ArgumentParser, Dict[str, SupportsCliComm
     parser.add_argument(
         "--debug", action=DebugAction, help="Displays full stack traces on exceptions."
     )
-    subparsers = parser.add_subparsers(title="Toplevel Commands", dest="command")
+    subparsers = parser.add_subparsers(title="Available Commands", dest="command")
 
     # load plugins
     from dlt.common.configuration import plugins
