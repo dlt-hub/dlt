@@ -67,7 +67,7 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
                 self._handle_staged_file()
             )
 
-        # Determine the source format and any additional format options
+        # decide on source format, file_name will either be a local file or a bucket path
         source_format, format_options_clause, skip_load = self._determine_source_format(
             file_name, orig_bucket_path
         )
@@ -172,14 +172,16 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
         credentials_clause = ""
 
         if self._job_client.config.is_staging_external_location:
-            # skip the credentials clause
+            # just skip the credentials clause for external location
+            # https://docs.databricks.com/en/sql/language-manual/sql-ref-external-locations.html#external-location
             pass
         elif self._job_client.config.staging_credentials_name:
-            # named credentials
+            # add named credentials
             credentials_clause = (
                 f"WITH(CREDENTIAL {self._job_client.config.staging_credentials_name} )"
             )
         else:
+            # referencing an staged files via a bucket URL requires explicit AWS credentials
             if bucket_scheme == "s3":
                 assert isinstance(staging_credentials, AwsCredentialsWithoutDefaults)
                 s3_creds = staging_credentials.to_session_credentials()
@@ -192,6 +194,7 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
                 assert isinstance(
                     staging_credentials, AzureCredentialsWithoutDefaults
                 ), "AzureCredentialsWithoutDefaults required to pass explicit credential"
+                # Explicit azure credentials are needed to load from bucket without a named stage
                 credentials_clause = f"""WITH(CREDENTIAL(AZURE_SAS_TOKEN='{staging_credentials.azure_storage_sas_token}'))"""
                 bucket_path = self.ensure_databricks_abfss_url(
                     bucket_path,
@@ -216,6 +219,7 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
                 staging_credentials.azure_account_host,
             )
 
+        # always add FROM clause
         from_clause = f"FROM '{bucket_path}'"
 
         return from_clause, credentials_clause, file_name, orig_bucket_path
