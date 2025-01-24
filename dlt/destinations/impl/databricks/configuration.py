@@ -5,7 +5,6 @@ from dlt.common.typing import TSecretStrValue
 from dlt.common.configuration.specs.base_configuration import CredentialsConfiguration, configspec
 from dlt.common.destination.reference import DestinationClientDwhWithStagingConfiguration
 from dlt.common.configuration.exceptions import ConfigurationValueError
-from dlt.common import logger
 
 DATABRICKS_APPLICATION_ID = "dltHub_dlt"
 
