@@ -90,9 +90,18 @@ def test_databricks_abfss_converter() -> None:
 
 
 def test_databricks_auth_invalid() -> None:
-    with pytest.raises(ConfigurationValueError, match="No valid authentication method detected.*"):
+    with pytest.raises(ConfigurationValueError, match="Authentication failed:*"):
         os.environ["DESTINATION__DATABRICKS__CREDENTIALS__CLIENT_ID"] = ""
         os.environ["DESTINATION__DATABRICKS__CREDENTIALS__CLIENT_SECRET"] = ""
         os.environ["DESTINATION__DATABRICKS__CREDENTIALS__ACCESS_TOKEN"] = ""
+        bricks = databricks()
+        bricks.configuration(None, accept_partial=True)
+
+
+def test_databricks_missing_config() -> None:
+    with pytest.raises(ConfigurationValueError, match="Configuration error:*"):
+        os.environ["DESTINATION__DATABRICKS__CREDENTIALS__SERVER_HOSTNAME"] = ""
+        os.environ["DESTINATION__DATABRICKS__CREDENTIALS__HTTP_PATH"] = ""
+        os.environ["DESTINATION__DATABRICKS__CREDENTIALS__CATALOG"] = ""
         bricks = databricks()
         bricks.configuration(None, accept_partial=True)

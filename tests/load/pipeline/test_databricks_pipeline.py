@@ -1,5 +1,6 @@
 import pytest
 import os
+import dlt
 
 from dlt.common.utils import uniq_id
 from dlt.destinations import databricks
@@ -220,30 +221,38 @@ def test_databricks_auth_token(destination_config: DestinationTestConfiguration)
         assert len(rows) == 3
 
 
-# TODO: test config staging_volume_name on_resolve
-# TODO: modify the DestinationTestConfiguration
-# TODO: add test databricks credentials default auth error
-# TODO: test on notebook
-# TODO: check that volume doesn't block schema drop
-@pytest.mark.parametrize(
-    "destination_config",
-    destinations_configs(default_sql_configs=True, subset=("databricks",)),
-    ids=lambda x: x.name,
-)
-def test_databricks_direct_load(destination_config: DestinationTestConfiguration) -> None:
+def test_databricks_direct_load() -> None:
     os.environ["DESTINATION__DATABRICKS__CREDENTIALS__CLIENT_ID"] = ""
     os.environ["DESTINATION__DATABRICKS__CREDENTIALS__CLIENT_SECRET"] = ""
 
     bricks = databricks()
-    config = bricks.configuration(None, accept_partial=True)
-    assert config.credentials.access_token
 
-    dataset_name = "test_databricks_token" + uniq_id()
-    pipeline = destination_config.setup_pipeline(
-        "test_databricks_token", dataset_name=dataset_name, destination=bricks
+    dataset_name = "test_databricks_direct_load" + uniq_id()
+
+    pipeline = dlt.pipeline(
+        "test_databricks_direct_load", dataset_name=dataset_name, destination=bricks
     )
+    info = pipeline.run([1, 2, 3], table_name="digits")
+    assert info.has_failed_jobs is False
 
-    info = pipeline.run([1, 2, 3], table_name="digits", **destination_config.run_kwargs)
+    with pipeline.sql_client() as client:
+        rows = client.execute_sql(f"select * from {dataset_name}.digits")
+        assert len(rows) == 3
+
+
+def test_databricks_direct_load_with_custom_staging_volume_name() -> None:
+    os.environ["DESTINATION__DATABRICKS__CREDENTIALS__CLIENT_ID"] = ""
+    os.environ["DESTINATION__DATABRICKS__CREDENTIALS__CLIENT_SECRET"] = ""
+
+    custom_staging_volume_name = "dlt_ci.dlt_tests_shared.custom_volume"
+    bricks = databricks(staging_volume_name=custom_staging_volume_name)
+
+    dataset_name = "test_databricks_direct_load" + uniq_id()
+
+    pipeline = dlt.pipeline(
+        "test_databricks_direct_load", dataset_name=dataset_name, destination=bricks
+    )
+    info = pipeline.run([1, 2, 3], table_name="digits")
     assert info.has_failed_jobs is False
 
     with pipeline.sql_client() as client:

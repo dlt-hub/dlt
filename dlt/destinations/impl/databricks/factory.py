@@ -154,6 +154,7 @@ class databricks(Destination[DatabricksClientConfiguration, "DatabricksClient"])
         staging_credentials_name: t.Optional[str] = None,
         destination_name: t.Optional[str] = None,
         environment: t.Optional[str] = None,
+        staging_volume_name: t.Optional[str] = None,
         **kwargs: t.Any,
     ) -> None:
         """Configure the Databricks destination to use in a pipeline.
@@ -173,5 +174,6 @@ class databricks(Destination[DatabricksClientConfiguration, "DatabricksClient"])
             staging_credentials_name=staging_credentials_name,
             destination_name=destination_name,
             environment=environment,
+            staging_volume_name=staging_volume_name,
             **kwargs,
         )

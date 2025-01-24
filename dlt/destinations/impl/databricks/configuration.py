@@ -53,15 +53,15 @@ class DatabricksCredentials(CredentialsConfiguration):
 
             if not self.access_token:
                 raise ConfigurationValueError(
-                    "Databricks authentication failed: No valid authentication method detected."
-                    " Please provide either 'client_id' and 'client_secret' for OAuth, or"
-                    " 'access_token' for token-based authentication."
+                    "Authentication failed: No valid authentication method detected. "
+                    "Provide either 'client_id' and 'client_secret' for OAuth authentication, "
+                    "or 'access_token' for token-based authentication."
                 )
 
         if not self.server_hostname or not self.http_path or not self.catalog:
             raise ConfigurationValueError(
-                "Databricks authentication failed: 'server_hostname', 'http_path', and 'catalog'"
-                " are required parameters. Ensure all are provided."
+                "Configuration error: Missing required parameters. "
+                "Please provide 'server_hostname', 'http_path', and 'catalog' in the configuration."
             )
 
     def to_connector_params(self) -> Dict[str, Any]:
@@ -93,13 +93,6 @@ class DatabricksClientConfiguration(DestinationClientDwhWithStagingConfiguration
     """If true, the temporary credentials are not propagated to the COPY command"""
     staging_volume_name: Optional[str] = None
     """Name of the Databricks managed volume for temporary storage, e.g., <catalog_name>.<database_name>.<volume_name>. Defaults to '_dlt_temp_load_volume' if not set."""
-
-    def on_resolved(self) -> None:
-        if self.staging_volume_name and self.staging_volume_name.count(".") != 2:
-            raise ConfigurationValueError(
-                f"Invalid staging_volume_name format: {self.staging_volume_name}. Expected format"
-                " is '<catalog_name>.<database_name>.<volume_name>'."
-            )
 
     def __str__(self) -> str:
         """Return displayable destination location"""
