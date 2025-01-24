@@ -221,18 +221,25 @@ def test_databricks_auth_token(destination_config: DestinationTestConfiguration)
         assert len(rows) == 3
 
 
-def test_databricks_direct_load() -> None:
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True, bucket_subset=(AZ_BUCKET,), subset=("databricks",)
+    ),
+    ids=lambda x: x.name,
+)
+def test_databricks_direct_load(destination_config: DestinationTestConfiguration) -> None:
     os.environ["DESTINATION__DATABRICKS__CREDENTIALS__CLIENT_ID"] = ""
     os.environ["DESTINATION__DATABRICKS__CREDENTIALS__CLIENT_SECRET"] = ""
 
     bricks = databricks()
 
     dataset_name = "test_databricks_direct_load" + uniq_id()
-
-    pipeline = dlt.pipeline(
+    pipeline = destination_config.setup_pipeline(
         "test_databricks_direct_load", dataset_name=dataset_name, destination=bricks
     )
-    info = pipeline.run([1, 2, 3], table_name="digits")
+
+    info = pipeline.run([1, 2, 3], table_name="digits", **destination_config.run_kwargs)
     assert info.has_failed_jobs is False
 
     with pipeline.sql_client() as client:
@@ -240,7 +247,16 @@ def test_databricks_direct_load() -> None:
         assert len(rows) == 3
 
 
-def test_databricks_direct_load_with_custom_staging_volume_name() -> None:
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True, bucket_subset=(AZ_BUCKET,), subset=("databricks",)
+    ),
+    ids=lambda x: x.name,
+)
+def test_databricks_direct_load_with_custom_staging_volume_name(
+    destination_config: DestinationTestConfiguration,
+) -> None:
     os.environ["DESTINATION__DATABRICKS__CREDENTIALS__CLIENT_ID"] = ""
     os.environ["DESTINATION__DATABRICKS__CREDENTIALS__CLIENT_SECRET"] = ""
 
@@ -248,11 +264,11 @@ def test_databricks_direct_load_with_custom_staging_volume_name() -> None:
     bricks = databricks(staging_volume_name=custom_staging_volume_name)
 
     dataset_name = "test_databricks_direct_load" + uniq_id()
-
-    pipeline = dlt.pipeline(
+    pipeline = destination_config.setup_pipeline(
         "test_databricks_direct_load", dataset_name=dataset_name, destination=bricks
     )
-    info = pipeline.run([1, 2, 3], table_name="digits")
+
+    info = pipeline.run([1, 2, 3], table_name="digits", **destination_config.run_kwargs)
     assert info.has_failed_jobs is False
 
     with pipeline.sql_client() as client:
