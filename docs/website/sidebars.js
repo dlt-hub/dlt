@@ -343,7 +343,17 @@ const sidebars = {
         keywords: ['reference'],
       },
       items: [
-        'reference/command-line-interface',
+        {
+          type: 'category',
+          label: 'Command Line Interface',
+          link: {
+            type: 'doc',
+            id: 'reference/command-line-interface',
+          },
+          items: [
+            'reference/command-line-interface-generated',
+          ]
+        },
         'reference/telemetry',
         // Unsure item
         'general-usage/destination-tables',

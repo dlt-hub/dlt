@@ -141,7 +141,7 @@ class PipelineCommand(SupportsCliCommand):
         )
 
         pipeline_subparsers = pipe_cmd.add_subparsers(
-            title="Available Commands", dest="operation", required=False
+            title="Available subcommands", dest="operation", required=False
         )
 
         pipe_cmd_sync_parent = argparse.ArgumentParser(add_help=False)
@@ -333,7 +333,7 @@ class DeployCommand(SupportsCliCommand):
         )
 
         deploy_sub_parsers = deploy_cmd.add_subparsers(
-            title="Available Commands", dest="deployment_method"
+            title="Available subcommands", dest="deployment_method"
         )
 
         # deploy github actions

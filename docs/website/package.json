@@ -4,18 +4,24 @@
   "private": true,
   "scripts": {
     "docusaurus": "docusaurus",
-    "start": "PYTHONPATH=. poetry run pydoc-markdown && node tools/preprocess_docs.js && concurrently --kill-others \"node tools/preprocess_docs.js --watch\" \"docusaurus start\"",
-    "build": "node tools/update_versions.js && node tools/preprocess_docs.js && PYTHONPATH=. poetry run pydoc-markdown && docusaurus build",
-    "build:netlify": "node tools/update_versions.js && node tools/preprocess_docs.js && PYTHONPATH=. pydoc-markdown && docusaurus build --out-dir build/docs",
+    "start": "npm run preprocess_docs && npm run gen-api-ref && npm run render-cli-docs && concurrently --kill-others \"node tools/preprocess_docs.js --watch\" \"docusaurus start\"",
+    "build": "npm run update-versions && npm run preprocess-docs && npm run gen-api-ref && npm run render-cli-docs && docusaurus build",
+    "build:netlify": "npm run update-versions && npm run preprocess-docs && npm run gen-api-ref-netlify && npm run render-cli-docs-netlify && docusaurus build --out-dir build/docs",
     "swizzle": "docusaurus swizzle",
     "clear": "docusaurus clear",
     "serve": "docusaurus serve",
     "write-translations": "docusaurus write-translations",
     "write-heading-ids": "docusaurus write-heading-ids",
-    "preprocess-docs": "node tools/preprocess_docs.js",
-    "generate-api-reference": "PYTHONPATH=. poetry run pydoc-markdown",
+
     "clear-versions": "node tools/clear_versions.js",
-    "update-versions": "node tools/update_versions.js"
+    "update-versions": "node tools/update_versions.js",
+
+    "run-preprocessing-steps": "npm run preprocess-docs && npm run gen-api-ref && npm run render-cli-docs",
+    "preprocess-docs": "node tools/preprocess_docs.js",
+    "gen-api-ref": "PYTHONPATH=. poetry run pydoc-markdown",
+    "gen-api-ref-netlify": "PYTHONPATH=. pydoc-markdown",
+    "render-cli-docs": "PYTHONPATH=. poetry run dlt render-docs > docs/reference/command-line-interface-generated.md",
+    "render-cli-docs-netlify": "PYTHONPATH=. dlt render-docs > docs/reference/command-line-interface-generated.md"
   },
   "dependencies": {
     "@docusaurus/core": "2.4.3",

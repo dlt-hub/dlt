@@ -5,7 +5,7 @@ import textwrap
 import os
 
 HEADER = """---
-title: Command line interface
+title: Full CLI Reference
 description: Command line interface (CLI) of dlt
 keywords: [command line interface, cli, dlt init]
 ---
@@ -72,7 +72,7 @@ def render_argparse_markdown(
         usage = _text_wrap_line(usage)
 
         # get description or use help passed down from choices
-        description = parser.description or help or ""
+        description = parser.description or help_string or ""
 
         # extract all other sections
         extracted_sections = []
