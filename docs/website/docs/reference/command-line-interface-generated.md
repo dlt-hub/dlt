@@ -22,7 +22,7 @@ Adding the flag after the pipeline keyword will not work.
 
 ## `dlt`
 
-Creates, adds, inspects and deploys dlt pipelines.
+Creates, adds, inspects and deploys dlt pipelines. Further help is available at https://dlthub.com/docs/reference/command-line-interface.
 
 **Usage**
 ```sh

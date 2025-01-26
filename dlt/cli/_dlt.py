@@ -102,7 +102,10 @@ class DebugAction(argparse.Action):
 
 def _create_parser() -> Tuple[argparse.ArgumentParser, Dict[str, SupportsCliCommand]]:
     parser = argparse.ArgumentParser(
-        description="Creates, adds, inspects and deploys dlt pipelines.",
+        description=(
+            "Creates, adds, inspects and deploys dlt pipelines. Further help is available at"
+            " https://dlthub.com/docs/reference/command-line-interface."
+        ),
     )
     parser.add_argument(
         "--version", action="version", version="%(prog)s {version}".format(version=__version__)
