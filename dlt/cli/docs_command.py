@@ -48,7 +48,7 @@ def render_argparse_markdown(
     def get_parser_help_recursive(
         parser: argparse.ArgumentParser,
         cmd: str = "",
-        root: bool = True,
+        parent: str = "",
         nesting: int = 0,
         help_string: str = None,
     ) -> str:
@@ -77,6 +77,12 @@ def render_argparse_markdown(
 
         # get description or use help passed down from choices
         description = parser.description or help_string or ""
+        description = description.strip(" .") + "."
+
+        inherits_from = ""
+        if parent:
+            parent_slug = parent.lower().replace(" ", "-")
+            inherits_from = f"Inherits arguments from [`{parent}`](#{parent_slug})."
 
         # extract all other sections
         # here we remove excess information and style the args nicely
@@ -131,6 +137,9 @@ def render_argparse_markdown(
         markdown += f"{usage}\n"
         markdown += "```\n\n"
 
+        if inherits_from:
+            markdown += f"{inherits_from}\n\n"
+
         for es in extracted_sections:
             markdown += f"**{es['header']}**\n"
             markdown += f"{es['section']}\n"
@@ -146,7 +155,7 @@ def render_argparse_markdown(
                     markdown += get_parser_help_recursive(
                         subparser,
                         f"{cmd} {subaction.dest}",
-                        root=False,
+                        parent=cmd,
                         nesting=nesting + 1,
                         help_string=subaction.help,
                     )

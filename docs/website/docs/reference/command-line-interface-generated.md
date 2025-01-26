@@ -49,24 +49,28 @@ dlt [-h] [--version] [--disable-telemetry] [--enable-telemetry]
 
 ## `dlt telemetry`
 
-Shows telemetry status
+Shows telemetry status.
 
 **Usage**
 ```sh
 dlt telemetry [-h]
 ```
 
+Inherits arguments from [`dlt`](#dlt).
+
 **Options**
 * `-h, --help` - Show this help message and exit
 
 ## `dlt schema`
 
-Shows, converts and upgrades schemas
+Shows, converts and upgrades schemas.
 
 **Usage**
 ```sh
 dlt schema [-h] [--format {json,yaml}] [--remove-defaults] file
 ```
+
+Inherits arguments from [`dlt`](#dlt).
 
 **Positional arguments**
 * `file` - Schema file name, in yaml or json format, will autodetect based on extension
@@ -78,7 +82,7 @@ dlt schema [-h] [--format {json,yaml}] [--remove-defaults] file
 
 ## `dlt pipeline`
 
-Operations on pipelines that were ran locally
+Operations on pipelines that were ran locally.
 
 **Usage**
 ```sh
@@ -87,6 +91,8 @@ dlt pipeline [-h] [--list-pipelines] [--hot-reload] [--pipelines-dir
     {info,show,failed-jobs,drop-pending-packages,sync,trace,schema,drop,load-package}
     ...
 ```
+
+Inherits arguments from [`dlt`](#dlt).
 
 **Positional arguments**
 * `pipeline_name` - Pipeline name
@@ -111,36 +117,42 @@ dlt pipeline [-h] [--list-pipelines] [--hot-reload] [--pipelines-dir
 
 ### `dlt pipeline info`
 
-Displays state of the pipeline, use -v or -vv for more info
+Displays state of the pipeline, use -v or -vv for more info.
 
 **Usage**
 ```sh
 dlt pipeline [pipeline_name] info [-h]
 ```
 
+Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
+
 **Options**
 * `-h, --help` - Show this help message and exit
 
 ### `dlt pipeline show`
 
-Generates and launches Streamlit app with the loading status and dataset explorer
+Generates and launches Streamlit app with the loading status and dataset explorer.
 
 **Usage**
 ```sh
 dlt pipeline [pipeline_name] show [-h]
 ```
 
+Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
+
 **Options**
 * `-h, --help` - Show this help message and exit
 
 ### `dlt pipeline failed-jobs`
 
-Displays information on all the failed loads in all completed packages, failed jobs and associated error messages
+Displays information on all the failed loads in all completed packages, failed jobs and associated error messages.
 
 **Usage**
 ```sh
 dlt pipeline [pipeline_name] failed-jobs [-h]
 ```
+
+Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
 
 **Options**
 * `-h, --help` - Show this help message and exit
@@ -153,6 +165,8 @@ Deletes all extracted and normalized packages including those that are partially
 ```sh
 dlt pipeline [pipeline_name] drop-pending-packages [-h]
 ```
+
+Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
 
 **Options**
 * `-h, --help` - Show this help message and exit
@@ -167,6 +181,8 @@ dlt pipeline [pipeline_name] sync [-h] [--destination DESTINATION]
     [--dataset-name DATASET_NAME]
 ```
 
+Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
+
 **Options**
 * `-h, --help` - Show this help message and exit
 * `--destination DESTINATION` - Sync from this destination when local pipeline state is missing.
@@ -174,25 +190,29 @@ dlt pipeline [pipeline_name] sync [-h] [--destination DESTINATION]
 
 ### `dlt pipeline trace`
 
-Displays last run trace, use -v or -vv for more info
+Displays last run trace, use -v or -vv for more info.
 
 **Usage**
 ```sh
 dlt pipeline [pipeline_name] trace [-h]
 ```
 
+Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
+
 **Options**
 * `-h, --help` - Show this help message and exit
 
 ### `dlt pipeline schema`
 
-Displays default schema
+Displays default schema.
 
 **Usage**
 ```sh
 dlt pipeline [pipeline_name] schema [-h] [--format {json,yaml}]
     [--remove-defaults]
 ```
+
+Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
 
 **Options**
 * `-h, --help` - Show this help message and exit
@@ -201,7 +221,7 @@ dlt pipeline [pipeline_name] schema [-h] [--format {json,yaml}]
 
 ### `dlt pipeline drop`
 
-Selectively drop tables and reset state
+Selectively drop tables and reset state.
 
 **Usage**
 ```sh
@@ -209,6 +229,8 @@ dlt pipeline [pipeline_name] drop [-h] [--destination DESTINATION]
     [--dataset-name DATASET_NAME] [--drop-all] [--state-paths [STATE_PATHS ...]]
     [--schema SCHEMA_NAME] [--state-only] [resources ...]
 ```
+
+Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
 
 **Positional arguments**
 * `resources` - One or more resources to drop. can be exact resource name(s) or regex pattern(s). regex patterns must start with re:
@@ -224,12 +246,14 @@ dlt pipeline [pipeline_name] drop [-h] [--destination DESTINATION]
 
 ### `dlt pipeline load-package`
 
-Displays information on load package, use -v or -vv for more info
+Displays information on load package, use -v or -vv for more info.
 
 **Usage**
 ```sh
 dlt pipeline [pipeline_name] load-package [-h] [load-id]
 ```
+
+Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
 
 **Positional arguments**
 * `load-id` - Load id of completed or normalized package. defaults to the most recent package.
@@ -247,6 +271,8 @@ dlt init [-h] [--list-sources] [--location LOCATION] [--branch BRANCH] [--eject]
     [source] [destination]
 ```
 
+Inherits arguments from [`dlt`](#dlt).
+
 **Positional arguments**
 * `source` - Name of data source for which to create a pipeline. adds existing verified source or creates a new pipeline template if verified source for your data source is not yet implemented.
 * `destination` - Name of a destination ie. bigquery or redshift
@@ -260,12 +286,14 @@ dlt init [-h] [--list-sources] [--location LOCATION] [--branch BRANCH] [--eject]
 
 ## `dlt render-docs`
 
-Renders markdown version of cli docs
+Renders markdown version of cli docs.
 
 **Usage**
 ```sh
 dlt render-docs [-h] [--compare] file_name
 ```
+
+Inherits arguments from [`dlt`](#dlt).
 
 **Positional arguments**
 * `file_name` - Output file name
@@ -276,12 +304,14 @@ dlt render-docs [-h] [--compare] file_name
 
 ## `dlt deploy`
 
-Creates a deployment package for a selected pipeline script
+Creates a deployment package for a selected pipeline script.
 
 **Usage**
 ```sh
 dlt deploy [-h] pipeline-script-path {github-action,airflow-composer} ...
 ```
+
+Inherits arguments from [`dlt`](#dlt).
 
 **Positional arguments**
 * `pipeline-script-path` - Path to a pipeline script
@@ -295,13 +325,15 @@ dlt deploy [-h] pipeline-script-path {github-action,airflow-composer} ...
 
 ### `dlt deploy github-action`
 
-Deploys the pipeline to Github Actions
+Deploys the pipeline to Github Actions.
 
 **Usage**
 ```sh
 dlt deploy pipeline-script-path github-action [-h] [--location LOCATION]
     [--branch BRANCH] --schedule SCHEDULE [--run-manually] [--run-on-push]
 ```
+
+Inherits arguments from [`dlt deploy`](#dlt-deploy).
 
 **Options**
 * `-h, --help` - Show this help message and exit
@@ -313,13 +345,15 @@ dlt deploy pipeline-script-path github-action [-h] [--location LOCATION]
 
 ### `dlt deploy airflow-composer`
 
-Deploys the pipeline to Airflow
+Deploys the pipeline to Airflow.
 
 **Usage**
 ```sh
 dlt deploy pipeline-script-path airflow-composer [-h] [--location LOCATION]
     [--branch BRANCH] [--secrets-format {env,toml}]
 ```
+
+Inherits arguments from [`dlt deploy`](#dlt-deploy).
 
 **Options**
 * `-h, --help` - Show this help message and exit
