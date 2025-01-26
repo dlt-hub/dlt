@@ -3,6 +3,7 @@
 import argparse
 import textwrap
 import os
+import re
 
 HEADER = """---
 title: Full CLI Reference
@@ -19,7 +20,7 @@ Flags and positional commands are inherited from the parent command. Position wi
 is important. For example if you want to enable debug mode on the pipeline command, you need to add the
 debug flag to the base dlt command:
 
-```bash
+```sh
 dlt --debug pipeline
 ```
 
@@ -91,16 +92,26 @@ def render_argparse_markdown(
             section_lines = [line for line in section_lines if line]
 
             # dedent lines
-            section_lines = textwrap.dedent(os.linesep.join(section_lines)).splitlines()
+            section = textwrap.dedent(os.linesep.join(section_lines))
+
+            # split and clean
+            section_lines = re.split(r"\s{2,}|\n+", section)
+            section_lines = [line for line in section_lines if not line.startswith("{")]
+            assert len(section_lines) % 2 == 0, "Expected even number of lines"
+
+            # make list of args
+            section = ""
+            for x in range(0, len(section_lines), 2):
+                section += f"* `{section_lines[x]}` - {section_lines[x+1].capitalize()}\n"
 
             # wrap
-            section_lines = [_text_wrap_line(line, indent=20) for line in section_lines]
+            # section_lines = [_text_wrap_line(line, indent=20) for line in section_lines]
 
             # join lines
-            section = os.linesep.join(section_lines)
+            # section = os.linesep.join(section_lines)
 
             # dedent
-            section = textwrap.dedent(section)
+            # section = textwrap.dedent(section)
 
             extracted_sections.append({"header": header.capitalize(), "section": section})
 
@@ -109,15 +120,13 @@ def render_argparse_markdown(
         if description:
             markdown += f"{description}\n\n"
         markdown += "**Usage**\n"
-        markdown += "```bash\n"
+        markdown += "```sh\n"
         markdown += f"{usage}\n"
         markdown += "```\n\n"
 
         for es in extracted_sections:
             markdown += f"**{es['header']}**\n"
-            markdown += "```sh\n"
             markdown += f"{es['section']}\n"
-            markdown += "```\n\n"
 
         for action in parser._actions:
             if isinstance(action, argparse._SubParsersAction):
