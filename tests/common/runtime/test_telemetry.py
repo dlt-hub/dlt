@@ -10,6 +10,7 @@ from pytest_mock import MockerFixture
 
 from dlt.common import logger
 from dlt.common.runtime.anon_tracker import get_anonymous_id, track, disable_anon_tracker
+from dlt.common.runtime.exec_info import get_execution_context
 from dlt.common.typing import DictStrAny, DictStrStr
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import RuntimeConfiguration
@@ -19,10 +20,9 @@ from tests.common.runtime.utils import mock_image_env, mock_github_env, mock_pod
 from tests.common.configuration.utils import environment
 from tests.utils import (
     preserve_environ,
+    unload_modules,
     SentryLoggerConfiguration,
     disable_temporary_telemetry,
-    skipifspawn,
-    skipifwindows,
     init_test_logging,
     start_test_telemetry,
 )
@@ -178,6 +178,20 @@ def test_track_anon_event(
     assert isinstance(context["exec_info"], list)
     assert ["kubernetes", "codespaces"] <= context["exec_info"]
     assert context["run_context"] == "dlt"
+
+
+def test_execution_context_with_plugin() -> None:
+    import sys
+
+    # move working dir so dlt_plus mock is importable and appears in settings
+    plus_path = os.path.dirname(__file__)
+    sys.path.append(plus_path)
+    try:
+        context = get_execution_context()
+        # has plugin info
+        assert context["plus"] == {"name": "dlt_plus", "version": "1.7.1"}
+    finally:
+        sys.path.remove(plus_path)
 
 
 def test_cleanup(environment: DictStrStr) -> None:
