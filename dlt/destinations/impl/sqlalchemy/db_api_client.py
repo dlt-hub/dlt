@@ -434,17 +434,36 @@ class SqlalchemyClient(SqlClientBase[Connection]):
             return DatabaseUndefinedRelation(e)
         msg = str(e).lower()
         if isinstance(e, (sa.exc.ProgrammingError, sa.exc.OperationalError)):
-            if "exist" in msg:  # TODO: Hack
-                return DatabaseUndefinedRelation(e)
-            elif "unknown table" in msg:
-                return DatabaseUndefinedRelation(e)
-            elif "unknown database" in msg:
-                return DatabaseUndefinedRelation(e)
-            elif "no such table" in msg:  # sqlite # TODO: Hack
-                return DatabaseUndefinedRelation(e)
-            elif "no such database" in msg:  # sqlite # TODO: Hack
-                return DatabaseUndefinedRelation(e)
-            elif "syntax" in msg:
+            patterns = [
+                # MySQL / MariaDB
+                r"unknown database",  # Missing schema
+                r"doesn't exist",  # Missing table
+                r"unknown table",  # Missing table
+                # SQLite
+                r"no such table",  # Missing table
+                r"no such database",  # Missing table
+                # PostgreSQL / Trino / Vertica
+                r"does not exist",  # Missing schema, relation
+                # r"does not exist",  # Missing table
+                # MSSQL
+                r"invalid object name",  # Missing schema or table
+                # Oracle
+                r"ora-00942: table or view does not exist",  # Missing schema or table
+                # SAP HANA
+                r"invalid schema name",  # Missing schema
+                r"invalid table name",  # Missing table
+                # DB2
+                r"is an undefined name",  # SQL0204N... Missing schema or table
+                # Apache Hive
+                r"table not found",  # Missing table
+                r"database does not exist",
+            ]
+            # entity not found
+            for pat_ in patterns:
+                if pat_ in msg:
+                    return DatabaseUndefinedRelation(e)
+
+            if "syntax" in msg:
                 return DatabaseTransientException(e)
             elif isinstance(e, (sa.exc.OperationalError, sa.exc.IntegrityError)):
                 return DatabaseTerminalException(e)

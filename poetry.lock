@@ -6982,6 +6982,17 @@ typing = ["typing-extensions"]
 xmp = ["defusedxml"]
 
 [[package]]
+name = "pip"
+version = "24.3.1"
+description = "The PyPA recommended tool for installing Python packages."
+optional = false
+python-versions = ">=3.8"
+files = [
+    {file = "pip-24.3.1-py3-none-any.whl", hash = "sha256:3790624780082365f47549d032f3770eeb2b1e8bd1f7b2e02dace1afa361b4ed"},
+    {file = "pip-24.3.1.tar.gz", hash = "sha256:ebcb60557f2aefabc2e0f918751cd24ea0d56d8ec5445fe1807f1d2109660b99"},
+]
+
+[[package]]
 name = "pipdeptree"
 version = "2.9.6"
 description = "Command line utility to show dependency tree of packages."
@@ -10971,7 +10982,7 @@ cffi = ["cffi (>=1.11)"]
 athena = ["botocore", "pyarrow", "pyarrow", "pyathena", "s3fs"]
 az = ["adlfs"]
 bigquery = ["db-dtypes", "gcsfs", "google-cloud-bigquery", "grpcio", "pyarrow", "pyarrow"]
-cli = ["cron-descriptor", "pipdeptree"]
+cli = ["cron-descriptor", "pip", "pipdeptree"]
 clickhouse = ["adlfs", "clickhouse-connect", "clickhouse-driver", "gcsfs", "pyarrow", "pyarrow", "s3fs"]
 databricks = ["databricks-sdk", "databricks-sql-connector", "databricks-sql-connector"]
 deltalake = ["deltalake", "pyarrow", "pyarrow"]
@@ -11000,4 +11011,4 @@ weaviate = ["weaviate-client"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.9,<3.14"
-content-hash = "08935950b62081942fd24311bacf4a1b1ce08ae31b2731d4e27d51a73e0c8442"
+content-hash = "f52900ff6f3f2d304016dcf66bfc55f9a6ac05e3940a977911735fdb0d091d2d"
