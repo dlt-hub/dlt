@@ -29,6 +29,11 @@ Adding the flag after the pipeline keyword will not work.
 
 """
 
+# Developer NOTE: This generation is based on parsing the output of the help string in argparse.
+# It works very well at the moment, but there may be cases where it will break due to unanticipated
+# argparse help output. The cleaner solution would be to implement an argparse help formatter,
+# but this would require more work and also some not very nice parsing.
+
 
 class _WidthFormatter(argparse.RawTextHelpFormatter):
     def __init__(self, prog: str) -> None:
@@ -38,8 +43,6 @@ class _WidthFormatter(argparse.RawTextHelpFormatter):
 def render_argparse_markdown(
     name: str,
     parser: argparse.ArgumentParser,
-    wrap: int = 80,
-    wrap_indent: int = 8,
     header: str = HEADER,
 ) -> str:
     def get_parser_help_recursive(
@@ -51,7 +54,7 @@ def render_argparse_markdown(
     ) -> str:
         markdown = ""
 
-        # no linebreaking in help output
+        # Prevent wrapping in help output for better parseability
         parser.formatter_class = _WidthFormatter
         help_output = parser.format_help()
         sections = help_output.split("\n\n")
@@ -67,7 +70,7 @@ def render_argparse_markdown(
                 )
             )
 
-        # extract usage section
+        # extract usage section denoted by "usage: "
         usage = sections[0]
         usage = usage.replace("usage: ", "")
         usage = _text_wrap_line(usage)
@@ -76,6 +79,8 @@ def render_argparse_markdown(
         description = parser.description or help_string or ""
 
         # extract all other sections
+        # here we remove excess information and style the args nicely
+        # into markdown lists
         extracted_sections = []
         for section in sections[1:]:
             section_lines = section.splitlines()
@@ -84,34 +89,25 @@ def render_argparse_markdown(
             if not section_lines[0].endswith(":"):
                 continue
 
-            # remove first line
+            # remove first line with header and empty lines
             header = section_lines[0].replace(":", "")
             section_lines = section_lines[1:]
-
-            # remove empty lines
             section_lines = [line for line in section_lines if line]
-
-            # dedent lines
             section = textwrap.dedent(os.linesep.join(section_lines))
 
-            # split and clean
+            # split args into array and remove more unneeded lines
             section_lines = re.split(r"\s{2,}|\n+", section)
             section_lines = [line for line in section_lines if not line.startswith("{")]
-            assert len(section_lines) % 2 == 0, "Expected even number of lines"
+            assert len(section_lines) % 2 == 0, (
+                f"Expected even number of lines, args and descriptions in section {header} of"
+                f" {cmd}. Possible problems are a different help formatter or arguments that are"
+                " missing help strings."
+            )
 
-            # make list of args
+            # make markdown list of args
             section = ""
             for x in range(0, len(section_lines), 2):
                 section += f"* `{section_lines[x]}` - {section_lines[x+1].capitalize()}\n"
-
-            # wrap
-            # section_lines = [_text_wrap_line(line, indent=20) for line in section_lines]
-
-            # join lines
-            # section = os.linesep.join(section_lines)
-
-            # dedent
-            # section = textwrap.dedent(section)
 
             extracted_sections.append({"header": header.capitalize(), "section": section})
 
@@ -128,10 +124,14 @@ def render_argparse_markdown(
             markdown += f"**{es['header']}**\n"
             markdown += f"{es['section']}\n"
 
+        # traverse the subparsers and forward help strings to the recursive function
         for action in parser._actions:
             if isinstance(action, argparse._SubParsersAction):
                 for subaction in action._get_subactions():
                     subparser = action._name_parser_map[subaction.dest]
+                    assert (
+                        subaction.help
+                    ), f"Subparser help string of {subaction.dest} is empty, please provide one."
                     markdown += get_parser_help_recursive(
                         subparser,
                         f"{cmd} {subaction.dest}",

@@ -437,10 +437,12 @@ class CliDocsCommand(SupportsCliCommand):
                         "update-cli-docs from the main Makefile and commit your changes. "
                     )
                     raise CliCommandException()
+
+            fmt.note("Docs page up to date.")
         else:
             with open(args.file_name[0], "w", encoding="utf-8") as f:
                 f.write(result)
-            fmt.echo("Docs page updated")
+            fmt.note("Docs page updated.")
 
 
 #
