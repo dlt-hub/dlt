@@ -95,6 +95,10 @@ def render_argparse_markdown(
             section_lines = [line for line in section_lines if line]
             section = textwrap.dedent(os.linesep.join(section_lines))
 
+            # NOTE: this is based on convention to name the subcommands section
+            # "available subcommands"
+            is_subcommands_list = "subcommands" in header
+
             # split args into array and remove more unneeded lines
             section_lines = re.split(r"\s{2,}|\n+", section)
             section_lines = [line for line in section_lines if not line.startswith("{")]
@@ -107,7 +111,14 @@ def render_argparse_markdown(
             # make markdown list of args
             section = ""
             for x in range(0, len(section_lines), 2):
-                section += f"* `{section_lines[x]}` - {section_lines[x+1].capitalize()}\n"
+                arg_title = section_lines[x]
+                if is_subcommands_list:
+                    full_command = f"{cmd} {arg_title}"
+                    anchor_slug = full_command.lower().replace(" ", "-")
+                    arg_title = f"[`{arg_title}`](#{anchor_slug})"
+                else:
+                    arg_title = f"`{arg_title}`"
+                section += f"* {arg_title} - {section_lines[x+1].capitalize()}\n"
 
             extracted_sections.append({"header": header.capitalize(), "section": section})
 

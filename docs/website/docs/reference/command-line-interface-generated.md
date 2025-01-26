@@ -40,12 +40,12 @@ dlt [-h] [--version] [--disable-telemetry] [--enable-telemetry]
 * `--debug` - Displays full stack traces on exceptions.
 
 **Available subcommands**
-* `telemetry` - Shows telemetry status
-* `schema` - Shows, converts and upgrades schemas
-* `pipeline` - Operations on pipelines that were ran locally
-* `init` - Creates a pipeline project in the current folder by adding existing verified source or creating a new one from template.
-* `render-docs` - Renders markdown version of cli docs
-* `deploy` - Creates a deployment package for a selected pipeline script
+* [`telemetry`](#dlt-telemetry) - Shows telemetry status
+* [`schema`](#dlt-schema) - Shows, converts and upgrades schemas
+* [`pipeline`](#dlt-pipeline) - Operations on pipelines that were ran locally
+* [`init`](#dlt-init) - Creates a pipeline project in the current folder by adding existing verified source or creating a new one from template.
+* [`render-docs`](#dlt-render-docs) - Renders markdown version of cli docs
+* [`deploy`](#dlt-deploy) - Creates a deployment package for a selected pipeline script
 
 ## `dlt telemetry`
 
@@ -99,15 +99,15 @@ dlt pipeline [-h] [--list-pipelines] [--hot-reload] [--pipelines-dir
 * `--verbose, -v` - Provides more information for certain commands.
 
 **Available subcommands**
-* `info` - Displays state of the pipeline, use -v or -vv for more info
-* `show` - Generates and launches streamlit app with the loading status and dataset explorer
-* `failed-jobs` - Displays information on all the failed loads in all completed packages, failed jobs and associated error messages
-* `drop-pending-packages` - Deletes all extracted and normalized packages including those that are partially loaded.
-* `sync` - Drops the local state of the pipeline and resets all the schemas and restores it from destination. the destination state, data and schemas are left intact.
-* `trace` - Displays last run trace, use -v or -vv for more info
-* `schema` - Displays default schema
-* `drop` - Selectively drop tables and reset state
-* `load-package` - Displays information on load package, use -v or -vv for more info
+* [`info`](#dlt-pipeline-info) - Displays state of the pipeline, use -v or -vv for more info
+* [`show`](#dlt-pipeline-show) - Generates and launches streamlit app with the loading status and dataset explorer
+* [`failed-jobs`](#dlt-pipeline-failed-jobs) - Displays information on all the failed loads in all completed packages, failed jobs and associated error messages
+* [`drop-pending-packages`](#dlt-pipeline-drop-pending-packages) - Deletes all extracted and normalized packages including those that are partially loaded.
+* [`sync`](#dlt-pipeline-sync) - Drops the local state of the pipeline and resets all the schemas and restores it from destination. the destination state, data and schemas are left intact.
+* [`trace`](#dlt-pipeline-trace) - Displays last run trace, use -v or -vv for more info
+* [`schema`](#dlt-pipeline-schema) - Displays default schema
+* [`drop`](#dlt-pipeline-drop) - Selectively drop tables and reset state
+* [`load-package`](#dlt-pipeline-load-package) - Displays information on load package, use -v or -vv for more info
 
 ### `dlt pipeline info`
 
@@ -290,8 +290,8 @@ dlt deploy [-h] pipeline-script-path {github-action,airflow-composer} ...
 * `-h, --help` - Show this help message and exit
 
 **Available subcommands**
-* `github-action` - Deploys the pipeline to github actions
-* `airflow-composer` - Deploys the pipeline to airflow
+* [`github-action`](#dlt-deploy-github-action) - Deploys the pipeline to github actions
+* [`airflow-composer`](#dlt-deploy-airflow-composer) - Deploys the pipeline to airflow
 
 ### `dlt deploy github-action`
 
