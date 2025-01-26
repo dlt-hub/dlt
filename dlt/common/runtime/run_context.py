@@ -1,5 +1,6 @@
 import os
 import tempfile
+from types import ModuleType
 from typing import Any, ClassVar, Dict, List, Optional
 
 from dlt.common import known_env
@@ -58,6 +59,13 @@ class RunContext(SupportsRunContext):
         return providers
 
     @property
+    def module(self) -> Optional[ModuleType]:
+        try:
+            return self.import_run_dir_module(self.run_dir)
+        except ImportError:
+            return None
+
+    @property
     def runtime_kwargs(self) -> Dict[str, Any]:
         return None
 
@@ -74,6 +82,20 @@ class RunContext(SupportsRunContext):
     @property
     def name(self) -> str:
         return self.__class__.CONTEXT_NAME
+
+    @staticmethod
+    def import_run_dir_module(run_dir: str) -> ModuleType:
+        """Returns a top Python module of the project (if importable)"""
+        import importlib
+
+        run_dir = os.path.abspath(run_dir)
+        m_ = importlib.import_module(os.path.basename(run_dir))
+        if m_.__file__ and m_.__file__.startswith(run_dir):
+            return m_
+        else:
+            raise ImportError(
+                f"run dir {run_dir} does not belong to module {m_.__file__} which seems unrelated."
+            )
 
 
 @plugins.hookspec(firstresult=True)
@@ -135,6 +157,20 @@ def is_folder_writable(path: str) -> bool:
         return True
     except OSError:
         return False
+
+
+def get_plugin_modules() -> List[str]:
+    """Return top level module names of all discovered plugins, including `dlt`.
+
+    If current run context is a top levle module it is also included, otherwise empty string.
+    """
+    from dlt.common.configuration.plugins import PluginContext
+
+    # get current run module
+    ctx_module = current().module
+    run_module_name = ctx_module.__name__ if ctx_module else ""
+
+    return [run_module_name] + [p for p in Container()[PluginContext].plugin_modules] + ["dlt"]
 
 
 def current() -> SupportsRunContext:

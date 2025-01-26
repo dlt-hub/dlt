@@ -1,3 +1,4 @@
+from types import ModuleType
 from typing import Any, ClassVar, Dict, List, Optional, Protocol
 
 from dlt.common.configuration.providers.provider import ConfigProvider
@@ -33,6 +34,10 @@ class SupportsRunContext(Protocol):
     @property
     def data_dir(self) -> str:
         """Defines where the pipelines working folders are stored."""
+
+    @property
+    def module(self) -> Optional[ModuleType]:
+        """if run_dir is a top level importable python module, returns it, otherwise return None"""
 
     @property
     def runtime_kwargs(self) -> Dict[str, Any]:
