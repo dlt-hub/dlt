@@ -61,3 +61,6 @@ class qdrant(Destination[QdrantClientConfiguration, "QdrantClient"]):
             environment=environment,
             **kwargs,
         )
+
+
+qdrant.register()

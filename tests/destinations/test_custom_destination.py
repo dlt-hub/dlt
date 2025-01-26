@@ -3,7 +3,6 @@ from typing import List, Tuple, Dict
 import dlt
 import pytest
 import os
-import inspect
 
 from copy import deepcopy
 from dlt.common.configuration.specs.base_configuration import configspec
@@ -11,7 +10,7 @@ from dlt.common.schema.schema import Schema
 from dlt.common.typing import TDataItems
 from dlt.common.schema import TTableSchema
 from dlt.common.data_writers.writers import TLoaderFileFormat
-from dlt.common.destination import Destination
+from dlt.common.destination import Destination, DestinationReference
 from dlt.common.destination.exceptions import (
     DestinationTransientException,
     InvalidDestinationReference,
@@ -35,7 +34,7 @@ SUPPORTED_LOADER_FORMATS = ["parquet", "typed-jsonl"]
 
 @pytest.fixture(autouse=True)
 def clear_destination_registry() -> None:
-    Destination.DESTINATIONS.clear()
+    DestinationReference.DESTINATIONS.clear()
 
 
 def _run_through_sink(
@@ -179,7 +178,9 @@ def test_instantiation() -> None:
     p.run([1, 2, 3], table_name="items")
     assert len(calls) == 1
     # local func does not create entry in destinations
-    assert "local_sink_func" not in Destination.DESTINATIONS
+    with pytest.raises(KeyError):
+        DestinationReference.find("local_sink_func")
+    assert "dlt.destinations.local_sink_func" not in DestinationReference.DESTINATIONS
 
     # test passing via from_reference
     calls = []
@@ -191,7 +192,9 @@ def test_instantiation() -> None:
     p.run([1, 2, 3], table_name="items")
     assert len(calls) == 1
     # local func does not create entry in destinations
-    assert "local_sink_func" not in Destination.DESTINATIONS
+    with pytest.raises(KeyError):
+        DestinationReference.find("local_sink_func")
+    assert "dlt.destinations.local_sink_func" not in DestinationReference.DESTINATIONS
 
     def local_sink_func_no_params(items: TDataItems, table: TTableSchema) -> None:
         # consume data
@@ -207,33 +210,77 @@ def test_instantiation() -> None:
     p.run([1, 2, 3], table_name="items")
 
     # test passing string reference
-    print(Destination.DESTINATIONS)
     global global_calls
     global_calls = []
+    # this is technically possible but should not be used
+    dest_ref = Destination.from_reference(
+        "destination",
+        destination_callable="tests.destinations.test_custom_destination.global_sink_func",
+    )
+    assert dest_ref.destination_name == "global_sink_func"
+    # type comes from the "destination" wrapper destination
+    assert dest_ref.destination_type == "dlt.destinations.destination"
     p = dlt.pipeline(
         "sink_test",
-        destination=Destination.from_reference(
-            "destination",
-            destination_callable="tests.destinations.test_custom_destination.global_sink_func",
-        ),
+        destination=dest_ref,
         dev_mode=True,
     )
     p.run([1, 2, 3], table_name="items")
     assert len(global_calls) == 1
 
     # global func will create an entry
-    dlt.destination(global_sink_func)
-    assert Destination.DESTINATIONS["dlt.global_sink_func"]
+    dest_ref = dlt.destination(global_sink_func)()  # type: ignore[assignment]
+    assert DestinationReference.DESTINATIONS[
+        "tests.destinations.test_custom_destination.global_sink_func"
+    ]
+    assert (
+        dest_ref.destination_type
+        == "tests.destinations.test_custom_destination.GlobalSinkFuncDestination"
+    )
+    p = dlt.pipeline(
+        "sink_test",
+        destination=dest_ref,
+        dev_mode=True,
+    )
+    p.run([1, 2, 3], table_name="items")
+    assert len(global_calls) == 2
 
-    dlt.destination(global_sink_func, name="alt_name")
-    assert Destination.DESTINATIONS["dlt.alt_name"]
-    ref_dest = Destination.DESTINATIONS["dlt.alt_name"]
-    assert ref_dest().destination_name == "alt_name"
-    print(ref_dest().destination_type)
+    # we can import type (it is not a ref)
+    dest_ref = Destination.from_reference(
+        "tests.destinations.test_custom_destination.GlobalSinkFuncDestination",
+        destination_name="alt_name",
+    )
+    assert dest_ref.destination_name == "alt_name"
+    assert (
+        dest_ref.destination_type
+        == "tests.destinations.test_custom_destination.GlobalSinkFuncDestination"
+    )
+    # and still run it
+    p = dlt.pipeline(
+        "sink_test",
+        destination=dest_ref,
+        dev_mode=True,
+    )
+    p.run([1, 2, 3], table_name="items")
+    assert len(global_calls) == 3
 
-    # assert issubclass(_DESTINATIONS["global_sink_func"][0], CustomDestinationClientConfiguration)
-    # assert _DESTINATIONS["global_sink_func"][1] == global_sink_func
-    # assert _DESTINATIONS["global_sink_func"][2] == inspect.getmodule(global_sink_func)
+    # now import by ref
+    dest_ref = Destination.from_reference(
+        "tests.destinations.test_custom_destination.global_sink_func"
+    )
+    assert dest_ref.destination_name == "global_sink_func"
+    assert (
+        dest_ref.destination_type
+        == "tests.destinations.test_custom_destination.GlobalSinkFuncDestination"
+    )
+    # and still run it
+    p = dlt.pipeline(
+        "sink_test",
+        destination=dest_ref,
+        dev_mode=True,
+    )
+    p.run([1, 2, 3], table_name="items")
+    assert len(global_calls) == 4
 
     # pass None as callable arg will fail on load
     p = dlt.pipeline(

@@ -77,3 +77,6 @@ class motherduck(Destination[MotherDuckClientConfiguration, "MotherDuckClient"])
             environment=environment,
             **kwargs,
         )
+
+
+motherduck.register()

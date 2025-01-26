@@ -1,5 +1,5 @@
 from types import TracebackType
-from typing import ClassVar, Optional, Type, Iterable, cast, List
+from typing import Optional, Type, Iterable, cast, List
 
 from dlt.destinations.job_impl import FinalizedLoadJob
 from dlt.common.destination.client import LoadJob, PreparedTableSchema, JobClientBase

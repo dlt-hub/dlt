@@ -3,6 +3,7 @@ import functools
 import inspect
 from typing import Any, Type, Optional, Callable, Union, overload
 from typing_extensions import Concatenate
+from dlt.common.destination.reference import DestinationReference
 from dlt.common.reflection.spec import get_spec_name_from_f
 from dlt.common.typing import AnyFun
 
@@ -14,7 +15,7 @@ from dlt.common.typing import TDataItems
 from dlt.common.schema import TTableSchema
 from dlt.common.destination.capabilities import TLoaderParallelismStrategy
 
-from dlt.common.utils import get_callable_name, is_inner_callable
+from dlt.common.utils import get_callable_name, get_full_callable_name, is_inner_callable
 from dlt.destinations.impl.destination.factory import destination as _destination
 from dlt.destinations.impl.destination.configuration import (
     TDestinationCallableParams,
@@ -112,7 +113,7 @@ def destination(
         # synthesize new Destination factory
         class _ConcreteDestinationBase(_destination):
             def __init__(self, **kwargs: Any):
-                super().__init__(
+                default_args = dict(
                     spec=spec,
                     destination_callable=destination_callable,
                     loader_file_format=loader_file_format,
@@ -123,8 +124,8 @@ def destination(
                     max_table_nesting=max_table_nesting,
                     max_parallel_load_jobs=max_parallel_load_jobs,
                     loader_parallelism_strategy=loader_parallelism_strategy,
-                    **kwargs,
                 )
+                super().__init__(**{**default_args, **kwargs})
 
         cls_name = get_spec_name_from_f(destination_callable, kind="Destination")
         module = inspect.getmodule(destination_callable)
@@ -138,7 +139,7 @@ def destination(
         setattr(module, cls_name, D)
         # register only standalone destinations, no inner
         if not is_inner_callable(destination_callable):
-            D.register(destination_name=destination_name)
+            DestinationReference.register(D, get_full_callable_name(destination_callable))
 
         @wraps(destination_callable)
         def wrapper(

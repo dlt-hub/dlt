@@ -1,21 +1,18 @@
 from typing import Any, Iterator, AnyStr, List, cast, TYPE_CHECKING, Dict
-
 import os
 import re
-
 import duckdb
-
+import semver
+from pathlib import Path
 import sqlglot
 import sqlglot.expressions as exp
-from dlt.common import logger
-
 from contextlib import contextmanager
 
+from dlt.common import logger
 from dlt.common.destination.dataset import DBApiCursor
-
 from dlt.common.storages.fsspec_filesystem import AZURE_BLOB_STORAGE_PROTOCOLS
-from dlt.destinations.sql_client import raise_database_error
 
+from dlt.destinations.sql_client import raise_database_error
 from dlt.destinations.impl.duckdb.sql_client import DuckDbSqlClient
 from dlt.destinations.impl.duckdb.factory import duckdb as duckdb_factory, DuckDbCredentials
 from dlt.common.configuration.specs import (
@@ -24,8 +21,6 @@ from dlt.common.configuration.specs import (
     AzureCredentialsWithoutDefaults,
 )
 from dlt.destinations.utils import is_compression_disabled
-
-from pathlib import Path
 
 SUPPORTED_PROTOCOLS = ["gs", "gcs", "s3", "file", "memory", "az", "abfss"]
 
@@ -221,36 +216,16 @@ class FilesystemSqlClient(DuckDbSqlClient):
 
             # skip if view already exists and does not need to be replaced each time
             existing_tables = [tname[0] for tname in self._conn.execute("SHOW TABLES").fetchall()]
-            needs_replace = table_format == "iceberg" or self.fs_client.config.protocol == "abfss"
+            needs_replace = self.fs_client.config.protocol == "abfss"
             if view_name in existing_tables and not needs_replace:
                 continue
 
             # discover file type
             folder = self.fs_client.get_table_dir(table_name)
-            files = self.fs_client.list_table_files(table_name)
-            first_file_type = os.path.splitext(files[0])[1][1:]
-
-            # build files string
-            supports_wildcard_notation = self.fs_client.config.protocol != "abfss"
             protocol = (
                 "" if self.fs_client.is_local_filesystem else f"{self.fs_client.config.protocol}://"
             )
             resolved_folder = f"{protocol}{folder}"
-            resolved_files_string = f"'{resolved_folder}/**/*.{first_file_type}'"
-            if not supports_wildcard_notation:
-                resolved_files_string = ",".join(map(lambda f: f"'{protocol}{f}'", files))
-
-            # build columns definition
-            type_mapper = self.capabilities.get_type_mapper()
-            columns = ",".join(
-                map(
-                    lambda c: (
-                        f'{self.escape_column_name(c["name"])}:'
-                        f' "{type_mapper.to_destination_type(c, schema_table)}"'
-                    ),
-                    self.fs_client.schema.tables[table_name]["columns"].values(),
-                )
-            )
 
             # discover whether compression is enabled
             compression = "" if is_compression_disabled() else ", compression = 'gzip'"
@@ -264,25 +239,53 @@ class FilesystemSqlClient(DuckDbSqlClient):
             if table_format == "delta":
                 from_statement = f"delta_scan('{resolved_folder}')"
             elif table_format == "iceberg":
-                from dlt.common.libs.pyiceberg import _get_last_metadata_file
-
                 self._setup_iceberg(self._conn)
-                metadata_path = f"{resolved_folder}/metadata"
-                last_metadata_file = _get_last_metadata_file(metadata_path, self.fs_client)
+                # TODO: get version from a catalog if implemented
+
+                # from dlt.common.libs.pyiceberg import _get_last_metadata_file
+                # metadata_path = f"{resolved_folder}/metadata"
+                # last_metadata_file = _get_last_metadata_file(metadata_path, self.fs_client)
                 # skip schema inference to make nested data types work
                 # https://github.com/duckdb/duckdb_iceberg/issues/47
-                from_statement = f"iceberg_scan('{last_metadata_file}', skip_schema_inference=True)"
-            elif first_file_type == "parquet":
-                from_statement = f"read_parquet([{resolved_files_string}])"
-            elif first_file_type == "jsonl":
                 from_statement = (
-                    f"read_json([{resolved_files_string}], columns = {{{columns}}}{compression})"
+                    f"iceberg_scan('{resolved_folder}', version='?', allow_moved_paths = true,"
+                    " skip_schema_inference=True)"
                 )
             else:
-                raise NotImplementedError(
-                    f"Unknown filetype {first_file_type} for table {table_name}. Currently only"
-                    " jsonl and parquet files as well as delta and iceberg tables are supported."
-                )
+                # discover file type
+                files = self.fs_client.list_table_files(table_name)
+                first_file_type = os.path.splitext(files[0])[1][1:]
+
+                # build files string
+                supports_wildcard_notation = self.fs_client.config.protocol != "abfss"
+                resolved_files_string = f"'{resolved_folder}/**/*.{first_file_type}'"
+                if not supports_wildcard_notation:
+                    resolved_files_string = ",".join(map(lambda f: f"'{protocol}{f}'", files))
+
+                if first_file_type == "parquet":
+                    from_statement = f"read_parquet([{resolved_files_string}])"
+                elif first_file_type == "jsonl":
+                    # build columns definition
+                    type_mapper = self.capabilities.get_type_mapper()
+                    columns = ",".join(
+                        map(
+                            lambda c: (
+                                f'{self.escape_column_name(c["name"])}:'
+                                f' "{type_mapper.to_destination_type(c, schema_table)}"'
+                            ),
+                            self.fs_client.schema.tables[table_name]["columns"].values(),
+                        )
+                    )
+                    from_statement = (
+                        f"read_json([{resolved_files_string}], columns ="
+                        f" {{{columns}}}{compression})"
+                    )
+                else:
+                    raise NotImplementedError(
+                        f"Unknown filetype {first_file_type} for table {table_name}. Currently only"
+                        " jsonl and parquet files as well as delta and iceberg tables are"
+                        " supported."
+                    )
 
             # create table
             view_name = self.make_qualified_table_name(view_name)
@@ -317,13 +320,21 @@ class FilesystemSqlClient(DuckDbSqlClient):
 
     @staticmethod
     def _setup_iceberg(conn: duckdb.DuckDBPyConnection) -> None:
+        if semver.Version.parse(duckdb.__version__) <= semver.Version.parse("1.1.2"):
+            raise NotImplementedError(
+                f"Iceberg scanner for duckdb {duckdb.__version__} does not implement recent"
+                " snapshot discovery. Please install duckdb >= 1.1.3"
+            )
         # needed to make persistent secrets work in new connection
         # https://github.com/duckdb/duckdb_iceberg/issues/83
         conn.execute("FROM duckdb_secrets();")
 
         # `duckdb_iceberg` extension does not support autoloading
         # https://github.com/duckdb/duckdb_iceberg/issues/71
-        conn.execute("INSTALL iceberg; LOAD iceberg;")
+        conn.execute("FORCE INSTALL Iceberg FROM core_nightly; LOAD iceberg;")
+
+        # allow unsafe version resolution
+        conn.execute("SET unsafe_enable_version_guessing=true;")
 
     def __del__(self) -> None:
         if self.memory_db:

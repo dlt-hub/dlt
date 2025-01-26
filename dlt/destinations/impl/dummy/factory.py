@@ -68,3 +68,6 @@ class dummy(Destination[DummyClientConfiguration, "DummyClient"]):
         caps.supported_loader_file_formats = additional_formats + [config.loader_file_format]
         caps.supported_staging_file_formats = additional_formats + [config.loader_file_format]
         return caps
+
+
+dummy.register()

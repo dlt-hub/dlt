@@ -163,3 +163,6 @@ class snowflake(Destination[SnowflakeClientConfiguration, "SnowflakeClient"]):
             environment=environment,
             **kwargs,
         )
+
+
+snowflake.register()

@@ -31,7 +31,6 @@ from dlt.common.schema.typing import (
     C_DLT_LOAD_ID,
     TLoaderReplaceStrategy,
 )
-from dlt.common.schema.utils import fill_hints_from_parent_and_clone_table
 
 from dlt.common.configuration import configspec, NotResolved
 from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration
@@ -40,7 +39,7 @@ from dlt.common.destination.exceptions import (
     DestinationSchemaTampered,
     DestinationTransientException,
 )
-from dlt.common.schema.exceptions import UnknownTableException
+from dlt.common.destination.utils import prepare_load_table
 from dlt.common.storages import FileStorage
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.common.storages.load_package import LoadJobInfo, TPipelineStateDoc
@@ -530,12 +529,9 @@ class JobClientBase(ABC):
         return expected_update
 
     def prepare_load_table(self, table_name: str) -> PreparedTableSchema:
-        """Prepares a table schema to be loaded by filling missing hints and doing other modifications requires by given destination."""
-        try:
-            return fill_hints_from_parent_and_clone_table(self.schema.tables, self.schema.tables[table_name])  # type: ignore[return-value]
-
-        except KeyError:
-            raise UnknownTableException(self.schema.name, table_name)
+        return prepare_load_table(
+            self.schema.tables, self.schema.get_table(table_name), self.capabilities
+        )
 
     @abstractmethod
     def create_load_job(

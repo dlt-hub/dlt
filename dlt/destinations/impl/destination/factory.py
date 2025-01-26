@@ -132,3 +132,6 @@ class destination(Destination[CustomDestinationClientConfiguration, "Destination
         caps = super().adjust_capabilities(caps, config, naming)
         caps.preferred_loader_file_format = config.loader_file_format
         return caps
+
+
+destination.register()

@@ -106,3 +106,6 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, "Filesyst
             environment=environment,
             **kwargs,
         )
+
+
+filesystem.register()

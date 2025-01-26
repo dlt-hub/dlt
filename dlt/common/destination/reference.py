@@ -1,3 +1,4 @@
+import re
 from abc import ABC, abstractmethod
 from importlib import import_module
 
@@ -17,9 +18,6 @@ from typing_extensions import TypeAlias
 import inspect
 
 from dlt.common import logger
-from dlt.common.configuration.container import Container
-from dlt.common.configuration.specs import PluggableRunContext
-from dlt.common.configuration.specs.pluggable_run_context import SupportsRunContext
 from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.configuration import resolve_configuration, known_sections
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
@@ -28,8 +26,9 @@ from dlt.common.destination.exceptions import (
     UnknownDestinationModule,
 )
 from dlt.common.destination.client import DestinationClientConfiguration, JobClientBase
-from dlt.common.runtime.run_context import RunContext
+from dlt.common.runtime.run_context import get_plugin_modules
 from dlt.common.schema.schema import Schema
+from dlt.common.utils import get_full_callable_name
 
 
 TDestinationConfig = TypeVar("TDestinationConfig", bound="DestinationClientConfiguration")
@@ -46,10 +45,6 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
     """A destination factory that can be partially pre-configured
     with credentials and other config params.
     """
-
-    DESTINATIONS: ClassVar[Dict[str, Type[AnyDestination]]] = {}
-    """A registry of all the decorated destinations"""
-    CONTEXT: ClassVar[SupportsRunContext] = None
 
     config_params: Dict[str, Any]
     """Explicit config params, overriding any injected or default values."""
@@ -132,7 +127,7 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
     @property
     def destination_type(self) -> str:
         full_path = self.__class__.__module__ + "." + self.__class__.__qualname__
-        return Destination.normalize_type(full_path)
+        return DestinationReference.normalize_type(full_path)
 
     @property
     def destination_description(self) -> str:
@@ -209,59 +204,10 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
             ref = ref()
         return ref.destination_name
 
-    @staticmethod
-    def normalize_type(destination_type: str) -> str:
-        """Normalizes destination type string into a canonical form. Assumes that type names without dots correspond to built in destinations."""
-        if "." not in destination_type:
-            destination_type = "dlt.destinations." + destination_type
-        # the next two lines shorten the dlt internal destination paths to dlt.destinations.<destination_type>
-        name = Destination.to_name(destination_type)
-        destination_type = destination_type.replace(
-            f".destinations.impl.{name}.factory.", ".destinations."
-        )
-        return destination_type
-
     @classmethod
-    def register(cls, destination_name: str) -> None:
-        """Registers this factory class under `destination_name`. Optionally uses other context."""
-        cls.CONTEXT = Container()[PluggableRunContext].context
-        ref = f"{cls.CONTEXT.name}.{destination_name}"
-        if ref in cls.DESTINATIONS:
-            logger.info(
-                f"A destination with ref {ref} is already registered and will be overwritten"
-            )
-        cls.DESTINATIONS[ref] = cls  # type: ignore[assignment]
-
-    @staticmethod
-    def to_fully_qualified_refs(ref: str) -> List[str]:
-        """Converts ref into fully qualified form, return one or more alternatives for shorthand notations.
-        Run context is injected if needed. Following formats are recognized
-        - context_name.'destinations'.name (fully qualified)
-        - 'destinations'.name
-        - name
-        NOTE: the last component of destination type serves as destination name if not explicitly specified
-        """
-        ref_split = ref.split(".")
-        ref_parts = len(ref_split)
-        if ref_parts < 2 or (ref_parts == 2 and ref_split[1] == known_sections.DESTINATIONS):
-            # context name is needed
-            refs = []
-            run_names = [Container()[PluggableRunContext].context.name]
-            # always look in default run context
-            if run_names[0] != RunContext.CONTEXT_NAME:
-                run_names.append(RunContext.CONTEXT_NAME)
-            for run_name in run_names:
-                if ref_parts == 1:
-                    # ref is: name
-                    refs.append(f"{run_name}.{known_sections.DESTINATIONS}.{ref}")
-                else:
-                    # ref is: `destinations`.name`
-                    refs.append(f"{run_name}.{ref}")
-            return refs
-        if len(ref_split) == 3 and ref_split[1] == known_sections.DESTINATIONS:
-            return [ref]
-
-        return []
+    def register(cls) -> None:
+        """Registers this factory class under  __module__.__name__ of a Destination factory"""
+        DestinationReference.register(cls, get_full_callable_name(cls))
 
     @classmethod
     def from_reference(
@@ -272,8 +218,9 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
         environment: Optional[str] = None,
         **kwargs: Any,
     ) -> Optional[AnyDestination]:
-        """Instantiate destination from str reference.
-        The ref can be a destination name or import path pointing to a destination class (e.g. `dlt.destinations.postgres`)
+        """Instantiate destination from a string reference or one of supported forms.
+        This methods obtains a destination factory and then instantiates it passing
+        the arguments after `ref`
         """
         # if we only get a name but no ref, we assume that the name is the destination_type
         if ref is None and destination_name is not None:
@@ -284,19 +231,74 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
         if callable(ref):
             ref = ref()
         if isinstance(ref, Destination):
-            if credentials or destination_name or environment:
+            if credentials or destination_name or environment or kwargs:
                 logger.warning(
-                    "Cannot override credentials, destination_name or environment when passing a"
-                    " Destination instance, these values will be ignored."
+                    "Cannot override credentials, destination_name, environment or kwargs when"
+                    " passing a Destination instance, these values will be ignored."
                 )
             return ref
 
-        if not isinstance(ref, str):
-            raise InvalidDestinationReference(ref)
+        return DestinationReference.from_reference(
+            ref, credentials, destination_name, environment, **kwargs
+        )
 
-        # resolve ref
+
+class DestinationReference:
+    """A registry of destination factories with a set of method for finding and instantiating"""
+
+    DESTINATIONS: ClassVar[Dict[str, Type[AnyDestination]]] = {}
+    """A registry of all the destination factories"""
+
+    @staticmethod
+    def normalize_type(destination_type: str) -> str:
+        """Normalizes destination type string into a canonical form. Assumes that type names without dots correspond to built in destinations."""
+        if "." not in destination_type:
+            destination_type = "dlt.destinations." + destination_type
+        # the next two lines shorten the dlt internal destination paths to dlt.destinations.<destination_type>
+        pattern = r"\.destinations\.impl\.[a-zA-Z_][.a-zA-Z0-9_]*\."
+        replacement = ".destinations."
+        destination_type = re.sub(pattern, replacement, destination_type)
+        return destination_type
+
+    @classmethod
+    def register(cls, factory: Type[AnyDestination_CO], ref: str) -> None:
+        """Registers `factory` class under `ref`. `ref`"""
+        ref = cls.normalize_type(ref)
+        if ref in cls.DESTINATIONS:
+            logger.debug(
+                f"A destination with ref {ref} is already registered and will be overwritten"
+            )
+        cls.DESTINATIONS[ref] = factory
+
+    @staticmethod
+    def to_fully_qualified_refs(ref: str) -> List[str]:
+        """Converts ref into fully qualified form, return one or more alternatives for shorthand notations.
+        Run context is injected if needed. Following formats are recognized
+        - name
+        NOTE: the last component of destination type serves as destination name if not explicitly specified
+        """
+        ref_split = ref.split(".")
+        ref_parts = len(ref_split)
+        if ref_parts < 2:
+            # context name is needed
+            refs = []
+            for ref_prefix in get_plugin_modules():
+                if ref_prefix:
+                    ref_prefix = f"{ref_prefix}.{known_sections.DESTINATIONS}"
+                else:
+                    ref_prefix = f"{known_sections.DESTINATIONS}"
+                refs.append(f"{ref_prefix}.{ref}")
+            return refs
+
+        return []
+
+    @classmethod
+    def find(cls, ref: str) -> Type[AnyDestination]:
+        """Finds or auto-imports destination factory that can be further called in order to instantiate it"""
         refs = cls.to_fully_qualified_refs(ref)
         factory: Type[AnyDestination] = None
+        if ref not in refs:
+            refs = [ref] + refs
 
         for ref_ in refs:
             if factory := cls.DESTINATIONS.get(ref_):
@@ -304,11 +306,9 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
 
         # no reference found, try to import default module
         if not factory:
-            # try ref, normalized refs and ref without the context name
-            refs.extend(set([r.split(".", 1)[1] for r in refs]))
-            if "." in ref and ref not in refs:
-                refs = [ref] + refs
             for possible_type in refs:
+                if "." not in possible_type:
+                    continue
                 try:
                     module_path, attr_name = possible_type.rsplit(".", 1)
                     dest_module = import_module(module_path)
@@ -322,6 +322,25 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
                 break
         if not factory:
             raise UnknownDestinationModule(ref)
+        return factory
+
+    @classmethod
+    def from_reference(
+        cls,
+        ref: str,
+        credentials: Optional[Any] = None,
+        destination_name: Optional[str] = None,
+        environment: Optional[str] = None,
+        **kwargs: Any,
+    ) -> Optional[AnyDestination]:
+        """Instantiate destination from str reference.
+        The ref can be a destination name or import path pointing to a destination class (e.g. `dlt.destinations.postgres`)
+        This methods obtains a destination factory and then instantiates it passing the arguments after `ref`
+        """
+        if not isinstance(ref, str):
+            raise InvalidDestinationReference(ref)
+
+        factory = cls.find(ref)
 
         if credentials:
             kwargs["credentials"] = credentials

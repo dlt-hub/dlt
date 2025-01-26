@@ -119,3 +119,6 @@ class sqlalchemy(Destination[SqlalchemyClientConfiguration, "SqlalchemyJobClient
             environment=environment,
             **kwargs,
         )
+
+
+sqlalchemy.register()

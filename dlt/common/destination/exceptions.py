@@ -7,7 +7,7 @@ class DestinationException(DltException):
     pass
 
 
-class UnknownDestinationModule(DestinationException):
+class UnknownDestinationModule(DestinationException, KeyError):
     def __init__(self, destination_module: str) -> None:
         self.destination_module = destination_module
         if "." in destination_module:
