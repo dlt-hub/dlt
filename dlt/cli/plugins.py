@@ -413,16 +413,34 @@ class CliDocsCommand(SupportsCliCommand):
     def configure_parser(self, parser: argparse.ArgumentParser) -> None:
         self.parser = parser
 
-    def execute(self, args: argparse.Namespace) -> None:
-        # NOTE: this code depends on changes in the dlt core that have not been merged yet
+        self.parser.add_argument("file_name", nargs=1, help="Output file name")
 
+        self.parser.add_argument(
+            "--compare",
+            default=False,
+            action="store_true",
+            help="Compare the changes and raise if output would be updated",
+        )
+
+    def execute(self, args: argparse.Namespace) -> None:
         from dlt.cli._dlt import _create_parser
 
         parser, _ = _create_parser()
 
         result = render_argparse_markdown("dlt", parser)
 
-        fmt.echo(result)
+        if args.compare:
+            with open(args.file_name[0], "r", encoding="utf-8") as f:
+                if result != f.read():
+                    fmt.error(
+                        "Cli Docs out of date, please update, please run "
+                        "update-cli-docs from the main Makefile and commit your changes. "
+                    )
+                    raise CliCommandException()
+        else:
+            with open(args.file_name[0], "w", encoding="utf-8") as f:
+                f.write(result)
+            fmt.echo("Docs page updated")
 
 
 #
