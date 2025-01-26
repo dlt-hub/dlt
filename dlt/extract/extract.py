@@ -2,9 +2,10 @@ import contextlib
 from collections.abc import Sequence as C_Sequence
 from copy import copy
 import itertools
-from typing import Iterator, List, Dict, Any, Optional, Mapping
+from typing import Iterator, List, Dict, Any, Optional
 import yaml
 
+from dlt.common import logger
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.specs import ConfigSectionContext, known_sections
@@ -17,7 +18,7 @@ from dlt.common.pipeline import (
     WithStepInfo,
     reset_resource_state,
 )
-from dlt.common.typing import DictStrAny, TColumnNames
+from dlt.common.typing import TColumnNames
 from dlt.common.runtime import signals
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
 from dlt.common.schema import Schema, utils
@@ -34,13 +35,14 @@ from dlt.common.storages.load_package import (
     TLoadPackageState,
     commit_load_package_state,
 )
-from dlt.common.utils import get_callable_name, get_full_class_name, group_dict_of_lists
+from dlt.common.utils import get_callable_name, get_full_obj_class_name, group_dict_of_lists
 
 from dlt.extract.decorators import SourceInjectableContext, SourceSchemaInjectableContext
-from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints
-from dlt.extract.incremental import IncrementalResourceWrapper, Incremental
+from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints, UnknownSourceReference
+from dlt.extract.incremental import IncrementalResourceWrapper
 from dlt.extract.pipe_iterator import PipeIterator
 from dlt.extract.source import DltSource
+from dlt.extract.reference import SourceReference
 from dlt.extract.resource import DltResource
 from dlt.extract.storage import ExtractStorage
 from dlt.extract.extractors import ObjectExtractor, ArrowExtractor, Extractor
@@ -128,6 +130,18 @@ def data_to_sources(
                 append_data(item)
         else:
             append_data(data)
+    elif isinstance(data, str):
+        # TODO: also recognize typical uris like file:// or postgresql://
+        # resolve as source reference
+        try:
+            # get factory and obtain instance of DltSource
+            data = SourceReference.from_reference(data)
+        except UnknownSourceReference:
+            logger.warning(
+                "The string you passed as data could not be parsed as valid source reference (ie."
+                " `sql_database`)"
+            )
+        append_data(data)
     else:
         append_data(data)
 
@@ -246,7 +260,7 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                     continue
                 if name == "original_columns":
                     # this is original type of the columns ie. Pydantic model
-                    hints[name] = get_full_class_name(hint)
+                    hints[name] = get_full_obj_class_name(hint)
                     continue
                 if callable(hint):
                     hints[name] = get_callable_name(hint)

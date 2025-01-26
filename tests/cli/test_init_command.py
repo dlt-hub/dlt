@@ -665,7 +665,7 @@ def assert_common_files(
     for args in visitor.known_calls[n.PIPELINE]:
         assert args.arguments["destination"].value == destination_name
     # load secrets
-    secrets = SecretsTomlProvider(settings_dir=dlt.current.run().settings_dir)
+    secrets = SecretsTomlProvider(settings_dir=dlt.current.run_context().settings_dir)
     if destination_name not in ["duckdb", "dummy"]:
         # destination is there
         assert secrets.get_value(destination_name, type, None, "destination") is not None

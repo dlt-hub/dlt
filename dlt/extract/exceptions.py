@@ -405,7 +405,7 @@ class ExplicitSourceNameInvalid(DltSourceException):
         )
 
 
-class UnknownSourceReference(DltSourceException):
+class UnknownSourceReference(DltSourceException, KeyError):
     def __init__(self, ref: Sequence[str]) -> None:
         self.ref = ref
         msg = (
