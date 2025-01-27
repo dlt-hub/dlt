@@ -398,7 +398,7 @@ def _make_endpoint_resource(
     return _merge_resource_endpoints(default_config, resource)
 
 
-def _replace_expression(template: str, params: Dict[str, Any]):
+def _replace_expression(template: str, params: Dict[str, Any]) -> str:
     """This method is used to replace the expression in the templates
     because the the str.format() doesn't like placeholders with dots.
     """
@@ -612,7 +612,7 @@ def create_response_hooks(
 
 
 def _extract_expressions(
-    template: Union[str, Dict],
+    template: Union[str, Dict[str, Any]],
     prefix: str = "",
 ) -> List[str]:
     """Takes a template string and extracts expressions that start with a prefix.
@@ -626,7 +626,7 @@ def _extract_expressions(
 
     expressions = set()
 
-    def recursive_search(value):
+    def recursive_search(value: Union[str, List[Any], Dict[str, Any]]) -> None:
         if isinstance(value, dict):
             for key, val in value.items():
                 recursive_search(key)
@@ -673,7 +673,7 @@ def _expressions_to_resolved_params(expressions: List[str]) -> List[ResolvedPara
 def _bound_path_parameters(
     path: str,
     param_values: Dict[str, Any],
-):
+) -> Tuple[str, List[str]]:
     path_params = _extract_expressions(path)
     bound_path = _replace_expression(path, param_values)
 
@@ -683,7 +683,7 @@ def _bound_path_parameters(
 def _bound_json_parameters(
     request_json: Dict[str, Any],
     param_values: Dict[str, Any],
-):
+) -> Tuple[Dict[str, Any], List[str]]:
     json_params = _extract_expressions(request_json)
     bound_json = _replace_expression(json.dumps(request_json), param_values)
 
@@ -696,8 +696,8 @@ def process_parent_data_item(
     # params: Dict[str, Any],,
     resolved_params: List[ResolvedParam],
     include_from_parent: List[str],
-    request_json: Optional[Dict[str, Any]] = [],
-) -> Tuple[str, Dict[str, Any]]:
+    request_json: Optional[Dict[str, Any]] = None,
+) -> Tuple[str, Dict[str, Any], Dict[str, Any], Dict[str, Any]]:
     parent_resource_name = resolved_params[0].resolve_config["resource"]
 
     params_values = {}
@@ -717,7 +717,7 @@ def process_parent_data_item(
 
     bound_path, path_params = _bound_path_parameters(path, params_values)
 
-    json_params = []
+    json_params: List[str] = []
     if request_json:
         request_json, json_params = _bound_json_parameters(request_json, params_values)
 

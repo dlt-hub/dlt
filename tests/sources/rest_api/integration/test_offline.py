@@ -10,6 +10,7 @@ from dlt.pipeline.exceptions import PipelineStepFailed
 from dlt.sources.helpers.rest_client.paginators import BaseReferencePaginator
 from dlt.sources.rest_api import (
     ClientConfig,
+    DltSource,
     Endpoint,
     EndpointResource,
     RESTAPIConfig,
@@ -108,7 +109,7 @@ def test_load_mock_api_with_query_params(mock_api_server):
         full_refresh=True,
     )
 
-    mock_source: RESTAPIConfig = rest_api_source(
+    mock_source: DltSource = rest_api_source(
         {
             "client": {"base_url": "https://api.example.com"},
             "resources": [
