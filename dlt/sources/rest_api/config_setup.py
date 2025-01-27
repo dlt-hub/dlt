@@ -297,9 +297,6 @@ def build_resource_dependency_graph(
         # find resolved parameters to connect dependent resources
         resolved_params = _find_resolved_params(endpoint_resource["endpoint"])
 
-        # extract more resolved params from path expressions
-        # path_expressions = _extract_expressions(endpoint_resource["endpoint"]["path"], "resources.")
-        # resolved_params += _expressions_to_resolved_params(path_expressions)
 
         # extract expressions from parameters that are strings
         params_expressions = []
