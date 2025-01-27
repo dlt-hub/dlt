@@ -86,7 +86,7 @@ class DuckDbBaseCredentials(ConnectionStringCredentials):
                 raise
 
     @property
-    def has_open_connection(self) -> bool:
+    def never_borrowed(self) -> bool:
         """Returns true if connection was not yet created or no connections were borrowed in case of external connection"""
         return not hasattr(self, "_conn") or self._conn_borrows == 0
 

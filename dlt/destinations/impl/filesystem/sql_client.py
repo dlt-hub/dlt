@@ -177,7 +177,7 @@ class FilesystemSqlClient(DuckDbSqlClient):
 
     def open_connection(self) -> duckdb.DuckDBPyConnection:
         # we keep the in memory instance around, so if this prop is set, return it
-        first_connection = self.credentials.has_open_connection
+        first_connection = self.credentials.never_borrowed
         super().open_connection()
 
         if first_connection:
@@ -192,6 +192,14 @@ class FilesystemSqlClient(DuckDbSqlClient):
         if self.fs_client.config.protocol in AZURE_BLOB_STORAGE_PROTOCOLS:
             self._conn.sql("SET azure_transport_option_type = 'curl';")
 
+        # this is a hack to re-enable iceberg settings that get lost when
+        # duckdb connection is closed. each clone needs settings to happen again
+        # self._conn is opened and closed in the relation.cursor()
+        try:
+            self._conn.execute("SET unsafe_enable_version_guessing=true;")
+        except Exception:
+            pass
+
         return self._conn
 
     def create_views_for_all_tables(self) -> None:
@@ -201,6 +209,17 @@ class FilesystemSqlClient(DuckDbSqlClient):
     def create_views_for_tables(self, tables: Dict[str, str]) -> None:
         """Add the required tables as views to the duckdb in memory instance"""
 
+        # this also gets all views
+        existing_tables = [tname[0] for tname in self._conn.execute("SHOW TABLES").fetchall()]
+        is_abfss = self.fs_client.config.protocol == "abfss"
+        iceberg_initialized = False
+
+        # NOTE: data freshness
+        # iceberg - currently we glob the most recent snapshot (via built in duckdb mechanism) so data is fresh
+        #           (but not very efficient)
+        # delta - newest version is always read
+        # files - newest files
+
         # create all tables in duck instance
         for table_name in tables.keys():
             view_name = tables[table_name]
@@ -208,15 +227,15 @@ class FilesystemSqlClient(DuckDbSqlClient):
             if table_name not in self.fs_client.schema.tables:
                 # unknown views will not be created
                 continue
-
             # NOTE: if this is staging configuration then `prepare_load_table` will remove some info
             # from table schema, if we ever extend this to handle staging destination, this needs to change
             schema_table = self.fs_client.prepare_load_table(table_name)
             table_format = schema_table.get("table_format")
 
+            # we use alternative method to get snapshot on abfss and we need to replace
+            # the view each time to control the freshness
+            needs_replace = is_abfss and table_format == "iceberg"
             # skip if view already exists and does not need to be replaced each time
-            existing_tables = [tname[0] for tname in self._conn.execute("SHOW TABLES").fetchall()]
-            needs_replace = self.fs_client.config.protocol == "abfss"
             if view_name in existing_tables and not needs_replace:
                 continue
 
@@ -239,18 +258,27 @@ class FilesystemSqlClient(DuckDbSqlClient):
             if table_format == "delta":
                 from_statement = f"delta_scan('{resolved_folder}')"
             elif table_format == "iceberg":
-                self._setup_iceberg(self._conn)
+                if not iceberg_initialized:
+                    self._setup_iceberg(self._conn)
+                    iceberg_initialized = True
                 # TODO: get version from a catalog if implemented
 
-                # from dlt.common.libs.pyiceberg import _get_last_metadata_file
-                # metadata_path = f"{resolved_folder}/metadata"
-                # last_metadata_file = _get_last_metadata_file(metadata_path, self.fs_client)
-                # skip schema inference to make nested data types work
-                # https://github.com/duckdb/duckdb_iceberg/issues/47
-                from_statement = (
-                    f"iceberg_scan('{resolved_folder}', version='?', allow_moved_paths = true,"
-                    " skip_schema_inference=True)"
-                )
+                if is_abfss:
+                    # duckdb can't glob on abfss 🤯
+                    from dlt.common.libs.pyiceberg import _get_last_metadata_file
+
+                    metadata_path = f"{resolved_folder}/metadata"
+                    last_metadata_file = _get_last_metadata_file(metadata_path, self.fs_client)
+                    from_statement = (
+                        f"iceberg_scan('{last_metadata_file}', skip_schema_inference=True)"
+                    )
+                else:
+                    # skip schema inference to make nested data types work
+                    # https://github.com/duckdb/duckdb_iceberg/issues/47
+                    from_statement = (
+                        f"iceberg_scan('{resolved_folder}', version='?', allow_moved_paths = true,"
+                        " skip_schema_inference=True)"
+                    )
             else:
                 # discover file type
                 files = self.fs_client.list_table_files(table_name)
@@ -314,7 +342,6 @@ class FilesystemSqlClient(DuckDbSqlClient):
 
             if load_tables:
                 self.create_views_for_tables(load_tables)
-
         with super().execute_query(query, *args, **kwargs) as cursor:
             yield cursor
 
