@@ -79,6 +79,12 @@ class RunContext(SupportsRunContext):
     def get_setting(self, setting_path: str) -> str:
         return os.path.join(self.settings_dir, setting_path)
 
+    def plug(self) -> None:
+        pass
+
+    def unplug(self) -> None:
+        pass
+
     @property
     def name(self) -> str:
         return self.__class__.CONTEXT_NAME

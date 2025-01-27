@@ -55,13 +55,19 @@ class SupportsRunContext(Protocol):
     def get_setting(self, setting_path: str) -> str:
         """Gets path in settings_dir where setting (ie. `secrets.toml`) are stored"""
 
+    def unplug(self) -> None:
+        """Called when context removed from container"""
+
+    def plug(self) -> None:
+        """Called when context is added to container"""
+
 
 class PluggableRunContext(ContainerInjectableContext):
     """Injectable run context taken via plugin"""
 
     global_affinity: ClassVar[bool] = True
 
-    context: SupportsRunContext
+    context: SupportsRunContext = None
     providers: ConfigProvidersContainer
     runtime_config: RuntimeConfiguration
 
@@ -100,9 +106,18 @@ class PluggableRunContext(ContainerInjectableContext):
     def after_add(self) -> None:
         super().after_add()
 
+        # plug context
+        self.context.plug()
+
         # initialize runtime if context comes back into container
         if self.runtime_config:
             self.initialize_runtime(self.runtime_config)
+
+    def before_remove(self) -> None:
+        super().before_remove()
+
+        if self.context:
+            self.context.unplug()
 
     def add_extras(self) -> None:
         from dlt.common.configuration.resolve import resolve_configuration
