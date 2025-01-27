@@ -26,9 +26,7 @@ def _make_pipeline(destination_name: str):
     destinations_configs(default_sql_configs=True, local_filesystem_configs=True),
     ids=lambda x: x.name,
 )
-def test_rest_api_source(
-    destination_config: DestinationTestConfiguration, request: Any
-) -> None:
+def test_rest_api_source(destination_config: DestinationTestConfiguration, request: Any) -> None:
     config: RESTAPIConfig = {
         "client": {
             "base_url": "https://pokeapi.co/api/v2/",
@@ -68,9 +66,7 @@ def test_rest_api_source(
     destinations_configs(default_sql_configs=True, local_filesystem_configs=True),
     ids=lambda x: x.name,
 )
-def test_dependent_resource(
-    destination_config: DestinationTestConfiguration, request: Any
-) -> None:
+def test_dependent_resource(destination_config: DestinationTestConfiguration, request: Any) -> None:
     config: RESTAPIConfig = {
         "client": {
             "base_url": "https://pokeapi.co/api/v2/",
