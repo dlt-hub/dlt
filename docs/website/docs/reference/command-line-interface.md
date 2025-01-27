@@ -1,6 +1,6 @@
 ---
 title: Guide
-description: Command line interface (CLI) of dlt
+description: A guide on how to use the dlt command line interface (CLI)
 keywords: [command line interface, cli, dlt init]
 ---
 
