@@ -1,0 +1,44 @@
+---
+sidebar_label: connection_string_credentials
+title: common.configuration.specs.connection_string_credentials
+---
+
+## ConnectionStringCredentials Objects
+
+```python
+@configspec
+class ConnectionStringCredentials(CredentialsConfiguration)
+```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/f0690715274590fc4cacf1165e3661aaa7af1c15/dlt/common/configuration/specs/connection_string_credentials.py#L12)
+
+### \_\_init\_\_
+
+```python
+def __init__(connection_string: Union[str, Dict[str, Any]] = None) -> None
+```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/f0690715274590fc4cacf1165e3661aaa7af1c15/dlt/common/configuration/specs/connection_string_credentials.py#L29)
+
+Initializes the credentials from SQLAlchemy like connection string or from dict holding connection string elements
+
+### get\_query
+
+```python
+def get_query() -> Dict[str, Any]
+```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/f0690715274590fc4cacf1165e3661aaa7af1c15/dlt/common/configuration/specs/connection_string_credentials.py#L56)
+
+Gets query preserving parameter types. Mostly used internally to export connection params
+
+### to\_url
+
+```python
+def to_url() -> URL
+```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/f0690715274590fc4cacf1165e3661aaa7af1c15/dlt/common/configuration/specs/connection_string_credentials.py#L60)
+
+Creates SQLAlchemy compatible URL object, computes current query via `get_query` and serializes its values to str
+
