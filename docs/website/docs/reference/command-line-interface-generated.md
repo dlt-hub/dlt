@@ -1,6 +1,6 @@
 ---
 title: Full Reference
-description: Command line interface (CLI) reference of dlt
+description: An automatically generated reference for the dlt command line interface (CLI) 
 keywords: [command line interface, cli, dlt init]
 ---
 
