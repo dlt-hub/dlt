@@ -26,7 +26,9 @@ def _make_pipeline(destination_name: str):
     destinations_configs(default_sql_configs=True, local_filesystem_configs=True),
     ids=lambda x: x.name,
 )
-def test_rest_api_source(destination_config: DestinationTestConfiguration, request: Any) -> None:
+def test_rest_api_source(
+    destination_config: DestinationTestConfiguration, request: Any
+) -> None:
     config: RESTAPIConfig = {
         "client": {
             "base_url": "https://pokeapi.co/api/v2/",
@@ -56,9 +58,9 @@ def test_rest_api_source(destination_config: DestinationTestConfiguration, reque
 
     assert table_counts.keys() == {"pokemon_list", "berry", "location"}
 
-    assert table_counts["pokemon_list"] == 1302
+    assert table_counts["pokemon_list"] == 1304
     assert table_counts["berry"] == 64
-    assert table_counts["location"] == 1036
+    assert table_counts["location"] == 1039
 
 
 @pytest.mark.parametrize(
@@ -66,7 +68,9 @@ def test_rest_api_source(destination_config: DestinationTestConfiguration, reque
     destinations_configs(default_sql_configs=True, local_filesystem_configs=True),
     ids=lambda x: x.name,
 )
-def test_dependent_resource(destination_config: DestinationTestConfiguration, request: Any) -> None:
+def test_dependent_resource(
+    destination_config: DestinationTestConfiguration, request: Any
+) -> None:
     config: RESTAPIConfig = {
         "client": {
             "base_url": "https://pokeapi.co/api/v2/",
