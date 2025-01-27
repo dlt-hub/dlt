@@ -29,6 +29,15 @@ class AzureCredentialsBase(CredentialsConfiguration, WithObjectStoreRsCredential
         creds: Dict[str, Any] = without_none(self.to_adlfs_credentials())  # type: ignore[assignment]
         # only string options accepted
         creds.pop("anon", None)
+
+        if isinstance(self, CredentialsWithDefault) and self.has_default_credentials():
+            dc = self.default_credentials()
+
+            # https://learn.microsoft.com/en-us/azure/storage/blobs/authorize-access-azure-active-directory#microsoft-authentication-library-msal
+            creds["azure_storage_token"] = dc.get_token("https://storage.azure.com/.default").token
+
+            return creds
+
         return creds
 
 
