@@ -11,6 +11,7 @@ from dlt.common.data_writers import (
 )
 from dlt.common.destination.utils import prepare_load_table
 from dlt.common.metrics import DataWriterMetrics
+from dlt.common.schema.utils import new_table
 from dlt.common.utils import chunks
 from dlt.common.schema.typing import TStoredSchema, TTableSchema
 from dlt.common.storages import (
@@ -224,7 +225,9 @@ def w_normalize_files(
                     schema, schema.naming, parsed_file_name.table_name
                 )
                 root_tables.add(root_table_name)
-                root_table = stored_schema["tables"].get(root_table_name, {"name": root_table_name})
+                root_table = stored_schema["tables"].get(root_table_name) or new_table(
+                    root_table_name
+                )
                 # prepare table
                 root_table = prepare_load_table(
                     stored_schema["tables"], root_table, destination_caps
