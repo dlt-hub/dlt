@@ -289,7 +289,7 @@ Due to the way `dlt` works, there are a few general pitfalls to be aware of:
     - Assign a unique subfolder in the staging destination bucket for each pipeline, or
     - [Disable automatic cleanup of the staging area](../dlt-ecosystem/staging#how-to-prevent-staging-files-truncation) after each load for all pipelines.
 
-If you do not, files might be deleted by one pipeline that are still required to be loaded by another pipeline running in parallel.
+    If you do not, files might be deleted by one pipeline that are still required to be loaded by another pipeline running in parallel.
 
 3. If you are using a write disposition that requires a staging dataset on the final destination, you should provide a unqiue staging datasetname for each pipeline, otherwise similar problems as noted above may occur. You can do this with the 
 [`staging_dataset_name_layout` setting.](../dlt-ecosystem/staging#staging-dataset)
