@@ -84,8 +84,14 @@ def render_argparse_markdown(
         usage = _text_wrap_line(usage)
 
         # get description or use help passed down from choices
+        help_string = help_string or ""
+        help_string = help_string.strip().strip(" .") + "."
         description = parser.description or help_string or ""
         description = description.strip().strip(" .") + "."
+
+        if nesting == 0:
+            help_string = description
+            description = None
 
         if not parser.description:
             fmt.warning(f"No description found for {cmd}, please consider providing one.")
@@ -149,8 +155,8 @@ def render_argparse_markdown(
 
         heading = "##" if nesting < 2 else "###"
         markdown += f"{heading} `{cmd}`\n\n"
-        if description:
-            markdown += f"{description}\n\n"
+        if help_string:
+            markdown += f"{help_string}\n\n"
         markdown += "**Usage**\n"
         markdown += "```sh\n"
         markdown += f"{usage}\n"
@@ -158,6 +164,10 @@ def render_argparse_markdown(
 
         if inherits_from:
             markdown += f"{inherits_from}\n\n"
+
+        if description:
+            markdown += "**Description**\n\n"
+            markdown += f"{description}\n\n"
 
         for es in extracted_sections:
             markdown += f"**{es['header']}**\n"
