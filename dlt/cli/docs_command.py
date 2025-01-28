@@ -163,16 +163,21 @@ def render_argparse_markdown(
         markdown += f"{usage}\n"
         markdown += "```\n\n"
 
-        if inherits_from:
-            markdown += f"{inherits_from}\n\n"
-
         if description:
             markdown += "**Description**\n\n"
             markdown += f"{description}\n\n"
 
+        markdown += "<details>\n\n"
+        markdown += "<summary>Show Arguments and Options</summary>\n\n"
+
+        if inherits_from:
+            markdown += f"{inherits_from}\n\n"
+
         for es in extracted_sections:
             markdown += f"**{es['header']}**\n"
             markdown += f"{es['section']}\n"
+
+        markdown += "</details>\n\n"
 
         # traverse the subparsers and forward help strings to the recursive function
         for action in parser._actions:
