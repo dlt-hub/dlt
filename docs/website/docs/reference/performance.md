@@ -283,7 +283,7 @@ You can also run pipelines in parallel across multiple machines. Please consult 
 
 Due to the way `dlt` works, there are a few general pitfalls to be aware of:
 
-1. Do not run pipelines with the same name and working dir in parallel on the same machine. Dlt will not be able to manage state and temporary files properly if you do this.
+1. Do not run pipelines with the same name and working dir in parallel on the same machine. dlt will not be able to manage state and temporary files properly if you do this.
 
 2. If you are running pipelines in parallel against the same destination dataset and are using a staging destination, you should change the staging destination bucket subfolder to be unique for each pipeline or alternatively disable cleaning up the staging destination after each load for all pipelines: [how to prevent staging files truncation](../dlt-ecosystem/staging#how-to-prevent-staging-files-truncation) If you do not, files might be deleted by one pipeline that are still required to be loaded by another pipeline running in parallel.
 
