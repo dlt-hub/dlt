@@ -162,8 +162,10 @@ def _create_parser() -> Tuple[argparse.ArgumentParser, Dict[str, SupportsCliComm
     # recursively add formatter class
     def add_formatter_class(parser: argparse.ArgumentParser) -> None:
         parser.formatter_class = rich_argparse.RichHelpFormatter
+
+        # NOTE: make markup available for console output
         if parser.description:
-            parser.description = Markdown(parser.description, style="argparse.text")
+            parser.description = Markdown(parser.description, style="argparse.text")  # type: ignore
         for action in parser._actions:
             if isinstance(action, argparse._SubParsersAction):
                 for _subcmd, subparser in action.choices.items():

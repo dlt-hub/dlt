@@ -63,7 +63,8 @@ def render_argparse_markdown(
         # Prevent wrapping in help output for better parseability
         parser.formatter_class = _WidthFormatter
         if parser.description:
-            parser.description = parser.description.markup
+            # remove markdown from description
+            parser.description = parser.description.markup  # type: ignore
         help_output = parser.format_help()
         sections = help_output.split("\n\n")
 
