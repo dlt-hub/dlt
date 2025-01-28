@@ -33,6 +33,23 @@ class SentryLoggerCriticalConfiguration(SentryLoggerConfiguration):
     log_level: str = "CRITICAL"
 
 
+def test_sentry_init(
+    environment: DictStrStr, disable_temporary_telemetry: RuntimeConfiguration
+) -> None:
+    with patch("dlt.common.runtime.sentry.before_send", _mock_before_send):
+        mock_image_env(environment)
+        mock_pod_env(environment)
+        init_test_logging(SentryLoggerConfiguration())
+        start_test_telemetry(SentryLoggerConfiguration())
+        SENT_ITEMS.clear()
+        try:
+            1 / 0
+        except ZeroDivisionError:
+            logger.exception("DIV")
+        # message sent
+        assert len(SENT_ITEMS) == 1
+
+
 def test_sentry_log_level() -> None:
     from dlt.common.runtime.sentry import _get_sentry_log_level
 
@@ -111,23 +128,6 @@ def test_telemetry_endpoint_exceptions(
                 dlthub_telemetry_endpoint=endpoint, dlthub_telemetry_segment_write_key=write_key
             )
         )
-
-
-def test_sentry_init(
-    environment: DictStrStr, disable_temporary_telemetry: RuntimeConfiguration
-) -> None:
-    with patch("dlt.common.runtime.sentry.before_send", _mock_before_send):
-        mock_image_env(environment)
-        mock_pod_env(environment)
-        init_test_logging(SentryLoggerConfiguration())
-        start_test_telemetry(SentryLoggerConfiguration())
-        SENT_ITEMS.clear()
-        try:
-            1 / 0
-        except ZeroDivisionError:
-            logger.exception("DIV")
-        # message sent
-        assert len(SENT_ITEMS) == 1
 
 
 def test_track_anon_event(

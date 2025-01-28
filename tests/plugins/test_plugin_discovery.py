@@ -27,7 +27,13 @@ def plugin_install():
     try:
         print(
             venv.run_module(
-                "pip", "install", "tests/plugins/dlt_example_plugin", "--target", temp_dir
+                "pip",
+                "install",
+                "tests/plugins/dlt_example_plugin",
+                "--target",
+                temp_dir,
+                "--index",
+                "https://pypi.dlthub.com",
             )
         )
     except CalledProcessError as c_err:
