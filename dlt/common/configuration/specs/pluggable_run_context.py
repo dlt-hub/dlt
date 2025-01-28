@@ -5,6 +5,7 @@ from dlt.common.configuration.providers.provider import ConfigProvider
 from dlt.common.configuration.specs.base_configuration import ContainerInjectableContext
 from dlt.common.configuration.specs.runtime_configuration import RuntimeConfiguration
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContainer
+from dlt.common.utils import uniq_id
 
 
 class SupportsRunContext(Protocol):
@@ -70,6 +71,8 @@ class PluggableRunContext(ContainerInjectableContext):
     context: SupportsRunContext = None
     providers: ConfigProvidersContainer
     runtime_config: RuntimeConfiguration
+
+    _context_stack: List[Any] = []
 
     def __init__(
         self, init_context: SupportsRunContext = None, runtime_config: RuntimeConfiguration = None
@@ -145,3 +148,25 @@ class PluggableRunContext(ContainerInjectableContext):
         m = plugins.manager()
         self.context = m.hook.plug_run_context(run_dir=run_dir, runtime_kwargs=runtime_kwargs)
         assert self.context, "plug_run_context hook returned None"
+
+    def push_context(self) -> str:
+        """Pushes current context on stack and returns assert cookie"""
+        cookie = uniq_id()
+        self._context_stack.append((cookie, self.context, self.providers, self.runtime_config))
+        return cookie
+
+    def pop_context(self, cookie: str) -> None:
+        """Pops context from stack and re-initializes it if in container"""
+        _c, context, providers, runtime_config = self._context_stack.pop()
+        if cookie != _c:
+            raise ValueError(f"Run context stack mangled. Got cookie {_c} but expected {cookie}")
+        self.context = context
+        self.providers = providers
+        self.initialize_runtime(runtime_config)
+
+    def drop_context(self, cookie: str) -> None:
+        """Pops context form stack but leaves new context for good"""
+        state_ = self._context_stack.pop()
+        _c = state_[0]
+        if cookie != _c:
+            raise ValueError(f"Run context stack mangled. Got cookie {_c} but expected {cookie}")

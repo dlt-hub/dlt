@@ -13,7 +13,6 @@ from dlt.common.configuration.inject import get_fun_spec
 from dlt.common.configuration.plugins import PluginContext
 from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
-from dlt.common.configuration.specs.pluggable_run_context import PluggableRunContext
 from dlt.common.exceptions import ArgumentsOverloadException, DictValidationException
 from dlt.common.pipeline import StateInjectableContext, TPipelineState
 from dlt.common.schema import Schema
@@ -824,8 +823,15 @@ def test_source_reference_with_args() -> None:
 
 
 def test_source_reference_import_core() -> None:
-    # NOTE: requires unload_module fixture to make sure core sources are unloaded
+    # unload core sources
+    import sys
+    from dlt.sources import rest_api, sql_database, filesystem
+
+    for mod in (rest_api, sql_database, filesystem):
+        del sys.modules[mod.__name__]
+
     SourceReference.SOURCES.clear()
+
     # auto import by shorthand
     ref = SourceReference.find("rest_api")
     assert isinstance(ref, DltSourceFactoryWrapper)
