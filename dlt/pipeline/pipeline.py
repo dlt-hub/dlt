@@ -152,6 +152,8 @@ from dlt.pipeline.state_sync import (
 from dlt.common.storages.load_package import TLoadPackageState
 from dlt.pipeline.helpers import refresh_source
 
+from dlt.destinations.transformations import TTransformationFunc
+
 
 def with_state_sync(may_extract_state: bool = False) -> Callable[[TFun], TFun]:
     def decorator(f: TFun) -> TFun:
@@ -1769,4 +1771,22 @@ class Pipeline(SupportsPipeline):
             self.dataset_name,
             schema=schema,
             dataset_type=dataset_type,
+        )
+
+    def transform(
+        self,
+        transformations: Union[TTransformationFunc, List[TTransformationFunc]],
+        *,
+        table_name: Optional[str] = None,
+        write_disposition: Optional[str] = "replace",
+        materialization: Optional[str] = "table",
+    ) -> None:
+        from dlt.destinations.transformations import run_transformations
+
+        run_transformations(
+            self.dataset(),
+            transformations,
+            table_name=table_name,
+            write_disposition=write_disposition,
+            materialization=materialization,
         )
