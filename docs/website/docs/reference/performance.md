@@ -6,7 +6,7 @@ keywords: [scaling, parallelism, finetuning]
 
 # Optimizing dlt
 
-This page contains a collection of tips and tricks to optimize dlt pipelines for speed, scalability and memory footprint.
+This page contains a collection of tips and tricks to optimize dlt pipelines for speed, scalability and memory footprint. Keep in mind that dlt works in [three discreet stages](../explainers/how-dlt-works) that all have their own performance characteristics.
 
 
 ## Optimizing the extract stage
@@ -283,9 +283,13 @@ You can also run pipelines in parallel across multiple machines. Please consult 
 
 Due to the way `dlt` works, there are a few general pitfalls to be aware of:
 
-1. Do not run pipelines with the same name and working dir in parallel on the same machine. Dlt will not be able to manage state and temporary files properly if you do this.
+1. Do not run pipelines with the same name and working dir in parallel on the same machine. dlt will not be able to manage state and temporary files properly if you do this.
 
-2. If you are running pipelines in parallel against the same destination dataset and are using a staging destination, you should change the staging destination bucket subfolder to be unique for each pipeline or alternatively disable cleaning up the staging destination after each load for all pipelines: [how to prevent staging files truncation](../dlt-ecosystem/staging#how-to-prevent-staging-files-truncation) If you do not, files might be deleted by one pipeline that are still required to be loaded by another pipeline running in parallel.
+2. If you're running multiple pipelines in parallel that write to the same destination dataset and use a staging area, make sure to do one of the following:
+    - Assign a unique subfolder in the staging destination bucket for each pipeline, or
+    - [Disable automatic cleanup of the staging area](../dlt-ecosystem/staging#how-to-prevent-staging-files-truncation) after each load for all pipelines.
+
+If you do not, files might be deleted by one pipeline that are still required to be loaded by another pipeline running in parallel.
 
 3. If you are using a write disposition that requires a staging dataset on the final destination, you should provide a unqiue staging datasetname for each pipeline, otherwise similar problems as noted above may occur. You can do this with the 
 `staging_dataset_name_layout` setting.
