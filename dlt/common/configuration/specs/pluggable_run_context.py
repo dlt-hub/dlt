@@ -96,9 +96,11 @@ class PluggableRunContext(ContainerInjectableContext):
                 runtime_kwargs = self.context.runtime_kwargs
 
         self.runtime_config = None
+        self.before_remove()
         self._plug(run_dir, runtime_kwargs=runtime_kwargs)
 
         self.providers = ConfigProvidersContainer(self.context.initial_providers())
+        self.after_add()
         # adds remaining providers and initializes runtime
         self.add_extras()
 
