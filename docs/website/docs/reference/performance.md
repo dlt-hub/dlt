@@ -6,7 +6,7 @@ keywords: [scaling, parallelism, finetuning]
 
 # Optimizing dlt
 
-This page contains a collection of tips and tricks to optimize dlt pipelines for speed, scalability and memory footprint. Keep in mind that dlt works in [three discreet stages](../explainers/how-dlt-works) that all have their own performance characteristics.
+This page contains a collection of tips and tricks to optimize dlt pipelines for speed, scalability and memory footprint. Keep in mind that dlt works in [three discreet stages](./explainers/how-dlt-works) that all have their own performance characteristics.
 
 
 ## Optimizing the extract stage
