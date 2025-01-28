@@ -2,6 +2,7 @@ from typing import Any, Sequence, Type, cast, List, Dict, Tuple
 import argparse
 import click
 import rich_argparse
+from rich.markdown import Markdown
 
 from dlt.version import __version__
 from dlt.common.runners import Venv
@@ -129,7 +130,12 @@ def _create_parser() -> Tuple[argparse.ArgumentParser, Dict[str, SupportsCliComm
         ),
     )
     parser.add_argument(
-        "--debug", action=DebugAction, help="Displays full stack traces on exceptions."
+        "--debug",
+        action=DebugAction,
+        help=(
+            "Displays full stack traces on exceptions. Useful for debugging if the output is not"
+            " clear enough."
+        ),
     )
     subparsers = parser.add_subparsers(title="Available subcommands", dest="command")
 
@@ -145,13 +151,19 @@ def _create_parser() -> Tuple[argparse.ArgumentParser, Dict[str, SupportsCliComm
         command = c()
         if command.command in installed_commands.keys():
             continue
-        command_parser = subparsers.add_parser(command.command, help=command.help_string)
+        command_parser = subparsers.add_parser(
+            command.command,
+            help=command.help_string,
+            description=command.description if hasattr(command, "description") else None,
+        )
         command.configure_parser(command_parser)
         installed_commands[command.command] = command
 
     # recursively add formatter class
     def add_formatter_class(parser: argparse.ArgumentParser) -> None:
         parser.formatter_class = rich_argparse.RichHelpFormatter
+        if parser.description:
+            parser.description = Markdown(parser.description, style="argparse.text")
         for action in parser._actions:
             if isinstance(action, argparse._SubParsersAction):
                 for _subcmd, subparser in action.choices.items():

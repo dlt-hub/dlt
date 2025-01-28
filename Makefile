@@ -123,7 +123,7 @@ start-test-containers:
 	docker compose -f "tests/load/sqlalchemy/docker-compose.yml" up -d
 
 update-cli-docs:
-	poetry run dlt --debug render-docs docs/website/docs/reference/command-line-interface-generated.md
+	poetry run dlt --debug render-docs docs/website/docs/reference/command-line-interface.md
 
 check-cli-docs:
-	poetry run dlt --debug render-docs docs/website/docs/reference/command-line-interface-generated.md --compare
+	poetry run dlt --debug render-docs docs/website/docs/reference/command-line-interface.md --compare

@@ -5,9 +5,11 @@ import textwrap
 import os
 import re
 
+import dlt.cli.echo as fmt
+
 HEADER = """---
-title: Full Reference
-description: Command line interface (CLI) reference of dlt
+title: Command Line Interface
+description: Command line interface (CLI) full reference of dlt
 keywords: [command line interface, cli, dlt init]
 ---
 
@@ -60,6 +62,8 @@ def render_argparse_markdown(
 
         # Prevent wrapping in help output for better parseability
         parser.formatter_class = _WidthFormatter
+        if parser.description:
+            parser.description = parser.description.markup
         help_output = parser.format_help()
         sections = help_output.split("\n\n")
 
@@ -81,7 +85,10 @@ def render_argparse_markdown(
 
         # get description or use help passed down from choices
         description = parser.description or help_string or ""
-        description = description.strip(" .") + "."
+        description = description.strip().strip(" .") + "."
+
+        if not parser.description:
+            fmt.warning(f"No description found for {cmd}, please consider providing one.")
 
         inherits_from = ""
         if parent:
@@ -97,6 +104,9 @@ def render_argparse_markdown(
 
             # detect full sections
             if not section_lines[0].endswith(":"):
+                continue
+
+            if len(section_lines[0]) > 30:
                 continue
 
             # remove first line with header and empty lines

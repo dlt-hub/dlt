@@ -343,21 +343,7 @@ const sidebars = {
         keywords: ['reference'],
       },
       items: [
-        {
-          type: 'category',
-          label: 'Command Line Interface',
-          link: {
-            type: 'generated-index',
-            title: 'Command Line Interface',
-            description: 'The dlt command line interface reference can be used to create, inspect, and deploy dlt pipelines. We have a user guide as well as a full generated reference of all available commands.',
-            slug: 'reference/cli',
-            keywords: ['cli', 'shell'],
-          },
-          items: [
-            'reference/command-line-interface',
-            'reference/command-line-interface-generated',
-          ]
-        },
+        'reference/command-line-interface',
         'reference/telemetry',
         // Unsure item
         'general-usage/destination-tables',
