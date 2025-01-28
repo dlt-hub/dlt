@@ -7,6 +7,7 @@ import pyarrow as pa
 
 from dlt.common import pendulum
 from dlt.common.libs.pyarrow import (
+    get_column_type_from_py_arrow,
     py_arrow_to_table_schema_columns,
     from_arrow_scalar,
     get_py_arrow_timestamp,
@@ -17,6 +18,7 @@ from dlt.common.libs.pyarrow import (
     append_column,
     rename_columns,
     is_arrow_item,
+    UnsupportedArrowTypeException,
 )
 from dlt.common.destination import DestinationCapabilitiesContext
 from tests.cases import TABLE_UPDATE_COLUMNS_SCHEMA
@@ -127,6 +129,33 @@ def test_arrow_type_coercion() -> None:
     py_date = pa.date64()
     sc_date = to_arrow_scalar(datetime(2021, 1, 1, 5, 2, 32, tzinfo=timezone.utc), py_date)
     assert from_arrow_scalar(sc_date) == date(2021, 1, 1)
+
+
+def test_exception_for_unsupported_arrow_type() -> None:
+    # arrow type `duration` is currently unsupported by dlt
+    obj = pa.duration("s")
+    # error on type conversion
+    with pytest.raises(UnsupportedArrowTypeException):
+        get_column_type_from_py_arrow(obj)
+
+
+def test_exception_for_schema_with_unsupported_arrow_type() -> None:
+    table = pa.table(
+        {
+            "col1": pa.array([1, 2], type=pa.int32()),
+            "col2": pa.array([timedelta(days=1), timedelta(days=2)], type=pa.duration("s")),
+        }
+    )
+
+    # assert the exception is raised
+    with pytest.raises(UnsupportedArrowTypeException) as excinfo:
+        py_arrow_to_table_schema_columns(table.schema)
+
+    # this unpacking seems specific to subtypes of DltException
+    # assert the faulty column name is included in the exception message
+    _, msg = excinfo.value.args
+    assert "duration" in msg
+    assert "col2" in msg
 
 
 def _row_at_index(table: pa.Table, index: int) -> List[Any]:

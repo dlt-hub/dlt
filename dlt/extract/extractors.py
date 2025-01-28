@@ -28,7 +28,7 @@ from dlt.normalize.configuration import ItemsNormalizerConfiguration
 
 try:
     from dlt.common.libs import pyarrow
-    from dlt.common.libs.pyarrow import pyarrow as pa, TAnyArrowItem
+    from dlt.common.libs.pyarrow import pyarrow as pa, TAnyArrowItem, UnsupportedArrowTypeException
 except MissingDependencyException:
     pyarrow = None
     pa = None
@@ -417,7 +417,14 @@ class ArrowExtractor(Extractor):
                 utils.merge_table(self.schema.name, computed_table, arrow_table)
             else:
                 arrow_table = copy(computed_table)
-            arrow_table["columns"] = pyarrow.py_arrow_to_table_schema_columns(item.schema)
+            try:
+                arrow_table["columns"] = pyarrow.py_arrow_to_table_schema_columns(item.schema)
+            except pyarrow.UnsupportedArrowTypeException as e:
+                raise UnsupportedArrowTypeException(
+                    arrow_type=e.arrow_type,
+                    table_name=arrow_table["name"],
+                    column_name=e.column_name,
+                ) from e
 
             # Add load_id column if needed
             dlt_load_id = self.naming.normalize_identifier(C_DLT_LOAD_ID)

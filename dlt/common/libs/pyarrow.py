@@ -16,7 +16,7 @@ from typing import (
 
 from dlt import version
 from dlt.common.pendulum import pendulum
-from dlt.common.exceptions import MissingDependencyException
+from dlt.common.exceptions import MissingDependencyException, DltException
 from dlt.common.schema.typing import C_DLT_ID, C_DLT_LOAD_ID, TTableSchemaColumns
 from dlt.common import logger, json
 from dlt.common.json import custom_encode, map_nested_in_place
@@ -44,6 +44,30 @@ except ModuleNotFoundError:
 TAnyArrowItem = Union[pyarrow.Table, pyarrow.RecordBatch]
 
 ARROW_DECIMAL_MAX_PRECISION = 76
+
+
+class UnsupportedArrowTypeException(DltException):
+    def __init__(
+        self,
+        arrow_type: pyarrow.DataType,
+        table_name: Optional[str] = None,
+        column_name: Optional[str] = None,
+    ) -> None:
+        self.arrow_type = arrow_type
+        self.column_name = column_name if column_name else ""
+        self.table_name = table_name if table_name else ""
+
+        msg = f"Arrow type `{self.arrow_type}`"
+        if self.column_name:
+            msg += f" for column `{self.column_name}`"
+        if self.table_name:
+            msg += f" in table `{self.table_name}`"
+
+        msg += (
+            " is unsupported by dlt. See documentation:"
+            " https://dlthub.com/docs/dlt-ecosystem/verified-sources/arrow-pandas#supported-arrow-data-types"
+        )
+        super().__init__(None, msg)
 
 
 def get_py_arrow_datatype(
@@ -188,7 +212,7 @@ def get_column_type_from_py_arrow(dtype: pyarrow.DataType) -> TColumnType:
         # dictates the "logical" type. We simply delegate to the underlying value_type.
         return get_column_type_from_py_arrow(dtype.value_type)
     else:
-        raise ValueError(dtype)
+        raise UnsupportedArrowTypeException(arrow_type=dtype)
 
 
 def remove_null_columns(item: TAnyArrowItem) -> TAnyArrowItem:
@@ -400,10 +424,15 @@ def py_arrow_to_table_schema_columns(schema: pyarrow.Schema) -> TTableSchemaColu
     """
     result: TTableSchemaColumns = {}
     for field in schema:
+        try:
+            converted_type = get_column_type_from_py_arrow(field.type)
+        except UnsupportedArrowTypeException:
+            raise UnsupportedArrowTypeException(arrow_type=field.type, column_name=field.name)
+
         result[field.name] = {
             "name": field.name,
             "nullable": field.nullable,
-            **get_column_type_from_py_arrow(field.type),
+            **converted_type,
         }
     return result
 
