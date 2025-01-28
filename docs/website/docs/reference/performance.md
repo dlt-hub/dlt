@@ -288,7 +288,7 @@ Due to the way `dlt` works, there are a few general pitfalls to be aware of:
 2. If you are running pipelines in parallel against the same destination dataset and are using a staging destination, you should change the staging destination bucket subfolder to be unique for each pipeline or alternatively disable cleaning up the staging destination after each load for all pipelines: [how to prevent staging files truncation](../dlt-ecosystem/staging#how-to-prevent-staging-files-truncation) If you do not, files might be deleted by one pipeline that are still required to be loaded by another pipeline running in parallel.
 
 3. If you are using a write disposition that requires a staging dataset on the final destination, you should provide a unqiue staging datasetname for each pipeline, otherwise similar problems as noted above may occur. You can do this with the 
-`staging_dataset_name_layout` setting.
+[`staging_dataset_name_layout` setting.](../dlt-ecosystem/staging#staging-dataset)
 
 ## Keep pipeline working folder in a bucket on constrained environments.
 `dlt` stores extracted data in load packages in order to load them atomically. In case you extract a lot of data at once (ie. backfill) or
