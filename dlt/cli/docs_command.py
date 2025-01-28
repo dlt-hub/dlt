@@ -111,6 +111,11 @@ def render_argparse_markdown(
 
             # remove first line with header and empty lines
             header = section_lines[0].replace(":", "")
+
+            if header.lower() not in ["available subcommands", "positional arguments", "options"]:
+                fmt.warning(f"Skipping unknown section {header} of {cmd}.")
+                continue
+
             section_lines = section_lines[1:]
             section_lines = [line for line in section_lines if line]
             section = textwrap.dedent(os.linesep.join(section_lines))
