@@ -233,8 +233,8 @@ class FilesystemSqlClient(DuckDbSqlClient):
             table_format = schema_table.get("table_format")
 
             # we use alternative method to get snapshot on abfss and we need to replace
-            # the view each time to control the freshness
-            needs_replace = is_abfss and table_format == "iceberg"
+            # the view each time to control the freshness (abfss cannot glob)
+            needs_replace = is_abfss  # and table_format == "iceberg"
             # skip if view already exists and does not need to be replaced each time
             if view_name in existing_tables and not needs_replace:
                 continue
