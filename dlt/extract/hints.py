@@ -63,7 +63,7 @@ class TResourceHintsBase(TypedDict, total=False):
     columns: Optional[TTableHintTemplate[TAnySchemaColumns]]
     schema_contract: Optional[TTableHintTemplate[TSchemaContract]]
     table_format: Optional[TTableHintTemplate[TTableFormat]]
-    file_format: TTableHintTemplate[TFileFormat]
+    file_format: Optional[TTableHintTemplate[TFileFormat]]
     merge_key: Optional[TTableHintTemplate[TColumnNames]]
     references: Optional[TTableHintTemplate[TTableReferenceParam]]
     nested_hints: Optional[Dict[str, "TResourceHintsBase"]]
