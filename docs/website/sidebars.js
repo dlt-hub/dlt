@@ -320,6 +320,63 @@ const sidebars = {
     'reference/performance',
     {
       type: 'category',
+      label: 'dlt+',
+      link: {
+        type: 'doc',
+        id: 'dlt-plus/intro',
+      },
+      items: [
+        {
+          type: 'category',
+          label: 'Getting started',
+          items: [
+            'dlt-plus/getting-started/installation',
+            'dlt-plus/getting-started/tutorial',
+            'dlt-plus/getting-started/advanced_tutorial',
+          ]
+        },
+        {
+          type: 'category',
+          label: 'Core concepts',
+          items: [
+            'dlt-plus/core-concepts/project',
+            'dlt-plus/core-concepts/cache',
+            'dlt-plus/core-concepts/transformations',
+            'dlt-plus/core-concepts/datasets',
+          ]
+        },
+        {
+          type: 'category',
+          label: 'Sources & Destinations',
+          items: [
+            'dlt-plus/ecosystem/ms-sql',
+            'dlt-plus/ecosystem/iceberg',
+            'dlt-plus/ecosystem/delta',
+          ]
+        },
+        {
+          type: 'category',
+          label: 'Features',
+          items: [
+            'dlt-plus/features/security',
+            'dlt-plus/features/quality',
+            'dlt-plus/features/transformations',
+            'dlt-plus/features/ai',
+          ]
+        },
+        {
+          type: 'category',
+          label: 'Going to production',
+          items: [
+            'dlt-plus/production/observability',
+            'dlt-plus/production/runners',
+          ]
+        },
+        'dlt-plus/reference',
+      ]
+    },
+    {
+      type: 'category',
       label: 'Code examples',
       link: {
         type: 'generated-index',
