@@ -420,11 +420,8 @@ class ArrowExtractor(Extractor):
             try:
                 arrow_table["columns"] = pyarrow.py_arrow_to_table_schema_columns(item.schema)
             except pyarrow.UnsupportedArrowTypeException as e:
-                raise UnsupportedArrowTypeException(
-                    arrow_type=e.arrow_type,
-                    table_name=arrow_table["name"],
-                    column_name=e.column_name,
-                ) from e
+                e.table_name = str(arrow_table.get("name"))
+                raise
 
             # Add load_id column if needed
             dlt_load_id = self.naming.normalize_identifier(C_DLT_LOAD_ID)

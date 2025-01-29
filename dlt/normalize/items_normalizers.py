@@ -327,12 +327,10 @@ class ArrowItemsNormalizer(ItemsNormalizer):
                         data_type = pyarrow.get_column_type_from_py_arrow(
                             arrow_schema.field(key).type
                         )
-                    except pyarrow.UnsupportedArrowTypeException:
-                        raise pyarrow.UnsupportedArrowTypeException(
-                            arrow_type=arrow_schema.field(key).type,
-                            table_name=root_table_name,
-                            column_name=key,
-                        )
+                    except pyarrow.UnsupportedArrowTypeException as e:
+                        e.field_name = key
+                        e.table_name = root_table_name
+                        raise
 
                     if data_type["data_type"] in ("timestamp", "time"):
                         prec = data_type["precision"]

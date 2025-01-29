@@ -151,9 +151,7 @@ def test_exception_for_schema_with_unsupported_arrow_type() -> None:
     with pytest.raises(UnsupportedArrowTypeException) as excinfo:
         py_arrow_to_table_schema_columns(table.schema)
 
-    # this unpacking seems specific to subtypes of DltException
-    # assert the faulty column name is included in the exception message
-    _, msg = excinfo.value.args
+    (msg,) = excinfo.value.args
     assert "duration" in msg
     assert "col2" in msg
 
