@@ -157,6 +157,20 @@ def test_glob_files(with_gdrive_buckets_env: str, load_content: bool, glob_filte
     assert_sample_files(all_file_items, filesystem, config, load_content, glob_filter)
 
 
+@pytest.mark.parametrize("load_content", (True, False))
+def test_glob_single_file(with_gdrive_buckets_env: str, load_content: bool) -> None:
+    bucket_url = os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"]
+    bucket_url, config, filesystem = glob_test_setup(
+        bucket_url, "standard_source/samples/met_csv/A803"
+    )
+    # use glob to get data
+    all_file_items = list(glob_files(filesystem, bucket_url, "A803_20230919.csv"))
+    assert len(all_file_items) == 1
+    assert (
+        all_file_items[0]["relative_path"] == all_file_items[0]["file_name"] == "A803_20230919.csv"
+    )
+
+
 def test_glob_overlapping_path_files(with_gdrive_buckets_env: str) -> None:
     bucket_url = os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"]
     # "standard_source/sample" overlaps with a real existing "standard_source/samples". walk operation on azure

@@ -26,7 +26,7 @@ class NullExecutor(Executor):
     Provides a uniform interface for `None` pool type
     """
 
-    def submit(self, fn: Callable[P, T], *args: P.args, **kwargs: P.kwargs) -> Future[T]:
+    def submit(self, fn: Callable[P, T], /, *args: P.args, **kwargs: P.kwargs) -> Future[T]:
         """Run the job and return a Future"""
         fut: Future[T] = Future()
         try:

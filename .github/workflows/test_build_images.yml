@@ -37,6 +37,7 @@ jobs:
           virtualenvs-create: true
           virtualenvs-in-project: true
           installer-parallel: true
+          version: 1.8.5
 
       - name: Build images
         run: make test-build-images

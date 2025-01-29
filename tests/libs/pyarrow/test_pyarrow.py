@@ -1,4 +1,4 @@
-from datetime import timezone, datetime, timedelta  # noqa: I251
+from datetime import timezone, datetime, date, timedelta  # noqa: I251
 from copy import deepcopy
 from typing import List, Any
 
@@ -66,6 +66,18 @@ def test_py_arrow_to_table_schema_columns():
     assert result == dlt_schema
 
 
+def test_py_arrow_dict_to_column() -> None:
+    array_1 = pa.array(["a", "b", "c"], type=pa.dictionary(pa.int8(), pa.string()))
+    array_2 = pa.array([1, 2, 3], type=pa.dictionary(pa.int8(), pa.int64()))
+    table = pa.table({"strings": array_1, "ints": array_2})
+    columns = py_arrow_to_table_schema_columns(table.schema)
+    assert columns == {
+        "strings": {"name": "strings", "nullable": True, "data_type": "text"},
+        "ints": {"name": "ints", "nullable": True, "data_type": "bigint"},
+    }
+    assert table.to_pydict() == {"strings": ["a", "b", "c"], "ints": [1, 2, 3]}
+
+
 def test_to_arrow_scalar() -> None:
     naive_dt = get_py_arrow_timestamp(6, tz=None)
     # print(naive_dt)
@@ -97,25 +109,24 @@ def test_to_arrow_scalar() -> None:
     assert dt_converted == datetime(2021, 1, 1, 13, 2, 32, tzinfo=timezone.utc)
 
 
-def test_from_arrow_scalar() -> None:
+def test_arrow_type_coercion() -> None:
+    # coerce UTC python dt into naive arrow dt
     naive_dt = get_py_arrow_timestamp(6, tz=None)
-    sc_dt = to_arrow_scalar(datetime(2021, 1, 1, 5, 2, 32), naive_dt)
-
-    # this value is like UTC
+    sc_dt = to_arrow_scalar(datetime(2021, 1, 1, 5, 2, 32, tzinfo=timezone.utc), naive_dt)
+    # does not convert to pendulum
     py_dt = from_arrow_scalar(sc_dt)
-    assert isinstance(py_dt, pendulum.DateTime)
-    # and we convert to explicit UTC
-    assert py_dt == datetime(2021, 1, 1, 5, 2, 32, tzinfo=timezone.utc)
+    assert not isinstance(py_dt, pendulum.DateTime)
+    assert isinstance(py_dt, datetime)
+    assert py_dt.tzname() is None
 
-    # converts to UTC
-    berlin_dt = get_py_arrow_timestamp(6, tz="Europe/Berlin")
-    sc_dt = to_arrow_scalar(
-        datetime(2021, 1, 1, 5, 2, 32, tzinfo=timezone(timedelta(hours=-8))), berlin_dt
-    )
-    py_dt = from_arrow_scalar(sc_dt)
-    assert isinstance(py_dt, pendulum.DateTime)
-    assert py_dt.tzname() == "UTC"
-    assert py_dt == datetime(2021, 1, 1, 13, 2, 32, tzinfo=timezone.utc)
+    # coerce datetime into date
+    py_date = pa.date32()
+    sc_date = to_arrow_scalar(datetime(2021, 1, 1, 5, 2, 32, tzinfo=timezone.utc), py_date)
+    assert from_arrow_scalar(sc_date) == date(2021, 1, 1)
+
+    py_date = pa.date64()
+    sc_date = to_arrow_scalar(datetime(2021, 1, 1, 5, 2, 32, tzinfo=timezone.utc), py_date)
+    assert from_arrow_scalar(sc_date) == date(2021, 1, 1)
 
 
 def _row_at_index(table: pa.Table, index: int) -> List[Any]:

@@ -1,5 +1,6 @@
 import datetime  # noqa: I251
-from typing import Any, Dict, List, NamedTuple, Optional, Tuple, TypedDict  # noqa: 251
+from typing import Any, Dict, List, NamedTuple, Optional, Tuple  # noqa: 251
+from dlt.common.typing import TypedDict
 
 
 class DataWriterMetrics(NamedTuple):

@@ -86,6 +86,7 @@ jobs:
           virtualenvs-create: true
           virtualenvs-in-project: true
           installer-parallel: true
+          version: 1.8.5
 
       - name: Load cached venv
         id: cached-poetry-dependencies
@@ -95,7 +96,7 @@ jobs:
           key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}-local-destinations
 
       - name: Install dependencies
-        run: poetry install --no-interaction -E postgres -E postgis -E duckdb -E parquet -E filesystem -E cli -E weaviate -E qdrant -E sftp --with sentry-sdk --with pipeline,ibis -E deltalake -E pyiceberg
+        run: poetry install --no-interaction -E postgres -E postgis -E duckdb -E parquet -E filesystem -E cli -E weaviate -E qdrant -E sftp --with sentry-sdk --with pipeline -E deltalake -E pyiceberg && poetry run pip install ibis-framework[duckdb,postgres,bigquery,snowflake,mssql,clickhouse]
 
       - name: Upgrade sqlalchemy
         run: poetry run pip install sqlalchemy==2.0.18  # minimum version required by `pyiceberg`

@@ -9,7 +9,6 @@ from typing import (
     Literal,
     cast,
     Tuple,
-    TypedDict,
     Optional,
     Union,
     Iterator,
@@ -25,6 +24,7 @@ from fsspec import AbstractFileSystem, register_implementation, get_filesystem_c
 from fsspec.core import url_to_fs
 
 from dlt import version
+from dlt.common.typing import TypedDict
 from dlt.common.pendulum import pendulum
 from dlt.common.configuration.specs import (
     GcpCredentials,

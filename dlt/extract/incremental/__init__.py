@@ -1,6 +1,7 @@
 import os
 from datetime import datetime  # noqa: I251
 from typing import Generic, ClassVar, Any, Optional, Type, Dict, Union, Literal, Tuple
+
 from typing_extensions import get_args
 
 import inspect
@@ -29,7 +30,6 @@ from dlt.common.data_types.type_helpers import (
     coerce_value,
     py_type_to_sc_type,
 )
-from dlt.common.utils import without_none
 
 from dlt.extract.exceptions import IncrementalUnboundError
 from dlt.extract.incremental.exceptions import (
@@ -560,10 +560,18 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         else:
             rows = self._transform_item(transformer, rows)
 
-        # write back state
+        # ensure last_value maintains forward-only progression when lag is applied
+        if self.lag and (cached_last_value := self._cached_state.get("last_value")):
+            transformer.last_value = self.last_value_func(
+                (transformer.last_value, cached_last_value)
+            )
+        # writing back state
         self._cached_state["last_value"] = transformer.last_value
+
         if not transformer.deduplication_disabled:
             # compute hashes for new last rows
+            # NOTE: object transform uses last_rows to pass rows to dedup, arrow computes
+            #  hashes directly
             unique_hashes = set(
                 transformer.compute_unique_value(row, self.primary_key)
                 for row in transformer.last_rows

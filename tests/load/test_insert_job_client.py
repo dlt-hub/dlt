@@ -179,7 +179,7 @@ def test_loading_errors(client: InsertValuesJobClient, file_storage: FileStorage
         "failed",
         file_format="insert_values",
     )
-    assert type(job._exception) == DatabaseTerminalException  # type: ignore
+    assert type(job._exception) is DatabaseTerminalException  # type: ignore
     # numeric overflow on NUMERIC
     insert_sql = (
         "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp,"
@@ -214,10 +214,10 @@ def test_loading_errors(client: InsertValuesJobClient, file_storage: FileStorage
         "failed",
         file_format="insert_values",
     )
-    assert type(job._exception) == DatabaseTerminalException  # type: ignore
+    assert type(job._exception) is DatabaseTerminalException  # type: ignore
 
     assert (
-        type(job._exception.dbapi_exception) == psycopg2.errors.InternalError_  # type: ignore
+        type(job._exception.dbapi_exception) is psycopg2.errors.InternalError_  # type: ignore
         if dtype == "redshift"
         else TNumericValueOutOfRange
     )

@@ -98,14 +98,18 @@ class Venv:
         # runs one of installed entry points typically CLIs coming with packages and installed into PATH
         command = os.path.join(self.context.bin_path, entry_point)
         cmd = [command, *script_args]
-        return subprocess.check_output(cmd, stderr=subprocess.STDOUT, text=True)
+        return subprocess.check_output(
+            cmd, stderr=subprocess.STDOUT, text=True, errors="backslashreplace"
+        )
 
     def run_script(self, script_path: str, *script_args: Any) -> str:
         """Runs a python `script` source with specified `script_args`. Current `os.environ` and cwd is passed to executed process"""
         # os.environ is passed to executed process
         cmd = [self.context.env_exe, os.path.abspath(script_path), *script_args]
         try:
-            return subprocess.check_output(cmd, stderr=subprocess.STDOUT, text=True)
+            return subprocess.check_output(
+                cmd, stderr=subprocess.STDOUT, text=True, errors="backslashreplace"
+            )
         except subprocess.CalledProcessError as cpe:
             if cpe.returncode == 2:
                 raise FileNotFoundError(script_path)
@@ -115,7 +119,9 @@ class Venv:
     def run_module(self, module: str, *module_args: Any) -> str:
         """Runs a python `module` with specified `module_args`. Current `os.environ` and cwd is passed to executed process"""
         cmd = [self.context.env_exe, "-m", module, *module_args]
-        return subprocess.check_output(cmd, stderr=subprocess.STDOUT, text=True)
+        return subprocess.check_output(
+            cmd, stderr=subprocess.STDOUT, text=True, errors="backslashreplace"
+        )
 
     def add_dependencies(self, dependencies: List[str] = None) -> None:
         Venv._install_deps(self.context, dependencies)
@@ -134,7 +140,9 @@ class Venv:
             cmd = [context.env_exe, "-Im", Venv.PIP_TOOL, "install"]
 
         try:
-            subprocess.check_output(cmd + dependencies, stderr=subprocess.STDOUT)
+            subprocess.check_output(
+                cmd + dependencies, stderr=subprocess.STDOUT, errors="backslashreplace"
+            )
         except subprocess.CalledProcessError as exc:
             raise CannotInstallDependencies(dependencies, context.env_exe, exc.output)
 

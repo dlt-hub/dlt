@@ -69,6 +69,7 @@ feat/4922-add-avro-support
 * **exp** - an experiment where we are testing a new  idea or want to demonstrate something to the team, might turn into a `feat` later (ticket encouraged)
 * **test** - anything related to the tests (ticket encouraged)
 * **docs** - a change to our docs (ticket optional)
+* **keep** - branches we want to keep an revisit later (ticket encouraged)
 
 #### Ticket Numbers
 

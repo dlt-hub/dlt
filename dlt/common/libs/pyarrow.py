@@ -183,6 +183,10 @@ def get_column_type_from_py_arrow(dtype: pyarrow.DataType) -> TColumnType:
         return dict(data_type="decimal", precision=dtype.precision, scale=dtype.scale)
     elif pyarrow.types.is_nested(dtype):
         return dict(data_type="json")
+    elif pyarrow.types.is_dictionary(dtype):
+        # Dictionary types are essentially categorical encodings. The underlying value_type
+        # dictates the "logical" type. We simply delegate to the underlying value_type.
+        return get_column_type_from_py_arrow(dtype.value_type)
     else:
         raise ValueError(dtype)
 
@@ -458,16 +462,8 @@ def to_arrow_scalar(value: Any, arrow_type: pyarrow.DataType) -> Any:
 
 
 def from_arrow_scalar(arrow_value: pyarrow.Scalar) -> Any:
-    """Converts arrow scalar into Python type. Currently adds "UTC" to naive date times and converts all others to UTC"""
-    row_value = arrow_value.as_py()
-    # dates are not represented as datetimes but I see connector-x represents
-    # datetimes as dates and keeping the exact time inside. probably a bug
-    # but can be corrected this way
-    if isinstance(row_value, date) and not isinstance(row_value, datetime):
-        row_value = pendulum.from_timestamp(arrow_value.cast(pyarrow.int64()).as_py() / 1000)
-    elif isinstance(row_value, datetime):
-        row_value = pendulum.instance(row_value).in_tz("UTC")
-    return row_value
+    """Converts arrow scalar into Python type."""
+    return arrow_value.as_py()
 
 
 TNewColumns = Sequence[Tuple[int, pyarrow.Field, Callable[[pyarrow.Table], Iterable[Any]]]]

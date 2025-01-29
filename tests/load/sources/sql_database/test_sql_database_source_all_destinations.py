@@ -20,7 +20,7 @@ from tests.pipeline.utils import (
 
 try:
     from dlt.sources.sql_database import TableBackend, sql_database, sql_table
-    from tests.load.sources.sql_database.test_helpers import mock_json_column
+    from tests.load.sources.sql_database.test_helpers import mock_json_column, mock_array_column
     from tests.load.sources.sql_database.test_sql_database_source import (
         assert_row_counts,
         convert_time_to_us,
@@ -63,6 +63,9 @@ def test_load_sql_schema_loads_all_tables(
         # always use mock json
         source.has_precision.add_map(mock_json_column("json_col"))
         source.has_precision_nullable.add_map(mock_json_column("json_col"))
+        # always use mock array
+        source.has_precision.add_map(mock_array_column("array_col"))
+        source.has_precision_nullable.add_map(mock_array_column("array_col"))
 
     assert "chat_message_view" not in source.resources  # Views are not reflected by default
 
@@ -103,6 +106,9 @@ def test_load_sql_schema_loads_all_tables_parallel(
         # always use mock json
         source.has_precision.add_map(mock_json_column("json_col"))
         source.has_precision_nullable.add_map(mock_json_column("json_col"))
+        # always use mock array
+        source.has_precision.add_map(mock_array_column("array_col"))
+        source.has_precision_nullable.add_map(mock_array_column("array_col"))
 
     load_info = pipeline.run(source)
     print(humanize.precisedelta(pipeline.last_trace.finished_at - pipeline.last_trace.started_at))

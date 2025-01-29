@@ -1,13 +1,7 @@
 import ast
 import inspect
+
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Union, Callable
-
-try:
-    import astunparse
-
-    ast_unparse: Callable[[ast.AST], str] = astunparse.unparse
-except ImportError:
-    ast_unparse = ast.unparse  #  type: ignore[attr-defined, unused-ignore]
 
 from dlt.common.typing import AnyFun
 
@@ -31,7 +25,7 @@ def get_literal_defaults(node: Union[ast.FunctionDef, ast.AsyncFunctionDef]) -> 
     literal_defaults: Dict[str, str] = {}
     for arg, default in zip(reversed(args), reversed(defaults)):
         if default:
-            literal_defaults[str(arg.arg)] = ast_unparse(default).strip()
+            literal_defaults[str(arg.arg)] = ast.unparse(default).strip()
 
     return literal_defaults
 
@@ -105,7 +99,7 @@ def rewrite_python_script(
             script_lines.append(source_script_lines[last_line][last_offset : node.col_offset])  # type: ignore[attr-defined]
 
         # replace node value
-        script_lines.append(ast_unparse(t_value).strip())
+        script_lines.append(ast.unparse(t_value).strip())
         last_line = node.end_lineno - 1  # type: ignore[attr-defined]
         last_offset = node.end_col_offset  # type: ignore[attr-defined]
 

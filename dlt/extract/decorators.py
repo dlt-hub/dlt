@@ -374,7 +374,7 @@ def source(
     >>> list(chess("magnuscarlsen"))
 
     Here `username` is a required, explicit python argument, `chess_url` is a required argument, that if not explicitly passed will be taken from configuration ie. `config.toml`, `api_secret` is a required argument, that if not explicitly passed will be taken from dlt secrets ie. `secrets.toml`.
-    See https://dlthub.com/docs/general-usage/credentials for details.
+    See https://dlthub.com/docs/general-usage/credentials/ for details.
 
     Args:
         func: A function that returns a dlt resource or a list of those or a list of any data items that can be loaded by `dlt`.
@@ -564,7 +564,7 @@ def resource(
     >>> list(user_games("magnuscarlsen"))
 
     Here `username` is a required, explicit python argument, `chess_url` is a required argument, that if not explicitly passed will be taken from configuration ie. `config.toml`, `api_secret` is a required argument, that if not explicitly passed will be taken from dlt secrets ie. `secrets.toml`.
-    See https://dlthub.com/docs/general-usage/credentials for details.
+    See https://dlthub.com/docs/general-usage/credentials/ for details.
     Note that if decorated function is an inner function, passing of the credentials will be disabled.
 
     Args:

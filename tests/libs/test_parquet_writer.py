@@ -4,6 +4,7 @@ import pyarrow.parquet as pq
 import pytest
 import datetime  # noqa: 251
 import time
+import math
 
 from dlt.common import pendulum, Decimal, json
 from dlt.common.configuration import inject_section
@@ -12,7 +13,6 @@ from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.schema.utils import new_column
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.time import ensure_pendulum_datetime
-from dlt.common.libs.pyarrow import from_arrow_scalar
 
 from tests.common.data_writers.utils import get_writer
 from tests.cases import (
@@ -165,10 +165,14 @@ def test_parquet_writer_size_file_rotation() -> None:
         for i in range(0, 100):
             writer.write_data_item([{"col1": i}], columns)
 
-    assert len(writer.closed_files) == 25
+    # different arrow version create different file sizes
+    no_files = len(writer.closed_files)
+    i_per_file = int(math.ceil(100 / no_files))
+    assert no_files >= 17 and no_files <= 25
+
     with open(writer.closed_files[4].file_path, "rb") as f:
         table = pq.read_table(f)
-        assert table.column("col1").to_pylist() == list(range(16, 20))
+        assert table.column("col1").to_pylist() == list(range(4 * i_per_file, 5 * i_per_file))
 
 
 def test_parquet_writer_config() -> None:
