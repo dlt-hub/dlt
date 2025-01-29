@@ -81,7 +81,7 @@ def package(
     schema = (
         pipeline.default_schema
         if pipeline.default_schema_name
-        else Schema(normalize_schema_name(pipeline.dataset_name))
+        else Schema(normalize_schema_name(pipeline.dataset_name or pipeline.pipeline_name))
     )
     job_client = pipeline._sql_job_client(schema)
     if not venv:
