@@ -232,8 +232,8 @@ class Extractor:
     ) -> List[TTableSchema]:
         """Computes a schema for a new or dynamic table and normalizes identifiers"""
         return [
-            utils.normalize_table_identifiers(tbl, self.schema.naming)
-            for tbl in resource.compute_table_chain(items, meta)
+            utils.normalize_table_identifiers(tbl, self.naming)
+            for tbl in resource.compute_table_chain(self.naming, items, meta)
         ]
 
     def _compute_and_update_table(

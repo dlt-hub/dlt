@@ -42,7 +42,8 @@ from dlt.common.schema.utils import (
 from dlt.common.typing import TDataItem, TColumnNames
 from dlt.common.time import ensure_pendulum_datetime
 from dlt.common.utils import clone_dict_nested
-from dlt.common.normalizers.json.relational import DataItemNormalizer
+from dlt.common.normalizers.naming import NamingConvention
+from dlt.common.schema.utils import normalize_table_identifiers
 from dlt.common.validation import validate_dict_ignoring_xkeys
 from dlt.extract.exceptions import (
     DataItemRequiredForDynamicTableHints,
@@ -288,7 +289,12 @@ class DltResourceHints:
 
         return table_schema
 
-    def compute_table_chain(self, item: TDataItem = None, meta: Any = None) -> List[TTableSchema]:
+    def compute_table_chain(
+        self,
+        naming: NamingConvention,
+        item: TDataItem = None,
+        meta: Any = None
+    ) -> List[TTableSchema]:
         """Compute the table schema based on the current and all nested hints.
         Nested hints are resolved recursively.
         """
@@ -299,21 +305,52 @@ class DltResourceHints:
             root_table_name = root_table["name"]
 
         result = [root_table]
-        path_to_name: Dict[Tuple[str, ...], str] = {(root_table_name,): root_table_name}
+        path_to_name_map: Dict[Tuple[str, ...], str] = {(root_table_name,): root_table_name}
         for path, instance in self._walk_nested_hints():
-            full_path = (root_table_name,) + path
             table = instance.compute_table_schema(item, meta)
-            #breakpoint()
 
-            if not table.get("name"):
-                table["name"] = "__".join(full_path)  # TODO: naming convention
+            # generate name from current path and store {path: name}
+            current_path = (root_table_name, *path)
+            if table.get("name") is None:
+                table["name"] = naming.make_path(*current_path)
+            path_to_name_map[current_path] = table["name"]
 
-            path_to_name[full_path] = table["name"]
-            parent_name = path_to_name[full_path[:-1]]
+            # get parent name from the stored mapping {path: name}
+            parent_path = current_path[:-1]
+            parent_name = path_to_name_map.get(parent_path)
+            if parent_name is None:
+                raise KeyError(
+                    f"Can't find parent table for path `{current_path}",
+                    "This is an internal error, please report on GitHub."
+                )
+
             table["parent"] = parent_name
             result.append(table)
 
         return result
+    
+        # path_segments: Dict[Tuple[str, ...], str] = {(root_table_name,): root_table_name}
+        # for path, instance in self._walk_nested_hints():
+        #     table = instance.compute_table_schema(item, meta)
+        #     current_path = (root_table_name,) + path
+
+        #     # generate table name according to naming convention if not explicitly set
+        #     if table.get("name") is None:
+        #         table["name"] = naming.make_path(path_segments[current_path])
+
+        #     path_segments[current_path] = table["name"]
+
+        #     # table = normalize_table_identifiers(table, naming)
+            
+
+        #     # full_path = (root_table_name,) + path
+        #     # path_to_name[full_path] = table["name"]
+        #     # parent_name = path_to_name[full_path[:-1]]
+        #     # table["parent"] = parent_name
+
+        #     result.append(table)
+        #     # if not table.get("name"):
+        #     #     table["name"] = "__".join(full_path)  # TODO: naming convention
 
     def apply_hints(
         self,
