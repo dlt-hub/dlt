@@ -28,6 +28,7 @@ from dlt.common.storages.fsspec_filesystem import (
 from dlt.common.schema import TColumnSchema, Schema
 from dlt.common.schema.typing import TColumnType
 from dlt.common.storages import FilesystemConfiguration, fsspec_from_config
+from dlt.common.utils import uniq_id
 from dlt.destinations.job_client_impl import SqlJobClientWithStagingDataset
 from dlt.destinations.exceptions import LoadJobTerminalException
 from dlt.destinations.impl.databricks.configuration import DatabricksClientConfiguration
@@ -58,7 +59,9 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
         is_local_file = not ReferenceFollowupJobRequest.is_reference_job(self._file_path)
         if is_local_file:
             # local file by uploading to a temporary volume on Databricks
-            from_clause, file_name = self._handle_local_file_upload(self._file_path)
+            from_clause, file_name, volume_path, volume_file_path = self._handle_local_file_upload(
+                self._file_path
+            )
             credentials_clause = ""
             orig_bucket_path = None  # not used for local file
         else:
@@ -86,9 +89,12 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
 
         self._sql_client.execute_sql(statement)
 
-    def _handle_local_file_upload(self, local_file_path: str) -> tuple[str, str]:
+        if is_local_file:
+            self._sql_client.execute_sql(f"REMOVE '{volume_file_path}'")
+            self._sql_client.execute_sql(f"REMOVE '{volume_path}'")
+
+    def _handle_local_file_upload(self, local_file_path: str) -> tuple[str, str, str, str]:
         from databricks.sdk import WorkspaceClient
-        import time
         import io
 
         w: WorkspaceClient
@@ -119,17 +125,17 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
         volume_database = self._sql_client.dataset_name
         volume_name = "_dlt_staging_load_volume"
 
-        # create staging volume name
         fully_qualified_volume_name = f"{volume_catalog}.{volume_database}.{volume_name}"
         if self._job_client.config.staging_volume_name:
             fully_qualified_volume_name = self._job_client.config.staging_volume_name
             volume_catalog, volume_database, volume_name = fully_qualified_volume_name.split(".")
+        else:
+            # create staging volume name
+            self._sql_client.execute_sql(f"""
+                CREATE VOLUME IF NOT EXISTS {fully_qualified_volume_name}
+            """)
 
-        self._sql_client.execute_sql(f"""
-            CREATE VOLUME IF NOT EXISTS {fully_qualified_volume_name}
-        """)
-
-        volume_path = f"/Volumes/{volume_catalog}/{volume_database}/{volume_name}/{time.time_ns()}"
+        volume_path = f"/Volumes/{volume_catalog}/{volume_database}/{volume_name}/{uniq_id()}"
         volume_file_path = f"{volume_path}/{volume_file_name}"
 
         with open(local_file_path, "rb") as f:
@@ -139,7 +145,7 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
 
         from_clause = f"FROM '{volume_path}'"
 
-        return from_clause, file_name
+        return from_clause, file_name, volume_path, volume_file_path
 
     def _handle_staged_file(self) -> tuple[str, str, str, str]:
         bucket_path = orig_bucket_path = (

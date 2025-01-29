@@ -251,7 +251,7 @@ def test_databricks_direct_load(destination_config: DestinationTestConfiguration
 def test_databricks_direct_load_with_custom_staging_volume_name(
     destination_config: DestinationTestConfiguration,
 ) -> None:
-    custom_staging_volume_name = "dlt_ci.dlt_tests_shared.custom_volume"
+    custom_staging_volume_name = "dlt_ci.dlt_tests_shared.static_volume"
     bricks = databricks(staging_volume_name=custom_staging_volume_name)
 
     dataset_name = "test_databricks_direct_load" + uniq_id()

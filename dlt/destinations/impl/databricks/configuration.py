@@ -5,6 +5,7 @@ from dlt.common.typing import TSecretStrValue
 from dlt.common.configuration.specs.base_configuration import CredentialsConfiguration, configspec
 from dlt.common.destination.reference import DestinationClientDwhWithStagingConfiguration
 from dlt.common.configuration.exceptions import ConfigurationValueError
+from dlt.common.pipeline import get_dlt_pipelines_dir
 
 DATABRICKS_APPLICATION_ID = "dltHub_dlt"
 
@@ -24,6 +25,7 @@ class DatabricksCredentials(CredentialsConfiguration):
     """Additional keyword arguments that are passed to `databricks.sql.connect`"""
     socket_timeout: Optional[int] = 180
     user_agent_entry: Optional[str] = DATABRICKS_APPLICATION_ID
+    staging_allowed_local_path: Optional[str] = None
 
     __config_gen_annotations__: ClassVar[List[str]] = [
         "server_hostname",
@@ -35,6 +37,10 @@ class DatabricksCredentials(CredentialsConfiguration):
     ]
 
     def on_resolved(self) -> None:
+        # conn parameter staging_allowed_local_path must be set to use 'REMOVE volume_path' SQL statement
+        if not self.staging_allowed_local_path:
+            self.staging_allowed_local_path = get_dlt_pipelines_dir()
+
         if not ((self.client_id and self.client_secret) or self.access_token):
             try:
                 # attempt context authentication
@@ -80,6 +86,7 @@ class DatabricksCredentials(CredentialsConfiguration):
             access_token=self.access_token,
             session_configuration=self.session_configuration or {},
             _socket_timeout=self.socket_timeout,
+            staging_allowed_local_path=self.staging_allowed_local_path,
             **(self.connection_parameters or {}),
         )
 
