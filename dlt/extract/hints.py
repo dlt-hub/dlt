@@ -139,31 +139,6 @@ def make_hints(
     return new_template
 
 
-# class DltResourceHintsDict(Dict[Tuple[str, ...], "DltResourceHints"]):
-#     # def __init__(self, initial_value: TResourceHintsBase)
-
-#     # def __getitem__(self, key: Union[str, Sequence[str]]) -> "DltResourceHints":
-#     #     """Get item at `key` is string or recursively if sequence"""
-#     #     if isinstance(key, str):
-#     #         return super().__getitem__(key)
-#     #     else:
-#     #         item = super().__getitem__(key[0])
-#     #         for k_ in key[1:]:
-#     #             item = item.nested_hints[k_]
-#     #         return item
-
-#     def __setitem__(self, key: Union[str, Sequence[str]], value: Union["DltResourceHints", TResourceHintsBase]) -> None:
-#         """Sets resource hints at given `key` or create new instance from table template"""
-#         if isinstance(key, str):
-#             key = (key, )
-#         else:
-#             key = tuple(key)
-#         if isinstance(value, DltResourceHints):
-#             return super().__setitem__(key, value)
-#         else:
-#             return super().__setitem__(key, DltResourceHints(value))  # type: ignore
-
-
 class DltResourceHintsDict(Dict[str, "DltResourceHints"]):
     # def __init__(self, initial_value: TResourceHintsBase)
 
@@ -290,16 +265,19 @@ class DltResourceHints:
         # if table template present and has dynamic hints, the data item must be provided.
         if self._table_name_hint_fun and item is None:
             raise DataItemRequiredForDynamicTableHints(self.name)
+        
         # resolve
         resolved_template: TResourceHints = {
             k: self._resolve_hint(item, v)
             for k, v in root_table_template.items()
             if k not in NATURAL_CALLABLES
         }  # type: ignore
+
         if "incremental" in root_table_template:
             incremental = root_table_template["incremental"]
             if isinstance(incremental, Incremental) and incremental is not Incremental.EMPTY:
                 resolved_template["incremental"] = incremental
+        
         table_schema = self._create_table_schema(resolved_template, self.name)
         migrate_complex_types(table_schema, warn=True)
         validate_dict_ignoring_xkeys(
@@ -319,20 +297,22 @@ class DltResourceHints:
             root_table_name = meta.table_name
         else:
             root_table_name = root_table["name"]
+
         result = [root_table]
         path_to_name: Dict[Tuple[str, ...], str] = {(root_table_name,): root_table_name}
         for path, instance in self._walk_nested_hints():
             full_path = (root_table_name,) + path
             table = instance.compute_table_schema(item, meta)
+            #breakpoint()
+
             if not table.get("name"):
                 table["name"] = "__".join(full_path)  # TODO: naming convention
+
             path_to_name[full_path] = table["name"]
             parent_name = path_to_name[full_path[:-1]]
-
-            # parent_name = "__".join(full_path[:-1])
             table["parent"] = parent_name
-
             result.append(table)
+
         return result
 
     def apply_hints(

@@ -1,98 +1,93 @@
 import dlt
+import pytest
 
 
-@dlt.resource
-def nested_data():
-    yield [
-        {
-            "id": 1,
-            "a": [
-                {
-                    "a_id": "2",
-                    "b": [{"b_id": "3"}],
-                }
-            ],
-            "c": [
-                {
-                    "c_id": "4",
-                    "d": [{"d_id": "5"}],
-                }
-            ],
-        }
-    ]
-
-
-def test_apply_hints_nested_hints_column_types() -> None:
-    nested_data_rs = nested_data()
-
-    nested_data_rs.apply_hints(
-        path=["a", "b"],
-        columns=[
+@pytest.fixture()
+def nested_resource():
+    resource_name = "nested_data"
+    yield dlt.resource(
+        [
             {
-                "name": "b_id",
-                "data_type": "bigint",
-            },
+                "id": 1,
+                "outer1": [
+                    {"outer1_id": "2", "innerfoo": [{"innerfoo_id": "3"}]},
+                ],
+                "outer2": [
+                    {"outer2_id": "4", "innerbar": [{"innerbar_id": "5"}]},
+                ],
+            }
+        ],
+        name=resource_name
+    )
+
+
+def test_apply_nested_hints_column_types(nested_resource) -> None:
+    """Apply hints to a specific path, outside of the resource definition
+    Check for level 1 depth and level 1+ depth; should cover recursive cases
+    """
+    outer1_id_new_type = "double"
+    outer2_innerbar_id_new_type = "bigint"
+
+    nested_resource.apply_hints(
+        path=["outer1"],
+        columns=[
+            {"name": "outer1_id", "data_type": outer1_id_new_type}
         ],
     )
-    nested_data_rs.apply_hints(
-        path=["c"],
+    nested_resource.apply_hints(
+        path=["outer2", "innerbar"],
         columns=[
-            {
-                "name": "c_id",
-                "data_type": "double",
-            },
+            {"name": "innerbar_id", "data_type": outer2_innerbar_id_new_type},
         ],
     )
-
     pipeline = dlt.pipeline(
-        pipeline_name="test_apply_hints_nested_hints", dev_mode=True, destination="duckdb"
+        pipeline_name="test_apply_hints_nested_hints",
+        destination="duckdb",
+        dev_mode=True,
     )
-    pipeline.run(nested_data_rs)
+    pipeline.run(nested_resource)
 
     schema_tables = pipeline.default_schema.tables
+    assert schema_tables["nested_data__outer1"]["parent"] == "nested_data"
+    assert schema_tables["nested_data__outer1"]["columns"]["outer1_id"]["data_type"] == outer1_id_new_type
+    assert schema_tables["nested_data__outer2__innerbar"]["parent"] == "nested_data__outer2"
+    assert schema_tables["nested_data__outer2__innerbar"]["columns"]["innerbar_id"]["data_type"] == outer2_innerbar_id_new_type
 
-    assert schema_tables["nested_data__a__b"]["columns"]["b_id"]["data_type"] == "bigint"
-    assert schema_tables["nested_data__c"]["columns"]["c_id"]["data_type"] == "double"
 
-    assert schema_tables["nested_data__a__b"]["parent"] == "nested_data__a"
-    assert schema_tables["nested_data__c"]["parent"] == "nested_data"
+def test_apply_nested_hints_override_parent(nested_resource) -> None:
+    root_table_new_name = "override_parent"
 
-    # Try changing the parent name
-    nested_data_rs.apply_hints(table_name="override_parent")
-
+    nested_resource.apply_hints(table_name=root_table_new_name)
     pipeline = dlt.pipeline(
-        pipeline_name="test_apply_hints_nested_hints_2", dev_mode=True, destination="duckdb"
+        pipeline_name="test_apply_hints_nested_hints_2",
+        destination="duckdb",
+        dev_mode=True,
     )
-    pipeline.run(nested_data_rs)
+    pipeline.run(nested_resource)
 
     schema_tables = pipeline.default_schema.tables
-
-    assert schema_tables["override_parent__a__b"]["parent"] == "override_parent__a"
-    assert schema_tables["override_parent__c"]["parent"] == "override_parent"
-    assert schema_tables["override_parent__a__b"]["name"] == "override_parent__a__b"
-    assert schema_tables["override_parent__a__b"]["columns"]["b_id"]["data_type"] == "bigint"
-
-    for key in schema_tables.keys():
-        assert not key.startswith("nested_data")
+    assert not any(key.startswith("nested_data") for key in schema_tables.keys())
+    assert schema_tables[f"{root_table_new_name}__outer1"]["parent"] == f"{root_table_new_name}"
+    assert schema_tables[f"{root_table_new_name}__outer1__innerfoo"]["parent"] == f"{root_table_new_name}__outer1"
+    assert schema_tables[f"{root_table_new_name}__outer1__innerfoo"]["name"] == f"{root_table_new_name}__outer1__innerfoo"
+    assert schema_tables[f"{root_table_new_name}__outer1__innerfoo"]["columns"]["innerfoo_id"]["data_type"] == "text"
 
 
-def test_apply_hints_nested_hints_override_child_name():
-    nested_data_rs = nested_data()
+def test_apply_hints_nested_hints_override_child(nested_resource):
+    """Override both levels of child tables to cover recursive case"""
+    outer1_new_name = "override_child_outer1"
+    outer1_innerfoo_new_name = "override_child_outer1_innerfoo"
 
-    # Override both levels of child tables
-    nested_data_rs.apply_hints(path=["a"], table_name="override_child_a")
-    nested_data_rs.apply_hints(path=["a", "b"], table_name="override_child_a_b")
-
+    nested_resource.apply_hints(path=["outer1"], table_name=outer1_new_name)
+    nested_resource.apply_hints(path=["outer1", "innerfoo"], table_name=outer1_innerfoo_new_name)
     pipeline = dlt.pipeline(
-        pipeline_name="test_apply_hints_nested_hints_3", dev_mode=True, destination="duckdb"
+        pipeline_name="test_apply_hints_nested_hints_3",
+        destination="duckdb",
+        dev_mode=True, 
     )
-
-    pipeline.run(nested_data_rs)
+    pipeline.run(nested_resource)
 
     schema_tables = pipeline.default_schema.tables
-
-    assert schema_tables["override_child_a_b"]["name"] == "override_child_a_b"
-    # Parent should match the overrid parent name
-    assert schema_tables["override_child_a_b"]["parent"] == "override_child_a"
-
-    assert schema_tables["override_child_a"]["name"] == "override_child_a"
+    assert schema_tables[outer1_new_name]["name"] == outer1_new_name
+    assert schema_tables[outer1_innerfoo_new_name]["parent"] == outer1_new_name
+    assert schema_tables[outer1_innerfoo_new_name]["name"] == outer1_innerfoo_new_name
