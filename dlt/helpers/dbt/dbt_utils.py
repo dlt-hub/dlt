@@ -6,7 +6,7 @@ import warnings
 from dlt.common import logger
 from dlt.common.json import json
 from dlt.common.exceptions import MissingDependencyException
-from dlt.common.typing import StrAny
+from dlt.common.typing import StrAny, TypeAlias, AnyType
 
 from dlt.helpers.dbt.exceptions import (
     DBTProcessingError,
@@ -14,41 +14,16 @@ from dlt.helpers.dbt.exceptions import (
     IncrementalSchemaOutOfSyncError,
 )
 
-try:
-    # block disabling root logger
-    import logbook.compat
-
-    logbook.compat.redirect_logging = lambda: None
-
-    # can only import DBT after redirect is disabled
-    # https://stackoverflow.com/questions/48619517/call-a-click-command-from-code
-except ImportError:
-    pass
 
 try:
-    import dbt.logger
     from dbt.contracts import results as dbt_results
     from dbt.cli.main import dbtRunner
-    from dbt.exceptions import FailFastError
 except ImportError:
     raise MissingDependencyException("DBT Core", ["dbt-core"])
-
-_DBT_LOGGER_INITIALIZED = False
 
 
 def initialize_dbt_logging(level: str, is_json_logging: bool) -> Sequence[str]:
     int_level = logging._nameToLevel[level]
-
-    # wrap log setup to force out log level
-
-    def set_path_wrapper(self: dbt.logger.LogManager, path: str) -> None:
-        global _DBT_LOGGER_INITIALIZED
-
-        if not _DBT_LOGGER_INITIALIZED:
-            self._file_handler.set_path(path)
-        _DBT_LOGGER_INITIALIZED = True
-
-    dbt.logger.LogManager.set_path = set_path_wrapper  # type: ignore
 
     globs = []
     if int_level <= logging.DEBUG:
@@ -127,11 +102,10 @@ def run_dbt_command(
         warnings.filterwarnings("ignore", category=DeprecationWarning, module="logbook")
         runner_args = (global_args or []) + [command] + args  # type: ignore
 
-        with dbt.logger.log_manager.applicationbound():
-            runner = dbtRunner()
-            run_result = runner.invoke(runner_args)
-            success = run_result.success
-            results = run_result.result  # type: ignore
+        runner = dbtRunner()
+        run_result = runner.invoke(runner_args)
+        success = run_result.success
+        results = run_result.result  # type: ignore
 
         assert type(success) is bool
         parsed_results = parse_dbt_execution_results(results)
@@ -144,13 +118,9 @@ def run_dbt_command(
         return parsed_results or results
     except SystemExit as sys_ex:
         # oftentimes dbt tries to exit on error
+        # NOTE: current implementation handles BaseExceptions so in theory SystemExit will not come here
+
         raise DBTProcessingError(command, None, sys_ex)
-    except FailFastError as ff:
-        dbt_exc = DBTProcessingError(command, parse_dbt_execution_results(ff.result), ff.result)
-        # detect incremental model out of sync
-        if is_incremental_schema_out_of_sync_error(ff.result):
-            raise IncrementalSchemaOutOfSyncError(dbt_exc) from ff
-        raise dbt_exc from ff
     finally:
         # go back to working dir
         os.chdir(working_dir)

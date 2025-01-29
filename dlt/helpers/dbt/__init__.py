@@ -11,7 +11,7 @@ from dlt.version import get_installed_requirement_string
 
 from dlt.helpers.dbt.runner import create_runner, DBTPackageRunner
 
-DEFAULT_DBT_VERSION = ">=1.5,<1.9"
+DEFAULT_DBT_VERSION = ">=1.5,<2"
 
 # a map of destination names to dbt package names in case they don't match the pure destination name
 DBT_DESTINATION_MAP = {
