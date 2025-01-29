@@ -12,7 +12,7 @@ from dlt.common.schema.utils import (
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.common.schema import Schema, TSchemaTables
 from dlt.common.schema.typing import TTableSchema
-from dlt.common.destination.reference import JobClientBase, WithStagingDataset, LoadJob
+from dlt.common.destination.client import JobClientBase, WithStagingDataset, LoadJob
 from dlt.load.configuration import LoaderConfiguration
 from dlt.common.destination import DestinationCapabilitiesContext
 

@@ -3,7 +3,7 @@ import math
 
 import sqlalchemy as sa
 
-from dlt.common.destination.reference import (
+from dlt.common.destination.client import (
     RunnableLoadJob,
     HasFollowupJobs,
     PreparedTableSchema,

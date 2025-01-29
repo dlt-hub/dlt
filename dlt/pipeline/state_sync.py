@@ -7,7 +7,8 @@ from dlt.common.pendulum import pendulum
 from dlt.common.typing import DictStrAny
 from dlt.common.schema.typing import PIPELINE_STATE_TABLE_NAME
 from dlt.common.schema.utils import pipeline_state_table
-from dlt.common.destination.reference import WithStateSync, Destination, StateInfo
+from dlt.common.destination import Destination
+from dlt.common.destination.client import WithStateSync, StateInfo
 from dlt.common.versioned_state import (
     generate_state_version_hash,
     bump_state_version_if_modified,

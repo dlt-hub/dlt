@@ -5,7 +5,7 @@ from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import RuntimeConfiguration, BaseConfiguration
 from dlt.common.typing import AnyFun, TSecretStrValue
 from dlt.common.utils import digest256
-from dlt.common.destination import TLoaderFileFormat
+from dlt.common.destination import TLoaderFileFormat, TDestinationReferenceArg
 from dlt.common.pipeline import TRefreshMode
 from dlt.common.configuration.exceptions import ConfigurationValueError
 
@@ -14,11 +14,16 @@ from dlt.common.configuration.exceptions import ConfigurationValueError
 class PipelineConfiguration(BaseConfiguration):
     pipeline_name: Optional[str] = None
     pipelines_dir: Optional[str] = None
-    destination_type: Optional[str] = None
+
+    destination_type: Optional[TDestinationReferenceArg] = None
     destination_name: Optional[str] = None
-    staging_type: Optional[str] = None
+
+    staging_type: Optional[TDestinationReferenceArg] = None
     staging_name: Optional[str] = None
-    loader_file_format: Optional[TLoaderFileFormat] = None
+
+    import_schema_path: Optional[str] = None
+    export_schema_path: Optional[str] = None
+
     dataset_name: Optional[str] = None
     dataset_name_layout: Optional[str] = None
     """Layout for dataset_name, where %s is replaced with dataset_name. For example: 'prefix_%s'"""

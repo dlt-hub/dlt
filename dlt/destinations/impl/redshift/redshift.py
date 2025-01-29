@@ -14,7 +14,7 @@ else:
 
 from typing import Dict, List, Optional, Sequence
 
-from dlt.common.destination.reference import (
+from dlt.common.destination.client import (
     FollowupJobRequest,
     CredentialsConfiguration,
     PreparedTableSchema,

@@ -6,7 +6,7 @@ from dlt.common.destination.exceptions import (
     DestinationUndefinedEntity,
     DestinationException,
 )
-from dlt.common.destination.reference import TLoadJobState
+from dlt.common.destination.client import TLoadJobState
 
 
 class DatabaseException(DestinationException):

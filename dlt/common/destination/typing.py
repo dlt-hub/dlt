@@ -1,10 +1,12 @@
-from typing import Optional
+from typing import Literal, Optional
 
 from dlt.common.schema.typing import (
     _TTableSchemaBase,
     TWriteDisposition,
     TTableReferenceParam,
 )
+
+TDatasetType = Literal["auto", "default", "ibis"]
 
 
 class PreparedTableSchema(_TTableSchemaBase, total=False):

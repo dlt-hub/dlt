@@ -16,7 +16,8 @@ from dlt.common.storages import FileStorage
 from dlt.common import pipeline as state_module
 from dlt.common.storages.load_package import TPipelineStateDoc
 from dlt.common.utils import uniq_id
-from dlt.common.destination.reference import Destination, StateInfo
+from dlt.common.destination import Destination
+from dlt.common.destination.client import StateInfo
 from dlt.common.validation import validate_dict
 
 from dlt.destinations.utils import get_pipeline_state_query_columns

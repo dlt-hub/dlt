@@ -178,3 +178,6 @@ class athena(Destination[AthenaClientConfiguration, "AthenaClient"]):
             environment=environment,
             **kwargs,
         )
+
+
+athena.register()

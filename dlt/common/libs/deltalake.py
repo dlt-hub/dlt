@@ -48,7 +48,9 @@ def ensure_delta_compatible_arrow_schema(
             # cast all dictionary fields to string — this is rogue because
             # 1. dictionary value type is disregarded
             # 2. any non-partition dictionary fields are cast too
-            ARROW_TO_DELTA_COMPATIBLE_ARROW_TYPE_MAP[pa.types.is_dictionary] = pa.string()
+            ARROW_TO_DELTA_COMPATIBLE_ARROW_TYPE_MAP[pa.types.is_dictionary] = (
+                lambda t_: t_.value_type
+            )
 
     # NOTE: also consider calling _convert_pa_schema_to_delta() from delta.schema which casts unsigned types
     return cast_arrow_schema_types(schema, ARROW_TO_DELTA_COMPATIBLE_ARROW_TYPE_MAP)
@@ -159,7 +161,6 @@ def get_delta_tables(
     Raises ValueError if table name specified as `*tables` is not found. You may try to switch to other
     schemas via `schema_name` argument.
     """
-    from dlt.common.schema.utils import get_table_format
 
     with pipeline.destination_client(schema_name=schema_name) as client:
         assert isinstance(
@@ -169,7 +170,7 @@ def get_delta_tables(
         schema_delta_tables = [
             t["name"]
             for t in client.schema.tables.values()
-            if get_table_format(client.schema.tables, t["name"]) == "delta"
+            if client.prepare_load_table(t["name"]).get("table_format") == "delta"
         ]
         if len(tables) > 0:
             invalid_tables = set(tables) - set(schema_delta_tables)

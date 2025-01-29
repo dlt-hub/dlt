@@ -1,10 +1,10 @@
 from abc import ABC, abstractmethod
 import os
 import tempfile  # noqa: 251
-from typing import Dict, Iterable, List, Optional
+from typing import Dict, Iterable, List
 
 from dlt.common.json import json
-from dlt.common.destination.reference import (
+from dlt.common.destination.client import (
     HasFollowupJobs,
     TLoadJobState,
     RunnableLoadJob,

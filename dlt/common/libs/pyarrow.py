@@ -15,7 +15,6 @@ from typing import (
 )
 
 from dlt import version
-from dlt.common.pendulum import pendulum
 from dlt.common.exceptions import MissingDependencyException, DltException
 from dlt.common.schema.typing import C_DLT_ID, C_DLT_LOAD_ID, TTableSchemaColumns
 from dlt.common import logger, json
@@ -603,6 +602,8 @@ def cast_arrow_schema_types(
     for i, e in enumerate(schema.types):
         for type_check, cast_type in type_map.items():
             if type_check(e):
+                if callable(cast_type):
+                    cast_type = cast_type(e)
                 adjusted_field = schema.field(i).with_type(cast_type)
                 schema = schema.set(i, adjusted_field)
                 break  # if type matches type check, do not do other type checks

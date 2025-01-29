@@ -1,7 +1,7 @@
 import itertools
 import time
 
-from typing import Iterator
+from typing import Any, Dict, Iterator
 
 import pytest
 import asyncio
@@ -940,6 +940,98 @@ def test_limit_max_time() -> None:
     allowed_results = [list(range(i)) for i in [12, 11, 10, 9, 8, 7, 6, 5, 4]]
     assert sync_list in allowed_results
     assert async_list in allowed_results
+
+
+def test_limit_yield_cleanup() -> None:
+    state: Dict[str, Any] = {}
+
+    @dlt.resource()
+    def r():
+        for i in range(100):
+            time.sleep(0.1)
+            try:
+                yield i
+            finally:
+                # it is safe to update the state even in case of an error
+                state["i"] = i
+
+        state["OK"] = "OK"
+
+    assert len(list(r().add_limit(max_items=10))) == 10
+    assert state["i"] == 9
+    assert "OK" not in state
+
+    state.clear()
+
+    @dlt.resource()
+    def r_exit():
+        try:
+            for i in range(100):
+                time.sleep(0.1)
+                try:
+                    yield i
+                finally:
+                    # it is safe to update the state even in case of an error
+                    state["i"] = i
+        finally:
+            state["OK"] = "OK"
+
+    # here both state and final OK are done
+
+    assert len(list(r_exit().add_limit(max_items=10))) == 10
+    assert state["i"] == 9
+    assert state["OK"] == "OK"
+
+    # if we forward a generator
+    state.clear()
+
+    @dlt.resource()
+    def r_from():
+        try:
+            for i in range(100):
+                time.sleep(0.1)
+                try:
+                    iter_ = iter([1, 2, 3])
+                    yield from iter_
+                finally:
+                    # it is safe to update the state even in case of an error
+                    state["i"] = i
+        finally:
+            state["OK"] = "OK"
+
+    l_ = list(r_from().add_limit(max_items=10))
+    # we stopped iter_ in the middle of it. so it was NOT processed like atomic package
+    assert len(l_) == 10
+    assert state["i"] == 3
+
+    # hack: make sure iter_ is exhausted first
+    # TODO: add a mechanism to exhaust such generator before calling the resource first
+    os.environ["EXTRACT__NEXT_ITEM_MODE"] = "fifo"
+    state.clear()
+
+    @dlt.resource()
+    def r_iter():
+        try:
+            for i in range(100):
+                time.sleep(0.1)
+                try:
+
+                    def _igen():
+                        yield from [1, 2, 3]
+                        print("igen END")
+
+                    print("->IGEN")
+                    yield _igen()
+                    print("IGEN->")
+                finally:
+                    # it is safe to update the state even in case of an error
+                    state["i"] = i
+        finally:
+            state["OK"] = "OK"
+
+    l_ = list(r_iter().add_limit(max_items=10))
+    print(l_)
+    print(state)
 
 
 def test_source_state() -> None:

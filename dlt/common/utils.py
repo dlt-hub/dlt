@@ -420,6 +420,24 @@ def is_inner_callable(f: AnyFun) -> bool:
     return "<locals>" in get_callable_name(f, name_attr="__qualname__")
 
 
+def get_full_obj_class_name(obj: Any) -> str:
+    cls = obj.__class__
+    module = cls.__module__
+    # exclude 'builtins' for built-in types.
+    if module is None or module == "builtins":
+        return cls.__name__  #  type: ignore[no-any-return]
+    return module + "." + cls.__name__  #  type: ignore[no-any-return]
+
+
+def get_full_callable_name(f: AnyFun) -> str:
+    module = f.__module__
+    name = get_callable_name(f, name_attr="__qualname__")
+    # exclude 'builtins' for built-in types.
+    if module is None or module == "builtins":
+        return name
+    return module + "." + name
+
+
 def obfuscate_pseudo_secret(pseudo_secret: str, pseudo_key: bytes) -> str:
     return base64.b64encode(
         bytes([_a ^ _b for _a, _b in zip(pseudo_secret.encode("utf-8"), pseudo_key * 250)])
@@ -520,18 +538,9 @@ def exclude_keys(mapping: Mapping[str, Any], keys: Iterable[str]) -> Dict[str, A
     return {k: v for k, v in mapping.items() if k not in keys}
 
 
-def get_full_class_name(obj: Any) -> str:
-    cls = obj.__class__
-    module = cls.__module__
-    # exclude 'builtins' for built-in types.
-    if module is None or module == "builtins":
-        return cls.__name__  #  type: ignore[no-any-return]
-    return module + "." + cls.__name__  #  type: ignore[no-any-return]
-
-
 def get_exception_trace(exc: BaseException) -> ExceptionTrace:
     """Get exception trace and additional information for DltException(s)"""
-    trace: ExceptionTrace = {"message": str(exc), "exception_type": get_full_class_name(exc)}
+    trace: ExceptionTrace = {"message": str(exc), "exception_type": get_full_obj_class_name(exc)}
     if exc.__traceback__:
         tb_extract = traceback.extract_tb(exc.__traceback__)
         trace["stack_trace"] = traceback.format_list(tb_extract)

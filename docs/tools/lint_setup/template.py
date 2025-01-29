@@ -55,7 +55,7 @@ from dlt.common.configuration.specs import (
 from dlt.common.libs.pyarrow import Table as ArrowTable
 from dlt.common.data_writers import TDataItemFormat
 
-from dlt.extract.source import SourceFactory
+from dlt.extract.reference import SourceFactory
 from dlt.extract.items import DataItemWithMeta
 from dlt.extract import DltResource, DltSource
 from dlt.common.storages.configuration import FileSystemCredentials
