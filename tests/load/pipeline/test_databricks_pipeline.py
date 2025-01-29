@@ -229,15 +229,11 @@ def test_databricks_auth_token(destination_config: DestinationTestConfiguration)
     ids=lambda x: x.name,
 )
 def test_databricks_direct_load(destination_config: DestinationTestConfiguration) -> None:
-    os.environ["DESTINATION__DATABRICKS__CREDENTIALS__CLIENT_ID"] = ""
-    os.environ["DESTINATION__DATABRICKS__CREDENTIALS__CLIENT_SECRET"] = ""
-
-    bricks = databricks()
-
     dataset_name = "test_databricks_direct_load" + uniq_id()
     pipeline = destination_config.setup_pipeline(
-        "test_databricks_direct_load", dataset_name=dataset_name, destination=bricks
+        "test_databricks_direct_load", dataset_name=dataset_name
     )
+    assert pipeline.staging is None
 
     info = pipeline.run([1, 2, 3], table_name="digits", **destination_config.run_kwargs)
     assert info.has_failed_jobs is False
@@ -249,17 +245,12 @@ def test_databricks_direct_load(destination_config: DestinationTestConfiguration
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(
-        default_sql_configs=True, bucket_subset=(AZ_BUCKET,), subset=("databricks",)
-    ),
+    destinations_configs(default_sql_configs=True, subset=("databricks",)),
     ids=lambda x: x.name,
 )
 def test_databricks_direct_load_with_custom_staging_volume_name(
     destination_config: DestinationTestConfiguration,
 ) -> None:
-    os.environ["DESTINATION__DATABRICKS__CREDENTIALS__CLIENT_ID"] = ""
-    os.environ["DESTINATION__DATABRICKS__CREDENTIALS__CLIENT_SECRET"] = ""
-
     custom_staging_volume_name = "dlt_ci.dlt_tests_shared.custom_volume"
     bricks = databricks(staging_volume_name=custom_staging_volume_name)
 

@@ -328,8 +328,7 @@ def destinations_configs(
         destination_configs += [
             DestinationTestConfiguration(destination_type=destination)
             for destination in SQL_DESTINATIONS
-            if destination
-            not in ("athena", "synapse", "databricks", "dremio", "clickhouse", "sqlalchemy")
+            if destination not in ("athena", "synapse", "dremio", "clickhouse", "sqlalchemy")
         ]
         destination_configs += [
             DestinationTestConfiguration(destination_type="duckdb", file_format="parquet"),
@@ -363,14 +362,6 @@ def destinations_configs(
         destination_configs += [
             DestinationTestConfiguration(
                 destination_type="clickhouse", file_format="jsonl", supports_dbt=False
-            )
-        ]
-        destination_configs += [
-            DestinationTestConfiguration(
-                destination_type="databricks",
-                file_format="parquet",
-                bucket_url=AZ_BUCKET,
-                extra_info="az-authorization",
             )
         ]
 
@@ -461,6 +452,13 @@ def destinations_configs(
                 destination_type="snowflake",
                 staging="filesystem",
                 file_format="jsonl",
+                bucket_url=AZ_BUCKET,
+                extra_info="az-authorization",
+            ),
+            DestinationTestConfiguration(
+                destination_type="databricks",
+                staging="filesystem",
+                file_format="parquet",
                 bucket_url=AZ_BUCKET,
                 extra_info="az-authorization",
             ),
