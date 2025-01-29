@@ -260,6 +260,48 @@ The JSONL format has some limitations when used with Databricks:
 2. The following data types are not supported when using the JSONL format with `databricks`: `decimal`, `json`, `date`, `binary`. Use `parquet` if your data contains these types.
 3. The `bigint` data type with precision is not supported with the JSONL format.
 
+## Direct Load (Databricks Managed Volumes)
+
+`dlt` now supports **Direct Load**, enabling pipelines to run seamlessly from **Databricks Notebooks** without external staging. When executed in a Databricks Notebook, `dlt` uses the notebook context for configuration if not explicitly provided.
+
+Direct Load also works **outside Databricks**, requiring explicit configuration of `server_hostname`, `http_path`, `catalog`, and authentication (`client_id`/`client_secret` for OAuth or `access_token` for token-based authentication).
+
+The example below demonstrates how to load data directly from a **Databricks Notebook**. Simply specify the **Databricks catalog** and optionally a **fully qualified volume name** (recommended for production) – the remaining configuration comes from the notebook context:
+
+```py
+import dlt
+from dlt.destinations import databricks
+from dlt.sources.rest_api import rest_api_source
+
+# Fully qualified Databricks managed volume (recommended for production)
+# - dlt assumes the named volume already exists
+staging_volume_name = "dlt_ci.dlt_tests_shared.static_volume"
+
+bricks = databricks(credentials={"catalog": "dlt_ci"}, staging_volume_name=staging_volume_name)
+
+pokemon_source = rest_api_source(
+    {
+        "client": {"base_url": "https://pokeapi.co/api/v2/"},
+        "resource_defaults": {"endpoint": {"params": {"limit": 1000}}},
+        "resources": ["pokemon"],
+    }
+)
+
+pipeline = dlt.pipeline(
+    pipeline_name="rest_api_example",
+    dataset_name="rest_api_data",
+    destination=bricks,
+)
+
+load_info = pipeline.run(pokemon_source)
+print(load_info)
+print(pipeline.dataset().pokemon.df())
+```
+
+- If **no** *staging_volume_name* **is provided**, dlt creates a **default volume** automatically.
+- **For production**, explicitly setting *staging_volume_name* is recommended.
+- The volume is used as a **temporary location** to store files before loading. Files are **deleted immediately** after loading.
+
 ## Staging support
 
 Databricks supports both Amazon S3, Azure Blob Storage, and Google Cloud Storage as staging locations. `dlt` will upload files in Parquet format to the staging location and will instruct Databricks to load data from there.
