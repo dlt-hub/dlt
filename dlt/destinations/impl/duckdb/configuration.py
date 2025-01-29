@@ -10,7 +10,7 @@ from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.configuration.specs.base_configuration import NotResolved
 from dlt.common.configuration.specs.exceptions import InvalidConnectionString
-from dlt.common.destination.reference import DestinationClientDwhWithStagingConfiguration
+from dlt.common.destination.client import DestinationClientDwhWithStagingConfiguration
 from dlt.common.pipeline import SupportsPipeline
 
 from dlt.destinations.impl.duckdb.exceptions import InvalidInMemoryDuckdbCredentials
@@ -86,7 +86,7 @@ class DuckDbBaseCredentials(ConnectionStringCredentials):
                 raise
 
     @property
-    def has_open_connection(self) -> bool:
+    def never_borrowed(self) -> bool:
         """Returns true if connection was not yet created or no connections were borrowed in case of external connection"""
         return not hasattr(self, "_conn") or self._conn_borrows == 0
 

@@ -30,18 +30,17 @@ from dlt.common.configuration.specs import (
     CredentialsConfiguration,
     GcpOAuthCredentialsWithoutDefaults,
 )
-from dlt.common.destination.reference import (
+from dlt.common.destination.client import (
     DestinationClientDwhConfiguration,
     JobClientBase,
     RunnableLoadJob,
     LoadJob,
     DestinationClientStagingConfiguration,
-    TDestinationReferenceArg,
     WithStagingDataset,
     DestinationCapabilitiesContext,
 )
-from dlt.common.destination import TLoaderFileFormat, Destination
-from dlt.common.destination.reference import DEFAULT_FILE_LAYOUT
+from dlt.common.destination import TLoaderFileFormat, Destination, TDestinationReferenceArg
+from dlt.common.destination.client import DEFAULT_FILE_LAYOUT
 from dlt.common.data_writers import DataWriter
 from dlt.common.pipeline import PipelineContext
 from dlt.common.schema import TTableSchemaColumns, Schema

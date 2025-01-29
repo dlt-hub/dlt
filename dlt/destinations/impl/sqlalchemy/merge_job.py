@@ -4,7 +4,7 @@ import operator
 import sqlalchemy as sa
 
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
-from dlt.common.destination.reference import PreparedTableSchema, DestinationCapabilitiesContext
+from dlt.common.destination import PreparedTableSchema, DestinationCapabilitiesContext
 from dlt.destinations.impl.sqlalchemy.db_api_client import SqlalchemyClient
 from dlt.common.schema.utils import (
     get_columns_names_with_prop,

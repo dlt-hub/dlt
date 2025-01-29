@@ -1,11 +1,8 @@
 from typing import Any, Type
 
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
-from dlt.common.destination.reference import (
-    Destination,
-    DestinationClientConfiguration,
-    JobClientBase,
-)
+from dlt.common.destination import Destination
+from dlt.common.destination.client import DestinationClientConfiguration, JobClientBase
 
 
 class null(Destination[DestinationClientConfiguration, "JobClientBase"]):

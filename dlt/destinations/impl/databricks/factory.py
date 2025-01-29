@@ -175,3 +175,6 @@ class databricks(Destination[DatabricksClientConfiguration, "DatabricksClient"])
             environment=environment,
             **kwargs,
         )
+
+
+databricks.register()

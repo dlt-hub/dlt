@@ -11,7 +11,7 @@ from dlt.common.configuration.specs import (
     RuntimeConfiguration,
     ConnectionStringCredentials,
 )
-from dlt.common.reflection.spec import spec_from_signature, _get_spec_name_from_f
+from dlt.common.reflection.spec import spec_from_signature, get_spec_name_from_f
 from dlt.common.reflection.utils import get_func_def_node, get_literal_defaults
 
 

@@ -684,6 +684,8 @@ def test_recover_on_explicit_tx(client: SqlJobClientBase) -> None:
     ]
     # cannot insert NULL value
     with pytest.raises(DatabaseTerminalException):
+        client.sql_client.execute_many(statements[1:2])
+    with pytest.raises(DatabaseTerminalException):
         client.sql_client.execute_many(statements)
     # assert derives_from_class_of_name(term_ex.value.dbapi_exception, "IntegrityError")
     # assert isinstance(term_ex.value.dbapi_exception, (psycopg2.InternalError, psycopg2.))

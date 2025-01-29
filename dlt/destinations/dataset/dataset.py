@@ -4,20 +4,15 @@ from dlt.common.json import json
 
 from dlt.common.exceptions import MissingDependencyException
 
-from dlt.common.destination.reference import (
-    SupportsReadableRelation,
-    SupportsReadableDataset,
-    TDestinationReferenceArg,
-    Destination,
-    JobClientBase,
-    WithStateSync,
-)
+from dlt.common.destination.reference import TDestinationReferenceArg, Destination
+from dlt.common.destination.client import JobClientBase, WithStateSync
+from dlt.common.destination.dataset import SupportsReadableRelation, SupportsReadableDataset
+from dlt.common.destination.typing import TDatasetType
 
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.common.schema import Schema
 from dlt.destinations.dataset.relation import ReadableDBAPIRelation
 from dlt.destinations.dataset.utils import get_destination_clients
-from dlt.common.destination.reference import TDatasetType
 
 if TYPE_CHECKING:
     try:

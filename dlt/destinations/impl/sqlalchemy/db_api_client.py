@@ -20,7 +20,6 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.exc import ResourceClosedError
 
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.reference import PreparedTableSchema
 from dlt.destinations.exceptions import (
     DatabaseUndefinedRelation,
     DatabaseTerminalException,
@@ -28,7 +27,7 @@ from dlt.destinations.exceptions import (
     LoadClientNotConnected,
     DatabaseException,
 )
-from dlt.common.destination.reference import DBApiCursor
+from dlt.common.destination.dataset import DBApiCursor
 from dlt.destinations.typing import DBTransaction
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.impl.sqlalchemy.configuration import SqlalchemyCredentials

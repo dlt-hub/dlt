@@ -1,7 +1,8 @@
 from typing import cast, Any
 
 from dlt.common.exceptions import MissingDependencyException
-from dlt.common.destination.reference import TDestinationReferenceArg, Destination, JobClientBase
+from dlt.common.destination import TDestinationReferenceArg, Destination
+from dlt.common.destination.client import JobClientBase
 from dlt.common.schema import Schema
 from dlt.destinations.sql_client import SqlClientBase
 
@@ -79,7 +80,7 @@ def create_ibis_backend(
 
         sf_client = cast(SnowflakeClient, client)
         credentials = sf_client.config.credentials.to_connector_params()
-        con = ibis.snowflake.connect(**credentials)
+        con = ibis.snowflake.connect(**credentials, create_object_udfs=False)
     elif destination_type in ["dlt.destinations.mssql", "dlt.destinations.synapse"]:
         from dlt.destinations.impl.mssql.mssql import MsSqlJobClient
 

@@ -374,6 +374,57 @@ def test_table_format_core(
     "destination_config",
     destinations_configs(
         table_format_filesystem_configs=True,
+        with_table_format=("delta", "iceberg"),
+        bucket_subset=(FILE_BUCKET),
+    ),
+    ids=lambda x: x.name,
+)
+def test_preferred_table_format_caps(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    # generate destination with modified caps
+    dest_ = destination_config.destination_factory(
+        preferred_table_format=destination_config.table_format
+    )
+    # make table format a default
+    assert dest_.caps_params["preferred_table_format"] == destination_config.table_format
+
+    pipeline = destination_config.setup_pipeline(
+        "test_preferred_table_format_caps", destination=dest_
+    )
+    caps = pipeline._get_destination_capabilities()
+    assert caps.preferred_table_format == destination_config.table_format
+
+    # make sure right table format got created, note that we do not set the table format explicitly
+    pipeline.run(
+        [1, 2, 3], table_name="table_format", write_disposition="merge", primary_key="value"
+    )
+    if destination_config.table_format == "delta":
+        from dlt.common.libs.deltalake import get_delta_tables
+
+        delta_tables = get_delta_tables(pipeline, "table_format")
+        delta_tables["table_format"].history()
+
+    elif destination_config.table_format == "iceberg":
+        from dlt.common.libs.pyiceberg import get_iceberg_tables
+
+        iceberg_tables = get_iceberg_tables(pipeline, "table_format")
+        iceberg_tables["table_format"].history()
+
+    # get data
+    print(pipeline.dataset().table_format.df())
+
+    # now use native table to override preferred table format
+    pipeline.run([1, 2, 3], table_name="native_format", table_format="native")
+
+    fs_client = pipeline._fs_client()
+    assert os.path.splitext(fs_client.list_table_files("native_format")[0])[1] == ".jsonl"
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        table_format_filesystem_configs=True,
         # job orchestration is same across table formats—no need to test all formats
         with_table_format="delta",
         bucket_subset=(FILE_BUCKET),

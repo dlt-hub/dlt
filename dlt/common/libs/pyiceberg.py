@@ -27,6 +27,7 @@ def ensure_iceberg_compatible_arrow_schema(schema: pa.Schema) -> pa.Schema:
     ARROW_TO_ICEBERG_COMPATIBLE_ARROW_TYPE_MAP = {
         pa.types.is_time: pa.string(),
         pa.types.is_decimal256: pa.string(),  # pyarrow does not allow downcasting to decimal128
+        pa.types.is_dictionary: lambda t_: t_.value_type,
     }
     return cast_arrow_schema_types(schema, ARROW_TO_ICEBERG_COMPATIBLE_ARROW_TYPE_MAP)
 
@@ -134,8 +135,6 @@ def get_catalog(
 def get_iceberg_tables(
     pipeline: Pipeline, *tables: str, schema_name: Optional[str] = None
 ) -> Dict[str, IcebergTable]:
-    from dlt.common.schema.utils import get_table_format
-
     with pipeline.destination_client(schema_name=schema_name) as client:
         assert isinstance(
             client, FilesystemClient
@@ -144,7 +143,7 @@ def get_iceberg_tables(
         schema_iceberg_tables = [
             t["name"]
             for t in client.schema.tables.values()
-            if get_table_format(client.schema.tables, t["name"]) == "iceberg"
+            if client.prepare_load_table(t["name"]).get("table_format") == "iceberg"
         ]
         if len(tables) > 0:
             invalid_tables = set(tables) - set(schema_iceberg_tables)

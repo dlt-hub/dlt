@@ -4,7 +4,7 @@ import pkg_resources
 import semver
 
 from dlt.common.runners import Venv
-from dlt.common.destination.reference import DestinationClientDwhConfiguration
+from dlt.common.destination.client import DestinationClientDwhConfiguration
 from dlt.common.configuration.specs import CredentialsWithDefault
 from dlt.common.typing import TSecretStrValue, ConfigValue
 from dlt.version import get_installed_requirement_string

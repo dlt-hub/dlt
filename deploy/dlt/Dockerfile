@@ -54,3 +54,6 @@ RUN pip install /tmp/pydlt/dlt-${IMAGE_VERSION}.tar.gz[gcp,redshift,duckdb]
 
 WORKDIR /
 RUN rm -r /tmp/pydlt
+# make sure dlt can be actually imported
+# TODO: pendulum breaks alpine
+# RUN python -c 'import dlt'

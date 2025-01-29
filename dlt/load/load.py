@@ -1,6 +1,6 @@
 import contextlib
 from functools import reduce
-from typing import Dict, List, Optional, Tuple, Set, Iterator, Iterable, Sequence
+from typing import Dict, List, Optional, Tuple, Set, Iterator, Sequence
 from concurrent.futures import Executor
 import os
 
@@ -27,19 +27,18 @@ from dlt.common.logger import pretty_format_exception
 from dlt.common.configuration.container import Container
 from dlt.common.schema import Schema
 from dlt.common.storages import LoadStorage
-from dlt.common.destination.reference import (
+from dlt.common.destination import DestinationReference, AnyDestination
+from dlt.common.destination.client import (
     DestinationClientDwhConfiguration,
     HasFollowupJobs,
     JobClientBase,
     WithStagingDataset,
-    Destination,
     RunnableLoadJob,
     LoadJob,
     FollowupJobRequest,
     TLoadJobState,
     DestinationClientConfiguration,
     SupportsStagingDestination,
-    AnyDestination,
 )
 from dlt.common.destination.exceptions import (
     DestinationTerminalException,
@@ -691,12 +690,14 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         return LoadInfo(
             pipeline,
             metrics,
-            Destination.normalize_type(self.initial_client_config.destination_type),
+            DestinationReference.normalize_type(self.initial_client_config.destination_type),
             str(self.initial_client_config),
             self.initial_client_config.destination_name,
             self.initial_client_config.environment,
             (
-                Destination.normalize_type(self.initial_staging_client_config.destination_type)
+                DestinationReference.normalize_type(
+                    self.initial_staging_client_config.destination_type
+                )
                 if self.initial_staging_client_config
                 else None
             ),

@@ -57,7 +57,7 @@ lint:
 	# $(MAKE) lint-security
 
 format:
-	poetry run black dlt docs tests --exclude=".*syntax_error.py|\.venv.*|_storage/.*"
+	poetry run black dlt docs tests --extend-exclude='.*syntax_error.py|_storage/.*'
 	# poetry run isort ./
 
 lint-snippets:

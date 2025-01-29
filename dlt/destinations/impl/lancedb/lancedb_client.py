@@ -32,7 +32,7 @@ from dlt.common.destination.exceptions import (
     DestinationTransientException,
     DestinationTerminalException,
 )
-from dlt.common.destination.reference import (
+from dlt.common.destination.client import (
     JobClientBase,
     PreparedTableSchema,
     WithStateSync,

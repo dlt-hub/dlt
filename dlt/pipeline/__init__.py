@@ -1,6 +1,7 @@
 from typing import Sequence, Type, cast, overload, Optional
 from typing_extensions import TypeVar
 
+from dlt.common.configuration.specs import known_sections
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import (
     TColumnSchema,
@@ -98,7 +99,11 @@ def pipeline() -> Pipeline:  # type: ignore
     If not found, it creates a new instance with all the pipeline options set to defaults."""
 
 
-@with_config(spec=PipelineConfiguration, auto_pipeline_section=True)
+@with_config(
+    spec=PipelineConfiguration,
+    sections=(known_sections.PIPELINES,),
+    section_arg_name="pipeline_name",
+)
 def pipeline(
     pipeline_name: str = None,
     pipelines_dir: str = None,
@@ -172,7 +177,11 @@ def pipeline(
     return p
 
 
-@with_config(spec=PipelineConfiguration, auto_pipeline_section=True)
+@with_config(
+    spec=PipelineConfiguration,
+    sections=(known_sections.PIPELINES,),
+    section_arg_name="pipeline_name",
+)
 def attach(
     pipeline_name: str = None,
     pipelines_dir: str = None,

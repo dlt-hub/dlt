@@ -4,7 +4,12 @@ from dlt.common.destination.capabilities import (
     TLoaderFileFormat,
     LOADER_FILE_FORMATS,
 )
-from dlt.common.destination.reference import TDestinationReferenceArg, Destination, AnyDestination
+from dlt.common.destination.reference import (
+    TDestinationReferenceArg,
+    Destination,
+    AnyDestination,
+    DestinationReference,
+)
 from dlt.common.destination.typing import PreparedTableSchema
 
 __all__ = [
@@ -16,4 +21,5 @@ __all__ = [
     "TDestinationReferenceArg",
     "Destination",
     "AnyDestination",
+    "DestinationReference",
 ]

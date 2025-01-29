@@ -4,7 +4,7 @@ from typing import Final, List, Optional, Type
 
 from dlt.common import logger
 from dlt.common.configuration import configspec, resolve_type
-from dlt.common.destination.reference import (
+from dlt.common.destination.client import (
     CredentialsConfiguration,
     DestinationClientStagingConfiguration,
 )
