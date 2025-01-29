@@ -98,10 +98,30 @@ def test_databricks_auth_invalid() -> None:
         bricks.configuration(None, accept_partial=True)
 
 
-def test_databricks_missing_config() -> None:
-    with pytest.raises(ConfigurationValueError, match="Configuration error:*"):
-        os.environ["DESTINATION__DATABRICKS__CREDENTIALS__SERVER_HOSTNAME"] = ""
-        os.environ["DESTINATION__DATABRICKS__CREDENTIALS__HTTP_PATH"] = ""
+def test_databricks_missing_config_catalog() -> None:
+    with pytest.raises(
+        ConfigurationValueError, match="Configuration error: Missing required parameter 'catalog'*"
+    ):
         os.environ["DESTINATION__DATABRICKS__CREDENTIALS__CATALOG"] = ""
+        bricks = databricks()
+        bricks.configuration(None, accept_partial=True)
+
+
+def test_databricks_missing_config_http_path() -> None:
+    with pytest.raises(
+        ConfigurationValueError,
+        match="Configuration error: Missing required parameter 'http_path'*",
+    ):
+        os.environ["DESTINATION__DATABRICKS__CREDENTIALS__HTTP_PATH"] = ""
+        bricks = databricks()
+        bricks.configuration(None, accept_partial=True)
+
+
+def test_databricks_missing_config_server_hostname() -> None:
+    with pytest.raises(
+        ConfigurationValueError,
+        match="Configuration error: Missing required parameter 'server_hostname'*",
+    ):
+        os.environ["DESTINATION__DATABRICKS__CREDENTIALS__SERVER_HOSTNAME"] = ""
         bricks = databricks()
         bricks.configuration(None, accept_partial=True)

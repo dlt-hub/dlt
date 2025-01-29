@@ -37,19 +37,13 @@ class DatabricksCredentials(CredentialsConfiguration):
     def on_resolved(self) -> None:
         if not ((self.client_id and self.client_secret) or self.access_token):
             try:
-                # attempt notebook context authentication
+                # attempt context authentication
                 from databricks.sdk import WorkspaceClient
-                from databricks.sdk.service.sql import EndpointInfo
 
                 w = WorkspaceClient()
                 self.access_token = w.dbutils.notebook.entry_point.getDbutils().notebook().getContext().apiToken().getOrElse(None)  # type: ignore[union-attr]
-
-                # pick the first warehouse on the list
-                warehouses: List[EndpointInfo] = list(w.warehouses.list())
-                self.server_hostname = warehouses[0].odbc_params.hostname
-                self.http_path = warehouses[0].odbc_params.path
             except Exception:
-                pass
+                self.access_token = None
 
             if not self.access_token:
                 raise ConfigurationValueError(
@@ -58,11 +52,25 @@ class DatabricksCredentials(CredentialsConfiguration):
                     "or 'access_token' for token-based authentication."
                 )
 
-        if not self.server_hostname or not self.http_path or not self.catalog:
-            raise ConfigurationValueError(
-                "Configuration error: Missing required parameters. "
-                "Please provide 'server_hostname', 'http_path', and 'catalog' in the configuration."
-            )
+        if not self.server_hostname or not self.http_path:
+            try:
+                # attempt to fetch warehouse details
+                from databricks.sdk import WorkspaceClient
+                from databricks.sdk.service.sql import EndpointInfo
+
+                w = WorkspaceClient()
+                warehouses: List[EndpointInfo] = list(w.warehouses.list())
+                self.server_hostname = self.server_hostname or warehouses[0].odbc_params.hostname
+                self.http_path = self.http_path or warehouses[0].odbc_params.path
+            except Exception:
+                pass
+
+        for param in ("catalog", "server_hostname", "http_path"):
+            if not getattr(self, param):
+                raise ConfigurationValueError(
+                    f"Configuration error: Missing required parameter '{param}'. "
+                    "Please provide it in the configuration."
+                )
 
     def to_connector_params(self) -> Dict[str, Any]:
         conn_params = dict(
