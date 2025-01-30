@@ -20,7 +20,7 @@ pytestmark = pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
-        default_sql_configs=True, bucket_subset=(AZ_BUCKET,), subset=("databricks",)
+        default_staging_configs=True, bucket_subset=(AZ_BUCKET,), subset=("databricks",)
     ),
     ids=lambda x: x.name,
 )

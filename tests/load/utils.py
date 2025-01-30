@@ -659,7 +659,9 @@ def destinations_configs(
         destination_configs = [
             conf
             for conf in destination_configs
-            if conf.destination_type != "filesystem" or conf.bucket_url in bucket_subset
+            # filter by bucket when (1) filesystem OR (2) specific set of destinations requested
+            if (conf.destination_type != "filesystem" and not subset)
+            or conf.bucket_url in bucket_subset
         ]
     if exclude:
         destination_configs = [
