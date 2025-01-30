@@ -18,7 +18,7 @@ class MsSqlCredentials(ConnectionStringCredentials):
     password: TSecretStrValue = None
     host: str = None
     port: int = 1433
-    connect_timeout: int = 15
+    connect_timeout: int = 30
     driver: str = None
 
     __config_gen_annotations__: ClassVar[List[str]] = ["port", "connect_timeout"]

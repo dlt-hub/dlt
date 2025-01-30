@@ -46,10 +46,12 @@ PACKAGE_PARAMS = [
     ("postgres", "1.5.2"),
     ("postgres", "1.6.13"),
     ("postgres", "1.8.6"),
+    ("postgres", "1.9.1"),
     ("postgres", None),
     ("snowflake", "1.5.2"),
     ("snowflake", "1.6.13"),
     ("snowflake", "1.8.6"),
+    ("snowflake", "1.9.1"),
     ("snowflake", None),
 ]
 PACKAGE_IDS = [
