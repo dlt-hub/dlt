@@ -110,7 +110,7 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
             fully_qualified_volume_name = self._job_client.config.staging_volume_name
             volume_catalog, volume_database, volume_name = fully_qualified_volume_name.split(".")
         else:
-            # create staging volume name
+            # create staging volume named _dlt_staging_load_volume
             self._sql_client.execute_sql(f"""
                 CREATE VOLUME IF NOT EXISTS {fully_qualified_volume_name}
             """)
