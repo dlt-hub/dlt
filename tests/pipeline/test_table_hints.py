@@ -55,6 +55,9 @@ def test_apply_nested_hints_column_types(nested_resource) -> None:
 
 
 def test_apply_nested_hints_override_parent(nested_resource) -> None:
+    """IMPORTANT this tests that the hints are properly applied to the schema.
+    It doesn't test if data is loaded in `override_parent` instead of the initial table_name.
+    """
     root_table_new_name = "override_parent"
 
     nested_resource.apply_hints(table_name=root_table_new_name)
@@ -74,7 +77,11 @@ def test_apply_nested_hints_override_parent(nested_resource) -> None:
 
 
 def test_apply_hints_nested_hints_override_child(nested_resource):
-    """Override both levels of child tables to cover recursive case"""
+    """Override both levels of child tables to cover recursive case
+    
+    IMPORTANT this tests that the hints are properly applied to the schema.
+    It doesn't test if data is loaded in `override_child_outer1` instead of the initial table_name.
+    """
     outer1_new_name = "override_child_outer1"
     outer1_innerfoo_new_name = "override_child_outer1_innerfoo"
 
