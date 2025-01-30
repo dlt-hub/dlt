@@ -29,7 +29,7 @@ def test_invoke_basic(script_runner: ScriptRunner) -> None:
     for command in BASE_COMMANDS:
         result = script_runner.run(["dlt", command, "--help"])
         assert result.returncode == 0
-        assert result.stdout.startswith(f"usage: dlt {command}")
+        assert result.stdout.startswith(f"Usage: dlt {command}")
 
     result = script_runner.run(["dlt", "N/A", "--help"])
     assert result.returncode != 0

@@ -112,6 +112,7 @@ db-dtypes = { version = ">=1.2.0", optional = true }
 pyiceberg = { version = ">=0.8.1", optional = true }
 databricks-sdk = {version = ">=0.38.0", optional = true}
 pywin32 = {version = ">=306", optional = true, platform = "win32"}
+rich-argparse = "^1.6.0"
 
 [tool.poetry.extras]
 gcp = ["grpcio", "google-cloud-bigquery", "db-dtypes", "gcsfs"]
