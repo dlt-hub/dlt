@@ -106,7 +106,7 @@ def test_databricks_external_location(destination_config: DestinationTestConfigu
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
-        default_sql_configs=True, bucket_subset=(AZ_BUCKET,), subset=("databricks",)
+        default_staging_configs=True, bucket_subset=(AZ_BUCKET,), subset=("databricks",)
     ),
     ids=lambda x: x.name,
 )
@@ -155,7 +155,9 @@ def test_databricks_gcs_external_location(destination_config: DestinationTestCon
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, subset=("databricks",)),
+    destinations_configs(
+        default_staging_configs=True, bucket_subset=(AZ_BUCKET,), subset=("databricks",)
+    ),
     ids=lambda x: x.name,
 )
 def test_databricks_auth_oauth(destination_config: DestinationTestConfiguration) -> None:
@@ -189,7 +191,7 @@ def test_databricks_auth_oauth(destination_config: DestinationTestConfiguration)
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
-        default_sql_configs=True, bucket_subset=(AZ_BUCKET,), subset=("databricks",)
+        default_staging_configs=True, bucket_subset=(AZ_BUCKET,), subset=("databricks",)
     ),
     ids=lambda x: x.name,
 )
@@ -223,9 +225,7 @@ def test_databricks_auth_token(destination_config: DestinationTestConfiguration)
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(
-        default_sql_configs=True, bucket_subset=(AZ_BUCKET,), subset=("databricks",)
-    ),
+    destinations_configs(default_sql_configs=True, subset=("databricks",)),
     ids=lambda x: x.name,
 )
 def test_databricks_direct_load(destination_config: DestinationTestConfiguration) -> None:

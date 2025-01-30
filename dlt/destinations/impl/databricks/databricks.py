@@ -94,26 +94,6 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
             self._sql_client.execute_sql(f"REMOVE '{volume_path}'")
 
     def _handle_local_file_upload(self, local_file_path: str) -> tuple[str, str, str, str]:
-        from databricks.sdk import WorkspaceClient
-        import io
-
-        w: WorkspaceClient
-
-        credentials = self._job_client.config.credentials
-        if credentials.client_id and credentials.client_secret:
-            # oauth authentication
-            w = WorkspaceClient(
-                host=credentials.server_hostname,
-                client_id=credentials.client_id,
-                client_secret=credentials.client_secret,
-            )
-        elif credentials.access_token:
-            # token authentication
-            w = WorkspaceClient(
-                host=credentials.server_hostname,
-                token=credentials.access_token,
-            )
-
         file_name = FileStorage.get_file_name_from_file_path(local_file_path)
         volume_file_name = file_name
         if file_name.startswith(("_", ".")):
@@ -138,10 +118,7 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
         volume_path = f"/Volumes/{volume_catalog}/{volume_database}/{volume_name}/{uniq_id()}"
         volume_file_path = f"{volume_path}/{volume_file_name}"
 
-        with open(local_file_path, "rb") as f:
-            file_bytes = f.read()
-            binary_data = io.BytesIO(file_bytes)
-            w.files.upload(volume_file_path, binary_data, overwrite=True)
+        self._sql_client.execute_sql(f"PUT '{local_file_path}' INTO '{volume_file_path}' OVERWRITE")
 
         from_clause = f"FROM '{volume_path}'"
 
