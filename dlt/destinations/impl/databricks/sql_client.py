@@ -37,7 +37,7 @@ from dlt.destinations.sql_client import (
 )
 from dlt.destinations.typing import ArrowTable, DBApi, DBTransaction, DataFrame
 from dlt.destinations.impl.databricks.configuration import DatabricksCredentials
-from dlt.common.destination.reference import DBApiCursor
+from dlt.common.destination.dataset import DBApiCursor
 
 
 class DatabricksCursorImpl(DBApiCursorImpl):

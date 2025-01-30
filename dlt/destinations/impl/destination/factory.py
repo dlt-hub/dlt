@@ -23,18 +23,6 @@ if t.TYPE_CHECKING:
     from dlt.destinations.impl.destination.destination import DestinationClient
 
 
-class DestinationInfo(t.NamedTuple):
-    """Runtime information on a discovered destination"""
-
-    SPEC: t.Type[CustomDestinationClientConfiguration]
-    f: AnyFun
-    module: ModuleType
-
-
-_DESTINATIONS: t.Dict[str, DestinationInfo] = {}
-"""A registry of all the decorated destinations"""
-
-
 class destination(Destination[CustomDestinationClientConfiguration, "DestinationClient"]):
     def _raw_capabilities(self) -> DestinationCapabilitiesContext:
         caps = DestinationCapabilitiesContext.generic_capabilities("typed-jsonl")
@@ -104,11 +92,8 @@ class destination(Destination[CustomDestinationClientConfiguration, "Destination
             destination_callable = dummy_custom_destination
         elif not callable(destination_callable):
             raise ConfigurationValueError("Resolved Sink destination callable is not a callable.")
-
-        # resolve destination name
-        if destination_name is None:
-            destination_name = get_callable_name(destination_callable)
-        func_module = inspect.getmodule(destination_callable)
+        if not destination_name:
+            destination_name = destination_callable.__name__
 
         # build destination spec
         destination_sections = (known_sections.DESTINATION, destination_name)
@@ -124,12 +109,6 @@ class destination(Destination[CustomDestinationClientConfiguration, "Destination
         resolved_spec = t.cast(
             t.Type[CustomDestinationClientConfiguration], get_fun_spec(conf_callable)
         )
-        # register only standalone destinations, no inner
-        if not is_inner_callable(destination_callable):
-            _DESTINATIONS[destination_callable.__qualname__] = DestinationInfo(
-                resolved_spec, destination_callable, func_module
-            )
-
         # remember spec
         self._spec = resolved_spec or spec
         super().__init__(
@@ -153,3 +132,6 @@ class destination(Destination[CustomDestinationClientConfiguration, "Destination
         caps = super().adjust_capabilities(caps, config, naming)
         caps.preferred_loader_file_format = config.loader_file_format
         return caps
+
+
+destination.register()

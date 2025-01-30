@@ -20,7 +20,7 @@ from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import ConfigFieldMissingException, InvalidNativeValue
 from dlt.common.data_writers.exceptions import FileImportNotFound, SpecLookupFailed
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.reference import WithStateSync
+from dlt.common.destination.client import WithStateSync
 from dlt.common.destination.exceptions import (
     DestinationHasFailedJobs,
     DestinationIncompatibleLoaderFileFormatException,
@@ -192,6 +192,44 @@ def test_default_pipeline_dataset_layout_empty(environment) -> None:
     possible_dataset_names = ["dlt_pytest_dataset", "dlt_pipeline_dataset"]
     p = dlt.pipeline(destination="filesystem")
     assert p.dataset_name in possible_dataset_names
+
+
+def test_pipeline_configuration_top_level_section(environment) -> None:
+    environment["PIPELINES__DATASET_NAME"] = "pipeline_dataset"
+    environment["PIPELINES__DESTINATION_TYPE"] = "dummy"
+    environment["PIPELINES__IMPORT_SCHEMA_PATH"] = os.path.join(TEST_STORAGE_ROOT, "import")
+    environment["PIPELINES__EXPORT_SCHEMA_PATH"] = os.path.join(TEST_STORAGE_ROOT, "import")
+
+    pipeline = dlt.pipeline()
+    assert pipeline.dataset_name == "pipeline_dataset"
+    assert pipeline.destination.destination_type == "dlt.destinations.dummy"
+    assert (
+        pipeline._schema_storage_config.export_schema_path
+        == environment["PIPELINES__EXPORT_SCHEMA_PATH"]
+    )
+    assert (
+        pipeline._schema_storage_config.import_schema_path
+        == environment["PIPELINES__IMPORT_SCHEMA_PATH"]
+    )
+
+
+def test_pipeline_configuration_named_section(environment) -> None:
+    environment["PIPELINES__NAMED__DATASET_NAME"] = "pipeline_dataset"
+    environment["PIPELINES__NAMED__DESTINATION_TYPE"] = "dummy"
+    environment["PIPELINES__NAMED__IMPORT_SCHEMA_PATH"] = os.path.join(TEST_STORAGE_ROOT, "import")
+    environment["PIPELINES__NAMED__EXPORT_SCHEMA_PATH"] = os.path.join(TEST_STORAGE_ROOT, "import")
+
+    pipeline = dlt.pipeline(pipeline_name="named")
+    assert pipeline.dataset_name == "pipeline_dataset"
+    assert pipeline.destination.destination_type == "dlt.destinations.dummy"
+    assert (
+        pipeline._schema_storage_config.export_schema_path
+        == environment["PIPELINES__NAMED__EXPORT_SCHEMA_PATH"]
+    )
+    assert (
+        pipeline._schema_storage_config.import_schema_path
+        == environment["PIPELINES__NAMED__IMPORT_SCHEMA_PATH"]
+    )
 
 
 def test_run_dev_mode_default_dataset() -> None:

@@ -3,7 +3,7 @@ from typing import Final, Optional, Any, Dict, ClassVar, List
 
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ConnectionStringCredentials
-from dlt.common.destination.reference import DestinationClientDwhWithStagingConfiguration
+from dlt.common.destination.client import DestinationClientDwhWithStagingConfiguration
 from dlt.common.typing import TSecretStrValue
 from dlt.common.utils import digest128
 

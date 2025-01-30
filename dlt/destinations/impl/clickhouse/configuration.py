@@ -5,7 +5,7 @@ from typing_extensions import Annotated
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.configuration.specs.base_configuration import NotResolved
-from dlt.common.destination.reference import (
+from dlt.common.destination.client import (
     DestinationClientDwhWithStagingConfiguration,
 )
 from dlt.common.utils import digest128

@@ -19,7 +19,7 @@ from dlt.destinations.sql_client import (
     raise_open_connection_error,
 )
 from dlt.destinations.typing import DBApi, DBTransaction, DataFrame
-from dlt.common.destination.reference import DBApiCursor
+from dlt.common.destination.dataset import DBApiCursor
 
 
 class DremioCursorImpl(DBApiCursorImpl):

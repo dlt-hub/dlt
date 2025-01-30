@@ -4,7 +4,7 @@ from typing_extensions import ParamSpec
 
 from dlt.common.configuration import configspec, ConfigurationValueError
 from dlt.common.destination import TLoaderFileFormat
-from dlt.common.destination.reference import (
+from dlt.common.destination.client import (
     DestinationClientConfiguration,
 )
 from dlt.common.typing import TDataItems

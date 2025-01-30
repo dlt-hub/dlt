@@ -1,13 +1,8 @@
 from typing import Union
 
-
-from dlt.common.destination import AnyDestination
-from dlt.common.destination.reference import (
-    SupportsReadableDataset,
-    TDatasetType,
-    TDestinationReferenceArg,
-)
-
+from dlt.common.destination import TDestinationReferenceArg
+from dlt.common.destination.dataset import SupportsReadableDataset
+from dlt.common.destination.typing import TDatasetType
 from dlt.common.schema import Schema
 
 from dlt.destinations.dataset.dataset import ReadableDBAPIDataset

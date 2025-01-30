@@ -6,7 +6,7 @@ import sqlalchemy as sa
 from dlt.common.json import json
 from dlt.common import logger
 from dlt.common import pendulum
-from dlt.common.destination.reference import (
+from dlt.common.destination.client import (
     JobClientBase,
     LoadJob,
     StorageSchemaInfo,

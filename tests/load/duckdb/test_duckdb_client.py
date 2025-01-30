@@ -5,7 +5,7 @@ from typing import Iterator, cast
 import dlt
 from dlt.common.configuration.resolve import resolve_configuration
 from dlt.common.configuration.utils import get_resolved_traces
-from dlt.common.destination.reference import Destination
+from dlt.common.destination import Destination
 from dlt.common.utils import set_working_dir
 
 from dlt.destinations.exceptions import DatabaseUndefinedRelation

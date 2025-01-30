@@ -39,10 +39,9 @@ from dlt.common.storages.load_package import (
 )
 from dlt.destinations.sql_client import WithSqlClient, SqlClientBase
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.reference import (
+from dlt.common.destination.client import (
     FollowupJobRequest,
     PreparedTableSchema,
-    SupportsReadableRelation,
     TLoadJobState,
     RunnableLoadJob,
     JobClientBase,
@@ -53,6 +52,7 @@ from dlt.common.destination.reference import (
     StateInfo,
     LoadJob,
 )
+from dlt.common.destination.dataset import SupportsReadableRelation
 from dlt.common.destination.exceptions import DestinationUndefinedEntity
 
 from dlt.destinations.job_impl import (

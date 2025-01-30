@@ -20,7 +20,7 @@ from dlt.common.utils import get_callable_name
 _SLEEPING_CAT_SPLIT = re.compile("[^.^_]+")
 
 
-def _get_spec_name_from_f(f: AnyFun) -> str:
+def get_spec_name_from_f(f: AnyFun, kind: str = "Configuration") -> str:
     func_name = get_callable_name(f, "__qualname__").replace(
         "<locals>.", ""
     )  # func qual name contains position in the module, separated by dots
@@ -28,7 +28,7 @@ def _get_spec_name_from_f(f: AnyFun) -> str:
     def _first_up(s: str) -> str:
         return s[0].upper() + s[1:]
 
-    return "".join(map(_first_up, _SLEEPING_CAT_SPLIT.findall(func_name))) + "Configuration"
+    return "".join(map(_first_up, _SLEEPING_CAT_SPLIT.findall(func_name))) + kind
 
 
 def spec_from_signature(
@@ -48,7 +48,7 @@ def spec_from_signature(
 
     Return value is a tuple of SPEC and SPEC fields created from a `sig`.
     """
-    name = _get_spec_name_from_f(f)
+    name = get_spec_name_from_f(f)
     module = inspect.getmodule(f)
     base_fields = base.get_resolvable_fields()
 

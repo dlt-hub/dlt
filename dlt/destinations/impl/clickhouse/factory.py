@@ -175,3 +175,6 @@ class clickhouse(Destination[ClickHouseClientConfiguration, "ClickHouseClient"])
             environment=environment,
             **kwargs,
         )
+
+
+clickhouse.register()

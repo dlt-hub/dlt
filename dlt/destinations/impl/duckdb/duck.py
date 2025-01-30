@@ -1,9 +1,8 @@
 from typing import Dict, Optional
 
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.exceptions import TerminalValueError
-from dlt.common.schema import TColumnSchema, TColumnHint, Schema
-from dlt.common.destination.reference import (
+from dlt.common.schema import TColumnHint, Schema
+from dlt.common.destination.client import (
     PreparedTableSchema,
     RunnableLoadJob,
     HasFollowupJobs,

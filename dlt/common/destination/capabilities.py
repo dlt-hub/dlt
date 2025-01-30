@@ -127,6 +127,7 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     supported_loader_file_formats: Sequence[TLoaderFileFormat] = None
     loader_file_format_selector: LoaderFileFormatSelector = None
     """Callable that adapts `preferred_loader_file_format` and `supported_loader_file_formats` at runtime."""
+    preferred_table_format: TTableFormat = None
     supported_table_formats: Sequence[TTableFormat] = None
     type_mapper: Optional[Type[DataTypeMapper]] = None
     recommended_file_size: Optional[int] = None

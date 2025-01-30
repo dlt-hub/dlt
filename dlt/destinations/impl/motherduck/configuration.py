@@ -5,7 +5,7 @@ from typing import Any, ClassVar, Dict, Final, List, Optional
 
 from dlt.version import __version__
 from dlt.common.configuration import configspec
-from dlt.common.destination.reference import DestinationClientDwhWithStagingConfiguration
+from dlt.common.destination.client import DestinationClientDwhWithStagingConfiguration
 from dlt.common.destination.exceptions import DestinationTerminalException
 from dlt.common.typing import TSecretStrValue
 from dlt.common.utils import digest128

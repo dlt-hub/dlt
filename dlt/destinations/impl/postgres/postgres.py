@@ -6,7 +6,7 @@ from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.exceptions import (
     DestinationInvalidFileFormat,
 )
-from dlt.common.destination.reference import (
+from dlt.common.destination.client import (
     HasFollowupJobs,
     PreparedTableSchema,
     RunnableLoadJob,

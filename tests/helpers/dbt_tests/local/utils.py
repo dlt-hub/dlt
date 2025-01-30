@@ -2,7 +2,7 @@ import contextlib
 from typing import Iterator, NamedTuple
 
 from dlt.common.configuration.utils import add_config_to_env
-from dlt.common.destination.reference import DestinationClientDwhConfiguration
+from dlt.common.destination.client import DestinationClientDwhConfiguration
 from dlt.common.runners import Venv
 from dlt.common.typing import StrAny
 
