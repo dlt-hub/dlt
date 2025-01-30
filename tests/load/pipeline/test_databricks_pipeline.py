@@ -1,5 +1,7 @@
 import pytest
 import os
+
+from pytest_mock import MockerFixture
 import dlt
 
 from dlt.common.utils import uniq_id
@@ -248,11 +250,19 @@ def test_databricks_direct_load(destination_config: DestinationTestConfiguration
     destinations_configs(default_sql_configs=True, subset=("databricks",)),
     ids=lambda x: x.name,
 )
-def test_databricks_direct_load_with_custom_staging_volume_name(
+@pytest.mark.parametrize("keep_staged_files", (True, False))
+def test_databricks_direct_load_with_custom_staging_volume_name_and_file_removal(
     destination_config: DestinationTestConfiguration,
+    keep_staged_files: bool,
+    mocker: MockerFixture,
 ) -> None:
+    from dlt.destinations.impl.databricks.databricks import DatabricksLoadJob
+
+    remove_spy = mocker.spy(DatabricksLoadJob, "_handle_staged_file_remove")
     custom_staging_volume_name = "dlt_ci.dlt_tests_shared.static_volume"
-    bricks = databricks(staging_volume_name=custom_staging_volume_name)
+    bricks = databricks(
+        staging_volume_name=custom_staging_volume_name, keep_staged_files=keep_staged_files
+    )
 
     dataset_name = "test_databricks_direct_load" + uniq_id()
     pipeline = destination_config.setup_pipeline(
@@ -261,6 +271,9 @@ def test_databricks_direct_load_with_custom_staging_volume_name(
 
     info = pipeline.run([1, 2, 3], table_name="digits", **destination_config.run_kwargs)
     assert info.has_failed_jobs is False
+    print(info)
+
+    assert remove_spy.call_count == 0 if keep_staged_files else 2
 
     with pipeline.sql_client() as client:
         rows = client.execute_sql(f"select * from {dataset_name}.digits")

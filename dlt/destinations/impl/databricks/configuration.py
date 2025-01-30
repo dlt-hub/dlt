@@ -1,11 +1,12 @@
 import dataclasses
 from typing import ClassVar, Final, Optional, Any, Dict, List
 
+from dlt.common import logger
 from dlt.common.typing import TSecretStrValue
 from dlt.common.configuration.specs.base_configuration import CredentialsConfiguration, configspec
 from dlt.common.destination.reference import DestinationClientDwhWithStagingConfiguration
 from dlt.common.configuration.exceptions import ConfigurationValueError
-from dlt.common.pipeline import get_dlt_pipelines_dir
+from dlt.common.utils import digest128
 
 DATABRICKS_APPLICATION_ID = "dltHub_dlt"
 
@@ -25,7 +26,6 @@ class DatabricksCredentials(CredentialsConfiguration):
     """Additional keyword arguments that are passed to `databricks.sql.connect`"""
     socket_timeout: Optional[int] = 180
     user_agent_entry: Optional[str] = DATABRICKS_APPLICATION_ID
-    staging_allowed_local_path: Optional[str] = None
 
     __config_gen_annotations__: ClassVar[List[str]] = [
         "server_hostname",
@@ -37,10 +37,6 @@ class DatabricksCredentials(CredentialsConfiguration):
     ]
 
     def on_resolved(self) -> None:
-        # conn parameter staging_allowed_local_path must be set to use 'REMOVE volume_path' SQL statement
-        if not self.staging_allowed_local_path:
-            self.staging_allowed_local_path = get_dlt_pipelines_dir()
-
         if not ((self.client_id and self.client_secret) or self.access_token):
             try:
                 # attempt context authentication
@@ -50,6 +46,15 @@ class DatabricksCredentials(CredentialsConfiguration):
                 self.access_token = w.dbutils.notebook.entry_point.getDbutils().notebook().getContext().apiToken().getOrElse(None)  # type: ignore[union-attr]
             except Exception:
                 self.access_token = None
+
+            try:
+                from databricks.sdk import WorkspaceClient
+
+                w = WorkspaceClient()
+                self.access_token = w.config.authenticate  # type: ignore[assignment]
+                logger.info(f"Will attempt to use default auth of type {w.config.auth_type}")
+            except Exception:
+                pass
 
             if not self.access_token:
                 raise ConfigurationValueError(
@@ -62,12 +67,19 @@ class DatabricksCredentials(CredentialsConfiguration):
             try:
                 # attempt to fetch warehouse details
                 from databricks.sdk import WorkspaceClient
-                from databricks.sdk.service.sql import EndpointInfo
 
                 w = WorkspaceClient()
-                warehouses: List[EndpointInfo] = list(w.warehouses.list())
-                self.server_hostname = self.server_hostname or warehouses[0].odbc_params.hostname
-                self.http_path = self.http_path or warehouses[0].odbc_params.path
+                # warehouse ID may be present in an env variable
+                if w.config.warehouse_id:
+                    warehouse = w.warehouses.get(w.config.warehouse_id)
+                else:
+                    # for some reason list of warehouses has different type than a single one 🤯
+                    warehouse = list(w.warehouses.list())[0]  # type: ignore[assignment]
+                logger.info(
+                    f"Will attempt to use warehouse {warehouse.id} to get sql connection params"
+                )
+                self.server_hostname = self.server_hostname or warehouse.odbc_params.hostname
+                self.http_path = self.http_path or warehouse.odbc_params.path
             except Exception:
                 pass
 
@@ -86,7 +98,6 @@ class DatabricksCredentials(CredentialsConfiguration):
             access_token=self.access_token,
             session_configuration=self.session_configuration or {},
             _socket_timeout=self.socket_timeout,
-            staging_allowed_local_path=self.staging_allowed_local_path,
             **(self.connection_parameters or {}),
         )
 
@@ -96,6 +107,9 @@ class DatabricksCredentials(CredentialsConfiguration):
             )
 
         return conn_params
+
+    def __str__(self) -> str:
+        return f"databricks://{self.server_hostname}{self.http_path}/{self.catalog}"
 
 
 @configspec
@@ -108,10 +122,18 @@ class DatabricksClientConfiguration(DestinationClientDwhWithStagingConfiguration
     """If true, the temporary credentials are not propagated to the COPY command"""
     staging_volume_name: Optional[str] = None
     """Name of the Databricks managed volume for temporary storage, e.g., <catalog_name>.<database_name>.<volume_name>. Defaults to '_dlt_temp_load_volume' if not set."""
+    keep_staged_files: Optional[bool] = True
+    """Tells if to keep the files in internal (volume) stage"""
 
     def __str__(self) -> str:
         """Return displayable destination location"""
-        if self.staging_config:
-            return str(self.staging_config.credentials)
+        if self.credentials:
+            return str(self.credentials)
         else:
-            return "[no staging set]"
+            return ""
+
+    def fingerprint(self) -> str:
+        """Returns a fingerprint of host part of a connection string"""
+        if self.credentials and self.credentials.server_hostname:
+            return digest128(self.credentials.server_hostname)
+        return ""

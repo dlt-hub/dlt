@@ -240,6 +240,13 @@ You can find other options for specifying credentials in the [Authentication sec
 
 See [Staging support](#staging-support) for authentication options when `dlt` copies files from buckets.
 
+### Using default credentials
+If none of auth methods above is configured, `dlt` attempts to get authorization from the Databricks workspace context. The context may
+come, for example, from a Notebook (runtime) or via standard set of env variables that Databricks Python sdk recognizes (ie. **DATABRICKS_TOKEN** or **DATABRICKS_HOST**)
+
+`dlt` is able to set `server_hostname` and `http_path` from available warehouses. We use default warehouse id (**DATABRICKS_WAREHOUSE_ID**)
+if set (via env variable), or a first one on warehouse's list.
+
 ## Write disposition
 All write dispositions are supported.
 
@@ -300,7 +307,15 @@ print(pipeline.dataset().pokemon.df())
 
 - If **no** *staging_volume_name* **is provided**, dlt creates a **default volume** automatically.
 - **For production**, explicitly setting *staging_volume_name* is recommended.
-- The volume is used as a **temporary location** to store files before loading. Files are **deleted immediately** after loading.
+- The volume is used as a **temporary location** to store files before loading.
+
+:::tip::
+You can delete staged files **immediately** after loading by setting the following config option:
+```toml
+[destination.databricks]
+keep_staged_files = false
+```
+:::
 
 ## Staging support
 

@@ -1,8 +1,12 @@
 import pytest
 import os
 
+from dlt.common.schema.schema import Schema
+from dlt.common.utils import digest128
+
 pytest.importorskip("databricks")
 
+import dlt
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.destinations.impl.databricks.databricks import DatabricksLoadJob
@@ -12,6 +16,7 @@ from dlt.destinations import databricks
 from dlt.destinations.impl.databricks.configuration import (
     DatabricksClientConfiguration,
     DATABRICKS_APPLICATION_ID,
+    DatabricksCredentials,
 )
 
 # mark all tests as essential, do not remove
@@ -42,6 +47,11 @@ def test_databricks_credentials_to_connector_params():
     assert params["extra_b"] == "b"
     assert params["_socket_timeout"] == credentials.socket_timeout
     assert params["_user_agent_entry"] == DATABRICKS_APPLICATION_ID
+
+    displayable_location = str(credentials)
+    assert displayable_location.startswith(
+        "databricks://my-databricks.example.com/sql/1.0/warehouses/asdfe/my-catalog"
+    )
 
 
 def test_databricks_configuration() -> None:
@@ -125,3 +135,63 @@ def test_databricks_missing_config_server_hostname() -> None:
         os.environ["DESTINATION__DATABRICKS__CREDENTIALS__SERVER_HOSTNAME"] = ""
         bricks = databricks()
         bricks.configuration(None, accept_partial=True)
+
+
+def test_default_credentials() -> None:
+    # from dlt.destinations.impl.databricks.sql_client import DatabricksSqlClient
+    # create minimal default env
+    os.environ["DATABRICKS_TOKEN"] = dlt.secrets["destination.databricks.credentials.access_token"]
+    os.environ["DATABRICKS_HOST"] = dlt.secrets[
+        "destination.databricks.credentials.server_hostname"
+    ]
+
+    config = resolve_configuration(
+        DatabricksClientConfiguration(
+            credentials=DatabricksCredentials(catalog="dlt_ci")
+        )._bind_dataset_name(dataset_name="my-dataset-1234")
+    )
+    # we pass authenticator that will be used to make connection, that's why callable
+    assert callable(config.credentials.access_token)
+    # taken from a warehouse
+    assert isinstance(config.credentials.http_path, str)
+
+    bricks = databricks(credentials=config.credentials)
+    # "my-dataset-1234" not present (we check SQL execution)
+    with bricks.client(Schema("schema"), config) as client:
+        assert not client.is_storage_initialized()
+
+    # check fingerprint not default
+    assert config.fingerprint() != digest128("")
+
+
+def test_oauth2_credentials() -> None:
+    config = resolve_configuration(
+        DatabricksClientConfiguration(
+            credentials=DatabricksCredentials(
+                catalog="dlt_ci", client_id="ctx-id", client_secret="xx0xx"
+            )
+        )._bind_dataset_name(dataset_name="my-dataset-1234"),
+        sections=("destination", "databricks"),
+    )
+    # will resolve to oauth token
+    bricks = databricks(credentials=config.credentials)
+    # "my-dataset-1234" not present (we check SQL execution)
+    with pytest.raises(Exception, match="Client authentication failed"):
+        with bricks.client(Schema("schema"), config):
+            pass
+
+
+def test_default_warehouse() -> None:
+    os.environ["DATABRICKS_TOKEN"] = dlt.secrets["destination.databricks.credentials.access_token"]
+    os.environ["DATABRICKS_HOST"] = dlt.secrets[
+        "destination.databricks.credentials.server_hostname"
+    ]
+    # will force this warehouse
+    os.environ["DATABRICKS_WAREHOUSE_ID"] = "588dbd71bd802f4d"
+
+    config = resolve_configuration(
+        DatabricksClientConfiguration(
+            credentials=DatabricksCredentials(catalog="dlt_ci")
+        )._bind_dataset_name(dataset_name="my-dataset-1234")
+    )
+    assert config.credentials.http_path == "/sql/1.0/warehouses/588dbd71bd802f4d"

@@ -1,3 +1,4 @@
+import os
 from typing import Optional, Sequence, List, cast
 from urllib.parse import urlparse, urlunparse
 
@@ -58,6 +59,10 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
         # decide if this is a local file or a staged file
         is_local_file = not ReferenceFollowupJobRequest.is_reference_job(self._file_path)
         if is_local_file:
+            # conn parameter staging_allowed_local_path must be set to use 'PUT/REMOVE volume_path' SQL statement
+            self._sql_client.native_connection.thrift_backend.staging_allowed_local_path = (
+                os.path.dirname(self._file_path)
+            )
             # local file by uploading to a temporary volume on Databricks
             from_clause, file_name, volume_path, volume_file_path = self._handle_local_file_upload(
                 self._file_path
@@ -89,9 +94,12 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
 
         self._sql_client.execute_sql(statement)
 
-        if is_local_file:
-            self._sql_client.execute_sql(f"REMOVE '{volume_file_path}'")
-            self._sql_client.execute_sql(f"REMOVE '{volume_path}'")
+        if is_local_file and not self._job_client.config.keep_staged_files:
+            self._handle_staged_file_remove(volume_path, volume_file_path)
+
+    def _handle_staged_file_remove(self, volume_path: str, volume_file_path: str) -> None:
+        self._sql_client.execute_sql(f"REMOVE '{volume_file_path}'")
+        self._sql_client.execute_sql(f"REMOVE '{volume_path}'")
 
     def _handle_local_file_upload(self, local_file_path: str) -> tuple[str, str, str, str]:
         file_name = FileStorage.get_file_name_from_file_path(local_file_path)
