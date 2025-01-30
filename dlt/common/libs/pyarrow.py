@@ -15,7 +15,7 @@ from typing import (
 )
 
 from dlt import version
-from dlt.common.exceptions import MissingDependencyException
+from dlt.common.exceptions import MissingDependencyException, DltException
 from dlt.common.schema.typing import C_DLT_ID, C_DLT_LOAD_ID, TTableSchemaColumns
 from dlt.common import logger, json
 from dlt.common.json import custom_encode, map_nested_in_place
@@ -43,6 +43,64 @@ except ModuleNotFoundError:
 TAnyArrowItem = Union[pyarrow.Table, pyarrow.RecordBatch]
 
 ARROW_DECIMAL_MAX_PRECISION = 76
+
+
+class UnsupportedArrowTypeException(DltException):
+    """Exception raised when Arrow type conversion failed.
+
+    The setters are used to update the exception with more context
+    such as the relevant field and tablea it is caught downstream.
+    """
+
+    def __init__(
+        self,
+        arrow_type: pyarrow.DataType,
+        field_name: Optional[str] = None,
+        table_name: Optional[str] = None,
+    ) -> None:
+        self.arrow_type = arrow_type
+        self._field_name = field_name if field_name else ""
+        self._table_name = table_name if table_name else ""
+
+        msg = self.generate_message(self.arrow_type, self._field_name, self._table_name)
+        super().__init__(msg)
+
+    @staticmethod
+    def generate_message(arrow_type: pyarrow.DataType, field_name: str, table_name: str) -> str:
+        msg = f"Arrow type `{arrow_type}`"
+        if field_name:
+            msg += f" for field `{field_name}`"
+        if table_name:
+            msg += f" in table `{table_name}`"
+
+        msg += (
+            " is unsupported by dlt. See documentation:"
+            " https://dlthub.com/docs/dlt-ecosystem/verified-sources/arrow-pandas#supported-arrow-data-types"
+        )
+        return msg
+
+    def _update_message(self) -> None:
+        """Modify the `Exception.args` tuple to update message."""
+        msg = self.generate_message(self.arrow_type, self.field_name, self.table_name)
+        self.args = (msg,)  # must be a tuple
+
+    @property
+    def field_name(self) -> str:
+        return self._field_name
+
+    @field_name.setter
+    def field_name(self, value: str) -> None:
+        self._field_name = value
+        self._update_message()
+
+    @property
+    def table_name(self) -> str:
+        return self._table_name
+
+    @table_name.setter
+    def table_name(self, value: str) -> None:
+        self._table_name = value
+        self._update_message()
 
 
 def get_py_arrow_datatype(
@@ -187,7 +245,7 @@ def get_column_type_from_py_arrow(dtype: pyarrow.DataType) -> TColumnType:
         # dictates the "logical" type. We simply delegate to the underlying value_type.
         return get_column_type_from_py_arrow(dtype.value_type)
     else:
-        raise ValueError(dtype)
+        raise UnsupportedArrowTypeException(arrow_type=dtype)
 
 
 def remove_null_columns(item: TAnyArrowItem) -> TAnyArrowItem:
@@ -399,10 +457,17 @@ def py_arrow_to_table_schema_columns(schema: pyarrow.Schema) -> TTableSchemaColu
     """
     result: TTableSchemaColumns = {}
     for field in schema:
+        try:
+            converted_type = get_column_type_from_py_arrow(field.type)
+        except UnsupportedArrowTypeException as e:
+            # modify attributes inplace to add context instead of reraising with `raise e`
+            e.field_name = field.name
+            raise
+
         result[field.name] = {
             "name": field.name,
             "nullable": field.nullable,
-            **get_column_type_from_py_arrow(field.type),
+            **converted_type,
         }
     return result
 
