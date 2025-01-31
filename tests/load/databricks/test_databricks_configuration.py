@@ -137,14 +137,25 @@ def test_databricks_missing_config_server_hostname() -> None:
         bricks.configuration(None, accept_partial=True)
 
 
-def test_default_credentials() -> None:
-    # from dlt.destinations.impl.databricks.sql_client import DatabricksSqlClient
+@pytest.mark.parametrize("auth_type", ("pat", "oauth2"))
+def test_default_credentials(auth_type: str) -> None:
     # create minimal default env
-    os.environ["DATABRICKS_TOKEN"] = dlt.secrets["destination.databricks.credentials.access_token"]
     os.environ["DATABRICKS_HOST"] = dlt.secrets[
         "destination.databricks.credentials.server_hostname"
     ]
+    if auth_type == "pat":
+        os.environ["DATABRICKS_TOKEN"] = dlt.secrets[
+            "destination.databricks.credentials.access_token"
+        ]
+    else:
+        os.environ["DATABRICKS_CLIENT_ID"] = dlt.secrets[
+            "destination.databricks.credentials.client_id"
+        ]
+        os.environ["DATABRICKS_CLIENT_SECRET"] = dlt.secrets[
+            "destination.databricks.credentials.client_secret"
+        ]
 
+    # will not pick up the credentials from "destination.databricks"
     config = resolve_configuration(
         DatabricksClientConfiguration(
             credentials=DatabricksCredentials(catalog="dlt_ci")
@@ -165,20 +176,17 @@ def test_default_credentials() -> None:
 
 
 def test_oauth2_credentials() -> None:
+    dlt.secrets["destination.databricks.credentials.access_token"] = ""
     config = resolve_configuration(
-        DatabricksClientConfiguration(
-            credentials=DatabricksCredentials(
-                catalog="dlt_ci", client_id="ctx-id", client_secret="xx0xx"
-            )
-        )._bind_dataset_name(dataset_name="my-dataset-1234"),
+        DatabricksClientConfiguration()._bind_dataset_name(dataset_name="my-dataset-1234-oauth"),
         sections=("destination", "databricks"),
     )
+    assert config.credentials.access_token == ""
     # will resolve to oauth token
     bricks = databricks(credentials=config.credentials)
-    # "my-dataset-1234" not present (we check SQL execution)
-    with pytest.raises(Exception, match="Client authentication failed"):
-        with bricks.client(Schema("schema"), config):
-            pass
+    # "my-dataset-1234-oauth" not present (we check SQL execution)
+    with bricks.client(Schema("schema"), config) as client:
+        assert not client.is_storage_initialized()
 
 
 def test_default_warehouse() -> None:
