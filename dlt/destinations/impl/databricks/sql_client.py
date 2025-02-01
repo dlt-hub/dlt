@@ -88,7 +88,11 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
 
         if self.credentials.client_id and self.credentials.client_secret:
             conn_params["credentials_provider"] = self._get_oauth_credentials
+        elif callable(self.credentials.access_token):
+            # this is w.config.authenticator
+            conn_params["credentials_provider"] = lambda: self.credentials.access_token
         else:
+            # this is access token
             conn_params["access_token"] = self.credentials.access_token
 
         self._conn = databricks_lib.connect(
