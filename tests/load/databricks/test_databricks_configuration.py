@@ -177,6 +177,10 @@ def test_default_credentials(auth_type: str) -> None:
 
 def test_oauth2_credentials() -> None:
     dlt.secrets["destination.databricks.credentials.access_token"] = ""
+    # we must prime the "destinations" for google secret manager config provider
+    # because it retrieves catalog as first element and it is not secret. and vault providers
+    # are secret only
+    dlt.secrets.get("destination.credentials")
     config = resolve_configuration(
         DatabricksClientConfiguration()._bind_dataset_name(dataset_name="my-dataset-1234-oauth"),
         sections=("destination", "databricks"),
