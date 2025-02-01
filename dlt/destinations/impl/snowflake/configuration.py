@@ -141,21 +141,6 @@ class SnowflakeClientConfiguration(DestinationClientDwhWithStagingConfiguration)
     create_indexes: bool = False
     """Whether UNIQUE or PRIMARY KEY constrains should be created"""
 
-    def __init__(
-        self,
-        *,
-        credentials: SnowflakeCredentials = None,
-        create_indexes: bool = False,
-        destination_name: str = None,
-        environment: str = None,
-    ) -> None:
-        super().__init__(
-            credentials=credentials,
-            destination_name=destination_name,
-            environment=environment,
-        )
-        self.create_indexes = create_indexes
-
     def fingerprint(self) -> str:
         """Returns a fingerprint of host part of a connection string"""
         if self.credentials and self.credentials.host:

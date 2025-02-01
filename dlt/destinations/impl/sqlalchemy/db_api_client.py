@@ -400,6 +400,7 @@ class SqlalchemyClient(SqlClientBase[Connection]):
                     table_name,
                     metadata,
                     autoload_with=self._current_connection,
+                    resolve_fks=False,
                     schema=self.dataset_name,
                     include_columns=include_columns,
                     extend_existing=True,
@@ -442,7 +443,7 @@ class SqlalchemyClient(SqlClientBase[Connection]):
                 # SQLite
                 r"no such table",  # Missing table
                 r"no such database",  # Missing table
-                # PostgreSQL / Trino / Vertica
+                # PostgreSQL / Trino / Vertica / Exasol (database)
                 r"does not exist",  # Missing schema, relation
                 # r"does not exist",  # Missing table
                 # MSSQL
@@ -457,6 +458,8 @@ class SqlalchemyClient(SqlClientBase[Connection]):
                 # Apache Hive
                 r"table not found",  # Missing table
                 r"database does not exist",
+                # Exasol
+                r" not found",
             ]
             # entity not found
             for pat_ in patterns:

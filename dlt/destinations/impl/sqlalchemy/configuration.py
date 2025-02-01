@@ -61,6 +61,10 @@ class SqlalchemyClientConfiguration(DestinationClientDwhConfiguration):
     destination_type: Final[str] = dataclasses.field(default="sqlalchemy", init=False, repr=False, compare=False)  # type: ignore
     credentials: SqlalchemyCredentials = None
     """SQLAlchemy connection string"""
+    create_unique_indexes: bool = False
+    """Whether UNIQUE constrains should be created"""
+    create_primary_keys: bool = False
+    """Whether PRIMARY KEY constrains should be created"""
 
     engine_args: Dict[str, Any] = dataclasses.field(default_factory=dict)
     """Additional arguments passed to `sqlalchemy.create_engine`"""
