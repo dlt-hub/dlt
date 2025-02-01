@@ -129,6 +129,16 @@ with engine.connect() as conn:
     print(result.fetchall())
 ```
 
+## Notes on other dialects
+We tested this destination on **mysql** and **sqlite** dialects. Below are a few notes that may help enabling other dialects:
+1. `dlt` must be able to recognize if a database exception relates to non existing entity (like table or schema). We put
+some work to recognize those for most of the popular dialects (look for `db_api_client.py`)
+2. Primary keys and unique constraints are not created by default to avoid problems with particular dialects.
+3. `merge` write disposition uses only `DELETE` and `INSERT` operations to enable as many dialects as possible.
+
+Please report issues with particular dialects. We'll try to make them work.
+
+
 ## Write dispositions
 
 The following write dispositions are supported:
@@ -157,6 +167,11 @@ For example, SQLite does not have `DATETIME` or `TIMESTAMP` types, so `timestamp
 * [Parquet](../file-formats/parquet.md) is supported.
 
 ## Supported column hints
-
-* `unique` hints are translated to `UNIQUE` constraints via SQLAlchemy (granted the database supports it).
-
+No indexes or constraints are created on the table. You can enable the following via destination configuration
+```toml
+[destination.sqlalchemy]
+create_unique_indexes=true
+create_primary_keys=true
+```
+* `unique` hints are translated to `UNIQUE` constraints via SQLAlchemy.
+* `primary_key` hints are translated to `PRIMARY KEY` constraints via SQLAlchemy.

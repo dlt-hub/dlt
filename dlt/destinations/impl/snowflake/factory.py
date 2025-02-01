@@ -140,6 +140,8 @@ class snowflake(Destination[SnowflakeClientConfiguration, "SnowflakeClient"]):
         stage_name: t.Optional[str] = None,
         keep_staged_files: bool = True,
         csv_format: t.Optional[CsvFormatConfiguration] = None,
+        query_tag: t.Optional[str] = None,
+        create_indexes: bool = False,
         destination_name: t.Optional[str] = None,
         environment: t.Optional[str] = None,
         **kwargs: t.Any,
@@ -153,12 +155,18 @@ class snowflake(Destination[SnowflakeClientConfiguration, "SnowflakeClient"]):
                 a connection string in the format `snowflake://user:password@host:port/database`
             stage_name: Name of an existing stage to use for loading data. Default uses implicit stage per table
             keep_staged_files: Whether to delete or keep staged files after loading
+            csv_format: Optional csv format configuration
+            query_tag: A tag with placeholders to tag sessions executing jobs
+            create_indexes: Whether UNIQUE or PRIMARY KEY constrains should be created
+
         """
         super().__init__(
             credentials=credentials,
             stage_name=stage_name,
             keep_staged_files=keep_staged_files,
             csv_format=csv_format,
+            query_tag=query_tag,
+            create_indexes=create_indexes,
             destination_name=destination_name,
             environment=environment,
             **kwargs,
