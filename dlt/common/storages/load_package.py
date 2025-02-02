@@ -739,7 +739,7 @@ class PackageStorage:
 
     @staticmethod
     def _job_elapsed_time_seconds(file_path: str, now_ts: float = None) -> float:
-        return (now_ts or pendulum.now().timestamp()) - os.path.getmtime(file_path)
+        return (now_ts or precise_time()) - os.path.getmtime(file_path)
 
     @staticmethod
     def filter_jobs_for_table(
