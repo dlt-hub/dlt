@@ -32,8 +32,6 @@ def plugin_install():
                 "tests/plugins/dlt_example_plugin",
                 "--target",
                 temp_dir,
-                "--index",
-                "https://pypi.dlthub.com",
             )
         )
     except CalledProcessError as c_err:

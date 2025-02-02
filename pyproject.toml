@@ -34,7 +34,7 @@ requests = ">=2.26.0"
 pendulum = {version = ">=2.1.2", markers = "python_version < '3.13'"}
 # NOTE: revert to normal pendulum once it supports python 3.13
 dlt-pendulum = [
-    {version="3.0.1a4", allow-prereleases = true, markers = "python_version >= '3.13'"}
+    {version=">=3.0.2", markers = "python_version >= '3.13'"}
 ]
 simplejson = ">=3.17.5"
 PyYAML = ">=5.4.1"
@@ -301,9 +301,3 @@ multi_line_output = 3
 [build-system]
 requires = ["poetry-core>=1.0.8"]
 build-backend = "poetry.core.masonry.api"
-
-# NOTE: needed for dlt-pendulum
-[[tool.poetry.source]]
-name = "dlt-pypi"
-url = "https://pypi.dlthub.com"
-priority = "supplemental"

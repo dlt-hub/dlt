@@ -34,6 +34,7 @@ from dlt.common.destination.client import (
     WithStagingDataset,
     LoadJob,
 )
+from dlt.common.time import precise_time
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
 
 from dlt.destinations.exceptions import (
@@ -47,7 +48,7 @@ class LoadDummyBaseJob(RunnableLoadJob):
     def __init__(self, file_name: str, config: DummyClientConfiguration) -> None:
         super().__init__(file_name)
         self.config = copy(config)
-        self.start_time: float = pendulum.now().timestamp()
+        self.start_time = precise_time()
 
         if self.config.fail_terminally_in_init:
             raise DestinationTerminalException(self._exception)
@@ -63,7 +64,7 @@ class LoadDummyBaseJob(RunnableLoadJob):
                 raise Exception("Dummy job status raised exception")
 
             # timeout condition (terminal)
-            n = pendulum.now().timestamp()
+            n = precise_time()
             if n - self.start_time > self.config.timeout:
                 # this will make the the job go to a failed state
                 raise DestinationTerminalException("failed due to timeout")
