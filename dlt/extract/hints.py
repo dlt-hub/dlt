@@ -163,6 +163,7 @@ class DltResourceHintsDict(Dict[str, "DltResourceHints"]):
         if isinstance(key, str):
             return super().__setitem__(key, value)
 
+        breakpoint()
         parent_dict = self
         for part in key[:-1]:
             if part not in parent_dict:
