@@ -1,9 +1,8 @@
 from typing import (
     List,
     Literal,
-    TypedDict,
 )
-
+from dlt.common.typing import TypedDict
 
 TExecInfoNames = Literal[
     "kubernetes",
@@ -26,7 +25,7 @@ class TVersion(TypedDict):
     version: str
 
 
-class TExecutionContext(TypedDict):
+class TExecutionContext(TypedDict, total=False):
     """TypeDict representing the runtime context info"""
 
     ci_run: bool
@@ -35,3 +34,5 @@ class TExecutionContext(TypedDict):
     exec_info: List[TExecInfoNames]
     library: TVersion
     os: TVersion
+    run_context: str
+    plus: TVersion

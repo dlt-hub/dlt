@@ -190,3 +190,6 @@ class duckdb(Destination[DuckDbClientConfiguration, "DuckDbClient"]):
             bound_to_pipeline=bound_to_pipeline,
             **kwargs,
         )
+
+
+duckdb.register()

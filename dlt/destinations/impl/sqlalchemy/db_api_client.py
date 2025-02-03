@@ -20,7 +20,6 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.exc import ResourceClosedError
 
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.reference import PreparedTableSchema
 from dlt.destinations.exceptions import (
     DatabaseUndefinedRelation,
     DatabaseTerminalException,
@@ -28,7 +27,7 @@ from dlt.destinations.exceptions import (
     LoadClientNotConnected,
     DatabaseException,
 )
-from dlt.common.destination.reference import DBApiCursor
+from dlt.common.destination.dataset import DBApiCursor
 from dlt.destinations.typing import DBTransaction
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.impl.sqlalchemy.configuration import SqlalchemyCredentials
@@ -401,6 +400,7 @@ class SqlalchemyClient(SqlClientBase[Connection]):
                     table_name,
                     metadata,
                     autoload_with=self._current_connection,
+                    resolve_fks=False,
                     schema=self.dataset_name,
                     include_columns=include_columns,
                     extend_existing=True,
@@ -435,17 +435,38 @@ class SqlalchemyClient(SqlClientBase[Connection]):
             return DatabaseUndefinedRelation(e)
         msg = str(e).lower()
         if isinstance(e, (sa.exc.ProgrammingError, sa.exc.OperationalError)):
-            if "exist" in msg:  # TODO: Hack
-                return DatabaseUndefinedRelation(e)
-            elif "unknown table" in msg:
-                return DatabaseUndefinedRelation(e)
-            elif "unknown database" in msg:
-                return DatabaseUndefinedRelation(e)
-            elif "no such table" in msg:  # sqlite # TODO: Hack
-                return DatabaseUndefinedRelation(e)
-            elif "no such database" in msg:  # sqlite # TODO: Hack
-                return DatabaseUndefinedRelation(e)
-            elif "syntax" in msg:
+            patterns = [
+                # MySQL / MariaDB
+                r"unknown database",  # Missing schema
+                r"doesn't exist",  # Missing table
+                r"unknown table",  # Missing table
+                # SQLite
+                r"no such table",  # Missing table
+                r"no such database",  # Missing table
+                # PostgreSQL / Trino / Vertica / Exasol (database)
+                r"does not exist",  # Missing schema, relation
+                # r"does not exist",  # Missing table
+                # MSSQL
+                r"invalid object name",  # Missing schema or table
+                # Oracle
+                r"ora-00942: table or view does not exist",  # Missing schema or table
+                # SAP HANA
+                r"invalid schema name",  # Missing schema
+                r"invalid table name",  # Missing table
+                # DB2
+                r"is an undefined name",  # SQL0204N... Missing schema or table
+                # Apache Hive
+                r"table not found",  # Missing table
+                r"database does not exist",
+                # Exasol
+                r" not found",
+            ]
+            # entity not found
+            for pat_ in patterns:
+                if pat_ in msg:
+                    return DatabaseUndefinedRelation(e)
+
+            if "syntax" in msg:
                 return DatabaseTransientException(e)
             elif isinstance(e, (sa.exc.OperationalError, sa.exc.IntegrityError)):
                 return DatabaseTerminalException(e)

@@ -67,3 +67,6 @@ class lancedb(Destination[LanceDBClientConfiguration, "LanceDBClient"]):
             environment=environment,
             **kwargs,
         )
+
+
+lancedb.register()

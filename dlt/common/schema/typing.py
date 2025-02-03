@@ -10,13 +10,13 @@ from typing import (
     Set,
     Tuple,
     Type,
-    TypedDict,
     NewType,
     Union,
     get_args,
 )
 from typing_extensions import Never
 
+from dlt.common.typing import TypedDict
 from dlt.common.data_types import TDataType
 from dlt.common.normalizers.typing import TNormalizersConfig
 from dlt.common.typing import TSortOrder, TAnyDateTime, TLoaderFileFormat, TColumnNames
@@ -126,7 +126,7 @@ for prop in COLUMN_PROPS:
     if prop in COLUMN_HINTS:
         ColumnPropInfos[prop] = ColumnPropInfos[prop]._replace(is_hint=True)
 
-TTableFormat = Literal["iceberg", "delta", "hive"]
+TTableFormat = Literal["iceberg", "delta", "hive", "native"]
 TFileFormat = Literal[Literal["preferred"], TLoaderFileFormat]
 TTypeDetections = Literal[
     "timestamp", "iso_timestamp", "iso_date", "large_integer", "hexbytes_to_text", "wei_to_double"

@@ -107,8 +107,8 @@ class databricks(Destination[DatabricksClientConfiguration, "DatabricksClient"])
 
     def _raw_capabilities(self) -> DestinationCapabilitiesContext:
         caps = DestinationCapabilitiesContext()
-        caps.preferred_loader_file_format = None
-        caps.supported_loader_file_formats = []
+        caps.preferred_loader_file_format = "parquet"
+        caps.supported_loader_file_formats = ["jsonl", "parquet"]
         caps.preferred_staging_file_format = "parquet"
         caps.supported_staging_file_formats = ["jsonl", "parquet"]
         caps.supported_table_formats = ["delta"]
@@ -154,6 +154,7 @@ class databricks(Destination[DatabricksClientConfiguration, "DatabricksClient"])
         staging_credentials_name: t.Optional[str] = None,
         destination_name: t.Optional[str] = None,
         environment: t.Optional[str] = None,
+        staging_volume_name: t.Optional[str] = None,
         **kwargs: t.Any,
     ) -> None:
         """Configure the Databricks destination to use in a pipeline.
@@ -173,5 +174,9 @@ class databricks(Destination[DatabricksClientConfiguration, "DatabricksClient"])
             staging_credentials_name=staging_credentials_name,
             destination_name=destination_name,
             environment=environment,
+            staging_volume_name=staging_volume_name,
             **kwargs,
         )
+
+
+databricks.register()

@@ -72,10 +72,10 @@ def github_api_source(api_secret_key: str = dlt.secrets.value):
     return github_api_resource(api_secret_key=api_secret_key)
 ```
 
-Run the `github_api.py` pipeline script to test that authentication headers look fine:
+Run the `github_api_pipeline.py` pipeline script to test that authentication headers look fine:
 
 ```sh
-python github_api.py
+python github_api_pipeline.py
 ```
 
 Your API key should be printed out to stdout along with some test data.
@@ -87,7 +87,7 @@ Your API key should be printed out to stdout along with some test data.
 We will use the `dlt` repository as an example GitHub project https://github.com/dlt-hub/dlt, feel free to replace it with your own repository.
 :::
 
-Modify `github_api_resource` in `github_api.py` to request issues data from your GitHub project's API:
+Modify `github_api_resource` in `github_api_pipeline.py` to request issues data from your GitHub project's API:
 
 ```py
 from dlt.sources.helpers.rest_client import paginate
@@ -109,8 +109,8 @@ def github_api_resource(api_secret_key: str = dlt.secrets.value):
 
 ## 4. Load the data
 
-Uncomment the commented-out code in the `main` function in `github_api.py`, so that running the
-`python github_api.py` command will now also run the pipeline:
+Uncomment the commented-out code in the `main` function in `github_api_pipeline.py`, so that running the
+`python github_api_pipeline.py` command will now also run the pipeline:
 
 ```py
 if __name__=='__main__':
@@ -135,10 +135,10 @@ if __name__=='__main__':
 ```
 
 
-Run the `github_api.py` pipeline script to test that the API call works:
+Run the `github_api_pipeline.py` pipeline script to test that the API call works:
 
 ```sh
-python github_api.py
+python github_api_pipeline.py
 ```
 
 This should print out JSON data containing the issues in the GitHub project.

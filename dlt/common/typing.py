@@ -38,12 +38,15 @@ from typing_extensions import (
     ParamSpec,
     TypeAlias,
     Concatenate,
+    Unpack,
     get_args,
     get_origin,
     get_original_bases,
 )
 
 from typing_extensions import is_typeddict as _is_typeddict
+
+from typing_extensions import TypedDict  # noqa: I251
 
 try:
     from types import UnionType  # type: ignore[attr-defined]
@@ -55,15 +58,11 @@ except ImportError:
     # in versions of Python>=3.10.
     UnionType = Never
 
-if sys.version_info[:3] >= (3, 9, 0):
-    from typing import _SpecialGenericAlias, _GenericAlias  # type: ignore[attr-defined]
-    from types import GenericAlias  # type: ignore[attr-defined]
+from typing import _SpecialGenericAlias, _GenericAlias  # type: ignore[attr-defined]
+from types import GenericAlias
 
-    typingGenericAlias: Tuple[Any, ...] = (_GenericAlias, _SpecialGenericAlias, GenericAlias)
-else:
-    from typing import _GenericAlias  # type: ignore[attr-defined]
+typingGenericAlias: Tuple[Any, ...] = (_GenericAlias, _SpecialGenericAlias, GenericAlias)
 
-    typingGenericAlias = (_GenericAlias,)
 
 from dlt.common.pendulum import timedelta, pendulum
 
@@ -332,7 +331,7 @@ def is_typeddict(t: Type[Any]) -> bool:
 
 def is_annotated(ann_type: Any) -> bool:
     try:
-        return issubclass(get_origin(ann_type), Annotated)  # type: ignore[arg-type]
+        return get_origin(ann_type) is Annotated
     except TypeError:
         return False
 
@@ -438,8 +437,7 @@ def get_generic_type_argument_from_instance(
     """
     orig_param_type = Any
     if cls_ := getattr(instance, "__orig_class__", None):
-        # instance of generic class
-        pass
+        cls_ = extract_inner_type(cls_)
     elif bases_ := get_original_bases(instance.__class__):
         # instance of class deriving from generic
         cls_ = bases_[0]

@@ -9,7 +9,7 @@ from dlt.common.typing import TSecretStrValue
 from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.common.configuration import configspec
-from dlt.common.destination.reference import DestinationClientDwhWithStagingConfiguration
+from dlt.common.destination.client import DestinationClientDwhWithStagingConfiguration
 from dlt.common.utils import digest128
 
 
@@ -140,21 +140,6 @@ class SnowflakeClientConfiguration(DestinationClientDwhWithStagingConfiguration)
 
     create_indexes: bool = False
     """Whether UNIQUE or PRIMARY KEY constrains should be created"""
-
-    def __init__(
-        self,
-        *,
-        credentials: SnowflakeCredentials = None,
-        create_indexes: bool = False,
-        destination_name: str = None,
-        environment: str = None,
-    ) -> None:
-        super().__init__(
-            credentials=credentials,
-            destination_name=destination_name,
-            environment=environment,
-        )
-        self.create_indexes = create_indexes
 
     def fingerprint(self) -> str:
         """Returns a fingerprint of host part of a connection string"""

@@ -32,7 +32,7 @@ from dlt.common.destination.exceptions import (
     DestinationTransientException,
     DestinationTerminalException,
 )
-from dlt.common.destination.reference import (
+from dlt.common.destination.client import (
     JobClientBase,
     PreparedTableSchema,
     WithStateSync,
@@ -536,7 +536,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
                 self.schema.naming.normalize_identifier(
                     "engine_version"
                 ): self.schema.ENGINE_VERSION,
-                self.schema.naming.normalize_identifier("inserted_at"): str(pendulum.now()),
+                self.schema.naming.normalize_identifier("inserted_at"): pendulum.now(),
                 self.schema.naming.normalize_identifier("schema_name"): self.schema.name,
                 self.schema.naming.normalize_identifier(
                     "version_hash"
@@ -693,7 +693,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
                 self.schema.naming.normalize_identifier("load_id"): load_id,
                 self.schema.naming.normalize_identifier("schema_name"): self.schema.name,
                 self.schema.naming.normalize_identifier("status"): 0,
-                self.schema.naming.normalize_identifier("inserted_at"): str(pendulum.now()),
+                self.schema.naming.normalize_identifier("inserted_at"): pendulum.now(),
                 self.schema.naming.normalize_identifier("schema_version_hash"): None,
             }
         ]

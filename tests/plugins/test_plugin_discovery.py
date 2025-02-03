@@ -7,9 +7,14 @@ import shutil
 import importlib
 
 from dlt.common.configuration.container import Container
+from dlt.common.configuration.specs.pluggable_run_context import PluggableRunContext
+from dlt.common.destination import DestinationReference
 from dlt.common.runners import Venv
 from dlt.common.configuration import plugins
+from dlt.common.configuration.plugins import PluginContext
 from dlt.common.runtime import run_context
+
+from dlt.sources import SourceReference
 from tests.utils import TEST_STORAGE_ROOT
 from pytest_console_scripts import ScriptRunner
 
@@ -22,7 +27,11 @@ def plugin_install():
     try:
         print(
             venv.run_module(
-                "pip", "install", "tests/plugins/dlt_example_plugin", "--target", temp_dir
+                "pip",
+                "install",
+                "tests/plugins/dlt_example_plugin",
+                "--target",
+                temp_dir,
             )
         )
     except CalledProcessError as c_err:
@@ -31,8 +40,11 @@ def plugin_install():
         raise
     sys.path.insert(0, temp_dir)
 
-    # remove current plugin manager
+    # remove current plugin manager and run context
+    # NOTE: new run context reloads plugin manager
     container = Container()
+    if PluggableRunContext in container:
+        del container[PluggableRunContext]
     if plugins.PluginContext in container:
         del container[plugins.PluginContext]
 
@@ -52,6 +64,51 @@ def test_example_plugin() -> None:
     context = run_context.current()
     assert context.name == "dlt-test"
     assert context.data_dir == os.path.abspath(TEST_STORAGE_ROOT)
+    # top level module info should be present
+    assert context.module.__name__ == "dlt_example_plugin"
+    # plugin manager should contain the plugin module
+    plugin_context = Container()[PluginContext]
+    assert plugin_context.plugin_modules == [context.module.__name__]
+    # reference prefixes we probe when resolving
+    assert run_context.get_plugin_modules() == ["dlt_example_plugin", "dlt_example_plugin", "dlt"]
+
+
+def test_import_references() -> None:
+    # unknown
+    with pytest.raises(KeyError):
+        SourceReference.find("unknown")
+    # find also imports
+    source_ref = SourceReference.find("github")
+    assert source_ref.ref.name == "github"
+    assert source_ref.ref.section == "github"
+    assert source_ref.ref.ref == "dlt_example_plugin.sources.github.github"
+
+    # create default instance
+    assert SourceReference.from_reference("github") is not None
+
+    with pytest.raises(KeyError):
+        DestinationReference.find("unknown")
+
+    # imports destinations
+    dest_t = DestinationReference.find("hive")
+    dest_f = DestinationReference.from_reference("hive")
+    assert type(dest_f) is dest_t
+
+    assert dest_f.destination_name == "hive"
+    assert dest_f.destination_type == "dlt_example_plugin.destinations.hive"
+    dest_f = DestinationReference.from_reference("push_destination")
+    assert dest_f.destination_name == "pushdb"
+    assert (
+        dest_f.destination_type
+        == "dlt_example_plugin.destinations.pushdb.PushDestinationDestination"
+    )
+
+
+def test_plugin_execution_context() -> None:
+    from dlt.common.runtime.exec_info import get_execution_context
+
+    context = get_execution_context()
+    assert context["run_context"] == "dlt-test"
 
 
 def test_cli_hook(script_runner: ScriptRunner) -> None:

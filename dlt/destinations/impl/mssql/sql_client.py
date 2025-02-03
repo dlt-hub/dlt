@@ -22,7 +22,7 @@ from dlt.destinations.sql_client import (
 )
 
 from dlt.destinations.impl.mssql.configuration import MsSqlCredentials
-from dlt.common.destination.reference import DBApiCursor
+from dlt.common.destination.dataset import DBApiCursor
 
 
 def handle_datetimeoffset(dto_value: bytes) -> datetime:

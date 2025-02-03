@@ -1,4 +1,4 @@
-from typing import TypedDict, cast, Any, Optional, Dict, Sequence, Mapping, Union
+from typing import cast, Any, Optional, Dict, Sequence, Mapping, Union
 from typing_extensions import Self
 
 from dlt.common import logger
@@ -19,6 +19,8 @@ from dlt.common.schema.typing import (
     MERGE_STRATEGIES,
     TTableReferenceParam,
 )
+
+from dlt.common.typing import TypedDict
 from dlt.common.schema.utils import (
     DEFAULT_WRITE_DISPOSITION,
     merge_column,
