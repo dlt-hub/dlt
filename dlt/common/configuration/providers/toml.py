@@ -2,7 +2,7 @@ import os
 import tomlkit
 import tomlkit.exceptions
 import tomlkit.items
-from typing import Any, Optional
+from typing import Any, Optional, List
 
 from dlt.common.utils import update_dict_nested
 
@@ -45,8 +45,7 @@ class SettingsTomlProvider(CustomLoaderDocProvider):
         name: str,
         supports_secrets: bool,
         file_name: str,
-        settings_dir: str,
-        global_dir: str = None,
+        resolvable_dirs: List[str],
     ) -> None:
         """Creates config provider from a `toml` file
 
@@ -64,8 +63,7 @@ class SettingsTomlProvider(CustomLoaderDocProvider):
             name(str): name of the provider when registering in context
             supports_secrets(bool): allows to store secret values in this provider
             file_name (str): The name of `toml` file to load
-            settings_dir (str, optional): The location of `file_name`. If not specified, defaults to $cwd/.dlt
-            global_dir (bool, optional): Looks for `file_name` in global_dir (defaults to `dlt` home directory which in most cases is $HOME/.dlt)
+            resolvable_dirs (List[str], optional): A list of directories to resolve the file from, files will be merged into each other in the order the directories are specified. If not specified, defaults to [$cwd/.dlt, $HOME/.dlt]
 
         Raises:
             TomlProviderReadException: File could not be read, most probably `toml` parsing error
@@ -73,12 +71,11 @@ class SettingsTomlProvider(CustomLoaderDocProvider):
         # set supports_secrets early, we need this flag to read config
         self._supports_secrets = supports_secrets
         # read toml file from local or from various environments
-
-        self._toml_path = os.path.join(settings_dir, file_name)
-        self._global_dir = os.path.join(global_dir, file_name) if global_dir else None
-        self._config_toml = self._read_toml_files(
-            name, file_name, self._toml_path, self._global_dir
+        self._toml_paths = self._resolve_toml_paths(
+            file_name, [d for d in resolvable_dirs if d is not None]
         )
+
+        self._config_toml = self._read_toml_files(name, file_name, self._toml_paths)
 
         super().__init__(
             name,
@@ -86,9 +83,16 @@ class SettingsTomlProvider(CustomLoaderDocProvider):
             supports_secrets,
         )
 
+    def _resolve_toml_paths(self, file_name: str, resolvable_dirs: List[str]) -> List[str]:
+        return [os.path.join(d, file_name) for d in resolvable_dirs]
+
     def write_toml(self) -> None:
-        assert not self._global_dir, "Will not write configs when `global_dir` was set"
-        with open(self._toml_path, "w", encoding="utf-8") as f:
+        assert (
+            len(self._toml_paths) == 1
+        ), "Will not write configs when more than one toml path was resolved. Found paths: " + str(
+            self._toml_paths
+        )
+        with open(self._toml_paths[0], "w", encoding="utf-8") as f:
             tomlkit.dump(self._config_toml, f)
 
     def set_value(self, key: str, value: Any, pipeline_name: Optional[str], *sections: str) -> None:
@@ -179,36 +183,37 @@ class SettingsTomlProvider(CustomLoaderDocProvider):
             return None
 
     def _read_toml_files(
-        self, name: str, file_name: str, toml_path: str, global_path: str
+        self, name: str, file_name: str, toml_paths: List[str]
     ) -> tomlkit.TOMLDocument:
+        """Merge all toml files into one"""
+
         try:
-            if (project_toml := self._read_toml_file(toml_path)) is not None:
-                pass
-            elif (project_toml := self._read_google_colab_secrets(name, file_name)) is not None:
-                pass
-            elif (project_toml := self._read_streamlit_secrets(name, file_name)) is not None:
-                pass
-            else:
-                # empty doc
-                project_toml = tomlkit.document()
-            if global_path:
-                global_toml = self._read_toml_file(global_path)
-                if global_toml is not None:
-                    project_toml = update_dict_nested(global_toml, project_toml)
-            return project_toml
+            # merge all toml files into one
+            result_toml: Optional[tomlkit.TOMLDocument] = None
+            for path in toml_paths:
+                if (loaded_toml := self._read_toml_file(path)) is not None:
+                    if result_toml is None:
+                        result_toml = loaded_toml
+                    else:
+                        result_toml = update_dict_nested(loaded_toml, result_toml)
+
+            # if nothing was found, try to load from google colab or streamlit
+            if result_toml is None:
+                if (result_toml := self._read_google_colab_secrets(name, file_name)) is not None:
+                    pass
+                elif (result_toml := self._read_streamlit_secrets(name, file_name)) is not None:
+                    pass
+                else:
+                    result_toml = tomlkit.document()
+
+            return result_toml
         except Exception as ex:
-            raise TomlProviderReadException(name, file_name, toml_path, str(ex))
+            raise TomlProviderReadException(name, file_name, toml_paths, str(ex))
 
 
 class ConfigTomlProvider(SettingsTomlProvider):
     def __init__(self, settings_dir: str, global_dir: str = None) -> None:
-        super().__init__(
-            CONFIG_TOML,
-            False,
-            CONFIG_TOML,
-            settings_dir=settings_dir,
-            global_dir=global_dir,
-        )
+        super().__init__(CONFIG_TOML, False, CONFIG_TOML, [settings_dir, global_dir])
 
     @property
     def is_writable(self) -> bool:
@@ -217,13 +222,7 @@ class ConfigTomlProvider(SettingsTomlProvider):
 
 class SecretsTomlProvider(SettingsTomlProvider):
     def __init__(self, settings_dir: str, global_dir: str = None) -> None:
-        super().__init__(
-            SECRETS_TOML,
-            True,
-            SECRETS_TOML,
-            settings_dir=settings_dir,
-            global_dir=global_dir,
-        )
+        super().__init__(SECRETS_TOML, True, SECRETS_TOML, [settings_dir, global_dir])
 
     @property
     def is_writable(self) -> bool:
@@ -232,10 +231,10 @@ class SecretsTomlProvider(SettingsTomlProvider):
 
 class TomlProviderReadException(ConfigProviderException):
     def __init__(
-        self, provider_name: str, file_name: str, full_path: str, toml_exception: str
+        self, provider_name: str, file_name: str, full_paths: List[str], toml_exception: str
     ) -> None:
         self.file_name = file_name
-        self.full_path = full_path
-        msg = f"A problem encountered when loading {provider_name} from {full_path}:\n"
+        self.full_paths = full_paths
+        msg = f"A problem encountered when loading {provider_name} from paths {full_paths}:\n"
         msg += toml_exception
         super().__init__(provider_name, msg)
