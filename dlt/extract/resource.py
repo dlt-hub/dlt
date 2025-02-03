@@ -468,9 +468,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             if table_schema_template.get("validator") is not None:
                 self.validator = table_schema_template["validator"]
 
-    def compute_table_schema(
-        self, item: TDataItem = None, meta: Any = None, path: Tuple[str, ...] = None
-    ) -> TTableSchema:
+    def compute_table_schema(self, item: TDataItem = None, meta: Any = None) -> TTableSchema:
         incremental: Optional[Union[Incremental[Any], IncrementalResourceWrapper]] = (
             self.incremental
         )
