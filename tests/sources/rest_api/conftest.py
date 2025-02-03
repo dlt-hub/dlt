@@ -59,7 +59,9 @@ def paginate_by_page_number(
     }
 
     if paginator.next_page_url_params:
-        response["next_page"] = create_next_page_url(request, paginator, use_absolute_url)
+        response["next_page"] = create_next_page_url(
+            request, paginator, use_absolute_url
+        )
 
     return response
 
@@ -96,7 +98,9 @@ def mock_api_server():
 
         @router.get(r"/posts_relative_next_url(\?page=\d+)?$")
         def posts_relative_next_url(request, context):
-            return paginate_by_page_number(request, generate_posts(), use_absolute_url=False)
+            return paginate_by_page_number(
+                request, generate_posts(), use_absolute_url=False
+            )
 
         @router.get(r"/posts_offset_limit(\?offset=\d+&limit=\d+)?$")
         def posts_offset_limit(request, context):
@@ -130,6 +134,24 @@ def mock_api_server():
         def post_detail(request, context):
             post_id = request.url.split("/")[-1]
             return {"id": int(post_id), "body": f"Post body {post_id}"}
+
+        @router.get(r"/posts_via_header$")
+        def post_detail_from_header(request, context):
+            post_id = request.headers.get("post_id")
+            if not post_id:
+                # You can return an error or handle it however you like
+                context.status_code = 400
+                context.reason("Missing 'post_id' header")
+                return {"error": "Missing 'post_id' header"}
+
+            try:
+                post_id_int = int(post_id)
+            except ValueError:
+                context.status_code = 400
+                context.reason = "Invalid 'post_id' value"
+                return {"error": "Invalid 'post_id' value"}
+
+            return {"id": post_id_int, "body": f"Post body {post_id_int}"}
 
         @router.get(r"/posts\?post_id=\d+$")
         def post_detail_via_query_param(request, context):
@@ -172,7 +194,9 @@ def mock_api_server():
 
         @router.get(r"/posts_under_a_different_key$")
         def posts_with_results_key(request, context):
-            return paginate_by_page_number(request, generate_posts(), records_key="many-results")
+            return paginate_by_page_number(
+                request, generate_posts(), records_key="many-results"
+            )
 
         @router.post(r"/posts/search_by_id/\d+$")
         def search_posts_by_id(request, context):
@@ -305,9 +329,12 @@ def oauth_authorize(request):
         )
 
 
-def assert_pagination(pages, page_size=DEFAULT_PAGE_SIZE, total_pages=DEFAULT_TOTAL_PAGES):
+def assert_pagination(
+    pages, page_size=DEFAULT_PAGE_SIZE, total_pages=DEFAULT_TOTAL_PAGES
+):
     assert len(pages) == total_pages
     for i, page in enumerate(pages):
         assert page == [
-            {"id": i, "title": f"Post {i}"} for i in range(i * page_size, (i + 1) * page_size)
+            {"id": i, "title": f"Post {i}"}
+            for i in range(i * page_size, (i + 1) * page_size)
         ]

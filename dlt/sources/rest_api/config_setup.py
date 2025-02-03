@@ -141,7 +141,9 @@ def create_paginator(
         paginator_type = paginator_config.get("type", "auto")
         paginator_class = get_paginator_class(paginator_type)
         return (
-            paginator_class(**exclude_keys(paginator_config, {"type"})) if paginator_class else None
+            paginator_class(**exclude_keys(paginator_config, {"type"}))
+            if paginator_class
+            else None
         )
 
     return None
@@ -196,7 +198,9 @@ def create_auth(auth_config: Optional[AuthConfig]) -> Optional[AuthConfigBase]:
 def setup_incremental_object(
     request_params: Dict[str, Any],
     incremental_config: Optional[IncrementalConfig] = None,
-) -> Tuple[Optional[Incremental[Any]], Optional[IncrementalParam], Optional[Callable[..., Any]]]:
+) -> Tuple[
+    Optional[Incremental[Any]], Optional[IncrementalParam], Optional[Callable[..., Any]]
+]:
     incremental_params: List[str] = []
     for param_name, param_config in request_params.items():
         if (
@@ -311,7 +315,9 @@ def build_resource_dependency_graph(
         named_resources = {rp.resolve_config["resource"] for rp in resolved_params}
 
         if len(named_resources) > 1:
-            raise ValueError(f"Multiple parent resources for {resource_name}: {resolved_params}")
+            raise ValueError(
+                f"Multiple parent resources for {resource_name}: {resolved_params}"
+            )
         elif len(named_resources) == 1:
             # validate the first parameter (note the resource is the same for all params)
             first_param = resolved_params[0]
@@ -351,9 +357,9 @@ def expand_and_index_resources(
         _bind_path_params(endpoint_resource)
 
         resource_name = endpoint_resource["name"]
-        assert isinstance(
-            resource_name, str
-        ), f"Resource name must be a string, got {type(resource_name)}"
+        assert isinstance(resource_name, str), (
+            f"Resource name must be a string, got {type(resource_name)}"
+        )
 
         if resource_name in endpoint_resource_map:
             raise ValueError(f"Resource {resource_name} has already been defined")
@@ -416,7 +422,11 @@ def _bind_path_params(resource: EndpointResource) -> None:
     path = resource["endpoint"]["path"]
 
     for name in _extract_expressions(path):
-        if name not in params and name not in path_params and name not in resolve_params:
+        if (
+            name not in params
+            and name not in path_params
+            and name not in resolve_params
+        ):
             raise ValueError(
                 f"The path {path} defined in resource {resource['name']} requires param with"
                 f" name {name} but it is not found in {params}"
@@ -480,16 +490,27 @@ def _find_resolved_params(endpoint_config: Endpoint) -> List[ResolvedParam]:
         else []
     )
 
-    resolved_params += _expressions_to_resolved_params(
-        path_expressions
-    ) + _expressions_to_resolved_params(json_expressions)
+    headers_expressions = (
+        _extract_expressions(endpoint_config["headers"], "resources.")
+        if endpoint_config.get("headers")
+        else []
+    )
+
+    resolved_params += (
+        _expressions_to_resolved_params(path_expressions)
+        + _expressions_to_resolved_params(json_expressions)
+        + _expressions_to_resolved_params(headers_expressions)
+    )
 
     return resolved_params
 
 
 def _action_type_unless_custom_hook(
     action_type: Optional[str], custom_hook: Optional[List[Callable[..., Any]]]
-) -> Union[Tuple[str, Optional[List[Callable[..., Any]]]], Tuple[None, List[Callable[..., Any]]],]:
+) -> Union[
+    Tuple[str, Optional[List[Callable[..., Any]]]],
+    Tuple[None, List[Callable[..., Any]]],
+]:
     if custom_hook:
         return (None, custom_hook)
     return (action_type, None)
@@ -686,14 +707,25 @@ def _bound_json_parameters(
     return json.loads(bound_json), json_params
 
 
+def _bound_headers_parameters(
+    request_headers: Dict[str, Any],
+    param_values: Dict[str, Any],
+) -> Tuple[Dict[str, Any], List[str]]:
+    headers_params = _extract_expressions(request_headers)
+    bound_json = _replace_expression(json.dumps(request_headers), param_values)
+
+    return json.loads(bound_json), headers_params
+
+
 def process_parent_data_item(
     path: str,
     item: Dict[str, Any],
     # params: Dict[str, Any],,
     resolved_params: List[ResolvedParam],
     include_from_parent: List[str],
+    request_headers: Optional[Dict[str, Any]] = None,
     request_json: Optional[Dict[str, Any]] = None,
-) -> Tuple[str, Dict[str, Any], Dict[str, Any], Dict[str, Any]]:
+) -> Tuple[str, Dict[str, Any], Dict[str, Any], Dict[str, Any], Dict[str, Any]]:
     parent_resource_name = resolved_params[0].resolve_config["resource"]
 
     params_values = {}
@@ -717,6 +749,12 @@ def process_parent_data_item(
     if request_json:
         request_json, json_params = _bound_json_parameters(request_json, params_values)
 
+    headers_params: List[str] = []
+    if request_headers:
+        request_headers, headers_params = _bound_headers_parameters(
+            request_headers, params_values
+        )
+
     parent_record: Dict[str, Any] = {}
     if include_from_parent:
         for parent_key in include_from_parent:
@@ -731,13 +769,15 @@ def process_parent_data_item(
 
     # the params not present in the params already bound,
     # will be returned and used as query params
+    excluded_params = set(path_params) | set(json_params) | set(headers_params)
+
     params_values = {
         param_name: param_value
         for param_name, param_value in params_values.items()
-        if param_name not in path_params and param_name not in json_params
+        if param_name not in excluded_params
     }
 
-    return bound_path, parent_record, params_values, request_json
+    return bound_path, parent_record, params_values, request_json, request_headers
 
 
 def _merge_resource_endpoints(
@@ -768,14 +808,20 @@ def _merge_resource_endpoints(
             **config_endpoint["params"],
         }
     # merge columns
-    if (default_columns := default_config.get("columns")) and (columns := config.get("columns")):
+    if (default_columns := default_config.get("columns")) and (
+        columns := config.get("columns")
+    ):
         # merge only native dlt formats, skip pydantic and others
-        if isinstance(columns, (list, dict)) and isinstance(default_columns, (list, dict)):
+        if isinstance(columns, (list, dict)) and isinstance(
+            default_columns, (list, dict)
+        ):
             # normalize columns
             columns = ensure_table_schema_columns(columns)
             default_columns = ensure_table_schema_columns(default_columns)
             # merge columns with deep merging hints
-            config["columns"] = merge_columns(copy(default_columns), columns, merge_columns=True)
+            config["columns"] = merge_columns(
+                copy(default_columns), columns, merge_columns=True
+            )
 
     # no need to deep merge resources
     merged_resource: EndpointResource = {
