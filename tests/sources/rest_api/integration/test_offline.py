@@ -180,7 +180,7 @@ def test_load_mock_api(mock_api_server):
                         "type": "incremental",
                         "cursor_path": "id",
                         "initial_value": 1,
-                    }
+                    },
                 },
             },
             {"since": ["1"], "sort": ["desc"]},
@@ -188,7 +188,9 @@ def test_load_mock_api(mock_api_server):
         ),
     ],
 )
-def test_single_resource_query_string_params(mock_api_server, endpoint_params, expected_static_params):
+def test_single_resource_query_string_params(
+    mock_api_server, endpoint_params, expected_static_params
+):
     page_counter = 1
 
     def response_hook(response):
@@ -268,7 +270,12 @@ def test_single_resource_query_string_params(mock_api_server, endpoint_params, e
         pytest.param(
             {
                 "path": "posts/{post_id}/comments",
-                "params": {"post_id": {"type": "resolve", "resource": "posts", "field": "id"}, "sort": "desc", "locale": "en", "page": "100"},
+                "params": {
+                    "post_id": {"type": "resolve", "resource": "posts", "field": "id"},
+                    "sort": "desc",
+                    "locale": "en",
+                    "page": "100",
+                },
             },
             {"sort": ["desc"], "locale": ["en"]},
             id="explicit_page_param",
@@ -293,7 +300,11 @@ def test_single_resource_query_string_params(mock_api_server, endpoint_params, e
         pytest.param(
             {
                 "path": "posts/{post_id}/comments",
-                "params": {"post_id": {"type": "resolve", "resource": "posts", "field": "id"}, "sort": "desc", "locale": "en"},
+                "params": {
+                    "post_id": {"type": "resolve", "resource": "posts", "field": "id"},
+                    "sort": "desc",
+                    "locale": "en",
+                },
                 "incremental": {
                     "start_param": "since",
                     "end_param": "until",
@@ -315,7 +326,7 @@ def test_single_resource_query_string_params(mock_api_server, endpoint_params, e
                         "type": "incremental",
                         "cursor_path": "id",
                         "initial_value": 1,
-                    }
+                    },
                 },
             },
             {"since": ["1"]},
