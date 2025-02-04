@@ -674,34 +674,17 @@ def _expressions_to_resolved_params(expressions: List[str]) -> List[ResolvedPara
     return resolved_params
 
 
-def _bound_path_parameters(
-    path: str,
+def _bound_parameters(
+    template: Union[str, Dict[str, Any]],
     param_values: Dict[str, Any],
-) -> Tuple[str, List[str]]:
-    path_params = _extract_expressions(path)
-    bound_path = _replace_expression(path, param_values)
+) -> Tuple[Any, List[str],]:
+    extracted_params = _extract_expressions(template)
+    if isinstance(template, str):
+        bound_template = _replace_expression(template, param_values)
+    else:
+        bound_template = json.loads(_replace_expression(json.dumps(template), param_values))
 
-    return bound_path, path_params
-
-
-def _bound_json_parameters(
-    request_json: Dict[str, Any],
-    param_values: Dict[str, Any],
-) -> Tuple[Dict[str, Any], List[str]]:
-    json_params = _extract_expressions(request_json)
-    bound_json = _replace_expression(json.dumps(request_json), param_values)
-
-    return json.loads(bound_json), json_params
-
-
-def _bound_headers_parameters(
-    request_headers: Dict[str, Any],
-    param_values: Dict[str, Any],
-) -> Tuple[Dict[str, Any], List[str]]:
-    headers_params = _extract_expressions(request_headers)
-    bound_json = _replace_expression(json.dumps(request_headers), param_values)
-
-    return json.loads(bound_json), headers_params
+    return bound_template, extracted_params
 
 
 def process_parent_data_item(
@@ -730,15 +713,15 @@ def process_parent_data_item(
 
         params_values[resolved_param.param_name] = field_values[0]
 
-    bound_path, path_params = _bound_path_parameters(path, params_values)
+    bound_path, path_params = _bound_parameters(path, params_values)
 
     json_params: List[str] = []
     if request_json:
-        request_json, json_params = _bound_json_parameters(request_json, params_values)
+        request_json, json_params = _bound_parameters(request_json, params_values)
 
     headers_params: List[str] = []
     if request_headers:
-        request_headers, headers_params = _bound_headers_parameters(request_headers, params_values)
+        request_headers, headers_params = _bound_parameters(request_headers, params_values)
 
     parent_record: Dict[str, Any] = {}
     if include_from_parent:
