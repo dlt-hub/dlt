@@ -44,7 +44,7 @@ def test_mssql_factory() -> None:
 def test_mssql_credentials_defaults() -> None:
     creds = MsSqlCredentials()
     assert creds.port == 1433
-    assert creds.connect_timeout == 15
+    assert creds.connect_timeout == 30
     assert MsSqlCredentials.__config_gen_annotations__ == ["port", "connect_timeout"]
     # port should be optional
     resolve_configuration(creds, explicit_value="mssql://loader:loader@localhost/dlt_data")
