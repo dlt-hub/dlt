@@ -72,9 +72,13 @@ def mock_api_server():
         def posts_no_key(request, context):
             return paginate_by_page_number(request, generate_posts(), records_key=None)
 
-        @router.get(r"/posts(\?page=\d+)?$")
+        @router.get(r"/posts(\?.*)?$")
         def posts(request, context):
-            return paginate_by_page_number(request, generate_posts())
+            response = paginate_by_page_number(request, generate_posts())
+
+            if request.qs:
+                response["query_string_params"] = request.qs
+            return response
 
         @router.get(r"/posts_zero_based(\?page=\d+)?$")
         def posts_zero_based(request, context):
@@ -121,10 +125,15 @@ def mock_api_server():
                 **paginator.metadata,
             }
 
-        @router.get(r"/posts/(\d+)/comments")
+        @router.get(r"/posts/(\d+)/comments(\?.*)?$")
         def post_comments(request, context):
             post_id = int(request.url.split("/")[-2])
-            return paginate_by_page_number(request, generate_comments(post_id))
+            response = paginate_by_page_number(request, generate_comments(post_id))
+
+            if request.qs:
+                response["query_string_params"] = request.qs
+
+            return response
 
         @router.get(r"/posts/\d+$")
         def post_detail(request, context):

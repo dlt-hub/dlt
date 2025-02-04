@@ -100,6 +100,81 @@ def test_load_mock_api(mock_api_server):
     )
 
 
+def test_single_resource_query_string_params(mock_api_server):
+    page_counter = 1
+
+    def response_hook(response):
+        nonlocal page_counter
+        query_string_params = response.json().get("query_string_params")
+        assert query_string_params == {
+            "sort": ["desc"],
+            "locale": ["en"],
+            "page": [str(page_counter)],
+        }
+        page_counter += 1
+
+    mock_source = rest_api_source(
+        {
+            "client": {"base_url": "https://api.example.com"},
+            "resources": [
+                {
+                    "name": "posts",
+                    "endpoint": {
+                        "path": "posts",
+                        "params": {"sort": "desc", "locale": "en"},
+                        "paginator": {
+                            "type": "page_number",
+                            "base_page": 1,
+                            "total_path": "total_pages",
+                        },
+                        "response_actions": [response_hook],
+                    },
+                }
+            ],
+        }
+    )
+
+    list(mock_source.with_resources("posts"))
+    assert page_counter == 6
+
+
+def test_dependent_resource_query_string_params(mock_api_server):
+    def response_hook(response):
+        query_string_params = response.json().get("query_string_params")
+        assert len(query_string_params) == 3
+        assert query_string_params["sort"] == ["desc"]
+        assert query_string_params["locale"] == ["en"]
+        assert 1 <= int(query_string_params["page"][0]) <= 10
+
+    mock_source = rest_api_source(
+        {
+            "client": {"base_url": "https://api.example.com"},
+            "resources": [
+                "posts",
+                {
+                    "name": "post_comments",
+                    "endpoint": {
+                        "path": "posts/{post_id}/comments",
+                        "params": {
+                            "post_id": {"type": "resolve", "resource": "posts", "field": "id"},
+                            "sort": "desc",
+                            "locale": "en",
+                        },
+                        "paginator": {
+                            "type": "page_number",
+                            "base_page": 1,
+                            "total_path": "total_pages",
+                        },
+                        "response_actions": [response_hook],
+                    },
+                },
+            ],
+        }
+    )
+
+    list(mock_source.with_resources("posts", "post_comments").add_limit(1))
+
+
 def test_source_with_post_request(mock_api_server):
     class JSONBodyPageCursorPaginator(BaseReferencePaginator):
         def update_state(self, response: Response, data: Optional[List[Any]] = None) -> None:
@@ -244,7 +319,6 @@ def test_load_mock_api_typeddict_config(mock_api_server):
     )
 
     load_info = pipeline.run(mock_source)
-    print(load_info)
     assert_load_info(load_info)
     table_names = [t["name"] for t in pipeline.default_schema.data_tables()]
     table_counts = load_table_counts(pipeline, *table_names)
