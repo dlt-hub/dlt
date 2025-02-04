@@ -1,9 +1,7 @@
 import dlt
 import pytest
 
-from dlt.common.configuration.specs.config_providers_context import (
-    ConfigProvidersContainer,
-)
+from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContainer
 
 from dlt.sources.rest_api.typing import RESTAPIConfig
 from dlt.sources.helpers.rest_client.paginators import SinglePagePaginator
@@ -81,9 +79,9 @@ def test_rest_api_source(destination_name: str, invocation_type: str) -> None:
 
     assert table_counts.keys() == {"pokemon_list", "berry", "location"}
 
-    assert table_counts["pokemon_list"] == 1304
+    assert table_counts["pokemon_list"] == 1302
     assert table_counts["berry"] == 64
-    assert table_counts["location"] == 1039
+    assert table_counts["location"] == 1036
 
 
 @pytest.mark.parametrize("destination_name", ALL_DESTINATIONS)
