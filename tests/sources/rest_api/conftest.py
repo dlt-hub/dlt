@@ -154,6 +154,16 @@ def mock_api_server():
             post_id = int(request.qs.get("post_id", [0])[0])
             return {"id": int(post_id), "body": f"Post body {post_id}"}
 
+        @router.get(r"/posts\?category_id=\d+&post_id=\d+$")
+        def post_detail_with_category_via_query_param(request, context):
+            post_id = int(request.qs.get("post_id", [0])[0])
+            category_id = int(request.qs.get("category_id", [0])[0])
+            return {
+                "id": int(post_id),
+                "body": f"Post body {post_id}",
+                "category": f"Category {category_id}",
+            }
+
         @router.get(r"/posts/\d+/some_details_404")
         def post_detail_404(request, context):
             """Return 404 for post with id > 0. Used to test ignoring 404 errors."""

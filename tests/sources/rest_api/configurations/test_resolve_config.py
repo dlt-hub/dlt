@@ -90,6 +90,7 @@ def test_process_parent_data_item() -> None:
         process_parent_data_item(
             path="dlt-hub/dlt/issues/{id}/comments",
             item={"obj_id": 12345},
+            params={},
             resolved_params=resolve_params,
             include_from_parent=None,
         )
@@ -101,6 +102,7 @@ def test_process_parent_data_item() -> None:
         process_parent_data_item(
             path="dlt-hub/dlt/issues/{id}/comments",
             item={"obj_id": 12345},
+            params={},
             resolved_params=resolve_params,
             include_from_parent=["obj_id"],
         )
@@ -111,6 +113,7 @@ def test_process_parent_data_item() -> None:
         process_parent_data_item(
             path="dlt-hub/dlt/issues/{id}/comments",
             item={"obj_id": 12345, "obj_node": "node_1"},
+            params={},
             resolved_params=resolve_params,
             include_from_parent=["obj_id", "obj_node"],
         )
@@ -129,6 +132,7 @@ def test_process_parent_data_item() -> None:
         process_parent_data_item(
             path="dlt-hub/dlt/issues/{id}/comments",
             item=item,
+            params={},
             resolved_params=resolve_param_nested,
             include_from_parent=None,
         )
@@ -141,6 +145,7 @@ def test_process_parent_data_item() -> None:
             process_parent_data_item(
                 path="dlt-hub/dlt/issues/{id}/comments",
                 item={"_id": 12345},
+                params={},
                 resolved_params=resolve_params,
                 include_from_parent=None,
             )
@@ -153,6 +158,7 @@ def test_process_parent_data_item() -> None:
             process_parent_data_item(
                 path="dlt-hub/dlt/issues/{id}/comments",
                 item={"_id": 12345, "obj_node": "node_1"},
+                params={},
                 resolved_params=resolve_params,
                 include_from_parent=["obj_id", "node"],
             )
@@ -173,6 +179,7 @@ def test_process_parent_data_item() -> None:
         process_parent_data_item(
             path="dlt-hub/dlt/issues/{issue_id}/comments/{id}",
             item={"issue": 12345, "id": 56789},
+            params={},
             resolved_params=multi_resolve_params,
             include_from_parent=None,
         )
@@ -186,6 +193,7 @@ def test_process_parent_data_item() -> None:
             process_parent_data_item(
                 path="dlt-hub/dlt/issues/{issue_id}/comments/{id}",
                 item={"_issue": 12345, "id": 56789},
+                params={},
                 resolved_params=multi_resolve_params,
                 include_from_parent=None,
             )

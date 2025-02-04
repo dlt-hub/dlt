@@ -408,38 +408,44 @@ def _bind_path_params(resource: EndpointResource) -> None:
     bound params but. Params of type `resolve` and `incremental` are skipped
     and bound later.
     """
-    path_params: Dict[str, Any] = {}
+
     assert isinstance(resource["endpoint"], dict)  # type guard
     resolve_params = [r.param_name for r in _find_resolved_params(resource["endpoint"])]
 
     params = resource["endpoint"].get("params", {})
+
     path = resource["endpoint"]["path"]
+    path_expressions = _extract_expressions(path)
+    bound_path = resource["endpoint"]["path"]
 
-    for name in _extract_expressions(path):
-        if name not in params and name not in path_params and name not in resolve_params:
-            raise ValueError(
-                f"The path {path} defined in resource {resource['name']} requires param with"
-                f" name {name} but it is not found in {params}"
+    simple_params = {
+        param_name: param_value
+        for param_name, param_value in params.items()
+        if not isinstance(param_value, dict)
+    }
+
+    # if simple parameters are part of of the path they will
+    # - replace the placeholders
+    # - be removed from the the endpoint params
+    # Otherwise they will stay in params and passed as query params
+    for expression in simple_params:
+        if expression in path_expressions:
+            # str.format requires all the placeholders to be populated at ones
+            bound_path = bound_path.replace(
+                f"{{{expression}}}",
+                str(params[expression]),
             )
-        if name in resolve_params:
-            resolve_params.remove(name)
-        if name in params:
-            if not isinstance(params[name], dict):
-                # bind resolved param and pop it from endpoint
-                path_params[name] = params.pop(name)
-            else:
-                param_type = params[name].get("type")
-                if param_type != "resolve":
-                    raise ValueError(
-                        f"The path {path} defined in resource {resource['name']} tries to bind"
-                        f" param {name} with type {param_type}. Paths can only bind 'resolve'"
-                        " type params."
-                    )
-                # resolved params are bound later
-                path_params[name] = "{" + name + "}"
+            resource["endpoint"]["params"].pop(expression)
+            path_expressions.remove(expression)
 
-    # resource["endpoint"]["path"] = path.format(**path_params)
-    resource["endpoint"]["path"] = _replace_expression(path, path_params)
+    # At this point, path expressions should only contain resolve params
+    if [expression for expression in path_expressions if expression not in resolve_params]:
+        raise ValueError(
+            f"The path {path} defined in resource {resource['name']} requires params with"
+            f" names {simple_params} but it is not found in {params}"
+        )
+
+    resource["endpoint"]["path"] = bound_path
 
 
 def _setup_single_entity_endpoint(endpoint: Endpoint) -> Endpoint:
@@ -690,7 +696,7 @@ def _bound_parameters(
 def process_parent_data_item(
     path: str,
     item: Dict[str, Any],
-    # params: Dict[str, Any],,
+    params: Dict[str, Any],
     resolved_params: List[ResolvedParam],
     include_from_parent: List[str],
     request_headers: Optional[Dict[str, Any]] = None,
@@ -698,7 +704,7 @@ def process_parent_data_item(
 ) -> Tuple[str, Dict[str, Any], Dict[str, Any], Dict[str, Any], Dict[str, Any]]:
     parent_resource_name = resolved_params[0].resolve_config["resource"]
 
-    params_values = {}
+    params_values = params
     for resolved_param in resolved_params:
         field_values = jsonpath.find_values(resolved_param.field_path, item)
 

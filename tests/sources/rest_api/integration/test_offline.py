@@ -123,7 +123,8 @@ def test_load_mock_api_with_query_params(mock_api_server):
                                 "type": "resolve",
                                 "resource": "posts",
                                 "field": "id",
-                            }
+                            },
+                            "category_id": 2,
                         },
                     },
                 },
@@ -158,6 +159,12 @@ def test_load_mock_api_with_query_params(mock_api_server):
         pipeline,
         f"SELECT body FROM {posts_details_table} ORDER BY id limit 25",
         [f"Post body {i}" for i in range(25)],
+    )
+
+    assert_query_data(
+        pipeline,
+        f"SELECT category FROM {posts_details_table} ORDER BY id limit 25",
+        ["Category 2" for i in range(25)],
     )
 
 

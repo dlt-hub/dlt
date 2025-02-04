@@ -389,7 +389,7 @@ def create_resources(
                     ) = process_parent_data_item(
                         path=path,
                         item=item,
-                        # params=params,
+                        params=params,
                         request_headers=request_headers,
                         request_json=request_json,
                         resolved_params=resolved_params,
