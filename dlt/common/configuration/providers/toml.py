@@ -63,7 +63,7 @@ class SettingsTomlProvider(CustomLoaderDocProvider):
             name(str): name of the provider when registering in context
             supports_secrets(bool): allows to store secret values in this provider
             file_name (str): The name of `toml` file to load
-            resolvable_dirs (List[str], optional): A list of directories to resolve the file from, files will be merged into each other in the order the directories are specified. If not specified, defaults to [$cwd/.dlt, $HOME/.dlt]
+            resolvable_dirs (List[str]): A list of directories to resolve the file from, files will be merged into each other in the order the directories are specified. Provider is writeable if only one dir specified.
 
         Raises:
             TomlProviderReadException: File could not be read, most probably `toml` parsing error
