@@ -83,9 +83,7 @@ def test_bind_path_param() -> None:
 
 def test_process_parent_data_item() -> None:
     resolve_params = [
-        ResolvedParam(
-            "id", {"field": "obj_id", "resource": "issues", "type": "resolve"}
-        )
+        ResolvedParam("id", {"field": "obj_id", "resource": "issues", "type": "resolve"})
     ]
 
     bound_path, parent_record, params_values, request_json, request_headers = (
@@ -161,14 +159,13 @@ def test_process_parent_data_item() -> None:
         )
     assert (
         "Transformer expects a field 'obj_id' to be present in the incoming data from resource"
-        " issues in order to bind it to" in str(val_ex.value)
+        " issues in order to bind it to"
+        in str(val_ex.value)
     )
 
     # Resolve multiple parameters from a single record
     multi_resolve_params = [
-        ResolvedParam(
-            "issue_id", {"field": "issue", "resource": "comments", "type": "resolve"}
-        ),
+        ResolvedParam("issue_id", {"field": "issue", "resource": "comments", "type": "resolve"}),
         ResolvedParam("id", {"field": "id", "resource": "comments", "type": "resolve"}),
     ]
 

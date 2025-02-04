@@ -142,9 +142,7 @@ class RESTClient:
         send_kwargs.update(**kwargs)  #  type: ignore[call-arg]
         return self.session.send(prepared_request, **send_kwargs)
 
-    def request(
-        self, path: str = "", method: HTTPMethod = "GET", **kwargs: Any
-    ) -> Response:
+    def request(self, path: str = "", method: HTTPMethod = "GET", **kwargs: Any) -> Response:
         prepared_request = self._create_request(
             path_or_url=path,
             method=method,
@@ -155,14 +153,10 @@ class RESTClient:
         )
         return self._send_request(prepared_request, **kwargs)
 
-    def get(
-        self, path: str, params: Optional[Dict[str, Any]] = None, **kwargs: Any
-    ) -> Response:
+    def get(self, path: str, params: Optional[Dict[str, Any]] = None, **kwargs: Any) -> Response:
         return self.request(path, method="GET", params=params, **kwargs)
 
-    def post(
-        self, path: str, json: Optional[Dict[str, Any]] = None, **kwargs: Any
-    ) -> Response:
+    def post(self, path: str, json: Optional[Dict[str, Any]] = None, **kwargs: Any) -> Response:
         return self.request(path, method="POST", json=json, **kwargs)
 
     def paginate(
@@ -251,17 +245,13 @@ class RESTClient:
             paginator.update_request(request)
 
             # yield data with context
-            yield PageData(
-                data, request=request, response=response, paginator=paginator, auth=auth
-            )
+            yield PageData(data, request=request, response=response, paginator=paginator, auth=auth)
 
             if not paginator.has_next_page:
                 logger.info(f"Paginator {str(paginator)} does not have more pages")
                 break
 
-    def extract_response(
-        self, response: Response, data_selector: jsonpath.TJsonPath
-    ) -> List[Any]:
+    def extract_response(self, response: Response, data_selector: jsonpath.TJsonPath) -> List[Any]:
         # we should compile data_selector
         data: Any = jsonpath.find_values(data_selector, response.json())
         # extract if single item selected
@@ -293,9 +283,7 @@ class RESTClient:
                 f"Detected page data at path: '{data_selector}' type: list length: {len(data)}"
             )
         else:
-            logger.info(
-                f"Detected single page data at path: '{path}' type: {type(data).__name__}"
-            )
+            logger.info(f"Detected single page data at path: '{path}' type: {type(data).__name__}")
         return data_selector
 
     def detect_paginator(self, response: Response, data: Any) -> BasePaginator:
