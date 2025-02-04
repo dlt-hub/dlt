@@ -108,56 +108,36 @@ def test_load_mock_api(mock_api_server):
             {
                 "path": "posts",
                 "params": {"sort": "desc", "locale": "en"},
-                "paginator": {
-                    "type": "page_number",
-                    "base_page": 1,
-                    "total_path": "total_pages",
-                },
             },
             {"sort": ["desc"], "locale": ["en"]},
-            id="single_resource",
+            id="static_params",
         ),
-        # Empty params
+        # No static params
         pytest.param(
             {
                 "path": "posts",
                 "params": {},
-                "paginator": {
-                    "type": "page_number",
-                    "base_page": 1,
-                    "total_path": "total_pages",
-                },
             },
             {},
-            id="single_resource_empty_params",
+            id="empty_params",
         ),
         # One of the params is empty
         pytest.param(
             {
                 "path": "posts",
                 "params": {"sort": "desc", "locale": ""},
-                "paginator": {
-                    "type": "page_number",
-                    "base_page": 1,
-                    "total_path": "total_pages",
-                },
             },
             {"sort": ["desc"], "locale": [""]},
-            id="single_resource_one_empty_param",
+            id="one_empty_param",
         ),
         # Explicitly set page param gets ignored
         pytest.param(
             {
                 "path": "posts",
                 "params": {"sort": "desc", "locale": "en", "page": "100"},
-                "paginator": {
-                    "type": "page_number",
-                    "base_page": 1,
-                    "total_path": "total_pages",
-                },
             },
             {"sort": ["desc"], "locale": ["en"]},
-            id="single_resource_explicit_page_param",
+            id="explicit_page_param",
         ),
         # Incremental defined in endpoint
         pytest.param(
@@ -170,14 +150,9 @@ def test_load_mock_api(mock_api_server):
                     "initial_value": 1,
                     "end_value": 10,
                 },
-                "paginator": {
-                    "type": "page_number",
-                    "base_page": 1,
-                    "total_path": "total_pages",
-                },
             },
             {"since": ["1"], "until": ["10"]},
-            id="single_resource_incremental",
+            id="incremental_in_endpoint",
         ),
         # Incremental mixed with static params
         pytest.param(
@@ -193,7 +168,7 @@ def test_load_mock_api(mock_api_server):
                 },
             },
             {"sort": ["desc"], "locale": ["en"], "since": ["1"], "until": ["10"]},
-            id="single_resource_incremental_mixed",
+            id="incremental_in_endpoint_mixed_with_static",
         ),
         # Incremental defined in params
         pytest.param(
@@ -208,8 +183,8 @@ def test_load_mock_api(mock_api_server):
                     }
                 },
             },
-            {"since": ["1"]},
-            id="single_resource_incremental_params",
+            {"since": ["1"], "sort": ["desc"]},
+            id="incremental_in_params",
         ),
     ],
 )
@@ -225,7 +200,14 @@ def test_single_resource_query_string_params(mock_api_server, endpoint_params, e
 
     mock_source = rest_api_source(
         {
-            "client": {"base_url": "https://api.example.com"},
+            "client": {
+                "base_url": "https://api.example.com",
+                "paginator": {
+                    "type": "page_number",
+                    "base_page": 1,
+                    "total_path": "total_pages",
+                },
+            },
             "resources": [
                 {
                     "name": "posts",
@@ -242,33 +224,152 @@ def test_single_resource_query_string_params(mock_api_server, endpoint_params, e
     assert page_counter == 6
 
 
-def test_dependent_resource_query_string_params(mock_api_server):
+@pytest.mark.parametrize(
+    "endpoint_params,expected_static_params",
+    [
+        # Static params only
+        pytest.param(
+            {
+                "path": "posts/{post_id}/comments",
+                "params": {
+                    "post_id": {"type": "resolve", "resource": "posts", "field": "id"},
+                    "sort": "desc",
+                    "locale": "en",
+                },
+            },
+            {"sort": ["desc"], "locale": ["en"]},
+            id="static_params",
+        ),
+        # No static params
+        pytest.param(
+            {
+                "path": "posts/{post_id}/comments",
+                "params": {
+                    "post_id": {"type": "resolve", "resource": "posts", "field": "id"},
+                },
+            },
+            {},
+            id="empty_params",
+        ),
+        # One of the params is empty
+        pytest.param(
+            {
+                "path": "posts/{post_id}/comments",
+                "params": {
+                    "post_id": {"type": "resolve", "resource": "posts", "field": "id"},
+                    "sort": "desc",
+                    "locale": "",
+                },
+            },
+            {"sort": ["desc"], "locale": [""]},
+            id="one_empty_param",
+        ),
+        # Explicitly set page param gets ignored
+        pytest.param(
+            {
+                "path": "posts/{post_id}/comments",
+                "params": {"post_id": {"type": "resolve", "resource": "posts", "field": "id"}, "sort": "desc", "locale": "en", "page": "100"},
+            },
+            {"sort": ["desc"], "locale": ["en"]},
+            id="explicit_page_param",
+        ),
+        # Incremental defined in endpoint
+        pytest.param(
+            {
+                "path": "posts/{post_id}/comments",
+                "params": {"post_id": {"type": "resolve", "resource": "posts", "field": "id"}},
+                "incremental": {
+                    "start_param": "since",
+                    "end_param": "until",
+                    "cursor_path": "id",
+                    "initial_value": 1,
+                    "end_value": 10,
+                },
+            },
+            {"since": ["1"], "until": ["10"]},
+            id="incremental_in_endpoint",
+        ),
+        # Incremental mixed with static params
+        pytest.param(
+            {
+                "path": "posts/{post_id}/comments",
+                "params": {"post_id": {"type": "resolve", "resource": "posts", "field": "id"}, "sort": "desc", "locale": "en"},
+                "incremental": {
+                    "start_param": "since",
+                    "end_param": "until",
+                    "cursor_path": "id",
+                    "initial_value": 1,
+                    "end_value": 10,
+                },
+            },
+            {"sort": ["desc"], "locale": ["en"], "since": ["1"], "until": ["10"]},
+            id="incremental_in_endpoint_mixed_with_static",
+        ),
+        # Incremental defined in params
+        pytest.param(
+            {
+                "path": "posts/{post_id}/comments",
+                "params": {
+                    "post_id": {"type": "resolve", "resource": "posts", "field": "id"},
+                    "since": {
+                        "type": "incremental",
+                        "cursor_path": "id",
+                        "initial_value": 1,
+                    }
+                },
+            },
+            {"since": ["1"]},
+            id="incremental_in_params",
+        ),
+        # Incremental defined in params with static params
+        pytest.param(
+            {
+                "path": "posts/{post_id}/comments",
+                "params": {
+                    "post_id": {"type": "resolve", "resource": "posts", "field": "id"},
+                    "since": {
+                        "type": "incremental",
+                        "cursor_path": "id",
+                        "initial_value": 1,
+                    },
+                    "sort": "desc",
+                    "locale": "en",
+                },
+            },
+            {"since": ["1"], "sort": ["desc"], "locale": ["en"]},
+            id="incremental_in_params_with_static",
+        ),
+    ],
+)
+def test_dependent_resource_query_string_params(
+    mock_api_server, endpoint_params, expected_static_params
+):
     def response_hook(response):
         query_string_params = response.json().get("query_string_params")
-        assert len(query_string_params) == 3
-        assert query_string_params["sort"] == ["desc"]
-        assert query_string_params["locale"] == ["en"]
+        expected_keys = set(expected_static_params.keys()) | {"page"}
+        assert set(query_string_params.keys()) == expected_keys
+
+        for param_key, param_values in expected_static_params.items():
+            assert query_string_params[param_key] == param_values
+
         assert 1 <= int(query_string_params["page"][0]) <= 10
 
     mock_source = rest_api_source(
         {
-            "client": {"base_url": "https://api.example.com"},
+            "client": {
+                "base_url": "https://api.example.com",
+                "paginator": {
+                    "type": "page_number",
+                    "base_page": 1,
+                    "total_path": "total_pages",
+                },
+            },
             "resources": [
                 "posts",
                 {
                     "name": "post_comments",
                     "endpoint": {
-                        "path": "posts/{post_id}/comments",
-                        "params": {
-                            "post_id": {"type": "resolve", "resource": "posts", "field": "id"},
-                            "sort": "desc",
-                            "locale": "en",
-                        },
-                        "paginator": {
-                            "type": "page_number",
-                            "base_page": 1,
-                            "total_path": "total_pages",
-                        },
+                        **endpoint_params,
                         "response_actions": [response_hook],
                     },
                 },
