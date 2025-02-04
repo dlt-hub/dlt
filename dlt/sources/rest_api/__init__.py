@@ -250,6 +250,8 @@ def create_resources(
         endpoint_config = cast(Endpoint, endpoint_resource["endpoint"])
         request_params = endpoint_config.get("params", {})
         request_json = endpoint_config.get("json", None)
+        request_headers = endpoint_config.get("headers", None)
+
         paginator = create_paginator(endpoint_config.get("paginator"))
         processing_steps = endpoint_resource.pop("processing_steps", [])
 
@@ -296,6 +298,7 @@ def create_resources(
             def paginate_resource(
                 method: HTTPMethodBasic,
                 path: str,
+                headers: Dict[str, Any],
                 params: Dict[str, Any],
                 json: Optional[Dict[str, Any]],
                 paginator: Optional[BasePaginator],
@@ -319,6 +322,7 @@ def create_resources(
                 yield from client.paginate(
                     method=method,
                     path=path,
+                    headers=headers,
                     params=params,
                     json=json,
                     paginator=paginator,
@@ -332,6 +336,7 @@ def create_resources(
             )(
                 method=endpoint_config.get("method", "get"),
                 path=endpoint_config.get("path"),
+                headers=request_headers,
                 params=request_params,
                 json=request_json,
                 paginator=paginator,
@@ -351,6 +356,7 @@ def create_resources(
                 items: List[Dict[str, Any]],
                 method: HTTPMethodBasic,
                 path: str,
+                request_headers: Optional[Dict[str, Any]],
                 request_json: Optional[Dict[str, Any]],
                 params: Dict[str, Any],
                 paginator: Optional[BasePaginator],
@@ -374,20 +380,26 @@ def create_resources(
                     )
 
                 for item in items:
-                    formatted_path, parent_record, updated_params, updated_json = (
-                        process_parent_data_item(
-                            path=path,
-                            item=item,
-                            # params=params,
-                            request_json=request_json,
-                            resolved_params=resolved_params,
-                            include_from_parent=include_from_parent,
-                        )
+                    (
+                        formatted_path,
+                        parent_record,
+                        updated_params,
+                        updated_json,
+                        updated_headers,
+                    ) = process_parent_data_item(
+                        path=path,
+                        item=item,
+                        # params=params,
+                        request_headers=request_headers,
+                        request_json=request_json,
+                        resolved_params=resolved_params,
+                        include_from_parent=include_from_parent,
                     )
 
                     for child_page in client.paginate(
                         method=method,
                         path=formatted_path,
+                        headers=updated_headers,
                         params=updated_params,
                         json=updated_json,
                         paginator=paginator,
@@ -406,6 +418,7 @@ def create_resources(
             )(
                 method=endpoint_config.get("method", "get"),
                 path=endpoint_config.get("path"),
+                request_headers=request_headers,
                 params=base_params,
                 request_json=request_json,
                 paginator=paginator,

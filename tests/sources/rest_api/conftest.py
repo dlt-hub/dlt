@@ -131,6 +131,24 @@ def mock_api_server():
             post_id = request.url.split("/")[-1]
             return {"id": int(post_id), "body": f"Post body {post_id}"}
 
+        @router.get(r"/posts_via_header$")
+        def post_detail_from_header(request, context):
+            post_id = request.headers.get("post_id")
+            if not post_id:
+                # You can return an error or handle it however you like
+                context.status_code = 400
+                context.reason("Missing 'post_id' header")
+                return {"error": "Missing 'post_id' header"}
+
+            try:
+                post_id_int = int(post_id)
+            except ValueError:
+                context.status_code = 400
+                context.reason = "Invalid 'post_id' value"
+                return {"error": "Invalid 'post_id' value"}
+
+            return {"id": post_id_int, "body": f"Post body {post_id_int}"}
+
         @router.get(r"/posts\?post_id=\d+$")
         def post_detail_via_query_param(request, context):
             post_id = int(request.qs.get("post_id", [0])[0])

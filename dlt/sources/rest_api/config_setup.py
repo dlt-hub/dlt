@@ -480,9 +480,17 @@ def _find_resolved_params(endpoint_config: Endpoint) -> List[ResolvedParam]:
         else []
     )
 
-    resolved_params += _expressions_to_resolved_params(
-        path_expressions
-    ) + _expressions_to_resolved_params(json_expressions)
+    headers_expressions = (
+        _extract_expressions(endpoint_config["headers"], "resources.")
+        if endpoint_config.get("headers")
+        else []
+    )
+
+    resolved_params += (
+        _expressions_to_resolved_params(path_expressions)
+        + _expressions_to_resolved_params(json_expressions)
+        + _expressions_to_resolved_params(headers_expressions)
+    )
 
     return resolved_params
 
@@ -686,14 +694,25 @@ def _bound_json_parameters(
     return json.loads(bound_json), json_params
 
 
+def _bound_headers_parameters(
+    request_headers: Dict[str, Any],
+    param_values: Dict[str, Any],
+) -> Tuple[Dict[str, Any], List[str]]:
+    headers_params = _extract_expressions(request_headers)
+    bound_json = _replace_expression(json.dumps(request_headers), param_values)
+
+    return json.loads(bound_json), headers_params
+
+
 def process_parent_data_item(
     path: str,
     item: Dict[str, Any],
     # params: Dict[str, Any],,
     resolved_params: List[ResolvedParam],
     include_from_parent: List[str],
+    request_headers: Optional[Dict[str, Any]] = None,
     request_json: Optional[Dict[str, Any]] = None,
-) -> Tuple[str, Dict[str, Any], Dict[str, Any], Dict[str, Any]]:
+) -> Tuple[str, Dict[str, Any], Dict[str, Any], Dict[str, Any], Dict[str, Any]]:
     parent_resource_name = resolved_params[0].resolve_config["resource"]
 
     params_values = {}
@@ -717,6 +736,10 @@ def process_parent_data_item(
     if request_json:
         request_json, json_params = _bound_json_parameters(request_json, params_values)
 
+    headers_params: List[str] = []
+    if request_headers:
+        request_headers, headers_params = _bound_headers_parameters(request_headers, params_values)
+
     parent_record: Dict[str, Any] = {}
     if include_from_parent:
         for parent_key in include_from_parent:
@@ -731,13 +754,15 @@ def process_parent_data_item(
 
     # the params not present in the params already bound,
     # will be returned and used as query params
+    excluded_params = set(path_params) | set(json_params) | set(headers_params)
+
     params_values = {
         param_name: param_value
         for param_name, param_value in params_values.items()
-        if param_name not in path_params and param_name not in json_params
+        if param_name not in excluded_params
     }
 
-    return bound_path, parent_record, params_values, request_json
+    return bound_path, parent_record, params_values, request_json, request_headers
 
 
 def _merge_resource_endpoints(

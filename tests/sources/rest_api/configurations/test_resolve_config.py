@@ -86,28 +86,34 @@ def test_process_parent_data_item() -> None:
         ResolvedParam("id", {"field": "obj_id", "resource": "issues", "type": "resolve"})
     ]
 
-    bound_path, parent_record, params_values, request_json = process_parent_data_item(
-        path="dlt-hub/dlt/issues/{id}/comments",
-        item={"obj_id": 12345},
-        resolved_params=resolve_params,
-        include_from_parent=None,
+    bound_path, parent_record, params_values, request_json, request_headers = (
+        process_parent_data_item(
+            path="dlt-hub/dlt/issues/{id}/comments",
+            item={"obj_id": 12345},
+            resolved_params=resolve_params,
+            include_from_parent=None,
+        )
     )
     assert bound_path == "dlt-hub/dlt/issues/12345/comments"
     assert parent_record == {}
 
-    bound_path, parent_record, params_values, request_json = process_parent_data_item(
-        path="dlt-hub/dlt/issues/{id}/comments",
-        item={"obj_id": 12345},
-        resolved_params=resolve_params,
-        include_from_parent=["obj_id"],
+    bound_path, parent_record, params_values, request_json, request_headers = (
+        process_parent_data_item(
+            path="dlt-hub/dlt/issues/{id}/comments",
+            item={"obj_id": 12345},
+            resolved_params=resolve_params,
+            include_from_parent=["obj_id"],
+        )
     )
     assert parent_record == {"_issues_obj_id": 12345}
 
-    bound_path, parent_record, params_values, request_json = process_parent_data_item(
-        path="dlt-hub/dlt/issues/{id}/comments",
-        item={"obj_id": 12345, "obj_node": "node_1"},
-        resolved_params=resolve_params,
-        include_from_parent=["obj_id", "obj_node"],
+    bound_path, parent_record, params_values, request_json, request_headers = (
+        process_parent_data_item(
+            path="dlt-hub/dlt/issues/{id}/comments",
+            item={"obj_id": 12345, "obj_node": "node_1"},
+            resolved_params=resolve_params,
+            include_from_parent=["obj_id", "obj_node"],
+        )
     )
     assert parent_record == {"_issues_obj_id": 12345, "_issues_obj_node": "node_1"}
 
@@ -119,31 +125,37 @@ def test_process_parent_data_item() -> None:
         )
     ]
     item = {"some_results": {"obj_id": 12345}}
-    bound_path, parent_record, params_values, request_json = process_parent_data_item(
-        path="dlt-hub/dlt/issues/{id}/comments",
-        item=item,
-        resolved_params=resolve_param_nested,
-        include_from_parent=None,
+    bound_path, parent_record, params_values, request_json, request_headers = (
+        process_parent_data_item(
+            path="dlt-hub/dlt/issues/{id}/comments",
+            item=item,
+            resolved_params=resolve_param_nested,
+            include_from_parent=None,
+        )
     )
     assert bound_path == "dlt-hub/dlt/issues/12345/comments"
 
     # param path not found
     with pytest.raises(ValueError) as val_ex:
-        bound_path, parent_record, params_values, request_json = process_parent_data_item(
-            path="dlt-hub/dlt/issues/{id}/comments",
-            item={"_id": 12345},
-            resolved_params=resolve_params,
-            include_from_parent=None,
+        bound_path, parent_record, params_values, request_json, request_headers = (
+            process_parent_data_item(
+                path="dlt-hub/dlt/issues/{id}/comments",
+                item={"_id": 12345},
+                resolved_params=resolve_params,
+                include_from_parent=None,
+            )
         )
     assert "Transformer expects a field 'obj_id'" in str(val_ex.value)
 
     # included path not found
     with pytest.raises(ValueError) as val_ex:
-        bound_path, parent_record, params_values, request_json = process_parent_data_item(
-            path="dlt-hub/dlt/issues/{id}/comments",
-            item={"_id": 12345, "obj_node": "node_1"},
-            resolved_params=resolve_params,
-            include_from_parent=["obj_id", "node"],
+        bound_path, parent_record, params_values, request_json, request_headers = (
+            process_parent_data_item(
+                path="dlt-hub/dlt/issues/{id}/comments",
+                item={"_id": 12345, "obj_node": "node_1"},
+                resolved_params=resolve_params,
+                include_from_parent=["obj_id", "node"],
+            )
         )
     assert (
         "Transformer expects a field 'obj_id' to be present in the incoming data from resource"
@@ -157,22 +169,26 @@ def test_process_parent_data_item() -> None:
         ResolvedParam("id", {"field": "id", "resource": "comments", "type": "resolve"}),
     ]
 
-    bound_path, parent_record, params_values, request_json = process_parent_data_item(
-        path="dlt-hub/dlt/issues/{issue_id}/comments/{id}",
-        item={"issue": 12345, "id": 56789},
-        resolved_params=multi_resolve_params,
-        include_from_parent=None,
+    bound_path, parent_record, params_values, request_json, request_headers = (
+        process_parent_data_item(
+            path="dlt-hub/dlt/issues/{issue_id}/comments/{id}",
+            item={"issue": 12345, "id": 56789},
+            resolved_params=multi_resolve_params,
+            include_from_parent=None,
+        )
     )
     assert bound_path == "dlt-hub/dlt/issues/12345/comments/56789"
     assert parent_record == {}
 
     # param path not found with multiple parameters
     with pytest.raises(ValueError) as val_ex:
-        bound_path, parent_record, params_values, request_json = process_parent_data_item(
-            path="dlt-hub/dlt/issues/{issue_id}/comments/{id}",
-            item={"_issue": 12345, "id": 56789},
-            resolved_params=multi_resolve_params,
-            include_from_parent=None,
+        bound_path, parent_record, params_values, request_json, request_headers = (
+            process_parent_data_item(
+                path="dlt-hub/dlt/issues/{issue_id}/comments/{id}",
+                item={"_issue": 12345, "id": 56789},
+                resolved_params=multi_resolve_params,
+                include_from_parent=None,
+            )
         )
     assert "Transformer expects a field 'issue'" in str(val_ex.value)
 

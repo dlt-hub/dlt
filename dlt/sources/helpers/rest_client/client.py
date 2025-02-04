@@ -100,6 +100,7 @@ class RESTClient:
         path_or_url: str,
         method: HTTPMethod,
         params: Optional[Dict[str, Any]] = None,
+        headers: Optional[Dict[str, Any]] = None,
         json: Optional[Dict[str, Any]] = None,
         auth: Optional[AuthBase] = None,
         hooks: Optional[Hooks] = None,
@@ -110,10 +111,12 @@ class RESTClient:
         else:
             url = join_url(self.base_url, path_or_url)
 
+        request_headers = (self.headers or {}) | (headers or {})
+
         return Request(
             method=method,
             url=url,
-            headers=self.headers,
+            headers=request_headers,
             params=params,
             json=json,
             auth=auth or self.auth,
@@ -161,6 +164,7 @@ class RESTClient:
         path: str = "",
         method: HTTPMethodBasic = "GET",
         params: Optional[Dict[str, Any]] = None,
+        headers: Optional[Dict[str, Any]] = None,
         json: Optional[Dict[str, Any]] = None,
         auth: Optional[AuthBase] = None,
         paginator: Optional[BasePaginator] = None,
@@ -213,7 +217,13 @@ class RESTClient:
             hooks["response"] = [raise_for_status]
 
         request = self._create_request(
-            path_or_url=path, method=method, params=params, json=json, auth=auth, hooks=hooks
+            path_or_url=path,
+            headers=headers,
+            method=method,
+            params=params,
+            json=json,
+            auth=auth,
+            hooks=hooks,
         )
 
         if paginator:
