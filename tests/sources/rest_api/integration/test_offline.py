@@ -100,17 +100,127 @@ def test_load_mock_api(mock_api_server):
     )
 
 
-def test_single_resource_query_string_params(mock_api_server):
+@pytest.mark.parametrize(
+    "endpoint_params,expected_static_params",
+    [
+        # Static params only
+        pytest.param(
+            {
+                "path": "posts",
+                "params": {"sort": "desc", "locale": "en"},
+                "paginator": {
+                    "type": "page_number",
+                    "base_page": 1,
+                    "total_path": "total_pages",
+                },
+            },
+            {"sort": ["desc"], "locale": ["en"]},
+            id="single_resource",
+        ),
+        # Empty params
+        pytest.param(
+            {
+                "path": "posts",
+                "params": {},
+                "paginator": {
+                    "type": "page_number",
+                    "base_page": 1,
+                    "total_path": "total_pages",
+                },
+            },
+            {},
+            id="single_resource_empty_params",
+        ),
+        # One of the params is empty
+        pytest.param(
+            {
+                "path": "posts",
+                "params": {"sort": "desc", "locale": ""},
+                "paginator": {
+                    "type": "page_number",
+                    "base_page": 1,
+                    "total_path": "total_pages",
+                },
+            },
+            {"sort": ["desc"], "locale": [""]},
+            id="single_resource_one_empty_param",
+        ),
+        # Explicitly set page param gets ignored
+        pytest.param(
+            {
+                "path": "posts",
+                "params": {"sort": "desc", "locale": "en", "page": "100"},
+                "paginator": {
+                    "type": "page_number",
+                    "base_page": 1,
+                    "total_path": "total_pages",
+                },
+            },
+            {"sort": ["desc"], "locale": ["en"]},
+            id="single_resource_explicit_page_param",
+        ),
+        # Incremental defined in endpoint
+        pytest.param(
+            {
+                "path": "posts",
+                "incremental": {
+                    "start_param": "since",
+                    "end_param": "until",
+                    "cursor_path": "id",
+                    "initial_value": 1,
+                    "end_value": 10,
+                },
+                "paginator": {
+                    "type": "page_number",
+                    "base_page": 1,
+                    "total_path": "total_pages",
+                },
+            },
+            {"since": ["1"], "until": ["10"]},
+            id="single_resource_incremental",
+        ),
+        # Incremental mixed with static params
+        pytest.param(
+            {
+                "path": "posts",
+                "params": {"sort": "desc", "locale": "en"},
+                "incremental": {
+                    "start_param": "since",
+                    "end_param": "until",
+                    "cursor_path": "id",
+                    "initial_value": 1,
+                    "end_value": 10,
+                },
+            },
+            {"sort": ["desc"], "locale": ["en"], "since": ["1"], "until": ["10"]},
+            id="single_resource_incremental_mixed",
+        ),
+        # Incremental defined in params
+        pytest.param(
+            {
+                "path": "posts",
+                "params": {
+                    "sort": "desc",
+                    "since": {
+                        "type": "incremental",
+                        "cursor_path": "id",
+                        "initial_value": 1,
+                    }
+                },
+            },
+            {"since": ["1"]},
+            id="single_resource_incremental_params",
+        ),
+    ],
+)
+def test_single_resource_query_string_params(mock_api_server, endpoint_params, expected_static_params):
     page_counter = 1
 
     def response_hook(response):
         nonlocal page_counter
         query_string_params = response.json().get("query_string_params")
-        assert query_string_params == {
-            "sort": ["desc"],
-            "locale": ["en"],
-            "page": [str(page_counter)],
-        }
+        expected_params = {**expected_static_params, "page": [str(page_counter)]}
+        assert query_string_params == expected_params
         page_counter += 1
 
     mock_source = rest_api_source(
@@ -120,13 +230,7 @@ def test_single_resource_query_string_params(mock_api_server):
                 {
                     "name": "posts",
                     "endpoint": {
-                        "path": "posts",
-                        "params": {"sort": "desc", "locale": "en"},
-                        "paginator": {
-                            "type": "page_number",
-                            "base_page": 1,
-                            "total_path": "total_pages",
-                        },
+                        **endpoint_params,
                         "response_actions": [response_hook],
                     },
                 }
