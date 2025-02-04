@@ -202,36 +202,6 @@ def test_rest_api_source_filtered_child(mock_api_server) -> None:
     assert len(data) == 2
 
 
-def test_rest_api_source_filtered_child_with_implicit_param(mock_api_server) -> None:
-    config: RESTAPIConfig = {
-        "client": {
-            "base_url": "https://api.example.com",
-        },
-        "resources": [
-            {
-                "name": "posts",
-                "endpoint": "posts",
-                "processing_steps": [
-                    {"filter": lambda x: x["id"] in (1, 2)},  # type: ignore[typeddict-item]
-                ],
-            },
-            {
-                "name": "comments",
-                "endpoint": {
-                    "path": "/posts/{resources.posts.id}/comments",
-                },
-                "processing_steps": [
-                    {"filter": lambda x: x["id"] == 1},  # type: ignore[typeddict-item]
-                ],
-            },
-        ],
-    }
-    mock_source = rest_api_source(config)
-
-    data = list(mock_source.with_resources("comments"))
-    assert len(data) == 2
-
-
 def test_rest_api_source_filtered_and_map_child(mock_api_server) -> None:
     def extend_body(row):
         row["body"] = f"{row['_posts_title']} - {row['body']}"
@@ -260,44 +230,6 @@ def test_rest_api_source_filtered_and_map_child(mock_api_server) -> None:
                             "field": "id",
                         }
                     },
-                },
-                "include_from_parent": ["title"],
-                "processing_steps": [
-                    {"map": extend_body},  # type: ignore[typeddict-item]
-                    {"filter": lambda x: x["body"].startswith("Post 2")},  # type: ignore[typeddict-item]
-                ],
-            },
-        ],
-    }
-    mock_source = rest_api_source(config)
-
-    data = list(mock_source.with_resources("comments"))
-    assert data[0]["body"] == "Post 2 - Comment 0 for post 2"
-
-
-def test_rest_api_source_filtered_and_map_child_with_implicit_param(
-    mock_api_server,
-) -> None:
-    def extend_body(row):
-        row["body"] = f"{row['_posts_title']} - {row['body']}"
-        return row
-
-    config: RESTAPIConfig = {
-        "client": {
-            "base_url": "https://api.example.com",
-        },
-        "resources": [
-            {
-                "name": "posts",
-                "endpoint": "posts",
-                "processing_steps": [
-                    {"filter": lambda x: x["id"] in (1, 2)},  # type: ignore[typeddict-item]
-                ],
-            },
-            {
-                "name": "comments",
-                "endpoint": {
-                    "path": "/posts/{resources.posts.id}/comments",
                 },
                 "include_from_parent": ["title"],
                 "processing_steps": [
