@@ -1,9 +1,7 @@
 import dlt
 import pytest
 
-from dlt.common.configuration.specs.config_providers_context import (
-    ConfigProvidersContainer,
-)
+from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContainer
 
 from dlt.sources.rest_api.typing import RESTAPIConfig
 from dlt.sources.helpers.rest_client.paginators import SinglePagePaginator
