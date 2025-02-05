@@ -1,9 +1,11 @@
+from types import ModuleType
 from typing import Any, ClassVar, Dict, List, Optional, Protocol
 
 from dlt.common.configuration.providers.provider import ConfigProvider
 from dlt.common.configuration.specs.base_configuration import ContainerInjectableContext
 from dlt.common.configuration.specs.runtime_configuration import RuntimeConfiguration
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContainer
+from dlt.common.utils import uniq_id
 
 
 class SupportsRunContext(Protocol):
@@ -35,6 +37,10 @@ class SupportsRunContext(Protocol):
         """Defines where the pipelines working folders are stored."""
 
     @property
+    def module(self) -> Optional[ModuleType]:
+        """if run_dir is a top level importable python module, returns it, otherwise return None"""
+
+    @property
     def runtime_kwargs(self) -> Dict[str, Any]:
         """Additional kwargs used to initialize this instance of run context, used for reloading"""
 
@@ -50,15 +56,23 @@ class SupportsRunContext(Protocol):
     def get_setting(self, setting_path: str) -> str:
         """Gets path in settings_dir where setting (ie. `secrets.toml`) are stored"""
 
+    def unplug(self) -> None:
+        """Called when context removed from container"""
+
+    def plug(self) -> None:
+        """Called when context is added to container"""
+
 
 class PluggableRunContext(ContainerInjectableContext):
     """Injectable run context taken via plugin"""
 
     global_affinity: ClassVar[bool] = True
 
-    context: SupportsRunContext
+    context: SupportsRunContext = None
     providers: ConfigProvidersContainer
     runtime_config: RuntimeConfiguration
+
+    _context_stack: List[Any] = []
 
     def __init__(
         self, init_context: SupportsRunContext = None, runtime_config: RuntimeConfiguration = None
@@ -82,9 +96,11 @@ class PluggableRunContext(ContainerInjectableContext):
                 runtime_kwargs = self.context.runtime_kwargs
 
         self.runtime_config = None
+        self.before_remove()
         self._plug(run_dir, runtime_kwargs=runtime_kwargs)
 
         self.providers = ConfigProvidersContainer(self.context.initial_providers())
+        self.after_add()
         # adds remaining providers and initializes runtime
         self.add_extras()
 
@@ -95,9 +111,18 @@ class PluggableRunContext(ContainerInjectableContext):
     def after_add(self) -> None:
         super().after_add()
 
+        # plug context
+        self.context.plug()
+
         # initialize runtime if context comes back into container
         if self.runtime_config:
             self.initialize_runtime(self.runtime_config)
+
+    def before_remove(self) -> None:
+        super().before_remove()
+
+        if self.context:
+            self.context.unplug()
 
     def add_extras(self) -> None:
         from dlt.common.configuration.resolve import resolve_configuration
@@ -125,3 +150,25 @@ class PluggableRunContext(ContainerInjectableContext):
         m = plugins.manager()
         self.context = m.hook.plug_run_context(run_dir=run_dir, runtime_kwargs=runtime_kwargs)
         assert self.context, "plug_run_context hook returned None"
+
+    def push_context(self) -> str:
+        """Pushes current context on stack and returns assert cookie"""
+        cookie = uniq_id()
+        self._context_stack.append((cookie, self.context, self.providers, self.runtime_config))
+        return cookie
+
+    def pop_context(self, cookie: str) -> None:
+        """Pops context from stack and re-initializes it if in container"""
+        _c, context, providers, runtime_config = self._context_stack.pop()
+        if cookie != _c:
+            raise ValueError(f"Run context stack mangled. Got cookie {_c} but expected {cookie}")
+        self.context = context
+        self.providers = providers
+        self.initialize_runtime(runtime_config)
+
+    def drop_context(self, cookie: str) -> None:
+        """Pops context form stack but leaves new context for good"""
+        state_ = self._context_stack.pop()
+        _c = state_[0]
+        if cookie != _c:
+            raise ValueError(f"Run context stack mangled. Got cookie {_c} but expected {cookie}")

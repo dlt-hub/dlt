@@ -6,7 +6,7 @@ from itertools import chain
 import pytest
 
 import dlt
-from dlt.common.destination.reference import JobClientBase
+from dlt.common.destination.client import JobClientBase
 from dlt.extract import DltResource
 from dlt.common.utils import uniq_id
 from dlt.pipeline import helpers, state_sync, Pipeline

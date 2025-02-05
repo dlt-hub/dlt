@@ -7,7 +7,7 @@ from dlt.common.utils import digest128
 from dlt.common.typing import TSecretStrValue
 from dlt.common.exceptions import SystemConfigurationException
 
-from dlt.common.destination.reference import DestinationClientDwhWithStagingConfiguration
+from dlt.common.destination.client import DestinationClientDwhWithStagingConfiguration
 
 
 @configspec(init=False)
@@ -18,7 +18,7 @@ class MsSqlCredentials(ConnectionStringCredentials):
     password: TSecretStrValue = None
     host: str = None
     port: int = 1433
-    connect_timeout: int = 15
+    connect_timeout: int = 30
     driver: str = None
 
     __config_gen_annotations__: ClassVar[List[str]] = ["port", "connect_timeout"]

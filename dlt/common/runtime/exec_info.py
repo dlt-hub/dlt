@@ -6,7 +6,7 @@ import multiprocessing
 import platform
 
 from dlt.common.runtime.typing import TExecutionContext, TVersion, TExecInfoNames
-from dlt.common.typing import StrStr, StrAny, Literal, List
+from dlt.common.typing import StrStr, StrAny, List
 from dlt.common.utils import filter_env_vars
 from dlt.version import __version__, DLT_PKG_NAME
 
@@ -175,13 +175,43 @@ def is_gcp_cloud_function() -> bool:
     return os.environ.get("FUNCTION_NAME") is not None
 
 
+def get_plus_version() -> TVersion:
+    "Gets dlt+ library version"
+    try:
+        from dlt_plus.version import __version__, PKG_NAME
+
+        return TVersion(name=PKG_NAME, version=__version__)
+    except Exception:
+        return None
+
+
+def run_context_name() -> str:
+    try:
+        from dlt.common.configuration.container import Container
+        from dlt.common.configuration.specs.pluggable_run_context import PluggableRunContext
+
+        container = Container()
+        if PluggableRunContext in container:
+            return container[PluggableRunContext].context.name
+
+    except Exception:
+        pass
+
+    return "dlt"
+
+
 def get_execution_context() -> TExecutionContext:
     "Get execution context information"
-    return TExecutionContext(
+    context = TExecutionContext(
         ci_run=in_continuous_integration(),
         python=sys.version.split(" ")[0],
         cpu=multiprocessing.cpu_count(),
         exec_info=exec_info_names(),
         os=TVersion(name=platform.system(), version=platform.release()),
         library=TVersion(name=DLT_PKG_NAME, version=__version__),
+        run_context=run_context_name(),
     )
+    if plus_version := get_plus_version():
+        context["plus"] = plus_version
+
+    return context

@@ -261,16 +261,17 @@ def test_toml_global_config() -> None:
     providers = Container()[PluggableRunContext].providers
     secrets = providers[SECRETS_TOML]
     config = providers[CONFIG_TOML]
-    # in pytest should be false
-    assert secrets._global_dir is None  # type: ignore[attr-defined]
-    assert config._global_dir is None  # type: ignore[attr-defined]
+
+    # in pytest should be false, no global dir appended to resolved paths
+    assert len(secrets._toml_paths) == 1  # type: ignore[attr-defined]
+    assert len(config._toml_paths) == 1  # type: ignore[attr-defined]
 
     # set dlt data and settings dir
     global_dir = "./tests/common/cases/configuration/dlt_home"
     settings_dir = "./tests/common/cases/configuration/.dlt"
     # create instance with global toml enabled
     config = ConfigTomlProvider(settings_dir=settings_dir, global_dir=global_dir)
-    assert config._global_dir == os.path.join(global_dir, CONFIG_TOML)
+    assert config._toml_paths[1] == os.path.join(global_dir, CONFIG_TOML)
     assert isinstance(config._config_doc, dict)
     assert len(config._config_doc) > 0
     # kept from global
@@ -287,7 +288,7 @@ def test_toml_global_config() -> None:
     assert v == "a"
 
     secrets = SecretsTomlProvider(settings_dir=settings_dir, global_dir=global_dir)
-    assert secrets._global_dir == os.path.join(global_dir, SECRETS_TOML)
+    assert secrets._toml_paths[1] == os.path.join(global_dir, SECRETS_TOML)
     # check if values from project exist
     secrets_project = SecretsTomlProvider(settings_dir=settings_dir)
     assert secrets._config_doc == secrets_project._config_doc

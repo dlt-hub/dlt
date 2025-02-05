@@ -3,7 +3,7 @@ from typing import Any, Generator, Sequence, Union, TYPE_CHECKING
 from contextlib import contextmanager
 
 
-from dlt.common.destination.reference import (
+from dlt.common.destination.dataset import (
     SupportsReadableRelation,
 )
 

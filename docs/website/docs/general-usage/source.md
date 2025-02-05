@@ -131,7 +131,7 @@ of the source created side by side. For example:
 ```py
 from dlt.sources.sql_database import sql_database
 
-my_db = sql_database.with_args(name="my_db", section="my_db")(table_names=["table_1"])
+my_db = sql_database.clone(name="my_db", section="my_db")(table_names=["table_1"])
 print(my_db.name)
 ```
 Here we create a renamed version of the `sql_database` and then instantiate it. Such source will read

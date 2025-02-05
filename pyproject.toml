@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dlt"
-version = "1.6.0a0"
+version = "1.6.2a0"
 description = "dlt is an open-source python-first scalable data loading library that does not require any backend to run."
 authors = ["dltHub Inc. <services@dlthub.com>"]
 maintainers = [ "Marcin Rudolf <marcin@dlthub.com>", "Adrian Brudaru <adrian@dlthub.com>", "Anton Burnashev <anton@dlthub.com>", "David Scharf <david@dlthub.com>" ]
@@ -34,7 +34,7 @@ requests = ">=2.26.0"
 pendulum = {version = ">=2.1.2", markers = "python_version < '3.13'"}
 # NOTE: revert to normal pendulum once it supports python 3.13
 dlt-pendulum = [
-    {version="3.0.1a4", allow-prereleases = true, markers = "python_version >= '3.13'"}
+    {version=">=3.0.2", markers = "python_version >= '3.13'"}
 ]
 simplejson = ">=3.17.5"
 PyYAML = ">=5.4.1"
@@ -43,7 +43,7 @@ hexbytes = ">=0.2.2"
 tzdata = ">=2022.1"
 tomlkit = ">=0.11.3"
 pathvalidate = ">=2.5.2"
-typing-extensions = ">=4.0.0"
+typing-extensions = ">=4.8.0"
 makefun = ">=1.15.0"
 click = ">=7.1"
 requirements-parser = ">=0.5.0"
@@ -83,6 +83,8 @@ botocore = {version = ">=1.28", optional = true}
 snowflake-connector-python = {version = ">=3.5.0", optional = true}
 cron-descriptor = {version = ">=1.2.32", optional = true}
 pipdeptree = {version = ">=2.9.0,<2.10", optional = true}
+# pip is used by pipdeptree but not listed in its dependencies
+pip = {version = ">=23.0.0", optional = true}
 pyathena = {version = ">=2.9.6", optional = true}
 weaviate-client = {version = ">=3.22", optional = true}
 adlfs = {version = ">=2024.7.0", optional = true}
@@ -110,6 +112,7 @@ db-dtypes = { version = ">=1.2.0", optional = true }
 pyiceberg = { version = ">=0.8.1", optional = true }
 databricks-sdk = {version = ">=0.38.0", optional = true}
 pywin32 = {version = ">=306", optional = true, platform = "win32"}
+rich-argparse = "^1.6.0"
 
 [tool.poetry.extras]
 gcp = ["grpcio", "google-cloud-bigquery", "db-dtypes", "gcsfs"]
@@ -126,7 +129,7 @@ az = ["adlfs"]
 sftp = ["paramiko"]
 snowflake = ["snowflake-connector-python"]
 motherduck = ["duckdb", "pyarrow"]
-cli = ["pipdeptree", "cron-descriptor"]
+cli = ["pipdeptree", "cron-descriptor", "pip"]
 athena = ["pyathena", "pyarrow", "s3fs", "botocore"]
 weaviate = ["weaviate-client"]
 mssql = ["pyodbc"]
@@ -190,6 +193,7 @@ types-regex = "^2024.5.15.20240519"
 flake8-print = "^5.0.0"
 mimesis = "^7.0.0"
 shapely = ">=2.0.6"
+pip = ">=24.0.0"
 
 [tool.poetry.group.sources]
 optional = true
@@ -297,9 +301,3 @@ multi_line_output = 3
 [build-system]
 requires = ["poetry-core>=1.0.8"]
 build-backend = "poetry.core.masonry.api"
-
-# NOTE: needed for dlt-pendulum
-[[tool.poetry.source]]
-name = "dlt-pypi"
-url = "https://pypi.dlthub.com"
-priority = "supplemental"

@@ -30,18 +30,17 @@ from dlt.common.configuration.specs import (
     CredentialsConfiguration,
     GcpOAuthCredentialsWithoutDefaults,
 )
-from dlt.common.destination.reference import (
+from dlt.common.destination.client import (
     DestinationClientDwhConfiguration,
     JobClientBase,
     RunnableLoadJob,
     LoadJob,
     DestinationClientStagingConfiguration,
-    TDestinationReferenceArg,
     WithStagingDataset,
     DestinationCapabilitiesContext,
 )
-from dlt.common.destination import TLoaderFileFormat, Destination
-from dlt.common.destination.reference import DEFAULT_FILE_LAYOUT
+from dlt.common.destination import TLoaderFileFormat, Destination, TDestinationReferenceArg
+from dlt.common.destination.client import DEFAULT_FILE_LAYOUT
 from dlt.common.data_writers import DataWriter
 from dlt.common.pipeline import PipelineContext
 from dlt.common.schema import TTableSchemaColumns, Schema
@@ -328,8 +327,7 @@ def destinations_configs(
         destination_configs += [
             DestinationTestConfiguration(destination_type=destination)
             for destination in SQL_DESTINATIONS
-            if destination
-            not in ("athena", "synapse", "databricks", "dremio", "clickhouse", "sqlalchemy")
+            if destination not in ("athena", "synapse", "dremio", "clickhouse", "sqlalchemy")
         ]
         destination_configs += [
             DestinationTestConfiguration(destination_type="duckdb", file_format="parquet"),
@@ -363,14 +361,6 @@ def destinations_configs(
         destination_configs += [
             DestinationTestConfiguration(
                 destination_type="clickhouse", file_format="jsonl", supports_dbt=False
-            )
-        ]
-        destination_configs += [
-            DestinationTestConfiguration(
-                destination_type="databricks",
-                file_format="parquet",
-                bucket_url=AZ_BUCKET,
-                extra_info="az-authorization",
             )
         ]
 
@@ -461,6 +451,13 @@ def destinations_configs(
                 destination_type="snowflake",
                 staging="filesystem",
                 file_format="jsonl",
+                bucket_url=AZ_BUCKET,
+                extra_info="az-authorization",
+            ),
+            DestinationTestConfiguration(
+                destination_type="databricks",
+                staging="filesystem",
+                file_format="parquet",
                 bucket_url=AZ_BUCKET,
                 extra_info="az-authorization",
             ),
@@ -661,7 +658,9 @@ def destinations_configs(
         destination_configs = [
             conf
             for conf in destination_configs
-            if conf.destination_type != "filesystem" or conf.bucket_url in bucket_subset
+            # filter by bucket when (1) filesystem OR (2) specific set of destinations requested
+            if (conf.destination_type != "filesystem" and not subset)
+            or conf.bucket_url in bucket_subset
         ]
     if exclude:
         destination_configs = [

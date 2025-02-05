@@ -6,7 +6,7 @@ from dlt.common.configuration.specs.base_configuration import (
     BaseConfiguration,
     CredentialsConfiguration,
 )
-from dlt.common.destination.reference import DestinationClientDwhConfiguration
+from dlt.common.destination.client import DestinationClientDwhConfiguration
 from dlt.common.typing import TSecretStrValue
 from dlt.common.utils import digest128
 

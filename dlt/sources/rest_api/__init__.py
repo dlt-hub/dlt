@@ -129,7 +129,7 @@ def rest_api_source(
     # TODO: this must be removed when TypedDicts are supported by resolve_configuration
     #   so secrets values are bound BEFORE validation. validation will happen during the resolve process
     _validate_config(config)
-    decorated = rest_api.with_args(
+    decorated = rest_api.clone(
         name=name,
         section=section,
         max_table_nesting=max_table_nesting,

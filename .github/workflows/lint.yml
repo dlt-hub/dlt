@@ -66,6 +66,10 @@ jobs:
         run: |
           export PATH=$PATH:"/c/Program Files/usr/bin" # needed for Windows
           make lint
+      
+      - name: Check that cli docs are up to date
+        run: make check-cli-docs
+        if: ${{ matrix.python-version == '3.11.x' }}
 
   matrix_job_required_check:
     name: lint | code & tests

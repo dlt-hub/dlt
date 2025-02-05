@@ -38,6 +38,7 @@ from typing_extensions import (
     ParamSpec,
     TypeAlias,
     Concatenate,
+    Unpack,
     get_args,
     get_origin,
     get_original_bases,

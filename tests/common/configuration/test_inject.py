@@ -30,7 +30,7 @@ from dlt.common.configuration.specs.base_configuration import (
 )
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContainer
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
-from dlt.common.reflection.spec import _get_spec_name_from_f
+from dlt.common.reflection.spec import get_spec_name_from_f
 from dlt.common.typing import (
     StrAny,
     TSecretStrValue,
@@ -245,18 +245,46 @@ def test_inject_without_spec_kw_only() -> None:
     pass
 
 
-def test_inject_with_auto_section(environment: Any) -> None:
-    environment["PIPE__VALUE"] = "test"
+def test_inject_with_pipeline_section(environment: Any) -> None:
+    expected_value = "test"
+    environment["PIPE__VALUE"] = expected_value
 
-    @with_config(auto_pipeline_section=True)
+    @with_config(section_arg_name="pipeline_name")
     def f(pipeline_name=dlt.config.value, value=dlt.secrets.value):
-        assert value == "test"
+        assert value == expected_value
 
     f("pipe")
 
     # make sure the spec is available for decorated fun
     assert get_fun_spec(f) is not None
     assert hasattr(get_fun_spec(f), "pipeline_name")
+
+    # also section is extended
+    del environment["PIPE__VALUE"]
+    expected_value = "test7"
+    environment["PIPE__PIPE__VALUE"] = expected_value
+    f("pipe")
+
+
+def test_extend_sections_from_argument(environment: Any) -> None:
+    @with_config(sections=("datasets",), section_arg_name="dataset_name")
+    def f(dataset_name=dlt.config.value, value=dlt.secrets.value):
+        assert dataset_name == "github"
+        assert value == expected_value
+
+    expected_value = "test"
+    environment["VALUE"] = expected_value
+    f("github")
+
+    del environment["VALUE"]
+    expected_value = "test2"
+    environment["DATASETS__VALUE"] = expected_value
+    f("github")
+
+    del environment["DATASETS__VALUE"]
+    expected_value = "test3"
+    environment["DATASETS__GITHUB__VALUE"] = expected_value
+    f("github")
 
 
 @pytest.mark.skip("not implemented")
@@ -701,7 +729,7 @@ def test_auto_derived_spec_type_name() -> None:
 
     # name is composed via __qualname__ of func
     assert (
-        _get_spec_name_from_f(AutoNameTest.__init__)
+        get_spec_name_from_f(AutoNameTest.__init__)
         == "TestAutoDerivedSpecTypeNameAutoNameTestInitConfiguration"
     )
     # synthesized spec present in current module

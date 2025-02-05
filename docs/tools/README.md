@@ -25,7 +25,7 @@ This script is run on CI to ensure code quality in our docs.
 # Run a full check on all snippets
 python check_embedded_snippets.py full
 
-# Show all available commands and arguments for this script
+# Show all Available subcommands and arguments for this script
 python check_embedded_snippets.py --help
 
 # Only run the linting stage

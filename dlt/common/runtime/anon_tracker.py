@@ -9,7 +9,7 @@ from requests import Session
 from dlt.common import logger
 from dlt.common.managed_thread_pool import ManagedThreadPool
 from dlt.common.configuration.specs import RuntimeConfiguration
-from dlt.common.runtime.exec_info import get_execution_context, TExecutionContext
+from dlt.common.runtime.exec_info import get_execution_context, TExecutionContext, run_context_name
 from dlt.common.runtime import run_context
 from dlt.common.typing import DictStrAny, StrAny
 from dlt.common.utils import uniq_id
@@ -85,7 +85,10 @@ def track(event_category: TEventCategory, event_name: str, properties: DictStrAn
     properties.update({"event_category": event_category, "event_name": event_name})
 
     try:
-        _send_event(f"{event_category}_{event_name}", properties, _default_context_fields())
+        context = _default_context_fields()
+        # always refresh run context name, it may change at runtime
+        context["run_context"] = run_context_name()
+        _send_event(f"{event_category}_{event_name}", properties, context)
     except Exception as e:
         logger.debug(f"Skipping telemetry reporting: {e}")
         raise

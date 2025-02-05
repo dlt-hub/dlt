@@ -43,8 +43,12 @@ from dlt.common.schema.typing import (
 from dlt.common.storages.exceptions import SchemaNotFoundError
 from dlt.common.storages.schema_storage import SchemaStorage
 from dlt.common.typing import AnyFun, ParamSpec, Concatenate, TDataItem, TDataItems, TColumnNames
-
-from dlt.common.utils import get_callable_name, get_module_name, is_inner_callable
+from dlt.common.utils import (
+    get_callable_name,
+    get_module_name,
+    is_inner_callable,
+    get_full_callable_name,
+)
 
 from dlt.extract.hints import make_hints
 from dlt.extract.utils import simulate_func_call
@@ -62,13 +66,8 @@ from dlt.extract.exceptions import (
     CurrentSourceSchemaNotAvailable,
 )
 from dlt.extract.items import TTableHintTemplate
-from dlt.extract.source import (
-    DltSource,
-    SourceReference,
-    SourceFactory,
-    TDltSourceImpl,
-    TSourceFunParams,
-)
+from dlt.extract.source import DltSource
+from dlt.extract.reference import SourceReference, SourceFactory, TDltSourceImpl, TSourceFunParams
 from dlt.extract.resource import DltResource, TUnboundDltResource, TDltResourceImpl
 from dlt.extract.incremental import TIncrementalConfig
 
@@ -111,7 +110,7 @@ class DltSourceFactoryWrapper(SourceFactory[TSourceFunParams, TDltSourceImpl]):
         `section` (which corresponds to module name) and `name` (which corresponds to source function name).
         """
         self._f: AnyFun = None
-        self._ref: SourceReference = None
+        self.ref: SourceReference = None
         self._deco_f: Callable[..., TDltSourceImpl] = None
 
         self.name: str = None
@@ -124,7 +123,7 @@ class DltSourceFactoryWrapper(SourceFactory[TSourceFunParams, TDltSourceImpl]):
         self.parallelized: bool = None
         self._impl_cls: Type[TDltSourceImpl] = DltSource  # type: ignore[assignment]
 
-    def with_args(
+    def clone(
         self,
         *,
         name: str = None,
@@ -173,9 +172,13 @@ class DltSourceFactoryWrapper(SourceFactory[TSourceFunParams, TDltSourceImpl]):
 
         # also remember original source function
         ovr._f = self._f
+        ovr.ref = self.ref
+        # ovr._deco_f = self._deco_f
         # try to bind _f
         ovr.wrap()
         return ovr
+
+    with_args = clone
 
     def __call__(self, *args: Any, **kwargs: Any) -> TDltSourceImpl:
         assert self._deco_f, f"Attempt to call source function on {self.name} before bind"
@@ -199,8 +202,9 @@ class DltSourceFactoryWrapper(SourceFactory[TSourceFunParams, TDltSourceImpl]):
     def bind(self, f: AnyFun) -> Self:
         """Binds wrapper to the original source function and registers the source reference. This method is called only once by the decorator"""
         self._f = f
-        self._ref = self.wrap()
-        SourceReference.register(self._ref)
+        self.ref = self.wrap()
+        if not is_inner_callable(f):
+            SourceReference.register(self.ref)
         return self
 
     def wrap(self) -> SourceReference:
@@ -304,7 +308,7 @@ class DltSourceFactoryWrapper(SourceFactory[TSourceFunParams, TDltSourceImpl]):
         SPEC = get_fun_spec(conf_f)
         # get correct wrapper
         self._deco_f = _wrap_coro if inspect.iscoroutinefunction(inspect.unwrap(f)) else _wrap  # type: ignore[assignment]
-        return SourceReference(SPEC, self, func_module, source_section, effective_name)  # type: ignore[arg-type]
+        return SourceReference(get_full_callable_name(f), SPEC, self, source_section, effective_name)  # type: ignore[arg-type]
 
 
 TResourceFunParams = ParamSpec("TResourceFunParams")
@@ -408,7 +412,7 @@ def source(
 
     source_wrapper = (
         DltSourceFactoryWrapper[Any, TDltSourceImpl]()
-        .with_args(
+        .clone(
             name=name,
             section=section,
             max_table_nesting=max_table_nesting,
@@ -727,6 +731,7 @@ def resource(
         # assign spec to "f"
         set_fun_spec(f, SPEC)
 
+        factory = None
         # register non inner resources as source with single resource in it
         if not is_inner_resource:
             # a source function for the source wrapper, args that go to source are forwarded
@@ -744,7 +749,7 @@ def resource(
             # setup our special single resource source
             factory = (
                 DltSourceFactoryWrapper[Any, DltSource]()
-                .with_args(
+                .clone(
                     name=resource_name,
                     section=source_section,
                     spec=BaseConfiguration,
@@ -752,13 +757,17 @@ def resource(
                 )
                 .bind(_source)
             )
-            # remove name and section overrides from the wrapper so resource is not unnecessarily renamed
-            factory.name = None
-            factory.section = None
             # mod the reference to keep the right spec
-            factory._ref.SPEC = SPEC
+            factory.ref.SPEC = SPEC
 
-        return wrap_standalone(resource_name, source_section, f)
+        deco: Callable[TResourceFunParams, TDltResourceImpl] = wrap_standalone(
+            resource_name, source_section, f
+        )
+        # associate source factory with the decorated function for the standalone=True resource
+        # this provides access to standalone resources in the same way as to sources via SourceReference
+        deco._factory = factory  # type: ignore[attr-defined]
+
+        return deco
 
     # if data is callable or none use decorator
     if data is None:

@@ -2,7 +2,7 @@ from typing import ClassVar, Optional, Sequence, Tuple, List, Any
 from urllib.parse import urlparse
 
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.reference import (
+from dlt.common.destination.client import (
     HasFollowupJobs,
     PreparedTableSchema,
     TLoadJobState,

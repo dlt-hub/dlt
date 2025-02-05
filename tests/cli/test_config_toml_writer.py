@@ -4,7 +4,7 @@ import tomlkit
 
 from dlt.cli.config_toml_writer import write_value, WritableConfigValue, write_values
 from dlt.common.configuration.specs import configspec
-from dlt.common.destination.reference import DEFAULT_FILE_LAYOUT
+from dlt.common.destination.client import DEFAULT_FILE_LAYOUT
 
 EXAMPLE_COMMENT = "# please set me up!"
 

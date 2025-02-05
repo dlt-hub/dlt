@@ -10,7 +10,7 @@ from google.cloud.bigquery.retry import _RETRYABLE_REASONS
 
 from dlt.common import logger
 from dlt.common.destination import DestinationCapabilitiesContext, PreparedTableSchema
-from dlt.common.destination.reference import (
+from dlt.common.destination.client import (
     HasFollowupJobs,
     FollowupJobRequest,
     RunnableLoadJob,

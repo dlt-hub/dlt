@@ -26,3 +26,6 @@ DLT_JSON_TYPED_PUA_START = "DLT_JSON_TYPED_PUA_START"
 
 DLT_PIP_TOOL = "DLT_PIP_TOOL"
 """Pip tool used to install deps in Venv"""
+
+DLT_DISABLE_PLUGINS = "DLT_DISABLE_PLUGINS"
+"""Disables detecting and instantiating plugins. Will speed up initial imports a little"""

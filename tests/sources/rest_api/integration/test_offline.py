@@ -1,5 +1,6 @@
 from typing import Any, List, Optional
 from unittest import mock
+from urllib.parse import parse_qs, urlsplit
 
 import pytest
 from requests import Request, Response, Session
@@ -98,6 +99,297 @@ def test_load_mock_api(mock_api_server):
         f"SELECT body FROM {post_comments_table} ORDER BY post_id, id limit 5",
         [f"Comment {i} for post 0" for i in range(5)],
     )
+
+
+@pytest.mark.parametrize(
+    "endpoint_params,expected_static_params",
+    [
+        # Static params only
+        pytest.param(
+            {
+                "path": "posts",
+                "params": {"sort": "desc", "locale": "en"},
+            },
+            {"sort": ["desc"], "locale": ["en"]},
+            id="static_params",
+        ),
+        # No static params
+        pytest.param(
+            {
+                "path": "posts",
+                "params": {},
+            },
+            {},
+            id="empty_params",
+        ),
+        # One of the params is empty
+        pytest.param(
+            {
+                "path": "posts",
+                "params": {"sort": "desc", "locale": ""},
+            },
+            {"sort": ["desc"], "locale": [""]},
+            id="one_empty_param",
+        ),
+        # Explicitly set page param gets ignored
+        pytest.param(
+            {
+                "path": "posts",
+                "params": {"sort": "desc", "locale": "en", "page": "100"},
+            },
+            {"sort": ["desc"], "locale": ["en"]},
+            id="explicit_page_param",
+        ),
+        # Incremental defined in endpoint
+        pytest.param(
+            {
+                "path": "posts",
+                "incremental": {
+                    "start_param": "since",
+                    "end_param": "until",
+                    "cursor_path": "id",
+                    "initial_value": 1,
+                    "end_value": 10,
+                },
+            },
+            {"since": ["1"], "until": ["10"]},
+            id="incremental_in_endpoint",
+        ),
+        # Incremental mixed with static params
+        pytest.param(
+            {
+                "path": "posts",
+                "params": {"sort": "desc", "locale": "en"},
+                "incremental": {
+                    "start_param": "since",
+                    "end_param": "until",
+                    "cursor_path": "id",
+                    "initial_value": 1,
+                    "end_value": 10,
+                },
+            },
+            {"sort": ["desc"], "locale": ["en"], "since": ["1"], "until": ["10"]},
+            id="incremental_in_endpoint_mixed_with_static",
+        ),
+        # Incremental defined in params
+        pytest.param(
+            {
+                "path": "posts",
+                "params": {
+                    "sort": "desc",
+                    "since": {
+                        "type": "incremental",
+                        "cursor_path": "id",
+                        "initial_value": 1,
+                    },
+                },
+            },
+            {"since": ["1"], "sort": ["desc"]},
+            id="incremental_in_params",
+        ),
+    ],
+)
+def test_single_resource_query_string_params(
+    mock_api_server, endpoint_params, expected_static_params
+):
+    mock_source = rest_api_source(
+        {
+            "client": {
+                "base_url": "https://api.example.com",
+                "paginator": {
+                    "type": "page_number",
+                    "base_page": 1,
+                    "total_path": "total_pages",
+                },
+            },
+            "resources": [
+                {
+                    "name": "posts",
+                    "endpoint": {
+                        **endpoint_params,
+                    },
+                }
+            ],
+        }
+    )
+
+    list(mock_source.with_resources("posts"))
+
+    history = mock_api_server.request_history
+    assert len(history) == 5
+
+    for i, request_call in enumerate(history, start=1):
+        qs = parse_qs(urlsplit(request_call.url).query, keep_blank_values=True)
+        expected = {**expected_static_params, "page": [str(i)]}
+        assert qs == expected
+
+
+@pytest.mark.parametrize(
+    "endpoint_params,expected_static_params",
+    [
+        # Static params only
+        pytest.param(
+            {
+                "path": "posts/{post_id}/comments",
+                "params": {
+                    "post_id": {"type": "resolve", "resource": "posts", "field": "id"},
+                    "sort": "desc",
+                    "locale": "en",
+                },
+            },
+            {"sort": ["desc"], "locale": ["en"]},
+            id="static_params",
+        ),
+        # No static params
+        pytest.param(
+            {
+                "path": "posts/{post_id}/comments",
+                "params": {
+                    "post_id": {"type": "resolve", "resource": "posts", "field": "id"},
+                },
+            },
+            {},
+            id="empty_params",
+        ),
+        # One of the params is empty
+        pytest.param(
+            {
+                "path": "posts/{post_id}/comments",
+                "params": {
+                    "post_id": {"type": "resolve", "resource": "posts", "field": "id"},
+                    "sort": "desc",
+                    "locale": "",
+                },
+            },
+            {"sort": ["desc"], "locale": [""]},
+            id="one_empty_param",
+        ),
+        # Explicitly set page param gets ignored
+        pytest.param(
+            {
+                "path": "posts/{post_id}/comments",
+                "params": {
+                    "post_id": {"type": "resolve", "resource": "posts", "field": "id"},
+                    "sort": "desc",
+                    "locale": "en",
+                    "page": "100",
+                },
+            },
+            {"sort": ["desc"], "locale": ["en"]},
+            id="explicit_page_param",
+        ),
+        # Incremental defined in endpoint
+        pytest.param(
+            {
+                "path": "posts/{post_id}/comments",
+                "params": {"post_id": {"type": "resolve", "resource": "posts", "field": "id"}},
+                "incremental": {
+                    "start_param": "since",
+                    "end_param": "until",
+                    "cursor_path": "id",
+                    "initial_value": 1,
+                    "end_value": 10,
+                },
+            },
+            {"since": ["1"], "until": ["10"]},
+            id="incremental_in_endpoint",
+        ),
+        # Incremental mixed with static params
+        pytest.param(
+            {
+                "path": "posts/{post_id}/comments",
+                "params": {
+                    "post_id": {"type": "resolve", "resource": "posts", "field": "id"},
+                    "sort": "desc",
+                    "locale": "en",
+                },
+                "incremental": {
+                    "start_param": "since",
+                    "end_param": "until",
+                    "cursor_path": "id",
+                    "initial_value": 1,
+                    "end_value": 10,
+                },
+            },
+            {"sort": ["desc"], "locale": ["en"], "since": ["1"], "until": ["10"]},
+            id="incremental_in_endpoint_mixed_with_static",
+        ),
+        # Incremental defined in params
+        pytest.param(
+            {
+                "path": "posts/{post_id}/comments",
+                "params": {
+                    "post_id": {"type": "resolve", "resource": "posts", "field": "id"},
+                    "since": {
+                        "type": "incremental",
+                        "cursor_path": "id",
+                        "initial_value": 1,
+                    },
+                },
+            },
+            {"since": ["1"]},
+            id="incremental_in_params",
+        ),
+        # Incremental defined in params with static params
+        pytest.param(
+            {
+                "path": "posts/{post_id}/comments",
+                "params": {
+                    "post_id": {"type": "resolve", "resource": "posts", "field": "id"},
+                    "since": {
+                        "type": "incremental",
+                        "cursor_path": "id",
+                        "initial_value": 1,
+                    },
+                    "sort": "desc",
+                    "locale": "en",
+                },
+            },
+            {"since": ["1"], "sort": ["desc"], "locale": ["en"]},
+            id="incremental_in_params_with_static",
+        ),
+    ],
+)
+def test_dependent_resource_query_string_params(
+    mock_api_server, endpoint_params, expected_static_params
+):
+    mock_source = rest_api_source(
+        {
+            "client": {
+                "base_url": "https://api.example.com",
+                "paginator": {
+                    "type": "page_number",
+                    "base_page": 1,
+                    "total_path": "total_pages",
+                },
+            },
+            "resources": [
+                "posts",
+                {
+                    "name": "post_comments",
+                    "endpoint": {
+                        **endpoint_params,
+                    },
+                },
+            ],
+        }
+    )
+
+    list(mock_source.with_resources("posts", "post_comments").add_limit(1))
+
+    history = mock_api_server.request_history
+    post_comments_calls = [h for h in history if "/comments" in h.url]
+    assert len(post_comments_calls) == 50
+
+    for call in post_comments_calls:
+        qs = parse_qs(urlsplit(call.url).query, keep_blank_values=True)
+        expected_keys = set(expected_static_params.keys()) | {"page"}
+        assert set(qs.keys()) == expected_keys
+
+        for param_key, param_values in expected_static_params.items():
+            assert qs[param_key] == param_values
+
+        assert 1 <= int(qs["page"][0]) <= 10
 
 
 def test_source_with_post_request(mock_api_server):
@@ -244,7 +536,6 @@ def test_load_mock_api_typeddict_config(mock_api_server):
     )
 
     load_info = pipeline.run(mock_source)
-    print(load_info)
     assert_load_info(load_info)
     table_names = [t["name"] for t in pipeline.default_schema.data_tables()]
     table_counts = load_table_counts(pipeline, *table_names)

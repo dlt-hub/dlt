@@ -5,8 +5,7 @@ from string import ascii_lowercase
 import pytest
 
 import dlt
-from dlt.common.destination.reference import Destination
-from dlt.common.schema.exceptions import CannotCoerceColumnException
+from dlt.common.destination import Destination
 from dlt.common.schema.schema import Schema
 from dlt.common.utils import uniq_id
 

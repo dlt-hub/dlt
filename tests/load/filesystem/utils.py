@@ -14,7 +14,7 @@ from cryptography.x509.oid import NameOID
 
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
-from dlt.common.destination.reference import RunnableLoadJob
+from dlt.common.destination.client import RunnableLoadJob
 from dlt.common.pendulum import timedelta, __utcnow
 from dlt.destinations import filesystem
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient

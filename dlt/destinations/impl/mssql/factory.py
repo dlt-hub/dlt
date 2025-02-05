@@ -164,3 +164,6 @@ class mssql(Destination[MsSqlClientConfiguration, "MsSqlJobClient"]):
             caps.has_case_sensitive_identifiers = True
             caps.casefold_identifier = str
         return super().adjust_capabilities(caps, config, naming)
+
+
+mssql.register()

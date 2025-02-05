@@ -2,9 +2,8 @@ import dataclasses
 from typing import ClassVar, Final, List, Optional
 import warnings
 
-from dlt.common import logger
 from dlt.common.configuration import configspec
-from dlt.common.destination.reference import DestinationClientDwhWithStagingConfiguration
+from dlt.common.destination.client import DestinationClientDwhWithStagingConfiguration
 from dlt.common.configuration.specs import AwsCredentials
 from dlt.common.warnings import Dlt100DeprecationWarning
 

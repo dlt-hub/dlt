@@ -1,6 +1,6 @@
 import pytest
 
-from dlt.common.destination.reference import RunnableLoadJob
+from dlt.common.destination.client import RunnableLoadJob
 from dlt.common.destination.exceptions import DestinationTerminalException
 from dlt.destinations.job_impl import FinalizedLoadJob
 

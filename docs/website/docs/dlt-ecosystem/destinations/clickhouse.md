@@ -250,7 +250,8 @@ dlt's staging mechanisms for ClickHouse.
 
 ### dbt support
 
-Integration with [dbt](../transformations/dbt/dbt.md) is generally supported via dbt-clickhouse but not tested by us.
+Integration with [dbt](../transformations/dbt/dbt.md) is generally supported via dbt-clickhouse but not tested by us. Note how
+we support datasets by prefixing the table names. You should take it into account when writing models (or use empty dataset to avoid prefixing).
 
 ### Syncing of `dlt` state
 
