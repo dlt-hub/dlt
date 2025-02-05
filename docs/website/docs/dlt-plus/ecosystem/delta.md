@@ -5,21 +5,22 @@ description: Delta destination documentation
 
 # Delta
 
-The `delta` destination provides additional features on top of the `filesystem` [destination](../../dlt-ecosystem/destinations/filesystem) in OSS `dlt`. This page only documents the additional features—use the documentation provided in OSS dlt for standard functionality.
+The Delta destination provides additional features on top of the [filesystem destination](../../dlt-ecosystem/destinations/filesystem) in OSS dlt. This page only documents the additional features in dlt+.
 
 ## Table format
-`delta` destination automatically assigns `delta` table format to all resources that it will load. You can still
+The Delta destination automatically assigns a Delta table format to all resources that it will load. You can still
 fall back to storing files (as specified in `file_format`) by setting `table_format` to **native** on a resource.
+<!--- show a code example --->
 
 ## Configuration
-Iceberg destinations looks for its configuration under **destination.delta**. Otherwise it is configured
+Delta destinations looks for its configuration under **destination.delta**. Otherwise it is configured
 in the same way as `filesystem` destination.
 
 ```toml
 [destination.delta]
 bucket_url = "s3://[your_bucket_name]" # replace with your bucket name,
 
-[destination.iceberg.credentials]
+[destination.delta.credentials]
 aws_access_key_id = "please set me up!" # copy the access key here
 aws_secret_access_key = "please set me up!" # copy the secret access key here
 ```
