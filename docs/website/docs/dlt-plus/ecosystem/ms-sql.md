@@ -1,5 +1,5 @@
 ---
-title: MSSQL replication source
+title: MSSQL replication
 description: MSSQL replication and helpers documentation
 ---
 
@@ -145,7 +145,7 @@ Get the change tracking version **before you execute initial load** to make
 sure you do not miss any updates that may happen during it.
 
 ```py
-from dlt_plus_sources.sources.mssql import get_current_change_tracking_version
+from dlt_plus.sources.mssql import get_current_change_tracking_version
 
 # Get current tracking version before you run the pipeline to make sure
 # you do not miss any records,
@@ -177,7 +177,7 @@ pipeline.run(initial_resource)
 Use the `create_change_tracking_table` function to set up incremental loading:
 
 ```py
-from dlt_plus_sources.sources.mssql import create_change_tracking_table
+from dlt_plus.sources.mssql import create_change_tracking_table
 
 # Optional: Configure engine isolation level
 # use it if you create an Engine implicitly
@@ -232,9 +232,9 @@ https://dlthub.com/docs/general-usage/pipeline#selectively-drop-tables-and-resou
 
 ## Full Code Example
 
-Example table sync script is available via `dlt-plus-sources` package in `pipelines/mssql_ct_example.py`
+Example table sync script is available via `dlt-plus` package in `sources._core_source_templates/mssql_pipeline.py`
 ```py
-from dlt_plus_sources.pipelines import mssql_ct_example
+from dlt_plus.sources._core_source_templates import mssql_pipeline
 ```
 
 * `single_table_initial_load` does full initial load, it also drops existing and state
@@ -254,7 +254,7 @@ columns from replicated table (except primary key) will be set to NULL and `_dlt
 To use to soft delete, destination schema must accept NULLs for the replicated columns. `remove_nullability_adapter` table adapter will do it when
 passed to `sql_table`:
 ```py
-from dlt_plus_sources.sources.mssql import remove_nullability_adapter
+from dlt_plus.sources.mssql import remove_nullability_adapter
 
 table = sql_table(
     table_adapter_callback=remove_nullability_adapter,
