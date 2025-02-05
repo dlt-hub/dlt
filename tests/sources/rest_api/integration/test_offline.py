@@ -1,5 +1,6 @@
 from typing import Any, List, Optional
 from unittest import mock
+from urllib.parse import parse_qs, urlsplit
 
 import pytest
 from requests import Request, Response, Session
@@ -191,15 +192,6 @@ def test_load_mock_api(mock_api_server):
 def test_single_resource_query_string_params(
     mock_api_server, endpoint_params, expected_static_params
 ):
-    page_counter = 1
-
-    def response_hook(response):
-        nonlocal page_counter
-        query_string_params = response.json().get("query_string_params")
-        expected_params = {**expected_static_params, "page": [str(page_counter)]}
-        assert query_string_params == expected_params
-        page_counter += 1
-
     mock_source = rest_api_source(
         {
             "client": {
@@ -215,7 +207,6 @@ def test_single_resource_query_string_params(
                     "name": "posts",
                     "endpoint": {
                         **endpoint_params,
-                        "response_actions": [response_hook],
                     },
                 }
             ],
@@ -223,7 +214,14 @@ def test_single_resource_query_string_params(
     )
 
     list(mock_source.with_resources("posts"))
-    assert page_counter == 6
+
+    history = mock_api_server.request_history
+    assert len(history) == 5
+
+    for i, request_call in enumerate(history, start=1):
+        qs = parse_qs(urlsplit(request_call.url).query, keep_blank_values=True)
+        expected = {**expected_static_params, "page": [str(i)]}
+        assert qs == expected
 
 
 @pytest.mark.parametrize(
@@ -355,16 +353,6 @@ def test_single_resource_query_string_params(
 def test_dependent_resource_query_string_params(
     mock_api_server, endpoint_params, expected_static_params
 ):
-    def response_hook(response):
-        query_string_params = response.json().get("query_string_params")
-        expected_keys = set(expected_static_params.keys()) | {"page"}
-        assert set(query_string_params.keys()) == expected_keys
-
-        for param_key, param_values in expected_static_params.items():
-            assert query_string_params[param_key] == param_values
-
-        assert 1 <= int(query_string_params["page"][0]) <= 10
-
     mock_source = rest_api_source(
         {
             "client": {
@@ -381,7 +369,6 @@ def test_dependent_resource_query_string_params(
                     "name": "post_comments",
                     "endpoint": {
                         **endpoint_params,
-                        "response_actions": [response_hook],
                     },
                 },
             ],
@@ -389,6 +376,20 @@ def test_dependent_resource_query_string_params(
     )
 
     list(mock_source.with_resources("posts", "post_comments").add_limit(1))
+
+    history = mock_api_server.request_history
+    post_comments_calls = [h for h in history if "/comments" in h.url]
+    assert len(post_comments_calls) == 50
+
+    for call in post_comments_calls:
+        qs = parse_qs(urlsplit(call.url).query, keep_blank_values=True)
+        expected_keys = set(expected_static_params.keys()) | {"page"}
+        assert set(qs.keys()) == expected_keys
+
+        for param_key, param_values in expected_static_params.items():
+            assert qs[param_key] == param_values
+
+        assert 1 <= int(qs["page"][0]) <= 10
 
 
 def test_source_with_post_request(mock_api_server):

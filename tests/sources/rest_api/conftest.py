@@ -64,7 +64,7 @@ def paginate_by_page_number(
     return response
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 def mock_api_server():
     with requests_mock.Mocker() as m:
 
@@ -74,11 +74,7 @@ def mock_api_server():
 
         @router.get(r"/posts(\?.*)?$")
         def posts(request, context):
-            response = paginate_by_page_number(request, generate_posts())
-
-            if request.qs:
-                response["query_string_params"] = request.qs
-            return response
+            return paginate_by_page_number(request, generate_posts())
 
         @router.get(r"/posts_zero_based(\?page=\d+)?$")
         def posts_zero_based(request, context):
@@ -128,12 +124,7 @@ def mock_api_server():
         @router.get(r"/posts/(\d+)/comments(\?.*)?$")
         def post_comments(request, context):
             post_id = int(request.url.split("/")[-2])
-            response = paginate_by_page_number(request, generate_comments(post_id))
-
-            if request.qs:
-                response["query_string_params"] = request.qs
-
-            return response
+            return paginate_by_page_number(request, generate_comments(post_id))
 
         @router.get(r"/posts/\d+$")
         def post_detail(request, context):
