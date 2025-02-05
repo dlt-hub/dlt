@@ -5,10 +5,10 @@ description: Iceberg destination documentation
 
 # Iceberg
 
-The `iceberg` destination provides additional features on top of the `filesystem` [destination](https://dlthub.com/docs/dlt-ecosystem/destinations/filesystem) in OSS `dlt`. This page only documents the additional features—use the documentation provided in OSS dlt for standard functionality.
+The `iceberg` destination provides additional features on top of the `filesystem` [destination](../../dlt-ecosystem/destinations/filesystem) in OSS `dlt`. This page only documents the additional features—use the documentation provided in OSS dlt for standard functionality.
 
 ## `delete-insert` merge strategy with `iceberg` table format
-The `delete-insert` [merge strategy](https://dlthub.com/docs/general-usage/incremental-loading#delete-insert-strategy) can be used when using the `iceberg` [table format](https://dlthub.com/docs/dlt-ecosystem/destinations/delta-iceberg):
+The `delete-insert` [merge strategy](../../general-usage/incremental-loading#delete-insert-strategy) can be used when using the `iceberg` [table format](../../dlt-ecosystem/destinations/delta-iceberg):
 
 ```py
 @dlt.resource(
@@ -53,5 +53,5 @@ dest_ = iceberg(destination_name="filesystem")
 
 ### Known limitations
 - Compound keys are not supported: use a single `primary_key` **and/or** a single `merge_key`.
-  - As a workaround, you can [transform](https://dlthub.com/docs/general-usage/resource#filter-transform-and-pivot-data) your resource data with `add_map` to add a new column that contains a hash of the key columns, and use that column as `primary_key` or `merge_key`.
-- Nested tables are not supported: avoid complex data types or [disable nesting](https://dlthub.com/docs/general-usage/source#reduce-the-nesting-level-of-generated-tables)
+  - As a workaround, you can [transform](../../general-usage/resource#filter-transform-and-pivot-data) your resource data with `add_map` to add a new column that contains a hash of the key columns, and use that column as `primary_key` or `merge_key`.
+- Nested tables are not supported: avoid complex data types or [disable nesting](../../general-usage/source#reduce-the-nesting-level-of-generated-tables)

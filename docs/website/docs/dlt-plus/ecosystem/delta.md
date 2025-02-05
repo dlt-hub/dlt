@@ -3,9 +3,9 @@ title: delta
 description: Delta destination documentation
 ---
 
-# Iceberg
+# Delta
 
-The `delta` destination provides additional features on top of the `filesystem` [destination](https://dlthub.com/docs/dlt-ecosystem/destinations/filesystem) in OSS `dlt`. This page only documents the additional features—use the documentation provided in OSS dlt for standard functionality.
+The `delta` destination provides additional features on top of the `filesystem` [destination](../../dlt-ecosystem/destinations/filesystem) in OSS `dlt`. This page only documents the additional features—use the documentation provided in OSS dlt for standard functionality.
 
 ## Table format
 `delta` destination automatically assigns `delta` table format to all resources that it will load. You can still
