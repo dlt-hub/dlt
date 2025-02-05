@@ -255,6 +255,55 @@ def test_extract_hints_mark_incremental(extract_step: Extract) -> None:
     assert table["columns"]["created_at"]["incremental"] is not None
 
 
+def test_extract_nested_hints(extract_step: Extract) -> None:
+    data = [
+        {
+            "id": 1,
+            "outer1": [
+                {"outer1_id": "2", "innerfoo": [{"innerfoo_id": "3"}]},
+            ],
+            "outer2": [
+                {"outer2_id": "4", "innerbar": [{"innerbar_id": "5"}]},
+            ],
+        }
+    ]
+    resource_name = "with_nested_hints"
+    nested_resource = DltResource.from_data(data, name=resource_name)
+
+    # Check 1: apply nested hints
+    outer1_id_new_type = "double"
+    outer2_innerbar_id_new_type = "bigint"
+    nested_hints = {
+        ("outer1",): dict(
+            columns={
+                "outer1_id": {"name": "outer1_id", "data_type": outer1_id_new_type}
+            }
+        ),
+        ("outer2", "innerbar"): dict(
+            columns={
+                "innerbar_id": {"name": "innerbar_id", "data_type": outer2_innerbar_id_new_type}
+            }
+        ),
+    }
+    nested_resource.apply_hints(nested_hints=nested_hints)
+    assert nested_resource.nested_hints == nested_hints
+
+    # check 2: discover the full schema on the source; includes root and nested tables 
+    implicit_parent = "outer2"
+
+    source = DltSource(dlt.Schema("hintable"), "module", [nested_resource])
+    pre_extract_schema = source.discover_schema()
+
+    # root table exists even though there are no explicit hints
+    assert pre_extract_schema.get_table(resource_name)
+    assert pre_extract_schema.get_table("outer1")["parent"] == "with_nested_hints"
+    assert pre_extract_schema.get_table("outer1")["columns"] == nested_hints[("outer1",)]["columns"]
+    assert pre_extract_schema.get_table("innerbar")["parent"] == "outer2"
+    assert pre_extract_schema.get_table("innerbar")["columns"] == nested_hints[("outer2", "innerbar")]["columns"]
+    # this table is generated to ensure `innerbar` has a parent that links it to the root table
+    assert pre_extract_schema.get_table(implicit_parent) == {"name": implicit_parent, "resource": resource_name, "columns": {}}
+
+
 def test_extract_metrics_on_exception_no_flush(extract_step: Extract) -> None:
     @dlt.resource
     def letters():

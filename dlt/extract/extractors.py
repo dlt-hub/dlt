@@ -231,9 +231,11 @@ class Extractor:
         self, resource: DltResource, items: TDataItems, meta: Any
     ) -> List[TTableSchema]:
         """Computes a schema for a new or dynamic table and normalizes identifiers"""
+        root_table_schema = resource.compute_table_schema(items, meta)
+        nested_tables_schema = resource.compute_nested_table_schemas(items, meta) 
         return [
-            utils.normalize_table_identifiers(tbl, self.naming)
-            for tbl in resource.compute_table_chain(self.naming, items, meta)
+            utils.normalize_table_identifiers(table_schema, self.naming)
+            for table_schema in (root_table_schema, *nested_tables_schema)
         ]
 
     def _compute_and_update_table(

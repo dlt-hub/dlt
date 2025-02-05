@@ -1701,6 +1701,68 @@ def test_apply_hints_keys(key_prop: TColumnProp) -> None:
     assert actual_keys == key_columns_2
 
 
+def test_apply_nested_hints():
+    data = [
+        {
+            "id": 1,
+            "outer1": [
+                {"outer1_id": "2", "innerfoo": [{"innerfoo_id": "3"}]},
+            ],
+            "outer2": [
+                {"outer2_id": "4", "innerbar": [{"innerbar_id": "5"}]},
+            ],
+        }
+    ]
+    resource_name = "with_nested_hints"
+    nested_resource = DltResource.from_data(data, name=resource_name)
+
+    # before applying any hints
+    initial_schema = {
+        "name": resource_name,
+        "columns": {},
+        "resource": resource_name,
+        "write_disposition": "append",
+    }
+    assert nested_resource.nested_hints is None
+    assert nested_resource.compute_table_schema() == initial_schema
+
+    # apply nested hints
+    outer1_id_new_type = "double"
+    outer2_innerbar_id_new_type = "bigint"
+    nested_hints = {
+        ("outer1",): dict(
+            columns={
+                "outer1_id": {"name": "outer1_id", "data_type": outer1_id_new_type}
+            }
+        ),
+        ("outer2", "innerbar"): dict(
+            columns={
+                "innerbar_id": {"name": "innerbar_id", "data_type": outer2_innerbar_id_new_type}
+            }
+        ),
+    }
+    expected_nested_schemas = [
+        {
+            "resource": "with_nested_hints",
+            "name": "outer1",
+            "parent": "with_nested_hints",
+            "columns": {"outer1_id": {"name": "outer1_id", "data_type": "double"}},
+        },
+        {
+            "resource": "with_nested_hints",
+            "name": "innerbar",
+            "parent": "outer2",
+            "columns": {"innerbar_id": {"name": "innerbar_id", "data_type": "bigint"}},
+        },
+    ]
+
+    nested_resource.apply_hints(nested_hints=nested_hints)
+    assert nested_resource.nested_hints == nested_hints
+
+    nested_schemas = nested_resource.compute_nested_table_schemas()
+    assert nested_schemas == expected_nested_schemas
+
+
 def test_resource_no_template() -> None:
     empty = DltResource.from_data([1, 2, 3], name="table")
     assert empty.write_disposition == "append"
