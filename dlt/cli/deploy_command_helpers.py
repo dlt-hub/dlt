@@ -18,7 +18,7 @@ try:
     import cron_descriptor
 except ImportError:
     cron_descriptor = None
-    
+
 import dlt
 
 from dlt.common import git

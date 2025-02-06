@@ -35,6 +35,7 @@ from dlt.cli.deploy_command import (
 try:
     import pipdeptree
     import cron_descriptor
+
     deploy_command_available = True
 except ImportError:
     deploy_command_available = False
