@@ -71,6 +71,11 @@ jobs:
           installer-parallel: true
           version: 1.8.5
 
+      # NOTE: needed for mssql source tests in plus
+      - name: Install ODBC driver for SQL Server
+        run: |
+          sudo ACCEPT_EULA=Y apt-get install --yes msodbcsql18
+
       # NOTE: do not cache. we want to have a clean state each run and we upgrade depdendencies later
       # - name: Load cached venv
       #   id: cached-poetry-dependencies
