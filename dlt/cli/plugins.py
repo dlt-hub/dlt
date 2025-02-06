@@ -26,15 +26,17 @@ from dlt.cli.command_wrappers import (
     DLT_DEPLOY_DOCS_URL,
 )
 
-try:
-    from dlt.cli.deploy_command import (
-        DeploymentMethods,
-        COMMAND_DEPLOY_REPO_LOCATION,
-        SecretFormats,
-    )
+from dlt.cli.deploy_command import (
+    DeploymentMethods,
+    COMMAND_DEPLOY_REPO_LOCATION,
+    SecretFormats,
+)
 
+try:
+    import pipdeptree
+    import cron_descriptor
     deploy_command_available = True
-except ModuleNotFoundError:
+except ImportError:
     deploy_command_available = False
 
 
@@ -480,9 +482,6 @@ The `dlt deploy` command prepares your pipeline for deployment and gives you ste
         deploy_cmd.add_argument(
             "pipeline_script_path", metavar="pipeline-script-path", help="Path to a pipeline script"
         )
-
-        if not deploy_command_available:
-            return
 
         deploy_comm.add_argument(
             "--location",
