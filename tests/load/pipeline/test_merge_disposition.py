@@ -186,10 +186,9 @@ def test_merge_on_keys_in_schema_nested_hints(
     @dlt.source(schema=schema)
     def ethereum(slice_: slice = None):
         @dlt.resource(
-            table_name="blocks",
             write_disposition={"disposition": "merge", "strategy": merge_strategy},
         )
-        def data():
+        def blocks():
             with open(
                 "tests/normalize/cases/ethereum.blocks.9c1d9b504ea240a482b007788d5cd61c_2.json",
                 "r",
@@ -200,10 +199,10 @@ def test_merge_on_keys_in_schema_nested_hints(
 
         hints = {
             "write_disposition": "merge",
-            "x-merge-strategy": merge_strategy,
+            # "x-merge-strategy": merge_strategy,
             "table_format": destination_config.table_format,
         }
-        resource = data()
+        resource = blocks()
         resource.apply_hints(
             nested_hints={
                 ("transactions", ): hints,

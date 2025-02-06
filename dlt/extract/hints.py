@@ -265,7 +265,10 @@ class DltResourceHints:
             # TODO unsure about explicit `table_name` and how it plays into nested tables parent-child
             if "table_name" not in nested_table_template:
                 nested_table_template["table_name"] = current_table
-            nested_table_template["parent"] = parent_table
+            nested_table_template["parent_table_name"] = parent_table
+
+            # TODO need to clean up the path from args -> hints -> schema
+            nested_table_template = make_hints(**nested_table_template)
 
             # resolve
             resolved_template: TResourceHints = {
@@ -288,7 +291,8 @@ class DltResourceHints:
         # NOTE we insert missing parents at the beginning to ensure that `schema.update_table()` is later called
         # in an an order that respect parent-child relationships
         for table_name in tables_to_create:
-            placeholder_table_template = {"table_name": table_name, "columns": {}}
+            # TODO need to clean up the path from args -> hints -> schema
+            placeholder_table_template = new_table(table_name=table_name)
             placeholder_table_schema = self._create_table_schema(placeholder_table_template, self.name)
             nested_table_schemas.insert(0, placeholder_table_schema)
 
