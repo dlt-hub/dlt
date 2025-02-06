@@ -158,6 +158,103 @@ def test_merge_on_keys_in_schema(
     "destination_config",
     destinations_configs(
         default_sql_configs=True,
+        all_buckets_filesystem_configs=True,
+        table_format_filesystem_configs=True,
+        supports_merge=True,
+        bucket_subset=(FILE_BUCKET, AZ_BUCKET),  # test one local, one remote
+    ),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize("merge_strategy", ("delete-insert", "upsert"))
+def test_merge_on_keys_in_schema_nested_hints(
+    destination_config: DestinationTestConfiguration,
+    merge_strategy: TLoaderMergeStrategy,
+) -> None:
+    """Tests merge disposition on an annotated schema, no annotations on resource"""
+    p = destination_config.setup_pipeline("eth_2", dev_mode=True)
+
+    skip_if_not_supported(merge_strategy, p.destination)
+
+    with open("tests/common/cases/schemas/eth/ethereum_schema_v11.yml", "r", encoding="utf-8") as f:
+        schema = dlt.Schema.from_dict(yaml.safe_load(f))
+
+    # make block uncles unseen to trigger filtering loader in loader for nested tables
+    if has_table_seen_data(schema.tables["blocks__uncles"]):
+        del schema.tables["blocks__uncles"]["x-normalizer"]
+        assert not has_table_seen_data(schema.tables["blocks__uncles"])
+
+    @dlt.source(schema=schema)
+    def ethereum(slice_: slice = None):
+        @dlt.resource(
+            table_name="blocks",
+            write_disposition={"disposition": "merge", "strategy": merge_strategy},
+        )
+        def data():
+            with open(
+                "tests/normalize/cases/ethereum.blocks.9c1d9b504ea240a482b007788d5cd61c_2.json",
+                "r",
+                encoding="utf-8",
+            ) as f:
+                yield json.load(f) if slice_ is None else json.load(f)[slice_]
+
+
+        hints = {
+            "write_disposition": "merge",
+            "x-merge-strategy": merge_strategy,
+            "table_format": destination_config.table_format,
+        }
+        resource = data()
+        resource.apply_hints(
+            nested_hints={
+                ("transactions", ): hints,
+                ("transactions", "logs"): hints,
+            }
+        )
+
+        return resource
+
+    # take only the first block. the first block does not have uncles so this table should not be created and merged
+    info = p.run(
+        ethereum(slice(1)),
+        **destination_config.run_kwargs,
+    )
+    assert_load_info(info)
+    eth_1_counts = load_table_counts(p, "blocks")
+    # we load a single block
+    assert eth_1_counts["blocks"] == 1
+    # check root key propagation
+    assert (
+        p.default_schema.tables["blocks__transactions"]["columns"]["_dlt_root_id"]["root_key"]
+        is True
+    )
+    # now we load the whole dataset. blocks should be created which adds columns to blocks
+    # if the table would be created before the whole load would fail because new columns have hints
+    info = p.run(
+        ethereum(),
+        **destination_config.run_kwargs,
+    )
+    assert_load_info(info)
+    eth_2_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables()])
+    # we have 2 blocks in dataset
+    assert eth_2_counts["blocks"] == 2 if destination_config.supports_merge else 3
+    # make sure we have same record after merging full dataset again
+    info = p.run(
+        ethereum(),
+        **destination_config.run_kwargs,
+    )
+    assert_load_info(info)
+    # for non merge destinations we just check that the run passes
+    if not destination_config.supports_merge:
+        return
+    eth_3_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables()])
+    assert eth_2_counts == eth_3_counts
+
+
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True,
         local_filesystem_configs=True,
         table_format_filesystem_configs=True,
         supports_merge=True,
