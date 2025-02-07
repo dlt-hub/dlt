@@ -241,7 +241,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
         super().__init__(schema, config, capabilities)
         self.config: LanceDBClientConfiguration = config
         self.db_client: DBConnection = lancedb.connect(
-            uri=self.config.credentials.uri,
+            uri=self.config.lance_uri,
             api_key=self.config.credentials.api_key,
             read_consistency_interval=timedelta(0),
         )

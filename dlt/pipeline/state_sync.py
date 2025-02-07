@@ -131,5 +131,9 @@ def default_pipeline_state() -> TPipelineState:
     return {
         **default_versioned_state(),
         "_state_engine_version": PIPELINE_STATE_ENGINE_VERSION,
-        "_local": {"first_run": True, "initial_cwd": os.path.abspath(os.path.curdir)},
+        "_local": {
+            "first_run": True,
+            # keep the initial run dir when the pipeline was created
+            "initial_cwd": os.path.abspath(dlt.current.run_context().tmp_dir),
+        },
     }

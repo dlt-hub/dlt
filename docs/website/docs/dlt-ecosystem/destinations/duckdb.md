@@ -138,6 +138,16 @@ p = dlt.pipeline(
   dev_mode=False
 )
 ```
+Named `duckdb` destinations will create a database file in current working directory as `<destination_name>.duckdb`. For example:
+```py
+# will load data to files/data.db (relative path) database file
+p = dlt.pipeline(
+  pipeline_name='chess',
+  destination=dlt.destinations.duckdb(destination_name="chessdb"),
+  dataset_name='chess_data',
+)
+```
+creates database `chessdb.duckdb`.
 
 The destination accepts a `duckdb` connection instance via `credentials`, so you can also open a database connection yourself and pass it to `dlt` to use.
 
@@ -184,13 +194,15 @@ You can configure a DuckDB destination with [secret / config values](../../gener
 ```toml
 destination.duckdb.credentials="duckdb:///_storage/test_quack.duckdb"
 ```
-
 The **duckdb://** URL above creates a **relative** path to `_storage/test_quack.duckdb`. To define an **absolute** path, you need to specify four slashes, i.e., `duckdb:////_storage/test_quack.duckdb`.
 
-Dlt supports a unique connection string that triggers specific behavior for the `duckdb` destination:
-* **:pipeline:** creates the database in the working directory of the pipeline, naming it `quack.duckdb`.
+You can also skip the schema and just pass the path directly:
+```toml
+destination.duckdb.credentials="_storage/test_quack.duckdb"
+```
 
-Please see the code snippets below showing how to use it:
+You can also place the database in the working directory of the pipeline by passing **:pipeline:** as path. The
+database will be name `<pipeline_name>.duckdb`.
 
 1. Via `config.toml`
 ```toml

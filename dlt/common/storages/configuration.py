@@ -183,8 +183,6 @@ class FilesystemConfiguration(BaseConfiguration):
     kwargs: Optional[DictStrAny] = None
     client_kwargs: Optional[DictStrAny] = None
     deltalake_storage_options: Optional[DictStrAny] = None
-    max_state_files: int = 100
-    """Maximum number of pipeline state files to keep; 0 or negative value disables cleanup."""
 
     @property
     def protocol(self) -> str:
@@ -206,6 +204,10 @@ class FilesystemConfiguration(BaseConfiguration):
                 " FilesystemClientConfiguration must contain valid url with a path or host:password"
                 " component."
             )
+        self.normalize_bucket_url()
+
+    def normalize_bucket_url(self) -> None:
+        """Normalizes bucket_url ie. by making local paths absolute"""
         # this is just a path in a local file system
         if self.is_local_path(self.bucket_url):
             self.bucket_url = self.make_file_url(self.bucket_url)

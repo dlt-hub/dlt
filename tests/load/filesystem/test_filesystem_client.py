@@ -25,7 +25,7 @@ from dlt.destinations.impl.filesystem.filesystem import (
 
 from dlt.destinations.path_utils import create_path, prepare_datetime_params
 from tests.load.filesystem.utils import perform_load
-from tests.utils import clean_test_storage, init_test_logging
+from tests.utils import TEST_STORAGE_ROOT, clean_test_storage, init_test_logging
 from tests.load.utils import TEST_FILE_LAYOUTS
 
 # mark all tests as essential, do not remove
@@ -85,6 +85,24 @@ def test_filesystem_factory_buckets(with_gdrive_buckets_env: str) -> None:
         initial_config=FilesystemDestinationClientConfiguration()._bind_dataset_name("test"),
     )
     assert isinstance(client.config.credentials, credentials_type)
+
+
+@pytest.mark.parametrize("location", ("lake", "file:lake"))
+def test_filesystem_follows_tmp_dir(location: str) -> None:
+    tmp_dir = os.path.join(TEST_STORAGE_ROOT, uniq_id())
+    os.makedirs(tmp_dir)
+    # mock tmp dir
+    os.environ["DLT_TMP_DIR"] = tmp_dir
+    filesystem_ = filesystem(location)
+    c = FilesystemDestinationClientConfiguration()._bind_dataset_name(dataset_name="test_dataset")
+    client = filesystem_.client(
+        Schema("test"),
+        initial_config=c,
+    )
+    # tmp dir is relative
+    lake_rel_dir = os.path.join(tmp_dir, "lake")
+    assert client.bucket_path.endswith(lake_rel_dir)
+    assert client.bucket_path == os.path.abspath(lake_rel_dir)
 
 
 @pytest.mark.parametrize("write_disposition", ("replace", "append", "merge"))

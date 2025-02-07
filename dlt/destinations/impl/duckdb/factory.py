@@ -167,7 +167,6 @@ class duckdb(Destination[DuckDbClientConfiguration, "DuckDbClient"]):
         create_indexes: bool = False,
         destination_name: t.Optional[str] = None,
         environment: t.Optional[str] = None,
-        bound_to_pipeline: t.Optional[SupportsPipeline] = None,
         **kwargs: t.Any,
     ) -> None:
         """Configure the DuckDB destination to use in a pipeline.
@@ -187,7 +186,6 @@ class duckdb(Destination[DuckDbClientConfiguration, "DuckDbClient"]):
             create_indexes=create_indexes,
             destination_name=destination_name,
             environment=environment,
-            bound_to_pipeline=bound_to_pipeline,
             **kwargs,
         )
 

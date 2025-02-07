@@ -18,7 +18,7 @@ from typing import (
     Union,
 )
 
-from dlt import version
+import dlt
 from dlt.common import logger
 from dlt.common.json import json
 from dlt.common.pendulum import pendulum
@@ -35,7 +35,6 @@ from dlt.common.destination.exceptions import (
     DestinationNoStagingMode,
     DestinationUndefinedEntity,
 )
-from dlt.common.exceptions import MissingDependencyException
 from dlt.common.runtime import signals, apply_runtime_config
 from dlt.common.schema.typing import (
     TSchemaTables,
@@ -46,7 +45,7 @@ from dlt.common.schema.typing import (
 )
 from dlt.common.schema.utils import normalize_schema_name
 from dlt.common.storages.exceptions import LoadPackageNotFound
-from dlt.common.typing import ConfigValue, TFun, TSecretStrValue, is_optional_type, TColumnNames
+from dlt.common.typing import ConfigValue, TFun, TSecretStrValue, TColumnNames
 from dlt.common.runners import pool_runner as runner
 from dlt.common.storages import (
     LiveSchemaStorage,
@@ -74,10 +73,8 @@ from dlt.common.destination.client import (
     DestinationClientDwhConfiguration,
     WithStateSync,
     JobClientBase,
-    DestinationClientConfiguration,
     DestinationClientStagingConfiguration,
     DestinationClientStagingConfiguration,
-    DestinationClientDwhWithStagingConfiguration,
 )
 from dlt.common.destination.dataset import SupportsReadableDataset
 from dlt.common.destination.typing import TDatasetType
@@ -101,6 +98,7 @@ from dlt.common.utils import is_interactive
 from dlt.common.warnings import deprecated, Dlt04DeprecationWarning
 from dlt.common.versioned_state import json_encode_state, json_decode_state
 
+from dlt.destinations.configuration import WithLocalFiles
 from dlt.extract import DltSource
 from dlt.extract.exceptions import SourceExhausted
 from dlt.extract.extract import Extract, data_to_sources
@@ -122,6 +120,7 @@ from dlt.pipeline.exceptions import (
     CannotRestorePipelineException,
     InvalidPipelineName,
     PipelineConfigMissing,
+    PipelineNeverRan,
     PipelineNotActive,
     PipelineStepFailed,
     SqlClientNotAvailable,
@@ -137,7 +136,6 @@ from dlt.pipeline.trace import (
     end_trace_step,
     end_trace,
 )
-from dlt.common.pipeline import pipeline_state as current_pipeline_state
 from dlt.pipeline.typing import TPipelineStep
 from dlt.pipeline.state_sync import (
     PIPELINE_STATE_ENGINE_VERSION,
@@ -1079,9 +1077,7 @@ class Pipeline(SupportsPipeline):
     @destination.setter
     def destination(self, new_value: AnyDestination) -> None:
         self._destination = new_value
-        # bind pipeline to factory
-        if self._destination:
-            self._destination.config_params["bound_to_pipeline"] = self
+        self._on_set_destination(new_value)
 
     @property
     def staging(self) -> AnyDestination:
@@ -1090,9 +1086,15 @@ class Pipeline(SupportsPipeline):
     @staging.setter
     def staging(self, new_value: AnyDestination) -> None:
         self._staging = new_value
-        # bind pipeline to factory
-        if self._staging:
-            self._staging.config_params["bound_to_pipeline"] = self
+        self._on_set_destination(new_value)
+
+    def _on_set_destination(self, new_value: AnyDestination) -> None:
+        if issubclass(new_value.spec, WithLocalFiles):
+            config = WithLocalFiles()
+            config._bind_local_files(self)
+            # bind config fields with pipeline context so local files are created at deterministic location
+            for field in WithLocalFiles.__annotations__:
+                new_value.config_params[field] = config[field]
 
     def _get_schema_or_create(self, schema_name: str = None) -> Schema:
         if schema_name:
@@ -1252,8 +1254,6 @@ class Pipeline(SupportsPipeline):
     def _get_destination_clients(
         self,
         schema: Schema = None,
-        initial_config: DestinationClientConfiguration = None,
-        initial_staging_config: DestinationClientConfiguration = None,
     ) -> Tuple[JobClientBase, JobClientBase]:
         if not self._destination:
             raise PipelineConfigMissing(
@@ -1266,19 +1266,17 @@ class Pipeline(SupportsPipeline):
 
         destination_client, staging_client = get_destination_clients(
             schema=schema or self.default_schema,
-            default_schema_name=(
-                self.default_schema_name if not self.config.use_single_dataset else None
-            ),
             destination=self._destination,
             destination_dataset_name=self.dataset_name,
-            destination_initial_config=initial_config,
             staging=self._staging,
             # in case of destination that does not need dataset name, we still must
             # provide one to staging
             # TODO: allow for separate staging_dataset_name, that will require to migrate pipeline state
             #   to store it.
             staging_dataset_name=self.dataset_name or self._make_dataset_name(None, self._staging),
-            staging_initial_config=initial_staging_config,
+            multi_dataset_default_schema_name=(
+                self.default_schema_name if not self.config.use_single_dataset else None
+            ),
         )
 
         if isinstance(destination_client.config, DestinationClientStagingConfiguration):
@@ -1508,7 +1506,7 @@ class Pipeline(SupportsPipeline):
             # engine upgrade
             _local = migrated_state["_local"]
             if "initial_cwd" not in _local:
-                _local["initial_cwd"] = os.path.abspath(os.path.curdir)
+                _local["initial_cwd"] = os.path.abspath(dlt.current.run_context().tmp_dir)
             return migrated_state
         except FileNotFoundError:
             # do not set the state hash, this will happen on first merge
@@ -1761,8 +1759,13 @@ class Pipeline(SupportsPipeline):
         Returns:
             A dataset object that supports querying the destination data.
         """
+        if not self.default_schema_name:
+            raise PipelineNeverRan(self.pipeline_name, self.pipelines_dir)
         if schema is None:
-            schema = self.default_schema if self.default_schema_name else None
+            schema = self.default_schema
+        elif isinstance(schema, str):
+            # schema with given name must be present
+            schema = self.schemas[schema]
         return dataset(
             self._destination,
             self.dataset_name,
