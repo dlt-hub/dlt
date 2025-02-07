@@ -143,9 +143,7 @@ class DestinationClientConfiguration(BaseConfiguration):
         default=None, init=False, repr=False, compare=False
     )  # which destination to load data to
     credentials: Optional[CredentialsConfiguration] = None
-    destination_name: Optional[str] = (
-        None  # name of the destination, if not set, destination_type is used
-    )
+    destination_name: Optional[str] = None  # name of the destination
     environment: Optional[str] = None
 
     def fingerprint(self) -> str:
@@ -155,9 +153,6 @@ class DestinationClientConfiguration(BaseConfiguration):
     def __str__(self) -> str:
         """Return displayable destination location"""
         return str(self.credentials)
-
-    def on_resolved(self) -> None:
-        self.destination_name = self.destination_name or self.destination_type
 
     @classmethod
     def credentials_type(
