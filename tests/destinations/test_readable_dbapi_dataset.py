@@ -2,6 +2,7 @@
 import dlt
 import pytest
 
+import dlt.destinations.dataset
 from dlt.destinations.dataset.exceptions import (
     ReadableRelationHasQueryException,
     ReadableRelationUnknownColumnException,
@@ -9,7 +10,9 @@ from dlt.destinations.dataset.exceptions import (
 
 
 def test_query_builder() -> None:
-    dataset = dlt.pipeline(destination="duckdb", pipeline_name="pipeline").dataset()
+    dataset = dlt.destinations.dataset.dataset(
+        dlt.destinations.duckdb(destination_name="duck_db"), "pipeline_dataset"
+    )
 
     # default query for a table
     assert dataset.my_table.query.strip() == 'SELECT  * FROM "pipeline_dataset"."my_table"'
@@ -55,7 +58,9 @@ def test_query_builder() -> None:
 
 
 def test_copy_and_chaining() -> None:
-    dataset = dlt.pipeline(destination="duckdb", pipeline_name="pipeline").dataset()
+    dataset = dlt.destinations.dataset.dataset(
+        dlt.destinations.duckdb(destination_name="duck_db"), "pipeline_dataset"
+    )
 
     # create releation and set some stuff on it
     relation = dataset.items
@@ -80,7 +85,9 @@ def test_copy_and_chaining() -> None:
 
 
 def test_computed_schema_columns() -> None:
-    dataset = dlt.pipeline(destination="duckdb", pipeline_name="pipeline").dataset()
+    dataset = dlt.destinations.dataset.dataset(
+        dlt.destinations.duckdb(destination_name="duck_db"), "pipeline_dataset"
+    )
     relation = dataset.items
 
     # no schema present
@@ -107,7 +114,9 @@ def test_computed_schema_columns() -> None:
 
 
 def test_prevent_changing_relation_with_query() -> None:
-    dataset = dlt.pipeline(destination="duckdb", pipeline_name="pipeline").dataset()
+    dataset = dlt.destinations.dataset.dataset(
+        dlt.destinations.duckdb(destination_name="duck_db"), "pipeline_dataset"
+    )
     relation = dataset("SELECT * FROM something")
 
     with pytest.raises(ReadableRelationHasQueryException):

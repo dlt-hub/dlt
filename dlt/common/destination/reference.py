@@ -1,6 +1,5 @@
 import re
 from abc import ABC, abstractmethod
-from importlib import import_module
 
 from typing import (
     Callable,
@@ -29,6 +28,7 @@ from dlt.common.destination.client import DestinationClientConfiguration, JobCli
 from dlt.common.runtime.run_context import get_plugin_modules
 from dlt.common.schema.schema import Schema
 from dlt.common.utils import get_full_callable_name
+from dlt.common.reflection.ref import object_from_ref
 
 
 TDestinationConfig = TypeVar("TDestinationConfig", bound="DestinationClientConfiguration")
@@ -302,27 +302,25 @@ class DestinationReference:
 
         for ref_ in refs:
             if factory := cls.DESTINATIONS.get(ref_):
-                break
+                return factory
+
+        def _typechecker(t_: Any) -> Any:
+            assert issubclass(t_, Destination)
+            return t_
+
+        import_traces = []
 
         # no reference found, try to import default module
         if not factory:
             for possible_type in refs:
                 if "." not in possible_type:
                     continue
-                try:
-                    module_path, attr_name = possible_type.rsplit(".", 1)
-                    dest_module = import_module(module_path)
-                except ModuleNotFoundError:
-                    continue
+                factory, trace = object_from_ref(possible_type, _typechecker)
+                if factory:
+                    return factory
+                import_traces.append(trace)
 
-                try:
-                    factory = getattr(dest_module, attr_name)
-                except AttributeError as e:
-                    raise UnknownDestinationModule(ref) from e
-                break
-        if not factory:
-            raise UnknownDestinationModule(ref)
-        return factory
+        raise UnknownDestinationModule(ref, refs, import_traces)
 
     @classmethod
     def from_reference(
@@ -348,9 +346,4 @@ class DestinationReference:
             kwargs["destination_name"] = destination_name
         if environment:
             kwargs["environment"] = environment
-        try:
-            dest = factory(**kwargs)
-            dest.spec
-        except Exception as e:
-            raise InvalidDestinationReference(ref) from e
-        return dest
+        return factory(**kwargs)

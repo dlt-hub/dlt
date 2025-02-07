@@ -16,6 +16,7 @@ from typing import Dict, Type, ClassVar
 from dlt.common import logger
 from dlt.common.configuration.specs import BaseConfiguration, known_sections
 
+from dlt.common.reflection.ref import object_from_ref
 from dlt.common.runtime.run_context import get_plugin_modules
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TSchemaContract
@@ -167,31 +168,18 @@ class SourceReference:
             if wrapper := cls.SOURCES.get(ref_):
                 return wrapper.factory
 
+        import_traces = []
+
         # try to import module
         for possible_type in refs:
-            try:
-                if "." not in possible_type:
-                    continue
-                # will expand type to import built in types
-                module_path, attr_name = possible_type.rsplit(".", 1)
-                dest_module = import_module(module_path)
-                factory = cast(AnySourceFactory, getattr(dest_module, attr_name))
-                # standalone resource will be implemented as decorated function with the factory attached
-                if hasattr(factory, "_factory"):
-                    factory = factory._factory
-                # make sure it is factory interface (we could check Protocol as well)
-                if not hasattr(factory, "clone"):
-                    raise ValueError(f"{attr_name} in {module_path} is of type {type(factory)}")
+            if "." not in possible_type:
+                continue
+            factory, trace = object_from_ref(possible_type, SourceReference._factory_typechecker)
+            if factory:
                 return factory
-            except MissingDependencyException:
-                raise
-            except ModuleNotFoundError:
-                # raise regular exception later
-                pass
-            except Exception as e:
-                raise UnknownSourceReference([ref]) from e
+            import_traces.append(trace)
 
-        raise UnknownSourceReference(refs or [ref])
+        raise UnknownSourceReference(ref, refs, traces=import_traces)
 
     @classmethod
     def from_reference(
@@ -227,3 +215,12 @@ class SourceReference:
             parallelized=parallelized,
             _impl_cls=_impl_cls,
         )(*source_args, **source_kwargs)
+
+    @staticmethod
+    def _factory_typechecker(factory: Any) -> Any:
+        if hasattr(factory, "_factory"):
+            factory = factory._factory
+            # make sure it is factory interface (we could check Protocol as well)
+        if not isinstance(factory, SourceFactory):
+            raise TypeError("expected AnySourceFactory type")
+        return factory

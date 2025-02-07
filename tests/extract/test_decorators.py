@@ -767,9 +767,16 @@ def test_source_reference() -> None:
     # unknown reference
     with pytest.raises(UnknownSourceReference) as ref_ex:
         SourceReference.from_reference("$ref")
+    assert ref_ex.value.ref == "$ref"
     # NOTE: 'dlt.sources.$ref.$ref' twice because top module of run context is dlt.
-    assert ref_ex.value.ref == [
+    assert ref_ex.value.qualified_refs == [
         "$ref",
+        "dlt.sources.$ref.$ref",
+        "tests.extract.cases.sources.$ref.$ref",
+        "dlt.sources.$ref.$ref",
+    ]
+    # tried to auto import the following refs
+    assert [t.ref for t in ref_ex.value.traces] == [
         "dlt.sources.$ref.$ref",
         "tests.extract.cases.sources.$ref.$ref",
         "dlt.sources.$ref.$ref",
@@ -867,14 +874,24 @@ def test_source_reference_from_type() -> None:
     # module exists but attr is not a factory
     with pytest.raises(UnknownSourceReference) as ref_ex:
         SourceReference.find("tests.extract.test_decorators.test_source_reference_from_type")
-    assert ref_ex.value.ref == ["tests.extract.test_decorators.test_source_reference_from_type"]
+    assert (
+        ref_ex.value.ref == "tests.extract.test_decorators.test_source_reference_from_type"
+    )  # already fully qualified ref
+    assert ref_ex.value.qualified_refs == [ref_ex.value.ref]
+    # auto import failed on type check
+    traces = ref_ex.value.traces
+    assert len(traces) == 1
+    assert traces[0].reason == "TypeCheck"
 
     # wrong module
     with pytest.raises(UnknownSourceReference) as ref_ex:
         SourceReference.from_reference(
             "testX.extract.test_decorators.test_source_reference_from_type"
         )
-    assert ref_ex.value.ref == ["testX.extract.test_decorators.test_source_reference_from_type"]
+    assert ref_ex.value.ref == "testX.extract.test_decorators.test_source_reference_from_type"
+    traces = ref_ex.value.traces
+    assert len(traces) == 1
+    assert traces[0].reason == "ModuleSpecNotFound"
 
 
 @pytest.mark.parametrize("cloner", ("with_args", "clone"))
