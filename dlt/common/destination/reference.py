@@ -305,7 +305,7 @@ class DestinationReference:
                 return factory
 
         def _typechecker(t_: Any) -> Any:
-            assert issubclass(t_, Destination)
+            assert callable(t_) or issubclass(t_, Destination)
             return t_
 
         import_traces = []

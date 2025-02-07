@@ -72,7 +72,7 @@ def test_example_plugin() -> None:
     # reference prefixes we probe when resolving
     assert run_context.get_plugin_modules() == ["dlt_example_plugin", "dlt_example_plugin", "dlt"]
     assert context.tmp_dir.startswith(context.data_dir)
-    assert context.tmp_dir.startswith("tmp")
+    assert context.tmp_dir.endswith("tmp")
 
 
 def test_import_references() -> None:
