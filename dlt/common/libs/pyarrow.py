@@ -4,7 +4,6 @@ from typing import (
     Any,
     Dict,
     Mapping,
-    Tuple,
     Optional,
     Union,
     Callable,
@@ -670,9 +669,16 @@ def row_tuples_to_arrow(
 
     arrow_schema = columns_to_arrow(columns, caps, tz)
 
+    def infer_first_non_null_type(idx: int) -> Any:
+        for row in rows:
+            value = row[idx]
+            if value is not None:
+                return type(value)
+        return type(None)
+
     for idx in range(0, len(arrow_schema.names)):
         field = arrow_schema.field(idx)
-        py_type = type(rows[0][idx])
+        py_type = infer_first_non_null_type(idx)
         # cast double / float ndarrays to decimals if type mismatch, looks like decimals and floats are often mixed up in dialects
         if pa.types.is_decimal(field.type) and issubclass(py_type, (str, float)):
             logger.warning(
