@@ -10,6 +10,8 @@ from dlt.common import Decimal
 from typing import List
 from functools import reduce
 
+from dlt.common.schema.schema import Schema
+from dlt.common.storages.exceptions import SchemaNotFoundError
 from dlt.common.storages.file_storage import FileStorage
 from tests.load.utils import (
     destinations_configs,
@@ -503,21 +505,28 @@ def test_column_selection(populated_pipeline: Pipeline) -> None:
 def test_schema_arg(populated_pipeline: Pipeline) -> None:
     """Simple test to ensure schemas may be selected via schema arg"""
 
-    # if there is no arg, the defautl schema is used
+    # if there is no arg, the default schema is used
     dataset = populated_pipeline.dataset()
     assert dataset.schema.name == populated_pipeline.default_schema_name
     assert "items" in dataset.schema.tables
 
-    # setting a different schema name will try to load that schema,
-    # not find one and create an empty schema with that name
-    dataset = populated_pipeline.dataset(schema="unknown_schema")
+    # if setting a different schema, it must be present in pipeline
+    with pytest.raises(SchemaNotFoundError):
+        populated_pipeline.dataset(schema="unknown_schema")
+
+    # explicit schema object is OK
+    dataset = populated_pipeline.dataset(schema=Schema("unknown_schema"))
     assert dataset.schema.name == "unknown_schema"
     assert "items" not in dataset.schema.tables
 
+    # create a second schema in the pipeline
+    populated_pipeline.run([1, 2, 3], table_name="digits", schema=Schema("aleph"))
+
     # providing the schema name of the right schema will load it
-    dataset = populated_pipeline.dataset(schema=populated_pipeline.default_schema_name)
-    assert dataset.schema.name == populated_pipeline.default_schema_name
-    assert "items" in dataset.schema.tables
+    dataset = populated_pipeline.dataset(schema="aleph")
+    assert dataset.schema.name == "aleph"
+    assert "digits" in dataset.schema.tables
+    dataset.digits.fetchall()
 
 
 @pytest.mark.no_load
@@ -749,14 +758,14 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
     dataset_name = map_i(populated_pipeline.dataset_name)
     table_like_statement = None
     table_name_prefix = ""
-    addtional_tables = []
+    additional_tables = []
 
     # clickhouse has no datasets, but table prefixes and a sentinel table
     if populated_pipeline.destination.destination_type == "dlt.destinations.clickhouse":
         table_like_statement = dataset_name + "."
         table_name_prefix = dataset_name + "___"
         dataset_name = None
-        addtional_tables = ["dlt_sentinel_table"]
+        additional_tables = ["dlt_sentinel_table"]
 
     add_table_prefix = lambda x: table_name_prefix + x
 
@@ -772,7 +781,7 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
                 "items",
                 "items__children",
             ]
-            + addtional_tables
+            + additional_tables
         )
     }
 

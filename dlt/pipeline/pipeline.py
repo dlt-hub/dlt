@@ -1662,10 +1662,10 @@ class Pipeline(SupportsPipeline):
                 state["_local"][prop] = getattr(self, prop)  # type: ignore
         if self._destination:
             state["destination_type"] = self._destination.destination_type
-            state["destination_name"] = self._destination.destination_name
+            state["destination_name"] = self._destination.configured_name
         if self._staging:
             state["staging_type"] = self._staging.destination_type
-            state["staging_name"] = self._staging.destination_name
+            state["staging_name"] = self._staging.configured_name
         state["schema_names"] = self._list_schemas_sorted()
         return state
 
@@ -1759,13 +1759,19 @@ class Pipeline(SupportsPipeline):
         Returns:
             A dataset object that supports querying the destination data.
         """
-        if not self.default_schema_name:
+        if isinstance(schema, Schema):
+            logger.info(
+                f"Make sure that tables declared in explicit schema {schema.name} are present on"
+                f" dataset {self.dataset_name}"
+            )
+        elif not self.default_schema_name:
             raise PipelineNeverRan(self.pipeline_name, self.pipelines_dir)
-        if schema is None:
+        elif schema is None:
             schema = self.default_schema
         elif isinstance(schema, str):
             # schema with given name must be present
             schema = self.schemas[schema]
+
         return dataset(
             self._destination,
             self.dataset_name,
