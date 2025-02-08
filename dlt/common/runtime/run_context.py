@@ -40,7 +40,7 @@ class RunContext(SupportsRunContext):
 
     @property
     def tmp_dir(self) -> str:
-        return os.environ.get(known_env.DLT_TMP_DIR, self.run_dir)
+        return os.environ.get(known_env.DLT_TMP_DIR, self._init_run_dir)
 
     @property
     def settings_dir(self) -> str:
