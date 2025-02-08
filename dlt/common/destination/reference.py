@@ -27,6 +27,7 @@ from dlt.common.destination.exceptions import (
 from dlt.common.destination.client import DestinationClientConfiguration, JobClientBase
 from dlt.common.runtime.run_context import get_plugin_modules
 from dlt.common.schema.schema import Schema
+from dlt.common.typing import is_subclass
 from dlt.common.utils import get_full_callable_name
 from dlt.common.reflection.ref import object_from_ref
 
@@ -123,6 +124,11 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
     def destination_name(self) -> str:
         """The destination name will either be explicitly set while creating the destination or will be taken from the type"""
         return self.config_params.get("destination_name") or self.to_name(self.destination_type)
+
+    @property
+    def configured_name(self) -> str:
+        """Configured destination name, None by default"""
+        return self.config_params.get("destination_name")  # type: ignore[no-any-return]
 
     @property
     def destination_type(self) -> str:
@@ -305,7 +311,11 @@ class DestinationReference:
                 return factory
 
         def _typechecker(t_: Any) -> Any:
-            assert callable(t_) or issubclass(t_, Destination)
+            # or destination type
+            if is_subclass(t_, Destination):
+                return t_
+            # or callable that has factory and will return it
+            assert callable(t_) and hasattr(t_, "_factory")
             return t_
 
         import_traces = []

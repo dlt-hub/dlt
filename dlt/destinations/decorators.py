@@ -152,6 +152,7 @@ def destination(
                 )
             return D(**kwargs)  # type: ignore[arg-type]
 
+        setattr(wrapper, "_factory", D)  # noqa
         return wrapper
 
     if func is None:
