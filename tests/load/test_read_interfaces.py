@@ -128,6 +128,11 @@ def populated_pipeline(request, autouse_test_storage) -> Any:
     # run source
     s = source()
     pipeline.run(s, loader_file_format=destination_config.file_format)
+    # create a second schema in the pipeline
+    # NOTE: that generates additional load package and then another one for the state
+    # NOTE: "aleph" schema is now the newest schema in the dataset and we assume that later in the tests
+    # TODO: we need some kind of idea for multi-schema datasets
+    pipeline.run([1, 2, 3], table_name="digits", schema=Schema("aleph"))
 
     # in case of delta on gcs we use the s3 compat layer for reading
     # for writing we still need to use the gc authentication, as delta_rs seems to use
@@ -319,9 +324,12 @@ def test_hint_preservation(populated_pipeline: Pipeline) -> None:
     ids=lambda x: x.name,
 )
 def test_loads_table_access(populated_pipeline: Pipeline) -> None:
-    # check loads table access, we should have one entry
+    # check loads table access, we should have 3 entires
+    # - first source (default schema)
+    # - additional schema (digits)
+    # - state update send in separate package to default schema
     loads_table = populated_pipeline.dataset()[populated_pipeline.default_schema.loads_table_name]
-    assert len(loads_table.fetchall()) == 1
+    assert len(loads_table.fetchall()) == 3
 
 
 @pytest.mark.no_load
@@ -368,30 +376,30 @@ def test_row_counts(populated_pipeline: Pipeline) -> None:
     ) == {
         (
             "_dlt_version",
-            1,
+            2,
         ),
         (
             "_dlt_loads",
-            1,
+            3,
         ),
         (
             "_dlt_pipeline_state",
-            1,
+            2,
         ),
     }
     # get them all
     assert set(dataset.row_counts(dlt_tables=True).df().itertuples(index=False, name=None)) == {
         (
             "_dlt_version",
-            1,
+            2,
         ),
         (
             "_dlt_loads",
-            1,
+            3,
         ),
         (
             "_dlt_pipeline_state",
-            1,
+            2,
         ),
         (
             "items",
@@ -518,9 +526,6 @@ def test_schema_arg(populated_pipeline: Pipeline) -> None:
     dataset = populated_pipeline.dataset(schema=Schema("unknown_schema"))
     assert dataset.schema.name == "unknown_schema"
     assert "items" not in dataset.schema.tables
-
-    # create a second schema in the pipeline
-    populated_pipeline.run([1, 2, 3], table_name="digits", schema=Schema("aleph"))
 
     # providing the schema name of the right schema will load it
     dataset = populated_pipeline.dataset(schema="aleph")
@@ -777,6 +782,7 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
                 "_dlt_loads",
                 "_dlt_pipeline_state",
                 "_dlt_version",
+                "digits",  # from aleph schema
                 "double_items",
                 "items",
                 "items__children",
@@ -843,8 +849,10 @@ def test_standalone_dataset(populated_pipeline: Pipeline) -> None:
             dataset_name=populated_pipeline.dataset_name,
         ),
     )
-    assert dataset.schema.name == populated_pipeline.default_schema_name
-    assert dataset.schema.tables["items"]["write_disposition"] == "replace"
+    # aleph is a secondary schema in the pipeline but because it was stored second
+    # will be retrieved by default
+    assert dataset.schema.name == "aleph"
+    assert dataset.schema.tables["digits"]["write_disposition"] == "append"
 
     # check that there is no error when creating dataset without schema table
     dataset = cast(
