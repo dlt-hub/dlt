@@ -60,10 +60,8 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
         self._ibis_object = ibis_object
         self._columns_schema = columns_schema
 
-    @property
     def query(self) -> Any:
         """build the query"""
-
         from dlt.helpers.ibis import ibis, sqlglot
 
         destination_type = self._dataset._destination.destination_type
@@ -140,11 +138,13 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
 
         # try casefolded name for ibis columns access
         if attr is None:
-            name = self.sql_client.capabilities.casefold_identifier(name)
+            name = self._dataset._sql_client.capabilities.casefold_identifier(name)
             attr = getattr(self._ibis_object, name, None)
 
         if attr is None:
-            raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
+            raise AttributeError(
+                f"'{self._ibis_object.__class__.__name__}' object has no attribute '{name}'"
+            )
 
         if not callable(attr):
             # NOTE: we don't need to forward columns schema for non-callable attributes, these are usually columns

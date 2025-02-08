@@ -51,6 +51,8 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
 
     @property
     def schema(self) -> Schema:
+        # NOTE: if this property raises AttributeError, __getattr__ will get called 🤯
+        #   this leads to infinite recursion as __getattr_ calls this property
         if not self._schema:
             self._ensure_client_and_schema()
         return self._schema
