@@ -166,9 +166,11 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
         config = self.configuration(initial_config)
         caps = self.capabilities(config, schema.naming)
         # adjust naming for caps that dynamically set max length (ie. sql alchemy)
-        schema.naming.max_length = min(
-            caps.max_identifier_length, caps.max_column_identifier_length
-        )
+        if caps.max_identifier_length or caps.max_column_identifier_length:
+            schema.naming.max_length = min(
+                caps.max_identifier_length or caps.max_column_identifier_length,
+                caps.max_column_identifier_length or caps.max_identifier_length,
+            )
         return self.client_class(schema, config, caps)
 
     @classmethod
