@@ -149,6 +149,19 @@ p = dlt.pipeline(
 ```
 creates database `chessdb.duckdb`.
 
+:::caution
+Avoid naming dataset the same as database. That will confuse `duckdb` binder as both catalog and schema are the same. For
+example:
+```py
+pipeline = dlt.pipeline(
+        pipeline_name="dummy",
+        destination="duckdb",
+        dataset_name="dummy",
+    )
+```
+will create database `dummy.duckdb` and schema (dataset) `dummy` which get confused resulting in Binder Error.
+:::
+
 The destination accepts a `duckdb` connection instance via `credentials`, so you can also open a database connection yourself and pass it to `dlt` to use.
 
 ```py
