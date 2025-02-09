@@ -1,5 +1,6 @@
 from typing import Any, List, Optional
 from unittest import mock
+from urllib.parse import parse_qs, urlsplit
 
 import pytest
 from requests import Request, Response, Session
@@ -10,7 +11,6 @@ from dlt.pipeline.exceptions import PipelineStepFailed
 from dlt.sources.helpers.rest_client.paginators import BaseReferencePaginator
 from dlt.sources.rest_api import (
     ClientConfig,
-    DltSource,
     Endpoint,
     EndpointResource,
     RESTAPIConfig,
@@ -119,217 +119,295 @@ def test_load_mock_api(mock_api_server, config):
     )
 
 
-@pytest.mark.skip(reason="TODO: this should raise an error")
-def test_load_mock_api_with_query_params(mock_api_server):
-    pipeline = dlt.pipeline(
-        pipeline_name="rest_api_mock",
-        destination="duckdb",
-        dataset_name="rest_api_mock",
-        full_refresh=True,
-    )
-
-    mock_source: DltSource = rest_api_source(
-        {
-            "client": {"base_url": "https://api.example.com"},
-            "resources": [
-                "posts",
-                {
-                    "name": "post_details",
-                    "endpoint": {
-                        "path": "posts",
-                        "params": {
-                            "post_id": {
-                                "type": "resolve",
-                                "resource": "posts",
-                                "field": "id",
-                            }
-                        },
+@pytest.mark.parametrize(
+    "endpoint_params,expected_static_params",
+    [
+        # Static params only
+        pytest.param(
+            {
+                "path": "posts",
+                "params": {"sort": "desc", "locale": "en"},
+            },
+            {"sort": ["desc"], "locale": ["en"]},
+            id="static_params",
+        ),
+        # No static params
+        pytest.param(
+            {
+                "path": "posts",
+                "params": {},
+            },
+            {},
+            id="empty_params",
+        ),
+        # One of the params is empty
+        pytest.param(
+            {
+                "path": "posts",
+                "params": {"sort": "desc", "locale": ""},
+            },
+            {"sort": ["desc"], "locale": [""]},
+            id="one_empty_param",
+        ),
+        # Explicitly set page param gets ignored
+        pytest.param(
+            {
+                "path": "posts",
+                "params": {"sort": "desc", "locale": "en", "page": "100"},
+            },
+            {"sort": ["desc"], "locale": ["en"]},
+            id="explicit_page_param",
+        ),
+        # Incremental defined in endpoint
+        pytest.param(
+            {
+                "path": "posts",
+                "incremental": {
+                    "start_param": "since",
+                    "end_param": "until",
+                    "cursor_path": "id",
+                    "initial_value": 1,
+                    "end_value": 10,
+                },
+            },
+            {"since": ["1"], "until": ["10"]},
+            id="incremental_in_endpoint",
+        ),
+        # Incremental mixed with static params
+        pytest.param(
+            {
+                "path": "posts",
+                "params": {"sort": "desc", "locale": "en"},
+                "incremental": {
+                    "start_param": "since",
+                    "end_param": "until",
+                    "cursor_path": "id",
+                    "initial_value": 1,
+                    "end_value": 10,
+                },
+            },
+            {"sort": ["desc"], "locale": ["en"], "since": ["1"], "until": ["10"]},
+            id="incremental_in_endpoint_mixed_with_static",
+        ),
+        # Incremental defined in params
+        pytest.param(
+            {
+                "path": "posts",
+                "params": {
+                    "sort": "desc",
+                    "since": {
+                        "type": "incremental",
+                        "cursor_path": "id",
+                        "initial_value": 1,
                     },
                 },
-            ],
-        }
-    )
-
-    load_info = pipeline.run(mock_source)
-    print(load_info)
-    assert_load_info(load_info)
-    table_names = [t["name"] for t in pipeline.default_schema.data_tables()]
-    table_counts = load_table_counts(pipeline, *table_names)
-
-    assert table_counts.keys() == {"posts", "post_details"}
-
-    assert table_counts["posts"] == DEFAULT_PAGE_SIZE * DEFAULT_TOTAL_PAGES
-    assert table_counts["post_details"] == DEFAULT_PAGE_SIZE * DEFAULT_TOTAL_PAGES
-
-    with pipeline.sql_client() as client:
-        posts_table = client.make_qualified_table_name("posts")
-        posts_details_table = client.make_qualified_table_name("post_details")
-
-    print(pipeline.default_schema.to_pretty_yaml())
-
-    assert_query_data(
-        pipeline,
-        f"SELECT title FROM {posts_table} ORDER BY id limit 25",
-        [f"Post {i}" for i in range(25)],
-    )
-
-    assert_query_data(
-        pipeline,
-        f"SELECT body FROM {posts_details_table} ORDER BY id limit 25",
-        [f"Post body {i}" for i in range(25)],
-    )
-
-
-def test_load_mock_api_with_json_resolved(mock_api_server):
-    pipeline = dlt.pipeline(
-        pipeline_name="rest_api_mock",
-        destination="duckdb",
-        dataset_name="rest_api_mock",
-        full_refresh=True,
-    )
-
+            },
+            {"since": ["1"], "sort": ["desc"]},
+            id="incremental_in_params",
+        ),
+    ],
+)
+def test_single_resource_query_string_params(
+    mock_api_server, endpoint_params, expected_static_params
+):
     mock_source = rest_api_source(
         {
-            "client": {"base_url": "https://api.example.com"},
-            "resources": [
-                "posts",
-                {
-                    "name": "post_details",
-                    "endpoint": {
-                        "path": "posts/search_by_id/{post_id}",
-                        "method": "POST",
-                        "json": {
-                            "post_id": "{post_id}",
-                            "limit": 5,
-                            "more": {
-                                "title": "{post_title}",
-                            },
-                            "more_array": [
-                                "{post_id}",
-                            ],
-                        },
-                        "params": {
-                            "post_id": {
-                                "type": "resolve",
-                                "resource": "posts",
-                                "field": "id",
-                            },
-                            "post_title": {
-                                "type": "resolve",
-                                "resource": "posts",
-                                "field": "title",
-                            },
-                        },
-                    },
+            "client": {
+                "base_url": "https://api.example.com",
+                "paginator": {
+                    "type": "page_number",
+                    "base_page": 1,
+                    "total_path": "total_pages",
                 },
+            },
+            "resources": [
+                {
+                    "name": "posts",
+                    "endpoint": {
+                        **endpoint_params,
+                    },
+                }
             ],
         }
     )
 
-    load_info = pipeline.run(mock_source)
-    print(load_info)
-    assert_load_info(load_info)
-    table_names = [t["name"] for t in pipeline.default_schema.data_tables()]
-    table_counts = load_table_counts(pipeline, *table_names)
+    list(mock_source.with_resources("posts"))
 
-    assert table_counts.keys() == {"posts", "post_details"}
+    history = mock_api_server.request_history
+    assert len(history) == 5
 
-    assert table_counts["posts"] == DEFAULT_PAGE_SIZE * DEFAULT_TOTAL_PAGES
-    assert table_counts["post_details"] == DEFAULT_PAGE_SIZE * DEFAULT_TOTAL_PAGES
-
-    with pipeline.sql_client() as client:
-        posts_table = client.make_qualified_table_name("posts")
-        posts_details_table = client.make_qualified_table_name("post_details")
-
-    print(pipeline.default_schema.to_pretty_yaml())
-
-    assert_query_data(
-        pipeline,
-        f"SELECT title FROM {posts_table} ORDER BY id limit 25",
-        [f"Post {i}" for i in range(25)],
-    )
-
-    assert_query_data(
-        pipeline,
-        f"SELECT body FROM {posts_details_table} ORDER BY id limit 25",
-        [f"Post body {i}" for i in range(25)],
-    )
+    for i, request_call in enumerate(history, start=1):
+        qs = parse_qs(urlsplit(request_call.url).query, keep_blank_values=True)
+        expected = {**expected_static_params, "page": [str(i)]}
+        assert qs == expected
 
 
-def test_load_mock_api_with_json_resolved_with_implicit_param(mock_api_server):
-    pipeline = dlt.pipeline(
-        pipeline_name="rest_api_mock",
-        destination="duckdb",
-        dataset_name="rest_api_mock",
-        full_refresh=True,
-    )
-
+@pytest.mark.parametrize(
+    "endpoint_params,expected_static_params",
+    [
+        # Static params only
+        pytest.param(
+            {
+                "path": "posts/{post_id}/comments",
+                "params": {
+                    "post_id": {"type": "resolve", "resource": "posts", "field": "id"},
+                    "sort": "desc",
+                    "locale": "en",
+                },
+            },
+            {"sort": ["desc"], "locale": ["en"]},
+            id="static_params",
+        ),
+        # No static params
+        pytest.param(
+            {
+                "path": "posts/{post_id}/comments",
+                "params": {
+                    "post_id": {"type": "resolve", "resource": "posts", "field": "id"},
+                },
+            },
+            {},
+            id="empty_params",
+        ),
+        # One of the params is empty
+        pytest.param(
+            {
+                "path": "posts/{post_id}/comments",
+                "params": {
+                    "post_id": {"type": "resolve", "resource": "posts", "field": "id"},
+                    "sort": "desc",
+                    "locale": "",
+                },
+            },
+            {"sort": ["desc"], "locale": [""]},
+            id="one_empty_param",
+        ),
+        # Explicitly set page param gets ignored
+        pytest.param(
+            {
+                "path": "posts/{post_id}/comments",
+                "params": {
+                    "post_id": {"type": "resolve", "resource": "posts", "field": "id"},
+                    "sort": "desc",
+                    "locale": "en",
+                    "page": "100",
+                },
+            },
+            {"sort": ["desc"], "locale": ["en"]},
+            id="explicit_page_param",
+        ),
+        # Incremental defined in endpoint
+        pytest.param(
+            {
+                "path": "posts/{post_id}/comments",
+                "params": {"post_id": {"type": "resolve", "resource": "posts", "field": "id"}},
+                "incremental": {
+                    "start_param": "since",
+                    "end_param": "until",
+                    "cursor_path": "id",
+                    "initial_value": 1,
+                    "end_value": 10,
+                },
+            },
+            {"since": ["1"], "until": ["10"]},
+            id="incremental_in_endpoint",
+        ),
+        # Incremental mixed with static params
+        pytest.param(
+            {
+                "path": "posts/{post_id}/comments",
+                "params": {
+                    "post_id": {"type": "resolve", "resource": "posts", "field": "id"},
+                    "sort": "desc",
+                    "locale": "en",
+                },
+                "incremental": {
+                    "start_param": "since",
+                    "end_param": "until",
+                    "cursor_path": "id",
+                    "initial_value": 1,
+                    "end_value": 10,
+                },
+            },
+            {"sort": ["desc"], "locale": ["en"], "since": ["1"], "until": ["10"]},
+            id="incremental_in_endpoint_mixed_with_static",
+        ),
+        # Incremental defined in params
+        pytest.param(
+            {
+                "path": "posts/{post_id}/comments",
+                "params": {
+                    "post_id": {"type": "resolve", "resource": "posts", "field": "id"},
+                    "since": {
+                        "type": "incremental",
+                        "cursor_path": "id",
+                        "initial_value": 1,
+                    },
+                },
+            },
+            {"since": ["1"]},
+            id="incremental_in_params",
+        ),
+        # Incremental defined in params with static params
+        pytest.param(
+            {
+                "path": "posts/{post_id}/comments",
+                "params": {
+                    "post_id": {"type": "resolve", "resource": "posts", "field": "id"},
+                    "since": {
+                        "type": "incremental",
+                        "cursor_path": "id",
+                        "initial_value": 1,
+                    },
+                    "sort": "desc",
+                    "locale": "en",
+                },
+            },
+            {"since": ["1"], "sort": ["desc"], "locale": ["en"]},
+            id="incremental_in_params_with_static",
+        ),
+    ],
+)
+def test_dependent_resource_query_string_params(
+    mock_api_server, endpoint_params, expected_static_params
+):
     mock_source = rest_api_source(
         {
-            "client": {"base_url": "https://api.example.com"},
+            "client": {
+                "base_url": "https://api.example.com",
+                "paginator": {
+                    "type": "page_number",
+                    "base_page": 1,
+                    "total_path": "total_pages",
+                },
+            },
             "resources": [
                 "posts",
                 {
-                    "name": "post_details",
+                    "name": "post_comments",
                     "endpoint": {
-                        "path": "posts/search_by_id/{resources.posts.id}",
-                        "method": "POST",
-                        "json": {
-                            "post_id": "{resources.posts.id}",
-                            "limit": 5,
-                            "more": {
-                                "title": "{resources.posts.title}",
-                            },
-                            "more_array": [
-                                "{resources.posts.id}",
-                            ],
-                        },
+                        **endpoint_params,
                     },
                 },
             ],
         }
     )
 
-    load_info = pipeline.run(mock_source)
-    print(load_info)
-    assert_load_info(load_info)
-    table_names = [t["name"] for t in pipeline.default_schema.data_tables()]
-    table_counts = load_table_counts(pipeline, *table_names)
+    list(mock_source.with_resources("posts", "post_comments").add_limit(1))
 
-    assert table_counts.keys() == {"posts", "post_details"}
+    history = mock_api_server.request_history
+    post_comments_calls = [h for h in history if "/comments" in h.url]
+    assert len(post_comments_calls) == 50
 
-    assert table_counts["posts"] == DEFAULT_PAGE_SIZE * DEFAULT_TOTAL_PAGES
-    assert table_counts["post_details"] == DEFAULT_PAGE_SIZE * DEFAULT_TOTAL_PAGES
+    for call in post_comments_calls:
+        qs = parse_qs(urlsplit(call.url).query, keep_blank_values=True)
+        expected_keys = set(expected_static_params.keys()) | {"page"}
+        assert set(qs.keys()) == expected_keys
 
-    with pipeline.sql_client() as client:
-        posts_table = client.make_qualified_table_name("posts")
-        posts_details_table = client.make_qualified_table_name("post_details")
+        for param_key, param_values in expected_static_params.items():
+            assert qs[param_key] == param_values
 
-    print(pipeline.default_schema.to_pretty_yaml())
-
-    assert_query_data(
-        pipeline,
-        f"SELECT title FROM {posts_table} ORDER BY id limit 25",
-        [f"Post {i}" for i in range(25)],
-    )
-
-    assert_query_data(
-        pipeline,
-        f"SELECT body FROM {posts_details_table} ORDER BY id limit 25",
-        [f"Post body {i}" for i in range(25)],
-    )
-
-    assert_query_data(
-        pipeline,
-        f"SELECT title FROM {posts_details_table} ORDER BY id limit 25",
-        [f"Post {i}" for i in range(25)],
-    )
-
-    assert_query_data(
-        pipeline,
-        f"SELECT more FROM {posts_details_table} ORDER BY id limit 25",
-        [f"More is equale to id: {i}" for i in range(25)],
-    )
+        assert 1 <= int(qs["page"][0]) <= 10
 
 
 def test_source_with_post_request(mock_api_server):
@@ -352,11 +430,7 @@ def test_source_with_post_request(mock_api_server):
                     "endpoint": {
                         "path": "/posts/search",
                         "method": "POST",
-                        "json": {
-                            "ids_greater_than": 50,
-                            "page_size": 25,
-                            "page_count": 4,
-                        },
+                        "json": {"ids_greater_than": 50, "page_size": 25, "page_count": 4},
                         "paginator": JSONBodyPageCursorPaginator(),
                     },
                 }
@@ -496,7 +570,6 @@ def test_load_mock_api_typeddict_config(mock_api_server, config):
     mock_source = rest_api_source(config)
 
     load_info = pipeline.run(mock_source)
-    print(load_info)
     assert_load_info(load_info)
     table_names = [t["name"] for t in pipeline.default_schema.data_tables()]
     table_counts = load_table_counts(pipeline, *table_names)

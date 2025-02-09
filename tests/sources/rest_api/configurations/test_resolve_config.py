@@ -80,6 +80,12 @@ def test_bind_path_param() -> None:
     _bind_path_params(tp_4)
     assert tp_4 == tp_5
 
+    # resolved param will remain unbounded and
+    tp_6 = deepcopy(three_params)
+    tp_6["endpoint"]["path"] = "{org}/{repo}/issues/1234/comments"  # type: ignore[index]
+    with pytest.raises(NotImplementedError):
+        _bind_path_params(tp_6)
+
 
 def test_process_parent_data_item() -> None:
     resolved_params = [
@@ -140,8 +146,7 @@ def test_process_parent_data_item() -> None:
     # Test nested data
     resolved_param_nested = [
         ResolvedParam(
-            "id",
-            {"field": "some_results.obj_id", "resource": "issues", "type": "resolve"},
+            "id", {"field": "some_results.obj_id", "resource": "issues", "type": "resolve"}
         )
     ]
     item = {"some_results": {"obj_id": 12345}}

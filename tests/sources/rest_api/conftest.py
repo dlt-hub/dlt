@@ -64,7 +64,7 @@ def paginate_by_page_number(
     return response
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 def mock_api_server():
     with requests_mock.Mocker() as m:
 
@@ -72,7 +72,7 @@ def mock_api_server():
         def posts_no_key(request, context):
             return paginate_by_page_number(request, generate_posts(), records_key=None)
 
-        @router.get(r"/posts(\?page=\d+)?$")
+        @router.get(r"/posts(\?.*)?$")
         def posts(request, context):
             return paginate_by_page_number(request, generate_posts())
 
@@ -121,7 +121,7 @@ def mock_api_server():
                 **paginator.metadata,
             }
 
-        @router.get(r"/posts/(\d+)/comments")
+        @router.get(r"/posts/(\d+)/comments(\?.*)?$")
         def post_comments(request, context):
             post_id = int(request.url.split("/")[-2])
             return paginate_by_page_number(request, generate_comments(post_id))
@@ -129,11 +129,6 @@ def mock_api_server():
         @router.get(r"/posts/\d+$")
         def post_detail(request, context):
             post_id = request.url.split("/")[-1]
-            return {"id": int(post_id), "body": f"Post body {post_id}"}
-
-        @router.get(r"/posts\?post_id=\d+$")
-        def post_detail_via_query_param(request, context):
-            post_id = int(request.qs.get("post_id", [0])[0])
             return {"id": int(post_id), "body": f"Post body {post_id}"}
 
         @router.get(r"/posts/\d+/some_details_404")
@@ -173,20 +168,6 @@ def mock_api_server():
         @router.get(r"/posts_under_a_different_key$")
         def posts_with_results_key(request, context):
             return paginate_by_page_number(request, generate_posts(), records_key="many-results")
-
-        @router.post(r"/posts/search_by_id/\d+$")
-        def search_posts_by_id(request, context):
-            body = request.json()
-            post_id = body.get("post_id", 0)
-            title = body.get("more", {}).get("title", 0)
-
-            more_array = body.get("more_array", [])[0]
-            return {
-                "id": int(post_id),
-                "title": title,
-                "body": f"Post body {post_id}",
-                "more": f"More is equale to id: {more_array}",
-            }
 
         @router.post(r"/posts/search$")
         def search_posts(request, context):

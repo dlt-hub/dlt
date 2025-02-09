@@ -24,7 +24,6 @@ from dlt.common.schema.utils import merge_columns
 from dlt.common.utils import update_dict_nested, exclude_keys
 from dlt.common.typing import add_value_to_literal
 from dlt.common import jsonpath
-from dlt.common import json
 
 from dlt.extract.incremental import Incremental
 from dlt.extract.utils import ensure_table_schema_columns
@@ -315,7 +314,7 @@ def setup_incremental_object(
 
 
 def parse_convert_or_deprecated_transform(
-    config: Union[IncrementalConfig, Dict[str, Any]],
+    config: Union[IncrementalConfig, Dict[str, Any]]
 ) -> Optional[Callable[..., Any]]:
     convert = config.get("convert", None)
     deprecated_transform = config.get("transform", None)
@@ -354,16 +353,6 @@ def build_resource_dependency_graph(
         assert isinstance(endpoint_resource["endpoint"], dict)
         # find resolved parameters to connect dependent resources
         resolved_params = _find_resolved_params(endpoint_resource["endpoint"])
-
-        # extract expressions from parameters that are strings
-        params_expressions = []
-        for param_value in endpoint_resource["endpoint"].get("params", {}).values():
-            # If param_value is a plain string (e.g. "{resources.berry.a_property}")
-            if isinstance(param_value, str):
-                extracted = _extract_expressions(param_value, "resources.")
-                params_expressions.extend(extracted)
-
-        resolved_params += _expressions_to_resolved_params(params_expressions)
 
         # set of resources in resolved params
         named_resources = {rp.resolve_config["resource"] for rp in resolved_params}
@@ -452,15 +441,6 @@ def _make_endpoint_resource(
     return _merge_resource_endpoints(default_config, resource)
 
 
-def _replace_expression(template: str, params: Dict[str, Any]) -> str:
-    """This method is used to replace the expression in the templates
-    because the the str.format() doesn't like placeholders with dots.
-    """
-    for p in params:
-        template = template.replace(f"{{{p}}}", str(params[p]))
-    return template
-
-
 def _encode_template_placeholders(
     text: str, prefix: str, delimiter_char: str = "||"
 ) -> Tuple[str, Dict[str, str]]:
@@ -499,35 +479,40 @@ def _bind_path_params(resource: EndpointResource) -> None:
     path_params: Dict[str, Any] = {}
     assert isinstance(resource["endpoint"], dict)  # type guard
     resolve_params = [r.param_name for r in _find_resolved_params(resource["endpoint"])]
-
-    params = resource["endpoint"].get("params", {})
     path = resource["endpoint"]["path"]
+    for format_ in string.Formatter().parse(path):
+        name = format_[1]
+        if name:
+            params = resource["endpoint"].get("params", {})
+            if name not in params and name not in path_params:
+                raise ValueError(
+                    f"The path {path} defined in resource {resource['name']} requires param with"
+                    f" name {name} but it is not found in {params}"
+                )
+            if name in resolve_params:
+                resolve_params.remove(name)
+            if name in params:
+                if not isinstance(params[name], dict):
+                    # bind resolved param and pop it from endpoint
+                    path_params[name] = params.pop(name)
+                else:
+                    param_type = params[name].get("type")
+                    if param_type != "resolve":
+                        raise ValueError(
+                            f"The path {path} defined in resource {resource['name']} tries to bind"
+                            f" param {name} with type {param_type}. Paths can only bind 'resolve'"
+                            " type params."
+                        )
+                    # resolved params are bound later
+                    path_params[name] = "{" + name + "}"
 
-    for name in _extract_expressions(path):
-        if name not in params and name not in path_params and name not in resolve_params:
-            raise ValueError(
-                f"The path {path} defined in resource {resource['name']} requires param with"
-                f" name {name} but it is not found in {params}"
-            )
-        if name in resolve_params:
-            resolve_params.remove(name)
-        if name in params:
-            if not isinstance(params[name], dict):
-                # bind resolved param and pop it from endpoint
-                path_params[name] = params.pop(name)
-            else:
-                param_type = params[name].get("type")
-                if param_type != "resolve":
-                    raise ValueError(
-                        f"The path {path} defined in resource {resource['name']} tries to bind"
-                        f" param {name} with type {param_type}. Paths can only bind 'resolve'"
-                        " type params."
-                    )
-                # resolved params are bound later
-                path_params[name] = "{" + name + "}"
+    if len(resolve_params) > 0:
+        raise NotImplementedError(
+            f"Resource {resource['name']} defines resolve params {resolve_params} that are not"
+            f" bound in path {path}. Resolve query params not supported yet."
+        )
 
-    # resource["endpoint"]["path"] = path.format(**path_params)
-    resource["endpoint"]["path"] = _replace_expression(path, path_params)
+    resource["endpoint"]["path"] = path.format(**path_params)
 
 
 def _setup_single_entity_endpoint(endpoint: Endpoint) -> Endpoint:
@@ -553,26 +538,11 @@ def _find_resolved_params(endpoint_config: Endpoint) -> List[ResolvedParam]:
 
     Resolved params are of type ResolveParamConfig (bound param with a key "type" set to "resolve".)
     """
-
-    resolved_params = [
+    return [
         ResolvedParam(key, value)  # type: ignore[arg-type]
         for key, value in endpoint_config.get("params", {}).items()
         if (isinstance(value, dict) and value.get("type") == "resolve")
     ]
-
-    path_expressions = _extract_expressions(endpoint_config["path"], "resources.")
-
-    json_expressions = (
-        _extract_expressions(endpoint_config["json"], "resources.")
-        if endpoint_config.get("json")
-        else []
-    )
-
-    resolved_params += _expressions_to_resolved_params(
-        path_expressions
-    ) + _expressions_to_resolved_params(json_expressions)
-
-    return resolved_params
 
 
 def _action_type_unless_custom_hook(
