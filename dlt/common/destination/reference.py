@@ -164,7 +164,12 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
     ) -> TDestinationClient:
         """Returns a configured instance of the destination's job client"""
         config = self.configuration(initial_config)
-        return self.client_class(schema, config, self.capabilities(config, schema.naming))
+        caps = self.capabilities(config, schema.naming)
+        # adjust naming for caps that dynamically set max length (ie. sql alchemy)
+        schema.naming.max_length = min(
+            caps.max_identifier_length, caps.max_column_identifier_length
+        )
+        return self.client_class(schema, config, caps)
 
     @classmethod
     def adjust_capabilities(
