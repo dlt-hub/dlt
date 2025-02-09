@@ -178,7 +178,6 @@ class duckdb(Destination[DuckDbClientConfiguration, "DuckDbClient"]):
                 a path to a database file. Use :pipeline: to create a duckdb
                 in the working folder of the pipeline
             create_indexes: Should unique indexes be created, defaults to False
-            bound_to_pipeline: Bind the connections generates by this factory to this pipeline, to enable :pipeline: path
             **kwargs: Additional arguments passed to the destination config
         """
         super().__init__(

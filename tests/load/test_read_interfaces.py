@@ -592,7 +592,7 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     # we check a bunch of expressions without executing them to see that they produce correct sql
     # also we return the keys of the disovered schema columns
     def sql_from_expr(expr: Any) -> Tuple[str, List[str]]:
-        query = str(expr.query).replace(populated_pipeline.dataset_name, "dataset")
+        query = str(expr.query()).replace(populated_pipeline.dataset_name, "dataset")
         columns = list(expr.columns_schema.keys()) if expr.columns_schema else None
         return re.sub(r"\s+", " ", query), columns
 
@@ -770,7 +770,13 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
         table_like_statement = dataset_name + "."
         table_name_prefix = dataset_name + "___"
         dataset_name = None
-        additional_tables = ["dlt_sentinel_table"]
+        additional_tables += ["dlt_sentinel_table"]
+
+    # filesystem uses duckdb and views to map know tables. for other ibis will list
+    # all available tables so both schemas tables are visible
+    if populated_pipeline.destination.destination_type != "dlt.destinations.filesystem":
+        # from aleph schema
+        additional_tables += ["digits"]
 
     add_table_prefix = lambda x: table_name_prefix + x
 
@@ -782,7 +788,6 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
                 "_dlt_loads",
                 "_dlt_pipeline_state",
                 "_dlt_version",
-                "digits",  # from aleph schema
                 "double_items",
                 "items",
                 "items__children",
@@ -808,8 +813,14 @@ def test_standalone_dataset(populated_pipeline: Pipeline) -> None:
     total_records = _total_records(populated_pipeline)
 
     # check dataset factory
-    dataset = _dataset(
-        destination=populated_pipeline.destination, dataset_name=populated_pipeline.dataset_name
+    dataset = cast(
+        ReadableDBAPIDataset,
+        _dataset(
+            destination=populated_pipeline.destination,
+            dataset_name=populated_pipeline.dataset_name,
+            # use name otherwise aleph schema is loaded
+            schema=populated_pipeline.default_schema_name,
+        ),
     )
     # verfiy that sql client and schema are lazy loaded
     assert not dataset._schema
@@ -817,16 +828,6 @@ def test_standalone_dataset(populated_pipeline: Pipeline) -> None:
     table_relationship = dataset.items
     table = table_relationship.fetchall()
     assert len(table) == total_records
-
-    # check that schema is loaded by name
-    dataset = cast(
-        ReadableDBAPIDataset,
-        _dataset(
-            destination=populated_pipeline.destination,
-            dataset_name=populated_pipeline.dataset_name,
-            schema=populated_pipeline.default_schema_name,
-        ),
-    )
     assert dataset.schema.tables["items"]["write_disposition"] == "replace"
 
     # check that schema is not loaded when wrong name given

@@ -249,7 +249,7 @@ class DestinationTestConfiguration:
             pipeline_name=pipeline_name,
             destination=destination,
             staging=kwargs.pop("staging", self.staging),
-            dataset_name=dataset_name if dataset_name is not None else pipeline_name,
+            dataset_name=dataset_name if dataset_name is not None else pipeline_name + "_data",
             dev_mode=dev_mode,
             **kwargs,
         )
