@@ -748,8 +748,10 @@ def test_typed_dict_by_python_version():
 def test_parent_nullable_means_children_nullable():
     class MyParent(BaseModel):
         optional_child: Optional[ChildModel]
+        non_optional_child: ChildModel
         dlt_config: ClassVar[DltConfig] = {"skip_nested_types": True}
 
     schema = pydantic_to_table_schema_columns(MyParent)
 
     assert schema["optional_child__child_attribute"]["nullable"]
+    assert schema["non_optional_child__child_attribute"]["nullable"] is False
