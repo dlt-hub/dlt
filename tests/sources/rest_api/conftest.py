@@ -94,6 +94,19 @@ def mock_api_server():
 
             return response
 
+        @router.get(r"/posts_header_cursor(\?page=\d+)?$")
+        def posts_header_cursor(request, context):
+            records = generate_posts()
+            page_number = get_page_number(request.qs)
+            paginator = PageNumberPaginator(records, page_number)
+
+            response = paginator.page_records
+
+            if paginator.next_page_url_params:
+                context.headers["cursor"] = f"{page_number+1}"
+
+            return response
+
         @router.get(r"/posts_relative_next_url(\?page=\d+)?$")
         def posts_relative_next_url(request, context):
             return paginate_by_page_number(request, generate_posts(), use_absolute_url=False)
