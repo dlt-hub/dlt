@@ -55,6 +55,9 @@ def chess_com_source(username: str, months: List[Dict[str, str]]) -> Iterator[Dl
                     "write_disposition": "append",
                     "endpoint": {
                         "path": f"player/{username}/games/{year}/{month_str}",  # API endpoint path
+                        "response_actions": [
+                            {"status_code": 404, "action": "ignore"},
+                        ],
                     },
                     "primary_key": ["url"],  # Primary key to prevent duplicates
                 }

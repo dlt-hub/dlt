@@ -19,12 +19,6 @@ env:
   RUNTIME__LOG_LEVEL: ERROR
   RUNTIME__DLTHUB_TELEMETRY_ENDPOINT: ${{ secrets.RUNTIME__DLTHUB_TELEMETRY_ENDPOINT }}
 
-  # we need the secrets only for the rest_api_pipeline tests which are in tests/sources
-  # so we inject them only at the end
-  SOURCES__GITHUB__ACCESS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  # and also for the github_api_pipeline tests
-  SOURCES__GITHUB_API_PIPELINE__ACCESS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
 jobs:
   get_docs_changes:
     name: docs changes
@@ -39,6 +33,7 @@ jobs:
       matrix:
         os: ["ubuntu-latest", "macos-latest", "windows-latest"]
         python-version: ["3.11.x"]
+        plus_dep: ["dlt-plus", "https://dlt-packages.fra1.digitaloceanspaces.com/dlt-plus/dlt_plus-0.0.0+nightly-py3-none-any.whl"]
         # Test all python versions on ubuntu only
         include:
           - python-version: "3.10.x"
@@ -89,7 +84,7 @@ jobs:
 
 
       - name: Install dlt-plus nightly devel build without cache
-        run: poetry run pip install --upgrade --force-reinstall --no-cache-dir https://dlt-packages.fra1.digitaloceanspaces.com/dlt-plus/dlt_plus-0.0.0+nightly-py3-none-any.whl
+        run: poetry run pip install --upgrade --force-reinstall --no-cache-dir ${{ matrix.plus_dep }}
 
       - name: Run tests
         run: poetry run pytest tests/plus
