@@ -257,9 +257,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         # infer record hash or leave existing primary key if present
         row_id = flattened_row.get(self.c_dlt_id, None)
         if not row_id:
-            row_id = self._add_row_id(
-                table, dict_row, flattened_row, parent_row_id, pos, is_root
-            )
+            row_id = self._add_row_id(table, dict_row, flattened_row, parent_row_id, pos, is_root)
 
         # find fields to propagate to nested tables in config
         extend.update(self._get_propagated_values(table, flattened_row, is_root))
