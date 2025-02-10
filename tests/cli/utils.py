@@ -60,9 +60,9 @@ def get_repo_dir(cloned_init_repo: FileStorage) -> str:
 def get_project_files(clear_all_sources: bool = True) -> FileStorage:
     # we only remove sources registered outside of dlt core
     for name, source in SourceReference.SOURCES.copy().items():
-        if not source.module.__name__.startswith(
-            "dlt.sources"
-        ) and not source.module.__name__.startswith("default_pipeline"):
+        if not source.ref.startswith("dlt.sources") and not source.ref.startswith(
+            "default_pipeline"
+        ):
             SourceReference.SOURCES.pop(name)
 
     if clear_all_sources:

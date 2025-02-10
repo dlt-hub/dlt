@@ -6,7 +6,7 @@ from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import GcpServiceAccountCredentials
 from dlt.common.utils import digest128
 
-from dlt.common.destination.reference import DestinationClientDwhWithStagingConfiguration
+from dlt.common.destination.client import DestinationClientDwhWithStagingConfiguration
 
 
 @configspec

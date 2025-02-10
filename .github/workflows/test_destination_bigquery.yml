@@ -55,6 +55,7 @@ jobs:
           virtualenvs-create: true
           virtualenvs-in-project: true
           installer-parallel: true
+          version: 1.8.5
 
       - name: Load cached venv
         id: cached-poetry-dependencies
@@ -66,7 +67,7 @@ jobs:
 
       - name: Install dependencies
         # if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction -E bigquery --with providers -E parquet --with sentry-sdk --with pipeline,ibis
+        run: poetry install --no-interaction -E bigquery --with providers -E parquet --with sentry-sdk --with pipeline && poetry run pip install ibis-framework[duckdb,postgres,bigquery,snowflake,mssql,clickhouse]
 
       - name: create secrets.toml
         run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml

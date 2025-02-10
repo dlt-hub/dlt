@@ -1,7 +1,7 @@
 from typing import Tuple, Dict, Optional
 
 from dlt.common import logger
-from dlt.common.destination.reference import PreparedTableSchema
+from dlt.common.destination import PreparedTableSchema
 from dlt.common.schema.typing import (
     TColumnSchema,
     TDataType,

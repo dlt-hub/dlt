@@ -161,21 +161,22 @@ mssql:
       encrypt: "{{ (env_var('DLT__CREDENTIALS__QUERY__ENCRYPT', 'No') == 'yes')  | as_bool }}"
       trust_cert: "{{ (env_var('DLT__CREDENTIALS__QUERY__TRUSTSERVERCERTIFICATE', 'yes') == 'yes')  | as_bool }}"
 
-
-# commented out because dbt for Synapse isn't currently properly supported.
-# Leave config here for potential future use.
-# synapse:
-#   target: analytics
-#   outputs:
-#     analytics:
-#       type: synapse
-#       driver: "{{ env_var('DLT__CREDENTIALS__DRIVER') }}"
-#       server: "{{ env_var('DLT__CREDENTIALS__HOST') }}"
-#       port: "{{ env_var('DLT__CREDENTIALS__PORT') | as_number }}"
-#       database: "{{ env_var('DLT__CREDENTIALS__DATABASE') }}"
-#       schema: "{{ var('destination_dataset_name', var('source_dataset_name')) }}"
-#       user: "{{ env_var('DLT__CREDENTIALS__USERNAME') }}"
-#       password: "{{ env_var('DLT__CREDENTIALS__PASSWORD') }}"
+synapse:
+  target: analytics
+  outputs:
+    analytics:
+      type: synapse
+      driver: "{{ env_var('DLT__CREDENTIALS__DRIVER') }}"
+      server: "{{ env_var('DLT__CREDENTIALS__HOST') }}"
+      port: "{{ env_var('DLT__CREDENTIALS__PORT') | as_number }}"
+      database: "{{ env_var('DLT__CREDENTIALS__DATABASE') }}"
+      schema: "{{ var('destination_dataset_name', var('source_dataset_name')) }}"
+      user: "{{ env_var('DLT__CREDENTIALS__USERNAME') }}"
+      password: "{{ env_var('DLT__CREDENTIALS__PASSWORD') }}"
+      authentication: sql
+      login_timeout: "{{ env_var('DLT__CREDENTIALS__CONNECT_TIMEOUT', '0')  | as_number }}"
+      encrypt: "{{ (env_var('DLT__CREDENTIALS__QUERY__ENCRYPT', 'No') == 'yes')  | as_bool }}"
+      trust_cert: "{{ (env_var('DLT__CREDENTIALS__QUERY__TRUSTSERVERCERTIFICATE', 'yes') == 'yes')  | as_bool }}"
 
 
 databricks:
@@ -201,4 +202,6 @@ clickhouse:
       user: "{{ env_var('DLT__CREDENTIALS__USERNAME') }}"
       password: "{{ env_var('DLT__CREDENTIALS__PASSWORD') }}"
       port: "{{ env_var('DLT__CREDENTIALS__PORT', 8443) | as_number }}"
-      secure: True
+      connect_timeout: "{{ env_var('DLT__CREDENTIALS__CONNECT_TIMEOUT') | as_number }}"
+      send_receive_timeout: "{{ env_var('DLT__CREDENTIALS__SEND_RECEIVE_TIMEOUT') | as_number }}"
+      secure: "{{ env_var('DLT__CREDENTIALS__SECURE') == '1' | as_bool }}"

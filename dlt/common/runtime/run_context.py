@@ -1,5 +1,6 @@
 import os
 import tempfile
+from types import ModuleType
 from typing import Any, ClassVar, Dict, List, Optional
 
 from dlt.common import known_env
@@ -47,27 +48,7 @@ class RunContext(SupportsRunContext):
 
     @property
     def data_dir(self) -> str:
-        """Gets default directory where pipelines' data (working directories) will be stored
-        1. if DLT_DATA_DIR is set in env then it is used
-        2. in user home directory: ~/.dlt/
-        3. if current user is root: in /var/dlt/
-        4. if current user does not have a home directory: in /tmp/dlt/
-        """
-        if known_env.DLT_DATA_DIR in os.environ:
-            return os.environ[known_env.DLT_DATA_DIR]
-
-        # geteuid not available on Windows
-        if hasattr(os, "geteuid") and os.geteuid() == 0:
-            # we are root so use standard /var
-            return os.path.join("/var", "dlt")
-
-        home = os.path.expanduser("~")
-        if home is None or not is_folder_writable(home):
-            # no home dir - use temp
-            return os.path.join(tempfile.gettempdir(), "dlt")
-        else:
-            # if home directory is available use ~/.dlt/pipelines
-            return os.path.join(home, DOT_DLT)
+        return global_dir()
 
     def initial_providers(self) -> List[ConfigProvider]:
         providers = [
@@ -76,6 +57,13 @@ class RunContext(SupportsRunContext):
             ConfigTomlProvider(self.settings_dir, self.global_dir),
         ]
         return providers
+
+    @property
+    def module(self) -> Optional[ModuleType]:
+        try:
+            return self.import_run_dir_module(self.run_dir)
+        except ImportError:
+            return None
 
     @property
     def runtime_kwargs(self) -> Dict[str, Any]:
@@ -91,9 +79,29 @@ class RunContext(SupportsRunContext):
     def get_setting(self, setting_path: str) -> str:
         return os.path.join(self.settings_dir, setting_path)
 
+    def plug(self) -> None:
+        pass
+
+    def unplug(self) -> None:
+        pass
+
     @property
     def name(self) -> str:
         return self.__class__.CONTEXT_NAME
+
+    @staticmethod
+    def import_run_dir_module(run_dir: str) -> ModuleType:
+        """Returns a top Python module of the project (if importable)"""
+        import importlib
+
+        run_dir = os.path.abspath(run_dir)
+        m_ = importlib.import_module(os.path.basename(run_dir))
+        if m_.__file__ and m_.__file__.startswith(run_dir):
+            return m_
+        else:
+            raise ImportError(
+                f"run dir {run_dir} does not belong to module {m_.__file__} which seems unrelated."
+            )
 
 
 @plugins.hookspec(firstresult=True)
@@ -118,6 +126,30 @@ def plug_run_context_impl(
     return RunContext(run_dir)
 
 
+def global_dir() -> str:
+    """Gets default directory where pipelines' data (working directories) will be stored
+    1. if DLT_DATA_DIR is set in env then it is used
+    2. in user home directory: ~/.dlt/
+    3. if current user is root: in /var/dlt/
+    4. if current user does not have a home directory: in /tmp/dlt/
+    """
+    if known_env.DLT_DATA_DIR in os.environ:
+        return os.environ[known_env.DLT_DATA_DIR]
+
+    # geteuid not available on Windows
+    if hasattr(os, "geteuid") and os.geteuid() == 0:
+        # we are root so use standard /var
+        return os.path.join("/var", "dlt")
+
+    home = os.path.expanduser("~")
+    if home is None or not is_folder_writable(home):
+        # no home dir - use temp
+        return os.path.join(tempfile.gettempdir(), "dlt")
+    else:
+        # if home directory is available use ~/.dlt/pipelines
+        return os.path.join(home, DOT_DLT)
+
+
 def is_folder_writable(path: str) -> bool:
     import tempfile
 
@@ -131,6 +163,20 @@ def is_folder_writable(path: str) -> bool:
         return True
     except OSError:
         return False
+
+
+def get_plugin_modules() -> List[str]:
+    """Return top level module names of all discovered plugins, including `dlt`.
+
+    If current run context is a top levle module it is also included, otherwise empty string.
+    """
+    from dlt.common.configuration.plugins import PluginContext
+
+    # get current run module
+    ctx_module = current().module
+    run_module_name = ctx_module.__name__ if ctx_module else ""
+
+    return [run_module_name] + [p for p in Container()[PluginContext].plugin_modules] + ["dlt"]
 
 
 def current() -> SupportsRunContext:

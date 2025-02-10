@@ -229,7 +229,7 @@ Descriptions:
 - `connect_timeout` sets the timeout for the `pyodbc` connection attempt, in seconds.
 
 ### dbt support
-Integration with [dbt](../transformations/dbt/dbt.md) is currently not supported.
+Integration with [dbt](../transformations/dbt/dbt.md) is supported via `dbt-synapse`. Only **sql** authentication is supported.
 
 ### Syncing of `dlt` state
 This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination).

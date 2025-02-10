@@ -24,6 +24,7 @@ from enum import Enum
 from datetime import datetime, date, time  # noqa: I251
 from dlt.common import Decimal
 from dlt.common import json
+from dlt.common.schema.typing import TColumnType
 
 from dlt.common.libs.pydantic import (
     DltConfig,
@@ -347,7 +348,7 @@ def test_nested_model_config_propagation() -> None:
     assert model_freeze.__fields__["address"].annotation.__name__ == "UserAddressExtraAllow"  # type: ignore[index]
     # annotated is preserved
     type_origin = get_origin(model_freeze.__fields__["address"].rebuild_annotation())  # type: ignore[index]
-    assert issubclass(type_origin, Annotated)  # type: ignore[arg-type]
+    assert type_origin is Annotated
     # UserAddress is converted to UserAddressAllow only once
     type_annotation = model_freeze.__fields__["address"].annotation  # type: ignore[index]
     assert type_annotation is get_args(model_freeze.__fields__["unity"].annotation)[0]  # type: ignore[index]
@@ -404,7 +405,7 @@ def test_nested_model_config_propagation_optional_with_pipe():
     assert model_freeze.__fields__["address"].annotation.__name__ == "UserAddressPipeExtraAllow"  # type: ignore[index]
     # annotated is preserved
     type_origin = get_origin(model_freeze.__fields__["address"].rebuild_annotation())  # type: ignore[index]
-    assert issubclass(type_origin, Annotated)  # type: ignore[arg-type]
+    assert type_origin is Annotated
     # UserAddress is converted to UserAddressAllow only once
     type_annotation = model_freeze.__fields__["address"].annotation  # type: ignore[index]
     assert type_annotation is get_args(model_freeze.__fields__["unity"].annotation)[0]  # type: ignore[index]
@@ -724,6 +725,24 @@ def test_skip_json_types_when_skip_nested_types_is_true_and_field_is_not_pydanti
 
     assert "data_dictionary" not in schema
     assert "data_list" not in schema
+
+
+def test_typed_dict_by_python_version():
+    """when using typeddict in pydantic, it should be imported
+    from typing_extensions in python 3.11 and earlier and typing
+    in python 3.12 and later.
+    Here we test that this is properly set up in dlt.
+    """
+
+    class MyModel(BaseModel):
+        # TColumnType inherits from TypedDict
+        column_type: TColumnType
+
+    m = MyModel(column_type={"data_type": "text"})
+    assert m.column_type == {"data_type": "text"}
+
+    with pytest.raises(ValidationError):
+        m = MyModel(column_type={"data_type": "invalid_type"})  # type: ignore[typeddict-item]
 
 
 def test_parent_nullable_means_children_nullable():

@@ -225,17 +225,20 @@ def test_job_elapsed_time_seconds(load_storage: LoadStorage) -> None:
         load_storage.normalized_packages.get_job_file_path(load_id, "started_jobs", fn)
     )
     elapsed = PackageStorage._job_elapsed_time_seconds(fp)
-    sleep(0.3)
+    sleep(0.5)
     # do not touch file
     elapsed_2 = PackageStorage._job_elapsed_time_seconds(fp)
-    assert elapsed_2 - elapsed >= 0.3
+    # Python 3.13 + Windows often shows elapsed values less than 0.5
+    # it may be related to https://github.com/python/cpython/issues/65501
+    # most probably
+    assert elapsed_2 - elapsed >= 0.47
     # rename the file
     fp = load_storage.normalized_packages.retry_job(load_id, fn)
     # retry_job increases retry number in file name so the line below does not work
     # fp = storage.storage._make_path(storage._get_job_file_path(load_id, "new_jobs", fn))
     elapsed_2 = PackageStorage._job_elapsed_time_seconds(fp)
     # it should keep its mod original date after rename
-    assert elapsed_2 - elapsed >= 0.3
+    assert elapsed_2 - elapsed >= 0.47
 
 
 def test_retry_job(load_storage: LoadStorage) -> None:

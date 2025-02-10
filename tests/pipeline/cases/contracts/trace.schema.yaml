@@ -75,6 +75,15 @@ tables:
       execution_context__library__version:
         data_type: text
         nullable: true
+      execution_context__plus__name:
+        data_type: text
+        nullable: true
+      execution_context__plus__version:
+        data_type: text
+        nullable: true
+      execution_context__run_context:
+        data_type: text
+        nullable: true
       started_at:
         data_type: timestamp
         nullable: true

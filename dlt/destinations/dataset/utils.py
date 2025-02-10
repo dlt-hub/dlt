@@ -4,16 +4,14 @@ from dlt import version
 
 from dlt.common.exceptions import MissingDependencyException
 
-from dlt.common.destination import AnyDestination
-from dlt.common.destination.reference import (
-    Destination,
+from dlt.common.destination import AnyDestination, Destination
+from dlt.common.destination.client import (
     JobClientBase,
     DestinationClientDwhConfiguration,
     DestinationClientStagingConfiguration,
     DestinationClientConfiguration,
     DestinationClientDwhWithStagingConfiguration,
 )
-
 from dlt.common.schema import Schema
 
 

@@ -7,9 +7,10 @@ from dlt.common import logger
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs import RuntimeConfiguration, PluggableRunContext
 from dlt.common.runtime.init import _INITIALIZED, apply_runtime_config, restore_run_context
-from dlt.common.runtime.run_context import RunContext, is_folder_writable
+from dlt.common.runtime.run_context import RunContext, get_plugin_modules, is_folder_writable
+from dlt.common.utils import set_working_dir
 
-from tests.utils import MockableRunContext
+from tests.utils import MockableRunContext, TEST_STORAGE_ROOT
 
 
 @pytest.fixture(autouse=True)
@@ -61,6 +62,18 @@ def test_run_context() -> None:
     # check if can be pickled
     pickle.dumps(run_context)
 
+    # check plugin modules
+    # NOTE: first `dlt` - is the root module of current context, second is always present
+    assert get_plugin_modules() == ["dlt", "dlt"]
+
+
+def test_context_without_module() -> None:
+    with set_working_dir(TEST_STORAGE_ROOT):
+        ctx = PluggableRunContext()
+        with Container().injectable_context(ctx):
+            assert ctx.context.module is None
+            assert get_plugin_modules() == ["", "dlt"]
+
 
 def test_context_init_without_runtime() -> None:
     runtime_config = RuntimeConfiguration()
@@ -108,7 +121,7 @@ def test_run_context_handover() -> None:
     # get regular context
     import dlt
 
-    run_ctx = dlt.current.run()
+    run_ctx = dlt.current.run_context()
     assert run_ctx is mock
     ctx = Container()[PluggableRunContext]
     assert ctx.runtime_config is runtime_config

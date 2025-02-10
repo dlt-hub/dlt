@@ -10,6 +10,7 @@ from pytest_mock import MockerFixture
 
 from dlt.common import logger
 from dlt.common.runtime.anon_tracker import get_anonymous_id, track, disable_anon_tracker
+from dlt.common.runtime.exec_info import get_execution_context
 from dlt.common.typing import DictStrAny, DictStrStr
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import RuntimeConfiguration
@@ -19,10 +20,9 @@ from tests.common.runtime.utils import mock_image_env, mock_github_env, mock_pod
 from tests.common.configuration.utils import environment
 from tests.utils import (
     preserve_environ,
+    unload_modules,
     SentryLoggerConfiguration,
     disable_temporary_telemetry,
-    skipifspawn,
-    skipifwindows,
     init_test_logging,
     start_test_telemetry,
 )
@@ -31,6 +31,23 @@ from tests.utils import (
 @configspec
 class SentryLoggerCriticalConfiguration(SentryLoggerConfiguration):
     log_level: str = "CRITICAL"
+
+
+def test_sentry_init(
+    environment: DictStrStr, disable_temporary_telemetry: RuntimeConfiguration
+) -> None:
+    with patch("dlt.common.runtime.sentry.before_send", _mock_before_send):
+        mock_image_env(environment)
+        mock_pod_env(environment)
+        init_test_logging(SentryLoggerConfiguration())
+        start_test_telemetry(SentryLoggerConfiguration())
+        SENT_ITEMS.clear()
+        try:
+            1 / 0
+        except ZeroDivisionError:
+            logger.exception("DIV")
+        # message sent
+        assert len(SENT_ITEMS) == 1
 
 
 def test_sentry_log_level() -> None:
@@ -113,23 +130,6 @@ def test_telemetry_endpoint_exceptions(
         )
 
 
-def test_sentry_init(
-    environment: DictStrStr, disable_temporary_telemetry: RuntimeConfiguration
-) -> None:
-    with patch("dlt.common.runtime.sentry.before_send", _mock_before_send):
-        mock_image_env(environment)
-        mock_pod_env(environment)
-        init_test_logging(SentryLoggerConfiguration())
-        start_test_telemetry(SentryLoggerConfiguration())
-        SENT_ITEMS.clear()
-        try:
-            1 / 0
-        except ZeroDivisionError:
-            logger.exception("DIV")
-        # message sent
-        assert len(SENT_ITEMS) == 1
-
-
 def test_track_anon_event(
     mocker: MockerFixture, disable_temporary_telemetry: RuntimeConfiguration
 ) -> None:
@@ -171,10 +171,27 @@ def test_track_anon_event(
     # verify context
     context = event["context"]
     assert context["library"] == {"name": DLT_PKG_NAME, "version": __version__}
+    # we assume plus is not installed
+    assert "plus" not in context
     assert isinstance(context["cpu"], int)
     assert isinstance(context["ci_run"], bool)
     assert isinstance(context["exec_info"], list)
     assert ["kubernetes", "codespaces"] <= context["exec_info"]
+    assert context["run_context"] == "dlt"
+
+
+def test_execution_context_with_plugin() -> None:
+    import sys
+
+    # move working dir so dlt_plus mock is importable and appears in settings
+    plus_path = os.path.dirname(__file__)
+    sys.path.append(plus_path)
+    try:
+        context = get_execution_context()
+        # has plugin info
+        assert context["plus"] == {"name": "dlt_plus", "version": "1.7.1"}
+    finally:
+        sys.path.remove(plus_path)
 
 
 def test_cleanup(environment: DictStrStr) -> None:

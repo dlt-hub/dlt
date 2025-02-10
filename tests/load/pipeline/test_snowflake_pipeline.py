@@ -1,17 +1,15 @@
-from copy import deepcopy
 import os
 import pytest
 from pytest_mock import MockerFixture
 
 import dlt
-
-from dlt.common.destination.exceptions import DestinationHasFailedJobs
+from dlt.common import pendulum
 from dlt.common.utils import uniq_id
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
 
 from dlt.load.exceptions import LoadClientJobFailed
 from dlt.pipeline.exceptions import PipelineStepFailed
-from tests.cases import assert_all_data_types_row
+
 from tests.load.pipeline.test_pipelines import simple_nested_pipeline
 from tests.load.snowflake.test_snowflake_client import QUERY_TAG
 from tests.pipeline.utils import assert_load_info, assert_query_data
@@ -158,3 +156,51 @@ def test_snowflake_delete_file_after_copy(destination_config: DestinationTestCon
         # ensure copy was done
         tbl_name = client.make_qualified_table_name("lists")
         assert_query_data(pipeline, f"SELECT value FROM {tbl_name}", ["a", None, None])
+
+
+from dlt.common.normalizers.naming.sql_cs_v1 import NamingConvention as SqlCsV1NamingConvention
+
+
+class ScandinavianNamingConvention(SqlCsV1NamingConvention):
+    """A variant of sql_cs_v1 which replaces Scandinavian characters."""
+
+    def normalize_identifier(self, identifier: str) -> str:
+        replace_map = {"æ": "ae", "ø": "oe", "å": "aa", "ö": "oe", "ä": "ae"}
+        new_identifier = "".join(replace_map.get(c, c) for c in identifier)
+        return super().normalize_identifier(new_identifier)
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["snowflake"]),
+    ids=lambda x: x.name,
+)
+def test_char_replacement_cs_naming_convention(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    snow_ = dlt.destinations.snowflake(
+        naming_convention=ScandinavianNamingConvention, replace_strategy="staging-optimized"
+    )
+
+    pipeline = destination_config.setup_pipeline(
+        "test_char_replacement_naming_convention", dev_mode=True, destination=snow_
+    )
+
+    data = [{"AmlSistUtførtDato": pendulum.now().date()}]
+
+    pipeline.run(
+        data,
+        table_name="AMLPerFornyelseø",
+        write_disposition="replace",
+        loader_file_format="parquet",
+    )
+    pipeline.run(
+        data,
+        table_name="AMLPerFornyelseø",
+        write_disposition="replace",
+        loader_file_format="parquet",
+    )
+    rel_ = pipeline.dataset()["AMLPerFornyelseoe"]
+    results = rel_.fetchall()
+    assert len(results) == 1
+    assert "AmlSistUtfoertDato" in rel_.columns_schema

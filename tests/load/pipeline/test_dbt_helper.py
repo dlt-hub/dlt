@@ -29,7 +29,7 @@ def dbt_venv() -> Iterator[Venv]:
         c.values[0].destination_type  # type: ignore[attr-defined]
         for c in destinations_configs(default_sql_configs=True, supports_dbt=True)
     )
-    with create_venv(tempfile.mkdtemp(), list(dbt_configs), dbt_version="<1.8") as venv:
+    with create_venv(tempfile.mkdtemp(), list(dbt_configs), dbt_version="<1.9") as venv:
         yield venv
 
 

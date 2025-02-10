@@ -2,7 +2,7 @@ import re
 from copy import deepcopy
 
 import pytest
-from graphlib import CycleError  # type: ignore
+from graphlib import CycleError
 
 from dlt.sources.rest_api import (
     rest_api_resources,

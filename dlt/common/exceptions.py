@@ -1,4 +1,5 @@
-from typing import Any, AnyStr, Dict, List, Sequence, Optional, Iterable, Type, TypedDict
+from typing import Any, AnyStr, Dict, List, Sequence, Optional, Type
+from dlt.common.typing import TypedDict
 
 
 class ExceptionTrace(TypedDict, total=False):
