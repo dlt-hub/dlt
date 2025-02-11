@@ -495,7 +495,7 @@ class QdrantClient(JobClientBase, WithStateSync):
         self._create_point_no_vector(properties, version_table_name)
 
     def _execute_schema_update(self, only_tables: Iterable[str]) -> None:
-        is_local = self.config.credentials.is_local()
+        is_local = self.config.is_local()
         for table_name in only_tables or self.schema.tables:
             exists = self._collection_exists(table_name)
 

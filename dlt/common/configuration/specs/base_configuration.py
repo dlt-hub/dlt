@@ -437,8 +437,8 @@ class BaseConfiguration(MutableMapping[str, Any]):
         # call each other class_method_name. this is not at all possible as we do not know which configs in the end will
         # be mixed together.
 
-        # get base classes in order of derivation
-        mro = type.mro(type(config))
+        # get base classes in order of derivation, base classes first
+        mro = reversed(type.mro(type(config)))
         for c in mro:
             # check if this class implements on_resolved (skip pure inheritance to not do double work)
             if method_name in c.__dict__ and callable(getattr(c, method_name)):

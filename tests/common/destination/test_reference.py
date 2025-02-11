@@ -4,7 +4,7 @@ import pytest
 from dlt.common.destination import Destination, DestinationReference
 from dlt.common.destination.client import DestinationClientDwhConfiguration
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.exceptions import InvalidDestinationReference, UnknownDestinationModule
+from dlt.common.destination.exceptions import UnknownDestinationModule
 from dlt.common.schema import Schema
 from dlt.common.typing import is_subclass
 from dlt.common.normalizers.naming import sql_ci_v1, sql_cs_v1
@@ -15,16 +15,31 @@ from tests.utils import ACTIVE_DESTINATIONS
 
 def test_import_unknown_destination() -> None:
     # standard destination
-    with pytest.raises(UnknownDestinationModule):
+    with pytest.raises(UnknownDestinationModule) as unk_ex:
         DestinationReference.from_reference("meltdb")
+    assert unk_ex.value.ref == "meltdb"
+    assert unk_ex.value.qualified_refs == [
+        "meltdb",
+        "dlt.destinations.meltdb",
+        "dlt.destinations.meltdb",
+    ]
+    traces = unk_ex.value.traces
+    assert len(traces) == 2 and traces[0].reason == "AttrNotFound"
+
     # custom module
-    with pytest.raises(UnknownDestinationModule):
+    with pytest.raises(UnknownDestinationModule) as unk_ex:
         DestinationReference.from_reference("melt.db")
+    assert unk_ex.value.ref == "melt.db"
+    assert unk_ex.value.qualified_refs == ["melt.db"]
+    traces = unk_ex.value.traces
+    assert len(traces) == 1 and traces[0].reason == "ModuleSpecNotFound"
 
 
-def test_invalid_destination_reference() -> None:
-    with pytest.raises(InvalidDestinationReference):
+def test_destination_reference_not_a_factory() -> None:
+    with pytest.raises(UnknownDestinationModule) as unk_ex:
         DestinationReference.from_reference("tests.load.cases.fake_destination.not_a_destination")
+    traces = unk_ex.value.traces
+    assert len(traces) == 1 and traces[0].reason == "TypeCheck"
 
 
 def test_custom_destination_module() -> None:
@@ -259,7 +274,8 @@ def test_import_destination_config() -> None:
     assert dest.config_params["environment"] == "stage"
     config = dest.configuration(dest.spec()._bind_dataset_name(dataset_name="dataset"))  # type: ignore
     assert config.destination_type == "duckdb"
-    assert config.destination_name == "duckdb"
+    # destination name not set implicitly
+    assert config.destination_name is None
     assert config.environment == "stage"
 
     # importing destination by will work

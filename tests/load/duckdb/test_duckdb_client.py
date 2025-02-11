@@ -6,17 +6,16 @@ import dlt
 from dlt.common.configuration.resolve import resolve_configuration
 from dlt.common.configuration.utils import get_resolved_traces
 from dlt.common.destination import Destination
-from dlt.common.utils import set_working_dir
+from dlt.common.utils import set_working_dir, uniq_id
 
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
 from dlt.destinations.impl.duckdb.configuration import (
     DuckDbClientConfiguration,
-    DEFAULT_DUCK_DB_NAME,
 )
 from dlt.destinations import duckdb
 
 from dlt.destinations.impl.duckdb.exceptions import InvalidInMemoryDuckdbCredentials
-from dlt.pipeline.exceptions import PipelineStepFailed
+from dlt.pipeline.exceptions import PipelineNeverRan, PipelineStepFailed
 
 from tests.pipeline.utils import assert_table
 from tests.utils import autouse_test_storage, TEST_STORAGE_ROOT
@@ -42,6 +41,7 @@ def test_duckdb_open_conn_default() -> None:
         c = resolve_configuration(
             DuckDbClientConfiguration()._bind_dataset_name(dataset_name="test_dataset")
         )
+        assert c.credentials.database == os.path.abspath(".duckdb")
         # print(str(c.credentials))
         # print(str(os.getcwd()))
         # print(get_resolved_traces())
@@ -55,7 +55,7 @@ def test_duckdb_open_conn_default() -> None:
         assert c.credentials._conn_owner is True
         assert not hasattr(c.credentials, "_conn")
         # db file is created
-        assert os.path.isfile(DEFAULT_DUCK_DB_NAME)
+        assert os.path.isfile(".duckdb")
     finally:
         delete_quack_db()
 
@@ -105,7 +105,7 @@ def test_duckdb_database_path() -> None:
     c = resolve_configuration(
         DuckDbClientConfiguration()._bind_dataset_name(dataset_name="test_dataset")
     )
-    assert c.credentials._conn_str().lower() == os.path.abspath("quack.duckdb").lower()
+    assert c.credentials._conn_str().lower() == os.path.abspath(".duckdb").lower()
 
     # resolve without any path but with pipeline context
     p = dlt.pipeline(pipeline_name="quack_pipeline")
@@ -113,20 +113,23 @@ def test_duckdb_database_path() -> None:
     c = resolve_configuration(
         DuckDbClientConfiguration()._bind_dataset_name(dataset_name="test_dataset")
     )
-    assert c.credentials._conn_str().lower() == os.path.abspath("quack.duckdb").lower()
+    assert c.credentials._conn_str().lower() == os.path.abspath(".duckdb").lower()
     # pass explicitly
     c = resolve_configuration(
-        DuckDbClientConfiguration()._bind_dataset_name(dataset_name="test_dataset"),
-        explicit_value={"bound_to_pipeline": p},
+        DuckDbClientConfiguration()
+        ._bind_dataset_name(dataset_name="test_dataset")
+        ._bind_local_files(p)
     )
     # still cwd
     db_path = os.path.abspath(os.path.join(".", "quack_pipeline.duckdb"))
     assert c.credentials._conn_str().lower() == db_path.lower()
 
     # must work via factory
-    factory_ = dlt.destinations.duckdb(bound_to_pipeline=p)
+    factory_ = dlt.destinations.duckdb()
     c = factory_.configuration(
-        DuckDbClientConfiguration()._bind_dataset_name(dataset_name="test_dataset")
+        DuckDbClientConfiguration()
+        ._bind_dataset_name(dataset_name="test_dataset")
+        ._bind_local_files(p)
     )
     assert c.credentials._conn_str().lower() == db_path.lower()
 
@@ -159,12 +162,11 @@ def test_duckdb_database_path() -> None:
 
     # test special :pipeline: path to create in pipeline folder
     c = resolve_configuration(
-        DuckDbClientConfiguration(credentials=":pipeline:")._bind_dataset_name(
-            dataset_name="test_dataset"
-        ),
-        explicit_value={"bound_to_pipeline": p},  # not an active pipeline
+        DuckDbClientConfiguration(credentials=":pipeline:")
+        ._bind_dataset_name(dataset_name="test_dataset")
+        ._bind_local_files(p),  # not an active pipeline
     )
-    db_path = os.path.abspath(os.path.join(p.working_dir, DEFAULT_DUCK_DB_NAME))
+    db_path = os.path.abspath(os.path.join(p.working_dir, p.pipeline_name + ".duckdb"))
     assert c.credentials._conn_str().lower() == db_path.lower()
     # connect
     conn = c.credentials.borrow_conn(read_only=False)
@@ -175,10 +177,9 @@ def test_duckdb_database_path() -> None:
     # provide relative path
     db_path = "test_quack.duckdb"
     c = resolve_configuration(
-        DuckDbClientConfiguration(credentials="duckdb:///test_quack.duckdb")._bind_dataset_name(
-            dataset_name="test_dataset"
-        ),
-        explicit_value={"bound_to_pipeline": p},
+        DuckDbClientConfiguration(credentials="duckdb:///test_quack.duckdb")
+        ._bind_dataset_name(dataset_name="test_dataset")
+        ._bind_local_files(p),
     )
     assert c.credentials._conn_str().lower() == os.path.abspath(db_path).lower()
     conn = c.credentials.borrow_conn(read_only=False)
@@ -189,10 +190,11 @@ def test_duckdb_database_path() -> None:
     # provide absolute path
     db_path = os.path.abspath("abs_test_quack.duckdb")
     c = resolve_configuration(
-        DuckDbClientConfiguration(credentials=f"duckdb:///{db_path}")._bind_dataset_name(
+        DuckDbClientConfiguration(credentials=f"duckdb:///{db_path}")
+        ._bind_dataset_name(
             dataset_name="test_dataset",
-        ),
-        explicit_value={"bound_to_pipeline": p},
+        )
+        ._bind_local_files(p)
     )
     assert os.path.isabs(c.credentials.database)
     assert c.credentials._conn_str().lower() == db_path.lower()
@@ -204,10 +206,9 @@ def test_duckdb_database_path() -> None:
     # set just path as credentials
     db_path = "path_test_quack.duckdb"
     c = resolve_configuration(
-        DuckDbClientConfiguration(credentials=db_path)._bind_dataset_name(
-            dataset_name="test_dataset"
-        ),
-        explicit_value={"bound_to_pipeline": p},
+        DuckDbClientConfiguration(credentials=db_path)
+        ._bind_dataset_name(dataset_name="test_dataset")
+        ._bind_local_files(p)
     )
     assert c.credentials._conn_str().lower() == os.path.abspath(db_path).lower()
     conn = c.credentials.borrow_conn(read_only=False)
@@ -217,10 +218,9 @@ def test_duckdb_database_path() -> None:
 
     db_path = os.path.abspath("abs_path_test_quack.duckdb")
     c = resolve_configuration(
-        DuckDbClientConfiguration(credentials=db_path)._bind_dataset_name(
-            dataset_name="test_dataset"
-        ),
-        explicit_value={"bound_to_pipeline": p},
+        DuckDbClientConfiguration(credentials=db_path)
+        ._bind_dataset_name(dataset_name="test_dataset")
+        ._bind_local_files(p)
     )
     assert os.path.isabs(c.credentials.database)
     assert c.credentials._conn_str().lower() == db_path.lower()
@@ -239,6 +239,42 @@ def test_duckdb_database_path() -> None:
             )
         )
         conn = c.credentials.borrow_conn(read_only=False)
+
+
+def test_named_destination_path() -> None:
+    # if destination is named, its name is always used
+    c = resolve_configuration(
+        DuckDbClientConfiguration(destination_name="named")._bind_dataset_name(
+            dataset_name="test_dataset"
+        )
+    )
+    assert c.credentials._conn_str().lower() == os.path.abspath("named.duckdb").lower()
+    # even if part of of pipeline
+    named_duck = dlt.destinations.duckdb(destination_name="named")
+    pipeline = dlt.pipeline(pipeline_name="quack_pipeline", destination=named_duck)
+    c = resolve_configuration(
+        DuckDbClientConfiguration(destination_name="named")
+        ._bind_dataset_name(dataset_name="test_dataset")
+        ._bind_local_files(pipeline)
+    )
+    db_path = os.path.abspath("named.duckdb")
+    assert c.credentials._conn_str().lower() == db_path.lower()
+    conn = c.credentials.borrow_conn(read_only=False)
+    c.credentials.return_conn(conn)
+    assert os.path.isfile(db_path)
+
+
+def test_db_path_follows_tmp_dir() -> None:
+    tmp_dir = os.path.join(TEST_STORAGE_ROOT, uniq_id())
+    os.makedirs(tmp_dir)
+    # mock tmp dir
+    os.environ["DLT_TMP_DIR"] = tmp_dir
+    # we expect duckdb db to appear there
+    c = resolve_configuration(
+        DuckDbClientConfiguration()._bind_dataset_name(dataset_name="test_dataset")
+    )
+    db_path = os.path.join(tmp_dir, ".duckdb")
+    assert c.credentials._conn_str().lower() == os.path.abspath(db_path).lower()
 
 
 def test_keeps_initial_db_path() -> None:
@@ -282,13 +318,15 @@ def test_drops_pipeline_changes_bound() -> None:
     p = dlt.pipeline(pipeline_name="quack_pipeline", destination="duckdb")
     p.run([1, 2, 3], table_name="p_table")
     p = p.drop()
+    p.sync_destination()
     assert len(p.dataset().p_table.fetchall()) == 3
 
     # drops internal duckdb
     p = dlt.pipeline(pipeline_name="quack_pipeline", destination=duckdb(":pipeline:"))
     p.run([1, 2, 3], table_name="p_table")
     p = p.drop()
-    with pytest.raises(DatabaseUndefinedRelation):
+    p.sync_destination()
+    with pytest.raises(PipelineNeverRan):
         p.dataset().p_table.fetchall()
 
 
@@ -377,5 +415,5 @@ def test_default_duckdb_dataset_name() -> None:
 
 
 def delete_quack_db() -> None:
-    if os.path.isfile(DEFAULT_DUCK_DB_NAME):
-        os.remove(DEFAULT_DUCK_DB_NAME)
+    if os.path.isfile(".duckdb"):
+        os.remove(".duckdb")

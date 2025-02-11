@@ -38,7 +38,7 @@ def get_resource_for_adapter(data: Any) -> DltResource:
         else:
             raise ValueError(
                 "You are trying to use an adapter on a DltSource with multiple resources. You can"
-                " only use adapters on pure data, direclty on a DltResouce or a DltSource"
+                " only use adapters on pure data, directly on a DltResouce or a DltSource"
                 " containing a single DltResource."
             )
 

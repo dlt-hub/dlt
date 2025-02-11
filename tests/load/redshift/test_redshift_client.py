@@ -42,9 +42,15 @@ def test_postgres_and_redshift_credentials_defaults() -> None:
     red_cred = RedshiftCredentials()
     assert red_cred.port == 5439
     assert red_cred.connect_timeout == 15
+    assert red_cred.client_encoding == "utf-8"
     assert RedshiftCredentials.__config_gen_annotations__ == ["port", "connect_timeout"]
     resolve_configuration(red_cred, explicit_value="postgres://loader:loader@localhost/dlt_data")
     assert red_cred.port == 5439
+    assert red_cred.get_query()["client_encoding"] == "utf-8"
+    assert (
+        red_cred.to_native_representation()
+        == "postgres://loader:loader@localhost:5439/dlt_data?client_encoding=utf-8&connect_timeout=15"
+    )
 
 
 def test_redshift_factory() -> None:

@@ -143,9 +143,7 @@ class DestinationClientConfiguration(BaseConfiguration):
         default=None, init=False, repr=False, compare=False
     )  # which destination to load data to
     credentials: Optional[CredentialsConfiguration] = None
-    destination_name: Optional[str] = (
-        None  # name of the destination, if not set, destination_type is used
-    )
+    destination_name: Optional[str] = None  # name of the destination
     environment: Optional[str] = None
 
     def fingerprint(self) -> str:
@@ -155,9 +153,6 @@ class DestinationClientConfiguration(BaseConfiguration):
     def __str__(self) -> str:
         """Return displayable destination location"""
         return str(self.credentials)
-
-    def on_resolved(self) -> None:
-        self.destination_name = self.destination_name or self.destination_type
 
     @classmethod
     def credentials_type(
@@ -218,11 +213,7 @@ class DestinationClientDwhConfiguration(DestinationClientConfiguration):
         if not dataset_name:
             return dataset_name
         else:
-            return (
-                schema.naming.normalize_table_identifier(dataset_name)
-                if self.enable_dataset_name_normalization
-                else dataset_name
-            )
+            return self._normalize_identifier(dataset_name, schema.naming)
 
     def normalize_staging_dataset_name(self, schema: Schema) -> str:
         """Builds staging dataset name out of dataset_name and staging_dataset_name_layout."""
@@ -235,11 +226,24 @@ class DestinationClientDwhConfiguration(DestinationClientConfiguration):
             # no placeholder, then layout is a full name. so you can have a single staging dataset
             dataset_name = self.staging_dataset_name_layout
 
-        return (
-            schema.naming.normalize_table_identifier(dataset_name)
+        return self._normalize_identifier(dataset_name, schema.naming)
+
+    def _normalize_identifier(self, identifier: str, naming: NamingConvention) -> str:
+        norm_ident = (
+            naming.normalize_table_identifier(identifier)
             if self.enable_dataset_name_normalization
-            else dataset_name
+            else identifier
         )
+        if norm_ident != identifier:
+            logger.warning(
+                f"Due to normalization dataset name got changed from '{identifier}' to"
+                f" '{norm_ident} which will be used to create db schemas or folders. `dataset_name`"
+                " field in the pipeline instance will not be changed. We suggest that you use"
+                " dataset names that do not need to be normalized or disable dataset name"
+                " normalization via `enable_dataset_name_normalization` on destination"
+                " configuration."
+            )
+        return norm_ident
 
     @classmethod
     def needs_dataset_name(cls) -> bool:

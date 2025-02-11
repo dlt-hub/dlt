@@ -1,10 +1,11 @@
 from types import SimpleNamespace
 import pytest
 
+from dlt.common.reflection.ref import DummyModule
+
 from dlt.reflection.script_inspector import (
     import_script_module,
     import_pipeline_script,
-    DummyModule,
     PipelineIsRunning,
 )
 
