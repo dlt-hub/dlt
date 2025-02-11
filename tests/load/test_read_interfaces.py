@@ -10,6 +10,8 @@ from dlt.common import Decimal
 from typing import List
 from functools import reduce
 
+from dlt.common.schema.schema import Schema
+from dlt.common.storages.exceptions import SchemaNotFoundError
 from dlt.common.storages.file_storage import FileStorage
 from tests.load.utils import (
     destinations_configs,
@@ -126,6 +128,11 @@ def populated_pipeline(request, autouse_test_storage) -> Any:
     # run source
     s = source()
     pipeline.run(s, loader_file_format=destination_config.file_format)
+    # create a second schema in the pipeline
+    # NOTE: that generates additional load package and then another one for the state
+    # NOTE: "aleph" schema is now the newest schema in the dataset and we assume that later in the tests
+    # TODO: we need some kind of idea for multi-schema datasets
+    pipeline.run([1, 2, 3], table_name="digits", schema=Schema("aleph"))
 
     # in case of delta on gcs we use the s3 compat layer for reading
     # for writing we still need to use the gc authentication, as delta_rs seems to use
@@ -317,9 +324,12 @@ def test_hint_preservation(populated_pipeline: Pipeline) -> None:
     ids=lambda x: x.name,
 )
 def test_loads_table_access(populated_pipeline: Pipeline) -> None:
-    # check loads table access, we should have one entry
+    # check loads table access, we should have 3 entires
+    # - first source (default schema)
+    # - additional schema (digits)
+    # - state update send in separate package to default schema
     loads_table = populated_pipeline.dataset()[populated_pipeline.default_schema.loads_table_name]
-    assert len(loads_table.fetchall()) == 1
+    assert len(loads_table.fetchall()) == 3
 
 
 @pytest.mark.no_load
@@ -366,30 +376,30 @@ def test_row_counts(populated_pipeline: Pipeline) -> None:
     ) == {
         (
             "_dlt_version",
-            1,
+            2,
         ),
         (
             "_dlt_loads",
-            1,
+            3,
         ),
         (
             "_dlt_pipeline_state",
-            1,
+            2,
         ),
     }
     # get them all
     assert set(dataset.row_counts(dlt_tables=True).df().itertuples(index=False, name=None)) == {
         (
             "_dlt_version",
-            1,
+            2,
         ),
         (
             "_dlt_loads",
-            1,
+            3,
         ),
         (
             "_dlt_pipeline_state",
-            1,
+            2,
         ),
         (
             "items",
@@ -503,21 +513,25 @@ def test_column_selection(populated_pipeline: Pipeline) -> None:
 def test_schema_arg(populated_pipeline: Pipeline) -> None:
     """Simple test to ensure schemas may be selected via schema arg"""
 
-    # if there is no arg, the defautl schema is used
+    # if there is no arg, the default schema is used
     dataset = populated_pipeline.dataset()
     assert dataset.schema.name == populated_pipeline.default_schema_name
     assert "items" in dataset.schema.tables
 
-    # setting a different schema name will try to load that schema,
-    # not find one and create an empty schema with that name
-    dataset = populated_pipeline.dataset(schema="unknown_schema")
+    # if setting a different schema, it must be present in pipeline
+    with pytest.raises(SchemaNotFoundError):
+        populated_pipeline.dataset(schema="unknown_schema")
+
+    # explicit schema object is OK
+    dataset = populated_pipeline.dataset(schema=Schema("unknown_schema"))
     assert dataset.schema.name == "unknown_schema"
     assert "items" not in dataset.schema.tables
 
     # providing the schema name of the right schema will load it
-    dataset = populated_pipeline.dataset(schema=populated_pipeline.default_schema_name)
-    assert dataset.schema.name == populated_pipeline.default_schema_name
-    assert "items" in dataset.schema.tables
+    dataset = populated_pipeline.dataset(schema="aleph")
+    assert dataset.schema.name == "aleph"
+    assert "digits" in dataset.schema.tables
+    dataset.digits.fetchall()
 
 
 @pytest.mark.no_load
@@ -578,7 +592,7 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     # we check a bunch of expressions without executing them to see that they produce correct sql
     # also we return the keys of the disovered schema columns
     def sql_from_expr(expr: Any) -> Tuple[str, List[str]]:
-        query = str(expr.query).replace(populated_pipeline.dataset_name, "dataset")
+        query = str(expr.query()).replace(populated_pipeline.dataset_name, "dataset")
         columns = list(expr.columns_schema.keys()) if expr.columns_schema else None
         return re.sub(r"\s+", " ", query), columns
 
@@ -749,14 +763,20 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
     dataset_name = map_i(populated_pipeline.dataset_name)
     table_like_statement = None
     table_name_prefix = ""
-    addtional_tables = []
+    additional_tables = []
 
     # clickhouse has no datasets, but table prefixes and a sentinel table
     if populated_pipeline.destination.destination_type == "dlt.destinations.clickhouse":
         table_like_statement = dataset_name + "."
         table_name_prefix = dataset_name + "___"
         dataset_name = None
-        addtional_tables = ["dlt_sentinel_table"]
+        additional_tables += ["dlt_sentinel_table"]
+
+    # filesystem uses duckdb and views to map know tables. for other ibis will list
+    # all available tables so both schemas tables are visible
+    if populated_pipeline.destination.destination_type != "dlt.destinations.filesystem":
+        # from aleph schema
+        additional_tables += ["digits"]
 
     add_table_prefix = lambda x: table_name_prefix + x
 
@@ -772,7 +792,7 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
                 "items",
                 "items__children",
             ]
-            + addtional_tables
+            + additional_tables
         )
     }
 
@@ -793,8 +813,14 @@ def test_standalone_dataset(populated_pipeline: Pipeline) -> None:
     total_records = _total_records(populated_pipeline)
 
     # check dataset factory
-    dataset = _dataset(
-        destination=populated_pipeline.destination, dataset_name=populated_pipeline.dataset_name
+    dataset = cast(
+        ReadableDBAPIDataset,
+        _dataset(
+            destination=populated_pipeline.destination,
+            dataset_name=populated_pipeline.dataset_name,
+            # use name otherwise aleph schema is loaded
+            schema=populated_pipeline.default_schema_name,
+        ),
     )
     # verfiy that sql client and schema are lazy loaded
     assert not dataset._schema
@@ -802,16 +828,6 @@ def test_standalone_dataset(populated_pipeline: Pipeline) -> None:
     table_relationship = dataset.items
     table = table_relationship.fetchall()
     assert len(table) == total_records
-
-    # check that schema is loaded by name
-    dataset = cast(
-        ReadableDBAPIDataset,
-        _dataset(
-            destination=populated_pipeline.destination,
-            dataset_name=populated_pipeline.dataset_name,
-            schema=populated_pipeline.default_schema_name,
-        ),
-    )
     assert dataset.schema.tables["items"]["write_disposition"] == "replace"
 
     # check that schema is not loaded when wrong name given
@@ -834,8 +850,10 @@ def test_standalone_dataset(populated_pipeline: Pipeline) -> None:
             dataset_name=populated_pipeline.dataset_name,
         ),
     )
-    assert dataset.schema.name == populated_pipeline.default_schema_name
-    assert dataset.schema.tables["items"]["write_disposition"] == "replace"
+    # aleph is a secondary schema in the pipeline but because it was stored second
+    # will be retrieved by default
+    assert dataset.schema.name == "aleph"
+    assert dataset.schema.tables["digits"]["write_disposition"] == "append"
 
     # check that there is no error when creating dataset without schema table
     dataset = cast(

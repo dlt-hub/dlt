@@ -82,7 +82,9 @@ def test_pipeline_with_dlt_update(test_storage: FileStorage) -> None:
                 {"DESTINATION__DUCKDB__CREDENTIALS": "duckdb:///test_github_3.duckdb"}
             ):
                 # create virtual env with (0.3.0) before the current schema upgrade
-                with Venv.create(tempfile.mkdtemp(), ["dlt[duckdb]==0.3.0"]) as venv:
+                with Venv.create(
+                    tempfile.mkdtemp(), ["dlt[duckdb]==0.3.0", "json-logging==1.4.1rc0"]
+                ) as venv:
                     # NOTE: we force a newer duckdb into the 0.3.0 dlt version to get compatible duckdb storage
                     venv._install_deps(venv.context, ["duckdb" + "==" + pkg_version("duckdb")])
                     # load 20 issues
@@ -177,6 +179,9 @@ def test_pipeline_with_dlt_update(test_storage: FileStorage) -> None:
                     test_storage.load(f".dlt/pipelines/{GITHUB_PIPELINE_NAME}/state.json")
                 )
                 assert "_version_hash" in state_dict
+                assert state_dict["_state_engine_version"] == 5
+                assert state_dict["destination_type"] == "dlt.destinations.duckdb"
+                assert state_dict["destination_name"] is None
 
                 with DuckDbSqlClient(
                     GITHUB_DATASET, "%s_staging", duckdb_cfg.credentials, duckdb().capabilities()

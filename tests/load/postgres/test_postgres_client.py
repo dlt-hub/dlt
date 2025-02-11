@@ -38,6 +38,7 @@ def test_postgres_credentials_defaults() -> None:
     pg_cred = PostgresCredentials()
     assert pg_cred.port == 5432
     assert pg_cred.connect_timeout == 15
+    assert pg_cred.client_encoding is None
     assert PostgresCredentials.__config_gen_annotations__ == ["port", "connect_timeout"]
     # port should be optional
     resolve_configuration(pg_cred, explicit_value="postgres://loader:loader@localhost/DLT_DATA")
@@ -70,12 +71,13 @@ def test_postgres_credentials_native_value(environment) -> None:
     assert c.database == "dlt_data"
 
 
-def test_postgres_credentials_timeout() -> None:
+def test_postgres_query_params() -> None:
     # test postgres timeout
-    dsn = "postgres://loader:pass@localhost:5432/dlt_data?connect_timeout=600"
+    dsn = "postgres://loader:pass@localhost:5432/dlt_data?client_encoding=utf-8&connect_timeout=600"
     csc = PostgresCredentials()
     csc.parse_native_representation(dsn)
     assert csc.connect_timeout == 600
+    assert csc.client_encoding == "utf-8"
     assert csc.to_native_representation() == dsn
 
 

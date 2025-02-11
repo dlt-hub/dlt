@@ -5,8 +5,11 @@ from types import ModuleType
 
 from dlt.common import logger
 from dlt.common.destination.capabilities import TLoaderParallelismStrategy
+from dlt.common.destination.exceptions import DestinationException
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.normalizers.naming.naming import NamingConvention
+from dlt.common.reflection.exceptions import ReferenceImportError
+from dlt.common.reflection.ref import ImportTrace, callable_typechecker, object_from_ref
 from dlt.common.typing import AnyFun
 from dlt.common.destination import Destination, DestinationCapabilitiesContext, TLoaderFileFormat
 from dlt.common.configuration import known_sections, with_config, get_fun_spec
@@ -21,6 +24,30 @@ from dlt.destinations.impl.destination.configuration import (
 
 if t.TYPE_CHECKING:
     from dlt.destinations.impl.destination.destination import DestinationClient
+
+
+class UnknownCustomDestinationCallable(ReferenceImportError, DestinationException, KeyError):
+    def __init__(
+        self, ref: str, qualified_refs: t.Sequence[str], traces: t.Sequence[ImportTrace]
+    ) -> None:
+        self.ref = ref
+        self.qualified_refs = qualified_refs
+        super().__init__(traces=traces)
+
+    def __str__(self) -> str:
+        if "." in self.ref:
+            msg = f"Custom destination callable {self.ref} could not be imported."
+
+        if len(self.qualified_refs) == 1 and self.qualified_refs[0] == self.ref:
+            pass
+        else:
+            msg += (
+                " Following fully qualified refs were tried in the registry:\n\t%s\n"
+                % "\n\t".join(self.qualified_refs)
+            )
+        if self.traces:
+            msg += super().__str__()
+        return msg
 
 
 class destination(Destination[CustomDestinationClientConfiguration, "DestinationClient"]):
@@ -66,22 +93,13 @@ class destination(Destination[CustomDestinationClientConfiguration, "Destination
         if callable(destination_callable):
             pass
         elif destination_callable:
-            if "." not in destination_callable:
-                raise ValueError("str destination reference must be of format 'module.function'")
-            module_path, attr_name = destination_callable.rsplit(".", 1)
-            try:
-                dest_module = import_module(module_path)
-            except ModuleNotFoundError as e:
-                raise ConfigurationValueError(
-                    f"Could not find callable module at {module_path}"
-                ) from e
-            try:
-                destination_callable = getattr(dest_module, attr_name)
-            except AttributeError as e:
-                raise ConfigurationValueError(
-                    f"Could not find callable function at {destination_callable}"
-                ) from e
-
+            imported_callable, trace = object_from_ref(destination_callable, callable_typechecker)
+            if imported_callable is None:
+                raise UnknownCustomDestinationCallable(
+                    destination_callable, [destination_callable], [trace]
+                )
+            else:
+                destination_callable = imported_callable
         # provide dummy callable for cases where no callable is provided
         # this is needed for cli commands to work
         if not destination_callable:

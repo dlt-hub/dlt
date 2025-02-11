@@ -39,6 +39,10 @@ class RunContext(SupportsRunContext):
         return os.environ.get(known_env.DLT_PROJECT_DIR, self._init_run_dir)
 
     @property
+    def tmp_dir(self) -> str:
+        return os.environ.get(known_env.DLT_TMP_DIR, self._init_run_dir)
+
+    @property
     def settings_dir(self) -> str:
         """Returns a path to dlt settings directory. If not overridden it resides in current working directory
 

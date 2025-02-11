@@ -26,7 +26,11 @@ class SupportsRunContext(Protocol):
 
     @property
     def run_dir(self) -> str:
-        """Defines the current working directory"""
+        """Defines the current working directory, defaults to cwd()"""
+
+    @property
+    def tmp_dir(self) -> str:
+        """Defines temporary data dir where local relative dirs and files are created, defaults to run_dir"""
 
     @property
     def settings_dir(self) -> str:
@@ -111,9 +115,6 @@ class PluggableRunContext(ContainerInjectableContext):
     def after_add(self) -> None:
         super().after_add()
 
-        # plug context
-        self.context.plug()
-
         # initialize runtime if context comes back into container
         if self.runtime_config:
             self.initialize_runtime(self.runtime_config)
@@ -132,6 +133,8 @@ class PluggableRunContext(ContainerInjectableContext):
         # resolve runtime configuration
         if not self.runtime_config:
             self.initialize_runtime(resolve_configuration(RuntimeConfiguration()))
+        # plug context
+        self.context.plug()
 
     def initialize_runtime(self, runtime_config: RuntimeConfiguration) -> None:
         self.runtime_config = runtime_config

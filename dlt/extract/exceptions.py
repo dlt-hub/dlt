@@ -2,6 +2,8 @@ from inspect import Signature, isgenerator, isgeneratorfunction, unwrap
 from typing import Any, Sequence, Set, Type
 
 from dlt.common.exceptions import DltException
+from dlt.common.reflection.exceptions import ReferenceImportError
+from dlt.common.reflection.ref import ImportTrace
 from dlt.common.utils import get_callable_name
 
 
@@ -405,14 +407,26 @@ class ExplicitSourceNameInvalid(DltSourceException):
         )
 
 
-class UnknownSourceReference(DltSourceException, KeyError):
-    def __init__(self, ref: Sequence[str]) -> None:
+class UnknownSourceReference(ReferenceImportError, DltSourceException, KeyError):
+    def __init__(
+        self, ref: str, qualified_refs: Sequence[str], traces: Sequence[ImportTrace]
+    ) -> None:
         self.ref = ref
-        msg = (
-            f"{ref} is not one of registered sources and could not be imported as module with"
-            " source function"
-        )
-        super().__init__(msg)
+        self.qualified_refs = qualified_refs
+        super().__init__(traces=traces)
+
+    def __str__(self) -> str:
+        msg = f"{self.ref} is not one of already registered sources. "
+        if len(self.qualified_refs) == 1 and self.qualified_refs[0] == self.ref:
+            pass
+        else:
+            msg += (
+                " Following fully qualified refs were tried in the registry:\n\t%s\n"
+                % "\n\t".join(self.qualified_refs)
+            )
+        if self.traces:
+            msg += super().__str__()
+        return msg
 
 
 class InvalidSourceReference(DltSourceException):

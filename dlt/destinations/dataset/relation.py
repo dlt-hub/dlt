@@ -51,8 +51,11 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation):
     def schema(self) -> Schema:
         return self._dataset.schema
 
-    @property
     def query(self) -> Any:
+        # NOTE: converted from property to method due to:
+        #   if this property raises AttributeError, __getattr__ will get called 🤯
+        #   this leads to infinite recursion as __getattr_ calls this property
+        #   also it does a heavy computation inside so it should be a method
         raise NotImplementedError("No query in ReadableDBAPIRelation")
 
     @contextmanager
@@ -64,7 +67,7 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation):
             # client which will do this automatically
             if hasattr(self.sql_client, "_conn") and hasattr(self.sql_client._conn, "autocommit"):
                 self.sql_client._conn.autocommit = False
-            with client.execute_query(self.query) as cursor:
+            with client.execute_query(self.query()) as cursor:
                 if columns_schema := self.columns_schema:
                     cursor.columns_schema = columns_schema
                 yield cursor
@@ -112,7 +115,6 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
         self._limit = limit
         self._selected_columns = selected_columns
 
-    @property
     def query(self) -> Any:
         """build the query"""
         if self._provided_query:

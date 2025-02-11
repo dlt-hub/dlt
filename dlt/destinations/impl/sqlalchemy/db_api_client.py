@@ -19,6 +19,7 @@ import sqlalchemy as sa
 from sqlalchemy.engine import Connection
 from sqlalchemy.exc import ResourceClosedError
 
+from dlt.common import logger
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.destinations.exceptions import (
     DatabaseUndefinedRelation,
@@ -28,11 +29,12 @@ from dlt.destinations.exceptions import (
     DatabaseException,
 )
 from dlt.common.destination.dataset import DBApiCursor
+from dlt.common.typing import TFun
+
 from dlt.destinations.typing import DBTransaction
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.impl.sqlalchemy.configuration import SqlalchemyCredentials
 from dlt.destinations.impl.sqlalchemy.alter_table import MigrationMaker
-from dlt.common.typing import TFun
 from dlt.destinations.sql_client import DBApiCursorImpl
 
 
@@ -198,15 +200,18 @@ class SqlalchemyClient(SqlClientBase[Connection]):
         finally:
             self._current_transaction = None
 
+    @raise_database_error
     def commit_transaction(self) -> None:
         """Commits the current transaction."""
         self._current_transaction.commit_transaction()
 
+    @raise_database_error
     def rollback_transaction(self) -> None:
         """Rolls back the current transaction."""
         self._current_transaction.rollback_transaction()
 
     @contextmanager
+    @raise_database_error
     def _transaction(self) -> Iterator[DBTransaction]:
         """Context manager yielding either a new or the currently open transaction.
         New transaction will be committed/rolled back on exit.
@@ -396,7 +401,7 @@ class SqlalchemyClient(SqlClientBase[Connection]):
             metadata = self.metadata
         try:
             with self._transaction():
-                return sa.Table(
+                table = sa.Table(
                     table_name,
                     metadata,
                     autoload_with=self._current_connection,
@@ -405,6 +410,8 @@ class SqlalchemyClient(SqlClientBase[Connection]):
                     include_columns=include_columns,
                     extend_existing=True,
                 )
+                # assert table is not None
+                return table
         except DatabaseUndefinedRelation:
             return None
 

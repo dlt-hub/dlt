@@ -49,7 +49,7 @@ def test_sqlalchemy_create_indexes(
             # reflection does not show unique constraints
             # assert (with_pk.c._dlt_id.unique or False) is create_unique_indexes
             inspector = inspect(client.engine)
-            indexes = inspector.get_indexes("with_pk", schema=pipeline.dataset_name)
+            indexes = inspector.get_indexes("with_pk", schema=client.dataset_name)
             if create_unique_indexes:
                 assert indexes[0]["column_names"][0] == "_dlt_id"
             else:
