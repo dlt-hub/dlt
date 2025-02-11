@@ -83,7 +83,7 @@ def test_bind_path_param() -> None:
     # resolved param will remain unbounded and
     tp_6 = deepcopy(three_params)
     tp_6["endpoint"]["path"] = "{org}/{repo}/issues/1234/comments"  # type: ignore[index]
-    with pytest.raises(NotImplementedError):
+    with pytest.raises(ValueError):
         _bind_path_params(tp_6)
 
 
@@ -475,41 +475,62 @@ def test_resource_dependent_dependent(config: RESTAPIConfig) -> None:
     assert resources["location_details"]._pipe.parent.name == "locations"
 
 
-def test_circular_resource_bindingis_invalid() -> None:
-    config: RESTAPIConfig = {
-        "client": {
-            "base_url": "https://api.example.com",
+@pytest.mark.parametrize(
+    "config",
+    [
+        # Using resolve syntax
+        {
+            "client": {"base_url": "https://api.example.com"},
+            "resources": [
+                {
+                    "name": "chicken",
+                    "endpoint": {
+                        "path": "chicken/{egg_id}/",
+                        "params": {
+                            "egg_id": {
+                                "type": "resolve",
+                                "field": "id",
+                                "resource": "egg",
+                            },
+                        },
+                    },
+                },
+                {
+                    "name": "egg",
+                    "endpoint": {
+                        "path": "egg/{chicken_id}/",
+                        "params": {
+                            "chicken_id": {
+                                "type": "resolve",
+                                "field": "id",
+                                "resource": "chicken",
+                            },
+                        },
+                    },
+                },
+            ],
         },
-        "resources": [
-            {
-                "name": "chicken",
-                "endpoint": {
-                    "path": "chicken/{egg_id}/",
-                    "params": {
-                        "egg_id": {
-                            "type": "resolve",
-                            "field": "id",
-                            "resource": "egg",
-                        },
+        # Using resource field reference syntax
+        {
+            "client": {"base_url": "https://api.example.com"},
+            "resources": [
+                {
+                    "name": "chicken",
+                    "endpoint": {
+                        "path": "chicken/{resources.egg.id}/",
                     },
                 },
-            },
-            {
-                "name": "egg",
-                "endpoint": {
-                    "path": "egg/{chicken_id}/",
-                    "params": {
-                        "chicken_id": {
-                            "type": "resolve",
-                            "field": "id",
-                            "resource": "chicken",
-                        },
+                {
+                    "name": "egg",
+                    "endpoint": {
+                        "path": "egg/{resources.chicken.id}/",
                     },
                 },
-            },
-        ],
-    }
-
+            ],
+        },
+    ],
+)
+def test_circular_resource_bindingis_invalid(config: RESTAPIConfig) -> None:
     with pytest.raises(CycleError) as e:
         rest_api_resources(config)
     assert e.match(re.escape("'nodes are in a cycle', ['chicken', 'egg', 'chicken']"))

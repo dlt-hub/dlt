@@ -1,10 +1,10 @@
-import re
 import warnings
 from copy import copy
 from typing import (
     Type,
     Any,
     Dict,
+    Set,
     Tuple,
     List,
     Iterable,
@@ -14,6 +14,7 @@ from typing import (
     cast,
     NamedTuple,
 )
+import functools
 import graphlib
 import string
 from requests import Response
@@ -354,6 +355,30 @@ def build_resource_dependency_graph(
         # find resolved parameters to connect dependent resources
         resolved_params = _find_resolved_params(endpoint_resource["endpoint"])
 
+        available_contexts = _get_available_contexts(endpoint_resource["endpoint"])
+
+        # Find more resolved params in path
+        # Ignore params that are not in available_contexts for backward compatibility
+        # with resolved params in path: these are validated in _bind_path_params
+        path_expressions = _find_expressions(
+            endpoint_resource["endpoint"]["path"], available_contexts
+        )
+
+        # Find all expressions in params and json, but error if any of them is not in available_contexts
+        params_expressions = _find_expressions(endpoint_resource["endpoint"].get("params", {}))
+        _raise_if_any_not_in(params_expressions, available_contexts, message="params")
+
+        json_expressions = _find_expressions(endpoint_resource["endpoint"].get("json", {}))
+        _raise_if_any_not_in(json_expressions, available_contexts, message="json")
+
+        resolved_params += _expressions_to_resolved_params(
+            {
+                x
+                for x in (path_expressions | params_expressions | json_expressions)
+                if x.startswith("resources.")
+            }
+        )
+
         # set of resources in resolved params
         named_resources = {rp.resolve_config["resource"] for rp in resolved_params}
 
@@ -441,78 +466,82 @@ def _make_endpoint_resource(
     return _merge_resource_endpoints(default_config, resource)
 
 
-def _encode_template_placeholders(
-    text: str, prefix: str, delimiter_char: str = "||"
-) -> Tuple[str, Dict[str, str]]:
-    """Encodes substrings starting with prefix in text using delimiter_char."""
-
-    # Store original values for restoration
-    replacements = {}
-
-    def replace_match(match: re.Match[str]) -> Any:
-        content = match.group(1)
-        if content.startswith(prefix):
-            # Generate a unique key for this replacement
-            key = f"{delimiter_char}{content}{delimiter_char}"
-            replacements[key] = match.group(0)
-            return key
-        # Return unchanged for further processing
-        return match.group(0)
-
-    # Find all {...} patterns and selectively replace them
-    pattern = r"\{\s*([^}]+)\}"
-    transformed = re.sub(pattern, replace_match, text)
-    return transformed, replacements
-
-
-def _decode_special_objects(text: str, replacements: Dict[str, str]) -> str:
-    for key, value in replacements.items():
-        text = text.replace(key, value)
-    return text
-
-
 def _bind_path_params(resource: EndpointResource) -> None:
     """Binds params declared in path to params available in `params`. Pops the
     bound params. Params of type `resolve` and `incremental` are skipped
     and bound later.
     """
-    path_params: Dict[str, Any] = {}
+    # TODO: Deprecate static params usage in path
+    # TODO: and remove this function
     assert isinstance(resource["endpoint"], dict)  # type guard
+
+    params = resource["endpoint"].get("params", {})
+
     resolve_params = [r.param_name for r in _find_resolved_params(resource["endpoint"])]
     path = resource["endpoint"]["path"]
-    for format_ in string.Formatter().parse(path):
-        name = format_[1]
-        if name:
-            params = resource["endpoint"].get("params", {})
-            if name not in params and name not in path_params:
+
+    new_path_segments = []
+
+    for literal_text, field_name, _, _ in string.Formatter().parse(path):
+        # Always add literal text
+        new_path_segments.append(literal_text)
+
+        if not field_name:
+            # There's no placeholder here
+            continue
+
+        # If the placeholder starts with 'resources.' or 'incremental.', leave it intact
+        # TODO: Generalize this to regex
+        if field_name.startswith("resources.") or field_name.startswith("incremental."):
+            new_path_segments.append(f"{{{field_name}}}")
+            continue
+
+        # If it's a "resolve" param, skip binding here so it remains in the path
+        # and can be processed later
+        if field_name in resolve_params:
+            # We insert a literal placeholder instead of substituting a value
+            new_path_segments.append(f"{{{field_name}}}")
+            # Remove from the list of resolve params so we don't complain about it later
+            resolve_params.remove(field_name)
+            continue
+
+        # Otherwise, we attempt to bind a normal param from endpoint['params']
+        if field_name not in params:
+            # Does not have a dot in the field name: most likely should be a resolve param
+            if "." not in field_name:
                 raise ValueError(
-                    f"The path {path} defined in resource {resource['name']} requires param with"
-                    f" name {name} but it is not found in {params}"
+                    f"The path '{path}' defined in resource '{resource['name']}' requires a param "
+                    f"named '{field_name}', but it was not found in 'endpoint.params': {params}"
                 )
-            if name in resolve_params:
-                resolve_params.remove(name)
-            if name in params:
-                if not isinstance(params[name], dict):
-                    # bind resolved param and pop it from endpoint
-                    path_params[name] = params.pop(name)
-                else:
-                    param_type = params[name].get("type")
-                    if param_type != "resolve":
-                        raise ValueError(
-                            f"The path {path} defined in resource {resource['name']} tries to bind"
-                            f" param {name} with type {param_type}. Paths can only bind 'resolve'"
-                            " type params."
-                        )
-                    # resolved params are bound later
-                    path_params[name] = "{" + name + "}"
+            else:
+                # Most likely mistyped placeholder context name
+                raise ValueError(
+                    f"The path '{path}' defined in resource '{resource['name']}' contains a"
+                    f" placeholder '{field_name}'. This placeholder is not a valid name."
+                    " Valid names are: 'resources', 'incremental'."
+                )
+
+        if not isinstance(params[field_name], dict):
+            # bind resolved param and pop it from endpoint
+            value = params.pop(field_name)
+            new_path_segments.append(str(value))
+        else:
+            param_type = params[field_name].get("type")
+            if param_type != "resolve":
+                raise ValueError(
+                    f"The path {path} defined in resource {resource['name']} tries to bind"
+                    f" param {field_name} with type {param_type}. Paths can only bind 'resolve'"
+                    " type params."
+                )
 
     if len(resolve_params) > 0:
-        raise NotImplementedError(
+        raise ValueError(
             f"Resource {resource['name']} defines resolve params {resolve_params} that are not"
-            f" bound in path {path}. Resolve query params not supported yet."
+            f" bound in path {path}. To reference parent resource in query params use"
+            " resources.<parent_resource>.<field> syntax."
         )
 
-    resource["endpoint"]["path"] = path.format(**path_params)
+    resource["endpoint"]["path"] = "".join(new_path_segments)
 
 
 def _setup_single_entity_endpoint(endpoint: Endpoint) -> Endpoint:
@@ -665,17 +694,30 @@ def create_response_hooks(
     return None
 
 
-def _extract_expressions(
-    template: Union[str, Dict[str, Any]],
-    prefix: str = "",
-) -> List[str]:
-    """Takes a template string and extracts expressions that start with a prefix.
+def _find_expressions(
+    content: Union[str, Dict[str, Any]],
+    prefixes: Optional[Iterable[str]] = None,
+) -> Set[str]:
+    """Takes a string, dictionary, or nested structure and extracts expressions
+    that start with any of the given prefixes. If prefixes is None, extracts all expressions.
+    Recursively searches through dictionaries and lists to find expressions in string values.
+
     Args:
-        template (str): A string with expressions to extract
-        prefix (str): A string that marks the beginning of an expression
+        content (Union[str, Dict[str, Any]]): A string, dictionary, or nested structure
+            to search for expressions
+        prefixes (Optional[Iterable[str]]): An iterable of strings that mark the beginning
+            of expressions. If None, all expressions are included.
+
+    Returns:
+        Set[str]: Set of found expressions that match the prefix criteria (or all if no prefixes)
+
     Example:
-        >>> _extract_expressions("blog/{resources.blog.id}/comments", "resources.")
-        ["resources.blog.id"]
+        >>> _find_expressions("blog/{resources.blog.id}/comments", ["resources."])
+        {"resources.blog.id"}
+        >>> _find_expressions("blog/{resources.blog.id}/comments", None)
+        {"resources.blog.id"}
+        >>> _find_expressions("blog/{id}/comments", None)
+        {"id"}
     """
     expressions = set()
 
@@ -691,15 +733,16 @@ def _extract_expressions(
             e = [
                 field_name
                 for _, field_name, _, _ in string.Formatter().parse(value)
-                if field_name and field_name.startswith(prefix)
+                if field_name
+                and (prefixes is None or any(field_name.startswith(prefix) for prefix in prefixes))
             ]
             expressions.update(e)
 
-    recursive_search(template)
-    return list(expressions)
+    recursive_search(content)
+    return expressions
 
 
-def _expressions_to_resolved_params(expressions: List[str]) -> List[ResolvedParam]:
+def _expressions_to_resolved_params(expressions: Set[str]) -> List[ResolvedParam]:
     resolved_params = []
     # We assume that the expressions are in the format 'resources.<resource>.<field>'
     # and not more complex expressions
@@ -889,3 +932,38 @@ def _merge_resource_endpoints(
         "endpoint": merged_endpoint,
     }
     return merged_resource
+
+
+def _get_available_contexts(endpoint: Endpoint) -> Set[str]:
+    """Returns a list of available contexts for the endpoint.
+    Args:
+        endpoint (Endpoint): The endpoint configuration to check
+
+    Returns:
+        List[str]: List of available context names
+    """
+    contexts = {"resources"}  # resources context is always available
+
+    if "incremental" in endpoint:
+        contexts.add("incremental")
+
+    return contexts
+
+
+def _raise_if_any_not_in(expressions: Set[str], available_contexts: Set[str], message: str) -> None:
+    """Validates that all expressions start with one of the available contexts.
+
+    Args:
+        expressions: Set of expressions to validate
+        available_contexts: Set of valid context prefixes (e.g. 'resources', 'incremental')
+        message: Location where invalid expression was found (for error message)
+
+    Raises:
+        ValueError: If any expression doesn't start with an available context prefix
+    """
+    for expression in expressions:
+        if not any(expression.startswith(prefix + ".") for prefix in available_contexts):
+            raise ValueError(
+                f"Expression '{expression}' defined in {message} is not valid. Valid expressions"
+                f" must start with one of: {', '.join(available_contexts)}"
+            )

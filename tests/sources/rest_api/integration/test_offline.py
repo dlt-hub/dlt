@@ -23,52 +23,88 @@ from tests.utils import assert_load_info, assert_query_data, load_table_counts
 @pytest.mark.parametrize(
     "config",
     [
-        {
-            "client": {"base_url": "https://api.example.com"},
-            "resources": [
-                "posts",
-                {
-                    "name": "post_comments",
-                    "endpoint": {
-                        "path": "posts/{post_id}/comments",
-                        "params": {
-                            "post_id": {
-                                "type": "resolve",
-                                "resource": "posts",
-                                "field": "id",
-                            }
+        # Using resolve params in path
+        pytest.param(
+            {
+                "client": {"base_url": "https://api.example.com"},
+                "resources": [
+                    "posts",
+                    {
+                        "name": "post_comments",
+                        "endpoint": {
+                            "path": "posts/{post_id}/comments",
+                            "params": {
+                                "post_id": {
+                                    "type": "resolve",
+                                    "resource": "posts",
+                                    "field": "id",
+                                }
+                            },
                         },
                     },
-                },
-                {
-                    "name": "post_details",
-                    "endpoint": {
-                        "path": "posts/{post_id}",
-                        "params": {
-                            "post_id": {
-                                "type": "resolve",
-                                "resource": "posts",
-                                "field": "id",
-                            }
+                    {
+                        "name": "post_details",
+                        "endpoint": {
+                            "path": "posts/{post_id}",
+                            "params": {
+                                "post_id": {
+                                    "type": "resolve",
+                                    "resource": "posts",
+                                    "field": "id",
+                                }
+                            },
                         },
                     },
-                },
-            ],
-        },
-        {
-            "client": {"base_url": "https://api.example.com"},
-            "resources": [
-                "posts",
-                {
-                    "name": "post_comments",
-                    "endpoint": "posts/{resources.posts.id}/comments",
-                },
-                {
-                    "name": "post_details",
-                    "endpoint": "posts/{resources.posts.id}",
-                },
-            ],
-        },
+                ],
+            },
+            id="resolve_params_in_path",
+        ),
+        # Using interpolated params in path
+        pytest.param(
+            {
+                "client": {"base_url": "https://api.example.com"},
+                "resources": [
+                    "posts",
+                    {
+                        "name": "post_comments",
+                        "endpoint": "posts/{resources.posts.id}/comments",
+                    },
+                    {
+                        "name": "post_details",
+                        "endpoint": "posts/{resources.posts.id}",
+                    },
+                ],
+            },
+            id="interpolated_params_in_path",
+        ),
+        # Using interpolated params in query string
+        pytest.param(
+            {
+                "client": {"base_url": "https://api.example.com"},
+                "resources": [
+                    "posts",
+                    {
+                        "name": "post_comments",
+                        "endpoint": {
+                            "path": "post_comments",
+                            "params": {
+                                "post_id": "{resources.posts.id}",
+                            },
+                        },
+                    },
+                    {
+                        "name": "post_details",
+                        "endpoint": {
+                            "path": "post_detail",
+                            "params": {
+                                "post_id": "{resources.posts.id}",
+                            },
+                        },
+                    },
+                ],
+            },
+            id="interpolated_params_in_query_string",
+        ),
     ],
 )
 def test_load_mock_api(mock_api_server, config):
@@ -410,6 +446,173 @@ def test_dependent_resource_query_string_params(
         assert 1 <= int(qs["page"][0]) <= 10
 
 
+@pytest.mark.parametrize(
+    "endpoint_params,expected_static_params",
+    [
+        # No static params
+        pytest.param(
+            {
+                "path": "post_detail",
+                "params": {"post_id": "{resources.posts.id}"},
+            },
+            {},
+            id="interpolate_param_only",
+        ),
+        # With static params
+        pytest.param(
+            {
+                "path": "post_detail",
+                "params": {"post_id": "{resources.posts.id}", "sort": "desc"},
+            },
+            {"sort": ["desc"]},
+            id="interpolate_param_with_static",
+        ),
+        # One static param is empty
+        pytest.param(
+            {
+                "path": "post_detail",
+                "params": {"post_id": "{resources.posts.id}", "sort": "desc", "locale": ""},
+            },
+            {"sort": ["desc"], "locale": [""]},
+            id="one_static_param_is_empty",
+        ),
+    ],
+)
+def test_interpolate_params_in_query_string(
+    mock_api_server, endpoint_params, expected_static_params
+):
+    mock_source = rest_api_source(
+        {
+            "client": {"base_url": "https://api.example.com"},
+            "resources": [
+                "posts",
+                {
+                    "name": "post_details",
+                    "endpoint": {
+                        **endpoint_params,
+                    },
+                },
+            ],
+        }
+    )
+    list(mock_source.with_resources("posts", "post_details").add_limit(1))
+
+    history = mock_api_server.request_history
+    post_details_calls = [h for h in history if "/post_detail" in h.url]
+    assert len(post_details_calls) == 5
+
+    for index, call in enumerate(post_details_calls):
+        qs = parse_qs(urlsplit(call.url).query, keep_blank_values=True)
+        assert set(qs.keys()) == set(expected_static_params.keys()) | {"post_id"}
+        assert qs["post_id"] == [str(index)]
+
+
+def test_raises_error_for_unused_resolve_params(mock_api_server):
+    with pytest.raises(ValueError) as exc_info:
+        rest_api_source(
+            {
+                "client": {"base_url": "https://api.example.com"},
+                "resources": [
+                    "posts",
+                    {
+                        "name": "post_details",
+                        "endpoint": {
+                            "path": "posts",
+                            "params": {
+                                "post_id": {
+                                    "type": "resolve",
+                                    "resource": "posts",
+                                    "field": "id",
+                                }
+                            },
+                        },
+                    },
+                ],
+            }
+        )
+
+    assert (
+        "Resource post_details defines resolve params ['post_id'] that are not bound in path posts."
+        " To reference parent resource in query params use resources.<parent_resource>.<field>"
+        " syntax."
+        in str(exc_info.value)
+    )
+
+
+def test_raises_error_for_incorrect_interpolation_in_path():
+    with pytest.raises(ValueError) as exc_info:
+        rest_api_source(
+            {
+                "client": {"base_url": "https://api.example.com"},
+                "resources": [
+                    "posts",
+                    {
+                        "name": "post_detail",
+                        "endpoint": {"path": "posts/{unknown.posts.id}"},
+                    },
+                ],
+            }
+        )
+
+    assert (
+        "The path 'posts/{unknown.posts.id}' defined in resource 'post_detail' contains a"
+        " placeholder 'unknown.posts.id'. This placeholder is not a valid name. Valid names are:"
+        " 'resources', 'incremental'."
+        in str(exc_info.value)
+    )
+
+
+def test_raises_error_for_incorrect_interpolation_in_query_string(mock_api_server):
+    with pytest.raises(ValueError) as exc_info:
+        rest_api_source(
+            {
+                "client": {"base_url": "https://api.example.com"},
+                "resources": [
+                    "posts",
+                    {
+                        "name": "post_detail",
+                        "endpoint": {
+                            "path": "post_detail",
+                            "params": {"post_id": "{unknown.posts.id}"},
+                        },
+                    },
+                ],
+            }
+        )
+
+    assert (
+        "Expression 'unknown.posts.id' defined in params is not valid. Valid expressions must start"
+        " with one of: resources"
+        in str(exc_info.value)
+    )
+
+
+def test_raises_error_for_incorrect_interpolation_in_json(mock_api_server):
+    with pytest.raises(ValueError) as exc_info:
+        rest_api_source(
+            {
+                "client": {"base_url": "https://api.example.com"},
+                "resources": [
+                    "posts",
+                    {
+                        "name": "search_by_id",
+                        "endpoint": {
+                            "path": "posts/search_by_id/{resources.posts.id}",
+                            "method": "POST",
+                            "json": {"post_id": "{unknown.posts.id}"},
+                        },
+                    },
+                ],
+            }
+        )
+
+    assert (
+        "Expression 'unknown.posts.id' defined in json is not valid. Valid expressions must start"
+        " with one of: resources"
+        in str(exc_info.value)
+    )
+
+
 def test_source_with_post_request(mock_api_server):
     class JSONBodyPageCursorPaginator(BaseReferencePaginator):
         def update_state(self, response: Response, data: Optional[List[Any]] = None) -> None:
@@ -442,6 +645,72 @@ def test_source_with_post_request(mock_api_server):
 
     for i in range(49):
         assert res[i] == {"id": 51 + i, "title": f"Post {51 + i}"}
+
+
+def test_interpolate_parent_values_in_path_and_json_body(mock_api_server):
+    pipeline = dlt.pipeline(
+        pipeline_name="rest_api_mock",
+        destination="duckdb",
+        dataset_name="rest_api_mock",
+        full_refresh=True,
+    )
+    mock_source = rest_api_source(
+        {
+            "client": {"base_url": "https://api.example.com"},
+            "resources": [
+                "posts",
+                {
+                    "name": "post_details",
+                    "endpoint": {
+                        "path": "posts/search_by_id/{resources.posts.id}",
+                        "method": "POST",
+                        "json": {
+                            "post_id": "{resources.posts.id}",
+                            "limit": 5,
+                            "more": {
+                                "title": "{resources.posts.title}",
+                            },
+                            "more_array": [
+                                "{resources.posts.id}",
+                            ],
+                        },
+                    },
+                },
+            ],
+        }
+    )
+    load_info = pipeline.run(mock_source)
+    print(load_info)
+    assert_load_info(load_info)
+    table_names = [t["name"] for t in pipeline.default_schema.data_tables()]
+    table_counts = load_table_counts(pipeline, *table_names)
+    assert table_counts.keys() == {"posts", "post_details"}
+    assert table_counts["posts"] == DEFAULT_PAGE_SIZE * DEFAULT_TOTAL_PAGES
+    assert table_counts["post_details"] == DEFAULT_PAGE_SIZE * DEFAULT_TOTAL_PAGES
+    with pipeline.sql_client() as client:
+        posts_table = client.make_qualified_table_name("posts")
+        posts_details_table = client.make_qualified_table_name("post_details")
+    print(pipeline.default_schema.to_pretty_yaml())
+    assert_query_data(
+        pipeline,
+        f"SELECT title FROM {posts_table} ORDER BY id limit 25",
+        [f"Post {i}" for i in range(25)],
+    )
+    assert_query_data(
+        pipeline,
+        f"SELECT body FROM {posts_details_table} ORDER BY id limit 25",
+        [f"Post body {i}" for i in range(25)],
+    )
+    assert_query_data(
+        pipeline,
+        f"SELECT title FROM {posts_details_table} ORDER BY id limit 25",
+        [f"Post {i}" for i in range(25)],
+    )
+    assert_query_data(
+        pipeline,
+        f"SELECT more FROM {posts_details_table} ORDER BY id limit 25",
+        [f"More is equale to id: {i}" for i in range(25)],
+    )
 
 
 def test_unauthorized_access_to_protected_endpoint(mock_api_server):
@@ -580,7 +849,7 @@ def test_load_mock_api_typeddict_config(mock_api_server, config):
     assert table_counts["post_comments"] == DEFAULT_PAGE_SIZE * DEFAULT_TOTAL_PAGES * 50
 
 
-def test_posts_with_inremental_date_conversion(mock_api_server) -> None:
+def test_posts_with_incremental_date_conversion(mock_api_server) -> None:
     start_time = pendulum.from_timestamp(1)
     one_day_later = start_time.add(days=1)
     config: RESTAPIConfig = {
@@ -614,7 +883,7 @@ def test_posts_with_inremental_date_conversion(mock_api_server) -> None:
         assert called_kwargs["path"] == "posts"
 
 
-def test_posts_with_inremental_in_param_template(mock_api_server) -> None:
+def test_posts_with_incremental_in_param_template(mock_api_server) -> None:
     start_time = pendulum.from_timestamp(1)
     one_day_later = start_time.add(days=1)
     config: RESTAPIConfig = {

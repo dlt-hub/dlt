@@ -180,25 +180,18 @@ def rest_api_resources(config: RESTAPIConfig) -> List[DltResource]:
                             "sort": "updated",
                             "direction": "desc",
                             "state": "open",
-                            "since": {
-                                "type": "incremental",
-                                "cursor_path": "updated_at",
-                                "initial_value": "2024-01-25T11:21:28Z",
-                            },
+                            "since": "{incremental.last_value}",
+                        },
+                        "incremental": {
+                            "cursor_path": "updated_at",
+                            "initial_value": "2024-01-25T11:21:28Z",
                         },
                     },
                 },
                 {
                     "name": "issue_comments",
                     "endpoint": {
-                        "path": "issues/{issue_number}/comments",
-                        "params": {
-                            "issue_number": {
-                                "type": "resolve",
-                                "resource": "issues",
-                                "field": "number",
-                            }
-                        },
+                        "path": "issues/{resources.issues.number}/comments",
                     },
                 },
             ],
