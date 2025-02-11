@@ -9,6 +9,7 @@ from enum import Enum
 
 try:
     from pydantic import BaseModel as PydanticBaseModel
+    from pydantic import AnyUrl
 except ImportError:
     PydanticBaseModel = None  # type: ignore[misc]
 
@@ -49,6 +50,8 @@ def custom_encode(obj: Any) -> str:
         return dataclasses.asdict(obj)  # type: ignore
     elif isinstance(obj, Enum):
         return obj.value  # type: ignore[no-any-return]
+    elif isinstance(obj, AnyUrl):
+        return str(obj) # will punycode encode the host if required 
     raise TypeError(repr(obj) + " is not JSON serializable")
 
 
