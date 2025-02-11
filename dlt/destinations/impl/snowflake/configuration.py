@@ -141,6 +141,22 @@ class SnowflakeClientConfiguration(DestinationClientDwhWithStagingConfiguration)
     create_indexes: bool = False
     """Whether UNIQUE or PRIMARY KEY constrains should be created"""
 
+    use_vectorized_scanner: bool = False
+    """Whether to use or not use the vectorized scanner in COPY INTO"""
+
+    on_error_parquet: Optional[str] = None
+    """ON_ERROR behavior for Parquet files. Must be ABORT_STATEMENT or SKIP_FILE if USE_VECTORIZED_SCANNER is enabled"""
+
+    def __post_init__(self):
+        """Enforce conditions for using USE_VECTORIZED_SCANNER"""
+        if self.use_vectorized_scanner:
+            # Ensure on_error_parquet is valid
+            if self.on_error_parquet not in ["ABORT_STATEMENT", "SKIP_FILE"]:
+                raise ValueError(
+                    "USE_VECTORIZED_SCANNER requires on_error_parquet to be 'ABORT_STATEMENT' or 'SKIP_FILE'."
+                )
+
+
     def fingerprint(self) -> str:
         """Returns a fingerprint of host part of a connection string"""
         if self.credentials and self.credentials.host:
