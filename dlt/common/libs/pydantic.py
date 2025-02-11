@@ -163,6 +163,10 @@ def pydantic_to_table_schema_columns(
                 result[schema_key] = {
                     **hints,
                     "name": snake_case_naming_convention.make_path(name, hints["name"]),
+                    # if the outer field containing the nested mode is optional,
+                    # then each field in the model itself has to be nullable as well,
+                    # as otherwise we end up with flattened non-nullable optional nested fields
+                    "nullable": hints["nullable"] or nullable,
                 }
         elif data_type == "json" and skip_nested_types:
             continue
