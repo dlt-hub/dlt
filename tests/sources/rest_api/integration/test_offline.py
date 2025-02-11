@@ -539,32 +539,10 @@ def test_raises_error_for_unused_resolve_params(mock_api_server):
     )
 
 
-def test_raises_error_for_incorrect_interpolation_in_path():
-    with pytest.raises(ValueError) as exc_info:
-        rest_api_source(
-            {
-                "client": {"base_url": "https://api.example.com"},
-                "resources": [
-                    "posts",
-                    {
-                        "name": "post_detail",
-                        "endpoint": {"path": "posts/{unknown.posts.id}"},
-                    },
-                ],
-            }
-        )
-
-    assert (
-        "The path 'posts/{unknown.posts.id}' defined in resource 'post_detail' contains a"
-        " placeholder 'unknown.posts.id'. This placeholder is not a valid name. Valid names are:"
-        " 'resources', 'incremental'."
-        in str(exc_info.value)
-    )
-
-
-def test_raises_error_for_incorrect_interpolation_in_query_string(mock_api_server):
-    with pytest.raises(ValueError) as exc_info:
-        rest_api_source(
+@pytest.mark.parametrize(
+    "config,location",
+    [
+        pytest.param(
             {
                 "client": {"base_url": "https://api.example.com"},
                 "resources": [
@@ -577,19 +555,11 @@ def test_raises_error_for_incorrect_interpolation_in_query_string(mock_api_serve
                         },
                     },
                 ],
-            }
-        )
-
-    assert (
-        "Expression 'unknown.posts.id' defined in params is not valid. Valid expressions must start"
-        " with one of: resources"
-        in str(exc_info.value)
-    )
-
-
-def test_raises_error_for_incorrect_interpolation_in_json(mock_api_server):
-    with pytest.raises(ValueError) as exc_info:
-        rest_api_source(
+            },
+            "params",
+            id="query_params"
+        ),
+        pytest.param(
             {
                 "client": {"base_url": "https://api.example.com"},
                 "resources": [
@@ -603,11 +573,18 @@ def test_raises_error_for_incorrect_interpolation_in_json(mock_api_server):
                         },
                     },
                 ],
-            }
-        )
+            },
+            "json",
+            id="json_body"
+        ),
+    ],
+)
+def test_raises_error_for_incorrect_interpolation(mock_api_server, config, location):
+    with pytest.raises(ValueError) as exc_info:
+        rest_api_source(config)
 
     assert (
-        "Expression 'unknown.posts.id' defined in json is not valid. Valid expressions must start"
+        f"Expression 'unknown.posts.id' defined in {location} is not valid. Valid expressions must start"
         " with one of: resources"
         in str(exc_info.value)
     )

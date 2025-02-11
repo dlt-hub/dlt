@@ -14,7 +14,6 @@ from typing import (
     cast,
     NamedTuple,
 )
-import functools
 import graphlib
 import string
 from requests import Response
@@ -334,6 +333,10 @@ def make_parent_key_name(resource_name: str, field_name: str) -> str:
     return f"_{resource_name}_{field_name}"
 
 
+def _filter_resource_expressions(expressions: Set[str]) -> Set[str]:
+    return {x for x in expressions if x.startswith("resources.")}
+
+
 def build_resource_dependency_graph(
     resource_defaults: EndpointResourceBase,
     resource_list: List[Union[str, EndpointResource, DltResource]],
@@ -358,8 +361,8 @@ def build_resource_dependency_graph(
         available_contexts = _get_available_contexts(endpoint_resource["endpoint"])
 
         # Find more resolved params in path
-        # Ignore params that are not in available_contexts for backward compatibility
-        # with resolved params in path: these are validated in _bind_path_params
+        # Ignore params that are not in available_contexts for backward compatibility with
+        # resolved params in path: these are validated in _bind_path_params
         path_expressions = _find_expressions(
             endpoint_resource["endpoint"]["path"], available_contexts
         )
@@ -372,11 +375,7 @@ def build_resource_dependency_graph(
         _raise_if_any_not_in(json_expressions, available_contexts, message="json")
 
         resolved_params += _expressions_to_resolved_params(
-            {
-                x
-                for x in (path_expressions | params_expressions | json_expressions)
-                if x.startswith("resources.")
-            }
+            _filter_resource_expressions(path_expressions | params_expressions | json_expressions)
         )
 
         # set of resources in resolved params
@@ -475,10 +474,13 @@ def _bind_path_params(resource: EndpointResource) -> None:
     # TODO: and remove this function
     assert isinstance(resource["endpoint"], dict)  # type guard
 
-    params = resource["endpoint"].get("params", {})
+    endpoint = resource["endpoint"]
+    params = endpoint.get("params", {})
+    path = endpoint["path"]
 
-    resolve_params = [r.param_name for r in _find_resolved_params(resource["endpoint"])]
-    path = resource["endpoint"]["path"]
+    resolve_params = [r.param_name for r in _find_resolved_params(endpoint)]
+
+    available_contexts = _get_available_contexts(endpoint)
 
     new_path_segments = []
 
@@ -490,9 +492,9 @@ def _bind_path_params(resource: EndpointResource) -> None:
             # There's no placeholder here
             continue
 
-        # If the placeholder starts with 'resources.' or 'incremental.', leave it intact
-        # TODO: Generalize this to regex
-        if field_name.startswith("resources.") or field_name.startswith("incremental."):
+        # If placeholder starts with a recognized context, leave it intact
+        # e.g. "resources." or "incremental." or any future contexts
+        if any(field_name.startswith(prefix + ".") for prefix in available_contexts):
             new_path_segments.append(f"{{{field_name}}}")
             continue
 

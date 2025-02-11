@@ -61,11 +61,14 @@ def github_source(access_token: Optional[str] = dlt.secrets.value) -> Any:
                         # This works by getting the updated_at value
                         # from the previous response data and using this value
                         # for the `since` query parameter in the next request.
-                        "since": {
-                            "type": "incremental",
-                            "cursor_path": "updated_at",
-                            "initial_value": pendulum.today().subtract(days=30).to_iso8601_string(),
-                        },
+                        "since": "{incremental.last_value}",
+                    },
+                    # For incremental to work, we need to define the cursor_path
+                    # (the field that will be used to get the incremental value)
+                    # and the initial value
+                    "incremental": {
+                        "cursor_path": "updated_at",
+                        "initial_value": pendulum.today().subtract(days=30).to_iso8601_string(),
                     },
                 },
             },
