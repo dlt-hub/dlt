@@ -827,8 +827,8 @@ def collect_resolved_values(
         # If resolved param was defined as `resources.<resource>.<field>`
         # we update the resources context
         if param_name.startswith("resources."):
-            resource_name, field_name = param_name.split(".")[1:]
-            resources_context[resource_name][field_name] = value
+            config = resolved_param.resolve_config
+            resources_context[config["resource"]][config["field"]] = value
             params_values["resources"] = resources_context
         else:
             params_values[param_name] = value
