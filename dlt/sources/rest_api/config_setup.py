@@ -122,39 +122,6 @@ class ResourcesContext:
             raise AttributeError(key)
 
 
-# TODO: Remove once Incremental can do values conversion internally
-class InterceptingProxy:
-    """A proxy class that intercepts access to selected attributes and
-    calls a function with the attribute value before returning it.
-    Attributes that are not in the intercept set are returned as is.
-    """
-
-    def __init__(
-        self,
-        instance: Any,
-        intercept_function: Callable[..., Any],
-        intercept_attributes: Optional[Iterable[str]] = None,
-    ) -> None:
-        self._instance = instance
-        self._intercept_function = intercept_function
-        self._intercept_attributes = set(intercept_attributes) if intercept_attributes else set()
-
-    def __getattribute__(self, name: str) -> Any:
-        if name.startswith("_"):
-            return super().__getattribute__(name)
-
-        intercept_attributes = super().__getattribute__("_intercept_attributes")
-        instance = super().__getattribute__("_instance")
-
-        if name in intercept_attributes:
-            attribute_value = getattr(instance, name)
-            intercept_function = super().__getattribute__("_intercept_function")
-
-            return intercept_function(attribute_value)
-        else:
-            return getattr(instance, name)
-
-
 def register_paginator(
     paginator_name: str,
     paginator_class: Type[BasePaginator],
@@ -834,13 +801,7 @@ def collect_resolved_values(
             params_values[param_name] = value
 
     if incremental:
-        # Only wrap in InterceptingProxy if we have a converter
-        _incremental = (
-            InterceptingProxy(incremental, incremental_value_convert, {"last_value", "end_value"})
-            if incremental_value_convert
-            else incremental
-        )
-        params_values["incremental"] = _incremental
+        params_values["incremental"] = incremental
 
     return params_values
 

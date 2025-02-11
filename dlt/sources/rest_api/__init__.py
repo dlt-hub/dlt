@@ -38,7 +38,6 @@ from .typing import (
 )
 from .config_setup import (
     IncrementalParam,
-    InterceptingProxy,
     create_auth,
     create_paginator,
     build_resource_dependency_graph,
@@ -307,18 +306,7 @@ def create_resources(
                         incremental_cursor_transform,
                     )
 
-                    # Interpolate incremental object value into path and params
-                    _incremental: Union[Incremental[Any], InterceptingProxy]
-                    if incremental_cursor_transform:
-                        _incremental = InterceptingProxy(
-                            incremental_object,
-                            incremental_cursor_transform,
-                            {"last_value", "end_value"},
-                        )
-                    else:
-                        _incremental = incremental_object
-
-                    format_kwargs = {"incremental": _incremental}
+                    format_kwargs = {"incremental": incremental_object}
 
                     path = path.format(**format_kwargs)
                     params = {
