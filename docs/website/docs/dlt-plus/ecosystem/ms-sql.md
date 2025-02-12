@@ -258,7 +258,6 @@ from dlt_plus.sources.mssql import remove_nullability_adapter
 
 table = sql_table(
     table_adapter_callback=remove_nullability_adapter,
-    ...
 )
 ```
 
