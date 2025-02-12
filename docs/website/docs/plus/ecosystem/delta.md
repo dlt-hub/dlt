@@ -1,6 +1,6 @@
 ---
-title: delta
-description: Delta destination documentation
+title: "Destination: Delta"
+description: Delta destination
 ---
 
 # Delta

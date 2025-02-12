@@ -1,14 +1,76 @@
 ---
-title: iceberg
+title: "Destination: Iceberg"
 description: Iceberg destination documentation
 ---
 
 # Iceberg
 
-The `iceberg` destination provides additional features on top of the `filesystem` [destination](../../dlt-ecosystem/destinations/filesystem) in OSS `dlt`. This page only documents the additional features—use the documentation provided in OSS dlt for standard functionality.
+The Iceberg destination is based off of the [filesystem destination](../../dlt-ecosystem/destinations/filesystem.md) in dlt. All configuration options from the filesystem destination can be configured as well.
 
-## `delete-insert` merge strategy with `iceberg` table format
-The `delete-insert` [merge strategy](../../general-usage/incremental-loading#delete-insert-strategy) can be used when using the `iceberg` [table format](../../dlt-ecosystem/destinations/delta-iceberg):
+Under the hood, dlt+ uses the [pyiceberg library](https://py.iceberg.apache.org/) to write Iceberg tables. One or multiple Parquet files are prepared during the extract and normalize steps. In the load step, these Parquet files are exposed as an Arrow data structure and fed into pyiceberg.
+
+## Setup
+
+Make sure you have installed the necessary dependencies:
+```sh
+pip install pyiceberg
+pip install sqlalchemy>=2.0.18
+```
+
+Initialize a dlt+ project in the current working directory with the following command:
+
+```sh
+# replace sql_database with source of your choice
+dlt project init sql_database iceberg
+```
+
+This will create an Iceberg destination in your `dlt.yml`, where you can configure the destination:
+
+```yaml
+destinations:
+  iceberg_destination:
+    type: iceberg
+    bucket_url: "s3://your_bucket" # replace with bucket url
+```
+
+The credentials can be defined in the `secrets.toml`:
+
+```toml
+[destination.iceberg.credentials]
+aws_access_key_id = "aws_access_key_id" # can be aws or other cloud storage
+aws_secret_access_key = "aws_secret_access_key" # can be aws or other cloud storage
+```
+
+The Iceberg destination can also be defined in python as follows:
+
+```py
+pipeline = dlt.pipeline("loads_iceberg", destination="iceberg")
+```
+
+
+## Write dispositions
+
+The filesystem destination handles the write dispositions as follows:
+- `append` - files belonging to such tables are added to the dataset folder
+- `replace` - all files that belong to such tables are deleted from the dataset folder, and then the current set of files is added.
+- `merge` - can be used only with the `delete-insert` [merge strategy](../../general-usage/incremental-loading#delete-insert-strategy)
+
+The `merge` write disposition can be configured as follows on the source/resource level:
+
+<Tabs values={[{"label": "dlt.yml", "value": "yaml"}, {"label": "Python", "value": "python"}]}  groupId="language" defaultValue="yaml">
+  <TabItem value="yaml">
+
+```yaml
+sources:
+  my_source:
+    type: sources.my_source
+    with_args:
+      write_disposition:
+        disposition: merge
+        strategy: delete-insert
+```
+  </TabItem>
+  <TabItem value="python">
 
 ```py
 @dlt.resource(
@@ -25,33 +87,79 @@ def my_resource():
 pipeline = dlt.pipeline("loads_iceberg", destination="iceberg")
 
 ```
+</TabItem>
+</Tabs>
+
+Or on the `pipeline.run` level: <!-- can this also be defined in the yaml??-->
+
+```py
+pipeline.run(write_disposition={"disposition": "merge", "strategy": "delete-insert"})
+```
+
+## Partitioning
+
+Iceberg tables can be partitioned by specifying one or more partition column hints on the source/resource level:
+
+<Tabs values={[{"label": "dlt.yml", "value": "yaml"}, {"label": "Python", "value": "python"}]}  groupId="language" defaultValue="yaml">
+  <TabItem value="yaml">
+
+  ```yaml
+  sources:
+    my_source:
+      type: sources.my_source
+      with_args:
+        columns:
+          foo:
+            partition: True
+  ```
+
+  </TabItem>
+  <TabItem value="python">
+
+  ```py
+  @dlt.resource(
+    columns={"foo": {"partition": True}}
+  )
+  def my_resource():
+      ...
+
+  pipeline = dlt.pipeline("loads_iceberg", destination="iceberg")
+  ```
+
+  </TabItem>
+</Tabs>
 
 ## Table format
-`iceberg` destination automatically assigns `iceberg` table format to all resources that it will load. You can still
-fall back to storing files (as specified in `file_format`) by setting `table_format` to **native** on a resource.
+The Iceberg destination automatically assigns the `iceberg` table format to all resources that it will load. You can still fall back to storing files  by setting `table_format` to native on the resource level:
 
-## Configuration
-Iceberg destinations looks for its configuration under **destination.iceberg**. Otherwise it is configured
-in the same way as `filesystem` destination.
+  ```py
+  @dlt.resource(
+    table_format="native"
+  )
+  def my_resource():
+      ...
 
-```toml
-[destination.iceberg]
-bucket_url = "s3://[your_bucket_name]" # replace with your bucket name,
-
-[destination.iceberg.credentials]
-aws_access_key_id = "please set me up!" # copy the access key here
-aws_secret_access_key = "please set me up!" # copy the secret access key here
-```
-
-You are still able to use regular filesystem configuration.
-```py
-from dlt_plus.destinations import iceberg
-
-dest_ = iceberg(destination_name="filesystem")
-```
+  pipeline = dlt.pipeline("loads_iceberg", destination="iceberg")
+  ```
 
 
-### Known limitations
-- Compound keys are not supported: use a single `primary_key` **and/or** a single `merge_key`.
-  - As a workaround, you can [transform](../../general-usage/resource#filter-transform-and-pivot-data) your resource data with `add_map` to add a new column that contains a hash of the key columns, and use that column as `primary_key` or `merge_key`.
-- Nested tables are not supported: avoid complex data types or [disable nesting](../../general-usage/source#reduce-the-nesting-level-of-generated-tables)
+## Known limitations
+The Iceberg destination is still under active development and therefore has a few known limitations described below. 
+
+### GCS authentication methods
+
+Only [OAuth 2.0](../../dlt-ecosystem/destinations/bigquery#oauth-20-authentication) is supported for Google Cloud Storage.
+
+The [S3-compatible](docs/dlt-ecosystem/destinations/filesystem#using-s3-compatible-storage) interface for Google Cloud Storage is not supported with the Iceberg destination.
+
+### Azure Blob Storage URL
+
+The `az` [scheme](../../dlt-ecosystem/destinations/filesystem#supported-schemes) for Azure paths specified in `bucket_url` does not work, please use `abfss` instead. The reason for this is that pyiceberg, running under the hood, does not support this right now. 
+
+### Compound keys
+Compound keys are not supported: use a single `primary_key` **and/or** a single `merge_key`.
+
+As a workaround, you can [transform](../../general-usage/resource#filter-transform-and-pivot-data) your resource data with `add_map` to add a new column that contains a hash of the key columns, and use that column as `primary_key` or `merge_key`.
+
+### Nested tables
+Nested tables are not supported: avoid complex data types or [disable nesting](../../general-usage/source#reduce-the-nesting-level-of-generated-tables)
