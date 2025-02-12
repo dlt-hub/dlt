@@ -11,7 +11,7 @@ Package and project manager [uv](https://docs.astral.sh/uv/) is used for packagi
 ## Project structure
   
 A dlt+ package has the following general structure:
-```txt
+```text
 .
 ├── dlt_example_package
 │    ├── .dlt/                 # folder containg dlt configrations and profile settings
@@ -37,7 +37,7 @@ This section lets you define sources either declaratively or by referencing an i
 1. a dlt REST API source whose parameters are passed within the manifest
 2. a github source whose source code inside `sources/github.py` is referenced
   
-```yml
+```yaml
 sources:
   pokemon:
     type: dlt.sources.rest_api.rest_api
@@ -58,7 +58,7 @@ sources:
   
 The destinations section defines dlt destinations in a similar way to how you would define them in a pure Python dlt project. As with sources, you can also reference custom implementations of destinations from inside the `destinations/` folder.
   
-```yml  
+```yaml  
 destinations:
     duckdb:
         type: duckdb
@@ -68,7 +68,7 @@ destinations:
 
 Pipelines can be used to load data from sources to destinations. The pipeline defined below loads data from the github source to a dataset named "github_events_dataset" inside the duckdb destination.
 
-```yml
+```yaml
   github_pipeline:
     source: github
     destination: duckdb
@@ -79,7 +79,7 @@ Pipelines can be used to load data from sources to destinations. The pipeline de
 
 The datasets section defines datasets that live on a destination (defined in the destinations section). Datasets must be declared. They are referenced by pipelines when loading the data, and by the cache when doing transformations. Read more about datasets in dlt+ [here](datasets.md).  
   
-```yml
+```yaml
 datasets:
     github_events_dataset:
         "on":
@@ -90,7 +90,7 @@ datasets:
 
 In this section you specify the input table(s) that you want to transform, and the output table(s) that you want to write after performing the transformations. The example below loads the table "events" from the destination dataset "github_events_dataset" into a local cache, then transforms it using the transformations inside the `transformations/` folder, and finally writes two tables back into the dataset "github_events_dataset": the original "events" table, and the transformed "events_aggregated" table. Read more about how local cache is used for transformations [here](cache.md).
   
-```yml
+```yaml
 caches:
   github_events_cache:
     inputs:
@@ -108,7 +108,7 @@ caches:
 
 Here you specify the settings for your transformations. In the code example we define an arrow-based transformation that will operate on the cache "github_events_cache". It will make use of code in the `transformations/` folder. Read more about how transformations are done [here](cache.md).
 
-```yml
+```yaml
 transformations:
   github_events_transformations:
     engine: arrow
@@ -119,7 +119,7 @@ transformations:
 
 You can use the profiles section to define different environments (example: dev, staging, prod, tests). One package may have multiple profiles which can be specified using dlt+ CLI commands. The default profile name is `dev`. If you want to use dlt test helpers, you must define a `tests` profile as well.
 
-```yml
+```yaml
 profiles:
     dev: # Using "dev" profile will write to local filesystem
         destinations:
@@ -138,7 +138,7 @@ profiles:
 
 It is also possible to add additional dlt settings that mirror the `config.toml` settings:
 
-```yml
+```yaml
 runtime:
   log_level: WARNING
 ```

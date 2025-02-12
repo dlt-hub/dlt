@@ -199,7 +199,7 @@ In subsequent run, you do not need to provide the initial value anymore.
 5. Run Incremental Loading for a First Time.
 
 Run the pipeline with the incremental resource immediately after the initial load with `sql_table`:
-```
+```py
 pipeline.run(incremental_resource)
 ```
 
