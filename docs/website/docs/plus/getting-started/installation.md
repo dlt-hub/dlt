@@ -11,4 +11,4 @@ We distribute packages via PyPI, for example to install `dlt-plus` package:
 pip install dlt-plus
 ```
 
-Please install a valid license before proceeding.
+Please install a valid license before proceeding, as described below.

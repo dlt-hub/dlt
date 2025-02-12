@@ -58,6 +58,63 @@ const sidebars = {
     },
     {
       type: 'category',
+      label: 'dlt+',
+      link: {
+        type: 'doc',
+        id: 'plus/intro',
+      },
+      items: [
+        {
+          type: 'category',
+          label: 'Getting started',
+          items: [
+            'plus/getting-started/installation',
+            'plus/getting-started/tutorial',
+            'plus/getting-started/advanced_tutorial',
+          ]
+        },
+        {
+          type: 'category',
+          label: 'Core concepts',
+          items: [
+            'plus/core-concepts/project',
+            'plus/core-concepts/cache',
+            'plus/core-concepts/transformations',
+            'plus/core-concepts/datasets',
+          ]
+        },
+        {
+          type: 'category',
+          label: 'Sources & Destinations',
+          items: [
+            'plus/ecosystem/ms-sql',
+            'plus/ecosystem/iceberg',
+            'plus/ecosystem/delta',
+          ]
+        },
+        {
+          type: 'category',
+          label: 'Features',
+          items: [
+            'plus/features/security',
+            'plus/features/quality',
+            'plus/features/transformations',
+            'plus/features/ai',
+          ]
+        },
+        {
+          type: 'category',
+          label: 'Going to production',
+          items: [
+            'plus/production/observability',
+            'plus/production/runners',
+          ]
+        },
+        'plus/reference',
+      ]
+    },
+    {
+      type: 'category',
       label: 'Sources',
       link: {
         type: 'doc',
@@ -318,63 +375,6 @@ const sidebars = {
       ]
     },
     'reference/performance',
-    {
-      type: 'category',
-      label: 'dlt+',
-      link: {
-        type: 'doc',
-        id: 'dlt-plus/intro',
-      },
-      items: [
-        {
-          type: 'category',
-          label: 'Getting started',
-          items: [
-            'dlt-plus/getting-started/installation',
-            'dlt-plus/getting-started/tutorial',
-            'dlt-plus/getting-started/advanced_tutorial',
-          ]
-        },
-        {
-          type: 'category',
-          label: 'Core concepts',
-          items: [
-            'dlt-plus/core-concepts/project',
-            'dlt-plus/core-concepts/cache',
-            'dlt-plus/core-concepts/transformations',
-            'dlt-plus/core-concepts/datasets',
-          ]
-        },
-        {
-          type: 'category',
-          label: 'Sources & Destinations',
-          items: [
-            'dlt-plus/ecosystem/ms-sql',
-            'dlt-plus/ecosystem/iceberg',
-            'dlt-plus/ecosystem/delta',
-          ]
-        },
-        {
-          type: 'category',
-          label: 'Features',
-          items: [
-            'dlt-plus/features/security',
-            'dlt-plus/features/quality',
-            'dlt-plus/features/transformations',
-            'dlt-plus/features/ai',
-          ]
-        },
-        {
-          type: 'category',
-          label: 'Going to production',
-          items: [
-            'dlt-plus/production/observability',
-            'dlt-plus/production/runners',
-          ]
-        },
-        'dlt-plus/reference',
-      ]
-    },
     {
       type: 'category',
       label: 'Code examples',
