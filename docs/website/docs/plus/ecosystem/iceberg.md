@@ -1,6 +1,6 @@
 ---
 title: "Destination: Iceberg"
-description: Iceberg destination documentation
+description: Iceberg destination
 ---
 
 # Iceberg
@@ -50,7 +50,7 @@ pipeline = dlt.pipeline("loads_iceberg", destination="iceberg")
 
 ## Write dispositions
 
-The filesystem destination handles the write dispositions as follows:
+The Iceberg destination handles the write dispositions as follows:
 - `append` - files belonging to such tables are added to the dataset folder
 - `replace` - all files that belong to such tables are deleted from the dataset folder, and then the current set of files is added.
 - `merge` - can be used only with the `delete-insert` [merge strategy](../../general-usage/incremental-loading#delete-insert-strategy)
@@ -98,7 +98,7 @@ pipeline.run(write_disposition={"disposition": "merge", "strategy": "delete-inse
 
 ## Partitioning
 
-Iceberg tables can be partitioned by specifying one or more partition column hints on the source/resource level:
+Iceberg tables can be partitioned (using [hidden partitioning](https://iceberg.apache.org/docs/latest/partitioning/)) by specifying one or more partition column hints on the source/resource level:
 
 <Tabs values={[{"label": "dlt.yml", "value": "yaml"}, {"label": "Python", "value": "python"}]}  groupId="language" defaultValue="yaml">
   <TabItem value="yaml">
@@ -128,6 +128,39 @@ Iceberg tables can be partitioned by specifying one or more partition column hin
 
   </TabItem>
 </Tabs>
+
+:::caution
+Partition evolution (changing partition columns after a table has been created) is not supported.
+:::
+
+## Catalogs
+
+dlt+ uses single-table, ephemeral, in-memory, sqlite-based Iceberg catalogs. These catalogs are created "on demand" when a pipeline is run, and do not persist afterwards. If a table already exists in the filesystem, it gets registered into the catalog using its latest metadata file. This allows for a serverless setup. It is currently not possible to connect your own Iceberg catalog, but this is a feature in development.
+
+:::caution
+While ephemeral catalogs make it easy to get started with Iceberg, it comes with limitations:
+* concurrent writes are not handled and may lead to corrupt table state
+* we cannot guarantee that reads concurrent with writes are clean
+* the latest manifest file needs to be searched for using file listing—this can become slow with large tables, especially in cloud object stores
+:::
+
+## Table access helper functions
+You can use the `get_iceberg_tables` helper function to acccess native pyiceberg [Table](https://py.iceberg.apache.org/reference/pyiceberg/table/#pyiceberg.table.Table) objects.
+
+```py
+from dlt.common.libs.pyiceberg import get_iceberg_tables
+
+...
+
+# get dictionary of Table objects
+delta_tables = get_iceberg_tables(pipeline)
+
+# execute operations on Table objects
+iceberg_tables["my_iceberg_table"].optimize.compact()
+iceberg_tables["another_iceberg_table"].optimize.z_order(["col_a", "col_b"])
+# iceberg_tables["my_iceberg_table"].vacuum()
+```
+
 
 ## Table format
 The Iceberg destination automatically assigns the `iceberg` table format to all resources that it will load. You can still fall back to storing files  by setting `table_format` to native on the resource level:
