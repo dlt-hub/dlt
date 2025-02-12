@@ -81,6 +81,7 @@ const sidebars = {
             'plus/core-concepts/cache',
             'plus/core-concepts/transformations',
             'plus/core-concepts/datasets',
+            'plus/core-concepts/profiles',
           ]
         },
         {
