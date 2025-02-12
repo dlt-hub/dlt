@@ -97,7 +97,18 @@ const sidebars = {
           label: 'Features',
           items: [
             'plus/features/security',
-            'plus/features/quality',
+            {
+              type: 'category',
+              label: 'Staging: data quality & tests',
+              link: {
+                type: 'doc',
+                id: 'plus/features/quality/index',
+              },
+              items: [
+                'plus/features/quality/data_quality',
+                'plus/features/quality/tests',
+              ]
+            },
             'plus/features/transformations',
             'plus/features/ai',
           ]
