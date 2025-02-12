@@ -1,29 +1,18 @@
 ---
-title: MSSQL replication
-description: MSSQL replication and helpers documentation
+title: "Source: MSSQL replication"
+description: MSSQL replication
+keywords: [MSSQL, CDC, Change Tracking, MSSQL replication]
 ---
 
-# MSSQL Replication and helpers
+# MSSQL Replication 
 
-## Syncing SQL Server Tables with Change Tracking using DLT
-This guide provides a comprehensive solution for syncing a SQL Server table using change tracking with **dlt**. By leveraging SQL Server's native change tracking feature, you can efficiently load incremental data changes - including inserts, updates, and deletes into your destination.
-
-## Overview
-
-The process involves two main steps:
-
-1. **Initial Full Load**: Use the `sql_table` function to perform a full backfill of your table data.
-2. **Incremental Loading**: Use the `create_change_tracking_table` function to load incremental changes using SQL Server's change tracking.
-
-This approach ensures that you have a complete dataset from the initial load and efficiently keep it updated with subsequent changes.
+dlt+ provides a comprehensive solution for syncing a MS SQL Server table using [Change Tracking](https://learn.microsoft.com/en-us/sql/relational-databases/track-changes/about-change-tracking-sql-server), a solution similar to CDC. By leveraging SQL Server's native change tracking feature, you can efficiently load incremental data changes - including inserts, updates, and deletes into your destination.
 
 ## Prerequisites
 
-### Enabling Change Tracking in SQL Server
-
 Before you begin, ensure that change tracking is enabled on both your database and the tables you wish to track. Change tracking is a feature that must be explicitly activated.
 
-#### Enable Change Tracking on the Database
+### Enable Change Tracking on the Database
 
 Run the following SQL command to enable change tracking on your database:
 
@@ -37,7 +26,7 @@ SET CHANGE_TRACKING = ON
 - *CHANGE_RETENTION*: Specifies how long change tracking information is retained. In this example, it’s set to 7 days.
 - *AUTO_CLEANUP*: When set to ON, change tracking information older than the retention period is automatically removed.
 
-#### Enable Change Tracking on the Table
+### Enable Change Tracking on the Table
 
 For each table you want to track, execute:
 
@@ -50,9 +39,16 @@ WITH (TRACK_COLUMNS_UPDATED = ON);
 - *[YourSchemaName].[YourTableName]*: Replace with your schema and table names.
 - *TRACK_COLUMNS_UPDATED*: When set to ON, allows you to see which columns were updated in a row. Set to OFF if you don’t need this level of detail.
 
-## Concept and Data Flow
+## Setup
 
-### Initial Full Load with sql_table
+The process involves two main steps:
+
+1. **Initial Full Load**: Use the `sql_table` function to perform a full backfill of your table data.
+2. **Incremental Loading**: Use the `create_change_tracking_table` function to load incremental changes using SQL Server's change tracking.
+
+This approach ensures that you have a complete dataset from the initial load and efficiently keep it updated with subsequent changes.
+
+### Initial Full Load
 
 The initial full load does the following:
 1. Obtains current change tracking version
