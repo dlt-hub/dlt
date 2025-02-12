@@ -55,7 +55,7 @@ def custom_encode(obj: Any) -> str:
     elif isinstance(obj, Enum):
         return obj.value  # type: ignore[no-any-return]
     elif isinstance(obj, PydanticAnyUrl):
-        return str(obj) # will punycode encode the host if required
+        return obj.unicode_string()  # will NOT punycode encode the host
     raise TypeError(repr(obj) + " is not JSON serializable")
 
 
