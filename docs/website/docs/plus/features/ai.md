@@ -6,9 +6,7 @@ keywords: [dlt+, Claude Desktop, MCP, Model Context Protocol]
 
 # AI Workflows
 
-## Explore data in your dlt+ project with Claude Desktop
-
-This guide shows you how to connect your dlt+ project to Claude Desktop for data exploration. It uses the [Model Context Protocol (MCP)](https://modelcontextprotocol.io), an open protocol that allows large language models to retrieve information from external sources and use it in their responses.
+As part of dlt+ we are developing several tools to enhance development with AI workflows. The first of these is an  [Model Context Protocol (MCP)](https://modelcontextprotocol.io) plugin for Claude Desktop for data exploration.
 
 ### Prerequisites
 - Python 3.10+
