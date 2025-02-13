@@ -86,8 +86,9 @@ class SnowflakeLoadJob(RunnableLoadJob, HasFollowupJobs):
             self._staging_credentials,
             self._config.csv_format,
             self._config.use_vectorized_scanner,
+            self._config.on_error_parquet,
         )
-
+        
         with self._sql_client.begin_transaction():
             # PUT and COPY in one tx if local file, otherwise only copy
             if is_local_file:
@@ -111,6 +112,7 @@ class SnowflakeLoadJob(RunnableLoadJob, HasFollowupJobs):
         staging_credentials: Optional[CredentialsConfiguration] = None,
         csv_format: Optional[CsvFormatConfiguration] = None,
         use_vectorized_scanner: Optional[bool] = False,
+        on_error_parquet: Optional[str] = None,
     ) -> str:
         parsed_file_url = urlparse(file_url)
         # check if local filesystem (file scheme or just a local file in native form)
@@ -179,6 +181,8 @@ class SnowflakeLoadJob(RunnableLoadJob, HasFollowupJobs):
             if use_vectorized_scanner:
                 source_format += ", USE_VECTORIZED_SCANNER = TRUE"
             source_format += ")"
+            if on_error_parquet:
+                on_error_clause = f"ON_ERROR = {on_error_parquet}"
         elif loader_file_format == "csv":
             # empty strings are NULL, no data is NULL, missing columns (ERROR_ON_COLUMN_COUNT_MISMATCH) are NULL
             csv_format = csv_format or CsvFormatConfiguration()

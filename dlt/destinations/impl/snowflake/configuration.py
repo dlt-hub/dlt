@@ -147,13 +147,13 @@ class SnowflakeClientConfiguration(DestinationClientDwhWithStagingConfiguration)
     on_error_parquet: Optional[str] = None
     """ON_ERROR behavior for Parquet files. Must be ABORT_STATEMENT or SKIP_FILE if USE_VECTORIZED_SCANNER is enabled"""
 
-    def __post_init__(self):
+    def on_resolved(self) -> None:
         """Enforce conditions for using USE_VECTORIZED_SCANNER"""
         if self.use_vectorized_scanner:
             # Ensure on_error_parquet is valid
             if self.on_error_parquet not in ["ABORT_STATEMENT", "SKIP_FILE"]:
-                raise ValueError(
-                    "USE_VECTORIZED_SCANNER requires on_error_parquet to be 'ABORT_STATEMENT' or 'SKIP_FILE'."
+                raise ConfigurationValueError(
+                    f"USE_VECTORIZED_SCANNER requires on_error_parquet to be 'ABORT_STATEMENT' or 'SKIP_FILE'. You might want to change '{self.on_error_parquet}'."
                 )
 
 
