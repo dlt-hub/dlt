@@ -15,10 +15,10 @@ This tutorial introduces you to dlt+ Projects and the essential cli commands nee
 
 ## Prerequisites
 
-- Python 3.9 or higher installed
-- Virtual environment with installed dlt+ package ([installation guide](./installation.md))
-- Valid dlt+ license (EULA)
-- Make sure you're familiar with the [core concepts of dlt](../../reference/explainers/how-dlt-works.md)
+To follow this tutorial, make sure:
+
+- dlt+ is setup according to the [installation guide](./installation.md)
+- you're familiar with the [core concepts of dlt](../../reference/explainers/how-dlt-works.md)
 
 :::tip
 You can find the full list of available cli commands under [cli reference](../reference.md)
@@ -26,7 +26,6 @@ You can find the full list of available cli commands under [cli reference](../re
 
 ## Creating a new dlt+ Project
 
-### Generating your first project
 Start by creating a new folder for your project. Then, navigate to the folder in your terminal.
 
 ```sh
@@ -46,6 +45,10 @@ This command generates a project named `tutorial` with:
 - one DuckDB destination
 - one dataset on the DuckDB destination
 
+:::warning
+Currently, `dlt project init` only supports the core sources ([REST API](../../dlt-ecosystem/verified-sources/rest_api/index.md), [SQL database](../../dlt-ecosystem/verified-sources/sql_database/index.md), [filesystem](../../dlt-ecosystem/verified-sources/filesystem/index.md)) and `arrow` source. The support for other verified sources is coming soon!
+:::
+
 ### The generated folder structure
 After running the command, the following folder structure is created:
 
@@ -56,10 +59,10 @@ After running the command, the following folder structure is created:
 │   ├── dev.secrets.toml
 │   └── secrets.toml
 ├── _storage/             # local storage for your project, excluded from git
-├── destinations/         # your destinations, empty in this example
 ├── sources/              # your sources, contains the code for the arrow source
 │   └── arrow.py
 ├── .gitignore
+├── requirements.txt
 └── dlt.yml       # the main project manifest
 ```
 
@@ -67,10 +70,6 @@ After running the command, the following folder structure is created:
 The `dlt.yml` file is the central configuration for your dlt+ Project. It defines the pipelines, sources, and destinations. In the generated project, the file looks like this:
 
 ```yaml
-# project settings
-project:
-  name: template
-
 profiles:
   # profiles allow you to configure different settings for different environments
   dev: {}
@@ -106,15 +105,7 @@ Some details about the project structure above:
 * The `runtime` section is analogous to the config.toml [runtime] section and could also be omitted in this case.
 * The `profiles` section is not doing much in this case. There are two implicit profiles: `dev` and `tests` that are present in any project; we will learn about profiles in more detail later.
 
-### Substitute notation
-
-You can reference environment variables in the `dlt.yml` file using the `${ENV_VARIABLE_NAME}` syntax. Additionally, dlt+ provides several predefined project variables that are automatically substituted during loading:
-
-* `project_dir` - the root directory of the project, i.e., the directory where the `dlt.yml` file is located
-* `tmp_dir` - the directory for storing temporary files, can be configured in the project section as seen above, by default, it will be set to `${project_dir}_storage`.
-* `name` - the name of the project, can be configured in the project section as seen above
-* `default_profile` - the name of the default profile, can be configured in the project section as seen above
-* `current_profile` - the name of the current profile, this is set automatically when a profile is used
+You can reference environment variables in the `dlt.yml` file using the `${ENV_VARIABLE_NAME}` syntax. Additionally, dlt+ provides several [predefined project variables](../features/projects.md#substitution) that are automatically substituted during loading.
 
 :::tip
 You can find more information about the `dlt.yml` structure in the [dlt+ Project section](../core-concepts/project.md).
@@ -132,9 +123,9 @@ This command:
 - Locates the pipeline named `my_pipeline` in `dlt.yml`.
 - Executes it, populating the duckdb destination that is defined to be stored in `${tmp_dir}my_data.duckdb`.
 
-### Understanding the basics of the project context
-
-The `dlt.yml` marks the root of a project. Projects can also be nested. If you run any dlt project CLI command, dlt will search for the project root in the filesystem tree starting from the current working directory and run all operations on the found project. So if your `dlt.yml` is in the `tutorial` folder, you can run `dlt pipeline my_pipeline run` from this folder or all subfolders, and it will run the pipeline on the `tutorial` project.
+:::tip
+Take a look at the [Projects context](../features/projects.md#project-context) to learn more about how to work with nested projects and how dlt searches for the pipelines based on its name.
+:::
 
 ### Inspecting the results
 
@@ -216,11 +207,26 @@ Add a destination:
 dlt destination my_duckdb_destination add duckdb
 ```
 
-If you want to create a dataset automatically, you can use the `--dataset-name` flag:
+If you want dlt+ also to add a definition of dataset for this specific destination, you can use the `--dataset-name` flag:
 
 ```sh
 # add a new duckdb destination called "my_duckdb_destination"
 dlt destination my_duckdb_destination add duckdb --dataset-name my_duckdb_destination_dataset
+```
+
+In this case both destinations and datasets sections of the `dlt.yml` file will be updated:
+
+```yaml
+# your destinations are the databases where your data will be saved
+destinations:
+  my_duckdb_destination:
+    type: duckdb
+
+# your datasets are the datasets on your destinations where your data will go
+datasets:
+  my_duckdb_destination_dataset:
+    destination:
+    - my_duckdb_destination
 ```
 
 Now we can add a pipeline that uses the source and destination we just added:
@@ -238,7 +244,7 @@ You can add multiple entities using CLI commands. Let's add another source - thi
 
 Run the following command to add an SQL database source named `sql_db_1`:
 ```sh
-# add a new arrow source called "sql_db_1"
+# add a new sql_database source called "sql_db_1"
 dlt source sql_db_1 add sql_database
 ```
 

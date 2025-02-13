@@ -3,7 +3,7 @@ title: Profiles
 keywords: [dlt+, profiles]
 ---
 
-A dlt+ Profile is a set of configurations and secrets defined for a specific use case. Profiles provide a way to manage different configurations for different environments.
+A profile is a set of configurations and secrets defined for a specific use case. Profiles provide a way to manage different configurations for different environments.
 
 They are defined in the `dlt.yml` under the `profiles` section.
 
