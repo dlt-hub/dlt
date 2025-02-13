@@ -6,17 +6,18 @@ from typing import Any, Dict, List, Optional, Tuple, cast
 
 from dlt.common.json import json
 from dlt.common.destination.utils import resolve_merge_strategy
+from dlt.common.normalizers.json.typing import RelationalNormalizerConfigPropagation
 from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.normalizers.typing import TRowIdType
 from dlt.common.normalizers.utils import DLT_ID_LENGTH_BYTES
 from dlt.common.schema import Schema
-from dlt.common.schema.typing import TColumnSchema, C_DLT_ID, DLT_NAME_PREFIX
+from dlt.common.schema.typing import TColumnName, TColumnSchema, C_DLT_ID, DLT_NAME_PREFIX
 from dlt.common.schema.utils import (
     get_columns_names_with_prop,
     get_first_column_name_with_prop,
     is_nested_table,
 )
-from dlt.common.utils import digest128
+from dlt.common.utils import digest128, digest128b
 
 
 @lru_cache(maxsize=None)
@@ -60,7 +61,8 @@ def get_primary_key(schema: Schema, table_name: str) -> List[str]:
     if table_name not in schema.tables:
         return []
     table = schema.get_table(table_name)
-    return get_columns_names_with_prop(table, "primary_key", include_incomplete=True)
+    pk = get_columns_names_with_prop(table, "primary_key", include_incomplete=True)
+    return pk
 
 
 @lru_cache(maxsize=None)
@@ -92,16 +94,13 @@ def is_nested_type(
 
 
 @lru_cache(maxsize=None)
-def get_nested_row_id_type(schema: Schema, table_name: str) -> Tuple[TRowIdType, bool]:
-    """Gets type of row id to be added to nested table and if linking information should be added"""
+def should_be_nested(schema: Schema, table_name: str) -> bool:
+    """Tells if table should be nested or should be a root table. All tables created by the normalizer
+    are nested, defined tables are checked.
+    """
     if table := schema.tables.get(table_name):
-        merge_strategy = resolve_merge_strategy(schema.tables, table)
-        if merge_strategy not in ("upsert", "scd2") and not is_nested_table(table):
-            return "random", False
-    else:
-        # table will be created, use standard linking
-        pass
-    return "row_hash", True
+        return is_nested_table(table)
+    return True
 
 
 @lru_cache(maxsize=None)
@@ -121,6 +120,18 @@ def get_root_row_id_type(schema: Schema, table_name: str) -> TRowIdType:
     return "random"
 
 
+def get_propagation_mapping(
+    config: RelationalNormalizerConfigPropagation, table: str, is_root: bool
+) -> Dict[TColumnName, TColumnName]:
+    # mapping(k:v): propagate property with name "k" as property with name "v" in nested table
+    mappings = {}
+    if is_root:
+        mappings.update(config.get("root") or {})
+    if table in (config.get("tables") or {}):
+        mappings.update(config["tables"][table])
+    return mappings
+
+
 def get_row_hash(row: Dict[str, Any], subset: Optional[List[str]] = None) -> str:
     """Returns hash of row.
 
@@ -128,11 +139,13 @@ def get_row_hash(row: Dict[str, Any], subset: Optional[List[str]] = None) -> str
     Excludes dlt system columns.
     Can be used as deterministic row identifier.
     """
-    row_filtered = {k: v for k, v in row.items() if not k.startswith(DLT_NAME_PREFIX)}
     if subset is not None:
-        row_filtered = {k: v for k, v in row.items() if k in subset}
-    row_str = json.dumps(row_filtered, sort_keys=True)
-    return digest128(row_str, DLT_ID_LENGTH_BYTES)
+        # all parts of the key must be present
+        row_filtered = {k: row[k] for k in subset}
+    else:
+        row_filtered = {k: v for k, v in row.items() if not k.startswith(DLT_NAME_PREFIX)}
+    row_str = json.dumpb(row_filtered, sort_keys=True)
+    return digest128b(row_str, DLT_ID_LENGTH_BYTES)
 
 
 def get_nested_row_hash(parent_row_id: str, nested_table: str, list_idx: int) -> str:
