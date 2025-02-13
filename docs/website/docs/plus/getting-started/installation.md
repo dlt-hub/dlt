@@ -27,7 +27,7 @@ Please install a valid license before proceeding, as described under [licensing]
 
 ### Configuration of the Python environment
 
-Check if your Python (versions 3.9-3.12) environment is configured:
+Check if your Python environment is configured:
 
 ```sh
 python --version
@@ -142,7 +142,7 @@ Once you have a valid license, you can make it available to `dlt+` by specifying
 export RUNTIME__LICENSE="eyJhbGciOiJSUz...vKSjbEc==="
 ```
 
-Or by adding it to your global`secrets.toml` file (located in `~/.dlt/`, or the path defined in your `DLT_SECRETS_TOML` environment variable):
+Or by adding it to your global `secrets.toml` file (located in `~/.dlt/`, or the path defined in your `DLT_SECRETS_TOML` environment variable):
 
 ```toml
 [runtime]
