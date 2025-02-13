@@ -4,13 +4,20 @@ from uuid import uuid4
 
 import pyarrow as pa
 import pytest
+from numpy.testing import assert_equal
 
+from dlt.common.data_types.type_helpers import json_to_str
+from dlt.common.schema.typing import TColumnSchema
 from dlt.common.destination import DestinationCapabilitiesContext
+from dlt.common.libs.pyarrow import PyToArrowConversionException, transpose_rows_to_columns, convert_numpy_to_arrow
 from dlt.sources.sql_database.arrow_helpers import row_tuples_to_arrow
 
 
-@pytest.mark.parametrize("all_unknown", [True, False])
-def test_row_tuples_to_arrow_unknown_types(all_unknown: bool) -> None:
+@pytest.mark.parametrize(
+    "all_unknown,leading_nulls",
+    [(True, True), (True, False), (False, True), (False, False)]
+)
+def test_row_tuples_to_arrow_unknown_types(all_unknown: bool, leading_nulls: bool) -> None:
     """Test inferring data types with pyarrow"""
 
     rows = [
@@ -26,7 +33,7 @@ def test_row_tuples_to_arrow_unknown_types(all_unknown: bool) -> None:
             Decimal("2.00001"),  # precision (38, ...) is decimal128
             Decimal("2.00000000000000000000000000000000000001"),  # precision (>38, ...) is decimal256
             {"foo": "bar"},
-            {"foo": "baz"},
+            '{"foo": "baz"}',
         ),
         (
             2,
@@ -40,7 +47,7 @@ def test_row_tuples_to_arrow_unknown_types(all_unknown: bool) -> None:
             Decimal("3.00001"), # precision (38, ...) is decimal128
             Decimal("3.00000000000000000000000000000000000001"),  # precision (>38, ...) is decimal256
             {"foo": "bar"},
-            {"foo": "baz"},
+            '{"foo": "baz"}',
         ),
         (
             3,
@@ -54,28 +61,30 @@ def test_row_tuples_to_arrow_unknown_types(all_unknown: bool) -> None:
             Decimal("4.00001"),  # within default precision (38, ...) is decimal128
             Decimal("4.00000000000000000000000000000000000001"),  # precision (>38, ...) is decimal256
             {"foo": "bar"},
-            {"foo": "baz"},
+            '{"foo": "baz"}',
         ),
     ]
 
+    # insert two rows full of None; they will be at the top of the column when inferring types
+    if leading_nulls is True:
+        null_row = tuple(None for _ in rows[0])
+        rows.insert(0, null_row)
+        rows.insert(0, null_row)
+
     # Some columns don't specify data type and should be inferred
     columns = {
-        "int_col": {"name": "int_col", "data_type": "bigint", "nullable": False},
-        "str_col": {"name": "str_col", "data_type": "text", "nullable": False},
-        "float_col": {"name": "float_col", "nullable": False},
-        "bool_col": {"name": "bool_col", "data_type": "bool", "nullable": False},
-        "date_col": {"name": "date_col", "nullable": False},
-        "uuid_col": {"name": "uuid_col", "nullable": False},
-        "datetime_col": {
-            "name": "datetime_col",
-            "data_type": "timestamp",
-            "nullable": False,
-        },
-        "array_col": {"name": "array_col", "nullable": False},
-        "decimal_col": {"name": "decimal_col", "nullable": False},
-        "longer_decimal_col": {"name": "longer_decimal_col", "nullable": False},
-        "mapping_col": {"name": "mapping_col", "nullable": False},
-        "json_col": {"name": "json_col", "data_type": "json", "nullable": False},
+        "int_col": {"name": "int_col", "data_type": "bigint"},
+        "str_col": {"name": "str_col", "data_type": "text"},
+        "float_col": {"name": "float_col"},
+        "bool_col": {"name": "bool_col", "data_type": "bool"},
+        "date_col": {"name": "date_col"},
+        "uuid_col": {"name": "uuid_col"},
+        "datetime_col": {"name": "datetime_col", "data_type": "timestamp"},
+        "array_col": {"name": "array_col"},
+        "decimal_col": {"name": "decimal_col"},
+        "longer_decimal_col": {"name": "longer_decimal_col"},
+        "mapping_col": {"name": "mapping_col", "data_type": "json"},
+        "json_col": {"name": "json_col"},
     }
 
     if all_unknown:
@@ -101,8 +110,125 @@ def test_row_tuples_to_arrow_unknown_types(all_unknown: bool) -> None:
     assert pa.types.is_list(result[7].type)
     assert pa.types.is_decimal128(result[8].type)
     assert pa.types.is_decimal256(result[9].type)
-    assert pa.types.is_struct(result[10].type)
-    assert pa.types.is_string(result[11].type) is (columns["json_col"].get("data_type") == "json")
+    if columns["mapping_col"].get("data_type") == "json":
+        assert pa.types.is_string(result[10].type)
+    else:
+        assert pa.types.is_struct(result[10].type)
+
+    assert pa.types.is_string(result[11].type)
+
+
+def test_convert_to_arrow_json_is_not_a_string():
+    column_name = "json_col"
+    columns_schema = {column_name: {"name": column_name, "data_type": "json"}}
+    value1 = {"foo": "bar"}
+    value2 = {"foo": "baz"}
+    rows = [(value1, ), (value2, )]
+    expected_column = [value1, value2]
+    # NOTE json_to_str() is not equivalent to `json.dumps()` because it leaves no whitespace
+    # between key and value e.g., `{"key":"value"}`
+    expected_arrow_array = pa.array([json_to_str(value1), json_to_str(value2)])
+
+    columns = transpose_rows_to_columns(rows, columns_schema)
+    column = columns[column_name]
+    assert_equal(columns[column_name], (expected_column))
+
+    arrow_array = convert_numpy_to_arrow(
+        column,
+        DestinationCapabilitiesContext().generic_capabilities(),
+        columns_schema[column_name],
+        "UTC"
+    )
+    assert arrow_array.equals(expected_arrow_array)
+
+    arrow_table = row_tuples_to_arrow(rows, columns_schema, "UTC")
+    assert pa.types.is_string(arrow_table[column_name].type)
+
+
+def test_convert_to_arrow_null_column_is_removed():
+    column_name = "null_col"
+    columns_schema = {
+        "int_col": {"name": "int_col"},
+        column_name: {"name": column_name}
+    }
+    rows = [(1, None), (2, None)]
+
+    columns = transpose_rows_to_columns(rows, columns_schema)
+    arrow_array = convert_numpy_to_arrow(
+        columns[column_name],
+        DestinationCapabilitiesContext().generic_capabilities(),
+        columns_schema[column_name],
+        "UTC"
+    )
+    assert pa.types.is_null(arrow_array.type)
+
+    arrow_table = row_tuples_to_arrow(rows, columns_schema, "UTC")
+    assert len(arrow_table.schema) == 1
+    assert column_name not in arrow_table.schema.names
+
+
+def test_convert_to_arrow_null_column_with_data_type_is_not_removed():
+    column_name = "null_col"
+    columns_schema = {
+        "int_col": {"name": "int_col"},
+        column_name: {"name": column_name, "data_type": "text"}
+    }
+    rows = [(1, None), (2, None)]
+
+    columns = transpose_rows_to_columns(rows, columns_schema)
+    arrow_array = convert_numpy_to_arrow(
+        columns[column_name],
+        DestinationCapabilitiesContext().generic_capabilities(),
+        columns_schema[column_name],
+        "UTC"
+    )
+    assert not pa.types.is_null(arrow_array.type)
+    assert pa.types.is_string(arrow_array.type)
+
+    arrow_table = row_tuples_to_arrow(rows, columns_schema, "UTC")
+    assert len(arrow_table.schema) == 2
+    assert column_name in arrow_table.schema.names
+
+
+def test_convert_to_arrow_cast_string_to_decimal():
+    column_name = "decimal_col"
+    columns_schema = {
+        column_name: {"name": column_name, "data_type": "decimal"}
+    }
+    rows = ["2.00001", "3.00001"]
+
+    columns = transpose_rows_to_columns(rows, columns_schema)
+    arrow_array = convert_numpy_to_arrow(
+        columns[column_name],
+        DestinationCapabilitiesContext().generic_capabilities(),
+        columns_schema[column_name],
+        "UTC"
+    )
+    assert pa.types.is_decimal128(arrow_array.type)
+
+    arrow_table = row_tuples_to_arrow(rows, columns_schema, "UTC")
+    assert pa.types.is_decimal128(arrow_table[column_name].type)
+
+
+def test_convert_to_arrow_cast_float_to_decimal():
+    column_name = "decimal_col"
+    columns_schema = {
+        column_name: {"name": column_name, "data_type": "decimal"}
+    }
+    rows = [(2.00001,), (3.00001,)]
+
+    columns = transpose_rows_to_columns(rows, columns_schema)
+    arrow_array = convert_numpy_to_arrow(
+        columns[column_name],
+        DestinationCapabilitiesContext().generic_capabilities(),
+        columns_schema[column_name],
+        "UTC"
+    )
+    assert pa.types.is_decimal128(arrow_array.type)
+
+    arrow_table = row_tuples_to_arrow(rows, columns_schema, "UTC")
+    assert pa.types.is_decimal128(arrow_table[column_name].type)
+
 
 
 def test_row_tuples_to_arrow_error_for_decimals() -> None:
@@ -123,7 +249,7 @@ def test_row_tuples_to_arrow_error_for_decimals() -> None:
     
     col_name = "decimal_col"
     base_column = {col_name: {"name": col_name}}
-    column_with_data_type = {col_name: {"name": col_name, "data_type": "decimal"}}
+    column_with_data_type: TColumnSchema = {col_name: {"name": col_name, "data_type": "decimal"}}
     column_with_precision = {col_name: {"name": col_name, "data_type": "decimal", "precision": 20}}
     column_with_scale = {col_name: {"name": col_name, "data_type": "decimal", "scale": 10}}
     column_with_precision_and_scale = {col_name: {"name":col_name, "data_type": "decimal", "precision": 22, "scale": 11}}
@@ -145,19 +271,16 @@ def test_row_tuples_to_arrow_error_for_decimals() -> None:
     assert arrow_field_type.precision == 38
     assert arrow_field_type.scale == DEFAULT_SCALE
 
-    # data_type="decimal" and precision specified
-    arrow_table = row_tuples_to_arrow([[decimal_scale_7]], columns=column_with_precision)
-    arrow_field_type = arrow_table[col_name].type
-    assert pa.types.is_decimal128(arrow_field_type)
-    assert arrow_field_type.precision == column_with_precision[col_name]["precision"]
-    assert arrow_field_type.scale == DEFAULT_SCALE
+    # data_type="decimal" and precision specified; scale defaults to 0
+    with pytest.raises(PyToArrowConversionException):
+        row_tuples_to_arrow([[decimal_scale_7]], columns=column_with_precision)
 
-    # data_type="decimal" and scale specified
+    # data_type="decimal" and scale specified; if precision is None, default to destination capabilities
     arrow_table = row_tuples_to_arrow([[decimal_scale_7]], columns=column_with_scale)
     arrow_field_type = arrow_table[col_name].type
     assert pa.types.is_decimal128(arrow_field_type)
     assert arrow_field_type.precision == DEFAULT_PRECISION
-    assert arrow_field_type.scale == column_with_scale[col_name]["scale"]
+    assert arrow_field_type.scale == DEFAULT_SCALE
 
     # if data_type="decimal" and precision and scale are set, use specified settings
     arrow_table = row_tuples_to_arrow([[decimal_scale_7]], columns=column_with_precision_and_scale)
@@ -178,7 +301,7 @@ def test_row_tuples_to_arrow_error_for_decimals() -> None:
     assert arrow_field_type.scale == 10
 
     # if `data_type="decimal"`, but data is outside of destination (38, 9) raise error
-    with pytest.raises(RuntimeError):
+    with pytest.raises(PyToArrowConversionException):
         arrow_table = row_tuples_to_arrow([[decimal_scale_10]], columns=column_with_data_type)
 
     # setting sufficient precision and scale explicitly prevents the error
