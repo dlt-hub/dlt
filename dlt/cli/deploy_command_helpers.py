@@ -9,8 +9,15 @@ from itertools import chain
 from typing import List, Optional, Sequence, Tuple, Any, Dict
 
 # optional dependencies
-import pipdeptree
-import cron_descriptor
+try:
+    import pipdeptree
+except ImportError:
+    pipdeptree = None
+
+try:
+    import cron_descriptor
+except ImportError:
+    cron_descriptor = None
 
 import dlt
 
