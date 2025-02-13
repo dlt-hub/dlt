@@ -130,7 +130,7 @@ Delta tables can be partitioned (using [Hive-style partitioning](https://delta.i
 
   ```py
   @dlt.resource(
-    columns={"foo": {"partition": True}}
+    columns={"_dlt_load_id": {"partition": True}}
   )
   def my_resource():
       ...
@@ -142,7 +142,7 @@ Delta tables can be partitioned (using [Hive-style partitioning](https://delta.i
 </Tabs>
 
 :::caution
-Partition evolution (changing partition columns after a table has been created) is not supported.
+Partition evolution (changing partition columns after a table has been created) is currently not supported.
 :::
 
 ## Table access helper functions
@@ -188,4 +188,6 @@ deltalake_storage_options = '{"AWS_S3_LOCKING_PROVIDER": "dynamodb", "DELTA_DYNA
 
 You don't need to specify credentials here. `dlt` merges the required credentials with the options you provided before passing it as `storage_options`.
 
->❗When using `s3`, you need to specify storage options to [configure](https://delta-io.github.io/delta-rs/usage/writing/writing-to-s3-with-locking-provider/) locking behavior.
+:::warning
+When using `s3`, you need to specify storage options to [configure](https://delta-io.github.io/delta-rs/usage/writing/writing-to-s3-with-locking-provider/) locking behavior.
+:::
