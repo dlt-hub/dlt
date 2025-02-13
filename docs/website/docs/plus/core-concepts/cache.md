@@ -1,31 +1,19 @@
 # Local Transformation Cache
 
-If you are familiar with dlt pipelines, the concept of local transformations is easy to grasp. Pipelines simplify and automate the loading of data. Local transformations simplify and automate the transformation of data — primarily locally. In a nutshell:
+In dlt+ you have the option of executing your data transformations inside a temporary storage created by dlt+ ("dlt+ Cache") in your local system. 
 
-1. You pass a set of input dlt datasets to the transformation cache.
-2. The cache discovers the inputs (source schemas) for your transformations.
-3. The cache exposes your data locally using duckdb (we support VIEWs for data lakes and full table copy for other destinations).
-4. You can use the cache and duckdb as a query engine to run your transformations (currently, we support dbt and anything Python: pandas, arrow, polars, etc.).
-5. The cache infers the output schema (if not declared) and syncs the results of the transformations to the output dataset.  
+## How it works
 
-Why you should use it:
+You specify which datasets you want to pass to the cache in your dlt manifest file (`dlt.yml`). The cache automatically discovers the source schema from the data and runs your transformations using the cache and duckdb as a query engine. Currently you can define your transformations in dbt or Python (pands, arrows, polars, etc.). After running your transformations, the cache will sync the results to the output dataset in your destination. Output schema is also automatically discovered (when not explicitly declared).
 
-1. Automatic source schema discovery.
-2. Save costs by transforming locally.
-3. No egress cost when close to the data.
-4. The same engine (i.e., SQL dialect) no matter what the final destination.
-5. Python transformations (Hamilton/Kedro).
-6. dbt, sqlmesh, sdf supported.
-7. Metadata propagation from input to output dataset, automatic cataloging.  
-  
 
-Currently, a lot of things below are WIP:
+## Why you should use it
 
-1. A local (ad hoc) data catalog and a data cache for larger, distributed data (see your data lake and report tables in one place).
-2. A local query engine (duckdb): universal schema and SQL dialect for transformations.
-3. Arrow/polars transformations (via Python modules).
-4. Incremental transformations [partial 🚧 WIP! - _dlt_load_id currently supported].
-5. Syncing the cache back to output datasets.
-6. Declarative cache behavior [🚧 WIP!].
-7. Convenient Python interface [🚧 WIP!].
-8. Many input and output datasets [🚧 WIP!].
+Using local cache for transformations provides several advantages, like:
+1. your source schema is discovered automatically.
+2. you save unnecessary compute costs by having all your transformations done locally. 
+3. there are no egress costs since your data remains in your local system.
+4. the same engine is used for transformations (i.e., SQL dialect) irrespective of where you're loading your data.
+5. there is support for pythonic transformations (Hamilton/Kedro), dbt, sqlmesh, and sdf.
+6. metadata is easily propagated from the input to the output dataset and dataset catalogs are manitained automatically.
+
