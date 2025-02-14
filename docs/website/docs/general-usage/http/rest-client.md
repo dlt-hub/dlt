@@ -341,7 +341,7 @@ client = RESTClient(
 
 Consider an API endpoint `https://api.example.com/items` returning a response with a `NextPageToken` header containing the cursor for the next page:
 
-```
+```text
 Content-Type: application/json
 NextPageToken: n3xtp4g3
 
