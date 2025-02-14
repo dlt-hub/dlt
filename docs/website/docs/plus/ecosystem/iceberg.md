@@ -35,11 +35,65 @@ destinations:
 
 The credentials can be defined in the `secrets.toml`:
 
+<Tabs
+  groupId="filesystem-type"
+  defaultValue="aws"
+  values={[
+    {"label": "AWS S3", "value": "aws"},
+    {"label": "GCS/GDrive", "value": "gcp"},
+    {"label": "Azure", "value": "azure"},
+    {"label": "SFTP", "value": "sftp"},
+]}>
+
+<TabItem value="aws">
+
 ```toml
+# secrets.toml
 [destination.iceberg.credentials]
-aws_access_key_id = "aws_access_key_id" # can be aws or other cloud storage
-aws_secret_access_key = "aws_secret_access_key" # can be aws or other cloud storage
+aws_access_key_id="Please set me up!"
+aws_secret_access_key="Please set me up!"
 ```
+</TabItem>
+
+<TabItem value="azure">
+
+```toml
+# secrets.toml
+[destination.iceberg.credentials]
+azure_storage_account_name="Please set me up!"
+azure_storage_account_key="Please set me up!"
+```
+</TabItem>
+
+<TabItem value="gcp">
+
+Only OAuth 2.0 is currently supported for GCS.
+
+```toml
+# secrets.toml
+[destination.iceberg.credentials]
+project_id="project_id"  # please set me up!
+client_id = "client_id"  # please set me up!
+client_secret = "client_secret"  # please set me up!
+refresh_token = "refresh_token"  # please set me up!
+```
+</TabItem>
+
+<TabItem value="sftp">
+
+Learn how to set up SFTP credentials for each authentication method in the [SFTP section](../../dlt-ecosystem/destinations/filesystem#sftp).
+For example, in the case of key-based authentication, you can configure the source the following way:
+
+```toml
+# secrets.toml
+[destination.iceberg.credentials]
+sftp_username = "foo"
+sftp_key_filename = "/path/to/id_rsa"     # Replace with the path to your private key file
+sftp_key_passphrase = "your_passphrase"   # Optional: passphrase for your private key
+```
+</TabItem>
+
+</Tabs>
 
 The Iceberg destination can also be defined in python as follows:
 
@@ -135,7 +189,9 @@ Partition evolution (changing partition columns after a table has been created) 
 
 ## Catalogs
 
-dlt+ uses single-table, ephemeral, in-memory, sqlite-based Iceberg catalogs. These catalogs are created "on demand" when a pipeline is run, and do not persist afterwards. If a table already exists in the filesystem, it gets registered into the catalog using its latest metadata file. This allows for a serverless setup. It is currently not possible to connect your own Iceberg catalog, but this is a feature in development.
+dlt+ uses single-table, ephemeral, in-memory, sqlite-based Iceberg catalogs. These catalogs are created "on demand" when a pipeline is run, and do not persist afterwards. If a table already exists in the filesystem, it gets registered into the catalog using its latest metadata file. This allows for a serverless setup. 
+
+It is currently not possible to connect your own Iceberg catalog, but support for multi-vendor catalogs (such as Polaris & Unity Catalog) is coming soon.
 
 :::caution
 While ephemeral catalogs make it easy to get started with Iceberg, it comes with limitations:
@@ -187,7 +243,7 @@ The [S3-compatible](docs/dlt-ecosystem/destinations/filesystem#using-s3-compatib
 
 ### Azure Blob Storage URL
 
-The `az` [scheme](../../dlt-ecosystem/destinations/filesystem#supported-schemes) for Azure paths specified in `bucket_url` does not work, please use `abfss` instead. The reason for this is that pyiceberg, running under the hood, does not support this right now. 
+The `az` [scheme](../../dlt-ecosystem/destinations/filesystem#supported-schemes) for Azure paths specified in `bucket_url` does not work out of the box, to get it to work you need to specify the environment variable `AZURE_STORAGE_ANON="false"`.
 
 ### Compound keys
 Compound keys are not supported: use a single `primary_key` **and/or** a single `merge_key`.

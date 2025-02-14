@@ -7,10 +7,8 @@ description: Delta destination
 
 The Delta destination is based off of the [filesystem destination](../../dlt-ecosystem/destinations/filesystem.md) in dlt. All configuration options from the filesystem destination can be configured as well.
 
-Under the hood, dlt+ uses the [deltalake library](https://pypi.org/project/deltalake/) to write Delta tables. One or multiple Parquet files are prepared during the extract and normalize steps. In the load step, these Parquet files are exposed as an Arrow data structure and fed into deltalake.
-
 :::caution
-Beware that when loading a large amount of data for one table, the underlying rust implementation will consume a lot of memory. This is a known issue and the maintainers are actively working on a solution. You can track the progress [here](https://github.com/delta-io/delta-rs/pull/2289). Until the issue is resolved, you can mitigate the memory consumption by doing multiple smaller incremental pipeline runs.
+Under the hood, dlt+ uses the [deltalake library](https://pypi.org/project/deltalake/) to write Delta tables. Beware that when loading a large amount of data for one table, the underlying rust implementation will consume a lot of memory. This is a known issue and the maintainers are actively working on a solution. You can track the progress [here](https://github.com/delta-io/delta-rs/pull/2289). Until the issue is resolved, you can mitigate the memory consumption by doing multiple smaller incremental pipeline runs.
 :::
 
 ## Setup
@@ -28,7 +26,7 @@ Initialize a dlt+ project in the current working directory with the following co
 dlt project init sql_database delta
 ```
 
-This will create an Delta destination in your `dlt.yml`, where you can configure the destination:
+This will create a Delta destination in your `dlt.yml`, where you can configure the destination:
 
 ```yaml
 destinations:
@@ -39,15 +37,67 @@ destinations:
 
 The credentials can be defined in the `secrets.toml`:
 
+<Tabs
+  groupId="filesystem-type"
+  defaultValue="aws"
+  values={[
+    {"label": "AWS S3", "value": "aws"},
+    {"label": "GCS/GDrive", "value": "gcp"},
+    {"label": "Azure", "value": "azure"},
+    {"label": "SFTP", "value": "sftp"},
+]}>
+
+<TabItem value="aws">
+
+```toml
+# secrets.toml
+[destination.delta.credentials]
+aws_access_key_id="Please set me up!"
+aws_secret_access_key="Please set me up!"
+```
+</TabItem>
+
+<TabItem value="azure">
+
+```toml
+# secrets.toml
+[destination.delta.credentials]
+azure_storage_account_name="Please set me up!"
+azure_storage_account_key="Please set me up!"
+```
+</TabItem>
+
+<TabItem value="gcp">
+
 :::caution
 Only [Service Account](../../dlt-ecosystem/destinations/bigquery#setup-guide) and [Application Default Credentials](../../dlt-ecosystem/destinations/bigquery#using-default-credentials) authentication methods are supported for Google Cloud Storage.
 :::
 
 ```toml
+# secrets.toml
 [destination.delta.credentials]
-aws_access_key_id = "aws_access_key_id" # can be aws or other cloud storage
-aws_secret_access_key = "aws_secret_access_key" # can be aws or other cloud storage
+client_email="Please set me up!"
+private_key="Please set me up!"
+project_id="Please set me up!"
 ```
+</TabItem>
+
+<TabItem value="sftp">
+
+Learn how to set up SFTP credentials for each authentication method in the [SFTP section](../../dlt-ecosystem/destinations/filesystem#sftp).
+For example, in the case of key-based authentication, you can configure the source the following way:
+
+```toml
+# secrets.toml
+[destination.delta.credentials]
+sftp_username = "foo"
+sftp_key_filename = "/path/to/id_rsa"     # Replace with the path to your private key file
+sftp_key_passphrase = "your_passphrase"   # Optional: passphrase for your private key
+```
+</TabItem>
+
+</Tabs>
+
 
 The Delta destination can also be defined in python as follows:
 
