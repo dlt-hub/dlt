@@ -9,7 +9,7 @@ keywords: [dlt+, Claude Desktop, MCP, Model Context Protocol]
 As part of dlt+ we are developing several tools to enhance development with AI workflows. The first of these is a [Model Context Protocol (MCP)](https://modelcontextprotocol.io) plugin for Claude Desktop for data exploration.
 
 ## Prerequisites
-- dlt+ installed in a virtual environment (see [installation guide](./installation.md))
+- dlt+ installed in a virtual environment (see [installation guide](../getting-started/installation.md))
 - [Claude Desktop](https://claude.ai/download) installed
 
 ## Install dlt+ with MCP support
@@ -25,7 +25,7 @@ pip install dlt-plus[mcp]
 You can either use your existing dlt+ project or create a simple test project to try out the MCP workflow.
 
 ### Using an existing project
-If you already have a dlt+ project, you can use it directly - just make sure you have run at least one pipeline so there's some data to explore.
+If you already have a dlt+ project, you can use it directly - just make sure you have run at least one pipeline so there's some data to explore. You can skip to [configure Claude Desktop](#configure-claude-desktop) if you have a project ready.
 
 ### Creating a test project
 If you don't have a project yet, here's how to create a simple one:
@@ -164,5 +164,16 @@ Claude will ask you a permission to run the tool locally:
 ![Claude Desktop permission request](https://storage.googleapis.com/dlt-blog-images/plus/mcp/claude-desktop-permission-request.png)
 
 After you grant the permission, Claude Desktop will run the tool (available_datasets) and (depending on the result) may proceed with selecting and running other tools.
+
+:::tip
+To see all the available tools, click on the tool icon in the bottom right corner of the chat box.
+:::
+
+More examples of the queries you can ask:
+
+- "What columns does the pokemon table have?"
+- "How many rows are in the pokemon table?"
+- "Transform the pokemon table to add a new column with the pokemon name length"
+- "What is the average height of the pokemon?"
 
 That's it! You can now explore your dlt+ project from Claude Desktop using the MCP.
