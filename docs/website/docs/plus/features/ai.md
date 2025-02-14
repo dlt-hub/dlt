@@ -8,12 +8,11 @@ keywords: [dlt+, Claude Desktop, MCP, Model Context Protocol]
 
 As part of dlt+ we are developing several tools to enhance development with AI workflows. The first of these is an  [Model Context Protocol (MCP)](https://modelcontextprotocol.io) plugin for Claude Desktop for data exploration.
 
-### Prerequisites
-- Python 3.10+
--  A virtual environment (and all commands should be run from within it)
+## Prerequisites
+- dlt+ installed in a virtual environment (see [installation guide](./installation.md))
 - [Claude Desktop](https://claude.ai/download) installed
 
-### Install dlt+ with MCP support
+## Install dlt+ with MCP support
 
 Make sure your virtual environment is activated, then:
 
@@ -21,7 +20,15 @@ Make sure your virtual environment is activated, then:
 pip install dlt-plus[mcp]
 ```
 
-### Set up a test dlt+ project
+## Set up or use a dlt+ project
+
+You can either use your existing dlt+ project or create a simple test project to try out the MCP workflow with Claude Desktop.
+
+### Using an existing project
+If you already have a dlt+ project, you can use it directly - just make sure you have run at least one pipeline so there's some data to explore.
+
+### Creating a test project
+If you don't have a project yet, here's how to create a simple one:
 
 On Unix-based systems:
 
@@ -92,13 +99,13 @@ Load package 1739383145.0668569 is LOADED and contains no failed jobs
 Great, you have some data in your project. The next is configuring Claude Desktop, but for this you'd need to get a path to your `dlt` executable. When you are using a virtual environment, the `dlt` executable is typically located in its `bin` directory (on Unix-like systems). For example, if your virtual environment is located in a `.venv` directory, the path to `dlt` executable is `.venv/bin/dlt`.
 Running `which dlt` in your terminal will give you the path to `dlt` executable. Take note of it; we will use it in the next step.
 
-### Configure Claude Desktop
+## Configure Claude Desktop
 
 Make sure you have installed [Claude Desktop](https://claude.ai/download) and have an account.
 
-#### Update Claude Desktop Config
+### Update Claude Desktop Config
 
-In Claude Desktop, go to settings (In macOS, Claude > Settings) and under “Developer” click “Edit Config”. You will see the location of `claude_desktop_config.json` file.
+In Claude Desktop, go to settings (In macOS, Claude > Settings) and under "Developer" click "Edit Config". You will see the location of `claude_desktop_config.json` file.
 
 Open the file in a text editor and add the following configuration:
 
@@ -120,7 +127,7 @@ Open the file in a text editor and add the following configuration:
 
 Replace `</path/to/your/project/.venv/bin/dlt>` with the path to your `dlt` executable from the previous step and save the file.
 
-#### Restart Claude Desktop
+### Restart Claude Desktop
 
 **Important**: Restart Claude Desktop so the new configuration is loaded.
 
@@ -140,7 +147,7 @@ When you click on the icon, you will see the "Available MCP Tools" popup with th
 
 ![Claude Desktop available MCP tools](https://storage.googleapis.com/dlt-blog-images/plus/mcp/claude-desktop-available-tools.png)
 
-### Start chatting
+## Start chatting
 
 Now you can start chatting with Claude Desktop and ask it questions about the data in your dlt+ project.
 
@@ -154,4 +161,4 @@ Claude will ask you a permission to run the tool locally:
 
 After you grant the permission, Claude Desktop will run the tool (available_datasets) and (depending on the result) may proceed with selecting and running other tools.
 
-That’s it! You can now explore your dlt+ project from Claude Desktop using the MCP.
+That's it! You can now explore your dlt+ project from Claude Desktop using the MCP.
