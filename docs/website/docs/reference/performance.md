@@ -330,14 +330,12 @@ You can configure `DLT_DATA_DIR` in your environment setup as follows:
 
 ```py
 import os
-from dlt.common.known_env import DLT_DATA_DIR
-
 
 # Define the path to your mounted external storage
 data_dir = "/path/to/mounted/bucket/dlt_pipeline_data"
 
 # Set the DLT_DATA_DIR environment variable
-os.environ[DLT_DATA_DIR] = data_dir
+os.environ["DLT_DATA_DIR"] = data_dir
 
 # Rest of your pipeline code
 ```
