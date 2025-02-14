@@ -41,19 +41,19 @@ WITH (TRACK_COLUMNS_UPDATED = ON);
 
 ### Set up dlt+ and drivers
 
-Make sure dlt+ is installed according to the [installation guide](../getting-started/installation.md).
+* Make sure dlt+ is installed according to the [installation guide](../getting-started/installation.md).
 
-Install the Microsoft ODBC Driver for SQL Server according to the official [instructions](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver16). 
+* Install the Microsoft ODBC Driver for SQL Server according to the official [instructions](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver16). If you prefer, there is also a [Python library alternatvie](https://www.pymssql.org/).
 
-Specify the credentials for your SQL Server connection according to the [sql_database source instructions](../../dlt-ecosystem/verified-sources/sql_database/setup)
+* Specify the credentials for your SQL Server connection according to the [sql_database source instructions](../../dlt-ecosystem/verified-sources/sql_database/setup)
 
 
 ## Setting up the pipeline
 
-The process involves three main steps:
+The process involves two main steps:
 
-1. **Initial Full Load**: Use the `sql_table` function to perform a full backfill of your table data.
-2. **Incremental Loading**: Use the `create_change_tracking_table` function to load incremental changes using SQL Server's Change Tracking.
+1. **Initial full load**: Use the `sql_table` function to perform a full backfill of your table data.
+2. **Incremental loading**: Use the `create_change_tracking_table` function to load incremental changes using SQL Server's Change Tracking.
 
 This approach ensures that you have a complete dataset from the initial load and efficiently keep it updated with subsequent changes.
 
@@ -267,16 +267,20 @@ ORDER BY
 - *SYS_CHANGE_VERSION*: Used to track and order changes.
 - *_dlt_deleted*: Indicates if a row was deleted.
 
-**Note**: Since the query joins with the production table, there may be implications for locking and performance. Ensure your database can handle the additional load, and consider isolation levels if necessary.
+:::note
+ Since the query joins with the production table, there may be implications for locking and performance. Ensure your database can handle the additional load, and consider isolation levels if necessary.
+:::
 
 
 ## Full refresh
+
+:::caution
+Doing a full refresh will drop the destination table, i.e. delete data from the destination, and reset the state holding the tracking version.
+:::
 You can trigger a full refresh by performing a full load again and passing `drop_resources` to the run method (as described in the [pipeline configuration](../../general-usage/pipeline#selectively-drop-tables-and-resource-state-with-drop_resources)):
 ```py
 pipeline.run(initial_resource, refresh="drop_resources")
 ```
-This option drops the destination table (just before loading data again) and resets the state holding the tracking version.
-
 
 
 ## Handling deletes
