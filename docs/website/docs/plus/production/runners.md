@@ -18,4 +18,4 @@ These can also be run in different environments with the use of [profiles](../co
 dlt project --profile prod my_pipeline run
 ```
 
-We are working on specialized runners for environments like Airflow, Dagster, Prefect and more. If you're interested, feel free to [join our early access program](info.dlthub.com/waiting-list).
+We are working on specialized runners for environments like Airflow, Dagster, Prefect and more. If you're interested, feel free to [join our early access program](https://info.dlthub.com/waiting-list).
