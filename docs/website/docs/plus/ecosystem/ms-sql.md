@@ -274,7 +274,7 @@ ORDER BY
 
 ## Full refresh
 
-:::caution
+:::warning
 Doing a full refresh will drop the destination table, i.e. delete data from the destination, and reset the state holding the tracking version.
 :::
 You can trigger a full refresh by performing a full load again and passing `drop_resources` to the run method (as described in the [pipeline configuration](../../general-usage/pipeline#selectively-drop-tables-and-resource-state-with-drop_resources)):
