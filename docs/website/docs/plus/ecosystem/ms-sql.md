@@ -4,9 +4,9 @@ description: MS SQL replication
 keywords: [MSSQL, CDC, Change Tracking, MSSQL replication]
 ---
 
-# MSSQL Replication 
+# MS SQL replication
 
-dlt+ provides a comprehensive solution for syncing a MS SQL Server table using [Change Tracking](https://learn.microsoft.com/en-us/sql/relational-databases/track-changes/about-change-tracking-sql-server), a solution similar to CDC. By leveraging SQL Server's native Change Tracking feature, you can efficiently load incremental data changes - including inserts, updates, and deletes into your destination.
+dlt+ provides a comprehensive solution for syncing an MS SQL Server table using [Change Tracking](https://learn.microsoft.com/en-us/sql/relational-databases/track-changes/about-change-tracking-sql-server), a solution similar to CDC. By leveraging SQL Server's native Change Tracking feature, you can efficiently load incremental data changes — including inserts, updates, and deletes — into your destination.
 
 ## Prerequisites
 
@@ -57,12 +57,9 @@ The process involves three main steps:
 
 This approach ensures that you have a complete dataset from the initial load and efficiently keep it updated with subsequent changes.
 
-### Initial Full Load
+### Initial full load
 
-Get the Change Tracking version **before you execute initial load** to make
-sure you do not miss any updates that may happen during it. This may result in
-"replaying" a few changes that happen during the load, but this will not have any
-impact on the destination data due to the `merge` write disposition. 
+Get the Change Tracking version **before you execute the initial load** to make sure you do not miss any updates that may happen during it. This may result in "replaying" a few changes that happen during the load, but this will not have any impact on the destination data due to the `merge` write disposition.
 
 ```py
 from dlt_plus.sources.mssql import get_current_change_tracking_version
@@ -75,7 +72,7 @@ engine = create_engine(connection_url)
 tracking_version = get_current_change_tracking_version()
 ```
 
-To fully avoid any duplication you may completely lock the table during the initial load.
+To fully avoid any duplication, you may completely lock the table during the initial load.
 
 Now you can use the `sql_table` resource to perform the initial backfill:
 
@@ -122,9 +119,9 @@ incremental_resource = create_change_tracking_table(
 
 pipeline.run(incremental_resource)
 ```
-When running for the first time it is necessary to pass the `tracking_version` in the `initial_tracking_version` argument. This will initialize incremental loading and keep the updated tracking version in the `dlt` state. In subsequent runs, you do not need to provide the initial value anymore.
+When running for the first time, it is necessary to pass the `tracking_version` in the `initial_tracking_version` argument. This will initialize incremental loading and keep the updated tracking version in the `dlt` state. In subsequent runs, you do not need to provide the initial value anymore.
 
-### Incremental Loading
+### Incremental loading
 
 After the initial load, you can run the `create_change_tracking_table` resource on a schedule to load only the changes since the last tracking version using SQL Server’s `CHANGETABLE` function. 
 You do not need to pass `initial_tracking_version` anymore, since this is automatically stored in the `dlt` state.
@@ -144,7 +141,7 @@ pipeline.run(incremental_resource)
  The `write_disposition` is by default set to `merge`, which handles upserts based on primary keys. This determines the behavior when new data is loaded, especially regarding duplicates, updates, and deletes.
 :::
 
-## Full Code Example
+## Full code example
 
 <details>
 
@@ -184,7 +181,7 @@ def single_table_initial_load(connection_url: str, schema_name: str, table_name:
     )
 
     # Get current tracking version before you run the pipeline to make sure
-    # you do not miss any records,
+    # you do not miss any records
     tracking_version = get_current_change_tracking_version(engine)
     print(f"will track from: {tracking_version}")  # noqa
 
@@ -206,7 +203,7 @@ def single_table_initial_load(connection_url: str, schema_name: str, table_name:
 
 def single_table_incremental_load(connection_url: str, schema_name: str, table_name: str) -> None:
     """Continues loading incrementally"""
-    # make sure you use the same pipeline and dataset names in order to continue incremental
+    # Make sure you use the same pipeline and dataset names in order to continue incremental
     # loading.
     pipeline = dlt.pipeline(
         pipeline_name=f"{schema_name}_{table_name}_sync",
@@ -215,7 +212,7 @@ def single_table_incremental_load(connection_url: str, schema_name: str, table_n
     )
 
     engine = create_engine(connection_url, isolation_level="SNAPSHOT")
-    # we do not need to pass tracking version anymore
+    # We do not need to pass tracking version anymore
     incremental_resource = create_change_tracking_table(
         credentials=engine,
         table=table_name,
@@ -227,7 +224,7 @@ def single_table_incremental_load(connection_url: str, schema_name: str, table_n
 if __name__ == "__main__":
     # Change Tracking already enabled here
     test_db = "my_database83ed099d2d98a3ccfa4beae006eea44c"
-    # a test run with a local mssql instance
+    # A test run with a local mssql instance
     connection_url = (
         f"mssql+pyodbc://sa:Strong%21Passw0rd@localhost:1433/{test_db}"
         "?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes"
@@ -246,7 +243,7 @@ if __name__ == "__main__":
 
 </details>
 
-## Understanding the Change Tracking Query
+## Understanding the Change Tracking query
 
 The incremental loading process uses a SQL query that joins the CHANGETABLE function with the source table to fetch the latest changes. Here’s a simplified version of the query:
 
@@ -266,20 +263,19 @@ ORDER BY
 ```
 
 - *CHANGETABLE*: Retrieves changes for the specified table since the last tracking version.
-- **Join with Source Table**: The join retrieves the current data for the changed rows.
+- **Join with source table**: The join retrieves the current data for the changed rows.
 - *SYS_CHANGE_VERSION*: Used to track and order changes.
 - *_dlt_deleted*: Indicates if a row was deleted.
 
 **Note**: Since the query joins with the production table, there may be implications for locking and performance. Ensure your database can handle the additional load, and consider isolation levels if necessary.
 
 
-## Full Refresh
+## Full refresh
 You can trigger a full refresh by performing a full load again and passing `drop_resources` to the run method (as described in the [pipeline configuration](../../general-usage/pipeline#selectively-drop-tables-and-resource-state-with-drop_resources)):
 ```py
 pipeline.run(initial_resource, refresh="drop_resources")
 ```
-This option drops the destination table (just before loading data again) and resets the state holding
-the tracking version.
+This option drops the destination table (just before loading data again) and resets the state holding the tracking version.
 
 
 
@@ -301,7 +297,7 @@ pipeline.run(incremental_resource)
 
 ### Hard deletes
 
-By default `hard_delete` is set to `True`, meaning hard deletes are performed, i.e. rows deleted in the source will be permanently removed from the destination. 
+By default, `hard_delete` is set to `True`, meaning hard deletes are performed, i.e., rows deleted in the source will be permanently removed from the destination. 
 
 Replicated data allows for NULLs for not nullable columns when a record is deleted. To avoid additional tables that hold deleted rows and additional merge steps,
 `dlt` emits placeholder values that are stored in the staging dataset only.
@@ -310,7 +306,7 @@ Replicated data allows for NULLs for not nullable columns when a record is delet
 
 If `hard_delete` is set to `False`, soft deletes are performed, i.e. rows deleted in the source will be marked as deleted but not physically removed from the destination. 
 
-In this case, the destination schema must accept NULLs for the replicated columns, so make sure you pass the `remove_nullability_adapter`  adapter to the `sql_table` resource:
+In this case, the destination schema must accept NULLs for the replicated columns, so make sure you pass the `remove_nullability_adapter` adapter to the `sql_table` resource:
 
 ```py
 from dlt_plus.sources.mssql import remove_nullability_adapter
@@ -319,3 +315,4 @@ table = sql_table(
     table_adapter_callback=remove_nullability_adapter,
 )
 ```
+
