@@ -7,7 +7,7 @@ from dlt.common.storages.load_package import (
     destination_state,
     clear_destination_state,
 )
-from dlt.common.runtime.run_context import current as _run_context
+from dlt.common.runtime.run_context import active as _run_context
 
 from dlt.extract.decorators import get_source_schema, get_source
 from dlt.pipeline.pipeline import Pipeline as _Pipeline

@@ -29,7 +29,7 @@ class RunContextTest(RunContext):
         return os.path.abspath(TEST_STORAGE_ROOT)
 
     @property
-    def tmp_dir(self) -> str:
+    def local_dir(self) -> str:
         return os.path.join(self.data_dir, "tmp")
 
 

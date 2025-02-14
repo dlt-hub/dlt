@@ -6,6 +6,7 @@ import dlt
 from dlt.common.configuration.resolve import resolve_configuration
 from dlt.common.configuration.utils import get_resolved_traces
 from dlt.common.destination import Destination
+from dlt.common.known_env import DLT_LOCAL_DIR
 from dlt.common.utils import set_working_dir, uniq_id
 
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
@@ -264,16 +265,16 @@ def test_named_destination_path() -> None:
     assert os.path.isfile(db_path)
 
 
-def test_db_path_follows_tmp_dir() -> None:
-    tmp_dir = os.path.join(TEST_STORAGE_ROOT, uniq_id())
-    os.makedirs(tmp_dir)
+def test_db_path_follows_local_dir() -> None:
+    local_dir = os.path.join(TEST_STORAGE_ROOT, uniq_id())
+    os.makedirs(local_dir)
     # mock tmp dir
-    os.environ["DLT_TMP_DIR"] = tmp_dir
+    os.environ[DLT_LOCAL_DIR] = local_dir
     # we expect duckdb db to appear there
     c = resolve_configuration(
         DuckDbClientConfiguration()._bind_dataset_name(dataset_name="test_dataset")
     )
-    db_path = os.path.join(tmp_dir, ".duckdb")
+    db_path = os.path.join(local_dir, ".duckdb")
     assert c.credentials._conn_str().lower() == os.path.abspath(db_path).lower()
 
 

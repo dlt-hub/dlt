@@ -58,10 +58,20 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
         return self._schema
 
     @property
+    def dataset_name(self) -> str:
+        return self._dataset_name
+
+    @property
     def sql_client(self) -> SqlClientBase[Any]:
         if not self._sql_client:
             self._ensure_client_and_schema()
         return self._sql_client
+
+    @property
+    def destination_client(self) -> JobClientBase:
+        if not self._sql_client:
+            self._ensure_client_and_schema()
+        return self._destination_client(self._schema)
 
     def _destination_client(self, schema: Schema) -> JobClientBase:
         return get_destination_clients(

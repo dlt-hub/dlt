@@ -306,7 +306,7 @@ def init_command(
     templates_storage = _get_templates_storage()
 
     # get current run context
-    run_ctx = run_context.current()
+    run_ctx = run_context.active()
 
     # discover type of source
     source_type: files_ops.TSourceType = "template"

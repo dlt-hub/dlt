@@ -12,6 +12,7 @@ from typing import Any, List, Tuple, cast
 from tenacity import retry_if_exception, Retrying, stop_after_attempt
 
 import pytest
+from dlt.common.known_env import DLT_LOCAL_DIR
 from dlt.common.storages import FileStorage
 
 import dlt
@@ -202,13 +203,13 @@ def test_default_pipeline_dataset_layout_empty(environment) -> None:
     assert p.dataset_name in possible_dataset_names
 
 
-def test_pipeline_initial_cwd_follows_tmp_dir(environment) -> None:
-    tmp_dir = os.path.join(TEST_STORAGE_ROOT, uniq_id())
-    os.makedirs(tmp_dir)
+def test_pipeline_initial_cwd_follows_local_dir(environment) -> None:
+    local_dir = os.path.join(TEST_STORAGE_ROOT, uniq_id())
+    os.makedirs(local_dir)
     # mock tmp dir
-    os.environ["DLT_TMP_DIR"] = tmp_dir
+    os.environ[DLT_LOCAL_DIR] = local_dir
     p = dlt.pipeline(destination="filesystem")
-    assert p.get_local_state_val("initial_cwd") == os.path.abspath(tmp_dir)
+    assert p.get_local_state_val("initial_cwd") == os.path.abspath(local_dir)
 
 
 def test_pipeline_configuration_top_level_section(environment) -> None:

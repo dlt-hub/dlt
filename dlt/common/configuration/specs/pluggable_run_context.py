@@ -1,11 +1,22 @@
 from types import ModuleType
+from dataclasses import dataclass
 from typing import Any, ClassVar, Dict, List, Optional, Protocol
 
+from dlt.common.typing import Self
 from dlt.common.configuration.providers.provider import ConfigProvider
 from dlt.common.configuration.specs.base_configuration import ContainerInjectableContext
 from dlt.common.configuration.specs.runtime_configuration import RuntimeConfiguration
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContainer
 from dlt.common.utils import uniq_id
+
+
+# @dataclass
+# class RunnerRequirements:
+#     working_dir: str
+#     data_dir: Optional[str] = None
+#     needs_clean_state: bool = True
+#     can_change_working_dir: bool = False
+#     config_providers: Optional[Sequence] = None
 
 
 class SupportsRunContext(Protocol):
@@ -29,8 +40,8 @@ class SupportsRunContext(Protocol):
         """Defines the current working directory, defaults to cwd()"""
 
     @property
-    def tmp_dir(self) -> str:
-        """Defines temporary data dir where local relative dirs and files are created, defaults to run_dir"""
+    def local_dir(self) -> str:
+        """Defines data dir where local relative dirs and files are created, defaults to run_dir"""
 
     @property
     def settings_dir(self) -> str:
@@ -98,6 +109,8 @@ class PluggableRunContext(ContainerInjectableContext):
             run_dir = self.context.run_dir
             if runtime_kwargs is None:
                 runtime_kwargs = self.context.runtime_kwargs
+            elif self.context.runtime_kwargs:
+                runtime_kwargs = {**self.context.runtime_kwargs, **runtime_kwargs}
 
         self.runtime_config = None
         self.before_remove()
@@ -175,3 +188,8 @@ class PluggableRunContext(ContainerInjectableContext):
         _c = state_[0]
         if cookie != _c:
             raise ValueError(f"Run context stack mangled. Got cookie {_c} but expected {cookie}")
+
+    # def adjust(self, requirements: RunnerRequirements) -> Self:
+    #     """Adjusts run context to fullfil runner requirements, may reload current context"""
+    #     # currently always reload
+    #     self.reload({"requirements": requirements})

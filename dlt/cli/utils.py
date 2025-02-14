@@ -66,7 +66,7 @@ def get_telemetry_status() -> bool:
 
 def make_dlt_settings_path(path: str = None) -> str:
     """Returns path to file in dlt settings folder. Returns settings folder if path not specified."""
-    ctx = run_context.current()
+    ctx = run_context.active()
     if not path:
         return ctx.settings_dir
     return ctx.get_setting(path)

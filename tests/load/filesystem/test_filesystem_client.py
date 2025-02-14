@@ -11,6 +11,7 @@ from dlt.common.configuration.specs.base_configuration import (
     CredentialsConfiguration,
     extract_inner_hint,
 )
+from dlt.common.known_env import DLT_LOCAL_DIR
 from dlt.common.schema.schema import Schema
 from dlt.common.storages.configuration import FilesystemConfiguration
 from dlt.common.time import ensure_pendulum_datetime
@@ -88,11 +89,11 @@ def test_filesystem_factory_buckets(with_gdrive_buckets_env: str) -> None:
 
 
 @pytest.mark.parametrize("location", ("lake", "file:lake"))
-def test_filesystem_follows_tmp_dir(location: str) -> None:
-    tmp_dir = os.path.join(TEST_STORAGE_ROOT, uniq_id())
-    os.makedirs(tmp_dir)
+def test_filesystem_follows_local_dir(location: str) -> None:
+    local_dir = os.path.join(TEST_STORAGE_ROOT, uniq_id())
+    os.makedirs(local_dir)
     # mock tmp dir
-    os.environ["DLT_TMP_DIR"] = tmp_dir
+    os.environ[DLT_LOCAL_DIR] = local_dir
     filesystem_ = filesystem(location)
     c = FilesystemDestinationClientConfiguration()._bind_dataset_name(dataset_name="test_dataset")
     client = filesystem_.client(
@@ -100,7 +101,7 @@ def test_filesystem_follows_tmp_dir(location: str) -> None:
         initial_config=c,
     )
     # tmp dir is relative
-    lake_rel_dir = os.path.join(tmp_dir, "lake")
+    lake_rel_dir = os.path.join(local_dir, "lake")
     assert client.bucket_path.endswith(lake_rel_dir)
     assert client.bucket_path == os.path.abspath(lake_rel_dir)
 

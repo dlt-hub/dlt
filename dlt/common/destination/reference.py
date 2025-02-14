@@ -306,8 +306,25 @@ class DestinationReference:
         return []
 
     @classmethod
-    def find(cls, ref: str) -> Type[AnyDestination]:
-        """Finds or auto-imports destination factory that can be further called in order to instantiate it"""
+    def find(
+        cls,
+        ref: str,
+        /,
+        raise_exec_errors: bool = False,
+        import_missing_modules: bool = False,
+    ) -> Union[Type[AnyDestination], Callable[..., AnyDestination]]:
+        """Finds or auto-imports destination factory that can be further called in order to instantiate it
+        The ref can be a destination name or import path pointing to a destination class (e.g. `dlt.destinations.postgres`)
+        You can control auto-import behavior:
+         - `raise_exec_errors` - will re-raise code execution errors in imported modules
+         - `import_missing_modules` - will ignore missing dependencies during import by substituting
+         them with dummy modules. this should be only used to manipulate local dev environment
+
+         NOTE: find returns a factory class or a callable that will create factory instance (for custom destinations)
+         use `ensure_factory` to extract factory class from callable
+         TODO: synthesize a __call__ on custom destination (`destination`) factory type so this distinction is not
+         needed
+        """
         refs = cls.to_fully_qualified_refs(ref)
         factory: Type[AnyDestination] = None
         if ref not in refs:
@@ -332,12 +349,26 @@ class DestinationReference:
             for possible_type in refs:
                 if "." not in possible_type:
                     continue
-                factory, trace = object_from_ref(possible_type, _typechecker)
+                factory, trace = object_from_ref(
+                    possible_type,
+                    _typechecker,
+                    raise_exec_errors=raise_exec_errors,
+                    import_missing_modules=import_missing_modules,
+                )
                 if factory:
                     return factory
                 import_traces.append(trace)
 
         raise UnknownDestinationModule(ref, refs, import_traces)
+
+    @classmethod
+    def ensure_factory(
+        cls, ref_factory: Union[Type[AnyDestination], Callable[..., AnyDestination]]
+    ) -> Type[AnyDestination]:
+        """Extract factory type from a callable creating factory instance."""
+        if is_subclass(ref_factory, Destination):
+            return ref_factory  # type: ignore[return-value]
+        return ref_factory._factory  # type: ignore[no-any-return,union-attr]
 
     @classmethod
     def from_reference(

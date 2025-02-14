@@ -1506,7 +1506,7 @@ class Pipeline(SupportsPipeline):
             # engine upgrade
             _local = migrated_state["_local"]
             if "initial_cwd" not in _local:
-                _local["initial_cwd"] = os.path.abspath(dlt.current.run_context().tmp_dir)
+                _local["initial_cwd"] = os.path.abspath(dlt.current.run_context().local_dir)
             return migrated_state
         except FileNotFoundError:
             # do not set the state hash, this will happen on first merge
