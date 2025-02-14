@@ -70,7 +70,6 @@ const sidebars = {
           items: [
             'plus/getting-started/installation',
             'plus/getting-started/tutorial',
-            'plus/getting-started/advanced_tutorial',
           ]
         },
         {
@@ -81,6 +80,7 @@ const sidebars = {
             'plus/core-concepts/cache',
             'plus/core-concepts/transformations',
             'plus/core-concepts/datasets',
+            'plus/core-concepts/profiles',
           ]
         },
         {
