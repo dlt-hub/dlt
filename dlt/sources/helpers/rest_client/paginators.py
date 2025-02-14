@@ -671,9 +671,6 @@ class HeaderCursorPaginator(BaseReferencePaginator):
     """A paginator that uses a cursor in the HTTP responses header
     for pagination.
 
-    A good example of this is the Finom Invoices API:
-        https://app.finom.co/pa/index.html#section/Overview/Pagination
-
     For example, consider an API response that includes 'NextPageToken' header:
 
         ...
