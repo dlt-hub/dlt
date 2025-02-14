@@ -6,10 +6,10 @@ A dlt+ package is a dlt project with an opinionated structure containing a Pytho
 2. A dlt manifest file (`dlt.yml`) which specifies data platform entities like sources, destination, pipelines, transformations etc.
 3. Python modules with source code and tests. We propose a strict layout of the modules (i.e., source code is in the `sources/` folder, etc.)
 
-Package and project manager [uv](https://docs.astral.sh/uv/) is used for packaging.  
+Package and project manager [uv](https://docs.astral.sh/uv/) is used for packaging.
 
 ## Project structure
-  
+
 A dlt+ package has the following general structure:
 ```text
 .
@@ -17,11 +17,11 @@ A dlt+ package has the following general structure:
 │    ├── .dlt/                 # folder containg dlt configrations and profile settings
 │    │   ├── config.toml
 │    │   ├── dev.secrets.toml  # credentials for access profile 'dev'
-│    │   └── secrets.toml      
-│    ├── sources/              # modules containing the source code for sources 
-│    │   └── github.py         # source code for a github source  
-│    ├── destinations/         # modules containing the source code for destinations  
-│    ├── transformations/      # modules containing the source code for transformations 
+│    │   └── secrets.toml
+│    ├── sources/              # modules containing the source code for sources
+│    │   └── github.py         # source code for a github source
+│    ├── destinations/         # modules containing the source code for destinations
+│    ├── transformations/      # modules containing the source code for transformations
 │    ├── .gitignore
 │    └── dlt.yml               # the main dlt manifest file
 └── pyproject.toml             # the python manifest file for the package
@@ -33,10 +33,10 @@ This file contains the main configuration for the package. It allows you to decl
 
 #### Sources
 
-This section lets you define sources either declaratively or by referencing an implementation from a python module inside `sources/`. In the example below, two sources are declared:  
+This section lets you define sources either declaratively or by referencing an implementation from a python module inside `sources/`. In the example below, two sources are declared:
 1. a dlt REST API source whose parameters are passed within the manifest
 2. a github source whose source code inside `sources/github.py` is referenced
-  
+
 ```yaml
 sources:
   pokemon:
@@ -54,17 +54,17 @@ sources:
   github:
     type: dlt_example_package.github.source
 ```
-#### Destinations  
-  
+#### Destinations
+
 The destinations section defines dlt destinations in a similar way to how you would define them in a pure Python dlt project. As with sources, you can also reference custom implementations of destinations from inside the `destinations/` folder.
-  
-```yaml  
+
+```yaml
 destinations:
     duckdb:
         type: duckdb
 ```
 
-#### Pipelines 
+#### Pipelines
 
 Pipelines can be used to load data from sources to destinations. The pipeline defined below loads data from the github source to a dataset named "github_events_dataset" inside the duckdb destination.
 
@@ -77,8 +77,8 @@ Pipelines can be used to load data from sources to destinations. The pipeline de
 
 #### Datasets
 
-The datasets section defines datasets that live on a destination (defined in the destinations section). Datasets must be declared. They are referenced by pipelines when loading the data, and by the cache when doing transformations. Read more about datasets in dlt+ [here](datasets.md).  
-  
+The datasets section defines datasets that live on a destination (defined in the destinations section). Datasets must be declared. They are referenced by pipelines when loading the data, and by the cache when doing transformations. Read more about datasets in dlt+ [here](datasets.md).
+
 ```yaml
 datasets:
     github_events_dataset:
@@ -86,10 +86,10 @@ datasets:
             - duckdb
 ```
 
-#### Caches  
+#### Caches
 
 In this section you specify the input table(s) that you want to transform, and the output table(s) that you want to write after performing the transformations. The example below loads the table "events" from the destination dataset "github_events_dataset" into a local cache, then transforms it using the transformations inside the `transformations/` folder, and finally writes two tables back into the dataset "github_events_dataset": the original "events" table, and the transformed "events_aggregated" table. Read more about how local cache is used for transformations [here](cache.md).
-  
+
 ```yaml
 caches:
   github_events_cache:
@@ -155,3 +155,5 @@ As shown above, it is possible to pass additional dlt settings and configuration
 
 dlt packages provide a Python interface to access the data. This is done by exposing a standard Python API which provides connection to the production data through a profile called "access". The access to data can be limited by applying data and schema contracts on top of dlt datasets.
 
+### Configuration precedence
+Based on the information about precedence in the [configuration docs](../../general-usage/credentials/setup#available-config-providers), the yaml files provide the lowest precedence of all providers just above the default values for a config value. Settings in the yaml file will therefore be overridden by `toml` and `env` variables if present.
