@@ -134,6 +134,8 @@ class SourceReference:
         cls,
         ref: str,
         /,
+        raise_exec_errors: bool = False,
+        import_missing_modules: bool = False,
         _impl_sig: None = ...,
         _impl_cls: Type[TDltSourceImpl] = None,
     ) -> SourceFactory[Any, TDltSourceImpl]: ...
@@ -144,6 +146,8 @@ class SourceReference:
         cls,
         ref: str,
         /,
+        raise_exec_errors: bool = False,
+        import_missing_modules: bool = False,
         _impl_sig: Callable[TSourceFunParams, Any] = None,
         _impl_cls: Type[TDltSourceImpl] = None,
     ) -> SourceFactory[TSourceFunParams, TDltSourceImpl]: ...
@@ -152,13 +156,19 @@ class SourceReference:
     def find(
         cls,
         ref: str,
+        raise_exec_errors: bool = False,
+        import_missing_modules: bool = False,
         _impl_sig: Callable[TSourceFunParams, Any] = None,
         _impl_cls: Type[TDltSourceImpl] = None,
     ) -> Any:
-        """Returns source factory from reference `ref`. Looks into registry or tries auto-import
-
+        """Returns source factory from reference `ref`. Looks into registry or tries auto-import.
         Expands shorthand notation into section.name eg. "sql_database" is expanded into
             "dlt.sources.sql_database.sql_database".
+
+        You can control auto-import behavior:
+        - `raise_exec_errors` - will re-raise code execution errors in imported modules
+        - `import_missing_modules` - will ignore missing dependencies during import by substituting
+           them with dummy modules. this should be only used to manipulate local dev environment
         """
         refs = cls.expand_shorthand_ref(ref)
         if ref not in refs:
@@ -174,7 +184,12 @@ class SourceReference:
         for possible_type in refs:
             if "." not in possible_type:
                 continue
-            factory, trace = object_from_ref(possible_type, SourceReference._factory_typechecker)
+            factory, trace = object_from_ref(
+                possible_type,
+                SourceReference._factory_typechecker,
+                raise_exec_errors=raise_exec_errors,
+                import_missing_modules=import_missing_modules,
+            )
             if factory:
                 return factory
             import_traces.append(trace)
