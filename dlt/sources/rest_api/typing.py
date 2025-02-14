@@ -212,7 +212,7 @@ class IncrementalRESTArgs(IncrementalArgs, total=False):
 
 
 class IncrementalConfig(IncrementalRESTArgs, total=False):
-    start_param: str
+    start_param: Optional[str]
     end_param: Optional[str]
 
 

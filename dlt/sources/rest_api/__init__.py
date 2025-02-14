@@ -38,6 +38,7 @@ from .typing import (
 )
 from .config_setup import (
     IncrementalParam,
+    InterceptingProxy,
     create_auth,
     create_paginator,
     build_resource_dependency_graph,
@@ -114,16 +115,18 @@ def rest_api_source(
                 "base_url": "https://pokeapi.co/api/v2/",
                 "paginator": "json_link",
             },
-            "endpoints": {
-                "pokemon": {
-                    "params": {
-                        "limit": 100, # Default page size is 20
+            "resources": [
+                {
+                    "name": "pokemon",
+                    "endpoint": {
+                        "path": "pokemon",
+                        "params": {
+                            "limit": 100,
+                        },
                     },
-                    "resource": {
-                        "primary_key": "id",
-                    }
-                },
-            },
+                    "primary_key": "id",
+                }
+            ]
         })
     """
     # TODO: this must be removed when TypedDicts are supported by resolve_configuration
@@ -177,25 +180,18 @@ def rest_api_resources(config: RESTAPIConfig) -> List[DltResource]:
                             "sort": "updated",
                             "direction": "desc",
                             "state": "open",
-                            "since": {
-                                "type": "incremental",
-                                "cursor_path": "updated_at",
-                                "initial_value": "2024-01-25T11:21:28Z",
-                            },
+                            "since": "{incremental.last_value}",
+                        },
+                        "incremental": {
+                            "cursor_path": "updated_at",
+                            "initial_value": "2024-01-25T11:21:28Z",
                         },
                     },
                 },
                 {
                     "name": "issue_comments",
                     "endpoint": {
-                        "path": "issues/{issue_number}/comments",
-                        "params": {
-                            "issue_number": {
-                                "type": "resolve",
-                                "resource": "issues",
-                                "field": "number",
-                            }
-                        },
+                        "path": "issues/{resources.issues.number}/comments",
                     },
                 },
             ],
@@ -311,6 +307,25 @@ def create_resources(
                         incremental_cursor_transform,
                     )
 
+                    # Interpolate incremental object value into path and params
+                    _incremental: Union[Incremental[Any], InterceptingProxy]
+                    if incremental_cursor_transform:
+                        _incremental = InterceptingProxy(
+                            incremental_object,
+                            incremental_cursor_transform,
+                            {"last_value", "end_value"},
+                        )
+                    else:
+                        _incremental = incremental_object
+
+                    format_kwargs = {"incremental": _incremental}
+
+                    path = path.format(**format_kwargs)
+                    params = {
+                        k: v.format(**format_kwargs) if isinstance(v, str) else v
+                        for k, v in params.items()
+                    }
+
                 yield from client.paginate(
                     method=method,
                     path=path,
@@ -368,14 +383,24 @@ def create_resources(
                     )
 
                 for item in items:
-                    formatted_path, parent_record = process_parent_data_item(
-                        path, item, resolved_params, include_from_parent
+                    formatted_path, expanded_params, updated_json, parent_record = (
+                        process_parent_data_item(
+                            path=path,
+                            item=item,
+                            params=params,
+                            request_json=request_json,
+                            resolved_params=resolved_params,
+                            include_from_parent=include_from_parent,
+                            incremental=incremental_object,
+                            incremental_value_convert=incremental_cursor_transform,
+                        )
                     )
 
                     for child_page in client.paginate(
                         method=method,
                         path=formatted_path,
-                        params=params,
+                        params=expanded_params,
+                        json=updated_json,
                         paginator=paginator,
                         data_selector=data_selector,
                         hooks=hooks,
@@ -474,7 +499,8 @@ def _set_incremental_params(
 
     if transform is None:
         transform = identity_func
-    params[incremental_param.start] = transform(incremental_object.last_value)
+    if incremental_param.start:
+        params[incremental_param.start] = transform(incremental_object.last_value)
     if incremental_param.end:
         params[incremental_param.end] = transform(incremental_object.end_value)
     return params

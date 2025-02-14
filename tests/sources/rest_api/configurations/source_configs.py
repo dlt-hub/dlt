@@ -1,7 +1,6 @@
 from collections import namedtuple
 from typing import cast, List
 
-import requests
 import dlt
 import dlt.common
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
@@ -162,6 +161,7 @@ def repositories():
 
 
 VALID_CONFIGS: List[RESTAPIConfig] = [
+    # Using the resolve field syntax
     {
         "client": {"base_url": "https://api.example.com"},
         "resources": [
@@ -178,6 +178,30 @@ VALID_CONFIGS: List[RESTAPIConfig] = [
                         },
                     },
                 },
+            },
+        ],
+    },
+    # Using the resource field reference syntax
+    {
+        "client": {"base_url": "https://api.example.com"},
+        "resources": [
+            "posts",
+            {
+                "name": "post_comments",
+                "endpoint": {
+                    "path": "posts/{resources.posts.id}/comments",
+                },
+            },
+        ],
+    },
+    # Using short, endpoint-only resource definition
+    {
+        "client": {"base_url": "https://api.example.com"},
+        "resources": [
+            "posts",
+            {
+                "name": "post_comments",
+                "endpoint": "posts/{resources.posts.id}/comments",
             },
         ],
     },
@@ -357,6 +381,7 @@ VALID_CONFIGS: List[RESTAPIConfig] = [
             },
         ],
     },
+    # Using the resolve field syntax
     {
         "client": {"base_url": "https://github.com/api/v2"},
         "resources": [
@@ -376,20 +401,14 @@ VALID_CONFIGS: List[RESTAPIConfig] = [
             repositories(),
         ],
     },
+    # Using the resource field reference syntax
     {
         "client": {"base_url": "https://github.com/api/v2"},
         "resources": [
             {
                 "name": "issues",
                 "endpoint": {
-                    "path": "dlt-hub/{repository}/issues/",
-                    "params": {
-                        "repository": {
-                            "type": "resolve",
-                            "resource": "repositories",
-                            "field": "name",
-                        },
-                    },
+                    "path": "dlt-hub/{resources.repositories.name}/issues/",
                 },
             },
             repositories(),

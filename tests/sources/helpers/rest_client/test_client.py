@@ -1,6 +1,6 @@
 import os
 from base64 import b64encode
-from typing import Any, Dict, cast
+from typing import Any, Dict, cast, List, Optional
 from unittest.mock import patch, ANY
 
 import pytest
@@ -401,7 +401,7 @@ class TestRESTClient:
         posts_skip = (DEFAULT_TOTAL_PAGES - 3) * DEFAULT_PAGE_SIZE
 
         class JSONBodyPageCursorPaginator(BaseReferencePaginator):
-            def update_state(self, response, data):  # type: ignore[override]
+            def update_state(self, response: Response, data: Optional[List[Any]] = None) -> None:
                 self._next_reference = response.json().get("next_page")
 
             def update_request(self, request):

@@ -1,5 +1,5 @@
 from copy import copy
-from typing import cast
+from typing import cast, Dict, Any
 from unittest.mock import patch
 
 import pytest
@@ -238,30 +238,51 @@ def test_setup_for_single_item_endpoint() -> None:
     assert isinstance(endpoint["paginator"], SinglePagePaginator)
 
 
-def test_resource_schema() -> None:
-    config: RESTAPIConfig = {
-        "client": {
-            "base_url": "https://api.example.com",
-        },
-        "resources": [
-            "users",
-            {
-                "name": "user",
-                "endpoint": {
-                    "path": "user/{id}",
-                    "paginator": None,
-                    "data_selector": None,
-                    "params": {
-                        "id": {
-                            "type": "resolve",
-                            "field": "id",
-                            "resource": "users",
+@pytest.mark.parametrize(
+    "config",
+    [
+        {
+            "client": {
+                "base_url": "https://api.example.com",
+            },
+            "resources": [
+                "users",
+                {
+                    "name": "user",
+                    "endpoint": {
+                        "path": "user/{id}",
+                        "paginator": None,
+                        "data_selector": None,
+                        "params": {
+                            "id": {
+                                "type": "resolve",
+                                "field": "id",
+                                "resource": "users",
+                            },
                         },
                     },
                 },
+            ],
+        },
+        {
+            "client": {
+                "base_url": "https://api.example.com",
             },
-        ],
-    }
+            "resources": [
+                "users",
+                {
+                    "name": "user",
+                    "endpoint": {
+                        "path": "user/{resources.users.id}",
+                        "paginator": None,
+                        "data_selector": None,
+                    },
+                },
+            ],
+        },
+    ],
+)
+def test_resource_schema(config: RESTAPIConfig) -> None:
     resources = rest_api_resources(config)
     assert len(resources) == 2
     resource = resources[0]
@@ -403,7 +424,31 @@ def test_resource_defaults_no_params() -> None:
     }
 
 
-def test_accepts_DltResource_in_resources() -> None:
+@pytest.mark.parametrize(
+    "issues_resource_config",
+    [
+        {
+            "name": "issues",
+            "endpoint": {
+                "path": "dlt-hub/{repository}/issues/",
+                "params": {
+                    "repository": {
+                        "type": "resolve",
+                        "resource": "repositories",
+                        "field": "name",
+                    },
+                },
+            },
+        },
+        {
+            "name": "issues",
+            "endpoint": {
+                "path": "dlt-hub/{resources.repositories.name}/issues/",
+            },
+        },
+    ],
+)
+def test_accepts_DltResource_in_resources(issues_resource_config: Dict[str, Any]) -> None:
     @dlt.resource(selected=False)
     def repositories():
         """A seed list of repositories to fetch"""
@@ -412,19 +457,7 @@ def test_accepts_DltResource_in_resources() -> None:
     config: RESTAPIConfig = {
         "client": {"base_url": "https://github.com/api/v2"},
         "resources": [
-            {
-                "name": "issues",
-                "endpoint": {
-                    "path": "dlt-hub/{repository}/issues/",
-                    "params": {
-                        "repository": {
-                            "type": "resolve",
-                            "resource": "repositories",
-                            "field": "name",
-                        },
-                    },
-                },
-            },
+            issues_resource_config,  # type: ignore[list-item]
             repositories(),
         ],
     }
