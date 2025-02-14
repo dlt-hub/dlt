@@ -16,7 +16,7 @@ As part of dlt+ we are developing several tools to enhance development with AI w
 
 Make sure your virtual environment is activated, then:
 
-```bash
+```sh
 pip install dlt-plus[mcp]
 ```
 
@@ -32,7 +32,7 @@ If you don't have a project yet, here's how to create a simple one:
 
 On Unix-based systems:
 
-```bash
+```sh
 touch dlt.yml
 ```
 
@@ -76,25 +76,25 @@ This will create a dlt+ project with a single pipeline that loads data from the 
 
 Validate the project configuration:
 
-```bash
+```sh
 dlt project config validate
 ```
 
 If the configuration is valid, you should see the following message:
 
-```
+```sh
 Configuration validation successful!
 ```
 
 That means you can now run the pipeline to get some data:
 
-```bash
+```sh
 dlt pipeline pokemon run
 ```
 
 If the pipeline runs successfully, you should see the following message:
 
-```
+```sh
 1 load package(s) were loaded to destination pokemon_local and into dataset pokemon_dataset
 The pokemon_local destination used file:///path/to/your/project/_storage/pokemon_data location to store data
 Load package 1739383145.0668569 is LOADED and contains no failed jobs
