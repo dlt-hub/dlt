@@ -129,12 +129,11 @@ We intend our sources to be fully hackable. Feel free to change the source code 
        "Column_Name_2"
    ]
    ```
-   **Important Considerations**
-   
+   :::note
    *Case-Sensitivity:* 
    
    Table and column names specified in `config.toml` must exactly match their counterparts in the SQL database, as they are case-sensitive.
-
+   :::
 
 ## Configuring the connection
 
