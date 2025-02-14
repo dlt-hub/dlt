@@ -1,6 +1,6 @@
 ---
 title: "🧪 Data quality"
-description: Validate your data and control their quality
+description: Validate your data and control its quality
 keywords: ["dlt+", "data quality", "contracts"]
 ---
 
