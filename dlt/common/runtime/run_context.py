@@ -39,8 +39,8 @@ class RunContext(SupportsRunContext):
         return os.environ.get(known_env.DLT_PROJECT_DIR, self._init_run_dir)
 
     @property
-    def tmp_dir(self) -> str:
-        return os.environ.get(known_env.DLT_TMP_DIR, self._init_run_dir)
+    def local_dir(self) -> str:
+        return os.environ.get(known_env.DLT_LOCAL_DIR, self._init_run_dir)
 
     @property
     def settings_dir(self) -> str:
@@ -177,12 +177,12 @@ def get_plugin_modules() -> List[str]:
     from dlt.common.configuration.plugins import PluginContext
 
     # get current run module
-    ctx_module = current().module
+    ctx_module = active().module
     run_module_name = ctx_module.__name__ if ctx_module else ""
 
     return [run_module_name] + [p for p in Container()[PluginContext].plugin_modules] + ["dlt"]
 
 
-def current() -> SupportsRunContext:
+def active() -> SupportsRunContext:
     """Returns currently active run context"""
     return Container()[PluggableRunContext].context

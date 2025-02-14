@@ -39,6 +39,7 @@ from typing_extensions import (
     TypeAlias,
     Concatenate,
     Unpack,
+    Self,
     get_args,
     get_origin,
     get_original_bases,

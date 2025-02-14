@@ -61,7 +61,7 @@ def plugin_install():
 
 
 def test_example_plugin() -> None:
-    context = run_context.current()
+    context = run_context.active()
     assert context.name == "dlt-test"
     assert context.data_dir == os.path.abspath(TEST_STORAGE_ROOT)
     # top level module info should be present
@@ -71,8 +71,8 @@ def test_example_plugin() -> None:
     assert plugin_context.plugin_modules == [context.module.__name__]
     # reference prefixes we probe when resolving
     assert run_context.get_plugin_modules() == ["dlt_example_plugin", "dlt_example_plugin", "dlt"]
-    assert context.tmp_dir.startswith(context.data_dir)
-    assert context.tmp_dir.endswith("tmp")
+    assert context.local_dir.startswith(context.data_dir)
+    assert context.local_dir.endswith("tmp")
 
 
 def test_import_references() -> None:

@@ -116,7 +116,7 @@ def _tracker_request_header(write_key: str) -> StrAny:
 
 def get_anonymous_id() -> str:
     """Creates or reads a anonymous user id"""
-    home_dir = run_context.current().global_dir
+    home_dir = run_context.active().global_dir
 
     if not os.path.isdir(home_dir):
         os.makedirs(home_dir, exist_ok=True)

@@ -785,14 +785,14 @@ def get_dlt_pipelines_dir() -> str:
     """
     from dlt.common.runtime import run_context
 
-    return run_context.current().get_data_entity("pipelines")
+    return run_context.active().get_data_entity("pipelines")
 
 
 def get_dlt_repos_dir() -> str:
     """Gets default directory where command repositories will be stored"""
     from dlt.common.runtime import run_context
 
-    return run_context.current().get_data_entity("repos")
+    return run_context.active().get_data_entity("repos")
 
 
 _CURRENT_PIPE_NAME: Dict[int, str] = {}
