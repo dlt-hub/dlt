@@ -58,6 +58,63 @@ const sidebars = {
     },
     {
       type: 'category',
+      label: 'dlt+',
+      link: {
+        type: 'doc',
+        id: 'plus/intro',
+      },
+      items: [
+        {
+          type: 'category',
+          label: 'Getting started',
+          items: [
+            'plus/getting-started/installation',
+            'plus/getting-started/tutorial',
+          ]
+        },
+        {
+          type: 'category',
+          label: 'Core concepts',
+          items: [
+            'plus/core-concepts/project',
+            'plus/core-concepts/cache',
+            'plus/core-concepts/transformations',
+            'plus/core-concepts/datasets',
+            'plus/core-concepts/profiles',
+          ]
+        },
+        {
+          type: 'category',
+          label: 'Sources & Destinations',
+          items: [
+            'plus/ecosystem/ms-sql',
+            'plus/ecosystem/iceberg',
+            'plus/ecosystem/delta',
+          ]
+        },
+        {
+          type: 'category',
+          label: 'Features',
+          items: [
+            'plus/features/security',
+            'plus/features/quality',
+            'plus/features/transformations',
+            'plus/features/ai',
+          ]
+        },
+        {
+          type: 'category',
+          label: 'Going to production',
+          items: [
+            'plus/production/observability',
+            'plus/production/runners',
+          ]
+        },
+        'plus/reference',
+      ]
+    },
+    {
+      type: 'category',
       label: 'Sources',
       link: {
         type: 'doc',
