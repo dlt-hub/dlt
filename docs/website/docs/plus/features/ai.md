@@ -6,7 +6,7 @@ keywords: [dlt+, Claude Desktop, MCP, Model Context Protocol]
 
 # AI Workflows
 
-As part of dlt+ we are developing several tools to enhance development with AI workflows. The first of these is an  [Model Context Protocol (MCP)](https://modelcontextprotocol.io) plugin for Claude Desktop for data exploration.
+As part of dlt+ we are developing several tools to enhance development with AI workflows. The first of these is a [Model Context Protocol (MCP)](https://modelcontextprotocol.io) plugin for Claude Desktop for data exploration.
 
 ## Prerequisites
 - dlt+ installed in a virtual environment (see [installation guide](./installation.md))
@@ -22,7 +22,7 @@ pip install dlt-plus[mcp]
 
 ## Set up or use a dlt+ project
 
-You can either use your existing dlt+ project or create a simple test project to try out the MCP workflow with Claude Desktop.
+You can either use your existing dlt+ project or create a simple test project to try out the MCP workflow.
 
 ### Using an existing project
 If you already have a dlt+ project, you can use it directly - just make sure you have run at least one pipeline so there's some data to explore.
@@ -72,6 +72,8 @@ datasets:
       - pokemon_local
 ```
 
+This will create a dlt+ project with a single pipeline that loads data from the Pokemon API and stores it in a local directory.
+
 Validate the project configuration:
 
 ```bash
@@ -89,6 +91,8 @@ That means you can now run the pipeline to get some data:
 ```bash
 dlt pipeline pokemon run
 ```
+
+If the pipeline runs successfully, you should see the following message:
 
 ```
 1 load package(s) were loaded to destination pokemon_local and into dataset pokemon_dataset
