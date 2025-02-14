@@ -557,7 +557,7 @@ def test_raises_error_for_unused_resolve_params(mock_api_server):
                 ],
             },
             "params",
-            id="query_params"
+            id="query_params",
         ),
         pytest.param(
             {
@@ -575,7 +575,7 @@ def test_raises_error_for_unused_resolve_params(mock_api_server):
                 ],
             },
             "json",
-            id="json_body"
+            id="json_body",
         ),
     ],
 )
@@ -584,8 +584,8 @@ def test_raises_error_for_incorrect_interpolation(mock_api_server, config, locat
         rest_api_source(config)
 
     assert (
-        f"Expression 'unknown.posts.id' defined in {location} is not valid. Valid expressions must start"
-        " with one of: resources"
+        f"Expression 'unknown.posts.id' defined in {location} is not valid. Valid expressions must"
+        " start with one of: resources"
         in str(exc_info.value)
     )
 
@@ -871,12 +871,10 @@ def test_posts_with_incremental_in_param_template(mock_api_server) -> None:
                 "endpoint": {
                     "path": "posts",
                     "params": {
-                        "since": "{incremental.last_value}",
+                        "since": "{incremental.start_value}",
                         "until": "{incremental.end_value}",
                     },
                     "incremental": {
-                        # "start_param": "since",
-                        # "end_param": "until",
                         "cursor_path": "updated_at",
                         "initial_value": str(start_time.int_timestamp),
                         "end_value": str(one_day_later.int_timestamp),

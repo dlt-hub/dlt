@@ -44,6 +44,8 @@ from .config_setup import (
     process_parent_data_item,
     setup_incremental_object,
     create_response_hooks,
+    expand_placeholders,
+    convert_incremental_values,
 )
 from .utils import check_connection  # noqa: F401
 
@@ -307,12 +309,15 @@ def create_resources(
                     )
 
                     format_kwargs = {"incremental": incremental_object}
+                    if incremental_cursor_transform:
+                        format_kwargs.update(
+                            convert_incremental_values(
+                                incremental_object, incremental_cursor_transform
+                            )
+                        )
 
-                    path = path.format(**format_kwargs)
-                    params = {
-                        k: v.format(**format_kwargs) if isinstance(v, str) else v
-                        for k, v in params.items()
-                    }
+                    path = expand_placeholders(path, format_kwargs)
+                    params = expand_placeholders(params, format_kwargs)
 
                 yield from client.paginate(
                     method=method,

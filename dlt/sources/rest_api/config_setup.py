@@ -98,28 +98,11 @@ class IncrementalParam(NamedTuple):
     end: Optional[str]
 
 
-class AttributeAccessibleDict(Dict[str, Any]):
-    def __getattr__(self, key: str) -> Any:
-        try:
-            return self[key]
-        except KeyError:
-            raise AttributeError(key)
-
-
-class ResourcesContext:
-    def __init__(self) -> None:
-        self._resources: Dict[str, AttributeAccessibleDict] = {}
-
-    def __getitem__(self, key: str) -> Any:
-        if key not in self._resources:
-            self._resources[key] = AttributeAccessibleDict()
-        return self._resources[key]
-
-    def __getattr__(self, key: str) -> Any:
-        try:
-            return self[key]
-        except KeyError:
-            raise AttributeError(key)
+class DirectKeyFormatter(string.Formatter):
+    def get_field(self, field_name: str, args: Any, kwargs: Any) -> Any:
+        if field_name in kwargs:
+            return kwargs[field_name], field_name
+        return super().get_field(field_name, args, kwargs)
 
 
 def register_paginator(
@@ -716,7 +699,7 @@ def _expressions_to_resolved_params(expressions: Set[str]) -> List[ResolvedParam
     # We assume that the expressions are in the format 'resources.<resource>.<field>'
     # and not more complex expressions
     for expression in expressions:
-        parts = expression.strip().split(".")
+        parts = expression.strip().split(".", maxsplit=2)
         if len(parts) != 3:
             raise ValueError(
                 f"Invalid definition of {expression}. Expected format:"
@@ -748,7 +731,6 @@ def process_parent_data_item(
     params_values = collect_resolved_values(
         item, resolved_params, incremental, incremental_value_convert
     )
-
     expanded_path = expand_placeholders(path, params_values)
     expanded_params = expand_placeholders(params or {}, params_values)
     expanded_json = expand_placeholders(request_json or {}, params_values)
@@ -757,6 +739,15 @@ def process_parent_data_item(
     parent_record = build_parent_record(item, parent_resource_name, include_from_parent)
 
     return expanded_path, expanded_params, expanded_json, parent_record
+
+
+def convert_incremental_values(
+    incremental: Incremental[Any], convert: Callable[..., Any]
+) -> Dict[str, Any]:
+    return {
+        "incremental.start_value": convert(incremental.last_value),
+        "incremental.end_value": convert(incremental.end_value),
+    }
 
 
 def collect_resolved_values(
@@ -774,7 +765,6 @@ def collect_resolved_values(
         raise ValueError("Resolved params are required to process parent data item")
 
     parent_resource_name = resolved_params[0].resolve_config["resource"]
-    resources_context = ResourcesContext()
     params_values: Dict[str, Any] = {}
 
     for resolved_param in resolved_params:
@@ -788,20 +778,12 @@ def collect_resolved_values(
                 f" {', '.join(item.keys())}"
             )
 
-        param_name = resolved_param.param_name
-        value = field_values[0]
-
-        # If resolved param was defined as `resources.<resource>.<field>`
-        # we update the resources context
-        if param_name.startswith("resources."):
-            config = resolved_param.resolve_config
-            resources_context[config["resource"]][config["field"]] = value
-            params_values["resources"] = resources_context
-        else:
-            params_values[param_name] = value
+        params_values[resolved_param.param_name] = field_values[0]
 
     if incremental:
         params_values["incremental"] = incremental
+        if incremental_value_convert:
+            params_values.update(convert_incremental_values(incremental, incremental_value_convert))
 
     return params_values
 
@@ -814,7 +796,7 @@ def expand_placeholders(obj: Any, placeholders: Dict[str, Any]) -> Any:
         return None
 
     if isinstance(obj, str):
-        return obj.format(**placeholders)
+        return DirectKeyFormatter().format(obj, **placeholders)
 
     if isinstance(obj, dict):
         return {
