@@ -1,6 +1,7 @@
 ---
 title: "Destination: Delta"
 description: Delta destination
+keywords: [delta, delta lake]
 ---
 
 # Delta

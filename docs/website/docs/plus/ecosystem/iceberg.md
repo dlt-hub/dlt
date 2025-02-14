@@ -1,6 +1,7 @@
 ---
 title: "Destination: Iceberg"
 description: Iceberg destination
+keywords: [Iceberg, pyiceberg]
 ---
 
 # Iceberg
