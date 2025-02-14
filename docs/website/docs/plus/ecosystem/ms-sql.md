@@ -69,7 +69,7 @@ connection_url = "mssql+pyodbc://username:password@your_server:port/YourDatabase
 
 engine = create_engine(connection_url)
 
-tracking_version = get_current_change_tracking_version()
+tracking_version = get_current_change_tracking_version(engine)
 ```
 
 To fully avoid any duplication, you may completely lock the table during the initial load.
