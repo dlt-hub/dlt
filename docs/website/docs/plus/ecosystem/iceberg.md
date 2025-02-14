@@ -240,7 +240,7 @@ The Iceberg destination is still under active development and therefore has a fe
 
 Only [OAuth 2.0](../../dlt-ecosystem/destinations/bigquery#oauth-20-authentication) is supported for Google Cloud Storage.
 
-The [S3-compatible](docs/dlt-ecosystem/destinations/filesystem#using-s3-compatible-storage) interface for Google Cloud Storage is not supported with the Iceberg destination.
+The [S3-compatible](../../dlt-ecosystem/destinations/filesystem#using-s3-compatible-storage) interface for Google Cloud Storage is not supported with the Iceberg destination.
 
 ### Azure Blob Storage URL
 
