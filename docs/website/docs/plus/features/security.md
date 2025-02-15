@@ -37,7 +37,7 @@ As dlt+ packages are distributed over PyPI or git, data end-users are easily abl
 
 When the end-users interact with the data using the Python API, they are doing it through a profile called "access". This access can be managed simply by setting configurations and credentials for this profile in the manifest (`dlt.yml`) or in the toml files. Read more about setting secrets and configurations for different profile [here](../core-concepts/profiles.md). 
 
-It's also possible to set granular limits on how users can write the data through [schema and data contracts](https://dlthub.com/docs/general-usage/schema-contracts). These can be set individually per profile per dataset.
+It's also possible to set granular limits on how users can write the data through schema and data contracts. These can be set individually per profile per dataset.
   
 ```yaml
 profiles:
