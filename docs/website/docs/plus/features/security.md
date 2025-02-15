@@ -33,7 +33,7 @@ As dlt+ packages are distributed over PyPI or git, data end-users are easily abl
     print(catalog.reports_dataset.save(reports_df, table_name="aggregated_issues"))
     ```
 
-### Security and contracts
+## Security and contracts
 
 When the end-users interact with the data using the Python API, they are doing it through a profile called "access". This access can be managed simply by setting configurations and credentials for this profile in the manifest (`dlt.yml`) or in the toml files. Read more about setting secrets and configurations for different profile [here](../core-concepts/profiles.md). 
 
@@ -57,7 +57,7 @@ profiles:
                     data_type: freeze
 ```
 
-In the example above, users with profile "access" are restricted from writing any tables or modifying the schema of existing tables. So if the user tried to write back their tables to the `github_events_dataset` instead of the `reports_dataset`:  
+In the example above, users with profile "access" are restricted from writing any tables or modifying the schema of existing tables in the dataset `github_events_dataset`. So if the user tried to write back their tables to this dataset instead of the `reports_dataset`:  
   
 ```py
 print(catalog.github_events_dataset.save(reports_df, table_name="aggregated_issues"))
@@ -70,4 +70,27 @@ PipelineStepFailed: Pipeline execution failed at stage extract when processing p
 
 <class 'dlt.common.schema.exceptions.DataValidationError'>
 In schema: events: In Schema: events Table: aggregated_issues  . Contract on tables with mode freeze is violated. Trying to add table aggregated_issues but new tables are frozen.
+```
+
+There are also contracts set on the `reports_dataset` that allow users to write tables but restrict them from modifying existing schema. For example, if the user wanted to add a new column `id` to the existing table `aggregated_issues` inside the `reports_dataset`:  
+  
+```py
+# Access the aggregated_issues table from the reports_dataset in the catalog
+reports_df = catalog.reports_dataset.aggregated_issues.df()
+
+# Create a new column "id"
+reports_df["id"] = 1
+
+# Push back the modified table
+print(catalog.reports_dataset.save(reports_df, table_name="aggregated_issues"))
+```
+
+then they would get the following error:  
+  
+```bash
+
+PipelineStepFailed: Pipeline execution failed at stage extract when processing package 1730314610.4309433 with exception:
+
+<class 'dlt.common.schema.exceptions.DataValidationError'>
+In schema: out_source: In Schema: out_source Table: aggregated_issues Column: id . Contract on columns with mode freeze is violated. Trying to add column id to table aggregated_issues but columns are frozen.
 ```
