@@ -11,14 +11,14 @@ As dlt+ packages are distributed over PyPI or git, data end-users are easily abl
     ```sh
     pip install -U --index-url https://pypi.dlthub.com dlt_example_project
     ```
-2. They import the project like any Python module and are able access the data catalog, datasets, and tables from production.
+2. They import the project like any Python module and access the datasets. The datasets declared in the project create a data catalog which can be used to discover the schema, and read and write data.
 
     ```py
     import dlt_example_project as dlt_project
  
     catalog = dlt_project.catalog() # Inspect datasets and available tables
     print(catalog)
-    print(catalog.github_events_dataset)
+    print(catalog.github_events_dataset) # Access the dataset github_events_dataset from the catalog
     ```
 3. They do their analytics on the data and are able to share back their results.
   
@@ -35,3 +35,39 @@ As dlt+ packages are distributed over PyPI or git, data end-users are easily abl
 
 ### Security and contracts
 
+When the end-users interact with the data using the Python API, they are doing it through a profile called "access". This access can be managed simply by setting configurations and credentials for this profile in the manifest (`dlt.yml`) or in the toml files. Read more about setting secrets and configurations for different profile [here](../core-concepts/profiles.md). 
+
+It's also possible to set granular limits on how users can write the data through [schema and data contracts](https://dlthub.com/docs/general-usage/schema-contracts). These can be set individually per profile per dataset.
+  
+```yaml
+profiles:
+
+    access:
+        datasets:
+
+            github_events_dataset:
+                # no new tables, no column changes
+                contract: freeze 
+
+            reports_dataset:
+                # allow new tables but no column changes
+                contract:
+                    tables: evolve
+                    columns: freeze
+                    data_type: freeze
+```
+
+In the example above, users with profile "access" are restricted from writing any tables or modifying the schema of existing tables. So if the user tried to write back their tables to the `github_events_dataset` instead of the `reports_dataset`:  
+  
+```py
+print(catalog.github_events_dataset.save(reports_df, table_name="aggregated_issues"))
+```
+
+then they would get the following error:  
+  
+```bash
+PipelineStepFailed: Pipeline execution failed at stage extract when processing package 1730314603.1941314 with exception:
+
+<class 'dlt.common.schema.exceptions.DataValidationError'>
+In schema: events: In Schema: events Table: aggregated_issues  . Contract on tables with mode freeze is violated. Trying to add table aggregated_issues but new tables are frozen.
+```
