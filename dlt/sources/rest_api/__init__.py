@@ -181,7 +181,7 @@ def rest_api_resources(config: RESTAPIConfig) -> List[DltResource]:
                             "sort": "updated",
                             "direction": "desc",
                             "state": "open",
-                            "since": "{incremental.last_value}",
+                            "since": "{incremental.start_value}",
                         },
                         "incremental": {
                             "cursor_path": "updated_at",
@@ -493,7 +493,7 @@ def _set_incremental_params(
     if transform is None:
         transform = identity_func
     if incremental_param.start:
-        params[incremental_param.start] = transform(incremental_object.last_value)
+        params[incremental_param.start] = transform(incremental_object.start_value)
     if incremental_param.end:
         params[incremental_param.end] = transform(incremental_object.end_value)
     return params

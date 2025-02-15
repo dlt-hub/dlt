@@ -745,7 +745,7 @@ def convert_incremental_values(
     incremental: Incremental[Any], convert: Callable[..., Any]
 ) -> Dict[str, Any]:
     return {
-        "incremental.start_value": convert(incremental.last_value),
+        "incremental.start_value": convert(incremental.start_value),
         "incremental.end_value": convert(incremental.end_value),
     }
 
