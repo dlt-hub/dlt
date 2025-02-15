@@ -1,22 +1,11 @@
 from types import ModuleType
-from dataclasses import dataclass
-from typing import Any, ClassVar, Dict, List, Optional, Protocol
+from typing import Any, ClassVar, Dict, List, Optional, Protocol, Union
 
-from dlt.common.typing import Self
 from dlt.common.configuration.providers.provider import ConfigProvider
 from dlt.common.configuration.specs.base_configuration import ContainerInjectableContext
 from dlt.common.configuration.specs.runtime_configuration import RuntimeConfiguration
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContainer
 from dlt.common.utils import uniq_id
-
-
-# @dataclass
-# class RunnerRequirements:
-#     working_dir: str
-#     data_dir: Optional[str] = None
-#     needs_clean_state: bool = True
-#     can_change_working_dir: bool = False
-#     config_providers: Optional[Sequence] = None
 
 
 class SupportsRunContext(Protocol):
@@ -102,11 +91,15 @@ class PluggableRunContext(ContainerInjectableContext):
         self.providers = ConfigProvidersContainer(self.context.initial_providers())
         self.runtime_config = runtime_config
 
-    def reload(self, run_dir: Optional[str] = None, runtime_kwargs: Dict[str, Any] = None) -> None:
+    def reload(
+        self,
+        run_dir_or_context: Optional[Union[str, SupportsRunContext]] = None,
+        runtime_kwargs: Dict[str, Any] = None,
+    ) -> None:
         """Reloads the context, using existing settings if not overwritten with method args"""
 
-        if run_dir is None:
-            run_dir = self.context.run_dir
+        if run_dir_or_context is None:
+            run_dir_or_context = self.context.run_dir
             if runtime_kwargs is None:
                 runtime_kwargs = self.context.runtime_kwargs
             elif self.context.runtime_kwargs:
@@ -114,8 +107,10 @@ class PluggableRunContext(ContainerInjectableContext):
 
         self.runtime_config = None
         self.before_remove()
-        self._plug(run_dir, runtime_kwargs=runtime_kwargs)
-
+        if isinstance(run_dir_or_context, str):
+            self._plug(run_dir_or_context, runtime_kwargs=runtime_kwargs)
+        else:
+            self.context = run_dir_or_context
         self.providers = ConfigProvidersContainer(self.context.initial_providers())
         self.after_add()
         # adds remaining providers and initializes runtime
@@ -178,9 +173,8 @@ class PluggableRunContext(ContainerInjectableContext):
         _c, context, providers, runtime_config = self._context_stack.pop()
         if cookie != _c:
             raise ValueError(f"Run context stack mangled. Got cookie {_c} but expected {cookie}")
-        self.context = context
-        self.providers = providers
-        self.initialize_runtime(runtime_config)
+        self.runtime_config = runtime_config
+        self.reload(context)
 
     def drop_context(self, cookie: str) -> None:
         """Pops context form stack but leaves new context for good"""
@@ -188,8 +182,3 @@ class PluggableRunContext(ContainerInjectableContext):
         _c = state_[0]
         if cookie != _c:
             raise ValueError(f"Run context stack mangled. Got cookie {_c} but expected {cookie}")
-
-    # def adjust(self, requirements: RunnerRequirements) -> Self:
-    #     """Adjusts run context to fullfil runner requirements, may reload current context"""
-    #     # currently always reload
-    #     self.reload({"requirements": requirements})
