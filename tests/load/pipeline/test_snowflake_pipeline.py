@@ -9,6 +9,7 @@ from dlt.destinations.exceptions import DatabaseUndefinedRelation
 
 from dlt.load.exceptions import LoadClientJobFailed
 from dlt.pipeline.exceptions import PipelineStepFailed
+from dlt.common.configuration.exceptions import ConfigurationValueError
 
 from tests.load.pipeline.test_pipelines import simple_nested_pipeline
 from tests.load.snowflake.test_snowflake_client import QUERY_TAG
@@ -204,3 +205,46 @@ def test_char_replacement_cs_naming_convention(
     results = rel_.fetchall()
     assert len(results) == 1
     assert "AmlSistUtfoertDato" in rel_.columns_schema
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, all_staging_configs=True, with_file_format="parquet", subset=["snowflake"]),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize(
+    "on_error_parquet",
+    ["ABORT_STATEMENT", "SKIP_FILE", "CONTINUE"],
+)
+def test_snowflake_use_vectorized_scanner(
+    destination_config: DestinationTestConfiguration,
+    on_error_parquet: str
+) -> None:
+    """Using use_vectorized_scanner = true option to use vectorized scanner for parquet files"""
+    os.environ["DESTINATION__SNOWFLAKE__USE_VECTORIZED_SCANNER"] = "TRUE"
+    os.environ["DESTINATION__SNOWFLAKE__ON_ERROR_PARQUET"] = on_error_parquet
+
+    pipeline, data = simple_nested_pipeline(
+        destination_config, f"vectorized_scanner_{on_error_parquet}_{uniq_id()}", False
+    )
+
+    if on_error_parquet not in ["ABORT_STATEMENT", "SKIP_FILE"]:
+        with pytest.raises(PipelineStepFailed) as step_ex:
+            pipeline.run(data, **destination_config.run_kwargs)
+        assert step_ex.value.__cause__, ConfigurationValueError
+    else:
+        info = pipeline.run(data(), **destination_config.run_kwargs)
+        assert_load_info(info)
+
+    # test data that causes an 'Max LOB size (134217728) exceeded' error in Snowflake
+    @dlt.resource
+    def large_data():
+        yield {"id": 1, "value": "A" * 214748364}
+
+    if on_error_parquet == "ABORT_STATEMENT":
+        with pytest.raises(LoadClientJobFailed) as step_ex:
+            pipeline.run(large_data(), **destination_config.run_kwargs)
+
+    if on_error_parquet == "SKIP_FILE":
+        info = pipeline.run(data(), **destination_config.run_kwargs)
+        assert_load_info(info)
