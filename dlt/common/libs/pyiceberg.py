@@ -1,3 +1,4 @@
+import os
 from typing import Dict, Any, List, Optional
 
 from dlt import version, Pipeline
@@ -5,7 +6,7 @@ from dlt.common.libs.pyarrow import cast_arrow_schema_types
 from dlt.common.schema.typing import TWriteDisposition
 from dlt.common.utils import assert_min_pkg_version
 from dlt.common.exceptions import MissingDependencyException
-from dlt.common.storages.configuration import FileSystemCredentials
+from dlt.common.storages.configuration import FileSystemCredentials, FilesystemConfiguration
 from dlt.common.configuration.specs import CredentialsConfiguration
 from dlt.common.configuration.specs.mixins import WithPyicebergConfig
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
@@ -66,6 +67,13 @@ def get_sql_catalog(credentials: FileSystemCredentials) -> "SqlCatalog":  # type
     )
 
 
+def ensure_pyiceberg_local_path(location: str) -> str:
+    """Converts local absolute paths into file urls."""
+    if FilesystemConfiguration.is_local_path(location) and os.path.isabs(location):
+        return FilesystemConfiguration.make_file_url(location)
+    return location
+
+
 def create_or_evolve_table(
     catalog: MetastoreCatalog,
     client: FilesystemClient,
@@ -76,7 +84,7 @@ def create_or_evolve_table(
 ) -> MetastoreCatalog:
     # add table to catalog
     table_id = f"{namespace_name}.{table_name}"
-    table_path = f"{client.dataset_path}/{table_name}"
+    table_path = ensure_pyiceberg_local_path(f"{client.dataset_path}/{table_name}")
     metadata_path = f"{table_path}/metadata"
     if client.fs_client.exists(metadata_path):
         # found metadata; register existing table
