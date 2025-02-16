@@ -25,7 +25,7 @@ and load process.
 
 Fundamentally `dlt` is python code. This means that to run `dlt`, you should first set-up the [Python Connector](https://docs.getorchestra.io/docs/integrations/utility/python/) in Orchestra. You can find a step-by-step [dlt video tutorial here](https://www.youtube.com/watch?v=2V94CRXFZXk).
 
-When configuring the python connection, ensure environment variables such as secrets are added with the [proper naming convention](https://dlthub.com/docs/general-usage/credentials/setup).
+When configuring the python connection, ensure environment variables such as secrets are added with the [proper naming convention](../../general-usage/credentials/setup).
 
 For example:
 
@@ -47,7 +47,7 @@ After configuring you `.dlt` project, you should ensure the pipelines you want t
 
 Imported file;  `pipeline.py`
 
-```python
+```py
 from typing import List
 import dlt
 
@@ -172,7 +172,7 @@ def load_web_analytics_events(
 
 Executed File:  `run_pipelines.py`
 
-```python
+```py
 from pipeline.py import run_pipeline
 import os
 
@@ -187,7 +187,7 @@ After doing this, you should add a Python Task to a Pipeline like so:
 
 This will generate the below .yml:
 
-```yml
+```yaml
 version: v1
 name: 'Archive: Python2'
 pipeline:
