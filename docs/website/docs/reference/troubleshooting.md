@@ -311,7 +311,7 @@ Complex or inconsistent data structures can cause schema inference failures.
         - Enforce Type Consistency
             - You can enforce type consistency using the `apply_hints` method. This ensures all values in a column follow the specified data type.
 
-                ```python
+                ```py
                 # Assuming 'resource' is your data resource
                 resource.apply_hints(columns={
                     "value": {"data_type": "text"},  # Enforce 'value' to be of type 'text'
@@ -325,7 +325,7 @@ Complex or inconsistent data structures can cause schema inference failures.
             - For example, if a column named `value` contains both integers and strings, `dlt` creates a new column called `value__v_text` for the string values.
             - After processing multiple runs, the schema will be:
 
-                ```python
+                ```text
                 | name          | data_type     | nullable |
                 |---------------|---------------|----------|
                 | id            | bigint        | true     |
