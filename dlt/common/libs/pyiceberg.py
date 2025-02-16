@@ -87,7 +87,7 @@ def create_or_evolve_table(
 ) -> MetastoreCatalog:
     # add table to catalog
     table_id = f"{namespace_name}.{table_name}"
-    table_path = ensure_pyiceberg_local_path(f"{client.dataset_path}/{table_name}")
+    table_path = f"{client.dataset_path}/{table_name}"
     metadata_path = f"{table_path}/metadata"
     if client.fs_client.exists(metadata_path):
         # found metadata; register existing table
@@ -103,7 +103,7 @@ def create_or_evolve_table(
         with catalog.create_table_transaction(
             table_id,
             schema=ensure_iceberg_compatible_arrow_schema(schema),
-            location=_make_path(table_path, client),
+            location=ensure_pyiceberg_local_path(_make_path(table_path, client)),
         ) as txn:
             # add partitioning
             with txn.update_spec() as update_spec:
@@ -193,7 +193,7 @@ def _register_table(
     client: FilesystemClient,
 ) -> IcebergTable:
     last_metadata_file = _get_last_metadata_file(metadata_path, client)
-    return catalog.register_table(identifier, last_metadata_file)
+    return catalog.register_table(identifier, ensure_pyiceberg_local_path(last_metadata_file))
 
 
 def _make_path(path: str, client: FilesystemClient) -> str:
