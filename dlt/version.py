@@ -8,7 +8,9 @@ __version__ = pkg_version(DLT_PKG_NAME)
 DLT_PKG_REQUIREMENT = f"{DLT_PKG_NAME}=={__version__}"
 
 
-def get_installed_requirement_string(package: str = DLT_PKG_NAME) -> str:
+def get_installed_requirement_string(
+    package: str = DLT_PKG_NAME, allow_earlier: bool = False
+) -> str:
     """Gets the requirement string of currently installed dlt version"""
     dist = pkg_distribution(package)
     # PEP 610 https://packaging.python.org/en/latest/specifications/direct-url/#specification
@@ -25,5 +27,6 @@ def get_installed_requirement_string(package: str = DLT_PKG_NAME) -> str:
     if package == DLT_PKG_NAME:
         package_requirement = DLT_PKG_REQUIREMENT
     else:
-        package_requirement = f"{package}=={pkg_version(package)}"
+        ver_selector = "<=" if allow_earlier else "=="
+        package_requirement = f"{package}{ver_selector}{pkg_version(package)}"
     return package_requirement
