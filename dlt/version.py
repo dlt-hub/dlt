@@ -24,9 +24,9 @@ def get_installed_requirement_string(
         if url.scheme == "file":
             return url2pathname(url.path)
 
+    ver_selector = "<=" if allow_earlier else "=="
     if package == DLT_PKG_NAME:
-        package_requirement = DLT_PKG_REQUIREMENT
+        package_requirement = f"{DLT_PKG_NAME}{ver_selector}{__version__}"
     else:
-        ver_selector = "<=" if allow_earlier else "=="
         package_requirement = f"{package}{ver_selector}{pkg_version(package)}"
     return package_requirement

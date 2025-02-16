@@ -70,7 +70,10 @@ def get_sql_catalog(credentials: FileSystemCredentials) -> "SqlCatalog":  # type
 def ensure_pyiceberg_local_path(location: str) -> str:
     """Converts local absolute paths into file urls."""
     if FilesystemConfiguration.is_local_path(location) and os.path.isabs(location):
-        return FilesystemConfiguration.make_file_url(location)
+        if os.name == "nt":
+            file_url = FilesystemConfiguration.make_file_url(location)
+            # pyiceberg cannot deal with windows absolute urls
+            return file_url.replace("file:///", "file://")
     return location
 
 
