@@ -99,14 +99,10 @@ const sidebars = {
             'plus/features/data-access',
             {
               type: 'category',
-              label: 'Staging: data quality & tests',
-              link: {
-                type: 'doc',
-                id: 'plus/features/quality/index',
-              },
+              label: 'Data quality & tests',
               items: [
-                'plus/features/quality/data_quality',
                 'plus/features/quality/tests',
+                'plus/features/quality/data-quality',
               ]
             },
             'plus/features/transformations',
