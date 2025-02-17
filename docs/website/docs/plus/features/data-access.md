@@ -40,7 +40,7 @@ dlt+ Projects can be distributed as Python packages, with which data end-users a
 
     In this example, `print(catalog)` shows two available datasets in the catalog: `github_events_dataset` in an s3 bucket and `reports_dataset` in a Snowflake warehouse.
 
-    ```bash
+    ```sh
     Datasets in project dlt_example_project for profile access:
     github_events_dataset@delta_lake[s3://dlt-ci-test-bucket/dlt_plus_demo/lake_1/]
     reports_dataset@warehouse[snowflake://loader:***@kgiotue-wn98412/dlt_data]
@@ -48,7 +48,7 @@ dlt+ Projects can be distributed as Python packages, with which data end-users a
 
     And `print(catalog.github_events_dataset)` shows the available tables in the dataset `github_events_dataset`.
 
-    ```bash
+    ```sh
     Dataset github_events_dataset tables in logical schema events@v2
     pull_request_event
     issues_event
@@ -137,7 +137,7 @@ print(catalog.github_events_dataset.save(reports_df, table_name="aggregated_issu
 
 then they would get the following error:  
   
-```bash
+```sh
 PipelineStepFailed: Pipeline execution failed at stage extract when processing package 1730314603.1941314 with exception:
 
 <class 'dlt.common.schema.exceptions.DataValidationError'>
@@ -159,7 +159,7 @@ print(catalog.reports_dataset.save(reports_df, table_name="aggregated_issues"))
 
 then they would get the following error:  
   
-```bash
+```sh
 
 PipelineStepFailed: Pipeline execution failed at stage extract when processing package 1730314610.4309433 with exception:
 
