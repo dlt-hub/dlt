@@ -96,7 +96,7 @@ const sidebars = {
           type: 'category',
           label: 'Features',
           items: [
-            'plus/features/security',
+            'plus/features/data-access',
             {
               type: 'category',
               label: 'Staging: data quality & tests',
