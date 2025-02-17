@@ -100,7 +100,7 @@ dlt+ Projects can be distributed as Python packages, with which data end-users a
     ```
 
     Running this lines gives the following output:  
-    ```py
+    ```sh
     Pipeline save_aggregated_issues_pipeline load step completed in 7.85 seconds
     1 load package(s) were loaded to destination warehouse and into dataset reports_dataset
     The warehouse destination used snowflake://loader:***@kgiotue-wn98412/dlt_data location to store data
