@@ -10,7 +10,7 @@ By treating datasets as individual entites, dlt+ enables data cataloging and dat
   
 #### Data cataloging  
   
-Datasets automatically create data catalogs that can be used to discover schema, and [read and write data](../features/security.md).
+Datasets automatically create data catalogs that can be used to discover schema, and [read and write data](../features/data-access.md).
 
 #### Data governance  
   
