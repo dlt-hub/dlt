@@ -1,8 +1,12 @@
 ---
-title: Command Line Interface
+title: Command line interface
 description: Command line interface (CLI) full reference of dlt
 keywords: [command line interface, cli, dlt init]
 ---
+
+import Link from '../_plus_admonition.md';
+
+<Link/>
 
 
 # Command Line Interface Reference

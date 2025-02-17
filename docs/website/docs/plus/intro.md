@@ -3,14 +3,18 @@ title: Introduction
 description: Introduction to dlt+
 ---
 
+import Link from '../_plus_admonition.md';
+
+<Link/>
+
 # What is dlt+?
 
 ![dlt+](/img/slot-machine-gif.gif)
 
 dlt+ is a framework for running dlt pipelines in production at scale. It is the commercial extension to the open source data load tool (dlt). Features include:
 
-* dlt+ projects: empower any team members to define sources, destinations and pipelines in a declarative yaml interface
-* dlt+ staging: run transformations locally on DuckDB, arrow or the engine of your choice
+* dlt+ Projects: a declarative yaml interface that allows any team member to easily define sources, destinations and pipelines
+* dlt+ Staging: a complete testing and validation layer for data transformations, combining a local cache with schema enforcement, debugging tools, and integration with existing data workflows.
 * Iceberg support
 * Secure data access and sharing
 * AI workflows: agents to augment your data engineering team

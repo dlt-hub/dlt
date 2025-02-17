@@ -70,7 +70,6 @@ const sidebars = {
           items: [
             'plus/getting-started/installation',
             'plus/getting-started/tutorial',
-            'plus/getting-started/advanced_tutorial',
           ]
         },
         {
@@ -81,6 +80,7 @@ const sidebars = {
             'plus/core-concepts/cache',
             'plus/core-concepts/transformations',
             'plus/core-concepts/datasets',
+            'plus/core-concepts/profiles',
           ]
         },
         {
@@ -98,7 +98,18 @@ const sidebars = {
           items: [
             'plus/features/projects',
             'plus/features/security',
-            'plus/features/quality',
+            {
+              type: 'category',
+              label: 'Staging: data quality & tests',
+              link: {
+                type: 'doc',
+                id: 'plus/features/quality/index',
+              },
+              items: [
+                'plus/features/quality/data_quality',
+                'plus/features/quality/tests',
+              ]
+            },
             'plus/features/transformations',
             'plus/features/ai',
           ]
@@ -107,8 +118,8 @@ const sidebars = {
           type: 'category',
           label: 'Going to production',
           items: [
-            'plus/production/observability',
             'plus/production/runners',
+            'plus/production/observability',
           ]
         },
         'plus/reference',
