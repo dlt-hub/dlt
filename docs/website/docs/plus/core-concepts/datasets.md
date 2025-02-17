@@ -6,11 +6,11 @@ By treating datasets as individual entites, dlt+ enables data cataloging and dat
   
 #### Data cataloging  
   
-Datasets automatically create data catalogs that can be used to discover schema, and read and write data.
+Datasets automatically create data catalogs that can be used to discover schema, and [read and write data](../features/security.md).
 
 #### Data governance  
   
-Datasets are a fundamental unit of governance in the package. Using the declarative interface of dlt+, it is possible to control:  
-1. where they are materialized: you can specify which destinations you would like to materialize the datasets in.
-2. who can access them: you can enable and disable them per profile.
+Datasets are a fundamental unit of governance in the dlt+ Project. Using the declarative interface of dlt+, you can control:  
+1. Where they are materialized: you can specify which destinations you would like to materialize the datasets in.
+2. Who can access them: you can enable and disable them per profile.
 3. who can modify the schemas: you can also set schema contracts per profile.

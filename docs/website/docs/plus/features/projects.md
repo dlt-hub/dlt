@@ -1,6 +1,15 @@
-# dlt+ Projects
+# dlt+ Project
 
-In dlt+ you can declare and package data platforms entities as a [dlt+ Project](../core-concepts/project.md) and distribute it through PyPI or git. dlt+ Projects automate data loading, data transformations, data catalogs, and data governance, and enable different members of the data teams to work more easily with each other.
+[dlt+ Project] (../core-concepts/project.md) provides a structured and opinionated approach to organizing data workflows while implementing best practices for data engineering teams. dlt+ Project automates key processes such as data loading, data transformations, data catalogs, and data governance, and enables different members of the data teams to work more easily with each other. 
+
+With dlt+ Project, you can efficiently manage your data workflows by:
+
+1. [Using a declarative `dlt.yml` file](#the-dlt-manifest-file-dltyml) to define sources, destinations, pipelines, and transformations.
+2. Configuring [different profiles](../core-concepts/profiles.md)  for various use cases and environments. 
+3. Ensuring data quality by defining tests with [dlt+ tests utils](./quality/tests.md).
+4. Packaging your project as a Python package and distributing it via PyPI or git repository.
+
+This structured approach allows teams to work efficiently while maintaining flexibility and control over their data workflows.
 
 ## Project structure
   
@@ -102,7 +111,7 @@ caches:
 
 #### Transformations
 
-Here you specify the settings for your transformations. In the code example we define an arrow-based transformation that will operate on the cache "github_events_cache". It will make use of code in the `transformations/` folder. Read more about how transformations are done [here](../core-concepts/cache.md). 
+Here you specify the settings for your transformations. In the code example we define an arrow-based transformation that will operate on the cache "github_events_cache". It will make use of code in the `transformations/` folder. Read more about how transformations are done [here](../features/transformations/index.md). 
 
 ```yaml
 transformations:
@@ -113,7 +122,7 @@ transformations:
 
 #### Profiles
 
-You can use the profiles section to define different environments (example: dev, staging, prod, tests). One package may have multiple profiles which can be specified using dlt+ CLI commands. The default profile name is `dev`. If you want to use dlt test helpers, you must define a `tests` profile as well.
+You can use the profiles section to define different environments (example: dev, staging, prod, tests). One package may have multiple profiles which can be specified using dlt+ cli commands. The default profile name is `dev`. It's created automatically alongside with `tests` profile.
 
 ```yaml
 profiles:
@@ -146,3 +155,7 @@ As shown above, it is possible to pass additional dlt settings and configuration
 1. environ provider
 2. `.dlt/config.toml` provider, including the global config
 3. `.dlt/<profile_name>.secrets.toml`, which is the secrets toml provider but scoped to a particular profile. A per-profile version (`dev.secrets.toml`) is sought instead of the `secrets.toml` file.
+
+:::note
+Based on the information about precedence in the [configuration docs](../../general-usage/credentials/setup#available-config-providers), the yaml files provide the lowest precedence of all providers just above the default values for a config value. Settings in the yaml file will therefore be overridden by `toml` and `env` variables if present.
+:::
