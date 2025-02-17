@@ -4,6 +4,10 @@ description: Explore data in your dlt+ project with Claude Desktop using the Mod
 keywords: [dlt+, Claude Desktop, MCP, Model Context Protocol]
 ---
 
+import Link from '../../_plus_admonition.md';
+
+<Link/>
+
 # AI Workflows
 
 As part of dlt+ we are developing several tools to enhance development with AI workflows. The first of these is a [Model Context Protocol (MCP)](https://modelcontextprotocol.io) plugin for Claude Desktop for data exploration.

@@ -4,6 +4,10 @@ description: MS SQL replication
 keywords: [MSSQL, CDC, Change Tracking, MSSQL replication]
 ---
 
+import Link from '../../_plus_admonition.md';
+
+<Link/>
+
 # MS SQL replication
 
 dlt+ provides a comprehensive solution for syncing an MS SQL Server table using [Change Tracking](https://learn.microsoft.com/en-us/sql/relational-databases/track-changes/about-change-tracking-sql-server), a solution similar to CDC. By leveraging SQL Server's native Change Tracking feature, you can efficiently load incremental data changes — including inserts, updates, and deletes — into your destination.

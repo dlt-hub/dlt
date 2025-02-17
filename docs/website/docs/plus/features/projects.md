@@ -1,3 +1,7 @@
+import Link from '../../_plus_admonition.md';
+
+<Link/>
+
 ## Substitution
 
 You can reference environment variables in the `dlt.yml` file using the `${ENV_VARIABLE_NAME}` syntax. Additionally, dlt+ provides several [predefined project variables](../features/projects.md#substitution) that are automatically substituted during loading.
