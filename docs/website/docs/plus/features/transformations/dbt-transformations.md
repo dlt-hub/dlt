@@ -2,7 +2,7 @@
 title: dbt generator
 description: Generate dbt models automatically
 ---
-import Link from '../../_plus_admonition.md';
+import Link from '../../../_plus_admonition.md';
 
 <Link/>
 

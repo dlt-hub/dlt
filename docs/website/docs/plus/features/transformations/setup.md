@@ -2,7 +2,7 @@
 title: Setup
 description: Define and execute local transformations
 ---
-import Link from '../../_plus_admonition.md';
+import Link from '../../../_plus_admonition.md';
 
 <Link/>
 

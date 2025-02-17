@@ -4,7 +4,7 @@ description: Run local transformations with dlt+ Cache
 keywords: ["dlt+", "transformations", "cache", "dbt"]
 ---
 import DocCardList from '@theme/DocCardList';
-import Link from '../../_plus_admonition.md';
+import Link from '../../../_plus_admonition.md';
 
 <Link/>
 
