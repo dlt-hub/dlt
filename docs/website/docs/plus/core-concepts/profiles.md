@@ -61,7 +61,7 @@ dlt pipeline --profile dev my_pipeline run
 dlt pipeline --profile tests my_pipeline run
 ```
 
-:::warning
+:::caution
 Please note the following inconsistencies between the YAML and TOML files that will be fixed in the future:
 
 * The YAML `destinations` section is singularized to `destination` in the TOML file.
