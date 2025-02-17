@@ -8,19 +8,20 @@ from google.api_core import retry
 from google.cloud import exceptions as gcp_exceptions
 from google.cloud.bigquery.retry import _RETRYABLE_REASONS
 
-from dlt.common import logger
+from dlt.common import pendulum, logger
 from dlt.common.destination import DestinationCapabilitiesContext, PreparedTableSchema
 from dlt.common.destination.client import (
     HasFollowupJobs,
     FollowupJobRequest,
     RunnableLoadJob,
+    StateInfo,
     SupportsStagingDestination,
     LoadJob,
 )
 from dlt.common.json import json
 from dlt.common.runtime.signals import sleep
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns
-from dlt.common.schema.typing import TColumnType
+from dlt.common.schema.typing import C_DLT_LOAD_ID, TColumnType
 from dlt.common.schema.utils import get_inherited_table_hint, get_columns_names_with_prop
 from dlt.common.storages.load_package import destination_state
 from dlt.common.typing import DictStrAny
