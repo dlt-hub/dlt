@@ -22,8 +22,7 @@ A dlt+ Project has the following general structure:
 │    │   ├── dev.secrets.toml  # credentials for access profile 'dev'
 │    │   └── secrets.toml      
 │    ├── sources/              # modules containing the source code for sources 
-│    │   └── github.py         # source code for a github source  
-│    ├── destinations/         # modules containing the source code for destinations  
+│    │   └── github.py         # source code for a github source   
 │    ├── transformations/      # modules containing the source code for transformations 
 │    ├── .gitignore
 │    └── dlt.yml               # the main dlt manifest file
@@ -59,7 +58,7 @@ sources:
 ```
 #### Destinations  
   
-The destinations section defines dlt destinations in a similar way to how you would define them in a pure Python dlt project. As with sources, you can also reference custom implementations of destinations from inside the `destinations/` folder.
+The destinations section defines dlt destinations in a similar way to how you would define them in a pure Python dlt project. As with sources, you can also create a `destinations/` folder and reference custom implementations of destinations inside it.
   
 ```yaml  
 destinations:
@@ -82,16 +81,16 @@ You can declare all arguments of `dlt.pipeline` in this section. For a full list
 
 #### Datasets
 
-The datasets section defines datasets that live on a destination (defined in the destinations section). Read more about datasets in dlt+ [here](../core-concepts/datasets.md).  
+The datasets section defines datasets that live on a destination (defined in the destinations section). Any datasets declared in the [pipeline section](#pipelines) are automatically created if not declared here. Read more about datasets in dlt+ [here](../core-concepts/datasets.md).  
   
 ```yaml
 datasets:
     github_events_dataset:
-        "on":
-            - duckdb
+        destination:
+          - duckdb
 ```
 
-#### Caches  
+#### Caches 🧪
 
 In this section you specify the input table(s) that you want to transform, and the output table(s) that you want to write after performing the transformations. The example below loads the table "events" from the destination dataset "github_events_dataset" into a local cache, then transforms it using the transformations inside the `transformations/` folder, and finally writes two tables back into the dataset "github_events_dataset": the original "events" table, and the transformed "events_aggregated" table. Read more about how local cache is used for transformations [here](../core-concepts/datasets.md).
   
@@ -108,8 +107,11 @@ caches:
           events: events
           events_aggregated: events_aggregated
 ```
+:::note
+🚧 This feature is under development. Interested in becoming an early tester? [Join dlt+ early access](https://info.dlthub.com/waiting-list)
+:::
 
-#### Transformations
+#### Transformations 🧪
 
 Here you specify the settings for your transformations. In the code example we define an arrow-based transformation that will operate on the cache "github_events_cache". It will make use of code in the `transformations/` folder. Read more about how transformations are done [here](../features/transformations/index.md). 
 
@@ -119,6 +121,9 @@ transformations:
     engine: arrow
     cache: github_events_cache
 ```
+:::note
+🚧 This feature is under development. Interested in becoming an early tester? [Join dlt+ early access](https://info.dlthub.com/waiting-list)
+:::
 
 #### Profiles
 
@@ -139,7 +144,7 @@ profiles:
 
 ```
 
-#### Misc settings
+#### Other settings
 
 It is also possible to add additional dlt settings that mirror the `config.toml` settings:
 

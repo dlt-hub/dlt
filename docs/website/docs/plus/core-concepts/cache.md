@@ -1,4 +1,8 @@
-# Local Transformation Cache
+---
+title: "🧪 Cache"
+description: Execute data transformations in your local cache
+keywords: ["dlt+", "cache", "transformations"]
+---
 
 The dlt+ Cache is a temporary local storage created by dlt+ to enhance development workflows. It allows you to efficiently run local transformations, materialize dbt models, and test your queries before deploying them to production. 
 
