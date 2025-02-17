@@ -380,6 +380,32 @@ class BigQueryClient(SqlJobClientWithStagingDataset, SupportsStagingDestination)
                 schema_tables.append((table_name, {}))
         return schema_tables
 
+    # the difference between this and base class method is LIMIT 1 clause in SQL query
+    def get_stored_state(self, pipeline_name: str) -> StateInfo:
+        state_table = self.sql_client.make_qualified_table_name(self.schema.state_table_name)
+        loads_table = self.sql_client.make_qualified_table_name(self.schema.loads_table_name)
+        c_load_id, c_dlt_load_id, c_pipeline_name, c_status = self._norm_and_escape_columns(
+            "load_id", C_DLT_LOAD_ID, "pipeline_name", "status"
+        )
+        query = (
+            f"SELECT {self.state_table_columns} FROM {state_table} AS s JOIN {loads_table} AS l ON"
+            f" l.{c_load_id} = s.{c_dlt_load_id} WHERE {c_pipeline_name} = %s AND l.{c_status} = 0"
+            f" ORDER BY {c_load_id} DESC LIMIT 1"
+        )
+        with self.sql_client.execute_query(query, pipeline_name) as cur:
+            row = cur.fetchone()
+        if not row:
+            return None
+        # NOTE: we request order of columns in SELECT statement which corresponds to StateInfo
+        return StateInfo(
+            version=row[0],
+            engine_version=row[1],
+            pipeline_name=row[2],
+            state=row[3],
+            created_at=pendulum.instance(row[4]),
+            _dlt_load_id=row[5],
+        )
+
     def _get_info_schema_columns_query(
         self, catalog_name: Optional[str], schema_name: str, folded_table_names: List[str]
     ) -> Tuple[str, List[Any]]:
