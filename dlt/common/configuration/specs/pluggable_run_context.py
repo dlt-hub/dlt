@@ -1,5 +1,5 @@
 from types import ModuleType
-from typing import Any, ClassVar, Dict, List, Optional, Protocol
+from typing import Any, ClassVar, Dict, List, Optional, Protocol, Union
 
 from dlt.common.configuration.providers.provider import ConfigProvider
 from dlt.common.configuration.specs.base_configuration import ContainerInjectableContext
@@ -29,8 +29,8 @@ class SupportsRunContext(Protocol):
         """Defines the current working directory, defaults to cwd()"""
 
     @property
-    def tmp_dir(self) -> str:
-        """Defines temporary data dir where local relative dirs and files are created, defaults to run_dir"""
+    def local_dir(self) -> str:
+        """Defines data dir where local relative dirs and files are created, defaults to run_dir"""
 
     @property
     def settings_dir(self) -> str:
@@ -91,18 +91,26 @@ class PluggableRunContext(ContainerInjectableContext):
         self.providers = ConfigProvidersContainer(self.context.initial_providers())
         self.runtime_config = runtime_config
 
-    def reload(self, run_dir: Optional[str] = None, runtime_kwargs: Dict[str, Any] = None) -> None:
+    def reload(
+        self,
+        run_dir_or_context: Optional[Union[str, SupportsRunContext]] = None,
+        runtime_kwargs: Dict[str, Any] = None,
+    ) -> None:
         """Reloads the context, using existing settings if not overwritten with method args"""
 
-        if run_dir is None:
-            run_dir = self.context.run_dir
+        if run_dir_or_context is None:
+            run_dir_or_context = self.context.run_dir
             if runtime_kwargs is None:
                 runtime_kwargs = self.context.runtime_kwargs
+            elif self.context.runtime_kwargs:
+                runtime_kwargs = {**self.context.runtime_kwargs, **runtime_kwargs}
 
         self.runtime_config = None
         self.before_remove()
-        self._plug(run_dir, runtime_kwargs=runtime_kwargs)
-
+        if isinstance(run_dir_or_context, str):
+            self._plug(run_dir_or_context, runtime_kwargs=runtime_kwargs)
+        else:
+            self.context = run_dir_or_context
         self.providers = ConfigProvidersContainer(self.context.initial_providers())
         self.after_add()
         # adds remaining providers and initializes runtime
@@ -165,9 +173,8 @@ class PluggableRunContext(ContainerInjectableContext):
         _c, context, providers, runtime_config = self._context_stack.pop()
         if cookie != _c:
             raise ValueError(f"Run context stack mangled. Got cookie {_c} but expected {cookie}")
-        self.context = context
-        self.providers = providers
-        self.initialize_runtime(runtime_config)
+        self.runtime_config = runtime_config
+        self.reload(context)
 
     def drop_context(self, cookie: str) -> None:
         """Pops context form stack but leaves new context for good"""

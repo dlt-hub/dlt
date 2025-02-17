@@ -53,7 +53,7 @@ lint:
 	poetry run flake8 --max-line-length=200 tests --exclude tests/reflection/module_cases,tests/common/reflection/cases/modules/
 	poetry run black dlt docs tests --check --diff --color --extend-exclude=".*syntax_error.py"
 	# poetry run isort ./ --diff
-	# $(MAKE) lint-security
+	$(MAKE) lint-security
 
 format:
 	poetry run black dlt docs tests --extend-exclude='.*syntax_error.py|_storage/.*'
@@ -77,7 +77,8 @@ test-examples:
 	cd docs/examples && poetry run pytest
 
 lint-security:
-	poetry run bandit -r dlt/ -n 3 -l
+	# go for ll by cleaning up eval and SQL warnings.
+	poetry run bandit -r dlt/ -n 3 -lll
 
 test:
 	poetry run pytest tests

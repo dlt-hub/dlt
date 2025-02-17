@@ -20,7 +20,7 @@ from typing import (
     cast,
 )
 
-from dlt.common.typing import TFun, TypedDict
+from dlt.common.typing import TFun, TypedDict, Self
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.utils import concat_strings_with_limit
@@ -93,7 +93,7 @@ class SqlClientBase(ABC, Generic[TNativeConn]):
             raise AttributeError(name)
         return getattr(self.native_connection, name)
 
-    def __enter__(self) -> "SqlClientBase[TNativeConn]":
+    def __enter__(self) -> Self:
         self.open_connection()
         return self
 

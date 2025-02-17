@@ -16,7 +16,7 @@ LEGACY_DB_PATH_LOCAL_STATE_KEY = "duckdb_database"
 
 @dataclass
 class WithLocalFiles(DestinationClientConfiguration):
-    tmp_dir: Annotated[str, NotResolved()] = None
+    local_dir: Annotated[str, NotResolved()] = None
     # needed by duckdb
     pipeline_name: Annotated[Optional[str], NotResolved()] = None
     pipeline_working_dir: Annotated[Optional[str], NotResolved()] = None
@@ -30,13 +30,13 @@ class WithLocalFiles(DestinationClientConfiguration):
                 self.legacy_db_path = pipeline.get_local_state_val(LEGACY_DB_PATH_LOCAL_STATE_KEY)
             except KeyError:
                 pass
-            self.tmp_dir = pipeline.get_local_state_val("initial_cwd")
+            self.local_dir = pipeline.get_local_state_val("initial_cwd")
             self.pipeline_name = pipeline.pipeline_name
         return self
 
     def on_partial(self) -> None:
-        if not self.tmp_dir:
-            self.tmp_dir = os.path.abspath(dlt.current.run_context().tmp_dir)
+        if not self.local_dir:
+            self.local_dir = os.path.abspath(dlt.current.run_context().local_dir)
             self.resolve()
 
     def make_location(self, configured_location: str, default_location_pat: str) -> str:
@@ -77,4 +77,4 @@ class WithLocalFiles(DestinationClientConfiguration):
             if self.legacy_db_path:
                 return self.legacy_db_path
             # use tmp path as root, not cwd
-            return os.path.join(self.tmp_dir, configured_location or default_location)
+            return os.path.join(self.local_dir, configured_location or default_location)

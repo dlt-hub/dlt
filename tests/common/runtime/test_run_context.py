@@ -40,7 +40,7 @@ def test_run_context() -> None:
     # regular settings before runtime_config applies
     assert run_context.name == "dlt"
     assert run_context.global_dir == run_context.data_dir
-    assert run_context.run_dir == run_context.tmp_dir
+    assert run_context.run_dir == run_context.local_dir
 
     # check config providers
     assert len(run_context.initial_providers()) == 3

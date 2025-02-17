@@ -14,7 +14,8 @@ class DLTEnvBuilder(venv.EnvBuilder):
     context: types.SimpleNamespace
 
     def __init__(self) -> None:
-        super().__init__(with_pip=True, clear=True)
+        # setup pip only if autodetect or explicit pip, skip for uv etc.
+        super().__init__(with_pip=Venv.get_pip_tool() == "pip", clear=True)
 
     def post_setup(self, context: types.SimpleNamespace) -> None:
         self.context = context
@@ -127,14 +128,18 @@ class Venv:
         Venv._install_deps(self.context, dependencies)
 
     @staticmethod
-    def _install_deps(context: types.SimpleNamespace, dependencies: List[str]) -> None:
+    def get_pip_tool() -> str:
         if Venv.PIP_TOOL is None:
             # autodetect tool
             import shutil
 
-            Venv.PIP_TOOL = "uv" if shutil.which("uv") else "pip"
+            return "uv" if shutil.which("uv") else "pip"
+        return Venv.PIP_TOOL
 
-        if Venv.PIP_TOOL == "uv":
+    @staticmethod
+    def _install_deps(context: types.SimpleNamespace, dependencies: List[str]) -> None:
+        pip_tool = Venv.get_pip_tool()
+        if pip_tool == "uv":
             cmd = [
                 "uv",
                 "pip",
@@ -145,7 +150,7 @@ class Venv:
                 "if-necessary-or-explicit",
             ]
         else:
-            cmd = [context.env_exe, "-Im", Venv.PIP_TOOL, "install"]
+            cmd = [context.env_exe, "-Im", pip_tool, "install"]
 
         try:
             subprocess.check_output(

@@ -11,7 +11,7 @@ from tenacity import (
     RetryCallState,
 )
 
-from dlt.common.known_env import DLT_DATA_DIR, DLT_PROJECT_DIR, DLT_TMP_DIR
+from dlt.common.known_env import DLT_DATA_DIR, DLT_PROJECT_DIR, DLT_LOCAL_DIR
 from dlt.common.exceptions import MissingDependencyException
 
 try:
@@ -126,7 +126,7 @@ class PipelineTasksGroup(TaskGroup):
             data_dir = os.path.join(local_data_folder or gettempdir(), f"dlt_{uniq_id(8)}")
         os.environ[DLT_DATA_DIR] = data_dir
         # also keep all local files created by destinations in data_dir
-        os.environ[DLT_TMP_DIR] = data_dir
+        os.environ[DLT_LOCAL_DIR] = data_dir
 
         # reload config providers (TODO: inject Airflow run context)
         if PluggableRunContext in Container():

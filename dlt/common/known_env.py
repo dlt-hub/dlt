@@ -6,7 +6,7 @@ DLT_PROJECT_DIR = "DLT_PROJECT_DIR"
 DLT_DATA_DIR = "DLT_DATA_DIR"
 """Sets default directory where pipelines' data (working directories) will be stored"""
 
-DLT_TMP_DIR = "DLT_TMP_DIR"
+DLT_LOCAL_DIR = "DLT_LOCAL_DIR"
 """Sets a directory where local filesystem files are stored by destinations."""
 
 DLT_CONFIG_FOLDER = "DLT_CONFIG_FOLDER"
