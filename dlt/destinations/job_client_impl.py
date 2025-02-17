@@ -425,9 +425,9 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
         maybe_limit_clause_1, maybe_limit_clause_2 = self.sql_client._limit_clause_sql(1)
 
         query = (
-            f"SELECT {maybe_limit_clause_1} {self.state_table_columns} FROM {state_table} AS s JOIN {loads_table} AS l ON"
-            f" l.{c_load_id} = s.{c_dlt_load_id} WHERE {c_pipeline_name} = %s AND l.{c_status} = 0"
-            f" ORDER BY {c_load_id} DESC {maybe_limit_clause_2}"
+            f"SELECT {maybe_limit_clause_1} {self.state_table_columns} FROM {state_table} AS s JOIN"
+            f" {loads_table} AS l ON l.{c_load_id} = s.{c_dlt_load_id} WHERE {c_pipeline_name} = %s"
+            f" AND l.{c_status} = 0 ORDER BY {c_load_id} DESC {maybe_limit_clause_2}"
         )
 
         with self.sql_client.execute_query(query, pipeline_name) as cur:
@@ -456,8 +456,8 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
         maybe_limit_clause_1, maybe_limit_clause_2 = self.sql_client._limit_clause_sql(1)
 
         query = (
-            f"SELECT {maybe_limit_clause_1} {self.version_table_schema_columns} FROM {table_name} WHERE"
-            f" {c_version_hash} = %s {maybe_limit_clause_2};"
+            f"SELECT {maybe_limit_clause_1} {self.version_table_schema_columns} FROM"
+            f" {table_name} WHERE {c_version_hash} = %s {maybe_limit_clause_2};"
         )
         return self._row_to_schema_info(query, version_hash)
 
