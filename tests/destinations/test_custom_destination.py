@@ -689,3 +689,35 @@ def test_max_nesting_level(nesting: int) -> None:
 
     for table in found_tables:
         assert table.startswith("data")
+
+
+def test_large_payload():
+    # NOTE: tests large number of records that get line wrapped in typed jsonl
+    num_records = 50000
+
+    @dlt.resource
+    def generate_large_data():
+        for i in range(0, num_records):
+            yield {
+                "id": i,
+                "name": f"Item_{i}",
+                "description": "some_string",
+            }
+
+    items_count = 0
+
+    # Custom destination
+    @dlt.destination(batch_size=1000)
+    def my_destination(items: TDataItems, table: TTableSchema):
+        nonlocal items_count
+        items_count += len(items)
+
+    pipeline = dlt.pipeline(
+        pipeline_name="my_pipeline",
+        destination=my_destination,
+        dev_mode=True,
+    )
+
+    pipeline.run(generate_large_data())
+
+    assert items_count == num_records
