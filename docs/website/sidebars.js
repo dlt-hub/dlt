@@ -78,7 +78,6 @@ const sidebars = {
           items: [
             'plus/core-concepts/project',
             'plus/core-concepts/cache',
-            'plus/core-concepts/transformations',
             'plus/core-concepts/datasets',
             'plus/core-concepts/profiles',
           ]
@@ -96,21 +95,28 @@ const sidebars = {
           type: 'category',
           label: 'Features',
           items: [
-            'plus/features/projects',
-            'plus/features/security',
+            'plus/features/data-access',
             {
               type: 'category',
-              label: 'Staging: data quality & tests',
-              link: {
-                type: 'doc',
-                id: 'plus/features/quality/index',
-              },
+              label: 'Data quality & tests',
               items: [
-                'plus/features/quality/data_quality',
                 'plus/features/quality/tests',
+                'plus/features/quality/data-quality',
               ]
             },
-            'plus/features/transformations',
+            {
+              type: 'category',
+              label: 'Local transformations',
+              link: {
+                type: 'doc',
+                id: 'plus/features/transformations/index',
+              },
+              items: [
+                'plus/features/transformations/setup',
+                'plus/features/transformations/dbt-transformations',
+                'plus/features/transformations/python-transformations',
+              ]
+            },
             'plus/features/ai',
           ]
         },
