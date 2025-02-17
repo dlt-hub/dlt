@@ -244,7 +244,7 @@ class PageNumberPaginator(RangePaginator):
         base_page: int = 0,
         page: int = None,
         page_param: str = "page",
-        total_path: jsonpath.TJsonPath = "total",
+        total_path: Optional[jsonpath.TJsonPath] = "total",
         maximum_page: Optional[int] = None,
         stop_after_empty_page: Optional[bool] = True,
     ):
@@ -351,7 +351,7 @@ class OffsetPaginator(RangePaginator):
         offset: int = 0,
         offset_param: str = "offset",
         limit_param: str = "limit",
-        total_path: jsonpath.TJsonPath = "total",
+        total_path: Optional[jsonpath.TJsonPath] = "total",
         maximum_offset: Optional[int] = None,
         stop_after_empty_page: Optional[bool] = True,
     ) -> None:
