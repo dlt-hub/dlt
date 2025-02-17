@@ -1,6 +1,8 @@
 # dlt+ Project
+  
 
-![dlt+ Project image](https://storage.googleapis.com/dlt-blog-images/plus/dlt_plus_projects.png)
+<img src="https://storage.googleapis.com/dlt-blog-images/plus/dlt_plus_projects.png" width="500"/>
+
 
 [dlt+ Project](../core-concepts/project.md) provides a structured and opinionated approach to organizing data workflows while implementing best practices for data engineering teams. dlt+ Project automates key processes such as data loading, data transformations, data catalogs, and data governance, and enables different members of the data teams to work more easily with each other. 
 
