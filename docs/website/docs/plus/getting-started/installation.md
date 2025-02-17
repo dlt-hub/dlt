@@ -3,6 +3,10 @@ title: Installation
 description: Installation information for dlt+
 ---
 
+import Link from '../../_plus_admonition.md';
+
+<Link/>
+
 # Installation
 
 dlt+ requires a valid license to run, which you can obtain from dltHub by [joining our waiting list](https://info.dlthub.com/waiting-list).

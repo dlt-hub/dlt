@@ -3,6 +3,11 @@ title: "Staging: data quality & tests"
 description: Ensure high quality data
 keywords: ["dlt+", "data quality", "tests"]
 ---
+
+import Link from '../../../_plus_admonition.md';
+
+<Link/>
+
 import DocCardList from '@theme/DocCardList';
 
 dlt+ Staging is a complete testing and validation layer for data transformations, combining a local cache with schema enforcement, debugging tools, and integration with existing data workflows.

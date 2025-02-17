@@ -4,6 +4,10 @@ description: Run pipelines in production
 keywords: [runners, lambda, airflow]
 ---
 
+import Link from '../../_plus_admonition.md';
+
+<Link/>
+
 # Runners
 
 With dlt+ you can now run pipelines directly from the command line, allowing you to go to production faster:

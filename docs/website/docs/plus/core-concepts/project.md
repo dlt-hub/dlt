@@ -1,3 +1,7 @@
+import Link from '../../_plus_admonition.md';
+
+<Link/>
+
 # dlt+ Package
 
 A dlt+ package is a dlt project with an opinionated structure containing a Python manifest file (`dlt.yml`) where you can define dlt entities (sources, destinations, pipelines, transformations, etc.) in a declarative fashion. The package layout is fully compatible with a standard Python package approach and may be distributed via PyPI or as a git repository. It has the following components:

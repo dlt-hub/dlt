@@ -1,5 +1,9 @@
 # Local Transformation Cache
 
+import Link from '../../_plus_admonition.md';
+
+<Link/>
+
 If you are familiar with dlt pipelines, the concept of local transformations is easy to grasp. Pipelines simplify and automate the loading of data. Local transformations simplify and automate the transformation of data — primarily locally. In a nutshell:
 
 1. You pass a set of input dlt datasets to the transformation cache.

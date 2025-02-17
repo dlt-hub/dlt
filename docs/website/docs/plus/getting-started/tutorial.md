@@ -4,6 +4,10 @@ description: Using the dlt+ cli commands to create and manage dlt+ Projects
 keywords: [command line interface, cli, dlt init, dlt+, projects]
 ---
 
+import Link from '../../_plus_admonition.md';
+
+<Link/>
+
 This tutorial introduces you to dlt+ Projects and the essential cli commands needed to create and manage them. You will learn how to:
 
 * initialize a new dlt+ Project

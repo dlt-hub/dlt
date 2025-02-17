@@ -3,6 +3,10 @@ title: Introduction
 description: Introduction to dlt+
 ---
 
+import Link from '../_plus_admonition.md';
+
+<Link/>
+
 # What is dlt+?
 
 ![dlt+](/img/slot-machine-gif.gif)
