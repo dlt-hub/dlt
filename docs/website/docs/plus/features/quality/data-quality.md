@@ -8,8 +8,8 @@ import Link from '../../../_plus_admonition.md';
 
 <Link/>
 
-:::note
-🚧 This feature is under development. Interested in becoming an early tester? [Join dlt+ early access](https://info.dlthub.com/waiting-list)
+:::caution
+🚧 This feature is under development. Interested in becoming an early tester? [Join dlt+ early access](https://info.dlthub.com/waiting-list).
 :::
 
 dlt+ will allow you to define data validation rules at the YAML level or using Pydantic models. This ensures your data meets expected quality standards at the ingestion step.

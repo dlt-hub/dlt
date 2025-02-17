@@ -101,8 +101,8 @@ const sidebars = {
               type: 'category',
               label: 'Data quality & tests',
               items: [
-                'plus/features/quality/data-quality',
                 'plus/features/quality/tests',
+                'plus/features/quality/data-quality',
               ]
             },
             'plus/features/transformations',
