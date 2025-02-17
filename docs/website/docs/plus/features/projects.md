@@ -1,4 +1,4 @@
-# dlt+ Project
+# Project
   
 
 <img src="https://storage.googleapis.com/dlt-blog-images/plus/dlt_plus_projects.png" width="500"/>
@@ -94,10 +94,12 @@ datasets:
           - duckdb
 ```
 
-#### Caches 🧪
+#### Cache 🧪
 
 In this section you specify the input table(s) that you want to transform, and the output table(s) that you want to write after performing the transformations. The example below loads the table "events" from the destination dataset "github_events_dataset" into a local cache, then transforms it using the transformations inside the `transformations/` folder, and finally writes two tables back into the dataset "github_events_dataset": the original "events" table, and the transformed "events_aggregated" table. Read more about how local cache is used for transformations [here](../core-concepts/datasets.md).
   
+The cache feature is currently limited to specific use cases and is only compatible with data stored in filesystem-based destinations. Please, make sure that the input dataset for the cache is located in the filesystem-based destination ([Iceberg](../../ecosystem/iceberg.md), [Delta](../../ecosystem/delta.md), or [Cloud storage and filesystem](../../../dlt-ecosystem/destinations/filesystem.md)).
+
 ```yaml
 caches:
   github_events_cache:
@@ -117,7 +119,7 @@ caches:
 
 #### Transformations 🧪
 
-Here you specify the settings for your transformations. In the code example we define an arrow-based transformation that will operate on the cache "github_events_cache". It will make use of code in the `transformations/` folder. Read more about how transformations are done [here](../core-concepts/cache.md). 
+Here you specify the settings for your transformations. In the code example we define an arrow-based transformation that will operate on the cache "github_events_cache". It will make use of code in the `transformations/` folder. Read more about how transformations are done [here](../features/transformations/index.md). 
 
 ```yaml
 transformations:

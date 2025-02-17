@@ -10,7 +10,7 @@ The dlt+ Cache is a temporary local storage created by dlt+ to enhance developme
 
 ## How it works
 
-The dlt+ Cache is a powerful tool that enables users to shift parts of their data workflows earlier in the development process. Its primary use case today is running transformations locally, but we plan to support more use cases and workflows in the future.
+The dlt+ Cache is a powerful tool that enables users to shift parts of their data workflows earlier in the development process. Its primary use case today is [running transformations locally](../features/transformations/index.md), but we plan to support more use cases and workflows in the future.
 
 You specify which datasets you want to pass to the cache in your dlt manifest file (`dlt.yml`). The cache automatically discovers the source schema from the data and runs your transformations using the cache and duckdb as a query engine. Currently you can define your transformations in dbt or Python (pands, arrows, polars, etc.). After running your transformations, the cache will sync the results to the output dataset in your destination. Output schema is also automatically discovered (when not explicitly declared).
 
