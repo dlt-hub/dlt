@@ -95,6 +95,7 @@ const sidebars = {
           type: 'category',
           label: 'Features',
           items: [
+            'plus/features/projects',
             'plus/features/data-access',
             {
               type: 'category',
