@@ -2,6 +2,9 @@
 title: dbt generator
 description: Generate dbt models automatically
 ---
+import Link from '../../_plus_admonition.md';
+
+<Link/>
 
 The **dlt dbt generator** creates scaffolding for dbt projects using data ingested by dlt. It analyzes the pipeline schema and automatically generates staging and fact dbt models. By integrating with dlt-configured destinations, it automates code creation and supports incremental loading, ensuring that only new records are processed in both ingestion and transformation layers.
 
