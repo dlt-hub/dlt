@@ -10,6 +10,7 @@ from dlt.common.runtime.init import _INITIALIZED, apply_runtime_config, restore_
 from dlt.common.runtime.run_context import RunContext, get_plugin_modules, is_folder_writable
 from dlt.common.utils import set_working_dir
 
+import tests
 from tests.utils import MockableRunContext, TEST_STORAGE_ROOT
 
 
@@ -142,6 +143,14 @@ def test_context_switch_restores_logger() -> None:
         with Container().injectable_context(ctx):
             assert logger.LOGGER.name == "dlt-tests-2"
         assert logger.LOGGER.name == "dlt-tests"
+
+
+def test_run_dir_module_import() -> None:
+    with pytest.raises(ImportError, match="filesystem root"):
+        RunContext.import_run_dir_module(os.sep)
+    with pytest.raises(ImportError):
+        RunContext.import_run_dir_module(os.path.join("tests", "no_such_module"))
+    assert RunContext.import_run_dir_module("tests") is tests
 
 
 def test_tmp_folder_writable() -> None:
