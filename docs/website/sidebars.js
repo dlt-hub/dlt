@@ -99,14 +99,6 @@ const sidebars = {
             'plus/features/data-access',
             {
               type: 'category',
-              label: 'Data quality & tests',
-              items: [
-                'plus/features/quality/tests',
-                'plus/features/quality/data-quality',
-              ]
-            },
-            {
-              type: 'category',
               label: 'Local transformations',
               link: {
                 type: 'doc',
@@ -119,6 +111,14 @@ const sidebars = {
               ]
             },
             'plus/features/ai',
+            {
+              type: 'category',
+              label: 'Data quality & tests',
+              items: [
+                'plus/features/quality/tests',
+                'plus/features/quality/data-quality',
+              ]
+            },
           ]
         },
         {
