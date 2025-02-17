@@ -78,7 +78,6 @@ const sidebars = {
           items: [
             'plus/core-concepts/project',
             'plus/core-concepts/cache',
-            'plus/core-concepts/transformations',
             'plus/core-concepts/datasets',
             'plus/core-concepts/profiles',
           ]
@@ -105,7 +104,19 @@ const sidebars = {
                 'plus/features/quality/data-quality',
               ]
             },
-            'plus/features/transformations',
+            {
+              type: 'category',
+              label: 'Local transformations',
+              link: {
+                type: 'doc',
+                id: 'plus/features/transformations/index',
+              },
+              items: [
+                'plus/features/transformations/setup',
+                'plus/features/transformations/dbt-transformations',
+                'plus/features/transformations/python-transformations',
+              ]
+            },
             'plus/features/ai',
           ]
         },
