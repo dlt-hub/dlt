@@ -36,7 +36,7 @@ To use this feature, follow these steps:
 
 Before setting up the transformations in the `dlt.yml` file, you need to make sure you have defined the cache.
 
-### Defining cache
+### Defining the cache
 
 You can find detailed instructions on how to define a cache in the [cache core concept](../../core-concepts/cache.md). Here's an example:
 
@@ -55,10 +55,10 @@ caches:
 ```
 
 :::caution
-Please, make sure that the input dataset for the cache is located in filesystem-based destination ([Iceberg](../../ecosystem/iceberg.md), [Delta](../../ecosystem/delta.md), or [Cloud storage and filesystem](../../../dlt-ecosystem/destinations/filesystem.md))
+Please, make sure that the input dataset for the cache is located in a filesystem-based destination ([Iceberg](../../ecosystem/iceberg.md), [Delta](../../ecosystem/delta.md), or [Cloud storage and filesystem](../../../dlt-ecosystem/destinations/filesystem.md))
 :::
 
-### Defining transformation
+### Defining transformations
 
 Specify transformations in `dlt.yml` with the following parameters:
 

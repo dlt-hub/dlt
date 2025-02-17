@@ -6,12 +6,12 @@ import Link from '../../../_plus_admonition.md';
 
 <Link/>
 
-The **dlt dbt generator** creates scaffolding for dbt projects using data ingested by dlt. It analyzes the pipeline schema and automatically generates staging and fact dbt models. By integrating with dlt-configured destinations, it automates code creation and supports incremental loading, ensuring that only new records are processed in both ingestion and transformation layers.
+The **dbt generator** creates scaffolding for dbt projects using data ingested by dlt. It analyzes the pipeline schema and automatically generates staging and fact dbt models. By integrating with dlt-configured destinations, it automates code creation and supports incremental loading, ensuring that only new records are processed in both ingestion and transformation layers.
 
-dbt generator can be used as part of local transformations feature as well as a standalone tool, enabling you to generate dbt models for any dlt pipeline.
+The dbt generator can be used as part of local transformations feature as well as a standalone tool, enabling you to generate dbt models for any dlt pipeline.
 In this context, the dbt generator will be discussed as a standalone feature, though all the information provided is also applicable when using it with local transformations.
 
-The dlt dbt generator works as follows:
+The dbt generator works as follows:
 
 - It automatically inspects the pipeline schema and generates a baseline dbt project, complete with staging and marts layers. The generator is able to create staging, dimensional, and fact models.
 
@@ -123,7 +123,7 @@ table_reference_adapter(
 ```
 
 :::note
-Only the relationships that the pipeline is not aware of need to be explicitly passed to the adapter, meaning you don't need to define the parent-child relationships created by `dlt` during the normalization stage, as it will already know about them.
+Only the relationships that the pipeline is not aware of need to be explicitly passed to the adapter, meaning you don't need to define the parent-child relationships created by dlt during the normalization stage, as it will already know about them.
 :::
 
 ## Generating your baseline project
