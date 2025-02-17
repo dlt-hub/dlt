@@ -1,21 +1,21 @@
 ---
-title: 🧪 dlt+ Python transformations
+title: 🧪 Python-based transformations
 description: Define transformations in Python
 ---
 
-:::note
-🚧 This feature is under development. Interested in becoming an early tester? [Join dlt+ early access](https://info.dlthub.com/waiting-list)
+:::caution
+🚧 This feature is under development. Interested in becoming an early tester? [Join dlt+ early access](https://info.dlthub.com/waiting-list).
 :::
 
-dlt+ allows you to define Arrow-based transformations that operate on the dlt+ Cache. The actual transformation code is located in the `./transformations` folder.
+dlt+ allows you to define Arrow-based transformations that operate on a [cache](../../core-concepts/cache.md). The actual transformation code is located in the `./transformations` folder.
 In this section, you will learn how you can define Arrow-based transformations with Python.
 
 ## Generate template
 
 Since this feature is still under development and documentation is limited, we recommend starting with a template. You can generate one using the following command:
 
-:::caution
-Make sure you have [configured your cache and transformation](./executing.md#configure-dltyml-file) in the `dlt.yml` file before running the command below.
+:::note
+Make sure you have [configured your cache and transformation](./setup#configure-dltyml-file) in the `dlt.yml` file before running the command below.
 :::
 
 ```sh

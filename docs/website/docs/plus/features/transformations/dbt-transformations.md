@@ -1,21 +1,22 @@
 ---
-title: dlt+ dbt generator
+title: dbt generator
 description: Generate dbt models automatically
 ---
 
-The **dlt dbt generate** creates scaffolding for dbt projects using data ingested by dlt. It analyzes the pipeline schema and automatically generates staging and fact dbt models. By integrating with dlt-configured destinations, it automates code creation and supports incremental loading, ensuring that only new records are processed in both ingestion and transformation layers.
+The **dlt dbt generator** creates scaffolding for dbt projects using data ingested by dlt. It analyzes the pipeline schema and automatically generates staging and fact dbt models. By integrating with dlt-configured destinations, it automates code creation and supports incremental loading, ensuring that only new records are processed in both ingestion and transformation layers.
 
-## In a nutshell
+dbt generator can be used as part of local transformations feature as well as a standalone tool, enabling you to generate dbt models for any dlt pipeline.
+In this context, the dbt generator will be discussed as a standalone feature, though all the information provided is also applicable when using it with local transformations.
+
+The dlt dbt generator works as follows:
 
 - It automatically inspects the pipeline schema and generates a baseline dbt project, complete with staging and marts layers. The generator is able to create staging, dimensional, and fact models.
 
-- Additionally, the **dlt dbt generate** lets you define relationships between the schema tables, which can be used to automatically create fact tables.
+- Additionally, the dlt dbt generator lets you define relationships between the schema tables, which can be used to automatically create fact tables.
 
 - The resulting project can be executed using the credentials already provided to the pipeline and is capable of processing incoming data incrementally.
 
-## Usage
-
-### 1. Adding relationship hints for fact tables
+## Adding relationship hints for fact tables
 
 To generate fact tables, you will first need to add additional relationship hints to your pipeline. This requires ensuring that each table has a primary key defined, as relationships are based on these keys:
 
@@ -119,10 +120,10 @@ table_reference_adapter(
 ```
 
 :::note
-Note, that only the relationships that the pipeline is not aware of need to be explicitly passed to the adapter, meaning you don't need to define the parent-child relationships created by `dlt` during the normalization stage, as it will already know about them.
+Only the relationships that the pipeline is not aware of need to be explicitly passed to the adapter, meaning you don't need to define the parent-child relationships created by `dlt` during the normalization stage, as it will already know about them.
 :::
 
-### 2. Generating your baseline project
+## Generating your baseline project
 
 Ensure that your dlt pipeline has been run at least once locally or restored from the destination. Then, navigate to the directory where your pipeline is located and, using its name, execute the following command to create a baseline dbt project with dimensional tables for all existing pipeline tables:
 
@@ -156,7 +157,7 @@ dbt_<pipeline-name>/
 Additionally, in the directory where you ran the generator, you will find a new Python file named `run_<pipeline-name>_dbt.py`, which you can execute to run the project.
 
 
-### 3. Generating fact tables
+## Generating fact tables
 
 After creating the base project with dimensional tables, you can create fact tables that will use the previously added relationship hints by running:
 
@@ -164,9 +165,15 @@ After creating the base project with dimensional tables, you can create fact tab
 dlt dbt generate <pipeline-name> --fact <fact_table_name>
 ```
 
-The `<fact_table_name>` you provide should be the name of the base table from which the relationships are to be found. This fact table will automatically join all related tables IDs discovered through dlt parent-child relationships, as well as any relationship IDs manually added through the adapter. You can then select and add additional fields in the generated model.
+The `<fact_table_name>` you provide should be the name of the base table in which the relationships are to be found. This fact table will automatically join all related tables IDs discovered through dlt defined parent-child relationships, as well as any relationship IDs manually added through the adapter. You can then select and add additional fields in the generated model.
 
-For the example above, we can run this for the `orders` table. This will generate the `fact_<pipeline-name>__orders.sql` model in the `marts` folder of the dbt project:
+For the example above, we can run this for the `orders` table:\
+
+```sh
+dlt dbt generate example_shop --fact orders
+```
+
+This will generate the `fact_<pipeline-name>__orders.sql` model in the `marts` folder of the dbt project:
 
 ```sh
 dbt_<pipeline-name>/
@@ -190,7 +197,7 @@ dbt_<pipeline-name>/
 └── requirements.txt
 ```
 
-### 4. Running your dbt project
+## Running your dbt project
 
 You can run your dbt project with the previously mentioned script that was generated by `dlt dbt generate <pipeline-name>`:
 
@@ -199,7 +206,7 @@ python run_<pipeline_name>_dbt.py
 ```
 This script executes your dbt transformations, loads the results into a new dataset named `<original-dataset>_transformed`, and runs the dbt tests. If needed, you can adjust the dataset name directly in the script.
 
-If you want to see dbt run command output, increase the logging level. For example:
+If you want to see the `dbt run` command output, increase the logging level. For example:
 
 ```sh
 RUNTIME__LOG_LEVEL=INFO python run_<pipeline_name>_dbt.py
@@ -211,11 +218,11 @@ or by setting `config.toml`:
 log_level="INFO"
 ```
 
-### 5. Running dbt package directly
+## Running dbt package directly
 
 If you'd like to run your dbt package without a pipeline instance, please refer to our [dbt runner docs](../../../dlt-ecosystem/transformations/dbt/dbt.md).
 
-### 6. Understanding incremental processing
+## Understanding incremental processing
 
 dlt generates unique IDs for load packages, which are stored in the `_dlt_load_id` column of all tables in the dataset. This column indicates the specific load package to which each row belongs.
 

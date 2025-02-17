@@ -1,39 +1,23 @@
 ---
-title: "Staging: transformations"
-description: Ensure the high quality of your data workflows
-keywords: ["dlt+", "data quality", "tests"]
+title: "Local transformations"
+description: Run local transformations with dlt+ Cache
+keywords: ["dlt+", "transformations", "cache", "dbt"]
 ---
 import DocCardList from '@theme/DocCardList';
 
-## What is dlt+ staging?
+Modern data teams move fast, but their development workflows haven't kept up. While software engineers have staging environments, CI/CD, and instant feedback loops, data engineers are still debugging transformations inside the warehouse, at full scale, burning cloud credits.
 
-dlt+ Staging is a complete testing and validation layer for data transformations, combining a local cache with schema enforcement, debugging tools, and integration with existing data workflows.
+As part of dlt+ we provide local transformation [cache](../../core-concepts/cache.md) — a staging layer for data transformations allowing to test, validate, and debug data pipelines without running everything in the warehouse. With the local transformations you can:
 
-Modern data teams move fast, but their development workflows haven't kept up. While software engineers have **staging environments, CI/CD, and instant feedback loops,** data engineers are still **debugging transformations inside the warehouse, at full scale, burning cloud credits.**
+* Run transformations locally, eliminating the need to wait for warehouse queries.
+* Validate the schema before loading to catch mismatches early.
+* Test without incurring cloud costs, as in-memory execution prevents wasted compute.
 
-**dlt+ Staging changes that.**
+Local transformations are built on DuckDB, Arrow, and dbt, so it works with your existing stack.
 
-dlt+ Staging provides a staging layer for data transformations — a way to test, validate, and debug without running everything in the warehouse.
-
-* Run transformations locally → No waiting for warehouse queries.
-* Validate schema before loading → Catch mismatches early.
-* Test without burning cloud costs → In-memory execution means no wasted compute.
-
-## Local transformations
-
-dlt+ Staging provides a local transformation cache that lets you:
-
-* Sync raw data into an isolated test environment.
-* Validate transformations without touching the warehouse.
-* Test faster and iterate freely - without worrying about cloud bills.
-
-It’s built on DuckDB, Arrow, and dbt, so it works with your existing stack.
-
-:::tip
-Learn more about dlt+ cache in the [Cache section](../../core-concepts/cache.md).
+:::caution
+The local transformations feature is currently in the early access phase. We recommend waiting for general access before using it in production.
 :::
-
-dlt+ supports transformations defined in Python and dbt models. Additionally, it can automatically generate dbt models using metadata produced by dlt.
 
 <DocCardList />
 

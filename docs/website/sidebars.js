@@ -106,13 +106,13 @@ const sidebars = {
             },
             {
               type: 'category',
-              label: 'Staging: transformations',
+              label: 'Local transformations',
               link: {
                 type: 'doc',
                 id: 'plus/features/transformations/index',
               },
               items: [
-                'plus/features/transformations/executing',
+                'plus/features/transformations/setup',
                 'plus/features/transformations/dbt-transformations',
                 'plus/features/transformations/python-transformations',
               ]
