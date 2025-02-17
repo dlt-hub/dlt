@@ -67,7 +67,10 @@ dlt+ Projects can be distributed as Python packages, with which data end-users a
     df = catalog.github_events_dataset.issues_event.df()
     ```
 
-    These can be loaded as Pandas dataframes (`.df()`), Arrow tables (`.arrow()`), SQL queries (`.sql()`) etc.
+    These can be loaded into:
+    * Pandas dataframes with `.df()` 
+    * Arrow tables with `.arrow()`
+    * SQL with `.sql()`
 
   
 5. Do work on the data.  
@@ -96,7 +99,7 @@ dlt+ Projects can be distributed as Python packages, with which data end-users a
 
 ## Security and contracts
 
-When the end-users interact with the data using the Python API, they are doing it through a profile called "access". As a data engineer/devops engineer/infrastructure administrator etc., you can manage this access by setting configurations and credentials for this profile in the manifest (`dlt.yml`) or in the toml files. Read more about setting secrets and configurations for different profiles [here](../core-concepts/profiles.md). 
+When the end-users interact with the data using the Python API, they are doing it through a profile called "access". As a data engineer, you can manage this access by setting configurations and credentials for this profile in`dlt.yml` or in the toml files. Read more about setting secrets and configurations for different profiles [here](../core-concepts/profiles.md). 
 
 It's possible to set granular limits on how users can write the data through schema and data contracts. These can be set individually per profile per dataset.
   
