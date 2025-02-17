@@ -24,7 +24,7 @@ from dlt.pipeline.exceptions import (
     PipelineStateEngineNoUpgradePathException,
 )
 
-PIPELINE_STATE_ENGINE_VERSION = 5
+PIPELINE_STATE_ENGINE_VERSION = 4
 LOAD_PACKAGE_STATE_KEY = "pipeline_state"
 
 
@@ -73,7 +73,8 @@ def migrate_pipeline_state(
             state["staging_name"] = Destination.to_name(state["staging"])
             del state["staging"]
         from_engine = 4
-    if from_engine == 4 and to_engine > 4:
+    # change the state but do not bump engine version as long as changes are backward compatible
+    if from_engine == 4:
         # remove destination name if equals to destination type
         if destination_type := state.get("destination_type"):
             if Destination.to_name(destination_type) == state.get("destination_name"):
@@ -81,7 +82,6 @@ def migrate_pipeline_state(
         if staging_type := state.get("staging_type"):
             if Destination.to_name(staging_type) == state.get("staging_name"):
                 state["staging_name"] = None
-        from_engine = 5
 
     # check state engine
     if from_engine != to_engine:
