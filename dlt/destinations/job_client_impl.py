@@ -424,7 +424,7 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
         query = (
             f"SELECT {self.state_table_columns} FROM {state_table} AS s JOIN {loads_table} AS l ON"
             f" l.{c_load_id} = s.{c_dlt_load_id} WHERE {c_pipeline_name} = %s AND l.{c_status} = 0"
-            f" ORDER BY {c_load_id} DESC"
+            f" ORDER BY {c_load_id} DESC LIMIT 1"
         )
         with self.sql_client.execute_query(query, pipeline_name) as cur:
             row = cur.fetchone()
