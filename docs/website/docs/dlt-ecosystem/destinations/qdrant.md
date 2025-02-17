@@ -20,14 +20,23 @@ pip install "dlt[qdrant]"
 2. Next, configure the destination in the dlt secrets file. The file is located at `~/.dlt/secrets.toml` by default. Add the following section to the secrets file:
 
 ```toml
+[destination.qdrant]
+qd_location = "https://your-qdrant-url"
 [destination.qdrant.credentials]
-location = "https://your-qdrant-url"
 api_key = "your-qdrant-api-key"
 ```
 
 In this setup guide, we are using the [Qdrant Cloud](https://cloud.qdrant.io/) to get a hosted Qdrant instance and the [FastEmbed](https://github.com/qdrant/fastembed) package that is built into the [Qdrant client library](https://github.com/qdrant/qdrant-client) for generating embeddings.
 
 If no configuration options are provided, the default fallback will be `http://localhost:6333` with no API key.
+
+You can use Qdrant without a backend, where the database is stored in a file:
+```toml
+[destination.qdrant]
+qd_path = "db.qdrant"
+```
+Data will be stored in `db.qdrant` file placed in current working directory.
+
 
 3. Define the source of the data. For starters, let's load some data from a simple data structure:
 
@@ -194,6 +203,8 @@ pipeline = dlt.pipeline(
 
 ## Additional destination options
 
+- `qd_path`: (str) The persistence path for a local Qdrant instance. Not set by default.
+
 - `embedding_batch_size`: (int) The batch size for embedding operations. The default value is 32.
 
 - `embedding_parallelism`: (int) The number of concurrent threads to run embedding operations. Defaults to the number of CPU cores.
@@ -225,8 +236,6 @@ The `QdrantClientOptions` class provides options for configuring the Qdrant clie
 - `timeout`: (int) The timeout for REST and gRPC API requests. The default value is 5.0 seconds for REST and unlimited for gRPC.
 
 - `host`: (str) The host name of the Qdrant service. If both the URL and host are `None`, it is set to `localhost`.
-
-- `path`: (str) The persistence path for a local Qdrant instance. Not set by default.
 
 ### Run Qdrant locally
 

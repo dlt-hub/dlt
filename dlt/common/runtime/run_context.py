@@ -39,6 +39,10 @@ class RunContext(SupportsRunContext):
         return os.environ.get(known_env.DLT_PROJECT_DIR, self._init_run_dir)
 
     @property
+    def local_dir(self) -> str:
+        return os.environ.get(known_env.DLT_LOCAL_DIR, self._init_run_dir)
+
+    @property
     def settings_dir(self) -> str:
         """Returns a path to dlt settings directory. If not overridden it resides in current working directory
 
@@ -94,8 +98,12 @@ class RunContext(SupportsRunContext):
         """Returns a top Python module of the project (if importable)"""
         import importlib
 
+        # trailing separator will be removed by abspath
         run_dir = os.path.abspath(run_dir)
-        m_ = importlib.import_module(os.path.basename(run_dir))
+        base_dir = os.path.basename(run_dir)
+        if not base_dir:
+            raise ImportError(f"run dir {run_dir} looks like filesystem root")
+        m_ = importlib.import_module(base_dir)
         if m_.__file__ and m_.__file__.startswith(run_dir):
             return m_
         else:
@@ -168,17 +176,17 @@ def is_folder_writable(path: str) -> bool:
 def get_plugin_modules() -> List[str]:
     """Return top level module names of all discovered plugins, including `dlt`.
 
-    If current run context is a top levle module it is also included, otherwise empty string.
+    If current run context is a top level module it is also included, otherwise empty string.
     """
     from dlt.common.configuration.plugins import PluginContext
 
     # get current run module
-    ctx_module = current().module
+    ctx_module = active().module
     run_module_name = ctx_module.__name__ if ctx_module else ""
 
     return [run_module_name] + [p for p in Container()[PluginContext].plugin_modules] + ["dlt"]
 
 
-def current() -> SupportsRunContext:
+def active() -> SupportsRunContext:
     """Returns currently active run context"""
     return Container()[PluggableRunContext].context

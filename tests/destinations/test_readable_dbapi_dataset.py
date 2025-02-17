@@ -2,6 +2,7 @@
 import dlt
 import pytest
 
+import dlt.destinations.dataset
 from dlt.destinations.dataset.exceptions import (
     ReadableRelationHasQueryException,
     ReadableRelationUnknownColumnException,
@@ -9,53 +10,57 @@ from dlt.destinations.dataset.exceptions import (
 
 
 def test_query_builder() -> None:
-    dataset = dlt.pipeline(destination="duckdb", pipeline_name="pipeline").dataset()
+    dataset = dlt.destinations.dataset.dataset(
+        dlt.destinations.duckdb(destination_name="duck_db"), "pipeline_dataset"
+    )
 
     # default query for a table
-    assert dataset.my_table.query.strip() == 'SELECT  * FROM "pipeline_dataset"."my_table"'
+    assert dataset.my_table.query().strip() == 'SELECT  * FROM "pipeline_dataset"."my_table"'
 
     # head query
     assert (
-        dataset.my_table.head().query.strip()
+        dataset.my_table.head().query().strip()
         == 'SELECT  * FROM "pipeline_dataset"."my_table" LIMIT 5'
     )
 
     # limit query
     assert (
-        dataset.my_table.limit(24).query.strip()
+        dataset.my_table.limit(24).query().strip()
         == 'SELECT  * FROM "pipeline_dataset"."my_table" LIMIT 24'
     )
 
     # select columns
     assert (
-        dataset.my_table.select("col1", "col2").query.strip()
+        dataset.my_table.select("col1", "col2").query().strip()
         == 'SELECT  "col1","col2" FROM "pipeline_dataset"."my_table"'
     )
     # also indexer notation
     assert (
-        dataset.my_table[["col1", "col2"]].query.strip()
+        dataset.my_table[["col1", "col2"]].query().strip()
         == 'SELECT  "col1","col2" FROM "pipeline_dataset"."my_table"'
     )
 
     # identifiers are normalized
     assert (
-        dataset["MY_TABLE"].select("CoL1", "cOl2").query.strip()
+        dataset["MY_TABLE"].select("CoL1", "cOl2").query().strip()
         == 'SELECT  "co_l1","c_ol2" FROM "pipeline_dataset"."my_table"'
     )
     assert (
-        dataset["MY__TABLE"].select("Co__L1", "cOl2").query.strip()
+        dataset["MY__TABLE"].select("Co__L1", "cOl2").query().strip()
         == 'SELECT  "co__l1","c_ol2" FROM "pipeline_dataset"."my__table"'
     )
 
     # limit and select chained
     assert (
-        dataset.my_table.select("col1", "col2").limit(24).query.strip()
+        dataset.my_table.select("col1", "col2").limit(24).query().strip()
         == 'SELECT  "col1","col2" FROM "pipeline_dataset"."my_table" LIMIT 24'
     )
 
 
 def test_copy_and_chaining() -> None:
-    dataset = dlt.pipeline(destination="duckdb", pipeline_name="pipeline").dataset()
+    dataset = dlt.destinations.dataset.dataset(
+        dlt.destinations.duckdb(destination_name="duck_db"), "pipeline_dataset"
+    )
 
     # create releation and set some stuff on it
     relation = dataset.items
@@ -80,7 +85,9 @@ def test_copy_and_chaining() -> None:
 
 
 def test_computed_schema_columns() -> None:
-    dataset = dlt.pipeline(destination="duckdb", pipeline_name="pipeline").dataset()
+    dataset = dlt.destinations.dataset.dataset(
+        dlt.destinations.duckdb(destination_name="duck_db"), "pipeline_dataset"
+    )
     relation = dataset.items
 
     # no schema present
@@ -107,7 +114,9 @@ def test_computed_schema_columns() -> None:
 
 
 def test_prevent_changing_relation_with_query() -> None:
-    dataset = dlt.pipeline(destination="duckdb", pipeline_name="pipeline").dataset()
+    dataset = dlt.destinations.dataset.dataset(
+        dlt.destinations.duckdb(destination_name="duck_db"), "pipeline_dataset"
+    )
     relation = dataset("SELECT * FROM something")
 
     with pytest.raises(ReadableRelationHasQueryException):

@@ -249,7 +249,7 @@ class DestinationTestConfiguration:
             pipeline_name=pipeline_name,
             destination=destination,
             staging=kwargs.pop("staging", self.staging),
-            dataset_name=dataset_name if dataset_name is not None else pipeline_name,
+            dataset_name=dataset_name if dataset_name is not None else pipeline_name + "_data",
             dev_mode=dev_mode,
             **kwargs,
         )
@@ -346,7 +346,7 @@ def destinations_configs(
                 supports_dbt=False,
                 destination_name="sqlalchemy_mysql",
                 credentials=(  # Use root cause we need to create databases,
-                    "mysql://root:root@127.0.0.1:3306/dlt_data"
+                    "mysql+pymysql://root:root@127.0.0.1:3306/dlt_data"
                 ),
             ),
             DestinationTestConfiguration(
@@ -834,6 +834,7 @@ def prepare_table(
     case_name: str = "event_user",
     table_name: str = "event_user",
     make_uniq_table: bool = True,
+    skip_normalization: bool = False,
 ) -> str:
     client.schema._bump_version()
     client.update_stored_schema()
@@ -842,7 +843,11 @@ def prepare_table(
         user_table_name = table_name + uniq_id()
     else:
         user_table_name = table_name
-    client.schema.update_table(new_table(user_table_name, columns=list(user_table.values())))
+    renamed_table = new_table(user_table_name, columns=list(user_table.values()))
+    if skip_normalization:
+        client.schema.tables[user_table_name] = renamed_table
+    else:
+        client.schema.update_table(renamed_table)
     print(client.schema.to_pretty_yaml())
     client.verify_schema([user_table_name])
     client.schema._bump_version()

@@ -29,12 +29,18 @@ def get_venv(
     Args:
         pipeline (Pipeline): A pipeline for which the required dbt dependencies are inferred
         venv_path (str, optional): A path where virtual environment is created or restored from.
-                                   If relative path is provided, the environment will be created within pipeline's working directory. Defaults to "dbt".
+                                   If relative path is provided, the environment will be created within pipeline's working directory.
+                                   If path is None or empty, current venv will be used as is (no deps are installed)
+                                   Defaults to "dbt".
         dbt_version (str, optional): Version of dbt to be used. Exact version (ie. "1.2.4") or pip requirements string (ie. ">=1.1<1.5" may be provided).
 
     Returns:
         Venv: A Virtual Environment with dbt dependencies installed
     """
+    # use current environment if no path specified
+    if not venv_path:
+        return Venv.restore_current()
+
     # keep venv inside pipeline if path is relative
     if not os.path.isabs(venv_path):
         pipeline._pipeline_storage.create_folder(venv_path, exists_ok=True)

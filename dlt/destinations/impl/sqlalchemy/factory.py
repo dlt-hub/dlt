@@ -77,10 +77,14 @@ class sqlalchemy(Destination[SqlalchemyClientConfiguration, "SqlalchemyJobClient
         dialect = config.get_dialect()
         if dialect is None:
             return caps
+        backend_name = config.get_backend_name()
+
         caps.max_identifier_length = dialect.max_identifier_length
         caps.max_column_identifier_length = dialect.max_identifier_length
         caps.supports_native_boolean = dialect.supports_native_boolean
-        if dialect.name == "mysql":
+
+        # TODO: define capabilities per dialect, we can also add alchemy_dialect settings to caps
+        if dialect.name == "mysql" or backend_name in ("mysql", "mariadb"):
             # correct max identifier length
             # dialect uses 255 (max length for aliases) instead of 64 (max length of identifiers)
             caps.max_identifier_length = 64

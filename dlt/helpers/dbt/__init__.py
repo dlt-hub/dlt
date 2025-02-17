@@ -53,7 +53,7 @@ def _create_dbt_deps(
         pkg_resources.Requirement.parse(package)
         all_packages[idx] = package
 
-    dlt_requirement = get_installed_requirement_string()
+    dlt_requirement = get_installed_requirement_string(allow_earlier=True)
     # get additional requirements
     additional_deps: List[str] = []
     if "duckdb" in destination_types or "motherduck" in destination_types:

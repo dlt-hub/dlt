@@ -122,7 +122,7 @@ def test_pipeline_explicit_destination_credentials(
     assert config.credentials.is_resolved()
     assert (
         config.credentials.to_native_representation()
-        == "redshift://loader:password@localhost:5432/dlt_data?connect_timeout=15"
+        == "redshift://loader:password@localhost:5432/dlt_data?client_encoding=utf-8&connect_timeout=15"
     )
 
 

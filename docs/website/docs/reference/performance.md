@@ -319,3 +319,24 @@ volumes {
   }
 }
 ```
+## Handling storage limits
+
+If your storage reaches its limit, you are likely running dlt in a cloud environment with restricted disk space. To prevent issues, mount an external cloud storage location and set the `DLT_DATA_DIR` environment variable to point to it. This ensures that dlt uses the mounted storage as its data directory instead of local disk space.
+
+
+### Setting `DLT_DATA_DIR`
+
+You can configure `DLT_DATA_DIR` in your environment setup as follows:
+
+```py
+import os
+
+# Define the path to your mounted external storage
+data_dir = "/path/to/mounted/bucket/dlt_pipeline_data"
+
+# Set the DLT_DATA_DIR environment variable
+os.environ["DLT_DATA_DIR"] = data_dir
+
+# Rest of your pipeline code
+```
+This directs dlt to use the specified external storage for all data operations, preventing local storage constraints.

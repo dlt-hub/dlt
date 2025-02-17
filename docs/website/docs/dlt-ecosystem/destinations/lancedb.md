@@ -33,17 +33,17 @@ Configure the destination in the dlt secrets file located at `~/.dlt/secrets.tom
 
 ```toml
 [destination.lancedb]
+lance_uri = ".lancedb"
 embedding_model_provider = "ollama"
 embedding_model = "mxbai-embed-large"
 embedding_model_provider_host = "http://localhost:11434"  # Optional: custom endpoint for providers that support it
 
 [destination.lancedb.credentials]
-uri = ".lancedb"
 api_key = "api_key" # API key to connect to LanceDB Cloud. Leave out if you are using LanceDB OSS.
 embedding_model_provider_api_key = "embedding_model_provider_api_key" # Not needed for providers that don't need authentication (ollama, sentence-transformers).
 ```
 
-- The `uri` specifies the location of your LanceDB instance. It defaults to a local, on-disk instance if not provided.
+- The `lance_uri` specifies the location of your LanceDB instance. It defaults to a local, on-disk instance if not provided.
 - The `api_key` is your API key for LanceDB Cloud connections. If you're using LanceDB OSS, you don't need to supply this key.
 - The `embedding_model_provider` specifies the embedding provider used for generating embeddings. The default is `cohere`.
 - The `embedding_model` specifies the model used by the embedding provider for generating embeddings.
@@ -65,6 +65,15 @@ embedding_model_provider_api_key = "embedding_model_provider_api_key" # Not need
 - "huggingface"
 - "colbert"
 - "ollama"
+:::
+
+:::info
+Local database name and location:
+
+`lancedb` databases follow the same naming rules as `duckdb`:
+1. By default, the database file name is `<pipeline_name>.lancedb` and is placed in current working directory.
+2. For a named destination, database file name is `<destination name>.lancedb`
+3. The `:pipeline:` `lance_uri` will place database file in pipeline working folder
 :::
 
 ### Define your data source

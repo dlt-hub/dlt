@@ -47,6 +47,11 @@ class SqlalchemyCredentials(ConnectionStringCredentials):
             return type(engine.dialect)
         return self.to_url().get_dialect()  # type: ignore[attr-defined,no-any-return]
 
+    def get_backend_name(self) -> str:
+        if not self.drivername:
+            return None
+        return self.to_url().get_backend_name()
+
     __config_gen_annotations__: ClassVar[List[str]] = [
         "database",
         "port",
@@ -71,3 +76,6 @@ class SqlalchemyClientConfiguration(DestinationClientDwhConfiguration):
 
     def get_dialect(self) -> Type["Dialect"]:
         return self.credentials.get_dialect()
+
+    def get_backend_name(self) -> str:
+        return self.credentials.get_backend_name()
