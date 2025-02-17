@@ -1,6 +1,8 @@
 # dlt+ Project
 
-[dlt+ Project] (../core-concepts/project.md) provides a structured and opinionated approach to organizing data workflows while implementing best practices for data engineering teams. dlt+ Project automates key processes such as data loading, data transformations, data catalogs, and data governance, and enables different members of the data teams to work more easily with each other. 
+![dlt+ Project image](https://storage.googleapis.com/dlt-blog-images/plus/dlt_plus_projects.png)
+
+[dlt+ Project](../core-concepts/project.md) provides a structured and opinionated approach to organizing data workflows while implementing best practices for data engineering teams. dlt+ Project automates key processes such as data loading, data transformations, data catalogs, and data governance, and enables different members of the data teams to work more easily with each other. 
 
 With dlt+ Project, you can efficiently manage your data workflows by:
 
@@ -113,7 +115,7 @@ caches:
 
 #### Transformations 🧪
 
-Here you specify the settings for your transformations. In the code example we define an arrow-based transformation that will operate on the cache "github_events_cache". It will make use of code in the `transformations/` folder. Read more about how transformations are done [here](../features/transformations/index.md). 
+Here you specify the settings for your transformations. In the code example we define an arrow-based transformation that will operate on the cache "github_events_cache". It will make use of code in the `transformations/` folder. Read more about how transformations are done [here](../core-concepts/cache.md). 
 
 ```yaml
 transformations:
@@ -164,11 +166,8 @@ As shown above, it is possible to pass additional dlt settings and configuration
 :::note
 Based on the information about precedence in the [configuration docs](../../general-usage/credentials/setup#available-config-providers), the yaml files provide the lowest precedence of all providers just above the default values for a config value. Settings in the yaml file will therefore be overridden by `toml` and `env` variables if present.
 :::
-import Link from '../../_plus_admonition.md';
 
-<Link/>
-
-## Substitution
+### Substitution
 
 You can reference environment variables in the `dlt.yml` file using the `${ENV_VARIABLE_NAME}` syntax. Additionally, dlt+ provides several [predefined project variables](../features/projects.md#substitution) that are automatically substituted during loading.
 
@@ -182,3 +181,6 @@ You can reference environment variables in the `dlt.yml` file using the `${ENV_V
 
 The `dlt.yml` marks the root of a project. Projects can also be nested. If you run any dlt project CLI command, dlt will search for the project root in the filesystem tree starting from the current working directory and run all operations on the found project. So if your `dlt.yml` is in the `tutorial` folder, you can run `dlt pipeline my_pipeline run` from this folder or all subfolders, and it will run the pipeline on the `tutorial` project.
 
+### Packaging and distributing the projects
+  
+Projects can be distributed as Python packages to share with your organization and enable data access. Instructions on how to build these Python packages are coming soon. Join our [early access](https://info.dlthub.com/waiting-list) program to learn more!
