@@ -99,13 +99,9 @@ const sidebars = {
             'plus/features/security',
             {
               type: 'category',
-              label: 'Staging: data quality & tests',
-              link: {
-                type: 'doc',
-                id: 'plus/features/quality/index',
-              },
+              label: 'Data quality & tests',
               items: [
-                'plus/features/quality/data_quality',
+                'plus/features/quality/data-quality',
                 'plus/features/quality/tests',
               ]
             },
