@@ -20,6 +20,10 @@ While ephemeral catalogs make it easy to get started with Iceberg, it comes with
 - the latest manifest file needs to be searched for using file listing—this can become slow with large tables, especially in cloud object stores
 :::
 
+:::tip dlt+
+If you're interested in integration with vendor catalogs, such as Polaris or Unity Catalog, check out [dlt+](../../plus/ecosystem/iceberg.md).
+:::
+
 ## Delta dependencies
 
 You need the `deltalake` package to use this format:
@@ -126,7 +130,7 @@ The [S3-compatible](#using-s3-compatible-storage) interface for Google Cloud Sto
 The `az` [scheme](#supported-schemes) is not supported when using the `iceberg` table format. Please use the `abfss` scheme. This is because `pyiceberg`, which `dlt` used under the hood, currently does not support `az`.
 
 ## Table format `merge` support (**experimental**)
-The [`upsert`](../../general-usage/incremental-loading.md#upsert-strategy) merge strategy is supported for `delta`. For `iceberg`, the `merge` write disposition is not supported and falls back to `append`.
+The [`upsert`](../../general-usage/incremental-loading.md#upsert-strategy) merge strategy is supported for `delta`. For `iceberg`, the `merge` write disposition is not supported and falls back to `append`. If you're interested in support for the `merge` write disposition with Iceberg, check out [dlt+](../../plus/ecosystem/iceberg.md).
 
 :::caution
 The `upsert` merge strategy for the filesystem destination with Delta table format is **experimental**.

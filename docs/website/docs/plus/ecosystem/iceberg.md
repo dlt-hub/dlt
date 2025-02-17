@@ -256,4 +256,4 @@ Compound keys are not supported: use a single `primary_key` **and/or** a single 
 As a workaround, you can [transform](../../general-usage/resource#filter-transform-and-pivot-data) your resource data with `add_map` to add a new column that contains a hash of the key columns, and use that column as `primary_key` or `merge_key`.
 
 ### Nested tables
-Nested tables are not supported: avoid complex data types or [disable nesting](../../general-usage/source#reduce-the-nesting-level-of-generated-tables)
+Nested tables are currently not supported with the `merge` write disposition: avoid complex data types or [disable nesting](../../general-usage/source#reduce-the-nesting-level-of-generated-tables)
