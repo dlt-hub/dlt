@@ -48,8 +48,8 @@ from dlt.destinations.impl.bigquery.sql_client import BigQuerySqlClient, BQ_TERM
 from dlt.destinations.job_client_impl import SqlJobClientWithStagingDataset
 from dlt.destinations.job_impl import DestinationJsonlLoadJob, DestinationParquetLoadJob
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest
-from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
+from dlt.destinations.sql_client import SqlClientBase
 
 
 class BigQueryLoadJob(RunnableLoadJob, HasFollowupJobs):
