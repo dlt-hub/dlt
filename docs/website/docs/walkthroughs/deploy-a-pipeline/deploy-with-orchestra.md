@@ -4,7 +4,7 @@ description: How to deploy a dlt pipeline on Orchestra
 keywords: [Orchestra, dlt, elt, data pipeline]
 ---
 
-# Deploy on Orchestra
+# Deploy with Orchestra
 
 ## What is Orchestra?
 
