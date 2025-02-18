@@ -50,7 +50,12 @@ This command generates a project named `tutorial` with:
 - one dataset on the DuckDB destination
 
 :::caution
-Currently, `dlt project init` only supports the core sources ([REST API](../../dlt-ecosystem/verified-sources/rest_api/index.md), [SQL database](../../dlt-ecosystem/verified-sources/sql_database/index.md), [filesystem](../../dlt-ecosystem/verified-sources/filesystem/index.md)) and `arrow` source. The support for other verified sources is coming soon!
+Currently, `dlt project init` only supports limited amount of sources (for example, [REST API](../../dlt-ecosystem/verified-sources/rest_api/index.md), [SQL database](../../dlt-ecosystem/verified-sources/sql_database/index.md), [filesystem](../../dlt-ecosystem/verified-sources/filesystem/index.md), etc.). To list all available sources, please use [cli command](../reference.md#dlt-source-list):
+
+```sh
+dlt source list-available
+```
+The support for other verified sources is coming soon!
 :::
 
 ### The generated folder structure
@@ -67,7 +72,7 @@ After running the command, the following folder structure is created:
 │   └── arrow.py
 ├── .gitignore
 ├── requirements.txt
-└── dlt.yml       # the main project manifest
+└── dlt.yml               # the main project manifest
 ```
 
 ### Understanding `dlt.yml`
@@ -100,7 +105,7 @@ pipelines:
 ```
 
 :::tip
-If you do not want to start with a source, destination, and pipeline, you can simply run `dlt project init tutorial`, where `tutorial` is the name of your dlt+ Project. This will generate a project with empty sources, destinations, and pipelines.
+If you do not want to start with a source, destination, and pipeline, you can simply run `dlt project init --project-name tutorial`. This will generate a project with empty sources, destinations, and pipelines.
 :::
 
 Some details about the project structure above:
@@ -133,7 +138,7 @@ Take a look at the [Projects context](../features/projects.md#project-context) t
 
 ### Inspecting the results
 
-Use the `dlt dataset` command to interact with the dataset stored in the DuckDB destination. For example:
+Use the [`dlt dataset` command](../reference.md#dlt-dataset) to interact with the dataset stored in the DuckDB destination. For example:
 
 ### Counting the loaded rows
 To count rows in the dataset, run:
@@ -180,7 +185,14 @@ dlt dataset duckdb_dataset head items --limit 50
 
 ## Adding sources, destinations, and pipelines to your project
 
-Adding a new entity to an existing dlt+ Project is easy. You can add a new entity to your project by running the `dlt <entity_type> <entity_name> add` command. Depending on the entity you are adding, different options are available. To see all options for adding a destination, for example, you can run `dlt destination add --help`. Let's individually add a source, destination, and pipeline to a new project, replicating the default project we created in the previous chapter.
+Adding a new entity to an existing dlt+ Project is easy. You can add a new entity to your project by running the command:
+
+```sh
+dlt <entity_type> <entity_name> add
+```
+
+Depending on the entity you are adding, different options are available.
+To explore all commands, refer to the [cli command reference](../reference.md). You can also use the `--help` option to see available settings for a specific entity. For example: `dlt destination add --help`. Let's individually add a source, destination, and pipeline to a new project, replicating the default project we created in the previous chapter.
 
 ### Create an empty project
 
@@ -196,7 +208,7 @@ This will create a project without any sources, destinations, datasets, or pipel
 
 Now we can add all of our entities individually. This way, we can also give them their own names, which will be useful when having multiple destinations of the same type, for example.
 
-Add a source:
+Add a source with:
 
 ```sh
 # add a new arrow source called "my_arrow_source"
@@ -211,34 +223,12 @@ Add a destination:
 dlt destination my_duckdb_destination add duckdb
 ```
 
-If you want dlt+ also to add a definition of dataset for this specific destination, you can use the `--dataset-name` flag:
-
-```sh
-# add a new duckdb destination called "my_duckdb_destination"
-dlt destination my_duckdb_destination add duckdb --dataset-name my_duckdb_destination_dataset
-```
-
-In this case both destinations and datasets sections of the `dlt.yml` file will be updated:
-
-```yaml
-# your destinations are the databases where your data will be saved
-destinations:
-  my_duckdb_destination:
-    type: duckdb
-
-# your datasets are the datasets on your destinations where your data will go
-datasets:
-  my_duckdb_destination_dataset:
-    destination:
-    - my_duckdb_destination
-```
-
 Now we can add a pipeline that uses the source and destination we just added:
 
 ```sh
 # add a new pipeline called "my_pipeline" which loads from my_arrow_source and saves to my_duckdb_destination
 # we select the my_duckdb_destination_dataset with the optional flag
-dlt pipeline my_pipeline add my_arrow_source my_duckdb_destination --dataset_name my_duckdb_destination_dataset
+dlt pipeline my_pipeline add my_arrow_source my_duckdb_destination
 ```
 
 ### Adding the core source

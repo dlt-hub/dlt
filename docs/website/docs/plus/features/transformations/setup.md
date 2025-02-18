@@ -103,10 +103,10 @@ Now you can update the generated transformations and create new ones to reflect 
 
 dlt+ offers comprehensive CLI support for executing transformations. You can find the full list of available commands in the [command line interface](../../reference.md).
 
-To run all transformations, use the following command:
+To run the defined transformation, use the [following command](../../reference.md#dlt-transformation-run):
 
 ```sh
-dlt transformation . run
+dlt transformation <transformation_name> run
 ```
 
 This command populates the local cache, applies the defined transformations, and then flushes the transformed tables to the specified destination.

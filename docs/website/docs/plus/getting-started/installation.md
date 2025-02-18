@@ -7,8 +7,6 @@ import Link from '../../_plus_admonition.md';
 
 <Link/>
 
-# Installation
-
 dlt+ requires a valid license to run, which you can obtain from dltHub by [joining our waiting list](https://info.dlthub.com/waiting-list).
 
 :::info Supported Python versions
@@ -73,7 +71,7 @@ C:\> pip3 install -U pip
   </TabItem>
 </Tabs>
 
-### Virtual environment 
+### Virtual environment
 
 We recommend working within a [virtual environment](https://docs.python.org/3/library/venv.html) when creating Python projects.
 This way, all the dependencies for your current project will be isolated from packages in other projects.
@@ -140,18 +138,25 @@ Please install a valid license before proceeding, as described under [licensing]
 
 ## Licensing
 
-Once you have a valid license, you can make it available to `dlt+` by specifying it in an environment variable:
+Once you have a valid license, you can make it available to `dlt+` using one of the following methods:
 
-```sh
-export RUNTIME__LICENSE="eyJhbGciOiJSUz...vKSjbEc==="
-```
+1. **Environment variable**: set the license key as an environment variable:
+  ```sh
+  export RUNTIME__LICENSE="eyJhbGciOiJSUz...vKSjbEc==="
+  ```
 
-Or by adding it to your global `secrets.toml` file (located in `~/.dlt/`, or the path defined in your `DLT_SECRETS_TOML` environment variable):
+2. **Secrets file**: add the license key to a `secrets.toml` file. You can use either the project-level `secrets.toml` (located in `./.dlt/secrets.toml`) or the global one (located in `~/.dlt/secrets.toml`):
+  ```toml
+  [runtime]
+  license="eyJhbGciOiJSUz...vKSjbEc==="
+  ```
 
-```toml
-[runtime]
-license="eyJhbGciOiJSUz...vKSjbEc==="
-```
+3. **`dlt.yml`**: add the license key directly in the [project manifest file](../features/projects.md) referencing user-defined environment variable:
+
+  ```yaml
+  runtime:
+    license: ${MY_ENV_CONTAINING_LICENSE_KEY}
+  ```
 
 You can verify that the license was installed correctly and is valid by running:
 
