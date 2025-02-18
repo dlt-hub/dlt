@@ -47,7 +47,7 @@ def query_adapter_callback(
       if incremental and incremental.start_value is not None:
           t_query = sa.text(
               f"SELECT *, 1 as add_int, 'const' as add_text FROM {table.fullname} WHERE"
-              f" {incremental.cursor_path} > :start_value"
+              f" \{incremental.cursor_path\} > :start_value"
           ).bindparams(**{"start_value": incremental.start_value})
       else:
           t_query = sa.text(f"SELECT *, 1 as add_int, 'const' as add_text FROM {table.fullname}")
@@ -56,7 +56,7 @@ def query_adapter_callback(
 ```
 In the snippet above we do a few interesting things:
 1. We create a text query with `sa.text`
-2. We change the condition on selecting incremental column from the default `ge` to `greater` (f" {incremental.cursor_path} > :start_value")
+2. We change the condition on selecting incremental column from the default `ge` to `greater` (f" \{incremental.cursor_path\} > :start_value")
 3. We add additional computed columns: `1 as add_int, 'const' as add_text`. You can also join other table here.
 
 We recommend that you explicitly type additional columns that you added with `table_adapter_callback`:

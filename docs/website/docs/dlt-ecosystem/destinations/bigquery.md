@@ -128,7 +128,7 @@ If you set the [`replace` strategy](../../general-usage/full-loading.md) to `sta
 The loader follows [Google recommendations](https://cloud.google.com/bigquery/docs/error-messages) when retrying and terminating jobs.
 The Google BigQuery client implements an elaborate retry mechanism and timeouts for queries and file uploads, which may be configured in destination options.
 
-BigQuery destination also supports [streaming insert](https://cloud.google.com/bigquery/docs/streaming-data-into-bigquery). The mode provides better performance with small (<500 records) batches, but it buffers the data, preventing any update/delete operations on it. Due to this, streaming inserts are only available with `write_disposition="append"`, and the inserted data is blocked for editing for up to 90 min (reading, however, is available immediately). [See more](https://cloud.google.com/bigquery/quotas#streaming_inserts).
+BigQuery destination also supports [streaming insert](https://cloud.google.com/bigquery/docs/streaming-data-into-bigquery). The mode provides better performance with small batches, but it buffers the data, preventing any update/delete operations on it. Due to this, streaming inserts are only available with `write_disposition="append"`, and the inserted data is blocked for editing for up to 90 min (reading, however, is available immediately). [See more](https://cloud.google.com/bigquery/quotas#streaming_inserts).
 
 To switch the resource into streaming insert mode, use hints:
 ```py

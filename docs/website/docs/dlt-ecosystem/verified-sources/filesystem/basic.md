@@ -4,6 +4,7 @@ description: Learn how to set up and configure
 keywords: [readers source and filesystem, files, filesystem, readers source, cloud storage, object storage, local file system]
 ---
 import Header from '../_source-info-header.md';
+
 <Header/>
 
 Filesystem source allows loading files from remote locations (AWS S3, Google Cloud Storage, Google Drive, Azure Blob Storage, SFTP server) or the local filesystem seamlessly. Filesystem source natively supports [CSV](../../file-formats/csv.md), [Parquet](../../file-formats/parquet.md), and [JSONL](../../file-formats/jsonl.md) files and allows customization for loading any type of structured files.
