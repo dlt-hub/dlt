@@ -42,7 +42,7 @@ Adding the flag after the pipeline keyword will not work.
 
 class _WidthFormatter(argparse.RawTextHelpFormatter):
     def __init__(self, prog: str) -> None:
-        super().__init__(prog, width=99999)
+        super().__init__(prog, width=99999, max_help_position=99999)
 
 
 def render_argparse_markdown(
@@ -124,32 +124,29 @@ def render_argparse_markdown(
 
             section_lines = section_lines[1:]
             section_lines = [line for line in section_lines if line]
+            section_lines = [line for line in section_lines if not line.strip().startswith("{")]
             section = textwrap.dedent(os.linesep.join(section_lines))
 
             # NOTE: this is based on convention to name the subcommands section
             # "available subcommands"
             is_subcommands_list = "subcommands" in header
 
-            # split args into array and remove more unneeded lines
-            section_lines = re.split(r"\s{2,}|\n+", section)
-            section_lines = [line for line in section_lines if not line.startswith("{")]
-            assert len(section_lines) % 2 == 0, (
-                f"Expected even number of lines, args and descriptions in section {header} of"
-                f" {cmd}. Possible problems are a different help formatter or arguments that are"
-                " missing help strings."
-            )
-
+            # split section and remove lines starting with {
+            section_lines = section.splitlines()
             # make markdown list of args
             section = ""
-            for x in range(0, len(section_lines), 2):
-                arg_title = section_lines[x]
+            for line in section_lines:
+                line = line.strip()
+                line_elements = re.split(r"\s{2,}|\n+", line)
+                arg_title = line_elements[0]
+                arg_help = line_elements[1] if len(line_elements) > 1 else ""
                 if is_subcommands_list:
                     full_command = f"{cmd} {arg_title}"
                     anchor_slug = full_command.lower().replace(" ", "-")
                     arg_title = f"[`{arg_title}`](#{anchor_slug})"
                 else:
                     arg_title = f"`{arg_title}`"
-                section += f"* {arg_title} - {section_lines[x+1].capitalize()}\n"
+                section += f"* {arg_title} - {arg_help.capitalize()}\n"
 
             extracted_sections.append({"header": header.capitalize(), "section": section})
 
