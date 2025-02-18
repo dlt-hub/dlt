@@ -7,7 +7,7 @@ import Link from '../../../_plus_admonition.md';
 <Link/>
 
 :::caution
-🚧 This feature is under development. Interested in becoming an early tester? [Join dlt+ early access](https://info.dlthub.com/waiting-list).
+🚧 This feature is under development, and the interface may change in future releases. Interested in becoming an early tester? [Join dlt+ early access](https://info.dlthub.com/waiting-list).
 :::
 
 dlt+ allows you to define Arrow-based transformations that operate on a [cache](../../core-concepts/cache.md). The actual transformation code is located in the `./transformations` folder.

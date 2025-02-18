@@ -66,12 +66,12 @@ Config setup will activate the run context with `dlt.yml` of the Project being t
 
 In the test project run context:
 - `run_dir` points to the project being tested
-- `data_dir` points to {$HOME}/.dlt/<project_name>/tests/
+- `data_dir` points to `_data/tests/`
 
 :::note
 `autouse_test_storage` fixture:
-* cleans up `data_dir` (typically `_data/`) folder (in relation to `cwd()`)
-* copies `tests/.dlt` into the temporary storage directory
+* cleans up `data_dir` (typically `_data/tests`) folder (in relation to project root dir)
+* cleans up `local_dir` (typically `_data/tests/local`) folder (in relation to project root dir)
 :::
 
 
@@ -132,3 +132,40 @@ explicit=true
 dlt-plus = { index = "dlt-hub" }
 dlt-plus-tests = { index = "dlt-hub" }
 ```
+
+## Writing tests
+When writing test, you will use dlt project api to request project entities and run them. For example:
+
+```py
+from dlt_plus.project import Project
+from dlt_plus.project.entity_factory import EntityFactory
+from dlt_plus.project.pipeline_manager import PipelineManager
+from dlt_plus_tests.fixtures import auto_test_access_profile as auto_test_access_profile
+from dlt_plus_tests.utils import assert_load_info, load_table_counts
+
+def test_events_to_data_lake(dpt_project_config: Project) -> None:
+    """Make sure we dispatch the events to tables properly"""
+    factory = EntityFactory(dpt_project_config)
+    github_events = factory.create_source("events")
+    events_to_lake = factory.create_pipeline("events_to_lake")
+    info = events_to_lake.run(github_events())
+    assert_load_info(info)
+
+    # did I load my test data
+    assert load_table_counts(
+        events_to_lake, *events_to_lake.default_schema.data_table_names()
+    ) == {
+        "issues_event": 604,
+    }
+
+def test_t_layer(dpt_project_config: Project) -> None:
+    """Make sure that our generated dbt package creates expected reports in the data warehouse"""
+    pipeline_manager = PipelineManager(dpt_project_config)
+    info = pipeline_manager.run_pipeline("events_to_lake")
+    assert_load_info(info)
+```
+
+Here we get current project via `dpt_project_config` fixture and use `EntityFactory` and `PipelineManager` to
+get instances of the entities and run them. The test plugin makes sure that each tests starts with a clean
+state, with `test` profile active and that any datasets created by pipelines (also on remote destinations)
+are dropped.

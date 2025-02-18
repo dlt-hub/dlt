@@ -6,6 +6,10 @@ keywords: [transform, sql]
 
 # dbt Cloud client and helper functions
 
+:::tip dlt+
+If you want to generate your dbt models automatically, check out [dlt+](../../../plus/features/transformations/dbt-transformations.md).
+:::
+
 ## API client
 
 The dbt Cloud Client is a Python class designed to interact with the dbt Cloud API (version 2).

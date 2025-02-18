@@ -26,7 +26,7 @@ A general dlt+ project has the following structure:
 │   └── arrow.py
 ├── .gitignore
 ├── requirements.txt
-└── dlt.yml       # the main project manifest
+└── dlt.yml               # the main project manifest
 ```
 
 Read more about dlt+ Project in the [project feature description](../features/projects.md)
