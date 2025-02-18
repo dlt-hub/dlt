@@ -1,8 +1,10 @@
 ---
-title: Pipeline common failure scenarios and mitigation measures
+title: Troubleshooting
 description: Doc explaining the common failure scenarios in extract, transform and load stage and their mitigation measures
 keywords: [faq, usage information, technical help]
 ---
+
+# Pipeline common failure scenarios and mitigation measures
 
 This guide outlines common failure scenarios during the Extract, Normalize, and Load stages of a data pipeline.
 
@@ -96,7 +98,7 @@ Source errors typically result from rate limits, invalid credentials, or misconf
         
     Read [REST API’s source here.](../dlt-ecosystem/verified-sources/rest_api/)
 
-## Memory errors
+### Memory errors
 
 Memory issues can disrupt extraction processes.
 
@@ -124,7 +126,7 @@ Memory issues can disrupt extraction processes.
 
            - If your storage reaches its limit, you can mount an external cloud storage location and set the `DLT_DATA_DIR` environment variable to point to it. This ensures that dlt uses the mounted storage as its data directory instead of local disk space. [Read more here.](./performance)
    
-## Unsupported timestamps
+### Unsupported timestamps
 
 Timestamp issues occur when formats are incompatible with the destination or inconsistent across pipeline runs.
 
