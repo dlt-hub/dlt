@@ -71,7 +71,7 @@ def runner() -> PipelineManager:
 
 
 def catalog() -> Catalog:
-    """Returns a catalogue with available datasets, which can be read and written to"""
+    """Returns a catalog with available datasets, which can be read and written to"""
     return Catalog(context())
 ```
 </details>
@@ -103,9 +103,9 @@ Once you've created a Python package, you can distribute it via PyPI (private or
     The datasets declared in the project create a data catalog which can be used to explore which datasets and tables are available and even discover their schema without having to actually load any data into the local machine.
 
     ```py
-    catalog = dlt_project.catalog() # Access the data catalog created by dlt
-    print(catalog) # Inspect datasets and available tables
-    print(catalog.github_events_dataset) # Access the dataset github_events_dataset from the catalog
+    my_catalog = dlt_project.catalog() # Access the data catalog created by dlt
+    print(my_catalog) # Inspect datasets and available tables
+    print(my_catalog.github_events_dataset) # Access the dataset github_events_dataset from the catalog
     ```
 
     In this example, `print(catalog)` shows two available datasets in the catalog: `github_events_dataset` in an s3 bucket and `reports_dataset` in a Snowflake warehouse.
@@ -144,7 +144,7 @@ Once you've created a Python package, you can distribute it via PyPI (private or
     Choose the tables from the catalog you want to work with (for example: `issues_event`) and only load those into the local environment:
 
     ```py
-    df = catalog.github_events_dataset.issues_event.df()
+    df = my_catalog.github_events_dataset.issues_event.df()
     ```
 
     These can be loaded into:
@@ -166,7 +166,7 @@ Once you've created a Python package, you can distribute it via PyPI (private or
     Using the `.save()` method you can write back data directly to the destination. For example, the code below writes `reports_df` from Step 5 as a new table `aggregated_issues` in the dataset `reports_dataset`:
 
     ```py
-    print(catalog.reports_dataset.save(reports_df, table_name="aggregated_issues"))
+    print(my_catalog.reports_dataset.save(reports_df, table_name="aggregated_issues"))
     ```
 
     Running this lines gives the following output:
@@ -202,7 +202,7 @@ profiles:
 In this example, users with profile "access" are restricted from writing any tables or modifying the schema of existing tables in the dataset `github_events_dataset`. So if the end-user from the [previous example](#data-access-and-sharing) tried to write back their tables to this dataset instead of the `reports_dataset`:
 
 ```py
-print(catalog.github_events_dataset.save(reports_df, table_name="aggregated_issues"))
+print(my_catalog.github_events_dataset.save(reports_df, table_name="aggregated_issues"))
 ```
 
 then they would get the following error:
@@ -218,13 +218,13 @@ There are also contracts set on the `reports_dataset` that allow users to write 
 
 ```py
 # Access the aggregated_issues table from the reports_dataset in the catalog
-reports_df = catalog.reports_dataset.aggregated_issues.df()
+reports_df = my_catalog.reports_dataset.aggregated_issues.df()
 
 # Create a new column "id"
 reports_df["id"] = 1
 
 # Push back the modified table
-print(catalog.reports_dataset.save(reports_df, table_name="aggregated_issues"))
+print(my_catalog.reports_dataset.save(reports_df, table_name="aggregated_issues"))
 ```
 
 then they would get the following error:
