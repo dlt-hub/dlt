@@ -220,7 +220,7 @@ _Left to right: the dlt Task Node, the raw logs from the dlt task, the Task para
 
 
 
-### Additional resources
+## Additional resources
 
 - Try dlt with Orchestra now:
   [here](https://app.getorchestra.io/signup).
