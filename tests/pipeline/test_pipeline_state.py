@@ -639,4 +639,4 @@ def test_migrate_pipeline_state(test_storage: FileStorage) -> None:
     assert state_v4["staging_name"] == "fs_prod"
     assert state_v4["staging_type"] == "dlt.destinations.filesystem"
     # NOTE: we intend it to fail when state engine version is bumped to this test is revised
-    assert state_v4["_state_engine_version"] == 5
+    assert state_v4["_state_engine_version"] == 4
