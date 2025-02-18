@@ -8,8 +8,8 @@ import Link from '../../_plus_admonition.md';
 
 <Link/>
 
-:::note
-🚧 This feature is under development, and the interface might change in the upcoming releases. Interested in becoming an early tester? [Join dlt+ early access](https://info.dlthub.com/waiting-list)
+:::caution
+🚧 This feature is under development, and the interface may change in future releases. Interested in becoming an early tester? [Join dlt+ early access](https://info.dlthub.com/waiting-list)
 :::
 
 The dlt+ Cache is a temporary local storage created by dlt+ to enhance development workflows. It allows you to efficiently run local transformations, materialize dbt models, and test your queries before deploying them to production.

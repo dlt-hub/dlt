@@ -155,7 +155,7 @@ Once you have a valid license, you can make it available to `dlt+` using one of 
 
   ```yaml
   runtime:
-    license: ${MY_ENV_CONTAINING_LICENSE_KEY}
+    license: {env.MY_ENV_CONTAINING_LICENSE_KEY}
   ```
 
 You can verify that the license was installed correctly and is valid by running:

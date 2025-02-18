@@ -29,9 +29,9 @@ A demonstration package that sends github events to Delta Lake, aggregates and s
 
 >>> import dlt_package_template
 >>>
->>> print(dlt_package_template.catalogue())  # list datasets
->>> print(dlt_package_template.catalogue().dataset_name) # lists tables in dataset
->>> df_ = dlt_package_template.catalogue().dataset_name.table_name.df()  # reads table
+>>> print(dlt_package_template.catalog())  # list datasets
+>>> print(dlt_package_template.catalog().dataset_name) # lists tables in dataset
+>>> df_ = dlt_package_template.catalog().dataset_name.table_name.df()  # reads table
 """
 
 import os

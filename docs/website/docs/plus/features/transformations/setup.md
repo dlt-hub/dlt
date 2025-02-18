@@ -38,7 +38,7 @@ Before setting up the transformations in the `dlt.yml` file, you need to make su
 
 ### Defining the cache
 
-You can find detailed instructions on how to define a cache in the [cache core concept](../../core-concepts/cache.md). Here's an example:
+You can find detailed instructions on how to define a cache in the [cache core concept](../../core-concepts/cache.md#define-the-cache). Here's an example:
 
 ```yaml
 caches:
