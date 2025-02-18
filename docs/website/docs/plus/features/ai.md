@@ -62,7 +62,7 @@ sources:
 destinations:
   pokemon_local:
     type: filesystem
-    bucket_url: ${tmp_dir}pokemon_data
+    bucket_url: pokemon_data
 
 pipelines:
   pokemon:

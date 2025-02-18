@@ -28,7 +28,7 @@ profiles:
       log_level: INFO
     destinations:
       my_duckdb_destination:
-        credentials: ${tmp_dir}my_data_prod.duckdb
+        credentials: my_data_prod.duckdb
 ```
 
 Every project includes two implicit profiles by default: `dev` and `tests`. If no profile is specified, the `dev` profile is loaded by default.

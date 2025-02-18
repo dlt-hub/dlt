@@ -153,7 +153,8 @@ profiles:
 
 ```
 
-#### Project settings and variables
+#### Project settings and variable substitution
+
 You can override default project settings using `project` section:
 
 ```yml
@@ -162,24 +163,21 @@ project:
   data_dir: {env.DLT_DATA_DIR}\{current_profile}
   allow_undefined_entities: false
   default_profile: tests
-  project_dir: {project_dir}
   local_dir: {data_dir}/local
 ```
 In the example above:
 * we set the project name to `tests_project` overriding the default (which is the name of parent folder)
 * we set the location where the pipelines working data and destination files are stored by default to the value of env variable `DLT_DATA_DIR` and separate it
 by profile name `current_profile`
-* we prevent any undefined entities from being created (ie. datasets or destinations).
+* we prevent any undefined entities (`allow_undefined_entities`) from being created (ie. datasets or destinations).
 * we set the default profile name to `tests`
-*
+* we set the `local_dir` to a folder `local` in the `data_dir` we defined above.
 
 * `project_dir` - the root directory of the project, i.e., the directory where the `dlt.yml` file is located
 * `data_dir` - the directory for storing temporary files, can be configured in the project section as seen above, by default, it will be set to `${project_dir}_data`.
 * `name` - the name of the project, can be configured in the project section as seen above
 * `default_profile` - the name of the default profile, can be configured in the project section as seen above
 * `current_profile` - the name of the current profile, this is set automatically when a profile is used
-
-[tbd.]
 
 You can reference environment variables in the `dlt.yml` file using the `{env.ENV_VARIABLE_NAME}` syntax. Additionally, dlt+ provides several predefined project variables that are automatically substituted during loading.
 
@@ -203,10 +201,36 @@ Working files include:
 * all files created by destinations (`{data_dir}\local`) ie. local `filesystem` buckets, duckdb databases, iceberg and delta lakes (if configured for local filesystem)
 * default locations for ad hoc (ie. dbt related) Python virtual environments.
 
+:::tip
+Use relative paths when configuring destinations that create local files to automatically place them in profile-separated
+`{data_dir}\local` folder. For example:
+
+```yaml
+destinations:
+  iceberg:
+    bucket_url: lake
+  my_duckdb:
+    type: duckdb
+```
+`iceberg` destination will create iceberg lake in `_data/dev/local/lake` folder and `duckdb` will create database in
+`_data/dev/local/my_duckdb.duckdb`.
+
 You can cleanup your working files with `dlt project --profile name clean` command.
+:::
 
 ### 🧪 Python API to interact with dlt+ project
 You can access any dlt+ project entity or function via Python interface. In the example below:
+```yaml
+transformations:
+  stressed_transformation:
+    engine: arrow
+    cache: stressed_cache
+pipelines:
+  bronze_pipe:
+    destination: filesystem
+    dataset_name: bronze
+```
+
 ```py
 import dlt_plus
 
@@ -215,12 +239,8 @@ pipeline = entities.create_pipeline("bronze_pipe")
 transformation = entities.create_transformation("stressed_transformation")
 ```
 we access **entities manager** through which sources, destinations, pipelines and other objects can be created.
-``yaml
-transformations:
-  stressed_transformation:
-    engine: arrow
-    cache: stressed_cache
-```
+You can also obtain **catalog** with all created datasets via `dlt_plus.current.catalog()` from which you can
+[conveniently explore all of your data](data-access.md).
 
 
 
