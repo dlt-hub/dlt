@@ -20,7 +20,9 @@ def row_tuples_to_arrow(
 
     return _row_tuples_to_arrow(
         rows=rows,
-        caps=Container().get(DestinationCapabilitiesContext) or DestinationCapabilitiesContext.generic_capabilities(),
+        caps=Container().get(DestinationCapabilitiesContext)
+        or DestinationCapabilitiesContext.generic_capabilities(),
         columns=columns,
-        tz=tz
+        tz=tz,
+        safe_arrow_conversion=True,
     )

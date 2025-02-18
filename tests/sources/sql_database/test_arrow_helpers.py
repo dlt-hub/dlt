@@ -1,26 +1,29 @@
 from datetime import date, datetime, timezone  # noqa: I251
-from decimal import Decimal
 from uuid import uuid4
+from typing import List, Tuple, Any
 
 import pyarrow as pa
 import pytest
 from numpy.testing import assert_equal
 
+from dlt.common import Decimal
 from dlt.common.data_types.type_helpers import json_to_str
-from dlt.common.schema.typing import TColumnSchema
+from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.libs.pyarrow import PyToArrowConversionException, transpose_rows_to_columns, convert_numpy_to_arrow
+from dlt.common.libs.pyarrow import (
+    PyToArrowConversionException,
+    transpose_rows_to_columns,
+    convert_numpy_to_arrow,
+)
 from dlt.sources.sql_database.arrow_helpers import row_tuples_to_arrow
 
 
 @pytest.mark.parametrize(
-    "all_unknown,leading_nulls",
-    [(True, True), (True, False), (False, True), (False, False)]
+    "all_unknown,leading_nulls", [(True, True), (True, False), (False, True), (False, False)]
 )
 def test_row_tuples_to_arrow_unknown_types(all_unknown: bool, leading_nulls: bool) -> None:
     """Test inferring data types with pyarrow"""
-
-    rows = [
+    rows: List[Tuple[Any, ...]] = [
         (
             1,
             "a",
@@ -31,7 +34,9 @@ def test_row_tuples_to_arrow_unknown_types(all_unknown: bool, leading_nulls: boo
             datetime.now(timezone.utc),
             [1, 2, 3],
             Decimal("2.00001"),  # precision (38, ...) is decimal128
-            Decimal("2.00000000000000000000000000000000000001"),  # precision (>38, ...) is decimal256
+            Decimal(
+                "2.00000000000000000000000000000000000001"
+            ),  # precision (>38, ...) is decimal256
             {"foo": "bar"},
             '{"foo": "baz"}',
         ),
@@ -44,8 +49,10 @@ def test_row_tuples_to_arrow_unknown_types(all_unknown: bool, leading_nulls: boo
             uuid4(),
             datetime.now(timezone.utc),
             [4, 5, 6],
-            Decimal("3.00001"), # precision (38, ...) is decimal128
-            Decimal("3.00000000000000000000000000000000000001"),  # precision (>38, ...) is decimal256
+            Decimal("3.00001"),  # precision (38, ...) is decimal128
+            Decimal(
+                "3.00000000000000000000000000000000000001"
+            ),  # precision (>38, ...) is decimal256
             {"foo": "bar"},
             '{"foo": "baz"}',
         ),
@@ -59,7 +66,9 @@ def test_row_tuples_to_arrow_unknown_types(all_unknown: bool, leading_nulls: boo
             datetime.now(timezone.utc),
             [7, 8, 9],
             Decimal("4.00001"),  # within default precision (38, ...) is decimal128
-            Decimal("4.00000000000000000000000000000000000001"),  # precision (>38, ...) is decimal256
+            Decimal(
+                "4.00000000000000000000000000000000000001"
+            ),  # precision (>38, ...) is decimal256
             {"foo": "bar"},
             '{"foo": "baz"}',
         ),
@@ -120,10 +129,10 @@ def test_row_tuples_to_arrow_unknown_types(all_unknown: bool, leading_nulls: boo
 
 def test_convert_to_arrow_json_is_not_a_string():
     column_name = "json_col"
-    columns_schema = {column_name: {"name": column_name, "data_type": "json"}}
+    columns_schema: TTableSchemaColumns = {column_name: {"name": column_name, "data_type": "json"}}
     value1 = {"foo": "bar"}
     value2 = {"foo": "baz"}
-    rows = [(value1, ), (value2, )]
+    rows = [(value1,), (value2,)]
     expected_column = [value1, value2]
     # NOTE json_to_str() is not equivalent to `json.dumps()` because it leaves no whitespace
     # between key and value e.g., `{"key":"value"}`
@@ -137,7 +146,8 @@ def test_convert_to_arrow_json_is_not_a_string():
         column,
         DestinationCapabilitiesContext().generic_capabilities(),
         columns_schema[column_name],
-        "UTC"
+        "UTC",
+        True,
     )
     assert arrow_array.equals(expected_arrow_array)
 
@@ -147,9 +157,9 @@ def test_convert_to_arrow_json_is_not_a_string():
 
 def test_convert_to_arrow_null_column_is_removed():
     column_name = "null_col"
-    columns_schema = {
+    columns_schema: TTableSchemaColumns = {
         "int_col": {"name": "int_col"},
-        column_name: {"name": column_name}
+        column_name: {"name": column_name},
     }
     rows = [(1, None), (2, None)]
 
@@ -158,7 +168,8 @@ def test_convert_to_arrow_null_column_is_removed():
         columns[column_name],
         DestinationCapabilitiesContext().generic_capabilities(),
         columns_schema[column_name],
-        "UTC"
+        "UTC",
+        True,
     )
     assert pa.types.is_null(arrow_array.type)
 
@@ -169,9 +180,9 @@ def test_convert_to_arrow_null_column_is_removed():
 
 def test_convert_to_arrow_null_column_with_data_type_is_not_removed():
     column_name = "null_col"
-    columns_schema = {
+    columns_schema: TTableSchemaColumns = {
         "int_col": {"name": "int_col"},
-        column_name: {"name": column_name, "data_type": "text"}
+        column_name: {"name": column_name, "data_type": "text"},
     }
     rows = [(1, None), (2, None)]
 
@@ -180,7 +191,8 @@ def test_convert_to_arrow_null_column_with_data_type_is_not_removed():
         columns[column_name],
         DestinationCapabilitiesContext().generic_capabilities(),
         columns_schema[column_name],
-        "UTC"
+        "UTC",
+        True,
     )
     assert not pa.types.is_null(arrow_array.type)
     assert pa.types.is_string(arrow_array.type)
@@ -192,7 +204,7 @@ def test_convert_to_arrow_null_column_with_data_type_is_not_removed():
 
 def test_convert_to_arrow_cast_string_to_decimal():
     column_name = "decimal_col"
-    columns_schema = {
+    columns_schema: TTableSchemaColumns = {
         column_name: {"name": column_name, "data_type": "decimal"}
     }
     rows = ["2.00001", "3.00001"]
@@ -202,7 +214,8 @@ def test_convert_to_arrow_cast_string_to_decimal():
         columns[column_name],
         DestinationCapabilitiesContext().generic_capabilities(),
         columns_schema[column_name],
-        "UTC"
+        "UTC",
+        True,
     )
     assert pa.types.is_decimal128(arrow_array.type)
 
@@ -212,7 +225,7 @@ def test_convert_to_arrow_cast_string_to_decimal():
 
 def test_convert_to_arrow_cast_float_to_decimal():
     column_name = "decimal_col"
-    columns_schema = {
+    columns_schema: TTableSchemaColumns = {
         column_name: {"name": column_name, "data_type": "decimal"}
     }
     rows = [(2.00001,), (3.00001,)]
@@ -222,7 +235,8 @@ def test_convert_to_arrow_cast_float_to_decimal():
         columns[column_name],
         DestinationCapabilitiesContext().generic_capabilities(),
         columns_schema[column_name],
-        "UTC"
+        "UTC",
+        True,
     )
     assert pa.types.is_decimal128(arrow_array.type)
 
@@ -230,12 +244,11 @@ def test_convert_to_arrow_cast_float_to_decimal():
     assert pa.types.is_decimal128(arrow_table[column_name].type)
 
 
-
 def test_row_tuples_to_arrow_error_for_decimals() -> None:
     """Decimals are represented by precision and scale. In pyarrow, decimals are represented as strings.
 
     precision: the number of significant digits; default=38, which is a 128 bytes decimal
-    scale: the number of decimal digitsl; default=9 
+    scale: the number of decimal digitsl; default=9
 
     Currently, dlt has 3 behaviors when converting data to pyarrow:
     - pyarrow: pyarrow sets the precision, scale, and type (decimal128 vs. decimal256) based on the Python object
@@ -243,19 +256,29 @@ def test_row_tuples_to_arrow_error_for_decimals() -> None:
     - user: dlt applies the user specified decimal settings
     """
     # the test assumes the following default values
-    DEFAULT_PRECISION, DEFAULT_SCALE = DestinationCapabilitiesContext().generic_capabilities().decimal_precision
+    DEFAULT_PRECISION, DEFAULT_SCALE = (
+        DestinationCapabilitiesContext().generic_capabilities().decimal_precision
+    )
     assert DEFAULT_PRECISION == 38
     assert DEFAULT_SCALE == 9
-    
+
     col_name = "decimal_col"
-    base_column = {col_name: {"name": col_name}}
-    column_with_data_type: TColumnSchema = {col_name: {"name": col_name, "data_type": "decimal"}}
-    column_with_precision = {col_name: {"name": col_name, "data_type": "decimal", "precision": 20}}
-    column_with_scale = {col_name: {"name": col_name, "data_type": "decimal", "scale": 10}}
-    column_with_precision_and_scale = {col_name: {"name":col_name, "data_type": "decimal", "precision": 22, "scale": 11}}
+    base_column: TTableSchemaColumns = {col_name: {"name": col_name}}
+    column_with_data_type: TTableSchemaColumns = {
+        col_name: {"name": col_name, "data_type": "decimal"}
+    }
+    column_with_precision: TTableSchemaColumns = {
+        col_name: {"name": col_name, "data_type": "decimal", "precision": 20}
+    }
+    column_with_scale: TTableSchemaColumns = {
+        col_name: {"name": col_name, "data_type": "decimal", "scale": 10}
+    }
+    column_with_precision_and_scale: TTableSchemaColumns = {
+        col_name: {"name": col_name, "data_type": "decimal", "precision": 22, "scale": 11}
+    }
 
     # decimal scale 7, within default (38, 9)
-    decimal_scale_7 = Decimal("2.0000001")  
+    decimal_scale_7 = Decimal("2.0000001")
 
     # if data_type is None, pyarrow infers precision and scale
     arrow_table = row_tuples_to_arrow([[decimal_scale_7]], columns=base_column)
@@ -288,7 +311,6 @@ def test_row_tuples_to_arrow_error_for_decimals() -> None:
     assert pa.types.is_decimal128(arrow_field_type)
     assert arrow_field_type.precision == column_with_precision_and_scale[col_name]["precision"]
     assert arrow_field_type.scale == column_with_precision_and_scale[col_name]["scale"]
-
 
     # decimal scale 10, outside default (38, 9)
     decimal_scale_10 = Decimal("2.0000000001")
