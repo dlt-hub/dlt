@@ -17,7 +17,7 @@ It then [injects](advanced/#injection-mechanism) these values where needed in fu
 ## Available config providers
 
 :::tip dlt+
-If you want to define all sources, destinations, pipelines and parameters in the `yaml` file, check out [dlt+](../../plus/features/projects.md).
+To define your configuration (including sources, destinations, pipeline and parameters) in a declarative way in the YAML file, check out [dlt+](../../plus/features/projects.md).
 :::
 
 There are multiple ways to define configurations and credentials for your pipelines. `dlt` looks for these definitions in the following order during pipeline execution:
