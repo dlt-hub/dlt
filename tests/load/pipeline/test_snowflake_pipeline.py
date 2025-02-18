@@ -1,4 +1,5 @@
 import os
+import time
 import pytest
 from pytest_mock import MockerFixture
 
@@ -6,10 +7,10 @@ import dlt
 from dlt.common import pendulum
 from dlt.common.utils import uniq_id
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
-
+from dlt.destinations.sql_client import SqlClientBase
+from typing import Any
 from dlt.load.exceptions import LoadClientJobFailed
 from dlt.pipeline.exceptions import PipelineStepFailed
-from dlt.common.configuration.exceptions import ConfigurationValueError
 
 from tests.load.pipeline.test_pipelines import simple_nested_pipeline
 from tests.load.snowflake.test_snowflake_client import QUERY_TAG
@@ -209,42 +210,69 @@ def test_char_replacement_cs_naming_convention(
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, all_staging_configs=True, with_file_format="parquet", subset=["snowflake"]),
+    destinations_configs(
+        default_sql_configs=True,
+        all_staging_configs=True,
+        with_file_format="parquet",
+        subset=["snowflake"],
+    ),
     ids=lambda x: x.name,
 )
-@pytest.mark.parametrize(
-    "on_error_parquet",
-    ["ABORT_STATEMENT", "SKIP_FILE", "CONTINUE"],
-)
-def test_snowflake_use_vectorized_scanner(
-    destination_config: DestinationTestConfiguration,
-    on_error_parquet: str
-) -> None:
-    """Using use_vectorized_scanner = true option to use vectorized scanner for parquet files"""
+def test_snowflake_use_vectorized_scanner(destination_config):
+    """Tests whether the vectorized scanner option is correctly applied when loading Parquet files into Snowflake."""
+
+    def get_copy_into_queries(client: SqlClientBase[Any], table_name: str):
+        """Fetch COPY INTO queries within the last minute containing the table name."""
+        query = """
+        SELECT QUERY_TEXT FROM TABLE(INFORMATION_SCHEMA.QUERY_HISTORY( \
+            END_TIME_RANGE_START => DATEADD(MINUTE, -5, CURRENT_TIMESTAMP), \
+            END_TIME_RANGE_END => CURRENT_TIMESTAMP \
+        )) WHERE QUERY_TEXT LIKE '%COPY INTO%'
+        """
+        return [row[0] for row in client.execute_sql(query) if table_name in row[0]]
+
     os.environ["DESTINATION__SNOWFLAKE__USE_VECTORIZED_SCANNER"] = "TRUE"
-    os.environ["DESTINATION__SNOWFLAKE__ON_ERROR_PARQUET"] = on_error_parquet
 
     pipeline, data = simple_nested_pipeline(
-        destination_config, f"vectorized_scanner_{on_error_parquet}_{uniq_id()}", False
+        destination_config, f"vectorized_scanner_true_{uniq_id()}", False
     )
+    info = pipeline.run(data(), **destination_config.run_kwargs)
+    assert_load_info(info)
 
-    if on_error_parquet not in ["ABORT_STATEMENT", "SKIP_FILE"]:
-        with pytest.raises(PipelineStepFailed) as step_ex:
-            pipeline.run(data, **destination_config.run_kwargs)
-        assert step_ex.value.__cause__, ConfigurationValueError
-    else:
-        info = pipeline.run(data(), **destination_config.run_kwargs)
-        assert_load_info(info)
+    # Allow time for query history to update in Snowflake
+    time.sleep(2)
 
-    # test data that causes an 'Max LOB size (134217728) exceeded' error in Snowflake
+    with pipeline.sql_client() as client:
+        table_name = client.make_qualified_table_name("lists")
+        copy_queries = get_copy_into_queries(client, table_name)
+
+        assert len(copy_queries) == 1
+        assert "USE_VECTORIZED_SCANNER = TRUE" in copy_queries[0]
+        assert "ON_ERROR = ABORT_STATEMENT" in copy_queries[0]
+
     @dlt.resource
     def large_data():
         yield {"id": 1, "value": "A" * 214748364}
 
-    if on_error_parquet == "ABORT_STATEMENT":
-        with pytest.raises(LoadClientJobFailed) as step_ex:
-            pipeline.run(large_data(), **destination_config.run_kwargs)
+    with pytest.raises(PipelineStepFailed) as step_ex:
+        pipeline.run(large_data(), **destination_config.run_kwargs)
+        assert step_ex.value.step == "load"
+        assert isinstance(step_ex.value.exception, LoadClientJobFailed)
 
-    if on_error_parquet == "SKIP_FILE":
-        info = pipeline.run(data(), **destination_config.run_kwargs)
-        assert_load_info(info)
+    os.environ["DESTINATION__SNOWFLAKE__USE_VECTORIZED_SCANNER"] = "FALSE"
+
+    pipeline, data = simple_nested_pipeline(
+        destination_config, f"vectorized_scanner_false_{uniq_id()}", False
+    )
+    info = pipeline.run(data(), **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    time.sleep(2)
+
+    with pipeline.sql_client() as client:
+        table_name = client.make_qualified_table_name("lists")
+        copy_queries = get_copy_into_queries(client, table_name)
+
+        assert len(copy_queries) == 1
+        assert "USE_VECTORIZED_SCANNER = TRUE" not in copy_queries[0]
+        assert "ON_ERROR = ABORT_STATEMENT" not in copy_queries[0]
