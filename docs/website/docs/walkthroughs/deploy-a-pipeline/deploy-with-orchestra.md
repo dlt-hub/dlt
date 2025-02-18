@@ -55,6 +55,7 @@ from hubspot import hubspot, hubspot_events_for_objects, THubspotObjectType
 from setup_logger import build_logger
 
 logger = build_logger("debug.log")
+
 def run_pipeline() -> None:
     """
     This function loads all resources from HubSpot CRM
