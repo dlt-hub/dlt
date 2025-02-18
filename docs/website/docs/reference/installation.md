@@ -106,30 +106,33 @@ C:\> .\env\Scripts\activate
 
 ### 3. Install `dlt` library
 
-You can now install `dlt` in your virtual environment by running:
+To install or upgrade to the newest version of `dlt` in your virtual environment, run:
 
 ```sh
-# install the newest dlt version or upgrade the existing version to the newest one
 pip install -U dlt
 ```
 
-Other installation examples:
+Here are some additional installation examples:
+
+To install dlt with DuckDB support:
 ```sh
-# install dlt with support for duckdb
 pip install "dlt[duckdb]"
-# install dlt version smaller than 0.5.0
+```
+
+To install a specific version of dlt (for example, versions before 0.5.0):
+```sh
 pip install "dlt<0.5.0"
 ```
 
 ### 3.1. Install dlt via Pixi or Conda
 
-Install dlt using `pixi`:
+To install dlt using `pixi`:
 
 ```sh
 pixi add dlt
 ```
 
-Install dlt using `conda`:
+To install dlt using `conda`:
 
 ```sh
 conda install -c conda-forge dlt
