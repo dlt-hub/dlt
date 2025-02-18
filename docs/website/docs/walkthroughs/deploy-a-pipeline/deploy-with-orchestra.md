@@ -41,7 +41,7 @@ For example:
 
 ![Configure a dlt Python Integration in Orchestra](images/orchestra_dlt_credential.png)
 
-#### Entry point
+### Entry point
 
 After configuring you `.dlt` project, you should ensure the pipelines you want to run can be run from a single point of entry i.e. a single file.
 
