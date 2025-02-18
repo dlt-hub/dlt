@@ -140,6 +140,11 @@ def render_argparse_markdown(
                 line_elements = re.split(r"\s{2,}|\n+", line)
                 arg_title = line_elements[0]
                 arg_help = line_elements[1] if len(line_elements) > 1 else ""
+                if not arg_help:
+                    fmt.warning(
+                        f"Missing helpstring for argument '{arg_title}' in section '{header}' of"
+                        f" command '{cmd}'."
+                    )
                 if is_subcommands_list:
                     full_command = f"{cmd} {arg_title}"
                     anchor_slug = full_command.lower().replace(" ", "-")
