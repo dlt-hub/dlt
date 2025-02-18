@@ -62,7 +62,7 @@ After running the command, the following folder structure is created:
 │   ├── config.toml
 │   ├── dev.secrets.toml
 │   └── secrets.toml
-├── _storage/             # local storage for your project, excluded from git
+├── _data/             # local storage for your project, excluded from git
 ├── sources/              # your sources, contains the code for the arrow source
 │   └── arrow.py
 ├── .gitignore
@@ -312,7 +312,7 @@ And change the prod profile to the following:
       log_level: INFO
     destinations:
       my_duckdb_destination:
-        credentials: ${tmp_dir}my_data_prod.duckdb
+        credentials: my_data_prod.duckdb
 ```
 
 We can now inspect the prod profile. You will see that the new settings are merged with the project configuration and the `dev` profile settings.
@@ -359,7 +359,7 @@ Now let's add the following to the `dev.secrets.toml` file:
 log_level = "WARNING"
 
 [destination.my_duckdb_destination]
-credentials = "_storage/my_data.duckdb"
+credentials = "my_data.duckdb"
 
 [sources.my_arrow_source]
 row_count = 100
@@ -372,13 +372,13 @@ And the following to the `prod.secrets.toml` file:
 log_level = "INFO"
 
 [destination.my_duckdb_destination]
-credentials = "_storage/my_data_prod.duckdb"
+credentials = "my_data_prod.duckdb"
 
 [sources.my_arrow_source]
 row_count = 200
 ```
 
-We can now clear the `_storage` directory and repeat the steps above where you run both pipelines and inspect both datasets; you will see that the settings from the toml files are applied:
+We can now clear the `_data_` directory and repeat the steps above where you run both pipelines and inspect both datasets; you will see that the settings from the toml files are applied:
 
 Load some data:
 

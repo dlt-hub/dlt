@@ -43,23 +43,22 @@ from dlt_plus_tests.fixtures import (
     auto_preserve_environ as auto_preserve_environ,
     drop_pipeline as drop_pipeline,
     autouse_test_storage as autouse_test_storage,
-    auto_cwd_to_tmp_dir as auto_cwd_to_tmp_dir,
 )
 ```
 
 These fixtures must be explicitly imported to be activated. Please, find the short description for the fixtures below:
 
-| Fixture Name                    | Description                                                                                 | Fixture Settings |
-|----------------------------------|---------------------------------------------------------------------------------------------|------------------|
-| `auto_preserve_environ`         | Preserves environment variables before test and restore them after.                         | `autouse=True`   |
-| `auto_duckdb_pipeline_location` | Sets DuckDB pipeline credentials to `:pipeline:` in the corresponding environment variable. | `autouse=True`   |
-| `auto_drop_pipeline`            | Drops active pipeline data after test execution unless marked with 'no_load'.               | `autouse=True`   |
-| `autouse_test_storage`          | Cleans and provides test storage for the project context.                                   | `autouse=True`   |
-| `auto_unload_modules`           | Unload all modules inspected in this tests.                                  | `autouse=True`   |
-| `auto_preserve_run_context`     | Restores initial run context when test completes.                                              | `autouse=True`   |
-| `auto_preserve_sources_registry` | Preserves and restores the source registry for tests.                                       | `autouse=True, scope="function"` |
-| `auto_cwd_to_tmp_dir`           | Changes the working directory to a temporary directory for test execution.                  | `autouse=True`   |
-| `auto_test_access_profile`      | Mocks the access profile by prefixing 'tests-' to the returned profile name.                | `autouse=True`   |
+| Fixture Name                     | Description                                                                   | Fixture Settings                 |
+| -------------------------------- | ----------------------------------------------------------------------------- | -------------------------------- |
+| `auto_preserve_environ`          | Preserves environment variables before test and restore them after.           | `autouse=True`                   |
+| `auto_drop_pipeline`             | Drops active pipeline data after test execution unless marked with 'no_load'. | `autouse=True`                   |
+| `autouse_test_storage`           | Cleans and provides test storage for the project context.                     | `autouse=True`                   |
+| `auto_unload_modules`            | Unload all modules inspected in this tests.                                   | `autouse=True`                   |
+| `auto_preserve_run_context`      | Restores initial run context when test completes.                             | `autouse=True`                   |
+| `auto_preserve_sources_registry` | Preserves and restores the source registry for tests.                         | `autouse=True, scope="function"` |
+| `auto_cwd_to_local_dir`          | Changes the working directory to a temporary directory for test execution.    | `autouse=True`                   |
+| `auto_test_access_profile`       | Mocks the access profile by prefixing 'tests-' to the returned profile name.  | `autouse=True`                   |
+|                                  |                                                                               |                                  |
 
 ### Tests execution
 
@@ -71,7 +70,7 @@ In the test project run context:
 
 :::note
 `autouse_test_storage` fixture:
-* cleans up `tmp_dir` (typically `_storage`) folder (in relation to `cwd()`)
+* cleans up `data_dir` (typically `_data/`) folder (in relation to `cwd()`)
 * copies `tests/.dlt` into the temporary storage directory
 :::
 
@@ -80,18 +79,18 @@ In the test project run context:
 
 Additional cool 😎 utilities for verifying loads, checking table counts, and inspecting metrics can be imported from `utils.py`:
 
-| Name                         | Type     | Description                                                                                                                                                                                                                                            |
-|------------------------------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `IsInstanceMockMatch`        | Class    | A helper for mocking comparisons: its `__eq__` method returns `True` if the compared object is an instance of a specified class.                                                                                                                       |
-| `get_test_project_context`   | Function | Retrieves the current `ProjectRunContext` from `dlt_plus`.                                                                                                                                                                                             |
-| `get_tmp_dir`                | Function | Fetches the path to the temporary directory from the current project's configuration.                                                                                                                                                                  |
-| `clean_test_storage`         | Function | Removes any existing data directory, recreates it, and sets up a `FileStorage` in the project's temporary directory. Optionally copies configuration files from `tests/.dlt`.                                                                          |
-| `delete_test_storage`        | Function | Deletes the folder used by the test storage if it exists.                                                                                                                                                                                              |
-| `drop_active_pipeline_data`  | Function | Drops all datasets for the currently active pipeline, attempts to remove its working folder, and then deactivates the pipeline context.                                                                                                                |
-| `assert_load_info`           | Function | Ensures that the specified number of load packages have been loaded successfully, with no failed jobs. Raises an error if any failed jobs are present.                                                                                                 |
-| `load_table_counts`          | Function | Returns a dictionary of row counts for the given table names by querying the pipeline's SQL client.                                                                                                                                                    |
-| `load_tables_to_dicts`       | Function | Retrieves the contents of specified tables from the pipeline as lists of dictionaries, optionally excluding system columns (`_dlt*`) and allowing the result to be sorted by a given key.                                                              |
-| `assert_records_as_set`      | Function | Compares two lists of dictionaries by converting each to a set of key-value pairs, ensuring they match regardless of order.                                                                                                                            |
+| Name                        | Type     | Description                                                                                                                                                                               |
+| --------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `IsInstanceMockMatch`       | Class    | A helper for mocking comparisons: its `__eq__` method returns `True` if the compared object is an instance of a specified class.                                                          |
+| `get_test_project_context`  | Function | Retrieves the current `ProjectRunContext` from `dlt_plus`.                                                                                                                                |
+| `get_local_dir`               | Function | Fetches the path to the local directory from the current project's configuration.                                                                                                     |
+| `clean_test_storage`        | Function | Removes any existing data directory, recreates it, and sets up a `FileStorage` in the project's temporary directory. Optionally copies configuration files from `tests/.dlt`.             |
+| `delete_test_storage`       | Function | Deletes the folder used by the test storage if it exists.                                                                                                                                 |
+| `drop_active_pipeline_data` | Function | Drops all datasets for the currently active pipeline, attempts to remove its working folder, and then deactivates the pipeline context.                                                   |
+| `assert_load_info`          | Function | Ensures that the specified number of load packages have been loaded successfully, with no failed jobs. Raises an error if any failed jobs are present.                                    |
+| `load_table_counts`         | Function | Returns a dictionary of row counts for the given table names by querying the pipeline's SQL client.                                                                                       |
+| `load_tables_to_dicts`      | Function | Retrieves the contents of specified tables from the pipeline as lists of dictionaries, optionally excluding system columns (`_dlt*`) and allowing the result to be sorted by a given key. |
+| `assert_records_as_set`     | Function | Compares two lists of dictionaries by converting each to a set of key-value pairs, ensuring they match regardless of order.                                                               |
 
 
 ## pytest.ini options
