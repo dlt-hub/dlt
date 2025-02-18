@@ -180,7 +180,7 @@ import os
 run_pipeline()
 ```
 
-#### Add to a Pipeline
+### Add to a Pipeline
 
 After doing this, you should add a Python Task to a Pipeline like so:
 
