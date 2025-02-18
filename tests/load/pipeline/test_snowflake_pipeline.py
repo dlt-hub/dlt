@@ -218,7 +218,11 @@ def test_char_replacement_cs_naming_convention(
     ),
     ids=lambda x: x.name,
 )
-def test_snowflake_use_vectorized_scanner(destination_config):
+@pytest.mark.parametrize(
+    "use_vectorized_scanner",
+    ["TRUE", "FALSE"],
+)
+def test_snowflake_use_vectorized_scanner(destination_config, use_vectorized_scanner: str):
     """Tests whether the vectorized scanner option is correctly applied when loading Parquet files into Snowflake."""
 
     def get_copy_into_queries(client: SqlClientBase[Any], table_name: str):
@@ -231,10 +235,10 @@ def test_snowflake_use_vectorized_scanner(destination_config):
         """
         return [row[0] for row in client.execute_sql(query) if table_name in row[0]]
 
-    os.environ["DESTINATION__SNOWFLAKE__USE_VECTORIZED_SCANNER"] = "TRUE"
+    os.environ["DESTINATION__SNOWFLAKE__USE_VECTORIZED_SCANNER"] = use_vectorized_scanner
 
     pipeline, data = simple_nested_pipeline(
-        destination_config, f"vectorized_scanner_true_{uniq_id()}", False
+        destination_config, f"vectorized_scanner_{use_vectorized_scanner}_{uniq_id()}", False
     )
     info = pipeline.run(data(), **destination_config.run_kwargs)
     assert_load_info(info)
@@ -246,33 +250,22 @@ def test_snowflake_use_vectorized_scanner(destination_config):
         table_name = client.make_qualified_table_name("lists")
         copy_queries = get_copy_into_queries(client, table_name)
 
-        assert len(copy_queries) == 1
+    assert len(copy_queries) == 1
+
+    if use_vectorized_scanner == "FALSE":
+        assert "USE_VECTORIZED_SCANNER = TRUE" not in copy_queries[0]
+        assert "ON_ERROR = ABORT_STATEMENT" not in copy_queries[0]
+
+    elif use_vectorized_scanner == "TRUE":
         assert "USE_VECTORIZED_SCANNER = TRUE" in copy_queries[0]
         assert "ON_ERROR = ABORT_STATEMENT" in copy_queries[0]
 
-    @dlt.resource
-    def large_data():
-        yield {"id": 1, "value": "A" * 214748364}
+        # Ensure Snowflake fails, since ON_ERROR = ABORT_STATEMENT
+        @dlt.resource
+        def large_data():
+            yield {"id": 1, "value": "A" * 214748364}
 
-    with pytest.raises(PipelineStepFailed) as step_ex:
-        pipeline.run(large_data(), **destination_config.run_kwargs)
-        assert step_ex.value.step == "load"
-        assert isinstance(step_ex.value.exception, LoadClientJobFailed)
-
-    os.environ["DESTINATION__SNOWFLAKE__USE_VECTORIZED_SCANNER"] = "FALSE"
-
-    pipeline, data = simple_nested_pipeline(
-        destination_config, f"vectorized_scanner_false_{uniq_id()}", False
-    )
-    info = pipeline.run(data(), **destination_config.run_kwargs)
-    assert_load_info(info)
-
-    time.sleep(2)
-
-    with pipeline.sql_client() as client:
-        table_name = client.make_qualified_table_name("lists")
-        copy_queries = get_copy_into_queries(client, table_name)
-
-        assert len(copy_queries) == 1
-        assert "USE_VECTORIZED_SCANNER = TRUE" not in copy_queries[0]
-        assert "ON_ERROR = ABORT_STATEMENT" not in copy_queries[0]
+        with pytest.raises(PipelineStepFailed) as step_ex:
+            pipeline.run(large_data(), **destination_config.run_kwargs)
+            assert step_ex.value.step == "load"
+            assert isinstance(step_ex.value.exception, LoadClientJobFailed)
