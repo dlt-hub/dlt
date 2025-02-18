@@ -183,6 +183,14 @@ When staging is enabled:
 When loading from Parquet, Snowflake will store `json` types (JSON) in `VARIANT` as a string. Use the JSONL format instead or use `PARSE_JSON` to update the `VARIANT` field after loading.
 :::
 
+When using the Parquet format, you can enable the **vectorized scanner** to improve performance. By default, this feature uses the `ON_ERROR=ABORT_STATEMENT` setting in `dlt`, which stops execution if an error occurs.
+To enable the vectorized scanner, add the following to your configuration:
+
+```toml
+[destination.snowflake]
+use_vectorized_scanner=true
+```
+
 ### Custom CSV formats
 By default, we support the CSV format [produced by our writers](../file-formats/csv.md#default-settings), which is comma-delimited, with a header, and optionally quoted.
 
@@ -217,9 +225,9 @@ Names of tables and columns in [schemas](../../general-usage/schema.md) are kept
 
 ## Staging support
 
-Snowflake supports S3 and GCS as file staging destinations. `dlt` will upload files in the parquet format to the bucket provider and will ask Snowflake to copy their data directly into the db.
+Snowflake supports S3 and GCS as file staging destinations. `dlt` will upload files in the Parquet format to the bucket provider and will ask Snowflake to copy their data directly into the db.
 
-Alternatively to parquet files, you can also specify jsonl as the staging file format. For this, set the `loader_file_format` argument of the `run` command of the pipeline to `jsonl`.
+Alternatively to Parquet files, you can also specify jsonl as the staging file format. For this, set the `loader_file_format` argument of the `run` command of the pipeline to `jsonl`.
 
 ### Snowflake and Amazon S3
 
@@ -324,6 +332,8 @@ stage_name="DLT_STAGE"
 keep_staged_files=true
 # Add UNIQUE and PRIMARY KEY hints to tables
 create_indexes=true
+# Enable vectorized scanner when using the Parquet format
+use_vectorized_scanner=true
 ```
 
 ### Setting up CSV format
