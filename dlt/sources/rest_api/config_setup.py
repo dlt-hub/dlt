@@ -744,9 +744,15 @@ def process_parent_data_item(
 def convert_incremental_values(
     incremental: Incremental[Any], convert: Callable[..., Any]
 ) -> Dict[str, Any]:
+    values = {
+        "initial_value": incremental.initial_value,
+        "start_value": incremental.start_value,
+        "last_value": incremental.last_value,
+        "end_value": incremental.end_value,
+    }
     return {
-        "incremental.start_value": convert(incremental.start_value),
-        "incremental.end_value": convert(incremental.end_value),
+        f"incremental.{key}": convert(value) if value is not None else None
+        for key, value in values.items()
     }
 
 

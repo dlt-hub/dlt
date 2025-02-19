@@ -860,7 +860,7 @@ def test_posts_with_incremental_date_conversion(mock_api_server) -> None:
         assert called_kwargs["path"] == "posts"
 
 
-def test_posts_with_incremental_in_param_template(mock_api_server) -> None:
+def test_incremental_values_in_param_template_with_conversion(mock_api_server) -> None:
     start_time = pendulum.from_timestamp(1)
     one_day_later = start_time.add(days=1)
     config: RESTAPIConfig = {
@@ -894,6 +894,129 @@ def test_posts_with_incremental_in_param_template(mock_api_server) -> None:
         _, called_kwargs = mock_paginate.call_args_list[0]
         assert called_kwargs["params"] == {"since": "1970-01-01", "until": "1970-01-02"}
         assert called_kwargs["path"] == "posts"
+
+
+def test_incremental_object_interpolation(mock_api_server) -> None:
+    initial_value = 1600000000
+    end_value = 1700000000
+    lag = 3600
+
+    source = rest_api_source(
+        {
+            "client": {"base_url": "https://api.example.com"},
+            "resources": [
+                {
+                    "name": "posts",
+                    "endpoint": {
+                        "path": "posts",
+                        "params": {
+                            "initial_value": "{incremental.initial_value}",
+                            "lag": "{incremental.lag}",
+                            "since": "{incremental.start_value}",
+                            "until": "{incremental.end_value}",
+                        },
+                        "incremental": {
+                            "cursor_path": "id",
+                            "initial_value": initial_value,
+                            "end_value": end_value,
+                            "lag": lag,
+                        },
+                    },
+                },
+            ],
+        }
+    )
+    list(source.with_resources("posts").add_limit(1))
+
+    history = mock_api_server.request_history
+    assert len(history) == 1
+    request_call = history[0]
+    qs = parse_qs(urlsplit(request_call.url).query, keep_blank_values=True)
+    assert qs == {
+        "initial_value": [str(initial_value)],
+        "lag": [str(lag)],
+        "since": [str(initial_value)],
+        "until": [str(end_value)],
+    }
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        pytest.param(
+            {
+                "client": {"base_url": "https://api.example.com"},
+                "resources": [
+                    {
+                        "name": "posts",
+                        "endpoint": {
+                            "path": "posts",
+                            "params": {"since": "{incremental.start_value}"},
+                            "incremental": {
+                                "cursor_path": "id",
+                                "initial_value": 1600000000,
+                                "convert": lambda epoch: int(epoch),
+                            },
+                        },
+                    },
+                ],
+            },
+            id="incremental_interpolated_in_params",
+        ),
+        pytest.param(
+            {
+                "client": {"base_url": "https://api.example.com"},
+                "resources": [
+                    {
+                        "name": "posts",
+                        "endpoint": {
+                            "path": "posts",
+                            "incremental": {
+                                "start_param": "since",
+                                "cursor_path": "id",
+                                "initial_value": 1600000000,
+                                "convert": lambda epoch: int(epoch),
+                            },
+                        },
+                    },
+                ],
+            },
+            id="incremental_in_endpoint",
+        ),
+        pytest.param(
+            {
+                "client": {"base_url": "https://api.example.com"},
+                "resources": [
+                    {
+                        "name": "posts",
+                        "endpoint": {
+                            "path": "posts",
+                            "params": {
+                                "since": {
+                                    "type": "incremental",
+                                    "cursor_path": "id",
+                                    "initial_value": 1600000000,
+                                    "convert": lambda epoch: int(epoch),
+                                }
+                            },
+                        },
+                    },
+                ],
+            },
+            id="incremental_in_params",
+        ),
+    ],
+)
+def test_incremental_convert_without_end_value(mock_api_server, config) -> None:
+    source = rest_api_source(config)
+
+    list(source.with_resources("posts").add_limit(1))
+
+    history = mock_api_server.request_history
+    assert len(history) == 1
+    request_call = history[0]
+    qs = parse_qs(urlsplit(request_call.url).query, keep_blank_values=True)
+    assert qs == {"since": ["1600000000"]}
 
 
 def test_custom_session_is_used(mock_api_server, mocker):
