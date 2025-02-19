@@ -36,33 +36,31 @@ A demonstration package that sends GitHub events to Delta Lake, aggregates, and 
 
 import os
 import dlt as dlt
-
 from dlt_plus.project import Catalog, EntityFactory, ProjectRunContext, Project, PipelineManager
 
-
 def access_profile() -> str:
-    """Implement this function to select the profile assigned to users that import this Python package
+    """Implement this function to select profile assigned to users that import this Python package
     into their own scripts or other modules.
     """
     return "access"
 
 
 def context() -> ProjectRunContext:
-    """Returns the context of this package, including the run directory,
-    data directory, and project config.
+    """Returns the context of this package, including run directory,
+    data directory and project config
     """
     from dlt_plus.project.run_context import ensure_project
     return ensure_project(run_dir=os.path.dirname(__file__), profile=access_profile())
 
 
 def config() -> Project:
-    """Returns project configuration and getters of entities like sources, destinations,
-    and pipelines."""
-    return context().config
+    """Returns project configuration and getters of entities like sources, destinations
+    and pipelines"""
+    return context().project
 
 
 def entities() -> EntityFactory:
-    """Returns methods to create entities in this package like sources, pipelines, etc."""
+    """Returns methods to create entities in this package likes sources, pipelines etc."""
     return EntityFactory(config())
 
 
@@ -71,12 +69,33 @@ def runner() -> PipelineManager:
 
 
 def catalog() -> Catalog:
-    """Returns a catalog with available datasets, which can be read and written to."""
+    """Returns a catalogue with available datasets, which can be read and written to"""
     return Catalog(context())
 ```
 </details>
 
 2. Package the project using any of the Python package managers (e.g., [uv](https://docs.astral.sh/uv/), [poetry](https://python-poetry.org/), or setuptools).
+
+<details>
+
+<summary>pyproject.toml example</summary>
+
+```toml
+[project]
+name = "dlt_example_project"
+version = "0.0.1"
+description = "Description"
+requires-python = ">=3.9,<3.13"
+
+dependencies = [
+    "dlt>=1.7.0",
+    "dlt-plus==0.7.0"
+]
+
+[project.entry-points.dlt_package]
+dlt-project = "dlt_example_project"
+```
+</details>
 
 :::info
 cli support for packaging dlt+ Projects is currently in development and will be available in future releases.

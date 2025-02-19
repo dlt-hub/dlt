@@ -146,7 +146,7 @@ from dlt_plus_tests.utils import assert_load_info, load_table_counts
 def test_events_to_data_lake(dpt_project_config: Project) -> None:
     """Make sure we dispatch the events to tables properly"""
     factory = EntityFactory(dpt_project_config)
-    github_events = factory.create_source("events")
+    github_events = factory.create_source_factory("events")
     events_to_lake = factory.create_pipeline("events_to_lake")
     info = events_to_lake.run(github_events())
     assert_load_info(info)
