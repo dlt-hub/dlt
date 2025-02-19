@@ -208,7 +208,7 @@ or any of the settings we mention in the [performance](../../reference/performan
 ### Local and temporary files (`data_dir`)
 
 dlt+ project has a dedicated location (`data_dir`), where all working files are stored. By default, it is `_data` folder in the root of the project.
-root and working files for each profile are separated. For example: working files for `dev` profile are stored in `_data/dev`.
+Working files for each profile are stored separately. For example, files for `dev` profile are stored in `_data/dev`.
 
 Working files include:
 * pipeline working directory (`{data_dir}/pipelines` folder) where load packages, pipeline state, and schemas are stored locally.
