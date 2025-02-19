@@ -92,7 +92,7 @@ Additional cool 😎 utilities for verifying loads, checking table counts, and i
 | `assert_records_as_set`     | Function | Compares two lists of dictionaries by converting each to a set of key-value pairs, ensuring they match regardless of order.                                                               |
 
 
-## Pytest.ini options
+## pytest.ini options
 
 The plugin introduces two additional `pytest.ini` options, which are automatically set and usually do not need modifications:
 
