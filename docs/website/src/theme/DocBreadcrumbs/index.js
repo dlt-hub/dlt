@@ -7,17 +7,6 @@ import { translate } from "@docusaurus/Translate";
 import HomeBreadcrumbItem from "@theme/DocBreadcrumbs/Items/Home";
 import styles from "./styles.module.css";
 import { useLocation } from "@docusaurus/router";
-import Admonition from "@theme/Admonition";
-
-function PlusAdmonition() {
-  return (
-    <Admonition type="note" title="dlt+">
-      <p>
-        This page is for dlt+, which requires a license. <a href="https://info.dlthub.com/waiting-list">Join our early access program</a> for a trial license.
-      </p>
-    </Admonition>
-  );
-}
 
 // TODO move to design system folder
 function BreadcrumbsItemLink({ children, href, isLast }) {
@@ -99,7 +88,6 @@ export default function DocBreadcrumbs() {
           </div>
         )}
       </nav>
-      {showPlus && <PlusAdmonition />}
     </>
   );
 }
