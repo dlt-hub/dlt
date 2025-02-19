@@ -495,7 +495,7 @@ def _set_incremental_params(
     if transform is None:
         transform = identity_func
     if incremental_param.start:
-        params[incremental_param.start] = transform(incremental_object.start_value)
+        params[incremental_param.start] = transform(incremental_object.last_value)
     if incremental_param.end:
         params[incremental_param.end] = transform(incremental_object.end_value)
     return params
