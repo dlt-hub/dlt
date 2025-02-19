@@ -10,6 +10,7 @@ import dlt, os
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs import BaseConfiguration
 from dlt.common.exceptions import DictValidationException, PipelineStateNotAvailable
+from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCaseNamingConvention
 from dlt.common.pipeline import StateInjectableContext, source_state
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TColumnProp, TColumnSchema
@@ -1731,9 +1732,7 @@ def test_apply_nested_hints():
     outer2_innerbar_id_new_type = "bigint"
     nested_hints = {
         ("outer1",): dict(
-            columns={
-                "outer1_id": {"name": "outer1_id", "data_type": outer1_id_new_type}
-            }
+            columns={"outer1_id": {"name": "outer1_id", "data_type": outer1_id_new_type}}
         ),
         ("outer2", "innerbar"): dict(
             columns={
@@ -1743,24 +1742,32 @@ def test_apply_nested_hints():
     }
     expected_nested_schemas = [
         {
-            "resource": "with_nested_hints",
-            "name": "outer1",
+            "name": "with_nested_hints__outer1",
             "parent": "with_nested_hints",
             "columns": {"outer1_id": {"name": "outer1_id", "data_type": "double"}},
         },
         {
-            "resource": "with_nested_hints",
-            "name": "innerbar",
-            "parent": "outer2",
+            "name": "with_nested_hints__outer2__innerbar",
+            "parent": "with_nested_hints__outer2",
             "columns": {"innerbar_id": {"name": "innerbar_id", "data_type": "bigint"}},
         },
     ]
 
     nested_resource.apply_hints(nested_hints=nested_hints)
+    print(nested_resource.nested_hints)
     assert nested_resource.nested_hints == nested_hints
 
-    nested_schemas = nested_resource.compute_nested_table_schemas()
+    nested_schemas = nested_resource.compute_nested_table_schemas(
+        resource_name, naming=SnakeCaseNamingConvention()
+    )
     assert nested_schemas == expected_nested_schemas
+
+    # TODO: repeat apply_hints with different nested hints. we have a different code path
+
+    # TODO: also test nested hints that declare primary or merge keys. that should
+    # - generate 'resource' name
+    # - drop the `parent`
+    # effectively breaking the nesting chain`
 
 
 def test_resource_no_template() -> None:

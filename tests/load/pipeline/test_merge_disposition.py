@@ -93,6 +93,7 @@ def test_merge_on_keys_in_schema(
         @dlt.resource(
             table_name="blocks",
             write_disposition={"disposition": "merge", "strategy": merge_strategy},
+            table_format=destination_config.table_format,
         )
         def data():
             with open(
@@ -107,12 +108,14 @@ def test_merge_on_keys_in_schema(
         blocks__transactions = schema_.tables["blocks__transactions"]
         blocks__transactions["write_disposition"] = "merge"
         blocks__transactions["x-merge-strategy"] = merge_strategy  # type: ignore[typeddict-unknown-key]
-        blocks__transactions["table_format"] = destination_config.table_format
+        if destination_config.table_format:
+            blocks__transactions["table_format"] = destination_config.table_format
 
         blocks__transactions__logs = schema_.tables["blocks__transactions__logs"]
         blocks__transactions__logs["write_disposition"] = "merge"
         blocks__transactions__logs["x-merge-strategy"] = merge_strategy  # type: ignore[typeddict-unknown-key]
-        blocks__transactions__logs["table_format"] = destination_config.table_format
+        if destination_config.table_format:
+            blocks__transactions__logs["table_format"] = destination_config.table_format
 
         return data
 
@@ -183,11 +186,15 @@ def test_merge_on_keys_in_schema_nested_hints(
         del schema.tables["blocks__uncles"]["x-normalizer"]
         assert not has_table_seen_data(schema.tables["blocks__uncles"])
 
+    # TODO: allow nested_hints on dlt.resource so I do not need to apply them below
+    hints = {
+        "write_disposition": {"disposition": "merge", "strategy": merge_strategy},
+        "table_format": destination_config.table_format,
+    }
+
     @dlt.source(schema=schema)
     def ethereum(slice_: slice = None):
-        @dlt.resource(
-            write_disposition={"disposition": "merge", "strategy": merge_strategy},
-        )
+        @dlt.resource(**hints)
         def blocks():
             with open(
                 "tests/normalize/cases/ethereum.blocks.9c1d9b504ea240a482b007788d5cd61c_2.json",
@@ -196,17 +203,12 @@ def test_merge_on_keys_in_schema_nested_hints(
             ) as f:
                 yield json.load(f) if slice_ is None else json.load(f)[slice_]
 
-
-        hints = {
-            "write_disposition": "merge",
-            # "x-merge-strategy": merge_strategy,
-            "table_format": destination_config.table_format,
-        }
         resource = blocks()
+        # NOTE: setting primary key will break nesting chain
         resource.apply_hints(
             nested_hints={
-                ("transactions", ): hints,
-                ("transactions", "logs"): hints,
+                ("transactions",): {**hints, "primary_key": ("block_number", "transaction_index")},
+                ("transactions", "logs"): {**hints, "primary_key": ("block_number", "transaction_index", "log_index")},
             }
         )
 
@@ -218,6 +220,7 @@ def test_merge_on_keys_in_schema_nested_hints(
         **destination_config.run_kwargs,
     )
     assert_load_info(info)
+    print(p.default_schema.to_pretty_yaml())
     eth_1_counts = load_table_counts(p, "blocks")
     # we load a single block
     assert eth_1_counts["blocks"] == 1
@@ -278,10 +281,10 @@ def test_merge_record_updates(
     def r(data):
         yield data
 
-    # initial load
+    # initial load, also use primary key is that must be normalized "ID" -> "id"
     run_1 = [
-        {"id": 1, "foo": 1, "child": [{"bar": 1, "grandchild": [{"baz": 1}]}]},
-        {"id": 2, "foo": 1, "child": [{"bar": 1, "grandchild": [{"baz": 1}]}]},
+        {"ID": 1, "foo": 1, "child": [{"bar": 1, "grandchild": [{"baz": 1}]}]},
+        {"ID": 2, "foo": 1, "child": [{"bar": 1, "grandchild": [{"baz": 1}]}]},
     ]
     info = p.run(r(run_1), **destination_config.run_kwargs)
     assert_load_info(info)

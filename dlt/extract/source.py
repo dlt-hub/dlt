@@ -330,7 +330,9 @@ class DltSource(Iterable[TDataItem]):
             # names must be normalized here
             with contextlib.suppress(DataItemRequiredForDynamicTableHints):
                 root_table_schema = r.compute_table_schema(item)
-                nested_tables_schema = r.compute_nested_table_schemas(item)
+                nested_tables_schema = r.compute_nested_table_schemas(
+                    root_table_schema["name"], schema.naming, item
+                )
                 # NOTE must ensure that `schema.update_table()` is called in an order that respect parent-child relationships
                 for table_schema in (root_table_schema, *nested_tables_schema):
                     partial_table = normalize_table_identifiers(table_schema, self._schema.naming)

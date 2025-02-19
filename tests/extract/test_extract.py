@@ -275,9 +275,7 @@ def test_extract_nested_hints(extract_step: Extract) -> None:
     outer2_innerbar_id_new_type = "bigint"
     nested_hints = {
         ("outer1",): dict(
-            columns={
-                "outer1_id": {"name": "outer1_id", "data_type": outer1_id_new_type}
-            }
+            columns={"outer1_id": {"name": "outer1_id", "data_type": outer1_id_new_type}}
         ),
         ("outer2", "innerbar"): dict(
             columns={
@@ -288,7 +286,7 @@ def test_extract_nested_hints(extract_step: Extract) -> None:
     nested_resource.apply_hints(nested_hints=nested_hints)
     assert nested_resource.nested_hints == nested_hints
 
-    # check 2: discover the full schema on the source; includes root and nested tables 
+    # check 2: discover the full schema on the source; includes root and nested tables
     implicit_parent = "outer2"
 
     source = DltSource(dlt.Schema("hintable"), "module", [nested_resource])
@@ -299,9 +297,16 @@ def test_extract_nested_hints(extract_step: Extract) -> None:
     assert pre_extract_schema.get_table("outer1")["parent"] == "with_nested_hints"
     assert pre_extract_schema.get_table("outer1")["columns"] == nested_hints[("outer1",)]["columns"]
     assert pre_extract_schema.get_table("innerbar")["parent"] == "outer2"
-    assert pre_extract_schema.get_table("innerbar")["columns"] == nested_hints[("outer2", "innerbar")]["columns"]
+    assert (
+        pre_extract_schema.get_table("innerbar")["columns"]
+        == nested_hints[("outer2", "innerbar")]["columns"]
+    )
     # this table is generated to ensure `innerbar` has a parent that links it to the root table
-    assert pre_extract_schema.get_table(implicit_parent) == {"name": implicit_parent, "resource": resource_name, "columns": {}}
+    assert pre_extract_schema.get_table(implicit_parent) == {
+        "name": implicit_parent,
+        "resource": resource_name,
+        "columns": {},
+    }
 
 
 def test_extract_metrics_on_exception_no_flush(extract_step: Extract) -> None:
