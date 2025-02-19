@@ -22,7 +22,7 @@ Local transformations are currently limited to specific use cases and are only c
 * [Delta](../../ecosystem/delta.md)
 * [Cloud storage and filesystem](../../../dlt-ecosystem/destinations/filesystem.md)
 
-Make sure to specify a dataset located in filesystem-based destination when [defining a cache](#defining-cache).
+Make sure to specify a dataset located in a filesystem-based destination when [defining a cache](#defining-cache).
 :::
 
 To use this feature, follow these steps:
@@ -55,7 +55,7 @@ caches:
 ```
 
 :::caution
-Please, make sure that the input dataset for the cache is located in a filesystem-based destination ([Iceberg](../../ecosystem/iceberg.md), [Delta](../../ecosystem/delta.md), or [Cloud storage and filesystem](../../../dlt-ecosystem/destinations/filesystem.md))
+Please make sure that the input dataset for the cache is located in a filesystem-based destination ([Iceberg](../../ecosystem/iceberg.md), [Delta](../../ecosystem/delta.md), or [Cloud storage and filesystem](../../../dlt-ecosystem/destinations/filesystem.md)).
 :::
 
 ### Defining transformations

@@ -1,14 +1,14 @@
 ---
-title: Projects tutorial
-description: Using the dlt+ cli commands to create and manage dlt+ Projects
-keywords: [command line interface, cli, dlt init, dlt+, projects]
+title: Project tutorial
+description: Using the dlt+ cli commands to create and manage dlt+ Project
+keywords: [command line interface, cli, dlt init, dlt+, project]
 ---
 
 import Link from '../../_plus_admonition.md';
 
 <Link/>
 
-This tutorial introduces you to dlt+ Projects and the essential cli commands needed to create and manage them. You will learn how to:
+This tutorial introduces you to dlt+ Project and the essential cli commands needed to create and manage it. You will learn how to:
 
 * initialize a new dlt+ Project
 * navigate the `dlt.yml` file
@@ -21,7 +21,7 @@ This tutorial introduces you to dlt+ Projects and the essential cli commands nee
 
 To follow this tutorial, make sure:
 
-- dlt+ is setup according to the [installation guide](./installation.md)
+- dlt+ is set up according to the [installation guide](./installation.md)
 - you're familiar with the [core concepts of dlt](../../reference/explainers/how-dlt-works.md)
 
 :::tip
@@ -50,7 +50,7 @@ This command generates a project named `tutorial` with:
 - one dataset on the DuckDB destination
 
 :::caution
-Currently, `dlt project init` only supports limited amount of sources (for example, [REST API](../../dlt-ecosystem/verified-sources/rest_api/index.md), [SQL database](../../dlt-ecosystem/verified-sources/sql_database/index.md), [filesystem](../../dlt-ecosystem/verified-sources/filesystem/index.md), etc.). To list all available sources, please use [cli command](../reference.md#dlt-source-list):
+Currently, `dlt project init` only supports a limited number of sources (for example, [REST API](../../dlt-ecosystem/verified-sources/rest_api/index.md), [SQL database](../../dlt-ecosystem/verified-sources/sql_database/index.md), [filesystem](../../dlt-ecosystem/verified-sources/filesystem/index.md), etc.). To list all available sources, please use the [cli command](../reference.md#dlt-source-list):
 
 ```sh
 dlt source list-available
@@ -76,6 +76,7 @@ After running the command, the following folder structure is created:
 ```
 
 ### Understanding `dlt.yml`
+
 The `dlt.yml` file is the central configuration for your dlt+ Project. It defines the pipelines, sources, and destinations. In the generated project, the file looks like this:
 
 ```yaml
@@ -284,7 +285,7 @@ This will show the current state of the project configuration with the `dev` pro
 
 ### Adding a new profile
 
-We can now create a new profile called `prod` that changes the location of the duckdb file we are loading to, as well as the log level of the project and the amount of rows we are loading. Please run:
+We can now create a new profile called `prod` that changes the location of the duckdb file we are loading to, as well as the log level of the project and the number of rows we are loading. Please run:
 
 ```sh
 dlt profile prod add
@@ -384,3 +385,4 @@ dlt dataset --profile prod my_duckdb_destination_dataset row-counts
 ```
 
 To locate your [loaded data](../features/projects.md#local-and-temporary-files-data_dir-and-local_dir), check the `_data\{profile name}\local` directory.
+

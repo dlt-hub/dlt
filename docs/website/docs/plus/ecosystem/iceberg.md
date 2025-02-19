@@ -10,7 +10,7 @@ import Link from '../../_plus_admonition.md';
 
 # Iceberg
 
-The Iceberg destination is based off of the [filesystem destination](../../dlt-ecosystem/destinations/filesystem.md) in dlt. All configuration options from the filesystem destination can be configured as well.
+The Iceberg destination is based on the [filesystem destination](../../dlt-ecosystem/destinations/filesystem.md) in dlt. All configuration options from the filesystem destination can be configured as well.
 
 Under the hood, dlt+ uses the [pyiceberg library](https://py.iceberg.apache.org/) to write Iceberg tables. One or multiple Parquet files are prepared during the extract and normalize steps. In the load step, these Parquet files are exposed as an Arrow data structure and fed into pyiceberg.
 
@@ -25,7 +25,7 @@ pip install sqlalchemy>=2.0.18
 Initialize a dlt+ project in the current working directory with the following command:
 
 ```sh
-# replace sql_database with source of your choice
+# replace sql_database with the source of your choice
 dlt project init sql_database iceberg
 ```
 
@@ -100,19 +100,18 @@ sftp_key_passphrase = "your_passphrase"   # Optional: passphrase for your privat
 
 </Tabs>
 
-The Iceberg destination can also be defined in python as follows:
+The Iceberg destination can also be defined in Python as follows:
 
 ```py
 pipeline = dlt.pipeline("loads_iceberg", destination="iceberg")
 ```
 
-
 ## Write dispositions
 
 The Iceberg destination handles the write dispositions as follows:
-- `append` - files belonging to such tables are added to the dataset folder
+- `append` - files belonging to such tables are added to the dataset folder.
 - `replace` - all files that belong to such tables are deleted from the dataset folder, and then the current set of files is added.
-- `merge` - can be used only with the `delete-insert` [merge strategy](../../general-usage/incremental-loading#delete-insert-strategy)
+- `merge` - can be used only with the `delete-insert` [merge strategy](../../general-usage/incremental-loading#delete-insert-strategy).
 
 The `merge` write disposition can be configured as follows on the source/resource level:
 
@@ -194,19 +193,19 @@ Partition evolution (changing partition columns after a table has been created) 
 
 ## Catalogs
 
-dlt+ uses single-table, ephemeral, in-memory, sqlite-based Iceberg catalogs. These catalogs are created "on demand" when a pipeline is run, and do not persist afterwards. If a table already exists in the filesystem, it gets registered into the catalog using its latest metadata file. This allows for a serverless setup. 
+dlt+ uses single-table, ephemeral, in-memory, sqlite-based Iceberg catalogs. These catalogs are created "on demand" when a pipeline is run, and do not persist afterwards. If a table already exists in the filesystem, it gets registered into the catalog using its latest metadata file. This allows for a serverless setup.
 
 It is currently not possible to connect your own Iceberg catalog, but support for multi-vendor catalogs (such as Polaris & Unity Catalog) is coming soon.
 
 :::caution
-While ephemeral catalogs make it easy to get started with Iceberg, it comes with limitations:
-* concurrent writes are not handled and may lead to corrupt table state
-* we cannot guarantee that reads concurrent with writes are clean
-* the latest manifest file needs to be searched for using file listing—this can become slow with large tables, especially in cloud object stores
+While ephemeral catalogs make it easy to get started with Iceberg, they come with limitations:
+* Concurrent writes are not handled and may lead to a corrupt table state.
+* We cannot guarantee that reads concurrent with writes are clean.
+* The latest manifest file needs to be searched for using file listing—this can become slow with large tables, especially in cloud object stores.
 :::
 
 ## Table access helper functions
-You can use the `get_iceberg_tables` helper function to acccess native pyiceberg [Table](https://py.iceberg.apache.org/reference/pyiceberg/table/#pyiceberg.table.Table) objects.
+You can use the `get_iceberg_tables` helper function to access native pyiceberg [Table](https://py.iceberg.apache.org/reference/pyiceberg/table/#pyiceberg.table.Table) objects.
 
 ```py
 from dlt.common.libs.pyiceberg import get_iceberg_tables
@@ -222,9 +221,8 @@ iceberg_tables["another_iceberg_table"].optimize.z_order(["col_a", "col_b"])
 # iceberg_tables["my_iceberg_table"].vacuum()
 ```
 
-
 ## Table format
-The Iceberg destination automatically assigns the `iceberg` table format to all resources that it will load. You can still fall back to storing files  by setting `table_format` to native on the resource level:
+The Iceberg destination automatically assigns the `iceberg` table format to all resources that it will load. You can still fall back to storing files by setting `table_format` to native on the resource level:
 
   ```py
   @dlt.resource(
@@ -236,9 +234,8 @@ The Iceberg destination automatically assigns the `iceberg` table format to all 
   pipeline = dlt.pipeline("loads_iceberg", destination="iceberg")
   ```
 
-
 ## Known limitations
-The Iceberg destination is still under active development and therefore has a few known limitations described below. 
+The Iceberg destination is still under active development and therefore has a few known limitations described below.
 
 ### GCS authentication methods
 
@@ -248,7 +245,7 @@ The [S3-compatible](../../dlt-ecosystem/destinations/filesystem#using-s3-compati
 
 ### Azure Blob Storage URL
 
-The `az` [scheme](../../dlt-ecosystem/destinations/filesystem#supported-schemes) for Azure paths specified in `bucket_url` does not work out of the box, to get it to work you need to specify the environment variable `AZURE_STORAGE_ANON="false"`.
+The `az` [scheme](../../dlt-ecosystem/destinations/filesystem#supported-schemes) for Azure paths specified in `bucket_url` does not work out of the box. To get it to work, you need to specify the environment variable `AZURE_STORAGE_ANON="false"`.
 
 ### Compound keys
 Compound keys are not supported: use a single `primary_key` **and/or** a single `merge_key`.
@@ -256,4 +253,5 @@ Compound keys are not supported: use a single `primary_key` **and/or** a single 
 As a workaround, you can [transform](../../general-usage/resource#filter-transform-and-pivot-data) your resource data with `add_map` to add a new column that contains a hash of the key columns, and use that column as `primary_key` or `merge_key`.
 
 ### Nested tables
-Nested tables are currently not supported with the `merge` write disposition: avoid complex data types or [disable nesting](../../general-usage/source#reduce-the-nesting-level-of-generated-tables)
+Nested tables are currently not supported with the `merge` write disposition: avoid complex data types or [disable nesting](../../general-usage/source#reduce-the-nesting-level-of-generated-tables).
+

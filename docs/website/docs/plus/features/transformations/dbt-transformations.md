@@ -6,9 +6,9 @@ import Link from '../../../_plus_admonition.md';
 
 <Link/>
 
-The **dbt generator** creates scaffolding for dbt projects using data ingested by dlt. It analyzes the pipeline schema and automatically generates staging and fact dbt models. By integrating with dlt-configured destinations, it automates code creation and supports incremental loading, ensuring that only new records are processed in both ingestion and transformation layers.
+The **dbt generator** creates scaffolding for dbt projects using data ingested by dlt. It analyzes the pipeline schema and automatically generates staging and fact dbt models. By integrating with dlt-configured destinations, it automates code creation and supports incremental loading, ensuring that only new records are processed in both the ingestion and transformation layers.
 
-The dbt generator can be used as part of local transformations feature as well as a standalone tool, enabling you to generate dbt models for any dlt pipeline.
+The dbt generator can be used as part of the local transformations feature as well as a standalone tool, enabling you to generate dbt models for any dlt pipeline.
 In this context, the dbt generator will be discussed as a standalone feature, though all the information provided is also applicable when using it with local transformations.
 
 The dbt generator works as follows:
@@ -170,7 +170,7 @@ dlt dbt generate <pipeline-name> --fact <fact_table_name>
 
 The `<fact_table_name>` you provide should be the name of the base table in which the relationships are to be found. This fact table will automatically join all related tables IDs discovered through dlt defined parent-child relationships, as well as any relationship IDs manually added through the adapter. You can then select and add additional fields in the generated model.
 
-For the example above, we can run this for the `orders` table:\
+For the example above, we can run this for the `orders` table:
 
 ```sh
 dlt dbt generate example_shop --fact orders
@@ -233,3 +233,4 @@ The generated dbt project uses these load IDs to process data incrementally. To 
 
 - `<pipeline_name>_dlt_active_load_ids`: At the start of each dbt run, this table is populated with all load IDs that were successful and have not yet been processed in previous dbt runs, referred to as active load IDs. The staging tables are then populated only with rows associated with these active load IDs.
 - `<pipeline_name>_dlt_processed_load_ids`: At the end of each dbt run, the active load IDs are recorded in this table, along with a timestamp. This allows you to track when each load ID was processed.
+

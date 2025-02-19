@@ -151,7 +151,7 @@ Once you have a valid license, you can make it available to `dlt+` using one of 
   license="eyJhbGciOiJSUz...vKSjbEc==="
   ```
 
-3. **`dlt.yml`**: add the license key directly in the [project manifest file](../features/projects.md) referencing user-defined environment variable:
+3. **`dlt.yml`**: add the license key directly in the [project manifest file](../features/projects.md) referencing a user-defined environment variable:
 
   ```yaml
   runtime:

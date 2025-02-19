@@ -69,14 +69,12 @@ Please note the following inconsistencies between the YAML and TOML files that w
 :::
 
 ## Pinning profiles
-You can pin a profile locally, making given profile name a default one. This is useful ie. when deploying your project in
-production or staging environment.
+You can pin a profile locally, making the given profile name the default one. This is useful, for example, when deploying your project in a production or staging environment.
 ```sh
 dlt profile prod pin
 ```
-will pin `prod` profile and from now on all Python scripts and cli commands will see it as default and switch to it automatically.
-Profile pin is kept in `.dlt/profile-name` file. Remove this file to unpin. Note that our default `.gitignore` prevents this file
-from being added.
+will pin the `prod` profile and from now on all Python scripts and cli commands will see it as the default and switch to it automatically.
+The profile pin is kept in the `.dlt/profile-name` file. Remove this file to unpin. Note that our default `.gitignore` prevents this file from being added.
 
 ### Settings in the `dlt.yml` file vs TOML files
 
