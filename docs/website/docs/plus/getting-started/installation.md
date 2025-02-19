@@ -7,8 +7,6 @@ import Link from '../../_plus_admonition.md';
 
 <Link/>
 
-dlt+ requires a valid license to run, which you can obtain from dltHub by [joining our waiting list](https://info.dlthub.com/waiting-list).
-
 :::info Supported Python versions
 
 dlt+ currently supports Python versions 3.9-3.12.
