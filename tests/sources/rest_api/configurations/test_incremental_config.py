@@ -253,7 +253,7 @@ def test_calls_convert_from_endpoint_config_incremental(mocker) -> None:
 
     callback = mocker.Mock(side_effect=epoch_to_date)
     incremental_obj = mocker.Mock()
-    incremental_obj.start_value = "1"
+    incremental_obj.last_value = "1"
 
     incremental_param = IncrementalParam(start="since", end=None)
     created_param = _set_incremental_params({}, incremental_obj, incremental_param, callback)
