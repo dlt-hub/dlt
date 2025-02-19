@@ -172,13 +172,13 @@ You can override default project settings using the `project` section:
 * `allow_undefined_entities` - by default, dlt+ will create entities like destinations, sources, and datasets ad hoc. This flag disables such behavior.
 
 In the example below:
-```yml
+```yaml
 project:
   name: test_project
-  data_dir: {env.DLT_DATA_DIR}\{current_profile}
+  data_dir: "{env.DLT_DATA_DIR}/{current_profile}"
   allow_undefined_entities: false
   default_profile: tests
-  local_dir: {data_dir}/local
+  local_dir: "{data_dir}/local"
 ```
 * We set the project name to `test_project`, overriding the default (which is the name of the parent folder).
 * We set `data_dir` to the value of the environment variable `DLT_DATA_DIR` and separate it by the profile name `current_profile`.
