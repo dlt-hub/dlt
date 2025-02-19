@@ -101,7 +101,7 @@ class UnsupportedArrowTypeException(DltException):
         self._update_message()
 
 
-class PyToArrowConversionException(Exception):
+class PyToArrowConversionException(DltException):
     """Exception raised when converting data to Arrow based on a TableSchema"""
 
     def __init__(
