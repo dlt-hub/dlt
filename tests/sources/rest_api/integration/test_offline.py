@@ -1019,6 +1019,36 @@ def test_incremental_convert_without_end_value(mock_api_server, config) -> None:
     assert qs == {"since": ["1600000000"]}
 
 
+def test_incremental_implicitly_filters_out_data(mock_api_server) -> None:
+    source = rest_api_source(
+        {
+            "client": {"base_url": "https://api.example.com"},
+            "resources": [
+                {
+                    "name": "posts",
+                    "endpoint": {
+                        "path": "posts",
+                        "incremental": {
+                            "cursor_path": "id",
+                            "initial_value": 1,
+                        },
+                    },
+                }
+            ],
+        }
+    )
+
+    pipeline = dlt.pipeline(
+        pipeline_name="test_incremental_filters_implicitly", destination="duckdb"
+    )
+    load_info = pipeline.run(source)
+    assert len(load_info.loads_ids) == 1
+
+    # On the second run, incremental should filter out everything implicitly
+    load_info = pipeline.run(source)
+    assert len(load_info.loads_ids) == 0
+
+
 def test_custom_session_is_used(mock_api_server, mocker):
     class CustomSession(Session):
         pass
