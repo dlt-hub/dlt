@@ -11,7 +11,6 @@ import Link from '../../_plus_admonition.md';
 :::caution
 🚧 This feature is under development, and the interface may change in future releases. Interested in becoming an early tester? [Join dlt+ early access](https://info.dlthub.com/waiting-list)
 :::
-
 The dlt+ Cache is a temporary local storage created by dlt+ to enhance development workflows. It allows you to efficiently run local transformations, materialize dbt models, and test your queries before deploying them to production.
 
 ## How it works
@@ -20,7 +19,7 @@ The dlt+ Cache is a powerful tool that enables users to shift parts of their dat
 
 The cache is powered by DuckDB, supporting the full DuckDB SQL dialect. You can manipulate cached data and push it back to any dlt destination.
 
-You specify which datasets you want to pass to the cache in your dlt manifest file (`dlt.yml`). The cache automatically discovers the source schema from the data and runs your transformations using the cache and duckdb as a query engine. Currently you can define your transformations in dbt or Python (pands, arrows, polars, etc.). After running your transformations, the cache will sync the results to the output dataset in your destination. Output schema is also automatically discovered (when not explicitly declared).
+You specify which datasets you want to pass to the cache in your dlt manifest file (`dlt.yml`). The cache automatically discovers the source schema from the data and runs your transformations using the cache and duckdb as a query engine. Currently you can define your transformations in dbt or Python (pandas, arrows, polars, etc.). After running your transformations, the cache will sync the results to the output dataset in your destination. Output schema is also automatically discovered (when not explicitly declared).
 
 ## Define the cache
 

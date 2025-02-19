@@ -28,7 +28,7 @@ profiles:
       log_level: INFO
     destinations:
       my_duckdb_destination:
-        credentials: ${tmp_dir}my_data_prod.duckdb
+        credentials: my_data_prod.duckdb
 ```
 
 Every project includes two implicit profiles by default: `dev` and `tests`. If no profile is specified, the `dev` profile is loaded by default.
@@ -67,6 +67,16 @@ Please note the following inconsistencies between the YAML and TOML files that w
 * The YAML `destinations` section is singularized to `destination` in the TOML file.
 * The project variables such as `tmp_dir` are not available in the TOML files.
 :::
+
+## Pinning profiles
+You can pin a profile locally, making given profile name a default one. This is useful ie. when deploying your project in
+production or staging environment.
+```sh
+dlt profile prod pin
+```
+will pin `prod` profile and from now on all Python scripts and cli commands will see it as default and switch to it automatically.
+Profile pin is kept in `.dlt/profile-name` file. Remove this file to unpin. Note that our default `.gitignore` prevents this file
+from being added.
 
 ### Settings in the `dlt.yml` file vs TOML files
 

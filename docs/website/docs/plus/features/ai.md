@@ -62,7 +62,7 @@ sources:
 destinations:
   pokemon_local:
     type: filesystem
-    bucket_url: ${tmp_dir}pokemon_data
+    bucket_url: pokemon_data
 
 pipelines:
   pokemon:
@@ -100,7 +100,7 @@ If the pipeline runs successfully, you should see the following message:
 
 ```sh
 1 load package(s) were loaded to destination pokemon_local and into dataset pokemon_dataset
-The pokemon_local destination used file:///path/to/your/project/_storage/pokemon_data location to store data
+The pokemon_local destination used file:///path/to/your/project/_data/dev/local/pokemon_data location to store data
 Load package 1739383145.0668569 is LOADED and contains no failed jobs
 ```
 

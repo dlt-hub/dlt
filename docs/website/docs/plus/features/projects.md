@@ -15,7 +15,7 @@ With dlt+ Project, you can efficiently manage your data workflows by:
 1. [Using a declarative `dlt.yml` file](#the-dlt-manifest-file-dltyml) to define sources, destinations, pipelines, and transformations.
 2. Configuring [different profiles](../core-concepts/profiles.md)  for various use cases and environments.
 3. Ensuring data quality by defining tests with [dlt+ tests utils](./quality/tests.md).
-4. Packaging your project as a Python package and distributing it via PyPI or git repository.
+4. Packaging your project as a Python package and distributing it via PyPI or git repository [Coming Soon!]
 
 This structured approach allows teams to work efficiently while maintaining flexibility and control over their data workflows.
 
@@ -23,18 +23,16 @@ This structured approach allows teams to work efficiently while maintaining flex
 
 A dlt+ Project has the following general structure:
 ```text
-.
-├── dlt_example_project
-│    ├── .dlt/                 # folder containg dlt configrations and profile settings
-│    │   ├── config.toml
-│    │   ├── dev.secrets.toml  # credentials for access profile 'dev'
-│    │   └── secrets.toml
-│    ├── sources/              # modules containing the source code for sources
-│    │   └── github.py         # source code for a github source
-│    ├── transformations/      # modules containing the source code for transformations
-│    ├── .gitignore
-│    └── dlt.yml               # the main dlt manifest file
-└── pyproject.toml             # the python manifest file for the package
+├── .dlt/                 # folder containing dlt configurations and profile settings
+│   ├── config.toml
+│   ├── dev.secrets.toml  # credentials for access profile 'dev'
+│   └── secrets.toml
+├── _data/                # local storage for your project, excluded from git
+├── sources/              # modules containing the source code for sources
+│   └── github.py         # source code for a github source
+├── transformations/      # modules containing the source code for transformations
+├── .gitignore
+└── dlt.yml               # the main project manifest
 ```
 
 ### The dlt manifest file (dlt.yml)
@@ -45,12 +43,12 @@ The main component of a dlt+ Project is the dlt manifest file (`dlt.yml`). It ma
 
 This section lets you define sources either declaratively or by referencing an implementation from a python module inside `sources/`. In the example below, two sources are declared:
 1. a dlt REST API source whose parameters are passed within the manifest
-2. a github source whose source code inside `sources/github.py` is referenced
+2. a github source defined in a function `source` whose source code inside `sources/github.py` is referenced
 
 ```yaml
 sources:
   pokemon:
-    type: dlt.sources.rest_api.rest_api
+    type: rest_api
     client:
       base_url: https://pokeapi.co/api/v2/
     resource_defaults:
@@ -62,8 +60,20 @@ sources:
       - berry
 
   github:
-    type: dlt_example_project.github.source
+    type: github.source
 ```
+:::tip
+Source **type** is used to refer to location in Python code where `@dlt.source` decorated function is present. You can
+always use a full path to a function name in a Python module, but we also support shorthand and relative notations. For example:
+* `rest_api` will be expanded to `dlt.sources.rest_api.rest_api` where `dlt.sources.rest_api` is a Python module in OSS dlt and
+`rest_apu` is a name of a function in that module.
+* `github.source` will be expanded to `sources.github.sources` in a current project.
+
+If the **type** cannot be resolved, dlt+ will provide you with a detailed list of all candidate types that were looked up
+so you can make required corrections.
+:::
+
+
 #### Destinations
 
 The destinations section defines dlt destinations in a similar way to how you would define them in a pure Python dlt project. As with sources, you can also create a `destinations/` folder and reference custom implementations of destinations inside it.
@@ -144,23 +154,109 @@ profiles:
   dev: # Using "dev" profile will write to local filesystem
     destinations:
       delta_lake:
-        type: filesystem
-        bucket_url: ${tmp_dir}delta_lake
-  prod: # Using "prod" profile will write to s3 bucktet
+        type: delta
+        bucket_url: delta_lake
+  prod: # Using "prod" profile will write to s3 bucket
     destinations:
       delta_lake:
-        type: filesystem
+        type: delta
         bucket_url: s3://dlt-ci-test-bucket/dlt_example_project/
 ```
 
+#### Project settings and variable substitution
+
+You can override default project settings using `project` section:
+* `project_dir` - the root directory of the project, i.e., the directory where the project Python modules are stored
+* `data_dir` and `local_dir` - [files created by pipelines and destinations](#local-and-temporary-files-data_dir-and-local_dir), separated by current profile name.
+* `name` - the name of the project
+* `default_profile` - the name of the default profile, can be configured in the project section as seen above
+* `allow_undefined_entities` - by default dlt+ will create entities like destinations, sources and dataset ad hoc. this flag disables such behavior.
+
+In the example below:
+```yml
+project:
+  name: test_project
+  data_dir: {env.DLT_DATA_DIR}\{current_profile}
+  allow_undefined_entities: false
+  default_profile: tests
+  local_dir: {data_dir}/local
+```
+* we set the project name to `tests_project` overriding the default (which is the name of parent folder)
+* we set `data_dir` to the value of env variable `DLT_DATA_DIR` and separate it
+by profile name `current_profile`
+* we prevent any undefined entities (`allow_undefined_entities`) from being created (i.e. datasets or destinations).
+* we set the default profile name to `tests`
+* we set the `local_dir` to a folder `local` in the `data_dir` we defined above.
+
+As you may guess from the example above, you can use Python-style formatters to substitute variables:
+* You can reference environment variables using the `{env.ENV_VARIABLE_NAME}` syntax.
+* Any of the project settings can be substituted as well.
+
+
 #### Other settings
 
-It is also possible to add additional dlt settings that mirror the `config.toml` settings:
+`dlt.yml` is a [dlt config provider](../../general-usage/credentials/setup.md) and you can use it in the same way you use `config.toml`.
+For example you can configure log level:
 
 ```yaml
 runtime:
   log_level: WARNING
 ```
+
+or any of the settings we mention in the [performance](../../reference/performance.md) chapter.
+
+### Local and temporary files (`data_dir`)
+
+dlt+ project has a dedicated location (`data_dir`), where all working files are stored. By default, it is `_data` folder in the root of the project.
+Working files for each profile are stored separately. For example, files for `dev` profile are stored in `_data/dev`.
+
+Working files include:
+* pipeline working directory (`{data_dir}/pipelines` folder) where load packages, pipeline state, and schemas are stored locally.
+* all files created by destinations (`{data_dir}\local`) ie. local `filesystem` buckets, duckdb databases, iceberg and delta lakes (if configured for local filesystem)
+* default locations for ad hoc (ie. dbt related) Python virtual environments.
+
+:::tip
+Use relative paths when configuring destinations that generate local files to ensure they are automatically placed in the profile-separated
+`{data_dir}\local` folder. For example:
+
+```yaml
+destinations:
+  iceberg:
+    bucket_url: lake
+  my_duckdb:
+    type: duckdb
+```
+`iceberg` destination will create iceberg lake in `_data/dev/local/lake` folder and `duckdb` will create database in
+`_data/dev/local/my_duckdb.duckdb`.
+
+You can cleanup your working files with `dlt project --profile name clean` command.
+:::
+
+### 🧪 Python API to interact with dlt+ project
+You can access any dlt+ project entity or function via Python interface. In the example below:
+```yaml
+transformations:
+  stressed_transformation:
+    engine: arrow
+    cache: stressed_cache
+pipelines:
+  bronze_pipe:
+    destination: filesystem
+    dataset_name: bronze
+```
+
+```py
+import dlt_plus
+
+entities = dlt_plus.current.entities()
+pipeline = entities.create_pipeline("bronze_pipe")
+transformation = entities.create_transformation("stressed_transformation")
+```
+Here, we access the entities manager, which allows you to create sources, destinations, pipelines, and other objects.
+You can also obtain **catalog** with all created datasets via `dlt_plus.current.catalog()`, which makes it easy to
+[explore all of your data](data-access.md).
+
+
 
 ### Config and secrets
 
@@ -173,16 +269,6 @@ As shown above, it is possible to pass additional dlt settings and configuration
 :::note
 Based on the information about precedence in the [configuration docs](../../general-usage/credentials/setup#available-config-providers), the yaml files provide the lowest precedence of all providers just above the default values for a config value. Settings in the yaml file will therefore be overridden by `toml` and `env` variables if present.
 :::
-
-### Substitution
-
-You can reference environment variables in the `dlt.yml` file using the `${ENV_VARIABLE_NAME}` syntax. Additionally, dlt+ provides several [predefined project variables](../features/projects.md#substitution) that are automatically substituted during loading.
-
-* `project_dir` - the root directory of the project, i.e., the directory where the `dlt.yml` file is located
-* `tmp_dir` - the directory for storing temporary files, can be configured in the project section as seen above, by default, it will be set to `${project_dir}_storage`.
-* `name` - the name of the project, can be configured in the project section as seen above
-* `default_profile` - the name of the default profile, can be configured in the project section as seen above
-* `current_profile` - the name of the current profile, this is set automatically when a profile is used
 
 ### Project context
 

@@ -67,7 +67,7 @@ After running the command, the following folder structure is created:
 │   ├── config.toml
 │   ├── dev.secrets.toml
 │   └── secrets.toml
-├── _storage/             # local storage for your project, excluded from git
+├── _data/             # local storage for your project, excluded from git
 ├── sources/              # your sources, contains the code for the arrow source
 │   └── arrow.py
 ├── .gitignore
@@ -110,11 +110,10 @@ If you do not want to start with a source, destination, and pipeline, you can si
 
 Some details about the project structure above:
 
-* The `project` section could be fully omitted in this case; it will be generated to be more explicit what the default settings are.
 * The `runtime` section is analogous to the config.toml [runtime] section and could also be omitted in this case.
 * The `profiles` section is not doing much in this case. There are two implicit profiles: `dev` and `tests` that are present in any project; we will learn about profiles in more detail later.
 
-You can reference environment variables in the `dlt.yml` file using the `${ENV_VARIABLE_NAME}` syntax. Additionally, dlt+ provides several [predefined project variables](../features/projects.md#substitution) that are automatically substituted during loading.
+You can reference environment variables in the `dlt.yml` file using the `{env.ENV_VARIABLE_NAME}` syntax. Additionally, dlt+ provides several [predefined project variables](../features/projects.md#project-settings-and-variable-substitution) that are automatically substituted during loading.
 
 :::tip
 You can find more information about the `dlt.yml` structure in the [dlt+ Project section](../core-concepts/project.md).
@@ -130,7 +129,7 @@ dlt pipeline my_pipeline run
 
 This command:
 - Locates the pipeline named `my_pipeline` in `dlt.yml`.
-- Executes it, populating the duckdb destination that is defined to be stored in `${tmp_dir}my_data.duckdb`.
+- Executes it, populating the duckdb destination that [is defined to be stored](../features/projects.md#local-and-temporary-files-data_dir-and-local_dir) in `_data/dev/local/duckdb.duckdb`.
 
 :::tip
 Take a look at the [Projects context](../features/projects.md#project-context) to learn more about how to work with nested projects and how dlt searches for the pipelines based on its name.
@@ -302,7 +301,7 @@ And change the prod profile to the following:
       log_level: INFO
     destinations:
       my_duckdb_destination:
-        credentials: ${tmp_dir}my_data_prod.duckdb
+        credentials: my_data_prod.duckdb
 ```
 
 We can now inspect the prod profile. You will see that the new settings are merged with the project configuration and the `dev` profile settings.
@@ -349,7 +348,7 @@ Now let's add the following to the `dev.secrets.toml` file:
 log_level = "WARNING"
 
 [destination.my_duckdb_destination]
-credentials = "_storage/my_data.duckdb"
+credentials = "my_data.duckdb"
 
 [sources.my_arrow_source]
 row_count = 100
@@ -362,13 +361,13 @@ And the following to the `prod.secrets.toml` file:
 log_level = "INFO"
 
 [destination.my_duckdb_destination]
-credentials = "_storage/my_data_prod.duckdb"
+credentials = "my_data_prod.duckdb"
 
 [sources.my_arrow_source]
 row_count = 200
 ```
 
-We can now clear the `_storage` directory and repeat the steps above where you run both pipelines and inspect both datasets; you will see that the settings from the toml files are applied:
+We can now clear the `_data` directory and repeat the steps above where you run both pipelines and inspect both datasets; you will see that the settings from the toml files are applied:
 
 Load some data:
 
@@ -383,3 +382,5 @@ Inspect the datasets:
 dlt dataset --profile dev my_duckdb_destination_dataset row-counts
 dlt dataset --profile prod my_duckdb_destination_dataset row-counts
 ```
+
+To locate your [loaded data](../features/projects.md#local-and-temporary-files-data_dir-and-local_dir), check the `_data\{profile name}\local` directory.
