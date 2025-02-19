@@ -42,7 +42,7 @@ The main component of a dlt+ Project is the dlt manifest file (`dlt.yml`). It ma
 #### Sources
 
 This section lets you define sources either declaratively or by referencing an implementation from a python module inside `sources/`. In the example below, two sources are declared:
-1. a `dlt` REST API source whose parameters are passed within the manifest
+1. a dlt REST API source whose parameters are passed within the manifest
 2. a github source defined in a function `source` whose source code inside `sources/github.py` is referenced
 
 ```yaml
@@ -65,11 +65,11 @@ sources:
 :::tip
 Source **type** is used to refer to location in Python code where `@dlt.source` decorated function is present. You can
 always use a full path to a function name in a Python module, but we also support shorthand and relative notations. For example:
-* `rest_api` will be expanded to `dlt.sources.rest_api.rest_api` where `dlt.sources.rest_api` is a Python module in OSS `dlt` and
+* `rest_api` will be expanded to `dlt.sources.rest_api.rest_api` where `dlt.sources.rest_api` is a Python module in OSS dlt and
 `rest_apu` is a name of a function in that module.
 * `github.source` will be expanded to `sources.github.sources` in a current project.
 
-If the **type** cannot be resolved, `dlt+` will provide you with a detailed list of all candidate types that were looked up
+If the **type** cannot be resolved, dlt+ will provide you with a detailed list of all candidate types that were looked up
 so you can make required corrections.
 :::
 
@@ -170,7 +170,7 @@ You can override default project settings using `project` section:
 * `data_dir` and `local_dir` - [files created by pipelines and destinations](#local-and-temporary-files-data_dir-and-local_dir), separated by current profile name.
 * `name` - the name of the project
 * `default_profile` - the name of the default profile, can be configured in the project section as seen above
-* `allow_undefined_entities` - by default `dlt+` will create entities like destinations, sources and dataset ad hoc. this flag disables such behavior.
+* `allow_undefined_entities` - by default dlt+ will create entities like destinations, sources and dataset ad hoc. this flag disables such behavior.
 
 In the example below:
 ```yml
@@ -184,7 +184,7 @@ project:
 * we set the project name to `tests_project` overriding the default (which is the name of parent folder)
 * we set `data_dir` to the value of env variable `DLT_DATA_DIR` and separate it
 by profile name `current_profile`
-* we prevent any undefined entities (`allow_undefined_entities`) from being created (ie. datasets or destinations).
+* we prevent any undefined entities (`allow_undefined_entities`) from being created (i.e. datasets or destinations).
 * we set the default profile name to `tests`
 * we set the `local_dir` to a folder `local` in the `data_dir` we defined above.
 
@@ -205,17 +205,18 @@ runtime:
 
 or any of the settings we mention in the [performance](../../reference/performance.md) chapter.
 
-### Local and temporary files (`data_dir` and `local_dir`)
+### Local and temporary files (`data_dir`)
 
-dlt+ project has a dedicated location where (`data_dir`) all working files are stored. By default it is `_data` folder in the root of the project.
+dlt+ project has a dedicated location (`data_dir`), where all working files are stored. By default, it is `_data` folder in the root of the project.
 root and working files for each profile are separated. For example: working files for `dev` profile are stored in `_data/dev`.
+
 Working files include:
-* pipeline working directories (`{data_dir}/pipelines` folder) where load packages, pipeline state and schemas are stored.
+* pipeline working directory (`{data_dir}/pipelines` folder) where load packages, pipeline state, and schemas are stored locally.
 * all files created by destinations (`{data_dir}\local`) ie. local `filesystem` buckets, duckdb databases, iceberg and delta lakes (if configured for local filesystem)
 * default locations for ad hoc (ie. dbt related) Python virtual environments.
 
 :::tip
-Use relative paths when configuring destinations that create local files to automatically place them in profile-separated
+Use relative paths when configuring destinations that generate local files to ensure they are automatically placed in the profile-separated
 `{data_dir}\local` folder. For example:
 
 ```yaml
@@ -251,9 +252,9 @@ entities = dlt_plus.current.entities()
 pipeline = entities.create_pipeline("bronze_pipe")
 transformation = entities.create_transformation("stressed_transformation")
 ```
-we access **entities manager** through which sources, destinations, pipelines and other objects can be created.
-You can also obtain **catalog** with all created datasets via `dlt_plus.current.catalog()` from which you can
-[conveniently explore all of your data](data-access.md).
+Here, we access the entities manager, which allows you to create sources, destinations, pipelines, and other objects.
+You can also obtain **catalog** with all created datasets via `dlt_plus.current.catalog()`, which makes it easy to
+[explore all of your data](data-access.md).
 
 
 

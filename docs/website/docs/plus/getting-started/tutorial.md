@@ -367,7 +367,7 @@ credentials = "my_data_prod.duckdb"
 row_count = 200
 ```
 
-We can now clear the `_data_` directory and repeat the steps above where you run both pipelines and inspect both datasets; you will see that the settings from the toml files are applied:
+We can now clear the `_data` directory and repeat the steps above where you run both pipelines and inspect both datasets; you will see that the settings from the toml files are applied:
 
 Load some data:
 
@@ -383,4 +383,4 @@ dlt dataset --profile dev my_duckdb_destination_dataset row-counts
 dlt dataset --profile prod my_duckdb_destination_dataset row-counts
 ```
 
-Where's your [loaded data](../features/projects.md#local-and-temporary-files-data_dir-and-local_dir): look into `_data\{profile name}\local` directory.
+To locate your [loaded data](../features/projects.md#local-and-temporary-files-data_dir-and-local_dir), check the `_data\{profile name}\local` directory.

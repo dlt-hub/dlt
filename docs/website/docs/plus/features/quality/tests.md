@@ -134,7 +134,7 @@ dlt-plus-tests = { index = "dlt-hub" }
 ```
 
 ## Writing tests
-When writing test, you will use dlt project api to request project entities and run them. For example:
+When writing test, you can use dlt project api to request project entities and run them. For example:
 
 ```py
 from dlt_plus.project import Project
