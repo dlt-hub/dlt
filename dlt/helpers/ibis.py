@@ -73,6 +73,21 @@ def create_ibis_backend(
         "dlt.destinations.postgres",
         "dlt.destinations.redshift",
     ]:
+        if destination_type == "dlt.destinations.redshift":
+            # patch psycopg
+            try:
+                import psycopg  # type: ignore[import-not-found, unused-ignore]
+
+                old_fetch = psycopg.types.TypeInfo.fetch
+
+                def _ignore_hstore(conn: Any, name: Any) -> Any:
+                    if name == "hstore":
+                        raise TypeError("HSTORE")
+                    return old_fetch(conn, name)
+
+                psycopg.types.TypeInfo.fetch = _ignore_hstore  # type: ignore[method-assign, unused-ignore]
+            except Exception:
+                pass
         credentials = client.config.credentials.to_native_representation()
         con = ibis.connect(credentials)
     elif destination_type == "dlt.destinations.snowflake":

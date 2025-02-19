@@ -12,6 +12,7 @@ from typing import Any, List, Tuple, cast
 from tenacity import retry_if_exception, Retrying, stop_after_attempt
 
 import pytest
+from dlt.common.known_env import DLT_LOCAL_DIR
 from dlt.common.storages import FileStorage
 
 import dlt
@@ -35,6 +36,7 @@ from dlt.common.runtime.collector import LogCollector
 from dlt.common.schema.exceptions import TableIdentifiersFrozen
 from dlt.common.schema.typing import TColumnSchema
 from dlt.common.schema.utils import new_column, new_table
+from dlt.common.storages.exceptions import SchemaNotFoundError
 from dlt.common.typing import DictStrAny
 from dlt.common.utils import uniq_id
 from dlt.common.schema import Schema
@@ -47,7 +49,12 @@ from dlt.extract import DltResource, DltSource
 from dlt.extract.extractors import MaterializedEmptyList
 from dlt.load.exceptions import LoadClientJobFailed
 from dlt.normalize.exceptions import NormalizeJobFailed
-from dlt.pipeline.exceptions import InvalidPipelineName, PipelineNotActive, PipelineStepFailed
+from dlt.pipeline.exceptions import (
+    InvalidPipelineName,
+    PipelineNeverRan,
+    PipelineNotActive,
+    PipelineStepFailed,
+)
 from dlt.pipeline.helpers import retry_load
 
 from dlt.pipeline.pipeline import Pipeline
@@ -80,6 +87,8 @@ def test_default_pipeline() -> None:
     assert p.dataset_name is None
     assert p.destination is None
     assert p.default_schema_name is None
+    # init_cwd is cwd
+    assert p.get_local_state_val("initial_cwd") == os.path.abspath(os.curdir)
 
     # this is the same pipeline
     p2 = dlt.pipeline()
@@ -194,6 +203,15 @@ def test_default_pipeline_dataset_layout_empty(environment) -> None:
     assert p.dataset_name in possible_dataset_names
 
 
+def test_pipeline_initial_cwd_follows_local_dir(environment) -> None:
+    local_dir = os.path.join(TEST_STORAGE_ROOT, uniq_id())
+    os.makedirs(local_dir)
+    # mock tmp dir
+    os.environ[DLT_LOCAL_DIR] = local_dir
+    p = dlt.pipeline(destination="filesystem")
+    assert p.get_local_state_val("initial_cwd") == os.path.abspath(local_dir)
+
+
 def test_pipeline_configuration_top_level_section(environment) -> None:
     environment["PIPELINES__DATASET_NAME"] = "pipeline_dataset"
     environment["PIPELINES__DESTINATION_TYPE"] = "dummy"
@@ -289,6 +307,19 @@ def test_run_dev_mode_underscored_dataset() -> None:
     # restore this pipeline
     r_p = dlt.attach(dev_mode=False)
     assert r_p.dataset_name.endswith(p._pipeline_instance_id)
+
+
+def test_dataset_pipeline_never_ran() -> None:
+    p = dlt.pipeline(destination="filesystem", dev_mode=True, dataset_name="_main_")
+    with pytest.raises(PipelineNeverRan):
+        p.dataset()
+
+
+def test_dataset_unknown_schema() -> None:
+    p = dlt.pipeline(destination="duckdb", dev_mode=True, dataset_name="mmmmm")
+    p.run([1, 2, 3], table_name="digits")
+    with pytest.raises(SchemaNotFoundError):
+        p.dataset(schema="unknown")
 
 
 def test_pipeline_with_non_alpha_name() -> None:
@@ -2532,6 +2563,12 @@ def test_local_filesystem_destination(local_path: str) -> None:
     assert len(fs_client.list_table_files("_dlt_loads")) == 2
     assert len(fs_client.list_table_files("_dlt_version")) == 1
     assert len(fs_client.list_table_files("_dlt_pipeline_state")) == 1
+
+
+def test_filesystem_in_pipeline_dir() -> None:
+    pipeline = dlt.pipeline("test_filesystem_in_pipeline_dir", destination=filesystem(":pipeline:"))
+    pipeline.run([1, 2, 3], table_name="digits")
+    assert os.path.isdir(os.path.join(pipeline.working_dir, "test_filesystem_in_pipeline_dir"))
 
 
 @pytest.mark.parametrize("truncate", (True, False))

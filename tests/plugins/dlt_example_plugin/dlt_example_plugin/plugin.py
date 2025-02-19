@@ -28,6 +28,10 @@ class RunContextTest(RunContext):
     def data_dir(self) -> str:
         return os.path.abspath(TEST_STORAGE_ROOT)
 
+    @property
+    def local_dir(self) -> str:
+        return os.path.join(self.data_dir, "tmp")
+
 
 @plugins.hookimpl(specname="plug_run_context")
 def plug_run_context_impl(run_dir: Optional[str], **kwargs: Any) -> SupportsRunContext:

@@ -8,7 +8,7 @@ keywords: [installation, environment, pip install]
 
 ## Setting up your environment
 
-### 1. Make sure you are using **Python 3.8-3.12** and have `pip` installed
+### 1. Make sure you are using **Python 3.9-3.13** and have `pip` installed
 
 ```sh
 python --version

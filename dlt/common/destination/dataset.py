@@ -38,6 +38,11 @@ class SupportsReadableRelation(Protocol):
     columns_schema: TTableSchemaColumns
     """Known dlt table columns for this relation"""
 
+    def query(self) -> Any: ...
+
+    """Represents relation as an query, currently always SQL"""
+
+    # accessing data
     def df(self, chunk_size: int = None) -> Optional[DataFrame]:
         """Fetches the results as data frame. For large queries the results may be chunked
 
@@ -54,7 +59,6 @@ class SupportsReadableRelation(Protocol):
         """
         ...
 
-    # accessing data
     def arrow(self, chunk_size: int = None) -> Optional[ArrowTable]:
         """fetch arrow table of first 'chunk_size' items"""
         ...
@@ -132,6 +136,9 @@ class SupportsReadableDataset(Protocol):
 
     @property
     def schema(self) -> Schema: ...
+
+    @property
+    def dataset_name(self) -> str: ...
 
     def __call__(self, query: Any) -> SupportsReadableRelation: ...
 

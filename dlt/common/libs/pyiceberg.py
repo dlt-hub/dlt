@@ -1,3 +1,4 @@
+import os
 from typing import Dict, Any, List, Optional
 
 from dlt import version, Pipeline
@@ -5,7 +6,7 @@ from dlt.common.libs.pyarrow import cast_arrow_schema_types
 from dlt.common.schema.typing import TWriteDisposition
 from dlt.common.utils import assert_min_pkg_version
 from dlt.common.exceptions import MissingDependencyException
-from dlt.common.storages.configuration import FileSystemCredentials
+from dlt.common.storages.configuration import FileSystemCredentials, FilesystemConfiguration
 from dlt.common.configuration.specs import CredentialsConfiguration
 from dlt.common.configuration.specs.mixins import WithPyicebergConfig
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
@@ -66,6 +67,16 @@ def get_sql_catalog(credentials: FileSystemCredentials) -> "SqlCatalog":  # type
     )
 
 
+def ensure_pyiceberg_local_path(location: str) -> str:
+    """Converts local absolute paths into file urls."""
+    if FilesystemConfiguration.is_local_path(location) and os.path.isabs(location):
+        if os.name == "nt":
+            file_url = FilesystemConfiguration.make_file_url(location)
+            # pyiceberg cannot deal with windows absolute urls
+            return file_url.replace("file:///", "file://")
+    return location
+
+
 def create_or_evolve_table(
     catalog: MetastoreCatalog,
     client: FilesystemClient,
@@ -92,7 +103,7 @@ def create_or_evolve_table(
         with catalog.create_table_transaction(
             table_id,
             schema=ensure_iceberg_compatible_arrow_schema(schema),
-            location=_make_path(table_path, client),
+            location=ensure_pyiceberg_local_path(_make_path(table_path, client)),
         ) as txn:
             # add partitioning
             with txn.update_spec() as update_spec:
@@ -182,7 +193,7 @@ def _register_table(
     client: FilesystemClient,
 ) -> IcebergTable:
     last_metadata_file = _get_last_metadata_file(metadata_path, client)
-    return catalog.register_table(identifier, last_metadata_file)
+    return catalog.register_table(identifier, ensure_pyiceberg_local_path(last_metadata_file))
 
 
 def _make_path(path: str, client: FilesystemClient) -> str:

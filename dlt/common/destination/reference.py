@@ -1,6 +1,5 @@
 import re
 from abc import ABC, abstractmethod
-from importlib import import_module
 
 from typing import (
     Callable,
@@ -28,7 +27,9 @@ from dlt.common.destination.exceptions import (
 from dlt.common.destination.client import DestinationClientConfiguration, JobClientBase
 from dlt.common.runtime.run_context import get_plugin_modules
 from dlt.common.schema.schema import Schema
+from dlt.common.typing import is_subclass
 from dlt.common.utils import get_full_callable_name
+from dlt.common.reflection.ref import object_from_ref
 
 
 TDestinationConfig = TypeVar("TDestinationConfig", bound="DestinationClientConfiguration")
@@ -125,6 +126,11 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
         return self.config_params.get("destination_name") or self.to_name(self.destination_type)
 
     @property
+    def configured_name(self) -> str:
+        """Configured destination name, None by default"""
+        return self.config_params.get("destination_name")  # type: ignore[no-any-return]
+
+    @property
     def destination_type(self) -> str:
         full_path = self.__class__.__module__ + "." + self.__class__.__qualname__
         return DestinationReference.normalize_type(full_path)
@@ -158,7 +164,14 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
     ) -> TDestinationClient:
         """Returns a configured instance of the destination's job client"""
         config = self.configuration(initial_config)
-        return self.client_class(schema, config, self.capabilities(config, schema.naming))
+        caps = self.capabilities(config, schema.naming)
+        # adjust naming for caps that dynamically set max length (ie. sql alchemy)
+        if caps.max_identifier_length or caps.max_column_identifier_length:
+            schema.naming.max_length = min(
+                caps.max_identifier_length or caps.max_column_identifier_length,
+                caps.max_column_identifier_length or caps.max_identifier_length,
+            )
+        return self.client_class(schema, config, caps)
 
     @classmethod
     def adjust_capabilities(
@@ -293,8 +306,25 @@ class DestinationReference:
         return []
 
     @classmethod
-    def find(cls, ref: str) -> Type[AnyDestination]:
-        """Finds or auto-imports destination factory that can be further called in order to instantiate it"""
+    def find(
+        cls,
+        ref: str,
+        /,
+        raise_exec_errors: bool = False,
+        import_missing_modules: bool = False,
+    ) -> Union[Type[AnyDestination], Callable[..., AnyDestination]]:
+        """Finds or auto-imports destination factory that can be further called in order to instantiate it
+        The ref can be a destination name or import path pointing to a destination class (e.g. `dlt.destinations.postgres`)
+        You can control auto-import behavior:
+         - `raise_exec_errors` - will re-raise code execution errors in imported modules
+         - `import_missing_modules` - will ignore missing dependencies during import by substituting
+         them with dummy modules. this should be only used to manipulate local dev environment
+
+         NOTE: find returns a factory class or a callable that will create factory instance (for custom destinations)
+         use `ensure_factory` to extract factory class from callable
+         TODO: synthesize a __call__ on custom destination (`destination`) factory type so this distinction is not
+         needed
+        """
         refs = cls.to_fully_qualified_refs(ref)
         factory: Type[AnyDestination] = None
         if ref not in refs:
@@ -302,27 +332,43 @@ class DestinationReference:
 
         for ref_ in refs:
             if factory := cls.DESTINATIONS.get(ref_):
-                break
+                return factory
+
+        def _typechecker(t_: Any) -> Any:
+            # or destination type
+            if is_subclass(t_, Destination):
+                return t_
+            # or callable that has factory and will return it
+            assert callable(t_) and hasattr(t_, "_factory")
+            return t_
+
+        import_traces = []
 
         # no reference found, try to import default module
         if not factory:
             for possible_type in refs:
                 if "." not in possible_type:
                     continue
-                try:
-                    module_path, attr_name = possible_type.rsplit(".", 1)
-                    dest_module = import_module(module_path)
-                except ModuleNotFoundError:
-                    continue
+                factory, trace = object_from_ref(
+                    possible_type,
+                    _typechecker,
+                    raise_exec_errors=raise_exec_errors,
+                    import_missing_modules=import_missing_modules,
+                )
+                if factory:
+                    return factory
+                import_traces.append(trace)
 
-                try:
-                    factory = getattr(dest_module, attr_name)
-                except AttributeError as e:
-                    raise UnknownDestinationModule(ref) from e
-                break
-        if not factory:
-            raise UnknownDestinationModule(ref)
-        return factory
+        raise UnknownDestinationModule(ref, refs, import_traces)
+
+    @classmethod
+    def ensure_factory(
+        cls, ref_factory: Union[Type[AnyDestination], Callable[..., AnyDestination]]
+    ) -> Type[AnyDestination]:
+        """Extract factory type from a callable creating factory instance."""
+        if is_subclass(ref_factory, Destination):
+            return ref_factory  # type: ignore[return-value]
+        return ref_factory._factory  # type: ignore[no-any-return,union-attr]
 
     @classmethod
     def from_reference(
@@ -348,9 +394,4 @@ class DestinationReference:
             kwargs["destination_name"] = destination_name
         if environment:
             kwargs["environment"] = environment
-        try:
-            dest = factory(**kwargs)
-            dest.spec
-        except Exception as e:
-            raise InvalidDestinationReference(ref) from e
-        return dest
+        return factory(**kwargs)

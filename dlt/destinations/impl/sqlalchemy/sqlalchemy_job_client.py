@@ -208,8 +208,10 @@ class SqlalchemyJobClient(SqlJobClientWithStagingDataset):
             if not new_columns:  # Nothing to do, don't create table without columns
                 continue
             if not exists:
+                logger.debug(f"Will create table {table_name} with new columns {len(new_columns)}")
                 tables_to_create.append(table_obj)
             else:
+                logger.debug(f"Will ALTER table {table_name} with new columns {len(new_columns)}")
                 columns_to_add.extend(new_columns)
             partial_table = self.prepare_load_table(table_name)
             new_column_names = set(col.name for col in new_columns)

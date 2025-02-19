@@ -73,6 +73,15 @@ def migrate_pipeline_state(
             state["staging_name"] = Destination.to_name(state["staging"])
             del state["staging"]
         from_engine = 4
+    # change the state but do not bump engine version as long as changes are backward compatible
+    if from_engine == 4:
+        # remove destination name if equals to destination type
+        if destination_type := state.get("destination_type"):
+            if Destination.to_name(destination_type) == state.get("destination_name"):
+                state["destination_name"] = None
+        if staging_type := state.get("staging_type"):
+            if Destination.to_name(staging_type) == state.get("staging_name"):
+                state["staging_name"] = None
 
     # check state engine
     if from_engine != to_engine:
@@ -131,5 +140,9 @@ def default_pipeline_state() -> TPipelineState:
     return {
         **default_versioned_state(),
         "_state_engine_version": PIPELINE_STATE_ENGINE_VERSION,
-        "_local": {"first_run": True, "initial_cwd": os.path.abspath(os.path.curdir)},
+        "_local": {
+            "first_run": True,
+            # keep the initial run dir when the pipeline was created
+            "initial_cwd": os.path.abspath(dlt.current.run_context().local_dir),
+        },
     }

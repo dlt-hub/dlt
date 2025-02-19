@@ -1,11 +1,10 @@
 import duckdb
-
 import math
-
 from contextlib import contextmanager
 from typing import Any, AnyStr, ClassVar, Iterator, Optional, Sequence, Generator
-from dlt.common.destination import DestinationCapabilitiesContext
 
+from dlt.common import logger
+from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.destinations.exceptions import (
     DatabaseTerminalException,
     DatabaseTransientException,
@@ -148,19 +147,34 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
             self.open_connection()
             raise outer
 
-    # def execute_fragments(self, batch: Sequence[AnyStr], *args: Any, **kwargs: Any) -> Optional[Sequence[Sequence[Any]]]:
-    #     # execute in a loop to avoid rewrites
-    #     results = []
-    #     print(batch)
-    #     for sql in batch:
-    #         print(f"executing in dudckdb: {sql}")
-    #         result = self.execute_sql(sql, args, kwargs)
-    #         if result:
-    #             results.extend(result)
-    #     if results:
-    #         return results
-    #     else:
-    #         return None
+    def warn_if_catalog_equals_dataset_name(self) -> None:
+        """
+        Checks if the DuckDB connection's current catalog equals the dataset name (schema).
+        """
+        try:
+            # First try to get the catalog via a function that (if available) returns the current database.
+            result = self._conn.execute("SELECT current_database()").fetchone()
+            if result and len(result) > 0:
+                catalog = result[0]
+            else:
+                # fallback: use PRAGMA database_list to fetch the first (default) database name.
+                result = self._conn.execute("PRAGMA database_list").fetchone()
+                catalog = result[0] if result else None
+        except Exception:
+            return
+
+        if catalog is None:
+            return
+
+        if catalog == self.dataset_name:
+            logger.warning(
+                "The current catalog (database name) '%s' is identical to the dataset name '%s'."
+                " This may lead to confusion in the DuckDB binder. Consider using distinct names."
+                " Most typically you use the same name for your pipeline and dataset or the same"
+                " name for your destination and the dataset.",
+                catalog,
+                self.dataset_name,
+            )
 
     @classmethod
     def _make_database_exception(cls, ex: Exception) -> Exception:

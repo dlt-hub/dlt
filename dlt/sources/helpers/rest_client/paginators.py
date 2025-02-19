@@ -244,7 +244,7 @@ class PageNumberPaginator(RangePaginator):
         base_page: int = 0,
         page: int = None,
         page_param: str = "page",
-        total_path: jsonpath.TJsonPath = "total",
+        total_path: Optional[jsonpath.TJsonPath] = "total",
         maximum_page: Optional[int] = None,
         stop_after_empty_page: Optional[bool] = True,
     ):
@@ -351,7 +351,7 @@ class OffsetPaginator(RangePaginator):
         offset: int = 0,
         offset_param: str = "offset",
         limit_param: str = "limit",
-        total_path: jsonpath.TJsonPath = "total",
+        total_path: Optional[jsonpath.TJsonPath] = "total",
         maximum_offset: Optional[int] = None,
         stop_after_empty_page: Optional[bool] = True,
     ) -> None:
@@ -664,4 +664,66 @@ class JSONResponseCursorPaginator(BaseReferencePaginator):
         return (
             super().__str__()
             + f": cursor_path: {self.cursor_path} cursor_param: {self.cursor_param}"
+        )
+
+
+class HeaderCursorPaginator(BaseReferencePaginator):
+    """A paginator that uses a cursor in the HTTP responses header
+    for pagination.
+
+    For example, consider an API response that includes 'NextPageToken' header:
+
+        ...
+        Content-Type: application/json
+        NextPageToken: 123456"
+
+        [
+            {"id": 1, "name": "item1"},
+            {"id": 2, "name": "item2"},
+            ...
+        ]
+
+    In this scenario, the parameter to construct the URL for the next page (`https://api.example.com/items?page=123456`)
+    is identified by the `NextPageToken` header. `HeaderCursorPaginator` extracts
+    this parameter from the header and uses it to fetch the next page of results:
+
+        from dlt.sources.helpers.rest_client import RESTClient
+        client = RESTClient(
+            base_url="https://api.example.com",
+            paginator=HeaderCursorPaginator()
+        )
+
+        @dlt.resource
+        def get_issues():
+            for page in client.paginate("/items"):
+                yield page
+    """
+
+    def __init__(self, cursor_key: str = "next", cursor_param: str = "cursor") -> None:
+        """
+        Args:
+            cursor_key (str, optional): The key in the header
+                that contains the next page cursor value. Defaults to 'next'.
+            cursor_param (str, optional): The param name to pass the token to
+                for the next request. Defaults to 'cursor'.
+        """
+        super().__init__()
+        self.cursor_key = cursor_key
+        self.cursor_param = cursor_param
+
+    def update_state(self, response: Response, data: Optional[List[Any]] = None) -> None:
+        """Extracts the next page cursor from the header in the response."""
+        self._next_reference = response.headers.get(self.cursor_key)
+
+    def update_request(self, request: Request) -> None:
+        """Updates the request with the cursor query parameter."""
+        if request.params is None:
+            request.params = {}
+
+        request.params[self.cursor_param] = self._next_reference
+
+    def __str__(self) -> str:
+        return (
+            super().__str__()
+            + f": cursor_value: {self._next_reference} cursor_param: {self.cursor_param}"
         )

@@ -375,7 +375,7 @@ def test_table_format_core(
     destinations_configs(
         table_format_filesystem_configs=True,
         with_table_format=("delta", "iceberg"),
-        bucket_subset=(FILE_BUCKET),
+        bucket_subset=(FILE_BUCKET,),
     ),
     ids=lambda x: x.name,
 )
@@ -427,7 +427,7 @@ def test_preferred_table_format_caps(
         table_format_filesystem_configs=True,
         # job orchestration is same across table formats—no need to test all formats
         with_table_format="delta",
-        bucket_subset=(FILE_BUCKET),
+        bucket_subset=(FILE_BUCKET,),
     ),
     ids=lambda x: x.name,
 )
@@ -473,7 +473,7 @@ def test_table_format_does_not_contain_job_files(
         table_format_filesystem_configs=True,
         # job orchestration is same across table formats—no need to test all formats
         with_table_format="delta",
-        bucket_subset=(FILE_BUCKET),
+        bucket_subset=(FILE_BUCKET,),
     ),
     ids=lambda x: x.name,
 )
@@ -519,7 +519,7 @@ def test_table_format_multiple_files(
     destinations_configs(
         table_format_filesystem_configs=True,
         with_table_format=("delta", "iceberg"),
-        bucket_subset=(FILE_BUCKET),
+        bucket_subset=(FILE_BUCKET,),
     ),
     ids=lambda x: x.name,
 )
@@ -607,7 +607,7 @@ def test_table_format_child_tables(
     destinations_configs(
         table_format_filesystem_configs=True,
         with_table_format=("delta", "iceberg"),
-        bucket_subset=(FILE_BUCKET),
+        bucket_subset=(FILE_BUCKET,),
     ),
     ids=lambda x: x.name,
 )
@@ -707,7 +707,7 @@ def test_table_format_partitioning(
     destinations_configs(
         table_format_filesystem_configs=True,
         with_table_format="delta",
-        bucket_subset=(FILE_BUCKET),
+        bucket_subset=(FILE_BUCKET,),
     ),
     ids=lambda x: x.name,
 )
@@ -759,7 +759,7 @@ def test_delta_table_partitioning_arrow_load_id(
     destinations_configs(
         table_format_filesystem_configs=True,
         with_table_format=("delta", "iceberg"),
-        bucket_subset=(FILE_BUCKET),
+        bucket_subset=(FILE_BUCKET,),
     ),
     ids=lambda x: x.name,
 )
@@ -970,7 +970,7 @@ def test_table_format_empty_source(
         table_format_filesystem_configs=True,
         # job orchestration is same across table formats—no need to test all formats
         with_table_format="delta",
-        bucket_subset=(FILE_BUCKET),
+        bucket_subset=(FILE_BUCKET,),
     ),
     ids=lambda x: x.name,
 )
@@ -1020,7 +1020,7 @@ def test_table_format_mixed_source(
         table_format_filesystem_configs=True,
         # job orchestration is same across table formats—no need to test all formats
         with_table_format="delta",
-        bucket_subset=(FILE_BUCKET),
+        bucket_subset=(FILE_BUCKET,),
     ),
     ids=lambda x: x.name,
 )
@@ -1144,7 +1144,7 @@ def test_table_format_get_tables_helper(
     destinations_configs(
         table_format_filesystem_configs=True,
         with_table_format="delta",
-        bucket_subset=(FILE_BUCKET),
+        bucket_subset=(FILE_BUCKET,),
     ),
     ids=lambda x: x.name,
 )

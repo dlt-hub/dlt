@@ -17,6 +17,7 @@ class RedshiftCredentials(PostgresCredentials):
     password: TSecretStrValue = None
     username: str = None
     host: str = None
+    client_encoding: Optional[str] = "utf-8"
 
 
 @configspec

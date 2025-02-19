@@ -13,6 +13,7 @@ from dlt.sources.helpers.rest_client.paginators import (
     HeaderLinkPaginator,
     JSONLinkPaginator,
     JSONResponseCursorPaginator,
+    HeaderCursorPaginator,
 )
 
 from .conftest import assert_pagination
@@ -547,6 +548,43 @@ class TestJSONResponseCursorPaginator:
         pages_iter = rest_client.paginate(
             "/posts_cursor",
             paginator=JSONResponseCursorPaginator(cursor_path="next_cursor"),
+        )
+
+        pages = list(pages_iter)
+
+        assert_pagination(pages)
+
+
+@pytest.mark.usefixtures("mock_api_server")
+class TestHeaderCursorPaginator:
+    def test_update_state(self):
+        paginator = HeaderCursorPaginator(cursor_key="next_cursor")
+        response = Mock(Response)
+        response.headers = {"next_cursor": "cursor-2"}
+        paginator.update_state(response)
+        assert paginator._next_reference == "cursor-2"
+        assert paginator.has_next_page is True
+
+    def test_update_state_when_cursor_path_is_empty_string(self):
+        paginator = HeaderCursorPaginator(cursor_key="next_cursor")
+        response = Mock(Response)
+        response.headers = {}
+        paginator.update_state(response)
+        assert paginator.has_next_page is False
+
+    def test_update_request(self):
+        paginator = HeaderCursorPaginator(cursor_key="next_cursor", cursor_param="cursor")
+        response = Mock(Response)
+        response.headers = {"next_cursor": "cursor-2"}
+        paginator.update_state(response)
+        request = Request(method="GET", url="http://example.com/api/resource")
+        paginator.update_request(request)
+        assert request.params["cursor"] == "cursor-2"
+
+    def test_client_pagination(self, rest_client):
+        pages_iter = rest_client.paginate(
+            "/posts_header_cursor",
+            paginator=HeaderCursorPaginator(cursor_key="cursor", cursor_param="page"),
         )
 
         pages = list(pages_iter)
