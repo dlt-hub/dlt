@@ -1,5 +1,4 @@
 from dataclasses import dataclass, field
-from typing_extensions import TypedDict
 
 from typing import (
     Any,
@@ -12,6 +11,7 @@ from typing import (
 )
 
 from dlt.common import jsonpath
+from dlt.common.typing import TypedDict
 from dlt.common.schema.typing import (
     TAnySchemaColumns,
 )

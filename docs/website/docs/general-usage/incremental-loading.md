@@ -518,7 +518,6 @@ Nested tables, if any, do not contain validity columns. Validity columns are onl
 must be unique for a root table. We are working to allow `updated_at` style tracking.
 * We do not detect changes in nested tables (except new records) if the row hash of the corresponding parent row does not change. Use `updated_at` or a similar
 column in the root table to stamp changes in nested data.
-* `merge_key(s)` are (for now) ignored.
 
 ### `upsert` strategy
 

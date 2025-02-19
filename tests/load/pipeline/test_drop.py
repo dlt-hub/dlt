@@ -6,7 +6,7 @@ from itertools import chain
 import pytest
 
 import dlt
-from dlt.common.destination.reference import JobClientBase
+from dlt.common.destination.client import JobClientBase
 from dlt.extract import DltResource
 from dlt.common.utils import uniq_id
 from dlt.pipeline import helpers, state_sync, Pipeline
@@ -104,6 +104,7 @@ def assert_dropped_resource_tables(pipeline: Pipeline, resources: List[str]) -> 
     # Verify requested tables are dropped from destination
     client: SqlJobClientBase
     with pipeline.destination_client(pipeline.default_schema_name) as client:  # type: ignore[assignment]
+        assert client.is_storage_initialized()
         # Check all tables supposed to be dropped are not in dataset
         storage_tables = list(client.get_storage_tables(dropped_tables))
         # no columns in all tables
@@ -237,11 +238,13 @@ def test_drop_command_resources_and_state(
 def test_drop_command_only_state(destination_config: DestinationTestConfiguration) -> None:
     """Test drop command that deletes part of the state and syncs with destination"""
     source = droppable_source()
-    pipeline = destination_config.setup_pipeline("drop_test_" + uniq_id(), dev_mode=True)
+    pipeline = destination_config.setup_pipeline(
+        "drop_test_" + uniq_id(),
+    )
     pipeline.run(source, **destination_config.run_kwargs)
 
     attached = _attach(pipeline)
-    helpers.drop(attached, state_paths="data_from_d.*.bar")
+    helpers.drop(attached, state_paths="data_from_d.*.bar", state_only=True)
 
     attached = _attach(pipeline)
 

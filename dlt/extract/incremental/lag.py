@@ -1,8 +1,13 @@
+import sys
 from datetime import datetime, timedelta, date  # noqa: I251
 from typing import Union
 
 from dlt.common import logger
-from dlt.common.time import ensure_pendulum_datetime, detect_datetime_format
+from dlt.common.time import (
+    detect_datetime_format,
+    ensure_pendulum_datetime_non_utc,
+    datatime_obj_to_str,
+)
 
 from . import TCursorValue, LastValueFunc
 
@@ -17,12 +22,12 @@ def _apply_lag_to_value(
     is_str = isinstance(value, str)
     value_format = detect_datetime_format(value) if is_str else None
     is_str_date = value_format in ("%Y%m%d", "%Y-%m-%d") if value_format else None
-    parsed_value = ensure_pendulum_datetime(value) if is_str else value
+    parsed_value = ensure_pendulum_datetime_non_utc(value) if is_str else value
 
     if isinstance(parsed_value, (datetime, date)):
         parsed_value = _apply_lag_to_datetime(lag, parsed_value, last_value_func, is_str_date)  # type: ignore[assignment]
         # go back to string or pass exact type
-        value = parsed_value.strftime(value_format) if value_format else parsed_value  # type: ignore[assignment]
+        value = datatime_obj_to_str(parsed_value, value_format) if value_format else parsed_value  # type: ignore[assignment]
 
     elif isinstance(parsed_value, (int, float)):
         value = _apply_lag_to_number(lag, parsed_value, last_value_func)  # type: ignore[assignment]

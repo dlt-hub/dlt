@@ -50,7 +50,6 @@ def test_filesystem_configuration() -> None:
         "bucket_url": "az://root",
         "credentials": None,
         "client_kwargs": None,
-        "max_state_files": 100,
         "kwargs": None,
         "deltalake_storage_options": None,
     }
@@ -157,6 +156,20 @@ def test_glob_files(with_gdrive_buckets_env: str, load_content: bool, glob_filte
     assert_sample_files(all_file_items, filesystem, config, load_content, glob_filter)
 
 
+@pytest.mark.parametrize("load_content", (True, False))
+def test_glob_single_file(with_gdrive_buckets_env: str, load_content: bool) -> None:
+    bucket_url = os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"]
+    bucket_url, config, filesystem = glob_test_setup(
+        bucket_url, "standard_source/samples/met_csv/A803"
+    )
+    # use glob to get data
+    all_file_items = list(glob_files(filesystem, bucket_url, "A803_20230919.csv"))
+    assert len(all_file_items) == 1
+    assert (
+        all_file_items[0]["relative_path"] == all_file_items[0]["file_name"] == "A803_20230919.csv"
+    )
+
+
 def test_glob_overlapping_path_files(with_gdrive_buckets_env: str) -> None:
     bucket_url = os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"]
     # "standard_source/sample" overlaps with a real existing "standard_source/samples". walk operation on azure
@@ -204,7 +217,6 @@ def test_filesystem_configuration_with_additional_arguments() -> None:
         "read_only": False,
         "bucket_url": "az://root",
         "credentials": None,
-        "max_state_files": 100,
         "kwargs": {"use_ssl": True},
         "client_kwargs": {"verify": "public.crt"},
         "deltalake_storage_options": {"AWS_S3_LOCKING_PROVIDER": "dynamodb"},
@@ -251,23 +263,24 @@ def test_s3_wrong_client_certificate(default_buckets_env: str, self_signed_cert:
 
 
 def test_filesystem_destination_config_reports_unused_placeholders(mocker) -> None:
-    with custom_environ({"DATASET_NAME": "BOBO"}):
-        extra_placeholders: TExtraPlaceholders = {
-            "value": 1,
-            "otters": "lab",
-            "dlt": "labs",
-            "dlthub": "platform",
-            "x": "files",
-        }
-        logger_spy = mocker.spy(logger, "info")
-        resolve.resolve_configuration(
-            FilesystemDestinationClientConfiguration(
-                bucket_url="file:///tmp/dirbobo",
-                layout="{schema_name}/{table_name}/{otters}-x-{x}/{load_id}.{file_id}.{timestamp}.{ext}",
-                extra_placeholders=extra_placeholders,
-            )
-        )
-        logger_spy.assert_called_once_with("Found unused layout placeholders: value, dlt, dlthub")
+    extra_placeholders: TExtraPlaceholders = {
+        "value": 1,
+        "otters": "lab",
+        "dlt": "labs",
+        "dlthub": "platform",
+        "x": "files",
+    }
+    logger_spy = mocker.spy(logger, "info")
+    resolve.resolve_configuration(
+        FilesystemDestinationClientConfiguration(
+            bucket_url="file:///tmp/dirbobo",
+            layout=(
+                "{schema_name}/{table_name}/{otters}-x-{x}/{load_id}.{file_id}.{timestamp}.{ext}"
+            ),
+            extra_placeholders=extra_placeholders,
+        )._bind_dataset_name("dataset")
+    )
+    logger_spy.assert_called_once_with("Found unused layout placeholders: value, dlt, dlthub")
 
 
 def test_filesystem_destination_passed_parameters_override_config_values() -> None:

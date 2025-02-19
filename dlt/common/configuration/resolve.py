@@ -196,13 +196,25 @@ def _resolve_config_fields(
         if key in config.__hint_resolvers__:
             # Type hint for this field is created dynamically
             hint = config.__hint_resolvers__[key](config)
+        # check if hint optional
+        is_optional = is_optional_type(hint)
         # get default and explicit values
         default_value = getattr(config, key, None)
         explicit_none = False
+        explicit_value = None
+        current_value = None
         traces: List[LookupTrace] = []
 
+        def _set_field() -> None:
+            # collect unresolved fields
+            # NOTE: we hide B023 here because the function is called only within a loop
+            if not is_optional and current_value is None:  # noqa
+                unresolved_fields[key] = traces  # noqa
+            # set resolved value in config
+            if default_value != current_value:  # noqa
+                setattr(config, key, current_value)  # noqa
+
         if explicit_values:
-            explicit_value = None
             if key in explicit_values:
                 # allow None to be passed in explicit values
                 # so we are able to reset defaults like in regular function calls
@@ -211,14 +223,15 @@ def _resolve_config_fields(
                 # detect dlt.config and dlt.secrets and force injection
                 if isinstance(explicit_value, ConfigValueSentinel):
                     explicit_value = None
-        else:
-            if is_hint_not_resolvable(hint):
-                # for final fields default value is like explicit
-                explicit_value = default_value
-            else:
-                explicit_value = None
 
-        current_value = None
+        if is_hint_not_resolvable(hint):
+            # do not resolve not resolvable, but allow for explicit values to be passed
+            if not explicit_none:
+                current_value = default_value if explicit_value is None else explicit_value
+            traces = [LookupTrace("ExplicitValues", None, key, current_value)]
+            _set_field()
+            continue
+
         # explicit none skips resolution
         if not explicit_none:
             # if hint is union of configurations, any of them must be resolved
@@ -276,16 +289,7 @@ def _resolve_config_fields(
             # set the trace for explicit none
             traces = [LookupTrace("ExplicitValues", None, key, None)]
 
-        # check if hint optional
-        is_optional = is_optional_type(hint)
-        # collect unresolved fields
-        if not is_optional and current_value is None:
-            unresolved_fields[key] = traces
-        # set resolved value in config
-        if default_value != current_value:
-            if not is_hint_not_resolvable(hint) or explicit_value is not None or explicit_none:
-                # ignore final types
-                setattr(config, key, current_value)
+        _set_field()
 
     # Check for dynamic hint resolvers which have no corresponding fields
     unmatched_hint_resolvers: List[str] = []

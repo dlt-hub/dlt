@@ -40,6 +40,10 @@ def test_set_name_and_environment() -> None:
         p.destination.destination_type == "dlt.destinations.duckdb" == p.state["destination_type"]
     )
     assert p.destination.destination_name == "duck1" == p.state["destination_name"]
+    # stagign is empty
+    assert p.staging is None
+    assert "staging_type" not in p.state
+    assert "staging_name" not in p.state
 
     assert load_info.destination_name == "duck1"
     assert load_info.destination_type == "dlt.destinations.duckdb"
@@ -121,7 +125,11 @@ def test_preserve_destination_instance() -> None:
 
     # create new pipeline with the same name but different destination
     p = dlt.pipeline(pipeline_name="dummy_pipeline", destination="duckdb")
-    assert p.destination.destination_name == "duckdb" == p.state["destination_name"]
+    assert (
+        p.destination.destination_type == "dlt.destinations.duckdb" == p.state["destination_type"]
+    )
+    assert p.destination.configured_name is None is p.state["destination_name"]
+    assert p.destination.destination_name == "duckdb"
 
 
 def test_config_respects_dataset_name(environment: DictStrStr) -> None:

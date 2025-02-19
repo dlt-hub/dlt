@@ -27,7 +27,7 @@ from dlt.destinations.exceptions import (
 )
 
 from dlt.destinations.job_client_impl import SqlJobClientBase
-from dlt.common.destination.reference import (
+from dlt.common.destination.client import (
     StateInfo,
     WithStagingDataset,
     DestinationClientConfiguration,

@@ -1,3 +1,4 @@
+import os
 import dataclasses
 from typing import Optional, Final, Literal, ClassVar, List
 
@@ -6,28 +7,23 @@ from dlt.common.configuration.specs.base_configuration import (
     BaseConfiguration,
     CredentialsConfiguration,
 )
-from dlt.common.destination.reference import DestinationClientDwhConfiguration
+from dlt.common.destination.client import DestinationClientDwhConfiguration
+from dlt.common.storages.configuration import FilesystemConfiguration
 from dlt.common.typing import TSecretStrValue
 from dlt.common.utils import digest128
+from dlt.destinations.configuration import WithLocalFiles
+from dlt.destinations.impl.lancedb.warnings import uri_on_credentials_deprecated
 
 
 @configspec
 class LanceDBCredentials(CredentialsConfiguration):
-    uri: Optional[str] = ".lancedb"
-    """LanceDB database URI. Defaults to local, on-disk instance.
-
-    The available schemas are:
-
-    - `/path/to/database` - local database.
-    - `db://host:port` - remote database (LanceDB cloud).
-    """
+    uri: Optional[str] = None  # deprecated!
     api_key: Optional[TSecretStrValue] = None
     """API key for the remote connections (LanceDB cloud)."""
     embedding_model_provider_api_key: Optional[str] = None
     """API key for the embedding model provider."""
 
     __config_gen_annotations__: ClassVar[List[str]] = [
-        "uri",
         "api_key",
         "embedding_model_provider_api_key",
     ]
@@ -64,10 +60,18 @@ TEmbeddingProvider = Literal[
 
 
 @configspec
-class LanceDBClientConfiguration(DestinationClientDwhConfiguration):
+class LanceDBClientConfiguration(WithLocalFiles, DestinationClientDwhConfiguration):
     destination_type: Final[str] = dataclasses.field(  # type: ignore
         default="LanceDB", init=False, repr=False, compare=False
     )
+    lance_uri: Optional[str] = None
+    """LanceDB database URI. Defaults to local, on-disk instance.
+
+    The available schemas are:
+
+    - `/path/to/database` - local database.
+    - `db://host:port` - remote database (LanceDB cloud).
+    """
     credentials: LanceDBCredentials = None
     dataset_separator: str = "___"
     """Character for the dataset separator."""
@@ -100,13 +104,26 @@ class LanceDBClientConfiguration(DestinationClientDwhConfiguration):
     concept of schemas, this table serves as a proxy to group related dlt tables together."""
 
     __config_gen_annotations__: ClassVar[List[str]] = [
+        "lance_uri",
         "embedding_model",
         "embedding_model_provider",
     ]
 
+    def on_resolved(self) -> None:
+        if self.credentials.uri and not self.lance_uri:
+            uri_on_credentials_deprecated()
+            self.lance_uri = self.credentials.uri
+        # use local path if uri not provided or relative path
+        if (
+            not self.lance_uri
+            or FilesystemConfiguration.is_local_path(self.lance_uri)
+            and not os.path.isabs(self.lance_uri)
+        ):
+            self.lance_uri = self.make_location(self.lance_uri, "%s.lancedb")
+
     def fingerprint(self) -> str:
         """Returns a fingerprint of a connection string."""
 
-        if self.credentials and self.credentials.uri:
-            return digest128(self.credentials.uri)
+        if self.lance_uri:
+            return digest128(self.lance_uri)
         return ""

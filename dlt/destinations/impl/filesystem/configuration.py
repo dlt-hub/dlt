@@ -1,27 +1,30 @@
 import dataclasses
 
-from typing import Final, List, Optional, Type
+from typing import Final, Optional, Type
 
 from dlt.common import logger
 from dlt.common.configuration import configspec, resolve_type
-from dlt.common.destination.reference import (
+from dlt.common.destination.client import (
     CredentialsConfiguration,
     DestinationClientStagingConfiguration,
 )
 
 from dlt.common.storages import FilesystemConfiguration
-from dlt.destinations.impl.filesystem.typing import TCurrentDateTime, TExtraPlaceholders
 
+from dlt.destinations.impl.filesystem.typing import TCurrentDateTime, TExtraPlaceholders
+from dlt.destinations.configuration import WithLocalFiles
 from dlt.destinations.path_utils import check_layout, get_unused_placeholders
 
 
 @configspec
-class FilesystemDestinationClientConfiguration(FilesystemConfiguration, DestinationClientStagingConfiguration):  # type: ignore[misc]
+class FilesystemDestinationClientConfiguration(FilesystemConfiguration, WithLocalFiles, DestinationClientStagingConfiguration):  # type: ignore[misc]
     destination_type: Final[str] = dataclasses.field(  # type: ignore[misc]
         default="filesystem", init=False, repr=False, compare=False
     )
     current_datetime: Optional[TCurrentDateTime] = None
     extra_placeholders: Optional[TExtraPlaceholders] = None
+    max_state_files: int = 100
+    """Maximum number of pipeline state files to keep; 0 or negative value disables cleanup."""
 
     @resolve_type("credentials")
     def resolve_credentials_type(self) -> Type[CredentialsConfiguration]:
@@ -39,3 +42,21 @@ class FilesystemDestinationClientConfiguration(FilesystemConfiguration, Destinat
         )
         if unused_placeholders:
             logger.info(f"Found unused layout placeholders: {', '.join(unused_placeholders)}")
+
+    def normalize_bucket_url(self) -> None:
+        # here we deal with normalized file:// local paths
+        if self.is_local_filesystem:
+            # convert to native path
+            try:
+                local_file_path = self.make_local_path(self.bucket_url)
+            except ValueError:
+                local_file_path = self.bucket_url
+            relocated_path = self.make_location(local_file_path, "%s")
+            # convert back into file:// schema if relocated
+            if local_file_path != relocated_path:
+                if self.bucket_url.startswith("file:"):
+                    self.bucket_url = self.make_file_url(relocated_path)
+                else:
+                    self.bucket_url = relocated_path
+        # modified local path before it is normalized
+        super().normalize_bucket_url()

@@ -14,7 +14,8 @@ class DLTEnvBuilder(venv.EnvBuilder):
     context: types.SimpleNamespace
 
     def __init__(self) -> None:
-        super().__init__(with_pip=True, clear=True)
+        # setup pip only if autodetect or explicit pip, skip for uv etc.
+        super().__init__(with_pip=Venv.get_pip_tool() == "pip", clear=True)
 
     def post_setup(self, context: types.SimpleNamespace) -> None:
         self.context = context
@@ -98,14 +99,18 @@ class Venv:
         # runs one of installed entry points typically CLIs coming with packages and installed into PATH
         command = os.path.join(self.context.bin_path, entry_point)
         cmd = [command, *script_args]
-        return subprocess.check_output(cmd, stderr=subprocess.STDOUT, text=True)
+        return subprocess.check_output(
+            cmd, stderr=subprocess.STDOUT, text=True, errors="backslashreplace"
+        )
 
     def run_script(self, script_path: str, *script_args: Any) -> str:
         """Runs a python `script` source with specified `script_args`. Current `os.environ` and cwd is passed to executed process"""
         # os.environ is passed to executed process
         cmd = [self.context.env_exe, os.path.abspath(script_path), *script_args]
         try:
-            return subprocess.check_output(cmd, stderr=subprocess.STDOUT, text=True)
+            return subprocess.check_output(
+                cmd, stderr=subprocess.STDOUT, text=True, errors="backslashreplace"
+            )
         except subprocess.CalledProcessError as cpe:
             if cpe.returncode == 2:
                 raise FileNotFoundError(script_path)
@@ -115,26 +120,42 @@ class Venv:
     def run_module(self, module: str, *module_args: Any) -> str:
         """Runs a python `module` with specified `module_args`. Current `os.environ` and cwd is passed to executed process"""
         cmd = [self.context.env_exe, "-m", module, *module_args]
-        return subprocess.check_output(cmd, stderr=subprocess.STDOUT, text=True)
+        return subprocess.check_output(
+            cmd, stderr=subprocess.STDOUT, text=True, errors="backslashreplace"
+        )
 
     def add_dependencies(self, dependencies: List[str] = None) -> None:
         Venv._install_deps(self.context, dependencies)
 
     @staticmethod
-    def _install_deps(context: types.SimpleNamespace, dependencies: List[str]) -> None:
+    def get_pip_tool() -> str:
         if Venv.PIP_TOOL is None:
             # autodetect tool
             import shutil
 
-            Venv.PIP_TOOL = "uv" if shutil.which("uv") else "pip"
+            return "uv" if shutil.which("uv") else "pip"
+        return Venv.PIP_TOOL
 
-        if Venv.PIP_TOOL == "uv":
-            cmd = ["uv", "pip", "install", "--prerelease=allow", "--python", context.env_exe]
+    @staticmethod
+    def _install_deps(context: types.SimpleNamespace, dependencies: List[str]) -> None:
+        pip_tool = Venv.get_pip_tool()
+        if pip_tool == "uv":
+            cmd = [
+                "uv",
+                "pip",
+                "install",
+                "--python",
+                context.env_exe,
+                "--prerelease",
+                "if-necessary-or-explicit",
+            ]
         else:
-            cmd = [context.env_exe, "-Im", Venv.PIP_TOOL, "install"]
+            cmd = [context.env_exe, "-Im", pip_tool, "install"]
 
         try:
-            subprocess.check_output(cmd + dependencies, stderr=subprocess.STDOUT)
+            subprocess.check_output(
+                cmd + dependencies, stderr=subprocess.STDOUT, errors="backslashreplace"
+            )
         except subprocess.CalledProcessError as exc:
             raise CannotInstallDependencies(dependencies, context.env_exe, exc.output)
 

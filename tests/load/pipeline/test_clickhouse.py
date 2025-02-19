@@ -3,7 +3,7 @@ from typing import Any, Iterator
 import pytest
 
 import dlt
-from dlt.common.destination.reference import DestinationClientDwhConfiguration
+from dlt.common.destination.client import DestinationClientDwhConfiguration
 from dlt.common.schema.schema import Schema
 from dlt.common.typing import TDataItem
 from dlt.common.utils import uniq_id

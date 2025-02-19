@@ -4,7 +4,10 @@ DLT_PROJECT_DIR = "DLT_PROJECT_DIR"
 """The dlt project dir is the current working directory, '.' (current working dir) by default"""
 
 DLT_DATA_DIR = "DLT_DATA_DIR"
-"""Gets default directory where pipelines' data (working directories) will be stored"""
+"""Sets default directory where pipelines' data (working directories) will be stored"""
+
+DLT_LOCAL_DIR = "DLT_LOCAL_DIR"
+"""Sets a directory where local filesystem files are stored by destinations."""
 
 DLT_CONFIG_FOLDER = "DLT_CONFIG_FOLDER"
 """A folder (path relative to DLT_PROJECT_DIR) where config and secrets are stored"""
@@ -26,3 +29,6 @@ DLT_JSON_TYPED_PUA_START = "DLT_JSON_TYPED_PUA_START"
 
 DLT_PIP_TOOL = "DLT_PIP_TOOL"
 """Pip tool used to install deps in Venv"""
+
+DLT_DISABLE_PLUGINS = "DLT_DISABLE_PLUGINS"
+"""Disables detecting and instantiating plugins. Will speed up initial imports a little"""

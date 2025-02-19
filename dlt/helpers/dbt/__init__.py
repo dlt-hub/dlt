@@ -4,14 +4,14 @@ import pkg_resources
 import semver
 
 from dlt.common.runners import Venv
-from dlt.common.destination.reference import DestinationClientDwhConfiguration
+from dlt.common.destination.client import DestinationClientDwhConfiguration
 from dlt.common.configuration.specs import CredentialsWithDefault
 from dlt.common.typing import TSecretStrValue, ConfigValue
 from dlt.version import get_installed_requirement_string
 
 from dlt.helpers.dbt.runner import create_runner, DBTPackageRunner
 
-DEFAULT_DBT_VERSION = ">=1.5,<1.9"
+DEFAULT_DBT_VERSION = ">=1.5,<2"
 
 # a map of destination names to dbt package names in case they don't match the pure destination name
 DBT_DESTINATION_MAP = {
@@ -53,7 +53,7 @@ def _create_dbt_deps(
         pkg_resources.Requirement.parse(package)
         all_packages[idx] = package
 
-    dlt_requirement = get_installed_requirement_string()
+    dlt_requirement = get_installed_requirement_string(allow_earlier=True)
     # get additional requirements
     additional_deps: List[str] = []
     if "duckdb" in destination_types or "motherduck" in destination_types:

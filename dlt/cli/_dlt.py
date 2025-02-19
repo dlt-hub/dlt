@@ -1,6 +1,8 @@
-from typing import Any, Sequence, Type, cast, List, Dict
+from typing import Any, Sequence, Type, cast, List, Dict, Tuple
 import argparse
 import click
+import rich_argparse
+from rich.markdown import Markdown
 
 from dlt.version import __version__
 from dlt.common.runners import Venv
@@ -99,10 +101,12 @@ class DebugAction(argparse.Action):
         debug.enable_debug()
 
 
-def main() -> int:
+def _create_parser() -> Tuple[argparse.ArgumentParser, Dict[str, SupportsCliCommand]]:
     parser = argparse.ArgumentParser(
-        description="Creates, adds, inspects and deploys dlt pipelines.",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        description=(
+            "Creates, adds, inspects and deploys dlt pipelines. Further help is available at"
+            " https://dlthub.com/docs/reference/command-line-interface."
+        ),
     )
     parser.add_argument(
         "--version", action="version", version="%(prog)s {version}".format(version=__version__)
@@ -126,9 +130,14 @@ def main() -> int:
         ),
     )
     parser.add_argument(
-        "--debug", action=DebugAction, help="Displays full stack traces on exceptions."
+        "--debug",
+        action=DebugAction,
+        help=(
+            "Displays full stack traces on exceptions. Useful for debugging if the output is not"
+            " clear enough."
+        ),
     )
-    subparsers = parser.add_subparsers(dest="command")
+    subparsers = parser.add_subparsers(title="Available subcommands", dest="command")
 
     # load plugins
     from dlt.common.configuration import plugins
@@ -136,16 +145,39 @@ def main() -> int:
     m = plugins.manager()
     commands = cast(List[Type[SupportsCliCommand]], m.hook.plug_cli())
 
-    # install available commands
+    # install Available subcommands
     installed_commands: Dict[str, SupportsCliCommand] = {}
     for c in commands:
         command = c()
         if command.command in installed_commands.keys():
             continue
-        command_parser = subparsers.add_parser(command.command, help=command.help_string)
+        command_parser = subparsers.add_parser(
+            command.command,
+            help=command.help_string,
+            description=command.description if hasattr(command, "description") else None,
+        )
         command.configure_parser(command_parser)
         installed_commands[command.command] = command
 
+    # recursively add formatter class
+    def add_formatter_class(parser: argparse.ArgumentParser) -> None:
+        parser.formatter_class = rich_argparse.RichHelpFormatter
+
+        # NOTE: make markup available for console output
+        if parser.description:
+            parser.description = Markdown(parser.description, style="argparse.text")  # type: ignore
+        for action in parser._actions:
+            if isinstance(action, argparse._SubParsersAction):
+                for _subcmd, subparser in action.choices.items():
+                    add_formatter_class(subparser)
+
+    add_formatter_class(parser)
+
+    return parser, installed_commands
+
+
+def main() -> int:
+    parser, installed_commands = _create_parser()
     args = parser.parse_args()
 
     if Venv.is_virtual_env() and not Venv.is_venv_activated():

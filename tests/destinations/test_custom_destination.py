@@ -3,7 +3,6 @@ from typing import List, Tuple, Dict
 import dlt
 import pytest
 import os
-import inspect
 
 from copy import deepcopy
 from dlt.common.configuration.specs.base_configuration import configspec
@@ -11,18 +10,15 @@ from dlt.common.schema.schema import Schema
 from dlt.common.typing import TDataItems
 from dlt.common.schema import TTableSchema
 from dlt.common.data_writers.writers import TLoaderFileFormat
-from dlt.common.destination.reference import Destination
-from dlt.common.destination.exceptions import (
-    DestinationTransientException,
-    InvalidDestinationReference,
-)
+from dlt.common.destination import Destination, DestinationReference
+from dlt.common.destination.exceptions import DestinationTransientException
 from dlt.common.configuration.exceptions import ConfigFieldMissingException, ConfigurationValueError
 from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.configuration.inject import get_fun_spec
 from dlt.common.configuration.specs import BaseConfiguration
 
-from dlt.destinations.impl.destination.factory import _DESTINATIONS
 from dlt.destinations.impl.destination.configuration import CustomDestinationClientConfiguration
+from dlt.destinations.impl.destination.factory import UnknownCustomDestinationCallable
 from dlt.pipeline.exceptions import PipelineStepFailed
 
 from tests.load.utils import (
@@ -32,6 +28,11 @@ from tests.load.utils import (
 )
 
 SUPPORTED_LOADER_FORMATS = ["parquet", "typed-jsonl"]
+
+
+@pytest.fixture(autouse=True)
+def clear_destination_registry() -> None:
+    DestinationReference.DESTINATIONS.clear()
 
 
 def _run_through_sink(
@@ -158,7 +159,7 @@ def test_capabilities() -> None:
 
 
 def test_instantiation() -> None:
-    # also tests _DESTINATIONS
+    # also tests DESTINATIONS registry
     calls: List[Tuple[TDataItems, TTableSchema]] = []
 
     # NOTE: we also test injection of config vars here
@@ -175,7 +176,9 @@ def test_instantiation() -> None:
     p.run([1, 2, 3], table_name="items")
     assert len(calls) == 1
     # local func does not create entry in destinations
-    assert "local_sink_func" not in _DESTINATIONS
+    with pytest.raises(KeyError):
+        DestinationReference.find("local_sink_func")
+    assert "dlt.destinations.local_sink_func" not in DestinationReference.DESTINATIONS
 
     # test passing via from_reference
     calls = []
@@ -187,7 +190,9 @@ def test_instantiation() -> None:
     p.run([1, 2, 3], table_name="items")
     assert len(calls) == 1
     # local func does not create entry in destinations
-    assert "local_sink_func" not in _DESTINATIONS
+    with pytest.raises(KeyError):
+        DestinationReference.find("local_sink_func")
+    assert "dlt.destinations.local_sink_func" not in DestinationReference.DESTINATIONS
 
     def local_sink_func_no_params(items: TDataItems, table: TTableSchema) -> None:
         # consume data
@@ -205,22 +210,75 @@ def test_instantiation() -> None:
     # test passing string reference
     global global_calls
     global_calls = []
+    # this is technically possible but should not be used
+    dest_ref = Destination.from_reference(
+        "destination",
+        destination_callable="tests.destinations.test_custom_destination.global_sink_func",
+    )
+    assert dest_ref.destination_name == "global_sink_func"
+    # type comes from the "destination" wrapper destination
+    assert dest_ref.destination_type == "dlt.destinations.destination"
     p = dlt.pipeline(
         "sink_test",
-        destination=Destination.from_reference(
-            "destination",
-            destination_callable="tests.destinations.test_custom_destination.global_sink_func",
-        ),
+        destination=dest_ref,
         dev_mode=True,
     )
     p.run([1, 2, 3], table_name="items")
     assert len(global_calls) == 1
 
     # global func will create an entry
-    assert _DESTINATIONS["global_sink_func"]
-    assert issubclass(_DESTINATIONS["global_sink_func"][0], CustomDestinationClientConfiguration)
-    assert _DESTINATIONS["global_sink_func"][1] == global_sink_func
-    assert _DESTINATIONS["global_sink_func"][2] == inspect.getmodule(global_sink_func)
+    dest_ref = dlt.destination(global_sink_func)()  # type: ignore[assignment]
+    assert DestinationReference.DESTINATIONS[
+        "tests.destinations.test_custom_destination.global_sink_func"
+    ]
+    assert (
+        dest_ref.destination_type
+        == "tests.destinations.test_custom_destination.GlobalSinkFuncDestination"
+    )
+    p = dlt.pipeline(
+        "sink_test",
+        destination=dest_ref,
+        dev_mode=True,
+    )
+    p.run([1, 2, 3], table_name="items")
+    assert len(global_calls) == 2
+
+    # we can import type (it is not a ref)
+    dest_ref = Destination.from_reference(
+        "tests.destinations.test_custom_destination.GlobalSinkFuncDestination",
+        destination_name="alt_name",
+    )
+    assert dest_ref.destination_name == "alt_name"
+    assert (
+        dest_ref.destination_type
+        == "tests.destinations.test_custom_destination.GlobalSinkFuncDestination"
+    )
+    # and still run it
+    p = dlt.pipeline(
+        "sink_test",
+        destination=dest_ref,
+        dev_mode=True,
+    )
+    p.run([1, 2, 3], table_name="items")
+    assert len(global_calls) == 3
+
+    # now import by ref
+    dest_ref = Destination.from_reference(
+        "tests.destinations.test_custom_destination.global_sink_func"
+    )
+    assert dest_ref.destination_name == "global_sink_func"
+    assert (
+        dest_ref.destination_type
+        == "tests.destinations.test_custom_destination.GlobalSinkFuncDestination"
+    )
+    # and still run it
+    p = dlt.pipeline(
+        "sink_test",
+        destination=dest_ref,
+        dev_mode=True,
+    )
+    p.run([1, 2, 3], table_name="items")
+    assert len(global_calls) == 4
 
     # pass None as callable arg will fail on load
     p = dlt.pipeline(
@@ -232,7 +290,7 @@ def test_instantiation() -> None:
         p.run([1, 2, 3], table_name="items")
 
     # pass invalid string reference will fail on instantiation
-    with pytest.raises(InvalidDestinationReference):
+    with pytest.raises(UnknownCustomDestinationCallable):
         p = dlt.pipeline(
             "sink_test",
             destination=Destination.from_reference(
@@ -250,7 +308,7 @@ def test_instantiation() -> None:
         assert my_val == "something"
         calls.append((items, table))
 
-    p = dlt.pipeline("sink_test", destination=simple_decorator_sink, dev_mode=True)  # type: ignore
+    p = dlt.pipeline("sink_test", destination=simple_decorator_sink, dev_mode=True)
     p.run([1, 2, 3], table_name="items")
     assert len(calls) == 1
 
@@ -467,7 +525,7 @@ def test_config_spec() -> None:
 
     # test nested spec
 
-    @dlt.destination()
+    @dlt.destination
     def my_gcp_sink(
         file_path,
         table,
@@ -631,3 +689,35 @@ def test_max_nesting_level(nesting: int) -> None:
 
     for table in found_tables:
         assert table.startswith("data")
+
+
+def test_large_payload():
+    # NOTE: tests large number of records that get line wrapped in typed jsonl
+    num_records = 50000
+
+    @dlt.resource
+    def generate_large_data():
+        for i in range(0, num_records):
+            yield {
+                "id": i,
+                "name": f"Item_{i}",
+                "description": "some_string",
+            }
+
+    items_count = 0
+
+    # Custom destination
+    @dlt.destination(batch_size=1000)
+    def my_destination(items: TDataItems, table: TTableSchema):
+        nonlocal items_count
+        items_count += len(items)
+
+    pipeline = dlt.pipeline(
+        pipeline_name="my_pipeline",
+        destination=my_destination,
+        dev_mode=True,
+    )
+
+    pipeline.run(generate_large_data())
+
+    assert items_count == num_records

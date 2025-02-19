@@ -192,3 +192,6 @@ class postgres(Destination[PostgresClientConfiguration, "PostgresClient"]):
             environment=environment,
             **kwargs,
         )
+
+
+postgres.register()

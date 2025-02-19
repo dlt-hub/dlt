@@ -47,17 +47,16 @@ dev: has-poetry
 	poetry install --all-extras --with docs,providers,pipeline,sources,sentry-sdk
 
 lint:
-	./tools/check-package.sh
 	poetry run python ./tools/check-lockfile.py
 	poetry run mypy --config-file mypy.ini dlt tests
 	poetry run flake8 --max-line-length=200 dlt
-	poetry run flake8 --max-line-length=200 tests --exclude tests/reflection/module_cases
+	poetry run flake8 --max-line-length=200 tests --exclude tests/reflection/module_cases,tests/common/reflection/cases/modules/
 	poetry run black dlt docs tests --check --diff --color --extend-exclude=".*syntax_error.py"
 	# poetry run isort ./ --diff
-	# $(MAKE) lint-security
+	$(MAKE) lint-security
 
 format:
-	poetry run black dlt docs tests --exclude=".*syntax_error.py|\.venv.*|_storage/.*"
+	poetry run black dlt docs tests --extend-exclude='.*syntax_error.py|_storage/.*'
 	# poetry run isort ./
 
 lint-snippets:
@@ -78,7 +77,8 @@ test-examples:
 	cd docs/examples && poetry run pytest
 
 lint-security:
-	poetry run bandit -r dlt/ -n 3 -l
+	# go for ll by cleaning up eval and SQL warnings.
+	poetry run bandit -r dlt/ -n 3 -lll
 
 test:
 	poetry run pytest tests
@@ -102,11 +102,14 @@ publish-library: build-library
 	poetry publish
 
 test-build-images: build-library
-	# TODO: enable when we can remove special duckdb setting for python 3.12
+	# NOTE: poetry export does not work with our many different deps, we install a subset and freeze
 	# poetry export -f requirements.txt --output _gen_requirements.txt --without-hashes --extras gcp --extras redshift
-	# grep `cat compiled_packages.txt` _gen_requirements.txt > compiled_requirements.txt
+	poetry install --no-interaction -E gcp -E redshift -E duckdb
+	poetry run pip freeze > _gen_requirements.txt
+	# filter out libs that need native compilation
+	grep `cat compiled_packages.txt` _gen_requirements.txt > compiled_requirements.txt
 	docker build -f deploy/dlt/Dockerfile.airflow --build-arg=COMMIT_SHA="$(shell git log -1 --pretty=%h)" --build-arg=IMAGE_VERSION="$(shell poetry version -s)" .
-	# docker build -f deploy/dlt/Dockerfile --build-arg=COMMIT_SHA="$(shell git log -1 --pretty=%h)" --build-arg=IMAGE_VERSION="$(shell poetry version -s)" .
+	docker build -f deploy/dlt/Dockerfile --build-arg=COMMIT_SHA="$(shell git log -1 --pretty=%h)" --build-arg=IMAGE_VERSION="$(shell poetry version -s)" .
 
 preprocess-docs:
 	# run docs preprocessing to run a few checks and ensure examples can be parsed
@@ -118,3 +121,9 @@ start-test-containers:
 	docker compose -f "tests/load/weaviate/docker-compose.yml" up -d
 	docker compose -f "tests/load/filesystem_sftp/docker-compose.yml" up -d
 	docker compose -f "tests/load/sqlalchemy/docker-compose.yml" up -d
+
+update-cli-docs:
+	poetry run dlt --debug render-docs docs/website/docs/reference/command-line-interface.md
+
+check-cli-docs:
+	poetry run dlt --debug render-docs docs/website/docs/reference/command-line-interface.md --compare

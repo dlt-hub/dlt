@@ -142,3 +142,6 @@ class dremio(Destination[DremioClientConfiguration, "DremioClient"]):
             environment=environment,
             **kwargs,
         )
+
+
+dremio.register()

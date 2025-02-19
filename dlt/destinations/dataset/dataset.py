@@ -4,20 +4,15 @@ from dlt.common.json import json
 
 from dlt.common.exceptions import MissingDependencyException
 
-from dlt.common.destination.reference import (
-    SupportsReadableRelation,
-    SupportsReadableDataset,
-    TDestinationReferenceArg,
-    Destination,
-    JobClientBase,
-    WithStateSync,
-)
+from dlt.common.destination.reference import TDestinationReferenceArg, Destination
+from dlt.common.destination.client import JobClientBase, WithStateSync
+from dlt.common.destination.dataset import SupportsReadableRelation, SupportsReadableDataset
+from dlt.common.destination.typing import TDatasetType
 
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.common.schema import Schema
 from dlt.destinations.dataset.relation import ReadableDBAPIRelation
 from dlt.destinations.dataset.utils import get_destination_clients
-from dlt.common.destination.reference import TDatasetType
 
 if TYPE_CHECKING:
     try:
@@ -49,7 +44,6 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
         """return a connected ibis backend"""
         from dlt.helpers.ibis import create_ibis_backend
 
-        self._ensure_client_and_schema()
         return create_ibis_backend(
             self._destination,
             self._destination_client(self.schema),
@@ -57,13 +51,27 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
 
     @property
     def schema(self) -> Schema:
-        self._ensure_client_and_schema()
+        # NOTE: if this property raises AttributeError, __getattr__ will get called 🤯
+        #   this leads to infinite recursion as __getattr_ calls this property
+        if not self._schema:
+            self._ensure_client_and_schema()
         return self._schema
 
     @property
+    def dataset_name(self) -> str:
+        return self._dataset_name
+
+    @property
     def sql_client(self) -> SqlClientBase[Any]:
-        self._ensure_client_and_schema()
+        if not self._sql_client:
+            self._ensure_client_and_schema()
         return self._sql_client
+
+    @property
+    def destination_client(self) -> JobClientBase:
+        if not self._sql_client:
+            self._ensure_client_and_schema()
+        return self._destination_client(self._schema)
 
     def _destination_client(self, schema: Schema) -> JobClientBase:
         return get_destination_clients(
@@ -121,7 +129,11 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
                 from dlt.destinations.dataset.ibis_relation import ReadableIbisRelation
 
                 unbound_table = create_unbound_ibis_table(self.sql_client, self.schema, table_name)
-                return ReadableIbisRelation(readable_dataset=self, ibis_object=unbound_table, columns_schema=self.schema.tables[table_name]["columns"])  # type: ignore[abstract]
+                return ReadableIbisRelation(  # type: ignore[abstract]
+                    readable_dataset=self,
+                    ibis_object=unbound_table,
+                    columns_schema=self.schema.tables[table_name]["columns"],
+                )
             except MissingDependencyException:
                 # if ibis is explicitly requested, reraise
                 if self._dataset_type == "ibis":

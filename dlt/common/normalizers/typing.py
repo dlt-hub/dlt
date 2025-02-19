@@ -1,7 +1,7 @@
-from typing import List, Optional, Type, TypedDict, Literal, Union
+from typing import List, Optional, Type, Literal, Union
 from types import ModuleType
 
-from dlt.common.typing import StrAny
+from dlt.common.typing import StrAny, TypedDict
 from dlt.common.normalizers.naming import NamingConvention
 
 TNamingConventionReferenceArg = Union[str, Type[NamingConvention], ModuleType]

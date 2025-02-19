@@ -5,8 +5,7 @@ from string import ascii_lowercase
 import pytest
 
 import dlt
-from dlt.common.destination.reference import Destination
-from dlt.common.schema.exceptions import CannotCoerceColumnException
+from dlt.common.destination import Destination
 from dlt.common.schema.schema import Schema
 from dlt.common.utils import uniq_id
 
@@ -123,7 +122,7 @@ def test_pipeline_explicit_destination_credentials(
     assert config.credentials.is_resolved()
     assert (
         config.credentials.to_native_representation()
-        == "redshift://loader:password@localhost:5432/dlt_data?connect_timeout=15"
+        == "redshift://loader:password@localhost:5432/dlt_data?client_encoding=utf-8&connect_timeout=15"
     )
 
 

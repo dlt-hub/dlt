@@ -39,7 +39,7 @@ from dlt.common.storages import FileStorage
 from dlt.common.storages.load_package import LoadJobInfo, ParsedLoadJobFileName
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns, TSchemaTables
 from dlt.common.schema import TColumnHint
-from dlt.common.destination.reference import (
+from dlt.common.destination.client import (
     PreparedTableSchema,
     StateInfo,
     StorageSchemaInfo,

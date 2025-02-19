@@ -16,7 +16,8 @@ from dlt.common.storages import FileStorage
 from dlt.common import pipeline as state_module
 from dlt.common.storages.load_package import TPipelineStateDoc
 from dlt.common.utils import uniq_id
-from dlt.common.destination.reference import Destination, StateInfo
+from dlt.common.destination import Destination
+from dlt.common.destination.client import StateInfo
 from dlt.common.validation import validate_dict
 
 from dlt.destinations.utils import get_pipeline_state_query_columns
@@ -546,7 +547,7 @@ def test_migrate_pipeline_state(test_storage: FileStorage) -> None:
     assert state["_state_engine_version"] == PIPELINE_STATE_ENGINE_VERSION
 
     # check destination migration
-    assert state["destination_name"] == "postgres"
+    assert state["destination_name"] is None
     assert state["destination_type"] == "dlt.destinations.postgres"
     assert "destination" not in state
 
@@ -583,10 +584,10 @@ def test_migrate_pipeline_state(test_storage: FileStorage) -> None:
     migrate_pipeline_state(
         "test_pipeline", state_v3, state_v3["_state_engine_version"], PIPELINE_STATE_ENGINE_VERSION  # type: ignore
     )
-    assert state_v3["destination_name"] == "redshift"
+    assert state_v3["destination_name"] is None
     assert state_v3["destination_type"] == "dlt.destinations.redshift"
     assert "destination" not in state_v3
-    assert state_v3["staging_name"] == "filesystem"
+    assert state_v3["staging_name"] is None
     assert state_v3["staging_type"] == "dlt.destinations.filesystem"
     assert "staging" not in state_v3
 
@@ -597,7 +598,7 @@ def test_migrate_pipeline_state(test_storage: FileStorage) -> None:
     migrate_pipeline_state(
         "test_pipeline", state_v3, state_v3["_state_engine_version"], PIPELINE_STATE_ENGINE_VERSION  # type: ignore
     )
-    assert state_v3["destination_name"] == "redshift"
+    assert state_v3["destination_name"] is None
     assert state_v3["destination_type"] == "dlt.destinations.redshift"
     assert "destination" not in state_v3
     assert "staging_name" not in state_v3
@@ -620,3 +621,22 @@ def test_migrate_pipeline_state(test_storage: FileStorage) -> None:
     assert "destination_type" not in state_v3
     assert "staging_name" not in state_v3
     assert "staging_type" not in state_v3
+
+    # make sure that destination name is preserved
+    state_v4 = {
+        "destination_type": "dlt.destinations.redshift",
+        "destination_name": "redshift",
+        "staging_type": "dlt.destinations.filesystem",
+        "staging_name": "fs_prod",
+        "_state_engine_version": 3,
+    }
+    migrate_pipeline_state(
+        "test_pipeline", state_v4, state_v4["_state_engine_version"], PIPELINE_STATE_ENGINE_VERSION  # type: ignore
+    )
+    assert state_v4["destination_name"] is None
+    assert state_v4["destination_type"] == "dlt.destinations.redshift"
+    assert "destination" not in state_v3
+    assert state_v4["staging_name"] == "fs_prod"
+    assert state_v4["staging_type"] == "dlt.destinations.filesystem"
+    # NOTE: we intend it to fail when state engine version is bumped to this test is revised
+    assert state_v4["_state_engine_version"] == 4

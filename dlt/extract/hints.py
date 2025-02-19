@@ -30,6 +30,8 @@ from dlt.common.schema.typing import (
     MERGE_STRATEGIES,
     TTableReferenceParam,
 )
+
+from dlt.common.typing import TypedDict
 from dlt.common.schema.utils import (
     DEFAULT_WRITE_DISPOSITION,
     is_nested_table,

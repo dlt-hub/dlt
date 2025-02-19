@@ -18,12 +18,12 @@ from typing import (
     Sequence,
     Tuple,
     TypeVar,
-    TypedDict,
     Mapping,
     Literal,
 )
 from typing_extensions import NotRequired
 
+from dlt.common.typing import TypedDict
 from dlt.common.configuration import configspec
 from dlt.common.configuration import known_sections
 from dlt.common.configuration.container import Container
@@ -446,7 +446,7 @@ class TPipelineLocalState(TypedDict, total=False):
     _last_extracted_hash: str
     """Hash of state that was recently synced with destination"""
     initial_cwd: str
-    """Current working dir when pipeline was instantiated for a first time"""
+    """Run dir when pipeline was instantiated for a first time, defaults to cwd on OSS run context"""
 
 
 class TPipelineState(TVersionedState, total=False):
@@ -785,14 +785,14 @@ def get_dlt_pipelines_dir() -> str:
     """
     from dlt.common.runtime import run_context
 
-    return run_context.current().get_data_entity("pipelines")
+    return run_context.active().get_data_entity("pipelines")
 
 
 def get_dlt_repos_dir() -> str:
     """Gets default directory where command repositories will be stored"""
     from dlt.common.runtime import run_context
 
-    return run_context.current().get_data_entity("repos")
+    return run_context.active().get_data_entity("repos")
 
 
 _CURRENT_PIPE_NAME: Dict[int, str] = {}

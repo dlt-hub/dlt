@@ -21,10 +21,10 @@ from typing import (
     cast,
     Any,
     Tuple,
-    TypedDict,
 )
 from typing_extensions import NotRequired
 
+from dlt.common.typing import TypedDict
 from dlt.common.pendulum import pendulum
 from dlt.common.json import json
 from dlt.common.configuration import configspec
@@ -739,7 +739,7 @@ class PackageStorage:
 
     @staticmethod
     def _job_elapsed_time_seconds(file_path: str, now_ts: float = None) -> float:
-        return (now_ts or pendulum.now().timestamp()) - os.path.getmtime(file_path)
+        return (now_ts or precise_time()) - os.path.getmtime(file_path)
 
     @staticmethod
     def filter_jobs_for_table(

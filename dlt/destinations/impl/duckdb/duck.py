@@ -1,9 +1,8 @@
-from typing import Dict, Optional
+from typing import Dict, Iterable, Optional
 
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.exceptions import TerminalValueError
-from dlt.common.schema import TColumnSchema, TColumnHint, Schema
-from dlt.common.destination.reference import (
+from dlt.common.schema import TColumnHint, Schema
+from dlt.common.destination.client import (
     PreparedTableSchema,
     RunnableLoadJob,
     HasFollowupJobs,
@@ -73,6 +72,10 @@ class DuckDbClient(InsertValuesJobClient):
         if not job:
             job = DuckDbCopyJob(file_path)
         return job
+
+    def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
+        self.sql_client.warn_if_catalog_equals_dataset_name()
+        super().initialize_storage(truncate_tables)
 
     def _from_db_type(
         self, pq_t: str, precision: Optional[int], scale: Optional[int]

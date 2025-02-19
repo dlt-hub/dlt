@@ -285,6 +285,3 @@ def test_duckdb_credentials_separation(
 
     assert "p1" in p1_dataset.sql_client.credentials._conn_str()
     assert "p2" in p2_dataset.sql_client.credentials._conn_str()
-
-    assert p1_dataset.sql_client.credentials.bound_to_pipeline is p1
-    assert p2_dataset.sql_client.credentials.bound_to_pipeline is p2

@@ -1,7 +1,7 @@
 """Generic API Source"""
 from copy import deepcopy
 from typing import Any, Dict, List, Optional, Generator, Callable, cast, Union
-import graphlib  # type: ignore[import,unused-ignore]
+import graphlib
 from requests.auth import AuthBase
 
 import dlt
@@ -129,7 +129,7 @@ def rest_api_source(
     # TODO: this must be removed when TypedDicts are supported by resolve_configuration
     #   so secrets values are bound BEFORE validation. validation will happen during the resolve process
     _validate_config(config)
-    decorated = rest_api.with_args(
+    decorated = rest_api.clone(
         name=name,
         section=section,
         max_table_nesting=max_table_nesting,
@@ -229,7 +229,7 @@ def rest_api_resources(config: RESTAPIConfig) -> List[DltResource]:
 
 def create_resources(
     client_config: ClientConfig,
-    dependency_graph: graphlib.TopologicalSorter,
+    dependency_graph: graphlib.TopologicalSorter,  # type: ignore[type-arg]
     endpoint_resource_map: Dict[str, Union[EndpointResource, DltResource]],
     resolved_param_map: Dict[str, Optional[List[ResolvedParam]]],
 ) -> Dict[str, DltResource]:

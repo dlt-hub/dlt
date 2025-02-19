@@ -1,6 +1,7 @@
 import contextlib
 import datetime  # noqa: I251
 import re
+import sys
 from typing import Any, Optional, Union, overload, TypeVar, Callable  # noqa
 
 from pendulum.parsing import (
@@ -125,6 +126,38 @@ def ensure_pendulum_datetime(value: TAnyDateTime) -> pendulum.DateTime:
     raise TypeError(f"Cannot coerce {value} to a pendulum.DateTime object.")
 
 
+def ensure_pendulum_datetime_non_utc(value: TAnyDateTime) -> pendulum.DateTime:
+    if isinstance(value, datetime.datetime):
+        ret = pendulum.instance(value)
+        return ret
+    elif isinstance(value, datetime.date):
+        return pendulum.datetime(value.year, value.month, value.day)
+    elif isinstance(value, (int, float, str)):
+        result = _datetime_from_ts_or_iso(value)
+        if isinstance(result, datetime.time):
+            raise ValueError(f"Cannot coerce {value} to a pendulum.DateTime object.")
+        if isinstance(result, pendulum.DateTime):
+            return result
+        return pendulum.datetime(result.year, result.month, result.day)
+    raise TypeError(f"Cannot coerce {value} to a pendulum.DateTime object.")
+
+
+def datatime_obj_to_str(
+    datatime: Union[datetime.datetime, datetime.date], datetime_format: str
+) -> str:
+    if sys.version_info < (3, 12, 0) and "%:z" in datetime_format:
+        modified_format = datetime_format.replace("%:z", "%z")
+        datetime_str = datatime.strftime(modified_format)
+
+        timezone_part = datetime_str[-5:] if len(datetime_str) >= 5 else ""
+        if timezone_part.startswith(("-", "+")):
+            return f"{datetime_str[:-5]}{timezone_part[:3]}:{timezone_part[3:]}"
+
+        raise ValueError(f"Invalid timezone format in datetime string: {datetime_str}")
+
+    return datatime.strftime(datetime_format)
+
+
 def ensure_pendulum_time(value: Union[str, datetime.time]) -> pendulum.Time:
     """Coerce a time value to a `pendulum.Time` object.
 
@@ -164,27 +197,27 @@ def detect_datetime_format(value: str) -> Optional[str]:
         ): "%Y-%m-%dT%H:%M:%S.%fZ",  # UTC with fractional seconds
         re.compile(
             r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\+\d{2}:\d{2}$"
-        ): "%Y-%m-%dT%H:%M:%S%z",  # Positive timezone offset
+        ): "%Y-%m-%dT%H:%M:%S%:z",  # Positive timezone offset
         re.compile(
             r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\+\d{4}$"
         ): "%Y-%m-%dT%H:%M:%S%z",  # Positive timezone without colon
         # Full datetime with fractional seconds and positive timezone offset
         re.compile(
             r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+\+\d{2}:\d{2}$"
-        ): "%Y-%m-%dT%H:%M:%S.%f%z",
+        ): "%Y-%m-%dT%H:%M:%S.%f%:z",
         re.compile(
             r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+\+\d{4}$"
         ): "%Y-%m-%dT%H:%M:%S.%f%z",  # Positive timezone without colon
         re.compile(
             r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}-\d{2}:\d{2}$"
-        ): "%Y-%m-%dT%H:%M:%S%z",  # Negative timezone offset
+        ): "%Y-%m-%dT%H:%M:%S%:z",  # Negative timezone offset
         re.compile(
             r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}-\d{4}$"
         ): "%Y-%m-%dT%H:%M:%S%z",  # Negative timezone without colon
         # Full datetime with fractional seconds and negative timezone offset
         re.compile(
             r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+-\d{2}:\d{2}$"
-        ): "%Y-%m-%dT%H:%M:%S.%f%z",
+        ): "%Y-%m-%dT%H:%M:%S.%f%:z",
         re.compile(
             r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+-\d{4}$"
         ): "%Y-%m-%dT%H:%M:%S.%f%z",  # Negative Timezone without colon

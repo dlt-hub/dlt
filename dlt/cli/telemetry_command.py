@@ -31,7 +31,7 @@ def change_telemetry_status_command(enabled: bool) -> None:
     ]
     # write local config
     # TODO: use designated (main) config provider (for non secret values) ie. taken from run context
-    run_ctx = run_context.current()
+    run_ctx = run_context.active()
     config = ConfigTomlProvider(run_ctx.settings_dir)
     if not config.is_empty:
         write_values(config._config_toml, telemetry_value, overwrite_existing=True)

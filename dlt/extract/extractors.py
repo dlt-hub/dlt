@@ -28,7 +28,7 @@ from dlt.normalize.configuration import ItemsNormalizerConfiguration
 
 try:
     from dlt.common.libs import pyarrow
-    from dlt.common.libs.pyarrow import pyarrow as pa, TAnyArrowItem
+    from dlt.common.libs.pyarrow import pyarrow as pa, TAnyArrowItem, UnsupportedArrowTypeException
 except MissingDependencyException:
     pyarrow = None
     pa = None
@@ -431,14 +431,15 @@ class ArrowExtractor(Extractor):
                     utils.merge_table(self.schema.name, computed_table, arrow_table)
                 else:
                     arrow_table = copy(computed_table)
-                arrow_table["columns"] = pyarrow.py_arrow_to_table_schema_columns(item.schema)
+                try:
+                    arrow_table["columns"] = pyarrow.py_arrow_to_table_schema_columns(item.schema)
+                except pyarrow.UnsupportedArrowTypeException as e:
+                    e.table_name = str(arrow_table.get("name"))
+                    raise
 
                 # Add load_id column if needed
                 dlt_load_id = self.naming.normalize_identifier(C_DLT_LOAD_ID)
-                if (
-                    self._normalize_config.add_dlt_load_id
-                    and dlt_load_id not in arrow_table["columns"]
-                ):
+                if self._normalize_config.add_dlt_load_id and dlt_load_id not in arrow_table["columns"]:
                     # will be normalized line below
                     arrow_table["columns"][C_DLT_LOAD_ID] = utils.dlt_load_id_column()
 
@@ -453,8 +454,8 @@ class ArrowExtractor(Extractor):
                                 if src_hint != hint:
                                     override_warn = True
                                     logger.info(
-                                        f"In resource: {resource.name}, when merging arrow schema"
-                                        f" on column {col_name}. The hint {hint_name} value"
+                                        f"In resource: {resource.name}, when merging arrow schema on"
+                                        f" column {col_name}. The hint {hint_name} value"
                                         f" {src_hint} defined in resource will overwrite arrow hint"
                                         f" with value {hint}."
                                     )
@@ -465,7 +466,6 @@ class ArrowExtractor(Extractor):
                         " schema and data were unmodified. It is up to destination to coerce the"
                         " differences when loading. Change log level to INFO for more details."
                     )
-
                 utils.merge_columns(
                     arrow_table["columns"], computed_table["columns"], merge_columns=True
                 )

@@ -119,8 +119,9 @@ class PipelineNeverRan(PipelineException):
     def __init__(self, pipeline_name: str, pipelines_dir: str) -> None:
         msg = (
             f" Operation failed because pipeline with name {pipeline_name} in working directory"
-            f" {pipelines_dir} was never run or never synced with destination. Use `dlt pipeline"
-            " sync` to synchronize."
+            f" {pipelines_dir} was never run or was never synced with destination. Use `dlt"
+            " pipeline sync` or call pipeline.sync_destination() to get pipeline state and set of"
+            " schemas  from destination."
         )
         super().__init__(pipeline_name, msg)
 

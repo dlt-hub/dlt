@@ -98,3 +98,6 @@ class weaviate(Destination[WeaviateClientConfiguration, "WeaviateClient"]):
             environment=environment,
             **kwargs,
         )
+
+
+weaviate.register()

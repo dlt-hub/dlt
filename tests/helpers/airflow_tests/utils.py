@@ -51,4 +51,5 @@ def setup_airflow() -> None:
     # Run Airflow resetdb before running any tests
     args.yes = True
     args.skip_init = False
+    args.use_migration_files = False
     resetdb(args)

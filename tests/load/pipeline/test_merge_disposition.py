@@ -260,7 +260,7 @@ def test_merge_on_keys_in_schema_nested_hints(
         local_filesystem_configs=True,
         table_format_filesystem_configs=True,
         supports_merge=True,
-        bucket_subset=(FILE_BUCKET),
+        bucket_subset=(FILE_BUCKET,),
     ),
     ids=lambda x: x.name,
 )
@@ -374,7 +374,126 @@ def test_merge_record_updates(
         local_filesystem_configs=True,
         table_format_filesystem_configs=True,
         supports_merge=True,
-        bucket_subset=(FILE_BUCKET),
+        subset=("postgres", "snowflake"),
+    ),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize("merge_strategy", ("delete-insert", "upsert"))
+def test_merge_primary_key_normalization(
+    destination_config: DestinationTestConfiguration,
+    merge_strategy: TLoaderMergeStrategy,
+) -> None:
+    p = destination_config.setup_pipeline("test_merge_record_updates", dev_mode=True)
+
+    skip_if_not_supported(merge_strategy, p.destination)
+
+    @dlt.resource(
+        table_name="parent",
+        write_disposition={"disposition": "merge", "strategy": merge_strategy},
+        primary_key=("id", "TxId"),
+    )
+    def r(data):
+        yield data
+
+    # initial load, here we check a bug where normalized primary_key columns were checked against
+    # not normalized source data, missing values were ignored leading to duplicate keys
+    # on postgres we have PK violation
+    run_1 = [
+        {"ID": 1, "TxId": "tx1🚀3", "child": [{"bar": 1, "grandchild": [{"baz": 1}]}]},
+        {"ID": 1, "TxId": "tx2Ü+😎üß", "child": [{"bar": 1, "grandchild": [{"baz": 1}]}]},
+    ]
+    info = p.run(r(run_1), **destination_config.run_kwargs)
+    assert_load_info(info)
+    assert load_table_counts(p, "parent", "parent__child", "parent__child__grandchild") == {
+        "parent": 2,
+        "parent__child": 2,
+        "parent__child__grandchild": 2,
+    }
+    if merge_strategy == "delete-insert":
+        tables = load_tables_to_dicts(p, "parent", exclude_system_cols=True)
+        assert_records_as_set(
+            tables["parent"],
+            [
+                {"id": 1, "tx_id": "tx1🚀3"},
+                {"id": 1, "tx_id": "tx2Ü+😎üß"},
+            ],
+        )
+    else:
+        tables = load_tables_to_dicts(
+            p, "parent", "parent__child", "parent__child__grandchild", exclude_system_cols=False
+        )
+        # remove _dlt_load_id
+        parent_data = [
+            {k: v for k, v in parent_dict.items() if k != "_dlt_load_id"}
+            for parent_dict in tables["parent"]
+        ]
+        # _dlt_id is created deterministically from values of the PK so we can hardcode it
+        # NOTE: this should NEVER change or you will break user data that is already loaded
+        assert_records_as_set(
+            parent_data,
+            [
+                {"_dlt_id": "19GAeLNivYhDqg", "id": 1, "tx_id": "tx1🚀3"},
+                {"_dlt_id": "wg/EKJyC+CXo/g", "id": 1, "tx_id": "tx2Ü+😎üß"},
+            ],
+        )
+        child_data = [
+            {k: v for k, v in dict_.items() if k != "_dlt_load_id"}
+            for dict_ in tables["parent__child"]
+        ]
+        assert_records_as_set(
+            child_data,
+            [
+                {
+                    "bar": 1,
+                    "_dlt_root_id": "19GAeLNivYhDqg",
+                    "_dlt_parent_id": "19GAeLNivYhDqg",
+                    "_dlt_list_idx": 0,
+                    "_dlt_id": "hhWFugO13PeLBQ",
+                },
+                {
+                    "bar": 1,
+                    "_dlt_root_id": "wg/EKJyC+CXo/g",
+                    "_dlt_parent_id": "wg/EKJyC+CXo/g",
+                    "_dlt_list_idx": 0,
+                    "_dlt_id": "U+o+nLvOjp5DLA",
+                },
+            ],
+        )
+        # grandchild refers to child via parent_id and to root table via root_id, all ids are deterministic for upsert
+        grandchild_data = [
+            {k: v for k, v in dict_.items() if k != "_dlt_load_id"}
+            for dict_ in tables["parent__child__grandchild"]
+        ]
+        assert_records_as_set(
+            grandchild_data,
+            [
+                {
+                    "baz": 1,
+                    "_dlt_root_id": "19GAeLNivYhDqg",
+                    "_dlt_parent_id": "hhWFugO13PeLBQ",
+                    "_dlt_list_idx": 0,
+                    "_dlt_id": "rsgPU8Q0nJ4QVg",
+                },
+                {
+                    "baz": 1,
+                    "_dlt_root_id": "wg/EKJyC+CXo/g",
+                    "_dlt_parent_id": "U+o+nLvOjp5DLA",
+                    "_dlt_list_idx": 0,
+                    "_dlt_id": "8anfRKWjVjQ7ag",
+                },
+            ],
+        )
+
+
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True,
+        local_filesystem_configs=True,
+        table_format_filesystem_configs=True,
+        supports_merge=True,
+        bucket_subset=(FILE_BUCKET,),
     ),
     ids=lambda x: x.name,
 )
@@ -511,7 +630,7 @@ def test_merge_nested_records_inserted_deleted(
         local_filesystem_configs=True,
         table_format_filesystem_configs=True,
         supports_merge=True,
-        bucket_subset=(FILE_BUCKET),
+        bucket_subset=(FILE_BUCKET,),
     ),
     ids=lambda x: x.name,
 )
@@ -618,7 +737,7 @@ def test_bring_your_own_dlt_id(
         local_filesystem_configs=True,
         table_format_filesystem_configs=True,
         supports_merge=True,
-        bucket_subset=(FILE_BUCKET),
+        bucket_subset=(FILE_BUCKET,),
     ),
     ids=lambda x: x.name,
 )
@@ -1073,7 +1192,7 @@ def test_no_deduplicate_only_merge_key(destination_config: DestinationTestConfig
         local_filesystem_configs=True,
         table_format_filesystem_configs=True,
         supports_merge=True,
-        bucket_subset=(FILE_BUCKET),
+        bucket_subset=(FILE_BUCKET,),
     ),
     ids=lambda x: x.name,
 )
@@ -1633,7 +1752,7 @@ def test_merge_key_null_values(destination_config: DestinationTestConfiguration)
         local_filesystem_configs=True,
         table_format_filesystem_configs=True,
         supports_merge=True,
-        bucket_subset=(FILE_BUCKET),
+        bucket_subset=(FILE_BUCKET,),
     ),
     ids=lambda x: x.name,
 )

@@ -330,7 +330,6 @@ def specify_columns_to_load() -> None:
     pipeline = dlt.pipeline(
         pipeline_name="dummy",
         destination="duckdb",
-        dataset_name="dummy",
     )
 
     # Columns can be specified per table in env var (json array) or in `.dlt/config.toml`

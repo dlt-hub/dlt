@@ -186,3 +186,6 @@ class redshift(Destination[RedshiftClientConfiguration, "RedshiftClient"]):
             caps.has_case_sensitive_identifiers = True
             caps.casefold_identifier = str
         return super().adjust_capabilities(caps, config, naming)
+
+
+redshift.register()
