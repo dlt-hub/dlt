@@ -4,13 +4,13 @@ import Link from '../../_plus_admonition.md';
 
 <Link/>
 
-A dataset is a physical collection of data and dlt metadata including the schema on a destination. One destination can have multiple datasets; for now, datasets are bound to a physical destination, but this may change in future iterations.
+A dataset is a physical collection of data and dlt metadata, including the schema on a destination. One destination can have multiple datasets; for now, datasets are bound to a physical destination, but this may change in future iterations.
 
 By treating datasets as individual entities, dlt+ enables data cataloging and data governance.
 
 #### Data cataloging
 
-Datasets automatically create data catalogs that can be used to discover schema, and [read and write data](../features/data-access.md).
+Datasets automatically create data catalogs that can be used to discover schema and [read and write data](../features/data-access.md).
 
 #### Data governance
 

@@ -8,10 +8,10 @@ A dlt+ Project offers developers a declarative approach for defining data workfl
 
 The project layout has the following components:
 
-1. A dlt manifest file (`dlt.yml`) which specifies data platform entities like sources, destination, pipelines, transformations etc.
+1. A dlt manifest file (`dlt.yml`) which specifies data platform entities like sources, destinations, pipelines, transformations, etc.
 2. `.dlt` folder with secrets and other information, backward compatible with OSS `dlt`
 3. Python modules with source code and tests. We propose a strict layout of the modules (i.e., source code is in the `sources/` folder, etc.)
-4. `_data` folder (excluded from `.git`) where pipeline working dirs and local destination files (ie. filesystem, duckdb databases) are kept.
+4. `_data` folder (excluded from `.git`) where pipeline working directories and local destination files (i.e., filesystem, duckdb databases) are kept.
 
 A general dlt+ project has the following structure:
 
@@ -32,5 +32,5 @@ A general dlt+ project has the following structure:
 Read more about dlt+ Project in the [project feature description](../features/projects.md)
 
 :::note
-To get started with a dlt+ Project and learn how to manage it using cli commands, check out our [tutorial](../getting-started/tutorial.md)
+To get started with a dlt+ Project and learn how to manage it using cli commands, check out our [tutorial](../getting-started/tutorial.md).
 :::

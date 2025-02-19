@@ -47,7 +47,7 @@ WITH (TRACK_COLUMNS_UPDATED = ON);
 
 * Make sure dlt+ is installed according to the [installation guide](../getting-started/installation.md).
 
-* Install the Microsoft ODBC Driver for SQL Server according to the official [instructions](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver16). If you prefer, there is also a [Python library alternatvie](https://www.pymssql.org/).
+* Install the Microsoft ODBC Driver for SQL Server according to the official [instructions](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver16). If you prefer, there is also a [Python library alternative](https://www.pymssql.org/).
 
 * Specify the credentials for your SQL Server connection according to the [sql_database source instructions](../../dlt-ecosystem/verified-sources/sql_database/setup)
 
@@ -164,7 +164,7 @@ from dlt_plus.sources.mssql import (
 
 
 def single_table_initial_load(connection_url: str, schema_name: str, table_name: str) -> None:
-    """Performs initial full load and sets up tracking version and incremental loads"""
+    """Performs an initial full load and sets up tracking version and incremental loads"""
     # Create a new pipeline
     pipeline = dlt.pipeline(
         pipeline_name=f"{schema_name}_{table_name}_sync",
@@ -184,12 +184,12 @@ def single_table_initial_load(connection_url: str, schema_name: str, table_name:
         write_disposition="merge",
     )
 
-    # Get current tracking version before you run the pipeline to make sure
+    # Get the current tracking version before you run the pipeline to make sure
     # you do not miss any records
     tracking_version = get_current_change_tracking_version(engine)
     print(f"will track from: {tracking_version}")  # noqa
 
-    # Run the pipeline for initial load
+    # Run the pipeline for the initial load
     # NOTE: we always drop data and state from the destination on initial load
     print(pipeline.run(initial_resource, refresh="drop_resources"))  # noqa
 
@@ -216,7 +216,7 @@ def single_table_incremental_load(connection_url: str, schema_name: str, table_n
     )
 
     engine = create_engine(connection_url, isolation_level="SNAPSHOT")
-    # We do not need to pass tracking version anymore
+    # We do not need to pass the tracking version anymore
     incremental_resource = create_change_tracking_table(
         credentials=engine,
         table=table_name,
@@ -247,7 +247,9 @@ if __name__ == "__main__":
 
 </details>
 
-## Understanding the Change Tracking query
+
+
+## Understanding the change tracking query
 
 The incremental loading process uses a SQL query that joins the CHANGETABLE function with the source table to fetch the latest changes. Here’s a simplified version of the query:
 
@@ -279,7 +281,7 @@ ORDER BY
 ## Full refresh
 
 :::warning
-Doing a full refresh will drop the destination table, i.e. delete data from the destination, and reset the state holding the tracking version.
+Doing a full refresh will drop the destination table, i.e., delete data from the destination, and reset the state holding the tracking version.
 :::
 You can trigger a full refresh by performing a full load again and passing `drop_resources` to the run method (as described in the [pipeline configuration](../../general-usage/pipeline#selectively-drop-tables-and-resource-state-with-drop_resources)):
 ```py
@@ -312,7 +314,7 @@ Replicated data allows for NULLs for not nullable columns when a record is delet
 
 ### Soft deletes
 
-If `hard_delete` is set to `False`, soft deletes are performed, i.e. rows deleted in the source will be marked as deleted but not physically removed from the destination. 
+If `hard_delete` is set to `False`, soft deletes are performed, i.e., rows deleted in the source will be marked as deleted but not physically removed from the destination. 
 
 In this case, the destination schema must accept NULLs for the replicated columns, so make sure you pass the `remove_nullability_adapter` adapter to the `sql_table` resource:
 
