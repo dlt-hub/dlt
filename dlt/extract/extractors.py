@@ -439,7 +439,10 @@ class ArrowExtractor(Extractor):
 
                 # Add load_id column if needed
                 dlt_load_id = self.naming.normalize_identifier(C_DLT_LOAD_ID)
-                if self._normalize_config.add_dlt_load_id and dlt_load_id not in arrow_table["columns"]:
+                if (
+                    self._normalize_config.add_dlt_load_id
+                    and dlt_load_id not in arrow_table["columns"]
+                ):
                     # will be normalized line below
                     arrow_table["columns"][C_DLT_LOAD_ID] = utils.dlt_load_id_column()
 
@@ -454,8 +457,8 @@ class ArrowExtractor(Extractor):
                                 if src_hint != hint:
                                     override_warn = True
                                     logger.info(
-                                        f"In resource: {resource.name}, when merging arrow schema on"
-                                        f" column {col_name}. The hint {hint_name} value"
+                                        f"In resource: {resource.name}, when merging arrow schema"
+                                        f" on column {col_name}. The hint {hint_name} value"
                                         f" {src_hint} defined in resource will overwrite arrow hint"
                                         f" with value {hint}."
                                     )

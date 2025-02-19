@@ -208,7 +208,10 @@ def test_merge_on_keys_in_schema_nested_hints(
         resource.apply_hints(
             nested_hints={
                 ("transactions",): {**hints, "primary_key": ("block_number", "transaction_index")},
-                ("transactions", "logs"): {**hints, "primary_key": ("block_number", "transaction_index", "log_index")},
+                ("transactions", "logs"): {
+                    **hints,
+                    "primary_key": ("block_number", "transaction_index", "log_index"),
+                },
             }
         )
 
