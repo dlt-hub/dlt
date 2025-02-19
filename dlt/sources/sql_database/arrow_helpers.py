@@ -6,7 +6,6 @@ from dlt.common.configuration.container import Container
 from dlt.common.destination import DestinationCapabilitiesContext
 
 
-@with_config
 def row_tuples_to_arrow(
     rows: Sequence[Any],
     columns: TTableSchemaColumns = None,
