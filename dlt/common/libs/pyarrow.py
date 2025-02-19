@@ -815,20 +815,41 @@ def convert_numpy_to_arrow(
 
             elif (
                 "to utf8 using function cast_string" in error_msg
-                and dlt_data_type == "json"
+                and dlt_data_type in ("json", "text")
                 and pa.types.is_string(inferred_arrow_type)
             ):
                 # this is handled by fallback case 3
                 logger.warning(
-                    "Received `data_type='json'`, data requires serialization to string, slowing"
-                    " extraction. Cast the JSON field to STRING in your database system to improve"
-                    " performance. For example, create and extract data from an SQL VIEW that"
-                    " SELECT with CAST."
+                    f"Received `data_type='{dlt_data_type}'`, data requires serialization to"
+                    " string, slowing extraction. Cast the JSON field to STRING in your database"
+                    " system to improve performance. For example, create and extract data from an"
+                    " SQL VIEW that SELECT with CAST."
                 )
 
-    # case 2: encode Python types unsupported by Arrow. Simple types are converted to strings and complex types to common structures (dict, list)
+    # case 2: encode Sequence and Mapping types (list, tuples, set, dict, etc.) to JSON strings
+    # This logic needs to be before case 3, otherwise pyarrow might infer the deserialized JSON object as a `pyarrow.struct` instead of `pyarrow.string`
+    if arrow_array is None and dlt_data_type in (
+        "json",
+        "text",
+    ):  # depending on the backend, JSON columns are inferred as data_type="text"
+        json_serialized_values: list[Union[bytes, None]] = []
+        for value in column_data:
+            if value is None:
+                json_serialized_values.append(None)
+                continue
+            try:
+                json_serialized_values.append(json.dumpb(value))
+            except TypeError as e:
+                raise PyToArrowConversionException(
+                    data_type=dlt_data_type,
+                    inferred_arrow_type=inferred_arrow_type,
+                    details="dlt failed to a JSON-serializable type.",
+                ) from e
+
+        arrow_array = pa.array(json_serialized_values).cast(pa.string())
+
+    # case 3: encode Python types unsupported by Arrow. Simple types are converted to strings and complex types to common structures (dict, list)
     # This catches specialized SQL types like `Ranges`
-    # See case 3 for encoding Sequence and Mapping types as JSON
     if arrow_array is None and dlt_data_type is None:
         try:
             arrow_array = pa.array(column_data)
@@ -861,24 +882,6 @@ def convert_numpy_to_arrow(
                     ) from e
 
             arrow_array = pa.array(encoded_values)
-
-    # case 3: encode Sequence and Mapping types (list, tuples, set, dict, etc.) to JSON strings
-    if arrow_array is None and dlt_data_type == "json":
-        json_serialized_values: list[Union[bytes, None]] = []
-        for value in column_data:
-            if value is None:
-                json_serialized_values.append(None)
-                continue
-            try:
-                json_serialized_values.append(json.dumpb(value))
-            except TypeError as e:
-                raise PyToArrowConversionException(
-                    data_type=dlt_data_type,
-                    inferred_arrow_type=inferred_arrow_type,
-                    details="dlt failed to a JSON-serializable type.",
-                ) from e
-
-        arrow_array = pa.array(json_serialized_values).cast(pa.string())
 
     if arrow_array is None:
         raise PyToArrowConversionException(

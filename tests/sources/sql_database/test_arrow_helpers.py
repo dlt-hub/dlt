@@ -336,6 +336,7 @@ def test_row_tuples_to_arrow_error_for_decimals() -> None:
 
 pytest.importorskip("sqlalchemy", minversion="2.0")
 
+
 def test_row_tuples_to_arrow_detects_range_type() -> None:
     from sqlalchemy.dialects.postgresql import Range  # type: ignore[attr-defined]
 
