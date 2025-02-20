@@ -1,5 +1,5 @@
+from copy import deepcopy
 import os
-import time
 import pytest
 from pytest_mock import MockerFixture
 
@@ -7,8 +7,6 @@ import dlt
 from dlt.common import pendulum
 from dlt.common.utils import uniq_id
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
-from dlt.destinations.sql_client import SqlClientBase
-from typing import Any
 from dlt.load.exceptions import LoadClientJobFailed
 from dlt.pipeline.exceptions import PipelineStepFailed
 
@@ -16,10 +14,14 @@ from tests.load.pipeline.test_pipelines import simple_nested_pipeline
 from tests.load.snowflake.test_snowflake_client import QUERY_TAG
 from tests.pipeline.utils import assert_load_info, assert_query_data
 from tests.load.utils import (
+    TABLE_UPDATE_COLUMNS_SCHEMA,
+    assert_all_data_types_row,
     destinations_configs,
     DestinationTestConfiguration,
     drop_active_pipeline_data,
 )
+from tests.cases import TABLE_ROW_ALL_DATA_TYPES_DATETIMES
+
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential
@@ -222,50 +224,96 @@ def test_char_replacement_cs_naming_convention(
     "use_vectorized_scanner",
     ["TRUE", "FALSE"],
 )
-def test_snowflake_use_vectorized_scanner(destination_config, use_vectorized_scanner: str):
+def test_snowflake_use_vectorized_scanner(
+    destination_config, use_vectorized_scanner: str, mocker: MockerFixture
+) -> None:
     """Tests whether the vectorized scanner option is correctly applied when loading Parquet files into Snowflake."""
 
-    def get_copy_into_queries(client: SqlClientBase[Any], table_name: str):
-        """Fetch COPY INTO queries within the last minute containing the table name."""
-        query = """
-        SELECT QUERY_TEXT FROM TABLE(INFORMATION_SCHEMA.QUERY_HISTORY( \
-            END_TIME_RANGE_START => DATEADD(MINUTE, -5, CURRENT_TIMESTAMP), \
-            END_TIME_RANGE_END => CURRENT_TIMESTAMP \
-        )) WHERE QUERY_TEXT LIKE '%COPY INTO%'
-        """
-        return [row[0] for row in client.execute_sql(query) if table_name in row[0]]
+    from dlt.destinations.impl.snowflake.snowflake import SnowflakeLoadJob
 
     os.environ["DESTINATION__SNOWFLAKE__USE_VECTORIZED_SCANNER"] = use_vectorized_scanner
 
-    pipeline, data = simple_nested_pipeline(
-        destination_config, f"vectorized_scanner_{use_vectorized_scanner}_{uniq_id()}", False
+    load_job_spy = mocker.spy(SnowflakeLoadJob, "gen_copy_sql")
+
+    data_types = deepcopy(TABLE_ROW_ALL_DATA_TYPES_DATETIMES)
+    column_schemas = deepcopy(TABLE_UPDATE_COLUMNS_SCHEMA)
+    expected_rows = deepcopy(TABLE_ROW_ALL_DATA_TYPES_DATETIMES)
+
+    @dlt.resource(table_name="data_types", write_disposition="merge", columns=column_schemas)
+    def my_resource():
+        nonlocal data_types
+        yield [data_types] * 10
+
+    pipeline = destination_config.setup_pipeline(
+        f"vectorized_scanner_{use_vectorized_scanner}_{uniq_id()}",
+        dataset_name="parquet_test_" + uniq_id(),
     )
-    info = pipeline.run(data(), **destination_config.run_kwargs)
-    assert_load_info(info)
 
-    # Allow time for query history to update in Snowflake
-    time.sleep(2)
-
-    with pipeline.sql_client() as client:
-        table_name = client.make_qualified_table_name("lists")
-        copy_queries = get_copy_into_queries(client, table_name)
-
-    assert len(copy_queries) == 1
+    info = pipeline.run(my_resource(), **destination_config.run_kwargs)
+    package_info = pipeline.get_load_package_info(info.loads_ids[0])
+    assert package_info.state == "loaded"
+    assert len(package_info.jobs["failed_jobs"]) == 0
+    # 1 table + 1 state + 2 reference jobs if staging
+    expected_completed_jobs = 2 + 2 if pipeline.staging else 2
+    # add sql merge job
+    if destination_config.supports_merge:
+        expected_completed_jobs += 1
+    assert len(package_info.jobs["completed_jobs"]) == expected_completed_jobs
 
     if use_vectorized_scanner == "FALSE":
-        assert "USE_VECTORIZED_SCANNER = TRUE" not in copy_queries[0]
-        assert "ON_ERROR = ABORT_STATEMENT" not in copy_queries[0]
+        # no vectorized scanner in all copy jobs
+        assert sum(
+            [
+                1
+                for spy_return in load_job_spy.spy_return_list
+                if "USE_VECTORIZED_SCANNER = TRUE" not in spy_return
+            ]
+        ) == len(load_job_spy.spy_return_list)
+        assert sum(
+            [
+                1
+                for spy_return in load_job_spy.spy_return_list
+                if "ON_ERROR = ABORT_STATEMENT" not in spy_return
+            ]
+        ) == len(load_job_spy.spy_return_list)
 
     elif use_vectorized_scanner == "TRUE":
-        assert "USE_VECTORIZED_SCANNER = TRUE" in copy_queries[0]
-        assert "ON_ERROR = ABORT_STATEMENT" in copy_queries[0]
+        # vectorized scanner in one copy job to data_types
+        assert (
+            sum(
+                [
+                    1
+                    for spy_return in load_job_spy.spy_return_list
+                    if "USE_VECTORIZED_SCANNER = TRUE" in spy_return
+                ]
+            )
+            == 1
+        )
+        assert (
+            sum(
+                [
+                    1
+                    for spy_return in load_job_spy.spy_return_list
+                    if "ON_ERROR = ABORT_STATEMENT" in spy_return
+                ]
+            )
+            == 1
+        )
 
-        # Ensure Snowflake fails, since ON_ERROR = ABORT_STATEMENT
-        @dlt.resource
-        def large_data():
-            yield {"id": 1, "value": "A" * 214748364}
+        # the vectorized scanner shows NULL values in json outputs when enabled
+        # as a result, when queried back, we receive a string "null" in json type
+        expected_rows["col9_null"] = "null"
 
-        with pytest.raises(PipelineStepFailed) as step_ex:
-            pipeline.run(large_data(), **destination_config.run_kwargs)
-            assert step_ex.value.step == "load"
-            assert isinstance(step_ex.value.exception, LoadClientJobFailed)
+    with pipeline.sql_client() as sql_client:
+        qual_name = sql_client.make_qualified_table_name
+        db_rows = sql_client.execute_sql(f"SELECT * FROM {qual_name('data_types')}")
+        assert len(db_rows) == 10
+        db_row = list(db_rows[0])
+        # "snowflake" does not parse JSON from parquet string so double parse
+        assert_all_data_types_row(
+            db_row,
+            expected_row=expected_rows,
+            schema=column_schemas,
+            parse_json_strings=True,
+            timestamp_precision=6,
+        )

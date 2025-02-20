@@ -190,6 +190,9 @@ To enable the vectorized scanner, add the following to your configuration:
 [destination.snowflake]
 use_vectorized_scanner=true
 ```
+:::note
+The  **vectorized scanner** explicitly displays `NULL` values in the output and has specific characteristics. Please refer to the official Snowflake documentation.
+:::
 
 ### Custom CSV formats
 By default, we support the CSV format [produced by our writers](../file-formats/csv.md#default-settings), which is comma-delimited, with a header, and optionally quoted.
