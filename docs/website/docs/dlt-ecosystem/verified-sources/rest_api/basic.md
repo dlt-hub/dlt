@@ -335,7 +335,7 @@ config = {
 ```
 This would use `Bearer` auth as defined in the `client` for `resource-using-bearer-auth` and `Http Basic` auth for `my-resource-with-special-auth`.
 
-You can also pass additional resource parameters that will be used to configure the dlt resource. See [dlt resource API reference](../../../api_reference/extract/decorators#resource) for more details.
+You can also pass additional resource parameters that will be used to configure the dlt resource. See [dlt resource API reference](./) for more details.
 
 ### Endpoint configuration
 

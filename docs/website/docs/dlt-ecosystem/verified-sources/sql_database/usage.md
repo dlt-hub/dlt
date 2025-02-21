@@ -47,7 +47,7 @@ def query_adapter_callback(
       if incremental and incremental.start_value is not None:
           t_query = sa.text(
               f"SELECT *, 1 as add_int, 'const' as add_text FROM {table.fullname} WHERE"
-              f" \{incremental.cursor_path\} > :start_value"
+              f" {incremental.cursor_path} > :start_value"
           ).bindparams(**{"start_value": incremental.start_value})
       else:
           t_query = sa.text(f"SELECT *, 1 as add_int, 'const' as add_text FROM {table.fullname}")
