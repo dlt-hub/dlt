@@ -11,7 +11,7 @@ from dlt.common.pendulum import pendulum
 from dlt.common.pipeline import LoadInfo
 from dlt.common.data_types.typing import TDataType
 from dlt.common.schema.typing import DEFAULT_VALIDITY_COLUMN_NAMES
-from dlt.common.normalizers.json.relational import DataItemNormalizer
+from dlt.common.normalizers.json.helpers import get_row_hash
 from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCaseNamingConvention
 from dlt.common.time import ensure_pendulum_datetime, reduce_pendulum_datetime_precision
 from dlt.extract.resource import DltResource
@@ -30,7 +30,6 @@ from tests.pipeline.utils import (
 
 from tests.utils import TPythonTableFormat
 
-get_row_hash = DataItemNormalizer.get_row_hash
 FROM, TO = DEFAULT_VALIDITY_COLUMN_NAMES
 
 
@@ -56,6 +55,7 @@ def get_table(
     table_name: str,
     sort_column: str = None,
     include_root_id: bool = True,
+    include_dlt_id: bool = False,
     ts_columns: Optional[List[str]] = None,
 ) -> List[Dict[str, Any]]:
     """Returns destination table contents as list of dictionaries."""
@@ -72,6 +72,7 @@ def get_table(
             if not k.startswith("_dlt")
             or k in DEFAULT_VALIDITY_COLUMN_NAMES
             or (k == "_dlt_root_id" if include_root_id else False)
+            or (k == "_dlt_id" if include_dlt_id else False)
         }
         for r in load_tables_to_dicts(pipeline, table_name)[table_name]
     ]
@@ -135,15 +136,18 @@ def test_core_functionality(
     assert not table["columns"]["_dlt_id"]["unique"]
 
     # assert load results
+    # NOTE: we are also testing deterministic dlt ids. they should NEVER change or
+    #  we are going to break user's loaded data. so don't fix the test fix the code if that happens
     ts_1 = get_load_package_created_at(p, info)
     assert_load_info(info)
-    assert get_table(p, "dim_test", "c2__nc1", ts_columns=[from_, to]) == [
+    assert get_table(p, "dim_test", "c2__nc1", ts_columns=[from_, to], include_dlt_id=True) == [
         {
             from_: ts_1,
             to: None,
             "nk": 2,
             "c1": "bar",
             "c2__nc1": "bar",
+            "_dlt_id": "S41QIpRa9Fwh0w",
         },
         {
             from_: ts_1,
@@ -151,38 +155,49 @@ def test_core_functionality(
             "nk": 1,
             "c1": "foo",
             "c2__nc1": "foo",
+            "_dlt_id": "OTPbGyxWlJzmpA",
         },
     ]
 
     # load 2 — update a record
+    # NOTE: key
     dim_snap = [
-        {"nk": 1, "c1": "foo", "c2": {"nc1": "foo_updated"}},
+        {"nk": 1, "c1": "foo", "c2": {"nc1": "foo_🚀updated"}},
         {"nk": 2, "c1": "bar", "c2": {"nc1": "bar"}},
     ]
     info = p.run(r(dim_snap), **destination_config.run_kwargs)
     ts_2 = get_load_package_created_at(p, info)
     assert_load_info(info)
-    assert get_table(p, "dim_test", "c2__nc1", ts_columns=[from_, to]) == [
+    assert get_table(p, "dim_test", "c2__nc1", ts_columns=[from_, to], include_dlt_id=True) == [
         {
             from_: ts_1,
             to: None,
             "nk": 2,
             "c1": "bar",
             "c2__nc1": "bar",
+            "_dlt_id": "S41QIpRa9Fwh0w",
         },
-        {from_: ts_1, to: ts_2, "nk": 1, "c1": "foo", "c2__nc1": "foo"},
+        {
+            from_: ts_1,
+            to: ts_2,
+            "nk": 1,
+            "c1": "foo",
+            "c2__nc1": "foo",
+            "_dlt_id": "OTPbGyxWlJzmpA",
+        },
         {
             from_: ts_2,
             to: None,
             "nk": 1,
             "c1": "foo",
-            "c2__nc1": "foo_updated",
+            "c2__nc1": "foo_🚀updated",
+            "_dlt_id": "Z/zzrOzuLRhhWw",
         },
     ]
 
     # load 3 — delete a record
     dim_snap = [
-        {"nk": 1, "c1": "foo", "c2": {"nc1": "foo_updated"}},
+        {"nk": 1, "c1": "foo", "c2": {"nc1": "foo_🚀updated"}},
     ]
     info = p.run(r(dim_snap), **destination_config.run_kwargs)
     ts_3 = get_load_package_created_at(p, info)
@@ -195,13 +210,13 @@ def test_core_functionality(
             to: None,
             "nk": 1,
             "c1": "foo",
-            "c2__nc1": "foo_updated",
+            "c2__nc1": "foo_🚀updated",
         },
     ]
 
     # load 4 — insert a record
     dim_snap = [
-        {"nk": 1, "c1": "foo", "c2": {"nc1": "foo_updated"}},
+        {"nk": 1, "c1": "foo", "c2": {"nc1": "foo_🚀updated"}},
         {"nk": 3, "c1": "baz", "c2": {"nc1": "baz"}},
     ]
     info = p.run(r(dim_snap), **destination_config.run_kwargs)
@@ -222,7 +237,7 @@ def test_core_functionality(
             to: None,
             "nk": 1,
             "c1": "foo",
-            "c2__nc1": "foo_updated",
+            "c2__nc1": "foo_🚀updated",
         },
     ]
 
@@ -256,10 +271,25 @@ def test_child_table(destination_config: DestinationTestConfiguration, simple: b
         {FROM: ts_1, TO: None, "nk": 1, "c1": "foo"},
     ]
     cname = "value" if simple else "cc1"
-    assert get_table(p, "dim_test__c2", cname) == [
-        {"_dlt_root_id": get_row_hash(l1_1), cname: 1},
-        {"_dlt_root_id": get_row_hash(l1_2), cname: 2},
-        {"_dlt_root_id": get_row_hash(l1_2), cname: 3},
+    # _dlt_id for child table are deterministic, and must stay the same forever
+    # or you will break user data
+    print(get_table(p, "dim_test__c2", cname, include_dlt_id=True))
+    assert get_table(p, "dim_test__c2", cname, include_dlt_id=True) == [
+        {
+            "_dlt_root_id": get_row_hash(l1_1),
+            "_dlt_id": "DVp8ashfqPeSOA" if simple else "sjy4J8zAS+i32w",
+            cname: 1,
+        },
+        {
+            "_dlt_root_id": get_row_hash(l1_2),
+            "_dlt_id": "fnGe0kXmwR/ncw" if simple else "+WoC2dwHIVolng",
+            cname: 2,
+        },
+        {
+            "_dlt_root_id": get_row_hash(l1_2),
+            "_dlt_id": "HScKaAcv1HMq3Q" if simple else "P60aqq9jQtVwRQ",
+            cname: 3,
+        },
     ]
 
     # load 2 — update a record — change not in nested column

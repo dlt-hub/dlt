@@ -1,10 +1,10 @@
 from abc import ABC, abstractmethod
 import os
 import tempfile  # noqa: 251
-from typing import Dict, Iterable, List, Optional
+from typing import Dict, Iterable, List
 
 from dlt.common.json import json
-from dlt.common.destination.reference import (
+from dlt.common.destination.client import (
     HasFollowupJobs,
     TLoadJobState,
     RunnableLoadJob,
@@ -179,20 +179,21 @@ class DestinationJsonlLoadJob(DestinationLoadJob):
 
         # stream items
         with FileStorage.open_zipsafe_ro(self._file_path) as f:
-            encoded_json = json.typed_loads(f.read())
-            if isinstance(encoded_json, dict):
-                encoded_json = [encoded_json]
+            for line in f:
+                encoded_json = json.typed_loads(line)
+                if isinstance(encoded_json, dict):
+                    encoded_json = [encoded_json]
 
-            for item in encoded_json:
-                # find correct start position
-                if start_index > 0:
-                    start_index -= 1
-                    continue
-                # skip internal columns
-                for column in self._skipped_columns:
-                    item.pop(column, None)
-                current_batch.append(item)
-                if len(current_batch) == self._config.batch_size:
-                    yield current_batch
-                    current_batch = []
-            yield current_batch
+                for item in encoded_json:
+                    # find correct start position
+                    if start_index > 0:
+                        start_index -= 1
+                        continue
+                    # skip internal columns
+                    for column in self._skipped_columns:
+                        item.pop(column, None)
+                    current_batch.append(item)
+                    if len(current_batch) == self._config.batch_size:
+                        yield current_batch
+                        current_batch = []
+                yield current_batch

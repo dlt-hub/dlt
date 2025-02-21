@@ -18,6 +18,8 @@ from dlt.common.schema.typing import (
     TTableSchemaColumns,
     TPartialTableSchema,
 )
+from dlt.common.normalizers.json import helpers as normalize_helpers
+
 from dlt.extract.hints import HintsMeta, TResourceHints
 from dlt.extract.resource import DltResource
 from dlt.extract.items import DataItemWithMeta, TableNameMeta
@@ -26,7 +28,7 @@ from dlt.normalize.configuration import ItemsNormalizerConfiguration
 
 try:
     from dlt.common.libs import pyarrow
-    from dlt.common.libs.pyarrow import pyarrow as pa, TAnyArrowItem
+    from dlt.common.libs.pyarrow import pyarrow as pa, TAnyArrowItem, UnsupportedArrowTypeException
 except MissingDependencyException:
     pyarrow = None
     pa = None
@@ -141,7 +143,9 @@ class Extractor:
             self._write_to_dynamic_table(resource, items, meta)
 
     def write_empty_items_file(self, table_name: str) -> None:
-        table_name = self.naming.normalize_table_identifier(table_name)
+        table_name = normalize_helpers.normalize_table_identifier(
+            self.schema, self.naming, table_name
+        )
         self.item_storage.write_empty_items_file(self.load_id, self.schema.name, table_name, None)
 
     def _get_static_table_name(self, resource: DltResource, meta: Any) -> Optional[str]:
@@ -151,10 +155,12 @@ class Extractor:
             table_name = meta.table_name
         else:
             table_name = resource.table_name  # type: ignore[assignment]
-        return self.naming.normalize_table_identifier(table_name)
+        return normalize_helpers.normalize_table_identifier(self.schema, self.naming, table_name)
 
     def _get_dynamic_table_name(self, resource: DltResource, item: TDataItem) -> str:
-        return self.naming.normalize_table_identifier(resource._table_name_hint_fun(item))
+        return normalize_helpers.normalize_table_identifier(
+            self.schema, self.naming, resource._table_name_hint_fun(item)
+        )
 
     def _write_item(
         self,
@@ -322,7 +328,7 @@ class ArrowExtractor(Extractor):
             )
             for tbl in (
                 (
-                    # 1. Convert pandas frame(s) to arrow Table
+                    # 1. Convert pandas frame(s) to arrow Table, remove indexes because we store
                     pandas_to_arrow(item)
                     if (pandas and isinstance(item, pandas.DataFrame))
                     else item
@@ -411,7 +417,11 @@ class ArrowExtractor(Extractor):
                 utils.merge_table(self.schema.name, computed_table, arrow_table)
             else:
                 arrow_table = copy(computed_table)
-            arrow_table["columns"] = pyarrow.py_arrow_to_table_schema_columns(item.schema)
+            try:
+                arrow_table["columns"] = pyarrow.py_arrow_to_table_schema_columns(item.schema)
+            except pyarrow.UnsupportedArrowTypeException as e:
+                e.table_name = str(arrow_table.get("name"))
+                raise
 
             # Add load_id column if needed
             dlt_load_id = self.naming.normalize_identifier(C_DLT_LOAD_ID)

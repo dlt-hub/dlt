@@ -8,7 +8,7 @@ import dlt
 from dlt.common import logger
 from dlt.common.configuration import with_config, known_sections
 from dlt.common.configuration.utils import add_config_to_env
-from dlt.common.destination.reference import DestinationClientDwhConfiguration
+from dlt.common.destination.client import DestinationClientDwhConfiguration
 from dlt.common.runners import Venv
 from dlt.common.runners.stdout import iter_stdout_with_result
 from dlt.common.typing import StrAny, TSecretStrValue

@@ -3,7 +3,7 @@ import dataclasses
 
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ConnectionStringCredentials
-from dlt.common.destination.reference import DestinationClientDwhConfiguration
+from dlt.common.destination.client import DestinationClientDwhConfiguration
 
 if TYPE_CHECKING:
     from sqlalchemy.engine import Engine, Dialect
@@ -47,6 +47,11 @@ class SqlalchemyCredentials(ConnectionStringCredentials):
             return type(engine.dialect)
         return self.to_url().get_dialect()  # type: ignore[attr-defined,no-any-return]
 
+    def get_backend_name(self) -> str:
+        if not self.drivername:
+            return None
+        return self.to_url().get_backend_name()
+
     __config_gen_annotations__: ClassVar[List[str]] = [
         "database",
         "port",
@@ -61,9 +66,16 @@ class SqlalchemyClientConfiguration(DestinationClientDwhConfiguration):
     destination_type: Final[str] = dataclasses.field(default="sqlalchemy", init=False, repr=False, compare=False)  # type: ignore
     credentials: SqlalchemyCredentials = None
     """SQLAlchemy connection string"""
+    create_unique_indexes: bool = False
+    """Whether UNIQUE constrains should be created"""
+    create_primary_keys: bool = False
+    """Whether PRIMARY KEY constrains should be created"""
 
     engine_args: Dict[str, Any] = dataclasses.field(default_factory=dict)
     """Additional arguments passed to `sqlalchemy.create_engine`"""
 
     def get_dialect(self) -> Type["Dialect"]:
         return self.credentials.get_dialect()
+
+    def get_backend_name(self) -> str:
+        return self.credentials.get_backend_name()

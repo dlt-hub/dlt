@@ -6,7 +6,7 @@ import sqlalchemy as sa
 from dlt.common.json import json
 from dlt.common import logger
 from dlt.common import pendulum
-from dlt.common.destination.reference import (
+from dlt.common.destination.client import (
     JobClientBase,
     LoadJob,
     StorageSchemaInfo,
@@ -22,6 +22,7 @@ from dlt.common.schema.utils import (
     pipeline_state_table,
     normalize_table_identifiers,
     is_complete_column,
+    get_columns_names_with_prop,
 )
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
 from dlt.destinations.impl.sqlalchemy.db_api_client import SqlalchemyClient
@@ -53,7 +54,7 @@ class SqlalchemyJobClient(SqlJobClientWithStagingDataset):
 
         self.schema = schema
         self.capabilities = capabilities
-        self.config = config
+        self.config: SqlalchemyClientConfiguration = config
         self.type_mapper = self.capabilities.get_type_mapper(self.sql_client.dialect)
 
     def _to_table_object(self, schema_table: PreparedTableSchema) -> sa.Table:
@@ -64,14 +65,24 @@ class SqlalchemyJobClient(SqlJobClientWithStagingDataset):
             # Re-generate the table if columns have changed
             if existing_col_names == new_col_names:
                 return existing
+
+        # build the list of Column objects from the schema
+        table_columns = [
+            self._to_column_object(col, schema_table)
+            for col in schema_table["columns"].values()
+            if is_complete_column(col)
+        ]
+
+        if self.config.create_primary_keys:
+            # if a primary key list is provided in the schema, add a PrimaryKeyConstraint.
+            pk_columns = get_columns_names_with_prop(schema_table, "primary_key")
+            if pk_columns:
+                table_columns.append(sa.PrimaryKeyConstraint(*pk_columns))  # type: ignore[arg-type]
+
         return sa.Table(
             schema_table["name"],
             self.sql_client.metadata,
-            *[
-                self._to_column_object(col, schema_table)
-                for col in schema_table["columns"].values()
-                if is_complete_column(col)
-            ],
+            *table_columns,
             extend_existing=True,
             schema=self.sql_client.dataset_name,
         )
@@ -79,12 +90,14 @@ class SqlalchemyJobClient(SqlJobClientWithStagingDataset):
     def _to_column_object(
         self, schema_column: TColumnSchema, table: PreparedTableSchema
     ) -> sa.Column:
-        return sa.Column(
+        col_ = sa.Column(
             schema_column["name"],
             self.type_mapper.to_destination_type(schema_column, table),
             nullable=schema_column.get("nullable", True),
-            unique=schema_column.get("unique", False),
         )
+        if self.config.create_unique_indexes:
+            col_.unique = schema_column.get("unique", False)
+        return col_
 
     def _create_replace_followup_jobs(
         self, table_chain: Sequence[PreparedTableSchema]
@@ -195,8 +208,10 @@ class SqlalchemyJobClient(SqlJobClientWithStagingDataset):
             if not new_columns:  # Nothing to do, don't create table without columns
                 continue
             if not exists:
+                logger.debug(f"Will create table {table_name} with new columns {len(new_columns)}")
                 tables_to_create.append(table_obj)
             else:
+                logger.debug(f"Will ALTER table {table_name} with new columns {len(new_columns)}")
                 columns_to_add.extend(new_columns)
             partial_table = self.prepare_load_table(table_name)
             new_column_names = set(col.name for col in new_columns)

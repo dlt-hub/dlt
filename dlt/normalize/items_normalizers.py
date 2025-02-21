@@ -323,7 +323,15 @@ class ArrowItemsNormalizer(ItemsNormalizer):
                 prec = column.get("precision")
                 if prec is not None:
                     # apply the arrow schema precision to dlt column schema
-                    data_type = pyarrow.get_column_type_from_py_arrow(arrow_schema.field(key).type)
+                    try:
+                        data_type = pyarrow.get_column_type_from_py_arrow(
+                            arrow_schema.field(key).type
+                        )
+                    except pyarrow.UnsupportedArrowTypeException as e:
+                        e.field_name = key
+                        e.table_name = root_table_name
+                        raise
+
                     if data_type["data_type"] in ("timestamp", "time"):
                         prec = data_type["precision"]
                     # limit with destination precision

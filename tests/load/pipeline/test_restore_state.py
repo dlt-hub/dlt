@@ -11,7 +11,7 @@ from dlt.common.schema.schema import Schema, utils
 from dlt.common.schema.utils import normalize_table_identifiers
 from dlt.common.utils import uniq_id
 from dlt.common.destination.exceptions import DestinationUndefinedEntity
-from dlt.common.destination.reference import WithStateSync
+from dlt.common.destination.client import WithStateSync
 
 from dlt.load import Load
 from dlt.pipeline.exceptions import SqlClientNotAvailable

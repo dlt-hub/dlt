@@ -9,7 +9,7 @@ from dlt.common.typing import TSecretStrValue
 from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.common.configuration import configspec
-from dlt.common.destination.reference import DestinationClientDwhWithStagingConfiguration
+from dlt.common.destination.client import DestinationClientDwhWithStagingConfiguration
 from dlt.common.utils import digest128
 
 
@@ -137,6 +137,9 @@ class SnowflakeClientConfiguration(DestinationClientDwhWithStagingConfiguration)
 
     query_tag: Optional[str] = None
     """A tag with placeholders to tag sessions executing jobs"""
+
+    create_indexes: bool = False
+    """Whether UNIQUE or PRIMARY KEY constrains should be created"""
 
     def fingerprint(self) -> str:
         """Returns a fingerprint of host part of a connection string"""

@@ -13,6 +13,7 @@ from dlt.common.schema.typing import TColumnSchema, TSortOrder, TTableSchemaColu
 from dlt.common.utils import uniq_id
 
 from dlt.extract.exceptions import ResourceExtractionError
+from dlt.extract.incremental.transform import JsonIncremental, ArrowIncremental
 from dlt.sources import DltResource
 
 from tests.pipeline.utils import (
@@ -20,7 +21,7 @@ from tests.pipeline.utils import (
     assert_schema_on_data,
     load_tables_to_dicts,
 )
-from tests.load.sources.sql_database.test_helpers import mock_json_column
+from tests.load.sources.sql_database.test_helpers import mock_json_column, mock_array_column
 from tests.utils import data_item_length, load_table_counts
 
 
@@ -534,8 +535,11 @@ def test_reflection_levels(
     expected_col_names = [col["name"] for col in PRECISION_COLUMNS]
 
     # on sqlalchemy json col is not written to schema if no types are discovered
-    if backend == "sqlalchemy" and reflection_level == "minimal" and not with_defer:
-        expected_col_names = [col for col in expected_col_names if col != "json_col"]
+    # nested types are converted into nested tables, not columns
+    if backend == "sqlalchemy" and reflection_level == "minimal":
+        expected_col_names = [
+            col for col in expected_col_names if col not in ("json_col", "array_col")
+        ]
 
     assert col_names == expected_col_names
 
@@ -831,8 +835,12 @@ def test_set_primary_key_deferred_incremental(
         else:
             assert _r.incremental.primary_key == ["id"]
         assert _r.incremental._incremental.primary_key == ["id"]
-        assert _r.incremental._incremental._transformers["json"].primary_key == ["id"]
-        assert _r.incremental._incremental._transformers["arrow"].primary_key == ["id"]
+        assert _r.incremental._incremental._make_or_get_transformer(
+            JsonIncremental
+        ).primary_key == ["id"]
+        assert _r.incremental._incremental._make_or_get_transformer(
+            ArrowIncremental
+        ).primary_key == ["id"]
         return item
 
     pipeline = make_pipeline("duckdb")
@@ -841,8 +849,12 @@ def test_set_primary_key_deferred_incremental(
 
     assert resource.incremental.primary_key == ["id"]
     assert resource.incremental._incremental.primary_key == ["id"]
-    assert resource.incremental._incremental._transformers["json"].primary_key == ["id"]
-    assert resource.incremental._incremental._transformers["arrow"].primary_key == ["id"]
+    assert resource.incremental._incremental._make_or_get_transformer(
+        JsonIncremental
+    ).primary_key == ["id"]
+    assert resource.incremental._incremental._make_or_get_transformer(
+        ArrowIncremental
+    ).primary_key == ["id"]
 
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
@@ -860,6 +872,7 @@ def test_deferred_reflect_in_source(
     # mock the right json values for backends not supporting it
     if backend in ("connectorx", "pandas"):
         source.resources["has_precision"].add_map(mock_json_column("json_col"))
+        source.resources["has_precision"].add_map(mock_array_column("array_col"))
 
     # no columns in both tables
     assert source.has_precision.columns == {}
@@ -917,6 +930,7 @@ def test_deferred_reflect_in_resource(
     # mock the right json values for backends not supporting it
     if backend in ("connectorx", "pandas"):
         table.add_map(mock_json_column("json_col"))
+        table.add_map(mock_array_column("array_col"))
 
     # no columns in both tables
     assert table.columns == {}
@@ -1032,28 +1046,17 @@ def test_sql_database_include_view_in_table_names(
 @pytest.mark.parametrize("backend", ["pyarrow", "pandas", "sqlalchemy"])
 @pytest.mark.parametrize("standalone_resource", [True, False])
 @pytest.mark.parametrize("reflection_level", ["minimal", "full", "full_with_precision"])
-@pytest.mark.parametrize("type_adapter", [True, False])
 def test_infer_unsupported_types(
     sql_source_db_unsupported_types: SQLAlchemySourceDB,
     backend: TableBackend,
     reflection_level: ReflectionLevel,
     standalone_resource: bool,
-    type_adapter: bool,
 ) -> None:
-    def type_adapter_callback(t):
-        if isinstance(t, sa.ARRAY):
-            return sa.JSON
-        return t
-
-    if backend == "pyarrow" and type_adapter:
-        pytest.skip("Arrow does not support type adapter for arrays")
-
     common_kwargs = dict(
         credentials=sql_source_db_unsupported_types.credentials,
         schema=sql_source_db_unsupported_types.schema,
         reflection_level=reflection_level,
         backend=backend,
-        type_adapter_callback=type_adapter_callback if type_adapter else None,
     )
     if standalone_resource:
 
@@ -1075,9 +1078,6 @@ def test_infer_unsupported_types(
 
     pipeline = make_pipeline("duckdb")
     pipeline.extract(source)
-
-    columns = pipeline.default_schema.tables["has_unsupported_types"]["columns"]
-
     pipeline.normalize()
     pipeline.load()
 
@@ -1085,30 +1085,12 @@ def test_infer_unsupported_types(
 
     schema = pipeline.default_schema
     assert "has_unsupported_types" in schema.tables
-    columns = schema.tables["has_unsupported_types"]["columns"]
 
     rows = load_tables_to_dicts(pipeline, "has_unsupported_types")["has_unsupported_types"]
 
     if backend == "pyarrow":
-        # TODO: duckdb writes structs as strings (not json encoded) to json columns
-        # Just check that it has a value
-
-        assert isinstance(json.loads(rows[0]["unsupported_array_1"]), list)
-        assert columns["unsupported_array_1"]["data_type"] == "json"
-        # Other columns are loaded
         assert isinstance(rows[0]["supported_text"], str)
         assert isinstance(rows[0]["supported_int"], int)
-    elif backend == "sqlalchemy":
-        # sqla value is a dataclass and is inferred as json
-
-        assert columns["unsupported_array_1"]["data_type"] == "json"
-
-    elif backend == "pandas":
-        # pandas parses it as string
-        if type_adapter and reflection_level != "minimal":
-            assert columns["unsupported_array_1"]["data_type"] == "json"
-
-            assert isinstance(json.loads(rows[0]["unsupported_array_1"]), list)
 
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
@@ -1277,10 +1259,7 @@ def assert_no_precision_columns(
 ) -> None:
     actual = list(columns.values())
     # we always infer and emit nullability
-    expected = cast(
-        List[TColumnSchema],
-        deepcopy(NULL_NO_PRECISION_COLUMNS if nullable else NOT_NULL_NO_PRECISION_COLUMNS),
-    )
+    expected = deepcopy(NULL_NO_PRECISION_COLUMNS if nullable else NOT_NULL_NO_PRECISION_COLUMNS)
     if backend == "pyarrow":
         expected = cast(
             List[TColumnSchema],
@@ -1431,6 +1410,14 @@ PRECISION_COLUMNS: List[TColumnSchema] = [
     {
         "data_type": "bool",
         "name": "bool_col",
+    },
+    {
+        "data_type": "text",
+        "name": "uuid_col",
+    },
+    {
+        "data_type": "json",
+        "name": "array_col",
     },
 ]
 

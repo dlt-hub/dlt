@@ -94,12 +94,16 @@ class TableLoader:
             self.end_value = incremental.end_value
             self.row_order: TSortOrder = self.incremental.row_order
             self.on_cursor_value_missing = self.incremental.on_cursor_value_missing
+            self.range_start = self.incremental.range_start
+            self.range_end = self.incremental.range_end
         else:
             self.cursor_column = None
             self.last_value = None
             self.end_value = None
             self.row_order = None
             self.on_cursor_value_missing = None
+            self.range_start = None
+            self.range_end = None
 
     def _make_query(self) -> SelectAny:
         table = self.table
@@ -110,11 +114,11 @@ class TableLoader:
 
         # generate where
         if last_value_func is max:  # Query ordered and filtered according to last_value function
-            filter_op = operator.ge
-            filter_op_end = operator.lt
+            filter_op = operator.ge if self.range_start == "closed" else operator.gt
+            filter_op_end = operator.lt if self.range_end == "open" else operator.le
         elif last_value_func is min:
-            filter_op = operator.le
-            filter_op_end = operator.gt
+            filter_op = operator.le if self.range_start == "closed" else operator.lt
+            filter_op_end = operator.gt if self.range_end == "open" else operator.ge
         else:  # Custom last_value, load everything and let incremental handle filtering
             return query  # type: ignore[no-any-return]
 
@@ -259,6 +263,7 @@ def table_rows(
             table,
             reflection_level,
             type_adapter_callback,
+            backend == "sqlalchemy",  # skip nested types
             resolve_foreign_keys=resolve_foreign_keys,
         )
 
@@ -281,6 +286,7 @@ def table_rows(
             table,
             reflection_level,
             type_adapter_callback,
+            backend == "sqlalchemy",  # skip nested types
             resolve_foreign_keys=resolve_foreign_keys,
         )
 

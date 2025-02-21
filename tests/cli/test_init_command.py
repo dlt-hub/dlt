@@ -262,6 +262,21 @@ def test_init_all_sources_isolated(cloned_init_repo: FileStorage) -> None:
                 assert_index_version_constraint(files, candidate)
 
 
+def test_init_core_sources_ejected(cloned_init_repo: FileStorage) -> None:
+    repo_dir = get_repo_dir(cloned_init_repo)
+    # ensure we test both sources form verified sources and core sources
+    source_candidates = set(CORE_SOURCES)
+    for candidate in source_candidates:
+        clean_test_storage()
+        repo_dir = get_repo_dir(cloned_init_repo)
+        files = get_project_files(clear_all_sources=False)
+        with set_working_dir(files.storage_path):
+            init_command.init_command(candidate, "bigquery", repo_dir, eject_source=True)
+            assert_requirements_txt(files, "bigquery")
+            # check if files copied
+            assert files.has_folder(candidate)
+
+
 @pytest.mark.parametrize("destination_name", IMPLEMENTED_DESTINATIONS)
 def test_init_all_destinations(
     destination_name: str, project_files: FileStorage, repo_dir: str
@@ -277,25 +292,6 @@ def test_custom_destination_note(repo_dir: str, project_files: FileStorage):
         init_command.init_command(source_name, "destination", repo_dir)
         _out = buf.getvalue()
     assert "to add a destination function that will consume your data" in _out
-
-
-@pytest.mark.parametrize("omit", [True, False])
-# this will break if we have new core sources that are not in verified sources anymore
-@pytest.mark.parametrize("source", set(CORE_SOURCES) - {"rest_api"})
-def test_omit_core_sources(
-    source: str, omit: bool, project_files: FileStorage, repo_dir: str
-) -> None:
-    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
-        init_command.init_command(source, "destination", repo_dir, omit_core_sources=omit)
-        _out = buf.getvalue()
-
-    # check messaging
-    assert ("Omitting dlt core sources" in _out) == omit
-    assert ("will no longer be copied from the" in _out) == (not omit)
-
-    # if we omit core sources, there will be a folder with the name of the source from the verified sources repo
-    assert project_files.has_folder(source) == omit
-    assert (f"dlt.sources.{source}" in project_files.load(f"{source}_pipeline.py")) == (not omit)
 
 
 def test_init_code_update_index_diff(repo_dir: str, project_files: FileStorage) -> None:
@@ -669,7 +665,7 @@ def assert_common_files(
     for args in visitor.known_calls[n.PIPELINE]:
         assert args.arguments["destination"].value == destination_name
     # load secrets
-    secrets = SecretsTomlProvider(settings_dir=dlt.current.run().settings_dir)
+    secrets = SecretsTomlProvider(settings_dir=dlt.current.run_context().settings_dir)
     if destination_name not in ["duckdb", "dummy"]:
         # destination is there
         assert secrets.get_value(destination_name, type, None, "destination") is not None

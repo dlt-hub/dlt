@@ -1,35 +1,33 @@
-import inspect
 from abc import ABC, abstractmethod
 from typing import (
     Any,
     Callable,
-    ClassVar,
-    Generic,
     Iterator,
     Iterable,
     Literal,
     Optional,
     Protocol,
-    TypeVar,
     Union,
     Awaitable,
     TYPE_CHECKING,
     NamedTuple,
-    Generator,
 )
 from concurrent.futures import Future
 
-from dlt.common.typing import TAny, TDataItem, TDataItems
-
+from dlt.common.typing import (
+    TAny,
+    TDataItem,
+    TDataItems,
+    TTableHintTemplate,
+    TFunHintTemplate,
+    TDynHintType,
+)
 
 TDecompositionStrategy = Literal["none", "scc"]
 TDeferredDataItems = Callable[[], TDataItems]
 TAwaitableDataItems = Awaitable[TDataItems]
 TPipedDataItems = Union[TDataItems, TDeferredDataItems, TAwaitableDataItems]
 
-TDynHintType = TypeVar("TDynHintType")
-TFunHintTemplate = Callable[[TDataItem], TDynHintType]
-TTableHintTemplate = Union[TDynHintType, TFunHintTemplate[TDynHintType]]
 
 if TYPE_CHECKING:
     TItemFuture = Future[TPipedDataItems]
@@ -109,6 +107,10 @@ class SupportsPipe(Protocol):
         """A data generating step"""
         ...
 
+    def replace_gen(self, gen: TPipeStep) -> None:
+        """Replaces data generating step. Assumes that you know what are you doing"""
+        ...
+
     def __getitem__(self, i: int) -> TPipeStep:
         """Get pipe step at index"""
         ...
@@ -125,112 +127,3 @@ class SupportsPipe(Protocol):
     def close(self) -> None:
         """Closes pipe generator"""
         ...
-
-
-ItemTransformFunctionWithMeta = Callable[[TDataItem, str], TAny]
-ItemTransformFunctionNoMeta = Callable[[TDataItem], TAny]
-ItemTransformFunc = Union[ItemTransformFunctionWithMeta[TAny], ItemTransformFunctionNoMeta[TAny]]
-
-
-class ItemTransform(ABC, Generic[TAny]):
-    _f_meta: ItemTransformFunctionWithMeta[TAny] = None
-    _f: ItemTransformFunctionNoMeta[TAny] = None
-
-    placement_affinity: ClassVar[float] = 0
-    """Tell how strongly an item sticks to start (-1) or end (+1) of pipe."""
-
-    def __init__(self, transform_f: ItemTransformFunc[TAny]) -> None:
-        # inspect the signature
-        sig = inspect.signature(transform_f)
-        # TODO: use TypeGuard here to get rid of type ignore
-        if len(sig.parameters) == 1:
-            self._f = transform_f  # type: ignore
-        else:  # TODO: do better check
-            self._f_meta = transform_f  # type: ignore
-
-    def bind(self: "ItemTransform[TAny]", pipe: SupportsPipe) -> "ItemTransform[TAny]":
-        return self
-
-    @abstractmethod
-    def __call__(self, item: TDataItems, meta: Any = None) -> Optional[TDataItems]:
-        """Transforms `item` (a list of TDataItem or a single TDataItem) and returns or yields TDataItems. Returns None to consume item (filter out)"""
-        pass
-
-
-class FilterItem(ItemTransform[bool]):
-    # mypy needs those to type correctly
-    _f_meta: ItemTransformFunctionWithMeta[bool]
-    _f: ItemTransformFunctionNoMeta[bool]
-
-    def __call__(self, item: TDataItems, meta: Any = None) -> Optional[TDataItems]:
-        if isinstance(item, list):
-            # preserve empty lists
-            if len(item) == 0:
-                return item
-
-            if self._f_meta:
-                item = [i for i in item if self._f_meta(i, meta)]
-            else:
-                item = [i for i in item if self._f(i)]
-            if not item:
-                # item was fully consumed by the filter
-                return None
-            return item
-        else:
-            if self._f_meta:
-                return item if self._f_meta(item, meta) else None
-            else:
-                return item if self._f(item) else None
-
-
-class MapItem(ItemTransform[TDataItem]):
-    # mypy needs those to type correctly
-    _f_meta: ItemTransformFunctionWithMeta[TDataItem]
-    _f: ItemTransformFunctionNoMeta[TDataItem]
-
-    def __call__(self, item: TDataItems, meta: Any = None) -> Optional[TDataItems]:
-        if isinstance(item, list):
-            if self._f_meta:
-                return [self._f_meta(i, meta) for i in item]
-            else:
-                return [self._f(i) for i in item]
-        else:
-            if self._f_meta:
-                return self._f_meta(item, meta)
-            else:
-                return self._f(item)
-
-
-class YieldMapItem(ItemTransform[Iterator[TDataItem]]):
-    # mypy needs those to type correctly
-    _f_meta: ItemTransformFunctionWithMeta[TDataItem]
-    _f: ItemTransformFunctionNoMeta[TDataItem]
-
-    def __call__(self, item: TDataItems, meta: Any = None) -> Optional[TDataItems]:
-        if isinstance(item, list):
-            for i in item:
-                if self._f_meta:
-                    yield from self._f_meta(i, meta)
-                else:
-                    yield from self._f(i)
-        else:
-            if self._f_meta:
-                yield from self._f_meta(item, meta)
-            else:
-                yield from self._f(item)
-
-
-class ValidateItem(ItemTransform[TDataItem]):
-    """Base class for validators of data items.
-
-    Subclass should implement the `__call__` method to either return the data item(s) or raise `extract.exceptions.ValidationError`.
-    See `PydanticValidator` for possible implementation.
-    """
-
-    placement_affinity: ClassVar[float] = 0.9  # stick to end but less than incremental
-
-    table_name: str
-
-    def bind(self, pipe: SupportsPipe) -> ItemTransform[TDataItem]:
-        self.table_name = pipe.name
-        return self

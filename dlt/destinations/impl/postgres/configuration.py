@@ -7,7 +7,7 @@ from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.utils import digest128
 from dlt.common.typing import TSecretStrValue
 
-from dlt.common.destination.reference import DestinationClientDwhWithStagingConfiguration
+from dlt.common.destination.client import DestinationClientDwhWithStagingConfiguration
 
 
 @configspec(init=False)
@@ -19,16 +19,20 @@ class PostgresCredentials(ConnectionStringCredentials):
     host: str = None
     port: int = 5432
     connect_timeout: int = 15
+    client_encoding: Optional[str] = None
 
     __config_gen_annotations__: ClassVar[List[str]] = ["port", "connect_timeout"]
 
     def parse_native_representation(self, native_value: Any) -> None:
         super().parse_native_representation(native_value)
         self.connect_timeout = int(self.query.get("connect_timeout", self.connect_timeout))
+        self.client_encoding = self.query.get("client_encoding", self.client_encoding)
 
     def get_query(self) -> Dict[str, Any]:
         query = dict(super().get_query())
         query["connect_timeout"] = self.connect_timeout
+        if self.client_encoding:
+            query["client_encoding"] = self.client_encoding
         return query
 
 

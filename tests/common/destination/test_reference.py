@@ -1,9 +1,10 @@
 from typing import Dict
 import pytest
 
-from dlt.common.destination.reference import DestinationClientDwhConfiguration, Destination
+from dlt.common.destination import Destination, DestinationReference
+from dlt.common.destination.client import DestinationClientDwhConfiguration
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.exceptions import InvalidDestinationReference, UnknownDestinationModule
+from dlt.common.destination.exceptions import UnknownDestinationModule
 from dlt.common.schema import Schema
 from dlt.common.typing import is_subclass
 from dlt.common.normalizers.naming import sql_ci_v1, sql_cs_v1
@@ -14,20 +15,35 @@ from tests.utils import ACTIVE_DESTINATIONS
 
 def test_import_unknown_destination() -> None:
     # standard destination
-    with pytest.raises(UnknownDestinationModule):
-        Destination.from_reference("meltdb")
+    with pytest.raises(UnknownDestinationModule) as unk_ex:
+        DestinationReference.from_reference("meltdb")
+    assert unk_ex.value.ref == "meltdb"
+    assert unk_ex.value.qualified_refs == [
+        "meltdb",
+        "dlt.destinations.meltdb",
+        "dlt.destinations.meltdb",
+    ]
+    traces = unk_ex.value.traces
+    assert len(traces) == 2 and traces[0].reason == "AttrNotFound"
+
     # custom module
-    with pytest.raises(UnknownDestinationModule):
-        Destination.from_reference("melt.db")
+    with pytest.raises(UnknownDestinationModule) as unk_ex:
+        DestinationReference.from_reference("melt.db")
+    assert unk_ex.value.ref == "melt.db"
+    assert unk_ex.value.qualified_refs == ["melt.db"]
+    traces = unk_ex.value.traces
+    assert len(traces) == 1 and traces[0].reason == "ModuleSpecNotFound"
 
 
-def test_invalid_destination_reference() -> None:
-    with pytest.raises(InvalidDestinationReference):
-        Destination.from_reference("tests.load.cases.fake_destination.not_a_destination")
+def test_destination_reference_not_a_factory() -> None:
+    with pytest.raises(UnknownDestinationModule) as unk_ex:
+        DestinationReference.from_reference("tests.load.cases.fake_destination.not_a_destination")
+    traces = unk_ex.value.traces
+    assert len(traces) == 1 and traces[0].reason == "TypeCheck"
 
 
 def test_custom_destination_module() -> None:
-    destination = Destination.from_reference(
+    destination = DestinationReference.from_reference(
         "tests.common.cases.destinations.null", destination_name="null-test"
     )
     assert destination.destination_name == "null-test"
@@ -37,7 +53,7 @@ def test_custom_destination_module() -> None:
 
 
 def test_arguments_propagated_to_config() -> None:
-    dest = Destination.from_reference(
+    dest = DestinationReference.from_reference(
         "dlt.destinations.duckdb", create_indexes=None, unknown_param="A"
     )
     # None for create_indexes is not a default and it is passed on, unknown_param is removed because it is unknown
@@ -47,20 +63,20 @@ def test_arguments_propagated_to_config() -> None:
     # test explicit config value being passed
     import dlt
 
-    dest = Destination.from_reference(
+    dest = DestinationReference.from_reference(
         "dlt.destinations.duckdb", create_indexes=dlt.config.value, unknown_param="A"
     )
     assert dest.config_params == {"create_indexes": dlt.config.value}
     assert dest.caps_params == {}
 
-    dest = Destination.from_reference(
+    dest = DestinationReference.from_reference(
         "dlt.destinations.weaviate", naming_convention="duck_case", create_indexes=True
     )
     # create indexes are not known
     assert dest.config_params == {}
 
     # create explicit caps
-    dest = Destination.from_reference(
+    dest = DestinationReference.from_reference(
         "dlt.destinations.dummy",
         naming_convention="duck_case",
         recommended_file_size=4000000,
@@ -128,17 +144,17 @@ def test_factory_config_injection(environment: Dict[str, str]) -> None:
 
 def test_import_module_by_path() -> None:
     # importing works directly from dlt destinations
-    dest = Destination.from_reference("dlt.destinations.postgres")
+    dest = DestinationReference.from_reference("dlt.destinations.postgres")
     assert dest.destination_name == "postgres"
     assert dest.destination_type == "dlt.destinations.postgres"
 
     # try again directly with the output from the first dest
-    dest2 = Destination.from_reference(dest.destination_type, destination_name="my_pg")
+    dest2 = DestinationReference.from_reference(dest.destination_type, destination_name="my_pg")
     assert dest2.destination_name == "my_pg"
     assert dest2.destination_type == "dlt.destinations.postgres"
 
     # try again with the path into the impl folder
-    dest3 = Destination.from_reference(
+    dest3 = DestinationReference.from_reference(
         "dlt.destinations.impl.postgres.factory.postgres", destination_name="my_pg_2"
     )
     assert dest3.destination_name == "my_pg_2"
@@ -148,13 +164,23 @@ def test_import_module_by_path() -> None:
 def test_import_all_destinations() -> None:
     # this must pass without the client dependencies being imported
     for dest_type in ACTIVE_DESTINATIONS:
-        dest = Destination.from_reference(dest_type, None, dest_type + "_name", "production")
+        dest = DestinationReference.from_reference(
+            dest_type, None, dest_type + "_name", "production"
+        )
         assert dest.destination_type == "dlt.destinations." + dest_type
         assert dest.destination_name == dest_type + "_name"
         assert dest.config_params["environment"] == "production"
         assert dest.config_params["destination_name"] == dest_type + "_name"
         dest.spec()
         assert isinstance(dest.capabilities(), DestinationCapabilitiesContext)
+        # every destination is in the registry
+        assert dest.destination_type in DestinationReference.DESTINATIONS
+        assert DestinationReference.find(dest_type) is DestinationReference.find(
+            dest.destination_type
+        )
+        # get by reference
+        assert DestinationReference.from_reference(dest_type)
+        assert DestinationReference.from_reference(dest.destination_type)
 
 
 def test_base_adjust_capabilities() -> None:
@@ -248,7 +274,8 @@ def test_import_destination_config() -> None:
     assert dest.config_params["environment"] == "stage"
     config = dest.configuration(dest.spec()._bind_dataset_name(dataset_name="dataset"))  # type: ignore
     assert config.destination_type == "duckdb"
-    assert config.destination_name == "duckdb"
+    # destination name not set implicitly
+    assert config.destination_name is None
     assert config.environment == "stage"
 
     # importing destination by will work

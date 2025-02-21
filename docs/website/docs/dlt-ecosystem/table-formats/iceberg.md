@@ -10,5 +10,5 @@ keywords: [iceberg, table formats]
 
 ## Supported destinations
 
-Supported by: **Athena**
+Supported by: **Athena**, **filesystem**
 

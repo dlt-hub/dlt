@@ -12,6 +12,7 @@ from typing import Any, List, Tuple, cast
 from tenacity import retry_if_exception, Retrying, stop_after_attempt
 
 import pytest
+from dlt.common.known_env import DLT_LOCAL_DIR
 from dlt.common.storages import FileStorage
 
 import dlt
@@ -20,7 +21,7 @@ from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import ConfigFieldMissingException, InvalidNativeValue
 from dlt.common.data_writers.exceptions import FileImportNotFound, SpecLookupFailed
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.reference import WithStateSync
+from dlt.common.destination.client import WithStateSync
 from dlt.common.destination.exceptions import (
     DestinationHasFailedJobs,
     DestinationIncompatibleLoaderFileFormatException,
@@ -35,6 +36,7 @@ from dlt.common.runtime.collector import LogCollector
 from dlt.common.schema.exceptions import TableIdentifiersFrozen
 from dlt.common.schema.typing import TColumnSchema
 from dlt.common.schema.utils import new_column, new_table
+from dlt.common.storages.exceptions import SchemaNotFoundError
 from dlt.common.typing import DictStrAny
 from dlt.common.utils import uniq_id
 from dlt.common.schema import Schema
@@ -47,12 +49,17 @@ from dlt.extract import DltResource, DltSource
 from dlt.extract.extractors import MaterializedEmptyList
 from dlt.load.exceptions import LoadClientJobFailed
 from dlt.normalize.exceptions import NormalizeJobFailed
-from dlt.pipeline.exceptions import InvalidPipelineName, PipelineNotActive, PipelineStepFailed
+from dlt.pipeline.exceptions import (
+    InvalidPipelineName,
+    PipelineNeverRan,
+    PipelineNotActive,
+    PipelineStepFailed,
+)
 from dlt.pipeline.helpers import retry_load
 
 from dlt.pipeline.pipeline import Pipeline
 from tests.common.utils import TEST_SENTRY_DSN
-from tests.utils import TEST_STORAGE_ROOT
+from tests.utils import TEST_STORAGE_ROOT, load_table_counts
 from tests.extract.utils import expect_extracted_file
 from tests.pipeline.utils import (
     assert_data_table_counts,
@@ -80,6 +87,8 @@ def test_default_pipeline() -> None:
     assert p.dataset_name is None
     assert p.destination is None
     assert p.default_schema_name is None
+    # init_cwd is cwd
+    assert p.get_local_state_val("initial_cwd") == os.path.abspath(os.curdir)
 
     # this is the same pipeline
     p2 = dlt.pipeline()
@@ -194,6 +203,53 @@ def test_default_pipeline_dataset_layout_empty(environment) -> None:
     assert p.dataset_name in possible_dataset_names
 
 
+def test_pipeline_initial_cwd_follows_local_dir(environment) -> None:
+    local_dir = os.path.join(TEST_STORAGE_ROOT, uniq_id())
+    os.makedirs(local_dir)
+    # mock tmp dir
+    os.environ[DLT_LOCAL_DIR] = local_dir
+    p = dlt.pipeline(destination="filesystem")
+    assert p.get_local_state_val("initial_cwd") == os.path.abspath(local_dir)
+
+
+def test_pipeline_configuration_top_level_section(environment) -> None:
+    environment["PIPELINES__DATASET_NAME"] = "pipeline_dataset"
+    environment["PIPELINES__DESTINATION_TYPE"] = "dummy"
+    environment["PIPELINES__IMPORT_SCHEMA_PATH"] = os.path.join(TEST_STORAGE_ROOT, "import")
+    environment["PIPELINES__EXPORT_SCHEMA_PATH"] = os.path.join(TEST_STORAGE_ROOT, "import")
+
+    pipeline = dlt.pipeline()
+    assert pipeline.dataset_name == "pipeline_dataset"
+    assert pipeline.destination.destination_type == "dlt.destinations.dummy"
+    assert (
+        pipeline._schema_storage_config.export_schema_path
+        == environment["PIPELINES__EXPORT_SCHEMA_PATH"]
+    )
+    assert (
+        pipeline._schema_storage_config.import_schema_path
+        == environment["PIPELINES__IMPORT_SCHEMA_PATH"]
+    )
+
+
+def test_pipeline_configuration_named_section(environment) -> None:
+    environment["PIPELINES__NAMED__DATASET_NAME"] = "pipeline_dataset"
+    environment["PIPELINES__NAMED__DESTINATION_TYPE"] = "dummy"
+    environment["PIPELINES__NAMED__IMPORT_SCHEMA_PATH"] = os.path.join(TEST_STORAGE_ROOT, "import")
+    environment["PIPELINES__NAMED__EXPORT_SCHEMA_PATH"] = os.path.join(TEST_STORAGE_ROOT, "import")
+
+    pipeline = dlt.pipeline(pipeline_name="named")
+    assert pipeline.dataset_name == "pipeline_dataset"
+    assert pipeline.destination.destination_type == "dlt.destinations.dummy"
+    assert (
+        pipeline._schema_storage_config.export_schema_path
+        == environment["PIPELINES__NAMED__EXPORT_SCHEMA_PATH"]
+    )
+    assert (
+        pipeline._schema_storage_config.import_schema_path
+        == environment["PIPELINES__NAMED__IMPORT_SCHEMA_PATH"]
+    )
+
+
 def test_run_dev_mode_default_dataset() -> None:
     p = dlt.pipeline(dev_mode=True, destination="filesystem")
     assert p.dataset_name.endswith(p._pipeline_instance_id)
@@ -251,6 +307,19 @@ def test_run_dev_mode_underscored_dataset() -> None:
     # restore this pipeline
     r_p = dlt.attach(dev_mode=False)
     assert r_p.dataset_name.endswith(p._pipeline_instance_id)
+
+
+def test_dataset_pipeline_never_ran() -> None:
+    p = dlt.pipeline(destination="filesystem", dev_mode=True, dataset_name="_main_")
+    with pytest.raises(PipelineNeverRan):
+        p.dataset()
+
+
+def test_dataset_unknown_schema() -> None:
+    p = dlt.pipeline(destination="duckdb", dev_mode=True, dataset_name="mmmmm")
+    p.run([1, 2, 3], table_name="digits")
+    with pytest.raises(SchemaNotFoundError):
+        p.dataset(schema="unknown")
 
 
 def test_pipeline_with_non_alpha_name() -> None:
@@ -488,7 +557,7 @@ def test_extract_source_twice() -> None:
     dlt.pipeline().extract(s)
     with pytest.raises(PipelineStepFailed) as py_ex:
         dlt.pipeline().extract(s)
-    assert type(py_ex.value.exception) == SourceExhausted
+    assert type(py_ex.value.exception) is SourceExhausted
     assert py_ex.value.exception.source_name == "source"
 
 
@@ -1566,6 +1635,30 @@ def test_drop() -> None:
     pipeline.run([1, 2, 3], table_name="numbers")
 
 
+def test_source_schema_in_resource() -> None:
+    run_count = 0
+
+    @dlt.resource
+    def schema_inspector():
+        schema = dlt.current.source_schema()
+        if run_count == 0:
+            assert "schema_inspector" not in schema.tables
+        if run_count == 1:
+            assert "schema_inspector" in schema.tables
+            assert schema.tables["schema_inspector"]["columns"]["value"]["x-custom"] == "X"  # type: ignore[typeddict-item]
+
+        yield [1, 2, 3]
+
+    pipeline = dlt.pipeline(pipeline_name="test_inspector", destination="duckdb")
+    pipeline.run(schema_inspector())
+
+    # add custom annotation
+    pipeline.default_schema.tables["schema_inspector"]["columns"]["value"]["x-custom"] = "X"  # type: ignore[typeddict-unknown-key]
+
+    run_count += 1
+    pipeline.run(schema_inspector())
+
+
 def test_schema_version_increase_and_source_update() -> None:
     now = pendulum.now()
 
@@ -1709,6 +1802,111 @@ def test_flattened_column_hint() -> None:
     )
     # make sure data is there
     assert pipeline.last_trace.last_normalize_info.row_counts["flattened_dict__values"] == 4
+
+
+def test_column_name_with_break_path() -> None:
+    """Tests how normalization behaves for names with break path ie __
+    all the names must be idempotent
+    """
+    pipeline = dlt.pipeline(destination="duckdb", pipeline_name="breaking")
+    info = pipeline.run(
+        [{"example_custom_field__c": "custom", "reg_c": "c"}], table_name="custom__path"
+    )
+    assert_load_info(info)
+    # table name was preserved
+    table = pipeline.default_schema.get_table("custom__path")
+    assert pipeline.default_schema.data_table_names() == ["custom__path"]
+    # column name was preserved
+    assert table["columns"]["example_custom_field__c"]["data_type"] == "text"
+    assert set(table["columns"]) == {"example_custom_field__c", "reg_c", "_dlt_id", "_dlt_load_id"}
+
+    # get data
+    assert_data_table_counts(pipeline, {"custom__path": 1})
+    # get data via dataset with dbapi
+    data_ = pipeline.dataset().custom__path[["example_custom_field__c", "reg_c"]].fetchall()
+    assert data_ == [("custom", "c")]
+
+
+def test_column_name_with_break_path_legacy() -> None:
+    """Tests how normalization behaves for names with break path ie __
+    in legacy mode table and column names were normalized as single identifier
+    """
+    os.environ["SCHEMA__USE_BREAK_PATH_ON_NORMALIZE"] = "False"
+    pipeline = dlt.pipeline(destination="duckdb", pipeline_name="breaking")
+    info = pipeline.run(
+        [{"example_custom_field__c": "custom", "reg_c": "c"}], table_name="custom__path"
+    )
+    assert_load_info(info)
+    # table name was contracted
+    table = pipeline.default_schema.get_table("custom_path")
+    assert pipeline.default_schema.data_table_names() == ["custom_path"]
+    # column name was contracted
+    assert table["columns"]["example_custom_field_c"]["data_type"] == "text"
+    assert set(table["columns"]) == {"example_custom_field_c", "reg_c", "_dlt_id", "_dlt_load_id"}
+
+    # get data
+    assert_data_table_counts(pipeline, {"custom_path": 1})
+    # get data via dataset with dbapi
+    data_ = pipeline.dataset().custom_path[["example_custom_field_c", "reg_c"]].fetchall()
+    assert data_ == [("custom", "c")]
+
+
+def test_column_hint_with_break_path() -> None:
+    """Up form the v 1.4.1 name normalizer is idempotent on break path"""
+    now = cast(pendulum.DateTime, pendulum.parse("2024-11-29T10:10"))
+
+    @dlt.resource(
+        name="flattened__dict", columns=[{"name": "value__timestamp", "data_type": "timestamp"}]
+    )
+    def flattened_dict():
+        for delta in range(4):
+            yield {
+                "delta": delta,
+                "value": {"timestamp": now.timestamp() + delta},
+            }
+
+    pipeline = dlt.pipeline(destination="duckdb")
+    info = pipeline.run(flattened_dict())
+    assert_load_info(info)
+
+    assert pipeline.default_schema.data_table_names() == ["flattened__dict"]
+    table = pipeline.default_schema.get_table("flattened__dict")
+    assert set(table["columns"]) == {"delta", "value__timestamp", "_dlt_id", "_dlt_load_id"}
+    assert table["columns"]["value__timestamp"]["data_type"] == "timestamp"
+
+    # make sure data is there
+    data_ = pipeline.dataset().flattened__dict[["delta", "value__timestamp"]].limit(1).fetchall()
+    assert data_ == [(0, now)]
+
+
+def test_column_hint_with_break_path_legacy() -> None:
+    """Up form the v 1.4.1 name normalizer is idempotent on break path"""
+
+    os.environ["SCHEMA__USE_BREAK_PATH_ON_NORMALIZE"] = "False"
+    now = cast(pendulum.DateTime, pendulum.parse("2024-11-29T10:10"))
+
+    @dlt.resource(
+        name="flattened__dict", columns=[{"name": "value__timestamp", "data_type": "timestamp"}]
+    )
+    def flattened_dict():
+        for delta in range(4):
+            yield {
+                "delta": delta,
+                "value": {"timestamp": now.timestamp() + delta},
+            }
+
+    pipeline = dlt.pipeline(destination="duckdb")
+    info = pipeline.run(flattened_dict())
+    assert_load_info(info)
+    # table name contracted
+    assert pipeline.default_schema.data_table_names() == ["flattened_dict"]
+    table = pipeline.default_schema.get_table("flattened_dict")
+    # hint applied
+    assert set(table["columns"]) == {"delta", "value__timestamp", "_dlt_id", "_dlt_load_id"}
+    assert table["columns"]["value__timestamp"]["data_type"] == "timestamp"
+    # make sure data is there
+    data_ = pipeline.dataset().flattened_dict[["delta", "value__timestamp"]].limit(1).fetchall()
+    assert data_ == [(0, now)]
 
 
 def test_empty_rows_are_included() -> None:
@@ -2367,6 +2565,12 @@ def test_local_filesystem_destination(local_path: str) -> None:
     assert len(fs_client.list_table_files("_dlt_pipeline_state")) == 1
 
 
+def test_filesystem_in_pipeline_dir() -> None:
+    pipeline = dlt.pipeline("test_filesystem_in_pipeline_dir", destination=filesystem(":pipeline:"))
+    pipeline.run([1, 2, 3], table_name="digits")
+    assert os.path.isdir(os.path.join(pipeline.working_dir, "test_filesystem_in_pipeline_dir"))
+
+
 @pytest.mark.parametrize("truncate", (True, False))
 def test_staging_dataset_truncate(truncate) -> None:
     dlt.config["truncate_staging_dataset"] = truncate
@@ -2882,3 +3086,171 @@ def test_push_table_with_upfront_schema() -> None:
     copy_pipeline = dlt.pipeline(pipeline_name="push_table_copy_pipeline", destination="duckdb")
     info = copy_pipeline.run(data, table_name="events", schema=copy_schema)
     assert copy_pipeline.default_schema.version_hash != infer_hash
+
+
+def test_pipeline_with_sources_sharing_schema() -> None:
+    schema = Schema("shared")
+
+    @dlt.source(schema=schema, max_table_nesting=1)
+    def source_1():
+        @dlt.resource(primary_key="user_id")
+        def gen1():
+            dlt.current.source_state()["source_1"] = True
+            dlt.current.resource_state()["source_1"] = True
+            yield {"id": "Y", "user_id": "user_y"}
+
+        @dlt.resource(columns={"value": {"data_type": "bool"}})
+        def conflict():
+            yield True
+
+        return gen1, conflict
+
+    @dlt.source(schema=schema, max_table_nesting=2)
+    def source_2():
+        @dlt.resource(primary_key="id")
+        def gen1():
+            dlt.current.source_state()["source_2"] = True
+            dlt.current.resource_state()["source_2"] = True
+            yield {"id": "X", "user_id": "user_X"}
+
+        def gen2():
+            yield from "CDE"
+
+        @dlt.resource(columns={"value": {"data_type": "text"}}, selected=False)
+        def conflict():
+            yield "indeed"
+
+        return gen2, gen1, conflict
+
+    # all selected tables with hints should be there
+    discover_1 = source_1().discover_schema()
+    assert "gen1" in discover_1.tables
+    assert discover_1.tables["gen1"]["columns"]["user_id"]["primary_key"] is True
+    assert "data_type" not in discover_1.tables["gen1"]["columns"]["user_id"]
+    assert "conflict" in discover_1.tables
+    assert discover_1.tables["conflict"]["columns"]["value"]["data_type"] == "bool"
+
+    discover_2 = source_2().discover_schema()
+    assert "gen1" in discover_2.tables
+    assert "gen2" in discover_2.tables
+    # conflict deselected
+    assert "conflict" not in discover_2.tables
+
+    p = dlt.pipeline(pipeline_name="multi", destination="duckdb", dev_mode=True)
+    p.extract([source_1(), source_2()])
+    default_schema = p.default_schema
+    gen1_table = default_schema.tables["gen1"]
+    assert "user_id" in gen1_table["columns"]
+    assert "id" in gen1_table["columns"]
+    assert "conflict" in default_schema.tables
+    assert "gen2" in default_schema.tables
+    p.normalize()
+    assert "gen2" in default_schema.tables
+    assert default_schema.tables["conflict"]["columns"]["value"]["data_type"] == "bool"
+    p.load()
+    table_names = [t["name"] for t in default_schema.data_tables()]
+    counts = load_table_counts(p, *table_names)
+    assert counts == {"gen1": 2, "gen2": 3, "conflict": 1}
+    # both sources share the same state
+    assert p.state["sources"] == {
+        "shared": {
+            "source_1": True,
+            "resources": {"gen1": {"source_1": True, "source_2": True}},
+            "source_2": True,
+        }
+    }
+
+    # same pipeline but enable conflict
+    p.extract([source_2().with_resources("conflict")])
+    p.normalize()
+    assert default_schema.tables["conflict"]["columns"]["value"]["data_type"] == "text"
+    with pytest.raises(PipelineStepFailed):
+        # will generate failed job on type that does not match
+        p.load()
+    counts = load_table_counts(p, "conflict")
+    assert counts == {"conflict": 1}
+
+    # alter table in duckdb
+    with p.sql_client() as client:
+        client.execute_sql("ALTER TABLE conflict ALTER value TYPE VARCHAR;")
+    p.run([source_2().with_resources("conflict")])
+    counts = load_table_counts(p, "conflict")
+    assert counts == {"conflict": 2}
+
+
+def test_many_pipelines_single_dataset() -> None:
+    schema = Schema("shared")
+
+    @dlt.source(schema=schema, max_table_nesting=1)
+    def source_1():
+        @dlt.resource(primary_key="user_id")
+        def gen1():
+            dlt.current.source_state()["source_1"] = True
+            dlt.current.resource_state()["source_1"] = True
+            yield {"id": "Y", "user_id": "user_y"}
+
+        return gen1
+
+    @dlt.source(schema=schema, max_table_nesting=2)
+    def source_2():
+        @dlt.resource(primary_key="id")
+        def gen1():
+            dlt.current.source_state()["source_2"] = True
+            dlt.current.resource_state()["source_2"] = True
+            yield {"id": "X", "user_id": "user_X"}
+
+        def gen2():
+            yield from "CDE"
+
+        return gen2, gen1
+
+    # load source_1 to common dataset
+    p = dlt.pipeline(
+        pipeline_name="source_1_pipeline", destination="duckdb", dataset_name="shared_dataset"
+    )
+    p.run(source_1(), credentials="duckdb:///_storage/test_quack.duckdb")
+    counts = load_table_counts(p, *p.default_schema.tables.keys())
+    assert counts.items() >= {"gen1": 1, "_dlt_pipeline_state": 1, "_dlt_loads": 1}.items()
+    p._wipe_working_folder()
+    p.deactivate()
+
+    p = dlt.pipeline(
+        pipeline_name="source_2_pipeline", destination="duckdb", dataset_name="shared_dataset"
+    )
+    p.run(source_2(), credentials="duckdb:///_storage/test_quack.duckdb")
+    # table_names = [t["name"] for t in p.default_schema.data_tables()]
+    counts = load_table_counts(p, *p.default_schema.tables.keys())
+    # gen1: one record comes from source_1, 1 record from source_2
+    assert counts.items() >= {"gen1": 2, "_dlt_pipeline_state": 2, "_dlt_loads": 2}.items()
+    # assert counts == {'gen1': 2, 'gen2': 3}
+    p._wipe_working_folder()
+    p.deactivate()
+
+    # restore from destination, check state
+    p = dlt.pipeline(
+        pipeline_name="source_1_pipeline",
+        destination=dlt.destinations.duckdb(credentials="duckdb:///_storage/test_quack.duckdb"),
+        dataset_name="shared_dataset",
+    )
+    p.sync_destination()
+    # we have our separate state
+    assert p.state["sources"]["shared"] == {
+        "source_1": True,
+        "resources": {"gen1": {"source_1": True}},
+    }
+    # but the schema was common so we have the earliest one
+    assert "gen2" in p.default_schema.tables
+    p._wipe_working_folder()
+    p.deactivate()
+
+    p = dlt.pipeline(
+        pipeline_name="source_2_pipeline",
+        destination=dlt.destinations.duckdb(credentials="duckdb:///_storage/test_quack.duckdb"),
+        dataset_name="shared_dataset",
+    )
+    p.sync_destination()
+    # we have our separate state
+    assert p.state["sources"]["shared"] == {
+        "source_2": True,
+        "resources": {"gen1": {"source_2": True}},
+    }

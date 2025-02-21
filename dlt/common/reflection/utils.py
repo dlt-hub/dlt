@@ -1,7 +1,7 @@
 import ast
 import inspect
-import astunparse
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union, Callable
 
 from dlt.common.typing import AnyFun
 
@@ -25,7 +25,7 @@ def get_literal_defaults(node: Union[ast.FunctionDef, ast.AsyncFunctionDef]) -> 
     literal_defaults: Dict[str, str] = {}
     for arg, default in zip(reversed(args), reversed(defaults)):
         if default:
-            literal_defaults[str(arg.arg)] = astunparse.unparse(default).strip()
+            literal_defaults[str(arg.arg)] = ast.unparse(default).strip()
 
     return literal_defaults
 
@@ -84,24 +84,24 @@ def rewrite_python_script(
     last_line = -1
     last_offset = -1
     # sort transformed nodes by line and offset
-    for node, t_value in sorted(transformed_nodes, key=lambda n: (n[0].lineno, n[0].col_offset)):
+    for node, t_value in sorted(transformed_nodes, key=lambda n: (n[0].lineno, n[0].col_offset)):  # type: ignore[attr-defined]
         # do we have a line changed
-        if last_line != node.lineno - 1:
+        if last_line != node.lineno - 1:  # type: ignore[attr-defined]
             # add remainder from the previous line
             if last_offset >= 0:
                 script_lines.append(source_script_lines[last_line][last_offset:])
             # add all new lines from previous line to current
-            script_lines.extend(source_script_lines[last_line + 1 : node.lineno - 1])
+            script_lines.extend(source_script_lines[last_line + 1 : node.lineno - 1])  # type: ignore[attr-defined]
             # add trailing characters until node in current line starts
-            script_lines.append(source_script_lines[node.lineno - 1][: node.col_offset])
+            script_lines.append(source_script_lines[node.lineno - 1][: node.col_offset])  # type: ignore[attr-defined]
         elif last_offset >= 0:
             # no line change, add the characters from the end of previous node to the current
-            script_lines.append(source_script_lines[last_line][last_offset : node.col_offset])
+            script_lines.append(source_script_lines[last_line][last_offset : node.col_offset])  # type: ignore[attr-defined]
 
         # replace node value
-        script_lines.append(astunparse.unparse(t_value).strip())
-        last_line = node.end_lineno - 1
-        last_offset = node.end_col_offset
+        script_lines.append(ast.unparse(t_value).strip())
+        last_line = node.end_lineno - 1  # type: ignore[attr-defined]
+        last_offset = node.end_col_offset  # type: ignore[attr-defined]
 
     # add all that was missing
     if last_offset >= 0:

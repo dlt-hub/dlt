@@ -6,7 +6,7 @@ from dlt.common.storages import PackageStorage, ParsedLoadJobFileName
 from dlt.common.typing import TDataItem, TDataItems
 
 from dlt.extract.extract import ExtractStorage
-from dlt.extract.items import ItemTransform
+from dlt.extract.items_transform import ItemTransform
 
 from tests.utils import TestDataItemFormat
 

@@ -10,7 +10,7 @@ from dlt.common.typing import TDataItems
 from dlt.common.libs.pydantic import BaseModel
 
 from dlt.extract import DltResource
-from dlt.extract.items import ValidateItem
+from dlt.extract.items_transform import ValidateItem
 from dlt.extract.validation import PydanticValidator
 from dlt.extract.exceptions import ResourceExtractionError
 from dlt.pipeline.exceptions import PipelineStepFailed

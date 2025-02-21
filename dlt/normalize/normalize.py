@@ -20,7 +20,7 @@ from dlt.common.storages import (
     LoadStorage,
     ParsedLoadJobFileName,
 )
-from dlt.common.schema import TSchemaUpdate, Schema
+from dlt.common.schema import Schema
 from dlt.common.schema.exceptions import CannotCoerceColumnException
 from dlt.common.pipeline import (
     NormalizeInfo,
@@ -34,7 +34,7 @@ from dlt.common.storages.load_package import LoadPackageInfo
 from dlt.normalize.configuration import NormalizeConfiguration
 from dlt.normalize.exceptions import NormalizeJobFailed
 from dlt.normalize.worker import w_normalize_files, group_worker_files, TWorkerRV
-from dlt.normalize.validate import verify_normalized_table
+from dlt.normalize.validate import validate_and_update_schema, verify_normalized_table
 
 
 # normalize worker wrapping function signature
@@ -80,16 +80,6 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
             config=self.config._load_storage_config,
         )
 
-    def update_schema(self, schema: Schema, schema_updates: List[TSchemaUpdate]) -> None:
-        for schema_update in schema_updates:
-            for table_name, table_updates in schema_update.items():
-                logger.info(
-                    f"Updating schema for table {table_name} with {len(table_updates)} deltas"
-                )
-                for partial_table in table_updates:
-                    # merge columns where we expect identifiers to be normalized
-                    schema.update_table(partial_table, normalize_identifiers=False)
-
     def map_parallel(self, schema: Schema, load_id: str, files: Sequence[str]) -> TWorkerRV:
         workers: int = getattr(self.pool, "_max_workers", 1)
         chunk_files = group_worker_files(files, workers)
@@ -123,7 +113,7 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
                     result: TWorkerRV = pending.result()
                     try:
                         # gather schema from all manifests, validate consistency and combine
-                        self.update_schema(schema, result[0])
+                        validate_and_update_schema(schema, result[0])
                         summary.schema_updates.extend(result.schema_updates)
                         summary.file_metrics.extend(result.file_metrics)
                         # update metrics
@@ -162,7 +152,7 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
             load_id,
             files,
         )
-        self.update_schema(schema, result.schema_updates)
+        validate_and_update_schema(schema, result.schema_updates)
         self.collector.update("Files", len(result.file_metrics))
         self.collector.update(
             "Items", sum(result.file_metrics, EMPTY_DATA_WRITER_METRICS).items_count
@@ -237,23 +227,11 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
         self.load_storage.import_extracted_package(
             load_id, self.normalize_storage.extracted_packages
         )
-        logger.info(f"Created new load package {load_id} on loading volume")
-        try:
-            # process parallel
-            self.spool_files(
-                load_id, schema.clone(update_normalizers=True), self.map_parallel, files
-            )
-        except CannotCoerceColumnException as exc:
-            # schema conflicts resulting from parallel executing
-            logger.warning(
-                f"Parallel schema update conflict, switching to single thread ({str(exc)}"
-            )
-            # start from scratch
-            self.load_storage.new_packages.delete_package(load_id)
-            self.load_storage.import_extracted_package(
-                load_id, self.normalize_storage.extracted_packages
-            )
-            self.spool_files(load_id, schema.clone(update_normalizers=True), self.map_single, files)
+        logger.info(f"Created new load package {load_id} on loading volume with ")
+        # get number of workers with default == 1 if not set (ie. NullExecutor)
+        workers: int = getattr(self.pool, "_max_workers", 1)
+        map_f: TMapFuncType = self.map_parallel if workers > 1 else self.map_single
+        self.spool_files(load_id, schema.clone(update_normalizers=True), map_f, files)
 
         return load_id
 

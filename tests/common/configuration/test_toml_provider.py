@@ -4,6 +4,7 @@ import pytest
 import yaml
 from typing import Any, Dict, Type
 import datetime  # noqa: I251
+from unittest.mock import Mock
 
 import dlt
 from dlt.common import pendulum, json
@@ -260,16 +261,17 @@ def test_toml_global_config() -> None:
     providers = Container()[PluggableRunContext].providers
     secrets = providers[SECRETS_TOML]
     config = providers[CONFIG_TOML]
-    # in pytest should be false
-    assert secrets._global_dir is None  # type: ignore[attr-defined]
-    assert config._global_dir is None  # type: ignore[attr-defined]
+
+    # in pytest should be false, no global dir appended to resolved paths
+    assert len(secrets._toml_paths) == 1  # type: ignore[attr-defined]
+    assert len(config._toml_paths) == 1  # type: ignore[attr-defined]
 
     # set dlt data and settings dir
     global_dir = "./tests/common/cases/configuration/dlt_home"
     settings_dir = "./tests/common/cases/configuration/.dlt"
     # create instance with global toml enabled
     config = ConfigTomlProvider(settings_dir=settings_dir, global_dir=global_dir)
-    assert config._global_dir == os.path.join(global_dir, CONFIG_TOML)
+    assert config._toml_paths[1] == os.path.join(global_dir, CONFIG_TOML)
     assert isinstance(config._config_doc, dict)
     assert len(config._config_doc) > 0
     # kept from global
@@ -286,7 +288,7 @@ def test_toml_global_config() -> None:
     assert v == "a"
 
     secrets = SecretsTomlProvider(settings_dir=settings_dir, global_dir=global_dir)
-    assert secrets._global_dir == os.path.join(global_dir, SECRETS_TOML)
+    assert secrets._toml_paths[1] == os.path.join(global_dir, SECRETS_TOML)
     # check if values from project exist
     secrets_project = SecretsTomlProvider(settings_dir=settings_dir)
     assert secrets._config_doc == secrets_project._config_doc
@@ -538,11 +540,28 @@ def test_custom_loader(toml_providers: ConfigProvidersContainer) -> None:
 
 
 def test_colab_toml() -> None:
+    import builtins
+
     # use a path without any settings files
     try:
         sys.path.append("tests/common/cases/modules")
-        # secrets are in user data
+
+        # ipython not present
         provider: SettingsTomlProvider = SecretsTomlProvider("tests/common/null", global_dir=None)
+        assert provider.is_empty
+
+        get_ipython_m = Mock()
+        get_ipython_m.return_value = "google.colab.Shell"
+        # make it available to all modules
+        builtins.get_ipython = get_ipython_m  # type: ignore[attr-defined]
+        # test mock
+        assert get_ipython() == "google.colab.Shell"  # type: ignore[name-defined] # noqa
+        from dlt.common.runtime.exec_info import is_notebook
+
+        assert is_notebook()
+
+        # secrets are in user data
+        provider = SecretsTomlProvider("tests/common/null", global_dir=None)
         assert provider.to_toml() == 'api_key="api"'
         # config is not in userdata
         provider = ConfigTomlProvider("tests/common/null", "unknown")
@@ -551,4 +570,5 @@ def test_colab_toml() -> None:
         provider = SecretsTomlProvider("tests/common/cases/configuration/.dlt", global_dir=None)
         assert provider.get_value("secret_value", str, None) == ("2137", "secret_value")
     finally:
+        delattr(builtins, "get_ipython")
         sys.path.pop()

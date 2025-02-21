@@ -13,9 +13,14 @@ from dlt.common.destination.capabilities import DestinationCapabilitiesContext, 
 from dlt.common.schema import Schema
 from dlt.common.schema.exceptions import (
     SchemaIdentifierNormalizationCollision,
+    UnknownTableException,
 )
 from dlt.common.schema.typing import TColumnType, TLoaderMergeStrategy, TSchemaTables, TTableSchema
-from dlt.common.schema.utils import get_merge_strategy, is_complete_column
+from dlt.common.schema.utils import (
+    fill_hints_from_parent_and_clone_table,
+    get_merge_strategy,
+    is_complete_column,
+)
 from dlt.common.storages import ParsedLoadJobFileName
 from dlt.common.typing import ConfigValue, DictStrStr, TLoaderFileFormat
 
@@ -38,7 +43,7 @@ def verify_schema_capabilities(
     exception_log: List[Exception] = []
     # combined casing function
     case_identifier = lambda ident: capabilities.casefold_identifier(
-        (str if capabilities.has_case_sensitive_identifiers else str.casefold)(ident)  # type: ignore
+        (str if capabilities.has_case_sensitive_identifiers else str.casefold)(ident)
     )
     table_name_lookup: DictStrStr = {}
     # name collision explanation
@@ -191,6 +196,35 @@ def verify_supported_data_types(
 
 
 @with_config
+def prepare_load_table(
+    tables: TSchemaTables,
+    table: TTableSchema,
+    destination_capabilities: DestinationCapabilitiesContext = ConfigValue,
+) -> PreparedTableSchema:
+    """Prepares a table schema to be loaded by filling missing hints and doing other modifications requires by given destination.
+
+    `destination_capabilities` are injected from context if not explicitly passed.
+    """
+    table_name = table["name"]
+    try:
+        prep_table = fill_hints_from_parent_and_clone_table(tables, table)
+        table_format = prep_table.get("table_format")
+        # set table format if preferred
+        if destination_capabilities.preferred_table_format and not table_format:
+            prep_table["table_format"] = destination_capabilities.preferred_table_format
+        # if table_format == "preferred":
+        #     # NOTE: can also set None as table format
+        #     prep_table["table_format"] = destination_capabilities.preferred_table_format
+        if table_format == "native":
+            # no special table format, use whatever is supported
+            prep_table["table_format"] = None
+
+        return prep_table  # type: ignore[return-value]
+    except KeyError:
+        raise UnknownTableException("<>", table_name)
+
+
+@with_config
 def resolve_merge_strategy(
     tables: TSchemaTables,
     table: TTableSchema,
@@ -208,6 +242,9 @@ def resolve_merge_strategy(
             destination_capabilities or DestinationCapabilitiesContext.generic_capabilities()
         )
         supported_strategies = destination_capabilities.supported_merge_strategies
+        # prepare table
+        table = prepare_load_table(tables, table, destination_capabilities)
+
         table_name = table["name"]
         if destination_capabilities.merge_strategies_selector:
             supported_strategies = destination_capabilities.merge_strategies_selector(

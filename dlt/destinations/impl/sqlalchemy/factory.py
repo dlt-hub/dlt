@@ -77,10 +77,17 @@ class sqlalchemy(Destination[SqlalchemyClientConfiguration, "SqlalchemyJobClient
         dialect = config.get_dialect()
         if dialect is None:
             return caps
+        backend_name = config.get_backend_name()
+
         caps.max_identifier_length = dialect.max_identifier_length
         caps.max_column_identifier_length = dialect.max_identifier_length
         caps.supports_native_boolean = dialect.supports_native_boolean
-        if dialect.name == "mysql":
+
+        # TODO: define capabilities per dialect, we can also add alchemy_dialect settings to caps
+        if dialect.name == "mysql" or backend_name in ("mysql", "mariadb"):
+            # correct max identifier length
+            # dialect uses 255 (max length for aliases) instead of 64 (max length of identifiers)
+            caps.max_identifier_length = 64
             caps.format_datetime_literal = _format_mysql_datetime_literal
 
         return caps
@@ -94,6 +101,8 @@ class sqlalchemy(Destination[SqlalchemyClientConfiguration, "SqlalchemyJobClient
     def __init__(
         self,
         credentials: t.Union[SqlalchemyCredentials, t.Dict[str, t.Any], str, "Engine"] = None,
+        create_unique_indexes: bool = False,
+        create_primary_keys: bool = False,
         destination_name: t.Optional[str] = None,
         environment: t.Optional[str] = None,
         engine_args: t.Optional[t.Dict[str, t.Any]] = None,
@@ -104,15 +113,26 @@ class sqlalchemy(Destination[SqlalchemyClientConfiguration, "SqlalchemyJobClient
         All arguments provided here supersede other configuration sources such as environment variables and dlt config files.
 
         Args:
-            credentials: Credentials to connect to the sqlalchemy database. Can be an instance of `SqlalchemyCredentials` or
-                a connection string in the format `mysql://user:password@host:port/database`
-            destination_name: The name of the destination
-            environment: The environment to use
-            **kwargs: Additional arguments passed to the destination
+            credentials (Union[SqlalchemyCredentials, Dict[str, Any], str, Engine], optional): Credentials to connect to the sqlalchemy database. Can be an instance of
+                `SqlalchemyCredentials` or a connection string in the format `mysql://user:password@host:port/database`. Defaults to None.
+            create_unique_indexes (bool, optional): Whether UNIQUE constraints should be created. Defaults to False.
+            create_primary_keys (bool, optional): Whether PRIMARY KEY constraints should be created. Defaults to False.
+            destination_name (Optional[str], optional): The name of the destination. Defaults to None.
+            environment (Optional[str], optional): The environment to use. Defaults to None.
+            engine_args (Optional[Dict[str, Any]], optional): Additional arguments to pass to the SQLAlchemy engine. Defaults to None.
+            **kwargs (Any): Additional arguments passed to the destination.
+        Returns:
+            None
         """
         super().__init__(
             credentials=credentials,
+            create_unique_indexes=create_unique_indexes,
+            create_primary_keys=create_primary_keys,
             destination_name=destination_name,
             environment=environment,
+            engine_args=engine_args,
             **kwargs,
         )
+
+
+sqlalchemy.register()

@@ -1,5 +1,6 @@
 import datetime  # noqa: I251
-from typing import Any, Dict, List, NamedTuple, Optional, Tuple, TypedDict  # noqa: 251
+from typing import Any, Dict, List, NamedTuple, Optional, Tuple  # noqa: 251
+from dlt.common.typing import TypedDict
 
 
 class DataWriterMetrics(NamedTuple):
@@ -9,7 +10,7 @@ class DataWriterMetrics(NamedTuple):
     created: float
     last_modified: float
 
-    def __add__(self, other: Tuple[object, ...], /) -> Tuple[object, ...]:
+    def __add__(self, other: Tuple[object, ...], /) -> Tuple[object, ...]:  # type: ignore[override]
         if isinstance(other, DataWriterMetrics):
             return DataWriterMetrics(
                 self.file_path if self.file_path == other.file_path else "",

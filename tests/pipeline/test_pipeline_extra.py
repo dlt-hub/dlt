@@ -450,8 +450,8 @@ def test_skips_complex_fields_when_skip_nested_types_is_true_and_field_is_not_a_
 
 
 @pytest.mark.skipif(
-    importlib.util.find_spec("pandas") is not None,
-    reason="Test skipped because pandas IS installed",
+    importlib.util.find_spec("pandas") is not None or importlib.util.find_spec("numpy") is not None,
+    reason="Test skipped because pandas or numpy ARE installed",
 )
 def test_arrow_no_pandas() -> None:
     import pyarrow as pa
@@ -461,20 +461,32 @@ def test_arrow_no_pandas() -> None:
         "Strings": ["apple", "banana", "cherry", "date", "elderberry"],
     }
 
-    df = pa.table(data)
+    table = pa.table(data)
 
     @dlt.resource
     def pandas_incremental(numbers=dlt.sources.incremental("Numbers")):
-        yield df
+        yield table
 
     info = dlt.run(
-        pandas_incremental(), write_disposition="append", table_name="data", destination="duckdb"
+        pandas_incremental(), write_disposition="merge", table_name="data", destination="duckdb"
+    )
+
+    # change table
+    data = {
+        "Numbers": [5, 6],
+        "Strings": ["elderberry", "burak"],
+    }
+
+    table = pa.table(data)
+
+    info = dlt.run(
+        pandas_incremental(), write_disposition="merge", table_name="data", destination="duckdb"
     )
 
     with info.pipeline.sql_client() as client:  # type: ignore
         with client.execute_query("SELECT * FROM data") as c:
             with pytest.raises(ImportError):
-                df = c.df()
+                c.df()
 
 
 def test_empty_parquet(test_storage: FileStorage) -> None:
@@ -521,7 +533,7 @@ def test_parquet_with_flattened_columns() -> None:
     assert "issue__reactions__url" in pipeline.default_schema.tables["events"]["columns"]
     assert "issue_reactions_url" not in pipeline.default_schema.tables["events"]["columns"]
 
-    events_table = pipeline._dataset().events.arrow()
+    events_table = pipeline.dataset().events.arrow()
     assert "issue__reactions__url" in events_table.schema.names
     assert "issue_reactions_url" not in events_table.schema.names
 
@@ -536,7 +548,7 @@ def test_parquet_with_flattened_columns() -> None:
     info = pipeline.run(events_table, table_name="events", loader_file_format="parquet")
     assert_load_info(info)
 
-    events_table_new = pipeline._dataset().events.arrow()
+    events_table_new = pipeline.dataset().events.arrow()
     assert events_table.schema == events_table_new.schema
     # double row count
     assert events_table.num_rows * 2 == events_table_new.num_rows

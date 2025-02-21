@@ -19,9 +19,8 @@ from dlt.common.configuration.specs.exceptions import InvalidGoogleNativeCredent
 from dlt.common.schema.utils import new_table
 from dlt.common.storages import FileStorage
 from dlt.common.utils import digest128, uniq_id, custom_environ
-from dlt.common.destination.reference import RunnableLoadJob
+from dlt.common.destination.client import RunnableLoadJob
 from dlt.destinations.impl.bigquery.bigquery import BigQueryClient, BigQueryClientConfiguration
-from dlt.destinations.exceptions import LoadJobNotExistsException, LoadJobTerminalException
 
 from dlt.destinations.impl.bigquery.bigquery_adapter import (
     AUTODETECT_SCHEMA_HINT,

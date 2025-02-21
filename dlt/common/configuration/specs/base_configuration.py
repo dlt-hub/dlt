@@ -359,7 +359,7 @@ class BaseConfiguration(MutableMapping[str, Any]):
     def get_resolvable_fields(cls) -> Dict[str, type]:
         """Returns a mapping of fields to their type hints. Dunders should not be resolved and are not returned"""
         return {
-            f.name: eval(f.type) if isinstance(f.type, str) else f.type  # type: ignore[arg-type]
+            f.name: eval(f.type) if isinstance(f.type, str) else f.type
             for f in cls._get_resolvable_dataclass_fields()
         }
 
@@ -437,8 +437,8 @@ class BaseConfiguration(MutableMapping[str, Any]):
         # call each other class_method_name. this is not at all possible as we do not know which configs in the end will
         # be mixed together.
 
-        # get base classes in order of derivation
-        mro = type.mro(type(config))
+        # get base classes in order of derivation, base classes first
+        mro = reversed(type.mro(type(config)))
         for c in mro:
             # check if this class implements on_resolved (skip pure inheritance to not do double work)
             if method_name in c.__dict__ and callable(getattr(c, method_name)):

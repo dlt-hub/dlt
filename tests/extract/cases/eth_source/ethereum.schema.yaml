@@ -1,6 +1,6 @@
 version: 18
-version_hash: veEmgbCPXCIiqyfabeQWwz6UIQ2liETv7LLMpyktCos=
-engine_version: 10
+version_hash: XfkJ8E1tZzG/Sb3lfEZrEVshTMKdB7JpOP2HA7eS6EI=
+engine_version: 11
 name: ethereum
 tables:
   _dlt_loads:

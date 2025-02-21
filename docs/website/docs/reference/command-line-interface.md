@@ -1,147 +1,276 @@
 ---
-title: Command line interface
-description: Command line interface (CLI) of dlt
+title: Command Line Interface
+description: Command line interface (CLI) full reference of dlt
 keywords: [command line interface, cli, dlt init]
 ---
 
-## `dlt init`
+
+# Command Line Interface Reference
+
+<!-- this page is fully generated from the argparse object of dlt, run make update-cli-docs to update it -->
+
+This page contains all commands available in the dlt CLI and is generated
+automatically from the fully populated python argparse object of dlt.
+:::note
+Flags and positional commands are inherited from the parent command. Position within the command string
+is important. For example if you want to enable debug mode on the pipeline command, you need to add the
+debug flag to the base dlt command:
 
 ```sh
-dlt init <source> <destination>
+dlt --debug pipeline
 ```
-This command creates a new dlt pipeline script that loads data from `source` to `destination`. When you run the command:
-1. It creates a basic project structure if the current folder is empty, adding `.dlt/config.toml`, `.dlt/secrets.toml`, and `.gitignore` files.
-2. It checks if the `source` argument matches one of our [verified sources](../dlt-ecosystem/verified-sources/) and, if so, [adds it to the project](../walkthroughs/add-a-verified-source.md).
-3. If the `source` is unknown, it will use a [generic template](https://github.com/dlt-hub/python-dlt-init-template) to [get you started](../walkthroughs/create-a-pipeline.md).
-4. It will rewrite the pipeline scripts to use your `destination`.
-5. It will create sample config and credentials in `secrets.toml` and `config.toml` for the specified source and destination.
-6. It will create `requirements.txt` with dependencies required by the source and destination. If one exists, it will print instructions on what to add to it.
 
-This command can be used several times in the same folder to add more sources, destinations, and pipelines. It will also update the verified source code to the newest
-version if run again with an existing `source` name. You are warned if files will be overwritten or if the `dlt` version needs an upgrade to run a particular pipeline.
+Adding the flag after the pipeline keyword will not work.
+:::
 
-### Specify your own "verified sources" repository
-You can use the `--location <repo_url or local folder>` option to specify your own repository with sources. Typically, you would [fork ours](https://github.com/dlt-hub/verified-sources) and start customizing and adding sources, e.g., to use them for your team or organization. You can also specify a branch with `--branch <name>`, e.g., to test a version being developed.
+## `dlt`
 
-### List all sources
+Creates, adds, inspects and deploys dlt pipelines. Further help is available at https://dlthub.com/docs/reference/command-line-interface.
+
+**Usage**
 ```sh
-dlt init --list-sources
+dlt [-h] [--version] [--disable-telemetry] [--enable-telemetry]
+    [--non-interactive] [--debug]
+    {telemetry,schema,pipeline,init,render-docs,deploy} ...
 ```
-Shows all available verified sources and their short descriptions. For each source, it checks if your local `dlt` version requires an update
-and prints the relevant warning.
 
-## `dlt deploy`
-This command prepares your pipeline for deployment and gives you step-by-step instructions on how to accomplish it. To enable this functionality, please first execute
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--version` - Show program's version number and exit
+* `--disable-telemetry` - Disables telemetry before command is executed
+* `--enable-telemetry` - Enables telemetry before command is executed
+* `--non-interactive` - Non interactive mode. default choices are automatically made for confirmations and prompts.
+* `--debug` - Displays full stack traces on exceptions. useful for debugging if the output is not clear enough.
+
+**Available subcommands**
+* [`telemetry`](#dlt-telemetry) - Shows telemetry status
+* [`schema`](#dlt-schema) - Shows, converts and upgrades schemas
+* [`pipeline`](#dlt-pipeline) - Operations on pipelines that were ran locally
+* [`init`](#dlt-init) - Creates a pipeline project in the current folder by adding existing verified source or creating a new one from template.
+* [`render-docs`](#dlt-render-docs) - Renders markdown version of cli docs
+* [`deploy`](#dlt-deploy) - Creates a deployment package for a selected pipeline script
+
+</details>
+
+## `dlt telemetry`
+
+Shows telemetry status.
+
+**Usage**
 ```sh
-pip install "dlt[cli]"
+dlt telemetry [-h]
 ```
-that will add additional packages to the current environment.
 
-> 💡 We ask you to install those dependencies separately to keep our core library small and make it work everywhere.
+**Description**
 
-### `github-action`
+The `dlt telemetry` command shows the current status of dlt telemetry. Lern more about telemetry and what we send in our telemetry docs.
 
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt`](#dlt).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+</details>
+
+## `dlt schema`
+
+Shows, converts and upgrades schemas.
+
+**Usage**
 ```sh
-dlt deploy <script>.py github-action --schedule "*/30 * * * *"
+dlt schema [-h] [--format {json,yaml}] [--remove-defaults] file
 ```
 
-[GitHub Actions](https://github.com/features/actions) is a CI/CD runner that you can use basically
-for free.
+**Description**
 
-You need to specify when the GitHub Action should run using a
-[cron schedule expression](https://crontab.guru/). The command also takes additional flags:
-`--run-on-push` (default is False) and `--run-manually` (default is True). Remember to put the cron
-schedule into quotation marks as in the example above.
+The `dlt schema` command will load, validate and print out a dlt schema: `dlt schema path/to/my_schema_file.yaml`.
 
-For the chess.com API example above, you could deploy it with
-`dlt deploy chess.py github-action --schedule "*/30 * * * *"`.
+<details>
 
-Follow the guide on [how to deploy a pipeline with GitHub Actions](../walkthroughs/deploy-a-pipeline/deploy-with-github-actions) to learn more.
+<summary>Show Arguments and Options</summary>
 
-### `airflow-composer`
+Inherits arguments from [`dlt`](#dlt).
 
-```sh
-dlt deploy <script>.py airflow-composer
-```
+**Positional arguments**
+* `file` - Schema file name, in yaml or json format, will autodetect based on extension
 
-[Google Composer](https://cloud.google.com/composer?hl=en) is a managed Airflow environment provided by Google.
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--format {json,yaml}` - Display schema in this format
+* `--remove-defaults` - Does not show default hint values
 
-Follow the guide on [how to deploy a pipeline with Airflow](../walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer) to learn more.
-
-It will create an Airflow DAG for your pipeline script that you should customize. The DAG is using
-`dlt` [Airflow wrapper](https://github.com/dlt-hub/dlt/blob/devel/dlt/helpers/airflow_helper.py#L37) to make this process trivial.
-
-It displays the environment variables with secrets you must add to Airflow.
-
-You'll also get a cloudbuild file to sync the GitHub repository with the `dag` folder of your
-Airflow Composer instance.
-
-> 💡 The command targets Composer users, but the generated DAG and instructions will work with any Airflow
-> instance.
+</details>
 
 ## `dlt pipeline`
 
-Use this command to inspect the pipeline working directory, tables, and data in the destination and
-check for problems with the data loading.
+Operations on pipelines that were ran locally.
 
-### Show tables and data in the destination
-
+**Usage**
 ```sh
-dlt pipeline <pipeline name> show
+dlt pipeline [-h] [--list-pipelines] [--hot-reload] [--pipelines-dir
+    PIPELINES_DIR] [--verbose] [pipeline_name]
+    {info,show,failed-jobs,drop-pending-packages,sync,trace,schema,drop,load-package}
+    ...
 ```
 
-Generates and launches a simple [Streamlit](https://streamlit.io/) app that you can use to inspect
-the schemas and data in the destination as well as your pipeline state and loading status/stats.
-Should be executed from the same folder from which you ran the pipeline script to access
-destination credentials. Requires `streamlit` to be installed.
+**Description**
 
-### Get the pipeline information
+The `dlt pipeline` command provides a set of commands to inspect the pipeline working directory, tables, and data in the destination and check for problems encountered during data loading.
 
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt`](#dlt).
+
+**Positional arguments**
+* `pipeline_name` - Pipeline name
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--list-pipelines, -l` - List local pipelines
+* `--hot-reload` - Reload streamlit app (for core development)
+* `--pipelines-dir PIPELINES_DIR` - Pipelines working directory
+* `--verbose, -v` - Provides more information for certain commands.
+
+**Available subcommands**
+* [`info`](#dlt-pipeline-info) - Displays state of the pipeline, use -v or -vv for more info
+* [`show`](#dlt-pipeline-show) - Generates and launches streamlit app with the loading status and dataset explorer
+* [`failed-jobs`](#dlt-pipeline-failed-jobs) - Displays information on all the failed loads in all completed packages, failed jobs and associated error messages
+* [`drop-pending-packages`](#dlt-pipeline-drop-pending-packages) - Deletes all extracted and normalized packages including those that are partially loaded.
+* [`sync`](#dlt-pipeline-sync) - Drops the local state of the pipeline and resets all the schemas and restores it from destination. the destination state, data and schemas are left intact.
+* [`trace`](#dlt-pipeline-trace) - Displays last run trace, use -v or -vv for more info
+* [`schema`](#dlt-pipeline-schema) - Displays default schema
+* [`drop`](#dlt-pipeline-drop) - Selectively drop tables and reset state
+* [`load-package`](#dlt-pipeline-load-package) - Displays information on load package, use -v or -vv for more info
+
+</details>
+
+### `dlt pipeline info`
+
+Displays state of the pipeline, use -v or -vv for more info.
+
+**Usage**
 ```sh
-dlt pipeline <pipeline name> info
+dlt pipeline [pipeline_name] info [-h]
 ```
+
+**Description**
 
 Displays the content of the working directory of the pipeline: dataset name, destination, list of
 schemas, resources in schemas, list of completed and normalized load packages, and optionally a
 pipeline state set by the resources during the extraction process.
 
-### Get the load package information
+<details>
 
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+</details>
+
+### `dlt pipeline show`
+
+Generates and launches Streamlit app with the loading status and dataset explorer.
+
+**Usage**
 ```sh
-dlt pipeline <pipeline name> load-package <load id>
+dlt pipeline [pipeline_name] show [-h]
 ```
 
-Shows information on a load package with a given `load_id`. The `load_id` parameter defaults to the
-most recent package. Package information includes its state (`COMPLETED/PROCESSED`) and list of all
-jobs in a package with their statuses, file sizes, types, and in case of failed jobs—the error
-messages from the destination. With the verbose flag set `dlt pipeline -v ...`, you can also see the
-list of all tables and columns created at the destination during the loading of that package.
+**Description**
 
-### List all failed jobs
+Generates and launches Streamlit (https://streamlit.io/) app with the loading status and dataset explorer.
 
+This is a simple app that you can use to inspect the schemas and data in the destination as well as your pipeline state and loading status/stats. It should be executed from the same folder from which you ran the pipeline script to access destination credentials.
+
+Requires `streamlit` to be installed in the current environment: `pip install streamlit`.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+</details>
+
+### `dlt pipeline failed-jobs`
+
+Displays information on all the failed loads in all completed packages, failed jobs and associated error messages.
+
+**Usage**
 ```sh
-dlt pipeline <pipeline name> failed-jobs
+dlt pipeline [pipeline_name] failed-jobs [-h]
 ```
+
+**Description**
 
 This command scans all the load packages looking for failed jobs and then displays information on
 files that got loaded and the failure message from the destination.
 
-### Get the last run trace
+<details>
 
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+</details>
+
+### `dlt pipeline drop-pending-packages`
+
+Deletes all extracted and normalized packages including those that are partially loaded.
+
+**Usage**
 ```sh
-dlt pipeline <pipeline name> trace
+dlt pipeline [pipeline_name] drop-pending-packages [-h]
 ```
 
-Displays the trace of the last pipeline run containing the start date of the run, elapsed time, and the
-same information for all the steps (`extract`, `normalize`, and `load`). If any of the steps failed,
-you'll see the message of the exceptions that caused that problem. Successful `load` and `run` steps
-will display the [load info](walkthroughs/run-a-pipeline.md) instead.
+**Description**
 
-### Sync pipeline with the destination
+Removes all extracted and normalized packages in the pipeline's working dir.
+`dlt` keeps extracted and normalized load packages in the pipeline working directory. When the `run` method is called, it will attempt to normalize and load
+pending packages first. The command above removes such packages. Note that **pipeline state** is not reverted to the state at which the deleted packages
+were created. Using `dlt pipeline ... sync` is recommended if your destination supports state sync.
 
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+</details>
+
+### `dlt pipeline sync`
+
+Drops the local state of the pipeline and resets all the schemas and restores it from destination. The destination state, data and schemas are left intact.
+
+**Usage**
 ```sh
-dlt pipeline <pipeline name> sync
+dlt pipeline [pipeline_name] sync [-h] [--destination DESTINATION]
+    [--dataset-name DATASET_NAME]
 ```
+
+**Description**
 
 This command will remove the pipeline working directory with all pending packages, not synchronized
 state changes, and schemas and retrieve the last synchronized data from the destination. If you drop
@@ -152,7 +281,87 @@ destination. In order to do that, you need to pass the dataset name and destinat
 and provide the credentials to connect to the destination (i.e., in `.dlt/secrets.toml`) placed in the
 folder where you execute the `pipeline sync` command.
 
-### Selectively drop tables and reset state
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--destination DESTINATION` - Sync from this destination when local pipeline state is missing.
+* `--dataset-name DATASET_NAME` - Dataset name to sync from when local pipeline state is missing.
+
+</details>
+
+### `dlt pipeline trace`
+
+Displays last run trace, use -v or -vv for more info.
+
+**Usage**
+```sh
+dlt pipeline [pipeline_name] trace [-h]
+```
+
+**Description**
+
+Displays the trace of the last pipeline run containing the start date of the run, elapsed time, and the
+same information for all the steps (`extract`, `normalize`, and `load`). If any of the steps failed,
+you'll see the message of the exceptions that caused that problem. Successful `load` and `run` steps
+will display the load info instead.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+</details>
+
+### `dlt pipeline schema`
+
+Displays default schema.
+
+**Usage**
+```sh
+dlt pipeline [pipeline_name] schema [-h] [--format {json,yaml}]
+    [--remove-defaults]
+```
+
+**Description**
+
+Displays the default schema for the selected pipeline.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--format {json,yaml}` - Display schema in this format
+* `--remove-defaults` - Does not show default hint values
+
+</details>
+
+### `dlt pipeline drop`
+
+Selectively drop tables and reset state.
+
+**Usage**
+```sh
+dlt pipeline [pipeline_name] drop [-h] [--destination DESTINATION]
+    [--dataset-name DATASET_NAME] [--drop-all] [--state-paths [STATE_PATHS ...]]
+    [--schema SCHEMA_NAME] [--state-only] [resources ...]
+```
+
+**Description**
+
+Selectively drop tables and reset state.
 
 ```sh
 dlt pipeline <pipeline name> drop [resource_1] [resource_2]
@@ -179,7 +388,7 @@ Source state path(s) to reset:: []
 Do you want to apply these changes? [y/N]
 ```
 
-As a result of the command above:
+As a result of the command above the following will happen:
 
 1. All the indicated tables will be dropped in the destination. Note that `dlt` drops the nested
    tables as well.
@@ -209,7 +418,7 @@ dlt pipeline chess drop --drop-all
 dlt pipeline chess_pipeline drop --state-paths archives
 ```
 
-This will select the `archives` key in the `chess` source:
+This will select the `archives` key in the `chess` source.
 
 ```json
 {
@@ -223,50 +432,235 @@ This will select the `archives` key in the `chess` source:
 }
 ```
 
-> ❗ This command is still **experimental** and the interface will most probably change. Resetting
-> the resource state assumes that the `dlt` state layout is followed.
+**This command is still experimental** and the interface will most probably change.
 
-### List all pipelines on the local machine
+<details>
 
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
+
+**Positional arguments**
+* `resources` - One or more resources to drop. can be exact resource name(s) or regex pattern(s). regex patterns must start with re:
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--destination DESTINATION` - Sync from this destination when local pipeline state is missing.
+* `--dataset-name DATASET_NAME` - Dataset name to sync from when local pipeline state is missing.
+* `--drop-all` - Drop all resources found in schema. supersedes [resources] argument.
+* `--state-paths [STATE_PATHS ...]` - State keys or json paths to drop
+* `--schema SCHEMA_NAME` - Schema name to drop from (if other than default schema).
+* `--state-only` - Only wipe state for matching resources without dropping tables.
+
+</details>
+
+### `dlt pipeline load-package`
+
+Displays information on load package, use -v or -vv for more info.
+
+**Usage**
 ```sh
-dlt pipeline --list-pipelines
+dlt pipeline [pipeline_name] load-package [-h] [load-id]
 ```
 
-This command lists all the pipelines executed on the local machine with their working data in the
-default pipelines folder.
+**Description**
 
-### Drop pending and partially loaded packages
+Shows information on a load package with a given `load_id`. The `load_id` parameter defaults to the
+most recent package. Package information includes its state (`COMPLETED/PROCESSED`) and list of all
+jobs in a package with their statuses, file sizes, types, and in case of failed jobs—the error
+messages from the destination. With the verbose flag set `dlt pipeline -v ...`, you can also see the
+list of all tables and columns created at the destination during the loading of that package.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
+
+**Positional arguments**
+* `load-id` - Load id of completed or normalized package. defaults to the most recent package.
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+</details>
+
+## `dlt init`
+
+Creates a pipeline project in the current folder by adding existing verified source or creating a new one from template.
+
+**Usage**
 ```sh
-dlt pipeline <pipeline name> drop-pending-packages
+dlt init [-h] [--list-sources] [--location LOCATION] [--branch BRANCH] [--eject]
+    [source] [destination]
 ```
-Removes all extracted and normalized packages in the pipeline's working dir.
-`dlt` keeps extracted and normalized load packages in the pipeline working directory. When the `run` method is called, it will attempt to normalize and load
-pending packages first. The command above removes such packages. Note that **pipeline state** is not reverted to the state at which the deleted packages
-were created. Using `dlt pipeline ... sync` is recommended if your destination supports state sync.
 
+**Description**
 
-## `dlt schema`
+The `dlt init` command creates a new dlt pipeline script that loads data from `source` to `destination`. When you run the command, several things happen:
 
-Will load, validate and print out a dlt schema.
+1. Creates a basic project structure if the current folder is empty by adding `.dlt/config.toml`, `.dlt/secrets.toml`, and `.gitignore` files.
+2. Checks if the `source` argument matches one of our verified sources and, if so, adds it to your project.
+3. If the `source` is unknown, uses a generic template to get you started.
+4. Rewrites the pipeline scripts to use your `destination`.
+5. Creates sample config and credentials in `secrets.toml` and `config.toml` for the specified source and destination.
+6. Creates `requirements.txt` with dependencies required by the source and destination. If one exists, prints instructions on what to add to it.
 
+This command can be used several times in the same folder to add more sources, destinations, and pipelines. It will also update the verified source code to the newest
+version if run again with an existing `source` name. You will be warned if files will be overwritten or if the `dlt` version needs an upgrade to run a particular pipeline.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt`](#dlt).
+
+**Positional arguments**
+* `source` - Name of data source for which to create a pipeline. adds existing verified source or creates a new pipeline template if verified source for your data source is not yet implemented.
+* `destination` - Name of a destination ie. bigquery or redshift
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--list-sources, -l` - Shows all available verified sources and their short descriptions. for each source, it checks if your local `dlt` version requires an update and prints the relevant warning.
+* `--location LOCATION` - Advanced. uses a specific url or local path to verified sources repository.
+* `--branch BRANCH` - Advanced. uses specific branch of the verified sources repository to fetch the template.
+* `--eject` - Ejects the source code of the core source like sql_database or rest_api so they will be editable by you.
+
+</details>
+
+## `dlt render-docs`
+
+Renders markdown version of cli docs.
+
+**Usage**
 ```sh
-dlt schema path/to/my_schema_file.yaml
+dlt render-docs [-h] [--compare] file_name
 ```
 
-## `dlt telemetry`
+**Description**
 
-Shows the current status of dlt telemetry.
+The `dlt render-docs` command renders markdown version of cli docs by parsing the argparse help output and generating a markdown file.
+If you are reading this on the docs website, you are looking at the rendered version of the cli docs generated by this command.
 
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt`](#dlt).
+
+**Positional arguments**
+* `file_name` - Output file name
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--compare` - Compare the changes and raise if output would be updated
+
+</details>
+
+## `dlt deploy`
+
+Creates a deployment package for a selected pipeline script.
+
+**Usage**
 ```sh
-dlt telemetry
+dlt deploy [-h] pipeline-script-path {github-action,airflow-composer} ...
 ```
 
-Lern more about telemetry on the [telemetry reference page](./telemetry)
+**Description**
 
+The `dlt deploy` command prepares your pipeline for deployment and gives you step-by-step instructions on how to accomplish it. To enable this functionality, please first execute `pip install "dlt[cli]"` which will add additional packages to the current environment.
 
-## Show stack traces
-If the command fails and you want to see the full stack trace, add `--debug` just after the `dlt` executable.
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt`](#dlt).
+
+**Positional arguments**
+* `pipeline-script-path` - Path to a pipeline script
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+**Available subcommands**
+* [`github-action`](#dlt-deploy-github-action) - Deploys the pipeline to github actions
+* [`airflow-composer`](#dlt-deploy-airflow-composer) - Deploys the pipeline to airflow
+
+</details>
+
+### `dlt deploy github-action`
+
+Deploys the pipeline to Github Actions.
+
+**Usage**
 ```sh
-dlt --debug pipeline github info
+dlt deploy pipeline-script-path github-action [-h] [--location LOCATION]
+    [--branch BRANCH] --schedule SCHEDULE [--run-manually] [--run-on-push]
 ```
+
+**Description**
+
+Deploys the pipeline to GitHub Actions.
+
+GitHub Actions (https://github.com/features/actions) is a CI/CD runner with a large free tier which you can use to run your pipelines.
+
+You must specify when the GitHub Action should run using a cron schedule expression. The command also takes additional flags:
+`--run-on-push` (default is False) and `--run-manually` (default is True). Remember to put the cron
+schedule expression in quotation marks.
+
+For the chess.com API example from our docs, you can deploy it with `dlt deploy chess.py github-action --schedule "*/30 * * * *"`.
+
+Follow the guide on how to deploy a pipeline with GitHub Actions in our documentation for more information.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt deploy`](#dlt-deploy).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--location LOCATION` - Advanced. uses a specific url or local path to pipelines repository.
+* `--branch BRANCH` - Advanced. uses specific branch of the deploy repository to fetch the template.
+* `--schedule SCHEDULE` - A schedule with which to run the pipeline, in cron format. example: '*/30 * * * *' will run the pipeline every 30 minutes. remember to enclose the scheduler expression in quotation marks!
+* `--run-manually` - Allows the pipeline to be run manually form github actions ui.
+* `--run-on-push` - Runs the pipeline with every push to the repository.
+
+</details>
+
+### `dlt deploy airflow-composer`
+
+Deploys the pipeline to Airflow.
+
+**Usage**
+```sh
+dlt deploy pipeline-script-path airflow-composer [-h] [--location LOCATION]
+    [--branch BRANCH] [--secrets-format {env,toml}]
+```
+
+**Description**
+
+Google Composer (https://cloud.google.com/composer?hl=en) is a managed Airflow environment provided by Google. Follow the guide in our docs on how to deploy a pipeline with Airflow to learn more. This command will:
+
+
+* create an Airflow DAG for your pipeline script that you can customize. The DAG uses
+the `dlt` Airflow wrapper (https://github.com/dlt-hub/dlt/blob/devel/dlt/helpers/airflow_helper.py#L37) to make this process trivial.
+
+* provide you with the environment variables and secrets that you must add to Airflow.
+
+* provide you with a cloudbuild file to sync your GitHub repository with the `dag` folder of your Airflow Composer instance.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt deploy`](#dlt-deploy).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--location LOCATION` - Advanced. uses a specific url or local path to pipelines repository.
+* `--branch BRANCH` - Advanced. uses specific branch of the deploy repository to fetch the template.
+* `--secrets-format {env,toml}` - Format of the secrets
+
+</details>
 

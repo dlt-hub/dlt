@@ -19,7 +19,7 @@ Here's a full example of how to retrieve data from a pipeline and load it into a
 # and you have loaded data to a table named 'items' in the destination
 
 # Step 1: Get the readable dataset from the pipeline
-dataset = pipeline._dataset()
+dataset = pipeline.dataset()
 
 # Step 2: Access a table as a ReadableRelation
 items_relation = dataset.items  # Or dataset["items"]
@@ -39,7 +39,10 @@ Assuming you have a `Pipeline` object (let's call it `pipeline`), you can obtain
 
 ```py
 # Get the readable dataset from the pipeline
-dataset = pipeline._dataset()
+dataset = pipeline.dataset()
+
+# print the row counts of all tables in the destination as dataframe
+print(dataset.row_counts().df())
 ```
 
 ### Access tables as `ReadableRelation`
@@ -116,6 +119,18 @@ for items_chunk in items_relation.iter_fetch(chunk_size=500):
 
 The methods available on the ReadableRelation correspond to the methods available on the cursor returned by the SQL client. Please refer to the [SQL client](./sql-client.md#supported-methods-on-the-cursor) guide for more information.
 
+## Special queries
+
+You can use the `row_counts` method to get the row counts of all tables in the destination as a DataFrame.
+
+```py
+# print the row counts of all tables in the destination as dataframe
+print(dataset.row_counts().df())
+
+# or as tuples
+print(dataset.row_counts().fetchall())
+```
+
 ## Modifying queries
 
 You can refine your data retrieval by limiting the number of records, selecting specific columns, or chaining these operations.
@@ -155,6 +170,64 @@ You can combine `select`, `limit`, and other methods.
 # Select columns and limit the number of records
 arrow_table = items_relation.select("col1", "col2").limit(50).arrow()
 ```
+
+## Modifying queries with ibis expressions
+
+If you install the amazing [ibis](https://ibis-project.org/) library, you can use ibis expressions to modify your queries.
+
+```sh
+pip install ibis-framework
+```
+
+dlt will then wrap an `ibis.UnboundTable` with a `ReadableIbisRelation` object under the hood that will allow you to modify the query of a reltaion using ibis expressions:
+
+```py
+# now that ibis is installed, we can get a dataset with ibis relations
+dataset = pipeline.dataset()
+
+# get two relations
+items_relation = dataset["items"]
+order_relation = dataset["orders"]
+
+# join them using an ibis expression
+joined_relation = items_relation.join(order_relation, items_relation.id == order_relation.item_id)
+
+# now we can use the ibis expression to filter the data
+filtered_relation = joined_relation.filter(order_relation.status == "completed")
+
+# we can inspect the query that will be used to read the data
+print(filtered_relation.query)
+
+# and finally fetch the data as a pandas dataframe, the same way we would do with a normal relation
+df = filtered_relation.df()
+
+# a few more examples
+
+# filter for rows where the id is in the list of ids
+items_relation.filter(items_relation.id.isin([1, 2, 3])).df()
+
+# limit and offset
+items_relation.limit(10, offset=5).arrow()
+
+# mutate columns by adding a new colums that always is 10 times the value of the id column
+items_relation.mutate(new_id=items_relation.id * 10).df()
+
+# sort asc and desc
+import ibis
+items_relation.order_by(ibis.desc("id"), ibis.asc("price")).limit(10)
+
+# group by and aggregate
+items_relation.group_by("item_group").having(items_table.count() >= 1000).aggregate(sum_id=items_table.id.sum()).df()
+
+# subqueries
+items_relation.filter(items_table.category.isin(beverage_categories.name)).df()
+```
+
+You can learn more about the available expressions on the [ibis for sql users](https://ibis-project.org/tutorials/ibis-for-sql-users) page. 
+
+:::note
+Keep in mind that you can use only methods that modify the executed query and none of the methods ibis provides for fetching data. This is done with the same methods defined on the regular relations explained above. If you need full native ibis integration, please read the ibis section in the advanced part further down. Additionally, not all ibis expressions may be supported by all destinations and sql dialects.
+:::
 
 ## Supported destinations
 
@@ -226,7 +299,9 @@ other_pipeline = dlt.pipeline(pipeline_name="other_pipeline", destination="duckd
 other_pipeline.run(limited_items_relation.iter_arrow(chunk_size=10_000), table_name="limited_items")
 ```
 
-### Using `ibis` to query the data
+Learn more about [transforming data in Python with Arrow tables or DataFrames](../../dlt-ecosystem/transformations/python).
+
+### Using `ibis` to query data
 
 Visit the [Native Ibis integration](./ibis-backend.md) guide to learn more.
 

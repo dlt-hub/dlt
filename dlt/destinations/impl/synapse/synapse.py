@@ -5,7 +5,7 @@ from textwrap import dedent
 from urllib.parse import urlparse, urlunparse
 
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.reference import (
+from dlt.common.destination.client import (
     PreparedTableSchema,
     SupportsStagingDestination,
     FollowupJobRequest,

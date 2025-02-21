@@ -157,7 +157,7 @@ def _list_core_sources() -> Dict[str, SourceConfiguration]:
     sources: Dict[str, SourceConfiguration] = {}
     for source_name in files_ops.get_sources_names(core_sources_storage, source_type="core"):
         sources[source_name] = files_ops.get_core_source_configuration(
-            core_sources_storage, source_name
+            core_sources_storage, source_name, eject_source=False
         )
     return sources
 
@@ -295,7 +295,7 @@ def init_command(
     destination_type: str,
     repo_location: str,
     branch: str = None,
-    omit_core_sources: bool = False,
+    eject_source: bool = False,
 ) -> None:
     # try to import the destination and get config spec
     destination_reference = Destination.from_reference(destination_type)
@@ -306,17 +306,13 @@ def init_command(
     templates_storage = _get_templates_storage()
 
     # get current run context
-    run_ctx = run_context.current()
+    run_ctx = run_context.active()
 
     # discover type of source
     source_type: files_ops.TSourceType = "template"
-    if (
-        source_name in files_ops.get_sources_names(core_sources_storage, source_type="core")
-    ) and not omit_core_sources:
+    if source_name in files_ops.get_sources_names(core_sources_storage, source_type="core"):
         source_type = "core"
     else:
-        if omit_core_sources:
-            fmt.echo("Omitting dlt core sources.")
         verified_sources_storage = _clone_and_get_verified_sources_storage(repo_location, branch)
         if source_name in files_ops.get_sources_names(
             verified_sources_storage, source_type="verified"
@@ -380,7 +376,7 @@ def init_command(
     else:
         if source_type == "core":
             source_configuration = files_ops.get_core_source_configuration(
-                core_sources_storage, source_name
+                core_sources_storage, source_name, eject_source
             )
             from importlib.metadata import Distribution
 
@@ -392,6 +388,9 @@ def init_command(
 
             if canonical_source_name in extras:
                 source_configuration.requirements.update_dlt_extras(canonical_source_name)
+
+            #  create remote modified index to copy files when ejecting
+            remote_modified = {file_name: None for file_name in source_configuration.files}
         else:
             if not is_valid_schema_name(source_name):
                 raise InvalidSchemaName(source_name)
@@ -536,11 +535,17 @@ def init_command(
                 "Creating a new pipeline with the dlt core source %s (%s)"
                 % (fmt.bold(source_name), source_configuration.doc)
             )
-            fmt.echo(
-                "NOTE: Beginning with dlt 1.0.0, the source %s will no longer be copied from the"
-                " verified sources repo but imported from dlt.sources. You can provide the"
-                " --omit-core-sources flag to revert to the old behavior." % (fmt.bold(source_name))
-            )
+            if eject_source:
+                fmt.echo(
+                    "NOTE: Source code of %s will be ejected. Remember to modify the pipeline "
+                    "example script to import the ejected source." % (fmt.bold(source_name))
+                )
+            else:
+                fmt.echo(
+                    "NOTE: Beginning with dlt 1.0.0, the source %s will no longer be copied from"
+                    " the verified sources repo but imported from dlt.sources. You can provide the"
+                    " --eject flag to revert to the old behavior." % (fmt.bold(source_name))
+                )
         elif source_configuration.source_type == "verified":
             fmt.echo(
                 "Creating and configuring a new pipeline with the verified source %s (%s)"

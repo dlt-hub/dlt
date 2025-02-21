@@ -12,7 +12,7 @@ from typing import (
     cast,
     NamedTuple,
 )
-import graphlib  # type: ignore[import,unused-ignore]
+import graphlib
 import string
 from requests import Response
 
@@ -20,6 +20,7 @@ from dlt.common import logger
 from dlt.common.configuration import resolve_configuration
 from dlt.common.schema.utils import merge_columns
 from dlt.common.utils import update_dict_nested, exclude_keys
+from dlt.common.typing import add_value_to_literal
 from dlt.common import jsonpath
 
 from dlt.extract.incremental import Incremental
@@ -64,6 +65,8 @@ from .typing import (
     ResponseActionDict,
     Endpoint,
     EndpointResource,
+    AuthType,
+    PaginatorType,
 )
 
 
@@ -103,6 +106,7 @@ def register_paginator(
             "Your custom paginator has to be a subclass of BasePaginator"
         )
     PAGINATOR_MAP[paginator_name] = paginator_class
+    add_value_to_literal(PaginatorType, paginator_name)
 
 
 def get_paginator_class(paginator_name: str) -> Type[BasePaginator]:
@@ -152,6 +156,8 @@ def register_auth(
             "Your custom auth has to be a subclass of AuthConfigBase"
         )
     AUTH_MAP[auth_name] = auth_class
+
+    add_value_to_literal(AuthType, auth_name)
 
 
 def get_auth_class(auth_type: str) -> Type[AuthConfigBase]:
@@ -271,10 +277,12 @@ def make_parent_key_name(resource_name: str, field_name: str) -> str:
 def build_resource_dependency_graph(
     resource_defaults: EndpointResourceBase,
     resource_list: List[Union[str, EndpointResource, DltResource]],
-) -> Tuple[
-    Any, Dict[str, Union[EndpointResource, DltResource]], Dict[str, Optional[List[ResolvedParam]]]
+) -> Tuple[  # type: ignore[type-arg]
+    graphlib.TopologicalSorter,
+    Dict[str, Union[EndpointResource, DltResource]],
+    Dict[str, Optional[List[ResolvedParam]]],
 ]:
-    dependency_graph = graphlib.TopologicalSorter()
+    dependency_graph: graphlib.TopologicalSorter = graphlib.TopologicalSorter()  # type: ignore[type-arg]
     resolved_param_map: Dict[str, Optional[List[ResolvedParam]]] = {}
     endpoint_resource_map = expand_and_index_resources(resource_list, resource_defaults)
 
@@ -285,7 +293,7 @@ def build_resource_dependency_graph(
             resolved_param_map[resource_name] = None
             break
         assert isinstance(endpoint_resource["endpoint"], dict)
-        # connect transformers to resources via resolved params
+        # find resolved parameters to connect dependent resources
         resolved_params = _find_resolved_params(endpoint_resource["endpoint"])
 
         # set of resources in resolved params

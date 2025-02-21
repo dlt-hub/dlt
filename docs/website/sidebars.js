@@ -58,6 +58,82 @@ const sidebars = {
     },
     {
       type: 'category',
+      label: 'dlt+',
+      link: {
+        type: 'doc',
+        id: 'plus/intro',
+      },
+      items: [
+        {
+          type: 'category',
+          label: 'Getting started',
+          items: [
+            'plus/getting-started/installation',
+            'plus/getting-started/tutorial',
+          ]
+        },
+        {
+          type: 'category',
+          label: 'Core concepts',
+          items: [
+            'plus/core-concepts/project',
+            'plus/core-concepts/cache',
+            'plus/core-concepts/datasets',
+            'plus/core-concepts/profiles',
+          ]
+        },
+        {
+          type: 'category',
+          label: 'Sources & Destinations',
+          items: [
+            'plus/ecosystem/ms-sql',
+            'plus/ecosystem/iceberg',
+            'plus/ecosystem/delta',
+          ]
+        },
+        {
+          type: 'category',
+          label: 'Features',
+          items: [
+            'plus/features/projects',
+            'plus/features/data-access',
+            {
+              type: 'category',
+              label: 'Local transformations',
+              link: {
+                type: 'doc',
+                id: 'plus/features/transformations/index',
+              },
+              items: [
+                'plus/features/transformations/setup',
+                'plus/features/transformations/dbt-transformations',
+                'plus/features/transformations/python-transformations',
+              ]
+            },
+            'plus/features/ai',
+            {
+              type: 'category',
+              label: 'Data quality & tests',
+              items: [
+                'plus/features/quality/tests',
+                'plus/features/quality/data-quality',
+              ]
+            },
+          ]
+        },
+        {
+          type: 'category',
+          label: 'Going to production',
+          items: [
+            'plus/production/runners',
+            'plus/production/observability',
+          ]
+        },
+        'plus/reference',
+      ]
+    },
+    {
+      type: 'category',
       label: 'Sources',
       link: {
         type: 'doc',
@@ -167,6 +243,7 @@ const sidebars = {
         'dlt-ecosystem/destinations/synapse',
         'dlt-ecosystem/destinations/clickhouse',
         'dlt-ecosystem/destinations/filesystem',
+        'dlt-ecosystem/destinations/delta-iceberg',
         'dlt-ecosystem/destinations/postgres',
         'dlt-ecosystem/destinations/redshift',
         'dlt-ecosystem/destinations/snowflake',
@@ -210,13 +287,10 @@ const sidebars = {
         },
         {
           type: 'category',
-          label: 'Transform the data',
+          label: 'Transforming data',
           link: {
-            type: 'generated-index',
-            title: 'Transform the data',
-            description: 'If you want to transform the data after loading, you can use one of the following methods: dbt, SQL, Pandas.',
-            slug: 'dlt-ecosystem/transformations',
-            keywords: ['transformations'],
+            type: 'doc',
+            id: 'dlt-ecosystem/transformations/index',
           },
           items: [
             {
@@ -227,8 +301,8 @@ const sidebars = {
                 'dlt-ecosystem/transformations/dbt/dbt_cloud',
               ]
             },
+            'dlt-ecosystem/transformations/python',
             'dlt-ecosystem/transformations/sql',
-            'dlt-ecosystem/transformations/pandas',
             'general-usage/customising-pipelines/renaming_columns',
             'general-usage/customising-pipelines/pseudonymizing_columns',
             'general-usage/customising-pipelines/removing_columns'
@@ -298,6 +372,7 @@ const sidebars = {
             'walkthroughs/deploy-a-pipeline/deploy-with-dagster',
             'walkthroughs/deploy-a-pipeline/deploy-with-prefect',
             'walkthroughs/deploy-a-pipeline/deploy-with-modal',
+            'walkthroughs/deploy-a-pipeline/deploy-with-orchestra',
           ]
         },
         {

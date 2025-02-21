@@ -2,7 +2,7 @@ import inspect
 from functools import partial
 from typing import (
     AsyncIterable,
-    AsyncIterator,
+    cast,
     ClassVar,
     Callable,
     Iterable,
@@ -11,6 +11,7 @@ from typing import (
     Union,
     Any,
     Optional,
+    Mapping,
 )
 from typing_extensions import TypeVar, Self
 
@@ -28,21 +29,25 @@ from dlt.common.pipeline import (
     pipeline_state,
 )
 from dlt.common.utils import flatten_list_or_items, get_callable_name, uniq_id
+from dlt.common.schema.typing import TTableSchema
 from dlt.extract.utils import wrap_async_iterator, wrap_parallel_iterator
 
 from dlt.extract.items import (
     DataItemWithMeta,
-    ItemTransformFunc,
-    ItemTransformFunctionWithMeta,
     TableNameMeta,
+)
+from dlt.extract.items_transform import (
     FilterItem,
     MapItem,
     YieldMapItem,
     ValidateItem,
+    LimitItem,
+    ItemTransformFunc,
+    ItemTransformFunctionWithMeta,
 )
 from dlt.extract.pipe_iterator import ManagedPipeIterator
 from dlt.extract.pipe import Pipe, TPipeStep
-from dlt.extract.hints import DltResourceHints, HintsMeta, TResourceHints
+from dlt.extract.hints import DltResourceHints, HintsMeta, TResourceHints, make_hints
 from dlt.extract.incremental import Incremental, IncrementalResourceWrapper
 from dlt.extract.exceptions import (
     InvalidTransformerDataTypeGeneratorFunctionRequired,
@@ -212,29 +217,22 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             return True
 
     @property
-    def incremental(self) -> IncrementalResourceWrapper:
+    def incremental(self) -> Optional[IncrementalResourceWrapper]:
         """Gets incremental transform if it is in the pipe"""
-        incremental: IncrementalResourceWrapper = None
-        step_no = self._pipe.find(IncrementalResourceWrapper, Incremental)
-        if step_no >= 0:
-            incremental = self._pipe.steps[step_no]  # type: ignore
-        return incremental
+        return cast(
+            Optional[IncrementalResourceWrapper],
+            self._pipe.get_by_type(IncrementalResourceWrapper, Incremental),
+        )
 
     @property
     def validator(self) -> Optional[ValidateItem]:
         """Gets validator transform if it is in the pipe"""
-        validator: ValidateItem = None
-        step_no = self._pipe.find(ValidateItem)
-        if step_no >= 0:
-            validator = self._pipe.steps[step_no]  # type: ignore[assignment]
-        return validator
+        return cast(Optional[ValidateItem], self._pipe.get_by_type(ValidateItem))
 
     @validator.setter
     def validator(self, validator: Optional[ValidateItem]) -> None:
         """Add/remove or replace the validator in pipe"""
-        step_no = self._pipe.find(ValidateItem)
-        if step_no >= 0:
-            self._pipe.remove_step(step_no)
+        step_no = self._pipe.remove_by_type(ValidateItem)
         if validator:
             self.add_step(validator, insert_at=step_no if step_no >= 0 else None)
 
@@ -345,72 +343,37 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             self._pipe.insert_step(FilterItem(item_filter), insert_at)
         return self
 
-    def add_limit(self: TDltResourceImpl, max_items: int) -> TDltResourceImpl:  # noqa: A003
+    def add_limit(
+        self: TDltResourceImpl,
+        max_items: Optional[int] = None,
+        max_time: Optional[float] = None,
+    ) -> TDltResourceImpl:  # noqa: A003
         """Adds a limit `max_items` to the resource pipe.
 
-        This mutates the encapsulated generator to stop after `max_items` items are yielded. This is useful for testing and debugging.
+         This mutates the encapsulated generator to stop after `max_items` items are yielded. This is useful for testing and debugging.
 
-        Notes:
-            1. Transformers won't be limited. They should process all the data they receive fully to avoid inconsistencies in generated datasets.
-            2. Each yielded item may contain several records. `add_limit` only limits the "number of yields", not the total number of records.
-            3. Async resources with a limit added may occasionally produce one item more than the limit on some runs. This behavior is not deterministic.
+         Notes:
+             1. Transformers won't be limited. They should process all the data they receive fully to avoid inconsistencies in generated datasets.
+             2. Each yielded item may contain several records. `add_limit` only limits the "number of yields", not the total number of records.
+             3. Async resources with a limit added may occasionally produce one item more than the limit on some runs. This behavior is not deterministic.
 
         Args:
-            max_items (int): The maximum number of items to yield
-        Returns:
-            "DltResource": returns self
+             max_items (int): The maximum number of items to yield, set to None for no limit
+             max_time (float): The maximum number of seconds for this generator to run after it was opened, set to None for no limit
+         Returns:
+             "DltResource": returns self
         """
 
-        # make sure max_items is a number, to allow "None" as value for unlimited
-        if max_items is None:
-            max_items = -1
-
-        def _gen_wrap(gen: TPipeStep) -> TPipeStep:
-            """Wrap a generator to take the first `max_items` records"""
-
-            # zero items should produce empty generator
-            if max_items == 0:
-                return
-
-            count = 0
-            is_async_gen = False
-            if callable(gen):
-                gen = gen()  # type: ignore
-
-            # wrap async gen already here
-            if isinstance(gen, AsyncIterator):
-                gen = wrap_async_iterator(gen)
-                is_async_gen = True
-
-            try:
-                for i in gen:  # type: ignore # TODO: help me fix this later
-                    yield i
-                    if i is not None:
-                        count += 1
-                        # async gen yields awaitable so we must count one awaitable more
-                        # so the previous one is evaluated and yielded.
-                        # new awaitable will be cancelled
-                        if count == max_items + int(is_async_gen):
-                            return
-            finally:
-                if inspect.isgenerator(gen):
-                    gen.close()
-            return
-
-        # transformers should be limited by their input, so we only limit non-transformers
-        if not self.is_transformer:
-            gen = self._pipe.gen
-            # wrap gen directly
-            if inspect.isgenerator(gen):
-                self._pipe.replace_gen(_gen_wrap(gen))
-            else:
-                # keep function as function to not evaluate generators before pipe starts
-                self._pipe.replace_gen(partial(_gen_wrap, gen))
-        else:
+        if self.is_transformer:
             logger.warning(
                 f"Setting add_limit to a transformer {self.name} has no effect. Set the limit on"
                 " the top level resource."
             )
+        else:
+            # remove existing limit if any
+            self._pipe.remove_by_type(LimitItem)
+            self.add_step(LimitItem(max_items=max_items, max_time=max_time))
+
         return self
 
     def parallelize(self: TDltResourceImpl) -> TDltResourceImpl:
@@ -442,35 +405,58 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             self._pipe.insert_step(item_transform, insert_at)
         return self
 
+    def _remove_incremental_step(self) -> None:
+        self._pipe.remove_by_type(Incremental, IncrementalResourceWrapper)
+
+    def set_incremental(
+        self,
+        new_incremental: Union[Incremental[Any], IncrementalResourceWrapper],
+        from_hints: bool = False,
+    ) -> Optional[Union[Incremental[Any], IncrementalResourceWrapper]]:
+        """Set/replace the incremental transform for the resource.
+
+        Args:
+            new_incremental: The Incremental instance/hint to set or replace
+            from_hints: If the incremental is set from hints. Defaults to False.
+        """
+        if new_incremental is Incremental.EMPTY:
+            new_incremental = None
+        incremental = self.incremental
+        if incremental is not None:
+            # if isinstance(new_incremental, Mapping):
+            #     new_incremental = Incremental.ensure_instance(new_incremental)
+
+            if isinstance(new_incremental, IncrementalResourceWrapper):
+                # Completely replace the wrapper
+                self._remove_incremental_step()
+                self.add_step(new_incremental)
+            elif isinstance(incremental, IncrementalResourceWrapper):
+                incremental.set_incremental(new_incremental, from_hints=from_hints)
+            else:
+                self._remove_incremental_step()
+                # re-add the step
+                incremental = None
+        if incremental is None:
+            # if there's no wrapper add incremental as a transform
+            if new_incremental:
+                if not isinstance(new_incremental, IncrementalResourceWrapper):
+                    new_incremental = Incremental.ensure_instance(new_incremental)
+                self.add_step(new_incremental)
+        return new_incremental
+
     def _set_hints(
         self, table_schema_template: TResourceHints, create_table_variant: bool = False
     ) -> None:
         super()._set_hints(table_schema_template, create_table_variant)
         # validators and incremental apply only to resource hints
         if not create_table_variant:
-            incremental = self.incremental
             # try to late assign incremental
             if table_schema_template.get("incremental") is not None:
-                new_incremental = table_schema_template["incremental"]
-                # remove incremental if empty
-                if new_incremental is Incremental.EMPTY:
-                    new_incremental = None
-
-                if incremental is not None:
-                    if isinstance(incremental, IncrementalResourceWrapper):
-                        # replace in wrapper
-                        incremental.set_incremental(new_incremental, from_hints=True)
-                    else:
-                        step_no = self._pipe.find(Incremental)
-                        self._pipe.remove_step(step_no)
-                        # re-add the step
-                        incremental = None
-
-                if incremental is None:
-                    # if there's no wrapper add incremental as a transform
-                    incremental = new_incremental  # type: ignore
-                    if new_incremental:
-                        self.add_step(new_incremental)
+                incremental = self.set_incremental(
+                    table_schema_template["incremental"], from_hints=True
+                )
+            else:
+                incremental = self.incremental
 
             if incremental:
                 primary_key = table_schema_template.get("primary_key", incremental.primary_key)
@@ -480,10 +466,25 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             if table_schema_template.get("validator") is not None:
                 self.validator = table_schema_template["validator"]
 
+    def compute_table_schema(self, item: TDataItem = None, meta: Any = None) -> TTableSchema:
+        incremental: Optional[Union[Incremental[Any], IncrementalResourceWrapper]] = (
+            self.incremental
+        )
+        if incremental and "incremental" not in self._hints:
+            if isinstance(incremental, IncrementalResourceWrapper):
+                incremental = incremental.incremental
+                if incremental:
+                    self._hints["incremental"] = incremental
+
+        table_schema = super().compute_table_schema(item, meta)
+
+        return table_schema
+
     def bind(self: TDltResourceImpl, *args: Any, **kwargs: Any) -> TDltResourceImpl:
         """Binds the parametrized resource to passed arguments. Modifies resource pipe in place. Does not evaluate generators or iterators."""
         if self._args_bound:
             raise TypeError(f"Parametrized resource {self.name} is not callable")
+
         orig_gen = self._pipe.gen
         gen = self._pipe.bind_gen(*args, **kwargs)
         if isinstance(gen, DltResource):
@@ -550,9 +551,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             else:
                 return self.add_map(transform)
 
-    def __ror__(
-        self: TDltResourceImpl, data: Union[Iterable[Any], Iterator[Any]]
-    ) -> TDltResourceImpl:
+    def __ror__(self, data: Union[Iterable[Any], Iterator[Any]]) -> Self:
         """Allows to pipe data from across resources and transform functions with | operator
         This is the RIGHT side OR so the self may not be a resource and the LEFT must be an object
         that does not implement | ie. a list
@@ -599,14 +598,12 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         if not self._pipe.is_empty and not self._args_bound:
             orig_gen = getattr(self._pipe.gen, "__GEN__", None)
             if orig_gen:
-                step_no = self._pipe.find(IncrementalResourceWrapper)
-                if step_no >= 0:
-                    self._pipe.remove_step(step_no)
+                self._remove_incremental_step()
                 self._pipe.replace_gen(orig_gen)
                 return True
         return False
 
-    def _inject_config(self) -> "DltResource":
+    def _inject_config(self, incremental_from_hints_override: Optional[bool] = None) -> Self:
         """Wraps the pipe generation step in incremental and config injection wrappers and adds pipe step with
         Incremental transform.
         """
@@ -618,8 +615,17 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         sig = inspect.signature(gen)
         if IncrementalResourceWrapper.should_wrap(sig):
             incremental = IncrementalResourceWrapper(self._hints.get("primary_key"))
+            if incr_hint := self._hints.get("incremental"):
+                incremental.set_incremental(
+                    incr_hint,
+                    from_hints=(
+                        incremental_from_hints_override
+                        if incremental_from_hints_override is not None
+                        else True
+                    ),
+                )
             incr_f = incremental.wrap(sig, gen)
-            self.add_step(incremental)
+            self.set_incremental(incremental)
         else:
             incr_f = gen
         resource_sections = (known_sections.SOURCES, self.section, self.name)
@@ -649,6 +655,12 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         if self._pipe and not self._pipe.is_empty:
             pipe = pipe._clone(new_name=new_name, with_parent=with_parent)
         # incremental and parent are already in the pipe (if any)
+
+        incremental = self.incremental
+        if isinstance(incremental, IncrementalResourceWrapper):
+            incremental_from_hints: Optional[bool] = incremental._from_hints
+        else:
+            incremental_from_hints = None
         r_ = self.__class__(
             pipe,
             self._clone_hints(self._hints),
@@ -661,7 +673,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         # this makes sure that a take config values from a right section and wrapper has a separated
         # instance in the pipeline
         if r_._eject_config():
-            r_._inject_config()
+            r_._inject_config(incremental_from_hints_override=incremental_from_hints)
         return r_
 
     def _get_config_section_context(self) -> ConfigSectionContext:
@@ -768,6 +780,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         return 0
 
 
+# DltResource = _DltResource[Any]
 # produce Empty resource singleton
 DltResource.Empty = DltResource(Pipe(None), None, False)
 TUnboundDltResource = Callable[..., DltResource]

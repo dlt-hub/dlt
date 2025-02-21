@@ -52,7 +52,6 @@ Do not extract data in the source function. Leave that task to your resources if
 
 If this is impractical (for example, you want to reflect a database to create resources for tables), make sure you do not call the source function too often. [See this note if you plan to deploy on Airflow](../walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer.md#2-modify-dag-file)
 
-
 ## Customize sources
 
 ### Access and select resources to load
@@ -108,11 +107,39 @@ load_info = pipeline.run(pipedrive_source().add_limit(10))
 print(load_info)
 ```
 
+You can also apply a time limit to the source:
+
+```py
+pipeline.run(pipedrive_source().add_limit(max_time=10))
+```
+
+Or limit by both, the limit that is reached first will stop the extraction:
+
+```py
+pipeline.run(pipedrive_source().add_limit(max_items=10, max_time=10))
+```
+
 :::note
-Note that `add_limit` **does not limit the number of records** but rather the "number of yields". `dlt` will close the iterator/generator that produces data after the limit is reached.
+Note that `add_limit` **does not limit the number of records** but rather the "number of yields". `dlt` will close the iterator/generator that produces data after the limit is reached. Please read in more detail about the `add_limit` on the resource page.
 :::
 
 Find more on sampling data [here](resource.md#sample-from-large-data).
+
+### Rename the source
+`dlt` allows you to rename the source ie. to place the source configuration into custom section or to have many instances
+of the source created side by side. For example:
+```py
+from dlt.sources.sql_database import sql_database
+
+my_db = sql_database.clone(name="my_db", section="my_db")(table_names=["table_1"])
+print(my_db.name)
+```
+Here we create a renamed version of the `sql_database` and then instantiate it. Such source will read
+credentials from:
+```toml
+[sources.my_db.my_db.credentials]
+password="..."
+```
 
 ### Add more resources to existing source
 

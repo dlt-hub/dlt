@@ -1,3 +1,4 @@
+import os
 import dataclasses
 from typing import Optional, Final, Any
 from typing_extensions import Annotated, TYPE_CHECKING
@@ -7,8 +8,11 @@ from dlt.common.configuration.specs.base_configuration import (
     BaseConfiguration,
     CredentialsConfiguration,
 )
-from dlt.common.destination.reference import DestinationClientDwhConfiguration
+from dlt.common.destination.client import DestinationClientDwhConfiguration
+from dlt.common.utils import digest128
+from dlt.destinations.configuration import WithLocalFiles
 from dlt.destinations.impl.qdrant.exceptions import InvalidInMemoryQdrantCredentials
+from dlt.destinations.impl.qdrant.warnings import location_on_credentials_deprecated
 
 if TYPE_CHECKING:
     from qdrant_client import QdrantClient
@@ -18,17 +22,11 @@ if TYPE_CHECKING:
 class QdrantCredentials(CredentialsConfiguration):
     if TYPE_CHECKING:
         _external_client: "QdrantClient"
-
-    # If `str` - use it as a `url` parameter.
-    # If `None` - use default values for `host` and `port`
     location: Optional[str] = None
-    # API key for authentication in Qdrant Cloud. Default: `None`
     api_key: Optional[str] = None
+    """# API key for authentication in Qdrant Cloud. Default: `None`"""
     # Persistence path for QdrantLocal. Default: `None`
     path: Optional[str] = None
-
-    def is_local(self) -> bool:
-        return self.path is not None
 
     def on_resolved(self) -> None:
         if self.location == ":memory:":
@@ -45,31 +43,6 @@ class QdrantCredentials(CredentialsConfiguration):
             pass
 
         super().parse_native_representation(native_value)
-
-    def _create_client(self, model: str, **options: Any) -> "QdrantClient":
-        from qdrant_client import QdrantClient
-
-        creds = dict(self)
-        if creds["path"]:
-            del creds["location"]
-
-        client = QdrantClient(**creds, **options)
-        client.set_model(model)
-        return client
-
-    def get_client(self, model: str, **options: Any) -> "QdrantClient":
-        client = getattr(self, "_external_client", None)
-        return client or self._create_client(model, **options)
-
-    def close_client(self, client: "QdrantClient") -> None:
-        """Close client if not external"""
-        if getattr(self, "_external_client", None) is client:
-            # Do not close client created externally
-            return
-        client.close()
-
-    def __str__(self) -> str:
-        return self.location or "localhost"
 
 
 @configspec
@@ -92,15 +65,20 @@ class QdrantClientOptions(BaseConfiguration):
     # Host name of Qdrant service. If url and host are None, set to 'localhost'.
     # Default: `None`
     host: Optional[str] = None
-    # Persistence path for QdrantLocal. Default: `None`
-    # path: Optional[str] = None
 
 
 @configspec
-class QdrantClientConfiguration(DestinationClientDwhConfiguration):
+class QdrantClientConfiguration(WithLocalFiles, DestinationClientDwhConfiguration):
     destination_type: Final[str] = dataclasses.field(default="qdrant", init=False, repr=False, compare=False)  # type: ignore
-    # Qdrant connection credentials
     credentials: QdrantCredentials = None
+    "Qdrant connection credentials"
+    qd_location: Optional[str] = None
+    """
+    If `str` - use it as a `url` parameter.
+    If `None` - use default values for `host` and `port`
+    """
+    qd_path: Optional[str] = None
+    """Persistence path for QdrantLocal. Default: `None`"""
     # character for the dataset separator
     dataset_separator: str = "_"
 
@@ -128,13 +106,53 @@ class QdrantClientConfiguration(DestinationClientDwhConfiguration):
     # Find the list here. https://qdrant.github.io/fastembed/examples/Supported_Models/.
     model: str = "BAAI/bge-small-en"
 
+    def is_local(self) -> bool:
+        return self.qd_path is not None
+
+    def _create_client(self, model: str, **options: Any) -> "QdrantClient":
+        from qdrant_client import QdrantClient
+
+        client = QdrantClient(
+            location=self.qd_location,
+            path=self.qd_path,
+            api_key=self.credentials.api_key,
+            **options
+        )
+        client.set_model(model)
+        return client
+
     def get_client(self) -> "QdrantClient":
-        return self.credentials.get_client(self.model, **dict(self.options))
+        client = getattr(self.credentials, "_external_client", None)
+        return client or self._create_client(self.model, **dict(self.options))
 
     def close_client(self, client: "QdrantClient") -> None:
-        self.credentials.close_client(client)
+        """Close client if not external"""
+        if getattr(self.credentials, "_external_client", None) is client:
+            # Do not close client created externally
+            return
+        client.close()
+
+    def on_resolved(self) -> None:
+        if self.credentials.location and not self.qd_location:
+            location_on_credentials_deprecated("location")
+            self.qd_location = self.credentials.location
+
+        if self.credentials.path and not self.qd_path:
+            location_on_credentials_deprecated("path")
+            self.qd_path = self.credentials.path
+
+        # using path is a fallback for qdrant, activate only if path specified
+        if self.qd_path and not os.path.isabs(self.qd_path):
+            self.qd_path = self.make_location(self.qd_path, "%s.qdrant")
 
     def fingerprint(self) -> str:
         """Returns a fingerprint of a connection string"""
+        if self.qd_location:
+            return digest128(self.qd_location)
+        return ""
 
-        return self.credentials.location
+    def __str__(self) -> str:
+        """Return displayable destination location"""
+        if self.qd_path:
+            return self.qd_path
+        return self.qd_location or "localhost"

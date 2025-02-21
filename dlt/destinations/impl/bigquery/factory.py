@@ -172,3 +172,6 @@ class bigquery(Destination[BigQueryClientConfiguration, "BigQueryClient"]):
         if config.should_set_case_sensitivity_on_new_dataset:
             caps.has_case_sensitive_identifiers = config.has_case_sensitive_identifiers
         return super().adjust_capabilities(caps, config, naming)
+
+
+bigquery.register()

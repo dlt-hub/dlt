@@ -7,14 +7,13 @@ from typing import (
     List,
     Callable,
     Union,
-    TypedDict,
     Dict,
 )
 from typing_extensions import TypeAlias
 
 from sqlalchemy.exc import NoReferencedTableError
 
-
+from dlt.common.typing import TypedDict
 from dlt.common.libs.sql_alchemy import Table, Column, Row, sqltypes, Select, TypeEngine
 from dlt.common import logger
 from dlt.common.schema.typing import TColumnSchema, TTableSchemaColumns, TTableReference
@@ -78,7 +77,10 @@ def sqla_col_to_column_schema(
 
     if reflection_level == "minimal":
         # normalized into subtables
-        if isinstance(sql_col.type, sqltypes.JSON) and skip_nested_columns_on_minimal:
+        if (
+            isinstance(sql_col.type, (sqltypes.JSON, sqltypes.ARRAY))
+            and skip_nested_columns_on_minimal
+        ):
             return None
         return col
 
@@ -138,6 +140,8 @@ def sqla_col_to_column_schema(
     elif isinstance(sql_t, sqltypes.Time):
         col["data_type"] = "time"
     elif isinstance(sql_t, sqltypes.JSON):
+        col["data_type"] = "json"
+    elif isinstance(sql_t, sqltypes.ARRAY):
         col["data_type"] = "json"
     elif isinstance(sql_t, sqltypes.Boolean):
         col["data_type"] = "bool"

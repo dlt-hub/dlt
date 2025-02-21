@@ -1,6 +1,5 @@
 import ast
 import inspect
-from astunparse import unparse
 from typing import Dict, Tuple, Set, List
 
 from dlt.common.configuration import is_secret_hint
@@ -30,8 +29,7 @@ def find_call_arguments_to_replace(
                     if not isinstance(dn_node, ast.Constant) or not isinstance(dn_node.value, str):
                         raise CliCommandInnerException(
                             "init",
-                            f"The pipeline script {init_script_name} must pass the {t_arg_name} as"
-                            f" string to '{arg_name}' function in line {dn_node.lineno}",
+                            f"The pipeline script {init_script_name} must pass the {t_arg_name} as string to '{arg_name}' function in line {dn_node.lineno}",  # type: ignore[attr-defined]
                         )
                     else:
                         transformed_nodes.append((dn_node, ast.Constant(value=t_value, kind=None)))
@@ -65,7 +63,7 @@ def find_source_calls_to_replace(
     for calls in visitor.known_sources_resources_calls.values():
         for call in calls:
             transformed_nodes.append(
-                (call.func, ast.Name(id=pipeline_name + "_" + unparse(call.func)))
+                (call.func, ast.Name(id=pipeline_name + "_" + ast.unparse(call.func)))
             )
 
     return transformed_nodes
@@ -87,7 +85,7 @@ def detect_source_configs(
 
     for _, source_info in sources.items():
         # accept only sources declared in the `init` or `pipeline` modules
-        if source_info.module.__name__.startswith(module_prefix):
+        if source_info.ref.startswith(module_prefix):
             checked_sources[source_info.name] = source_info
             source_config = source_info.SPEC() if source_info.SPEC else BaseConfiguration()
             spec_fields = source_config.get_resolvable_fields()

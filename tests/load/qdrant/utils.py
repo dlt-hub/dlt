@@ -61,6 +61,5 @@ def drop_active_pipeline_data() -> None:
             if has_collections(client):
                 client.drop_storage()
 
-        p._wipe_working_folder()
         # deactivate context
         Container()[PipelineContext].deactivate()

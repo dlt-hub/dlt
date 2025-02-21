@@ -126,7 +126,7 @@ clickhouse
 destination.
 
 :::tip
-`dataset_name` is optional for Clikchouse. When skipped `dlt` will create all tables without prefix. Note that staging dataset
+`dataset_name` is optional for ClickHouse. When skipped `dlt` will create all tables without prefix. Note that staging dataset
 tables will still be prefixed with `_staging` (or other name that you configure).
 :::
 
@@ -229,8 +229,7 @@ To set up GCS staging with HMAC authentication in dlt:
 
 1. Create HMAC keys for your GCS service account by following the [Google Cloud guide](https://cloud.google.com/storage/docs/authentication/managing-hmackeys#create).
 
-2. Configure the HMAC keys (`aws_access_key_id` and `aws_secret_access_key`) in your dlt project's ClickHouse destination settings in `config.toml`, similar to how you would configure AWS S3
-   credentials:
+2. Configure the HMAC keys (`aws_access_key_id` and `aws_secret_access_key`) as well as `endpoint_url` in your dlt project's ClickHouse destination settings in `config.toml`, similar to how you would configure AWS S3 credentials:
 
 ```toml
 [destination.filesystem]
@@ -251,7 +250,8 @@ dlt's staging mechanisms for ClickHouse.
 
 ### dbt support
 
-Integration with [dbt](../transformations/dbt/dbt.md) is generally supported via dbt-clickhouse but not tested by us.
+Integration with [dbt](../transformations/dbt/dbt.md) is generally supported via dbt-clickhouse but not tested by us. Note how
+we support datasets by prefixing the table names. You should take it into account when writing models (or use empty dataset to avoid prefixing).
 
 ### Syncing of `dlt` state
 

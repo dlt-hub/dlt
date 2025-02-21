@@ -2,14 +2,22 @@ import re
 import abc
 import os
 import yaml
+import ast
+
 from yaml import Dumper
 from itertools import chain
 from typing import List, Optional, Sequence, Tuple, Any, Dict
-from astunparse import unparse
 
 # optional dependencies
-import pipdeptree
-import cron_descriptor
+try:
+    import pipdeptree
+except ImportError:
+    pipdeptree = None
+
+try:
+    import cron_descriptor
+except ImportError:
+    cron_descriptor = None
 
 import dlt
 
@@ -240,7 +248,7 @@ class BaseDeployment(abc.ABC):
             " available configuration ie. secrets.toml file. Please run the deploy command from"
             " the same working directory you ran your pipeline script. If you pass the"
             " credentials in code we will not be able to display them here. See"
-            " https://dlthub.com/docs/general-usage/credentials"
+            " https://dlthub.com/docs/general-usage/credentials/"
         )
 
     def _lookup_secret_value(self, trace: LookupTrace) -> Any:
@@ -313,7 +321,7 @@ def parse_pipeline_info(visitor: PipelineScriptVisitor) -> List[Tuple[str, Optio
                 if f_r_value is None:
                     fmt.warning(
                         "The value of `dev_mode` in call to `dlt.pipeline` cannot be"
-                        f" determined from {unparse(f_r_node).strip()}. We assume that you know"
+                        f" determined from {ast.unparse(f_r_node).strip()}. We assume that you know"
                         " what you are doing :)"
                     )
                 if f_r_value is True:
@@ -331,8 +339,8 @@ def parse_pipeline_info(visitor: PipelineScriptVisitor) -> List[Tuple[str, Optio
                     raise CliCommandInnerException(
                         "deploy",
                         "The value of 'pipelines_dir' argument in call to `dlt_pipeline` cannot be"
-                        f" determined from {unparse(p_d_node).strip()}. Pipeline working dir will"
-                        " be found. Pass it directly with --pipelines-dir option.",
+                        f" determined from {ast.unparse(p_d_node).strip()}. Pipeline working dir"
+                        " will be found. Pass it directly with --pipelines-dir option.",
                     )
 
             p_n_node = call_args.arguments.get("pipeline_name")
@@ -342,8 +350,8 @@ def parse_pipeline_info(visitor: PipelineScriptVisitor) -> List[Tuple[str, Optio
                     raise CliCommandInnerException(
                         "deploy",
                         "The value of 'pipeline_name' argument in call to `dlt_pipeline` cannot be"
-                        f" determined from {unparse(p_d_node).strip()}. Pipeline working dir will"
-                        " be found. Pass it directly with --pipeline-name option.",
+                        f" determined from {ast.unparse(p_d_node).strip()}. Pipeline working dir"
+                        " will be found. Pass it directly with --pipeline-name option.",
                     )
             pipelines.append((pipeline_name, pipelines_dir))
 

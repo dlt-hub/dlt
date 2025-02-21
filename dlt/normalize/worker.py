@@ -9,7 +9,9 @@ from dlt.common.data_writers import (
     get_best_writer_spec,
     is_native_writer,
 )
+from dlt.common.destination.utils import prepare_load_table
 from dlt.common.metrics import DataWriterMetrics
+from dlt.common.schema.utils import new_table
 from dlt.common.utils import chunks
 from dlt.common.schema.typing import TStoredSchema, TTableSchema
 from dlt.common.storages import (
@@ -20,6 +22,7 @@ from dlt.common.storages import (
     ParsedLoadJobFileName,
 )
 from dlt.common.schema import TSchemaUpdate, Schema
+from dlt.common.normalizers.json import helpers as normalize_helpers
 
 from dlt.normalize.configuration import NormalizeConfiguration
 from dlt.normalize.exceptions import NormalizeJobFailed
@@ -218,11 +221,17 @@ def w_normalize_files(
                 parsed_file_name = ParsedLoadJobFileName.parse(extracted_items_file)
                 # normalize table name in case the normalization changed
                 # NOTE: this is the best we can do, until a full lineage information is in the schema
-                root_table_name = schema.naming.normalize_table_identifier(
-                    parsed_file_name.table_name
+                root_table_name = normalize_helpers.normalize_table_identifier(
+                    schema, schema.naming, parsed_file_name.table_name
                 )
                 root_tables.add(root_table_name)
-                root_table = stored_schema["tables"].get(root_table_name, {"name": root_table_name})
+                root_table = stored_schema["tables"].get(root_table_name) or new_table(
+                    root_table_name
+                )
+                # prepare table
+                root_table = prepare_load_table(
+                    stored_schema["tables"], root_table, destination_caps
+                )
                 normalizer = _get_items_normalizer(
                     parsed_file_name,
                     root_table,

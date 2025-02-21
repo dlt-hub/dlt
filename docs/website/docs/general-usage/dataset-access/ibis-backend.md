@@ -6,7 +6,7 @@ keywords: [data, dataset, ibis]
 
 # Ibis
 
-Ibis is a powerful portable Python dataframe library. Learn more about what it is and how to use it in the [official documentation](https://ibis-project.org/). 
+Ibis is a powerful portable Python dataframe library. Learn more about what it is and how to use it in the [official documentation](https://ibis-project.org/).
 
 `dlt` provides an easy way to hand over your loaded dataset to an Ibis backend connection.
 
@@ -24,11 +24,11 @@ pip install ibis-framework[duckdb]
 
 ## Get an Ibis connection from your dataset
 
-`dlt` datasets have a helper method to return an Ibis connection to the destination they live on. The returned object is a native Ibis connection to the destination, which you can use to read and even transform data. Please consult the [Ibis documentation](https://ibis-project.org/docs/backends/) to learn more about what you can do with Ibis.
+`dlt` datasets have a helper method to return an Ibis connection to the destination they live on. The returned object is a native Ibis connection to the destination, which you can use to read and even transform data. Please consult the [Ibis documentation](https://ibis-project.org) to learn more about what you can do with Ibis.
 
 ```py
 # get the dataset from the pipeline
-dataset = pipeline._dataset()
+dataset = pipeline.dataset()
 dataset_name = pipeline.dataset_name
 
 # get the native ibis connection from the dataset
@@ -46,4 +46,3 @@ print(table.limit(10).execute())
 
 # Visit the ibis docs to learn more about the available methods
 ```
-

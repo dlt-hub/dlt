@@ -2,7 +2,7 @@ import os
 import base64
 import dataclasses
 from datetime import date, datetime, time  # noqa: I251
-from typing import Any, Callable, List, Protocol, IO, Union
+from typing import Any, Callable, List, Protocol, IO, Union, Dict
 from uuid import UUID
 from hexbytes import HexBytes
 from enum import Enum
@@ -22,7 +22,8 @@ from dlt.common.utils import map_nested_in_place
 TPuaDecoders = List[Callable[[Any], Any]]
 
 
-def custom_encode(obj: Any) -> str:
+def custom_encode(obj: Any) -> Union[str, Dict[Any, Any]]:
+    """Returns a JSON-serializable representation of `obj`"""
     if isinstance(obj, Decimal):
         # always return decimals as string so they are not deserialized back to float
         return str(obj)
@@ -44,7 +45,7 @@ def custom_encode(obj: Any) -> str:
     elif hasattr(obj, "_asdict"):
         return obj._asdict()  # type: ignore
     elif PydanticBaseModel and isinstance(obj, PydanticBaseModel):
-        return obj.dict()  # type: ignore[return-value]
+        return obj.model_dump()
     elif dataclasses.is_dataclass(obj):
         return dataclasses.asdict(obj)  # type: ignore
     elif isinstance(obj, Enum):

@@ -262,20 +262,30 @@ In this example, the first pipeline loads the data using `pipedrive_source()`. T
 
 #### [Using the `dlt` SQL client](dlt-ecosystem/transformations/sql.md)
 
-Another option is to leverage the `dlt` SQL client to query the loaded data and perform transformations using SQL statements. You can execute SQL statements that change the database schema or manipulate data within tables. Here's an example of inserting a row into the `customers` table using the `dlt` SQL client:
+Another option is to leverage the `dlt` SQL client to query the loaded data and perform transformations using SQL statements. You can execute SQL statements that change the database schema or manipulate data within tables. Here's an example of creating a new table with aggregated sales data in duckdb:
 
 ```py
-pipeline = dlt.pipeline(destination="bigquery", dataset_name="crm")
+pipeline = dlt.pipeline(destination="duckdb", dataset_name="crm")
 
 with pipeline.sql_client() as client:
     client.execute_sql(
-        "INSERT INTO customers VALUES (%s, %s, %s)", 10, "Fred", "fred@fred.com"
-    )
+        """ CREATE TABLE aggregated_sales AS
+            SELECT 
+                category,
+                region,
+                SUM(amount) AS total_sales,
+                AVG(amount) AS average_sales
+            FROM 
+                sales
+            GROUP BY 
+                category, 
+                region;
+    """)
 ```
 
 In this example, the `execute_sql` method of the SQL client allows you to execute SQL statements. The statement inserts a row with values into the `customers` table.
 
-#### [Using Pandas](dlt-ecosystem/transformations/pandas.md)
+#### [Using Pandas](dlt-ecosystem/transformations/python.md)
 
 You can fetch query results as Pandas data frames and perform transformations using Pandas functionalities. Here's an example of reading data from the `issues` table in DuckDB and counting reaction types using Pandas:
 
@@ -287,11 +297,8 @@ pipeline = dlt.pipeline(
     dev_mode=True
 )
 
-with pipeline.sql_client() as client:
-    with client.execute_query(
-        'SELECT "reactions__+1", "reactions__-1", reactions__laugh, reactions__hooray, reactions__rocket FROM issues'
-    ) as cursor:
-        reactions = cursor.df()
+# get a dataframe of all reactions from the dataset
+reactions = pipeline.dataset().issues.select("reactions__+1", "reactions__-1", "reactions__laugh", "reactions__hooray", "reactions__rocket").df()
 
 counts = reactions.sum(0).sort_values(0, ascending=False)
 ```

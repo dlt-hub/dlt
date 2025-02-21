@@ -16,6 +16,10 @@ It then [injects](advanced/#injection-mechanism) these values where needed in fu
 
 ## Available config providers
 
+:::tip dlt+
+To define your configuration (including sources, destinations, pipeline and parameters) in a declarative way in the YAML file, check out [dlt+](../../plus/features/projects.md).
+:::
+
 There are multiple ways to define configurations and credentials for your pipelines. `dlt` looks for these definitions in the following order during pipeline execution:
 
 1. [Environment Variables](#environment-variables): If a value for a specific argument is found in an environment variable, dlt will use it and will not proceed to search in lower-priority providers.
@@ -665,7 +669,7 @@ dlt.common.configuration.exceptions.ConfigFieldMissingException: Following field
                 In secrets.toml key destination.postgres.credentials.password was not found.
                 In secrets.toml key destination.credentials.password was not found.
                 In secrets.toml key credentials.password was not found.
-Please refer to https://dlthub.com/docs/general-usage/credentials for more information
+Please refer to https://dlthub.com/docs/general-usage/credentials/ for more information
 ```
 
 It tells you exactly which paths `dlt` looked at, via which config providers and in which order.

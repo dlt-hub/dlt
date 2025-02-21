@@ -22,7 +22,7 @@ from dlt.destinations.job_client_impl import SqlJobClientBase
 from dlt.destinations.typing import TNativeConn
 from dlt.common.time import ensure_pendulum_datetime, to_py_datetime
 
-from tests.utils import TEST_STORAGE_ROOT, autouse_test_storage
+from tests.utils import TEST_STORAGE_ROOT
 from tests.load.utils import (
     yield_client_with_storage,
     prepare_table,
@@ -587,12 +587,12 @@ def test_transaction_isolation(client: SqlJobClientBase) -> None:
 
 @pytest.mark.parametrize(
     "client",
-    destinations_configs(default_sql_configs=True, exclude=["sqlalchemy"]),
+    destinations_configs(default_sql_configs=True),
     indirect=True,
     ids=lambda x: x.name,
 )
 def test_max_table_identifier_length(client: SqlJobClientBase) -> None:
-    if client.capabilities.max_identifier_length >= 65536:
+    if client.capabilities.max_identifier_length >= 9000:
         pytest.skip(
             f"destination {client.config.destination_type} has no table name length restriction"
         )
@@ -601,7 +601,9 @@ def test_max_table_identifier_length(client: SqlJobClientBase) -> None:
         * "prospects_external_data__data365_member__member__feed_activities_created_post__items__comments__items__comments__items__author_details__educations"
     )
     with pytest.raises(IdentifierTooLongException) as py_ex:
-        prepare_table(client, "long_table_name", table_name, make_uniq_table=False)
+        prepare_table(
+            client, "long_table_name", table_name, make_uniq_table=False, skip_normalization=True
+        )
     assert py_ex.value.identifier_type == "table"
     assert py_ex.value.identifier_name == table_name
     # remove the table from the schema so further tests are not affected.
@@ -620,12 +622,12 @@ def test_max_table_identifier_length(client: SqlJobClientBase) -> None:
 
 @pytest.mark.parametrize(
     "client",
-    destinations_configs(default_sql_configs=True, exclude=["sqlalchemy"]),
+    destinations_configs(default_sql_configs=True),
     indirect=True,
     ids=lambda x: x.name,
 )
 def test_max_column_identifier_length(client: SqlJobClientBase) -> None:
-    if client.capabilities.max_column_identifier_length >= 65536:
+    if client.capabilities.max_column_identifier_length >= 9000:
         pytest.skip(
             f"destination {client.config.destination_type} has no column name length restriction"
         )
@@ -635,7 +637,9 @@ def test_max_column_identifier_length(client: SqlJobClientBase) -> None:
         * "prospects_external_data__data365_member__member__feed_activities_created_post__items__comments__items__comments__items__author_details__educations__school_name"
     )
     with pytest.raises(IdentifierTooLongException) as py_ex:
-        prepare_table(client, "long_column_name", table_name, make_uniq_table=False)
+        prepare_table(
+            client, "long_column_name", table_name, make_uniq_table=False, skip_normalization=True
+        )
     assert py_ex.value.identifier_type == "column"
     assert py_ex.value.identifier_name == f"{table_name}.{column_name}"
     # remove the table from the schema so further tests are not affected
@@ -683,6 +687,8 @@ def test_recover_on_explicit_tx(client: SqlJobClientBase) -> None:
         "COMMIT;",
     ]
     # cannot insert NULL value
+    with pytest.raises(DatabaseTerminalException):
+        client.sql_client.execute_many(statements[1:2])
     with pytest.raises(DatabaseTerminalException):
         client.sql_client.execute_many(statements)
     # assert derives_from_class_of_name(term_ex.value.dbapi_exception, "IntegrityError")

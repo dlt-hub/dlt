@@ -124,7 +124,7 @@ When created, `sql_client` is bound to a particular dataset name (which typicall
 The job client is responsible for creating/starting load jobs and managing the schema updates. Here we'll adjust the `SqlJobClientBase` base class which uses the `sql_client` to manage the destination. Typically, only a few methods need to be overridden by a particular implementation. The job client code customarily resides in a file named `<destination_name>.py`, i.e., `postgres.py`, and is exposed in `factory.py` by the `client_class` property on the destination class.
 
 ### Database type mappings
-You must map `dlt` data types to destination data types. For this, you can implement a subclass of `TypeMapper`. You can specify there dicts to map `dlt` data types to destination data types, with or without precision. A few tricks to remember:
+You must map `dlt` data types to destination data types. For this, you can implement a subclass of `DataTypeMapper`. You can specify there dicts to map `dlt` data types to destination data types, with or without precision. A few tricks to remember:
 * the database types must be exactly those as used in `INFORMATION_SCHEMA.COLUMNS`
 * decimal precision and scale are filled from the capabilities (in all our implementations)
 * until now, all destinations could handle binary types

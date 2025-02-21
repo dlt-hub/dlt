@@ -55,6 +55,9 @@ def chess_com_source(username: str, months: List[Dict[str, str]]) -> Iterator[Dl
                     "write_disposition": "append",
                     "endpoint": {
                         "path": f"player/{username}/games/{year}/{month_str}",  # API endpoint path
+                        "response_actions": [
+                            {"status_code": 404, "action": "ignore"},
+                        ],
                     },
                     "primary_key": ["url"],  # Primary key to prevent duplicates
                 }
@@ -132,9 +135,10 @@ def load_chess_data():
     """
     Sets up and runs the dlt pipeline to load chess game data, then manages backfills.
     """
-    # Initialize the dlt pipeline with filesystem destination
+    # Initialize the dlt pipeline with filesystem destination, here we use local storage
+    dest_ = dlt.destinations.filesystem("_storage")
     pipeline = dlt.pipeline(
-        pipeline_name="chess_com_data", destination="filesystem", dataset_name="chess_games"
+        pipeline_name="chess_com_data", destination=dest_, dataset_name="chess_games"
     )
 
     # Generate the list of months for the desired date range

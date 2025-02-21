@@ -11,14 +11,14 @@ from tenacity import (
     RetryCallState,
 )
 
-from dlt.common.known_env import DLT_DATA_DIR, DLT_PROJECT_DIR
+from dlt.common.known_env import DLT_DATA_DIR, DLT_PROJECT_DIR, DLT_LOCAL_DIR
 from dlt.common.exceptions import MissingDependencyException
 
 try:
     from airflow.configuration import conf
     from airflow.models import TaskInstance
     from airflow.utils.task_group import TaskGroup
-    from airflow.operators.dummy import DummyOperator  # type: ignore
+    from airflow.operators.dummy import DummyOperator
     from airflow.operators.python import PythonOperator, get_current_context
 except ModuleNotFoundError:
     raise MissingDependencyException("Airflow", ["apache-airflow>=2.5"])
@@ -114,6 +114,7 @@ class PipelineTasksGroup(TaskGroup):
         # reload providers so config.toml in dags folder is included
         dags_folder = conf.get("core", "dags_folder")
 
+        # TODO: use injectable Airflow run context
         # set the dlt project folder to dags
         os.environ[DLT_PROJECT_DIR] = dags_folder
 
@@ -124,8 +125,10 @@ class PipelineTasksGroup(TaskGroup):
             # create random path
             data_dir = os.path.join(local_data_folder or gettempdir(), f"dlt_{uniq_id(8)}")
         os.environ[DLT_DATA_DIR] = data_dir
+        # also keep all local files created by destinations in data_dir
+        os.environ[DLT_LOCAL_DIR] = data_dir
 
-        # reload config providers
+        # reload config providers (TODO: inject Airflow run context)
         if PluggableRunContext in Container():
             Container()[PluggableRunContext].reload_providers()
 
@@ -255,7 +258,7 @@ class PipelineTasksGroup(TaskGroup):
 
         # use task logger
         if self.use_task_logger:
-            ti: TaskInstance = get_current_context()["ti"]  # type: ignore
+            ti: TaskInstance = get_current_context()["ti"]  # type: ignore[assignment,unused-ignore]
             logger.LOGGER = ti.log
 
         # set global number of buffered items

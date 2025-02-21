@@ -53,6 +53,9 @@ class VaultDocProvider(BaseDocProvider):
         value, _ = super().get_value(key, hint, pipeline_name, *sections)
         if value is None:
             # only secrets hints are handled
+            # TODO: we need to refine how we filer out non-secrets
+            #    at the least we should load known fragments for fields
+            #    that are part of a secret (ie. coming from Credentials)
             if self.only_secrets and not is_secret_hint(hint) and hint is not AnyType:
                 return None, full_key
 

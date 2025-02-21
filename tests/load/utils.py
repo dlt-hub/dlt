@@ -26,19 +26,21 @@ from dlt.common import json, sleep
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
-from dlt.common.configuration.specs import CredentialsConfiguration
-from dlt.common.destination.reference import (
+from dlt.common.configuration.specs import (
+    CredentialsConfiguration,
+    GcpOAuthCredentialsWithoutDefaults,
+)
+from dlt.common.destination.client import (
     DestinationClientDwhConfiguration,
     JobClientBase,
     RunnableLoadJob,
     LoadJob,
     DestinationClientStagingConfiguration,
-    TDestinationReferenceArg,
     WithStagingDataset,
     DestinationCapabilitiesContext,
 )
-from dlt.common.destination import TLoaderFileFormat, Destination
-from dlt.common.destination.reference import DEFAULT_FILE_LAYOUT
+from dlt.common.destination import TLoaderFileFormat, Destination, TDestinationReferenceArg
+from dlt.common.destination.client import DEFAULT_FILE_LAYOUT
 from dlt.common.data_writers import DataWriter
 from dlt.common.pipeline import PipelineContext
 from dlt.common.schema import TTableSchemaColumns, Schema
@@ -57,6 +59,7 @@ from dlt.destinations.job_client_impl import SqlJobClientBase
 from dlt.pipeline.exceptions import SqlClientNotAvailable
 from tests.utils import (
     ACTIVE_DESTINATIONS,
+    ACTIVE_TABLE_FORMATS,
     IMPLEMENTED_DESTINATIONS,
     SQL_DESTINATIONS,
     EXCLUDED_DESTINATION_CONFIGURATIONS,
@@ -171,7 +174,9 @@ class DestinationTestConfiguration:
         dest_type = kwargs.pop("destination", self.destination_type)
         dest_name = kwargs.pop("destination_name", self.destination_name)
         self.setup()
-        return Destination.from_reference(dest_type, destination_name=dest_name, **kwargs)
+        return Destination.from_reference(
+            dest_type, self.credentials, destination_name=dest_name, **kwargs
+        )
 
     def raw_capabilities(self) -> DestinationCapabilitiesContext:
         dest = Destination.from_reference(self.destination_type)
@@ -244,7 +249,7 @@ class DestinationTestConfiguration:
             pipeline_name=pipeline_name,
             destination=destination,
             staging=kwargs.pop("staging", self.staging),
-            dataset_name=dataset_name if dataset_name is not None else pipeline_name,
+            dataset_name=dataset_name if dataset_name is not None else pipeline_name + "_data",
             dev_mode=dev_mode,
             **kwargs,
         )
@@ -322,8 +327,7 @@ def destinations_configs(
         destination_configs += [
             DestinationTestConfiguration(destination_type=destination)
             for destination in SQL_DESTINATIONS
-            if destination
-            not in ("athena", "synapse", "databricks", "dremio", "clickhouse", "sqlalchemy")
+            if destination not in ("athena", "synapse", "dremio", "clickhouse", "sqlalchemy")
         ]
         destination_configs += [
             DestinationTestConfiguration(destination_type="duckdb", file_format="parquet"),
@@ -342,7 +346,7 @@ def destinations_configs(
                 supports_dbt=False,
                 destination_name="sqlalchemy_mysql",
                 credentials=(  # Use root cause we need to create databases,
-                    "mysql://root:root@127.0.0.1:3306/dlt_data"
+                    "mysql+pymysql://root:root@127.0.0.1:3306/dlt_data"
                 ),
             ),
             DestinationTestConfiguration(
@@ -357,14 +361,6 @@ def destinations_configs(
         destination_configs += [
             DestinationTestConfiguration(
                 destination_type="clickhouse", file_format="jsonl", supports_dbt=False
-            )
-        ]
-        destination_configs += [
-            DestinationTestConfiguration(
-                destination_type="databricks",
-                file_format="parquet",
-                bucket_url=AZ_BUCKET,
-                extra_info="az-authorization",
             )
         ]
 
@@ -455,6 +451,13 @@ def destinations_configs(
                 destination_type="snowflake",
                 staging="filesystem",
                 file_format="jsonl",
+                bucket_url=AZ_BUCKET,
+                extra_info="az-authorization",
+            ),
+            DestinationTestConfiguration(
+                destination_type="databricks",
+                staging="filesystem",
+                file_format="parquet",
                 bucket_url=AZ_BUCKET,
                 extra_info="az-authorization",
             ),
@@ -604,7 +607,7 @@ def destinations_configs(
                 DestinationTestConfiguration(
                     destination_type="filesystem",
                     bucket_url=bucket,
-                    extra_info=bucket + "-delta",
+                    extra_info=bucket,
                     table_format="delta",
                     supports_merge=True,
                     file_format="parquet",
@@ -619,10 +622,31 @@ def destinations_configs(
                     ),
                 )
             ]
+            if bucket == AZ_BUCKET:
+                # `pyiceberg` does not support `az` scheme
+                continue
+            destination_configs += [
+                DestinationTestConfiguration(
+                    destination_type="filesystem",
+                    bucket_url=bucket,
+                    extra_info=bucket,
+                    table_format="iceberg",
+                    supports_merge=False,
+                    file_format="parquet",
+                    destination_name="fsgcpoauth" if bucket == GCS_BUCKET else None,
+                )
+            ]
 
     # filter out non active destinations
     destination_configs = [
         conf for conf in destination_configs if conf.destination_type in ACTIVE_DESTINATIONS
+    ]
+
+    # filter out non active table formats
+    destination_configs = [
+        conf
+        for conf in destination_configs
+        if conf.table_format is None or conf.table_format in ACTIVE_TABLE_FORMATS
     ]
 
     # filter out destinations not in subset
@@ -634,7 +658,9 @@ def destinations_configs(
         destination_configs = [
             conf
             for conf in destination_configs
-            if conf.destination_type != "filesystem" or conf.bucket_url in bucket_subset
+            # filter by bucket when (1) filesystem OR (2) specific set of destinations requested
+            if (conf.destination_type != "filesystem" and not subset)
+            or conf.bucket_url in bucket_subset
         ]
     if exclude:
         destination_configs = [
@@ -808,6 +834,7 @@ def prepare_table(
     case_name: str = "event_user",
     table_name: str = "event_user",
     make_uniq_table: bool = True,
+    skip_normalization: bool = False,
 ) -> str:
     client.schema._bump_version()
     client.update_stored_schema()
@@ -816,7 +843,11 @@ def prepare_table(
         user_table_name = table_name + uniq_id()
     else:
         user_table_name = table_name
-    client.schema.update_table(new_table(user_table_name, columns=list(user_table.values())))
+    renamed_table = new_table(user_table_name, columns=list(user_table.values()))
+    if skip_normalization:
+        client.schema.tables[user_table_name] = renamed_table
+    else:
+        client.schema.update_table(renamed_table)
     print(client.schema.to_pretty_yaml())
     client.verify_schema([user_table_name])
     client.schema._bump_version()

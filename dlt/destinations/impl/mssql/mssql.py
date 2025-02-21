@@ -1,6 +1,6 @@
 from typing import Dict, Optional, Sequence, List, Any
 
-from dlt.common.destination.reference import (
+from dlt.common.destination.client import (
     FollowupJobRequest,
     PreparedTableSchema,
 )
@@ -115,11 +115,7 @@ class MsSqlJobClient(InsertValuesJobClient):
         else:
             db_type = self.type_mapper.to_destination_type(c, table)
 
-        hints_str = " ".join(
-            self.active_hints.get(h, "")
-            for h in self.active_hints.keys()
-            if c.get(h, False) is True
-        )
+        hints_str = self._get_column_hints_sql(c)
         column_name = self.sql_client.escape_column_name(c["name"])
         return f"{column_name} {db_type} {hints_str} {self._gen_not_null(c.get('nullable', True))}"
 

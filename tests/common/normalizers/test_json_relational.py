@@ -6,14 +6,12 @@ from dlt.common.schema.typing import TColumnName, TSimpleRegex
 from dlt.common.utils import digest128, uniq_id
 from dlt.common.schema import Schema
 from dlt.common.schema.utils import new_table
-
+from dlt.common.normalizers.utils import DLT_ID_LENGTH_BYTES
 from dlt.common.normalizers.json.relational import (
     RelationalNormalizerConfigPropagation,
     DataItemNormalizer as RelationalNormalizer,
-    DLT_ID_LENGTH_BYTES,
 )
-
-# _flatten, _get_child_row_hash, _normalize_row, normalize_data_item,
+from dlt.common.normalizers.json import helpers as normalize_helpers
 
 from tests.utils import create_schema_with_name
 
@@ -420,7 +418,7 @@ def test_list_in_list() -> None:
     schema.update_table(path_table)
     assert "zen__webpath" in schema.tables
     # clear cache with json paths
-    schema.data_item_normalizer._is_nested_type.cache_clear()  # type: ignore[attr-defined]
+    normalize_helpers.is_nested_type.cache_clear()
 
     rows = list(schema.normalize_data_item(chats, "1762162.1212", "zen"))
     # both lists are json types now
@@ -882,6 +880,35 @@ def test_propagation_update_on_table_change(norm: RelationalNormalizer):
         "table_3"
     ] == {"_dlt_id": "_dlt_root_id", "prop1": "prop2"}
 
+    # force propagation when table has nested table that needs root_key
+    # also use custom name for row_key
+    table_4 = new_table(
+        "table_4", write_disposition="replace", columns=[{"name": "primary_key", "row_key": True}]
+    )
+    table_4_nested = new_table(
+        "table_4__nested",
+        parent_table_name="table_4",
+        columns=[{"name": "_dlt_root_id", "root_key": True}],
+    )
+    # must add table_4 first
+    norm.schema.update_table(table_4)
+    norm.schema.update_table(table_4_nested)
+    # row key table_4 not propagated because it was added before nested that needs that
+    # TODO: maybe fix it
+    assert (
+        "table_4" not in norm.schema._normalizers_config["json"]["config"]["propagation"]["tables"]
+    )
+    norm.schema.update_table(table_4)
+    # also custom key was used
+    assert norm.schema._normalizers_config["json"]["config"]["propagation"]["tables"][
+        "table_4"
+    ] == {"primary_key": "_dlt_root_id"}
+    # drop table from schema
+    norm.schema.drop_tables(["table_4"])
+    assert (
+        "table_4" not in norm.schema._normalizers_config["json"]["config"]["propagation"]["tables"]
+    )
+
 
 def test_caching_perf(norm: RelationalNormalizer) -> None:
     from time import time
@@ -890,9 +917,13 @@ def test_caching_perf(norm: RelationalNormalizer) -> None:
     table["x-normalizer"] = {}
     start = time()
     for _ in range(100000):
-        norm._is_nested_type(norm.schema, "test", "field", 0)
+        normalize_helpers.is_nested_type(norm.schema, "test", "field", 0)
         # norm._get_table_nesting_level(norm.schema, "test")
     print(f"{time() - start}")
+
+
+def test_extend_table(norm: RelationalNormalizer) -> None:
+    pass
 
 
 def set_max_nesting(norm: RelationalNormalizer, max_nesting: int) -> None:

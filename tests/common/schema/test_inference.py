@@ -441,27 +441,6 @@ def test_update_schema_table_prop_conflict(schema: Schema) -> None:
     assert exc_val.value.val2 == "tab_parent"
 
 
-def test_update_schema_column_conflict(schema: Schema) -> None:
-    tab1 = utils.new_table(
-        "tab1",
-        write_disposition="append",
-        columns=[
-            {"name": "col1", "data_type": "text", "nullable": False},
-        ],
-    )
-    schema.update_table(tab1)
-    tab1_u1 = deepcopy(tab1)
-    # simulate column that had other datatype inferred
-    tab1_u1["columns"]["col1"]["data_type"] = "bool"
-    with pytest.raises(CannotCoerceColumnException) as exc_val:
-        schema.update_table(tab1_u1)
-    assert exc_val.value.column_name == "col1"
-    assert exc_val.value.from_type == "bool"
-    assert exc_val.value.to_type == "text"
-    # whole column mismatch
-    assert exc_val.value.coerced_value is None
-
-
 def _add_preferred_types(schema: Schema) -> None:
     schema._settings["preferred_types"] = {}
     schema._settings["preferred_types"][TSimpleRegex("timestamp")] = "timestamp"

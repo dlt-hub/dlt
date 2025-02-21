@@ -13,7 +13,7 @@ from dlt.common.configuration.specs import (
     AwsCredentialsWithoutDefaults,
 )
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.reference import (
+from dlt.common.destination.client import (
     PreparedTableSchema,
     SupportsStagingDestination,
     TLoadJobState,
@@ -292,11 +292,10 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
 
         return sql
 
-    @staticmethod
-    def _gen_not_null(v: bool) -> str:
+    def _gen_not_null(self, v: bool) -> str:
         # ClickHouse fields are not nullable by default.
         # We use the `Nullable` modifier instead of NULL / NOT NULL modifiers to cater for ALTER statement.
-        pass
+        return ""
 
     def _from_db_type(
         self, ch_t: str, precision: Optional[int], scale: Optional[int]

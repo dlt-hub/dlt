@@ -73,11 +73,12 @@ jobs:
           node-version: 20
 
       - name: Install Poetry
-        uses: snok/install-poetry@v1
+        uses: snok/install-poetry@v1.3.2
         with:
           virtualenvs-create: true
           virtualenvs-in-project: true
           installer-parallel: true
+          version: 1.8.5
 
       - name: Load cached venv
         id: cached-poetry-dependencies
@@ -85,6 +86,9 @@ jobs:
         with:
           path: .venv
           key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
+
+      - name: Install dlt-plus nightly devel build without cache
+        run: poetry run pip install --upgrade --force-reinstall --no-cache-dir https://dlt-packages.fra1.digitaloceanspaces.com/dlt-plus/dlt_plus-0.0.0+nightly-py3-none-any.whl
 
       - name: run docs preprocessor
         run: make preprocess-docs
@@ -99,11 +103,10 @@ jobs:
       - name: create secrets.toml for snippets
         run: pwd && echo "$DLT_SECRETS_TOML" > docs/website/docs/.dlt/secrets.toml
 
-      - name: Run linter and tests on examples
-        run: make lint-and-test-examples
-
       - name: Run linter and tests on snippets
         run: make lint-and-test-snippets
 
+      - name: Run linter and tests on examples
+        run: make lint-and-test-examples
 
 
