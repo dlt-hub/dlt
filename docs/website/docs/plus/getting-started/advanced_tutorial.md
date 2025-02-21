@@ -25,7 +25,7 @@ To follow this tutorial, make sure:
 
 ## Implicit entities
 
-By default, dlt+ will create implicit entities when they are requested by the user or the executed code. An example which you can creaet with `dlt project init arrow duckdb`:
+By default, dlt+ will create implicit entities when they are requested by the user or the executed code. Let's create an example project again with `dlt project init arrow duckdb --package my_dlt_project`.
 
 ```yaml
 # your sources are the data sources you want to load from
@@ -114,7 +114,7 @@ If  you run dataset cli commands without providing a destination name, dlt+ will
 
 You can also interact with your dlt+ project directly in code as opposed to running cli commands. Let's use the same starting point as above by running `dlt project init arrow duckdb`. Now add a new python file in the root of your project called `do_something.py` and add the following code:
 
-```python
+```py
 from dlt_plus import current
 
 if __name__ == "__main__":
@@ -130,7 +130,7 @@ The current module will allow you to interact with the currently active project.
 
 A few examples of what you have access too on the project object:
 
-```python
+```py
 # show the currently active profile
 print(current.project().current_profile)
 # show the main project dir
@@ -145,7 +145,7 @@ print(current.project().datasets)
 
 Accessing entities works in the same way as when accessing entities in the `dlt.yml`. If possible and allowed, implicit entities are created and returned back to you, if you, an error will be raised.
 
-```python
+```py
 # get a pipeline instance
 pipeline = current.entities().create_pipeline("my_pipeline")
 # get a destination instance
@@ -156,7 +156,7 @@ destination = current.entities().create_destination("duckdb")
 
 `dlt+` provides a pipeline runner that is used when you run pipelines from the cli as described in the basic tutorial. The project context also provides a runner instance that you can use to run your pipelines in code. 
 
-```python
+```py
 # get the runner
 runner = current.runner()
 # run the pipeline "my_pipeline" from the currently active project
@@ -167,7 +167,7 @@ runner.run_pipeline("my_pipeline")
 
 The catalog provides access to all explicitely defined datasets
 
-```python
+```py
 # get a dataset instance pointing to the default destination (first in dataset destinations list) and access data inside of it
 # for this to work this dataset must already exist physically
 dataset = current.catalog().dataset("my_pipeline_dataset")
@@ -187,7 +187,7 @@ The datasets on the dlt+ catalogs may also be written to. The datasets provide `
 Writing data back to the catalog is an experimental feature at this time and should be used with caution until it is fully stable.
 :::
 
-```python
+```py
 # get a dataset from the catalog (this dataset must already exist physically and be explicitely defined in the dlt.yml)
 dataset = current.catalog().dataset("my_pipeline_dataset")
 # write a dataframe to the dataset into the table "my_table"
@@ -196,7 +196,7 @@ dataset.write(pd.DataFrame({"name": ["John", "Jane", "Jim"], "age": [30, 25, 35]
 
 You can also iterate over dataframes or arrow tables in an existing table and write them to a new table in the same or another dataset:
 
-```python
+```py
 # get dataset from the catalog
 dataset = current.catalog().dataset("my_pipeline_dataset")
 
@@ -215,7 +215,7 @@ dataset.write(transform_frames, table_name="my_new_table")
 
 By default if you access the project, you will be using the default or pinned profile. You can switch the profile with the `switch_profile` function. Consider the following example:
 
-```python   
+```py   
 from dlt_plus import current
 from dlt_plus.project.run_context import switch_profile
 
@@ -232,7 +232,7 @@ if __name__ == "__main__":
 
 `dlt+` also has tools to help you package a dlt+ project for distribution. This will make your dlt+ project pip installable and make it easier for you to distribute accross your organization. To start with a dlt+ packaged project, you can supply the package argument to the project init command:
 
-```bash
+```sh
 dlt project init arrow duckdb --package my_dlt_project
 ```
 
@@ -257,7 +257,7 @@ dlt-project = "my_project"
 
 You can still run the pipeline the same way as before with the cli commands from the root folder:
 
-```bash
+```sh
 dlt pipeline my_pipeline run
 ```
 
@@ -279,7 +279,7 @@ uv pip install /Volumes/my_drive/my_folder
 
 Now your packaged dlt project should be available for you to use. Let's create a new python file names `test_project.py` and use the packaged project:
 
-```python
+```py
 # import the packaged project
 from my_dlt_project import current
 
