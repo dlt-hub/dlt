@@ -11,19 +11,17 @@ from typing import (
     Iterable,
     Iterator,
     Sequence,
-    Tuple,
 )
 
 from dlt import version
 from dlt.common.exceptions import MissingDependencyException, DltException
-from dlt.common.schema.typing import C_DLT_ID, C_DLT_LOAD_ID, TTableSchemaColumns
-from dlt.common import logger, json
-from dlt.common.json import custom_encode, map_nested_in_place
-
+from dlt.common.schema.typing import C_DLT_ID, C_DLT_LOAD_ID, TColumnSchema, TTableSchemaColumns
+from dlt.common import logger
+from dlt.common.json import json, custom_encode, map_nested_in_place
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.schema.typing import TColumnType
 from dlt.common.schema.utils import is_nullable_column
-from dlt.common.typing import StrStr, TFileOrPath
+from dlt.common.typing import StrStr, TFileOrPath, TDataItems
 from dlt.common.normalizers.naming import NamingConvention
 
 try:
@@ -103,6 +101,83 @@ class UnsupportedArrowTypeException(DltException):
         self._update_message()
 
 
+class PyToArrowConversionException(DltException):
+    """Exception raised when converting data to Arrow based on a TableSchema"""
+
+    def __init__(
+        self,
+        data_type: Optional[str],
+        inferred_arrow_type: Optional[pyarrow.DataType] = None,
+        field_name: Optional[str] = None,
+        table_name: Optional[str] = None,
+        details: Optional[str] = None,
+    ) -> None:
+        self.data_type = data_type
+        self.inferred_arrow_type = inferred_arrow_type
+        self._field_name = field_name if field_name else ""
+        self._table_name = table_name if table_name else ""
+        self._details = details if details else ""
+
+        super().__init__()
+        self._update_message()
+
+    @staticmethod
+    def generate_message(
+        data_type: Optional[str],
+        inferred_arrow_type: Optional[pyarrow.DataType],
+        field_name: str,
+        table_name: str,
+        details: str,
+    ) -> str:
+        msg = "Conversion to arrow failed"
+        if field_name:
+            msg += f" for field `{field_name}`"
+        if table_name:
+            msg += f" in table `{table_name}`"
+
+        msg += f" with dlt hint `{data_type=:}` and `{inferred_arrow_type=:}`"
+        msg += " " + details
+        return msg
+
+    def _update_message(self) -> None:
+        """Modify the `Exception.args` tuple to update message."""
+        msg = self.generate_message(
+            self.data_type,
+            self.inferred_arrow_type,
+            self.field_name,
+            self.table_name,
+            self._details,
+        )
+        self.args = (msg,)  # must be a tuple
+
+    @property
+    def field_name(self) -> str:
+        return self._field_name
+
+    @field_name.setter
+    def field_name(self, value: str) -> None:
+        self._field_name = value
+        self._update_message()
+
+    @property
+    def table_name(self) -> str:
+        return self._table_name
+
+    @table_name.setter
+    def table_name(self, value: str) -> None:
+        self._table_name = value
+        self._update_message()
+
+    @property
+    def details(self) -> str:
+        return self._details
+
+    @details.setter
+    def details(self, value: str) -> None:
+        self._details = value
+        self._update_message()
+
+
 def get_py_arrow_datatype(
     column: TColumnType,
     caps: DestinationCapabilitiesContext,
@@ -131,11 +206,25 @@ def get_py_arrow_datatype(
         return pyarrow.string()
     elif column_type == "decimal":
         precision, scale = column.get("precision"), column.get("scale")
-        precision_tuple = (
-            (precision, scale)
-            if precision is not None and scale is not None
-            else caps.decimal_precision
-        )
+        if (precision is None) and (scale is None):
+            precision_tuple = caps.decimal_precision
+        elif precision is None:
+            precision_tuple = caps.decimal_precision
+            logger.warning(
+                f"Received decimal column hint `scale={scale}`, but `precision` not set. Will"
+                " assume default destination capability `(precision, scale) ="
+                f" {caps.decimal_precision}`"
+            )
+        elif scale is None:
+            # setting scale to 0 when unspecified is a common practice across databases
+            precision_tuple = (precision, 0)
+            logger.warning(
+                f"Received decimal column hint `precision={precision}`, but `scale` not set. "
+                "Will assume default destination capability `scale=0`"
+            )
+        else:
+            precision_tuple = (precision, scale)
+
         return get_py_arrow_numeric(precision_tuple)
     elif column_type == "wei":
         return get_py_arrow_numeric(caps.wei_precision)
@@ -634,14 +723,13 @@ def concat_batches_and_tables_in_order(
     return pyarrow.concat_tables(tables, promote_options="none")
 
 
-def row_tuples_to_arrow(
-    rows: Sequence[Any], caps: DestinationCapabilitiesContext, columns: TTableSchemaColumns, tz: str
-) -> Any:
-    """Converts the rows to an arrow table using the columns schema.
-    Columns missing `data_type` will be inferred from the row data.
-    Columns with object types not supported by arrow are excluded from the resulting table.
+def transpose_rows_to_columns(
+    rows: TDataItems, column_names: Iterable[str]
+) -> dict[str, Any]:  # dict[str, np.ndarray]
+    """Transpose rows (data items) into columns (numpy arrays). Returns a dictionary of {column_name: column_data}
+
+    Uses pandas if available. Otherwise, use numpy, which is slower
     """
-    from dlt.common.libs.pyarrow import pyarrow as pa
     import numpy as np
 
     try:
@@ -654,104 +742,213 @@ def row_tuples_to_arrow(
         )
         pivoted_rows = np.asarray(rows, dtype="object", order="k").T  # type: ignore[call-overload]
 
-    columnar = {
-        col: dat.ravel() for col, dat in zip(columns, np.vsplit(pivoted_rows, len(pivoted_rows)))
-    }
-    columnar_known_types = {
-        col["name"]: columnar[col["name"]]
-        for col in columns.values()
-        if col.get("data_type") is not None
-    }
-    columnar_unknown_types = {
-        col["name"]: columnar[col["name"]]
-        for col in columns.values()
-        if col.get("data_type") is None
+    return {
+        column_name: data.ravel()
+        for column_name, data in zip(column_names, np.vsplit(pivoted_rows, len(pivoted_rows)))
     }
 
-    arrow_schema = columns_to_arrow(columns, caps, tz)
 
-    for idx in range(0, len(arrow_schema.names)):
-        field = arrow_schema.field(idx)
-        py_type = type(rows[0][idx])
-        # cast double / float ndarrays to decimals if type mismatch, looks like decimals and floats are often mixed up in dialects
-        if pa.types.is_decimal(field.type) and issubclass(py_type, (str, float)):
-            logger.warning(
-                f"Field {field.name} was reflected as decimal type, but rows contains"
-                f" {py_type.__name__}. Additional cast is required which may slow down arrow table"
-                " generation."
-            )
-            float_array = pa.array(columnar_known_types[field.name], type=pa.float64())
-            columnar_known_types[field.name] = float_array.cast(field.type, safe=False)
-        if issubclass(py_type, (dict, list, set)):
-            logger.warning(
-                f"Field {field.name} was reflected as JSON type and needs to be serialized back to"
-                " string to be placed in arrow table. This will slow data extraction down. You"
-                " should cast JSON field to STRING in your database system ie. by creating and"
-                " extracting an SQL VIEW that selects with cast."
-            )
-            json_str_array = pa.array(
-                [
-                    (
-                        None
-                        if s is None
-                        else json.dumps(s) if not issubclass(type(s), set) else json.dumps(list(s))
-                    )
-                    for s in columnar_known_types[field.name]
-                ]
-            )
-            columnar_known_types[field.name] = json_str_array
+def convert_numpy_to_arrow(
+    column_data: Any,  # 1-dimensional np.ndarray
+    caps: DestinationCapabilitiesContext,
+    column_schema: TColumnSchema,
+    tz: str,
+    safe_arrow_conversion: bool,
+) -> Any:  # pyarrow.Array
+    """Convert a numpy array to a pyarrow array.
 
-    # If there are unknown type columns, first create a table to infer their types
-    if columnar_unknown_types:
-        new_schema_fields = []
-        for key in list(columnar_unknown_types):
-            arrow_col: Optional[pa.Array] = None
-            try:
-                arrow_col = pa.array(columnar_unknown_types[key])
-                if pa.types.is_null(arrow_col.type):
-                    logger.warning(
-                        f"Column {key} contains only NULL values and data type could not be"
-                        " inferred. This column is removed from a arrow table"
-                    )
-                    continue
+    Args:
+        rows: data items
+        caps: capabilities of the storage backend
+        columns: dlt hints about the table columns (e.g., data type, nullabe)
+        tz: time zone identifier
+        safe_arrow_conversion: if False, truncation and loss of precision is allowed
+            ref: https://arrow.apache.org/docs/python/generated/pyarrow.compute.CastOptions.html#pyarrow.compute.CastOptions
 
-            except pa.ArrowInvalid as e:
-                # Try coercing types not supported by arrow to a json friendly format
-                # E.g. dataclasses -> dict, UUID -> str
-                try:
-                    arrow_col = pa.array(
-                        map_nested_in_place(custom_encode, list(columnar_unknown_types[key]))
-                    )
-                    logger.warning(
-                        f"Column {key} contains a data type which is not supported by pyarrow and"
-                        f" got converted into {arrow_col.type}. This slows down arrow table"
-                        " generation."
-                    )
-                except (pa.ArrowInvalid, TypeError):
-                    logger.warning(
-                        f"Column {key} contains a data type which is not supported by pyarrow. This"
-                        f" column will be ignored. Error: {e}"
-                    )
-            if arrow_col is not None:
-                columnar_known_types[key] = arrow_col
-                new_schema_fields.append(
-                    pa.field(
-                        key,
-                        arrow_col.type,
-                        nullable=columns[key].get("nullable", True),
-                    )
-                )
+    Returns:
+        an arrow Array
+    """
+    from dlt.common.libs.pyarrow import pyarrow as pa
 
-        # New schema
-        column_order = {name: idx for idx, name in enumerate(columns)}
-        arrow_schema = pa.schema(
-            sorted(
-                list(arrow_schema) + new_schema_fields,
-                key=lambda x: column_order[x.name],
-            )
+    dlt_data_type = column_schema.get("data_type")
+    inferred_arrow_type = (
+        get_py_arrow_datatype(column_schema, caps, tz) if dlt_data_type is not None else None
+    )
+    arrow_array = None
+
+    # base case (0): allow pyarrow to infer type, or create array of dlt specified type
+    try:
+        # type=None lets pyarrow infer the type from the data
+        arrow_array = pa.array(column_data, type=inferred_arrow_type)
+    # detailed error handling should happen in fallback cases
+    except (pa.ArrowInvalid, pyarrow.ArrowTypeError):
+        logger.warning(
+            f"Default conversion to `{inferred_arrow_type}` for `data_type={dlt_data_type}` failed."
+            " Using fallback strategies."
         )
 
-    return pa.Table.from_pydict(columnar_known_types, schema=arrow_schema)
+    # case 1: pyarrow infers the type (e.g., float, string) THEN cast it to the dlt specified type; less constraints than the base case
+    # for example, this handles when backends return decimals as floats or strings
+    if arrow_array is None and dlt_data_type is not None:
+        try:
+            arrow_array = pa.array(column_data).cast(
+                inferred_arrow_type, safe=safe_arrow_conversion
+            )
+        except (pa.ArrowInvalid, pyarrow.ArrowTypeError, pyarrow.ArrowNotImplementedError) as e:
+            # TODO add specific error handling as we encounter them
+            error_msg = e.args[0]
+            if (
+                "would cause data loss"
+                in error_msg  # specific pyarrow error related to precision loss (i.e., conversion to decimal)
+                and dlt_data_type == "decimal"
+                and pa.types.is_decimal(inferred_arrow_type)
+            ):
+                # TODO provide user interface for safe_arrow_conversion=False and include in this error message
+                raise PyToArrowConversionException(
+                    data_type=dlt_data_type,
+                    inferred_arrow_type=inferred_arrow_type,
+                    details=(
+                        "Insufficient decimal precision. Consider setting `precision` and `scale`"
+                        " hints: https://dlthub.com/docs/general-usage/schema/#tables-and-columns"
+                    ),
+                ) from e
+
+            elif (
+                "to utf8 using function cast_string" in error_msg
+                and dlt_data_type in ("json", "text")
+                and pa.types.is_string(inferred_arrow_type)
+            ):
+                # this is handled by fallback case 3
+                logger.warning(
+                    f"Received `data_type='{dlt_data_type}'`, data requires serialization to"
+                    " string, slowing extraction. Cast the JSON field to STRING in your database"
+                    " system to improve performance. For example, create and extract data from an"
+                    " SQL VIEW that SELECT with CAST."
+                )
+
+    # case 2: encode Sequence and Mapping types (list, tuples, set, dict, etc.) to JSON strings
+    # This logic needs to be before case 3, otherwise pyarrow might infer the deserialized JSON object as a `pyarrow.struct` instead of `pyarrow.string`
+    if arrow_array is None and dlt_data_type in (
+        "json",
+        "text",
+    ):  # depending on the backend, JSON columns are inferred as data_type="text"
+        json_serialized_values: list[Union[bytes, None]] = []
+        for value in column_data:
+            if value is None:
+                json_serialized_values.append(None)
+                continue
+            try:
+                json_serialized_values.append(json.dumpb(value))
+            except TypeError as e:
+                raise PyToArrowConversionException(
+                    data_type=dlt_data_type,
+                    inferred_arrow_type=inferred_arrow_type,
+                    details="dlt failed to a JSON-serializable type.",
+                ) from e
+
+        arrow_array = pa.array(json_serialized_values).cast(pa.string())
+
+    # case 3: encode Python types unsupported by Arrow. Simple types are converted to strings and complex types to common structures (dict, list)
+    # This catches specialized SQL types like `Ranges`
+    if arrow_array is None and dlt_data_type is None:
+        try:
+            arrow_array = pa.array(column_data)
+        except (pa.ArrowInvalid, pyarrow.ArrowTypeError):
+            logger.warning(
+                "Type can't be inferred by `pyarrow`. Values will be encoded as in a loop, slowing"
+                " extraction."
+            )
+            encoded_values: list[Union[None, Mapping[Any, Any], Sequence[Any], str]] = []
+            for value in column_data:
+                if value is None:
+                    encoded_values.append(None)
+                    continue
+                try:
+                    # the 3 types match those supported by `map_nested_in_place()`
+                    if isinstance(value, (tuple, dict, list)):
+                        encoded_value = map_nested_in_place(custom_encode, value)
+                    # convert set to list
+                    elif isinstance(value, set):
+                        encoded_value = map_nested_in_place(custom_encode, list(value))
+                    # no nesting
+                    else:
+                        encoded_value = custom_encode(value)  # type: ignore[assignment]
+                    encoded_values.append(encoded_value)
+                except TypeError as e:
+                    raise PyToArrowConversionException(
+                        data_type=dlt_data_type,
+                        inferred_arrow_type=inferred_arrow_type,
+                        details="dlt failed to encode values to a Arrow compatible type.",
+                    ) from e
+
+            arrow_array = pa.array(encoded_values)
+
+    if arrow_array is None:
+        raise PyToArrowConversionException(
+            data_type=dlt_data_type,
+            inferred_arrow_type=inferred_arrow_type,
+            details="This data type seems currently unsupported by dlt. Please open a GitHub issue",
+        )
+
+    return arrow_array
+
+
+def row_tuples_to_arrow(
+    rows: TDataItems,
+    caps: DestinationCapabilitiesContext,
+    columns: TTableSchemaColumns,
+    tz: str,
+    safe_arrow_conversion: bool = True,
+) -> Any:  # pyarrow.Table
+    """Converts the rows to an arrow table using the columns schema.
+    1. Pivot rows into columns.
+    2. Convert columns to pyarrow arrays; coerce type and nullability; exclude types unsupported by arrow
+    3. Create table
+    4. Remove columns full of null values
+
+    Args:
+        rows: data items
+        caps: capabilities of the storage backend
+        columns: dlt hints about the table columns (e.g., data type, nullabe)
+        tz: time zone identifier
+        safe_arrow_conversion: if False, truncation and loss of precision is allowed
+            ref: https://arrow.apache.org/docs/python/generated/pyarrow.compute.CastOptions.html#pyarrow.compute.CastOptions
+
+    Returns:
+        an arrow Table
+    """
+    from dlt.common.libs.pyarrow import pyarrow as pa
+
+    columnar = transpose_rows_to_columns(rows, column_names=columns.keys())
+
+    arrow_arrays = []
+    arrow_fields = []
+    for column_name, column_data in columnar.items():
+        column_schema = columns[column_name]
+
+        try:
+            arrow_array = convert_numpy_to_arrow(
+                column_data, caps, column_schema, tz, safe_arrow_conversion
+            )
+        # TODO if converting to arrow fail, should we raise or skip column?
+        except PyToArrowConversionException as e:
+            e.field_name = column_name
+            raise e
+
+        field = pa.field(
+            name=column_name, type=arrow_array.type, nullable=column_schema.get("nullable", True)
+        )
+        arrow_arrays.append(arrow_array)
+        arrow_fields.append(field)
+
+    # NOTE careful when casting, modifying types, or enforcing schemas in place. Arrow issues are common
+    # This can corrupt the data when writing to Parquet
+    # ref: https://github.com/apache/arrow/issues/43146
+    # ref: https://github.com/apache/arrow/issues/41667
+    arrow_table = pa.Table.from_arrays(arrow_arrays, schema=pa.schema(arrow_fields))
+    # this only removes empty columns that don't have an explicit dlt `data_type`
+    arrow_table = remove_null_columns(arrow_table)
+    return arrow_table
 
 
 class NameNormalizationCollision(ValueError):

@@ -1,15 +1,13 @@
 from typing import Any, Sequence
 
 from dlt.common.schema.typing import TTableSchemaColumns
-
 from dlt.common.configuration import with_config
+from dlt.common.configuration.container import Container
 from dlt.common.destination import DestinationCapabilitiesContext
 
 
-@with_config
 def row_tuples_to_arrow(
     rows: Sequence[Any],
-    caps: DestinationCapabilitiesContext = None,
     columns: TTableSchemaColumns = None,
     tz: str = None,
 ) -> Any:
@@ -20,5 +18,10 @@ def row_tuples_to_arrow(
     from dlt.common.libs.pyarrow import row_tuples_to_arrow as _row_tuples_to_arrow
 
     return _row_tuples_to_arrow(
-        rows, caps or DestinationCapabilitiesContext.generic_capabilities(), columns, tz
+        rows=rows,
+        caps=Container().get(DestinationCapabilitiesContext)
+        or DestinationCapabilitiesContext.generic_capabilities(),
+        columns=columns,
+        tz=tz,
+        safe_arrow_conversion=True,
     )
