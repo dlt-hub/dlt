@@ -12,6 +12,11 @@ try:
 except ImportError:
     PydanticBaseModel = None  # type: ignore[misc]
 
+try:
+    from pydantic import AnyUrl as PydanticAnyUrl
+except ImportError:
+    PydanticAnyUrl = None  # type: ignore[misc]
+
 from dlt.common import known_env
 from dlt.common.pendulum import pendulum
 from dlt.common.arithmetics import Decimal
@@ -50,6 +55,8 @@ def custom_encode(obj: Any) -> Union[str, Dict[Any, Any]]:
         return dataclasses.asdict(obj)  # type: ignore
     elif isinstance(obj, Enum):
         return obj.value  # type: ignore[no-any-return]
+    elif isinstance(obj, PydanticAnyUrl):
+        return obj.unicode_string()  # will NOT punycode encode the host
     raise TypeError(repr(obj) + " is not JSON serializable")
 
 
