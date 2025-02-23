@@ -114,7 +114,7 @@ client = aws_encryption_sdk.EncryptionSDKClient(
     commitment_policy=CommitmentPolicy.REQUIRE_ENCRYPT_REQUIRE_DECRYPT
 )
 
-
+#Encryption function
 def encryption_func(record):
     """
     Encrypts the 'security_key' for each child in a given record.
@@ -156,7 +156,7 @@ raw_data = [
     },
 ]
 
-
+#dlt resource
 @dlt.resource(name="data_test", write_disposition={"disposition": "replace"})
 def data_source():
     yield from raw_data
