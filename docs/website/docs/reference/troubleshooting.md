@@ -181,7 +181,7 @@ Timestamp issues occur when formats are incompatible with the destination or inc
 
         - Standardize timestamp formats across all runs to maintain consistent schema inference and avoid the creation of variant columns.
         
-3. Inconsistent formats for incremental loading
+3. **Inconsistent formats for incremental loading**
 
     - **Scenario:**
 
@@ -402,6 +402,37 @@ Failures in the **Load** stage often relate to authentication issues, schema cha
 
     - Use schema evolution to handle column renaming. [Read more about schema evolution.](../general-usage/schema-evolution#evolving-the-schema)
 
+### **`FileNotFoundError` for 'schema_updates.json' in parallel runs**
+
+- **Scenario**
+  When running the same pipeline name multiple times in parallel (e.g., via Airflow), `dlt` may fail at the load stage with an error like:
+  
+  > `FileNotFoundError: schema_updates.json not found`
+  
+  This happens because `schema_updates.json` is generated during normalization. Concurrent runs using the same pipeline name may overwrite or lock access to this file, causing failures.
+  
+- **Possible Solutions**
+  
+  1. **Use unique pipeline names for each parallel run** 
+  
+     If calling `pipeline.run()` multiple times within the same workflow (e.g., once per resource), assign a unique `pipeline_name` for each run. This ensures separate working directories, preventing file conflicts.
+  
+  2. **Leverage dlt’s concurrency management or Airflow helpers**  
+  
+     dlt’s Airflow integration “serializes” resources into separate tasks while safely handling concurrency. To parallelize resource extraction without file conflicts, use:  
+     ```py
+     decompose="serialize"
+     ```
+     More details are available in the [Airflow documentation](../walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer#2-valueerror-can-only-decompose-dlt-source).
+  
+  3. **Disable dev mode to prevent multiple destination datasets**  
+  
+     When `dev_mode=True`, dlt generates unique dataset names (`<dataset_name>_<timestamp>`) for each run. To maintain a consistent dataset, set:  
+     ```py
+     dev_mode=False
+     ```
+     Read more about this in the [dev mode documentation](../general-usage/pipeline#do-experiments-with-dev-mode).
+
 ### Memory management issues
 
 - **Scenario:**
@@ -412,7 +443,7 @@ Failures in the **Load** stage often relate to authentication issues, schema cha
 
     - Pipeline failures due to out-of-memory errors.
 
-- **Solution:**
+- **Possible Solution:**
 
     - Enable file rotation. [Read more about it here.](./performance#controlling-intermediary-file-size-and-rotation)
 
