@@ -82,84 +82,97 @@ Server-side encryption (SSE) complements your client-side encryption measures by
 
 Below is an example showing how to encrypt specific fields in a nested data structure using AWS KMS before loading data with dlt. The same principle can be applied to other encryption libraries, such as Google Tink or Azure Key Vault.
 
+:::note
+For demonstration purposes, we have included "KMS_KEY_ARN", "aws_access_key_id", and "aws_secret_access_key" in the script. However, it is best practice to store these in dlt `secrets.toml` or a secure vault.
+:::
+
 ```py
 import boto3
+import dlt
 import aws_encryption_sdk
 from aws_encryption_sdk import CommitmentPolicy
-from aws_cryptographic_material_providers.mpl import AwsCryptographicMaterialProviders
-from aws_cryptographic_material_providers.mpl.config import MaterialProvidersConfig
-from aws_cryptographic_material_providers.mpl.models import CreateAwsKmsKeyringInput
-from aws_cryptographic_material_providers.mpl.references import IKeyring
-import dlt
+from aws_encryption_sdk.key_providers.kms import KMSMasterKey
 
 # Define the KMS Key ARN
-kms_key_arn = "arn:aws:kms:<location>:<serial_number>:key/<key>"
+KMS_KEY_ARN = (
+    "arn:aws:kms:<region>:<number>:key/<key>"
+)
 
 # Create a boto3 client for AWS KMS
-kms_client = boto3.client('kms', region_name="<region_name>")
+kms_client = boto3.client(
+    "kms",
+    region_name="<region-name>",
+    aws_access_key_id="your aws access key",
+    aws_secret_access_key="your aws secret key",
+)
 
-# Instantiate the material providers library
-mpl = AwsCryptographicMaterialProviders(config=MaterialProvidersConfig())
-
-# Create the AWS KMS keyring
-keyring_input = CreateAwsKmsKeyringInput(kms_key_id=kms_key_arn, kms_client=kms_client)
-kms_keyring: IKeyring = mpl.create_aws_kms_keyring(input=keyring_input)
+# Create the KMS Master Key
+master_key = KMSMasterKey(key_id=KMS_KEY_ARN, client=kms_client)
 
 # Instantiate the AWS Encryption SDK client
 client = aws_encryption_sdk.EncryptionSDKClient(
     commitment_policy=CommitmentPolicy.REQUIRE_ENCRYPT_REQUIRE_DECRYPT
 )
 
-# Define the data structure
-data = [
+
+def encryption_func(record):
+    """
+    Encrypts the 'security_key' for each child in a given record.
+    """
+    for child in record.get("children", []):
+        # Convert the security key to bytes for encryption
+        key_to_encrypt = str(child["security_key"]).encode("utf-8")
+        try:
+            # Encrypt the security key using the provided master key
+            ciphertext, _ = client.encrypt(
+                source=key_to_encrypt, key_provider=master_key
+            )
+            # Replace the plain key with the encrypted data in hex format
+            child["security_key"] = ciphertext.hex()
+        except Exception as e:
+            print(
+                f"Failed to encrypt security key for child_id {child['child_id']}: {e}"
+            )
+            raise
+    return record
+
+
+# Define the raw data structure
+raw_data = [
     {
-        'parent_id': 1,
-        'parent_name': 'Alice',
-        'children': [
-            {'child_id': 1, 'child_name': 'Child 1', 'security_key': 12345},
-            {'child_id': 2, 'child_name': 'Child 2', 'security_key': 67891}
-        ]
+        "parent_id": 1,
+        "parent_name": "Alice",
+        "children": [
+            {"child_id": 1, "child_name": "Child 1", "security_key": 12345},
+            {"child_id": 2, "child_name": "Child 2", "security_key": 67891},
+        ],
     },
     {
-        'parent_id': 2,
-        'parent_name': 'Bob',
-        'children': [
-            {'child_id': 3, 'child_name': 'Child 3', 'security_key': 999111}
-        ]
-    }
+        "parent_id": 2,
+        "parent_name": "Bob",
+        "children": [
+            {"child_id": 3, "child_name": "Child 3", "security_key": 999111}
+        ],
+    },
 ]
 
-# Encrypt the `security_key` fields
-for parent in data:
-    for child in parent['children']:
-        # Convert the security key to bytes for encryption
-        key_to_encrypt = str(child['security_key']).encode('utf-8')
 
-        # Encrypt the security key
-        try:
-            ciphertext, _ = client.encrypt(
-                source=key_to_encrypt,
-                keyring=kms_keyring
-            )
-            # Replace the plain key with encrypted data (hex format for storage)
-            child['security_key'] = ciphertext.hex()
-        except Exception as e:
-            print(f"Failed to encrypt security key for child_id {child['child_id']}: {e}")
-            raise
-
-# Define the dlt resource function
-@dlt.resource(name='data_test', write_disposition={"disposition": "replace"})
+@dlt.resource(name="data_test", write_disposition={"disposition": "replace"})
 def data_source():
-    yield data
+    yield from raw_data
+
 
 if __name__ == "__main__":
-    # Apply the schema hint and execute the pipeline
+    # Apply the encryption transformation using add_map
+    data_encrypted = data_source().add_map(encryption_func)
+
+    # Configure and run the pipeline
     pipeline = dlt.pipeline(
-        pipeline_name='pipeline',
-        destination='duckdb',
-        dataset_name='dataset',
+        pipeline_name="pipeline",
+        destination="duckdb",
+        dataset_name="dataset",
     )
-    load_info = pipeline.run(data_source())
+    load_info = pipeline.run(data_encrypted)
     print(load_info)
 ```
 
