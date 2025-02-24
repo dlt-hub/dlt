@@ -11,7 +11,7 @@ keywords: [delta, iceberg, destination, data warehouse]
 `dlt` uses the [deltalake](https://pypi.org/project/deltalake/) and [pyiceberg](https://pypi.org/project/pyiceberg/) libraries to write Delta and Iceberg tables, respectively. One or multiple Parquet files are prepared during the extract and normalize steps. In the load step, these Parquet files are exposed as an Arrow data structure and fed into `deltalake` or `pyiceberg`.
 
 ## Iceberg single-user ephemeral catalog
-`dlt` uses single-table, ephemeral, in-memory, sqlite-based [Iceberg catalog](https://iceberg.apache.org/concepts/catalog/)s. These catalogs are created "on demand" when a pipeline is run, and do not persist afterwards. If a table already exists in the filesystem, it gets registered into the catalog using its latest metadata file. This allows for a serverless setup. It is currently not possible to connect your own Iceberg catalog.
+`dlt` uses single-table, ephemeral, in-memory, SQLite-based [Iceberg catalogs](https://iceberg.apache.org/terms/#catalog). These catalogs are created "on demand" when a pipeline is run, and do not persist afterwards. If a table already exists in the filesystem, it gets registered into the catalog using its latest metadata file. This allows for a serverless setup. It is currently not possible to connect your own Iceberg catalog.
 
 :::caution
 While ephemeral catalogs make it easy to get started with Iceberg, it comes with limitations:
