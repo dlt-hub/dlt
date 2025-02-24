@@ -5,8 +5,8 @@ loaders:
 processors:
   - type: filter
     skip_empty_modules: true
-  - type: pydoc_markdown_dlt.DltProcessor
   - type: crossref
+  - type: pydoc_markdown_dlt.DltProcessor
 renderer:
   type: docusaurus
   docs_base_path: docs_processed
