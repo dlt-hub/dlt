@@ -61,6 +61,21 @@ Import the module as follows for use in your sources, resources and transformers
 from dlt.common import json
 ```
 
+For custom types support you can add a custom user-defined encoder like this:
+
+```py
+from dlt.common import json
+from pydantic import AnyUrl
+
+def my_custom_encoder(obj: Any) -> Any:
+    if isinstance(obj, AnyUrl):
+        # encodes the url as non-punycode string
+        return obj.unicode_string()
+    return None # ignore other unknown types
+
+json.set_custom_encoder(my_custom_encoder)
+```
+
 :::tip
 **orjson** is fast and available on most platforms. It uses binary streams, not strings, to load data natively.
 - Open files as binary, not string, to use `load` and `dump`.
@@ -103,7 +118,7 @@ Some file formats (e.g., Parquet) do not support schema changes when writing a s
 
 Below, we set files to rotate after 100,000 items written or when the filesize exceeds 1MiB.
 
-<!--@@@DLT_SNIPPET ./performance_snippets/toml-snippets.toml::file_size_toml--> 
+<!--@@@DLT_SNIPPET ./performance_snippets/toml-snippets.toml::file_size_toml-->
 
 ### Disabling and enabling file compression
 Several [text file formats](../dlt-ecosystem/file-formats/) have `gzip` compression enabled by default. If you wish that your load packages have uncompressed files (e.g., to debug the content easily), change `data_writer.disable_compression` in config.toml. The entry below will disable the compression of the files processed in the `normalize` stage.
@@ -291,7 +306,7 @@ Due to the way `dlt` works, there are a few general pitfalls to be aware of:
 
     If you do not, files might be deleted by one pipeline that are still required to be loaded by another pipeline running in parallel.
 
-3. If you are using a write disposition that requires a staging dataset on the final destination, you should provide a unqiue staging datasetname for each pipeline, otherwise similar problems as noted above may occur. You can do this with the 
+3. If you are using a write disposition that requires a staging dataset on the final destination, you should provide a unqiue staging datasetname for each pipeline, otherwise similar problems as noted above may occur. You can do this with the
 [`staging_dataset_name_layout` setting.](../dlt-ecosystem/staging#staging-dataset)
 
 ## Keep pipeline working folder in a bucket on constrained environments.

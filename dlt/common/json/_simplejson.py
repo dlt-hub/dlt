@@ -1,5 +1,6 @@
 import codecs
-from typing import IO, Any, Union
+from typing import IO, Any, Callable, Union
+from functools import partial
 
 import simplejson
 import platform
@@ -20,6 +21,11 @@ from dlt.common.arithmetics import Decimal
 
 _impl_name = "simplejson"
 
+_custom_encoder = None
+
+def set_custom_encoder(encoder: Callable[[Any], Any]) -> None:
+    global _custom_encoder
+    _custom_encoder = encoder
 
 def dump(obj: Any, fp: IO[bytes], sort_keys: bool = False, pretty: bool = False) -> None:
     if pretty:
@@ -31,7 +37,7 @@ def dump(obj: Any, fp: IO[bytes], sort_keys: bool = False, pretty: bool = False)
         obj,
         codecs.getwriter("utf-8")(fp),  # type: ignore
         use_decimal=False,
-        default=custom_encode,
+        default=partial(custom_encode, _custom_encoder),
         encoding=None,
         ensure_ascii=False,
         separators=(",", ":"),
@@ -50,7 +56,7 @@ def typed_dump(obj: Any, fp: IO[bytes], pretty: bool = False) -> None:
         obj,
         codecs.getwriter("utf-8")(fp),  # type: ignore
         use_decimal=False,
-        default=custom_pua_encode,
+        default=partial(custom_pua_encode, _custom_encoder),
         encoding=None,
         ensure_ascii=False,
         separators=(",", ":"),
@@ -63,7 +69,7 @@ def typed_dumps(obj: Any, sort_keys: bool = False, pretty: bool = False) -> str:
     return simplejson.dumps(
         obj,
         use_decimal=False,
-        default=custom_pua_encode,
+        default=partial(custom_pua_encode, _custom_encoder),
         encoding=None,
         ensure_ascii=False,
         separators=(",", ":"),
@@ -91,7 +97,7 @@ def dumps(obj: Any, sort_keys: bool = False, pretty: bool = False) -> str:
     return simplejson.dumps(
         obj,
         use_decimal=False,
-        default=custom_encode,
+        default=partial(custom_encode, _custom_encoder),
         encoding=None,
         ensure_ascii=False,
         separators=(",", ":"),

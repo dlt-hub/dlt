@@ -12,11 +12,6 @@ try:
 except ImportError:
     PydanticBaseModel = None  # type: ignore[misc]
 
-try:
-    from pydantic import AnyUrl as PydanticAnyUrl
-except ImportError:
-    PydanticAnyUrl = None  # type: ignore[misc]
-
 from dlt.common import known_env
 from dlt.common.pendulum import pendulum
 from dlt.common.arithmetics import Decimal
@@ -26,8 +21,15 @@ from dlt.common.utils import map_nested_in_place
 
 TPuaDecoders = List[Callable[[Any], Any]]
 
+Serializable = Union[str, Dict[Any, Any]]
 
-def custom_encode(obj: Any) -> Union[str, Dict[Any, Any]]:
+Encoder = Callable[[Any], Union[Serializable, None]]
+"""
+Custom user-defined encoder function type
+"""
+
+
+def custom_encode(_custom_encoder: Union[Encoder, None], obj: Any) -> Serializable:
     """Returns a JSON-serializable representation of `obj`"""
     if isinstance(obj, Decimal):
         # always return decimals as string so they are not deserialized back to float
@@ -55,8 +57,10 @@ def custom_encode(obj: Any) -> Union[str, Dict[Any, Any]]:
         return dataclasses.asdict(obj)  # type: ignore
     elif isinstance(obj, Enum):
         return obj.value  # type: ignore[no-any-return]
-    elif isinstance(obj, PydanticAnyUrl):
-        return obj.unicode_string()  # will NOT punycode encode the host
+    elif _custom_encoder is not None:
+        ret = _custom_encoder(obj)
+        if ret is not None:
+            return ret
     raise TypeError(repr(obj) + " is not JSON serializable")
 
 
@@ -103,7 +107,7 @@ PY_DATETIME_DECODERS[7] = time.fromisoformat
 PUA_CHARACTER_MAX = len(DECODERS)
 
 
-def custom_pua_encode(obj: Any) -> str:
+def custom_pua_encode(_custom_encoder: Union[Encoder, None], obj: Any) -> str:
     # wei is subclass of decimal and must be checked first
     if isinstance(obj, Wei):
         return _WEI + str(obj)
@@ -133,6 +137,13 @@ def custom_pua_encode(obj: Any) -> str:
     elif isinstance(obj, Enum):
         # Enum value is just int or str
         return obj.value  # type: ignore[no-any-return]
+    elif _custom_encoder is not None:
+        ret = _custom_encoder(obj)
+        if ret is not None:
+            if not isinstance(ret, str):
+                print("raisins")
+                raise TypeError("Custom encoder must return a string for PUA encoding")
+            return ret
     raise TypeError(repr(obj) + " is not JSON serializable")
 
 
@@ -180,6 +191,17 @@ class SupportsJson(Protocol):
 
     _impl_name: str
     """Implementation name"""
+
+    _custom_encoder: Encoder = None
+    """Custom user-defined encoder"""
+
+    def set_custom_encoder(self, encoder: Encoder) -> None: ...
+    """
+    Add user-defined custom encoder.
+    This encoder will be called if none of the built-in encoders can handle the object.
+    It should return a JSON-serializable representation of the input object.
+    Return None if the object is not serializable.
+    """
 
     def dump(
         self, obj: Any, fp: IO[bytes], sort_keys: bool = False, pretty: bool = False

@@ -1,4 +1,5 @@
-from typing import IO, Any, Union
+from typing import IO, Any, Callable, Union
+from functools import partial
 import orjson
 
 from dlt.common.json import (
@@ -12,6 +13,11 @@ from dlt.common.typing import AnyFun
 
 _impl_name = "orjson"
 
+_custom_encoder = None
+
+def set_custom_encoder(encoder: Callable[[Any], Any]) -> None:
+    global _custom_encoder
+    _custom_encoder = encoder
 
 def _dumps(
     obj: Any, sort_keys: bool, pretty: bool, default: AnyFun = custom_encode, options: int = 0
@@ -21,7 +27,8 @@ def _dumps(
         options |= orjson.OPT_INDENT_2
     if sort_keys:
         options |= orjson.OPT_SORT_KEYS
-    return orjson.dumps(obj, default=default, option=options)
+    print("_custom_encoder", _custom_encoder)
+    return orjson.dumps(obj, default=partial(default, _custom_encoder), option=options)
 
 
 def dump(obj: Any, fp: IO[bytes], sort_keys: bool = False, pretty: bool = False) -> None:

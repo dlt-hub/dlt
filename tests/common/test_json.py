@@ -1,12 +1,13 @@
 import io
 import os
-from typing import List, NamedTuple
+from typing import Any, List, NamedTuple
 from dataclasses import dataclass
 import pytest
 
 from dlt.common import json, Decimal, pendulum
 from dlt.common.arithmetics import numeric_default_context
 from dlt.common import known_env
+from pydantic import BaseModel, AnyUrl
 from dlt.common.json import (
     _DECIMAL,
     _WEI,
@@ -225,6 +226,15 @@ def test_json_pendulum(json_impl: SupportsJson) -> None:
 #     assert isinstance(delta, timedelta)
 #     print(str(delta.as_timedelta()))
 
+@pytest.fixture(autouse=True)
+def run_around_tests():
+    for impl in _JSON_IMPL:
+        # clear the encoder
+        impl.set_custom_encoder(None)
+    yield
+    for impl in _JSON_IMPL:
+        # clear the encoder
+        impl.set_custom_encoder(None)
 
 @pytest.mark.parametrize("json_impl", _JSON_IMPL)
 def test_json_named_tuple(json_impl: SupportsJson) -> None:
@@ -348,3 +358,67 @@ def test_load_and_compare_all_impls() -> None:
         assert docs[idx] == docs[idx + 1]
         assert dump_s[idx] == dump_s[idx + 1]
         assert dump_b[idx] == dump_b[idx + 1]
+
+class X(BaseModel):
+    hello: str
+    url: AnyUrl
+
+def roundtrip(json_impl: SupportsJson) -> None:
+    x = X(url=AnyUrl("https://£££.com"), hello="world")
+    s = json_impl.dumps(x)
+    assert json_impl.loads(s) == {"url": "https://xn--9aaa.com/", "hello": "world"}
+
+@pytest.mark.parametrize("json_impl", _JSON_IMPL)
+def  test_serialize_custom_types_no_encoder(json_impl: SupportsJson) -> None:
+    with pytest.raises(TypeError, match="is not JSON serializable"):
+        roundtrip(json_impl)
+
+@pytest.mark.parametrize("json_impl", _JSON_IMPL)
+def  test_serialize_custom_types_noop_encoder(json_impl: SupportsJson) -> None:
+    calls = 0
+    def my_custom_encoder(obj: Any) -> Any:
+        nonlocal calls
+        calls += 1
+        if isinstance(obj, AnyUrl):
+            return None # returning None here will throw as if no encoder was set
+        return "non-none"
+
+    json_impl.set_custom_encoder(my_custom_encoder)
+    with pytest.raises(TypeError, match="is not JSON serializable"):
+        roundtrip(json_impl)
+    assert calls == 1
+
+@pytest.mark.parametrize("json_impl", _JSON_IMPL)
+def  test_serialize_custom_types_with_encoder(json_impl: SupportsJson) -> None:
+    calls = 0
+    def my_custom_encoder(obj: Any) -> Any:
+        nonlocal calls
+        calls += 1
+        if isinstance(obj, AnyUrl):
+            return str(obj)
+        return None
+
+    json_impl.set_custom_encoder(my_custom_encoder)
+    roundtrip(json_impl)
+    assert calls == 1
+
+@pytest.mark.parametrize("json_impl", _JSON_IMPL)
+def  test_serialize_custom_types_pua_string_only(json_impl: SupportsJson) -> None:
+    calls = 0
+    def my_custom_encoder(obj: Any) -> Any:
+        nonlocal calls
+        calls += 1
+        if isinstance(obj, AnyUrl):
+            return dict(url=str(obj))
+        return None
+
+    json_impl.set_custom_encoder(my_custom_encoder)
+
+    if json_impl is _simplejson:
+        with pytest.raises(TypeError, match="Custom encoder must return a string for PUA encoding"):
+            json_impl.typed_dumpb(AnyUrl("https://www.example.com"))
+    elif json_impl is _orjson:
+        # orjson abstracts away custom exceptions and wrap them in a nonserializable TypeError
+        with pytest.raises(TypeError, match="Type is not JSON serializable"):
+            json_impl.typed_dumpb(AnyUrl("https://www.example.com"))
+    assert calls == 1
