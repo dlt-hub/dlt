@@ -141,7 +141,6 @@ def custom_pua_encode(_custom_encoder: Union[Encoder, None], obj: Any) -> str:
         ret = _custom_encoder(obj)
         if ret is not None:
             if not isinstance(ret, str):
-                print("raisins")
                 raise TypeError("Custom encoder must return a string for PUA encoding")
             return ret
     raise TypeError(repr(obj) + " is not JSON serializable")
