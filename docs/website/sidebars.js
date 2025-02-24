@@ -457,6 +457,7 @@ const sidebars = {
             'dlt-ecosystem/table-formats/iceberg',
           ]
         },
+        'reference/troubleshooting',
         'reference/frequently-asked-questions',
       ],
     },
