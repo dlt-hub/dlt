@@ -27,7 +27,6 @@ def _dumps(
         options |= orjson.OPT_INDENT_2
     if sort_keys:
         options |= orjson.OPT_SORT_KEYS
-    print("_custom_encoder", _custom_encoder)
     return orjson.dumps(obj, default=partial(default, _custom_encoder), option=options)
 
 
