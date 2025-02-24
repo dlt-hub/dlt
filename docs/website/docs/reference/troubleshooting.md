@@ -402,7 +402,7 @@ Failures in the **Load** stage often relate to authentication issues, schema cha
 
     - Use schema evolution to handle column renaming. [Read more about schema evolution.](../general-usage/schema-evolution#evolving-the-schema)
 
-### **`FileNotFoundError` for 'schema_updates.json' in parallel runs**
+### `FileNotFoundError` for 'schema_updates.json' in parallel runs
 
 - **Scenario**
   When running the same pipeline name multiple times in parallel (e.g., via Airflow), `dlt` may fail at the load stage with an error like:
