@@ -231,53 +231,36 @@ The following script demonstrates the process of establishing an SSH tunnel, cre
 ```py
 from sshtunnel import SSHTunnelForwarder
 from sqlalchemy import create_engine
+
 from dlt.sources.sql_database import sql_table
 import dlt
 
-def create_remote_engine(ssh_credentials, db_credentials):
-    """
-    Create an SSH tunnel to the remote database and a SQLAlchemy engine for database connections.
-    """
-    tunnel = SSHTunnelForwarder(
-        # Connect to the remote server's SSH port (default is 22)
-        (ssh_credentials["server_ip_address"], 22),  
-        ssh_username=ssh_credentials["username"],
-        ssh_pkey=ssh_credentials["private_key_path"],
-        ssh_private_key_password=ssh_credentials.get("private_key_password"),
-        # Forward connections to the database server at port 5432
-        remote_bind_address=("127.0.0.1", 5432),  
-    )
-    tunnel.start()
+ssh_creds = dlt.secrets["ssh"]
+db_creds = dlt.secrets["destination.sqlalchemy.credentials"]
 
+with SSHTunnelForwarder(
+    (ssh_creds["server_ip_address"], 22),
+    ssh_username=ssh_creds["username"],
+    ssh_pkey=ssh_creds["private_key_path"],
+    ssh_private_key_password=ssh_creds.get("private_key_password"),
+    remote_bind_address=("127.0.0.1", 5432),
+) as tunnel:
     engine = create_engine(
-    # Create a SQLAlchemy engine using the forwarded local port from the SSH tunnel
-    f"postgresql://{db_credentials['username']}:"
-    f"{db_credentials['password']}@127.0.0.1:"
-    f"{tunnel.local_bind_port}/"
-    f"{db_credentials['database']}"
+        f"postgresql://{db_creds['username']}:{db_creds['password']}"
+        f"@127.0.0.1:{tunnel.local_bind_port}/{db_creds['database']}"
     )
-    return engine, tunnel
 
+    # Access database table as a dlt resource
+    table_resource = sql_table(engine, table="employees", schema="public")
 
-engine, tunnel = create_remote_engine(
-    dlt.secrets["ssh"],
-    dlt.secrets["destination.sqlalchemy.credentials"]
-)
-# Access the database table as a dlt resource
-table_resource = sql_table(engine, table="employees", schema="public")
+    # Define and run the pipeline
+    pipeline = dlt.pipeline(
+        pipeline_name="remote_db_pipeline_2",
+        destination="duckdb",
+        dataset_name="remote_dataset",
+    )
 
-# Declare your pipeline
-pipeline = dlt.pipeline(
-    pipeline_name="remote_db_pipeline",
-    destination="duckdb",
-    dataset_name="remote_dataset"
-)
-
-# Example: pipeline.run(table_resource)
-print(pipeline.run(table_resource))
-
-# Close the SSH tunnel to release resources
-tunnel.close()
+    print(pipeline.run(table_resource))
 ```
 Establishing an SSH tunnel and using a SQLAlchemy engine allows secure access to remote databases, ensuring compatibility with dlt pipelines. Always secure credentials and close the tunnel after use.
 
