@@ -225,6 +225,7 @@ def test_json_pendulum(json_impl: SupportsJson) -> None:
 #     assert isinstance(delta, timedelta)
 #     print(str(delta.as_timedelta()))
 
+
 @pytest.fixture(autouse=True)
 def run_around_tests():
     for impl in _JSON_IMPL:
@@ -234,6 +235,7 @@ def run_around_tests():
     for impl in _JSON_IMPL:
         # clear the encoder
         impl.set_custom_encoder(None)
+
 
 @pytest.mark.parametrize("json_impl", _JSON_IMPL)
 def test_json_named_tuple(json_impl: SupportsJson) -> None:
@@ -358,6 +360,7 @@ def test_load_and_compare_all_impls() -> None:
         assert dump_s[idx] == dump_s[idx + 1]
         assert dump_b[idx] == dump_b[idx + 1]
 
+
 class Pow:
     my_number: int
 
@@ -367,24 +370,27 @@ class Pow:
     def result(self) -> str:
         return f"{self.my_number*self.my_number}"
 
+
 def roundtrip(json_impl: SupportsJson) -> None:
     x = Pow(my_number=2)
     s = json_impl.dumps(x)
     assert json_impl.loads(s) == "4"
 
+
 @pytest.mark.parametrize("json_impl", _JSON_IMPL)
-def  test_serialize_custom_types_no_encoder(json_impl: SupportsJson) -> None:
+def test_serialize_custom_types_no_encoder(json_impl: SupportsJson) -> None:
     with pytest.raises(TypeError, match="is not JSON serializable"):
         roundtrip(json_impl)
 
 @pytest.mark.parametrize("json_impl", _JSON_IMPL)
-def  test_serialize_custom_types_noop_encoder(json_impl: SupportsJson) -> None:
+def test_serialize_custom_types_noop_encoder(json_impl: SupportsJson) -> None:
     calls = 0
+
     def my_custom_encoder(obj: Any) -> Any:
         nonlocal calls
         calls += 1
         if isinstance(obj, Pow):
-            return None # returning None here will throw as if no encoder was set
+            return None  # returning None here will throw as if no encoder was set
         return "non-none"
 
     json_impl.set_custom_encoder(my_custom_encoder)
@@ -393,8 +399,9 @@ def  test_serialize_custom_types_noop_encoder(json_impl: SupportsJson) -> None:
     assert calls == 1
 
 @pytest.mark.parametrize("json_impl", _JSON_IMPL)
-def  test_serialize_custom_types_with_encoder(json_impl: SupportsJson) -> None:
+def test_serialize_custom_types_with_encoder(json_impl: SupportsJson) -> None:
     calls = 0
+
     def my_custom_encoder(obj: Any) -> Any:
         nonlocal calls
         calls += 1
@@ -407,8 +414,9 @@ def  test_serialize_custom_types_with_encoder(json_impl: SupportsJson) -> None:
     assert calls == 1
 
 @pytest.mark.parametrize("json_impl", _JSON_IMPL)
-def  test_serialize_custom_types_pua_string_only(json_impl: SupportsJson) -> None:
+def test_serialize_custom_types_pua_string_only(json_impl: SupportsJson) -> None:
     calls = 0
+
     def my_custom_encoder(obj: Any) -> Any:
         nonlocal calls
         calls += 1

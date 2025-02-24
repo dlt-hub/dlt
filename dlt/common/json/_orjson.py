@@ -15,9 +15,11 @@ _impl_name = "orjson"
 
 _custom_encoder = None
 
+
 def set_custom_encoder(encoder: Callable[[Any], Any]) -> None:
     global _custom_encoder
     _custom_encoder = encoder
+
 
 def _dumps(
     obj: Any, sort_keys: bool, pretty: bool, default: AnyFun = custom_encode, options: int = 0

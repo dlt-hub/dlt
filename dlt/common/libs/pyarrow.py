@@ -867,10 +867,14 @@ def convert_numpy_to_arrow(
                 try:
                     # the 3 types match those supported by `map_nested_in_place()`
                     if isinstance(value, (tuple, dict, list)):
-                        encoded_value = map_nested_in_place(partial(custom_encode, json._custom_encoder), value)
+                        encoded_value = map_nested_in_place(
+                            partial(custom_encode, json._custom_encoder), value
+                        )
                     # convert set to list
                     elif isinstance(value, set):
-                        encoded_value = map_nested_in_place(partial(custom_encode, json._custom_encoder), list(value))
+                        encoded_value = map_nested_in_place(
+                            partial(custom_encode, json._custom_encoder), list(value)
+                        )
                     # no nesting
                     else:
                         encoded_value = custom_encode(json._custom_encoder, value)  # type: ignore[assignment]
