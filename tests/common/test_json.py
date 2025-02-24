@@ -7,7 +7,6 @@ import pytest
 from dlt.common import json, Decimal, pendulum
 from dlt.common.arithmetics import numeric_default_context
 from dlt.common import known_env
-from pydantic import BaseModel, AnyUrl
 from dlt.common.json import (
     _DECIMAL,
     _WEI,
@@ -359,14 +358,19 @@ def test_load_and_compare_all_impls() -> None:
         assert dump_s[idx] == dump_s[idx + 1]
         assert dump_b[idx] == dump_b[idx + 1]
 
-class X(BaseModel):
-    hello: str
-    url: AnyUrl
+class Pow:
+    my_number: int
+
+    def __init__(self, my_number: int) -> None:
+        self.my_number = my_number
+
+    def result(self) -> str:
+        return f"{self.my_number*self.my_number}"
 
 def roundtrip(json_impl: SupportsJson) -> None:
-    x = X(url=AnyUrl("https://£££.com"), hello="world")
+    x = Pow(my_number=2)
     s = json_impl.dumps(x)
-    assert json_impl.loads(s) == {"url": "https://xn--9aaa.com/", "hello": "world"}
+    assert json_impl.loads(s) == "4"
 
 @pytest.mark.parametrize("json_impl", _JSON_IMPL)
 def  test_serialize_custom_types_no_encoder(json_impl: SupportsJson) -> None:
@@ -379,7 +383,7 @@ def  test_serialize_custom_types_noop_encoder(json_impl: SupportsJson) -> None:
     def my_custom_encoder(obj: Any) -> Any:
         nonlocal calls
         calls += 1
-        if isinstance(obj, AnyUrl):
+        if isinstance(obj, Pow):
             return None # returning None here will throw as if no encoder was set
         return "non-none"
 
@@ -394,8 +398,8 @@ def  test_serialize_custom_types_with_encoder(json_impl: SupportsJson) -> None:
     def my_custom_encoder(obj: Any) -> Any:
         nonlocal calls
         calls += 1
-        if isinstance(obj, AnyUrl):
-            return str(obj)
+        if isinstance(obj, Pow):
+            return obj.result()
         return None
 
     json_impl.set_custom_encoder(my_custom_encoder)
@@ -408,17 +412,18 @@ def  test_serialize_custom_types_pua_string_only(json_impl: SupportsJson) -> Non
     def my_custom_encoder(obj: Any) -> Any:
         nonlocal calls
         calls += 1
-        if isinstance(obj, AnyUrl):
-            return dict(url=str(obj))
+        if isinstance(obj, Pow):
+            return dict()
         return None
 
     json_impl.set_custom_encoder(my_custom_encoder)
+    obj = Pow(2)
 
     if json_impl is _simplejson:
         with pytest.raises(TypeError, match="Custom encoder must return a string for PUA encoding"):
-            json_impl.typed_dumpb(AnyUrl("https://www.example.com"))
+            json_impl.typed_dumpb(obj)
     elif json_impl is _orjson:
         # orjson abstracts away custom exceptions and wrap them in a nonserializable TypeError
         with pytest.raises(TypeError, match="Type is not JSON serializable"):
-            json_impl.typed_dumpb(AnyUrl("https://www.example.com"))
+            json_impl.typed_dumpb(obj)
     assert calls == 1
