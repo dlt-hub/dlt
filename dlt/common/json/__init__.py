@@ -195,6 +195,7 @@ class SupportsJson(Protocol):
     """Custom user-defined encoder"""
 
     def set_custom_encoder(self, encoder: Encoder) -> None: ...
+
     """
     Add user-defined custom encoder.
     This encoder will be called if none of the built-in encoders can handle the object.

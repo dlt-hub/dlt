@@ -382,6 +382,7 @@ def test_serialize_custom_types_no_encoder(json_impl: SupportsJson) -> None:
     with pytest.raises(TypeError, match="is not JSON serializable"):
         roundtrip(json_impl)
 
+
 @pytest.mark.parametrize("json_impl", _JSON_IMPL)
 def test_serialize_custom_types_noop_encoder(json_impl: SupportsJson) -> None:
     calls = 0
@@ -398,6 +399,7 @@ def test_serialize_custom_types_noop_encoder(json_impl: SupportsJson) -> None:
         roundtrip(json_impl)
     assert calls == 1
 
+
 @pytest.mark.parametrize("json_impl", _JSON_IMPL)
 def test_serialize_custom_types_with_encoder(json_impl: SupportsJson) -> None:
     calls = 0
@@ -412,6 +414,7 @@ def test_serialize_custom_types_with_encoder(json_impl: SupportsJson) -> None:
     json_impl.set_custom_encoder(my_custom_encoder)
     roundtrip(json_impl)
     assert calls == 1
+
 
 @pytest.mark.parametrize("json_impl", _JSON_IMPL)
 def test_serialize_custom_types_pua_string_only(json_impl: SupportsJson) -> None:
