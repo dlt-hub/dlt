@@ -1,10 +1,11 @@
 loaders:
   - type: python
-    search_path: [../../dlt]
-    ignore_when_discovered: ["cli", "normalize", "load"]
+    search_path: [../..]
+    packages: ["dlt"]
 processors:
   - type: filter
     skip_empty_modules: true
+    expression: not name.startswith("dlt.cli") and not name.startswith("dlt.normalize") and not name.startswith("dlt.load") and default()
   - type: crossref
   - type: pydoc_markdown_dlt.DltProcessor
 renderer:
@@ -12,7 +13,7 @@ renderer:
   docs_base_path: docs_processed
   relative_output_path: api_reference
   relative_sidebar_path: sidebar.json
-  sidebar_top_level_label: API
+  sidebar_top_level_label: API Reference
   markdown:
     use_fixed_header_levels: false
     escape_html_in_docstring: false
