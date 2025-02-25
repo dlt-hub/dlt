@@ -1,3 +1,4 @@
+from copy import deepcopy
 import os
 import pytest
 from pytest_mock import MockerFixture
@@ -6,7 +7,6 @@ import dlt
 from dlt.common import pendulum
 from dlt.common.utils import uniq_id
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
-
 from dlt.load.exceptions import LoadClientJobFailed
 from dlt.pipeline.exceptions import PipelineStepFailed
 
@@ -14,10 +14,14 @@ from tests.load.pipeline.test_pipelines import simple_nested_pipeline
 from tests.load.snowflake.test_snowflake_client import QUERY_TAG
 from tests.pipeline.utils import assert_load_info, assert_query_data
 from tests.load.utils import (
+    TABLE_UPDATE_COLUMNS_SCHEMA,
+    assert_all_data_types_row,
     destinations_configs,
     DestinationTestConfiguration,
     drop_active_pipeline_data,
 )
+from tests.cases import TABLE_ROW_ALL_DATA_TYPES_DATETIMES
+
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential
@@ -204,3 +208,112 @@ def test_char_replacement_cs_naming_convention(
     results = rel_.fetchall()
     assert len(results) == 1
     assert "AmlSistUtfoertDato" in rel_.columns_schema
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True,
+        all_staging_configs=True,
+        with_file_format="parquet",
+        subset=["snowflake"],
+    ),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize(
+    "use_vectorized_scanner",
+    ["TRUE", "FALSE"],
+)
+def test_snowflake_use_vectorized_scanner(
+    destination_config, use_vectorized_scanner: str, mocker: MockerFixture
+) -> None:
+    """Tests whether the vectorized scanner option is correctly applied when loading Parquet files into Snowflake."""
+
+    from dlt.destinations.impl.snowflake.snowflake import SnowflakeLoadJob
+
+    os.environ["DESTINATION__SNOWFLAKE__USE_VECTORIZED_SCANNER"] = use_vectorized_scanner
+
+    load_job_spy = mocker.spy(SnowflakeLoadJob, "gen_copy_sql")
+
+    data_types = deepcopy(TABLE_ROW_ALL_DATA_TYPES_DATETIMES)
+    column_schemas = deepcopy(TABLE_UPDATE_COLUMNS_SCHEMA)
+    expected_rows = deepcopy(TABLE_ROW_ALL_DATA_TYPES_DATETIMES)
+
+    @dlt.resource(table_name="data_types", write_disposition="merge", columns=column_schemas)
+    def my_resource():
+        nonlocal data_types
+        yield [data_types] * 10
+
+    pipeline = destination_config.setup_pipeline(
+        f"vectorized_scanner_{use_vectorized_scanner}_{uniq_id()}",
+        dataset_name="parquet_test_" + uniq_id(),
+    )
+
+    info = pipeline.run(my_resource(), **destination_config.run_kwargs)
+    package_info = pipeline.get_load_package_info(info.loads_ids[0])
+    assert package_info.state == "loaded"
+    assert len(package_info.jobs["failed_jobs"]) == 0
+    # 1 table + 1 state + 2 reference jobs if staging
+    expected_completed_jobs = 2 + 2 if pipeline.staging else 2
+    # add sql merge job
+    if destination_config.supports_merge:
+        expected_completed_jobs += 1
+    assert len(package_info.jobs["completed_jobs"]) == expected_completed_jobs
+
+    if use_vectorized_scanner == "FALSE":
+        # no vectorized scanner in all copy jobs
+        assert sum(
+            [
+                1
+                for spy_return in load_job_spy.spy_return_list
+                if "USE_VECTORIZED_SCANNER = TRUE" not in spy_return
+            ]
+        ) == len(load_job_spy.spy_return_list)
+        assert sum(
+            [
+                1
+                for spy_return in load_job_spy.spy_return_list
+                if "ON_ERROR = ABORT_STATEMENT" not in spy_return
+            ]
+        ) == len(load_job_spy.spy_return_list)
+
+    elif use_vectorized_scanner == "TRUE":
+        # vectorized scanner in one copy job to data_types
+        assert (
+            sum(
+                [
+                    1
+                    for spy_return in load_job_spy.spy_return_list
+                    if "USE_VECTORIZED_SCANNER = TRUE" in spy_return
+                ]
+            )
+            == 1
+        )
+        assert (
+            sum(
+                [
+                    1
+                    for spy_return in load_job_spy.spy_return_list
+                    if "ON_ERROR = ABORT_STATEMENT" in spy_return
+                ]
+            )
+            == 1
+        )
+
+        # the vectorized scanner shows NULL values in json outputs when enabled
+        # as a result, when queried back, we receive a string "null" in json type
+        expected_rows["col9_null"] = "null"
+
+    with pipeline.sql_client() as sql_client:
+        qual_name = sql_client.make_qualified_table_name
+        db_rows = sql_client.execute_sql(f"SELECT * FROM {qual_name('data_types')}")
+        assert len(db_rows) == 10
+        db_row = list(db_rows[0])
+        # "snowflake" does not parse JSON from parquet string so double parse
+        assert_all_data_types_row(
+            db_row,
+            expected_row=expected_rows,
+            schema=column_schemas,
+            parse_json_strings=True,
+            timestamp_precision=6,
+        )
