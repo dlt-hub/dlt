@@ -123,11 +123,11 @@ Note that not all authentication methods are supported when using table formats 
 | [Application Default Credentials](bigquery.md#using-default-credentials) | ✅ | ❌ |
 
 :::note
-The [S3-compatible](#using-s3-compatible-storage) interface for Google Cloud Storage is not supported when using `iceberg`.
+The [S3-compatible](./filesystem.md#using-s3-compatible-storage) interface for Google Cloud Storage is not supported when using `iceberg`.
 :::
 
 ## Iceberg Azure scheme
-The `az` [scheme](#supported-schemes) is not supported when using the `iceberg` table format. Please use the `abfss` scheme. This is because `pyiceberg`, which `dlt` used under the hood, currently does not support `az`.
+The `az` [scheme](./filesystem.md#supported-schemes) is not supported when using the `iceberg` table format. Please use the `abfss` scheme. This is because `pyiceberg`, which `dlt` used under the hood, currently does not support `az`.
 
 ## Table format `merge` support (**experimental**)
 The [`upsert`](../../general-usage/incremental-loading.md#upsert-strategy) merge strategy is supported for `delta`. For `iceberg`, the `merge` write disposition is not supported and falls back to `append`. If you're interested in support for the `merge` write disposition with Iceberg, check out [dlt+ Iceberg destination](../../plus/ecosystem/iceberg.md).

@@ -242,11 +242,11 @@ For more information, read the guide on [how to add a verified source](../../wal
    ```
 
 1. From the ".json" that you
-   [downloaded earlier](google_sheets.md#grab-google-service-account-credentials), copy
+   [downloaded earlier](#google-service-account-credentials), copy
    `project_id`, `private_key`, and `client_email` under `[sources.google_sheets.credentials]`.
 
 1. Alternatively, if you're using OAuth credentials, replace the fields and values with those
-   you [grabbed for OAuth credentials](google_sheets.md#grab-google-oauth-credentials).
+   you [grabbed for OAuth credentials](#google-oauth-credentials).
 
 1. The secrets.toml for OAuth authentication looks like:
 

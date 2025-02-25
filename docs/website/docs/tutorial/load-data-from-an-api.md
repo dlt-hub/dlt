@@ -583,7 +583,7 @@ Interested in learning more? Here are some suggestions:
 2. Dive deeper into how dlt works by reading the [Using dlt](../general-usage) section. Some highlights:
     - [Set up "last value" incremental loading](../general-usage/incremental-loading#incremental-loading-with-a-cursor-field).
     - Learn about data loading strategies: [append, replace, and merge](../general-usage/incremental-loading).
-    - [Connect the transformers to the resources](../general-usage/resource#feeding-data-from-one-resource-into-another) to load additional data or enrich it.
+    - [Connect the transformers to the resources](../general-usage/resource#process-resources-with-dlttransformer) to load additional data or enrich it.
     - [Customize your data schema—set primary and merge keys, define column nullability, and specify data types](../general-usage/resource#define-schema).
     - [Create your resources dynamically from data](../general-usage/source#create-resources-dynamically).
     - [Transform your data before loading](../general-usage/resource#customize-resources) and see some [examples of customizations like column renames and anonymization](../general-usage/customising-pipelines/renaming_columns).
