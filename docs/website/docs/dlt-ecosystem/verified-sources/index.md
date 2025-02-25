@@ -3,7 +3,10 @@ title: Sources
 description: Available sources
 keywords: ['source']
 ---
+
 import Link from '../../_book-onboarding-call.md';
+
+import {useCurrentSidebarCategory} from '@docusaurus/theme-common';
 
 import DocCardList from '@theme/DocCardList';
 
@@ -11,7 +14,9 @@ Planning to use `dlt` in production and need a source that isn't listed? We're h
 
 ### Core sources
 
-
+<DocCardList items={useCurrentSidebarCategory().items.filter(
+item => item.label === '30+ SQL Databases' || item.label === 'REST APIs' || item.label === 'Cloud storage and filesystem'
+)} />
 
 ### Verified sources
 
@@ -22,6 +27,9 @@ If you couldn't find a source implementation, you can easily create your own. Ch
 :::
 
 
+<DocCardList items={useCurrentSidebarCategory().items.filter(
+item => item.label !== '30+ SQL Databases' && item.label !== 'REST APIs' && item.label !== 'Cloud storage and filesystem'
+)} />
 
 ### What's the difference between core and verified sources?
 
