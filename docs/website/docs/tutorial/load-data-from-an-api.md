@@ -92,7 +92,7 @@ print(table.limit(10).arrow())
 
 ### Explore data in Streamlit
 
-To allow a sneak peek and basic discovery, you can take advantage of [built-in integration with Streamlit](../reference/command-line-interface#show-tables-and-data-in-the-destination):
+To allow a sneak peek and basic discovery, you can take advantage of [built-in integration with Streamlit](../reference/command-line-interface#dlt-pipeline-show):
 
 ```sh
 dlt pipeline quick_start show
@@ -230,7 +230,7 @@ dlt pipeline -v github_issues_incremental info
 Learn more:
 
 - Declare your [resources](../general-usage/resource) and group them in [sources](../general-usage/source) using Python decorators.
-- [Set up "last value" incremental loading.](../general-usage/incremental-loading#incremental_loading-with-last-value)
+- [Set up "last value" incremental loading.](../general-usage/incremental-loading#incremental-loading-with-a-cursor-field)
 - [Inspect pipeline after loading.](../walkthroughs/run-a-pipeline#4-inspect-a-load-process)
 - [`dlt` command line interface.](../reference/command-line-interface)
 
@@ -251,7 +251,7 @@ Note that we now track the `updated_at` field — so we filter in all issues **u
 Pay attention to how we use the **since** parameter from the [GitHub API](https://docs.github.com/en/rest/issues/issues?apiVersion=2022-11-28#list-repository-issues)
 and `updated_at.last_value` to tell GitHub to return issues updated only **after** the date we pass. `updated_at.last_value` holds the last `updated_at` value from the previous run.
 
-[Learn more about merge write disposition](../general-usage/incremental-loading#merge-incremental_loading).
+[Learn more about merge write disposition](../general-usage/incremental-loading#merge-incremental-loading).
 
 ## Using pagination helper
 
@@ -581,7 +581,7 @@ Congratulations on completing the tutorial! You've come a long way since the [ge
 Interested in learning more? Here are some suggestions:
 1. You've been running your pipelines locally. Learn how to [deploy and run them in the cloud](../walkthroughs/deploy-a-pipeline/).
 2. Dive deeper into how dlt works by reading the [Using dlt](../general-usage) section. Some highlights:
-    - [Set up "last value" incremental loading](../general-usage/incremental-loading#incremental_loading-with-last-value).
+    - [Set up "last value" incremental loading](../general-usage/incremental-loading#incremental-loading-with-a-cursor-field).
     - Learn about data loading strategies: [append, replace, and merge](../general-usage/incremental-loading).
     - [Connect the transformers to the resources](../general-usage/resource#feeding-data-from-one-resource-into-another) to load additional data or enrich it.
     - [Customize your data schema—set primary and merge keys, define column nullability, and specify data types](../general-usage/resource#define-schema).

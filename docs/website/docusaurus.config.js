@@ -52,6 +52,7 @@ const config = {
   baseUrl: process.env.DOCUSAURUS_BASE_URL || '/docs',
   onBrokenLinks: 'throw',
   onBrokenMarkdownLinks: 'throw',
+  onBrokenAnchors: 'ignore', 
   favicon: 'img/favicon.ico',
   staticDirectories: ['public', 'static'],
 

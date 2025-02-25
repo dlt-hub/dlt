@@ -22,7 +22,7 @@ Features include:
 
 * **[Pagination](./rest_api#pagination) discovery** for each endpoint.
 * **Primary key discovery** for each entity.
-* **Endpoint relationship mapping** into `dlt` [`transformers`](../../general-usage/resource#process-resources-with-dlttransformer) (e.g., /users/ -> /user/{id}).
+* **Endpoint relationship mapping** into `dlt` [`transformers`](../../general-usage/resource#process-resources-with-dlttransformer) (e.g., /users/ -> /user\{id\}).
 * **Payload JSON path [data selector](./rest_api#data-selection) discovery** for results nested in the returned JSON.
 * **[Authentication](./rest_api#authentication)** discovery for an API.
 

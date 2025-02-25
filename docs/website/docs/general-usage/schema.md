@@ -115,7 +115,7 @@ A column schema contains the following basic hints:
 
 1. `primary_key` marks a column as part of the primary key.
 2. `unique` indicates that the column is unique. On some destinations, this generates a unique index.
-3. `merge_key` marks a column as part of the merge key used by [incremental load](./incremental-loading.md#merge-incremental_loading).
+3. `merge_key` marks a column as part of the merge key used by [incremental load](./incremental-loading.md#merge-incremental-loading).
 
 Hints below are used to create [nested references](#root-and-nested-tables-nested-references):
 1. `row_key` is a special form of primary key created by `dlt` to uniquely identify rows of data.

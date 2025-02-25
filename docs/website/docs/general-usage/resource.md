@@ -433,7 +433,7 @@ You can also set the limit to `0` for the resource to not yield any items.
 
 ### Set table name and adjust schema
 
-You can change the schema of a resource, whether it is standalone or part of a source. Look for a method named `apply_hints` which takes the same arguments as the resource decorator. Obviously, you should call this method before data is extracted from the resource. The example below converts an `append` resource loading the `users` table into a [merge](incremental-loading.md#merge-incremental_loading) resource that will keep just one updated record per `user_id`. It also adds ["last value" incremental loading](incremental-loading.md#incremental_loading-with-last-value) on the `created_at` column to prevent requesting again the already loaded records:
+You can change the schema of a resource, whether it is standalone or part of a source. Look for a method named `apply_hints` which takes the same arguments as the resource decorator. Obviously, you should call this method before data is extracted from the resource. The example below converts an `append` resource loading the `users` table into a [merge](incremental-loading.md#merge-incremental-loading) resource that will keep just one updated record per `user_id`. It also adds ["last value" incremental loading](incremental-loading.md#incremental-loading-with-a-cursor-field) on the `created_at` column to prevent requesting again the already loaded records:
 
 ```py
 tables = sql_database()
