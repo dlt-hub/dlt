@@ -353,7 +353,7 @@ bigquery_adapter(my_resource, partition="partition_column_name")
 my_resource = bigquery_adapter(my_resource, partition="partition_column_name")
 ```
 
-Refer to the [full API specification](./) for more details.
+Refer to the [full API specification](../../api_reference/dlt/destinations/impl/bigquery/bigquery_adapter) for more details.
 :::
 
 <!--@@@DLT_TUBA bigquery-->
