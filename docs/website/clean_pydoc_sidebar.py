@@ -1,10 +1,11 @@
 """Simplify labels in the sidebar"""
+from typing import List, Any
 import json
 
 SIDEBAR_PATH = "docs_processed/api_reference/sidebar.json"
 
 
-def process_items(items: list) -> list:
+def process_items(items: List[Any]) -> None:
     for item in items:
         if isinstance(item, str):
             continue
