@@ -394,7 +394,13 @@ const sidebars = {
         },
       ]
     },
-    'reference/performance',
+    {
+      type: 'category',
+      label: 'Optimizing dlt',
+      items: [
+        'reference/performance',
+      ],
+    },
     {
       type: 'category',
       label: 'Code examples',
