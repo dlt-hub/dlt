@@ -14,9 +14,7 @@ def process_items(items: list) -> list:
             item["label"] = item["label"].split(".")[-1]
 
 
-
 if __name__ == "__main__":
-
     # clean sidebar
     with open(SIDEBAR_PATH, "r") as f:
         sidebar = json.load(f)
@@ -25,8 +23,6 @@ if __name__ == "__main__":
 
     with open(SIDEBAR_PATH, "w") as f:
         json.dump(sidebar, f, indent=2)
-
-
 
     # change init file title
     with open("docs_processed/api_reference/dlt/__init__.md", "r") as f:
