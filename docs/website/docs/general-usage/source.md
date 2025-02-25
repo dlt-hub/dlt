@@ -143,7 +143,7 @@ password="..."
 
 ### Add more resources to existing source
 
-You can add a custom resource to a source after it was created. Imagine that you want to score all the deals with a keras model that will tell you if the deal is a fraud or not. In order to do that, you declare a new [transformer that takes the data from](resource.md#feeding-data-from-one-resource-into-another) `deals` resource and add it to the source.
+You can add a custom resource to a source after it was created. Imagine that you want to score all the deals with a keras model that will tell you if the deal is a fraud or not. In order to do that, you declare a new [transformer that takes the data from](resource.md#process-resources-with-dlttransformer) `deals` resource and add it to the source.
 
 ```py
 import dlt
