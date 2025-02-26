@@ -30,16 +30,16 @@ Data is vulnerable both while moving between systems (in transit) and when store
 
 This layered approach ensures comprehensive protection, covering every stage of data’s journey from extraction to storage.
 
-## Client-Side Encryption
+## Client-side encryption
 
-### Why Client-Side Encryption?
+### Why client-side encryption?
 
 Client-side encryption empowers you to encrypt data before it ever leaves your environment. This ensures that:
 
 - **You maintain full control of encryption keys** (often managed through KMS solutions like AWS KMS, Google Cloud KMS, or Azure Key Vault).
 - **Data remains protected** during transit and while stored at the destination, even if the destination’s security is compromised.
 
-### Common Client-Side Encryption Tools
+### Common client-side encryption tools
 
 - AWS Encryption SDK
 - Tink by Google
@@ -184,22 +184,22 @@ In this code:
 
 ## Security best practices
 
-### 1. Combine client-side and server-side encryption
+**1. Combine client-side and server-side encryption**
 
 For maximum security, encrypt data on the client side and also enable server-side encryption at the destination. This ensures data remains secure, even if one layer of security fails or is misconfigured.
 
-### 2. Key management and rotation
+**2. Key management and rotation**
 
 Use a dedicated Key Management Service (KMS) such as AWS KMS, Google Cloud KMS, or Azure Key Vault to store and manage your encryption keys. Rotate keys regularly and enforce strict access controls.
 
-### 3. Secure your infrastructure
+**3. Secure your infrastructure**
 
 Encrypt the local disk or partition where dlt extracts and processes data to ensure the data at rest on your system is protected (e.g., BitLocker, FileVault, dm-crypt/LUKS).
 
-### 4. Monitor and audit
+**4. Monitor and audit**
 
 Implement monitoring for unusual access patterns, and maintain detailed logs for auditing. Services like AWS CloudTrail or Azure Monitor can provide insights into who accessed your keys and when.
 
-### 5. Validate and test
+**5. Validate and test**
 
 Regularly test your encryption and decryption workflows in a staging or QA environment. Confirm that you can restore data from backups and that your encryption processes don’t introduce bottlenecks or errors.
