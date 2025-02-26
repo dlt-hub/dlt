@@ -141,6 +141,9 @@ class SnowflakeClientConfiguration(DestinationClientDwhWithStagingConfiguration)
     create_indexes: bool = False
     """Whether UNIQUE or PRIMARY KEY constrains should be created"""
 
+    use_vectorized_scanner: bool = False
+    """Whether to use or not use the vectorized scanner in COPY INTO"""
+
     def fingerprint(self) -> str:
         """Returns a fingerprint of host part of a connection string"""
         if self.credentials and self.credentials.host:
