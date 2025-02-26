@@ -85,6 +85,7 @@ class SnowflakeLoadJob(RunnableLoadJob, HasFollowupJobs):
             stage_file_path,
             self._staging_credentials,
             self._config.csv_format,
+            self._config.use_vectorized_scanner,
         )
 
         with self._sql_client.begin_transaction():
@@ -109,6 +110,7 @@ class SnowflakeLoadJob(RunnableLoadJob, HasFollowupJobs):
         local_stage_file_path: Optional[str] = None,
         staging_credentials: Optional[CredentialsConfiguration] = None,
         csv_format: Optional[CsvFormatConfiguration] = None,
+        use_vectorized_scanner: Optional[bool] = False,
     ) -> str:
         parsed_file_url = urlparse(file_url)
         # check if local filesystem (file scheme or just a local file in native form)
@@ -171,11 +173,11 @@ class SnowflakeLoadJob(RunnableLoadJob, HasFollowupJobs):
         if loader_file_format == "jsonl":
             source_format = "( TYPE = 'JSON', BINARY_FORMAT = 'BASE64' )"
         elif loader_file_format == "parquet":
-            source_format = (
-                "(TYPE = 'PARQUET', BINARY_AS_TEXT = FALSE, USE_LOGICAL_TYPE = TRUE)"
-                # TODO: USE_VECTORIZED_SCANNER inserts null strings into VARIANT JSON
-                # " USE_VECTORIZED_SCANNER = TRUE)"
-            )
+            source_format = "(TYPE = 'PARQUET', BINARY_AS_TEXT = FALSE, USE_LOGICAL_TYPE = TRUE"
+            if use_vectorized_scanner:
+                source_format += ", USE_VECTORIZED_SCANNER = TRUE"
+                on_error_clause = "ON_ERROR = ABORT_STATEMENT"
+            source_format += ")"
         elif loader_file_format == "csv":
             # empty strings are NULL, no data is NULL, missing columns (ERROR_ON_COLUMN_COUNT_MISMATCH) are NULL
             csv_format = csv_format or CsvFormatConfiguration()
