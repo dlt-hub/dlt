@@ -31,7 +31,7 @@ There are multiple ways to define configurations and credentials for your pipeli
 1. [Custom Providers](#custom-providers) added with `register_provider`: This is a custom provider implementation you can design yourself.
 A custom config provider is helpful if you want to use your own configuration file structure or perform advanced preprocessing of configs and secrets.
 
-1. [Default Argument Values](advanced#ingestion-mechanism): These are the values specified in the function's signature.
+1. [Default Argument Values](./advanced#injection-mechanism): These are the values specified in the function's signature.
 
 :::tip
 Please make sure your pipeline name contains no whitespace or any other punctuation characters except `"-"` and `"_"`. This way, you will ensure your code is working with any configuration option.
@@ -382,7 +382,7 @@ dlt.secrets["destination.filesystem.credentials"] = credentials
 
 Let's assume we use the `bigquery` destination and the `google_sheets` source. They both use Google credentials and expect them to be configured under the `credentials` key.
 
-1. If we create just a single `credentials` section like in [here](#default-layout-without-sections), the destination and source will share the same credentials.
+1. If we create just a single `credentials` section, the destination and source will share the same credentials.
 
 <Tabs
   groupId="config-provider-type"

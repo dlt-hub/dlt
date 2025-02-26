@@ -78,7 +78,7 @@ to the console periodically:
 PROGRESS=log python chess_pipeline.py
 ```
 
-[You can configure the progress bars however you want in code](../general-usage/pipeline.md#display-loading-progress).
+[You can configure the progress bars however you want in code](../general-usage/pipeline.md#display-the-loading-progress).
 
 ## 3. See your data and tables
 

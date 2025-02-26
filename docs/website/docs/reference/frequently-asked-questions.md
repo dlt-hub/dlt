@@ -37,7 +37,7 @@ These methods allow for a degree of customization in handling data structure and
 
 `dlt` buffers to disk and has built-in resume and retry mechanisms. This makes it less beneficial to manually manage atomicity after the fact unless you're running serverless. If you choose to load every 10k records instead, you could potentially see benefits like quicker data arrival if you're actively reading, and easier resumption from the last loaded point in case of failure, assuming that state is well-managed and records are sorted.
 
-It's worth noting that `dlt` includes a request library replacement with [built-in retries](../reference/performance#using-the-built-in-requests-client). This means if you pull 10 million records individually, your data should remain safe even in the face of network issues. To resume jobs after a failure, however, it's necessary to run the pipeline in its own virtual machine (VM). Ephemeral storage solutions like Cloud Run don't support job resumption.
+It's worth noting that `dlt` includes a request library replacement with [built-in retries](../reference/performance#use-the-built-in-requests-wrapper-or-restclient-for-api-calls). This means if you pull 10 million records individually, your data should remain safe even in the face of network issues. To resume jobs after a failure, however, it's necessary to run the pipeline in its own virtual machine (VM). Ephemeral storage solutions like Cloud Run don't support job resumption.
 
 ## How to contribute a verified source?
 

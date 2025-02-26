@@ -321,7 +321,7 @@ config = {
 ```
 This would use `Bearer` auth as defined in the `client` for `resource-using-bearer-auth` and `Http Basic` auth for `my-resource-with-special-auth`.
 
-You can also pass additional resource parameters that will be used to configure the dlt resource. See [dlt resource API reference](../../../api_reference/extract/decorators#resource) for more details.
+You can also pass additional resource parameters that will be used to configure the dlt resource. See [dlt resource API reference](../../../api_reference/dlt/extract/decorators#resource) for more details.
 
 ### Endpoint configuration
 
@@ -410,14 +410,14 @@ from dlt.sources.helpers.rest_client.paginators import JSONLinkPaginator
 ```
 
 :::note
-Currently, pagination is supported only for GET requests. To handle POST requests with pagination, you need to implement a [custom paginator](../../../general-usage/http/rest-client.md#custom-paginator).
+Currently, pagination is supported only for GET requests. To handle POST requests with pagination, you need to implement a [custom paginator](../../../general-usage/http/rest-client.md#implementing-a-custom-paginator).
 :::
 
 These are the available paginators:
 
 | `type` | Paginator class | Description |
 | ------------ | -------------- | ----------- |
-| `json_link` | [JSONLinkPaginator](../../../general-usage/http/rest-client.md#jsonresponsepaginator) | The link to the next page is in the body (JSON) of the response.<br/>*Parameters:*<ul><li>`next_url_path` (str) - the JSONPath to the next page URL</li></ul> |
+| `json_link` | [JSONLinkPaginator](../../../general-usage/http/rest-client.md#jsonlinkpaginator) | The link to the next page is in the body (JSON) of the response.<br/>*Parameters:*<ul><li>`next_url_path` (str) - the JSONPath to the next page URL</li></ul> |
 | `header_link` | [HeaderLinkPaginator](../../../general-usage/http/rest-client.md#headerlinkpaginator) | The links to the next page are in the response headers.<br/>*Parameters:*<ul><li>`links_next_key` (str) - the name of the header containing the links. Default is "next".</li></ul> |
 | `offset` | [OffsetPaginator](../../../general-usage/http/rest-client.md#offsetpaginator) | The pagination is based on an offset parameter, with the total items count either in the response body or explicitly provided.<br/>*Parameters:*<ul><li>`limit` (int) - the maximum number of items to retrieve in each request</li><li>`offset` (int) - the initial offset for the first request. Defaults to `0`</li><li>`offset_param` (str) - the name of the query parameter used to specify the offset. Defaults to "offset"</li><li>`limit_param` (str) - the name of the query parameter used to specify the limit. Defaults to "limit"</li><li>`total_path` (str) - a JSONPath expression for the total number of items. If not provided, pagination is controlled by `maximum_offset` and `stop_after_empty_page`</li><li>`maximum_offset` (int) - optional maximum offset value. Limits pagination even without total count</li><li>`stop_after_empty_page` (bool) - Whether pagination should stop when a page contains no result items. Defaults to `True`</li></ul> |
 | `page_number` | [PageNumberPaginator](../../../general-usage/http/rest-client.md#pagenumberpaginator) | The pagination is based on a page number parameter, with the total pages count either in the response body or explicitly provided.<br/>*Parameters:*<ul><li>`base_page` (int) - the starting page number. Defaults to `0`</li><li>`page_param` (str) - the query parameter name for the page number. Defaults to "page"</li><li>`total_path` (str) - a JSONPath expression for the total number of pages. If not provided, pagination is controlled by `maximum_page` and `stop_after_empty_page`</li><li>`maximum_page` (int) - optional maximum page number. Stops pagination once this page is reached</li><li>`stop_after_empty_page` (bool) - Whether pagination should stop when a page contains no result items. Defaults to `True`</li></ul> |
@@ -530,7 +530,7 @@ Available authentication types:
 | [BearerTokenAuth](../../../general-usage/http/rest-client.md#bearer-token-authentication) | `bearer` | Bearer token authentication. |
 | [HTTPBasicAuth](../../../general-usage/http/rest-client.md#http-basic-authentication) | `http_basic` | Basic HTTP authentication. |
 | [APIKeyAuth](../../../general-usage/http/rest-client.md#api-key-authentication) | `api_key` | API key authentication with key defined in the query parameters or in the headers. |
-| [OAuth2ClientCredentials](../../../general-usage/http/rest-client.md#oauth20-authorization) | `oauth2_client_credentials` | OAuth 2.0 authorization with a temporary access token obtained from the authorization server. |
+| [OAuth2ClientCredentials](../../../general-usage/http/rest-client.md#oauth-20-authorization) | `oauth2_client_credentials` | OAuth 2.0 authorization with a temporary access token obtained from the authorization server. |
 
 To specify the authentication configuration, use the `auth` field in the [client](#client) configuration:
 
@@ -573,7 +573,7 @@ Available authentication types:
 | `bearer` | [BearerTokenAuth](../../../general-usage/http/rest-client.md#bearer-token-authentication) | Bearer token authentication.<br/>Parameters:<ul><li>`token` (str)</li></ul> |
 | `http_basic` | [HTTPBasicAuth](../../../general-usage/http/rest-client.md#http-basic-authentication) | Basic HTTP authentication.<br/>Parameters:<ul><li>`username` (str)</li><li>`password` (str)</li></ul> |
 | `api_key` | [APIKeyAuth](../../../general-usage/http/rest-client.md#api-key-authentication) | API key authentication with key defined in the query parameters or in the headers. <br/>Parameters:<ul><li>`name` (str) - the name of the query parameter or header</li><li>`api_key` (str) - the API key value</li><li>`location` (str, optional) - the location of the API key in the request. Can be `query` or `header`. Default is `header`</li></ul> |
-| `oauth2_client_credentials` | [OAuth2ClientCredentials](../../../general-usage/http/rest-client.md#oauth20-authorization)) | OAuth 2.0 Client Credentials authorization for server-to-server communication without user consent. <br/>Parameters:<ul><li>`access_token` (str, optional) - the temporary token. Usually not provided here because it is automatically obtained from the server by exchanging `client_id` and `client_secret`. Default is `None`</li><li>`access_token_url` (str) - the URL to request the `access_token` from</li><li>`client_id` (str) - identifier for your app. Usually issued via a developer portal</li><li>`client_secret` (str) - client credential to obtain authorization. Usually issued via a developer portal</li><li>`access_token_request_data` (dict, optional) - A dictionary with data required by the authorization server apart from the `client_id`, `client_secret`, and `"grant_type": "client_credentials"`. Defaults to `None`</li><li>`default_token_expiration` (int, optional) - The time in seconds after which the temporary access token expires. Defaults to 3600.</li><li>`session` (requests.Session, optional) - a custom session object. Mostly used for testing</li></ul> |
+| `oauth2_client_credentials` | [OAuth2ClientCredentials](../../../general-usage/http/rest-client.md#oauth-20-authorization) | OAuth 2.0 Client Credentials authorization for server-to-server communication without user consent. <br/>Parameters:<ul><li>`access_token` (str, optional) - the temporary token. Usually not provided here because it is automatically obtained from the server by exchanging `client_id` and `client_secret`. Default is `None`</li><li>`access_token_url` (str) - the URL to request the `access_token` from</li><li>`client_id` (str) - identifier for your app. Usually issued via a developer portal</li><li>`client_secret` (str) - client credential to obtain authorization. Usually issued via a developer portal</li><li>`access_token_request_data` (dict, optional) - A dictionary with data required by the authorization server apart from the `client_id`, `client_secret`, and `"grant_type": "client_credentials"`. Defaults to `None`</li><li>`default_token_expiration` (int, optional) - The time in seconds after which the temporary access token expires. Defaults to 3600.</li><li>`session` (requests.Session, optional) - a custom session object. Mostly used for testing</li></ul> |
 
 
 For more complex authentication methods, you can implement a [custom authentication class](../../../general-usage/http/rest-client.md#implementing-custom-authentication) and use it in the configuration.
@@ -1203,7 +1203,7 @@ Some APIs may return 404 errors for resources that do not exist or have no data.
 If you are experiencing 401 (Unauthorized) errors, this could indicate:
 
 - Incorrect authorization credentials. Verify credentials in the `secrets.toml`. Refer to [Secret and configs](../../../general-usage/credentials/setup#understanding-the-exceptions) for more information.
-- An incorrect authentication type. Consult the API documentation for the proper method. See the [authentication](#authentication) section for details. For some APIs, a [custom authentication method](../../../general-usage/http/rest-client.md#custom-authentication) may be required.
+- An incorrect authentication type. Consult the API documentation for the proper method. See the [authentication](#authentication) section for details. For some APIs, a [custom authentication method](../../../general-usage/http/rest-client.md#implementing-custom-authentication) may be required.
 
 ### General guidelines
 
