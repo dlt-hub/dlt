@@ -505,7 +505,7 @@ For APIs that require authentication to access their endpoints, the REST API sou
 
 #### Quick example
 
-To specify the authentication configuration, use the `auth` field in the [client](#client) configuration:
+Here's how to configure authentication using a bearer token:
 
 ```py
 {
@@ -535,7 +535,7 @@ config = {
 }
 ```
 
-One of the most common methods is token-based authentication (also known as Bearer token authentication). To authenticate using this method, you can use the following shortcut:
+Since token-based authentication is one of the most common methods, you can use the following shortcut:
 
 ```py
 {
