@@ -12,7 +12,6 @@ from typing import (
     Any,
 )
 from typing_extensions import Self
-from typing import Dict
 
 from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.specs import known_sections

@@ -8,7 +8,6 @@ from dlt.destinations.impl.mssql.configuration import (
     MsSqlCredentials,
     MsSqlClientConfiguration,
 )
-from dlt.destinations.impl.mssql.configuration import MsSqlCredentials
 
 from dlt.destinations.impl.synapse.synapse_adapter import TTableIndexType
 
