@@ -119,7 +119,7 @@ def coerce_value(to_type: TDataType, from_type: TDataType, value: Any) -> Any:
         else:
             # use the same string encoding as in json
             try:
-                return str(json_custom_encode(json._custom_encoder, value))
+                return str(json_custom_encode(value))
             except TypeError:
                 # for other types use internal conversion
                 return str(value)

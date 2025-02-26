@@ -1,11 +1,11 @@
-from typing import IO, Any, Callable, Union
-from functools import partial
+from typing import IO, Any, Union
 import orjson
 
 from dlt.common.json import (
     custom_pua_encode,
     custom_pua_decode_nested,
     custom_encode,
+    set_custom_encoder_impl,
     TPuaDecoders,
     DECODERS,
 )
@@ -13,12 +13,7 @@ from dlt.common.typing import AnyFun
 
 _impl_name = "orjson"
 
-_custom_encoder = None
-
-
-def set_custom_encoder(encoder: Callable[[Any], Any]) -> None:
-    global _custom_encoder
-    _custom_encoder = encoder
+set_custom_encoder = set_custom_encoder_impl
 
 
 def _dumps(
@@ -29,7 +24,7 @@ def _dumps(
         options |= orjson.OPT_INDENT_2
     if sort_keys:
         options |= orjson.OPT_SORT_KEYS
-    return orjson.dumps(obj, default=partial(default, _custom_encoder), option=options)
+    return orjson.dumps(obj, default=default, option=options)
 
 
 def dump(obj: Any, fp: IO[bytes], sort_keys: bool = False, pretty: bool = False) -> None:

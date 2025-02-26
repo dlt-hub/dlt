@@ -18,6 +18,7 @@ from dlt.common.json import (
     _simplejson,
     SupportsJson,
     _DATETIME,
+    _custom_encoder,
 )
 
 from tests.utils import autouse_test_storage, TEST_STORAGE_ROOT, preserve_environ
@@ -225,16 +226,16 @@ def test_json_pendulum(json_impl: SupportsJson) -> None:
 #     assert isinstance(delta, timedelta)
 #     print(str(delta.as_timedelta()))
 
+current_custom_encoder = _custom_encoder
+
 
 @pytest.fixture(autouse=True)
 def run_around_tests():
-    for impl in _JSON_IMPL:
-        # clear the encoder
-        impl.set_custom_encoder(None)
-    yield
-    for impl in _JSON_IMPL:
-        # clear the encoder
-        impl.set_custom_encoder(None)
+    json.set_custom_encoder(None)
+    try:
+        yield
+    finally:
+        json.set_custom_encoder(current_custom_encoder)
 
 
 @pytest.mark.parametrize("json_impl", _JSON_IMPL)
@@ -384,23 +385,6 @@ def test_serialize_custom_types_no_encoder(json_impl: SupportsJson) -> None:
 
 
 @pytest.mark.parametrize("json_impl", _JSON_IMPL)
-def test_serialize_custom_types_noop_encoder(json_impl: SupportsJson) -> None:
-    calls = 0
-
-    def my_custom_encoder(obj: Any) -> Any:
-        nonlocal calls
-        calls += 1
-        if isinstance(obj, Pow):
-            return None  # returning None here will throw as if no encoder was set
-        return "non-none"
-
-    json_impl.set_custom_encoder(my_custom_encoder)
-    with pytest.raises(TypeError, match="is not JSON serializable"):
-        roundtrip(json_impl)
-    assert calls == 1
-
-
-@pytest.mark.parametrize("json_impl", _JSON_IMPL)
 def test_serialize_custom_types_with_encoder(json_impl: SupportsJson) -> None:
     calls = 0
 
@@ -409,32 +393,8 @@ def test_serialize_custom_types_with_encoder(json_impl: SupportsJson) -> None:
         calls += 1
         if isinstance(obj, Pow):
             return obj.result()
-        return None
+        raise TypeError(repr(obj) + " is not JSON serializable")
 
     json_impl.set_custom_encoder(my_custom_encoder)
     roundtrip(json_impl)
-    assert calls == 1
-
-
-@pytest.mark.parametrize("json_impl", _JSON_IMPL)
-def test_serialize_custom_types_pua_string_only(json_impl: SupportsJson) -> None:
-    calls = 0
-
-    def my_custom_encoder(obj: Any) -> Any:
-        nonlocal calls
-        calls += 1
-        if isinstance(obj, Pow):
-            return dict()
-        return None
-
-    json_impl.set_custom_encoder(my_custom_encoder)
-    obj = Pow(2)
-
-    if json_impl is _simplejson:
-        with pytest.raises(TypeError, match="Custom encoder must return a string for PUA encoding"):
-            json_impl.typed_dumpb(obj)
-    elif json_impl is _orjson:
-        # orjson abstracts away custom exceptions and wrap them in a nonserializable TypeError
-        with pytest.raises(TypeError, match="Type is not JSON serializable"):
-            json_impl.typed_dumpb(obj)
     assert calls == 1

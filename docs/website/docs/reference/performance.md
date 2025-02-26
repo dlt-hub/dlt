@@ -65,13 +65,15 @@ For custom types support you can add a custom user-defined encoder like this:
 
 ```py
 from dlt.common import json
+from dlt.common.json import JsonSerializable
 from pydantic import AnyUrl
 
-def my_custom_encoder(obj: Any) -> Any:
+def my_custom_encoder(obj: Any) -> JsonSerializable:
     if isinstance(obj, AnyUrl):
         # encodes the url as non-punycode string
         return obj.unicode_string()
-    return None # ignore other unknown types
+    # Don't know this type, throw
+    raise TypeError(repr(obj) + " is not JSON serializable")
 
 json.set_custom_encoder(my_custom_encoder)
 ```
