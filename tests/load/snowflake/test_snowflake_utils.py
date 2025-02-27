@@ -3,7 +3,6 @@ from urllib.parse import urlparse
 
 from dlt.common.data_writers.configuration import CsvFormatConfiguration
 from dlt.common.exceptions import TerminalValueError
-from dlt.common.typing import TLoaderFileFormat
 from dlt.destinations.exceptions import LoadJobTerminalException
 from dlt.destinations.impl.snowflake.utils import (
     generate_file_format_clause,
@@ -134,21 +133,55 @@ def test_gen_copy_sql_with_stage(test_table, stage_name, stage_bucket_url):
     )
 
 
-def test_gen_copy_sql_stage_without_bucket_url(test_table, stage_name):
-    """Test that using a stage without bucket URL raises an error."""
-    file_url = "s3://bucket/path/to/file.parquet"
+def test_gen_copy_sql_with_stage_with_prefix_no_slash(
+    test_table, stage_name, stage_bucket_url_with_prefix
+):
+    """Test generating COPY command with a named stage and bucket url without a forward slash."""
+    file_url = f"{stage_bucket_url_with_prefix}path/to/file.parquet"
 
-    with pytest.raises(LoadJobTerminalException) as excinfo:
-        gen_copy_sql(
-            file_url=file_url,
-            qualified_table_name=test_table,
-            loader_file_format="parquet",
-            is_case_sensitive=True,
-            stage_name=stage_name,
-        )
+    sql = gen_copy_sql(
+        file_url=file_url,
+        qualified_table_name=test_table,
+        loader_file_format="parquet",
+        is_case_sensitive=False,
+        stage_name=stage_name,
+        stage_bucket_url=stage_bucket_url_with_prefix,
+    )
 
-    assert "Cannot load from stage" in str(excinfo.value)
-    assert "without a stage bucket URL" in str(excinfo.value)
+    assert_sql_contains(
+        sql,
+        f"COPY INTO {test_table}",
+        f"FROM @{stage_name}",
+        "FILES = ('path/to/file.parquet')",
+        "FILE_FORMAT = (TYPE = 'PARQUET'",
+        "MATCH_BY_COLUMN_NAME='CASE_INSENSITIVE'",
+    )
+
+
+def test_gen_copy_sql_with_stage_with_prefix_slash(
+    test_table, stage_name, stage_bucket_url_with_prefix
+):
+    """Test generating COPY command with a named stage abd bucket url with a forward slash."""
+    stage_bucket_url_with_prefix_slash = f"{stage_bucket_url_with_prefix}/"
+    file_url = f"{stage_bucket_url_with_prefix_slash}path/to/file.parquet"
+
+    sql = gen_copy_sql(
+        file_url=file_url,
+        qualified_table_name=test_table,
+        loader_file_format="parquet",
+        is_case_sensitive=False,
+        stage_name=stage_name,
+        stage_bucket_url=stage_bucket_url_with_prefix_slash,
+    )
+
+    assert_sql_contains(
+        sql,
+        f"COPY INTO {test_table}",
+        f"FROM @{stage_name}",
+        "FILES = ('path/to/file.parquet')",
+        "FILE_FORMAT = (TYPE = 'PARQUET'",
+        "MATCH_BY_COLUMN_NAME='CASE_INSENSITIVE'",
+    )
 
 
 def test_gen_copy_sql_s3_with_credentials(test_table, aws_credentials):
