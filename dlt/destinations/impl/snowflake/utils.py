@@ -1,6 +1,5 @@
-from typing import Literal, Optional, Dict, Any, Union, Tuple
+from typing import Optional, Dict, Any
 from urllib.parse import urlparse, urlunparse
-from enum import Enum
 
 from dlt.common.configuration.specs import (
     CredentialsConfiguration,
@@ -13,7 +12,6 @@ from dlt.common.storages.configuration import ensure_canonical_az_url
 from dlt.common.storages.fsspec_filesystem import (
     AZURE_BLOB_STORAGE_PROTOCOLS,
     S3_PROTOCOLS,
-    GCS_PROTOCOLS,
 )
 from dlt.common.typing import TLoaderFileFormat
 from dlt.destinations.exceptions import LoadJobTerminalException
@@ -100,6 +98,7 @@ def gen_copy_sql(
         loader_file_format: Format of the source file (jsonl, parquet, csv)
         is_case_sensitive: Whether column matching should be case-sensitive
         stage_name: Optional name of a predefined Snowflake stage
+        stage_bucket_url: Optional URL of the bucket containing the file
         local_stage_file_path: Path to use for local files
         staging_credentials: Optional credentials for accessing cloud storage
         csv_format: Optional configuration for CSV format
@@ -108,7 +107,7 @@ def gen_copy_sql(
         A SQL string containing the COPY command
     """
     # Determine file location type and get potentially modified URL
-    scheme = urlparse(file_url).scheme
+    parsed_file_url = urlparse(file_url)
 
     # Initialize clause components
     from_clause = ""
@@ -117,19 +116,24 @@ def gen_copy_sql(
     on_error_clause = ""
 
     # Handle different file location types
-    if scheme == "file" or FilesystemConfiguration.is_local_path(file_url):
+    if parsed_file_url.scheme == "file" or FilesystemConfiguration.is_local_path(file_url):
         from_clause = f"FROM {local_stage_file_path}"
 
     elif stage_name:
-        if not stage_bucket_url:
-            raise LoadJobTerminalException(
-                file_url, f"Cannot load from stage {stage_name} without a stage bucket URL."
-            )
-        relative_url = file_url.removeprefix(stage_bucket_url)
+        relative_url = parsed_file_url.path.lstrip("/")
+
+        # If stage bucket URL has a path, remove it from the beginning of the relative URL because this is already specified
+        # in the Snowflake stage location.
+        if stage_bucket_url:
+            parsed_bucket_url = urlparse(stage_bucket_url)
+            stage_bucket_path = parsed_bucket_url.path.lstrip("/")
+            if stage_bucket_path:
+                relative_url = relative_url.removeprefix(stage_bucket_path)
+
         from_clause = f"FROM @{stage_name}"
         files_clause = f"FILES = ('{relative_url}')"
 
-    elif scheme in S3_PROTOCOLS:
+    elif parsed_file_url.scheme in S3_PROTOCOLS:
         if staging_credentials and isinstance(staging_credentials, AwsCredentialsWithoutDefaults):
             credentials_clause = (
                 f"CREDENTIALS=(AWS_KEY_ID='{staging_credentials.aws_access_key_id}' "
@@ -142,7 +146,7 @@ def gen_copy_sql(
                 f"Cannot load from S3 path {file_url} without either credentials or a stage name.",
             )
 
-    elif scheme in AZURE_BLOB_STORAGE_PROTOCOLS:
+    elif parsed_file_url.scheme in AZURE_BLOB_STORAGE_PROTOCOLS:
         if staging_credentials and isinstance(staging_credentials, AzureCredentialsWithoutDefaults):
             credentials_clause = (
                 f"CREDENTIALS=(AZURE_SAS_TOKEN='?{staging_credentials.azure_storage_sas_token}')"

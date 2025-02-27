@@ -20,6 +20,12 @@ def stage_bucket_url():
 
 
 @pytest.fixture
+def stage_bucket_url_with_prefix():
+    """Fixture for stage bucket URL."""
+    return "s3://test-stage-bucket/with/prefix"
+
+
+@pytest.fixture
 def local_file_path():
     """Fixture for local file path."""
     return "/tmp/data.csv"
