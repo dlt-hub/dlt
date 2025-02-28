@@ -123,10 +123,10 @@ Open the file in a text editor and add the following configuration:
     "dlt+ project": {
       "command": "</path/to/your/project/.venv/bin/dlt>",
       "args": [
-        "mcp",
+        "project",
         "--project",
         "<path/to/your/project>",
-        "run"
+        "mcp"
       ]
     }
   }
