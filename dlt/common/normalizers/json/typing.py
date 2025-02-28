@@ -1,7 +1,6 @@
-from typing import Dict, Optional
+from typing import Dict, Optional, TypedDict
 
 from dlt.common.schema.typing import TColumnName
-from dlt.common.typing import TypedDict
 
 
 class RelationalNormalizerConfigPropagation(TypedDict, total=False):

@@ -328,10 +328,14 @@ class DltSource(Iterable[TDataItem]):
         for r in self.selected_resources.values():
             # names must be normalized here
             with contextlib.suppress(DataItemRequiredForDynamicTableHints):
-                partial_table = normalize_table_identifiers(
-                    r.compute_table_schema(item), self._schema.naming
+                root_table_schema = r.compute_table_schema(item)
+                nested_tables_schema = r.compute_nested_table_schemas(
+                    root_table_schema["name"], schema.naming, item
                 )
-                schema.update_table(partial_table)
+                # NOTE must ensure that `schema.update_table()` is called in an order that respect parent-child relationships
+                for table_schema in (root_table_schema, *nested_tables_schema):
+                    partial_table = normalize_table_identifiers(table_schema, self._schema.naming)
+                    schema.update_table(partial_table)
         return schema
 
     def with_resources(self, *resource_names: str) -> "DltSource":
