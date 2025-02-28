@@ -5,12 +5,15 @@ from dlt.common.json import (
     custom_pua_encode,
     custom_pua_decode_nested,
     custom_encode,
+    set_custom_encoder_impl,
     TPuaDecoders,
     DECODERS,
 )
 from dlt.common.typing import AnyFun
 
 _impl_name = "orjson"
+
+set_custom_encoder = set_custom_encoder_impl
 
 
 def _dumps(

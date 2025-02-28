@@ -6,7 +6,7 @@ import pytest
 from dlt.pipeline.exceptions import PipelineStepFailed
 
 try:
-    from pydantic import BaseModel
+    from pydantic import BaseModel, AnyUrl
     from dlt.common.libs.pydantic import DltConfig
 except ImportError:
     # mock pydantic with dataclasses. allow to run tests
@@ -17,11 +17,16 @@ except ImportError:
     class BaseModel:  # type: ignore[no-redef]
         pass
 
+    @dataclass
+    class AnyUrl:  # type: ignore[no-redef]
+        pass
+
 
 import dlt
 from dlt.common import json, pendulum
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.capabilities import TLoaderFileFormat
+from dlt.common.json import JsonSerializable, SupportsJson, _orjson, _simplejson, _custom_encoder
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 from dlt.common.runtime.collector import (
     AliveCollector,
@@ -744,3 +749,23 @@ def test_filesystem_column_hint_timezone() -> None:
             schema = table.schema
             field = schema.field("event_tstamp")
             assert field.type.tz == expected_results[t]
+
+
+@pytest.mark.parametrize("json_impl", [_orjson, _simplejson])
+def test_json_custom_encoder(json_impl: SupportsJson):
+    def my_custom_encoder(obj: Any) -> JsonSerializable:
+        if isinstance(obj, AnyUrl):
+            # encodes the url as punycode string
+            return str(obj)
+        # Don't know this type, throw
+        raise TypeError(repr(obj) + " is not JSON serializable")
+
+    # get global custom encoder
+    current_custom_json_encoder = _custom_encoder
+    try:
+        json.set_custom_encoder(my_custom_encoder)
+        s = json.dumps(AnyUrl("https://£££.com"))
+        assert json_impl.loads(s) == "https://xn--9aaa.com/"
+    finally:
+        # revert to whatever custom encoder was set before
+        json.set_custom_encoder(current_custom_json_encoder)
