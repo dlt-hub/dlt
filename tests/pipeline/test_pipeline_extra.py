@@ -767,5 +767,5 @@ def test_json_custom_encoder(json_impl: SupportsJson):
         s = json.dumps(AnyUrl("https://£££.com"))
         assert json_impl.loads(s) == "https://xn--9aaa.com/"
     finally:
-        # revert whatever custom encoder was set before
+        # revert to whatever custom encoder was set before
         json.set_custom_encoder(current_custom_json_encoder)
