@@ -388,7 +388,7 @@ def test_serialize_custom_types_no_encoder(json_impl: SupportsJson) -> None:
 def test_serialize_custom_types_with_encoder(json_impl: SupportsJson) -> None:
     calls = 0
 
-    def my_custom_encoder(obj: Any) -> Any:
+    def my_custom_encoder(obj: Any) -> JsonSerializable:
         nonlocal calls
         calls += 1
         if isinstance(obj, Pow):
