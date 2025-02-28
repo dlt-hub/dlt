@@ -1,5 +1,5 @@
 ---
-title: AI Workflows
+title: AI workflows
 description: Explore data in your dlt+ project with Claude Desktop using the Model Context Protocol
 keywords: [dlt+, Claude Desktop, MCP, Model Context Protocol]
 ---
