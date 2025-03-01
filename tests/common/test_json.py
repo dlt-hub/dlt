@@ -1,6 +1,6 @@
 import io
 import os
-from typing import List, NamedTuple
+from typing import Any, List, NamedTuple
 from dataclasses import dataclass
 import pytest
 
@@ -18,6 +18,8 @@ from dlt.common.json import (
     _simplejson,
     SupportsJson,
     _DATETIME,
+    _custom_encoder,
+    JsonSerializable,
 )
 
 from tests.utils import autouse_test_storage, TEST_STORAGE_ROOT, preserve_environ
@@ -225,6 +227,17 @@ def test_json_pendulum(json_impl: SupportsJson) -> None:
 #     assert isinstance(delta, timedelta)
 #     print(str(delta.as_timedelta()))
 
+current_custom_encoder = _custom_encoder
+
+
+@pytest.fixture(autouse=True)
+def run_around_tests():
+    json.set_custom_encoder(None)
+    try:
+        yield
+    finally:
+        json.set_custom_encoder(current_custom_encoder)
+
 
 @pytest.mark.parametrize("json_impl", _JSON_IMPL)
 def test_json_named_tuple(json_impl: SupportsJson) -> None:
@@ -348,3 +361,41 @@ def test_load_and_compare_all_impls() -> None:
         assert docs[idx] == docs[idx + 1]
         assert dump_s[idx] == dump_s[idx + 1]
         assert dump_b[idx] == dump_b[idx + 1]
+
+
+class Pow:
+    my_number: int
+
+    def __init__(self, my_number: int) -> None:
+        self.my_number = my_number
+
+    def result(self) -> str:
+        return f"{self.my_number*self.my_number}"
+
+
+def roundtrip(json_impl: SupportsJson) -> None:
+    x = Pow(my_number=2)
+    s = json_impl.dumps(x)
+    assert json_impl.loads(s) == "4"
+
+
+@pytest.mark.parametrize("json_impl", _JSON_IMPL)
+def test_serialize_custom_types_no_encoder(json_impl: SupportsJson) -> None:
+    with pytest.raises(TypeError, match="is not JSON serializable"):
+        roundtrip(json_impl)
+
+
+@pytest.mark.parametrize("json_impl", _JSON_IMPL)
+def test_serialize_custom_types_with_encoder(json_impl: SupportsJson) -> None:
+    calls = 0
+
+    def my_custom_encoder(obj: Any) -> JsonSerializable:
+        nonlocal calls
+        calls += 1
+        if isinstance(obj, Pow):
+            return obj.result()
+        raise TypeError(repr(obj) + " is not JSON serializable")
+
+    json_impl.set_custom_encoder(my_custom_encoder)
+    roundtrip(json_impl)
+    assert calls == 1
