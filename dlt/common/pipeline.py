@@ -15,7 +15,6 @@ from typing import (
     NamedTuple,
     Optional,
     Protocol,
-    Sequence,
     Tuple,
     TypeVar,
     Mapping,
@@ -23,7 +22,7 @@ from typing import (
 )
 from typing_extensions import NotRequired
 
-from dlt.common.typing import TypedDict
+from dlt.common.typing import TypedDict, Unpack
 from dlt.common.configuration import configspec
 from dlt.common.configuration import known_sections
 from dlt.common.configuration.container import Container
@@ -46,7 +45,7 @@ from dlt.common.metrics import (
     NormalizeMetrics,
     StepMetrics,
 )
-from dlt.common.schema import Schema
+from dlt.common.schema import Schema, TAnySchemaColumns, TTableFormat
 from dlt.common.schema.typing import (
     TColumnSchema,
     TWriteDispositionConfig,
@@ -510,18 +509,21 @@ class SupportsPipeline(Protocol):
 
     def run(
         self,
-        data: Any = None,
+        data: Optional[Any] = None,
         *,
-        destination: TDestinationReferenceArg = None,
-        dataset_name: str = None,
-        credentials: Any = None,
-        table_name: str = None,
-        write_disposition: TWriteDispositionConfig = None,
-        columns: Sequence[TColumnSchema] = None,
-        primary_key: TColumnNames = None,
-        schema: Schema = None,
-        loader_file_format: TLoaderFileFormat = None,
-        schema_contract: TSchemaContract = None,
+        destination: Optional[TDestinationReferenceArg] = None,
+        staging: Optional[TDestinationReferenceArg] = None,
+        dataset_name: Optional[str] = None,
+        credentials: Optional[Any] = None,
+        table_name: Optional[str] = None,
+        write_disposition: Optional[TWriteDispositionConfig] = None,
+        columns: Optional[TAnySchemaColumns] = None,
+        primary_key: Optional[TColumnNames] = None,
+        schema: Optional[Schema] = None,
+        loader_file_format: Optional[TLoaderFileFormat] = None,
+        table_format: Optional[TTableFormat] = None,
+        schema_contract: Optional[TSchemaContract] = None,
+        refresh: Optional[TRefreshMode] = None,
     ) -> LoadInfo: ...
 
     def _set_context(self, is_active: bool) -> None:
@@ -534,16 +536,21 @@ class SupportsPipeline(Protocol):
 class SupportsPipelineRun(Protocol):
     def __call__(
         self,
+        data: Optional[Any] = None,
         *,
-        destination: TDestinationReferenceArg = None,
-        dataset_name: str = None,
-        credentials: Any = None,
-        table_name: str = None,
-        write_disposition: TWriteDispositionConfig = None,
-        columns: Sequence[TColumnSchema] = None,
-        schema: Schema = None,
-        loader_file_format: TLoaderFileFormat = None,
-        schema_contract: TSchemaContract = None,
+        destination: Optional[TDestinationReferenceArg] = None,
+        staging: Optional[TDestinationReferenceArg] = None,
+        dataset_name: Optional[str] = None,
+        credentials: Optional[Any] = None,
+        table_name: Optional[str] = None,
+        write_disposition: Optional[TWriteDispositionConfig] = None,
+        columns: Optional[TAnySchemaColumns] = None,
+        primary_key: Optional[TColumnNames] = None,
+        schema: Optional[Schema] = None,
+        loader_file_format: Optional[TLoaderFileFormat] = None,
+        table_format: Optional[TTableFormat] = None,
+        schema_contract: Optional[TSchemaContract] = None,
+        refresh: Optional[TRefreshMode] = None,
     ) -> LoadInfo: ...
 
 
