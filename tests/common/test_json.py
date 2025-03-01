@@ -19,6 +19,7 @@ from dlt.common.json import (
     SupportsJson,
     _DATETIME,
     _custom_encoder,
+    JsonSerializable,
 )
 
 from tests.utils import autouse_test_storage, TEST_STORAGE_ROOT, preserve_environ
