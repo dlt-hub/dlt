@@ -523,9 +523,7 @@ class SupportsPipeline(Protocol):
     def get_local_state_val(self, key: str) -> Any:
         """Gets value from local state. Local state is not synchronized with destination."""
 
-    def run(
-        self, data: Optional[Any] = None, **kwargs: Unpack[SupportsPipelineRunArgs]
-    ) -> LoadInfo: ...
+    def run(self, data: Any = None, **kwargs: Unpack[SupportsPipelineRunArgs]) -> LoadInfo: ...
 
     def _set_context(self, is_active: bool) -> None:
         """Called when pipeline context activated or deactivate"""
@@ -535,9 +533,7 @@ class SupportsPipeline(Protocol):
 
 
 class SupportsPipelineRun(Protocol):
-    def __call__(
-        self, data: Optional[Any] = None, **kwargs: Unpack[SupportsPipelineRunArgs]
-    ) -> LoadInfo: ...
+    def __call__(self, data: Any = None, **kwargs: Unpack[SupportsPipelineRunArgs]) -> LoadInfo: ...
 
 
 @configspec

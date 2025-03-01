@@ -18,7 +18,7 @@ from typing import (
     Union,
 )
 from typing_extensions import Unpack
-from types import SimpleNamespace
+
 import dlt
 from dlt.common import logger
 from dlt.common.json import json
@@ -619,7 +619,7 @@ class Pipeline(SupportsPipeline):
     @with_config_section(("run",))
     def run(
         self,
-        data: Optional[Any] = None,
+        data: Any = None,
         **kwargs: Unpack[SupportsPipelineRunArgs],
     ) -> LoadInfo:
         """Loads the data from `data` argument into the destination specified in `destination` and dataset specified in `dataset_name`.
