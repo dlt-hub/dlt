@@ -17,7 +17,8 @@ from typing import (
     ContextManager,
     Union,
 )
-
+from typing_extensions import Unpack
+from types import SimpleNamespace
 import dlt
 from dlt.common import logger
 from dlt.common.json import json
@@ -84,6 +85,7 @@ from dlt.common.pipeline import (
     LoadInfo,
     NormalizeInfo,
     PipelineContext,
+    SupportsPipelineRunArgs,
     TStepInfo,
     SupportsPipeline,
     TPipelineLocalState,
@@ -618,20 +620,7 @@ class Pipeline(SupportsPipeline):
     def run(
         self,
         data: Optional[Any] = None,
-        *,
-        destination: Optional[TDestinationReferenceArg] = None,
-        staging: Optional[TDestinationReferenceArg] = None,
-        dataset_name: Optional[str] = None,
-        credentials: Optional[Any] = None,
-        table_name: Optional[str] = None,
-        write_disposition: Optional[TWriteDispositionConfig] = None,
-        columns: Optional[TAnySchemaColumns] = None,
-        primary_key: Optional[TColumnNames] = None,
-        schema: Optional[Schema] = None,
-        loader_file_format: Optional[TLoaderFileFormat] = None,
-        table_format: Optional[TTableFormat] = None,
-        schema_contract: Optional[TSchemaContract] = None,
-        refresh: Optional[TRefreshMode] = None,
+        **kwargs: Unpack[SupportsPipelineRunArgs],
     ) -> LoadInfo:
         """Loads the data from `data` argument into the destination specified in `destination` and dataset specified in `dataset_name`.
 
@@ -696,6 +685,11 @@ class Pipeline(SupportsPipeline):
         Returns:
             LoadInfo: Information on loaded data including the list of package ids and failed job statuses. Please not that `dlt` will not raise if a single job terminally fails. Such information is provided via LoadInfo.
         """
+        destination = kwargs.get("destination", None)
+        credentials = kwargs.get("credentials", None)
+        staging = kwargs.get("staging", None)
+        dataset_name = kwargs.get("dataset_name", None)
+        loader_file_format = kwargs.get("loader_file_format", None)
 
         signals.raise_if_signalled()
         self.activate()
@@ -731,14 +725,14 @@ class Pipeline(SupportsPipeline):
         if data is not None:
             self.extract(
                 data,
-                table_name=table_name,
-                write_disposition=write_disposition,
-                columns=columns,
-                primary_key=primary_key,
-                schema=schema,
-                table_format=table_format,
-                schema_contract=schema_contract,
-                refresh=refresh or self.refresh,
+                table_name=kwargs.get("table_name", None),
+                write_disposition=kwargs.get("write_disposition", None),
+                columns=kwargs.get("columns", None),
+                primary_key=kwargs.get("primary_key", None),
+                schema=kwargs.get("schema", None),
+                table_format=kwargs.get("table_format", None),
+                schema_contract=kwargs.get("schema_contract", None),
+                refresh=kwargs.get("refresh", self.refresh),
             )
             self.normalize(loader_file_format=loader_file_format)
             return self.load(destination, dataset_name, credentials=credentials)

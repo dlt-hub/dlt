@@ -473,6 +473,22 @@ class TSourceState(TPipelineState):
     sources: Dict[str, Dict[str, Any]]  # type: ignore[misc]
 
 
+class SupportsPipelineRunArgs(TypedDict, total=False):
+    destination: Optional[TDestinationReferenceArg]
+    staging: Optional[TDestinationReferenceArg]
+    dataset_name: Optional[str]
+    credentials: Optional[Any]
+    table_name: Optional[str]
+    write_disposition: Optional[TWriteDispositionConfig]
+    columns: Optional[TAnySchemaColumns]
+    primary_key: Optional[TColumnNames]
+    schema: Optional[Schema]
+    loader_file_format: Optional[TLoaderFileFormat]
+    table_format: Optional[TTableFormat]
+    schema_contract: Optional[TSchemaContract]
+    refresh: Optional[TRefreshMode]
+
+
 class SupportsPipeline(Protocol):
     """A protocol with core pipeline operations that lets high level abstractions ie. sources to access pipeline methods and properties"""
 
@@ -508,22 +524,7 @@ class SupportsPipeline(Protocol):
         """Gets value from local state. Local state is not synchronized with destination."""
 
     def run(
-        self,
-        data: Optional[Any] = None,
-        *,
-        destination: Optional[TDestinationReferenceArg] = None,
-        staging: Optional[TDestinationReferenceArg] = None,
-        dataset_name: Optional[str] = None,
-        credentials: Optional[Any] = None,
-        table_name: Optional[str] = None,
-        write_disposition: Optional[TWriteDispositionConfig] = None,
-        columns: Optional[TAnySchemaColumns] = None,
-        primary_key: Optional[TColumnNames] = None,
-        schema: Optional[Schema] = None,
-        loader_file_format: Optional[TLoaderFileFormat] = None,
-        table_format: Optional[TTableFormat] = None,
-        schema_contract: Optional[TSchemaContract] = None,
-        refresh: Optional[TRefreshMode] = None,
+        self, data: Optional[Any] = None, **kwargs: Unpack[SupportsPipelineRunArgs]
     ) -> LoadInfo: ...
 
     def _set_context(self, is_active: bool) -> None:
@@ -535,22 +536,7 @@ class SupportsPipeline(Protocol):
 
 class SupportsPipelineRun(Protocol):
     def __call__(
-        self,
-        data: Optional[Any] = None,
-        *,
-        destination: Optional[TDestinationReferenceArg] = None,
-        staging: Optional[TDestinationReferenceArg] = None,
-        dataset_name: Optional[str] = None,
-        credentials: Optional[Any] = None,
-        table_name: Optional[str] = None,
-        write_disposition: Optional[TWriteDispositionConfig] = None,
-        columns: Optional[TAnySchemaColumns] = None,
-        primary_key: Optional[TColumnNames] = None,
-        schema: Optional[Schema] = None,
-        loader_file_format: Optional[TLoaderFileFormat] = None,
-        table_format: Optional[TTableFormat] = None,
-        schema_contract: Optional[TSchemaContract] = None,
-        refresh: Optional[TRefreshMode] = None,
+        self, data: Optional[Any] = None, **kwargs: Unpack[SupportsPipelineRunArgs]
     ) -> LoadInfo: ...
 
 
