@@ -161,6 +161,23 @@ def test_extract_hints_mark(extract_step: Extract) -> None:
         with pytest.raises(DataItemRequiredForDynamicTableHints):
             table = resource.compute_table_schema()
 
+        # add table-level hints
+        yield dlt.mark.with_hints(
+            {"namer": "dynamic"}, make_hints(additional_table_hints={"x-special-hint": "123-S"})
+        )
+        table = schema.tables["dynamic_table"]
+        # table-level hint applied
+        assert table["x-special-hint"] == "123-S"  # type: ignore[typeddict-item]
+
+        # modify table-level hints
+        yield dlt.mark.with_hints(
+            {"namer": "dynamic"},
+            make_hints(additional_table_hints={"x-special-hint": None, "x-ext": 123}),
+        )
+        table = schema.tables["dynamic_table"]
+        assert table["x-ext"] == 123  # type: ignore[typeddict-item]
+        assert table["x-special-hint"] is None  # type: ignore[typeddict-item]
+
     source = DltSource(dlt.Schema("hintable"), "module", [with_table_hints])
     extract_step.extract(source, 20, 1)
     table = source.schema.tables["dynamic_table"]
