@@ -13,6 +13,7 @@ from dlt.common.storages.fsspec_filesystem import (
     AZURE_BLOB_STORAGE_PROTOCOLS,
     S3_PROTOCOLS,
 )
+
 from dlt.common.typing import TLoaderFileFormat
 from dlt.destinations.exceptions import LoadJobTerminalException
 
@@ -39,43 +40,9 @@ def ensure_snowflake_azure_url(
     )
 
 
-def generate_file_format_clause(
-    loader_file_format: TLoaderFileFormat, csv_format: Optional[CsvFormatConfiguration] = None
-) -> Dict[str, Any]:
-    """
-    Generates the FILE_FORMAT clause for the COPY command.
-
-    Args:
-        loader_file_format: The format of the source file (jsonl, parquet, csv)
-        csv_format: Optional configuration for CSV format
-
-    Returns:
-        A dictionary containing file format params and column_match_enabled flag
-    """
-    if loader_file_format == "jsonl":
-        return {
-            "format_clause": "( TYPE = 'JSON', BINARY_FORMAT = 'BASE64' )",
-            "column_match_enabled": True,
-        }
-    elif loader_file_format == "parquet":
-        return {
-            "format_clause": "(TYPE = 'PARQUET', BINARY_AS_TEXT = FALSE, USE_LOGICAL_TYPE = TRUE)",
-            "column_match_enabled": True,
-        }
-    elif loader_file_format == "csv":
-        csv_config = csv_format or CsvFormatConfiguration()
-        return {
-            "format_clause": (
-                "(TYPE = 'CSV', BINARY_FORMAT = 'UTF-8', PARSE_HEADER ="
-                f" {csv_config.include_header}, FIELD_OPTIONALLY_ENCLOSED_BY = '\"', NULL_IF ="
-                " (''), ERROR_ON_COLUMN_COUNT_MISMATCH = FALSE,"
-                f" FIELD_DELIMITER='{csv_config.delimiter}', ENCODING='{csv_config.encoding}')"
-            ),
-            "column_match_enabled": csv_config.include_header,
-            "on_error_continue": csv_config.on_error_continue,
-        }
-    else:
-        raise ValueError(f"{loader_file_format} not supported for Snowflake COPY command.")
+def _build_format_clause(format_clause: list[str]) -> str:
+    joined = ", ".join(format_clause)
+    return f"({joined})"
 
 
 def gen_copy_sql(
@@ -88,11 +55,13 @@ def gen_copy_sql(
     local_stage_file_path: Optional[str] = None,
     staging_credentials: Optional[CredentialsConfiguration] = None,
     csv_format: Optional[CsvFormatConfiguration] = None,
+    use_vectorized_scanner: Optional[bool] = False,
 ) -> str:
     """
     Generates a Snowflake COPY command to load data from a file.
 
     Args:
+        use_vectorized_scanner: Whether to use the vectorized scanner in COPY INTO
         file_url: URL of the file to load
         qualified_table_name: Fully qualified name of the target table
         loader_file_format: Format of the source file (jsonl, parquet, csv)
@@ -110,10 +79,8 @@ def gen_copy_sql(
     parsed_file_url = urlparse(file_url)
 
     # Initialize clause components
-    from_clause = ""
     credentials_clause = ""
     files_clause = ""
-    on_error_clause = ""
 
     # Handle different file location types
     if parsed_file_url.scheme == "file" or FilesystemConfiguration.is_local_path(file_url):
@@ -172,18 +139,50 @@ def gen_copy_sql(
         )
 
     # Generate file format clause
-    format_info = generate_file_format_clause(loader_file_format, csv_format)
-    source_format = format_info["format_clause"]
+    if is_case_sensitive:
+        column_match_clause = "MATCH_BY_COLUMN_NAME='CASE_SENSITIVE'"
+    else:
+        column_match_clause = "MATCH_BY_COLUMN_NAME='CASE_INSENSITIVE'"
 
-    # Set up column matching
-    column_match_clause = ""
-    if format_info.get("column_match_enabled", True):
-        case_folding = "CASE_SENSITIVE" if is_case_sensitive else "CASE_INSENSITIVE"
-        column_match_clause = f"MATCH_BY_COLUMN_NAME='{case_folding}'"
+    if loader_file_format == "jsonl":
+        on_error_clause = ""
+        format_opts = [
+            "TYPE = 'JSON'",
+            "BINARY_FORMAT = 'BASE64'",
+        ]
+    elif loader_file_format == "parquet":
+        format_opts = [
+            "TYPE = 'PARQUET'",
+            "BINARY_AS_TEXT = FALSE",
+            "USE_LOGICAL_TYPE = TRUE",
+        ]
+        if use_vectorized_scanner:
+            format_opts.append("USE_VECTORIZED_SCANNER = TRUE")
+            on_error_clause = "ON_ERROR = ABORT_STATEMENT"
+        else:
+            on_error_clause = ""
+    elif loader_file_format == "csv":
+        csv_config = csv_format or CsvFormatConfiguration()
+        if not csv_config.include_header:
+            column_match_clause = ""
+        if csv_config.on_error_continue:
+            on_error_clause = "ON_ERROR = CONTINUE"
+        else:
+            on_error_clause = ""
+        format_opts = [
+            "TYPE = 'CSV'",
+            "BINARY_FORMAT = 'UTF-8'",
+            f"PARSE_HEADER = {csv_config.include_header}",
+            "FIELD_OPTIONALLY_ENCLOSED_BY = '\"'",
+            "NULL_IF = ('')",
+            "ERROR_ON_COLUMN_COUNT_MISMATCH = FALSE",
+            f"FIELD_DELIMITER = '{csv_config.delimiter}'",
+            f"ENCODING = '{csv_config.encoding}'",
+        ]
+    else:
+        raise ValueError(f"{loader_file_format} not supported for Snowflake COPY command.")
 
-    # Set up error handling
-    if loader_file_format == "csv" and format_info.get("on_error_continue", False):
-        on_error_clause = "ON_ERROR = CONTINUE"
+    source_format = _build_format_clause(format_opts)
 
     # Construct the final SQL statement
     return f"""COPY INTO {qualified_table_name}

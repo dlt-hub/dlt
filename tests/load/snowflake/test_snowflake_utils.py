@@ -5,7 +5,6 @@ from dlt.common.data_writers.configuration import CsvFormatConfiguration
 from dlt.common.exceptions import TerminalValueError
 from dlt.destinations.exceptions import LoadJobTerminalException
 from dlt.destinations.impl.snowflake.utils import (
-    generate_file_format_clause,
     gen_copy_sql,
     ensure_snowflake_azure_url,
 )
@@ -29,27 +28,67 @@ def assert_sql_not_contains(sql, *phrases):
 
 
 # ----------------------------------
-# Unit Tests for generate_file_format_clause
+# Unit Tests for File Format Handling
 # ----------------------------------
 
 
-def test_generate_file_format_clause_jsonl():
-    """Test generating file format clause for JSONL format."""
-    result = generate_file_format_clause("jsonl")
+def test_file_format_jsonl(test_table, local_file_path, local_stage_path):
+    """Test JSONL format handling in gen_copy_sql."""
+    sql = gen_copy_sql(
+        file_url=local_file_path,
+        qualified_table_name=test_table,
+        loader_file_format="jsonl",
+        is_case_sensitive=True,
+        local_stage_file_path=local_stage_path,
+    )
 
-    assert "TYPE = 'JSON'" in result["format_clause"]
-    assert "BINARY_FORMAT = 'BASE64'" in result["format_clause"]
-    assert result["column_match_enabled"] is True
+    assert_sql_contains(
+        sql,
+        "TYPE = 'JSON'",
+        "BINARY_FORMAT = 'BASE64'",
+        "MATCH_BY_COLUMN_NAME='CASE_SENSITIVE'",
+    )
 
 
-def test_generate_file_format_clause_parquet():
-    """Test generating file format clause for Parquet format."""
-    result = generate_file_format_clause("parquet")
+def test_file_format_parquet(test_table, local_file_path, local_stage_path):
+    """Test Parquet format handling in gen_copy_sql."""
+    sql = gen_copy_sql(
+        file_url=local_file_path,
+        qualified_table_name=test_table,
+        loader_file_format="parquet",
+        is_case_sensitive=True,
+        local_stage_file_path=local_stage_path,
+    )
 
-    assert "TYPE = 'PARQUET'" in result["format_clause"]
-    assert "BINARY_AS_TEXT = FALSE" in result["format_clause"]
-    assert "USE_LOGICAL_TYPE = TRUE" in result["format_clause"]
-    assert result["column_match_enabled"] is True
+    assert_sql_contains(
+        sql,
+        "TYPE = 'PARQUET'",
+        "BINARY_AS_TEXT = FALSE",
+        "USE_LOGICAL_TYPE = TRUE",
+        "MATCH_BY_COLUMN_NAME='CASE_SENSITIVE'",
+    )
+
+
+def test_file_format_parquet_vectorized(test_table, local_file_path, local_stage_path):
+    """Test Parquet format with vectorized scanner in gen_copy_sql."""
+    sql = gen_copy_sql(
+        file_url=local_file_path,
+        qualified_table_name=test_table,
+        loader_file_format="parquet",
+        is_case_sensitive=True,
+        local_stage_file_path=local_stage_path,
+        use_vectorized_scanner=True,
+    )
+
+    assert_sql_contains(
+        sql,
+        "TYPE = 'PARQUET'",
+        "BINARY_AS_TEXT = FALSE",
+        "USE_LOGICAL_TYPE = TRUE",
+        "USE_VECTORIZED_SCANNER = TRUE",
+        "ON_ERROR = ABORT_STATEMENT",
+        "MATCH_BY_COLUMN_NAME='CASE_SENSITIVE'",
+    )
 
 
 @pytest.mark.parametrize(
@@ -61,8 +100,8 @@ def test_generate_file_format_clause_parquet():
         (False, ";", "ASCII", True),
     ],
 )
-def test_generate_file_format_clause_csv(include_header, delimiter, encoding, on_error_continue):
-    """Test generating file format clause for CSV format with various options."""
+def test_file_format_csv(include_header, delimiter, encoding, on_error_continue, test_table, local_file_path, local_stage_path):
+    """Test CSV format handling in gen_copy_sql with various options."""
     csv_config = CsvFormatConfiguration(
         include_header=include_header,
         delimiter=delimiter,
@@ -70,20 +109,35 @@ def test_generate_file_format_clause_csv(include_header, delimiter, encoding, on
         on_error_continue=on_error_continue,
     )
 
-    result = generate_file_format_clause("csv", csv_config)
+    sql = gen_copy_sql(
+        file_url=local_file_path,
+        qualified_table_name=test_table,
+        loader_file_format="csv",
+        is_case_sensitive=True,
+        local_stage_file_path=local_stage_path,
+        csv_format=csv_config,
+    )
 
     # Check format clause
-    assert "TYPE = 'CSV'" in result["format_clause"]
-    assert f"PARSE_HEADER = {include_header}" in result["format_clause"]
-    assert f"FIELD_DELIMITER='{delimiter}'" in result["format_clause"]
-    assert f"ENCODING='{encoding}'" in result["format_clause"]
+    assert_sql_contains(
+        sql,
+        "TYPE = 'CSV'",
+        f"PARSE_HEADER = {include_header}",
+        f"FIELD_DELIMITER = '{delimiter}'",
+        f"ENCODING = '{encoding}'",
+    )
 
     # Check column match setting
-    assert result["column_match_enabled"] == include_header
+    if include_header:
+        assert_sql_contains(sql, "MATCH_BY_COLUMN_NAME='CASE_SENSITIVE'")
+    else:
+        assert_sql_not_contains(sql, "MATCH_BY_COLUMN_NAME")
 
     # Check on_error_continue setting
-    if "on_error_continue" in result:
-        assert result["on_error_continue"] == on_error_continue
+    if on_error_continue:
+        assert_sql_contains(sql, "ON_ERROR = CONTINUE")
+    else:
+        assert_sql_not_contains(sql, "ON_ERROR = CONTINUE")
 
 
 # ----------------------------------
@@ -105,7 +159,7 @@ def test_gen_copy_sql_local_file(test_table, local_file_path, local_stage_path):
         sql,
         f"COPY INTO {test_table}",
         f"FROM {local_stage_path}",
-        "FILE_FORMAT = ( TYPE = 'JSON'",
+        "FILE_FORMAT = (TYPE = 'JSON'",
         "MATCH_BY_COLUMN_NAME='CASE_SENSITIVE'",
     )
 
@@ -202,7 +256,7 @@ def test_gen_copy_sql_s3_with_credentials(test_table, aws_credentials):
         f"FROM '{s3_url}'",
         f"CREDENTIALS=(AWS_KEY_ID='{aws_credentials.aws_access_key_id}'"
         f" AWS_SECRET_KEY='{aws_credentials.aws_secret_access_key}')",
-        "FILE_FORMAT = ( TYPE = 'JSON'",
+        "FILE_FORMAT = (TYPE = 'JSON'",
     )
 
 
@@ -349,11 +403,7 @@ def test_full_workflow_s3_with_aws_credentials(test_table, aws_credentials):
     # This test verifies that all components work together correctly
     s3_url = "s3://test-bucket/path/to/data.jsonl"
 
-    # Then generate the file format clause
-    format_info = generate_file_format_clause("jsonl")
-    assert "TYPE = 'JSON'" in format_info["format_clause"]
-
-    # Finally generate the complete SQL
+    # Generate the complete SQL directly
     sql = gen_copy_sql(
         file_url=s3_url,
         qualified_table_name=test_table,
@@ -362,14 +412,15 @@ def test_full_workflow_s3_with_aws_credentials(test_table, aws_credentials):
         staging_credentials=aws_credentials,
     )
 
-    # Verify the final SQL
+            # Verify the final SQL
     assert_sql_contains(
         sql,
         f"COPY INTO {test_table}",
         f"FROM '{s3_url}'",
         f"CREDENTIALS=(AWS_KEY_ID='{aws_credentials.aws_access_key_id}'"
         f" AWS_SECRET_KEY='{aws_credentials.aws_secret_access_key}')",
-        "FILE_FORMAT = ( TYPE = 'JSON'",
+        "FILE_FORMAT = (TYPE = 'JSON'",
+        "BINARY_FORMAT = 'BASE64'",
         "MATCH_BY_COLUMN_NAME='CASE_SENSITIVE'",
     )
 
@@ -379,11 +430,7 @@ def test_full_workflow_azure_with_credentials(test_table, azure_credentials):
     # This test verifies that all components work together correctly
     azure_url = "azure://teststorage.blob.core.windows.net/container/file.parquet"
 
-    # Then generate the file format clause
-    format_info = generate_file_format_clause("parquet")
-    assert "TYPE = 'PARQUET'" in format_info["format_clause"]
-
-    # Finally generate the complete SQL
+    # Generate the complete SQL directly
     sql = gen_copy_sql(
         file_url=azure_url,
         qualified_table_name=test_table,
@@ -398,6 +445,8 @@ def test_full_workflow_azure_with_credentials(test_table, azure_credentials):
         f"COPY INTO {test_table}",
         f"CREDENTIALS=(AZURE_SAS_TOKEN='?{azure_credentials.azure_storage_sas_token}')",
         "FILE_FORMAT = (TYPE = 'PARQUET'",
+        "BINARY_AS_TEXT = FALSE",
+        "USE_LOGICAL_TYPE = TRUE",
         "MATCH_BY_COLUMN_NAME='CASE_INSENSITIVE'",
     )
 
@@ -414,6 +463,20 @@ def test_full_workflow_azure_with_credentials(test_table, azure_credentials):
     assert parsed_url.netloc == "teststorage.blob.core.windows.net", "Hostname is incorrect"
     assert "teststorage" in parsed_url.path, "Path doesn't contain account name"
     assert "container" in parsed_url.path, "Path doesn't contain container name"
+
+
+def test_unsupported_file_format(test_table, local_file_path, local_stage_path):
+    """Test that using an unsupported file format raises a ValueError."""
+    with pytest.raises(ValueError) as excinfo:
+        gen_copy_sql(
+            file_url=local_file_path,
+            qualified_table_name=test_table,
+            loader_file_format="xml",  # Unsupported format
+            is_case_sensitive=True,
+            local_stage_file_path=local_stage_path,
+        )
+
+    assert "not supported for Snowflake COPY command" in str(excinfo.value)
 
 
 def test_snowflake_azure_converter() -> None:
