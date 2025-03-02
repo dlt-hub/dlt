@@ -475,18 +475,44 @@ class TSourceState(TPipelineState):
 
 class SupportsPipelineRunArgs(TypedDict, total=False):
     destination: Optional[TDestinationReferenceArg]
+    """A name of the destination to which dlt will load the data, or a destination module imported from `dlt.destination`.
+        If not provided, the value passed to `dlt.pipeline` will be used."""
     staging: Optional[TDestinationReferenceArg]
+    """The staging dataset."""
     dataset_name: Optional[str]
+    """A name of the dataset to which the data will be loaded. A dataset is a logical group of tables ie. `schema` in relational databases or folder grouping many files.
+        If not provided, the value passed to `dlt.pipeline` will be used. If not provided at all then defaults to the `pipeline_name`."""
     credentials: Optional[Any]
+    """Credentials for the `destination` ie. database connection string or a dictionary with google cloud credentials.
+        In most cases should be set to None, which lets `dlt` to use `secrets.toml` or environment variables to infer right credentials values."""
     table_name: Optional[str]
+    """The name of the table to which the data should be loaded within the `dataset`. This argument is required for a `data` that is a list/Iterable or Iterator without `__name__` attribute.
+        The behavior of this argument depends on the type of the `data`:
+        * generator functions - the function name is used as table name, `table_name` overrides this default
+        * `@dlt.resource` - resource contains the full table schema and that includes the table name. `table_name` will override this property. Use with care!
+        * `@dlt.source` - source contains several resources each with a table schema. `table_name` will override all table names within the source and load the data into single table."""
     write_disposition: Optional[TWriteDispositionConfig]
+    """Controls how to write data to a table. Accepts a shorthand string literal or configuration dictionary.
+        Allowed shorthand string literals: `append` will always add new data at the end of the table. `replace` will replace existing data with new data. `skip` will prevent data from loading. "merge" will deduplicate and merge data based on "primary_key" and "merge_key" hints. Defaults to "append".
+        Write behaviour can be further customized through a configuration dictionary. For example, to obtain an SCD2 table provide `write_disposition={"disposition": "merge", "strategy": "scd2"}`.
+        Please note that in case of `dlt.resource` the table schema value will be overwritten and in case of `dlt.source`, the values in all resources will be overwritten."""
     columns: Optional[TAnySchemaColumns]
+    """A list of column schemas. Typed dictionary describing column names, data types, write disposition and performance hints that gives you full control over the created table schema."""
     primary_key: Optional[TColumnNames]
+    """A column name or a list of column names that comprise a private key. Typically used with "merge" write disposition to deduplicate loaded data."""
     schema: Optional[Schema]
+    """An explicit `Schema` object in which all table schemas will be grouped. By default `dlt` takes the schema from the source (if passed in `data` argument) or creates a default one itself."""
     loader_file_format: Optional[TLoaderFileFormat]
+    """The file format the loader will use to create the load package. Not all file_formats are compatible with all destinations. Defaults to the preferred file format of the selected destination."""
     table_format: Optional[TTableFormat]
+    """The table format used by the destination to store tables. Currently you can select table format on filesystem and Athena destinations."""
     schema_contract: Optional[TSchemaContract]
+    """On override for the schema contract settings, this will replace the schema contract settings for all tables in the schema. Defaults to None."""
     refresh: Optional[TRefreshMode]
+    """Fully or partially reset sources before loading new data in this run. The following refresh modes are supported:
+        * `drop_sources` - Drop tables and source and resource state for all sources currently being processed in `run` or `extract` methods of the pipeline. (Note: schema history is erased)
+        * `drop_resources`-  Drop tables and resource state for all resources being processed. Source level state is not modified. (Note: schema history is erased)
+        * `drop_data` - Wipe all data and resource state for all resources being processed. Schema is not modified."""
 
 
 class SupportsPipeline(Protocol):
