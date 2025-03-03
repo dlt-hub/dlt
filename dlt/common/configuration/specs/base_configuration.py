@@ -179,10 +179,9 @@ def configspec(
 
     All fields must have default values. This decorator will add `None` default values that miss one.
 
-    In comparison the Python dataclass, a spec implements full dictionary interface for its attributes, allows instance creation from ie. strings
+    In comparison to the Python dataclass, a spec implements full dictionary interface for its attributes, allows instance creation from ie. strings
     or other types (parsing, deserialization) and control over configuration resolution process. See `BaseConfiguration` and CredentialsConfiguration` for
     more information.
-
     """
 
     def wrap(cls: Type[TAnyClass]) -> Type[TAnyClass]:
