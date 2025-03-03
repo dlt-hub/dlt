@@ -282,6 +282,28 @@ should tell you what went wrong.
 The most probable cause of the failed job is **the data in the job file**. You can inspect the file
 using the **JOB file path** provided.
 
+### Exceeding API rate limits
+
+If your pipeline triggers an HTTP `Error 429`, this means that the API has temporarily blocked your requests due to exceeding the allowed rate limits. Here are some steps to help you troubleshoot and resolve the issue:
+
+- Ensure that your API credentials are set up correctly so that your requests are properly authenticated.
+
+- Check the API’s guidelines on rate limits. Look for headers such as `Retry-After` in the response to determine how long you should wait before retrying.
+
+- Use tools like `time.sleep()` or libraries such as `ratelimiter` to introduce delays between requests. This helps in staying within the allowed limits.
+
+- Incorporate exponential backoff strategies in your code. This means if a request fails with a `429`, you wait for a short period and then try again, increasing the wait time on subsequent failures.
+
+- Consider batching requests or caching results to reduce the number of API calls needed during your data load process.
+
+### Connection failures
+
+Data loading can be interrupted due to connection issues or database downtime. When this happens, some tables might be partially loaded or even empty, which halts the pipeline process.
+
+- If the connection is restored, you can resume the load process using the `pipeline.load()` method. This method will pick up from where the previous load stopped and will reload any remaining data packages.
+
+- In the event that data was partially loaded, check the `dlt_loads` table. If a specific `load_id` is missing from this table, it indicates that the corresponding load has failed. You can then remove any partially loaded data by deleting records associated with those `load_id` values that do not exist in `dlt_loads`. More details can be found in the destination [tables documentation.](../general-usage/destination-tables#load-packages-and-load-ids)
+
 ## Further readings
 
 - [Beef up your script for production](../running-in-production/running.md), easily add alerting,

@@ -213,3 +213,80 @@ Demonstrating schema evolution without talking about schema and data contracts i
 
 Schema and data contracts can be applied to entities such as ‘tables’, ‘columns’, and ‘data_types’ using contract modes such as ‘evolve’, ‘freeze’, ‘discard_rows’, and ‘discard_columns’ to tell dlt how to apply contracts for a particular entity. To read more about **schema and data contracts**, read our [documentation](./schema-contracts).
 
+## Troubleshooting
+This section addresses common schema evolution issues.
+
+1. #### Inconsistent data types:
+    - Data sources that vary in data type between pipeline runs may result in additional variant columns and may require extra handling. For example, consider the following pipeline runs:
+    ```py
+    # First pipeline run: "value" is an integer
+    data_run_1 = [
+        {"id": 1, "value": 42},              
+        {"id": 2, "value": 123}
+    ]
+    
+    # Second pipeline run: "value" changes to text
+    data_run_2 = [
+        {"id": 3, "value": "high"},
+        {"id": 4, "value": "low"}
+    ]
+    
+    # Third pipeline run: Mixed types in "value"
+    data_run_3 = [
+        {"id": 5, "value": 789},             # back to integer
+        {"id": 6, "value": "medium"}         # mixed types
+    ]
+    ```
+        
+    - As a result, the original column remains unchanged and a new variant column value__v_text is created for text values, requiring downstream processes to handle both columns appropriately.
+
+    - **Recommended solutions:**
+        - **Enforce Type consistency**
+            - You can enforce type consistency using the `apply_hints` method. This ensure that all values in the column adhere to a specified data type. For example:
+                
+            ```py
+            # Assuming 'resource' is your data resource
+            resource.apply_hints(columns={
+                "value": {"data_type": "text"},  # Enforce 'value' to be of type 'text'
+            })
+            ```
+            In this example, the `value` column is always treated as text, even if the original data contains integers or mixed types.
+
+        - **Handle multiple types with separate columns**
+            - The dlt library automatically handles mixed data types by creating variant columns. If a column contains different data types, dlt generates a separate column for each type.
+            - For example, if a column named `value` contains both integers and strings, dlt creates a new column called `value__v_text` for the string values.
+            - After processing multiple runs, the schema will be:
+              ```text
+              | name         | data_type    | nullable |
+              |--------------|--------------|----------|
+              | id           | bigint       | true     |
+              | value        | bigint       | true     |
+              | value__v_text| text         | true     |
+              ```
+                
+        - **Apply Type validation**
+            - Validate incoming data to ensure that only expected types are processed. For example:
+            ```py
+            def validate_value(value):
+                if not isinstance(value, (int, str)):  # Allow only integers and strings
+                    raise TypeError(f"Invalid type: {type(value)}. Expected int or str.")
+                return str(value)  # Convert all values to a consistent type (e.g., text)
+            
+            # First pipeline run
+            data_run_1 = [{"id": 1, "value": validate_value(42)},
+                          {"id": 2, "value": validate_value(123)}]
+            
+            # Second pipeline run
+            data_run_2 = [{"id": 3, "value": validate_value("high")},
+                          {"id": 4, "value": validate_value("low")}]
+            
+            # Third pipeline run
+            data_run_3 = [{"id": 7, "value": validate_value([1, 2, 3])}]
+            ```
+            
+            In this example, `data_run_3` contains an invalid value (a list) instead of an integer or string. When the pipeline runs with `data_run_3`, the `validate_value` function raises a `TypeError`.
+            
+#### 2. Nested data challenges:
+- Issues arise due to deep nesting, inconsistent nesting, or unsupported types.
+
+- To avoid this, you can simplify nested structures or preprocess data [see nested tables](../general-usage/destination-tables#nested-tables) or limit the unnesting level with max_table_nesting.
