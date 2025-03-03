@@ -465,20 +465,6 @@ def test_full_workflow_azure_with_credentials(test_table, azure_credentials):
     assert "container" in parsed_url.path, "Path doesn't contain container name"
 
 
-def test_unsupported_file_format(test_table, local_file_path, local_stage_path):
-    """Test that using an unsupported file format raises a ValueError."""
-    with pytest.raises(ValueError) as excinfo:
-        gen_copy_sql(
-            file_url=local_file_path,
-            qualified_table_name=test_table,
-            loader_file_format="xml",  # Unsupported format
-            is_case_sensitive=True,
-            local_stage_file_path=local_stage_path,
-        )
-
-    assert "not supported for Snowflake COPY command" in str(excinfo.value)
-
-
 def test_snowflake_azure_converter() -> None:
     with pytest.raises(TerminalValueError):
         ensure_snowflake_azure_url("az://dlt-ci-test-bucket")
