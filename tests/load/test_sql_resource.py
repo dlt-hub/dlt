@@ -21,9 +21,9 @@ def test_sql_job() -> None:
     @dlt.resource(file_format="sql")
     def copied_table() -> Any:
         query = dataset["example_table"].limit(5).query()
-        yield f"CREATE OR REPLACE TABLE copied_table AS {query};"
+        yield f"CREATE OR REPLACE TABLE copied_table AS {query}"
         query = dataset["example_table"].limit(7).query()
-        yield f"CREATE OR REPLACE TABLE copied_table2 AS {query};"
+        yield f"CREATE OR REPLACE TABLE copied_table2 AS {query}"
 
     # run sql jobs
     pipeline.run(copied_table())

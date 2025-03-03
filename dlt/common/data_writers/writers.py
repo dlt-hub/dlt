@@ -177,8 +177,8 @@ class JsonlWriter(DataWriter):
         )
 
 
-class TextWriter(DataWriter):
-    """Writes incoming items row by row into a text file"""
+class SQLWriter(DataWriter):
+    """Writes incoming items row by row into a text file and ensures a trailing ;"""
 
     def write_header(self, columns_schema: TTableSchemaColumns) -> None:
         pass
@@ -188,6 +188,9 @@ class TextWriter(DataWriter):
         self.items_count += len(items)
 
         for item in items:
+            item = item.strip()
+            if not item.endswith(";"):
+                item += ";"
             self._f.write(item + "\n")
 
     @classmethod
@@ -697,7 +700,7 @@ ALL_WRITERS: List[Type[DataWriter]] = [
     ArrowToJsonlWriter,
     ArrowToTypedJsonlListWriter,
     ArrowToCsvWriter,
-    TextWriter,
+    SQLWriter,
 ]
 
 WRITER_SPECS: Dict[FileWriterSpec, Type[DataWriter]] = {
