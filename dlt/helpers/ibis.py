@@ -25,6 +25,8 @@ SUPPORTED_DESTINATIONS = [
     "dlt.destinations.mssql",
     "dlt.destinations.synapse",
     "dlt.destinations.clickhouse",
+    "dlt_plus.destinations.iceberg",
+    "dlt_plus.destinations.delta",
     # NOTE: Athena could theoretically work with trino backend, but according to
     # https://github.com/ibis-project/ibis/issues/7682 connecting with aws credentials
     # does not work yet.
@@ -131,7 +133,11 @@ def create_ibis_backend(
             secure=bool(ch_client.config.credentials.secure),
             # compression=True,
         )
-    elif destination_type == "dlt.destinations.filesystem":
+    elif destination_type in [
+        "dlt.destinations.filesystem",
+        "dlt_plus.destinations.iceberg",
+        "dlt_plus.destinations.delta",
+    ]:
         import duckdb
         from dlt.destinations.impl.filesystem.sql_client import (
             FilesystemClient,
