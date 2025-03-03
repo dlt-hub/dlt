@@ -179,6 +179,10 @@ class DltResourceHints:
         return None if self._hints is None else self._hints.get("table_format")
 
     @property
+    def file_format(self) -> TTableHintTemplate[TFileFormat]:
+        return None if self._hints is None else self._hints.get("file_format")
+
+    @property
     def parent_table_name(self) -> TTableHintTemplate[str]:
         return None if self._hints is None else self._hints.get("parent")
 

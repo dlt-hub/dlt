@@ -44,6 +44,8 @@ from dlt.extract.items import (
     SupportsPipe,
 )
 
+from dlt.common.schema.typing import TFileFormat
+
 try:
     from dlt.common.libs import pydantic
 except MissingDependencyException:
@@ -61,7 +63,9 @@ except MissingDependencyException:
     pandas = None
 
 
-def get_data_item_format(items: TDataItems) -> TDataItemFormat:
+def get_data_item_format(
+    items: TDataItems, file_format: TTableHintTemplate[TFileFormat] = None
+) -> TDataItemFormat:
     """Detect the format of the data item from `items`.
 
     Reverts to `object` for empty lists
@@ -69,6 +73,12 @@ def get_data_item_format(items: TDataItems) -> TDataItemFormat:
     Returns:
         The data file format.
     """
+
+    # if file format is specified as sql, we expect pure text from the resource
+    file_format = file_format(items) if callable(file_format) else file_format
+    if file_format == "sql":
+        return "text"
+
     if not pyarrow and not pandas:
         return "object"
 

@@ -126,7 +126,7 @@ for prop in COLUMN_PROPS:
     if prop in COLUMN_HINTS:
         ColumnPropInfos[prop] = ColumnPropInfos[prop]._replace(is_hint=True)
 
-TTableFormat = Literal["iceberg", "delta", "hive", "native"]
+TTableFormat = Literal["iceberg", "delta", "hive", "native", "view"]
 TFileFormat = Literal[Literal["preferred"], TLoaderFileFormat]
 TTypeDetections = Literal[
     "timestamp", "iso_timestamp", "iso_date", "large_integer", "hexbytes_to_text", "wei_to_double"

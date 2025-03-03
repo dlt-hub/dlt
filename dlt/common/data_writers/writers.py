@@ -44,7 +44,7 @@ if TYPE_CHECKING:
     from dlt.common.libs.pyarrow import pyarrow as pa
 
 
-TDataItemFormat = Literal["arrow", "object", "file"]
+TDataItemFormat = Literal["arrow", "object", "file", "text"]
 TWriter = TypeVar("TWriter", bound="DataWriter")
 
 
@@ -115,6 +115,8 @@ class DataWriter(abc.ABC):
             return "object"
         elif extension == "parquet":
             return "arrow"
+        elif extension == "sql":
+            return "text"
         # those files may be imported by normalizer as is
         elif extension in LOADER_FILE_FORMATS:
             return "file"
@@ -172,6 +174,31 @@ class JsonlWriter(DataWriter):
             is_binary_format=True,
             supports_schema_changes="True",
             supports_compression=True,
+        )
+
+
+class TextWriter(DataWriter):
+    """Writes incoming items row by row into a text file"""
+
+    def write_header(self, columns_schema: TTableSchemaColumns) -> None:
+        pass
+
+    def write_data(self, items: Sequence[TDataItem]) -> None:
+        super().write_data(items)
+        self.items_count += len(items)
+
+        for item in items:
+            self._f.write(item + "\n")
+
+    @classmethod
+    def writer_spec(cls) -> FileWriterSpec:
+        return FileWriterSpec(
+            "sql",
+            "text",
+            file_extension="sql",
+            is_binary_format=False,
+            supports_schema_changes="True",
+            supports_compression=False,
         )
 
 
@@ -670,6 +697,7 @@ ALL_WRITERS: List[Type[DataWriter]] = [
     ArrowToJsonlWriter,
     ArrowToTypedJsonlListWriter,
     ArrowToCsvWriter,
+    TextWriter,
 ]
 
 WRITER_SPECS: Dict[FileWriterSpec, Type[DataWriter]] = {
@@ -688,6 +716,11 @@ NATIVE_FORMAT_WRITERS: Dict[TDataItemFormat, Tuple[Type[DataWriter], ...]] = {
         writer
         for writer in ALL_WRITERS
         if writer.writer_spec().data_item_format == "arrow" and is_native_writer(writer)
+    ),
+    "text": tuple(
+        writer
+        for writer in ALL_WRITERS
+        if writer.writer_spec().data_item_format == "text" and is_native_writer(writer)
     ),
 }
 

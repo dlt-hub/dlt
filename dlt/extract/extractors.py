@@ -292,6 +292,12 @@ class ObjectExtractor(Extractor):
     pass
 
 
+class TextExtractor(Extractor):
+    """Extracts text items and writes them row by row into a text file"""
+
+    pass
+
+
 class ArrowExtractor(Extractor):
     """Extracts arrow data items into parquet. Normalizes arrow items column names.
     Compares the arrow schema to actual dlt table schema to reorder the columns and to

@@ -45,7 +45,7 @@ from dlt.extract.source import DltSource
 from dlt.extract.reference import SourceReference
 from dlt.extract.resource import DltResource
 from dlt.extract.storage import ExtractStorage
-from dlt.extract.extractors import ObjectExtractor, ArrowExtractor, Extractor
+from dlt.extract.extractors import ObjectExtractor, ArrowExtractor, Extractor, TextExtractor
 from dlt.extract.utils import get_data_item_format
 
 
@@ -343,6 +343,9 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
             "arrow": ArrowExtractor(
                 load_id, self.extract_storage.item_storages["arrow"], schema, collector=collector
             ),
+            "text": TextExtractor(
+                load_id, self.extract_storage.item_storages["text"], schema, collector=collector
+            ),
         }
         # make sure we close storage on exception
         with collector(f"Extract {source.name}"):
@@ -363,7 +366,7 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                             collector.update("Resources", delta)
                         signals.raise_if_signalled()
                         resource = source.resources[pipe_item.pipe.name]
-                        item_format = get_data_item_format(pipe_item.item)
+                        item_format = get_data_item_format(pipe_item.item, resource.file_format)
                         extractors[item_format].write_items(
                             resource, pipe_item.item, pipe_item.meta
                         )
