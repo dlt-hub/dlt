@@ -63,6 +63,8 @@ But you can easily create your own. In order to do this, you just need a functio
 The code below sets up a pipeline that reads from an Excel file using a standalone transformer:
 
 ```py
+from typing import Iterator
+
 import dlt
 from dlt.common.storages.fsspec_filesystem import FileItemDict
 from dlt.common.typing import TDataItems
