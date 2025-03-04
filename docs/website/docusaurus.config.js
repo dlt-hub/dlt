@@ -14,7 +14,7 @@ const versions = {"current": {
   noIndex: true
 }}
 
-let knownVersions = [];
+let knownVersions = ["current"];
 if (fs.existsSync("versions.json")) {
   knownVersions = JSON.parse(fs.readFileSync("versions.json"));
 }
