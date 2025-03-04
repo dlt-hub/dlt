@@ -50,6 +50,8 @@ jobs:
     steps:
       - name: Check out
         uses: actions/checkout@master
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.ref }}
 
       - name: Setup Python
         uses: actions/setup-python@v4

@@ -53,6 +53,8 @@ jobs:
 
       - name: Check out
         uses: actions/checkout@master
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.ref }}
 
       - name: Install ODBC driver for SQL Server
         run: |
