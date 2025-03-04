@@ -3,10 +3,6 @@ title: Installation
 description: Installation information for dlt+
 ---
 
-import Link from '../../_plus_admonition.md';
-
-<Link/>
-
 dlt+ requires a valid license to run, which you can obtain from dltHub by [joining our waiting list](https://info.dlthub.com/waiting-list).
 
 :::info Supported Python versions
@@ -38,8 +34,8 @@ pip --version
 
 If you have a different Python version installed or are missing pip, follow the instructions below to update your Python version and/or install `pip`.
 
-<Tabs values={[{"label": "Ubuntu", "value": "ubuntu"}, {"label": "macOS", "value": "macos"}, {"label": "Windows", "value": "windows"}]}  groupId="operating-systems" defaultValue="ubuntu">
-  <TabItem value="ubuntu">
+<Tabs values={[{"label": "Ubuntu", "value": "ubuntu"}, {"label": "macOS", "value": "macos"}, {"label": "Windows", "value": "windows"}]} groupId="operating-systems" defaultValue="ubuntu">
+<TabItem value="ubuntu">
 
 You can install Python 3.10 with `apt`.
 
@@ -76,7 +72,7 @@ C:\> pip3 install -U pip
 We recommend working within a [virtual environment](https://docs.python.org/3/library/venv.html) when creating Python projects.
 This way, all the dependencies for your current project will be isolated from packages in other projects.
 
-<Tabs values={[{"label": "Ubuntu", "value": "ubuntu"}, {"label": "macOS", "value": "macos"}, {"label": "Windows", "value": "windows"}]}  groupId="operating-systems" defaultValue="ubuntu">
+<Tabs values={[{"label": "Ubuntu", "value": "ubuntu"}, {"label": "macOS", "value": "macos"}, {"label": "Windows", "value": "windows"}]} groupId="operating-systems" defaultValue="ubuntu">
 
   <TabItem value="ubuntu">
 
@@ -141,22 +137,24 @@ Please install a valid license before proceeding, as described under [licensing]
 Once you have a valid license, you can make it available to `dlt+` using one of the following methods:
 
 1. **Environment variable**: set the license key as an environment variable:
-  ```sh
-  export RUNTIME__LICENSE="eyJhbGciOiJSUz...vKSjbEc==="
-  ```
+
+```sh
+export RUNTIME__LICENSE="eyJhbGciOiJSUz...vKSjbEc==="
+```
 
 2. **Secrets file**: add the license key to a `secrets.toml` file. You can use either the project-level `secrets.toml` (located in `./.dlt/secrets.toml`) or the global one (located in `~/.dlt/secrets.toml`):
-  ```toml
-  [runtime]
-  license="eyJhbGciOiJSUz...vKSjbEc==="
-  ```
+
+```toml
+[runtime]
+license="eyJhbGciOiJSUz...vKSjbEc==="
+```
 
 3. **`dlt.yml`**: add the license key directly in the [project manifest file](../features/projects.md) referencing a user-defined environment variable:
 
-  ```yaml
-  runtime:
-    license: {env.MY_ENV_CONTAINING_LICENSE_KEY}
-  ```
+```yaml
+runtime:
+  license: { env.MY_ENV_CONTAINING_LICENSE_KEY }
+```
 
 You can verify that the license was installed correctly and is valid by running:
 

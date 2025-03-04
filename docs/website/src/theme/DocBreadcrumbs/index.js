@@ -9,7 +9,7 @@ import styles from "./styles.module.css";
 import { useLocation } from "@docusaurus/router";
 import Admonition from "@theme/Admonition";
 
-function PlusAdmonition() {
+export function PlusAdmonition() {
   return (
     <Admonition type="note" title={<span style={{ textTransform: "lowercase" }}>dlt+</span>}>
       <p>
@@ -99,7 +99,6 @@ export default function DocBreadcrumbs() {
           </div>
         )}
       </nav>
-      {showPlus && <PlusAdmonition />}
     </>
   );
 }
