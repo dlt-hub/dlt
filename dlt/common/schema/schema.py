@@ -115,12 +115,17 @@ class Schema:
 
     @classmethod
     def from_dict(
-        cls, d: DictStrAny, remove_processing_hints: bool = False, bump_version: bool = True
+        cls,
+        d: DictStrAny,
+        remove_processing_hints: bool = False,
+        bump_version: bool = True,
+        validate_schema: bool = True,
     ) -> "Schema":
         # upgrade engine if needed
         stored_schema = migrate_schema(d, d["engine_version"], cls.ENGINE_VERSION)
         # verify schema
-        utils.validate_stored_schema(stored_schema)
+        if validate_schema:
+            utils.validate_stored_schema(stored_schema)
         # add defaults
         stored_schema = utils.apply_defaults(stored_schema)
         # remove processing hints that could be created by normalize and load steps
@@ -964,8 +969,8 @@ class Schema:
         Returns:
             Tuple[int, str]: Current (``stored_version``, ``stored_version_hash``) tuple
         """
-        self._stored_version, self._stored_version_hash, _, _ = utils.bump_version_if_modified(
-            self.to_dict(bump_version=False)
+        self._stored_version, self._stored_version_hash, _, self._stored_previous_hashes = (
+            utils.bump_version_if_modified(self.to_dict(bump_version=False))
         )
         return self._stored_version, self._stored_version_hash
 

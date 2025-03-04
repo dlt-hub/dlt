@@ -517,7 +517,7 @@ class PackageStorage:
         self.storage.delete_folder(package_path, recursively=True)
 
     def load_schema(self, load_id: str) -> Schema:
-        return Schema.from_dict(self._load_schema(load_id))
+        return Schema.from_dict(self._load_schema(load_id), validate_schema=False)
 
     def schema_name(self, load_id: str) -> str:
         """Gets schema name associated with the package"""
@@ -616,7 +616,7 @@ class PackageStorage:
         )
         if self.storage.has_file(applied_schema_update_file):
             applied_update = json.loads(self.storage.load(applied_schema_update_file))
-        schema = Schema.from_dict(self._load_schema(load_id))
+        schema = Schema.from_dict(self._load_schema(load_id), validate_schema=False)
 
         # read jobs with all statuses
         all_job_infos: Dict[TPackageJobState, List[LoadJobInfo]] = {}

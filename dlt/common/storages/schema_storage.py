@@ -54,7 +54,7 @@ class SchemaStorage(Mapping[str, Schema]):
             return self._maybe_import_schema(name, storage_schema)
         if storage_schema is None:
             raise SchemaNotFoundError(name, self.config.schema_volume_path)
-        return Schema.from_dict(storage_schema)
+        return Schema.from_dict(storage_schema, validate_schema=False)
 
     def save_schema(self, schema: Schema) -> str:
         """Saves schema to the storage and returns the path relative to storage.
@@ -141,7 +141,7 @@ class SchemaStorage(Mapping[str, Schema]):
                 self._save_and_export_schema(rv_schema, check_processing_hints=True)
             else:
                 # import schema when imported schema was modified from the last import
-                rv_schema = Schema.from_dict(storage_schema)
+                rv_schema = Schema.from_dict(storage_schema, validate_schema=False)
                 i_s = Schema.from_dict(imported_schema)
                 if i_s.version_hash != rv_schema._imported_version_hash:
                     logger.warning(
@@ -173,7 +173,7 @@ class SchemaStorage(Mapping[str, Schema]):
                     self.config.import_schema_path,
                     self.config.external_schema_format,
                 )
-            rv_schema = Schema.from_dict(storage_schema)
+            rv_schema = Schema.from_dict(storage_schema, validate_schema=False)
 
         assert rv_schema is not None
         return rv_schema
