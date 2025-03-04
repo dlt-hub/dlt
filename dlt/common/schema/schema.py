@@ -1244,5 +1244,11 @@ class Schema:
         # look for auto-detections in settings and then normalizer
         self._type_detections = self._settings.get("detections") or self._normalizers_config.get("detections") or []  # type: ignore
 
+    def __getstate__(self) -> Any:
+        state = self.__dict__.copy()
+        del state["naming"]
+        del state["data_item_normalizer"]
+        return state
+
     def __repr__(self) -> str:
         return f"Schema {self.name} at {id(self)}"

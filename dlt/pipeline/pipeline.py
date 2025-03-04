@@ -1745,7 +1745,12 @@ class Pipeline(SupportsPipeline):
 
     def __getstate__(self) -> Any:
         # pickle only the SupportsPipeline protocol fields
-        return {"pipeline_name": self.pipeline_name}
+        return {
+            "pipeline_name": self.pipeline_name,
+            "default_schema_name": self.default_schema_name,
+            "dataset_name": self.dataset_name,
+            "working_dir": self.working_dir,
+        }
 
     def dataset(
         self, schema: Union[Schema, str, None] = None, dataset_type: TDatasetType = "auto"
