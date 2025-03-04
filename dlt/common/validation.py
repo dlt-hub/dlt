@@ -1,8 +1,7 @@
-import contextlib
 import functools
 import inspect
 from typing import Callable, Any, List, Type
-from typing_extensions import get_type_hints, get_args
+from typing_extensions import get_args
 
 from dlt.common.exceptions import DictValidationException
 from dlt.common.typing import (
@@ -58,7 +57,7 @@ def validate_dict(
     # can't validate anything
     validator_f = validator_f or (lambda p, pk, pv, t: False)
 
-    allowed_props = get_type_hints(spec)
+    allowed_props = spec.__annotations__
     required_props = {k: v for k, v in allowed_props.items() if not is_optional_type(v)}
     # remove optional props
     props = {k: v for k, v in doc.items() if filter_f(k)}
@@ -73,7 +72,7 @@ def validate_dict(
 
     def verify_prop(pk: str, pv: Any, t: Any) -> None:
         # covers none in optional and union types
-        if is_optional_type(t) and pv is None:
+        if pv is None and is_optional_type(t):
             return
         if is_union_type(t):
             # pass if value is none
