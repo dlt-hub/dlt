@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Any
+from typing import Optional
 from urllib.parse import urlparse, urlunparse
 
 from dlt.common.configuration.specs import (

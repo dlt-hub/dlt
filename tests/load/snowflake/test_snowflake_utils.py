@@ -100,7 +100,15 @@ def test_file_format_parquet_vectorized(test_table, local_file_path, local_stage
         (False, ";", "ASCII", True),
     ],
 )
-def test_file_format_csv(include_header, delimiter, encoding, on_error_continue, test_table, local_file_path, local_stage_path):
+def test_file_format_csv(
+    include_header,
+    delimiter,
+    encoding,
+    on_error_continue,
+    test_table,
+    local_file_path,
+    local_stage_path,
+):
     """Test CSV format handling in gen_copy_sql with various options."""
     csv_config = CsvFormatConfiguration(
         include_header=include_header,
@@ -412,7 +420,7 @@ def test_full_workflow_s3_with_aws_credentials(test_table, aws_credentials):
         staging_credentials=aws_credentials,
     )
 
-            # Verify the final SQL
+    # Verify the final SQL
     assert_sql_contains(
         sql,
         f"COPY INTO {test_table}",
