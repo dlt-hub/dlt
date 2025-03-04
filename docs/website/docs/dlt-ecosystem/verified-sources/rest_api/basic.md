@@ -35,17 +35,12 @@ source = rest_api_source({
         "posts",
 
         # The explicit configuration allows you to link resources
-        # and define parameters.
+        # and define query string parameters.
         {
             "name": "comments",
             "endpoint": {
-                "path": "posts/{post_id}/comments",
+                "path": "posts/{resources.posts.id}/comments",
                 "params": {
-                    "post_id": {
-                        "type": "resolve",
-                        "resource": "posts",
-                        "field": "id",
-                    },
                     "sort": "created_at",
                 },
             },
@@ -132,8 +127,6 @@ github_token = "your_github_token"
 
 ## Source configuration
 
-
-
 ### Quick example
 
 Let's take a look at the GitHub example in the `rest_api_pipeline.py` file:
@@ -179,14 +172,7 @@ def github_source(github_token=dlt.secrets.value):
             {
                 "name": "issue_comments",
                 "endpoint": {
-                    "path": "issues/{issue_number}/comments",
-                    "params": {
-                        "issue_number": {
-                            "type": "resolve",
-                            "resource": "issues",
-                            "field": "number",
-                        }
-                    },
+                    "path": "issues/{resources.issues.number}/comments",
                 },
                 "include_from_parent": ["id"],
             },
@@ -364,7 +350,7 @@ The fields in the endpoint configuration are:
 - `path`: The path to the API endpoint. By default this path is appended to the given `base_url`. If this is a fully qualified URL starting with `http:` or `https:` it will be
 used as-is and `base_url` will be ignored.
 - `method`: The HTTP method to be used. The default is `GET`.
-- `params`: Query parameters to be sent with each request. For example, `sort` to order the results or `since` to specify [incremental loading](#incremental-loading). This is also used to define [resource relationships](#define-resource-relationships).
+- `params`: Query parameters to be sent with each request. For example, `sort` to order the results or `since` to specify [incremental loading](#incremental-loading). This is also may be used to define [resource relationships](#define-resource-relationships).
 - `json`: The JSON payload to be sent with the request (for POST and PUT requests).
 - `paginator`: Pagination configuration for the endpoint. See the [pagination](#pagination) section for more details.
 - `data_selector`: A JSONPath to select the data from the response. See the [data selection](#data-selection) section for more details.
@@ -519,34 +505,7 @@ For APIs that require authentication to access their endpoints, the REST API sou
 
 #### Quick example
 
-One of the most common methods is token-based authentication (also known as Bearer token authentication). To authenticate using this method, you can use the following shortcut:
-
-```py
-{
-    "client": {
-        # ...
-        "auth": {
-            "token": dlt.secrets["your_api_token"],
-        },
-        # ...
-    },
-}
-```
-
-:::warning
-Make sure to store your access tokens and other sensitive information in the `secrets.toml` file and never commit it to the version control system.
-:::
-
-Available authentication types:
-
-| Authentication class | String Alias (`type`) | Description |
-| ------------------- | ----------- | ----------- |
-| [BearerTokenAuth](../../../general-usage/http/rest-client.md#bearer-token-authentication) | `bearer` | Bearer token authentication. |
-| [HTTPBasicAuth](../../../general-usage/http/rest-client.md#http-basic-authentication) | `http_basic` | Basic HTTP authentication. |
-| [APIKeyAuth](../../../general-usage/http/rest-client.md#api-key-authentication) | `api_key` | API key authentication with key defined in the query parameters or in the headers. |
-| [OAuth2ClientCredentials](../../../general-usage/http/rest-client.md#oauth-20-authorization) | `oauth2_client_credentials` | OAuth 2.0 authorization with a temporary access token obtained from the authorization server. |
-
-To specify the authentication configuration, use the `auth` field in the [client](#client) configuration:
+Here's how to configure authentication using a bearer token:
 
 ```py
 {
@@ -575,6 +534,34 @@ config = {
     # ...
 }
 ```
+
+Since token-based authentication is one of the most common methods, you can use the following shortcut:
+
+```py
+{
+    "client": {
+        # ...
+        "auth": {
+            "token": dlt.secrets["your_api_token"],
+        },
+        # ...
+    },
+}
+```
+
+:::warning
+Make sure to store your access tokens and other sensitive information in the `secrets.toml` file and never commit it to the version control system.
+:::
+
+Available authentication types:
+
+| Authentication class | String Alias (`type`) | Description |
+| ------------------- | ----------- | ----------- |
+| [BearerTokenAuth](../../../general-usage/http/rest-client.md#bearer-token-authentication) | `bearer` | Bearer token authentication. |
+| [HTTPBasicAuth](../../../general-usage/http/rest-client.md#http-basic-authentication) | `http_basic` | Basic HTTP authentication. |
+| [APIKeyAuth](../../../general-usage/http/rest-client.md#api-key-authentication) | `api_key` | API key authentication with key defined in the query parameters or in the headers. |
+| [OAuth2ClientCredentials](../../../general-usage/http/rest-client.md#oauth20-authorization) | `oauth2_client_credentials` | OAuth 2.0 authorization with a temporary access token obtained from the authorization server. |
+
 
 :::warning
 Make sure to store your access tokens and other sensitive information in the `secrets.toml` file and never commit it to the version control system.
@@ -613,9 +600,127 @@ register_auth("custom_auth", CustomAuth)
 
 ### Define resource relationships
 
-When you have a resource that depends on another resource, you can define the relationship using the `resolve` configuration. This allows you to link one or more path parameters in the child resource to fields in the parent resource's data.
+When you have a resource that depends on another resource (for example, you must fetch a parent resource to get an ID needed to fetch the child), you can reference fields in the parent resource using special placeholders.
+This allows you to link one or more [path](#via-request-path), [query string](#via-query-string-parameters) or [JSON body](#via-json-body) parameters in the child resource to fields in the parent resource's data.
 
-In the GitHub example, the `issue_comments` resource depends on the `issues` resource. The `issue_number` parameter in the `issue_comments` endpoint configuration is resolved from the `number` field of the `issues` resource:
+#### Via request path
+
+In the GitHub example, the `issue_comments` resource depends on the `issues` resource. The `resources.issues.number` placeholder links the `number` field in the `issues` resource data to the current request's path parameter.
+
+```py
+{
+    "resources": [
+        {
+            "name": "issues",
+            "endpoint": {
+                "path": "issues",
+                # ...
+            },
+        },
+        {
+            "name": "issue_comments",
+            "endpoint": {
+                "path": "issues/{resources.issues.number}/comments",
+            },
+            "include_from_parent": ["id"],
+        },
+    ],
+}
+```
+
+This configuration tells the source to get issue numbers from the `issues` resource data and use them to fetch comments for each issue number. So for each issue item, `"{resources.issues.number}"` is replaced by the issue number in the request path.
+For example, if the `issues` resource yields the following data:
+
+```json
+[
+    {"id": 1, "number": 123},
+    {"id": 2, "number": 124},
+    {"id": 3, "number": 125}
+]
+```
+
+The `issue_comments` resource will make requests to the following endpoints:
+
+- `issues/123/comments`
+- `issues/124/comments`
+- `issues/125/comments`
+
+The syntax for the placeholder is `resources.<parent_resource_name>.<field_name>`.
+
+#### Via query string parameters
+
+The placeholder syntax can also be used in the query string parameters. For example, in an API which lets you fetch a blog posts (via `/posts`) and their comments (via `/comments?post_id=<post_id>`), you can define a resource `posts` and a resource `post_comments` which depends on the `posts` resource. You can then reference the `id` field from the `posts` resource in the `post_comments` resource:
+
+```py
+{
+    "resources": [
+        "posts",
+        {
+            "name": "post_comments",
+            "endpoint": {
+                "path": "comments",
+                "params": {
+                    "post_id": "{resources.posts.id}",
+                },
+            },
+        },
+    ],
+}
+```
+
+Similar to the GitHub example above, if the `posts` resource yields the following data:
+
+```json
+[
+    {"id": 1, "title": "Post 1"},
+    {"id": 2, "title": "Post 2"},
+    {"id": 3, "title": "Post 3"}
+]
+```
+
+The `post_comments` resource will make requests to the following endpoints:
+
+- `comments?post_id=1`
+- `comments?post_id=2`
+- `comments?post_id=3`
+
+#### Via JSON body
+
+In many APIs, you can send a complex query or configuration through a POST request’s JSON body rather than in the request path or query parameters. For example, consider an imaginary `/search` endpoint that supports multiple filters and settings. You might have a parent resource `posts` with each post’s `id` and a second resource, `post_details`, that uses `id` to perform a custom search.
+
+In the example below we reference the `posts` resource’s `id` field in the JSON body via placeholders:
+
+```py
+{
+    "resources": [
+        "posts",
+        {
+            "name": "post_details",
+            "endpoint": {
+                "path": "search",
+                "method": "POST",
+                "json": {
+                    "filters": {
+                        "id": "{resources.posts.id}",
+                    },
+                    "order": "desc",
+                    "limit": 5,
+                }
+            },
+        },
+    ],
+}
+```
+
+
+#### Legacy syntax: `resolve` field in parameter configuration
+
+:::warning
+`resolve` works only for path parameters. The new placeholder syntax is more flexible and recommended for new configurations.
+:::
+
+An alternative, legacy way to define resource relationships is to use the `resolve` field in the parameter configuration.
+Here's the same example as above that uses the `resolve` field:
 
 ```py
 {
@@ -645,22 +750,6 @@ In the GitHub example, the `issue_comments` resource depends on the `issues` res
 }
 ```
 
-This configuration tells the source to get issue numbers from the `issues` resource and use them to fetch comments for each issue. So if the `issues` resource yields the following data:
-
-```json
-[
-    {"id": 1, "number": 123},
-    {"id": 2, "number": 124},
-    {"id": 3, "number": 125}
-]
-```
-
-The `issue_comments` resource will make requests to the following endpoints:
-
-- `issues/123/comments`
-- `issues/124/comments`
-- `issues/125/comments`
-
 The syntax for the `resolve` field in parameter configuration is:
 
 ```py
@@ -675,7 +764,6 @@ The syntax for the `resolve` field in parameter configuration is:
 
 The `field` value can be specified as a [JSONPath](https://github.com/h2non/jsonpath-ng?tab=readme-ov-file#jsonpath-syntax) to select a nested field in the parent resource data. For example: `"field": "items[0].id"`.
 
-Under the hood, dlt handles this by using a [transformer resource](../../../general-usage/resource.md#process-resources-with-dlttransformer).
 
 #### Resolving multiple path parameters from a parent resource
 

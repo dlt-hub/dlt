@@ -4,8 +4,10 @@ from typing import (
     Type,
     Any,
     Dict,
+    Set,
     Tuple,
     List,
+    Iterable,
     Optional,
     Union,
     Callable,
@@ -92,8 +94,15 @@ AUTH_MAP: Dict[str, Type[AuthConfigBase]] = {
 
 
 class IncrementalParam(NamedTuple):
-    start: str
+    start: Optional[str]
     end: Optional[str]
+
+
+class DirectKeyFormatter(string.Formatter):
+    def get_field(self, field_name: str, args: Any, kwargs: Any) -> Any:
+        if field_name in kwargs:
+            return kwargs[field_name], field_name
+        return super().get_field(field_name, args, kwargs)
 
 
 def register_paginator(
@@ -217,7 +226,7 @@ def setup_incremental_object(
                     f"Only initial_value is allowed in the configuration of param: {param_name}. To"
                     " set end_value too use the incremental configuration at the resource level."
                     " See"
-                    " https://dlthub.com/docs/dlt-ecosystem/verified-sources/rest_api#incremental-loading/"
+                    " https://dlthub.com/docs/dlt-ecosystem/verified-sources/rest_api/basic#incremental-loading"
                 )
             return param_config, IncrementalParam(start=param_name, end=None), None
         if isinstance(param_config, dict) and param_config.get("type") == "incremental":
@@ -226,7 +235,7 @@ def setup_incremental_object(
                     "Only start_param and initial_value are allowed in the configuration of param:"
                     f" {param_name}. To set end_value too use the incremental configuration at the"
                     " resource level. See"
-                    " https://dlthub.com/docs/dlt-ecosystem/verified-sources/rest_api#incremental-loading"
+                    " https://dlthub.com/docs/dlt-ecosystem/verified-sources/rest_api/basic#incremental-loading"
                 )
             convert = parse_convert_or_deprecated_transform(param_config)
 
@@ -245,7 +254,7 @@ def setup_incremental_object(
         return (
             Incremental(**config),
             IncrementalParam(
-                start=incremental_config["start_param"],
+                start=incremental_config.get("start_param"),
                 end=incremental_config.get("end_param"),
             ),
             convert,
@@ -274,6 +283,10 @@ def make_parent_key_name(resource_name: str, field_name: str) -> str:
     return f"_{resource_name}_{field_name}"
 
 
+def _filter_resource_expressions(expressions: Set[str]) -> Set[str]:
+    return {x for x in expressions if x.startswith("resources.")}
+
+
 def build_resource_dependency_graph(
     resource_defaults: EndpointResourceBase,
     resource_list: List[Union[str, EndpointResource, DltResource]],
@@ -285,7 +298,6 @@ def build_resource_dependency_graph(
     dependency_graph: graphlib.TopologicalSorter = graphlib.TopologicalSorter()  # type: ignore[type-arg]
     resolved_param_map: Dict[str, Optional[List[ResolvedParam]]] = {}
     endpoint_resource_map = expand_and_index_resources(resource_list, resource_defaults)
-
     # create dependency graph
     for resource_name, endpoint_resource in endpoint_resource_map.items():
         if isinstance(endpoint_resource, DltResource):
@@ -295,6 +307,26 @@ def build_resource_dependency_graph(
         assert isinstance(endpoint_resource["endpoint"], dict)
         # find resolved parameters to connect dependent resources
         resolved_params = _find_resolved_params(endpoint_resource["endpoint"])
+
+        available_contexts = _get_available_contexts(endpoint_resource["endpoint"])
+
+        # Find more resolved params in path
+        # Ignore params that are not in available_contexts for backward compatibility with
+        # resolved params in path: these are validated in _bind_path_params
+        path_expressions = _find_expressions(
+            endpoint_resource["endpoint"]["path"], available_contexts
+        )
+
+        # Find all expressions in params and json, but error if any of them is not in available_contexts
+        params_expressions = _find_expressions(endpoint_resource["endpoint"].get("params", {}))
+        _raise_if_any_not_in(params_expressions, available_contexts, message="params")
+
+        json_expressions = _find_expressions(endpoint_resource["endpoint"].get("json", {}))
+        _raise_if_any_not_in(json_expressions, available_contexts, message="json")
+
+        resolved_params += _expressions_to_resolved_params(
+            _filter_resource_expressions(path_expressions | params_expressions | json_expressions)
+        )
 
         # set of resources in resolved params
         named_resources = {rp.resolve_config["resource"] for rp in resolved_params}
@@ -307,7 +339,7 @@ def build_resource_dependency_graph(
             predecessor = first_param.resolve_config["resource"]
             if predecessor not in endpoint_resource_map:
                 raise ValueError(
-                    f"A transformer resource {resource_name} refers to non existing parent resource"
+                    f"A dependent resource {resource_name} refers to non existing parent resource"
                     f" {predecessor} on {first_param}"
                 )
 
@@ -385,46 +417,83 @@ def _make_endpoint_resource(
 
 def _bind_path_params(resource: EndpointResource) -> None:
     """Binds params declared in path to params available in `params`. Pops the
-    bound params but. Params of type `resolve` and `incremental` are skipped
+    bound params. Params of type `resolve` and `incremental` are skipped
     and bound later.
     """
-    path_params: Dict[str, Any] = {}
+    # TODO: Deprecate static params usage in path
+    # TODO: and remove this function
     assert isinstance(resource["endpoint"], dict)  # type guard
-    resolve_params = [r.param_name for r in _find_resolved_params(resource["endpoint"])]
-    path = resource["endpoint"]["path"]
-    for format_ in string.Formatter().parse(path):
-        name = format_[1]
-        if name:
-            params = resource["endpoint"].get("params", {})
-            if name not in params and name not in path_params:
+
+    endpoint = resource["endpoint"]
+    params = endpoint.get("params", {})
+    path = endpoint["path"]
+
+    resolve_params = [r.param_name for r in _find_resolved_params(endpoint)]
+
+    available_contexts = _get_available_contexts(endpoint)
+
+    new_path_segments = []
+
+    for literal_text, field_name, _, _ in string.Formatter().parse(path):
+        # Always add literal text
+        new_path_segments.append(literal_text)
+
+        if not field_name:
+            # There's no placeholder here
+            continue
+
+        # If placeholder starts with a recognized context, leave it intact
+        # e.g. "resources." or "incremental." or any future contexts
+        if any(field_name.startswith(prefix + ".") for prefix in available_contexts):
+            new_path_segments.append(f"{{{field_name}}}")
+            continue
+
+        # If it's a "resolve" param, skip binding here so it remains in the path
+        # and can be processed later
+        if field_name in resolve_params:
+            # We insert a literal placeholder instead of substituting a value
+            new_path_segments.append(f"{{{field_name}}}")
+            # Remove from the list of resolve params so we don't complain about it later
+            resolve_params.remove(field_name)
+            continue
+
+        # Otherwise, we attempt to bind a normal param from endpoint['params']
+        if field_name not in params:
+            # Does not have a dot in the field name: most likely should be a resolve param
+            if "." not in field_name:
                 raise ValueError(
-                    f"The path {path} defined in resource {resource['name']} requires param with"
-                    f" name {name} but it is not found in {params}"
+                    f"The path '{path}' defined in resource '{resource['name']}' requires a param "
+                    f"named '{field_name}', but it was not found in 'endpoint.params': {params}"
                 )
-            if name in resolve_params:
-                resolve_params.remove(name)
-            if name in params:
-                if not isinstance(params[name], dict):
-                    # bind resolved param and pop it from endpoint
-                    path_params[name] = params.pop(name)
-                else:
-                    param_type = params[name].get("type")
-                    if param_type != "resolve":
-                        raise ValueError(
-                            f"The path {path} defined in resource {resource['name']} tries to bind"
-                            f" param {name} with type {param_type}. Paths can only bind 'resolve'"
-                            " type params."
-                        )
-                    # resolved params are bound later
-                    path_params[name] = "{" + name + "}"
+            else:
+                # Most likely mistyped placeholder context name
+                raise ValueError(
+                    f"The path '{path}' defined in resource '{resource['name']}' contains a"
+                    f" placeholder '{field_name}'. This placeholder is not a valid name."
+                    " Valid names are: 'resources', 'incremental'."
+                )
+
+        if not isinstance(params[field_name], dict):
+            # bind resolved param and pop it from endpoint
+            value = params.pop(field_name)
+            new_path_segments.append(str(value))
+        else:
+            param_type = params[field_name].get("type")
+            if param_type != "resolve":
+                raise ValueError(
+                    f"The path {path} defined in resource {resource['name']} tries to bind"
+                    f" param {field_name} with type {param_type}. Paths can only bind 'resolve'"
+                    " type params."
+                )
 
     if len(resolve_params) > 0:
-        raise NotImplementedError(
+        raise ValueError(
             f"Resource {resource['name']} defines resolve params {resolve_params} that are not"
-            f" bound in path {path}. Resolve query params not supported yet."
+            f" bound in path {path}. To reference parent resource in query params use"
+            " resources.<parent_resource>.<field> syntax."
         )
 
-    resource["endpoint"]["path"] = path.format(**path_params)
+    resource["endpoint"]["path"] = "".join(new_path_segments)
 
 
 def _setup_single_entity_endpoint(endpoint: Endpoint) -> Endpoint:
@@ -577,45 +646,197 @@ def create_response_hooks(
     return None
 
 
+def _find_expressions(
+    content: Union[str, Dict[str, Any]],
+    prefixes: Optional[Iterable[str]] = None,
+) -> Set[str]:
+    """Takes a string, dictionary, or nested structure and extracts expressions
+    that start with any of the given prefixes. If prefixes is None, extracts all expressions.
+    Recursively searches through dictionaries and lists to find expressions in string values.
+
+    Args:
+        content (Union[str, Dict[str, Any]]): A string, dictionary, or nested structure
+            to search for expressions
+        prefixes (Optional[Iterable[str]]): An iterable of strings that mark the beginning
+            of expressions. If None, all expressions are included.
+
+    Returns:
+        Set[str]: Set of found expressions that match the prefix criteria (or all if no prefixes)
+
+    Example:
+        >>> _find_expressions("blog/{resources.blog.id}/comments", ["resources."])
+        {"resources.blog.id"}
+        >>> _find_expressions("blog/{resources.blog.id}/comments", None)
+        {"resources.blog.id"}
+        >>> _find_expressions("blog/{id}/comments", None)
+        {"id"}
+    """
+    expressions = set()
+
+    def recursive_search(value: Union[str, List[Any], Dict[str, Any]]) -> None:
+        if isinstance(value, dict):
+            for key, val in value.items():
+                recursive_search(key)
+                recursive_search(val)
+        elif isinstance(value, list):
+            for item in value:
+                recursive_search(item)
+        elif isinstance(value, str):
+            e = [
+                field_name
+                for _, field_name, _, _ in string.Formatter().parse(value)
+                if field_name
+                and (prefixes is None or any(field_name.startswith(prefix) for prefix in prefixes))
+            ]
+            expressions.update(e)
+
+    recursive_search(content)
+    return expressions
+
+
+def _expressions_to_resolved_params(expressions: Set[str]) -> List[ResolvedParam]:
+    resolved_params = []
+    # We assume that the expressions are in the format 'resources.<resource>.<field>'
+    # and not more complex expressions
+    for expression in expressions:
+        parts = expression.strip().split(".", maxsplit=2)
+        if len(parts) != 3:
+            raise ValueError(
+                f"Invalid definition of {expression}. Expected format:"
+                " 'resources.<resource>.<field>'"
+            )
+        resolved_params.append(
+            ResolvedParam(
+                expression,
+                {
+                    "type": "resolve",
+                    "resource": parts[1],
+                    "field": parts[2],
+                },
+            )
+        )
+    return resolved_params
+
+
 def process_parent_data_item(
     path: str,
     item: Dict[str, Any],
     resolved_params: List[ResolvedParam],
-    include_from_parent: List[str],
-) -> Tuple[str, Dict[str, Any]]:
-    parent_resource_name = resolved_params[0].resolve_config["resource"]
+    params: Optional[Dict[str, Any]] = None,
+    request_json: Optional[Dict[str, Any]] = None,
+    include_from_parent: Optional[List[str]] = None,
+    incremental: Optional[Incremental[Any]] = None,
+    incremental_value_convert: Optional[Callable[..., Any]] = None,
+) -> Tuple[str, Dict[str, Any], Dict[str, Any], Dict[str, Any]]:
+    params_values = collect_resolved_values(
+        item, resolved_params, incremental, incremental_value_convert
+    )
+    expanded_path = expand_placeholders(path, params_values)
+    expanded_params = expand_placeholders(params or {}, params_values)
+    expanded_json = expand_placeholders(request_json or {}, params_values)
 
-    param_values = {}
+    parent_resource_name = resolved_params[0].resolve_config["resource"]
+    parent_record = build_parent_record(item, parent_resource_name, include_from_parent)
+
+    return expanded_path, expanded_params, expanded_json, parent_record
+
+
+def convert_incremental_values(
+    incremental: Incremental[Any], convert: Callable[..., Any]
+) -> Dict[str, Any]:
+    values = {
+        "initial_value": incremental.initial_value,
+        "start_value": incremental.start_value,
+        "last_value": incremental.last_value,
+        "end_value": incremental.end_value,
+    }
+    return {
+        f"incremental.{key}": convert(value) if value is not None else None
+        for key, value in values.items()
+    }
+
+
+def collect_resolved_values(
+    item: Dict[str, Any],
+    resolved_params: List[ResolvedParam],
+    incremental: Optional[Incremental[Any]],
+    incremental_value_convert: Optional[Callable[..., Any]],
+) -> Dict[str, Any]:
+    """
+    Collects field values from the parent item based on resolved_params
+    and sets up incremental if present. Returns the resulting placeholders
+    (params_values) and a ResourcesContext that may store `resources.<name>.<field>`.
+    """
+    if not resolved_params:
+        raise ValueError("Resolved params are required to process parent data item")
+
+    parent_resource_name = resolved_params[0].resolve_config["resource"]
+    params_values: Dict[str, Any] = {}
 
     for resolved_param in resolved_params:
         field_values = jsonpath.find_values(resolved_param.field_path, item)
-
         if not field_values:
             field_path = resolved_param.resolve_config["field"]
             raise ValueError(
-                f"Transformer expects a field '{field_path}' to be present in the incoming data"
+                f"Resource expects a field '{field_path}' to be present in the incoming data"
                 f" from resource {parent_resource_name} in order to bind it to path param"
                 f" {resolved_param.param_name}. Available parent fields are"
                 f" {', '.join(item.keys())}"
             )
 
-        param_values[resolved_param.param_name] = field_values[0]
+        params_values[resolved_param.param_name] = field_values[0]
 
-    bound_path = path.format(**param_values)
+    if incremental:
+        params_values["incremental"] = incremental
+        if incremental_value_convert:
+            params_values.update(convert_incremental_values(incremental, incremental_value_convert))
 
+    return params_values
+
+
+def expand_placeholders(obj: Any, placeholders: Dict[str, Any]) -> Any:
+    """
+    Recursively expand str.format placeholders in `obj` using `placeholders`.
+    """
+    if obj is None:
+        return None
+
+    if isinstance(obj, str):
+        return DirectKeyFormatter().format(obj, **placeholders)
+
+    if isinstance(obj, dict):
+        return {
+            expand_placeholders(k, placeholders): expand_placeholders(v, placeholders)
+            for k, v in obj.items()
+        }
+
+    if isinstance(obj, list):
+        return [expand_placeholders(item, placeholders) for item in obj]
+
+    return obj  # For other data types, do nothing
+
+
+def build_parent_record(
+    item: Dict[str, Any], parent_resource_name: str, include_from_parent: Optional[List[str]]
+) -> Dict[str, Any]:
+    """
+    Builds a dictionary of the `include_from_parent` fields from the parent,
+    renaming them using `make_parent_key_name`.
+    """
     parent_record: Dict[str, Any] = {}
-    if include_from_parent:
-        for parent_key in include_from_parent:
-            child_key = make_parent_key_name(parent_resource_name, parent_key)
-            if parent_key not in item:
-                raise ValueError(
-                    f"Transformer expects a field '{parent_key}' to be present in the incoming data"
-                    f" from resource {parent_resource_name} in order to include it in child records"
-                    f" under {child_key}. Available parent fields are {', '.join(item.keys())}"
-                )
-            parent_record[child_key] = item[parent_key]
+    if not include_from_parent:
+        return parent_record
 
-    return bound_path, parent_record
+    for parent_key in include_from_parent:
+        child_key = make_parent_key_name(parent_resource_name, parent_key)
+        if parent_key not in item:
+            raise ValueError(
+                f"Resource expects a field '{parent_key}' to be present in the incoming data "
+                f"from resource {parent_resource_name} in order to include it in child records"
+                f" under {child_key}. Available parent fields are {', '.join(item.keys())}"
+            )
+        parent_record[child_key] = item[parent_key]
+    return parent_record
 
 
 def _merge_resource_endpoints(
@@ -662,3 +883,38 @@ def _merge_resource_endpoints(
         "endpoint": merged_endpoint,
     }
     return merged_resource
+
+
+def _get_available_contexts(endpoint: Endpoint) -> Set[str]:
+    """Returns a list of available contexts for the endpoint.
+    Args:
+        endpoint (Endpoint): The endpoint configuration to check
+
+    Returns:
+        List[str]: List of available context names
+    """
+    contexts = {"resources"}  # resources context is always available
+
+    if "incremental" in endpoint:
+        contexts.add("incremental")
+
+    return contexts
+
+
+def _raise_if_any_not_in(expressions: Set[str], available_contexts: Set[str], message: str) -> None:
+    """Validates that all expressions start with one of the available contexts.
+
+    Args:
+        expressions: Set of expressions to validate
+        available_contexts: Set of valid context prefixes (e.g. 'resources', 'incremental')
+        message: Location where invalid expression was found (for error message)
+
+    Raises:
+        ValueError: If any expression doesn't start with an available context prefix
+    """
+    for expression in expressions:
+        if not any(expression.startswith(prefix + ".") for prefix in available_contexts):
+            raise ValueError(
+                f"Expression '{expression}' defined in {message} is not valid. Valid expressions"
+                f" must start with one of: {', '.join(available_contexts)}"
+            )

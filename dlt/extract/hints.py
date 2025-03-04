@@ -64,6 +64,7 @@ class TResourceHints(TResourceHintsBase, total=False):
     file_format: TTableHintTemplate[TFileFormat]
     validator: ValidateItem
     original_columns: TTableHintTemplate[TAnySchemaColumns]
+    additional_table_hints: Optional[Dict[str, TTableHintTemplate[Any]]]
 
 
 class HintsMeta:
@@ -87,6 +88,7 @@ def make_hints(
     schema_contract: TTableHintTemplate[TSchemaContract] = None,
     table_format: TTableHintTemplate[TTableFormat] = None,
     file_format: TTableHintTemplate[TFileFormat] = None,
+    additional_table_hints: Optional[Dict[str, TTableHintTemplate[Any]]] = None,
     references: TTableHintTemplate[TTableReferenceParam] = None,
     incremental: TIncrementalConfig = None,
 ) -> TResourceHints:
@@ -121,6 +123,8 @@ def make_hints(
         new_template["merge_key"] = merge_key
     if validator:
         new_template["validator"] = validator
+    if additional_table_hints is not None:
+        new_template["additional_table_hints"] = additional_table_hints
     DltResourceHints.validate_dynamic_hints(new_template)
     if incremental is not None:  # TODO: Validate
         new_template["incremental"] = Incremental.ensure_instance(incremental)
@@ -277,16 +281,16 @@ class DltResourceHints:
             # if there is no template yet, create and set a new one.
             default_wd = None if parent_table_name else DEFAULT_WRITE_DISPOSITION
             t = make_hints(
-                table_name,
-                parent_table_name,
-                write_disposition or default_wd,
-                columns,
-                primary_key,
-                merge_key,
-                schema_contract,
-                table_format,
-                file_format,
-                references,
+                table_name=table_name,
+                parent_table_name=parent_table_name,
+                write_disposition=write_disposition or default_wd,
+                columns=columns,
+                primary_key=primary_key,
+                merge_key=merge_key,
+                schema_contract=schema_contract,
+                table_format=table_format,
+                file_format=file_format,
+                references=references,
             )
         else:
             t = self._clone_hints(t)
@@ -332,12 +336,14 @@ class DltResourceHints:
                 else:
                     t.pop("schema_contract", None)
             if additional_table_hints is not None:
-                for k, v in additional_table_hints.items():
-                    if v:
-                        t[k] = v  # type: ignore[literal-required]
+                if additional_table_hints:
+                    if t.get("additional_table_hints") is not None:
+                        for k, v in additional_table_hints.items():
+                            t["additional_table_hints"][k] = v
                     else:
-                        t.pop(k, None)  # type: ignore[misc]
-                t.pop("additional_table_hints", None)  # type: ignore
+                        t["additional_table_hints"] = additional_table_hints
+                else:
+                    t.pop("additional_table_hints", None)
 
             # recreate validator if column definition or contract changed
             if schema_contract is not None or columns is not None:
@@ -425,6 +431,7 @@ class DltResourceHints:
             schema_contract=hints_template.get("schema_contract"),
             table_format=hints_template.get("table_format"),
             file_format=hints_template.get("file_format"),
+            additional_table_hints=hints_template.get("additional_table_hints"),
             references=hints_template.get("references"),
             create_table_variant=create_table_variant,
         )
@@ -546,6 +553,11 @@ class DltResourceHints:
         if "incremental" in resource_hints:
             DltResourceHints._merge_incremental_column_hint(resource_hints)  # type: ignore[arg-type]
         dict_ = cast(TTableSchema, resource_hints)
+        # apply table hints
+        if additional_table_hints := resource_hints.get("additional_table_hints"):
+            for k, v in additional_table_hints.items():
+                dict_[k] = v  # type: ignore[literal-required]
+        resource_hints.pop("additional_table_hints", None)
         dict_["resource"] = resource_name
         return dict_
 

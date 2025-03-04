@@ -1,5 +1,5 @@
 ---
-title: Naming Convention
+title: Naming convention
 description: Control how dlt creates table, column and other identifiers
 keywords: [identifiers, snake case, case sensitive, case insensitive, naming]
 ---
