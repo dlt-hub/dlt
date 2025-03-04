@@ -422,7 +422,6 @@ def test_list_in_list() -> None:
 
     rows = list(schema.normalize_data_item(chats, "1762162.1212", "zen"))
     # both lists are json types now
-    print(rows)
     assert len(rows) == 3
     zen__webpath = [row for row in rows if row[0][0] == "zen__webpath"]
     assert all("list" in row[1] for row in zen__webpath)

@@ -2,8 +2,6 @@ import os
 from datetime import datetime  # noqa: I251
 from typing import Generic, ClassVar, Any, Optional, Type, Dict, Union, Literal, Tuple
 
-from typing_extensions import get_args
-
 import inspect
 from functools import wraps
 
@@ -16,6 +14,7 @@ from dlt.common.typing import (
     TDataItems,
     TFun,
     TSortOrder,
+    get_args,
     extract_inner_type,
     get_generic_type_argument_from_instance,
     is_optional_type,

@@ -17,14 +17,13 @@ from typing import (
     Optional,
     Sequence,
     Set,
-    get_args,
     cast,
     Any,
     Tuple,
 )
 from typing_extensions import NotRequired
 
-from dlt.common.typing import TypedDict
+from dlt.common.typing import TypedDict, get_args, DictStrAny, SupportsHumanize
 from dlt.common.pendulum import pendulum
 from dlt.common.json import json
 from dlt.common.configuration import configspec
@@ -43,7 +42,6 @@ from dlt.common.storages.exceptions import (
     LoadPackageNotFound,
     CurrentLoadPackageStateNotAvailable,
 )
-from dlt.common.typing import DictStrAny, SupportsHumanize
 from dlt.common.utils import flatten_list_or_items
 from dlt.common.versioned_state import (
     generate_state_version_hash,

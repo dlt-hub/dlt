@@ -1,7 +1,6 @@
 import functools
 import inspect
-from typing import Callable, Any, List, Type, get_type_hints
-from typing_extensions import get_args
+from typing import Callable, Any, List, Type
 
 from dlt.common.exceptions import DictValidationException
 from dlt.common.typing import (
@@ -16,6 +15,8 @@ from dlt.common.typing import (
     is_typeddict,
     is_list_generic_type,
     is_dict_generic_type,
+    get_args,
+    get_type_hints,
     _TypedDict,
 )
 

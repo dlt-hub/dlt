@@ -13,7 +13,6 @@ from typing import (
     Sequence,
     Tuple,
     cast,
-    get_type_hints,
     ContextManager,
     Union,
 )
@@ -45,7 +44,7 @@ from dlt.common.schema.typing import (
 )
 from dlt.common.schema.utils import normalize_schema_name
 from dlt.common.storages.exceptions import LoadPackageNotFound
-from dlt.common.typing import ConfigValue, TFun, TSecretStrValue, TColumnNames
+from dlt.common.typing import ConfigValue, TFun, TSecretStrValue, TColumnNames, get_type_hints
 from dlt.common.runners import pool_runner as runner
 from dlt.common.storages import (
     LiveSchemaStorage,
