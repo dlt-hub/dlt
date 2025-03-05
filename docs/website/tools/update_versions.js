@@ -97,7 +97,7 @@ for (const version of selectedVersions) {
 
     // build doc version, we also run preprocessing and markdown gen for each doc version
     console.log(`Building docs...`)
-    proc.execSync(`cd ${REPO_DOCS_DIR} && npm run preprocess-docs && PYTHONPATH=. pydoc-markdown`)
+    proc.execSync(`cd ${REPO_DOCS_DIR} && npm run preprocess-docs && PYTHONPATH=. pydoc-markdown && python clean_pydoc_sidebar.py`)
 
     console.log(`Snapshotting version...`)
     proc.execSync(`cd ${REPO_DOCS_DIR} && npm run docusaurus docs:version ${version}`)
