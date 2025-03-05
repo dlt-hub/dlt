@@ -1,10 +1,7 @@
 ---
-title: 🧪 Python-based transformations
+title: "Python-based transformations 🧪"
 description: Define transformations in Python
 ---
-import Link from '../../../_plus_admonition.md';
-
-<Link/>
 
 :::caution
 🚧 This feature is under development, and the interface may change in future releases. Interested in becoming an early tester? [Join dlt+ early access](https://info.dlthub.com/waiting-list).

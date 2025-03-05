@@ -1,16 +1,13 @@
 ---
-title: "🧪 Cache"
+title: "Cache 🧪"
 description: Execute data transformations in your local cache
 keywords: ["dlt+", "cache", "transformations"]
 ---
 
-import Link from '../../_plus_admonition.md';
-
-<Link/>
-
 :::caution
 🚧 This feature is under development, and the interface may change in future releases. Interested in becoming an early tester? [Join dlt+ early access](https://info.dlthub.com/waiting-list)
 :::
+
 The dlt+ Cache is a temporary local storage created by dlt+ to enhance development workflows. It allows you to efficiently run local transformations, materialize dbt models, and test your queries before deploying them to production.
 
 ## How it works

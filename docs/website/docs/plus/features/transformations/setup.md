@@ -2,9 +2,6 @@
 title: Setup
 description: Define and execute local transformations
 ---
-import Link from '../../../_plus_admonition.md';
-
-<Link/>
 
 dlt+ provides a powerful mechanism for executing transformations on your data using a locally spun-up cache. It automatically creates and manages the cache before execution and cleans it up afterward.
 
