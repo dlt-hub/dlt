@@ -188,6 +188,8 @@ class SQLWriter(DataWriter):
         self.items_count += len(items)
 
         for item in items:
+            if "value" in item:
+                item = item["value"]
             item = item.strip()
             if not item.endswith(";"):
                 item += ";"
@@ -198,6 +200,21 @@ class SQLWriter(DataWriter):
         return FileWriterSpec(
             "sql",
             "text",
+            file_extension="sql",
+            is_binary_format=False,
+            supports_schema_changes="True",
+            supports_compression=False,
+        )
+
+
+class SQLItemWriter(SQLWriter):
+    """Writes incoming items row by row into a text file and ensures a trailing ;"""
+
+    @classmethod
+    def writer_spec(cls) -> FileWriterSpec:
+        return FileWriterSpec(
+            "sql",
+            "object",
             file_extension="sql",
             is_binary_format=False,
             supports_schema_changes="True",
@@ -701,6 +718,7 @@ ALL_WRITERS: List[Type[DataWriter]] = [
     ArrowToTypedJsonlListWriter,
     ArrowToCsvWriter,
     SQLWriter,
+    SQLItemWriter,
 ]
 
 WRITER_SPECS: Dict[FileWriterSpec, Type[DataWriter]] = {
