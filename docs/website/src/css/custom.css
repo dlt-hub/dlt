@@ -159,6 +159,10 @@ html[data-theme='dark'] .footer--dark {
   --ifm-footer-background-color: #191937;
 }
 
+.footer__link-item {
+  color: #191937 !important;
+}
+
 .footer__link-item:hover {
   --ifm-color-primary-lightest: #4C4898 !important;
 }
