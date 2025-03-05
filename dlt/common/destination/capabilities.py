@@ -11,12 +11,11 @@ from typing import (
     Set,
     Protocol,
     Type,
-    get_args,
 )
 from dlt.common.data_types import TDataType
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.normalizers.typing import TNamingConventionReferenceArg
-from dlt.common.typing import TLoaderFileFormat
+from dlt.common.typing import TLoaderFileFormat, get_args
 from dlt.common.configuration.utils import serialize_value
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ContainerInjectableContext

@@ -117,7 +117,7 @@ Run the pipeline script again and make sure that the change is visible in the ex
 
 :::note
 Do not rename the tables or columns in the YAML file. `dlt` infers those from the data, so the schema will be recreated.
-You can [adjust the schema](../general-usage/resource.md#adjust-schema) in Python before the resource is loaded.
+You can [adjust the schema](../general-usage/resource.md#set-table-name-and-adjust-schema) in Python before the resource is loaded.
 :::
 
 ### Reorder columns

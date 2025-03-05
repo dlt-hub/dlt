@@ -1,12 +1,8 @@
 ---
-title: AI Workflows
+title: AI workflows
 description: Explore data in your dlt+ project with Claude Desktop using the Model Context Protocol
 keywords: [dlt+, Claude Desktop, MCP, Model Context Protocol]
 ---
-
-import Link from '../../_plus_admonition.md';
-
-<Link/>
 
 # AI workflows
 
@@ -123,10 +119,10 @@ Open the file in a text editor and add the following configuration:
     "dlt+ project": {
       "command": "</path/to/your/project/.venv/bin/dlt>",
       "args": [
-        "mcp",
+        "project",
         "--project",
         "<path/to/your/project>",
-        "run"
+        "mcp"
       ]
     }
   }
@@ -134,6 +130,10 @@ Open the file in a text editor and add the following configuration:
 ```
 
 Replace `</path/to/your/project/.venv/bin/dlt>` with the path to your `dlt` executable from the previous step and save the file.
+
+:::warning
+If you are using [environment variables](../../general-usage/credentials/setup.md#available-config-providers) to configure dlt, make sure to include them as part of the command before the `dlt` executable.
+:::
 
 ### Restart Claude desktop
 

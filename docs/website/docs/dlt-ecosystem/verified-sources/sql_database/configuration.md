@@ -20,6 +20,10 @@ Read more about sources and resources here: [General usage: source](../../../gen
 
 ### Example usage:
 
+:::tip
+We intend our sources to be fully hackable. Feel free to change the source code of the sources and resources to customize it to your needs.
+:::
+
 1. **Load all the tables from a database**
 
     Calling `sql_database()` loads all tables from the database.
@@ -106,10 +110,30 @@ Read more about sources and resources here: [General usage: source](../../../gen
 
     ```
 
-:::tip
-We intend our sources to be fully hackable. Feel free to change the source code of the sources and resources to customize it to your needs.
-:::
+4. **Configuring table and column selection in `config.toml`**
 
+   To manage table and column selections outside of your Python scripts, you can configure them directly in the `config.toml` file. This approach is especially beneficial when dealing with multiple tables or when you prefer to keep configuration separate from code.
+
+   Below is an example of how to define table and column selections in the `config.toml` file:
+   ```toml
+   # to select tables names
+   [sources.sql_database]
+   table_names = [
+       "Table_Name_1",  
+   ]
+
+   # to select specific columns from table "Table_Name_1"
+   [sources.sql_database.Table_Name_1]
+   included_columns = [
+       "Column_Name_1",
+       "Column_Name_2"
+   ]
+   ```
+   :::note
+   *Case-Sensitivity:* 
+   
+   Table and column names specified in `config.toml` must exactly match their counterparts in the SQL database, as they are case-sensitive.
+   :::
 
 ## Configuring the connection
 

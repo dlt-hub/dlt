@@ -22,7 +22,7 @@ pip install streamlit
 
 ## Launching the Streamlit app
 
-You can use the `show` [CLI command](../../reference/command-line-interface.md#show-tables-and-data-in-the-destination)
+You can use the `show` [CLI command](../../reference/command-line-interface.md#dlt-pipeline-show)
 with your pipeline name:
 
 ```sh

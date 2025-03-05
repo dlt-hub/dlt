@@ -4,10 +4,6 @@ description: Using the dlt+ cli commands to create and manage dlt+ Project
 keywords: [command line interface, cli, dlt init, dlt+, project]
 ---
 
-import Link from '../../_plus_admonition.md';
-
-<Link/>
-
 This tutorial introduces you to dlt+ Project and the essential cli commands needed to create and manage it. You will learn how to:
 
 * initialize a new dlt+ Project
@@ -130,7 +126,7 @@ dlt pipeline my_pipeline run
 
 This command:
 - Locates the pipeline named `my_pipeline` in `dlt.yml`.
-- Executes it, populating the duckdb destination that [is defined to be stored](../features/projects.md#local-and-temporary-files-data_dir-and-local_dir) in `_data/dev/local/duckdb.duckdb`.
+- Executes it, populating the duckdb destination that [is defined to be stored](../features/projects.md#local-and-temporary-files-data_dir) in `_data/dev/local/duckdb.duckdb`.
 
 :::tip
 Take a look at the [Projects context](../features/projects.md#project-context) to learn more about how to work with nested projects and how dlt searches for the pipelines based on its name.
@@ -384,5 +380,5 @@ dlt dataset --profile dev my_duckdb_destination_dataset row-counts
 dlt dataset --profile prod my_duckdb_destination_dataset row-counts
 ```
 
-To locate your [loaded data](../features/projects.md#local-and-temporary-files-data_dir-and-local_dir), check the `_data\{profile name}\local` directory.
+To locate your [loaded data](../features/projects.md#local-and-temporary-files-data_dir), check the `_data\{profile name}\local` directory.
 

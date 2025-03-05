@@ -421,10 +421,13 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
         c_load_id, c_dlt_load_id, c_pipeline_name, c_status = self._norm_and_escape_columns(
             "load_id", C_DLT_LOAD_ID, "pipeline_name", "status"
         )
+
+        maybe_limit_clause_1, maybe_limit_clause_2 = self.sql_client._limit_clause_sql(1)
+
         query = (
-            f"SELECT {self.state_table_columns} FROM {state_table} AS s JOIN {loads_table} AS l ON"
-            f" l.{c_load_id} = s.{c_dlt_load_id} WHERE {c_pipeline_name} = %s AND l.{c_status} = 0"
-            f" ORDER BY {c_load_id} DESC"
+            f"SELECT {maybe_limit_clause_1} {self.state_table_columns} FROM {state_table} AS s JOIN"
+            f" {loads_table} AS l ON l.{c_load_id} = s.{c_dlt_load_id} WHERE {c_pipeline_name} = %s"
+            f" AND l.{c_status} = 0 ORDER BY {c_load_id} DESC {maybe_limit_clause_2}"
         )
         with self.sql_client.execute_query(query, pipeline_name) as cur:
             row = cur.fetchone()
@@ -448,9 +451,12 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
     def get_stored_schema_by_hash(self, version_hash: str) -> StorageSchemaInfo:
         table_name = self.sql_client.make_qualified_table_name(self.schema.version_table_name)
         (c_version_hash,) = self._norm_and_escape_columns("version_hash")
+
+        maybe_limit_clause_1, maybe_limit_clause_2 = self.sql_client._limit_clause_sql(1)
+
         query = (
-            f"SELECT {self.version_table_schema_columns} FROM {table_name} WHERE"
-            f" {c_version_hash} = %s;"
+            f"SELECT {maybe_limit_clause_1} {self.version_table_schema_columns} FROM"
+            f" {table_name} WHERE {c_version_hash} = %s {maybe_limit_clause_2};"
         )
         return self._row_to_schema_info(query, version_hash)
 

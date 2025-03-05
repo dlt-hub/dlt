@@ -1,0 +1,25 @@
+.breadcrumbsContainer {
+    --ifm-breadcrumb-size-multiplier: 0.8;
+    margin-bottom: 0.8rem;
+}
+
+.breadcrumbsContainerPlus {
+    --ifm-breadcrumb-size-multiplier: 0.8;
+    margin-bottom: 0.8rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+}
+
+.customLogo {
+    width: 69px;
+    min-width: 69px;
+    max-width: 69px;
+    height: 69px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #dadde1;
+    border-radius: 50%;
+}

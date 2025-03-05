@@ -1,5 +1,5 @@
 ---
-title: 30+ SQL Databases
+title: 30+ SQL databases
 description: PostgreSQL, MySQL, MS SQL, BigQuery, Redshift, and more
 keywords: [sql connector, sql database pipeline, sql database]
 ---

@@ -21,7 +21,7 @@ Above, we want to use the **filesystem** built-in destination. You can use short
 * Use full **destination factory type**
 <!--@@@DLT_SNIPPET ./snippets/destination-snippets.py::class_type-->
 
-Above, we use the built-in **filesystem** destination by providing a factory type `filesystem` from the module `dlt.destinations`. You can pass [destinations from external modules](#declare-external-destination) as well.
+Above, we use the built-in **filesystem** destination by providing a factory type `filesystem` from the module `dlt.destinations`. You can implement [your own destination](../walkthroughs/create-new-destination.md) and pass this external module as well.
 
 * Import **destination factory**
 <!--@@@DLT_SNIPPET ./snippets/destination-snippets.py::class-->
@@ -43,7 +43,7 @@ If a destination is not named, its shorthand type (the Python factory name) serv
 ## Configure a destination
 We recommend passing the credentials and other required parameters to configuration via TOML files, environment variables, or other [config providers](credentials/setup). This allows you, for example, to easily switch to production destinations after deployment.
 
-We recommend using the [default config section layout](credentials/setup#structure-of-secrets.toml-and-config.toml) as below:
+We recommend using the [default config section layout](credentials/advanced#toml-files-structure) as below:
 <!--@@@DLT_SNIPPET ./snippets/destination-toml.toml::default_layout-->
 
 or via environment variables:
@@ -139,7 +139,7 @@ When loading data, `dlt` will access the destination in two cases:
 
 ## Control how `dlt` creates table, column, and other identifiers
 `dlt` maps identifiers found in the source data into destination identifiers (i.e., table and column names) using [naming conventions](naming-convention.md) which ensure that
-character set, identifier length, and other properties fit into what the given destination can handle. For example, our [default naming convention (**snake case**)](naming-convention.md#default-naming-convention-snake_case) converts all names in the source (i.e., JSON document fields) into snake case, case-insensitive identifiers.
+character set, identifier length, and other properties fit into what the given destination can handle. For example, our [default naming convention (**snake case**)](./naming-convention.md#use-default-naming-convention-snake_case) converts all names in the source (i.e., JSON document fields) into snake case, case-insensitive identifiers.
 
 Each destination declares its preferred naming convention, support for case-sensitive identifiers, and case folding function that case-insensitive identifiers follow. For example:
 1. Redshift - by default, does not support case-sensitive identifiers and converts all of them to lower case.

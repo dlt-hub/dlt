@@ -952,7 +952,10 @@ def test_adapter_additional_table_hints_parsing_table_description() -> None:
     table_description = "Once upon a time a small table got hinted."
     bigquery_adapter(some_data, table_description=table_description)
 
-    assert some_data._hints["x-bigquery-table-description"] == table_description  # type: ignore
+    assert (
+        some_data._hints["additional_table_hints"]["x-bigquery-table-description"]
+        == table_description
+    )
 
 
 @pytest.mark.parametrize(
@@ -1052,4 +1055,6 @@ def test_adapter_additional_table_hints_parsing_table_expiration() -> None:
 
     bigquery_adapter(some_data, table_expiration_datetime="2030-01-01")
 
-    assert some_data._hints["x-bigquery-table-expiration"] == pendulum.datetime(2030, 1, 1)  # type: ignore
+    assert some_data._hints["additional_table_hints"][
+        "x-bigquery-table-expiration"
+    ] == pendulum.datetime(2030, 1, 1)

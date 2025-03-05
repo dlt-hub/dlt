@@ -46,8 +46,8 @@ from dlt.extract.items_transform import (
     ItemTransformFunctionWithMeta,
 )
 from dlt.extract.pipe_iterator import ManagedPipeIterator
-from dlt.extract.pipe import Pipe, TPipeStep
-from dlt.extract.hints import DltResourceHints, HintsMeta, TResourceHints, make_hints
+from dlt.extract.pipe import Pipe
+from dlt.extract.hints import DltResourceHints, HintsMeta, TResourceHints
 from dlt.extract.incremental import Incremental, IncrementalResourceWrapper
 from dlt.extract.exceptions import (
     InvalidTransformerDataTypeGeneratorFunctionRequired,

@@ -35,17 +35,12 @@ source = rest_api_source({
         "posts",
 
         # The explicit configuration allows you to link resources
-        # and define parameters.
+        # and define query string parameters.
         {
             "name": "comments",
             "endpoint": {
-                "path": "posts/{post_id}/comments",
+                "path": "posts/{resources.posts.id}/comments",
                 "params": {
-                    "post_id": {
-                        "type": "resolve",
-                        "resource": "posts",
-                        "field": "id",
-                    },
                     "sort": "created_at",
                 },
             },
@@ -132,8 +127,6 @@ github_token = "your_github_token"
 
 ## Source configuration
 
-
-
 ### Quick example
 
 Let's take a look at the GitHub example in the `rest_api_pipeline.py` file:
@@ -179,14 +172,7 @@ def github_source(github_token=dlt.secrets.value):
             {
                 "name": "issue_comments",
                 "endpoint": {
-                    "path": "issues/{issue_number}/comments",
-                    "params": {
-                        "issue_number": {
-                            "type": "resolve",
-                            "resource": "issues",
-                            "field": "number",
-                        }
-                    },
+                    "path": "issues/{resources.issues.number}/comments",
                 },
                 "include_from_parent": ["id"],
             },
@@ -335,7 +321,7 @@ config = {
 ```
 This would use `Bearer` auth as defined in the `client` for `resource-using-bearer-auth` and `Http Basic` auth for `my-resource-with-special-auth`.
 
-You can also pass additional resource parameters that will be used to configure the dlt resource. See [dlt resource API reference](../../../api_reference/extract/decorators#resource) for more details.
+You can also pass additional resource parameters that will be used to configure the dlt resource. See [dlt resource API reference](../../../api_reference/dlt/extract/decorators#resource) for more details.
 
 ### Endpoint configuration
 
@@ -364,7 +350,7 @@ The fields in the endpoint configuration are:
 - `path`: The path to the API endpoint. By default this path is appended to the given `base_url`. If this is a fully qualified URL starting with `http:` or `https:` it will be
 used as-is and `base_url` will be ignored.
 - `method`: The HTTP method to be used. The default is `GET`.
-- `params`: Query parameters to be sent with each request. For example, `sort` to order the results or `since` to specify [incremental loading](#incremental-loading). This is also used to define [resource relationships](#define-resource-relationships).
+- `params`: Query parameters to be sent with each request. For example, `sort` to order the results or `since` to specify [incremental loading](#incremental-loading). This is also may be used to define [resource relationships](#define-resource-relationships).
 - `json`: The JSON payload to be sent with the request (for POST and PUT requests).
 - `paginator`: Pagination configuration for the endpoint. See the [pagination](#pagination) section for more details.
 - `data_selector`: A JSONPath to select the data from the response. See the [data selection](#data-selection) section for more details.
@@ -424,14 +410,14 @@ from dlt.sources.helpers.rest_client.paginators import JSONLinkPaginator
 ```
 
 :::note
-Currently, pagination is supported only for GET requests. To handle POST requests with pagination, you need to implement a [custom paginator](../../../general-usage/http/rest-client.md#custom-paginator).
+Currently, pagination is supported only for GET requests. To handle POST requests with pagination, you need to implement a [custom paginator](../../../general-usage/http/rest-client.md#implementing-a-custom-paginator).
 :::
 
 These are the available paginators:
 
 | `type` | Paginator class | Description |
 | ------------ | -------------- | ----------- |
-| `json_link` | [JSONLinkPaginator](../../../general-usage/http/rest-client.md#jsonresponsepaginator) | The link to the next page is in the body (JSON) of the response.<br/>*Parameters:*<ul><li>`next_url_path` (str) - the JSONPath to the next page URL</li></ul> |
+| `json_link` | [JSONLinkPaginator](../../../general-usage/http/rest-client.md#jsonlinkpaginator) | The link to the next page is in the body (JSON) of the response.<br/>*Parameters:*<ul><li>`next_url_path` (str) - the JSONPath to the next page URL</li></ul> |
 | `header_link` | [HeaderLinkPaginator](../../../general-usage/http/rest-client.md#headerlinkpaginator) | The links to the next page are in the response headers.<br/>*Parameters:*<ul><li>`links_next_key` (str) - the name of the header containing the links. Default is "next".</li></ul> |
 | `offset` | [OffsetPaginator](../../../general-usage/http/rest-client.md#offsetpaginator) | The pagination is based on an offset parameter, with the total items count either in the response body or explicitly provided.<br/>*Parameters:*<ul><li>`limit` (int) - the maximum number of items to retrieve in each request</li><li>`offset` (int) - the initial offset for the first request. Defaults to `0`</li><li>`offset_param` (str) - the name of the query parameter used to specify the offset. Defaults to "offset"</li><li>`limit_param` (str) - the name of the query parameter used to specify the limit. Defaults to "limit"</li><li>`total_path` (str) - a JSONPath expression for the total number of items. If not provided, pagination is controlled by `maximum_offset` and `stop_after_empty_page`</li><li>`maximum_offset` (int) - optional maximum offset value. Limits pagination even without total count</li><li>`stop_after_empty_page` (bool) - Whether pagination should stop when a page contains no result items. Defaults to `True`</li></ul> |
 | `page_number` | [PageNumberPaginator](../../../general-usage/http/rest-client.md#pagenumberpaginator) | The pagination is based on a page number parameter, with the total pages count either in the response body or explicitly provided.<br/>*Parameters:*<ul><li>`base_page` (int) - the starting page number. Defaults to `0`</li><li>`page_param` (str) - the query parameter name for the page number. Defaults to "page"</li><li>`total_path` (str) - a JSONPath expression for the total number of pages. If not provided, pagination is controlled by `maximum_page` and `stop_after_empty_page`</li><li>`maximum_page` (int) - optional maximum page number. Stops pagination once this page is reached</li><li>`stop_after_empty_page` (bool) - Whether pagination should stop when a page contains no result items. Defaults to `True`</li></ul> |
@@ -519,34 +505,7 @@ For APIs that require authentication to access their endpoints, the REST API sou
 
 #### Quick example
 
-One of the most common methods is token-based authentication (also known as Bearer token authentication). To authenticate using this method, you can use the following shortcut:
-
-```py
-{
-    "client": {
-        # ...
-        "auth": {
-            "token": dlt.secrets["your_api_token"],
-        },
-        # ...
-    },
-}
-```
-
-:::warning
-Make sure to store your access tokens and other sensitive information in the `secrets.toml` file and never commit it to the version control system.
-:::
-
-Available authentication types:
-
-| Authentication class | String Alias (`type`) | Description |
-| ------------------- | ----------- | ----------- |
-| [BearerTokenAuth](../../../general-usage/http/rest-client.md#bearer-token-authentication) | `bearer` | Bearer token authentication. |
-| [HTTPBasicAuth](../../../general-usage/http/rest-client.md#http-basic-authentication) | `http_basic` | Basic HTTP authentication. |
-| [APIKeyAuth](../../../general-usage/http/rest-client.md#api-key-authentication) | `api_key` | API key authentication with key defined in the query parameters or in the headers. |
-| [OAuth2ClientCredentials](../../../general-usage/http/rest-client.md#oauth20-authorization) | `oauth2_client_credentials` | OAuth 2.0 authorization with a temporary access token obtained from the authorization server. |
-
-To specify the authentication configuration, use the `auth` field in the [client](#client) configuration:
+Here's how to configure authentication using a bearer token:
 
 ```py
 {
@@ -576,6 +535,34 @@ config = {
 }
 ```
 
+Since token-based authentication is one of the most common methods, you can use the following shortcut:
+
+```py
+{
+    "client": {
+        # ...
+        "auth": {
+            "token": dlt.secrets["your_api_token"],
+        },
+        # ...
+    },
+}
+```
+
+:::warning
+Make sure to store your access tokens and other sensitive information in the `secrets.toml` file and never commit it to the version control system.
+:::
+
+Available authentication types:
+
+| Authentication class | String Alias (`type`) | Description |
+| ------------------- | ----------- | ----------- |
+| [BearerTokenAuth](../../../general-usage/http/rest-client.md#bearer-token-authentication) | `bearer` | Bearer token authentication. |
+| [HTTPBasicAuth](../../../general-usage/http/rest-client.md#http-basic-authentication) | `http_basic` | Basic HTTP authentication. |
+| [APIKeyAuth](../../../general-usage/http/rest-client.md#api-key-authentication) | `api_key` | API key authentication with key defined in the query parameters or in the headers. |
+| [OAuth2ClientCredentials](../../../general-usage/http/rest-client.md#oauth-20-authorization) | `oauth2_client_credentials` | OAuth 2.0 authorization with a temporary access token obtained from the authorization server. |
+
+
 :::warning
 Make sure to store your access tokens and other sensitive information in the `secrets.toml` file and never commit it to the version control system.
 :::
@@ -587,7 +574,7 @@ Available authentication types:
 | `bearer` | [BearerTokenAuth](../../../general-usage/http/rest-client.md#bearer-token-authentication) | Bearer token authentication.<br/>Parameters:<ul><li>`token` (str)</li></ul> |
 | `http_basic` | [HTTPBasicAuth](../../../general-usage/http/rest-client.md#http-basic-authentication) | Basic HTTP authentication.<br/>Parameters:<ul><li>`username` (str)</li><li>`password` (str)</li></ul> |
 | `api_key` | [APIKeyAuth](../../../general-usage/http/rest-client.md#api-key-authentication) | API key authentication with key defined in the query parameters or in the headers. <br/>Parameters:<ul><li>`name` (str) - the name of the query parameter or header</li><li>`api_key` (str) - the API key value</li><li>`location` (str, optional) - the location of the API key in the request. Can be `query` or `header`. Default is `header`</li></ul> |
-| `oauth2_client_credentials` | [OAuth2ClientCredentials](../../../general-usage/http/rest-client.md#oauth20-authorization)) | OAuth 2.0 Client Credentials authorization for server-to-server communication without user consent. <br/>Parameters:<ul><li>`access_token` (str, optional) - the temporary token. Usually not provided here because it is automatically obtained from the server by exchanging `client_id` and `client_secret`. Default is `None`</li><li>`access_token_url` (str) - the URL to request the `access_token` from</li><li>`client_id` (str) - identifier for your app. Usually issued via a developer portal</li><li>`client_secret` (str) - client credential to obtain authorization. Usually issued via a developer portal</li><li>`access_token_request_data` (dict, optional) - A dictionary with data required by the authorization server apart from the `client_id`, `client_secret`, and `"grant_type": "client_credentials"`. Defaults to `None`</li><li>`default_token_expiration` (int, optional) - The time in seconds after which the temporary access token expires. Defaults to 3600.</li><li>`session` (requests.Session, optional) - a custom session object. Mostly used for testing</li></ul> |
+| `oauth2_client_credentials` | [OAuth2ClientCredentials](../../../general-usage/http/rest-client.md#oauth-20-authorization) | OAuth 2.0 Client Credentials authorization for server-to-server communication without user consent. <br/>Parameters:<ul><li>`access_token` (str, optional) - the temporary token. Usually not provided here because it is automatically obtained from the server by exchanging `client_id` and `client_secret`. Default is `None`</li><li>`access_token_url` (str) - the URL to request the `access_token` from</li><li>`client_id` (str) - identifier for your app. Usually issued via a developer portal</li><li>`client_secret` (str) - client credential to obtain authorization. Usually issued via a developer portal</li><li>`access_token_request_data` (dict, optional) - A dictionary with data required by the authorization server apart from the `client_id`, `client_secret`, and `"grant_type": "client_credentials"`. Defaults to `None`</li><li>`default_token_expiration` (int, optional) - The time in seconds after which the temporary access token expires. Defaults to 3600.</li><li>`session` (requests.Session, optional) - a custom session object. Mostly used for testing</li></ul> |
 
 
 For more complex authentication methods, you can implement a [custom authentication class](../../../general-usage/http/rest-client.md#implementing-custom-authentication) and use it in the configuration.
@@ -613,9 +600,127 @@ register_auth("custom_auth", CustomAuth)
 
 ### Define resource relationships
 
-When you have a resource that depends on another resource, you can define the relationship using the `resolve` configuration. This allows you to link one or more path parameters in the child resource to fields in the parent resource's data.
+When you have a resource that depends on another resource (for example, you must fetch a parent resource to get an ID needed to fetch the child), you can reference fields in the parent resource using special placeholders.
+This allows you to link one or more [path](#via-request-path), [query string](#via-query-string-parameters) or [JSON body](#via-json-body) parameters in the child resource to fields in the parent resource's data.
 
-In the GitHub example, the `issue_comments` resource depends on the `issues` resource. The `issue_number` parameter in the `issue_comments` endpoint configuration is resolved from the `number` field of the `issues` resource:
+#### Via request path
+
+In the GitHub example, the `issue_comments` resource depends on the `issues` resource. The `resources.issues.number` placeholder links the `number` field in the `issues` resource data to the current request's path parameter.
+
+```py
+{
+    "resources": [
+        {
+            "name": "issues",
+            "endpoint": {
+                "path": "issues",
+                # ...
+            },
+        },
+        {
+            "name": "issue_comments",
+            "endpoint": {
+                "path": "issues/{resources.issues.number}/comments",
+            },
+            "include_from_parent": ["id"],
+        },
+    ],
+}
+```
+
+This configuration tells the source to get issue numbers from the `issues` resource data and use them to fetch comments for each issue number. So for each issue item, `"{resources.issues.number}"` is replaced by the issue number in the request path.
+For example, if the `issues` resource yields the following data:
+
+```json
+[
+    {"id": 1, "number": 123},
+    {"id": 2, "number": 124},
+    {"id": 3, "number": 125}
+]
+```
+
+The `issue_comments` resource will make requests to the following endpoints:
+
+- `issues/123/comments`
+- `issues/124/comments`
+- `issues/125/comments`
+
+The syntax for the placeholder is `resources.<parent_resource_name>.<field_name>`.
+
+#### Via query string parameters
+
+The placeholder syntax can also be used in the query string parameters. For example, in an API which lets you fetch a blog posts (via `/posts`) and their comments (via `/comments?post_id=<post_id>`), you can define a resource `posts` and a resource `post_comments` which depends on the `posts` resource. You can then reference the `id` field from the `posts` resource in the `post_comments` resource:
+
+```py
+{
+    "resources": [
+        "posts",
+        {
+            "name": "post_comments",
+            "endpoint": {
+                "path": "comments",
+                "params": {
+                    "post_id": "{resources.posts.id}",
+                },
+            },
+        },
+    ],
+}
+```
+
+Similar to the GitHub example above, if the `posts` resource yields the following data:
+
+```json
+[
+    {"id": 1, "title": "Post 1"},
+    {"id": 2, "title": "Post 2"},
+    {"id": 3, "title": "Post 3"}
+]
+```
+
+The `post_comments` resource will make requests to the following endpoints:
+
+- `comments?post_id=1`
+- `comments?post_id=2`
+- `comments?post_id=3`
+
+#### Via JSON body
+
+In many APIs, you can send a complex query or configuration through a POST request’s JSON body rather than in the request path or query parameters. For example, consider an imaginary `/search` endpoint that supports multiple filters and settings. You might have a parent resource `posts` with each post’s `id` and a second resource, `post_details`, that uses `id` to perform a custom search.
+
+In the example below we reference the `posts` resource’s `id` field in the JSON body via placeholders:
+
+```py
+{
+    "resources": [
+        "posts",
+        {
+            "name": "post_details",
+            "endpoint": {
+                "path": "search",
+                "method": "POST",
+                "json": {
+                    "filters": {
+                        "id": "{resources.posts.id}",
+                    },
+                    "order": "desc",
+                    "limit": 5,
+                }
+            },
+        },
+    ],
+}
+```
+
+
+#### Legacy syntax: `resolve` field in parameter configuration
+
+:::warning
+`resolve` works only for path parameters. The new placeholder syntax is more flexible and recommended for new configurations.
+:::
+
+An alternative, legacy way to define resource relationships is to use the `resolve` field in the parameter configuration.
+Here's the same example as above that uses the `resolve` field:
 
 ```py
 {
@@ -645,22 +750,6 @@ In the GitHub example, the `issue_comments` resource depends on the `issues` res
 }
 ```
 
-This configuration tells the source to get issue numbers from the `issues` resource and use them to fetch comments for each issue. So if the `issues` resource yields the following data:
-
-```json
-[
-    {"id": 1, "number": 123},
-    {"id": 2, "number": 124},
-    {"id": 3, "number": 125}
-]
-```
-
-The `issue_comments` resource will make requests to the following endpoints:
-
-- `issues/123/comments`
-- `issues/124/comments`
-- `issues/125/comments`
-
 The syntax for the `resolve` field in parameter configuration is:
 
 ```py
@@ -675,7 +764,6 @@ The syntax for the `resolve` field in parameter configuration is:
 
 The `field` value can be specified as a [JSONPath](https://github.com/h2non/jsonpath-ng?tab=readme-ov-file#jsonpath-syntax) to select a nested field in the parent resource data. For example: `"field": "items[0].id"`.
 
-Under the hood, dlt handles this by using a [transformer resource](../../../general-usage/resource.md#process-resources-with-dlttransformer).
 
 #### Resolving multiple path parameters from a parent resource
 
@@ -1116,7 +1204,7 @@ Some APIs may return 404 errors for resources that do not exist or have no data.
 If you are experiencing 401 (Unauthorized) errors, this could indicate:
 
 - Incorrect authorization credentials. Verify credentials in the `secrets.toml`. Refer to [Secret and configs](../../../general-usage/credentials/setup#understanding-the-exceptions) for more information.
-- An incorrect authentication type. Consult the API documentation for the proper method. See the [authentication](#authentication) section for details. For some APIs, a [custom authentication method](../../../general-usage/http/rest-client.md#custom-authentication) may be required.
+- An incorrect authentication type. Consult the API documentation for the proper method. See the [authentication](#authentication) section for details. For some APIs, a [custom authentication method](../../../general-usage/http/rest-client.md#implementing-custom-authentication) may be required.
 
 ### General guidelines
 

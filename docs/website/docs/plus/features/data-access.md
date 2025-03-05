@@ -4,10 +4,6 @@ description: Provide secure data access to your organization
 keywords: ["data access", "security", "contracts", "data sharing"]
 ---
 
-import Link from '../../_plus_admonition.md';
-
-<Link/>
-
 # Secure data access and sharing
 
 dlt+ makes it easy for end-users like data scientists or analysts to access high-quality production data in a secure and Python-friendly way. A [dlt+ Project](../core-concepts/project.md) exposes a standard Python API which connects to the production data using an "access" [profile](../core-concepts/profiles.md). This profile can be configured to specify how users are allowed to interact with the data, e.g., by applying restrictions on datasets that are not allowed to be modified.

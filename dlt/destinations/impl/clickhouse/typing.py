@@ -1,6 +1,8 @@
-from typing import Literal, Dict, get_args, Set
+from typing import Literal, Dict, Set
 
 from dlt.common.schema import TColumnHint
+from dlt.common.typing import get_args
+
 
 TSecureConnection = Literal[0, 1]
 TTableEngineType = Literal[
