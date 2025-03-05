@@ -30,9 +30,9 @@ from tenacity import (
 import dlt
 from dlt.common import sleep, logger
 from dlt.common.typing import StrAny, TDataItems
-from dlt.sources.helpers.requests import client
 from dlt.pipeline.helpers import retry_load
 from dlt.common.runtime.slack import send_slack_message
+from dlt.sources.helpers.rest_client import RESTClient
 
 
 @dlt.source
@@ -43,8 +43,10 @@ def chess(
     year: int = 2022,
     month: int = 10,
 ) -> Any:
+    client = RESTClient(base_url=chess_url)
+
     def _get_data_with_retry(path: str) -> StrAny:
-        r = client.get(f"{chess_url}{path}")
+        r = client.get(path)
         return r.json()  # type: ignore
 
     @dlt.resource(write_disposition="replace")
@@ -67,7 +69,7 @@ def chess(
     def players_games(username: Any) -> Iterator[TDataItems]:
         # https://api.chess.com/pub/player/{username}/games/{YYYY}/{MM}
         path = f"player/{username}/games/{year:04d}/{month:02d}"
-        yield _get_data_with_retry(path)["games"]
+        yield _get_data_with_retry(path).get("games")
 
     return players(), players_profiles, players_games
 
