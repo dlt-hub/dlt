@@ -109,7 +109,7 @@ def test_retry_on_status_without_raise_for_status(mock_sleep: mock.MagicMock) ->
     assert m.call_count == RuntimeConfiguration.request_max_attempts
 
 
-def test_hooks_with_raise_for_statue() -> None:
+def test_hooks_with_raise_for_status() -> None:
     url = "https://example.com/data"
     session = Client(raise_for_status=True).session
     m = requests_mock.Adapter()
