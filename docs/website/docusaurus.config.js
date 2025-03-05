@@ -16,7 +16,7 @@ const versions = {"current": {
 
 let knownVersions = ["current"];
 if (fs.existsSync("versions.json")) {
-  knownVersions = JSON.parse(fs.readFileSync("versions.json"));
+  knownVersions = JSON.parse(fs.readFileSync("versions.json", 'utf8'));
 }
 
 // inject master version renaming only if versions present and master included
@@ -52,7 +52,7 @@ const config = {
   baseUrl: process.env.DOCUSAURUS_BASE_URL || '/docs',
   onBrokenLinks: 'throw',
   onBrokenMarkdownLinks: 'throw',
-  onBrokenAnchors: 'throw', 
+  onBrokenAnchors: 'throw',
   favicon: 'img/favicon.ico',
   staticDirectories: ['public', 'static'],
 
