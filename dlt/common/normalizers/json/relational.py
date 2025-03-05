@@ -1,3 +1,4 @@
+from functools import lru_cache, partial
 from typing import (
     ClassVar,
     Dict,
@@ -11,7 +12,6 @@ from typing import (
     Any,
 )
 
-from dlt.common.typing import TypedDict
 from dlt.common.normalizers.exceptions import InvalidJsonNormalizer
 from dlt.common.normalizers.typing import TJSONNormalizer
 from dlt.common.normalizers.utils import generate_dlt_id
@@ -40,18 +40,11 @@ from dlt.common.normalizers.json.typing import (
     RelationalNormalizerConfig,
     RelationalNormalizerConfigPropagation,
 )
+from dlt.common.normalizers.json import helpers as normalize_helpers
 from dlt.common.normalizers.json.helpers import (
     get_nested_row_hash,
-    get_primary_key,
     get_propagation_mapping,
-    get_root_row_id_type,
     get_row_hash,
-    get_table_nesting_level,
-    is_nested_type,
-    normalize_identifier,
-    normalize_table_identifier,
-    shorten_fragments,
-    should_be_nested,
 )
 from dlt.common.validation import validate_dict
 
@@ -106,8 +99,31 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         self.propagation_config = self.normalizer_config.get("propagation", None)
         self.max_nesting = self.normalizer_config.get("max_nesting", 1000)
         self._skip_primary_key = {}
-        # self.known_types: Dict[str, TDataType] = {}
-        # self.primary_keys = Dict[str, ]
+        # create cached versions of helper functions
+        self._get_root_row_id_type = lru_cache(maxsize=None)(
+            partial(normalize_helpers.get_root_row_id_type, self.schema)
+        )
+        self._shorten_fragments = lru_cache(maxsize=None)(
+            partial(normalize_helpers.shorten_fragments, self.naming)
+        )
+        self._normalize_table_identifier = lru_cache(maxsize=None)(
+            partial(normalize_helpers.normalize_table_identifier, self.schema, self.naming)
+        )
+        self._normalize_identifier = lru_cache(maxsize=None)(
+            partial(normalize_helpers.normalize_identifier, self.schema, self.naming)
+        )
+        self._get_table_nesting_level = lru_cache(maxsize=None)(
+            partial(normalize_helpers.get_table_nesting_level, self.schema)
+        )
+        self._get_primary_key = lru_cache(maxsize=None)(
+            partial(normalize_helpers.get_primary_key, self.schema)
+        )
+        self._is_nested_type = lru_cache(maxsize=None)(
+            partial(normalize_helpers.is_nested_type, self.schema)
+        )
+        self._should_be_nested = lru_cache(maxsize=None)(
+            partial(normalize_helpers.should_be_nested, self.schema)
+        )
 
     def _flatten(
         self, table: str, dict_row: DictStrAny, _r_lvl: int
@@ -118,25 +134,21 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         def norm_row_dicts(dict_row: StrAny, __r_lvl: int, path: Tuple[str, ...] = ()) -> None:
             for k, v in dict_row.items():
                 if k.strip():
-                    norm_k = normalize_identifier(self.schema, self.naming, k)
+                    norm_k = self._normalize_identifier(k)
                 else:
                     # for empty keys in the data use _
                     norm_k = self.EMPTY_KEY_IDENTIFIER
-                nested_name = (
-                    norm_k if path == () else shorten_fragments(self.naming, *path, norm_k)
-                )
+                nested_name = norm_k if path == () else self._shorten_fragments(*path, norm_k)
                 # for lists and dicts we must check if type is possibly nested
                 if isinstance(v, (dict, list)):
-                    if not is_nested_type(self.schema, table, nested_name, __r_lvl):
+                    if not self._is_nested_type(table, nested_name, __r_lvl):
                         # TODO: if schema contains table {table}__{nested_name} then convert v into single element list
                         if isinstance(v, dict):
                             # flatten the dict more
                             norm_row_dicts(v, __r_lvl - 1, path + (norm_k,))
                         else:
                             # pass the list to out_rec_list
-                            out_rec_list[
-                                path + (normalize_table_identifier(self.schema, self.naming, k),)
-                            ] = v
+                            out_rec_list[path + (self._normalize_table_identifier(k),)] = v
                         continue
                     else:
                         # pass the nested value to out_rec_row
@@ -170,12 +182,12 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
             row_id = get_nested_row_hash(parent_row_id, table, pos)
             self._link_row(flattened_row, parent_row_id, pos)
         else:  # root table
-            row_id_type = get_root_row_id_type(self.schema, table)
+            row_id_type = self._get_root_row_id_type(table)
             if row_id_type in ("key_hash", "row_hash"):
                 subset = None
                 if row_id_type == "key_hash":
                     # primary key based hash must be performed on normalized names
-                    subset = get_primary_key(self.schema, table)
+                    subset = self._get_primary_key(table)
                     row_id = get_row_hash(flattened_row, subset=subset)
                 else:
                     # base hash on `dict_row` instead of `flattened_row`
@@ -210,8 +222,8 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         parent_row_id: Optional[str] = None,
         _r_lvl: int = 0,
     ) -> TNormalizedRowIterator:
-        table = shorten_fragments(self.naming, *parent_path, *ident_path)
-        is_root = not should_be_nested(self.schema, table)
+        table = self._shorten_fragments(*parent_path, *ident_path)
+        is_root = not self._should_be_nested(table)
         for idx, v in enumerate(seq):
             if isinstance(v, dict):
                 # found dict element in seq
@@ -234,7 +246,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
                 wrap_v = wrap_in_dict(self.c_value, v)
                 DataItemNormalizer._extend_row(extend, wrap_v)
                 self._add_row_id(table, wrap_v, wrap_v, parent_row_id, idx, is_root)
-                yield (table, shorten_fragments(self.naming, *parent_path)), wrap_v
+                yield (table, self._shorten_fragments(*parent_path)), wrap_v
 
     def _normalize_row(
         self,
@@ -247,9 +259,8 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         _r_lvl: int = 0,
         is_root: bool = False,
     ) -> TNormalizedRowIterator:
-        naming = self.naming
-        table = shorten_fragments(naming, *parent_path, *ident_path)
-        is_root = is_root or not should_be_nested(self.schema, table)
+        table = self._shorten_fragments(*parent_path, *ident_path)
+        is_root = is_root or not self._should_be_nested(table)
         # flatten current row and extract all lists to recur into
         flattened_row, lists = self._flatten(table, dict_row, _r_lvl)
         # always extend row
@@ -264,7 +275,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
 
         # yield parent table first
         should_descend = yield (
-            (table, shorten_fragments(naming, *parent_path)),
+            (table, self._shorten_fragments(*parent_path)),
             flattened_row,
         )
         if should_descend is False:
@@ -359,15 +370,15 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         if not isinstance(item, dict):
             item = wrap_in_dict(self.c_value, item)
         # we will extend event with all the fields necessary to load it as root row
-        row = cast(DictStrAny, item)
+
         # identify load id if loaded data must be processed after loading incrementally
-        row[self.c_dlt_load_id] = load_id
+        item[self.c_dlt_load_id] = load_id
         # get table name and nesting level
-        root_table_name = normalize_table_identifier(self.schema, self.naming, table_name)
-        max_nesting = get_table_nesting_level(self.schema, root_table_name, self.max_nesting)
+        root_table_name = self._normalize_table_identifier(table_name)
+        max_nesting = self._get_table_nesting_level(root_table_name, self.max_nesting)
 
         yield from self._normalize_row(
-            row,
+            item,
             {},
             (root_table_name,),
             _r_lvl=max_nesting,  # we count backwards

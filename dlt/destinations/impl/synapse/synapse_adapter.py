@@ -1,5 +1,6 @@
-from typing import Any, Literal, Set, get_args, Final, Dict
+from typing import Any, Literal, Set, Final, Dict
 
+from dlt.common.typing import get_args
 from dlt.extract import DltResource, resource as make_resource
 from dlt.extract.items import TTableHintTemplate
 from dlt.extract.hints import TResourceHints

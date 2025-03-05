@@ -20,12 +20,10 @@ from dlt.common.schema.utils import (
 from dlt.common.utils import digest128, digest128b
 
 
-@lru_cache(maxsize=None)
 def shorten_fragments(naming: NamingConvention, *idents: str) -> str:
     return naming.shorten_fragments(*idents)
 
 
-@lru_cache(maxsize=None)
 def normalize_table_identifier(schema: Schema, naming: NamingConvention, table_name: str) -> str:
     if schema._normalizers_config.get("use_break_path_on_normalize", True):
         return naming.normalize_tables_path(table_name)
@@ -33,7 +31,6 @@ def normalize_table_identifier(schema: Schema, naming: NamingConvention, table_n
         return naming.normalize_table_identifier(table_name)
 
 
-@lru_cache(maxsize=None)
 def normalize_identifier(schema: Schema, naming: NamingConvention, identifier: str) -> str:
     if schema._normalizers_config.get("use_break_path_on_normalize", True):
         return naming.normalize_path(identifier)
@@ -41,7 +38,6 @@ def normalize_identifier(schema: Schema, naming: NamingConvention, identifier: s
         return naming.normalize_identifier(identifier)
 
 
-@lru_cache(maxsize=None)
 def get_table_nesting_level(
     schema: Schema, table_name: str, default_nesting: int = 1000
 ) -> Optional[int]:
@@ -56,7 +52,6 @@ def get_table_nesting_level(
     return default_nesting
 
 
-@lru_cache(maxsize=None)
 def get_primary_key(schema: Schema, table_name: str) -> List[str]:
     if table_name not in schema.tables:
         return []
@@ -65,7 +60,6 @@ def get_primary_key(schema: Schema, table_name: str) -> List[str]:
     return pk
 
 
-@lru_cache(maxsize=None)
 def is_nested_type(
     schema: Schema,
     table_name: str,
@@ -93,7 +87,6 @@ def is_nested_type(
     return data_type == "json"
 
 
-@lru_cache(maxsize=None)
 def should_be_nested(schema: Schema, table_name: str) -> bool:
     """Tells if table should be nested or should be a root table. All tables created by the normalizer
     are nested, defined tables are checked.
@@ -103,7 +96,6 @@ def should_be_nested(schema: Schema, table_name: str) -> bool:
     return True
 
 
-@lru_cache(maxsize=None)
 def get_root_row_id_type(schema: Schema, table_name: str) -> TRowIdType:
     if table := schema.tables.get(table_name):
         merge_strategy = resolve_merge_strategy(schema.tables, table)

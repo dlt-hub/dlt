@@ -1,8 +1,6 @@
-import contextlib
 import functools
 import inspect
 from typing import Callable, Any, List, Type
-from typing_extensions import get_type_hints, get_args
 
 from dlt.common.exceptions import DictValidationException
 from dlt.common.typing import (
@@ -17,6 +15,8 @@ from dlt.common.typing import (
     is_typeddict,
     is_list_generic_type,
     is_dict_generic_type,
+    get_args,
+    get_type_hints,
     _TypedDict,
 )
 
@@ -58,6 +58,9 @@ def validate_dict(
     # can't validate anything
     validator_f = validator_f or (lambda p, pk, pv, t: False)
 
+    # TODO: get_type_hints is very slow and we possibly should cache the result
+    # even better option is to rewrite "verify_prop" so we can cache annotations mapper to validators
+    # so we do not check the types of typeddict keys all the time
     allowed_props = get_type_hints(spec)
     required_props = {k: v for k, v in allowed_props.items() if not is_optional_type(v)}
     # remove optional props
@@ -73,7 +76,7 @@ def validate_dict(
 
     def verify_prop(pk: str, pv: Any, t: Any) -> None:
         # covers none in optional and union types
-        if is_optional_type(t) and pv is None:
+        if pv is None and is_optional_type(t):
             return
         if is_union_type(t):
             # pass if value is none

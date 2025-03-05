@@ -416,9 +416,9 @@ def test_list_in_list() -> None:
         "zen__webpath", parent_table_name="zen", columns=[{"name": "list", "data_type": "json"}]
     )
     schema.update_table(path_table)
+    # NOTE: we could reset normalizer in update_table so schema caches are removed. skip for now
+    schema.data_item_normalizer._reset()  # type: ignore[attr-defined]
     assert "zen__webpath" in schema.tables
-    # clear cache with json paths
-    normalize_helpers.is_nested_type.cache_clear()
 
     rows = list(schema.normalize_data_item(chats, "1762162.1212", "zen"))
     # both lists are json types now

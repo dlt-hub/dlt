@@ -1,5 +1,4 @@
 from __future__ import annotations as _annotations
-import inspect
 from copy import copy
 from typing import (
     Dict,
@@ -9,18 +8,20 @@ from typing import (
     List,
     Type,
     Union,
-    TypeVar,
     Any,
 )
-from typing_extensions import Annotated, get_args, get_origin
 
-from dlt.common.typing import TypedDict
 from dlt.common.data_types import py_type_to_sc_type
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.schema import DataValidationError
 from dlt.common.schema.typing import TSchemaEvolutionMode, TTableSchemaColumns
 from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCaseNamingConvention
 from dlt.common.typing import (
+    TypedDict,
+    Annotated,
+    get_args,
+    get_origin,
+    TypeVar,
     TDataItem,
     TDataItems,
     extract_union_types,
