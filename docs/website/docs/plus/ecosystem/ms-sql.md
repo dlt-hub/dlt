@@ -4,10 +4,6 @@ description: MS SQL replication
 keywords: [MSSQL, CDC, Change Tracking, MSSQL replication]
 ---
 
-import Link from '../../_plus_admonition.md';
-
-<Link/>
-
 # MS SQL replication
 
 dlt+ provides a comprehensive solution for syncing an MS SQL Server table using [Change Tracking](https://learn.microsoft.com/en-us/sql/relational-databases/track-changes/about-change-tracking-sql-server), a solution similar to CDC. By leveraging SQL Server's native Change Tracking feature, you can efficiently load incremental data changes — including inserts, updates, and deletes — into your destination.
@@ -127,7 +123,7 @@ When running for the first time, it is necessary to pass the `tracking_version` 
 
 ### Incremental loading
 
-After the initial load, you can run the `create_change_tracking_table` resource on a schedule to load only the changes since the last tracking version using SQL Server’s `CHANGETABLE` function. 
+After the initial load, you can run the `create_change_tracking_table` resource on a schedule to load only the changes since the last tracking version using SQL Server’s `CHANGETABLE` function.
 You do not need to pass `initial_tracking_version` anymore, since this is automatically stored in the `dlt` state.
 
 ```py
@@ -307,14 +303,14 @@ pipeline.run(incremental_resource)
 
 ### Hard deletes
 
-By default, `hard_delete` is set to `True`, meaning hard deletes are performed, i.e., rows deleted in the source will be permanently removed from the destination. 
+By default, `hard_delete` is set to `True`, meaning hard deletes are performed, i.e., rows deleted in the source will be permanently removed from the destination.
 
 Replicated data allows for NULLs for not nullable columns when a record is deleted. To avoid additional tables that hold deleted rows and additional merge steps,
 `dlt` emits placeholder values that are stored in the staging dataset only.
 
 ### Soft deletes
 
-If `hard_delete` is set to `False`, soft deletes are performed, i.e., rows deleted in the source will be marked as deleted but not physically removed from the destination. 
+If `hard_delete` is set to `False`, soft deletes are performed, i.e., rows deleted in the source will be marked as deleted but not physically removed from the destination.
 
 In this case, the destination schema must accept NULLs for the replicated columns, so make sure you pass the `remove_nullability_adapter` adapter to the `sql_table` resource:
 

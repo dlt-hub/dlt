@@ -4,10 +4,6 @@ description: Delta destination
 keywords: [delta, delta lake]
 ---
 
-import Link from '../../_plus_admonition.md';
-
-<Link/>
-
 # Delta
 
 The Delta destination is based on the [filesystem destination](../../dlt-ecosystem/destinations/filesystem.md) in dlt. All configuration options from the filesystem destination can be configured as well.

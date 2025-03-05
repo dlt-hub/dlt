@@ -3,10 +3,6 @@ title: Installation
 description: Installation information for dlt+
 ---
 
-import Link from '../../_plus_admonition.md';
-
-<Link/>
-
 :::info Supported Python versions
 
 dlt+ currently supports Python versions 3.9-3.12.
