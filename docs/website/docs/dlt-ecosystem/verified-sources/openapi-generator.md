@@ -20,11 +20,11 @@ We also have a cool [Google Colab example](https://colab.research.google.com/dri
 
 Features include:
 
-* **[Pagination](./rest_api#pagination) discovery** for each endpoint.
+* **[Pagination](./rest_api/basic#pagination) discovery** for each endpoint.
 * **Primary key discovery** for each entity.
-* **Endpoint relationship mapping** into `dlt` [`transformers`](../../general-usage/resource#process-resources-with-dlttransformer) (e.g., /users/ -> /user/{id}).
-* **Payload JSON path [data selector](./rest_api#data-selection) discovery** for results nested in the returned JSON.
-* **[Authentication](./rest_api#authentication)** discovery for an API.
+* **Endpoint relationship mapping** into `dlt` [`transformers`](../../general-usage/resource#process-resources-with-dlttransformer) (e.g., /users/ -> /user\{id\}).
+* **Payload JSON path [data selector](./rest_api/basic#data-selection) discovery** for results nested in the returned JSON.
+* **[Authentication](./rest_api/basic#authentication)** discovery for an API.
 
 ## A quick example
 
@@ -99,7 +99,7 @@ If you re-generate your pipeline, you will be prompted to continue if this folde
 
 ## A closer look at your `rest_api` dictionary in `pokemon/__init__.py`
 
-This file contains the [configuration dictionary](./rest_api#source-configuration) for the rest_api source, which is the main result of running this generator. For our Pokemon example, we have used an OpenAPI 3 spec that works out of the box. The result of this dictionary depends on the quality of the spec you are using, whether the API you are querying actually adheres to this spec, and whether our heuristics manage to find the right values.
+This file contains the [configuration dictionary](./rest_api/basic#source-configuration) for the rest_api source, which is the main result of running this generator. For our Pokemon example, we have used an OpenAPI 3 spec that works out of the box. The result of this dictionary depends on the quality of the spec you are using, whether the API you are querying actually adheres to this spec, and whether our heuristics manage to find the right values.
 
 The generated dictionary will look something like this:
 

@@ -139,9 +139,19 @@ def mock_api_server():
             post_id = int(request.url.split("/")[-2])
             return paginate_by_page_number(request, generate_comments(post_id))
 
+        @router.get(r"/post_comments(\?.*)?$")
+        def post_comments_via_query_param(request, context):
+            post_id = int(request.qs.get("post_id", [0])[0])
+            return paginate_by_page_number(request, generate_comments(post_id))
+
         @router.get(r"/posts/\d+$")
         def post_detail(request, context):
             post_id = request.url.split("/")[-1]
+            return {"id": int(post_id), "body": f"Post body {post_id}"}
+
+        @router.get(r"/post_detail(\?.*)?$")
+        def post_detail_via_query_param(request, context):
+            post_id = int(request.qs.get("post_id", [0])[0])
             return {"id": int(post_id), "body": f"Post body {post_id}"}
 
         @router.get(r"/posts/\d+/some_details_404")
@@ -203,6 +213,20 @@ def mock_api_server():
             return {
                 "data": records_slice,
                 "next_page": page_number + 1 if page_number < total_pages else None,
+            }
+
+        @router.post(r"/posts/search_by_id/\d+$")
+        def search_posts_by_id(request, context):
+            body = request.json()
+            post_id = body.get("post_id", 0)
+            title = body.get("more", {}).get("title", 0)
+
+            more_array = body.get("more_array", [])[0]
+            return {
+                "id": int(post_id),
+                "title": title,
+                "body": f"Post body {post_id}",
+                "more": f"More is equale to id: {more_array}",
             }
 
         @router.get("/protected/posts/basic-auth")

@@ -167,7 +167,7 @@ const sidebars = {
         },
         {
           type: 'category',
-          label: '30+ SQL Databases',
+          label: '30+ SQL databases',
           description: 'PostgreSQL, MySQL, MS SQL, BigQuery, Redshift, and more',
           link: {
             type: 'doc',
@@ -338,7 +338,7 @@ const sidebars = {
         },
         {
           type: 'category',
-          label: 'Loading Behavior',
+          label: 'Loading behavior',
           items: [
             'general-usage/incremental-loading',
             'walkthroughs/add-incremental-configuration',
@@ -394,7 +394,13 @@ const sidebars = {
         },
       ]
     },
-    'reference/performance',
+    {
+      type: 'category',
+      label: 'Optimizing dlt',
+      items: [
+        'reference/performance',
+      ],
+    },
     {
       type: 'category',
       label: 'Code examples',

@@ -29,9 +29,9 @@ Resources that can be loaded using this verified source are:
 | attendances                | Retrieves attendance records for each employee                                    | /company/attendances                              |
 | projects                   | Retrieves a list of all company projects                                          | /company/attendances/projects                     |
 | document_categories        | Retrieves all document categories of the company                                  | /company/document-categories                      |
-| employees_absences_balance | The transformer retrieves the absence balance for a specific employee             | /company/employees/{employee_id}/absences/balance |
+| employees_absences_balance | The transformer retrieves the absence balance for a specific employee             | /company/employees/\{employee_id\}/absences/balance |
 | custom_reports_list        | Retrieves metadata about existing custom reports (name, report type, report date) | /company/custom-reports/reports                   |
-| custom_reports             | The transformer for custom reports                                                | /company/custom-reports/reports/{report_id}       |
+| custom_reports             | The transformer for custom reports                                                | /company/custom-reports/reports/\{report_id\}       |
 
 ## Setup guide
 
@@ -200,7 +200,7 @@ with similar behavior.
 ### Resource-transformer `employees_absences_balance`
 
 Besides these source and resource functions, there are two transformer functions
-for endpoints like `/company/employees/{employee_id}/absences/balance` and `/company/custom-reports/reports/{report_id}`.
+for endpoints like `/company/employees/\{employee_id\}/absences/balance` and `/company/custom-reports/reports/\{report_id\}`.
 The transformer functions transform or process data from resources.
 
 The transformer function `employees_absences_balance` processes data from the `employees` resource.

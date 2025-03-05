@@ -358,7 +358,8 @@ class FilesystemSqlClient(DuckDbSqlClient):
 
         # `duckdb_iceberg` extension does not support autoloading
         # https://github.com/duckdb/duckdb_iceberg/issues/71
-        conn.execute("INSTALL Iceberg FROM core_nightly; LOAD iceberg;")
+        if semver.Version.parse(duckdb.__version__) < semver.Version.parse("1.2.0"):
+            conn.execute("INSTALL Iceberg FROM core_nightly; LOAD iceberg;")
 
         # allow unsafe version resolution
         conn.execute("SET unsafe_enable_version_guessing=true;")

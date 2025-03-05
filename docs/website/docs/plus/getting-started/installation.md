@@ -3,7 +3,9 @@ title: Installation
 description: Installation information for dlt+
 ---
 
-dlt+ requires a valid license to run, which you can obtain from dltHub by [joining our waiting list](https://info.dlthub.com/waiting-list).
+import Link from '../../_plus_admonition.md';
+
+<Link/>
 
 :::info Supported Python versions
 

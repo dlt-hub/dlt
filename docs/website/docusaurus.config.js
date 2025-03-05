@@ -14,7 +14,7 @@ const versions = {"current": {
   noIndex: true
 }}
 
-let knownVersions = [];
+let knownVersions = ["current"];
 if (fs.existsSync("versions.json")) {
   knownVersions = JSON.parse(fs.readFileSync("versions.json"));
 }
@@ -52,6 +52,7 @@ const config = {
   baseUrl: process.env.DOCUSAURUS_BASE_URL || '/docs',
   onBrokenLinks: 'throw',
   onBrokenMarkdownLinks: 'throw',
+  onBrokenAnchors: 'throw', 
   favicon: 'img/favicon.ico',
   staticDirectories: ['public', 'static'],
 

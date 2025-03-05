@@ -2,6 +2,8 @@ const proc = require('child_process')
 const fs = require('fs');
 const semver = require('semver')
 
+// disable versions for now
+process.exit(0)
 
 // const
 const REPO_DIR = ".dlt-repo"

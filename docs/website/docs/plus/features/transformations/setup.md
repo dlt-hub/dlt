@@ -22,7 +22,7 @@ Local transformations are currently limited to specific use cases and are only c
 * [Delta](../../ecosystem/delta.md)
 * [Cloud storage and filesystem](../../../dlt-ecosystem/destinations/filesystem.md)
 
-Make sure to specify a dataset located in a filesystem-based destination when [defining a cache](#defining-cache).
+Make sure to specify a dataset located in a filesystem-based destination when [defining a cache](#defining-the-cache).
 :::
 
 To use this feature, follow these steps:
