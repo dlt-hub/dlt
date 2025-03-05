@@ -2,9 +2,6 @@ const proc = require('child_process')
 const fs = require('fs');
 const semver = require('semver')
 
-// disable versions for now
-process.exit(0)
-
 // const
 const REPO_DIR = ".dlt-repo"
 const REPO_DOCS_DIR = REPO_DIR + "/docs/website"
@@ -15,7 +12,7 @@ const VERSIONED_SIDEBARS_FOLDER = "versioned_sidebars"
 const ENV_FILE = '.env'
 
 // no doc versions below this version will be deployed
-const MINIMUM_SEMVER_VERSION = "0.5.0"
+const MINIMUM_SEMVER_VERSION = "1.0.0"
 
 // clear old repo version
 fs.rmSync(REPO_DIR, { recursive: true, force: true })
@@ -41,6 +38,7 @@ versions = semver.rsort(versions.filter(v => semver.gt(v, min_version)))
 versions.filter(v => semver.prerelease(v) == null)
 
 console.log(`Found ${versions.length} elligible versions`)
+console.log(versions)
 if (versions.length < 2) {
     console.error("Sanity check failed, not enough elligble version tags found")
     process.exit(1)
@@ -50,17 +48,16 @@ if (versions.length < 2) {
 const envFileContent = `DOCUSAURUS_DLT_VERSION=${versions[0]}`;
 fs.writeFileSync(ENV_FILE, envFileContent, 'utf8');
 
-// go through the versions and find all newest versions of any major version
-// the newest version is replace by the master branch here so the master head
-// always is the "current" doc
+// in the future the only other version to build is the minor version below the latest
 const selectedVersions = ["master"];
-let lastVersion = versions[0];
-for (let ver of versions) {
-    if ( semver.major(ver) != semver.major(lastVersion)) {
-        selectedVersions.push(ver)
-    }
-    lastVersion = ver;
-}
+// let lastVersion = versions[0];
+// for (let ver of versions) {
+//     console.log(semver.minor(ver))
+//     console.log(semver.minor(lastVersion))
+//     if ( semver.minor(ver) == (semver.minor(lastVersion) - 1)) {
+//         selectedVersions.push(ver)
+//     }
+// }
 
 console.log(`Will create docs versions for ${selectedVersions}`)
 
@@ -100,7 +97,7 @@ for (const version of selectedVersions) {
 
     // build doc version, we also run preprocessing and markdown gen for each doc version
     console.log(`Building docs...`)
-    proc.execSync(`cd ${REPO_DOCS_DIR} && npm run preprocess-docs && PYTHONPATH=. pydoc-markdown`)
+    proc.execSync(`cd ${REPO_DOCS_DIR} && npm run preprocess-docs && PYTHONPATH=. pydoc-markdown && python clean_pydoc_sidebar.py`)
 
     console.log(`Snapshotting version...`)
     proc.execSync(`cd ${REPO_DOCS_DIR} && npm run docusaurus docs:version ${version}`)
