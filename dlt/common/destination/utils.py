@@ -15,7 +15,13 @@ from dlt.common.schema.exceptions import (
     SchemaIdentifierNormalizationCollision,
     UnknownTableException,
 )
-from dlt.common.schema.typing import TColumnType, TLoaderMergeStrategy, TSchemaTables, TTableSchema
+from dlt.common.schema.typing import (
+    TColumnType,
+    TLoaderMergeStrategy,
+    TSchemaTables,
+    TTableSchema,
+    DLT_NAME_PREFIX,
+)
 from dlt.common.schema.utils import (
     fill_hints_from_parent_and_clone_table,
     get_merge_strategy,
@@ -210,7 +216,11 @@ def prepare_load_table(
         prep_table = fill_hints_from_parent_and_clone_table(tables, table)
         table_format = prep_table.get("table_format")
         # set table format if preferred
-        if destination_capabilities.preferred_table_format and not table_format:
+        if (
+            destination_capabilities.preferred_table_format
+            and not table_format
+            and not table_name.startswith(DLT_NAME_PREFIX)
+        ):
             prep_table["table_format"] = destination_capabilities.preferred_table_format
         # if table_format == "preferred":
         #     # NOTE: can also set None as table format

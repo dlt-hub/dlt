@@ -748,7 +748,10 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
     from dlt.helpers.ibis import SUPPORTED_DESTINATIONS
 
     # check correct error if not supported
-    if populated_pipeline.destination.destination_type not in SUPPORTED_DESTINATIONS:
+    if not any(
+        issubclass(populated_pipeline.destination.spec, spec_class)
+        for spec_class in SUPPORTED_DESTINATIONS
+    ):
         with pytest.raises(NotImplementedError):
             populated_pipeline.dataset().ibis()
         return

@@ -25,22 +25,19 @@ except ModuleNotFoundError:
 
 
 SUPPORTED_DESTINATIONS = [
-    "dlt.destinations.postgres",
-    "dlt.destinations.duckdb",
-    "dlt.destinations.motherduck",
-    "dlt.destinations.filesystem",
-    "dlt.destinations.bigquery",
-    "dlt.destinations.snowflake",
-    "dlt.destinations.redshift",
-    "dlt.destinations.mssql",
-    "dlt.destinations.synapse",
-    "dlt.destinations.clickhouse",
+    DuckDbClientConfiguration,
+    MotherDuckClientConfiguration,
+    PostgresClientConfiguration,
+    RedshiftClientConfiguration,
+    SnowflakeClientConfiguration,
+    MsSqlClientConfiguration,
+    BigQueryClientConfiguration,
+    ClickHouseClientConfiguration,
+    FilesystemConfiguration,
     # NOTE: Athena could theoretically work with trino backend, but according to
     # https://github.com/ibis-project/ibis/issues/7682 connecting with aws credentials
     # does not work yet.
-    # "dlt.destinations.athena",
 ]
-
 
 # Map dlt data types to ibis data types
 DATA_TYPE_MAP = {
@@ -68,8 +65,8 @@ def create_ibis_backend(
         destination = Destination.from_reference(destination)
 
     # check if destination is supported
-    destination_type = Destination.from_reference(destination).destination_type
-    if destination_type not in SUPPORTED_DESTINATIONS:
+    if not any(issubclass(destination.spec, spec_class) for spec_class in SUPPORTED_DESTINATIONS):
+        destination_type = Destination.from_reference(destination).destination_type
         raise NotImplementedError(f"Destination of type {destination_type} not supported by ibis.")
 
     if issubclass(destination.spec, DuckDbClientConfiguration) or issubclass(
