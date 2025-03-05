@@ -6,7 +6,7 @@ keywords: [identifiers, snake case, case sensitive, case insensitive, naming]
 
 # Naming convention
 dlt creates table and column identifiers from the data. The data source, i.e., a stream of JSON documents, may have identifiers (i.e., key names in a dictionary) with any Unicode characters, of any length, and naming style. On the other hand, destinations require that you follow strict rules when you name tables, columns, or collections.
-A good example is [Redshift](../dlt-ecosystem/destinations/redshift.md#naming-convention) that accepts case-insensitive alphanumeric identifiers with a maximum of 127 characters.
+A good example is [Redshift](../dlt-ecosystem/destinations/redshift.md) that accepts case-insensitive alphanumeric identifiers with a maximum of 127 characters.
 
 `dlt` groups tables from a single [source](source.md) in a [schema](schema.md). Each schema defines a **naming convention** that tells `dlt` how to translate identifiers to the
 namespace that the destination understands. Naming conventions are, in essence, functions that map strings from the source identifier format into the destination identifier format. For example, our **snake_case** (default) naming convention will translate the `DealFlow` source identifier into the `deal_flow` destination identifier.
@@ -52,7 +52,7 @@ Identifiers are translated from source to destination form in the **normalize** 
 
 * The default naming convention is **snake_case**.
 * Each destination may define a preferred naming convention in [destination capabilities](destination.md#pass-additional-parameters-and-change-destination-capabilities). Some destinations (i.e., Weaviate) need a specialized naming convention and will override the default.
-* You can [configure a naming convention explicitly](#set-and-adjust-naming-convention-explicitly). Such configuration overrides the destination settings.
+* You can [configure a naming convention explicitly](#configure-naming-convention). Such configuration overrides the destination settings.
 * This naming convention is used when new schemas are created. It happens when the pipeline is run for the first time.
 * Schemas preserve the naming convention when saved. Your running pipelines will maintain existing naming conventions if not requested otherwise.
 * `dlt` applies the final naming convention in the `normalize` step. Jobs (files) in the load package now have destination identifiers. The pipeline schema is duplicated, locked, and saved in the load package and will be used by the destination.
@@ -191,7 +191,7 @@ Custom naming conventions are classes that derive from `NamingConvention`, which
 1. Each naming convention resides in a separate Python module (file).
 2. The class is always named `NamingConvention`.
 
-In that case, you can use a fully qualified module name in [schema configuration](#configure-naming-convention) or pass the module [explicitly](#set-and-adjust-naming-convention-explicitly).
+In that case, you can use a fully qualified module name in [schema configuration](#configure-naming-convention) or pass the module [explicitly](#configure-naming-convention).
 
 We include [two examples](../examples/custom_naming) of naming conventions that you may find useful:
 

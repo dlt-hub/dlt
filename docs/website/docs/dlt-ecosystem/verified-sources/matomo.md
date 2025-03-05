@@ -90,7 +90,7 @@ For more information, read the guide on [how to add a verified source](../../wal
    site_id = 0 # please set me up!
    live_events_site_id = 0 # please set me up!
    ```
-1. Replace the value of `url` and `site_id` with the one that [you copied above](matomo.md#grab-url-and-site_id).
+1. Replace the value of `url` and `site_id` with the one that [you copied above](matomo.md#grab-credentials).
 
 1. To monitor live events on a website, enter the `live_event_site_id` (usually it is the same as `site_id`).
 

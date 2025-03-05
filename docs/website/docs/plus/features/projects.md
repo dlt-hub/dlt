@@ -166,7 +166,7 @@ profiles:
 
 You can override default project settings using the `project` section:
 * `project_dir` - the root directory of the project, i.e., the directory where the project Python modules are stored.
-* `data_dir` and `local_dir` - [files created by pipelines and destinations](#local-and-temporary-files-data_dir-and-local_dir), separated by the current profile name.
+* `data_dir` and `local_dir` - [files created by pipelines and destinations](#local-and-temporary-files-data_dir), separated by the current profile name.
 * `name` - the name of the project.
 * `default_profile` - the name of the default profile, which can be configured in the project section as seen above.
 * `allow_undefined_entities` - by default, dlt+ will create entities like destinations, sources, and datasets ad hoc. This flag disables such behavior.

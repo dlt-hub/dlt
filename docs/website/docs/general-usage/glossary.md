@@ -53,7 +53,7 @@ Describes the structure of normalized data (e.g., unpacked tables, column types,
 instructions on how the data should be processed and loaded (i.e., it tells `dlt` about the content
 of the data and how to load it into the destination).
 
-## [Config](credentials/setup#secrets.toml-and-config.toml)
+## [Config](credentials/setup#secretstoml-and-configtoml)
 
 A set of values that are passed to the pipeline at runtime (e.g., to change its behavior locally vs.
 in production).
