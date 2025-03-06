@@ -73,7 +73,6 @@ from dlt.common.destination.client import (
     WithStateSync,
     JobClientBase,
     DestinationClientStagingConfiguration,
-    DestinationClientStagingConfiguration,
 )
 from dlt.common.destination.dataset import SupportsReadableDataset
 from dlt.common.destination.typing import TDatasetType

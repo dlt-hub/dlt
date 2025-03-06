@@ -39,7 +39,6 @@ from dlt.extract.exceptions import (
 )
 from dlt.extract.items import (
     TTableHintTemplate,
-    TDataItem,
     TFunHintTemplate,
     SupportsPipe,
 )

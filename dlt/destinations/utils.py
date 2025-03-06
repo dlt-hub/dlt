@@ -1,6 +1,6 @@
 import re
 
-from typing import Any, List, Optional, Sequence, Tuple
+from typing import Any, List, Dict, Type, Optional, Sequence, Tuple, cast
 
 from dlt.common import logger
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
@@ -15,7 +15,6 @@ from dlt.common.schema.utils import (
     is_nested_table,
     pipeline_state_table,
 )
-from typing import Any, cast, Tuple, Dict, Type
 
 from dlt.destinations.exceptions import DatabaseTransientException
 from dlt.extract import DltResource, resource as make_resource, DltSource
