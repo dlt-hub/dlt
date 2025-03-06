@@ -466,27 +466,27 @@ def test_dataset_load_id_retrieval(populated_pipeline: Pipeline) -> None:
     )
     successful_load_ids = populated_pipeline.list_completed_load_packages()
 
-    # get the list of successful load ids (default: status=0)
-    load_ids = dataset.list_load_ids()
-    assert set(load_ids) == set(successful_load_ids) == set(dataset.list_load_ids(status=0))
+    results = dataset.list_load_ids().fetchall()
+    load_ids = [r[0] for r in results]
+    assert set(load_ids) == set(successful_load_ids)
     assert load_ids == sorted(successful_load_ids, reverse=True)
-
+    
     # check status kwarg
-    assert len(dataset.list_load_ids(status=1)) == 0
-    assert len(dataset.list_load_ids(status=[0])) == len(successful_load_ids)
-    assert len(dataset.list_load_ids(status=[0, 1])) == len(successful_load_ids)
-    assert len(dataset.list_load_ids(status=[1, 2])) == 0
+    assert len(dataset.list_load_ids(status=1).fetchall()) == 0
+    assert len(dataset.list_load_ids(status=[0]).fetchall()) == len(successful_load_ids)
+    assert len(dataset.list_load_ids(status=[0, 1]).fetchall()) == len(successful_load_ids)
+    assert len(dataset.list_load_ids(status=[1, 2]).fetchall()) == 0
 
     # check limit kwarg
-    assert dataset.list_load_ids(limit=0) == []
-    assert dataset.list_load_ids(limit=1)[0] == max(successful_load_ids)
+    assert dataset.list_load_ids(limit=0).fetchall() == []
+    assert dataset.list_load_ids(limit=1).fetchall()[0][0] == max(successful_load_ids)
     # 50 is larger than the expected number of `load_id`
-    assert len(dataset.list_load_ids(limit=50)) == len(successful_load_ids)
+    assert len(dataset.list_load_ids(limit=50).fetchall()) == len(successful_load_ids)
 
     # check latest_load_id, which is `list_load_ids(limit=1)` and unpacking the list
-    latest_load_id = dataset.latest_load_id()
+    latest_load_id = dataset.latest_load_id().fetchall()[0][0]
     assert latest_load_id == max(load_ids) == max(successful_load_ids)
-    assert dataset.latest_load_id(status=1) is None
+    assert dataset.latest_load_id(status=1).fetchall() == []
 
 
 @pytest.mark.no_load

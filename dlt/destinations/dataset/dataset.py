@@ -129,8 +129,6 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
                 from dlt.helpers.ibis import create_unbound_ibis_table
                 from dlt.destinations.dataset.ibis_relation import ReadableIbisRelation
 
-                # TODO use the self.ibis() connection instead of `self.sql_client` and work against the Ibis Schema
-                # creating unbound tables would no longer be required and queries could be evaluated lazily
                 unbound_table = create_unbound_ibis_table(self.sql_client, self.schema, table_name)
                 return ReadableIbisRelation(  # type: ignore[abstract]
                     readable_dataset=self,
@@ -175,7 +173,7 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
         # Execute query and build result dict
         return self(query)
 
-    def list_load_ids(self, status: Union[int, list[int]] = 0, limit: int = 10) -> list[str]:
+    def list_load_ids(self, status: Union[int, list[int]] = 0, limit: int = 10) -> SupportsReadableRelation:
         """Return the list most recent `load_id`s in descending order.
 
         If no `load_id` is found, return empty list.
@@ -187,16 +185,15 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
             WHERE status IN {status_value}
             ORDER BY load_id DESC
             LIMIT {limit}""")
-        results = self.__call__(query=query).fetchall()
-        return [row[0] for row in results]
 
-    def latest_load_id(self, status: Union[int, list[int]] = 0) -> Union[str, None]:
+        return self(query)
+
+    def latest_load_id(self, status: Union[int, list[int]] = 0) -> SupportsReadableRelation:
         """Return the latest `load_id`.
 
-        If no `load_id` is found, return None
+        If no `load_id` is found, return empty list.
         """
-        results = self.list_load_ids(status=status, limit=1)
-        return results[0] if len(results) > 0 else None
+        return self.list_load_ids(status=status, limit=1)
 
     def __getitem__(self, table_name: str) -> SupportsReadableRelation:
         """access of table via dict notation"""
