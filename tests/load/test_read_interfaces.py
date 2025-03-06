@@ -1,33 +1,32 @@
-from typing import Any, cast, Tuple, List
-import re
-import pytest
-import dlt
 import os
+import re
+from functools import reduce
+from typing import Any, cast, Tuple, List
 
+import pytest
+
+import dlt
 from dlt import Pipeline
 from dlt.common import Decimal
-
-from typing import List
-from functools import reduce
-
 from dlt.common.schema.schema import Schema
 from dlt.common.storages.exceptions import SchemaNotFoundError
 from dlt.common.storages.file_storage import FileStorage
+from dlt.destinations import filesystem
+from dlt.destinations.dataset import dataset as _dataset
+from dlt.destinations.dataset.ibis_relation import ReadableIbisRelation
+from dlt.destinations.dataset.dataset import ReadableDBAPIDataset
+from dlt.destinations.dataset.exceptions import ReadableRelationUnknownColumnException
+
+from tests.utils import TEST_STORAGE_ROOT, clean_test_storage
 from tests.load.utils import (
     destinations_configs,
     DestinationTestConfiguration,
+    drop_pipeline_data,
     GCS_BUCKET,
     SFTP_BUCKET,
     MEMORY_BUCKET,
 )
-from dlt.destinations import filesystem
-from tests.utils import TEST_STORAGE_ROOT, clean_test_storage
-from dlt.destinations.dataset.dataset import ReadableDBAPIDataset
-from dlt.destinations.dataset.exceptions import (
-    ReadableRelationUnknownColumnException,
-)
-from tests.load.utils import drop_pipeline_data
-from dlt.destinations.dataset import dataset as _dataset
+
 
 EXPECTED_COLUMNS = ["id", "decimal", "other_decimal", "_dlt_load_id", "_dlt_id"]
 
@@ -455,6 +454,49 @@ def test_sql_queries(populated_pipeline: Pipeline) -> None:
     indirect=True,
     ids=lambda x: x.name,
 )
+def test_dataset_load_id_retrieval(populated_pipeline: Pipeline) -> None:
+    dataset = cast(
+        ReadableDBAPIDataset,
+        _dataset(
+            destination=populated_pipeline.destination,
+            dataset_name=populated_pipeline.dataset_name,
+            # use name otherwise aleph schema is loaded
+            schema=populated_pipeline.default_schema_name,
+        ),
+    )
+    successful_load_ids = populated_pipeline.list_completed_load_packages()
+
+    # get the list of successful load ids (default: status=0)
+    load_ids = dataset.list_load_ids()
+    assert set(load_ids) == set(successful_load_ids) == set(dataset.list_load_ids(status=0))
+    assert load_ids == sorted(successful_load_ids, reverse=True)
+
+    # check status kwarg
+    assert len(dataset.list_load_ids(status=1)) == 0
+    assert len(dataset.list_load_ids(status=[0])) == len(successful_load_ids)
+    assert len(dataset.list_load_ids(status=[0, 1])) == len(successful_load_ids)
+    assert len(dataset.list_load_ids(status=[1, 2])) == 0
+
+    # check limit kwarg
+    assert dataset.list_load_ids(limit=0) == []
+    assert dataset.list_load_ids(limit=1)[0] == max(successful_load_ids)
+    # 50 is larger than the expected number of `load_id`
+    assert len(dataset.list_load_ids(limit=50)) == len(successful_load_ids)
+
+    # check latest_load_id, which is `list_load_ids(limit=1)` and unpacking the list
+    latest_load_id = dataset.latest_load_id()
+    assert latest_load_id == max(load_ids) == max(successful_load_ids)
+    assert dataset.latest_load_id(status=1) is None
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
 def test_limit_and_head(populated_pipeline: Pipeline) -> None:
     table_relationship = populated_pipeline.dataset().items
 
@@ -799,6 +841,154 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
     items_table = ibis_connection.table(add_table_prefix(map_i("items")), database=dataset_name)
     assert items_table.count().to_pandas() == total_records
     ibis_connection.disconnect()
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
+def test_ibis_filter_load_ids(populated_pipeline: Pipeline) -> None:
+    from dlt.helpers.ibis import SUPPORTED_DESTINATIONS
+
+    # check correct error if not supported
+    if populated_pipeline.destination.destination_type not in SUPPORTED_DESTINATIONS:
+        with pytest.raises(NotImplementedError):
+            populated_pipeline.dataset().ibis()
+        return
+
+    successful_load_ids = populated_pipeline.list_completed_load_packages()
+    ibis_rel = populated_pipeline.dataset(dataset_type="ibis").items
+    ibis_df = ibis_rel.df()
+
+    # all the rows are associated with the first `load_id`
+    filtered_ibis_rel = ibis_rel.filter_by_load_ids(successful_load_ids[0])
+    filtered_ibis_df = filtered_ibis_rel.df()
+    assert isinstance(filtered_ibis_rel, ReadableIbisRelation)
+    assert filtered_ibis_df.shape == ibis_df.shape
+    assert (filtered_ibis_df._dlt_load_id == successful_load_ids[0]).all()
+
+    # no rows are associated with `load_id`
+    empty_ibis_rel = ibis_rel.filter_by_load_ids(successful_load_ids[1])
+    assert filtered_ibis_rel._ibis_object.schema().equals(empty_ibis_rel._ibis_object.schema())
+    assert empty_ibis_rel.df().shape == (0, ibis_df.shape[1])
+
+    # check load_id kwargs accepts scalars and lists
+    assert ibis_rel.filter_by_load_ids(successful_load_ids[1]).df().shape == (0, ibis_df.shape[1])
+    assert ibis_rel.filter_by_load_ids(successful_load_ids[:1]).df().shape == ibis_df.shape
+    assert ibis_rel.filter_by_load_ids(successful_load_ids[:2]).df().shape == ibis_df.shape
+    assert ibis_rel.filter_by_load_ids(successful_load_ids[1:]).df().shape == (0, ibis_df.shape[1])
+
+    # check nested tables
+    ibis_nested_rel = populated_pipeline.dataset(dataset_type="ibis").items__children
+    ibis_nested_df = ibis_nested_rel.df()
+
+    filtered_nested_ibis_rel = ibis_nested_rel.filter_by_load_ids(successful_load_ids[0])
+    filtered_nested_ibis_df = filtered_nested_ibis_rel.df()
+    assert isinstance(filtered_nested_ibis_rel, ReadableIbisRelation)
+    assert filtered_nested_ibis_df.shape == ibis_nested_df.shape
+
+    empty_nested_ibis_rel = ibis_nested_rel.filter_by_load_ids(successful_load_ids[1])
+    assert empty_nested_ibis_rel.df().shape == (0, ibis_nested_df.shape[1])
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
+def test_ibis_filter_latest_load_id(populated_pipeline: Pipeline) -> None:
+    from dlt.helpers.ibis import SUPPORTED_DESTINATIONS
+
+    # check correct error if not supported
+    if populated_pipeline.destination.destination_type not in SUPPORTED_DESTINATIONS:
+        with pytest.raises(NotImplementedError):
+            populated_pipeline.dataset().ibis()
+        return
+
+    ibis_rel = populated_pipeline.dataset(dataset_type="ibis").items
+    ibis_df = ibis_rel.df()
+
+    filtered_ibis_rel = ibis_rel.filter_by_latest_load_id(0)
+    assert isinstance(filtered_ibis_rel, ReadableIbisRelation)
+    # TODO change logic because latest load contains no data
+    assert filtered_ibis_rel.df().shape != ibis_df.shape
+
+    empty_ibis_rel = ibis_rel.filter_by_load_status(1)
+    assert filtered_ibis_rel._ibis_object.schema().equals(empty_ibis_rel._ibis_object.schema())
+    assert empty_ibis_rel.df().shape == (0, ibis_df.shape[1])
+
+    # check status kwarg
+    assert ibis_rel.filter_by_latest_load_id(1).df().shape == (0, ibis_df.shape[1])
+    assert ibis_rel.filter_by_latest_load_id([0]).df().shape != ibis_df.shape
+    assert ibis_rel.filter_by_latest_load_id([0, 1]).df().shape != ibis_df.shape
+    assert ibis_rel.filter_by_latest_load_id([1, 2]).df().shape == (0, ibis_df.shape[1])
+
+    # check nested tables
+    ibis_nested_rel = populated_pipeline.dataset(dataset_type="ibis").items__children
+    ibis_nested_df = ibis_nested_rel.df()
+
+    filtered_nested_ibis_rel = ibis_nested_rel.filter_by_latest_load_id(0)
+    filtered_nested_ibis_df = filtered_nested_ibis_rel.df()
+    assert isinstance(filtered_nested_ibis_rel, ReadableIbisRelation)
+    assert filtered_nested_ibis_df.shape != ibis_nested_df.shape
+
+    empty_nested_ibis_rel = ibis_nested_rel.filter_by_latest_load_id(1)
+    assert empty_nested_ibis_rel.df().shape == (0, ibis_nested_df.shape[1])
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
+def test_ibis_filter_load_status(populated_pipeline: Pipeline) -> None:
+    from dlt.helpers.ibis import SUPPORTED_DESTINATIONS
+
+    # check correct error if not supported
+    if populated_pipeline.destination.destination_type not in SUPPORTED_DESTINATIONS:
+        with pytest.raises(NotImplementedError):
+            populated_pipeline.dataset().ibis()
+        return
+
+    ibis_rel = populated_pipeline.dataset(dataset_type="ibis").items
+    ibis_df = ibis_rel.df()
+
+    filtered_ibis_rel = ibis_rel.filter_by_load_status(0)
+    assert isinstance(filtered_ibis_rel, ReadableIbisRelation)
+    assert filtered_ibis_rel.df().shape == ibis_df.shape
+
+    # check the Ibis schema are equivalent even if no records are returned
+    empty_ibis_rel = ibis_rel.filter_by_load_status(1)
+    assert filtered_ibis_rel._ibis_object.schema().equals(empty_ibis_rel._ibis_object.schema())
+    assert empty_ibis_rel.df().shape == (0, ibis_df.shape[1])
+
+    # check status kwarg
+    assert ibis_rel.filter_by_load_status(1).df().shape == (0, ibis_df.shape[1])
+    assert ibis_rel.filter_by_load_status([0]).df().shape == ibis_df.shape
+    assert ibis_rel.filter_by_load_status([0, 1]).df().shape == ibis_df.shape
+    assert ibis_rel.filter_by_load_status([1, 2]).df().shape == (0, ibis_df.shape[1])
+
+    # check nested tables
+    ibis_nested_rel = populated_pipeline.dataset(dataset_type="ibis").items__children
+    ibis_nested_df = ibis_nested_rel.df()
+
+    filtered_nested_ibis_rel = ibis_nested_rel.filter_by_load_status(0)
+    filtered_nested_ibis_df = filtered_nested_ibis_rel.df()
+    assert isinstance(filtered_nested_ibis_rel, ReadableIbisRelation)
+    assert filtered_nested_ibis_df.shape == ibis_nested_df.shape
+
+    empty_nested_ibis_rel = ibis_nested_rel.filter_by_load_status(1)
+    assert empty_nested_ibis_rel.df().shape == (0, ibis_nested_df.shape[1])
 
 
 @pytest.mark.no_load
