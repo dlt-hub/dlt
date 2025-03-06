@@ -846,6 +846,24 @@ def get_root_table(tables: TSchemaTables, table_name: str) -> TTableSchema:
     return table
 
 
+def get_root_to_table_chain(tables: TSchemaTables, table_name: str) -> List[TTableSchema]:
+    """Return a list of tables ordered from root to child using the (row_key - parent_key) references.
+
+    Similar functions:
+        - `get_root_table()` returns the root of the specified child instead of the full chain
+        - `get_nested_tables()` returns all children of the specified table as a chain
+    """
+    chain: List[TTableSchema] = []
+
+    def _parent(t: TTableSchema) -> None:
+        chain.append(t)
+        if t.get("parent"):
+            _parent(tables[t["parent"]])
+
+    _parent(tables[table_name])
+    return chain[::-1]
+
+
 def get_nested_tables(tables: TSchemaTables, table_name: str) -> List[TTableSchema]:
     """Get nested tables for table name and return a list of tables ordered by ancestry so the nested tables are always after their parents
 
