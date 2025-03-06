@@ -1,9 +1,5 @@
 # Project
 
-import Link from '../../_plus_admonition.md';
-
-<Link/>
-
 A dlt+ Project offers developers a declarative approach for defining data workflow components: sources, destinations, pipelines, transformations, parameters, etc. It follows an opinionated structure centered around a Python manifest file `dlt.yml`, where all dlt entities are defined in an organized way. The manifest file acts like a single source of truth for data pipelines, keeping all teams aligned.
 
 The project layout has the following components:

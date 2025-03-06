@@ -80,7 +80,7 @@ The state is stored in the `_dlt_pipeline_state` table at the destination and co
 about the pipeline, the pipeline run (to which the state belongs), and the state blob.
 
 `dlt` has a `dlt pipeline sync` command where you can
-[request the state back from that table](../reference/command-line-interface.md#sync-pipeline-with-the-destination).
+[request the state back from that table](../reference/command-line-interface.md#dlt-pipeline-sync).
 
 > 💡 If you can keep the pipeline working directory across the runs, you can disable the state sync
 > by setting `restore_from_destination=false` in your `config.toml`.
@@ -88,7 +88,7 @@ about the pipeline, the pipeline run (to which the state belongs), and the state
 ## When to use pipeline state
 
 - `dlt` uses the state internally to implement
-  [last value incremental loading](incremental-loading.md#incremental_loading-with-last-value). This
+  [last value incremental loading](incremental-loading.md#incremental-loading-with-a-cursor-field). This
   use case should cover around 90% of your needs to use the pipeline state.
 - [Store a list of already requested entities](incremental-loading.md#advanced-state-usage-storing-a-list-of-processed-entities)
   if the list is not much bigger than 100k elements.
@@ -154,11 +154,11 @@ This will display the source and resource state slots for all known sources.
 **To fully reset the state:**
 
 - Drop the destination dataset to fully reset the pipeline.
-- [Set the `dev_mode` flag when creating the pipeline](pipeline.md#do-experiments-with-dev-mode).
-- Use the `dlt pipeline drop --drop-all` command to [drop the state and tables for a given schema name](../reference/command-line-interface.md#selectively-drop-tables-and-reset-state).
+- [Set the `dev_mode` flag wh^en creating the pipeline](pipeline.md#do-experiments-with-dev-mode).
+- Use the `dlt pipeline drop --drop-all` command to [drop the state and tables for a given schema name](../reference/command-line-interface.md#dlt-pipeline-drop).
 
 **To partially reset the state:**
 
-- Use the `dlt pipeline drop <resource_name>` command to [drop the state and tables for a given resource](../reference/command-line-interface.md#selectively-drop-tables-and-reset-state).
-- Use the `dlt pipeline drop --state-paths` command to [reset the state at a given path without touching the tables and data](../reference/command-line-interface.md#selectively-drop-tables-and-reset-state).
+- Use the `dlt pipeline drop <resource_name>` command to [drop the state and tables for a given resource](../reference/command-line-interface.md#dlt-pipeline-drop).
+- Use the `dlt pipeline drop --state-paths` command to [reset the state at a given path without touching the tables and data](../reference/command-line-interface.md#dlt-pipeline-drop).
 

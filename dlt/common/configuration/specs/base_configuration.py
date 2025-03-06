@@ -20,7 +20,7 @@ from typing import (
     TypeVar,
     Literal,
 )
-from typing_extensions import get_args, get_origin, dataclass_transform
+from typing_extensions import dataclass_transform
 from functools import wraps
 
 if TYPE_CHECKING:
@@ -41,6 +41,8 @@ from dlt.common.typing import (
     is_optional_type,
     is_subclass,
     is_union_type,
+    get_args,
+    get_origin,
 )
 from dlt.common.data_types import py_type_to_sc_type
 from dlt.common.configuration.exceptions import (

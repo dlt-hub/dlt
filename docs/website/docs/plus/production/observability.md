@@ -4,10 +4,6 @@ description: Observability tooling
 keywords: [observability, monitoring, alerting]
 ---
 
-import Link from '../../_plus_admonition.md';
-
-<Link/>
-
 # Observability
 
 There are several features under development in dlt+ to enhance your observability workflows. These include:

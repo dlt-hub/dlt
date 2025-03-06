@@ -1,6 +1,6 @@
 import os
 import pathlib
-from typing import Any, Literal, Optional, Type, get_args, ClassVar, Dict, Union
+from typing import Any, Literal, Optional, Type, ClassVar, Dict, Union
 from urllib.parse import urlparse, unquote, urlunparse
 
 from dlt.common.configuration import configspec, resolve_type
@@ -15,7 +15,7 @@ from dlt.common.configuration.specs import (
     SFTPCredentials,
 )
 from dlt.common.exceptions import TerminalValueError
-from dlt.common.typing import DictStrAny
+from dlt.common.typing import DictStrAny, get_args
 from dlt.common.utils import digest128
 
 

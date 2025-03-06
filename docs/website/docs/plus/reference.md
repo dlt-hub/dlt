@@ -4,12 +4,7 @@ description: Command line interface (CLI) full reference of dlt
 keywords: [command line interface, cli, dlt init]
 ---
 
-import Link from '../_plus_admonition.md';
-
-<Link/>
-
-
-# Command Line Interface Reference
+# Command line interface reference
 
 <!-- this page is fully generated from the argparse object of dlt, run make update-cli-docs to update it -->
 

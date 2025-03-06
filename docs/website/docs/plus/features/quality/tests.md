@@ -4,10 +4,6 @@ description: dlt+ Test utils
 keywords: ["dlt+", "data tests", "test"]
 ---
 
-import Link from '../../../_plus_admonition.md';
-
-<Link/>
-
 ## Introduction
 
 dlt+ provides a `pytest` plugin with a set of powerful fixtures and utilities that simplify testing for dlt+ projects. These testing utilities are packaged separately in `dlt-plus-tests`, making it easy to install them as a development dependency. Check the [installation guide](#installation) for instructions on how to install the package.

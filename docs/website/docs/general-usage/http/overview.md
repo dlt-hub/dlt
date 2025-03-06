@@ -9,7 +9,7 @@ dlt has built-in support for fetching data from APIs:
 - [Requests wrapper](./requests.md) for making simple HTTP requests with automatic retries and timeouts
 
 Additionally, dlt provides tools to simplify working with APIs:
-- [REST API generic source](../../dlt-ecosystem/verified-sources/rest_api) integrates APIs using a [declarative configuration](../../dlt-ecosystem/verified-sources/rest_api#source-configuration) to minimize custom code.
+- [REST API generic source](../../dlt-ecosystem/verified-sources/rest_api) integrates APIs using a [declarative configuration](../../dlt-ecosystem/verified-sources/rest_api/basic#source-configuration) to minimize custom code.
 - [OpenAPI source generator](../../dlt-ecosystem/verified-sources/openapi-generator) automatically creates declarative API configurations from [OpenAPI specifications](https://swagger.io/specification/).
 
 ## Quick example
@@ -49,7 +49,7 @@ Here's what the code does:
 2. The issues endpoint returns a list of issues. Since there could be hundreds of issues, the API "paginates" the results: it returns a limited number of issues in each response along with a link to the next batch of issues (or "page"). The `paginate()` method iterates over all pages and yields the batches of issues.
 3. Here we specify the address of the endpoint we want to read from: `/repos/dlt-hub/dlt/issues`.
 4. We pass the parameters to the actual API call to control the data we get back. In this case, we ask for 100 issues per page (`"per_page": 100`), sorted by the last update date (`"sort": "updated"`) in descending order (`"direction": "desc"`).
-5. We yield the page from the resource function to the pipeline. The `page` is an instance of the [`PageData`](#pagedata) and contains the data from the current page of the API response and some metadata.
+5. We yield the page from the resource function to the pipeline. The `page` is an instance of the [`PageData`](./rest-client#pagedata) and contains the data from the current page of the API response and some metadata.
 
 Note that we do not explicitly specify the pagination parameters in the example. The `paginate()` method handles pagination automatically: it detects the pagination mechanism used by the API from the response. What if you need to specify the pagination method and parameters explicitly? Let's see how to do that in a different example below.
 

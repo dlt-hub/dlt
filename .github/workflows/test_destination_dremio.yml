@@ -50,6 +50,8 @@ jobs:
 
       - name: Check out
         uses: actions/checkout@master
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.ref }}
 
       - name: Start dremio
         run: docker compose -f "tests/load/dremio/docker-compose.yml" up -d

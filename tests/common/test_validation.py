@@ -308,6 +308,14 @@ class EndpointResource(TypedDict, total=False):
     write_disposition: Optional[TTableHintTemplate[TWriteDispositionConfig]]
 
 
+def test_inherited_typeddict() -> None:
+    valid_dict = {
+        "cursor_path": "$",  # from IncrementalArgs
+        "start_param": "par1",  # from IncrementalConfig
+    }
+    validate_dict(IncrementalConfig, valid_dict, ".")
+
+
 def test_typeddict_friendly_exceptions() -> None:
     valid_dict = {
         "endpoint": {

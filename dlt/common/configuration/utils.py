@@ -11,16 +11,14 @@ from typing import (
     Tuple,
     Type,
     Sequence,
-    get_args,
     Literal,
-    get_origin,
 )
 from collections.abc import Mapping as C_Mapping
 
 import yaml
 
 from dlt.common.json import json
-from dlt.common.typing import AnyType, DictStrAny, TAny, is_any_type
+from dlt.common.typing import AnyType, DictStrAny, TAny, is_any_type, get_args, get_origin
 from dlt.common.data_types import coerce_value, py_type_to_sc_type
 from dlt.common.configuration.providers import EnvironProvider
 from dlt.common.configuration.exceptions import ConfigValueCannotBeCoercedException, LookupTrace
