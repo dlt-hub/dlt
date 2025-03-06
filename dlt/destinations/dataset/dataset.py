@@ -182,7 +182,7 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
         """
         status_value = (status,) if isinstance(status, int) else tuple(status)
         # TODO protect from SQL injection
-        query = textwrap.dedent(f"""SELECT load_id 
+        query = textwrap.dedent(f"""SELECT load_id
             FROM {self.schema.loads_table_name}
             WHERE status IN {status_value}
             ORDER BY load_id DESC
