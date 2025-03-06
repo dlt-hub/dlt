@@ -263,17 +263,12 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
             columns_schema=self.columns_schema,
         )
 
-    def filter_by_latest_load_id(self, status: Union[int, list[int]] = 0) -> "ReadableIbisRelation":
-        """Filter on the most recent `load_id` with a specific status."""
+    def filter_by_latest_load_id(self, status: Union[int, list[int], None] = 0) -> "ReadableIbisRelation":
+        """Filter on the most recent `load_id` with a specific status.
+        
+        If `status` is None, don't filter by status.
+        """
         from dlt.helpers.ibis import create_unbound_ibis_table
-
-        status = (
-            [
-                status,
-            ]
-            if isinstance(status, int)
-            else status
-        )
 
         root_table = get_root_table(self.schema.tables, self.table_name)
         ibis_root_table = create_unbound_ibis_table(
@@ -283,9 +278,13 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
             self.sql_client, schema=self.schema, table_name=self.schema.loads_table_name
         )
 
-        latest_load_id = load_table.filter(
-            load_table.status.isin(status)
-        ).load_id.max()  # lazy expression
+        if status is not None:
+            # fmt: off
+            status_list = [status,] if isinstance(status, int) else status
+            # fmt: on
+            load_table = load_table.filter(load_table.status.isin(status_list))
+
+        latest_load_id = load_table.load_id.max()
         filtered_table = ibis_root_table.filter(ibis_root_table["_dlt_load_id"] == latest_load_id)
         if root_table["name"] != self.table_name:
             filtered_table = self._filter_nested_table(filtered_table)
@@ -296,17 +295,9 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
             columns_schema=self.columns_schema,
         )
 
-    def filter_by_load_status(self, status: Union[int, list[int]] = 0) -> "ReadableIbisRelation":
+    def filter_by_load_status(self, status: Union[int, list[int], None] = 0) -> "ReadableIbisRelation":
         """"""
         from dlt.helpers.ibis import create_unbound_ibis_table
-
-        status = (
-            [
-                status,
-            ]
-            if isinstance(status, int)
-            else status
-        )
 
         root_table = get_root_table(self.schema.tables, self.table_name)
         ibis_root_table = create_unbound_ibis_table(
@@ -316,7 +307,13 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
             self.sql_client, schema=self.schema, table_name=self.schema.loads_table_name
         )
 
-        load_ids = load_table.filter(load_table.status.isin(status)).load_id  # lazy expression
+        if status is not None:
+            # fmt: off
+            status_list = [status,] if isinstance(status, int) else status
+            # fmt: on
+            load_table = load_table.filter(load_table.status.isin(status_list))
+
+        load_ids = load_table.load_id
         filtered_table = ibis_root_table.filter(ibis_root_table["_dlt_load_id"].isin(load_ids))
         if root_table["name"] != self.table_name:
             filtered_table = self._filter_nested_table(filtered_table)

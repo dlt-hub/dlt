@@ -19,7 +19,8 @@ from dlt.common.storages.configuration import FilesystemConfiguration
 try:
     import ibis  # type: ignore
     import sqlglot
-    from ibis import BaseBackend, Expr
+    from ibis import BaseBackend
+    from ibis.expr.types import Table
 except ModuleNotFoundError:
     raise MissingDependencyException("dlt ibis helpers", ["ibis-framework"])
 
@@ -159,7 +160,7 @@ def create_ibis_backend(
 
 def create_unbound_ibis_table(
     sql_client: SqlClientBase[Any], schema: Schema, table_name: str
-) -> Expr:
+) -> Table:
     """Create an unbound ibis table from a dlt schema"""
 
     if table_name not in schema.tables:
