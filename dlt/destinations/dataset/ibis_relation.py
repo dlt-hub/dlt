@@ -1,7 +1,7 @@
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any, Union
 
-from functools import partial
+from functools import partial, cached_property
 
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.schema import Schema
@@ -74,6 +74,23 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
     @property
     def table_name(self) -> str:
         return self._table_name
+    
+    @cached_property
+    def load_table(self) -> "ReadableIbisRelation":
+        """Create an unbound Ibis table for the dlt load table of the dataset.
+        
+        Being a cached_property, this can't be set manually.
+        """
+        from dlt.helpers.ibis import create_unbound_ibis_table
+        # TODO should this return an ReadableIbisRelation? I'm afraid of recursion over `rel.load_table.load_table.load_table`
+        load_table = create_unbound_ibis_table(
+            self.sql_client, schema=self.schema, table_name=self.schema.loads_table_name
+        )
+        return self.__class__(
+            readable_dataset=self._dataset,
+            ibis_object=load_table,
+            columns_schema=self.schema.tables[self.schema.loads_table_name]["columns"]
+        )
 
     def compute_columns_schema(self) -> TTableSchemaColumns:
         """provide schema columns for the cursor, may be filtered by selected columns"""
@@ -163,28 +180,17 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
             # here we just break the column schema inheritance chain
             return None
 
-    def _filter_using_load_table(
-        self, key: str, values_to_include: list[Any]
-    ) -> "ReadableIbisRelation":
-        """Filter the load table and propagate from root table to current table."""
-        from dlt.helpers.ibis import create_unbound_ibis_table
-
-        load_table = create_unbound_ibis_table(
-            self.sql_client, schema=self.schema, table_name=self.schema.loads_table_name
-        )
-        load_table = load_table.filter(load_table.__getattr__(key).isin(values_to_include))
-        # TODO is _dlt_load_id a reserved name?
-        return self._filter_using_root_table(
-            key="_dlt_load_id", values_to_include=load_table.load_id
-        )
-
     def _filter_using_root_table(
         self,
         key: str,
-        values_to_include: list[Any],
+        values_to_include: Union[list[Any], list["ReadableIbisRelation"], "ReadableIbisRelation"],
     ) -> "ReadableIbisRelation":
         """Filter the root table and propagate to current table."""
         from dlt.helpers.ibis import create_unbound_ibis_table
+
+        # remove the proxy to facilitate transformations
+        if isinstance(values_to_include, ReadableIbisRelation):
+            values_to_include = values_to_include._ibis_object
 
         # Case 1: if current table is root table, you can filter directly and exit early
         dlt_root_table = get_root_table(self.schema.tables, self.table_name)
@@ -197,25 +203,26 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
             self.sql_client, schema=self.schema, table_name=dlt_root_table["name"]
         )
         root_table = root_table.filter(root_table.__getattr__(key).isin(values_to_include))
+        root_row_key = next(
+            col_name for col_name, col in dlt_root_table["columns"].items() if col.get("row_key") is True
+        )
 
-        # Case 2: There is a root_key (e.g., root_key=True on Source, write_disposition="merge")
+        # Case 2: There is a root_key to join root with current table
+        # (e.g., root_key=True on Source, write_disposition="merge")
         root_key = None
         for col_name, col in self.columns_schema.items():
             if col.get("root_key") is True:
                 root_key = col_name
 
         if root_key is not None:
-            root_row_key = next(
-                col_name for col_name, col in dlt_root_table["columns"].items() if col.get("row_key") is True
-            )
             return self.filter(
                 self.__getattr__(root_key).isin(root_table.__getattr__(root_row_key))
             )
 
-        # Case 3: there is no root key so we traverse the chain of parent-child from root to current table
-        return self._filter_nested_table(root_table)
+        # Case 3: there is no root key, so we traverse the chain of parent-child from root to current table
+        return self._filter_nested_table(root_table, root_row_key)
 
-    def _filter_nested_table(self, filtered_root_table: Any) -> "ReadableIbisRelation":
+    def _filter_nested_table(self, filtered_root_table: Any, root_row_key: str) -> "ReadableIbisRelation":
         """Filter the current table based on a filtered root table.
 
         This takes the Ibis Table expression `filtered_root_table`, which has filtered rows,
@@ -240,17 +247,9 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
         from dlt.helpers.ibis import create_unbound_ibis_table
 
         filtered_table = filtered_root_table
-        parent_row_key = None
-        for table in get_root_to_table_chain(self.schema.tables, self.table_name):
-            # the root table is already filtered, only set the parent_row_key
-            if parent_row_key is None:
-                parent_row_key = next(
-                    col_name
-                    for col_name, col in table["columns"].items()
-                    if col.get("row_key") is True
-                )
-                continue
-
+        parent_row_key = root_row_key
+        # start indexing at 1 because we already have the root table
+        for table in get_root_to_table_chain(self.schema.tables, self.table_name)[1:]:
             parent_key = None
             row_key = None
             for col_name, col in table["columns"].items():
@@ -259,17 +258,16 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
                 if col.get("row_key") is True:
                     row_key = col_name
 
-            # should always match a column because `get_root_to_table_chain()` returns tables based on parent_key / row_key
+            # should not be none because `get_root_to_table_chain()` created chain via parent-row relationships
             assert parent_key is not None
             assert row_key is not None
 
-            ibis_table = create_unbound_ibis_table(
+            child_table = create_unbound_ibis_table(
                 self.sql_client, schema=self.schema, table_name=table["name"]
             )
-            filter_clause = ibis_table[parent_key].isin(filtered_table[parent_row_key])
-            # TODO the only operation to proxy if required
-            filtered_table = ibis_table.filter(filter_clause)
-
+            filtered_table = child_table.filter(
+                child_table.__getattr__(parent_key).isin(filtered_table.__getattr__(parent_row_key))
+            )
             parent_row_key = row_key
 
         return self.__class__(
@@ -290,11 +288,34 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
     def select(self, *columns: str) -> "ReadableIbisRelation":
         """set which columns will be selected"""
         return self._proxy_expression_method("select", *columns)  # type: ignore
+    
+    # TODO ensure same defaults in ReadableDBAPIDataset and ReadableIbisRelation
+    def list_load_ids(
+        self, status: Union[int, list[int], None] = 0, limit: int | None = None
+    ) -> "ReadableIbisRelation":
+        load_table = self.load_table
+        if status is not None:
+            status = [status] if isinstance(status, int) else status
+            load_table = load_table.filter(load_table.status.isin(status))
+
+        if limit is not None:
+            load_table = load_table.limit(limit)
+
+        return load_table.order_by(self.load_table.load_id.desc()).load_id
+    
+    def latest_load_id(self, status: Union[int, list[int], None] = 0) -> "ReadableIbisRelation":
+        """Latest `load_id` with matching load status (0 is success). If `status` is None, match any status."""
+        load_table = self.load_table
+        if status is not None:
+            status = [status] if isinstance(status, int) else status
+            load_table = load_table.filter(load_table.status.isin(status))
+
+        return load_table.load_id.max()
 
     def filter_by_load_ids(self, load_ids: Union[str, list[str]]) -> "ReadableIbisRelation":
         """Filter on matching `load_ids`."""
         load_ids = [load_ids] if isinstance(load_ids, str) else load_ids
-        return self._filter_using_load_table(key="load_id", values_to_include=load_ids)
+        return self._filter_using_root_table(key="_dlt_load_id", values_to_include=load_ids)
 
     def filter_by_load_status(
         self, status: Union[int, list[int], None] = 0
@@ -303,8 +324,9 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
         if status is None:
             return self
 
-        status = [status] if isinstance(status, int) else status
-        return self._filter_using_load_table(key="status", values_to_include=status)
+        load_ids = self.list_load_ids(status=status)
+        # TODO is _dlt_load_id a reserved name?
+        return self._filter_using_root_table(key="_dlt_load_id", values_to_include=load_ids)
 
     def filter_by_latest_load_id(
         self, status: Union[int, list[int], None] = 0
@@ -313,18 +335,20 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
 
         If `status` is None, don't filter by status.
         """
-        from dlt.helpers.ibis import create_unbound_ibis_table
-
-        # filter load table
-        load_table = create_unbound_ibis_table(
-            self.sql_client, schema=self.schema, table_name=self.schema.loads_table_name
-        )
+        # put the _ibis_object in a list to respect the _filter_using_root_table() signature
+        latest_load_id = self.latest_load_id(status=status)._ibis_object
+        return self._filter_using_root_table(key="_dlt_load_id", values_to_include=[latest_load_id])
+    
+    def filter_by_load_id_gt(
+        self, load_id: str, status: Union[int, list[int], None] = 0
+    ) -> "ReadableIbisRelation":
+        load_table = self.load_table
         if status is not None:
-            status_list = [status] if isinstance(status, int) else status
-            load_table = load_table.filter(load_table.status.isin(status_list))
+            status = [status] if isinstance(status, int) else status
+            load_table = load_table.filter(load_table.status.isin(status))
 
-        latest_load_id = load_table.load_id.max()
-        return self._filter_using_load_table(key="load_id", values_to_include=[latest_load_id])
+        load_table = load_table.filter(load_table.load_id > load_id)
+        return self._filter_using_root_table(key="_dlt_load_id", values_to_include=load_table.load_id)
 
     # forward ibis comparison and math operators
     def __lt__(self, other: Any) -> "ReadableIbisRelation":

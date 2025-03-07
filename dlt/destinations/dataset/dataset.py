@@ -174,31 +174,27 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
         return self(query)
 
     def list_load_ids(
-        self, status: Union[int, list[int], None] = 0, limit: int = 10
+        self, status: Union[int, list[int], None] = 0, limit: Union[int, None] = 10
     ) -> SupportsReadableRelation:
         """Return the list most recent `load_id`s in descending order.
 
         If no `load_id` is found, return empty list.
         """
+        # TODO protect from SQL injection
+        query = "SELECT load_id FROM {self.schema.loads_table_name}"
+
         if status is not None:
-            # fmt: off
-            status_list = [status,] if isinstance(status, int) else status
-            # fmt: on
-            # TODO protect from SQL injection
-            query = textwrap.dedent(f"""SELECT load_id
-                FROM {self.schema.loads_table_name}
-                WHERE status IN {status_list}
-                ORDER BY load_id DESC
-                LIMIT {limit}""")
-        else:
-            query = textwrap.dedent(f"""SELECT load_id
-                FROM {self.schema.loads_table_name}
-                ORDER BY load_id DESC
-                LIMIT {limit}""")
+            status_list = [status] if isinstance(status, int) else status
+            query += f"WHERE status IN {status_list}"
+        
+        query += "ORDER BY load_id DESC"
+        
+        if limit is not None:
+            query += f"LIMIT {limit}"
 
         return self(query)
 
-    def latest_load_id(self, status: Union[int, list[int]] = 0) -> SupportsReadableRelation:
+    def latest_load_id(self, status: Union[int, list[int], None] = 0) -> SupportsReadableRelation:
         """Return the latest `load_id`.
 
         If no `load_id` is found, return empty list.
