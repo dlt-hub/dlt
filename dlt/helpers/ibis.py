@@ -7,7 +7,7 @@ from dlt.common.schema import Schema
 from dlt.destinations.sql_client import SqlClientBase
 
 try:
-    import ibis  # type: ignore
+    import ibis
     import sqlglot
     from ibis import BaseBackend
     from ibis.expr.types import Table
