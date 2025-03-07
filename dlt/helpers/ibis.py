@@ -17,7 +17,7 @@ from dlt.destinations.impl.clickhouse.configuration import ClickHouseClientConfi
 from dlt.common.storages.configuration import FilesystemConfiguration
 
 try:
-    import ibis  # type: ignore
+    import ibis
     import sqlglot
     from ibis import BaseBackend
     from ibis.expr.types import Table

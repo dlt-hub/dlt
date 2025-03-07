@@ -173,7 +173,9 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
         # Execute query and build result dict
         return self(query)
 
-    def list_load_ids(self, status: Union[int, list[int], None] = 0, limit: int = 10) -> SupportsReadableRelation:
+    def list_load_ids(
+        self, status: Union[int, list[int], None] = 0, limit: int = 10
+    ) -> SupportsReadableRelation:
         """Return the list most recent `load_id`s in descending order.
 
         If no `load_id` is found, return empty list.

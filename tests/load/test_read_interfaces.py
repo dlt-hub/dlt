@@ -470,7 +470,7 @@ def test_dataset_load_id_retrieval(populated_pipeline: Pipeline) -> None:
     load_ids = [r[0] for r in results]
     assert set(load_ids) == set(successful_load_ids)
     assert load_ids == sorted(successful_load_ids, reverse=True)
-    
+
     # check status kwarg
     assert len(dataset.list_load_ids(status=1).fetchall()) == 0
     assert len(dataset.list_load_ids(status=[0]).fetchall()) == len(successful_load_ids)
