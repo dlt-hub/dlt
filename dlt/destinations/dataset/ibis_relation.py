@@ -1,12 +1,10 @@
 from collections.abc import Sequence
+from functools import partial, cached_property
 from typing import TYPE_CHECKING, Any, Union
 
-from functools import partial, cached_property
-
 from dlt.common.exceptions import MissingDependencyException
-from dlt.common.schema import Schema
 from dlt.common.schema.utils import get_root_table, get_root_to_table_chain
-from dlt.common.schema.typing import TTableSchemaColumns, TTableSchema
+from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.destinations.dataset.relation import BaseReadableDBAPIRelation
 
 if TYPE_CHECKING:
@@ -289,7 +287,7 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
         """set which columns will be selected"""
         return self._proxy_expression_method("select", *columns)  # type: ignore
     
-    # TODO ensure same defaults in ReadableDBAPIDataset and ReadableIbisRelation
+    # TODO ensure same defaults in ReadableDBAPIDataset and ReadableIbisRelation; and docstrings
     def list_load_ids(
         self, status: Union[int, list[int], None] = 0, limit: int | None = None
     ) -> "ReadableIbisRelation":
@@ -342,13 +340,9 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
     def filter_by_load_id_gt(
         self, load_id: str, status: Union[int, list[int], None] = 0
     ) -> "ReadableIbisRelation":
-        load_table = self.load_table
-        if status is not None:
-            status = [status] if isinstance(status, int) else status
-            load_table = load_table.filter(load_table.status.isin(status))
-
-        load_table = load_table.filter(load_table.load_id > load_id)
-        return self._filter_using_root_table(key="_dlt_load_id", values_to_include=load_table.load_id)
+        load_ids = self.list_load_ids(status=status, limit=None)
+        load_ids = load_ids.filter(load_ids.load_id > load_id)
+        return self._filter_using_root_table(key="_dlt_load_id", values_to_include=load_ids)
 
     # forward ibis comparison and math operators
     def __lt__(self, other: Any) -> "ReadableIbisRelation":
