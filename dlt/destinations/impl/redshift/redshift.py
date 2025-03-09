@@ -65,17 +65,19 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
         file_path: str,
         staging_credentials: Optional[CredentialsConfiguration] = None,
         staging_iam_role: str = None,
+        s3_region: str = "us-east-1",  # Add region as a parameter
     ) -> None:
         super().__init__(file_path, staging_credentials)
         self._staging_iam_role = staging_iam_role
+        self._s3_region = s3_region  # Store region
         self._job_client: "RedshiftClient" = None
 
     def run(self) -> None:
         self._sql_client = self._job_client.sql_client
-        # we assume s3 credentials where provided for the staging
+        # Assume S3 credentials were provided for the staging
         credentials = ""
         if self._staging_iam_role:
-            credentials = f"IAM_ROLE '{self._staging_iam_role}'"
+            credentials = f"IAM_ROLE '{self._staging_iam_role}' REGION '{self._s3_region}'"
         elif self._staging_credentials and isinstance(
             self._staging_credentials, AwsCredentialsWithoutDefaults
         ):
@@ -83,10 +85,10 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
             aws_secret_key = self._staging_credentials.aws_secret_access_key
             credentials = (
                 "CREDENTIALS"
-                f" 'aws_access_key_id={aws_access_key};aws_secret_access_key={aws_secret_key}'"
+                f" 'aws_access_key_id={aws_access_key};aws_secret_access_key={aws_secret_key};region={self._s3_region}'"
             )
 
-        # get format
+        # Get format
         ext = os.path.splitext(self._bucket_path)[1][1:]
         file_type = ""
         dateformat = ""
@@ -97,15 +99,12 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
             compression = "" if is_compression_disabled() else "GZIP"
         elif ext == "parquet":
             file_type = "PARQUET"
-            # if table contains json types then SUPER field will be used.
-            # https://docs.aws.amazon.com/redshift/latest/dg/ingest-super.html
             if table_schema_has_type(self._load_table, "json"):
                 file_type += " SERIALIZETOJSON"
         else:
             raise ValueError(f"Unsupported file type {ext} for Redshift.")
 
         with self._sql_client.begin_transaction():
-            # TODO: if we ever support csv here remember to add column names to COPY
             self._sql_client.execute_sql(f"""
                 COPY {self._sql_client.make_qualified_table_name(self.load_table_name)}
                 FROM '{self._bucket_path}'
